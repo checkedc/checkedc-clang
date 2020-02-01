@@ -1676,6 +1676,41 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
   const PrintingPolicy &Policy = Actions.getASTContext().getPrintingPolicy();
   Sema::TagUseKind TUK;
+
+  // Checked C - handle generic structs.
+  if (Tok.is(tok::kw__For_any)) {
+    // TODO: add error handling here. See issues/644.
+    unsigned DiagID;
+    const char *PrevSpec;
+    DS.setSpecForany(Tok.getLocation(), PrevSpec, DiagID);
+    ParseForanySpecifier(DS);
+  }
+
+  if (Tok.is(tok::kw__Itype_for_any)) {
+    // TODO: add error handling here
+    unsigned DiagID;
+    const char *PrevSpec;
+    DS.setSpecItypeforany(Tok.getLocation(), PrevSpec, DiagID);
+    ParseItypeforanySpecifier(DS);
+  }
+
+  // Checked C - checked scope keyword, possibly followed by checked scope modifier,
+  // followed by '{'.   Set the kind of checked scope and consume the checked scope-related
+  // keywords.
+  CheckedScopeSpecifier CSS = CSS_None;
+  if (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace)) {
+    CSS = CSS_Memory;
+    ConsumeToken();
+  } else if (Tok.is(tok::kw__Checked) && NextToken().is(tok::kw__Bounds_only) &&
+    GetLookAheadToken(2).is(tok::l_brace)) {
+    CSS = CSS_Bounds;
+    ConsumeToken();
+    ConsumeToken();
+  } else if (Tok.is(tok::kw__Unchecked) && NextToken().is(tok::l_brace)) {
+   CSS = CSS_Unchecked;
+   ConsumeToken();
+  }
+
   if (DSC == DeclSpecContext::DSC_trailing)
     TUK = Sema::TUK_Reference;
   else if (Tok.is(tok::l_brace) ||
@@ -1741,6 +1776,9 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
     }
   } else
     TUK = Sema::TUK_Reference;
+
+  // Checked C - mark the current scope as checked or unchecked if necessary.
+  Sema::CheckedScopeRAII CheckedScope(Actions, CSS);
 
   // Forbid misplaced attributes. In cases of a reference, we pass attributes
   // to caller to handle.
@@ -1923,15 +1961,62 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
     stripTypeAttributesOffDeclSpec(attrs, DS, TUK);
 
+    assert(getCurScope()->isForanyScope() == DS.isForanySpecified());
+    assert(getCurScope()->isItypeforanyScope() == DS.isItypeforanySpecified());
+
+    // Checked C: if the struct has type parameters, then they introduced a new scope, so we
+    // must make sure to add the struct to the parent scope instead.
+    // The type parameters scope is removed later in 'ParseDeclOrFunctionDefInternal'.
+    Scope *structScope = (getCurScope()->isForanyScope() || getCurScope()->isItypeforanyScope()) ? getCurScope()->getParent() : getCurScope();
+
+    // Checked C: figure out what (if any) kind of generic we're dealing with.
+    RecordDecl::Genericity GenericKind = RecordDecl::NonGeneric;
+    if (DS.isForanySpecified()) {
+      GenericKind = RecordDecl::Generic;
+    } else if (DS.isItypeforanySpecified()) {
+      GenericKind = RecordDecl::ItypeGeneric;
+    }
+
     // Declaration or definition of a class type
     TagOrTempResult = Actions.ActOnTag(
-        getCurScope(), TagType, TUK, StartLoc, SS, Name, NameLoc, attrs, AS,
+        structScope, TagType, TUK, StartLoc, SS, Name, NameLoc, attrs, AS,
         DS.getModulePrivateSpecLoc(), TParams, Owned, IsDependent,
         SourceLocation(), false, clang::TypeResult(),
         DSC == DeclSpecContext::DSC_type_specifier,
         DSC == DeclSpecContext::DSC_template_param ||
             DSC == DeclSpecContext::DSC_template_type_arg,
-        &SkipBody);
+        &SkipBody,
+        GenericKind,
+        DS.typeVariables());
+
+    // Checked C: a reference to a struct can be followed by a list of type arguments,
+    // if the struct is generic.
+    if (TagOrTempResult.isUsable() && TUK == Sema::TUK_Reference) {
+      RecordDecl *Decl = llvm::dyn_cast<RecordDecl>(TagOrTempResult.get()->getCanonicalDecl());
+      if (Decl && Decl->isGeneric()) {
+        // We're parsing a reference to a generic struct, so we need to parse
+        // the type arguments before we can instantiate.
+        TagOrTempResult = ParseRecordTypeApplication(Decl, false /* IsItypeGeneric */);
+      } else if (Decl->isItypeGeneric()) {
+        if (Actions.IsCheckedScope() || Tok.is(tok::less)) {
+          // For an itype generic in a checked scope, we require type arguments as well.
+          // If the scope is unchecked but the user provides arguments, we allow that too.
+          TagOrTempResult = ParseRecordTypeApplication(Decl, true /* IsItypeGeneric */);
+        } else {
+          // In an unchecked scope without type arguments, we synthesize all arguments as void.
+          // TODO: factour out the generation of void arguments into a function that can be reused here
+          // and for functions.
+          auto &Ctx = Actions.getASTContext();
+          TypeArgVector VoidArgs;
+          auto numTypeParams = Decl->typeParams().size();
+          for (size_t i = 0; i < numTypeParams; ++i) {
+            TypeSourceInfo *TInfo = Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy, SourceLocation());
+            VoidArgs.push_back({ Ctx.VoidTy, TInfo });
+          }
+          TagOrTempResult = Actions.ActOnRecordTypeApplication(Decl, VoidArgs);
+        }
+      }
+    }
 
     // If ActOnTag said the type was dependent, try again with the
     // less common call.
@@ -2017,6 +2102,42 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
       Tok.setKind(tok::semi);
     }
   }
+}
+
+/// Checked C: parse an application of the 'Base' 'RecordDecl' to a number of type
+/// arguments that are yet to be parsed.
+/// 'IsItypeGeneric' is true if we're parsing a type application where the base type
+/// is an "itype generic" (as opposed to a regular generic). This is used when generatingq
+/// error messages.
+///
+/// generic-struct-instantiation
+///   '<' type-name-list '>'
+///
+/// type-name-list
+///   type-name type-name-list-suffix [opt]
+///
+///  type-name-list-suffix
+///    ',' type-name type-name-list-suffix [opt]
+DeclResult Parser::ParseRecordTypeApplication(RecordDecl *Base, bool IsItypeGeneric) {
+  assert(Base->isGenericOrItypeGeneric() && "Instantiated record must be generic");
+  if (Tok.isNot(tok::less)) {
+    if (IsItypeGeneric) Diag(Tok.getLocation(), diag::err_expected_type_argument_list_for_itype_generic_instance);
+    else Diag(Tok.getLocation(), diag::err_expected_type_argument_list_for_generic_instance);
+    SkipUntil(tok::greater, StopAtSemi);
+    return true;
+  }
+  ConsumeToken(); // eat '<'
+  auto ArgsRes = ParseGenericTypeArgumentList(SourceLocation());
+  if (ArgsRes.first) {
+    // Problem while parsing the type arguments (error is produced by 'ParseGenericTypeArgumentList')
+    return true;
+  }
+  if (ArgsRes.second.size() != Base->typeParams().size()) {
+    Diag(Tok.getLocation(), diag::err_num_type_args_params_mistmatch)
+      << static_cast<unsigned int>(Base->typeParams().size()) << static_cast<unsigned int>(ArgsRes.second.size());
+    return true;
+  } 
+  return Actions.ActOnRecordTypeApplication(Base, ArrayRef<TypeArgument>(ArgsRes.second));
 }
 
 /// ParseBaseClause - Parse the base-clause of a C++ class [C++ class.derived].

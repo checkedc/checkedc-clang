@@ -38,3 +38,7 @@ test/debuginfo-tests
 .vscode
 .vs
 
+# Pycharm IDE files.
+.idea/
+.cmake-build-debug/
+

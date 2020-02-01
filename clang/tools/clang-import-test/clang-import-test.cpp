@@ -185,6 +185,8 @@ std::unique_ptr<CompilerInstance> BuildCompilerInstance() {
       Inv->getLangOpts()->ObjC = 1;
     }
   }
+  // Make sure this tool does not have the Checked C option enabled.
+  Inv->getLangOpts()->CheckedC = false;
   Inv->getLangOpts()->Bool = true;
   Inv->getLangOpts()->WChar = true;
   Inv->getLangOpts()->Blocks = true;

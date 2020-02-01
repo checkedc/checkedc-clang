@@ -17,6 +17,7 @@
 #include "clang/AST/ASTContextAllocate.h"
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/CanonicalType.h"
+#include "clang/AST/CanonBounds.h"
 #include "clang/AST/CommentCommandTraits.h"
 #include "clang/AST/ComparisonCategories.h"
 #include "clang/AST/Decl.h"
@@ -30,6 +31,7 @@
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
+#include "clang/AST/TypeOrdering.h"
 #include "clang/Basic/AddressSpaces.h"
 #include "clang/Basic/AttrKinds.h"
 #include "clang/Basic/IdentifierTable.h"
@@ -174,6 +176,7 @@ private:
   mutable llvm::FoldingSet<ExtQuals> ExtQualNodes;
   mutable llvm::FoldingSet<ComplexType> ComplexTypes;
   mutable llvm::FoldingSet<PointerType> PointerTypes;
+  mutable llvm::FoldingSet<TypeVariableType> TypeVariableTypes;
   mutable llvm::FoldingSet<AdjustedType> AdjustedTypes;
   mutable llvm::FoldingSet<BlockPointerType> BlockPointerTypes;
   mutable llvm::FoldingSet<LValueReferenceType> LValueReferenceTypes;
@@ -279,6 +282,34 @@ private:
   ///
   /// This is lazily created.  This is intentionally not serialized.
   mutable llvm::StringMap<StringLiteral *> StringLiteralCache;
+
+  /// Mapping from (generic record decl, type arguments) pairs to instantiated record decls.
+  /// e.g. (List, int) -> List<int>
+  /// This keeps tracks of all type applications both so we can preserve the uniqueness invariant
+  /// for decls and types, and also so we can typecheck complex recursive applications.
+  llvm::DenseMap<std::pair<const RecordDecl *, ArrayRef<const Type *> >, RecordDecl *>
+    CachedTypeApps;
+
+  /// Mapping from RecordDecls to list of delayed type applications.
+  /// The key is a declaration or definition of the generic RecordDecl, and the
+  /// corresponding values all have the given RecordDecl as base.
+  /// e.g. List<T> -> [List<int>, List<List<char>>, List<char>, ...]
+  ///      Foo<T>  -> [Foo<Foo<int>>, Foo<char>, ...]
+  /// A delayed type application is represented as a RecordDecl for which RecordDecl::isInstantiated()
+  /// returns 'true'. The parameters in a type application can be retrieved via RecordDecl::typeParams().
+  llvm::DenseMap<const RecordDecl *, llvm::SmallVector<RecordDecl *, 4> > DelayedTypeApps;
+
+  /// Mapping from a (type-variable, inner-type) pair to the corresponding existential type.
+  /// e.g. if we've previously created a type E = '_Exists(T, struct Foo<T>)',
+  /// then, this map links '(T, struct Foo<T>) -> E'.
+  /// This map alone is not enough to guarantee unique existential types.
+  /// e.g. consider two types '_Exists(T, struct Foo<T>)' and '_Exists(U, struct Foo<U>)',
+  /// where 'T = TypeVariableType(0, 0)' and 'U = TypeVariableType(1, 0)' (say, because
+  /// U shows up at a higher nestedness level). Then the two types will look different
+  /// when compared with pointer equality, but they should be considered the same type.
+  /// Another way to say this is to say that this map contains entries that are (functional)
+  /// duplicates.
+  llvm::DenseMap<std::pair<const Type *, QualType>, const ExistentialType *> CachedExistTypes;
 
   /// Representation of a "canonical" template template parameter that
   /// is used in canonical template names.
@@ -1221,9 +1252,13 @@ public:
 
   /// Return the uniqued reference to the type for a pointer to
   /// the specified type.
-  QualType getPointerType(QualType T) const;
-  CanQualType getPointerType(CanQualType T) const {
-    return CanQualType::CreateUnsafe(getPointerType((QualType) T));
+  QualType getPointerType(QualType T,
+                          CheckedPointerKind kind =
+                            CheckedPointerKind::Unchecked) const;
+  CanQualType getPointerType(CanQualType T,
+                             CheckedPointerKind kind =
+                               CheckedPointerKind::Unchecked) const {
+    return CanQualType::CreateUnsafe(getPointerType((QualType) T, kind));
   }
 
   /// Return the uniqued reference to a type adjusted from the original
@@ -1264,11 +1299,19 @@ public:
   /// pointer to blocks.
   QualType getBlockDescriptorExtendedType() const;
 
+  /// Returns a type variable type based on the depth of "for any" or
+  /// "itype for any" scope where type variable is declared, and the
+  /// position of the type variable in _For_any or _Itype_for_any
+  ///.qualifier respectively
+  QualType getTypeVariableType(unsigned int depth, unsigned int position,
+                               bool isBoundsInterfaceType) const;
+
   /// Map an AST Type to an OpenCLTypeKind enum value.
   TargetInfo::OpenCLTypeKind getOpenCLTypeKind(const Type *T) const;
 
   /// Get address space for OpenCL type.
   LangAS getOpenCLTypeAddrSpace(const Type *T) const;
+
 
   void setcudaConfigureCallDecl(FunctionDecl *FD) {
     cudaConfigureCallDecl = FD;
@@ -1324,17 +1367,24 @@ public:
   /// the specified element type.
   QualType getIncompleteArrayType(QualType EltTy,
                                   ArrayType::ArraySizeModifier ASM,
-                                  unsigned IndexTypeQuals) const;
+                                  unsigned IndexTypeQuals,
+                                  CheckedArrayKind =
+                                    CheckedArrayKind::Unchecked) const;
 
   /// Return the unique reference to the type for a constant array of
   /// the specified element type.
   QualType getConstantArrayType(QualType EltTy, const llvm::APInt &ArySize,
                                 ArrayType::ArraySizeModifier ASM,
-                                unsigned IndexTypeQuals) const;
+                                unsigned IndexTypeQuals,
+                                CheckedArrayKind Kind =
+                                  CheckedArrayKind::Unchecked
+                                ) const;
 
   /// Return a type for a constant array for a string literal of the
   /// specified element type and length.
-  QualType getStringLiteralArrayType(QualType EltTy, unsigned Length) const;
+  QualType getStringLiteralArrayType(QualType EltTy, unsigned Length,
+                                     CheckedArrayKind Kind =
+                                       CheckedArrayKind::Unchecked) const;
 
   /// Returns a vla type where known sizes are replaced with [*].
   QualType getVariableArrayDecayedType(QualType Ty) const;
@@ -2559,8 +2609,10 @@ public:
   //===--------------------------------------------------------------------===//
 
   /// Compatibility predicates used to check assignment expressions.
-  bool typesAreCompatible(QualType T1, QualType T2,
-                          bool CompareUnqualified = false); // C99 6.2.7p1
+
+  bool typesAreCompatible(QualType T1, QualType T2, 
+                          bool CompareUnqualified = false, // C99 6.2.7p1
+                          bool IgnoreBounds = false);
 
   bool propertyTypesAreCompatible(QualType, QualType);
   bool typesAreBlockPointerCompatible(QualType, QualType);
@@ -2598,16 +2650,19 @@ public:
 
   // Functions for calculating composite types
   QualType mergeTypes(QualType, QualType, bool OfBlockPointer=false,
-                      bool Unqualified = false, bool BlockReturnType = false);
+                      bool Unqualified = false, bool BlockReturnType = false,
+                      bool IgnoreBounds = false);
   QualType mergeFunctionTypes(QualType, QualType, bool OfBlockPointer=false,
-                              bool Unqualified = false);
+                              bool Unqualified = false, bool IgnoreBounds = false);
   QualType mergeFunctionParameterTypes(QualType, QualType,
                                        bool OfBlockPointer = false,
-                                       bool Unqualified = false);
+                                       bool Unqualified = false,
+                                       bool IgnoreBounds = false);
   QualType mergeTransparentUnionType(QualType, QualType,
                                      bool OfBlockPointer=false,
-                                     bool Unqualified = false);
-
+                                     bool Unqualified = false,
+                                     bool IgnoreBounds = false);
+  
   QualType mergeObjCGCQualifiers(QualType, QualType);
 
   /// This function merges the ExtParameterInfo lists of two functions. It
@@ -2636,6 +2691,129 @@ public:
       SmallVectorImpl<FunctionProtoType::ExtParameterInfo> &NewParamInfos);
 
   void ResetObjCLayout(const ObjCContainerDecl *CD);
+
+  //===--------------------------------------------------------------------===//
+  //          Predicates and methods for Checked C checked types and bounds
+  //===--------------------------------------------------------------------===//
+
+  /// Given record types T1 and T2, if T2 is the "raw" type of a field,
+  /// determine whether T1 is a valid itype for the same field. In this case,
+  /// we say T2 matches T1.
+  ///
+  /// A record type T2 matches T1 if at least one of the following holds:
+  ///   1) T2 == T1 OR
+  ///   2) T1 and T2 are both type applications, T2.genericBaseDecl() == T1.genericBaseDecl(),
+  ///      and T2's type arguments are all 'void'.
+  ///
+  /// Rule 2.2) exists so that we can "refine" type applications where the arguments aren't specified
+  /// (such as those coming from C code).
+  ///
+  /// Example:
+  /// struct List _Itype_forany(T) { struct List *next : itype(struct List<T>); };
+  ///
+  /// The type of 'next' is 'struct List<void>' (the type argument gets added automatically).
+  /// 'struct List<T>' matches 'struct List<void>', so 'recordTypesMatch(List<void>, List<T>)'
+  /// returns 'true'.
+  bool recordTypesMatch(const RecordType *T1, const RecordType *T2) const;
+
+  /// \brief Determine whether a pointer, array, or function type T1 provides
+  /// at least as much checking as the other type T2.  Return true if it does
+  /// or false if it does not or the types differ in some other way than
+  /// checkedness.
+  /// Note:: In bounds safe interface scopes, this function
+  /// returns true if T1 is a TypeVariableType and T2 is a pointer to void type
+  bool isAtLeastAsCheckedAs(QualType T1, QualType T2) const;
+
+  /// \brief Determine whether a pointer, array, or function type T1
+  /// is the same as the other pointer, array, or function type T2 if
+  /// checkedness is ignored.  Return true if does or false if the types
+  /// differ in some other way than checkedness.
+  /// Note:: In bounds safe interface scopes, this function
+  /// returns true if T1 is a TypeVariableType and T2 is a pointer to void type
+  bool isEqualIgnoringChecked(QualType T1, QualType T2) const;
+
+  /// \brief Return true if this type is a checked type that is not
+  /// allowed to be passed or returned from a no prototype function.
+  bool isNotAllowedForNoPrototypeFunction(QualType T1) const;
+
+  // Methods to support checking assignments in the presence of
+  // checked pointers.
+
+  /// \brief pointeeTypesAreAssignable: given a LHS pointer and a RHS pointer,
+  /// determine whether the LHS pointee can be assigned to the RHS pointee.
+  /// The pointer types must be the same kind or the RHS pointer type must
+  /// be unchecked.
+  bool pointeeTypesAreAssignable(QualType lhsptee, QualType rhsptee);
+private:
+  QualType matchArrayCheckedness(QualType LHS, QualType RHS);
+  BoundsExpr *PrebuiltByteCountOne;
+  BoundsExpr *PrebuiltCountZero;
+  BoundsExpr *PrebuiltCountOne;
+  BoundsExpr *PrebuiltBoundsUnknown;
+
+public:
+  bool EquivalentAnnotations(const BoundsAnnotations &Annots1,
+                             const BoundsAnnotations &Annots2);
+  bool EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2,
+                        EquivExprSets *EquivExprs = nullptr);
+  bool EquivalentInteropTypes(const InteropTypeExpr *Expr1,
+                              const InteropTypeExpr *Expr2);
+
+  BoundsExpr *getPrebuiltByteCountOne();
+  BoundsExpr *getPrebuiltCountZero();
+  BoundsExpr *getPrebuiltCountOne();
+  BoundsExpr *getPrebuiltBoundsUnknown();
+
+  // Track the set of member bounds declarations that use a given
+  // member path.   For each member bounds declaration, we store the
+  // field with the declaration, not the member bound itself.
+
+  // Members are stored in reverse order.  Given a.b.c, we store c.b.a
+  typedef SmallVector<const FieldDecl *,4> MemberPath;
+  struct PathCompare {
+  private:
+    Lexicographic Comparer;
+  public:
+    PathCompare(ASTContext &Context) : Comparer(Lexicographic(Context, nullptr)) {}
+
+    bool operator()(const MemberPath &P1, const MemberPath &P2) const {
+      if (P1.size() < P2.size())
+        return true;
+      if (P1.size() > P2.size())
+        return false;
+      for (unsigned i = 0; i < P1.size(); i++) {
+         Lexicographic::Result R = Comparer.CompareDecl(P1[i],P2[i]);
+         if (R == Lexicographic::Result::LessThan)
+           return true;
+         if (R == Lexicographic::Result::GreaterThan)
+           return false;
+      }
+      return false;
+    }
+  };
+
+  typedef llvm::TinyPtrVector<const FieldDecl*> MemberDeclVector;
+private:
+  std::map<MemberPath, MemberDeclVector, PathCompare> UsingBounds;
+
+public:
+  typedef MemberDeclVector::const_iterator member_bounds_iterator;
+  member_bounds_iterator using_member_bounds_begin(const MemberPath &Path) const;
+  member_bounds_iterator using_member_bounds_end(const MemberPath &Path) const;
+
+  unsigned using_member_bounds_size(const MemberPath &Path) const;
+  typedef llvm::iterator_range<member_bounds_iterator> member_bounds_iterator_range;
+  member_bounds_iterator_range using_member_bounds(const MemberPath &Path) const;
+
+  /// \brief Note that \p MemberPath is used by the member bounds for
+  /// \p UsingBounds.
+  void addMemberBoundsUse(const MemberPath &MemberPath,
+                          const FieldDecl *UsingBounds);
+
+  /// \brief Given an InteropTypeExpr pointer, return the interop type.
+  /// Adjust the type if the type is for a parameter.  Return a null QualType
+  /// if the pointer is null.
+  QualType getInteropTypeAndAdjust(const InteropTypeExpr *BA, bool IsParam) const;
 
   //===--------------------------------------------------------------------===//
   //                    Integer Predicates
@@ -3023,6 +3201,45 @@ public:
   };
 
   llvm::StringMap<SectionInfo> SectionInfos;
+
+public:
+  //===--------------------------------------------------------------------===//
+  //                     Checked C: type applications
+  //===--------------------------------------------------------------------===//
+
+  /// Get the result of the type application 'Base<TypeArgs>', if it's been already cached.
+  /// If it's not cached, return 'nullptr'.
+  RecordDecl *getCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs);
+
+  /// Return all type applications that have the given generic decl as base.
+  /// This is currently slow since it iterates over all cached type applications.
+  /// TODO: improve its efficiency. See issues/644.
+  std::vector<const RecordDecl *> getTypeAppsWithBase(const RecordDecl *Base);
+
+  /// Add the instantiated record type 'Inst' as the result of the type application 'Base<TypeArgs>'.
+  /// Cached applications shouldn't be overwritten, so this should be called at most once per key.
+  void addCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs, RecordDecl *Inst);
+
+  /// Get the list of type applications that have 'Base' as their base RecordDecl.
+  ArrayRef<RecordDecl *> getDelayedTypeApps(RecordDecl *Base);
+
+  /// Add TypeApp to the cache using TypeApp's base field as the key.
+  void addDelayedTypeApp(RecordDecl *TypeApp);
+
+  /// Remove all type applications that have 'Base' as their base RecordDecl.
+  /// Return 'true' if the removed key was in the cache, and 'false' otherwise.
+  bool removeDelayedTypeApps(RecordDecl *Base);
+
+  // Checked C: Existential Types
+
+  /// Get the existential type corresponding to the pair (type-var, inner-type).
+  /// If there is no cached existential, return `nullptr`.
+  const ExistentialType *getCachedExistentialType(const Type *TypeVar, QualType InnerType);
+
+  /// Add the mapping `(type-var, inner-type) -> exist-type` to the cache of
+  /// existential types. This should only be called once per key (i.e. cache elements
+  /// should not be re-written).
+  void addCachedExistentialType(const Type *TypeVar, QualType InnerType, const ExistentialType *ExistType);
 };
 
 /// Utility function for constructing a nullary selector.

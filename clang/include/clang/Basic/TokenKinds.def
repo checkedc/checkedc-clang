@@ -662,6 +662,25 @@ ALIAS("_uuidof"          , __uuidof   , KEYMS | KEYBORLAND)
 ALIAS("_inline"          , inline     , KEYMS)
 ALIAS("_declspec"        , __declspec , KEYMS)
 
+// Checked C Extension
+KEYWORD(_Array_ptr                 , KEYCHECKEDC)
+KEYWORD(_Nt_array_ptr              , KEYCHECKEDC)
+KEYWORD(_Ptr                       , KEYCHECKEDC)
+KEYWORD(_Where                     , KEYCHECKEDC)
+KEYWORD(_Checked                   , KEYCHECKEDC)
+KEYWORD(_Nt_checked                , KEYCHECKEDC)
+KEYWORD(_Unchecked                 , KEYCHECKEDC)
+KEYWORD(_Assume_bounds_cast        , KEYCHECKEDC)
+KEYWORD(_Dynamic_bounds_cast       , KEYCHECKEDC)
+KEYWORD(_For_any                   , KEYCHECKEDC)
+KEYWORD(_Itype_for_any             , KEYCHECKEDC)
+KEYWORD(_Current_expr_value        , KEYCHECKEDC)
+KEYWORD(_Return_value              , KEYCHECKEDC)
+KEYWORD(_Bounds_only               , KEYCHECKEDC)
+KEYWORD(_Exists                    , KEYCHECKEDC)
+KEYWORD(_Pack                      , KEYCHECKEDC)
+KEYWORD(_Unpack                    , KEYCHECKEDC)
+
 // Borland Extensions which should be disabled in strict conformance mode.
 ALIAS("_pascal"      , __pascal   , KEYBORLAND)
 
@@ -826,6 +845,11 @@ ANNOTATION(pragma_fp)
 
 // Annotation for the attribute pragma directives - #pragma clang attribute ...
 ANNOTATION(pragma_attribute)
+
+// Annotations for CHECKED_SCOPE pragma directives for checkedc
+// The lexer produces these so that they only take effect when the parser
+// handles #pragma CHECKED_SCOPE ... directives.
+ANNOTATION(pragma_checked_scope)
 
 // Annotations for module import translated from #include etc.
 ANNOTATION(module_include)

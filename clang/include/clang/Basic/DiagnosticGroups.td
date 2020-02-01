@@ -959,6 +959,17 @@ def MicrosoftAnonTag : DiagGroup<"microsoft-anon-tag">;
 def MicrosoftCommentPaste : DiagGroup<"microsoft-comment-paste">;
 def MicrosoftEndOfFile : DiagGroup<"microsoft-end-of-file">;
 def MicrosoftInaccessibleBase : DiagGroup<"microsoft-inaccessible-base">;
+
+// Checked C warnings for bounds declaration checking.
+def CheckBoundsDeclsUnchecked : DiagGroup<"check-bounds-decls-unchecked-scope">;
+def CheckBoundsDeclsChecked : DiagGroup<"check-bounds-decls-checked-scope">;
+def CheckBoundsDecls : DiagGroup<"check-bounds-decls",
+   [CheckBoundsDeclsUnchecked,
+    CheckBoundsDeclsChecked]>;
+// Checked C warnings about memory accesses determined to be out of
+// declared bounds.
+def CheckMemoryAccesses : DiagGroup<"check-memory-accesses">;
+
 // Aliases.
 def : DiagGroup<"msvc-include", [MicrosoftInclude]>;
                 // -Wmsvc-include = -Wmicrosoft-include
@@ -1071,3 +1082,6 @@ def CrossTU : DiagGroup<"ctu">;
 def CTADMaybeUnsupported : DiagGroup<"ctad-maybe-unsupported">;
 
 def FortifySource : DiagGroup<"fortify-source">;
+
+// A warning group for all Checked C warnings
+def CheckedC : DiagGroup<"checkedc">;

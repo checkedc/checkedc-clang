@@ -6577,6 +6577,8 @@ public:
       return HandleDynamicCast(Info, cast<ExplicitCastExpr>(E), Result);
     }
   }
+
+  bool VisitCHKCBindTemporaryExpr(const CHKCBindTemporaryExpr *E);
 };
 } // end anonymous namespace
 
@@ -6899,6 +6901,11 @@ bool LValueExprEvaluator::VisitBinAssign(const BinaryOperator *E) {
 
   return handleAssignment(this->Info, E, Result, E->getLHS()->getType(),
                           NewVal);
+}
+
+bool LValueExprEvaluator::VisitCHKCBindTemporaryExpr(
+  const CHKCBindTemporaryExpr *E) {
+  return Visit(E->getSubExpr());
 }
 
 //===----------------------------------------------------------------------===//
@@ -9043,6 +9050,12 @@ EvaluateBuiltinClassifyType(QualType T, const LangOptions &LangOpts) {
     return EvaluateBuiltinClassifyType(
         CanTy->castAs<AtomicType>()->getValueType(), LangOpts);
 
+  case Type::TypeVariable:
+    return GCCTypeClass::Void;
+  case Type::Existential:
+    // Classify _Exists(T, InnerType) the same as InnerType.
+    return EvaluateBuiltinClassifyType(CanTy->castAs<ExistentialType>()->innerType(), LangOpts);
+
   case Type::BlockPointer:
   case Type::Vector:
   case Type::ExtVector:
@@ -11094,6 +11107,8 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
 
   case CK_UserDefinedConversion:
   case CK_LValueToRValue:
+  case CK_DynamicPtrBounds:
+  case CK_AssumePtrBounds:
   case CK_AtomicToNonAtomic:
   case CK_NoOp:
   case CK_LValueToRValueBitCast:
@@ -11707,6 +11722,8 @@ bool ComplexExprEvaluator::VisitCastExpr(const CastExpr *E) {
     llvm_unreachable("invalid cast kind for complex value");
 
   case CK_LValueToRValue:
+  case CK_DynamicPtrBounds:
+  case CK_AssumePtrBounds:
   case CK_AtomicToNonAtomic:
   case CK_NoOp:
   case CK_LValueToRValueBitCast:
@@ -12716,6 +12733,14 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CoawaitExprClass:
   case Expr::DependentCoawaitExprClass:
   case Expr::CoyieldExprClass:
+  case Expr::CountBoundsExprClass:
+  case Expr::InteropTypeExprClass:
+  case Expr::NullaryBoundsExprClass:
+  case Expr::PositionalParameterExprClass:
+  case Expr::BoundsValueExprClass:
+    // These are parameter variables and are never constants,
+  case Expr::RangeBoundsExprClass:
+  case Expr::PackExprClass:
     return ICEDiag(IK_NotICE, E->getBeginLoc());
 
   case Expr::InitListExprClass: {
@@ -12927,6 +12952,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   }
   case Expr::ImplicitCastExprClass:
   case Expr::CStyleCastExprClass:
+  case Expr::BoundsCastExprClass:    
   case Expr::CXXFunctionalCastExprClass:
   case Expr::CXXStaticCastExprClass:
   case Expr::CXXReinterpretCastExprClass:
@@ -13017,6 +13043,8 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
       return ICEDiag(IK_NotICE, E->getBeginLoc());
     return CheckICE(cast<CastExpr>(E)->getSubExpr(), Ctx);
   }
+  case Expr::CHKCBindTemporaryExprClass:
+    return CheckICE(cast<CHKCBindTemporaryExpr>(E)->getSubExpr(), Ctx);
   }
 
   llvm_unreachable("Invalid StmtClass!");

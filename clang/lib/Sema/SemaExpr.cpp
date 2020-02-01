@@ -18,6 +18,7 @@
 #include "clang/AST/CXXInheritance.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
+
 #include "clang/AST/EvaluatedExprVisitor.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
@@ -323,6 +324,25 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
     return true;
   }
 
+  // Checked C - check if use of declaration has proper type in checked block.
+  // If it is valid declaration, it checks if use of declaration has unchecked
+  // type in checked block.
+  // Otherwise, it does not emit redundant error message at the use of variable
+  // since it already produced an error message at the declaration of variable.
+  // Calls to variable argument functions are not allowed in a checked block.
+  if (IsCheckedScope() &&
+      isa<ValueDecl>(D->getUnderlyingDecl())) {
+    ValueDecl *VD = cast<ValueDecl>(D);
+    if (!VD->isInvalidDecl() && !DiagnoseCheckedDecl(VD, Loc))
+      return true;
+    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+      if (FD->getType()->hasVariadicType()) {
+        Diag(Loc, diag::err_checked_scope_no_variadic_func_for_expression);
+        return true;
+      }
+    }
+  }
+
   DiagnoseAvailabilityOfDecl(D, Locs, UnknownObjCClass, ObjCPropertyAccess,
                              AvoidPartialAvailabilityChecks, ClassReceiver);
 
@@ -449,13 +469,30 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
   assert(!Ty.isNull() && "DefaultFunctionArrayConversion - missing type");
 
   if (Ty->isFunctionType()) {
+    bool isCheckedScope = IsCheckedScope();
+    bool isBoundsSafeInterfaceCast = false;
+
     if (auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenCasts()))
-      if (auto *FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+      if (auto *FD = dyn_cast<FunctionDecl>(DRE->getDecl())) {
         if (!checkAddressOfFunctionIsAvailable(FD, Diagnose, E->getExprLoc()))
           return ExprError();
+        // For Checked C, for uses of functions with bounds-safe
+        // interfaces, we change the function-to-pointer decay
+        // cast in checked scopes to make the target type
+        // completely checked.
+        if (isCheckedScope && Ty->isOrContainsUncheckedType()) {
+          Ty = RewriteBoundsSafeInterfaceTypes(Ty);
+          isBoundsSafeInterfaceCast = true;
+        }
+      }
 
-    E = ImpCastExprToType(E, Context.getPointerType(Ty),
-                          CK_FunctionToPointerDecay).get();
+    CheckedPointerKind kind = isCheckedScope ?
+      CheckedPointerKind::Ptr : CheckedPointerKind::Unchecked;
+    E = ImpCastExprToType(E, Context.getPointerType(Ty, kind),
+                          CK_FunctionToPointerDecay, VK_RValue,
+                          nullptr, Sema::CCK_ImplicitConversion,
+                          isBoundsSafeInterfaceCast).get();
+
   } else if (Ty->isArrayType()) {
     // In C90 mode, arrays only promote to pointers if the array expression is
     // an lvalue.  The relevant legalese is C90 6.2.2.1p3: "an lvalue that has
@@ -468,9 +505,25 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
     // An lvalue or rvalue of type "array of N T" or "array of unknown bound of
     // T" can be converted to an rvalue of type "pointer to T".
     //
-    if (getLangOpts().C99 || getLangOpts().CPlusPlus || E->isLValue())
+    if (getLangOpts().C99 || getLangOpts().CPlusPlus || E->isLValue()) {
+      bool isBoundsSafeInterfaceCast = false;
+
+      // For Checked C, for uses of arrays with bounds-safe interfaces, we
+      // change the array-to-pointer decay cast in checked scopes to make the
+      // target type completely checked.
+      if (IsCheckedScope() && Ty->isOrContainsUncheckedType()) {
+        QualType InteropType = GetCheckedCInteropType(E->IgnoreParenCasts());
+        if (!InteropType.isNull()) {
+          Ty = RewriteBoundsSafeInterfaceTypes(InteropType);
+          isBoundsSafeInterfaceCast = true;
+        }
+      }      
+
       E = ImpCastExprToType(E, Context.getArrayDecayedType(Ty),
-                            CK_ArrayToPointerDecay).get();
+                            CK_ArrayToPointerDecay, VK_RValue,
+                            nullptr, Sema::CCK_ImplicitConversion,
+                            isBoundsSafeInterfaceCast).get();
+    }
   }
   return E;
 }
@@ -670,8 +723,25 @@ ExprResult Sema::CallExprUnaryConversions(Expr *E) {
   // Only do implicit cast for a function type, but not for a pointer
   // to function type.
   if (Ty->isFunctionType()) {
-    Res = ImpCastExprToType(E, Context.getPointerType(Ty),
-                            CK_FunctionToPointerDecay).get();
+    // For Checked C, at uses of functions in checked scopes,
+    // we also convert the function type to be fully checked
+    // as part of the function-to-pointer decay.
+    CheckedPointerKind kind = CheckedPointerKind::Unchecked;
+    bool isBoundsSafeInterfaceCast = false;
+    if (IsCheckedScope()) {
+      kind = CheckedPointerKind::Ptr;
+      if (auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenCasts()))
+        if (isa<FunctionDecl>(DRE->getDecl()))
+          if (Ty->isOrContainsUncheckedType()) {
+            isBoundsSafeInterfaceCast = true;
+            Ty = RewriteBoundsSafeInterfaceTypes(E->getType());
+          }
+    }
+
+    Res = ImpCastExprToType(E, Context.getPointerType(Ty, kind),
+                            CK_FunctionToPointerDecay, VK_RValue,
+                            nullptr, Sema::CCK_ImplicitConversion,
+                            isBoundsSafeInterfaceCast).get();
     if (Res.isInvalid())
       return ExprError();
   }
@@ -1688,8 +1758,15 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
     Diag(RemovalDiagLoc, RemovalDiag);
   }
 
+  // Get an array type for the string, according to C99 6.4.5.  This includes
+  // the nul terminator character as well as the string length for pascal
+  // strings.
+  CheckedArrayKind ArrayKind = IsCheckedScope() ?
+    CheckedArrayKind::NtChecked : CheckedArrayKind::Unchecked;
+
   QualType StrTy =
-      Context.getStringLiteralArrayType(CharTy, Literal.GetNumStringChars());
+      Context.getStringLiteralArrayType(CharTy, Literal.GetNumStringChars(),
+                                        ArrayKind);
 
   // Pass &StringTokLocs[0], StringTokLocs.size() to factory!
   StringLiteral *Lit = StringLiteral::Create(Context, Literal.GetString(),
@@ -1816,6 +1893,16 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
                        NestedNameSpecifierLoc NNS, NamedDecl *FoundD,
                        SourceLocation TemplateKWLoc,
                        const TemplateArgumentListInfo *TemplateArgs) {
+
+  // Checked C - no-prototype function is not allowed in checked scope.
+  // KNR parameter function has no-prototype function proto type
+  if (IsCheckedScope()) {
+    if (Ty->isFunctionNoProtoType()) {
+      Diag(NameInfo.getLoc(), diag::err_checked_scope_no_prototype_func);
+      return ExprError();
+    }
+  }
+
   bool RefersToCapturedVariable =
       isa<VarDecl>(D) &&
       NeedToCaptureVariable(cast<VarDecl>(D), NameInfo.getLoc());
@@ -1846,7 +1933,55 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
     if (auto *BE = BD->getBinding())
       E->setObjectKind(BE->getObjectKind());
 
+  // For Checked C, if we are in a checked scope, cast uses of declarations
+  // with unchecked types to checked types based on their bounds-safe
+  // interfaces.
+  //
+  // We skip declarations with function and array types here.  They are
+  // handled later as part of function-to-pointer and array-to-pointer decay.
+  if (IsCheckedScope() && !Ty->isFunctionType() &&
+      !Ty->isArrayType() && Ty->isOrContainsUncheckedType()) {
+    DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D);
+    if (!DD)
+      llvm_unreachable("unexpected DeclRef in checked scope");
+    return ConvertToFullyCheckedType(E, DD->getInteropTypeExpr(),
+                                     isa<ParmVarDecl>(D), VK);
+  }
+
   return E;
+}
+
+ExprResult Sema::ConvertToFullyCheckedType(Expr *E,
+                                           InteropTypeExpr *BA,
+                                           bool IsParamUse,
+                                           ExprValueKind VK) {
+  assert(E != nullptr);
+  QualType Ty = E->getType();
+  QualType CheckedTy;
+  if (BA != nullptr)
+    CheckedTy = Context.getInteropTypeAndAdjust(BA, IsParamUse);
+  else
+    CheckedTy = Ty;
+  CheckedTy = RewriteBoundsSafeInterfaceTypes(CheckedTy);
+
+  if (CheckedTy.isNull())
+    return ExprError();
+
+  assert(!CheckedTy->isOrContainsUncheckedType());
+  if (VK == ExprValueKind::VK_RValue) {
+    ExprResult ER = ImpCastExprToType(E, CheckedTy, CK_BitCast, VK, nullptr,
+                                      Sema::CCK_ImplicitConversion, true);
+    return ER;
+  }
+  else if (VK == ExprValueKind::VK_LValue) {
+    ExprResult ER = ImpCastExprToType(E, CheckedTy, CK_LValueBitCast, VK, nullptr,
+                                      CCK_ImplicitConversion, true);
+    return ER;
+  }
+  else {
+    llvm_unreachable("unexpected value kind in in checked scope");
+    return ExprError();
+  }
 }
 
 /// Decomposes the given name into a DeclarationNameInfo, its location, and
@@ -1930,6 +2065,12 @@ bool Sema::DiagnoseEmptyLookup(Scope *S, CXXScopeSpec &SS, LookupResult &R,
       Name.getNameKind() == DeclarationName::CXXConversionFunctionName) {
     diagnostic = diag::err_undeclared_use;
     diagnostic_suggest = diag::err_undeclared_use_suggest;
+  }
+
+  // Member bounds expression can only refer to members. Emit a more specific
+  // error message for the use of unknown identifers there.
+  if (IsMemberBoundsExpr) {
+    diagnostic = diag::err_undeclared_member_use;
   }
 
   // If the original lookup was an unqualified lookup, fake an
@@ -2221,11 +2362,18 @@ Sema::ActOnIdExpression(Scope *S, CXXScopeSpec &SS,
     return ActOnDependentIdExpression(SS, TemplateKWLoc, NameInfo,
                                       IsAddressOfOperand, TemplateArgs);
 
-  // Perform the required lookup.
-  LookupResult R(*this, NameInfo,
-                 (Id.getKind() == UnqualifiedIdKind::IK_ImplicitSelfParam)
+  clang::Sema::LookupNameKind lookupKind =
+     (Id.getKind() == UnqualifiedIdKind::IK_ImplicitSelfParam)
                      ? LookupObjCImplicitSelfParam
-                     : LookupOrdinaryName);
+                     : LookupOrdinaryName;
+
+  if (this->IsMemberBoundsExpr) {
+    assert(getLangOpts().CheckedC);
+    lookupKind = LookupMemberName;
+  }
+
+  // Perform the required lookup.
+  LookupResult R(*this, NameInfo,lookupKind);
   if (TemplateKWLoc.isValid() || TemplateArgs) {
     // Lookup the template name again to correctly establish the context in
     // which it was found. This is really unfortunate as we already did the
@@ -2376,7 +2524,8 @@ Sema::ActOnIdExpression(Scope *S, CXXScopeSpec &SS,
   // to get this right here so that we don't end up making a
   // spuriously dependent expression if we're inside a dependent
   // instance method.
-  if (!R.empty() && (*R.begin())->isCXXClassMember()) {
+  if (!R.empty() && (*R.begin())->isCXXClassMember() &&
+      !this->IsMemberBoundsExpr) { // exclude Checked C member bounds exprs.
     bool MightBeImplicitMember;
     if (!IsAddressOfOperand)
       MightBeImplicitMember = true;
@@ -3011,20 +3160,28 @@ ExprResult Sema::BuildDeclarationNameExpr(
       valueKind = VK_RValue;
       break;
 
-    // Fields and indirect fields that got here must be for
-    // pointer-to-member expressions; we just call them l-values for
-    // internal consistency, because this subexpression doesn't really
-    // exist in the high-level semantics.
+    // For C++, fields and indirect fields that got here must be for
+    // pointer-to-member expressions.  For Checked C, fields that get here
+    // must be for member bounds expressions.  For C++, we just call them
+    // l-values for internal consistency, because this  subexpression doesn't
+    // really exist in the high-level semantics.  For Checked C, we treat
+    // this as an lvalue.
     case Decl::Field:
     case Decl::IndirectField:
     case Decl::ObjCIvar:
-      assert(getLangOpts().CPlusPlus &&
-             "building reference to field in C?");
+      if (IsMemberBoundsExpr) {
+        assert(getLangOpts().CheckedC);
+        assert(!isa<IndirectFieldDecl>(VD));
+        valueKind = VK_LValue;
+      } else {
+        assert(getLangOpts().CPlusPlus &&
+               "building reference to field in C?");
 
-      // These can't have reference type in well-formed programs, but
-      // for internal consistency we do this anyway.
-      type = type.getNonReferenceType();
-      valueKind = VK_LValue;
+        // These can't have reference type in well-formed programs, but
+        // for internal consistency we do this anyway.
+        type = type.getNonReferenceType();
+        valueKind = VK_LValue;
+      }
       break;
 
     // Non-type template parameters are either l-values or r-values
@@ -3210,25 +3367,29 @@ ExprResult Sema::BuildPredefinedExpr(SourceLocation Loc,
     unsigned Length = Str.length();
 
     llvm::APInt LengthI(32, Length + 1);
+    // Get an array type for the string, according to C99 6.4.5.
+    CheckedArrayKind ArrayKind = IsCheckedScope() ?
+      CheckedArrayKind::NtChecked : CheckedArrayKind::Unchecked;
+
     if (IK == PredefinedExpr::LFunction || IK == PredefinedExpr::LFuncSig) {
       ResTy =
           Context.adjustStringLiteralBaseType(Context.WideCharTy.withConst());
       SmallString<32> RawChars;
       ConvertUTF8ToWideString(Context.getTypeSizeInChars(ResTy).getQuantity(),
                               Str, RawChars);
+
       ResTy = Context.getConstantArrayType(ResTy, LengthI, ArrayType::Normal,
-                                           /*IndexTypeQuals*/ 0);
+                                           /*IndexTypeQuals*/ 0, ArrayKind);
       SL = StringLiteral::Create(Context, RawChars, StringLiteral::Wide,
                                  /*Pascal*/ false, ResTy, Loc);
     } else {
       ResTy = Context.adjustStringLiteralBaseType(Context.CharTy.withConst());
       ResTy = Context.getConstantArrayType(ResTy, LengthI, ArrayType::Normal,
-                                           /*IndexTypeQuals*/ 0);
+                                           /*IndexTypeQuals*/ 0, ArrayKind);
       SL = StringLiteral::Create(Context, Str, StringLiteral::Ascii,
                                  /*Pascal*/ false, ResTy, Loc);
     }
   }
-
   return PredefinedExpr::Create(Context, Loc, ResTy, IK, SL);
 }
 
@@ -4043,7 +4204,10 @@ static void captureVariablyModifiedType(ASTContext &Context, QualType T,
     case Type::ObjCObjectPointer:
     case Type::ObjCTypeParam:
     case Type::Pipe:
+    case Type::TypeVariable:
       llvm_unreachable("type class is never variably-modified!");
+    case Type::Existential:
+      llvm_unreachable("existential type is never variably-modified!");
     case Type::Adjusted:
       T = cast<AdjustedType>(Ty)->getOriginalType();
       break;
@@ -4621,6 +4785,11 @@ Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
   } else if (const PointerType *PTy = LHSTy->getAs<PointerType>()) {
     BaseExpr = LHSExp;
     IndexExpr = RHSExp;
+    // Array subscripting not allowed on ptr<T> values
+    if (PTy->getKind() == CheckedPointerKind::Ptr) {
+        return ExprError(Diag(LLoc, diag::err_typecheck_ptr_subscript)
+            << LHSTy << LHSExp->getSourceRange() << RHSExp->getSourceRange());
+    }
     ResultType = PTy->getPointeeType();
   } else if (const ObjCObjectPointerType *PTy =
                LHSTy->getAs<ObjCObjectPointerType>()) {
@@ -4638,6 +4807,11 @@ Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
      // Handle the uncommon case of "123[Ptr]".
     BaseExpr = RHSExp;
     IndexExpr = LHSExp;
+    // Array subscripting not allowed on ptr<T> values
+    if (PTy->getKind() == CheckedPointerKind::Ptr) {
+        return ExprError(Diag(LLoc, diag::err_typecheck_ptr_subscript)
+            << RHSTy << LHSExp->getSourceRange() << RHSExp->getSourceRange());
+    }
     ResultType = PTy->getPointeeType();
   } else if (const ObjCObjectPointerType *PTy =
                RHSTy->getAs<ObjCObjectPointerType>()) {
@@ -5116,6 +5290,7 @@ bool Sema::GatherArgumentsForCall(SourceLocation CallLoc, FunctionDecl *FDecl,
   // Continue to check argument types (even if we have too few/many args).
   for (unsigned i = FirstParam; i < NumParams; i++) {
     QualType ProtoArgType = Proto->getParamType(i);
+    const BoundsAnnotations Annots = Proto->getParamAnnots(i);
 
     Expr *Arg;
     ParmVarDecl *Param = FDecl ? FDecl->getParamDecl(i) : nullptr;
@@ -5143,9 +5318,11 @@ bool Sema::GatherArgumentsForCall(SourceLocation CallLoc, FunctionDecl *FDecl,
 
       InitializedEntity Entity =
           Param ? InitializedEntity::InitializeParameter(Context, Param,
-                                                         ProtoArgType)
+                                                         ProtoArgType,
+                                                         Annots)
                 : InitializedEntity::InitializeParameter(
-                      Context, ProtoArgType, Proto->isParamConsumed(i));
+                      Context, ProtoArgType, Proto->isParamConsumed(i),
+                      Annots);
 
       // Remember that parameter belongs to a CF audited API.
       if (CFAudited)
@@ -5650,6 +5827,53 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
     }
   }
 
+  // Handle generic functions and functions with generic bounds-safe interfaces
+  // that that haven't beeen supplied with type arguments.
+  if (getLangOpts().CheckedC) {
+      // It is always an error to call a generic function without supplying
+      // type arguments.
+    if (Fn->getType()->isGenericFunctionType()) {
+      Diag(Fn->getEndLoc(),
+            diag::err_expected_type_argument_list_for_generic_call);
+      return ExprError();
+    }
+    // Handle a call to a function with a generic bounds-safe interface type,
+    // where no type arguments have been specified.
+    if (Fn->getType()->isItypeGenericFunctionType()) {
+       // It is an error in a checked scope.
+      CheckedScopeSpecifier CSS = GetCheckedScopeInfo();
+      if (CSS == CSS_Memory || CSS == CSS_Bounds) {
+        Diag(Fn->getEndLoc(),
+              diag::err_expected_type_argument_list_for_itype_generic_call);
+        return ExprError();
+      }
+      // In an unchecked scope, pass void types as the type arguments.
+      if (DeclRefExpr *DR = dyn_cast<DeclRefExpr>(Fn)) {
+        SmallVector<TypeArgument, 4> typeArgumentInfos;
+        const FunctionProtoType *FPT = DR->getType()->getAs<FunctionProtoType>();
+        unsigned count = FPT->getNumTypeVars();
+        for (unsigned int i = 0; i < count; i++) {
+          TypeSourceInfo *TInfo =
+            Context.getTrivialTypeSourceInfo( Context.VoidTy, SourceLocation());
+          typeArgumentInfos.push_back({ Context.VoidTy, TInfo });
+        }
+        // HACK HACK: we modify the DeclRef directly, because we are lacking.
+        // a type application node.
+        DR->SetGenericInstInfo(Context, typeArgumentInfos);
+
+        // Substitute type arguments into function type in DeclRefExpr
+        QualType NewTy =
+          SubstituteTypeArgs(DR->getType(), typeArgumentInfos);
+        DR->setType(NewTy);
+      } else {
+        // There is no DeclRef to modify. Emit an error for now.
+        Diag(Fn->getEndLoc(),
+              diag::err_expected_type_argument_list_for_itype_generic_call);
+        return ExprError();
+      }
+    }
+  }
+
   // If we're directly calling a function, get the appropriate declaration.
   if (Fn->getType() == Context.UnknownAnyTy) {
     ExprResult result = rebuildUnknownAnyFunction(*this, Fn);
@@ -5930,10 +6154,11 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
     // Promote the arguments (C99 6.5.2.2p6).
     for (unsigned i = 0, e = Args.size(); i != e; i++) {
       Expr *Arg = Args[i];
-
       if (Proto && i < Proto->getNumParams()) {
+        BoundsAnnotations Annots = Proto->getParamAnnots(i);
         InitializedEntity Entity = InitializedEntity::InitializeParameter(
-            Context, Proto->getParamType(i), Proto->isParamConsumed(i));
+            Context, Proto->getParamType(i), Proto->isParamConsumed(i),
+            Annots);
         ExprResult ArgE =
             PerformCopyInitialization(Entity, SourceLocation(), Arg);
         if (ArgE.isInvalid())
@@ -5987,6 +6212,41 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
   return MaybeBindToTemporary(TheCall);
 }
 
+ExprResult Sema::CreateTemporaryForCallIfNeeded(ExprResult ER) {
+  // Insert a temporary variable binding the result of a call. The temporary
+  // will be used in the bounds for the result of the call. Only do this if
+  // the call is to a function that has a return bounds expression that is
+  // count, byte_count, or that contains a _Return_value expression.
+  assert(getLangOpts().CheckedC);
+  if (ER.isInvalid())
+    return ER;
+
+  CallExpr *CE = dyn_cast<CallExpr>(ER.get());
+  if (!CE)
+    return ER;
+
+  Expr *Fn = CE->getCallee();
+  const FunctionProtoType *FPT;
+  if (const PointerType *PT = Fn->getType()->getAs<PointerType>()) {
+    FPT = PT->getPointeeType()->getAs<FunctionProtoType>();
+    if (FPT) {
+      BoundsAnnotations ReturnAnnots = FPT->getReturnAnnots();
+      BoundsExpr *ReturnBounds = ReturnAnnots.getBoundsExpr();
+      InteropTypeExpr *InteropExpr = ReturnAnnots.getInteropTypeExpr();
+
+      if ((ReturnBounds && (ReturnBounds->isByteCount() ||
+                            ReturnBounds->isElementCount())) ||
+          FPT->getReturnType()->isCheckedPointerPtrType() ||
+          (InteropExpr &&
+           InteropExpr->getType()->isCheckedPointerPtrType()) ||
+          ContainsReturnValueExpr(ReturnBounds))
+        ER = new (Context) CHKCBindTemporaryExpr(ER.get());
+    }
+  }
+
+  return ER;
+}
+
 ExprResult
 Sema::ActOnCompoundLiteral(SourceLocation LParenLoc, ParsedType Ty,
                            SourceLocation RParenLoc, Expr *InitExpr) {
@@ -6020,6 +6280,14 @@ Sema::BuildCompoundLiteralExpr(SourceLocation LParenLoc, TypeSourceInfo *TInfo,
                diag::err_typecheck_decl_incomplete_type,
                SourceRange(LParenLoc, LiteralExpr->getSourceRange().getEnd())))
     return ExprError();
+
+  if (IsCheckedScope()) {
+    if (literalType->isArrayType())
+      literalType = MakeCheckedArrayType(literalType);
+    if (!DiagnoseTypeInCheckedScope(literalType, LParenLoc, RParenLoc))
+      return ExprError();
+    literalType = RewriteBoundsSafeInterfaceTypes(literalType);
+  }
 
   InitializedEntity Entity
     = InitializedEntity::InitializeCompoundLiteralInit(TInfo);
@@ -6586,7 +6854,8 @@ Sema::ActOnCastExpr(Scope *S, SourceLocation LParenLoc,
 
   DiscardMisalignedMemberAddress(castType.getTypePtr(), CastExpr);
 
-  return BuildCStyleCastExpr(LParenLoc, castTInfo, RParenLoc, CastExpr);
+  return BuildCStyleCastExpr(LParenLoc, castTInfo, RParenLoc, CastExpr,
+                             IsCheckedScope());
 }
 
 ExprResult Sema::BuildVectorLiteral(SourceLocation LParenLoc,
@@ -6866,13 +7135,89 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
 
   QualType CompositeTy = S.Context.mergeTypes(lhptee, rhptee);
 
+  CheckedPointerKind resultKind = CheckedPointerKind::Unchecked;
+  bool incompatibleCheckedPointer = false;
+  if (!IsBlockPointer) {
+      // Check the compatibility of the pointer kind and compute the resulting
+      // pointer kind.  For checked pointers, enforce that pointees merge too.
+     CheckedPointerKind lhsKind = LHSTy->castAs<PointerType>()->getKind();
+     CheckedPointerKind rhsKind = RHSTy->castAs<PointerType>()->getKind();
+     if (lhsKind == rhsKind) {
+       resultKind = lhsKind;
+       // maybe the lhptee and rhptee did not merge because the array types
+       // differ only in whether they are checked.  See if one of the array
+       // types is more "checked" than the other and choose it as the
+       // type of the expression.  There is no danger of casting away 
+       // checkedness via the enclosing pointer because the pointer kinds are
+       // identical.
+       if (CompositeTy.isNull()) {
+         if (S.Context.pointeeTypesAreAssignable(lhptee, rhptee)) {
+           CompositeTy = lhptee;
+         } else if (S.Context.pointeeTypesAreAssignable(rhptee, lhptee)) {
+           CompositeTy = rhptee;
+         }
+       }
+       // For checked pointers, the pointee types must merge.
+       incompatibleCheckedPointer = resultKind != CheckedPointerKind::Unchecked && CompositeTy.isNull();
+     }
+     else if (lhsKind == CheckedPointerKind::Unchecked) {
+       // The rhs must be a checked ponter type. The least upper bound is determined
+       // as follows:
+       //    Unchecked ^ Array =  Array
+       //    Unchecked ^ NtArray = Array
+       //    Unchecked ^ Ptr = Ptr
+       // This is provided that the pointee types are compatible or the 
+       // pointee types are array types that differ in compatibility only
+       // because one is more "checked" than the other.
+       resultKind = (rhsKind == CheckedPointerKind::NtArray) ?
+         CheckedPointerKind::Array : rhsKind;
+       // Again, maybe the lhptee and rhptee did not merge because the array types
+       // differ in whether they are checked. Only the rhsptee can be checked because
+       // otherwise this implicitly casts away checkedness, which is not allowed.
+       if (CompositeTy.isNull() && S.Context.pointeeTypesAreAssignable(rhptee, lhptee)) {
+         CompositeTy = rhptee;
+       }
+       incompatibleCheckedPointer = CompositeTy.isNull();
+     }
+     else if (rhsKind == CheckedPointerKind::Unchecked) {
+       // Same as above, but reversed.
+       resultKind = (lhsKind == CheckedPointerKind::NtArray) ?
+         CheckedPointerKind::Array : lhsKind;
+       if (CompositeTy.isNull() && S.Context.pointeeTypesAreAssignable(lhptee, rhptee)) {
+         CompositeTy = lhptee;
+       }
+       incompatibleCheckedPointer = CompositeTy.isNull();
+     } else if ((lhsKind == CheckedPointerKind::NtArray &&
+                 rhsKind == CheckedPointerKind::Array) ||
+                (rhsKind == CheckedPointerKind::NtArray &&
+                 lhsKind == CheckedPointerKind::Array)) {
+       // NtArray can't be the upper bound type because the Array value may not
+       // have have a null terminator.
+       resultKind = CheckedPointerKind::Array;
+       incompatibleCheckedPointer = CompositeTy.isNull();
+     } else {
+       // Must have different kinds of checked pointers (_Ptr vs.
+       // _Array_ptr or _Nt_Array_ptr). Implicit conversions between these
+       // kinds of pointers are not allowed.
+       incompatibleCheckedPointer = true;
+       // _Array_ptr is less likely to cause spurious downstream warnings.
+       resultKind = CheckedPointerKind::Array;
+     }
+
+     if (incompatibleCheckedPointer) {
+         S.Diag(Loc, diag::err_typecheck_cond_incompatible_checked_pointer)
+             << LHSTy << RHSTy << LHS.get()->getSourceRange()
+             << RHS.get()->getSourceRange();
+     }
+  }
+
   if (CompositeTy.isNull()) {
     // In this situation, we assume void* type. No especially good
     // reason, but this is what gcc does, and we do have to pick
     // to get a consistent AST.
     QualType incompatTy;
     incompatTy = S.Context.getPointerType(
-        S.Context.getAddrSpaceQualType(S.Context.VoidTy, ResultAddrSpace));
+        S.Context.getAddrSpaceQualType(S.Context.VoidTy, ResultAddrSpace), resultKind);
     LHS = S.ImpCastExprToType(LHS.get(), incompatTy, LHSCastKind);
     RHS = S.ImpCastExprToType(RHS.get(), incompatTy, RHSCastKind);
 
@@ -6883,7 +7228,11 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
     // local int *global *a;
     // global int *global *b;
     // a = (0 ? a : b); // see C99 6.5.16.1.p1.
-    S.Diag(Loc, diag::ext_typecheck_cond_incompatible_pointers)
+
+    // If the checked pointers were incompatible, we already issued an
+    // error message. Don't give a warning too.
+    if (!incompatibleCheckedPointer)
+      S.Diag(Loc, diag::ext_typecheck_cond_incompatible_pointers)
         << LHSTy << RHSTy << LHS.get()->getSourceRange()
         << RHS.get()->getSourceRange();
 
@@ -6907,7 +7256,7 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
   if (IsBlockPointer)
     ResultTy = S.Context.getBlockPointerType(ResultTy);
   else
-    ResultTy = S.Context.getPointerType(ResultTy);
+    ResultTy = S.Context.getPointerType(ResultTy, resultKind);
 
   LHS = S.ImpCastExprToType(LHS.get(), ResultTy, LHSCastKind);
   RHS = S.ImpCastExprToType(RHS.get(), ResultTy, RHSCastKind);
@@ -6949,25 +7298,51 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
   QualType RHSTy = RHS.get()->getType();
 
   // get the "pointed to" types
-  QualType lhptee = LHSTy->getAs<PointerType>()->getPointeeType();
-  QualType rhptee = RHSTy->getAs<PointerType>()->getPointeeType();
+  const PointerType *lhpt = LHSTy->getAs<PointerType>();
+  const PointerType *rhpt = RHSTy->getAs<PointerType>();
+  QualType lhptee = lhpt->getPointeeType();
+  QualType rhptee = rhpt->getPointeeType();
+  CheckedPointerKind lhkind = lhpt->getKind();
+  CheckedPointerKind rhkind = rhpt->getKind();
 
   // ignore qualifiers on void (C99 6.5.15p3, clause 6)
-  if (lhptee->isVoidType() && rhptee->isIncompleteOrObjectType()) {
+  if (lhptee->isVoidType() && rhptee->isIncompleteOrObjectType() && 
+      (lhkind == rhkind || rhkind == CheckedPointerKind::Unchecked)) {
+    // Null-terminated void pointers are illegal, so we don't have to worry
+    // about that case.
+    assert(lhkind != CheckedPointerKind::NtArray);
+    // In checked scopes, casting one arm to void pointer to match
+    // the other arm is not allowed.
+    if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_Memory &&
+        rhptee->containsCheckedValue(true) != Type::NoCheckedValue) {
+      S.Diag(Loc, diag::err_checkedc_void_pointer_cond) << RHSTy << LHSTy <<
+        rhptee << RHS.get()->getSourceRange();
+      return QualType();
+    }
     // Figure out necessary qualifiers (C99 6.5.15p6)
     QualType destPointee
       = S.Context.getQualifiedType(lhptee, rhptee.getQualifiers());
-    QualType destType = S.Context.getPointerType(destPointee);
+    QualType destType = S.Context.getPointerType(destPointee, lhkind);
     // Add qualifiers if necessary.
     LHS = S.ImpCastExprToType(LHS.get(), destType, CK_NoOp);
     // Promote to void*.
     RHS = S.ImpCastExprToType(RHS.get(), destType, CK_BitCast);
     return destType;
   }
-  if (rhptee->isVoidType() && lhptee->isIncompleteOrObjectType()) {
+  if (rhptee->isVoidType() && lhptee->isIncompleteOrObjectType() &&
+     (lhkind == rhkind || lhkind == CheckedPointerKind::Unchecked)) {
+    // Null-terminated void pointers are illegal, so we don't have to worry
+    // about that case.
+    assert(rhkind != CheckedPointerKind::NtArray);
+    if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_Memory &&
+        lhptee->containsCheckedValue(true) != Type::NoCheckedValue) {
+      S.Diag(Loc, diag::err_checkedc_void_pointer_cond) << LHSTy << RHSTy <<
+        lhptee << LHS.get()->getSourceRange();
+      return QualType();
+    }
     QualType destPointee
       = S.Context.getQualifiedType(rhptee, lhptee.getQualifiers());
-    QualType destType = S.Context.getPointerType(destPointee);
+    QualType destType = S.Context.getPointerType(destPointee, rhkind);
     // Add qualifiers if necessary.
     RHS = S.ImpCastExprToType(RHS.get(), destType, CK_NoOp);
     // Promote to void*.
@@ -6979,13 +7354,18 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
 }
 
 /// Return false if the first expression is not an integer and the second
-/// expression is not a pointer, true otherwise.
-static bool checkPointerIntegerMismatch(Sema &S, ExprResult &Int,
+/// expression is not an unchecked pointer, true otherwise.
+static bool checkUncheckedPointerIntegerMismatch(Sema &S, ExprResult &Int,
                                         Expr* PointerExpr, SourceLocation Loc,
                                         bool IsIntFirstExpr) {
   if (!PointerExpr->getType()->isPointerType() ||
       !Int.get()->getType()->isIntegerType())
     return false;
+
+  const PointerType *ptrTy = PointerExpr->getType()->getAs<PointerType>();
+  if (ptrTy->isChecked()) {
+     return false;
+  }
 
   Expr *Expr1 = IsIntFirstExpr ? Int.get() : PointerExpr;
   Expr *Expr2 = IsIntFirstExpr ? PointerExpr : Int.get();
@@ -7307,11 +7687,11 @@ QualType Sema::CheckConditionalOperands(ExprResult &Cond, ExprResult &LHS,
 
   // GCC compatibility: soften pointer/integer mismatch.  Note that
   // null pointers have been filtered out by this point.
-  if (checkPointerIntegerMismatch(*this, LHS, RHS.get(), QuestionLoc,
-      /*IsIntFirstExpr=*/true))
+  if (checkUncheckedPointerIntegerMismatch(*this, LHS, RHS.get(), QuestionLoc,
+      /*isIntFirstExpr=*/true))
     return RHSTy;
-  if (checkPointerIntegerMismatch(*this, RHS, LHS.get(), QuestionLoc,
-      /*IsIntFirstExpr=*/false))
+  if (checkUncheckedPointerIntegerMismatch(*this, RHS, LHS.get(), QuestionLoc,
+      /*isIntFirstExpr=*/false))
     return LHSTy;
 
   // Emit a better diagnostic if one of the expressions is a null pointer
@@ -7765,6 +8145,9 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   std::tie(rhptee, rhq) =
       cast<PointerType>(RHSType)->getPointeeType().split().asPair();
 
+  CheckedPointerKind lhkind = cast<PointerType>(LHSType)->getKind();
+  CheckedPointerKind rhkind = cast<PointerType>(RHSType)->getKind();
+
   Sema::AssignConvertType ConvTy = Sema::Compatible;
 
   // C99 6.5.16.1p1: This following citation is common to constraints
@@ -7804,28 +8187,99 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // C99 6.5.16.1p1 (constraint 4): If one operand is a pointer to an object or
   // incomplete type and the other is a pointer to a qualified or unqualified
   // version of void...
-  if (lhptee->isVoidType()) {
-    if (rhptee->isIncompleteOrObjectType())
-      return ConvTy;
 
-    // As an extension, we allow cast to/from void* to function pointer.
-    assert(rhptee->isFunctionType());
-    return Sema::FunctionVoidPointer;
+  // Handle the plain C case (where both pointers unchecked).
+  if (lhkind == CheckedPointerKind::Unchecked &&
+      rhkind == CheckedPointerKind::Unchecked) {
+
+    if (lhptee->isVoidType()) {
+      if (rhptee->isIncompleteOrObjectType())
+        return ConvTy;
+
+      // As an extension, we allow cast to/from void* to function pointer.
+      assert(rhptee->isFunctionType());
+      return Sema::FunctionVoidPointer;
+    }
+
+    if (rhptee->isVoidType()) {
+      if (lhptee->isIncompleteOrObjectType())
+        return ConvTy;
+
+      // As an extension, we allow cast to/from void* to function pointer.
+      assert(lhptee->isFunctionType());
+      return Sema::FunctionVoidPointer;
+    }
   }
 
-  if (rhptee->isVoidType()) {
-    if (lhptee->isIncompleteOrObjectType())
+  // Handle Checked C cases (where one pointer is checked).
+  if (lhkind != CheckedPointerKind::Unchecked ||
+      rhkind != CheckedPointerKind::Unchecked) {
+    // Implicit conversions to checked void pointers.
+    // - In unchecked scopes and bounds-safe checked scopes, allow conversions
+    // from any pointer to a _Ptr or _Array_ptr void type.
+    // - In memory-safe checked scopes, allow conversions from pointers to data
+    // that doesn't contain a checked pointer.
+    // - Note that Nt_array_ptr<void> is not a legal type. This
+    // code would not allow conversions to it, if it were.
+    // - Do not have an extension allowing casts from checked function
+    // pointers to checked void pointers.
+    if (lhptee->isVoidType() && (lhkind == CheckedPointerKind::Ptr ||
+                                 lhkind == CheckedPointerKind::Array) &&
+        rhptee->isIncompleteOrObjectType()) {
+      if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_Memory
+          && rhptee->containsCheckedValue(true) != Type::NoCheckedValue)
+        return Sema::IncompatibleCheckedCVoid;
       return ConvTy;
+    }
 
-    // As an extension, we allow cast to/from void* to function pointer.
-    assert(lhptee->isFunctionType());
-    return Sema::FunctionVoidPointer;
+    // Implicit conversions from void pointers to checked pointers.
+    // - In unchecked scopes and bounds-safe checked scopes, allow any void
+    // pointer to be converted to a _Ptr or _Array_ptr type
+    // (the void pointer must still have  appropriate bounds).
+    // - In memory-safe checked scopes, allow any void pointer to be
+    // converted to a _Ptr or _Array_ptr to data that doesn't
+    // contain a checked pointer.
+    // - Do not allow conversions to Nt_array_ptr types.
+    // - Do not have an extension allowing casts from checked void pointers
+    // to checked function pointers.
+    if (rhptee->isVoidType() && lhptee->isIncompleteOrObjectType()) {
+      if (rhkind != CheckedPointerKind::Ptr &&
+          (lhkind == CheckedPointerKind::Ptr ||
+           lhkind == CheckedPointerKind::Array)) {
+        if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_Memory
+            && lhptee->containsCheckedValue(true) != Type::NoCheckedValue)
+          return Sema::IncompatibleCheckedCVoid;
+        return ConvTy;
+      }
+    }
   }
+
+  // We are done handling pointers to void. Now apply restrictions for
+  // checked pointers.
+  // - Disallow conversons from checked pointers to unchecked pointers.  This
+  //   would allow silent subverison of bounds.
+  // - Disallow conversions from another pointer types to Nt_array_ptr.
+  //   The source may not be null-terminated.
+  // - Allow implicit conversions from any kind of pointer to _Ptr 
+  //   or _Array_ptr
+
+  if (rhkind != CheckedPointerKind::Unchecked &&
+      lhkind == CheckedPointerKind::Unchecked)
+    return Sema::Incompatible;
+
+  if (lhkind == CheckedPointerKind::NtArray &&
+      rhkind != CheckedPointerKind::NtArray)
+    return Sema::Incompatible;
 
   // C99 6.5.16.1p1 (constraint 3): both operands are pointers to qualified or
   // unqualified versions of compatible types, ...
   QualType ltrans = QualType(lhptee, 0), rtrans = QualType(rhptee, 0);
-  if (!S.Context.typesAreCompatible(ltrans, rtrans)) {
+  if (!S.Context.pointeeTypesAreAssignable(ltrans, rtrans)) {
+     // None of the language extensions below are allowed for pointers
+     // that are checked pointers or that contain checked types.
+     if (LHSType->isOrContainsCheckedType() || RHSType->isOrContainsCheckedType())
+         return Sema::Incompatible;
+
     // Check if the pointee types are compatible ignoring the sign.
     // We explicitly check for char so that we catch "char" vs
     // "unsigned char" on systems where "char" is unsigned.
@@ -8145,7 +8599,7 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
     }
 
     // int -> T*
-    if (RHSType->isIntegerType()) {
+    if (RHSType->isIntegerType() && LHSPointer->isUnchecked()) {
       Kind = CK_IntegralToPointer; // FIXME: null?
       return IntToPointer;
     }
@@ -8276,7 +8730,7 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
   }
 
   // Conversions from pointers that are not covered by the above.
-  if (isa<PointerType>(RHSType)) {
+  if (const PointerType *RHSPointer = dyn_cast<PointerType>(RHSType)) {
     // T* -> _Bool
     if (LHSType == Context.BoolTy) {
       Kind = CK_PointerToBoolean;
@@ -8284,7 +8738,7 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
     }
 
     // T* -> int
-    if (LHSType->isIntegerType()) {
+    if (LHSType->isIntegerType() && RHSPointer->isUnchecked()) {
       Kind = CK_PointerToIntegral;
       return PointerToInt;
     }
@@ -8397,11 +8851,56 @@ Sema::CheckTransparentUnionArgumentConstraints(QualType ArgType,
   return Compatible;
 }
 
+// If the LHS type is a checked pointer type and the RHS is an array literal,
+// retype the RHS to have the same kind of checked pointer.   We assume
+// array-to-pointer converison has already been done.
+static bool arrayConstantCheckedConversion(Sema &S, QualType LHSType,
+                                           ExprResult &RHS) {
+  // Recognize the syntax for the constant.
+  ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(RHS.get());
+  if (!ICE)
+    return false;
+
+  if (ICE->getCastKind() != CK_ArrayToPointerDecay)
+    return false;
+
+  Expr *Child = ICE->getSubExpr()->IgnoreExprTmp()->IgnoreParens();
+  if (!isa<InitListExpr>(Child) && !isa<StringLiteral>(Child) &&
+      !isa<CompoundLiteralExpr>(Child))
+    return false;
+
+  // See if the constant needs to be retyped.
+  QualType RHSType = RHS.get()->getType();
+  const PointerType *RHSPointerType = RHSType->getAs<PointerType>();
+  const PointerType *LHSPointerType = LHSType->getAs<PointerType>();
+
+  if (!LHSType->isCheckedPointerType() || !RHSPointerType ||
+      LHSPointerType->getKind() == RHSPointerType->getKind())
+    return false;
+
+  QualType RHSPointee = RHSPointerType->getPointeeType();
+
+  // Retype the constant.
+
+  // For checked null-terminated pointers, only retype the constant if the
+  // type would be a valid null-terminated ponter type.
+  if (LHSType->isCheckedPointerNtArrayType() && !RHSPointee->isIntegerType() &&
+      !RHSPointee->isPointerType())
+    return false;
+
+  RHSType = S.Context.getPointerType(RHSPointee, LHSPointerType->getKind());
+  RHS = S.ImpCastExprToType(RHS.get(), RHSType, CK_ArrayToPointerDecay,
+                            clang::VK_RValue, nullptr,
+                            Sema::CCK_ImplicitConversion, true);
+  return true;
+}
+
 Sema::AssignConvertType
 Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
                                        bool Diagnose,
                                        bool DiagnoseCFAudited,
-                                       bool ConvertRHS) {
+                                       bool ConvertRHS,
+                                       QualType LHSInteropType) {
   // We need to be able to tell the caller whether we diagnosed a problem, if
   // they ask us to issue diagnostics.
   assert((ConvertRHS || !Diagnose) && "can't indicate whether we diagnosed");
@@ -8505,6 +9004,15 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
     if (RHS.isInvalid())
       return Incompatible;
   }
+
+  // Checked C: implicitly convert array constants to checked pointer types
+  // when the LHS is a checked pointer type, This is done after array-to-pointer
+  // conversion to avoid duplicating the type conversion logic there.
+  if (arrayConstantCheckedConversion(*this, LHSType, RHS)) {
+    if (RHS.isInvalid())
+       return Incompatible;
+  }
+ 
   CastKind Kind;
   Sema::AssignConvertType result =
     CheckAssignmentConstraints(LHSType, RHS, Kind, ConvertRHS);
@@ -8515,7 +9023,8 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
   // so that we can use references in built-in functions even in C.
   // The getNonReferenceType() call makes sure that the resulting expression
   // does not have reference type.
-  if (result != Incompatible && RHS.get()->getType() != LHSType) {
+  if (result != Incompatible && result != IncompatibleCheckedCVoid &&
+      RHS.get()->getType() != LHSType) {
     QualType Ty = LHSType.getNonLValueExprType(Context);
     Expr *E = RHS.get();
 
@@ -8544,6 +9053,24 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
       RHS = ImpCastExprToType(E, Ty, Kind);
   }
 
+  // If we can't convert to the LHS type, try the LHS interop type instead.
+  // Note that we have to insert a cast that "downgrades" the checkedness.
+  if ((result == Incompatible || result == IncompatibleCheckedCVoid) &&
+      !LHSInteropType.isNull()) {
+    result = CheckAssignmentConstraints(LHSInteropType, RHS, Kind, ConvertRHS);
+    if (result != Incompatible && result != IncompatibleCheckedCVoid) {
+      assert(!LHSType->isReferenceType());
+      assert(!LHSInteropType->isReferenceType());
+      if (ConvertRHS) {
+        if (RHS.get()->getType() != LHSInteropType)
+          RHS = ImpCastExprToType(RHS.get(), LHSInteropType, Kind);
+        // Downgrade checked pointer to unchecked LHSType
+        RHS = ImpCastExprToType(RHS.get(), LHSType, CK_BitCast, VK_RValue,
+                                nullptr, CCK_ImplicitConversion,
+                                /*IsBoundsSafeInterfaceCast=*/true);
+      }
+    }
+  }
   return result;
 }
 
@@ -8568,6 +9095,33 @@ struct OriginalOperand {
   Expr *Orig;
   NamedDecl *Conversion;
 };
+}
+
+/// Get the bounds-safe interface type for the left-hand side of an assignment,
+/// if the left-hand side has a bounds-safe interface. Return a null QualType
+/// otherwise.  For the left-hand sides of assignments, only global variables,
+/// parameters, and members of structures/unions have bounds-safe interfaces.
+QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
+  bool IsParam = false;
+  DeclaratorDecl *D = nullptr;
+  if (!LHS.isInvalid()) {
+    Expr *LHSExpr = LHS.get()->IgnoreParens();
+    if (MemberExpr *Member = dyn_cast<MemberExpr>(LHSExpr)) {
+      if (FieldDecl *Field = dyn_cast<FieldDecl>(Member->getMemberDecl()))
+        D = Field;
+    }
+    else if (DeclRefExpr *DeclRef = dyn_cast<DeclRefExpr>(LHSExpr)) {
+      if (VarDecl *Var = dyn_cast<VarDecl>(DeclRef->getDecl())) {
+        D = Var;
+        IsParam = isa<ParmVarDecl>(Var);
+      }
+    }
+  }
+
+  if (D)
+    return Context.getInteropTypeAndAdjust(D->getInteropTypeExpr(), IsParam);
+  else
+    return QualType();
 }
 
 QualType Sema::InvalidOperands(SourceLocation Loc, ExprResult &LHS,
@@ -9154,7 +9708,9 @@ QualType Sema::CheckRemainderOperands(
 /// Diagnose invalid arithmetic on two void pointers.
 static void diagnoseArithmeticOnTwoVoidPointers(Sema &S, SourceLocation Loc,
                                                 Expr *LHSExpr, Expr *RHSExpr) {
-  S.Diag(Loc, S.getLangOpts().CPlusPlus
+  bool isCheckedPointerType = LHSExpr->getType()->isCheckedPointerType() ||
+    RHSExpr->getType()->isCheckedPointerType();
+  S.Diag(Loc, S.getLangOpts().CPlusPlus || isCheckedPointerType
                 ? diag::err_typecheck_pointer_arith_void_type
                 : diag::ext_gnu_void_ptr)
     << 1 /* two pointers */ << LHSExpr->getSourceRange()
@@ -9164,7 +9720,8 @@ static void diagnoseArithmeticOnTwoVoidPointers(Sema &S, SourceLocation Loc,
 /// Diagnose invalid arithmetic on a void pointer.
 static void diagnoseArithmeticOnVoidPointer(Sema &S, SourceLocation Loc,
                                             Expr *Pointer) {
-  S.Diag(Loc, S.getLangOpts().CPlusPlus
+  bool isCheckedPointerType = Pointer->getType()->isCheckedPointerType();
+  S.Diag(Loc, S.getLangOpts().CPlusPlus || isCheckedPointerType
                 ? diag::err_typecheck_pointer_arith_void_type
                 : diag::ext_gnu_void_ptr)
     << 0 /* one pointer */ << Pointer->getSourceRange();
@@ -9188,6 +9745,9 @@ static void diagnoseArithmeticOnNullPointer(Sema &S, SourceLocation Loc,
 /// Diagnose invalid arithmetic on two function pointers.
 static void diagnoseArithmeticOnTwoFunctionPointers(Sema &S, SourceLocation Loc,
                                                     Expr *LHS, Expr *RHS) {
+  // For Checked C, arithmetic on checked function pointers is never allowed.
+  // We don't have to check for it here, though. Only _Ptrs to function types
+  // are allowed and arithmetic on _Ptrs is disallowed by another diagnostic.
   assert(LHS->getType()->isAnyPointerType());
   assert(RHS->getType()->isAnyPointerType());
   S.Diag(Loc, S.getLangOpts().CPlusPlus
@@ -9204,6 +9764,9 @@ static void diagnoseArithmeticOnTwoFunctionPointers(Sema &S, SourceLocation Loc,
 /// Diagnose invalid arithmetic on a function pointer.
 static void diagnoseArithmeticOnFunctionPointer(Sema &S, SourceLocation Loc,
                                                 Expr *Pointer) {
+  // For Checked C, arithmetic on checked function pointers is never allowed.
+  // We don't have to check for it here, though. Only _Ptrs to function types
+  // are allowed and arithmetic on _Ptrs is disallowed by another diagnostic.
   assert(Pointer->getType()->isAnyPointerType());
   S.Diag(Loc, S.getLangOpts().CPlusPlus
                 ? diag::err_typecheck_pointer_arith_function_type
@@ -9211,6 +9774,14 @@ static void diagnoseArithmeticOnFunctionPointer(Sema &S, SourceLocation Loc,
     << 0 /* one pointer */ << Pointer->getType()->getPointeeType()
     << 0 /* one pointer, so only one type */
     << Pointer->getSourceRange();
+}
+
+/// Diagnose invalid arithmetic on a CheckedC _Ptr type
+static void diagnoseArithmeticOnPtrPointerType(Sema &S, SourceLocation Loc,
+    Expr *Pointer) {
+    assert(Pointer->getType()->isCheckedPointerPtrType());
+    S.Diag(Loc, diag::err_typecheck_ptr_arithmetic)
+        << Pointer->getSourceRange();
 }
 
 /// Emit error if Operand is incomplete pointer type
@@ -9245,15 +9816,21 @@ static bool checkArithmeticOpPointerOperand(Sema &S, SourceLocation Loc,
 
   if (!ResType->isAnyPointerType()) return true;
 
+  if (ResType->isCheckedPointerPtrType()) {
+     diagnoseArithmeticOnPtrPointerType(S, Loc, Operand);
+     return false;
+  }
+
   QualType PointeeTy = ResType->getPointeeType();
   if (PointeeTy->isVoidType()) {
     diagnoseArithmeticOnVoidPointer(S, Loc, Operand);
-    return !S.getLangOpts().CPlusPlus;
+    return !(S.getLangOpts().CPlusPlus || ResType->isCheckedPointerType());
   }
   if (PointeeTy->isFunctionType()) {
     diagnoseArithmeticOnFunctionPointer(S, Loc, Operand);
-    return !S.getLangOpts().CPlusPlus;
+    return !(S.getLangOpts().CPlusPlus || ResType->isCheckedPointerType());
   }
+
 
   if (checkArithmeticIncompletePointerType(S, Loc, Operand)) return false;
 
@@ -9300,7 +9877,9 @@ static bool checkArithmeticBinOpPointerOperands(Sema &S, SourceLocation Loc,
     else if (!isLHSVoidPtr) diagnoseArithmeticOnVoidPointer(S, Loc, RHSExpr);
     else diagnoseArithmeticOnTwoVoidPointers(S, Loc, LHSExpr, RHSExpr);
 
-    return !S.getLangOpts().CPlusPlus;
+    return !(S.getLangOpts().CPlusPlus ||
+             LHSExpr->getType()->isCheckedPointerType() ||
+             RHSExpr->getType()->isCheckedPointerType());
   }
 
   bool isLHSFuncPtr = isLHSPointer && LHSPointeeTy->isFunctionType();
@@ -9311,6 +9890,9 @@ static bool checkArithmeticBinOpPointerOperands(Sema &S, SourceLocation Loc,
                                                                 RHSExpr);
     else diagnoseArithmeticOnTwoFunctionPointers(S, Loc, LHSExpr, RHSExpr);
 
+    // We don't have to check if the function pointers are checked. Only _Ptrs to
+    // function types are allowd and arithmetic on _Ptrs is covered by another
+    // diagnostic.
     return !S.getLangOpts().CPlusPlus;
   }
 
@@ -10637,8 +11219,20 @@ QualType Sema::CheckCompareOperands(ExprResult &LHS, ExprResult &RHS,
                                                : CK_BitCast;
       if (LHSIsNull && !RHSIsNull)
         LHS = ImpCastExprToType(LHS.get(), RHSType, Kind);
-      else
+      // Avoid introducing an implicit cast to _Ptr type. Implicit casts to
+      // _Ptr type require that the source operand have bounds large enough
+      // to hold the pointee type.  The source operand may not have those bounds.
+      else if (!LHSType->isCheckedPointerPtrType())
         RHS = ImpCastExprToType(RHS.get(), LHSType, Kind);
+      else  if (!RHSType->isCheckedPointerPtrType())
+        LHS = ImpCastExprToType(LHS.get(), RHSType, Kind);
+      else {
+        QualType TargetType =
+          Context.getPointerType(LCanPointeeTy,
+                                 CheckedPointerKind::Unchecked);
+        LHS = ImpCastExprToType(LHS.get(), TargetType, Kind);
+        RHS = ImpCastExprToType(RHS.get(), TargetType, Kind);
+      }
     }
     return computeResultTy();
   }
@@ -11574,7 +12168,13 @@ QualType Sema::CheckAssignmentOperands(Expr *LHSExpr, ExprResult &RHS,
     CheckIdentityFieldAssignment(LHSExpr, RHSCheck, Loc, *this);
 
     QualType LHSTy(LHSType);
-    ConvTy = CheckSingleAssignmentConstraints(LHSTy, RHS);
+    QualType LHSInteropType;
+    if (getLangOpts().CheckedC && LHSTy->isUncheckedPointerType())
+      LHSInteropType = GetCheckedCInteropType(LHSExpr);
+    ConvTy = CheckSingleAssignmentConstraints(LHSTy, RHS, /*Diagnose=*/true,
+                                              /*DiagnoseCFAudited=*/false,
+                                              /*ConvertRHS=*/true,
+                                              LHSInteropType);
     if (RHS.isInvalid())
       return QualType();
     // Special case of NSObject attributes on c-style pointer types.
@@ -12147,7 +12747,20 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
 
   CheckAddressOfPackedMember(op);
 
-  return Context.getPointerType(op->getType());
+  // Checked scopes change the types of the address-of(&) operator.
+  // In a checked scope, the operator produces an array_ptr<T> except for
+  // function type. For address-of function type, it produces ptr not array_ptr.
+  // In an unchecked scope, it continues to produce (T *).
+  CheckedPointerKind kind;
+  if (IsCheckedScope()) {
+    if (op->getType()->isFunctionType())
+      kind = CheckedPointerKind::Ptr;
+    else
+      kind = CheckedPointerKind::Array;
+  } else
+    kind = CheckedPointerKind::Unchecked;
+
+  return Context.getPointerType(op->getType(), kind);
 }
 
 static void RecordModifiableNonNullParam(Sema &S, const Expr *Exp) {
@@ -13413,7 +14026,7 @@ ExprResult Sema::ActOnAddrLabel(SourceLocation OpLoc, SourceLocation LabLoc,
   TheDecl->markUsed(Context);
   // Create the AST node.  The address of a label always has type 'void*'.
   return new (Context) AddrLabelExpr(OpLoc, LabLoc, TheDecl,
-                                     Context.getPointerType(Context.VoidTy));
+                                     Context.getPointerType(Context.VoidTy, CheckedPointerKind::Unchecked));
 }
 
 void Sema::ActOnStartStmtExpr() {
@@ -13717,6 +14330,287 @@ ExprResult Sema::ActOnChooseExpr(SourceLocation BuiltinLoc,
   return new (Context)
       ChooseExpr(BuiltinLoc, CondExpr, LHSExpr, RHSExpr, resType, VK, OK, RPLoc,
                  CondIsTrue, resType->isDependentType(), ValueDependent);
+}
+
+//===----------------------------------------------------------------------===//
+// Checked C Extension.
+//===----------------------------------------------------------------------===//
+
+ExprResult Sema::ActOnNullaryBoundsExpr(SourceLocation BoundsKWLoc,
+                                        BoundsExpr::Kind Kind,
+                                        SourceLocation RParenLoc) {
+  return new (Context) NullaryBoundsExpr(Kind, BoundsKWLoc, RParenLoc);
+}
+
+ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
+                                      BoundsExpr::Kind Kind,
+                                      Expr *CountExpr,
+                                      SourceLocation RParenLoc) {
+  // Do the usual C integer promotions if necessary. 
+  ExprResult Result = UsualUnaryConversions(CountExpr);
+  if (Result.isInvalid())
+    return ExprError();
+  CountExpr = Result.get();
+  QualType ResultType = CountExpr->getType();
+  if (!ResultType->isIntegerType()) {
+    Diag(CountExpr->getBeginLoc(),
+         Kind == BoundsExpr::Kind::ElementCount ?
+         diag::err_typecheck_count_bounds_expr
+         : diag::err_typecheck_byte_count_bounds_expr)
+      << ResultType;
+    return ExprError();
+  }
+
+  return new (Context) CountBoundsExpr(Kind, CountExpr, BoundsKWLoc,
+                                       RParenLoc);
+}
+
+/// \brief Validate the type of an argument expression to a bounds
+/// expression. If valid, return the pointee type.  Otherwise
+/// return a null QualType  Assumes that the usual C conversions for expressions
+/// have been applied already, including array->pointer conversions.
+QualType Sema::ValidateBoundsExprArgument(Expr *Arg) {
+  QualType ArgType = Arg->getType();
+  const Type *ArgPointerType = ArgType->getAs<PointerType>();
+  if (!ArgPointerType) {
+    Diag(Arg->getBeginLoc(),
+         diag::err_typecheck_pointer_type_expected) << ArgType;
+    return QualType();
+  }
+  QualType ArgTypePointee = ArgPointerType->getPointeeType();
+  // We return the unqualified type so that we can compare
+  // types ignoring qualifier information.  For constant, volatile,
+  // and restrict, it is valid to have argument types that differ
+  // in those qualifiers.  However, clang extends qualifiers with
+  // GC qualifiers (for Objective C) and address-space qualifiers (for
+  // OpenCL).  These should not be ignored when comparing types.  For
+  // Checked C, though, we never expect to see either of those qualifiers
+  // because we restrict usage of the extension to only C. For now, we 
+  // can ignore the existence of those additional qualifiers.  Assert if
+  // we do see them.
+  Qualifiers ArgTypeQuals = ArgTypePointee.getQualifiers();
+  ArgTypeQuals.removeCVRQualifiers();
+
+  if (ArgTypeQuals.hasQualifiers()) {
+    if (!DisableSubstitionDiagnostics)
+      assert(!ArgTypeQuals.hasQualifiers() &&
+         "unexpected non-CVR qualifiers on type");
+    else
+      return ArgTypePointee;
+  }
+
+  if (!ArgTypePointee->isIncompleteOrObjectType()) {
+    Diag(Arg->getBeginLoc(), diag::err_typecheck_bounds_expr) << ArgType;
+    return QualType();
+  }
+
+  // Return the pointee type.
+  return ArgTypePointee;
+}
+
+ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
+                                      Expr *LowerBound,
+                                      Expr *UpperBound,
+                                      SourceLocation RParenLoc) {
+  ExprResult Result = UsualUnaryConversions(LowerBound);
+  if (Result.isInvalid())
+     return ExprError();
+  LowerBound = Result.get();
+
+  Result = UsualUnaryConversions(UpperBound);
+  if (Result.isInvalid())
+    return ExprError();
+  UpperBound = Result.get();
+
+  QualType LowerBoundPointee = ValidateBoundsExprArgument(LowerBound);
+  QualType UpperBoundPointee = ValidateBoundsExprArgument(UpperBound);
+
+  if (LowerBoundPointee.isNull() || UpperBoundPointee.isNull())
+    return ExprError();
+
+  if (!Context.typesAreCompatible(LowerBoundPointee, UpperBoundPointee, true) &&
+      !LowerBoundPointee->isVoidType() &&
+      !UpperBoundPointee->isVoidType()) {
+    Diag(LowerBound->getBeginLoc(),
+         diag::err_typecheck_bounds_expr_incompatible_pointers)
+      << LowerBound->getType() << UpperBound->getType() << LowerBound->getSourceRange()
+      << UpperBound->getSourceRange();
+    return ExprError();
+  }
+  return new (Context) RangeBoundsExpr(LowerBound, UpperBound, BoundsKWLoc,
+                                       RParenLoc);
+}
+
+ExprResult Sema::CreateRangeBoundsExpr(SourceLocation BoundsKWLoc,
+                                       Expr *LowerBound, Expr *UpperBound,
+                                       RelativeBoundsClause *Relative,
+                                       SourceLocation RParenLoc) {
+  RangeBoundsExpr *Range = nullptr;
+  ExprResult Result =
+      ActOnRangeBoundsExpr(BoundsKWLoc, LowerBound, UpperBound, RParenLoc);
+  if (Result.isInvalid())
+    return ExprError();
+  Range = cast<RangeBoundsExpr>(Result.get());
+  Range->setRelativeBoundsClause(Relative);
+  return Result;
+}
+
+RelativeBoundsClause* Sema::ActOnRelativeTypeBoundsClause(SourceLocation BoundsKWLoc,
+                                         ParsedType Ty,
+                                         SourceLocation RParenLoc) {
+  TypeSourceInfo *TyInfo = nullptr;
+  GetTypeFromParser(Ty, &TyInfo);
+  return CreateRelativeTypeBoundsClause(BoundsKWLoc, TyInfo, RParenLoc);
+}
+
+RelativeBoundsClause *
+Sema::CreateRelativeTypeBoundsClause(SourceLocation BoundsKWLoc,
+                                     TypeSourceInfo *TyInfo,
+                                     SourceLocation RParenLoc) {
+  QualType QT = TyInfo->getType();
+  return new (Context) RelativeTypeBoundsClause(QT, BoundsKWLoc, RParenLoc);
+}
+
+RelativeBoundsClause *
+Sema::ActOnRelativeConstExprClause(Expr *ConstExpr, SourceLocation BoundsKWLoc,
+                                   SourceLocation RParenLoc) {
+  ExprResult Result = UsualUnaryConversions(ConstExpr);
+  if (Result.isInvalid())
+    return nullptr;
+  ConstExpr = Result.get();
+  QualType ResultType = ConstExpr->getType();
+  if (!ResultType->isIntegerType()) {
+    Diag(ConstExpr->getBeginLoc(), diag::err_typecheck_rel_align_bounds_clause)<< ResultType;
+    return nullptr;
+  }
+  return new (Context)
+      RelativeConstExprBoundsClause(ConstExpr, BoundsKWLoc, RParenLoc);
+}
+
+ExprResult Sema::ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
+                                        SourceLocation RParenLoc) {
+  TypeSourceInfo *TInfo = nullptr;
+  GetTypeFromParser(Ty, &TInfo);
+  return CreateBoundsInteropTypeExpr(TypeKWLoc, TInfo, RParenLoc);
+}
+
+
+ExprResult Sema::CreateBoundsInteropTypeExpr(SourceLocation TypeKWLoc,
+                                             TypeSourceInfo *TInfo,
+                                             SourceLocation RParenLoc) {
+  QualType QT = TInfo->getType();
+  return new (Context) InteropTypeExpr(QT, TypeKWLoc, RParenLoc,
+                                                   TInfo);
+}
+ExprResult Sema::CreatePositionalParameterExpr(unsigned Index, QualType QT) {
+  return new (Context) PositionalParameterExpr(Index, QT);
+}
+
+bool Sema::CheckBoundsCastBaseType(Expr *E1) {
+  bool Result = false;
+  QualType SrcTy = E1->getType();
+  if (!SrcTy->isPointerType() && !SrcTy->isIntegralType(Context) &&
+      !SrcTy->isArrayType()) {
+    Diag(E1->getBeginLoc(), diag::err_typecheck_non_count_bounds_decl) << E1;
+    Result = true;
+  }
+  return Result;
+}
+
+ExprResult Sema::ActOnBoundsCastExprBounds(
+    Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
+    SourceLocation LAngleBracketLoc, ParsedType D,
+    SourceLocation RAngleBracketLoc,
+    SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1,
+    BoundsExpr *Bounds) {
+  TypeSourceInfo *CastTInfo;
+
+  QualType DestTy = GetTypeFromParser(D, &CastTInfo);
+  SourceLocation TypeLoc =
+     CastTInfo ? (CastTInfo->getTypeLoc()).getBeginLoc() : LAngleBracketLoc;
+
+  if (CheckBoundsCastBaseType(E1))
+    return ExprError();
+
+  if (!DestTy->isCheckedPointerArrayType()) {
+    Diag(TypeLoc, diag::err_bounds_cast_expected_array_ptr);
+    return ExprError();
+  } else if (Bounds->isElementCount() && DestTy->isVoidPointerType()) {
+    Diag(Bounds->getBeginLoc(),
+         diag::err_typecheck_void_pointer_count_bounds_cast);
+    return ExprError();
+  }
+
+  return BuildBoundsCastExpr(OpLoc, Kind, CastTInfo,
+                             SourceRange(LAngleBracketLoc, RAngleBracketLoc),
+                             SourceRange(LParenLoc, RParenLoc), E1, Bounds);
+}
+
+ExprResult Sema::ActOnBoundsCastExprSingle(
+    Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
+    SourceLocation LAngleBracketLoc, ParsedType D,
+    SourceLocation RAngleBracketLoc,
+    SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1) {
+  TypeSourceInfo *CastTInfo;
+  BoundsExpr *Bounds;
+
+  QualType DestTy = GetTypeFromParser(D, &CastTInfo);
+  SourceLocation TypeLoc =
+     CastTInfo ? (CastTInfo->getTypeLoc()).getBeginLoc() : LAngleBracketLoc;
+
+  if (CheckBoundsCastBaseType(E1))
+    return ExprError();
+
+  if (DestTy->isCheckedPointerPtrType() || DestTy->isUncheckedPointerType()) {
+    if (DestTy->isVoidPointerType())
+      Bounds = Context.getPrebuiltByteCountOne();
+    else
+      Bounds = Context.getPrebuiltCountOne();
+  } else {
+    Diag(TypeLoc, diag::err_bounds_cast_expected_ptr_or_unchecked);
+    return ExprError();
+  }
+
+  return BuildBoundsCastExpr(OpLoc, Kind, CastTInfo,
+                             SourceRange(LAngleBracketLoc, RAngleBracketLoc),
+                             SourceRange(LParenLoc, RParenLoc), E1,
+                             Bounds);
+}
+
+ExprResult Sema::ActOnReturnValueExpr(SourceLocation Loc) {
+  QualType Ty = BoundsExprReturnValue;
+  if (Ty.isNull()) {
+    Diag(Loc, diag::err_return_value_not_in_scope);
+    return ExprError();
+  }
+
+  return new (Context) BoundsValueExpr(Loc, Ty, BoundsValueExpr::Kind::Return);
+}
+
+void Sema::SetDeferredBoundsCallBack(void *OpaqueData, ParseDeferredBoundsCallBackFn F) {
+  DeferredBoundsParserData = OpaqueData;
+  DeferredBoundsParser = F;
+}
+
+ExprResult Sema::ActOnPackExpression(Expr *PackedExpr,
+                                     QualType ExistType,
+                                     TypeArgument SubstArg,
+                                     SourceLocation StartLoc,
+                                     SourceLocation EndLoc) {
+
+  // Calculate the witness type by substituting the subst argument into the inner type of the existential.
+  // Example: suppose the existential is '_Exists(T, struct Foo<T>)'. Then the witness should have
+  // type 'struct Foo<int>'.
+  auto *Exist = dyn_cast<ExistentialType>(ExistType.getCanonicalType().getTypePtr());
+  assert(Exist && "Expected existential type in pack expression");
+  // Substitute in the inner type, not in the entire existential.
+  auto WitnessType = SubstituteTypeArgs(Exist->innerType(), SubstArg);
+  if (PackedExpr->getType().getCanonicalType() != WitnessType.getCanonicalType()) {
+    // TODO: improve error message by showing both the witness and expected types.
+    Diag(StartLoc, diag::err_typecheck_existential_type_witness_mismatch);
+    return ExprError();
+  }
+  return new (Context) PackExpr(PackedExpr, ExistType, SubstArg.typeName, StartLoc, EndLoc);
 }
 
 //===----------------------------------------------------------------------===//
@@ -14410,6 +15304,21 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
   case IncompatibleObjCWeakRef:
     DiagKind = diag::err_arc_weak_unavailable_assign;
     break;
+  case IncompatibleCheckedCVoid: {
+    QualType VoidType;
+    QualType NonVoidType;
+    if (SrcType->isVoidPointerType()) {
+      VoidType = SrcType;
+      NonVoidType = DstType;
+    } else {
+      VoidType = DstType;
+      NonVoidType = SrcType;
+    }
+    Diag(Loc, diag::err_checkedc_void_pointer_assign) << VoidType << NonVoidType <<
+      (QualType(NonVoidType->getPointeeOrArrayElementType(), 0));
+    *Complained = true;
+    return true;
+  }
   case Incompatible:
     if (maybeDiagnoseAssignmentToFunction(*this, DstType, SrcExpr)) {
       if (Complained)
@@ -16684,6 +17593,9 @@ void Sema::MarkDeclarationsReferencedInExpr(Expr *E,
 /// during overload resolution or within sizeof/alignof/typeof/typeid.
 bool Sema::DiagRuntimeBehavior(SourceLocation Loc, ArrayRef<const Stmt*> Stmts,
                                const PartialDiagnostic &PD) {
+  if (DisableSubstitionDiagnostics)
+    return false;
+
   switch (ExprEvalContexts.back().Context) {
   case ExpressionEvaluationContext::Unevaluated:
   case ExpressionEvaluationContext::UnevaluatedList:

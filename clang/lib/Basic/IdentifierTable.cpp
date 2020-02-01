@@ -101,6 +101,7 @@ namespace {
     KEYOPENCLCXX  = 0x400000,
     KEYMSCOMPAT   = 0x800000,
     KEYALLCXX = KEYCXX | KEYCXX11 | KEYCXX2A,
+    KEYCHECKEDC   = 0x800000,
     KEYALL = (0xffffff & ~KEYNOMS18 &
               ~KEYNOOPENCL) // KEYNOMS18 and KEYNOOPENCL are used to exclude.
   };
@@ -145,6 +146,7 @@ static KeywordStatus getKeywordStatus(const LangOptions &LangOpts,
   if (LangOpts.ConceptsTS && (Flags & KEYCONCEPTS)) return KS_Enabled;
   if (LangOpts.Coroutines && (Flags & KEYCOROUTINES)) return KS_Enabled;
   if (LangOpts.ModulesTS && (Flags & KEYMODULES)) return KS_Enabled;
+  if (LangOpts.CheckedC && (Flags & KEYCHECKEDC)) return KS_Enabled;
   if (LangOpts.CPlusPlus && (Flags & KEYALLCXX)) return KS_Future;
   return KS_Disabled;
 }

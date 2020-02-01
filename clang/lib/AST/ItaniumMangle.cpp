@@ -1966,6 +1966,8 @@ bool CXXNameMangler::mangleUnresolvedTypeOrSimpleId(QualType Ty,
   case Type::Atomic:
   case Type::Pipe:
   case Type::MacroQualified:
+  case Type::TypeVariable:
+  case Type::Existential:
     llvm_unreachable("type is illegal as a nested name specifier");
 
   case Type::SubstTemplateTypeParmPack:
@@ -3319,6 +3321,14 @@ void CXXNameMangler::mangleType(const DependentTemplateSpecializationType *T) {
   Out << 'E';
 }
 
+void CXXNameMangler::mangleType(const TypeVariableType *T) {
+  llvm_unreachable("TypeVariableType cannot be mangled.");
+}
+
+void CXXNameMangler::mangleType(const ExistentialType *T) {
+  llvm_unreachable("ExistentialType cannot be mangled.");
+}
+
 void CXXNameMangler::mangleType(const TypeOfType *T) {
   // FIXME: this is pretty unsatisfactory, but there isn't an obvious
   // "extension with parameters" mangling.
@@ -3624,6 +3634,13 @@ recurse:
   case Expr::SourceLocExprClass:
   case Expr::FixedPointLiteralClass:
   case Expr::BuiltinBitCastExprClass:
+  case Expr::PositionalParameterExprClass:
+  case Expr::CountBoundsExprClass:
+  case Expr::InteropTypeExprClass:
+  case Expr::NullaryBoundsExprClass:
+  case Expr::RangeBoundsExprClass:
+  case Expr::CHKCBindTemporaryExprClass:
+  case Expr::BoundsValueExprClass:
   {
     if (!NullOut) {
       // As bad as this diagnostic is, it's better than crashing.
@@ -4070,6 +4087,7 @@ recurse:
   // Fall through to mangle the cast itself.
   LLVM_FALLTHROUGH;
 
+  case Expr::BoundsCastExprClass:
   case Expr::CStyleCastExprClass:
     mangleCastExpression(E, "cv");
     break;
@@ -4313,6 +4331,9 @@ recurse:
     // FIXME: Propose a non-vendor mangling.
     Out << "v18co_yield";
     mangleExpression(cast<CoawaitExpr>(E)->getOperand());
+    break;
+  case Expr::PackExprClass:
+    llvm_unreachable("Don't know how to mangle pack expressions");
     break;
   }
 }

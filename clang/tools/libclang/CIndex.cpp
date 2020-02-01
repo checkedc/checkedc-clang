@@ -1561,6 +1561,15 @@ bool CursorVisitor::VisitTypedefTypeLoc(TypedefTypeLoc TL) {
   return Visit(MakeCursorTypeRef(TL.getTypedefNameDecl(), TL.getNameLoc(), TU));
 }
 
+bool CursorVisitor::VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
+  return false;
+}
+
+bool CursorVisitor::VisitExistentialTypeLoc(ExistentialTypeLoc TL) {
+  // TODO: properly recurse on both components (checkedc issue #661)
+  return false;
+}
+
 bool CursorVisitor::VisitUnresolvedUsingTypeLoc(UnresolvedUsingTypeLoc TL) {
   return Visit(MakeCursorTypeRef(TL.getDecl(), TL.getNameLoc(), TU));
 }

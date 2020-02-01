@@ -2403,7 +2403,8 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
     // Don't push a cleanup in a thunk for a method that will also emit a
     // cleanup.
     if (hasAggregateEvaluationKind(Ty) && !CurFuncIsThunk &&
-        Ty->getAs<RecordType>()->getDecl()->isParamDestroyedInCallee()) {
+      !Ty->isExistentialType() && // Check that this isn't an existential type, which is potentially an aggregate but doesn't require a destructor.
+      Ty->getAs<RecordType>()->getDecl()->isParamDestroyedInCallee()) {
       if (QualType::DestructionKind DtorKind = Ty.isDestructedType()) {
         assert((DtorKind == QualType::DK_cxx_destructor ||
                 DtorKind == QualType::DK_nontrivial_c_struct) &&

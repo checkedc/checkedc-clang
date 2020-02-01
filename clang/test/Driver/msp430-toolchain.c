@@ -1,4 +1,4 @@
-// A basic clang -cc1 command-line, and simple environment check.
+/// A basic clang -cc1 command-line, and simple environment check.
 
 // RUN: %clang %s -### -no-canonical-prefixes -target msp430 2>&1 \
 // RUN:   | FileCheck -check-prefix=CC1 %s

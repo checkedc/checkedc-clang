@@ -311,6 +311,9 @@ def warn_debug_compression_unavailable : Warning<"cannot compress debug sections
 def warn_drv_disabling_vptr_no_rtti_default : Warning<
   "implicitly disabling vptr sanitizer because rtti wasn't enabled">,
   InGroup<AutoDisableVptrSanitizer>;
+def warn_drv_checkedc_extension_notsupported : Warning<
+  "Checked C extension not supported with '%1'; ignoring '%0'">,
+  InGroup<CheckedC>;
 def warn_drv_object_size_disabled_O0 : Warning<
   "the object size sanitizer has no effect at -O0, but is explicitly enabled: %0">,
   InGroup<InvalidCommandLineArgument>, DefaultWarnNoWerror;

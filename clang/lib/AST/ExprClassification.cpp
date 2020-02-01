@@ -337,6 +337,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
 
     // Casts depend completely on the target type. All casts work the same.
   case Expr::CStyleCastExprClass:
+  case Expr::BoundsCastExprClass:    
   case Expr::CXXFunctionalCastExprClass:
   case Expr::CXXStaticCastExprClass:
   case Expr::CXXDynamicCastExprClass:
@@ -421,8 +422,34 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::CoawaitExprClass:
   case Expr::CoyieldExprClass:
     return ClassifyInternal(Ctx, cast<CoroutineSuspendExpr>(E)->getResumeExpr());
+
+  // We might need to classify positional parameters, which occur
+  // as subexpressions of bounds expressions.
+  case Expr::PositionalParameterExprClass:
+    return Cl::CL_LValue;
+
+  // For bindings of temporaries, delegate to the underlying expression.
+  case Expr::CHKCBindTemporaryExprClass:
+    return ClassifyInternal(Ctx, cast<CHKCBindTemporaryExpr>(E)->getSubExpr());
+
+  case Expr::BoundsValueExprClass: {
+    const BoundsValueExpr *BV = cast<BoundsValueExpr>(E);
+    if (BV->getKind() == BoundsValueExpr::Kind::Return)
+      return Cl::CL_PRValue;
+    else
+      // For uses of temporaries, delegate to the underlying expression.
+      return ClassifyInternal(Ctx, BV->getTemporaryBinding()->getSubExpr());
   }
 
+  case Expr::CountBoundsExprClass:
+  case Expr::InteropTypeExprClass:
+  case Expr::NullaryBoundsExprClass:
+  case Expr::RangeBoundsExprClass:
+    llvm_unreachable("should not classify bounds expressions");
+  case Expr::PackExprClass:
+    // Pack expressions are always r-values.
+    return Cl::CL_PRValue;
+  }
   llvm_unreachable("unhandled expression kind in classification");
 }
 

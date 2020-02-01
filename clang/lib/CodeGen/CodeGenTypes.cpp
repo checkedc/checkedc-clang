@@ -384,8 +384,17 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   const Type *Ty = T.getTypePtr();
 
   // RecordTypes are cached and processed specially.
-  if (const RecordType *RT = dyn_cast<RecordType>(Ty))
-    return ConvertRecordDeclType(RT->getDecl());
+  if (const RecordType *RT = dyn_cast<RecordType>(Ty)) {
+    auto *RecDecl = RT->getDecl();
+    // To codegen types for type applications, simply codegen the underlying
+    // record declaration. That is, codegen type applications by erasing the type
+    // arguments.
+    // Example: suppose 'R1' is the RecordDecl corresponding to the declaration of
+    // 'struct List _For_any(T)', and 'R2' is the RecordDecl for the type application
+    // 'struct List<int>'. Then codegen 'struct List<int>' as we would codegen 'struct List'.
+    if (RecDecl->isInstantiated()) RecDecl = RecDecl->genericBaseDecl();
+    return ConvertRecordDeclType(RecDecl);
+  }
 
   // See if type is already cached.
   llvm::DenseMap<const Type *, llvm::Type *>::iterator TCI = TypeCache.find(Ty);
@@ -548,7 +557,18 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     ResultType = llvm::PointerType::get(PointeeType, AS);
     break;
   }
-
+  case Type::TypeVariable: {
+    // Type Variables work just like void type.
+    ResultType = llvm::Type::getInt8Ty(getLLVMContext());
+    break;
+  }
+  case Type::Existential: {
+    // Existential types desugar into their inner types.
+    // e.g.: '_Exists(T, struct Foo<T>)' becomes 'struct Foo<T>', which in turn
+    // becomes 'struct Foo', where uses of 'T' are replaced by 'void'.
+    ResultType = ConvertType(dyn_cast<ExistentialType>(Ty)->innerType());
+    break;
+  }
   case Type::VariableArray: {
     const VariableArrayType *A = cast<VariableArrayType>(Ty);
     assert(A->getIndexTypeCVRQualifiers() == 0 &&

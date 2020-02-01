@@ -520,6 +520,12 @@ void ASTDeclWriter::VisitEnumConstantDecl(EnumConstantDecl *D) {
 void ASTDeclWriter::VisitDeclaratorDecl(DeclaratorDecl *D) {
   VisitValueDecl(D);
   Record.AddSourceLocation(D->getInnerLocStart());
+
+  bool hasBoundsAnnotations = D->hasBoundsAnnotations();
+  Record.push_back(hasBoundsAnnotations);
+  if (hasBoundsAnnotations)
+    Record.AddBoundsAnnotations(D->getBoundsAnnotations());
+
   Record.push_back(D->hasExtInfo());
   if (D->hasExtInfo())
     Record.AddQualifierInfo(*D->getExtInfo());
@@ -537,6 +543,8 @@ void ASTDeclWriter::VisitFunctionDecl(FunctionDecl *D) {
   // FunctionDecl's body is handled last at ASTWriterDecl::Visit,
   // after everything else is written.
   Record.push_back(static_cast<int>(D->getStorageClass())); // FIXME: stable encoding
+  Record.push_back(D->getCheckedSpecifier());
+  Record.push_back(D->getWrittenCheckedSpecifier());
   Record.push_back(D->isInlineSpecified());
   Record.push_back(D->isInlined());
   Record.push_back(D->isVirtualAsWritten());
@@ -781,6 +789,7 @@ void ASTDeclWriter::VisitObjCIvarDecl(ObjCIvarDecl *D) {
       !D->isReferenced() &&
       !D->isModulePrivate() &&
       !D->getBitWidth() &&
+      !D->hasBoundsAnnotations() &&
       !D->hasExtInfo() &&
       D->getDeclName())
     AbbrevToUse = Writer.getDeclObjCIvarAbbrev();
@@ -915,6 +924,7 @@ void ASTDeclWriter::VisitFieldDecl(FieldDecl *D) {
       !D->isModulePrivate() &&
       !D->getBitWidth() &&
       !D->hasInClassInitializer() &&
+      !D->hasBoundsAnnotations() &&
       !D->hasCapturedVLAType() &&
       !D->hasExtInfo() &&
       !ObjCIvarDecl::classofKind(D->getKind()) &&
@@ -1026,6 +1036,7 @@ void ASTDeclWriter::VisitVarDecl(VarDecl *D) {
       !D->isModulePrivate() &&
       !needsAnonymousDeclarationNumber(D) &&
       D->getDeclName().getNameKind() == DeclarationName::Identifier &&
+      !D->hasBoundsAnnotations() &&
       !D->hasExtInfo() &&
       D->getFirstDecl() == D->getMostRecentDecl() &&
       D->getKind() == Decl::Var &&
@@ -1067,6 +1078,7 @@ void ASTDeclWriter::VisitParmVarDecl(ParmVarDecl *D) {
   // know are true of all PARM_VAR_DECLs.
   if (D->getDeclContext() == D->getLexicalDeclContext() &&
       !D->hasAttrs() &&
+      !D->hasBoundsAnnotations() &&
       !D->hasExtInfo() &&
       !D->isImplicit() &&
       !D->isUsed(false) &&
@@ -1336,6 +1348,7 @@ void ASTDeclWriter::VisitCXXMethodDecl(CXXMethodDecl *D) {
       !D->hasAttrs() &&
       !D->isTopLevelDeclInObjCContainer() &&
       D->getDeclName().getNameKind() == DeclarationName::Identifier &&
+      !D->hasBoundsAnnotations() &&
       !D->hasExtInfo() &&
       !D->hasInheritedPrototype() &&
       D->hasWrittenPrototype())
@@ -1860,6 +1873,7 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // Type
   // DeclaratorDecl
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // InnerStartLoc
+  Abv->Add(BitCodeAbbrevOp(0));                       // hasBoundsAnnotations
   Abv->Add(BitCodeAbbrevOp(0));                       // hasExtInfo
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // TSIType
   // FieldDecl
@@ -1893,6 +1907,7 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // Type
   // DeclaratorDecl
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // InnerStartLoc
+  Abv->Add(BitCodeAbbrevOp(0));                       // hasBoundsAnnotations
   Abv->Add(BitCodeAbbrevOp(0));                       // hasExtInfo
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // TSIType
   // FieldDecl
@@ -2043,6 +2058,7 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // Type
   // DeclaratorDecl
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // InnerStartLoc
+  Abv->Add(BitCodeAbbrevOp(0));                       // hasBoundsAnnotations
   Abv->Add(BitCodeAbbrevOp(0));                       // hasExtInfo
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // TSIType
   // VarDecl
@@ -2120,6 +2136,7 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // Type
   // DeclaratorDecl
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // InnerStartLoc
+  Abv->Add(BitCodeAbbrevOp(0));                       // hasBoundsAnnotations
   Abv->Add(BitCodeAbbrevOp(0));                       // hasExtInfo
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // TSIType
   // VarDecl
@@ -2172,11 +2189,14 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));   // Type
   // DeclaratorDecl
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));   // InnerLocStart
+  Abv->Add(BitCodeAbbrevOp(0));                         // hasBoundsAnnotations
   Abv->Add(BitCodeAbbrevOp(0));                         // HasExtInfo
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));   // TSIType
   // FunctionDecl
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 11)); // IDNS
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 3)); // StorageClass
+  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 2)); // CheckedScopeSpecifier
+  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 2)); // WrittenCheckedScopeSpecifier
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Inline
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // InlineSpecified
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // VirtualAsWritten
@@ -2230,6 +2250,8 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); //HadMultipleCandidates
   Abv->Add(BitCodeAbbrevOp(0)); // RefersToEnclosingVariableOrCapture
   Abv->Add(BitCodeAbbrevOp(0)); // NonOdrUseReason
+  Abv->Add(BitCodeAbbrevOp(0));                       // isGenericFunction
+  Abv->Add(BitCodeAbbrevOp(0));                       // isItypeGenericFunction
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // DeclRef
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // Location
   DeclRefExprAbbrev = Stream.EmitAbbrev(std::move(Abv));
@@ -2289,6 +2311,10 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(0)); // PathSize
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 6)); // CastKind
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // PartOfExplicitCast
+  Abv->Add(BitCodeAbbrevOp(0)); // isBoundsSafeInterface
+  Abv->Add(BitCodeAbbrevOp(0)); // hasBoundsAnnotations
+  Abv->Add(BitCodeAbbrevOp(0)); // hasCastBoundsExpr
+  Abv->Add(BitCodeAbbrevOp(0)); // hasSubExprBoundsExpr
   // ImplicitCastExpr
   ExprImplicitCastAbbrev = Stream.EmitAbbrev(std::move(Abv));
 
@@ -2380,6 +2406,11 @@ void ASTWriter::WriteDecl(ASTContext &Context, Decl *D) {
   // them to a record in the AST file later.
   if (isRequiredDecl(D, Context, WritingModule))
     EagerlyDeserializedDecls.push_back(ID);
+}
+
+void ASTRecordWriter::AddBoundsAnnotations(BoundsAnnotations BA) {
+  AddStmt(BA.getBoundsExpr());
+  AddStmt(BA.getInteropTypeExpr());
 }
 
 void ASTRecordWriter::AddFunctionDefinition(const FunctionDecl *FD) {

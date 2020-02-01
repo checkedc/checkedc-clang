@@ -1915,6 +1915,38 @@ void QualifierInfo::setTemplateParameterListsInfo(
   }
 }
 
+// Checked C bounds information
+
+bool DeclaratorDecl::hasBoundsExpr() const {
+  return getBoundsExpr() != nullptr;
+}
+
+bool DeclaratorDecl::hasBoundsDeclaration(const ASTContext &Ctx) const {
+  if (getBoundsExpr() != nullptr) {
+      QualType QT = getType();
+      if (QT.isNull())
+        return false;
+      if (const FunctionType *FT = QT->getAs<FunctionType>())
+        QT = FT->getReturnType();
+      return (QT->isCheckedPointerType() || QT->isCheckedArrayType() ||
+              QT->isIntegralType(Ctx));
+  }
+  return false;
+}
+
+bool DeclaratorDecl::hasBoundsSafeInterface(const ASTContext &Ctx) const {
+  return getBoundsExpr() != nullptr && !hasBoundsDeclaration(Ctx);
+}
+
+QualType DeclaratorDecl::getInteropType() {
+  InteropTypeExpr *BA = getInteropTypeExpr();
+  if (BA)
+    return BA->getType();
+  else
+    return QualType();
+}
+
+
 //===----------------------------------------------------------------------===//
 // VarDecl Implementation
 //===----------------------------------------------------------------------===//
@@ -2034,7 +2066,16 @@ static bool isDeclExternC(const T &D) {
   // language linkage or no language linkage.
   const DeclContext *DC = D.getDeclContext();
   if (DC->isRecord()) {
-    assert(D.getASTContext().getLangOpts().CPlusPlus);
+    // This commented-out assertion cause a compiler crash on incorrect C
+    // bitfield declarations.  Function calls aren't allowed in constant
+    // expressions by the C standard, but clang allows them in the parse tree.
+    // The following code with a call to an undefined function would hit the
+    // assert and cause a debug compiler crash:
+    // struct S {
+    //  int x : f(5);
+    // };
+    //
+    // assert(D.getASTContext().getLangOpts().CPlusPlus);
     return false;
   }
 
@@ -2184,6 +2225,9 @@ VarDecl::DefinitionKind VarDecl::hasDefinition(ASTContext &C) const {
 
   return Kind;
 }
+
+
+
 
 const Expr *VarDecl::getAnyInitializer(const VarDecl *&D) const {
   for (auto I : redecls()) {
@@ -2728,7 +2772,7 @@ FunctionDecl::FunctionDecl(Kind DK, ASTContext &C, DeclContext *DC,
                            ConstexprSpecKind ConstexprKind)
     : DeclaratorDecl(DK, DC, NameInfo.getLoc(), NameInfo.getName(), T, TInfo,
                      StartLoc),
-      DeclContext(DK), redeclarable_base(C), ODRHash(0),
+      DeclContext(DK), redeclarable_base(C), TypeVarInfo(nullptr), ODRHash(0),
       EndRangeLoc(NameInfo.getEndLoc()), DNLoc(NameInfo.getInfo()) {
   assert(T.isNull() || T->isFunctionType());
   FunctionDeclBits.SClass = S;
@@ -2750,6 +2794,10 @@ FunctionDecl::FunctionDecl(Kind DK, ASTContext &C, DeclContext *DC,
   FunctionDeclBits.UsesSEHTry = false;
   FunctionDeclBits.HasSkippedBody = false;
   FunctionDeclBits.WillHaveBody = false;
+  FunctionDeclBits.IsGenericFunction = false;
+  FunctionDeclBits.IsItypeGenericFunction = false;
+  FunctionDeclBits.WrittenCheckedSpecifier = CSS_None;
+  FunctionDeclBits.CheckedSpecifier = CSS_None;
   FunctionDeclBits.IsMultiVersion = false;
   FunctionDeclBits.IsCopyDeductionCandidate = false;
   FunctionDeclBits.HasODRHash = false;
@@ -3138,6 +3186,23 @@ unsigned FunctionDecl::getBuiltinID(bool ConsiderWrapperFunctions) const {
 unsigned FunctionDecl::getNumParams() const {
   const auto *FPT = getType()->getAs<FunctionProtoType>();
   return FPT ? FPT->getNumParams() : 0;
+}
+
+unsigned FunctionDecl::getNumTypeVars() const {
+  const auto *FPT = getType()->getAs<FunctionProtoType>();
+  return FPT ? FPT->getNumTypeVars() : 0;
+}
+
+void FunctionDecl::setTypeVars(ASTContext &C, 
+                               ArrayRef<TypedefDecl *> NewTypeVarInfo) {
+  assert(!TypeVarInfo && "Already has type variable info!");
+  assert(NewTypeVarInfo.size() == getNumTypeVars() && "Type variable count mismatch!");
+
+  // Zero params -> null pointer.
+  if (!NewTypeVarInfo.empty()) {
+    TypeVarInfo = new (C) TypedefDecl*[NewTypeVarInfo.size()];
+    std::copy(NewTypeVarInfo.begin(), NewTypeVarInfo.end(), TypeVarInfo);
+  }
 }
 
 void FunctionDecl::setParams(ASTContext &C,
@@ -4239,11 +4304,23 @@ unsigned EnumDecl::getODRHash() {
 //===----------------------------------------------------------------------===//
 
 RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
-                       DeclContext *DC, SourceLocation StartLoc,
-                       SourceLocation IdLoc, IdentifierInfo *Id,
-                       RecordDecl *PrevDecl)
-    : TagDecl(DK, TK, C, DC, IdLoc, Id, PrevDecl, StartLoc) {
+                       DeclContext *DC,
+                       SourceLocation StartLoc,
+                       SourceLocation IdLoc,
+                       IdentifierInfo *Id,
+                       RecordDecl *PrevDecl,
+                       Genericity GenericKind,
+                       ArrayRef<TypedefDecl*> TypeParams,
+                       RecordDecl *GenericBaseDecl,
+                       ArrayRef<TypeArgument> TypeArgs)
+    : TagDecl(DK, TK, C, DC, IdLoc, Id, PrevDecl, StartLoc),
+      GenericKind(GenericKind),
+      TypeParams(TypeParams.begin(), TypeParams.end()),
+      GenericBaseDecl(GenericBaseDecl),
+      TypeArgs(TypeArgs.begin(), TypeArgs.end()) {
   assert(classof(static_cast<Decl *>(this)) && "Invalid Kind!");
+  assert(!(isGeneric() && isInstantiated()) && "Record can't be both generic and instantiated");
+  assert(!(isInstantiated() ^ static_cast<bool>(GenericBaseDecl)) && "Must provide both base decl and type arguments, or neither");
   setHasFlexibleArrayMember(false);
   setAnonymousStructOrUnion(false);
   setHasObjectMember(false);
@@ -4259,21 +4336,26 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
   setArgPassingRestrictions(APK_CanPassInRegs);
 }
 
-RecordDecl *RecordDecl::Create(const ASTContext &C, TagKind TK, DeclContext *DC,
-                               SourceLocation StartLoc, SourceLocation IdLoc,
-                               IdentifierInfo *Id, RecordDecl* PrevDecl) {
-  RecordDecl *R = new (C, DC) RecordDecl(Record, TK, C, DC,
-                                         StartLoc, IdLoc, Id, PrevDecl);
+RecordDecl *RecordDecl::Create(const ASTContext &C,
+                               TagKind TK,
+                               DeclContext *DC,
+                               SourceLocation StartLoc,
+                               SourceLocation IdLoc,
+                               IdentifierInfo *Id,
+                               RecordDecl *PrevDecl,
+                               Genericity GenericKind,
+                               ArrayRef<TypedefDecl*> TypeParams,
+                               RecordDecl *GenericBaseDecl,
+                               ArrayRef<TypeArgument> TypeArgs) {
+  RecordDecl *R = new (C, DC) RecordDecl(Record, TK, C, DC, StartLoc, IdLoc, Id, PrevDecl, GenericKind, TypeParams, GenericBaseDecl, TypeArgs);
   R->setMayHaveOutOfDateDef(C.getLangOpts().Modules);
-
   C.getTypeDeclType(R, PrevDecl);
   return R;
 }
 
 RecordDecl *RecordDecl::CreateDeserialized(const ASTContext &C, unsigned ID) {
   RecordDecl *R =
-      new (C, ID) RecordDecl(Record, TTK_Struct, C, nullptr, SourceLocation(),
-                             SourceLocation(), nullptr, nullptr);
+      new (C, ID) RecordDecl(Record, TTK_Struct, C, nullptr, SourceLocation(), SourceLocation(), nullptr /* Id */, nullptr /* PrevDecl */);
   R->setMayHaveOutOfDateDef(C.getLangOpts().Modules);
   return R;
 }
@@ -4402,6 +4484,48 @@ const FieldDecl *RecordDecl::findFirstNamedDataMember() const {
 
   // We didn't find a named data member.
   return nullptr;
+}
+
+// Checked C
+
+// Type Parameters
+
+bool RecordDecl::isGeneric() const {
+  return GenericKind == Generic;
+}
+
+bool RecordDecl::isItypeGeneric() const {
+  return GenericKind == ItypeGeneric;
+}
+
+bool RecordDecl::isGenericOrItypeGeneric() const {
+  return GenericKind != NonGeneric;
+}
+
+ArrayRef<TypedefDecl *> RecordDecl::typeParams() const {
+  return TypeParams;
+}
+
+// Type Arguments
+
+bool RecordDecl::isInstantiated() const {
+  return !TypeArgs.empty();
+}
+
+RecordDecl *RecordDecl::genericBaseDecl() const {
+  return GenericBaseDecl;
+}
+
+ArrayRef<TypeArgument> RecordDecl::typeArgs() const {
+  return TypeArgs;
+}
+
+bool RecordDecl::isDelayedTypeApp() const {
+  return IsDelayed;
+}
+
+void RecordDecl::setDelayedTypeApp(bool IsDelayed) {
+  this->IsDelayed = IsDelayed;
 }
 
 //===----------------------------------------------------------------------===//

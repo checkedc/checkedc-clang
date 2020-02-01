@@ -49,6 +49,13 @@ public:
   void VisitFunctionTemplateDecl(const FunctionTemplateDecl *D);
   void VisitClassTemplateDecl(const ClassTemplateDecl *D);
   void VisitVarTemplateDecl(const VarTemplateDecl *D);
+
+  // Checked C specific methods.
+  void VisitDeclRefExpr(const DeclRefExpr *Node);
+  void VisitArraySubscriptExpr(const ArraySubscriptExpr *Node);
+  void VisitCompoundStmt(const CompoundStmt *Node);
+  void VisitRangeBoundsExpr(const RangeBoundsExpr *Node);
+  void VisitInteropTypeExpr(const InteropTypeExpr *Node);
 };
 
 } // namespace clang

@@ -202,6 +202,12 @@ public:
     RValue Res = CGF.EmitAtomicExpr(E);
     EmitFinalDestCopy(E->getType(), Res);
   }
+
+  // Checked C
+
+  /// To codegen a pack expression such as '_Pack(expr, _Exists(T, struct Foo<T>), subst-type)',
+  /// where 'expr' is an aggregate, we simply codegen 'expr'. That is, pack expressions are erased during codegen.
+  void VisitPackExpr(const PackExpr *E) { Visit(E->getPackedExpr()); }
 };
 }  // end anonymous namespace.
 
@@ -806,6 +812,8 @@ void AggExprEmitter::VisitCastExpr(CastExpr *E) {
   case CK_AddressSpaceConversion:
      return Visit(E->getSubExpr());
 
+  case CK_DynamicPtrBounds:
+  case CK_AssumePtrBounds:
   case CK_LValueToRValue:
     // If we're loading from a volatile type, force the destination
     // into existence.

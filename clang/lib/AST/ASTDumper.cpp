@@ -63,7 +63,7 @@ void ASTDumper::dumpLookups(const DeclContext *DC, bool DumpDecls) {
               std::function<void(Decl *)> DumpWithPrev = [&](Decl *D) {
                 if (Decl *Prev = D->getPreviousDecl())
                   DumpWithPrev(Prev);
-                Visit(D);
+                NodeDumper.dumpDeclRef(D);
               };
               DumpWithPrev(*RI);
             }
@@ -278,4 +278,63 @@ LLVM_DUMP_METHOD void Comment::dumpColor() const {
     return;
   ASTDumper D(llvm::errs(), nullptr, nullptr, /*ShowColors*/true);
   D.Visit(FC, FC);
+}
+
+// Checked C specific methods.
+void ASTDumper::VisitDeclRefExpr(const DeclRefExpr *Node) {
+  if (Node->GetTypeArgumentInfo() &&
+      !Node->GetTypeArgumentInfo()->typeArgumentss().empty()) {
+    for (const auto& tn : Node->GetTypeArgumentInfo()->typeArgumentss()) {
+      Visit(tn.typeName);
+    }
+  }
+}
+
+void ASTDumper::VisitArraySubscriptExpr(const ArraySubscriptExpr *Node) {
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    NodeDumper.AddChild([=] {
+      OS << "Bounds ";
+      NodeDumper.Visit(Node->getBoundsCheckKind());
+      Visit(Bounds);
+    });
+  }
+}
+
+void ASTDumper::VisitCompoundStmt(const CompoundStmt *Node) {
+  VisitStmt(Node);
+  CheckedScopeSpecifier WrittenCSS = Node->getWrittenCheckedSpecifier();
+  switch (WrittenCSS) {
+    case CSS_None: break;
+    case CSS_Unchecked: OS << " _Unchecked "; break;
+    case CSS_Bounds: OS <<  " _Checked _Bounds_only "; break;
+    case CSS_Memory: OS << " _Checked "; break;
+  }
+
+  CheckedScopeSpecifier CSS = Node->getCheckedSpecifier();
+  if (CSS != CSS_Unchecked) {
+     OS << "checking-state ";
+     OS << (CSS == CSS_Bounds ? "bounds" :"bounds-and-types");
+  }
+}
+
+void ASTDumper::VisitRangeBoundsExpr(const RangeBoundsExpr *Node) {
+  if (Node->getKind() != BoundsExpr::Kind::Range)
+    NodeDumper.Visit(Node->getKind());
+  if (Node->hasRelativeBoundsClause()) {
+    RelativeBoundsClause *Expr =
+        cast<RelativeBoundsClause>(Node->getRelativeBoundsClause());
+    OS << " rel_align : ";
+    if (Expr->getClauseKind() == RelativeBoundsClause::Kind::Type) {
+      QualType Ty = cast<RelativeTypeBoundsClause>(Expr)->getType();
+      NodeDumper.dumpType(Ty);
+    } else if (Expr->getClauseKind() == RelativeTypeBoundsClause::Kind::Const) {
+      Visit(cast<RelativeConstExprBoundsClause>(Expr)->getConstExpr());
+    } else {
+      llvm_unreachable("unexpected kind field of relative bounds clause");
+    }
+  }
+}
+
+void ASTDumper::VisitInteropTypeExpr(const InteropTypeExpr *Node) {
+  Visit(Node->getType());
 }

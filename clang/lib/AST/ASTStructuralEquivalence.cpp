@@ -935,6 +935,23 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                   cast<PipeType>(T2)->getElementType()))
       return false;
     break;
+
+  case Type::TypeVariable: {
+    const TypeVariableType *Tv1 = cast<TypeVariableType>(T1);
+    const TypeVariableType *Tv2 = cast<TypeVariableType>(T2);
+    if ((Tv1->GetDepth() != Tv2->GetDepth()) ||
+      (Tv1->GetIndex() != Tv2->GetIndex()))
+      return false;
+    break;
+  }
+
+  case Type::Existential: {
+    const ExistentialType *Exist1 = cast<ExistentialType>(T1);
+    const ExistentialType *Exist2 = cast<ExistentialType>(T2);
+    // TODO: rename bounds variables according to depth. 
+    return IsStructurallyEquivalent(Context, Exist1->innerType(), Exist2->innerType());
+  }
+
   } // end switch
 
   return true;

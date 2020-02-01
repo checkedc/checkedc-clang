@@ -840,6 +840,8 @@ public:
     StmtsToEmit.push_back(S);
   }
 
+  void AddBoundsAnnotations(BoundsAnnotations BA);
+
   /// Add a definition for the given function to the queue of statements
   /// to emit.
   void AddFunctionDefinition(const FunctionDecl *FD);

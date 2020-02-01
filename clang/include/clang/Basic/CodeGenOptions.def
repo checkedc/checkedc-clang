@@ -363,6 +363,9 @@ CODEGENOPT(BranchTargetEnforcement, 1, 0)
 /// Whether to emit unused static constants.
 CODEGENOPT(KeepStaticConsts, 1, 0)
 
+/// Whether to add dynamic checks for null pointer arithmetic.
+CODEGENOPT(CheckedCNullPtrArith, 1, 1)
+
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT
 #undef VALUE_CODEGENOPT

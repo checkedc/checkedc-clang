@@ -5577,6 +5577,14 @@ bool UnnamedLocalNoLinkageFinder::VisitTypeOfExprType(const TypeOfExprType*) {
   return false;
 }
 
+bool UnnamedLocalNoLinkageFinder::VisitTypeVariableType(const TypeVariableType*) {
+  return false;
+}
+
+bool UnnamedLocalNoLinkageFinder::VisitExistentialType(const ExistentialType *T) {
+  return Visit(T->innerType());
+}
+
 bool UnnamedLocalNoLinkageFinder::VisitTypeOfType(const TypeOfType* T) {
   return Visit(T->getUnderlyingType());
 }

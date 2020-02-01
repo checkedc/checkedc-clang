@@ -1,0 +1,16 @@
+#!/bin/bash
+
+SYSROOT_TOP=/usr/local/checkedc/sysroots
+TRIPLE=arm-linux-gnueabihf
+GCC=$SYSROOT_TOP/gcc-arm-8.3-2019.03-x86_64-$TRIPLE
+VERSION=8.3.0
+
+clang++ \
+  -target $TRIPLE \
+  -march=armv7-a \
+  -isystem $GCC/$TRIPLE/include/c++/$VERSION \
+  -isystem $GCC/$TRIPLE/include/c++/$VERSION/$TRIPLE \
+  -isystem $GCC/$TRIPLE/include/c++/$VERSION/backward \
+  --sysroot=$GCC/$TRIPLE/libc \
+  --gcc-toolchain=$GCC \
+  "$@"

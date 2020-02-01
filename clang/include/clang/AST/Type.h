@@ -60,6 +60,7 @@ class ExtQuals;
 class QualType;
 class TagDecl;
 class Type;
+class TypeSourceInfo;
 
 enum {
   TypeAlignmentInBits = 4,
@@ -99,6 +100,7 @@ namespace llvm {
 namespace clang {
 
 class ASTContext;
+class BoundsExpr;
 template <typename> class CanQual;
 class CXXRecordDecl;
 class DeclContext;
@@ -107,6 +109,7 @@ class Expr;
 class ExtQualsTypeCommonBase;
 class FunctionDecl;
 class IdentifierInfo;
+class InteropTypeExpr;
 class NamedDecl;
 class ObjCInterfaceDecl;
 class ObjCProtocolDecl;
@@ -1404,6 +1407,80 @@ enum class AutoTypeKeyword {
   GNUAutoType
 };
 
+/// Checked C generalizes pointer types to 3 different kinds of
+/// pointers.  Each has different static and dynamic checking
+/// to detect programming errors:
+///   1. Unchecked C pointers: these are * pointers.  They have
+///      have no checking.
+///   2. Checked C _Ptr types: these have null checks before
+///      memory accesses.  No pointer arithmetic is allowed.
+///   3. Checked C _Array_ptr types: these have null checks
+///      and bounds checks before memory accesses. Bounds
+///      expressions must be statically specified.  Pointer
+///      arithmetic is allowed.  It has overflow checking.
+///   4. Checked C _Nt_Array_ptr: these are pointers to
+///      null-terminated arrays. Pointer arithmetic is allowed.
+enum class CheckedPointerKind {
+  /// \brief Unchecked C pointer.
+  Unchecked = 0,
+  /// \brief Checked C _Ptr type.
+  Ptr,
+  /// \brief Checked C _Array_ptr type.
+  Array,
+  /// \brief Checked C _Nt_array_ptr type (pointer-to null-terminated array)
+  NtArray,
+};
+
+/// Checked C generalizes arrays to 3 different kinds of arrays.
+enum class CheckedArrayKind {
+  Unchecked = 0,
+  Checked,        // Checked array
+  NtChecked       // Null-terminated checked array
+};
+
+class BoundsAnnotations {
+  BoundsExpr *Bounds;
+  InteropTypeExpr *InteropType;
+
+public:
+  BoundsAnnotations() : Bounds(nullptr), InteropType(nullptr) {}
+
+  BoundsAnnotations(BoundsExpr *B) : Bounds(B), InteropType(nullptr) {}
+
+  BoundsAnnotations(BoundsExpr *B, InteropTypeExpr *IT) :
+    Bounds(B), InteropType(IT) {}
+
+  BoundsExpr *getBoundsExpr() const {
+    return Bounds;
+  }
+
+  void setBoundsExpr(BoundsExpr *B) {
+    Bounds = B;
+  }
+
+  InteropTypeExpr *getInteropTypeExpr() const {
+    return InteropType;
+  }
+
+  void setInteropTypeExpr(InteropTypeExpr *IT) {
+    InteropType = IT;
+  }
+
+  bool IsEmpty() const {
+    return Bounds == nullptr && InteropType == nullptr;
+  }
+
+  /// \brief Always write data for individual elements.
+  void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Ctx) const;
+};
+
+/// Checked C: an argument in an instantiation of a generic function
+/// or record.
+struct TypeArgument {
+  QualType typeName;
+  TypeSourceInfo *sourceInfo;
+};
+
 /// The base class of the type hierarchy.
 ///
 /// A central concept with types is that each type always has a canonical
@@ -1495,6 +1572,12 @@ private:
 protected:
   // These classes allow subclasses to somewhat cleanly pack bitfields
   // into Type.
+  class PointerTypeBitfields {
+    friend class PointerType;
+
+    unsigned : NumTypeBits;
+    unsigned CheckedPointerKind : 2;
+  };
 
   class ArrayTypeBitfields {
     friend class ArrayType;
@@ -1509,6 +1592,9 @@ protected:
     /// 'int X[static restrict 4]'. For function parameters only.
     /// Actually an ArrayType::ArraySizeModifier.
     unsigned SizeModifier : 3;
+
+    // Kind of checked array
+    unsigned CheckedArrayKind : 2;
   };
 
   class BuiltinTypeBitfields {
@@ -1731,6 +1817,7 @@ protected:
 
   union {
     TypeBitfields TypeBits;
+    PointerTypeBitfields PointerTypeBits;
     ArrayTypeBitfields ArrayTypeBits;
     AttributedTypeBitfields AttributedTypeBits;
     AutoTypeBitfields AutoTypeBits;
@@ -1973,7 +2060,16 @@ public:
   bool isFunctionType() const;
   bool isFunctionNoProtoType() const { return getAs<FunctionNoProtoType>(); }
   bool isFunctionProtoType() const { return getAs<FunctionProtoType>(); }
+  bool isGenericFunctionType() const;
+  bool isItypeGenericFunctionType() const;
   bool isPointerType() const;
+  bool isCheckedPointerType() const;
+  bool isUncheckedPointerType() const;
+  bool isCheckedPointerPtrType() const;            // Checked C _Ptr type.
+  bool isCheckedPointerArrayType() const;          // Checked C _Array_ptr or
+                                                   // _Nt_array_ptr type.
+  bool isExactlyCheckedPointerArrayType() const;   // Checked C _Array_ptr type.
+  bool isCheckedPointerNtArrayType() const;        // Checked C Nt_Array type.
   bool isAnyPointerType() const;   // Any C pointer or ObjC object pointer
   bool isBlockPointerType() const;
   bool isVoidPointerType() const;
@@ -1990,7 +2086,13 @@ public:
   bool isIncompleteArrayType() const;
   bool isVariableArrayType() const;
   bool isDependentSizedArrayType() const;
+  /// \brief whether this is a Checked C checked array type.
+  bool isCheckedArrayType() const; // includes _Nt_checked arrays
+  bool isExactlyCheckedArrayType() const;
+  bool isNtCheckedArrayType() const;
+  bool isUncheckedArrayType() const;
   bool isRecordType() const;
+  bool isExistentialType() const; // Checked C existential type
   bool isClassType() const;
   bool isStructureType() const;
   bool isObjCBoxableRecordType() const;
@@ -2056,6 +2158,8 @@ public:
   bool isAlignValT() const;                     // C++17 std::align_val_t
   bool isStdByteType() const;                   // C++17 std::byte
   bool isAtomicType() const;                    // C11 _Atomic()
+
+
 
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
   bool is##Id##Type() const;
@@ -2129,6 +2233,26 @@ public:
 
   /// Whether this type is or contains a local or unnamed type.
   bool hasUnnamedOrLocalType() const;
+
+  /// \brief Whether this type is or contains a checked type
+  bool isOrContainsCheckedType() const;
+
+  enum CheckedValueKind {
+    NoCheckedValue,
+    HasCheckedValue,
+    HasIntWithBounds,
+    HasUncheckedPointer
+  };
+
+  /// \brief check whether an array, or an object of struct/union type contains a checked value
+  CheckedValueKind containsCheckedValue(bool InCheckedScope) const;
+
+  /// \brief Whether this type is or contains an unchecked type.
+  /// This ignores the presence of bounds-safe interface types.
+  bool isOrContainsUncheckedType() const;
+
+  /// \brief Whether this type is or contains a variadic type
+  bool hasVariadicType() const;
 
   bool isOverloadableType() const;
 
@@ -2571,15 +2695,19 @@ class PointerType : public Type, public llvm::FoldingSetNode {
 
   QualType PointeeType;
 
-  PointerType(QualType Pointee, QualType CanonicalPtr)
+  PointerType(QualType Pointee, QualType CanonicalPtr, CheckedPointerKind ptrKind)
       : Type(Pointer, CanonicalPtr, Pointee->isDependentType(),
              Pointee->isInstantiationDependentType(),
              Pointee->isVariablyModifiedType(),
              Pointee->containsUnexpandedParameterPack()),
-        PointeeType(Pointee) {}
+        PointeeType(Pointee) {
+          PointerTypeBits.CheckedPointerKind = (unsigned)ptrKind;
+        }
 
 public:
   QualType getPointeeType() const { return PointeeType; }
+
+  CheckedPointerKind getKind() const { return CheckedPointerKind(PointerTypeBits.CheckedPointerKind); }
 
   /// Returns true if address spaces of pointers overlap.
   /// OpenCL v2.0 defines conversion rules for pointers to different
@@ -2597,15 +2725,19 @@ public:
            otherQuals.isAddressSpaceSupersetOf(thisQuals);
   }
 
+  bool isNTChecked() const { return getKind() == CheckedPointerKind::NtArray; }
+  bool isChecked() const { return getKind() != CheckedPointerKind::Unchecked; }
+  bool isUnchecked() const { return getKind() == CheckedPointerKind::Unchecked; }
   bool isSugared() const { return false; }
   QualType desugar() const { return QualType(this, 0); }
 
   void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, getPointeeType());
+    Profile(ID, getPointeeType(), getKind());
   }
 
-  static void Profile(llvm::FoldingSetNodeID &ID, QualType Pointee) {
+  static void Profile(llvm::FoldingSetNodeID &ID, QualType Pointee, CheckedPointerKind kind) {
     ID.AddPointer(Pointee.getAsOpaquePtr());
+    ID.AddInteger((unsigned)kind);
   }
 
   static bool classof(const Type *T) { return T->getTypeClass() == Pointer; }
@@ -2865,7 +2997,9 @@ protected:
   //       value-dependent,
   ArrayType(TypeClass tc, QualType et, QualType can,
             ArraySizeModifier sm, unsigned tq,
-            bool ContainsUnexpandedParameterPack)
+            bool ContainsUnexpandedParameterPack,
+            CheckedArrayKind k
+            )
       : Type(tc, can, et->isDependentType() || tc == DependentSizedArray,
              et->isInstantiationDependentType() || tc == DependentSizedArray,
              (tc == VariableArray || et->isVariablyModifiedType()),
@@ -2873,9 +3007,19 @@ protected:
         ElementType(et) {
     ArrayTypeBits.IndexTypeQuals = tq;
     ArrayTypeBits.SizeModifier = sm;
+    ArrayTypeBits.CheckedArrayKind = (unsigned) k;
   }
 
 public:
+  CheckedArrayKind getKind() const {
+    return CheckedArrayKind(ArrayTypeBits.CheckedArrayKind);
+  }
+  bool isChecked() const { return getKind() != CheckedArrayKind::Unchecked; }
+  bool isUnchecked() const { return getKind() == CheckedArrayKind::Unchecked; }
+  bool isExactlyChecked() const {
+    return  getKind() == CheckedArrayKind::Checked;
+  }
+  bool isNtChecked() const { return getKind() == CheckedArrayKind::NtChecked; }
   QualType getElementType() const { return ElementType; }
 
   ArraySizeModifier getSizeModifier() const {
@@ -2905,19 +3049,20 @@ class ConstantArrayType : public ArrayType {
   llvm::APInt Size; // Allows us to unique the type.
 
   ConstantArrayType(QualType et, QualType can, const llvm::APInt &size,
-                    ArraySizeModifier sm, unsigned tq)
+                    ArraySizeModifier sm, unsigned tq, CheckedArrayKind kind)
       : ArrayType(ConstantArray, et, can, sm, tq,
-                  et->containsUnexpandedParameterPack()),
+                  et->containsUnexpandedParameterPack(), kind),
         Size(size) {}
 
 protected:
   friend class ASTContext; // ASTContext creates these.
 
   ConstantArrayType(TypeClass tc, QualType et, QualType can,
-                    const llvm::APInt &size, ArraySizeModifier sm, unsigned tq)
-      : ArrayType(tc, et, can, sm, tq, et->containsUnexpandedParameterPack()),
+                    const llvm::APInt &size, ArraySizeModifier sm, unsigned tq,
+                    CheckedArrayKind kind)
+      : ArrayType(tc, et, can, sm, tq, et->containsUnexpandedParameterPack(),
+                  kind),
         Size(size) {}
-
 public:
   const llvm::APInt &getSize() const { return Size; }
   bool isSugared() const { return false; }
@@ -2935,16 +3080,17 @@ public:
 
   void Profile(llvm::FoldingSetNodeID &ID) {
     Profile(ID, getElementType(), getSize(),
-            getSizeModifier(), getIndexTypeCVRQualifiers());
+            getSizeModifier(), getIndexTypeCVRQualifiers(), getKind());
   }
 
   static void Profile(llvm::FoldingSetNodeID &ID, QualType ET,
                       const llvm::APInt &ArraySize, ArraySizeModifier SizeMod,
-                      unsigned TypeQuals) {
+                      unsigned TypeQuals, CheckedArrayKind kind) {
     ID.AddPointer(ET.getAsOpaquePtr());
     ID.AddInteger(ArraySize.getZExtValue());
     ID.AddInteger(SizeMod);
     ID.AddInteger(TypeQuals);
+    ID.AddInteger((unsigned)kind);
   }
 
   static bool classof(const Type *T) {
@@ -2959,9 +3105,9 @@ class IncompleteArrayType : public ArrayType {
   friend class ASTContext; // ASTContext creates these.
 
   IncompleteArrayType(QualType et, QualType can,
-                      ArraySizeModifier sm, unsigned tq)
+                      ArraySizeModifier sm, unsigned tq, CheckedArrayKind kind)
       : ArrayType(IncompleteArray, et, can, sm, tq,
-                  et->containsUnexpandedParameterPack()) {}
+                  et->containsUnexpandedParameterPack(), kind) {}
 
 public:
   friend class StmtIteratorBase;
@@ -2975,14 +3121,16 @@ public:
 
   void Profile(llvm::FoldingSetNodeID &ID) {
     Profile(ID, getElementType(), getSizeModifier(),
-            getIndexTypeCVRQualifiers());
+            getIndexTypeCVRQualifiers(), getKind());
   }
 
   static void Profile(llvm::FoldingSetNodeID &ID, QualType ET,
-                      ArraySizeModifier SizeMod, unsigned TypeQuals) {
+                      ArraySizeModifier SizeMod, unsigned TypeQuals,
+                      CheckedArrayKind  Kind) {
     ID.AddPointer(ET.getAsOpaquePtr());
     ID.AddInteger(SizeMod);
     ID.AddInteger(TypeQuals);
+    ID.AddInteger((unsigned)Kind);
   }
 };
 
@@ -3014,7 +3162,8 @@ class VariableArrayType : public ArrayType {
                     ArraySizeModifier sm, unsigned tq,
                     SourceRange brackets)
       : ArrayType(VariableArray, et, can, sm, tq,
-                  et->containsUnexpandedParameterPack()),
+                  et->containsUnexpandedParameterPack(),
+                  CheckedArrayKind::Unchecked),
         SizeExpr((Stmt*) e), Brackets(brackets) {}
 
 public:
@@ -3720,7 +3869,8 @@ class FunctionProtoType final
     : public FunctionType,
       public llvm::FoldingSetNode,
       private llvm::TrailingObjects<
-          FunctionProtoType, QualType, FunctionType::FunctionTypeExtraBitfields,
+          FunctionProtoType, QualType, BoundsAnnotations,
+          FunctionType::FunctionTypeExtraBitfields,
           FunctionType::ExceptionType, Expr *, FunctionDecl *,
           FunctionType::ExtParameterInfo, Qualifiers> {
   friend class ASTContext; // ASTContext creates these.
@@ -3732,6 +3882,9 @@ class FunctionProtoType final
   // * An array of getNumParams() QualType holding the parameter types.
   //   Always present. Note that for the vast majority of FunctionProtoType,
   //   these will be the only trailing objects.
+  //
+  // * Optionally an array that holds bounds annotations for parameters.
+  //   A nullptr is stored if a parameter has no annotations.
   //
   // * Optionally if some extra data is stored in FunctionTypeExtraBitfields
   //   (see FunctionTypeExtraBitfields and FunctionTypeBitfields):
@@ -3800,15 +3953,25 @@ public:
     FunctionType::ExtInfo ExtInfo;
     bool Variadic : 1;
     bool HasTrailingReturn : 1;
+    unsigned NumTypeVars : 15;
+    bool GenericFunction : 1;
+    bool ItypeGenericFunction : 1;
     Qualifiers TypeQuals;
     RefQualifierKind RefQualifier = RQ_None;
     ExceptionSpecInfo ExceptionSpec;
     const ExtParameterInfo *ExtParameterInfos = nullptr;
+    const BoundsAnnotations *ParamAnnots = nullptr;
+    // The return annotations for a function.
+    BoundsAnnotations ReturnAnnots;
 
-    ExtProtoInfo() : Variadic(false), HasTrailingReturn(false) {}
+    ExtProtoInfo() : Variadic(false), HasTrailingReturn(false),
+          NumTypeVars(0), GenericFunction(false), ItypeGenericFunction(false),
+          ReturnAnnots() {}
 
     ExtProtoInfo(CallingConv CC)
-        : ExtInfo(CC), Variadic(false), HasTrailingReturn(false) {}
+        : ExtInfo(CC), Variadic(false), HasTrailingReturn(false), NumTypeVars(0),
+          GenericFunction(false), ItypeGenericFunction(false),
+          ReturnAnnots() {}
 
     ExtProtoInfo withExceptionSpec(const ExceptionSpecInfo &ESI) {
       ExtProtoInfo Result(*this);
@@ -3818,10 +3981,25 @@ public:
   };
 
 private:
+  /// TODO: Checked C: integrate this better with FunctionTypeBits
+  /// and extension objects.
+
+  unsigned NumTypeVars : 15;
+  bool GenericFunction : 1;
+  bool ItypeGenericFunction : 1;
+  /// Whether this function has annotations for parameters.
+  unsigned HasParamAnnots : 1;
+  // The return annotations for a function.
+  const BoundsAnnotations ReturnAnnots;
+
   unsigned numTrailingObjects(OverloadToken<QualType>) const {
     return getNumParams();
   }
 
+  unsigned numTrailingObjects(OverloadToken<BoundsAnnotations>) const {
+    return hasParamAnnots() ? getNumParams() : 0;
+  }
+  
   unsigned numTrailingObjects(OverloadToken<FunctionTypeExtraBitfields>) const {
     return hasExtraBitfields();
   }
@@ -3864,6 +4042,8 @@ private:
     unsigned NumExprPtr;
     unsigned NumFunctionDeclPtr;
   };
+
+
 
   /// Return the number and kind of trailing objects
   /// related to the exception specification.
@@ -3925,8 +4105,23 @@ public:
     return param_type_begin()[i];
   }
 
+  unsigned getNumTypeVars() const { return NumTypeVars; }
+  bool isGenericFunction() const { return GenericFunction; }
+  bool isItypeGenericFunction() const { return ItypeGenericFunction; }
+  bool isNonGenericFunction() const {
+    return !(GenericFunction || ItypeGenericFunction);
+  }
+
   ArrayRef<QualType> getParamTypes() const {
     return llvm::makeArrayRef(param_type_begin(), param_type_end());
+  }
+
+  const BoundsAnnotations getParamAnnots(unsigned i) const {
+    assert(i < getNumParams() && "invalid parameter index");
+    BoundsAnnotations Result;
+    if (hasParamAnnots())
+      Result = param_annots_begin()[i];
+    return Result;
   }
 
   ExtProtoInfo getExtProtoInfo() const {
@@ -3948,6 +4143,11 @@ public:
       EPI.ExceptionSpec.SourceDecl = getExceptionSpecDecl();
     }
     EPI.ExtParameterInfos = getExtParameterInfosOrNull();
+    EPI.ParamAnnots = hasParamAnnots() ? param_annots_begin() : nullptr;
+    EPI.ReturnAnnots = getReturnAnnots();
+    EPI.NumTypeVars = getNumTypeVars();
+    EPI.GenericFunction = isGenericFunction();
+    EPI.ItypeGenericFunction = isItypeGenericFunction();
     return EPI;
   }
 
@@ -4052,6 +4252,13 @@ public:
       return getFastTypeQuals();
   }
 
+  bool hasParamAnnots() const { return HasParamAnnots; }
+
+  bool hasReturnAnnots() const {
+    return ReturnAnnots.getBoundsExpr() != nullptr ||
+           ReturnAnnots.getInteropTypeExpr() != nullptr;
+  }
+
   /// Retrieve the ref-qualifier associated with this function type.
   RefQualifierKind getRefQualifier() const {
     return static_cast<RefQualifierKind>(FunctionTypeBits.RefQualifier);
@@ -4070,6 +4277,30 @@ public:
 
   param_type_iterator param_type_end() const {
     return param_type_begin() + getNumParams();
+  }
+
+  // Checked C parameter annotation information.
+  typedef const BoundsAnnotations *annots_iterator;
+
+  ArrayRef<BoundsAnnotations> parameter_annots() const {
+    return llvm::makeArrayRef(param_annots_begin(),
+                              param_annots_end());
+  }
+
+  annots_iterator param_annots_begin() const {
+     return getTrailingObjects<BoundsAnnotations>();
+  }
+
+  annots_iterator param_annots_end() const {
+    if (!hasParamAnnots())
+      return param_annots_begin();
+    else
+      return param_annots_begin() + getNumParams();
+  }
+
+  // Checked C return annotations information
+  const BoundsAnnotations getReturnAnnots() const {
+    return ReturnAnnots;
   }
 
   using exception_iterator = const QualType *;
@@ -4181,6 +4412,44 @@ public:
   }
 };
 
+class TypeVariableType : public Type, public llvm::FoldingSetNode {
+  // Similar to ParmVarDecl's depth. However, instead of keeping track of
+  // prototype scope depth, this keeps track of the depth of forany scope.
+  unsigned int depth;
+  unsigned int index;
+  bool isBoundsInterfaceType; // TODO: pack this into a bitfield.
+protected:
+  TypeVariableType(unsigned int inDepth, unsigned int inIndex, bool inBoundsInterface)
+    : Type(TypeVariable, QualType(), false, false, false, false),
+    depth(inDepth), index(inIndex), isBoundsInterfaceType(inBoundsInterface) { }
+  friend class ASTContext;
+public:
+  bool isSugared(void) const { return false; }
+  QualType desugar(void) const { return QualType(this, 0); }
+  unsigned int GetDepth(void) const { return depth; }
+  void SetDepth(unsigned int i) { depth = i; }
+  unsigned int GetIndex(void) const { return index; }
+  void SetIndex(unsigned int i) { index = i; }
+  void SetInBoundsInterface (bool isInBoundsInterface) {
+    isBoundsInterfaceType = isInBoundsInterface;
+  }
+  bool IsBoundsInterfaceType () const {
+    return isBoundsInterfaceType;
+  }
+
+  void Profile(llvm::FoldingSetNodeID &ID) const {
+    Profile(ID, depth, index, isBoundsInterfaceType);
+  }
+  static void Profile(llvm::FoldingSetNodeID &ID, unsigned int inDepth, unsigned int inIndex,
+                      bool isBoundsInterfaceType) {
+    ID.AddInteger(inDepth);
+    ID.AddInteger(inIndex);
+    ID.AddBoolean(isBoundsInterfaceType);
+  }
+
+  static bool classof(const Type *T) { return T->getTypeClass() == TypeVariable; }
+};
+
 class TypedefType : public Type {
   TypedefNameDecl *Decl;
 
@@ -4203,6 +4472,57 @@ public:
   QualType desugar() const;
 
   static bool classof(const Type *T) { return T->getTypeClass() == Typedef; }
+};
+
+/// (Checked C extension)
+/// Represents the type '_Exists(T, InnerType)', where 'T' is a type variable and
+/// 'InnerType' is some type that potentially uses 'T'.
+/// There are some restrictions on what 'InnerType' can be. These restrictions are enforced
+/// via checks in the 'pack' and 'unpack' operations, but they amount to requiring that
+/// 'InnerType' is one of:
+///   1) another existential type: e.g. '_Exists(T, _Exists(U, struct Foo<T, U>))'
+///   2) a type application 'C<T>', where 'C' is a generic struct: e.g. '_Exists(T, struct List<T>)'
+///   3) a pointer that satisfies one of 1) - 3)
+class ExistentialType : public Type, public llvm::FoldingSetNode {
+  /// The type variable that is bound by the existential.
+  /// This is of type 'Type' to allow for some polymorphism:
+  /// non-canonical existential types will contain a 'TypedefType' here,
+  /// while canonical ones will contain the underlying 'TypeVariableType'.
+  /// This isn't a 'QualType' because the variable bound by an existential cannot be
+  /// qualified.
+  const Type *TypeVar = nullptr;
+  /// The type wrapped by the existential that potentially uses the bound type variable.
+  QualType InnerType;
+
+public:
+  ExistentialType(const Type *TypeVar, QualType InnerType, QualType Canon) :
+    Type(Existential, Canon, false /* Dependent */ , false /* InstantiationDependent */,
+      false /* VariablyModified */, false /* ContainsUnexpandedParameterPack */),
+    TypeVar(TypeVar), InnerType(InnerType) {
+    if (!TypedefType::classof(TypeVar) && !TypeVariableType::classof(TypeVar)) {
+      llvm_unreachable("Type variable should be a 'TypedefType' or 'TypeVariableType'");
+    }
+  }
+
+  const Type *typeVar() const { return TypeVar; }
+  QualType innerType() const { return InnerType; }
+
+  bool isSugared(void) const { return false; }
+  QualType desugar(void) const { return QualType(this, 0); }
+
+  // TODO: can't implement 'Profile' because TypedefType doesn't have a 'Profile' method (checkedc issue #661).
+  /*
+  void Profile(llvm::FoldingSetNodeID &ID) {
+    Profile(ID, TypeVar, InnerType);
+  }
+  static void Profile(llvm::FoldingSetNodeID &ID, const Type *TypeVar, QualType InnerType) {
+    if (const auto *TV = TypeVar->getAs<TypedefType>()) TV->Profile(ID);
+    else if (const auto *TV = TypeVar->getAs<TypeVariableType>()) TV->Profile(ID);
+    InnerType.Profile(ID);
+  }
+  */
+
+  static bool classof(const Type *T) { return T->getTypeClass() == Existential; }
 };
 
 /// Sugar type that represents a type that was qualified by a qualifier written
@@ -6381,8 +6701,57 @@ inline bool Type::isFunctionType() const {
   return isa<FunctionType>(CanonicalType);
 }
 
+inline bool Type::isGenericFunctionType() const {
+   if (const FunctionProtoType *FPT = getAs<FunctionProtoType>())
+     return FPT->isGenericFunction();
+   return false;
+}
+
+inline bool Type::isItypeGenericFunctionType() const {
+   if (const FunctionProtoType *FPT = getAs<FunctionProtoType>())
+     return FPT->isItypeGenericFunction();
+   return false;
+}
+
 inline bool Type::isPointerType() const {
   return isa<PointerType>(CanonicalType);
+}
+
+inline bool Type::isCheckedPointerType() const {
+  if (const PointerType *T = getAs<PointerType>())
+    return T->isChecked();
+  return false;
+}
+
+inline bool Type::isUncheckedPointerType() const {
+  if (const PointerType *T = getAs<PointerType>())
+    return T->isUnchecked();
+  return false;
+}
+
+inline bool Type::isCheckedPointerPtrType() const {
+  if (const PointerType *T = getAs<PointerType>())
+    return T->getKind() == CheckedPointerKind::Ptr;
+  return false;
+}
+
+inline bool Type::isCheckedPointerArrayType() const {
+  if (const PointerType *T = getAs<PointerType>())
+    return T->getKind() == CheckedPointerKind::Array ||
+           T->getKind() == CheckedPointerKind::NtArray;
+  return false;
+}
+
+inline bool Type::isExactlyCheckedPointerArrayType() const {
+  if (const PointerType *T = getAs<PointerType>())
+    return T->getKind() == CheckedPointerKind::Array;
+  return false;
+}
+
+inline bool Type::isCheckedPointerNtArrayType() const {
+  if (const PointerType *T = getAs<PointerType>())
+    return T->getKind() == CheckedPointerKind::NtArray;
+  return false;
 }
 
 inline bool Type::isAnyPointerType() const {
@@ -6457,12 +6826,41 @@ inline bool Type::isDependentSizedArrayType() const {
   return isa<DependentSizedArrayType>(CanonicalType);
 }
 
+inline bool Type::isCheckedArrayType() const {
+  if (const ArrayType *T = dyn_cast<ArrayType>(CanonicalType))
+    return T->isChecked();
+  else
+    return false;
+}
+inline bool Type::isUncheckedArrayType() const {
+  if (const ArrayType *T = dyn_cast<ArrayType>(CanonicalType))
+    return T->isUnchecked();
+  else
+    return false;
+}
+inline bool Type::isExactlyCheckedArrayType() const {
+  if (const ArrayType *T = dyn_cast<ArrayType>(CanonicalType))
+    return T->isExactlyChecked();
+  else
+    return false;
+}
+inline bool Type::isNtCheckedArrayType() const {
+  if (const ArrayType *T = dyn_cast<ArrayType>(CanonicalType))
+    return T->isNtChecked();
+  else
+    return false;
+}
+
 inline bool Type::isBuiltinType() const {
   return isa<BuiltinType>(CanonicalType);
 }
 
 inline bool Type::isRecordType() const {
   return isa<RecordType>(CanonicalType);
+}
+
+inline bool Type::isExistentialType() const {
+  return isa<ExistentialType>(CanonicalType);
 }
 
 inline bool Type::isEnumeralType() const {

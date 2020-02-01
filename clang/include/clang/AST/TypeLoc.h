@@ -662,7 +662,19 @@ public:
   }
 };
 
+class TypeVariableTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
+                                                             TypeVariableTypeLoc,
+                                                             TypeVariableType> {
+
+};
+
+class ExistentialTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
+                                                            ExistentialTypeLoc,
+                                                            ExistentialType> {
+};
+
 /// Wrapper for source info for typedefs.
+
 class TypedefTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
                                                         TypedefTypeLoc,
                                                         TypedefType> {
@@ -1200,7 +1212,20 @@ class DecayedTypeLoc : public InheritingConcreteTypeLoc<
 };
 
 struct PointerLikeLocInfo {
+  /// There are unchecked and checked pointer types.  They need different location
+  /// information because unchecked pointer types use * and checked pointer types use
+  /// template-like syntax.
+  ///
+  /// For unchecked pointer types, we initialize RightLoc and KWLoc to LeftLoc
+  /// so that all members are initialized.  This allows other code such as
+  /// AST reading/writing to always process all fields.
+  ///
+  /// \brief Location of Star or Less Than symbol
   SourceLocation StarLoc;
+ /// \brief Location of Greater Than symbol for checked pointer type
+  SourceLocation RightSymLoc;
+  /// \brief keyword location for checked pointer type
+  SourceLocation KWLoc;
 };
 
 /// A base class for
@@ -1216,6 +1241,22 @@ public:
     this->getLocalData()->StarLoc = Loc;
   }
 
+  SourceLocation getRightSymLoc() const {
+      return this->getLocalData()->RightSymLoc;
+  }
+
+  void setRightSymLoc(SourceLocation Loc) {
+    this->getLocalData()->RightSymLoc = Loc;
+  }
+
+  SourceLocation getKWLoc() const {
+      return this->getLocalData()->KWLoc;
+  }
+
+  void setKWLoc(SourceLocation Loc) {
+    this->getLocalData()->KWLoc = Loc;
+  }
+
   TypeLoc getPointeeLoc() const {
     return this->getInnerTypeLoc();
   }
@@ -1226,6 +1267,8 @@ public:
 
   void initializeLocal(ASTContext &Context, SourceLocation Loc) {
     setSigilLoc(Loc);
+    setRightSymLoc(Loc);
+    setKWLoc(Loc);
   }
 
   QualType getInnerType() const {
@@ -1243,6 +1286,24 @@ public:
 
   void setStarLoc(SourceLocation Loc) {
     setSigilLoc(Loc);
+    setRightSymLoc(Loc);
+    setKWLoc(Loc);
+  }
+
+  SourceLocation getLeftSymLoc() const {
+      return getSigilLoc();
+  }
+
+  void setLeftSymLoc(SourceLocation Loc) {
+    setSigilLoc(Loc);
+  }
+
+  SourceRange getLocalSourceRange() const {
+      return SourceRange(getKWLoc(), getRightSymLoc());
+  }
+
+  CheckedPointerKind getKind() const {
+      return this->getTypePtr()->getKind();
   }
 };
 

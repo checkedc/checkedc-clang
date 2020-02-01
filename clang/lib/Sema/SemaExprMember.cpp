@@ -1820,10 +1820,25 @@ Sema::BuildFieldReferenceExpr(Expr *BaseExpr, bool IsArrow,
     }
   }
 
-  return BuildMemberExpr(Base.get(), IsArrow, OpLoc, &SS,
+  MemberExpr *ME = 
+         BuildMemberExpr(Base.get(), IsArrow, OpLoc, &SS,
                          /*TemplateKWLoc=*/SourceLocation(), Field, FoundDecl,
                          /*HadMultipleCandidates=*/false, MemberNameInfo,
                          MemberType, VK, OK);
+
+  // For Checked C, if we are in a checked scope, cast expression member
+  // accesses with with unchecked types to checked types based on their
+  // bounds-safe interfaces.
+  //
+  // We skip uses of array types here.  They are handled later as part of
+  // array-to-pointer decay.
+  if (IsCheckedScope() && !MemberType->isArrayType() &&
+      MemberType->isOrContainsUncheckedType()) {
+    assert(!MemberType->isFunctionType());
+    return ConvertToFullyCheckedType(ME, Field->getInteropTypeExpr(), false, VK);
+  }
+
+  return ME;
 }
 
 /// Builds an implicit member access expression.  The current context
