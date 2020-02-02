@@ -12,6 +12,8 @@
 
 #include "Constraints.h"
 #include "PersistentSourceLoc.h"
+#include "Utils.h"
+#include "CCGlobalOptions.h"
 
 using namespace llvm;
 

@@ -9,6 +9,7 @@
 #include "llvm/Support/Path.h"
 
 #include "Utils.h"
+#include "CCGlobalOptions.h"
 #include "ConstraintVariables.h"
 
 using namespace llvm;

@@ -16,6 +16,7 @@
 #include "RewriteUtils.h"
 #include "MappingVisitor.h"
 #include "Utils.h"
+#include "CCGlobalOptions.h"
 #include "ArrayBoundsInferenceConsumer.h"
 
 using namespace llvm;

@@ -173,7 +173,9 @@ void ClangdServer::cconvCollectAndBuildInitialConstraints(CConvLSPCallBack *Conv
     buildInitialConstraints();
     log("CConv: Built initial constraints successfully.\n");
     auto &ccInterfaceInfo = getWILDPtrsInfo();
+    log("CConv: Got WILD Ptrs Info.\n");
     CConvDiagInfo.populateDiagsFromDisjointSet(ccInterfaceInfo);
+    log("CConv: Populated Diags from Disjoint Sets.\n");
     reportCConvDiagsForAllFiles(ccInterfaceInfo, ConvCB);
     log("CConv: Updated the diag information.\n");
   };

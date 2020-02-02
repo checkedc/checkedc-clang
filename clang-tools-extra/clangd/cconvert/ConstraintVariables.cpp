@@ -13,6 +13,7 @@
 
 #include "ConstraintVariables.h"
 #include "ProgramInfo.h"
+#include "CCGlobalOptions.h"
 
 using namespace clang;
 

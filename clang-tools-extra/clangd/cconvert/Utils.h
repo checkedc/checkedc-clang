@@ -27,27 +27,7 @@ typedef std::map<PersistentSourceLoc,
 
 // Maps a Decl to the DeclStmt that defines the Decl.
 typedef std::map<clang::Decl*, clang::DeclStmt*> VariableDecltoStmtMap;
-#ifdef CCCONVSTANDALONE
 
-extern llvm::cl::opt<bool> Verbose;
-extern llvm::cl::opt<bool> DumpIntermediate;
-extern llvm::cl::opt<bool> handleVARARGS;
-extern llvm::cl::opt<bool> mergeMultipleFuncDecls;
-extern llvm::cl::opt<bool> enablePropThruIType;
-extern llvm::cl::opt<bool> considerAllocUnsafe;
-extern llvm::cl::opt<std::string> BaseDir;
-extern llvm::cl::opt<bool> allTypes;
-#else
-
-extern bool Verbose;
-extern bool DumpIntermediate;
-extern bool handleVARARGS;
-extern bool mergeMultipleFuncDecls;
-extern bool enablePropThruIType;
-extern bool considerAllocUnsafe;
-extern bool allTypes;
-extern std::string BaseDir;
-#endif
 
 
 extern std::set<std::string> inputFilePaths;
