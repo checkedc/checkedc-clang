@@ -959,8 +959,24 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     }
 
     bool isInStatementPosition(CallExpr *c) {
-      //TODO this will be used to determine if a variadic call can be surrounded by a block
-      return false;
+      // First check if our parent is a compound statement
+      const auto& parents = Context->getParents(*c);
+      if (parents.empty()) {
+        return false; // This case shouldn't happen, but if it does play it safe and mark WILD
+      }
+      auto parent = parents[0].get<CompoundStmt>();
+      if(parent) {
+        //Check if we are the only child
+        int numChilds = 0;
+        for(const auto& child: parent->children()) {
+          numChilds++;
+        }
+        return numChilds > 1;
+      } else {
+        //TODO there are other statement positions
+        //     besides child of compound stmt
+        return false;
+      }
     }
 
     bool VisitCallExpr(CallExpr *c) {
@@ -971,11 +987,13 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
         // If it's not (as in it is used in an expression) then we fall back to
         // reporting an WILD value
         if(isInStatementPosition(c)) {
+          // Insert an _Unchecked block around the call
           auto begin = c->getBeginLoc();
           Writer.InsertTextBefore(begin, "_Unchecked { ");
           auto end = c->getEndLoc();
           Writer.InsertTextAfterToken(end, "; }");
         } else {
+          // Call is inside an epxression, mark WILD
           wild++;
         }
       }

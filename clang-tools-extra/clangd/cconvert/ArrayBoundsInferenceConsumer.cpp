@@ -131,6 +131,10 @@ static bool isAllocatorCall(Expr *E) {
   return false;
 }
 
+static bool isStringLiteral(Expr *E) {
+  return dyn_cast<StringLiteral>(removeAuxillaryCasts(E));
+}
+
 static ArrayBoundsInformation::BOUNDSINFOTYPE getAllocatedSizeExpr(Expr *E, ASTContext *C,
                                                                    ProgramInfo &Info, FieldDecl *isField = nullptr) {
   assert(isAllocatorCall(E) && "The provided expression should be a call to "
@@ -336,6 +340,16 @@ bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
       if (!arrBoundsInfo.hasBoundsInformation(structField))
         arrBoundsInfo.addBoundsInformation(structField, getAllocatedSizeExpr(RHS, Context, Info, structField));
     }
+  } else if (isStringLiteral(RHS)) {
+    VarDecl *targetVar = nullptr;
+    StringLiteral* SL = dyn_cast<StringLiteral>(removeAuxillaryCasts(RHS));
+
+    assert(SL);
+
+    if(isExpressionSimpleLocalVar(LHS, &targetVar)) {
+      arrBoundsInfo.addBoundsInformation(targetVar, arrBoundsInfo.getExprBoundsInfo(nullptr, RHS));
+    }
+
   }
   return true;
 }
@@ -348,6 +362,8 @@ bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
       Expr *InitE = VD->getInit();
       if (needArrayBounds(VD, Info, Context) && InitE && isAllocatorCall(InitE)) {
         arrBoundsInfo.addBoundsInformation(VD, getAllocatedSizeExpr(InitE, Context, Info));
+      } else if (InitE && isStringLiteral(InitE)) {
+        arrBoundsInfo.addBoundsInformation(VD, arrBoundsInfo.getExprBoundsInfo(nullptr, InitE));
       }
     }
 
@@ -419,3 +435,4 @@ void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {
     }
   }
 }
+
