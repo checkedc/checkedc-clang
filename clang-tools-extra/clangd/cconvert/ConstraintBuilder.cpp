@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 #include "ConstraintBuilder.h"
 #include "ArrayBoundsInferenceConsumer.h"
+#include "CCGlobalOptions.h"
 
 using namespace llvm;
 using namespace clang;

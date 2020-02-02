@@ -9,6 +9,7 @@
 #include "llvm/Support/Path.h"
 
 #include "MappingVisitor.h"
+#include "CCGlobalOptions.h"
 
 using namespace clang;
 

@@ -9,6 +9,7 @@
 #include "ProgramInfo.h"
 #include "MappingVisitor.h"
 #include "ConstraintBuilder.h"
+#include "CCGlobalOptions.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "clang/Lex/Lexer.h"
 #include <sstream>
