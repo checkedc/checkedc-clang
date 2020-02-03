@@ -515,6 +515,12 @@ Eq *Constraints::createEq(Atom *lhs, Atom *rhs, std::string &rsn) {
 }
 
 Eq *Constraints::createEq(Atom *lhs, Atom *rhs, std::string &rsn, PersistentSourceLoc *psl) {
+  if (psl != nullptr && psl->valid()) {
+    // make this invalid, if the source location is not absolute path
+    // this is to avoid crashes in clangd
+    if (psl->getFileName().c_str()[0] != '/')
+      psl = nullptr;
+  }
   return new Eq(lhs, rhs, rsn, psl);
 }
 
