@@ -10962,7 +10962,7 @@ QualType ASTContext::getStringLiteralArrayType(QualType EltTy,
   // Get an array type for the string, according to C99 6.4.5. This includes
   // the null terminator character.
   return getConstantArrayType(EltTy, llvm::APInt(32, Length + 1),
-                              ArrayType::Normal, /*IndexTypeQuals*/ 0);
+                              ArrayType::Normal, /*IndexTypeQuals*/ 0, Kind);
 }
 
 StringLiteral *
