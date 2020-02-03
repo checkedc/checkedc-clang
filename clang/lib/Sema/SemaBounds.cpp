@@ -1967,6 +1967,9 @@ namespace {
         case Stmt::CompoundStmtClass: {
           CompoundStmt *CS = cast<CompoundStmt>(S);
           CSS = CS->getCheckedSpecifier();
+          // Check may be called on a CompoundStmt if a CFG could not be
+          // constructed, so check the children of a CompoundStmt.
+          CheckChildren(CS, CSS);
           break;
         }
         case Stmt::DeclStmtClass: {
