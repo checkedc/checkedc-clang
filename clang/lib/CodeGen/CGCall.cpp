@@ -3817,7 +3817,39 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     else
       TypeFromVal =
           Callee.getFunctionPointer()->getType()->getPointerElementType();
-    assert(IRFuncTy == TypeFromVal);
+
+    // TODO: In Checked C, we can have functions with _For_any specified. For
+    // such functions, the function type should be taken from the callee (not
+    // the caller). For example:
+    // _For_any(T) void f(_Ptr<T> x); // type of callee: void(i8*).
+    // int n;
+    // f<int>(&n); // type of caller: void(i32*).
+
+    // As we can see there is a mismatch in the types of the caller and the
+    // callee. So we would hit the assert:
+    // assert(IRFuncTy == TypeFromVal);
+
+    // We used to do take the type from the callee prior to upgrade to
+    // release_90:
+    // llvm::FunctionType *IRFuncTy = Callee.getFunctionType();
+
+    // But upstream has changed to this:
+    // llvm::FunctionType *IRFuncTy = getTypes().GetFunctionType(CallInfo);
+
+    // Now, CallInfo will get us the caller's type and we would hit the assert.
+
+    // The correct fix here is to detect _For_any on the function and then use
+    // the callee type. But we do not currently seem to propagate the info
+    // about _For_any here (in clang/lib/CodeGen). So it is not possible to
+    // limit this check only for _For_any. So for now I have enabled this in
+    // case getLangOpts().CheckedC is true.
+
+    // NOTE: We may also need to handle _Itype_for_any.
+
+    if (getLangOpts().CheckedC)
+      IRFuncTy = cast<llvm::FunctionType>(TypeFromVal);
+    else
+      assert(IRFuncTy == TypeFromVal);
   }
 #endif
 
