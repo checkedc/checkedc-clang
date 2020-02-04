@@ -2691,7 +2691,7 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
         /*HasFoundDecl=*/Record[ASTStmtReader::NumExprFields + 1],
         /*HasTemplateKWAndArgsInfo=*/Record[ASTStmtReader::NumExprFields + 2],
         /*NumTemplateArgs=*/Record[ASTStmtReader::NumExprFields + 2] ?
-          Record[ASTStmtReader::NumExprFields + 6] : 0);
+          Record[ASTStmtReader::NumExprFields + 8] : 0);
       break;
 
     case EXPR_INTEGER_LITERAL:
