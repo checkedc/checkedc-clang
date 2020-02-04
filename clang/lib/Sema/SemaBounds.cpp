@@ -1875,58 +1875,101 @@ namespace {
             S->dump(llvm::outs());
             llvm::outs().flush();
 #endif
-            TraverseStmt(S, CSS);
+            Check(S, CSS);
          }
        }
        AFA.Next();
      }
     }
 
-    // Traverse methods iterate recursively over AST tree nodes, visiting
-    // all children of any node not visited by a Check method.
+  // Methods for inferring bounds expressions for C expressions.
+
+  // C has an interesting semantics for expressions that differentiates between
+  // lvalue and value expressions and inserts implicit conversions from lvalues
+  // to values.  Value expressions are usually called rvalue expressions.  This
+  // semantics is represented directly in the clang IR by having some
+  // expressions evaluate to lvalues and having implicit conversions that convert
+  // those lvalues to rvalues.
+  //
+  // Using ths representation directly would make it clumsy to compute bounds
+  // expressions.  For an expression that evaluates to an lvalue, we would have
+  // to compute and carry along two bounds expressions: the bounds expression
+  // for the lvalue and the bounds expression for the value at which the lvalue
+  // points.
+  //
+  // We address this by having two methods for computing bounds.  One method
+  // (Check) computes the bounds for an rvalue expression. For lvalue
+  // expressions, we have one method that compute two kinds of bounds.
+  // CheckLValue computes the bounds for the lvalue produced by an expression
+  // and the bounds for the target of the lvalue produced by the expression.
+  //
+  // There are only a few contexts where an lvalue expression can occur, so it
+  // is straightforward to determine which method to use. Also, the clang IR
+  // makes it explicit when an lvalue is converted to an rvalue by an lvalue
+  // cast operation.
+  //
+  // An expression denotes an lvalue if it occurs in the following contexts:
+  // 1. As the left-hand side of an assignment operator.
+  // 2. As the operand to a postfix or prefix incrementation operators (which
+  //    implicitly do assignment).
+  // 3. As the operand of the address-of (&) operator.
+  // 4. If a member access operation e1.f denotes an lvalue, e1 denotes an
+  //    lvalue.
+  // 5. In clang IR, as an operand to an LValueToRValue cast operation.
+  // Otherwise an expression denotes an rvalue.
+
+  public:
+    // If e is an rvalue, Check checks e and its children, performing any
+    // necessary side effects, and returns the bounds for the value
+    // produced by e.
+    // If e is an lvalue, Check checks e and its children, performing any
+    // necessary side effects, and returns unknown bounds.
     //
-    // Check methods do the following for a node:
-    // 1. Recursively traverse all its children
-    // 2. Infer its (rvalue) bounds
-    // 3. Do work such as checking bounds declarations
-    //    or inserting bounds checks
-    BoundsExpr *TraverseStmt(Stmt *S, CheckedScopeSpecifier CSS) {
+    // The returned bounds expression may contain a modifying expression within
+    // it. It is the caller's responsibility to validate that the bounds
+    // expression is non-modifying.
+    //
+    // Check recursively checks the children of e and performs any
+    // necessary side effects on e.  Check and CheckLValue work together
+    // to traverse each expression in a CFG exactly once.
+    BoundsExpr *Check(Stmt *S, CheckedScopeSpecifier CSS) {
       if (!S)
         return CreateBoundsEmpty();
 
+      if (Expr *E = dyn_cast<Expr>(S)) {
+        E = E->IgnoreParens();
+        S = E;
+        if (E->isLValue()) {
+          BoundsExpr *TargetBounds = nullptr;
+          CheckLValue(E, CSS, TargetBounds);
+          return CreateBoundsAlwaysUnknown();
+        }
+      }
+
       BoundsExpr *ResultBounds = CreateBoundsAlwaysUnknown();
 
-      if (Expr *E = dyn_cast<Expr>(S))
-        S = E->IgnoreParens();
-
       switch (S->getStmtClass()) {
-        case Expr::UnaryOperatorClass: {
-          BoundsExpr *SubExprBounds = nullptr;
-          ResultBounds = CheckUnaryOperator(cast<UnaryOperator>(S),
-                                            CSS, SubExprBounds);
-          return AdjustRValueBounds(S, ResultBounds);
-        }
+        case Expr::UnaryOperatorClass:
+          ResultBounds = CheckUnaryOperator(cast<UnaryOperator>(S), CSS);
+          break;
         case Expr::CallExprClass:
           ResultBounds = CheckCallExpr(cast<CallExpr>(S), CSS);
-          return AdjustRValueBounds(S, ResultBounds);
-        case Expr::MemberExprClass:
-          ResultBounds = CheckMemberExpr(cast<MemberExpr>(S), CSS);
-          return AdjustRValueBounds(S, ResultBounds);
+          break;
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
-        case Expr::BoundsCastExprClass: {
-          BoundsExpr *SubExprLValueBounds = nullptr;
-          ResultBounds = CheckCastExpr(cast<CastExpr>(S), CSS,
-                                       SubExprLValueBounds);
-          return AdjustRValueBounds(S, ResultBounds);
-        }
+        case Expr::BoundsCastExprClass:
+          ResultBounds = CheckCastExpr(cast<CastExpr>(S), CSS);
+          break;
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass:
           ResultBounds = CheckBinaryOperator(cast<BinaryOperator>(S), CSS);
-          return AdjustRValueBounds(S, ResultBounds);
+          break;
         case Stmt::CompoundStmtClass: {
           CompoundStmt *CS = cast<CompoundStmt>(S);
           CSS = CS->getCheckedSpecifier();
+          // Check may be called on a CompoundStmt if a CFG could not be
+          // constructed, so check the children of a CompoundStmt.
+          CheckChildren(CS, CSS);
           break;
         }
         case Stmt::DeclStmtClass: {
@@ -1939,37 +1982,115 @@ namespace {
             if (VarDecl *VD = dyn_cast<VarDecl>(D))
               ResultBounds = CheckVarDecl(VD, CSS);
           }
-          return AdjustRValueBounds(S, ResultBounds);
+          break;
         }
         case Stmt::ReturnStmtClass:
           ResultBounds = CheckReturnStmt(cast<ReturnStmt>(S), CSS);
-          return AdjustRValueBounds(S, ResultBounds);
+          break;
         case Stmt::CHKCBindTemporaryExprClass: {
           CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(S);
           ResultBounds = CheckTemporaryBinding(Binding, CSS);
-          return AdjustRValueBounds(S, ResultBounds);
+          break;
         }
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass: {
           AbstractConditionalOperator *ACO = cast<AbstractConditionalOperator>(S);
           ResultBounds = CheckConditionalOperator(ACO, CSS);
-          return AdjustRValueBounds(S, ResultBounds);
+          break;
         }
         case Expr::BoundsValueExprClass:
           ResultBounds = CheckBoundsValueExpr(cast<BoundsValueExpr>(S), CSS);
-          return AdjustRValueBounds(S, ResultBounds);
-        default: 
+          break;
+        default:
+          CheckChildren(S, CSS);
           break;
       }
-      
-      TraverseChildren(S, CSS);
-      return AdjustRValueBounds(S, ResultBounds);
+
+      if (Expr *E = dyn_cast<Expr>(S)) {
+        // Bounds expressions are not null ptrs.
+        if (isa<BoundsExpr>(E))
+          return ResultBounds;
+
+        // Null ptrs always have bounds(any).
+        // This is the correct way to detect all the different ways that
+        // C can make a null ptr.
+        if (E->isNullPointerConstant(Context, Expr::NPC_NeverValueDependent))
+          return CreateBoundsAny();
+      }
+
+      return ResultBounds;
     }
 
-    void TraverseChildren(Stmt *S, CheckedScopeSpecifier CSS) {
+    // Infer the bounds for an lvalue and the bounds for the target
+    // of the lvalue.
+    //
+    // The lvalue bounds determine whether it is valid to access memory
+    // using the lvalue.  The bounds should be the range of an object in
+    // memory or a subrange of an object.
+    // Values assigned through the lvalue must satisfy the target bounds.
+    // Values read through the lvalue will meet the target bounds.
+    //
+    // The returned bounds expressions may contain a modifying expression within
+    // them. It is the caller's responsibility to validate that the bounds
+    // expressions are non-modifying.
+    //
+    // CheckLValue recursively checks the children of e and performs any
+    // necessary side effects on e.  Check and CheckLValue work together
+    // to traverse each expression in a CFG exactly once.
+    BoundsExpr *CheckLValue(Expr *E, CheckedScopeSpecifier CSS,
+                            BoundsExpr *&OutTargetBounds) {
+      if (!E->isLValue())
+        return CreateBoundsInferenceError();
+
+      E = E->IgnoreParens();
+
+      OutTargetBounds = CreateBoundsAlwaysUnknown();
+      BoundsExpr *Bounds = CreateBoundsAlwaysUnknown();
+
+      switch (E->getStmtClass()) {
+        case Expr::DeclRefExprClass:
+          Bounds = CheckDeclRefExpr(cast<DeclRefExpr>(E),
+                                    CSS, OutTargetBounds);
+          break;
+        case Expr::UnaryOperatorClass:
+          Bounds = CheckUnaryLValue(cast<UnaryOperator>(E),
+                                    CSS, OutTargetBounds);
+          break;
+        case Expr::ArraySubscriptExprClass:
+          Bounds = CheckArraySubscriptExpr(cast<ArraySubscriptExpr>(E),
+                                           CSS, OutTargetBounds);
+          break;
+        case Expr::MemberExprClass:
+          Bounds = CheckMemberExpr(cast<MemberExpr>(E), CSS, OutTargetBounds);
+          break;
+        case Expr::ImplicitCastExprClass:
+          Bounds = CheckCastLValue(cast<CastExpr>(E), CSS, OutTargetBounds);
+          break;
+        case Expr::CHKCBindTemporaryExprClass:
+          Bounds = CheckTempBindingLValue(cast<CHKCBindTemporaryExpr>(E),
+                                          CSS, OutTargetBounds);
+          break;
+        default:
+          CheckChildren(E, CSS);
+          break;
+      }
+
+      // The type for inferring the target bounds cannot ever be an array
+      // type, as these are dealt with by an array conversion, not an lvalue
+      // conversion. The bounds for an array conversion are the same as the
+      // lvalue bounds of the array-typed expression.
+      if (E->getType()->isArrayType())
+        OutTargetBounds = CreateBoundsInferenceError();
+
+      return Bounds;
+    }
+
+    // Recursively check and perform any side effects on the children
+    // of an expression, throwing away the resulting rvalue bounds.
+    void CheckChildren(Stmt *S, CheckedScopeSpecifier CSS) {
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
-        TraverseStmt(*I, CSS);
+        Check(*I, CSS);
       }
     }
 
@@ -1995,26 +2116,21 @@ namespace {
       return false;
     }
 
+  // Methods to infer bounds for an expression that produces an rvalue.
+
+  private:
     // CheckBinaryOperator returns the bounds for the value produced by e.
     // e is an rvalue.
     BoundsExpr *CheckBinaryOperator(BinaryOperator *E, CheckedScopeSpecifier CSS) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
 
-      // The LHS target bounds must be inferred before
-      // any side effects are performed on the LHS.
-      BoundsExpr *LHSTargetBounds = LValueTargetBounds(LHS, CSS);
-
       // Infer the lvalue or rvalue bounds of the LHS.
-      BoundsExpr *LHSLValueBounds = CreateBoundsUnknown();
-      BoundsExpr *LHSBounds = CreateBoundsUnknown();
-      if (LHS->isLValue())
-        LHSLValueBounds = LValueBounds(LHS, CSS);
-      else if (LHS->isRValue())
-        LHSBounds = TraverseStmt(LHS, CSS);
+      BoundsExpr *LHSTargetBounds, *LHSLValueBounds, *LHSBounds;
+      InferBounds(LHS, CSS, LHSTargetBounds, LHSLValueBounds, LHSBounds);
 
-      // Recursively infer the rvalue bounds of the RHS.
-      BoundsExpr *RHSBounds = TraverseStmt(RHS, CSS);
+      // Infer the rvalue bounds of the RHS.
+      BoundsExpr *RHSBounds = Check(RHS, CSS);
 
       BinaryOperatorKind Op = E->getOpcode();
 
@@ -2141,8 +2257,7 @@ namespace {
         bool LHSNeedsBoundsCheck = false;
         OperationKind OpKind = (E->getOpcode() == BO_Assign) ?
           OperationKind::Assign : OperationKind::Other;
-        LHSNeedsBoundsCheck = AddBoundsCheck(LHS, OpKind, CSS,
-                                             LHSLValueBounds);
+        LHSNeedsBoundsCheck = AddBoundsCheck(LHS, OpKind, CSS, LHSLValueBounds);
         if (DumpBounds && (LHSNeedsBoundsCheck ||
                             (LHSTargetBounds && !LHSTargetBounds->isUnknown())))
           DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RightBounds);
@@ -2174,20 +2289,20 @@ namespace {
       assert(FuncTy);
       const FunctionProtoType *FuncProtoTy = FuncTy->getAs<FunctionProtoType>();
 
-      // If the callee and arguments will not be traversed
-      // as part of the checking below, traverse them here.
+      // If the callee and arguments will not be checked during
+      // the bounds declaration checking below, check them here.
       if (!FuncProtoTy) {
-        TraverseChildren(E, CSS);
+        CheckChildren(E, CSS);
         return ResultBounds;
       }
       if (!FuncProtoTy->hasParamAnnots()) {
-        TraverseChildren(E, CSS);
+        CheckChildren(E, CSS);
         return ResultBounds;
       }
 
       // Traverse the callee since CheckCallExpr should traverse
       // all its children.  The arguments will be traversed below.
-      TraverseStmt(E->getCallee(), CSS);
+      Check(E->getCallee(), CSS);
 
       unsigned NumParams = FuncProtoTy->getNumParams();
       unsigned NumArgs = E->getNumArgs();
@@ -2195,9 +2310,9 @@ namespace {
       ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(E->getArgs()), E->getNumArgs());
 
       for (unsigned i = 0; i < Count; i++) {
-        // Recursively traverse each argument.
+        // Check each argument.
         Expr *Arg = E->getArg(i);
-        BoundsExpr *ArgBounds = TraverseStmt(Arg, CSS);
+        BoundsExpr *ArgBounds = Check(Arg, CSS);
 
         QualType ParamType = FuncProtoTy->getParamType(i);
         // Skip checking bounds for unchecked pointer parameters, unless
@@ -2278,11 +2393,11 @@ namespace {
         CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, CSS, nullptr);
       }
 
-      // Traverse any arguments that are beyond
+      // Check any arguments that are beyond
       // the number of function parameters.
       for (unsigned i = Count; i < NumArgs; i++) {
         Expr *Arg = E->getArg(i);
-        TraverseStmt(Arg, CSS);
+        Check(Arg, CSS);
       }
 
       return ResultBounds;
@@ -2290,13 +2405,10 @@ namespace {
 
     // If e is an rvalue, CheckCastExpr returns the bounds for
     // the value produced by e.
-    // If e is an lvalue, it returns unknown bounds.
+    // If e is an lvalue, it returns unknown bounds (CheckCastLValue
+    // should be called instead).
     // This includes both ImplicitCastExprs and CStyleCastExprs.
-    //
-    // OutSubExprLValueBounds saves the lvalue bounds of the subexpression
-    // of e so that callers of CheckCastExpr do not need to recompute them.
-    BoundsExpr *CheckCastExpr(CastExpr *E, CheckedScopeSpecifier CSS,
-                              BoundsExpr *&OutSubExprLValueBounds) {
+    BoundsExpr *CheckCastExpr(CastExpr *E, CheckedScopeSpecifier CSS) {
       // If the rvalue bounds for e cannot be determined,
       // e may be an lvalue (or may have unknown rvalue bounds).
       BoundsExpr *ResultBounds = CreateBoundsUnknown();
@@ -2309,26 +2421,10 @@ namespace {
       bool PreviousIncludeNullTerminator = IncludeNullTerminator;
       IncludeNullTerminator = IncludeNullTerm;
 
-      // The subexpression target bounds (if needed) must be computed
-      // before performing any side effects on the subexpression.
-      BoundsExpr *SubExprTargetBounds = nullptr;
-      // The subexpression target bounds are needed if RValueCastBounds is
-      // called on an LValueToRValue cast, which is always an implicit cast.
-      if (E->getStmtClass() == Stmt::ImplicitCastExprClass &&
-          !E->getType()->isCheckedPointerPtrType()) {
-        if (CK == CK_LValueToRValue)
-          SubExprTargetBounds = LValueTargetBounds(SubExpr, CSS);
-      }
-
       // Infer the lvalue or rvalue bounds of the subexpression.
-      BoundsExpr *SubExprLValueBounds = CreateBoundsUnknown();
-      BoundsExpr *SubExprBounds = CreateBoundsUnknown();
-      if (SubExpr->isLValue())
-        SubExprLValueBounds = LValueBounds(SubExpr, CSS);
-      else if (SubExpr->isRValue())
-        SubExprBounds = TraverseStmt(SubExpr, CSS);
-
-      OutSubExprLValueBounds = SubExprLValueBounds;
+      BoundsExpr *SubExprTargetBounds, *SubExprLValueBounds, *SubExprBounds;
+      InferBounds(SubExpr, CSS, SubExprTargetBounds,
+                  SubExprLValueBounds, SubExprBounds);
 
       IncludeNullTerminator = PreviousIncludeNullTerminator;
 
@@ -2411,7 +2507,7 @@ namespace {
           BoundsExpr *TargetBounds =
             CreateTypeBasedBounds(E, E->getType(), false, false);
           CheckBoundsDeclAtStaticPtrCast(E, TargetBounds, SubExpr,
-                                          SubExprBounds, CSS);
+                                         SubExprBounds, CSS);
         }
         assert(SubExprBounds);
         assert(!E->getSubExprBoundsExpr());
@@ -2423,58 +2519,17 @@ namespace {
       return ResultBounds;
     }
 
-    // A member expression is a narrowing operator that shrinks the range of
-    // memory to which the base refers to a specific member.  We always bounds
-    // check the base.  That way we know that the lvalue produced by the
-    // member points to a valid range of memory given by
-    // (lvalue, lvalue + 1).   The lvalue is interpreted as a pointer to T,
-    // where T is the type of the member.
-    // CheckMemberExpr returns empty bounds.  e is an lvalue.
-    BoundsExpr *CheckMemberExpr(MemberExpr *E, CheckedScopeSpecifier CSS) {
-      Expr *Base = E->getBase();
-
-      // Infer the lvalue or rvalue bounds of the base.
-      BoundsExpr *BaseLValueBounds = CreateBoundsUnknown();
-      BoundsExpr *BaseBounds = CreateBoundsUnknown();
-      if (Base->isLValue())
-        BaseLValueBounds = LValueBounds(Base, CSS);
-      else if (Base->isRValue())
-        BaseBounds = TraverseStmt(Base, CSS);
-
-      bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS,
-                                                       BaseLValueBounds,
-                                                       BaseBounds);
-      if (NeedsBoundsCheck && DumpBounds)
-        DumpExpression(llvm::outs(), E);
-      return CreateBoundsEmpty();
-    }
-
     // If e is an rvalue, CheckUnaryOperator returns the bounds for
     // the value produced by e.
-    // If e is an lvalue, it returns unknown bounds.
-    //
-    // OutSubExprBounds saves the rvalue bounds of the subexpression of e
-    // so that callers of CheckUnaryOperator do not need to recompute them.
-    BoundsExpr *CheckUnaryOperator(UnaryOperator *E, CheckedScopeSpecifier CSS,
-                                   BoundsExpr *&OutSubExprBounds) {
+    // If e is an lvalue, CheckUnaryLValue should be called instead.
+    BoundsExpr *CheckUnaryOperator(UnaryOperator *E, CheckedScopeSpecifier CSS) {
       UnaryOperatorKind Op = E->getOpcode();
       Expr *SubExpr = E->getSubExpr();
 
-      // The subexpression target bounds (if needed) must be computed
-      // before performing any side effects on the subexpression.
-      BoundsExpr *SubExprTargetBounds = nullptr;
-      if (UnaryOperator::isIncrementDecrementOp(Op))
-        SubExprTargetBounds = LValueTargetBounds(SubExpr, CSS);
-
       // Infer the lvalue or rvalue bounds of the subexpression.
-      BoundsExpr *SubExprLValueBounds = CreateBoundsUnknown();
-      BoundsExpr *SubExprBounds = CreateBoundsUnknown();
-      if (SubExpr->isLValue())
-        SubExprLValueBounds = LValueBounds(SubExpr, CSS);
-      else if (SubExpr->isRValue())
-        SubExprBounds = TraverseStmt(SubExpr, CSS);
-
-      OutSubExprBounds = SubExprBounds;
+      BoundsExpr *SubExprTargetBounds, *SubExprLValueBounds, *SubExprBounds;
+      InferBounds(SubExpr, CSS, SubExprTargetBounds,
+                  SubExprLValueBounds, SubExprBounds);
 
       if (Op == UO_AddrOf)
         S.CheckAddressTakenMembers(E);
@@ -2487,11 +2542,6 @@ namespace {
       }
 
       // `*e` is not an rvalue.
-      // TraverseStmt (and CheckUnaryOperator) may be called on non-rvalues,
-      // so this is not unexpected behavior.
-      // CheckUnaryOperator is not intended to be used to get
-      // the bounds for an lvalue expression, but it may be called on an
-      // lvalue expression in order to perform bounds checking.
       if (Op == UnaryOperatorKind::UO_Deref)
         return CreateBoundsInferenceError();
 
@@ -2529,11 +2579,11 @@ namespace {
     BoundsExpr *CheckVarDecl(VarDecl *D, CheckedScopeSpecifier CSS) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
-      // If there is an initializer, traverse it.
+      // If there is an initializer, check it.
       Expr *Init = D->getInit();
       BoundsExpr *InitBounds = nullptr;
       if (Init)
-        InitBounds = TraverseStmt(Init, CSS);
+        InitBounds = Check(Init, CSS);
 
       if (D->isInvalidDecl())
         return ResultBounds;
@@ -2578,6 +2628,7 @@ namespace {
       return ResultBounds;
     }
 
+    // CheckReturnStmt returns empty bounds.
     BoundsExpr *CheckReturnStmt(ReturnStmt *RS, CheckedScopeSpecifier CSS) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
@@ -2587,8 +2638,8 @@ namespace {
         // We already issued an error message for this case.
         return ResultBounds;
 
-      // Recursively traverse the return value if it exists.
-      TraverseStmt(RetValue, CSS);
+      // Check the return value if it exists.
+      Check(RetValue, CSS);
 
       if (!ReturnBounds)
         return ResultBounds;
@@ -2600,6 +2651,9 @@ namespace {
       return ResultBounds;
     }
 
+    // If e is an rvalue, CheckTemporaryBinding returns the bounds for
+    // the value produced by e.
+    // If e is an lvalue, CheckTempBindingLValue should be called instead.
     BoundsExpr *CheckTemporaryBinding(CHKCBindTemporaryExpr *E,
                                       CheckedScopeSpecifier CSS) {
       Expr *Child = E->getSubExpr();
@@ -2607,21 +2661,228 @@ namespace {
       if (CallExpr *CE = dyn_cast<CallExpr>(Child))
         return CheckCallExpr(CE, CSS, E);
       else
-        return TraverseStmt(Child, CSS);
+        return Check(Child, CSS);
     }
 
+    // CheckBoundsValueExpr returns the bounds for the value produced by e.
+    // e is an rvalue.
     BoundsExpr *CheckBoundsValueExpr(BoundsValueExpr *E,
                                      CheckedScopeSpecifier CSS) {
       Expr *Binding = E->getTemporaryBinding();
-      return TraverseStmt(Binding, CSS);
+      return Check(Binding, CSS);
     }
 
+    // CheckConditionalOperator returns the bounds for the value produced by e.
+    // e is an rvalue.
     BoundsExpr *CheckConditionalOperator(AbstractConditionalOperator *E,
                                          CheckedScopeSpecifier CSS) {
-      TraverseChildren(E, CSS);
+      CheckChildren(E, CSS);
       // TODO: infer correct bounds for conditional operators
       return CreateBoundsAllowedButNotComputed();
     }
+
+  // Methods to infer both:
+  // 1. Bounds for an expression that produces an lvalue, and
+  // 2. Bounds for the target of an expression that produces an lvalue.
+
+  private:
+
+    // CheckDeclRefExpr returns the lvalue and target bounds of e.
+    // e is an lvalue.
+    BoundsExpr *CheckDeclRefExpr(DeclRefExpr *E, CheckedScopeSpecifier CSS,
+                                 BoundsExpr *&OutTargetBounds) {
+      CheckChildren(E, CSS);
+
+      VarDecl *VD = dyn_cast<VarDecl>(E->getDecl());
+      BoundsExpr *B = nullptr;
+      InteropTypeExpr *IT = nullptr;
+      if (VD) {
+        B = VD->getBoundsExpr();
+        IT = VD->getInteropTypeExpr();
+      }
+
+      if (E->getType()->isArrayType()) {
+        // Variables with array type do not have target bounds.
+        OutTargetBounds = CreateBoundsAlwaysUnknown();
+
+        if (!VD) {
+          llvm_unreachable("declref with array type not a vardecl");
+          return CreateBoundsInferenceError();
+        }
+
+        // Declared bounds override the bounds based on the array type.
+        if (B) {
+          Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
+                                          CastKind::CK_ArrayToPointerDecay, E);
+          return ExpandToRange(Base, B);
+        }
+
+        // If B is an interop type annotation, the type must be identical
+        // to the declared type, modulo checkedness.  So it is OK to
+        // compute the array bounds based on the original type.
+        return ArrayExprBounds(E);
+      }
+
+      // Infer the target bounds of e.
+      // e only has target bounds if e does not have array type.
+      bool IsParam = isa<ParmVarDecl>(E->getDecl());
+      if (E->getType()->isCheckedPointerPtrType())
+        OutTargetBounds = CreateTypeBasedBounds(E, E->getType(),
+                                                IsParam, false);
+      else if (!VD)
+        OutTargetBounds = CreateBoundsInferenceError();
+      else if (!B && IT)
+        OutTargetBounds = CreateTypeBasedBounds(E, IT->getType(),
+                                                IsParam, true);
+      else if (!B || B->isUnknown())
+        OutTargetBounds = CreateBoundsAlwaysUnknown();
+      else {
+        Expr *Base = CreateImplicitCast(E->getType(),
+                                        CastKind::CK_LValueToRValue, E);
+        OutTargetBounds = ExpandToRange(Base, B);
+      }
+
+      if (E->getType()->isFunctionType()) {
+        // Only function decl refs should have function type
+        assert(isa<FunctionDecl>(E->getDecl()));
+        return CreateBoundsEmpty();
+      }
+
+      Expr *AddrOf = CreateAddressOfOperator(E);
+      return CreateSingleElementBounds(AddrOf);
+    }
+
+    // If e is an lvalue, CheckUnaryLValue returns the
+    // lvalue and target bounds of e.
+    // If e is an rvalue, CheckUnaryOperator should be called instead.
+    BoundsExpr *CheckUnaryLValue(UnaryOperator *E, CheckedScopeSpecifier CSS,
+                                 BoundsExpr *&OutTargetBounds) {
+      BoundsExpr *SubExprBounds = Check(E->getSubExpr(), CSS);
+
+      if (E->getOpcode() == UnaryOperatorKind::UO_Deref) {
+        // Currently, we don't know the target bounds of a pointer stored in a
+        // pointer dereference, unless it is a _Ptr type or an _Nt_array_ptr.
+        if (E->getType()->isCheckedPointerPtrType() ||
+            E->getType()->isCheckedPointerNtArrayType())
+          OutTargetBounds = CreateTypeBasedBounds(E, E->getType(),
+                                                  false, false);
+        else
+          OutTargetBounds = CreateBoundsUnknown();
+
+        // The lvalue bounds of *e are the rvalue bounds of e.
+        return SubExprBounds;
+      }
+
+      OutTargetBounds = CreateBoundsInferenceError();
+      return CreateBoundsInferenceError();
+    }
+
+    // CheckArraySubscriptExpr returns the lvalue and target bounds of e.
+    // e is an lvalue.
+    BoundsExpr *CheckArraySubscriptExpr(ArraySubscriptExpr *E,
+                                        CheckedScopeSpecifier CSS,
+                                        BoundsExpr *&OutTargetBounds) {
+      // Currently, we don't know the target bounds of a pointer returned by a
+      // subscripting operation, unless it is a _Ptr type or an _Nt_array_ptr.
+      if (E->getType()->isCheckedPointerPtrType() ||
+          E->getType()->isCheckedPointerNtArrayType())
+        OutTargetBounds = CreateTypeBasedBounds(E, E->getType(), false, false);
+      else
+        OutTargetBounds = CreateBoundsAlwaysUnknown();
+
+      // e1[e2] is a synonym for *(e1 + e2).  The bounds are
+      // the bounds of e1 + e2, which reduces to the bounds
+      // of whichever subexpression has pointer type.
+      // getBase returns the pointer-typed expression.
+      BoundsExpr *Bounds = Check(E->getBase(), CSS);
+      Check(E->getIdx(), CSS);
+      return Bounds;
+    }
+
+    // CheckMemberExpr returns the lvalue and target bounds of e.
+    // e is an lvalue.
+    //
+    // A member expression is a narrowing operator that shrinks the range of
+    // memory to which the base refers to a specific member.  We always bounds
+    // check the base.  That way we know that the lvalue produced by the
+    // member points to a valid range of memory given by
+    // (lvalue, lvalue + 1).   The lvalue is interpreted as a pointer to T,
+    // where T is the type of the member.
+    BoundsExpr *CheckMemberExpr(MemberExpr *E, CheckedScopeSpecifier CSS,
+                                BoundsExpr *&OutTargetBounds) {
+      // The lvalue and target bounds must be inferred before
+      // performing any side effects on the base, since
+      // inferring these bounds may call PruneTemporaryBindings.
+      OutTargetBounds = MemberExprTargetBounds(E, CSS);
+      BoundsExpr *Bounds = MemberExprBounds(E, CSS);
+
+      // Infer the lvalue or rvalue bounds of the base.
+      Expr *Base = E->getBase();
+      BoundsExpr *BaseTargetBounds, *BaseLValueBounds, *BaseBounds;
+      InferBounds(Base, CSS, BaseTargetBounds, BaseLValueBounds, BaseBounds);
+
+      bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS,
+                                                       BaseLValueBounds,
+                                                       BaseBounds);
+      if (NeedsBoundsCheck && DumpBounds)
+        DumpExpression(llvm::outs(), E);
+      return Bounds;
+    }
+
+    // If e is an lvalue, CheckCastLValue returns the
+    // lvalue and target bounds of e.
+    // If e is an rvalue, CheckCastExpr should be called instead.
+    BoundsExpr *CheckCastLValue(CastExpr *E, CheckedScopeSpecifier CSS,
+                                BoundsExpr *&OutTargetBounds) {
+      // An LValueBitCast adjusts the type of the lvalue.  The bounds are not
+      // changed, except that their relative alignment may change (the bounds 
+      // may only cover a partial object).  TODO: When we add relative
+      // alignment support to the compiler, adjust the relative alignment.
+      if (E->getCastKind() == CastKind::CK_LValueBitCast)
+        return CheckLValue(E->getSubExpr(), CSS, OutTargetBounds);
+
+      CheckChildren(E, CSS);
+
+      // Cast kinds other than LValueBitCast
+      // do not have lvalue or target bounds.
+      OutTargetBounds = CreateBoundsAlwaysUnknown();
+      return CreateBoundsAlwaysUnknown();
+    }
+
+    // If e is an lvalue, CheckTempBindingLValue returns the
+    // lvalue and target bounds of e.
+    // If e is an rvalue, CheckTemporaryBinding should be called instead.
+    BoundsExpr *CheckTempBindingLValue(CHKCBindTemporaryExpr *E,
+                                       CheckedScopeSpecifier CSS,
+                                       BoundsExpr *&OutTargetBounds) {
+      OutTargetBounds = CreateBoundsAlwaysUnknown();
+
+      CheckChildren(E, CSS);
+
+      Expr *SubExpr = E->getSubExpr()->IgnoreParens();
+
+      if (isa<CompoundLiteralExpr>(SubExpr)) {
+        BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
+        QualType PtrType = Context.getDecayedType(E->getType());
+        Expr *ArrLValue = CreateTemporaryUse(E);
+        Expr *Base = CreateImplicitCast(PtrType,
+                                        CastKind::CK_ArrayToPointerDecay,
+                                        ArrLValue);
+        return ExpandToRange(Base, BE);
+      }
+
+      if (auto *SL = dyn_cast<StringLiteral>(SubExpr))
+        return InferBoundsForStringLiteral(E, SL, E);
+
+      if (auto *PE = dyn_cast<PredefinedExpr>(SubExpr)) {
+        auto *SL = PE->getFunctionName();
+        return InferBoundsForStringLiteral(E, SL, E);
+      }
+
+      return CreateBoundsAlwaysUnknown();
+    }
+
+  public:
 
     // Given an array type with constant dimension size, produce a count
     // expression with that size.
@@ -2764,64 +3025,19 @@ namespace {
 
     BoundsAnalysis getBoundsAnalyzer() { return BoundsAnalyzer; }
 
-  // Methods for inferring bounds expressions for C expressions.
-
-  // C has an interesting semantics for expressions that differentiates between
-  // lvalue and value expressions and inserts implicit conversions from lvalues
-  // to values.  Value expressions are usually called rvalue expressions.  This
-  // semantics is represented directly in the clang IR by having some
-  // expressions evaluate to lvalues and having implicit conversions that convert
-  // those lvalues to rvalues.
-  //
-  // Using ths representation directly would make it clumsy to compute bounds
-  // expressions.  For an expression that evaluates to an lvalue, we would have
-  // to compute and carry along two bounds expressions: the bounds expression
-  // for the lvalue and the bounds expression for the value at which the lvalue
-  // points.
-  //
-  // We address this by having three methods for computing bounds.  One method
-  // (RValueBounds) computes the bounds for an rvalue expression. For lvalue
-  // expressions, we have two methods that compute the bounds.  LValueBounds
-  // computes the bounds for the lvalue produced by an expression.
-  // LValueTargetBounds computes the bounds for the target of the lvalue
-  // produced by the expression.  The method to use depends on the context in
-  // which the lvalue expression is used.
-  //
-  // There are only a few contexts where an lvalue expression can occur, so it
-  // is straightforward to determine which method to use. Also, the clang IR
-  // makes it explicit when an lvalue is converted to an rvalue by an lvalue
-  // cast operation.
-  //
-  // An expression denotes an lvalue if it occurs in the following contexts:
-  // 1. As the left-hand side of an assignment operator.
-  // 2. As the operand to a postfix or prefix incrementation operators (which
-  //    implicitly do assignment).
-  // 3. As the operand of the address-of (&) operator.
-  // 4. If a member access operation e1.f denotes on lvalue, e1 denotes an
-  //    lvalue.
-  // 5. In clang IR, as an operand to an LValueToRValue cast operation.
-  // Otherwise an expression denotes an rvalue.
-
   private:
-    /// Get the rvalue bounds of a statement,
-    /// accounting for non-rvalue expressions and null ptrs.
-    BoundsExpr *AdjustRValueBounds(Stmt *S, BoundsExpr *Bounds) {
-      if (Expr *E = dyn_cast<Expr>(S)) {
-        if (!E->isRValue())
-          return CreateBoundsInferenceError();
-
-        // Bounds expressions are not null ptrs.
-        if (isa<BoundsExpr>(E))
-          return Bounds;
-
-        // Null Ptrs always have bounds(any).
-        // This is the correct way to detect all the different ways that
-        // C can make a null ptr.
-        if (E->isNullPointerConstant(Context, Expr::NPC_NeverValueDependent))
-          return CreateBoundsAny();
-      }
-
-      return Bounds;
+    // Sets the bounds expressions based on
+    // whether e is an lvalue or an rvalue.
+    void InferBounds(Expr *E, CheckedScopeSpecifier CSS,
+                     BoundsExpr *&TargetBounds, BoundsExpr *&LValueBounds,
+                     BoundsExpr *&RValueBounds) {
+      TargetBounds = CreateBoundsUnknown();
+      LValueBounds = CreateBoundsUnknown();
+      RValueBounds = CreateBoundsUnknown();
+      if (E->isLValue())
+        LValueBounds = CheckLValue(E, CSS, TargetBounds);
+      else if (E->isRValue())
+        RValueBounds = Check(E, CSS);
     }
 
     BoundsExpr *CreateBoundsUnknown() {
@@ -2969,151 +3185,14 @@ namespace {
       return ExpandToRange(Base, CBE);
     }
 
-    // Infer bounds for an lvalue.  The bounds determine whether
-    // it is valid to access memory using the lvalue.  The bounds
-    // should be the range of an object in memory or a subrange of
-    // an object.
+    // Infer the bounds for a member expression.
+    // A member expression is an lvalue.
     //
-    // The returned bounds expression may contain a modifying expression within
-    // it. It is the caller's responsibility to validate that the bounds
-    // expression is non-modifying.
-    //
-    // For most expression types, LValueBounds traverses the expression
-    // in order to perform any necessary side effects on it.
-    //
-    // LValueBounds should only be called on an expression that has not had
-    // any side effects from bounds inference and checking performed on it.
-    // PruneTemporaryBindings (which may be called from LValueBounds)
-    // expects its argument not to have had a bounds expression set on it.
-    // Side effects performed during bounds inference and checking may set
-    // a bounds expression on e.
-    BoundsExpr *LValueBounds(Expr *E, CheckedScopeSpecifier CSS) {
-      // E may not be an lvalue if there is a typechecking error when struct 
-      // accesses member array incorrectly.
-      if (!E->isLValue()) return CreateBoundsInferenceError();
-      E = E->IgnoreParens();
-      switch (E->getStmtClass()) {
-      case Expr::DeclRefExprClass: {
-        TraverseStmt(E, CSS);
-        DeclRefExpr *DR = cast<DeclRefExpr>(E);
-        if (DR->getType()->isArrayType()) {
-          VarDecl *VD = dyn_cast<VarDecl>(DR->getDecl());
-          if (!VD) {
-            llvm_unreachable("declref with array type not a vardecl");
-            return CreateBoundsInferenceError();
-          }
-          // Declared bounds override the bounds based on the array type.
-          BoundsExpr *B = VD->getBoundsExpr();
-          if (B) {
-            Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
-                                            CastKind::CK_ArrayToPointerDecay,
-                                            E);
-            return ExpandToRange(Base, B);
-          }
-          // If B is an interop type annotation, the type must be identical
-          // to the declared type, modulo checkedness.  So it is OK to
-          // compute the array bounds based on the original type.
-          return ArrayExprBounds(DR);
-        }
-
-        if (DR->getType()->isFunctionType()) {
-          // Only function decl refs should have function type
-          assert(isa<FunctionDecl>(DR->getDecl()));
-          return CreateBoundsEmpty();
-        }
-        Expr *AddrOf = CreateAddressOfOperator(DR);
-        return CreateSingleElementBounds(AddrOf);
-      }
-      case Expr::UnaryOperatorClass: {
-        UnaryOperator *UO = cast<UnaryOperator>(E);
-        if (UO->getOpcode() == UnaryOperatorKind::UO_Deref) {
-          // The lvalue bounds of *e are the rvalue bounds of e.
-          BoundsExpr *SubExprBounds = nullptr;
-          // Traverse *e, while saving the rvalue bounds of e
-          // that CheckUnaryOperator computes in SubExprBounds.
-          CheckUnaryOperator(UO, CSS, SubExprBounds);
-          return SubExprBounds;
-        }
-        else {
-          TraverseStmt(E, CSS);
-          return CreateBoundsInferenceError();
-        }
-      }
-      case Expr::ArraySubscriptExprClass: {
-        // e1[e2] is a synonym for *(e1 + e2).  The bounds are
-        // the bounds of e1 + e2, which reduces to the bounds
-        // of whichever subexpression has pointer type.
-        // getBase returns the pointer-typed expression.
-        ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
-
-        // Traverse both e1 and e2 here, since callers
-        // will not traverse the children of e.
-        BoundsExpr *Bounds = TraverseStmt(AS->getBase(), CSS);
-        TraverseStmt(AS->getIdx(), CSS);
-        return Bounds;
-      }
-      case Expr::MemberExprClass: {
-        MemberExpr *ME = cast<MemberExpr>(E);
-        // The lvalue bounds of a member expression must be computed
-        // before performing any side effects on the expression
-        // since MemberExprLValueBounds calls PruneTemporaryBindings.
-        BoundsExpr *Bounds = MemberExprLValueBounds(ME, CSS);
-        TraverseStmt(E, CSS);
-        return Bounds;
-      }
-      case Expr::ImplicitCastExprClass: {
-        ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);
-        // An LValueBitCast adjusts the type of the lvalue, but
-        // the bounds are not changed.
-        // TODO: when we add relative alignment support, we may need
-        // to adjust the relative alignment of the bounds.
-        if (ICE->getCastKind() == CastKind::CK_LValueBitCast) {
-          // The lvalue bounds of LValueBitCast(e) are the lvalue bounds of e.
-          BoundsExpr *SubExprLValueBounds = nullptr;
-          // Traverse LValueBitCast(e), saving the lvalue bounds of e
-          // that CheckCastExpr computes in SubExprLValueBounds.
-          CheckCastExpr(ICE, CSS, SubExprLValueBounds);
-          return SubExprLValueBounds;
-        } else {
-          TraverseStmt(E, CSS);
-          return CreateBoundsAlwaysUnknown();
-        }
-      }
-      case Expr::CHKCBindTemporaryExprClass: {
-        TraverseStmt(E, CSS);
-        CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(E);
-        Expr *SE = Binding->getSubExpr()->IgnoreParens();
-
-        if (isa<CompoundLiteralExpr>(SE)) {
-          BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
-          QualType PtrType = Context.getDecayedType(E->getType());
-          Expr *ArrLValue = CreateTemporaryUse(Binding);
-          Expr *Base = CreateImplicitCast(PtrType,
-                                          CastKind::CK_ArrayToPointerDecay,
-                                          ArrLValue);
-          return ExpandToRange(Base, BE);
-        }
-
-        if (auto *SL = dyn_cast<StringLiteral>(SE))
-          return InferBoundsForStringLiteral(E, SL, Binding);
-
-        if (auto *PE = dyn_cast<PredefinedExpr>(SE)) {
-          auto *SL = PE->getFunctionName();
-          return InferBoundsForStringLiteral(E, SL, Binding);
-        }
-
-        return CreateBoundsAlwaysUnknown();
-      }
-      default: {
-        TraverseStmt(E, CSS);
-        return CreateBoundsAlwaysUnknown();
-      }
-      }
-    }
-
-    // Returns the lvalue bounds for a member expression.
-    BoundsExpr *MemberExprLValueBounds(MemberExpr *ME,
-                                       CheckedScopeSpecifier CSS) {
+    // MemberExprBounds should only be called on an
+    // expression that has not had any side effects performed
+    // on it, since PruneTemporaryBindings expects no bounds
+    // expressions to have been set.
+    BoundsExpr *MemberExprBounds(MemberExpr *ME, CheckedScopeSpecifier CSS) {
       FieldDecl *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
       if (!FD)
         return CreateBoundsInferenceError();
@@ -3157,6 +3236,57 @@ namespace {
       Expr *AddrOf = CreateAddressOfOperator(ME);
       BoundsExpr* Bounds = CreateSingleElementBounds(AddrOf);
       return cast<BoundsExpr>(PruneTemporaryBindings(S, Bounds, CSS));
+    }
+
+    // Infer the bounds for the target of a member expression.
+    // A member expression is an lvalue.
+    //
+    // MemberExprTargetBounds should only be called on an
+    // expression that has not had any side effects performed
+    // on it, since PruneTemporaryBindings expects no bounds
+    // expressions to have been set.
+    BoundsExpr *MemberExprTargetBounds(MemberExpr *ME,
+                                       CheckedScopeSpecifier CSS) {
+      FieldDecl *F = dyn_cast<FieldDecl>(ME->getMemberDecl());
+      if (!F)
+        return CreateBoundsInferenceError();
+
+      BoundsExpr *B = F->getBoundsExpr();
+      InteropTypeExpr *IT = F->getInteropTypeExpr();
+      if (B && B->isUnknown())
+        return CreateBoundsAlwaysUnknown();
+
+      Expr *MemberBaseExpr = ME->getBase();
+      if (!B && IT) {
+        B = CreateTypeBasedBounds(ME, IT->getType(),
+                                      /*IsParam=*/false,
+                                      /*IsInteropTypeAnnotation=*/true);
+        return cast<BoundsExpr>(PruneTemporaryBindings(S, B, CSS));
+      }
+            
+      if (!B)
+        return CreateBoundsAlwaysUnknown();
+
+      B = S.MakeMemberBoundsConcrete(MemberBaseExpr, ME->isArrow(), B);
+      if (!B) {
+        // This can happen when MemberBaseExpr is an rvalue expression.  An example
+        // of this a function call that returns a struct.  MakeMemberBoundsConcrete
+        // can't handle this yet.
+        return CreateBoundsNotAllowedYet();
+      }
+
+      if (B->isElementCount() || B->isByteCount()) {
+          Expr *MemberRValue;
+        if (ME->isLValue())
+          MemberRValue = CreateImplicitCast(ME->getType(),
+                                            CastKind::CK_LValueToRValue,
+                                            ME);
+        else
+          MemberRValue = ME;
+        B = ExpandToRange(MemberRValue, B);
+      }
+
+      return cast<BoundsExpr>(PruneTemporaryBindings(S, B, CSS));
     }
 
     // Given a Ptr type or a bounds-safe interface type, create the bounds
@@ -3211,135 +3341,6 @@ namespace {
         assert(Ty == E->getType());
 
       return ExpandToRange(Base, BE);
-    }
-
-    // Compute bounds for the target of an lvalue. Values assigned through
-    // the lvalue must satisfy these bounds. Values read through the
-    // lvalue will meet these bounds.
-    //
-    // The returned bounds expression may contain a modifying expression within
-    // it. It is the caller's responsibility to validate that the bounds
-    // expression is non-modifying.
-    //
-    // LValueTargetBounds should only be called on an expression that has not
-    // had any side effects from bounds inference and checking performed on it.
-    // PruneTemporaryBindings (which may be called from LValueTargetBounds)
-    // expects its argument not to have had a bounds expression set on it.
-    // Side effects performed during bounds inference and checking may set
-    // a bounds expression on e.
-    BoundsExpr *LValueTargetBounds(Expr *E, CheckedScopeSpecifier CSS) {
-      if (!E->isLValue()) return CreateBoundsInferenceError();
-      E = E->IgnoreParens();
-      QualType QT = E->getType();
-
-      // The type here cannot ever be an array type, as these are dealt with
-      // by an array conversion, not an lvalue conversion. The bounds for an
-      // array conversion are the same as the lvalue bounds of the
-      // array-typed expression.
-      assert(!QT->isArrayType() &&
-             "Unexpected Array-typed lvalue in LValueTargetBounds");
-      if (QT->isCheckedPointerPtrType()) {
-        bool IsParam = false;
-        if (DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E))
-          IsParam = isa<ParmVarDecl>(DR->getDecl());
-
-        return CreateTypeBasedBounds(E, QT,/*IsParam=*/IsParam,
-                                     /*IsBoundsSafeInterface="*/false);
-      }
-
-      switch (E->getStmtClass()) {
-        case Expr::DeclRefExprClass: {
-          DeclRefExpr *DR = cast<DeclRefExpr>(E);
-          VarDecl *D = dyn_cast<VarDecl>(DR->getDecl());
-          if (!D)
-            return CreateBoundsInferenceError();
-
-          BoundsExpr *B = D->getBoundsExpr();
-          InteropTypeExpr *IT = D->getInteropTypeExpr();
-          if (!B && IT)
-            return CreateTypeBasedBounds(E, IT->getType(),
-                                          /*IsParam=*/isa<ParmVarDecl>(D),
-                                          /*IsBoundsSafeInterface=*/true);
-          if (!B || B->isUnknown())
-            return CreateBoundsAlwaysUnknown();
-
-          Expr *Base = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, E);
-          return ExpandToRange(Base, B);
-        }
-        case Expr::UnaryOperatorClass: {
-          UnaryOperator *UO = cast<UnaryOperator>(E);
-          // Currently, we don't know the bounds of a pointer stored in a
-          // pointer dereference, unless it is a _Ptr type (handled
-          // earlier) or an _Nt_array_ptr.
-          if (UO->getOpcode() == UnaryOperatorKind::UO_Deref &&
-              UO->getType()->isCheckedPointerNtArrayType())
-              return CreateTypeBasedBounds(UO, UO->getType(), false, false);
-
-          return CreateBoundsAlwaysUnknown();
-        }
-        case Expr::ArraySubscriptExprClass: {
-          //  e1[e2] is a synonym for *(e1 + e2).  The bounds are
-          // the bounds of e1 + e2, which reduces to the bounds
-          // of whichever subexpression has pointer type.
-          ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
-          // Currently, we don't know the bounds of a pointer returned
-          // by a subscripting operation, unless it is a _Ptr type (handled
-          // earlier) or an _Nt_array_ptr.
-          if (AS->getType()->isCheckedPointerNtArrayType())
-            return CreateTypeBasedBounds(AS, AS->getType(), false, false);
-          return CreateBoundsAlwaysUnknown();
-        }
-        case Expr::MemberExprClass: {
-          MemberExpr *M = cast<MemberExpr>(E);
-          FieldDecl *F = dyn_cast<FieldDecl>(M->getMemberDecl());
-          if (!F)
-            return CreateBoundsInferenceError();
-
-          BoundsExpr *B = F->getBoundsExpr();
-          InteropTypeExpr *IT = F->getInteropTypeExpr();
-          if (B && B->isUnknown())
-            return CreateBoundsAlwaysUnknown();
-
-          Expr *MemberBaseExpr = M->getBase();
-          if (!B && IT) {
-            B = CreateTypeBasedBounds(M, IT->getType(),
-                                         /*IsParam=*/false,
-                                         /*IsInteropTypeAnnotation=*/true);
-            return cast<BoundsExpr>(PruneTemporaryBindings(S, B, CSS));
-          }
-            
-          if (!B)
-            return CreateBoundsAlwaysUnknown();
-
-          B = S.MakeMemberBoundsConcrete(MemberBaseExpr, M->isArrow(), B);
-          if (!B) {
-             // This can happen when MemberBaseExpr is an rvalue expression.  An example
-             // of this a function call that returns a struct.  MakeMemberBoundsConcrete
-             // can't handle this yet.
-            return CreateBoundsNotAllowedYet();
-          }
-
-          if (B->isElementCount() || B->isByteCount()) {
-             Expr *MemberRValue;
-            if (M->isLValue())
-              MemberRValue = CreateImplicitCast(QT, CastKind::CK_LValueToRValue,
-                                                E);
-            else
-              MemberRValue = M;
-            B = ExpandToRange(MemberRValue, B);
-          }
-
-          return cast<BoundsExpr>(PruneTemporaryBindings(S, B, CSS));
-        }
-        case Expr::ImplicitCastExprClass: {
-          ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);
-          if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
-            return LValueTargetBounds(ICE->getSubExpr(), CSS);
-          return CreateBoundsAlwaysUnknown();
-        }
-        default:
-          return CreateBoundsAlwaysUnknown();
-      }
     }
 
     // Compute the bounds of a cast operation that produces an rvalue.
@@ -3799,7 +3800,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     // __finally or may encounter a malformed AST.  Fall back on to non-flow 
     // based analysis.  The CSS parameter is ignored because the checked
     // scope information is obtained from Body, which is a compound statement.
-    Checker.TraverseStmt(Body, CheckedScopeSpecifier::CSS_Unchecked);
+    Checker.Check(Body, CheckedScopeSpecifier::CSS_Unchecked);
   }
 
   if (Cfg != nullptr) {
