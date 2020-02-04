@@ -214,6 +214,22 @@ Expr* removeAuxillaryCasts(Expr *srcExpr) {
   return srcExpr;
 }
 
+bool hasVoidType(clang::ValueDecl *D) {
+  const clang::Type* currType = D->getType().getTypePtrOrNull();
+  if (currType != nullptr) {
+    if (currType->isVoidType())
+      return true;
+    const clang::Type* innerType = getNextTy(currType);
+    while (innerType != currType) {
+      currType = innerType;
+      innerType = getNextTy(innerType);
+    }
+
+    return innerType->isVoidType();
+  }
+  return false;
+}
+
 bool canWrite(const std::string &filePath) {
   // Was this file explicitly provided on the command line?
   if (inputFilePaths.count(filePath) > 0)

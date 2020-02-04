@@ -318,7 +318,8 @@ bool ProgramInfo::link() {
       std::set<PVConstraint*>::iterator I = C.begin();
       std::set<PVConstraint*>::iterator J = C.begin();
       ++J;
-      llvm::errs() << "Global variables:" << V.first << "\n";
+      if (Verbose)
+        llvm::errs() << "Global variables:" << V.first << "\n";
       while (J != C.end()) {
         constrainEq(*I, *J, *this, nullptr, nullptr);
         ++I;

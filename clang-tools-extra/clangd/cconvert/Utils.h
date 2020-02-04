@@ -78,6 +78,9 @@ clang::Expr* removeAuxillaryCasts(clang::Expr *srcExpr);
 // and can be rewritten
 bool canWrite(const std::string &filePath);
 
+// check if the provided variable has void as one of its type
+bool hasVoidType(clang::ValueDecl *D);
+
 // Simple Bimap implementation, with only STL dependency
 // Inspired from: https://github.com/Mazyod/Bimap/tree/master/Bimap
 template <typename KeyType, typename ValueType>

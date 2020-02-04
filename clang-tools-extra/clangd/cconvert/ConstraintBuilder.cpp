@@ -26,19 +26,19 @@ using namespace clang;
 // TODO: Github issue #61: improve handling of types for
 // variable arguments.
 static
-void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C) {
+void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C, bool inFunctionContext = false) {
   // Constrain everything that is void to wild.
   Constraints &CS = Info.getConstraints();
 
   // Special-case for va_list, constrain to wild.
   if (D->getType().getAsString() == "va_list" ||
-      D->getType()->isVoidType()) {
+      hasVoidType(D)) {
     // set the reason for making this variable WILD.
     std::string rsn = "Variable type void.";
     PersistentSourceLoc psl = PersistentSourceLoc::mkPSL(D, *C);
     if (!D->getType()->isVoidType())
       rsn = "Variable type is va_list.";
-    for (const auto &I : Info.getVariable(D, C))
+    for (const auto &I : Info.getVariable(D, C, inFunctionContext))
       if (const PVConstraint *PVC = dyn_cast<PVConstraint>(I))
         for (const auto &J : PVC->getCvars())
           CS.addConstraint(
@@ -857,8 +857,10 @@ public:
 
       Info.addVariable(D, nullptr, Context);
       Info.seeFunctionDecl(D, Context);
+      bool functionHasBody = false;
 
       if (D->hasBody() && D->isThisDeclarationADefinition()) {
+        functionHasBody = true;
         Stmt *Body = D->getBody();
         FunctionVisitor FV = FunctionVisitor(Context, Info, D);
 
@@ -866,6 +868,20 @@ public:
         FV.TraverseStmt(Body);
         // Add constraints based on heuristics.
         AddArrayHeuristics(Context, Info, D);
+      }
+
+      // iterate through all parameter declarations and insert constraints
+      // based on types.
+      if (D->getType().getTypePtrOrNull() != nullptr) {
+        const FunctionProtoType *FT = D->getType().getTypePtr()->getAs<FunctionProtoType>();
+        if (FT != nullptr) {
+          for (unsigned i = 0; i < FT->getNumParams(); i++) {
+            if (i < D->getNumParams()) {
+              ParmVarDecl *PVD = D->getParamDecl(i);
+              specialCaseVarIntros(PVD, Info, Context, functionHasBody);
+            }
+          }
+        }
       }
     }
 
