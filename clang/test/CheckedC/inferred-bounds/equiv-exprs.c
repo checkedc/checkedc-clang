@@ -2,7 +2,7 @@
 // This file tests updating the set of expressions that produces the same value as an expression
 // after checking the expression during bounds analysis.
 // This file does not test assignments that update the set of sets of equivalent expressions
-// (assignments are testing in dump-equiv-expr-sets.c).
+// (assignments will be tested in a separate test file).
 //
 // RUN: %clang_cc1 -Wno-unused-value -fdump-equiv-exprs %s | FileCheck %s --dump-input=always
 
