@@ -320,7 +320,7 @@ void PointerVariableConstraint::getQualString(ConstraintKey targetCVar, std::ost
 }
 
 bool PointerVariableConstraint::emitArraySize(std::ostringstream &pss, ConstraintKey V,
-                                              bool &emitName, bool &emittedCheckedAnnotation) {
+                                              bool &emitName, bool &emittedCheckedAnnotation, bool nt) {
   bool wroteArray = false;
   if (arrPresent) {
     auto i = arrSizes.find(V);
@@ -336,7 +336,7 @@ bool PointerVariableConstraint::emitArraySize(std::ostringstream &pss, Constrain
     switch (oat) {
       case O_SizedArray:
         if (!emittedCheckedAnnotation) {
-          pss << " _Checked";
+          pss << (nt ? " _Nt_checked" : "_Checked");
           emittedCheckedAnnotation = true;
         }
         pss << "[" << oas << "]";
@@ -397,7 +397,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
         // be [] instead of *, IF, the original type was an array.
         // And, if the original type was a sized array of size K,
         // we should substitute [K].
-        if (emitArraySize(pss, V, emittedName, emittedCheckedAnnotation))
+        if (emitArraySize(pss, V, emittedName, emittedCheckedAnnotation, false))
           break;
         // We need to check and see if this level of variable
         // is constrained by a bounds safe interface. If it is,
@@ -410,7 +410,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
         }
       case Atom::A_NTArr:
 
-        if (emitArraySize(pss, V, emittedName, emittedCheckedAnnotation))
+        if (emitArraySize(pss, V, emittedName, emittedCheckedAnnotation, true))
           break;
         // this additional check is to prevent fall-through from the array.
         if(K == Atom::A_NTArr) {
