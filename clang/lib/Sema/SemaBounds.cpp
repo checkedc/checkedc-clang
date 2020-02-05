@@ -480,6 +480,7 @@ namespace {
   private:
     Sema &S;
     bool DumpBounds;
+    bool DumpEquivExprs;
     uint64_t PointerWidth;
     Stmt *Body;
     CFG *Cfg;
@@ -571,6 +572,40 @@ namespace {
       if (ArgBounds) {
         OS << "Argument Bounds:\n ";
         ArgBounds->dump(OS);
+      }
+    }
+
+    void DumpEquivalentExpressions(raw_ostream &OS, Stmt *S,
+                                   EquivExprSets *UEQ, EqualExprTy *G) {
+      OS << "\nStatement S:\n";
+      S->dump(OS);
+
+      OS << "Sets of equivalent expressions after checking S:\n";
+      if (UEQ->size() == 0)
+        OS << "{ }\n";
+      else {
+        OS << "{\n";
+        for (auto OuterList = UEQ->begin(); OuterList != UEQ->end(); ++OuterList) {
+          auto ExprList = *OuterList;
+          DumpEqualExpr(OS, ExprList);
+        }
+        OS << "}\n";
+      }
+
+      OS << "Expressions that produce the same value as S:\n";
+      DumpEqualExpr(OS, G);
+    }
+
+    void DumpEqualExpr(raw_ostream &OS, EqualExprTy *G) {
+      if (G->size() == 0)
+        OS << "{ }\n";
+      else {
+        OS << "{\n";
+        for (auto I = G->begin(); I != G->end(); ++I) {
+          Expr *E = *I;
+          E->dump(OS);
+        }
+        OS << "}\n";
       }
     }
 
@@ -1722,6 +1757,7 @@ namespace {
   public:
     CheckBoundsDeclarations(Sema &SemaRef, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
+      DumpEquivExprs(SemaRef.getLangOpts().DumpEquivExprs),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(Body),
       Cfg(Cfg),
@@ -1733,6 +1769,7 @@ namespace {
 
     CheckBoundsDeclarations(Sema &SemaRef, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
+      DumpEquivExprs(SemaRef.getLangOpts().DumpEquivExprs),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(nullptr),
       Cfg(nullptr),
@@ -2022,6 +2059,9 @@ namespace {
           break;
       }
 
+      if (DumpEquivExprs)
+        DumpEquivalentExpressions(llvm::outs(), S, UEQ, G);
+
       if (Expr *E = dyn_cast<Expr>(S)) {
         // Bounds expressions are not null ptrs.
         if (isa<BoundsExpr>(E))
@@ -2097,6 +2137,9 @@ namespace {
           CheckChildren(E, CSS, EQ, UEQ, G);
           break;
       }
+
+      if (DumpEquivExprs)
+        DumpEquivalentExpressions(llvm::outs(), E, UEQ, G);
 
       // The type for inferring the target bounds cannot ever be an array
       // type, as these are dealt with by an array conversion, not an lvalue

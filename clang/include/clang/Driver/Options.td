@@ -791,6 +791,8 @@ def fdump_extracted_comparison_facts : Flag<["-"], "fdump-extracted-comparison-f
   HelpText<"Dump extracted comparison facts">;
 def fdump_widened_bounds : Flag<["-"], "fdump-widened-bounds">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump widened bounds">;
+def fdump_equiv_exprs : Flag<["-"], "fdump-equiv-exprs">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Dump equivalent expression sets during bounds checking">;
 def fdump_inferred_bounds : Flag<["-"], "fdump-inferred-bounds">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump inferred Checked C bounds for assignments and declarations">;
 def finject_verifier_calls : Flag<["-"], "finject-verifier-calls">, Group<f_Group>, Flags<[CC1Option]>,

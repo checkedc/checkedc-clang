@@ -2582,6 +2582,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   if (Args.hasArg(OPT_fdump_widened_bounds))
     Opts.DumpWidenedBounds = true;
 
+  if (Args.hasArg(OPT_fdump_equiv_exprs))
+    Opts.DumpEquivExprs = true;
+
   Opts.WritableStrings = Args.hasArg(OPT_fwritable_strings);
   Opts.ConstStrings = Args.hasFlag(OPT_fconst_strings, OPT_fno_const_strings,
                                    Opts.ConstStrings);
