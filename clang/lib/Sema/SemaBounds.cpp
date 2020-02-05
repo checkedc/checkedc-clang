@@ -2739,6 +2739,7 @@ namespace {
                                  EquivExprSets EQ, EquivExprSets *&UEQ,
                                  EqualExprTy *&G, BoundsExpr *&OutTargetBounds) {
       CheckChildren(E, CSS, EQ, UEQ, G);
+      *UEQ = EQ;
 
       VarDecl *VD = dyn_cast<VarDecl>(E->getDecl());
       BoundsExpr *B = nullptr;
@@ -2756,6 +2757,18 @@ namespace {
           llvm_unreachable("declref with array type not a vardecl");
           return CreateBoundsInferenceError();
         }
+
+        // Update G for variables with array type.
+        const ConstantArrayType *CAT = Context.getAsConstantArrayType(E->getType());
+        if (CAT) {
+          if (E->getType()->isCheckedArrayType())
+            *G = { E };
+          else if (VD->hasLocalStorage() || VD->hasExternalStorage())
+            *G = { E };
+          else
+             *G = { };
+        } else
+          *G = { };
 
         // Declared bounds override the bounds based on the array type.
         if (B) {
@@ -2790,12 +2803,16 @@ namespace {
       }
 
       if (E->getType()->isFunctionType()) {
-        // Only function decl refs should have function type
+        // Only function decl refs should have function type.
         assert(isa<FunctionDecl>(E->getDecl()));
+        // G is empty for variables with function type.
+        *G = { };
         return CreateBoundsEmpty();
       }
 
       Expr *AddrOf = CreateAddressOfOperator(E);
+      // G is { &v } for variables v with array type.
+      *G = { AddrOf };
       return CreateSingleElementBounds(AddrOf);
     }
 
