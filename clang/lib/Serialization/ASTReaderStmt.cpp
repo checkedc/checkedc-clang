@@ -837,8 +837,10 @@ void ASTStmtReader::VisitMemberExpr(MemberExpr *E) {
 
   // Checked C: Set bounds for the MemberExpr.
   bool HasBoundsExpr = Record.readInt();
+  BoundsExpr *Bounds = nullptr;
   if (HasBoundsExpr)
-    E->setBoundsExpr(Record.readBoundsExpr());
+    Bounds = Record.readBoundsExpr();
+  E->setBoundsExpr(Bounds);
 }
 
 void ASTStmtReader::VisitObjCIsaExpr(ObjCIsaExpr *E) {
