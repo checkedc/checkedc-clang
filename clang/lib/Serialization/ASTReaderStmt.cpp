@@ -697,9 +697,10 @@ void ASTStmtReader::VisitUnaryOperator(UnaryOperator *E) {
   E->setOperatorLoc(ReadSourceLocation());
   E->setCanOverflow(Record.readInt());
   bool hasBoundsExpr = Record.readInt();
-  if (hasBoundsExpr) {
-    E->setBoundsExpr(Record.readBoundsExpr());
-  }
+  BoundsExpr *Bounds = nullptr;
+  if (hasBoundsExpr)
+    Bounds = Record.readBoundsExpr();
+  E->setBoundsExpr(Bounds);
 }
 
 void ASTStmtReader::VisitOffsetOfExpr(OffsetOfExpr *E) {
@@ -763,9 +764,10 @@ void ASTStmtReader::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
   E->setRHS(Record.readSubExpr());
   E->setRBracketLoc(ReadSourceLocation());
   bool hasBoundsExpr = Record.readInt();
-  if (hasBoundsExpr) {
-    E->setBoundsExpr(Record.readBoundsExpr());
-  }
+  BoundsExpr *Bounds = nullptr;
+  if (hasBoundsExpr)
+    Bounds = Record.readBoundsExpr();
+  E->setBoundsExpr(Bounds);
 }
 
 void ASTStmtReader::VisitOMPArraySectionExpr(OMPArraySectionExpr *E) {
@@ -873,9 +875,11 @@ void ASTStmtReader::VisitCastExpr(CastExpr *E) {
   E->setCastKind((CastKind)Record.readInt());
   E->setBoundsSafeInterface((bool)Record.readInt());
   bool hasBoundsExpr = Record.readInt();
-  if (hasBoundsExpr) {
-    E->setBoundsExpr(Record.readBoundsExpr());
-  }
+  BoundsExpr *Bounds = nullptr;
+  if (hasBoundsExpr)
+    Bounds = Record.readBoundsExpr();
+  E->setBoundsExpr(Bounds);
+
   bool hasCastBoundsExpr = Record.readInt();
   if (hasCastBoundsExpr) {
     E->setNormalizedBoundsExpr(Record.readBoundsExpr());
