@@ -4,7 +4,7 @@
 // This file does not test assignments that update the set of sets of equivalent expressions
 // (assignments will be tested in a separate test file).
 //
-// RUN: %clang_cc1 -Wno-unused-value -fdump-equiv-exprs %s | FileCheck %s --dump-input=always
+// RUN: %clang_cc1 -Wno-unused-value -fdump-checking-state %s | FileCheck %s --dump-input=always
 
 #include <stdchecked.h>
 

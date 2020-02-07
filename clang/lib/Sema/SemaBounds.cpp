@@ -501,7 +501,7 @@ namespace {
   private:
     Sema &S;
     bool DumpBounds;
-    bool DumpEquivExprs;
+    bool DumpState;
     uint64_t PointerWidth;
     Stmt *Body;
     CFG *Cfg;
@@ -596,8 +596,7 @@ namespace {
       }
     }
 
-    void DumpEquivalentExpressions(raw_ostream &OS, Stmt *S,
-                                   CheckingState &State) {
+    void DumpCheckingState(raw_ostream &OS, Stmt *S, CheckingState &State) {
       OS << "\nStatement S:\n";
       S->dump(OS);
 
@@ -1778,7 +1777,7 @@ namespace {
   public:
     CheckBoundsDeclarations(Sema &SemaRef, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
-      DumpEquivExprs(SemaRef.getLangOpts().DumpEquivExprs),
+      DumpState(SemaRef.getLangOpts().DumpCheckingState),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(Body),
       Cfg(Cfg),
@@ -1790,7 +1789,7 @@ namespace {
 
     CheckBoundsDeclarations(Sema &SemaRef, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
-      DumpEquivExprs(SemaRef.getLangOpts().DumpEquivExprs),
+      DumpState(SemaRef.getLangOpts().DumpCheckingState),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(nullptr),
       Cfg(nullptr),
@@ -2079,8 +2078,8 @@ namespace {
           break;
       }
 
-      if (DumpEquivExprs)
-        DumpEquivalentExpressions(llvm::outs(), S, State);
+      if (DumpState)
+        DumpCheckingState(llvm::outs(), S, State);
 
       if (Expr *E = dyn_cast<Expr>(S)) {
         // Bounds expressions are not null ptrs.
@@ -2158,8 +2157,8 @@ namespace {
           break;
       }
 
-      if (DumpEquivExprs)
-        DumpEquivalentExpressions(llvm::outs(), E, State);
+      if (DumpState)
+        DumpCheckingState(llvm::outs(), E, State);
 
       // The type for inferring the target bounds cannot ever be an array
       // type, as these are dealt with by an array conversion, not an lvalue
