@@ -2860,7 +2860,7 @@ namespace {
       }
 
       Expr *AddrOf = CreateAddressOfOperator(E);
-      // G is { &v } for variables v with array type.
+      // G is { &v } for variables v that do not have array type.
       State.G->push_back(AddrOf);
       return CreateSingleElementBounds(AddrOf);
     }
