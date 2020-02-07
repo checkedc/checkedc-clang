@@ -752,8 +752,7 @@ void ASTStmtWriter::VisitMemberExpr(MemberExpr *E) {
   Record.push_back(E->hasBoundsExpr());
   if (E->hasBoundsExpr())
     Record.AddStmt(E->getBoundsExpr());
-  Record.AddDeclarationNameLoc(E->MemberDNLoc,
-                               E->getMemberDecl()->getDeclName());
+
   Code = serialization::EXPR_MEMBER;
 }
 
