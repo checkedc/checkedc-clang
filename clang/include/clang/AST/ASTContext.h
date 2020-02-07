@@ -1368,7 +1368,7 @@ public:
   QualType getIncompleteArrayType(QualType EltTy,
                                   ArrayType::ArraySizeModifier ASM,
                                   unsigned IndexTypeQuals,
-                                  CheckedArrayKind =
+                                  CheckedArrayKind Kind =
                                     CheckedArrayKind::Unchecked) const;
 
   /// Return the unique reference to the type for a constant array of
