@@ -74,6 +74,15 @@ public:
   void setDeserialize(bool D) { Deserialize = D; }
   bool getDeserialize() const { return Deserialize; }
 
+  // Checked C specific.
+  void dumpBoundsAnnotations(BoundsAnnotations BA) {
+    if (const BoundsExpr *Bounds = BA.getBoundsExpr())
+      Visit(Bounds);
+
+    if (const InteropTypeExpr *IT = BA.getInteropTypeExpr())
+      Visit(IT);
+  }
+
   void Visit(const Decl *D) {
     getNodeDelegate().AddChild([=] {
       getNodeDelegate().Visit(D);
@@ -358,6 +367,8 @@ public:
       for (const auto *Parameter : D->parameters())
         Visit(Parameter);
 
+    dumpBoundsAnnotations(D->getBoundsAnnotations());
+
     if (const auto *C = dyn_cast<CXXConstructorDecl>(D))
       for (const auto *I : C->inits())
         Visit(I);
@@ -369,6 +380,9 @@ public:
   void VisitFieldDecl(const FieldDecl *D) {
     if (D->isBitField())
       Visit(D->getBitWidth());
+
+    dumpBoundsAnnotations(D->getBoundsAnnotations());
+
     if (Expr *Init = D->getInClassInitializer())
       Visit(Init);
   }
@@ -376,6 +390,8 @@ public:
   void VisitVarDecl(const VarDecl *D) {
     if (D->hasInit())
       Visit(D->getInit());
+
+    dumpBoundsAnnotations(D->getBoundsAnnotations());
   }
 
   void VisitDecompositionDecl(const DecompositionDecl *D) {

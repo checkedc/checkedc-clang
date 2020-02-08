@@ -1225,6 +1225,36 @@ void TextNodeDumper::VisitFunctionProtoType(const FunctionProtoType *T) {
   // FIXME: Exception specification.
   // FIXME: Consumed parameters.
   VisitFunctionType(T);
+
+  // Checked C specific code.
+  unsigned numParams = T->getNumParams();
+  for (unsigned i = 0; i < numParams; i++) {
+    QualType PT = T->getParamType(i);
+    Visit(PT);
+    const BoundsAnnotations Annots = T->getParamAnnots(i);
+    if (const BoundsExpr *Bounds = Annots.getBoundsExpr())
+      AddChild([=] {
+        OS << "Bounds";
+        Visit(Bounds);
+      });
+    if (const InteropTypeExpr *IT = Annots.getInteropTypeExpr())
+      AddChild([=] {
+        OS << "InteropType";
+        Visit(IT);
+      });
+  }
+
+  BoundsAnnotations ReturnAnnots = T->getReturnAnnots();
+  if (const BoundsExpr *Bounds = ReturnAnnots.getBoundsExpr())
+    AddChild([=] {
+      OS << "Return bounds";
+      Visit(Bounds);
+    });
+  if (const InteropTypeExpr *IT = ReturnAnnots.getInteropTypeExpr())
+    AddChild([=] {
+      OS << "Return interopType";
+      Visit(IT);
+    });
 }
 
 void TextNodeDumper::VisitUnresolvedUsingType(const UnresolvedUsingType *T) {
@@ -1363,6 +1393,14 @@ void TextNodeDumper::VisitFunctionDecl(const FunctionDecl *D) {
   if (D->isTrivial())
     OS << " trivial";
 
+  // Checked C specific.
+  switch (D->getWrittenCheckedSpecifier()) {
+    case CSS_None: break;
+    case CSS_Bounds: OS << " checked bounds_only"; break;
+    case CSS_Memory: OS << " checked"; break;
+    case CSS_Unchecked: OS << " unchecked"; break;
+  }
+
   if (const auto *FPT = D->getType()->getAs<FunctionProtoType>()) {
     FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
     switch (EPI.ExceptionSpec.Type) {
@@ -1374,6 +1412,24 @@ void TextNodeDumper::VisitFunctionDecl(const FunctionDecl *D) {
     case EST_Uninstantiated:
       OS << " noexcept-uninstantiated " << EPI.ExceptionSpec.SourceTemplate;
       break;
+    }
+  }
+
+  // Checked C specific.
+  // If the function is generic function or an itype generic function, dump
+  // information about type variables. The type variable name is stored as a
+  // TypedefDecl.
+  if ((D->isGenericFunction() || D->isItypeGenericFunction()) &&
+      D->getNumTypeVars() > 0) {
+    for (const TypedefDecl* Typevar : D->typeVariables()) {
+      AddChild([=] {
+        OS << "TypeVariable";
+        dumpPointer(Typevar);
+        OS << " ";
+        dumpLocation(Typevar->getLocation());
+        OS << " " << Typevar->getIdentifier()->getName();
+        dumpType(Typevar->getUnderlyingType());
+      });
     }
   }
 
