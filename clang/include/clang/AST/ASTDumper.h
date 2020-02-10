@@ -51,11 +51,15 @@ public:
   void VisitVarTemplateDecl(const VarTemplateDecl *D);
 
   // Checked C specific methods.
+  void VisitMemberExpr(const MemberExpr *Node);
+  void VisitUnaryOperator(const UnaryOperator *Node);
+  void VisitCastExpr(const CastExpr *Node);
   void VisitDeclRefExpr(const DeclRefExpr *Node);
   void VisitArraySubscriptExpr(const ArraySubscriptExpr *Node);
   void VisitCompoundStmt(const CompoundStmt *Node);
   void VisitRangeBoundsExpr(const RangeBoundsExpr *Node);
   void VisitInteropTypeExpr(const InteropTypeExpr *Node);
+  void VisitFunctionProtoType(const FunctionProtoType *T);
 };
 
 } // namespace clang

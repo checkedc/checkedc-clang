@@ -281,6 +281,20 @@ LLVM_DUMP_METHOD void Comment::dumpColor() const {
 }
 
 // Checked C specific methods.
+void ASTDumper::VisitCastExpr(const CastExpr *Node) {
+  if (const BoundsExpr *NormalizedBounds = Node->getNormalizedBoundsExpr())
+    NodeDumper.AddChild([=] {
+      OS << "Normalized Bounds";
+      Visit(NormalizedBounds);
+    });
+
+  if (const BoundsExpr *SubExprBounds = Node->getSubExprBoundsExpr())
+    NodeDumper.AddChild([=] {
+      OS << "Inferred SubExpr Bounds";
+      Visit(SubExprBounds);
+    });
+}
+
 void ASTDumper::VisitDeclRefExpr(const DeclRefExpr *Node) {
   if (Node->GetTypeArgumentInfo() &&
       !Node->GetTypeArgumentInfo()->typeArgumentss().empty()) {
@@ -291,6 +305,25 @@ void ASTDumper::VisitDeclRefExpr(const DeclRefExpr *Node) {
 }
 
 void ASTDumper::VisitArraySubscriptExpr(const ArraySubscriptExpr *Node) {
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    NodeDumper.AddChild([=] {
+      OS << "Bounds ";
+      NodeDumper.Visit(Node->getBoundsCheckKind());
+      Visit(Bounds);
+    });
+  }
+}
+
+void ASTDumper::VisitMemberExpr(const MemberExpr *Node) {
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    NodeDumper.AddChild([=] {
+      OS << "Base Expr Bounds";
+      Visit(Bounds);
+    });
+  }
+}
+
+void ASTDumper::VisitUnaryOperator(const UnaryOperator *Node) {
   if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
     NodeDumper.AddChild([=] {
       OS << "Bounds ";
@@ -337,4 +370,41 @@ void ASTDumper::VisitRangeBoundsExpr(const RangeBoundsExpr *Node) {
 
 void ASTDumper::VisitInteropTypeExpr(const InteropTypeExpr *Node) {
   Visit(Node->getType());
+}
+
+void ASTDumper::VisitFunctionProtoType(const FunctionProtoType *T) {
+  VisitFunctionType(T);
+
+  unsigned numParams = T->getNumParams();
+  for (unsigned i = 0; i < numParams; i++) {
+    QualType PT = T->getParamType(i);
+    Visit(PT);
+
+    const BoundsAnnotations Annots = T->getParamAnnots(i);
+    if (const BoundsExpr *Bounds = Annots.getBoundsExpr())
+      NodeDumper.AddChild([=] {
+        OS << "Bounds";
+        Visit(Bounds);
+      });
+    if (const InteropTypeExpr *IT = Annots.getInteropTypeExpr())
+      NodeDumper.AddChild([=] {
+        OS << "InteropType";
+        Visit(IT);
+      });
+  }
+
+  if (T->getExtProtoInfo().Variadic)
+    NodeDumper.AddChild([=] { OS << "..."; });
+
+  BoundsAnnotations ReturnAnnots = T->getReturnAnnots();
+  if (const BoundsExpr *Bounds = ReturnAnnots.getBoundsExpr())
+    NodeDumper.AddChild([=] {
+      OS << "Return bounds";
+      Visit(Bounds);
+    });
+  if (const InteropTypeExpr *IT = ReturnAnnots.getInteropTypeExpr())
+    NodeDumper.AddChild([=] {
+      OS << "Return interopType";
+      Visit(IT);
+    });
 }

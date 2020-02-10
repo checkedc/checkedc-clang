@@ -1225,36 +1225,6 @@ void TextNodeDumper::VisitFunctionProtoType(const FunctionProtoType *T) {
   // FIXME: Exception specification.
   // FIXME: Consumed parameters.
   VisitFunctionType(T);
-
-  // Checked C specific code.
-  unsigned numParams = T->getNumParams();
-  for (unsigned i = 0; i < numParams; i++) {
-    QualType PT = T->getParamType(i);
-    Visit(PT);
-    const BoundsAnnotations Annots = T->getParamAnnots(i);
-    if (const BoundsExpr *Bounds = Annots.getBoundsExpr())
-      AddChild([=] {
-        OS << "Bounds";
-        Visit(Bounds);
-      });
-    if (const InteropTypeExpr *IT = Annots.getInteropTypeExpr())
-      AddChild([=] {
-        OS << "InteropType";
-        Visit(IT);
-      });
-  }
-
-  BoundsAnnotations ReturnAnnots = T->getReturnAnnots();
-  if (const BoundsExpr *Bounds = ReturnAnnots.getBoundsExpr())
-    AddChild([=] {
-      OS << "Return bounds";
-      Visit(Bounds);
-    });
-  if (const InteropTypeExpr *IT = ReturnAnnots.getInteropTypeExpr())
-    AddChild([=] {
-      OS << "Return interopType";
-      Visit(IT);
-    });
 }
 
 void TextNodeDumper::VisitUnresolvedUsingType(const UnresolvedUsingType *T) {
