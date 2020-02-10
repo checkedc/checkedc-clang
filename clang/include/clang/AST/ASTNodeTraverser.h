@@ -388,10 +388,10 @@ public:
   }
 
   void VisitVarDecl(const VarDecl *D) {
+    dumpBoundsAnnotations(D->getBoundsAnnotations());
+
     if (D->hasInit())
       Visit(D->getInit());
-
-    dumpBoundsAnnotations(D->getBoundsAnnotations());
   }
 
   void VisitDecompositionDecl(const DecompositionDecl *D) {
