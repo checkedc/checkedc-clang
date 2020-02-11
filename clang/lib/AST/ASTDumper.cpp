@@ -63,7 +63,7 @@ void ASTDumper::dumpLookups(const DeclContext *DC, bool DumpDecls) {
               std::function<void(Decl *)> DumpWithPrev = [&](Decl *D) {
                 if (Decl *Prev = D->getPreviousDecl())
                   DumpWithPrev(Prev);
-                NodeDumper.dumpDeclRef(D);
+                Visit(D);
               };
               DumpWithPrev(*RI);
             }
