@@ -1188,8 +1188,8 @@ void f10(int index) _Checked {
 
 // CHECK-IR: define {{.*}}void @f10
 // CHECK-IR:        [[ARRAYIDX1:%[a-zA-Z0-9.]*]] = getelementptr inbounds [7 x i8], [7 x i8]* [[LITERAL1:@[^,]*]], {{i[0-9]+}} 0, {{i[0-9]+}} [[REG0:%[a-zA-Z0-9.]*]]
-// CHECK-IR-NEXT:   [[CHECKLOWER1:%[a-zA-Z0-9._]*]] = icmp ule i8* getelementptr inbounds ([7 x i8], [7 x i8]* [[LITERAL1]], i64 0, i64 0), [[ARRAYIDX1]]
-// CHECK-IR-NEXT:   [[CHECKUPPER1:%[a-zA-Z0-9._]*]] = icmp ule i8* [[ARRAYIDX1]], getelementptr inbounds ([7 x i8], [7 x i8]* [[LITERAL1]], i64 0, {{i[0-9]+}} 6)
+// CHECK-IR-NEXT:   [[CHECKLOWER1:%[a-zA-Z0-9._]*]] = icmp ule i8* getelementptr inbounds ([7 x i8], [7 x i8]* [[LITERAL1]], i{{32|64}} 0, i{{32|64}} 0), [[ARRAYIDX1]]
+// CHECK-IR-NEXT:   [[CHECKUPPER1:%[a-zA-Z0-9._]*]] = icmp ule i8* [[ARRAYIDX1]], getelementptr inbounds ([7 x i8], [7 x i8]* [[LITERAL1]], i{{32|64}} 0, {{i[0-9]+}} 6)
 // CHECK-IR-NEXT:   [[DYN_CHK_RANGE1:%[a-zA-Z0-9._]*]] = and i1 [[CHECKLOWER1]], [[CHECKUPPER1]]
 // CHECK-IR-NEXT:   br i1 [[DYN_CHK_RANGE1]], label %[[DYNCHK_SUCC1:[a-zA-Z0-9._]*]], label %[[DYNCHK_FAIL1:[a-zA-Z0-9._]*]]
 // CHECK-IR: [[DYNCHK_SUCC1]]:
@@ -1219,8 +1219,8 @@ void f10(int index) _Checked {
 // CHECK-AST-NEXT:            DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} 'index' 'int'
 
 // CHECK-IR: [[ARRAYIDX3:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL2:%[^,]*]], {{i[0-9]+}} 0, {{i[0-9]+}} [[REG1:%[a-zA-Z0-9._]*]]
-// CHECK-IR-NEXT: [[ARRAYDECAY:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL2]], i64 0, i64 0
-// CHECK-IR-NEXT: [[ARRAYDECAY4:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL2]], i64 0, i64 0
+// CHECK-IR-NEXT: [[ARRAYDECAY:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL2]], i{{32|64}} 0, i{{32|64}} 0
+// CHECK-IR-NEXT: [[ARRAYDECAY4:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL2]], i{{32|64}} 0, i{{32|64}} 0
 // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i8* [[ARRAYDECAY4]], null
 // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
 // CHECK-IR: [[LAB_DYSUC]]:
@@ -1257,8 +1257,8 @@ void f10(int index) _Checked {
 // CHECK-AST-NEXT:             DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} 'index' 'int'
 
 // CHECK-IR: [[ARRAYIDX16:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL3:%[^,]*]], {{i[0-9]+}} 0, {{i[0-9]+}} [[REG1:%[a-zA-Z0-9._]*]]
-// CHECK-IR: [[ARRAYDECAY17:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL3]], i64 0, i64 0
-// CHECK-IR: [[ARRAYDECAY18:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL3]], i64 0, i64 0
+// CHECK-IR: [[ARRAYDECAY17:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL3]], i{{32|64}} 0, i{{32|64}} 0
+// CHECK-IR: [[ARRAYDECAY18:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL3]], i{{32|64}} 0, i{{32|64}} 0
 // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i8* [[ARRAYDECAY18]], null
 // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
 // CHECK-IR: [[LAB_DYSUC]]:
