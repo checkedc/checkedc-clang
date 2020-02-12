@@ -185,6 +185,7 @@ else
 fi
  
 if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
+  echo "======================================================================"
   echo "Configured environment variables:"
   echo
   echo " BUILDCONFIGURATION: $BUILDCONFIGURATION"
@@ -214,6 +215,7 @@ if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
   echo "  LLVM_TEST_SUITE_COMMIT: $LLVM_TEST_SUITE_COMMIT"
   echo
   echo " BUILD_CPU_COUNT: $BUILD_CPU_COUNT"
+  echo "======================================================================"
 else
   echo "Configuration of environment variables failed"
 fi

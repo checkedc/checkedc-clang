@@ -2,6 +2,8 @@
 
 # Build an installation package for clang.
 
+source ./config-vars.sh
+
 function resetBeforeExit {
   set +ue
   set +o pipefail
@@ -24,14 +26,21 @@ set -x
 
 cd ${LLVM_OBJ_DIR}
 
-if [ "${BUILD_PACKAGE}" != "Yes" ]; then cmdsucceeded; fi
+if [ "${BUILD_PACKAGE}" != "Yes" ]; then
+  cmdsucceeded
+fi
 
+echo "======================================================================"
 echo "Building installation package for clang"
+echo "======================================================================"
 
-# build it
-make -j${BUILD_CPU_COUNT} package
+mkdir -p "package"
+rm -rf "package/*"
+
+# Build it
+ninja package
 if [ "$?" -ne "0" ]; then
-   cmdfailed
+  cmdfailed
 fi
 
 # Installer executable in its own directory.

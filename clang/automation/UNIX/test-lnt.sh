@@ -1,8 +1,16 @@
-# Test clang on UNIX using Visual Studio Team Services
+#!/usr/bin/env bash
+
+# For a description of the config variables set/used here,
+# see automation/Windows/build-and-test.bat.
+
+source ./config-vars.sh
+
+echo "======================================================================"
+echo "Running LNT validations for the Checked C compiler"
+echo "======================================================================"
 
 set -ue
 set -o pipefail
-set -x
 
 if [ -z "$LNT" ]; then
   exit 0;
@@ -20,7 +28,9 @@ for TEST_TARGET in $TEST_TARGET_ARCH; do
   export RESULT_DATA="${RESULTS_DIR}/data.xml"
   export RESULT_SUMMARY="${RESULTS_DIR}/result.log"
 
+  echo "======================================================================"
   echo "Testing LNT for $TEST_TARGET target"
+  echo "======================================================================"
   $TEST_TARGET/invoke-lnt.sh
 
   if grep FAIL $RESULT_SUMMARY; then

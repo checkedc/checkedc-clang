@@ -52,4 +52,4 @@ TEST_SUITE=CheckedC_clang \
 LNT=yes \
 RUN_LOCAL=yes \
 BMARK=$BENCHMARK \
-./build-and-test.sh
+./test-lnt.sh
