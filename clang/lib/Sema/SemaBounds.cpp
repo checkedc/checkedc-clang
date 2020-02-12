@@ -1999,7 +1999,7 @@ namespace {
     // necessary side effects on e.  Check and CheckLValue work together
     // to traverse each expression in a CFG exactly once.
     BoundsExpr *Check(Stmt *S, CheckedScopeSpecifier CSS,
-                      EquivExprSets EQ, CheckingState &State) {
+                      const EquivExprSets EQ, CheckingState &State) {
       if (!S)
         return CreateBoundsEmpty();
 
@@ -2116,7 +2116,8 @@ namespace {
     // necessary side effects on e.  Check and CheckLValue work together
     // to traverse each expression in a CFG exactly once.
     BoundsExpr *CheckLValue(Expr *E, CheckedScopeSpecifier CSS,
-                            EquivExprSets EQ, BoundsExpr *&OutTargetBounds,
+                            const EquivExprSets EQ,
+                            BoundsExpr *&OutTargetBounds,
                             CheckingState &State) {
       if (!E->isLValue())
         return CreateBoundsInferenceError();
@@ -2172,7 +2173,7 @@ namespace {
     // Recursively check and perform any side effects on the children
     // of an expression, throwing away the resulting rvalue bounds.
     void CheckChildren(Stmt *S, CheckedScopeSpecifier CSS,
-                       EquivExprSets EQ, CheckingState &State) {
+                       const EquivExprSets EQ, CheckingState &State) {
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
         Check(*I, CSS, EQ, State);
@@ -2208,8 +2209,10 @@ namespace {
   private:
     // CheckBinaryOperator returns the bounds for the value produced by e.
     // e is an rvalue.
-    BoundsExpr *CheckBinaryOperator(BinaryOperator *E, CheckedScopeSpecifier CSS,
-                                    EquivExprSets EQ, CheckingState &State) {
+    BoundsExpr *CheckBinaryOperator(BinaryOperator *E,
+                                    CheckedScopeSpecifier CSS,
+                                    const EquivExprSets EQ,
+                                    CheckingState &State) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
 
@@ -2358,7 +2361,7 @@ namespace {
     // CheckCallExpr returns the bounds for the value produced by e.
     // e is an rvalue.
     BoundsExpr *CheckCallExpr(CallExpr *E, CheckedScopeSpecifier CSS,
-                              EquivExprSets EQ, CheckingState &State,
+                              const EquivExprSets EQ, CheckingState &State,
                               CHKCBindTemporaryExpr *Binding = nullptr) {
       BoundsExpr *ResultBounds = CallExprBounds(E, Binding);
 
@@ -2499,7 +2502,7 @@ namespace {
     // should be called instead).
     // This includes both ImplicitCastExprs and CStyleCastExprs.
     BoundsExpr *CheckCastExpr(CastExpr *E, CheckedScopeSpecifier CSS,
-                              EquivExprSets EQ, CheckingState &State) {
+                              const EquivExprSets EQ, CheckingState &State) {
       // If the rvalue bounds for e cannot be determined,
       // e may be an lvalue (or may have unknown rvalue bounds).
       BoundsExpr *ResultBounds = CreateBoundsUnknown();
@@ -2614,7 +2617,8 @@ namespace {
     // the value produced by e.
     // If e is an lvalue, CheckUnaryLValue should be called instead.
     BoundsExpr *CheckUnaryOperator(UnaryOperator *E, CheckedScopeSpecifier CSS,
-                                   EquivExprSets EQ, CheckingState &State) {
+                                   const EquivExprSets EQ,
+                                   CheckingState &State) {
       UnaryOperatorKind Op = E->getOpcode();
       Expr *SubExpr = E->getSubExpr();
 
@@ -2669,7 +2673,7 @@ namespace {
 
     // CheckVarDecl returns empty bounds.
     BoundsExpr *CheckVarDecl(VarDecl *D, CheckedScopeSpecifier CSS,
-                             EquivExprSets EQ, CheckingState &State) {
+                             const EquivExprSets EQ, CheckingState &State) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
       // If there is an initializer, check it.
@@ -2723,7 +2727,7 @@ namespace {
 
     // CheckReturnStmt returns empty bounds.
     BoundsExpr *CheckReturnStmt(ReturnStmt *RS, CheckedScopeSpecifier CSS,
-                                EquivExprSets EQ, CheckingState &State) {
+                                const EquivExprSets EQ, CheckingState &State) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
       Expr *RetValue = RS->getRetValue();
@@ -2750,7 +2754,8 @@ namespace {
     // If e is an lvalue, CheckTempBindingLValue should be called instead.
     BoundsExpr *CheckTemporaryBinding(CHKCBindTemporaryExpr *E,
                                       CheckedScopeSpecifier CSS,
-                                      EquivExprSets EQ, CheckingState &State) {
+                                      const EquivExprSets EQ,
+                                      CheckingState &State) {
       Expr *Child = E->getSubExpr();
 
       if (CallExpr *CE = dyn_cast<CallExpr>(Child))
@@ -2763,7 +2768,8 @@ namespace {
     // e is an rvalue.
     BoundsExpr *CheckBoundsValueExpr(BoundsValueExpr *E,
                                      CheckedScopeSpecifier CSS,
-                                     EquivExprSets EQ, CheckingState &State) {
+                                     const EquivExprSets EQ,
+                                     CheckingState &State) {
       Expr *Binding = E->getTemporaryBinding();
       return Check(Binding, CSS, EQ, State);
     }
@@ -2772,7 +2778,7 @@ namespace {
     // e is an rvalue.
     BoundsExpr *CheckConditionalOperator(AbstractConditionalOperator *E,
                                          CheckedScopeSpecifier CSS,
-                                         EquivExprSets EQ,
+                                         const EquivExprSets EQ,
                                          CheckingState &State) {
       CheckChildren(E, CSS, EQ, State);
       // TODO: infer correct bounds for conditional operators
@@ -2788,7 +2794,8 @@ namespace {
     // CheckDeclRefExpr returns the lvalue and target bounds of e.
     // e is an lvalue.
     BoundsExpr *CheckDeclRefExpr(DeclRefExpr *E, CheckedScopeSpecifier CSS,
-                                 EquivExprSets EQ, BoundsExpr *&OutTargetBounds,
+                                 const EquivExprSets EQ,
+                                 BoundsExpr *&OutTargetBounds,
                                  CheckingState &State) {
       CheckChildren(E, CSS, EQ, State);
       State.UEQ = EQ;
@@ -2868,7 +2875,8 @@ namespace {
     // lvalue and target bounds of e.
     // If e is an rvalue, CheckUnaryOperator should be called instead.
     BoundsExpr *CheckUnaryLValue(UnaryOperator *E, CheckedScopeSpecifier CSS,
-                                 EquivExprSets EQ, BoundsExpr *&OutTargetBounds,
+                                 const EquivExprSets EQ,
+                                 BoundsExpr *&OutTargetBounds,
                                  CheckingState &State) {
       BoundsExpr *SubExprBounds = Check(E->getSubExpr(), CSS, EQ, State);
 
@@ -2894,7 +2902,7 @@ namespace {
     // e is an lvalue.
     BoundsExpr *CheckArraySubscriptExpr(ArraySubscriptExpr *E,
                                         CheckedScopeSpecifier CSS,
-                                        EquivExprSets EQ,
+                                        const EquivExprSets EQ,
                                         BoundsExpr *&OutTargetBounds,
                                         CheckingState &State) {
       // Currently, we don't know the target bounds of a pointer returned by a
@@ -2924,7 +2932,8 @@ namespace {
     // (lvalue, lvalue + 1).   The lvalue is interpreted as a pointer to T,
     // where T is the type of the member.
     BoundsExpr *CheckMemberExpr(MemberExpr *E, CheckedScopeSpecifier CSS,
-                                EquivExprSets EQ, BoundsExpr *&OutTargetBounds,
+                                const EquivExprSets EQ,
+                                BoundsExpr *&OutTargetBounds,
                                 CheckingState &State) {
       // The lvalue and target bounds must be inferred before
       // performing any side effects on the base, since
@@ -2950,7 +2959,8 @@ namespace {
     // lvalue and target bounds of e.
     // If e is an rvalue, CheckCastExpr should be called instead.
     BoundsExpr *CheckCastLValue(CastExpr *E, CheckedScopeSpecifier CSS,
-                                EquivExprSets EQ, BoundsExpr *&OutTargetBounds,
+                                const EquivExprSets EQ,
+                                BoundsExpr *&OutTargetBounds,
                                 CheckingState &State) {
       // An LValueBitCast adjusts the type of the lvalue.  The bounds are not
       // changed, except that their relative alignment may change (the bounds 
@@ -2972,7 +2982,7 @@ namespace {
     // If e is an rvalue, CheckTemporaryBinding should be called instead.
     BoundsExpr *CheckTempBindingLValue(CHKCBindTemporaryExpr *E,
                                        CheckedScopeSpecifier CSS,
-                                       EquivExprSets EQ,
+                                       const EquivExprSets EQ,
                                        BoundsExpr *&OutTargetBounds,
                                        CheckingState &State) {
       OutTargetBounds = CreateBoundsAlwaysUnknown();
@@ -3148,7 +3158,7 @@ namespace {
   private:
     // Sets the bounds expressions based on
     // whether e is an lvalue or an rvalue.
-    void InferBounds(Expr *E, CheckedScopeSpecifier CSS, EquivExprSets EQ,
+    void InferBounds(Expr *E, CheckedScopeSpecifier CSS, const EquivExprSets EQ,
                      BoundsExpr *&TargetBounds, BoundsExpr *&LValueBounds,
                      BoundsExpr *&RValueBounds, CheckingState &State) {
       TargetBounds = CreateBoundsUnknown();
