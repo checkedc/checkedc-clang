@@ -336,7 +336,7 @@ bool PointerVariableConstraint::emitArraySize(std::ostringstream &pss, Constrain
     switch (oat) {
       case O_SizedArray:
         if (!emittedCheckedAnnotation) {
-          pss << (nt ? " _Nt_checked" : "_Checked");
+          pss << (nt ? " _Nt_checked" : " _Checked");
           emittedCheckedAnnotation = true;
         }
         pss << "[" << oas << "]";
