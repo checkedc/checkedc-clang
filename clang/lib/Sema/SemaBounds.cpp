@@ -480,19 +480,18 @@ namespace {
   // the same value as some expression e.
   using EqualExprTy = SmallVector<Expr *, 4>;
 
+  // CheckingState stores the outputs of bounds checking methods.
+  // These members represent the state during bounds checking
+  // and are updated while checking individual expressions.
   class CheckingState {
     public:
       // UEQ stores sets of expressions that are equivalent to each other
       // after checking an expression e.
-      EquivExprSets *UEQ;
+      EquivExprSets UEQ;
 
       // G is a set of expressions that produce the same value
       // as an expression e once checking of e is complete.
-      EqualExprTy *G;
-
-      CheckingState() :
-        UEQ(new EquivExprSets()),
-        G(new EqualExprTy()) {}
+      EqualExprTy G;
   };
 }
 
@@ -601,13 +600,13 @@ namespace {
       S->dump(OS);
 
       OS << "Sets of equivalent expressions after checking S:\n";
-      if (State.UEQ->size() == 0)
+      if (State.UEQ.size() == 0)
         OS << "{ }\n";
       else {
         OS << "{\n";
-        for (auto OuterList = State.UEQ->begin(); OuterList != State.UEQ->end(); ++OuterList) {
+        for (auto OuterList = State.UEQ.begin(); OuterList != State.UEQ.end(); ++OuterList) {
           auto ExprList = *OuterList;
-          DumpEqualExpr(OS, &ExprList);
+          DumpEqualExpr(OS, ExprList);
         }
         OS << "}\n";
       }
@@ -616,12 +615,12 @@ namespace {
       DumpEqualExpr(OS, State.G);
     }
 
-    void DumpEqualExpr(raw_ostream &OS, EqualExprTy *G) {
-      if (G->size() == 0)
+    void DumpEqualExpr(raw_ostream &OS, EqualExprTy G) {
+      if (G.size() == 0)
         OS << "{ }\n";
       else {
         OS << "{\n";
-        for (auto I = G->begin(); I != G->end(); ++I) {
+        for (auto I = G.begin(); I != G.end(); ++I) {
           Expr *E = *I;
           E->dump(OS);
         }
@@ -2792,8 +2791,8 @@ namespace {
                                  EquivExprSets EQ, BoundsExpr *&OutTargetBounds,
                                  CheckingState &State) {
       CheckChildren(E, CSS, EQ, State);
-      *State.UEQ = EQ;
-      State.G->clear();
+      State.UEQ = EQ;
+      State.G.clear();
 
       VarDecl *VD = dyn_cast<VarDecl>(E->getDecl());
       BoundsExpr *B = nullptr;
@@ -2816,9 +2815,9 @@ namespace {
         const ConstantArrayType *CAT = Context.getAsConstantArrayType(E->getType());
         if (CAT) {
           if (E->getType()->isCheckedArrayType())
-            State.G->push_back(E);
+            State.G.push_back(E);
           else if (VD->hasLocalStorage() || VD->hasExternalStorage())
-            State.G->push_back(E);
+            State.G.push_back(E);
         }
 
         // Declared bounds override the bounds based on the array type.
@@ -2861,7 +2860,7 @@ namespace {
 
       Expr *AddrOf = CreateAddressOfOperator(E);
       // G is { &v } for variables v that do not have array type.
-      State.G->push_back(AddrOf);
+      State.G.push_back(AddrOf);
       return CreateSingleElementBounds(AddrOf);
     }
 
