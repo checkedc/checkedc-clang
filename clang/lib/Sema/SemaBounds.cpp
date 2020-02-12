@@ -607,7 +607,7 @@ namespace {
         OS << "{\n";
         for (auto OuterList = State.UEQ->begin(); OuterList != State.UEQ->end(); ++OuterList) {
           auto ExprList = *OuterList;
-          DumpEqualExpr(OS, ExprList);
+          DumpEqualExpr(OS, &ExprList);
         }
         OS << "}\n";
       }
@@ -1562,7 +1562,7 @@ namespace {
                                      BoundsExpr *SrcBounds,
                                      CheckedScopeSpecifier CSS) {
       // Record expression equality implied by assignment.
-      SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
+      SmallVector<SmallVector <Expr *, 4>, 4> EquivExprs;
       SmallVector<Expr *, 4> EqualExpr;
 
       if (S.CheckIsNonModifying(Target, Sema::NonModifyingContext::NMC_Unknown,
@@ -1580,7 +1580,7 @@ namespace {
              EqualExpr.push_back(CreateTemporaryUse(Temp));
            else
              EqualExpr.push_back(Src);
-           EquivExprs.push_back(&EqualExpr);
+           EquivExprs.push_back(EqualExpr);
          }
       }
 
@@ -1613,7 +1613,7 @@ namespace {
                                   BoundsExpr *ExpectedArgBounds, Expr *Arg,
                                   BoundsExpr *ArgBounds,
                                   CheckedScopeSpecifier CSS,
-                                  SmallVector<SmallVector <Expr *, 4> *, 4> *EquivExprs) {
+                                  SmallVector<SmallVector <Expr *, 4>, 4> *EquivExprs) {
       SourceLocation ArgLoc = Arg->getBeginLoc();
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(ExpectedArgBounds,
@@ -1641,7 +1641,7 @@ namespace {
                                       BoundsExpr *SrcBounds,
                                       CheckedScopeSpecifier CSS) {
       // Record expression equality implied by initialization.
-      SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
+      SmallVector<SmallVector <Expr *, 4>, 4> EquivExprs;
       SmallVector<Expr *, 4> EqualExpr;
       // Record equivalence between expressions implied by initializion.
       // If D declares a variable V, and
@@ -1672,7 +1672,7 @@ namespace {
           EqualExpr.push_back(CreateTemporaryUse(Temp));
         else
           EqualExpr.push_back(Src);
-        EquivExprs.push_back(&EqualExpr);
+        EquivExprs.push_back(EqualExpr);
         /*
         llvm::outs() << "Dumping target/src equality relation\n";
         for (Expr *E : EqualExpr)

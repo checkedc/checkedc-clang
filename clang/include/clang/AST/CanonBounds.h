@@ -42,7 +42,7 @@ namespace clang {
   class VarDecl;
 
   // List of sets of equivalent expressions.
-  typedef SmallVector<SmallVector<Expr *, 4> *, 4> EquivExprSets;
+  typedef SmallVector<SmallVector<Expr *, 4>, 4> EquivExprSets;
 
   class Lexicographic {
   public:

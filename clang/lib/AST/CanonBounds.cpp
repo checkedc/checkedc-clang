@@ -414,8 +414,8 @@ Result Lexicographic::CheckEquivExprs(Result Current, const Expr *E1, const Expr
     bool LHSAppears = false;
     bool RHSAppears = false;
     // See if the LHS expression appears in the set.
-    SmallVector<Expr *, 4> *ExprList = *OuterList;
-    for (auto InnerList = ExprList->begin(); InnerList != ExprList->end(); ++InnerList) {
+    SmallVector<Expr *, 4> ExprList = *OuterList;
+    for (auto InnerList = ExprList.begin(); InnerList != ExprList.end(); ++InnerList) {
       if (SimpleComparer.CompareExpr(E1, *InnerList)  == Result::Equal) {
         LHSAppears = true;
         break;
@@ -425,7 +425,7 @@ Result Lexicographic::CheckEquivExprs(Result Current, const Expr *E1, const Expr
       continue;
 
     // See if the RHS expression appears in the set.
-    for (auto InnerList = ExprList->begin(); InnerList != ExprList->end(); ++InnerList) {
+    for (auto InnerList = ExprList.begin(); InnerList != ExprList.end(); ++InnerList) {
       if (SimpleComparer.CompareExpr(E2, *InnerList)  == Result::Equal) {
         RHSAppears = true;
         break;
