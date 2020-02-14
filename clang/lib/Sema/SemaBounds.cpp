@@ -1997,6 +1997,8 @@ namespace {
     // Check recursively checks the children of e and performs any
     // necessary side effects on e.  Check and CheckLValue work together
     // to traverse each expression in a CFG exactly once.
+    //
+    // State is an out parameter that holds the result of Check.
     BoundsExpr *Check(Stmt *S, CheckedScopeSpecifier CSS, CheckingState &State) {
       if (!S)
         return CreateBoundsEmpty();
@@ -2112,6 +2114,8 @@ namespace {
     // CheckLValue recursively checks the children of e and performs any
     // necessary side effects on e.  Check and CheckLValue work together
     // to traverse each expression in a CFG exactly once.
+    //
+    // State is an out parameter that holds the result of Check.
     BoundsExpr *CheckLValue(Expr *E, CheckedScopeSpecifier CSS,
                             BoundsExpr *&OutTargetBounds,
                             CheckingState &State) {
