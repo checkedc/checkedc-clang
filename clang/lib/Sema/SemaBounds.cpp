@@ -2877,6 +2877,9 @@ namespace {
         else
           OutTargetBounds = CreateBoundsUnknown();
 
+        // G is empty for pointer dereferences.
+        State.G.clear();
+
         // The lvalue bounds of *e are the rvalue bounds of e.
         return SubExprBounds;
       }
@@ -2905,6 +2908,10 @@ namespace {
       // getBase returns the pointer-typed expression.
       BoundsExpr *Bounds = Check(E->getBase(), CSS, State);
       Check(E->getIdx(), CSS, State);
+
+      // G is empty for array subscript expressions.
+      State.G.clear();
+
       return Bounds;
     }
 
