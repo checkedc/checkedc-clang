@@ -2796,10 +2796,14 @@ namespace {
                                       CheckingState &State) {
       Expr *Child = E->getSubExpr();
 
+      BoundsExpr *SubExprBounds = nullptr;
       if (CallExpr *CE = dyn_cast<CallExpr>(Child))
-        return CheckCallExpr(CE, CSS, State, E);
+        SubExprBounds = CheckCallExpr(CE, CSS, State, E);
       else
-        return Check(Child, CSS, State);
+        SubExprBounds = Check(Child, CSS, State);
+
+      UpdateG(E, State.G, State.G);
+      return SubExprBounds;
     }
 
     // CheckBoundsValueExpr returns the bounds for the value produced by e.
