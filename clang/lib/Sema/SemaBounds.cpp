@@ -480,6 +480,10 @@ namespace {
   // the same value as some expression e.
   using EqualExprTy = SmallVector<Expr *, 4>;
 
+  // ExprEqualMapTy denotes a map of an expression e to the
+  // set of expression that produce the same value as e.
+  using ExprEqualMapTy = llvm::DenseMap<Expr *, EqualExprTy>;
+
   // CheckingState stores the outputs of bounds checking methods.
   // These members represent the state during bounds checking
   // and are updated while checking individual expressions.
@@ -518,10 +522,6 @@ namespace {
     // bounds of a null-terminated array.  This is used when calculating
     // physical sizes during casts to pointers to null-terminated arrays.
     bool IncludeNullTerminator;
-
-    // EqualExprTy denotes a set of expressions that are
-    // equivalent to some expression e.
-    using EqualExprTy = SmallVector<Expr *, 4>;
 
     void DumpAssignmentBounds(raw_ostream &OS, BinaryOperator *E,
                               BoundsExpr *LValueTargetBounds,
@@ -2170,14 +2170,29 @@ namespace {
       return Bounds;
     }
 
-    // Recursively check and perform any side effects on the children
-    // of an expression, throwing away the resulting rvalue bounds.
+    // CheckChildren recursively checks and performs any side
+    // effects on the children of a statement or expression,
+    // throwing away the resulting bounds.
     void CheckChildren(Stmt *S, CheckedScopeSpecifier CSS,
                        CheckingState &State) {
+      ExprEqualMapTy SubExprGs;
       auto Begin = S->child_begin(), End = S->child_end();
+
       for (auto I = Begin; I != End; ++I) {
-        Check(*I, CSS, State);
+        Stmt *Child = *I;
+        if (!Child) continue;
+        // Accumulate the UEQ from checking each child into the UEQ for S.
+        Check(Child, CSS, State);
+
+        // Store the set Gi for each subexpression Si.
+        if (Expr *SubExpr = dyn_cast<Expr>(Child))
+          SubExprGs[SubExpr] = State.G;
       }
+
+      // Use the stored sets Gi for each subexpression Si
+      // to update the set G for the expression S.
+      if (Expr *E = dyn_cast<Expr>(S))
+        UpdateG(E, SubExprGs, State.G);
     }
 
     // Traverse a top-level variable declaration.  If there is an
