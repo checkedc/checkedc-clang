@@ -2524,6 +2524,9 @@ namespace {
         Check(Arg, CSS, State);
       }
 
+      // State.G is empty for call expressions.
+      State.G.clear();
+
       return ResultBounds;
     }
 
