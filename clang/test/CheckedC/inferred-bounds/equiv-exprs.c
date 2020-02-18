@@ -260,6 +260,52 @@ void f3(int a [1]) {
   // CHECK-NEXT: { }
 }
 
+// IntegerLiteral, StringLiteral, CHKCBindTemporaryExpr
+void f4() {
+  5;
+  // CHECK: Statement S:
+  // CHECK-NEXT: IntegerLiteral {{.*}} 5
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 5
+  // CHECK-NEXT: }
+
+  "abc";
+  // CHECK: Statement S:
+  // CHECK-NEXT: StringLiteral {{.*}} "abc"
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: StringLiteral {{.*}} "abc"
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: CHKCBindTemporaryExpr {{.*}} 'char [4]'
+  // CHECK-NEXT:   StringLiteral {{.*}} "abc"
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: CHKCBindTemporaryExpr {{.*}} 'char [4]'
+  // CHECK-NEXT:   StringLiteral {{.*}} "abc"
+  // CHECK-NEXT: BoundsValueExpr {{.*}} 'char [4]'
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'char [4]'
+  // CHECK-NEXT:     StringLiteral {{.*}} "abc"
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: CHKCBindTemporaryExpr {{.*}} 'char [4]'
+  // CHECK-NEXT:   StringLiteral {{.*}} "abc"
+  // CHECK-NEXT: BoundsValueExpr {{.*}} 'char [4]'
+  // CHECK-NEXT: }
+}
+
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
