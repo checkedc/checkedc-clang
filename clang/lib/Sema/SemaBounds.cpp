@@ -2228,14 +2228,21 @@ namespace {
                                     CheckingState &State) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
+      ExprEqualMapTy SubExprGs;
 
-      // Infer the lvalue or rvalue bounds of the LHS.
+      // Infer the lvalue or rvalue bounds of the LHS,
+      // saving the set G of expressions that produce
+      // the same value as the LHS.
       BoundsExpr *LHSTargetBounds, *LHSLValueBounds, *LHSBounds;
       InferBounds(LHS, CSS, LHSTargetBounds,
                   LHSLValueBounds, LHSBounds, State);
+      SubExprGs[LHS] = State.G;
 
-      // Infer the rvalue bounds of the RHS.
+      // Infer the rvalue bounds of the RHS,
+      // saving the set of expressions that produce the
+      // the same value as the RHS.
       BoundsExpr *RHSBounds = Check(RHS, CSS, State);
+      SubExprGs[RHS] = State.G;
 
       BinaryOperatorKind Op = E->getOpcode();
 
@@ -2321,6 +2328,17 @@ namespace {
           else if (LeftBounds->isUnknown() && RHSBounds->isUnknown())
             ResultBounds = CreateBoundsEmpty();
         }
+      }
+
+      if (E->isAssignmentOp()) {
+        // TODO: update State for assignments `e1 = e2` and `e1 @= e2`.
+      } else if (BinaryOperator::isLogicalOp(Op)) {
+        // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
+      } else if (Op != BinaryOperatorKind::BO_Comma) {
+        // For comma operators `e1, e2`, State.G remains the same
+        // as the set State.G produced by checking e2.  For all other
+        // binary operators, use the sets for e1 and e2 to update State.G.
+        UpdateG(E, SubExprGs, State.G);
       }
 
       if (E->isAssignmentOp()) {
