@@ -306,11 +306,127 @@ void f4() {
   // CHECK-NEXT: }
 }
 
+// BinaryOperator: non-assignment, non-logical operators
+void f5() {
+  1 + 2;
+  // CHECK: Statement S:
+  // CHECK-NEXT: IntegerLiteral {{.*}} 1
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
-  // TODO: update equivalent expression sets for an ImplicitCastExpr
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: }
+
+  3 < 4;
+  // CHECK: Statement S:
+  // CHECK-NEXT: IntegerLiteral {{.*}} 3
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 3
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: IntegerLiteral {{.*}} 4
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 4
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '<'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 3
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 4
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '<'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 3
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 4
+  // CHECK-NEXT: }
+
+  5 & 6;
+  // CHECK: Statement S:
+  // CHECK-NEXT: IntegerLiteral {{.*}} 5
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 5
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: IntegerLiteral {{.*}} 6
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 6
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '&'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 5
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 6
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '&'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 5
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 6
+  // CHECK-NEXT: }
+
+  7, 8;
+  // CHECK: Statement S:
+  // CHECK-NEXT: IntegerLiteral {{.*}} 7
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 7
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: IntegerLiteral {{.*}} 8
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 8
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} ','
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 7
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 8
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 8
+  // CHECK-NEXT: }
+}
+
   // CHECK: Statement S:
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT: `-ArraySubscriptExpr {{.*}} lvalue
