@@ -2549,12 +2549,33 @@ namespace {
       bool PreviousIncludeNullTerminator = IncludeNullTerminator;
       IncludeNullTerminator = IncludeNullTerm;
 
-      // Infer the lvalue or rvalue bounds of the subexpression.
+      // Infer the lvalue or rvalue bounds of the subexpression e1,
+      // setting State to contain the results for e1.
       BoundsExpr *SubExprTargetBounds, *SubExprLValueBounds, *SubExprBounds;
       InferBounds(SubExpr, CSS, SubExprTargetBounds,
                   SubExprLValueBounds, SubExprBounds, State);
 
       IncludeNullTerminator = PreviousIncludeNullTerminator;
+
+      // Update the set State.G of expressions that produce the
+      // same value as e.
+      if (CK == CastKind::CK_ArrayToPointerDecay) {
+        // The subexpression e1 has array type, so State.G
+        // remains the same as State.G for e1.
+      } else if (CK == CastKind::CK_LValueToRValue) {
+        // If e1 appears in some set F in State.UEQ, State.G = F.
+        State.G = GetEqualExprSetContainingExpr(SubExpr, State.UEQ);
+        if (State.G.size() == 0) {
+          // Otherwise, if e1 is nonmodifying and does not read
+          // memory via a pointer, State.G = { e1 }.
+          if (CheckIsNonModifying(SubExpr) && !ReadsMemoryViaPointer(SubExpr))
+            State.G.push_back(SubExpr);
+        }
+      } else {
+        // Use the default rules to update State.G using
+        // the current State.G for the subexpression e1.
+        UpdateG(E, State.G, State.G);
+      }
 
       // Casts to _Ptr narrow the bounds.  If the cast to
       // _Ptr is invalid, that will be diagnosed separately.
