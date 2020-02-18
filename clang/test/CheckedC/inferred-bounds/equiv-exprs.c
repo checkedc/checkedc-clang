@@ -220,34 +220,46 @@ void f3(int a [1]) {
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: UnaryOperator {{.*}} '&'
-  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT: }
-  // TODO: update equivalent expression sets for an ImplicitCastExpr
   // CHECK: Statement S:
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: UnaryOperator {{.*}} '&'
-  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT: }
-  // TODO: update equivalent expression sets for an IntegerLiteral
   // CHECK: Statement S:
   // CHECK-NEXT: IntegerLiteral {{.*}} 0
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: UnaryOperator {{.*}} '&'
-  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: IntegerLiteral {{.*}} 0
   // CHECK-NEXT: }
   // CHECK: Statement S:
   // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int'
-  // CHECK-NEXT: |-ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT: | `-DeclRefExpr {{.*}} 'a'
-  // CHECK-NEXT: `-IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: { }
+  // CHECK: Statement S:
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   ArraySubscriptExpr {{.*}} lvalue
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: { }
+}
+
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
