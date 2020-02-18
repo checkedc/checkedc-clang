@@ -2989,6 +2989,10 @@ namespace {
       InferBounds(Base, CSS, BaseTargetBounds,
                   BaseLValueBounds, BaseBounds, State);
 
+      // Clear State.G to avoid adding false equality information.
+      // TODO: implement updating state for member expressions.
+      State.G.clear();
+
       bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS,
                                                        BaseLValueBounds,
                                                        BaseBounds);
