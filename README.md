@@ -6,9 +6,14 @@ common programming  errors such as out-of-bounds memory accesses.  The Checked
 C specification is available  at the 
 [Checked C repo](https://github.com/Microsoft/checkedc).
 
-## Announcement
+## Announcements
 
-Earlier this year, the LLVM community
+### Source code update
+On Feb 18, 2020 we updated the checkedc-clang sources to upstream release_90,
+specifically [this](http://llvm.org/viewvc/llvm-project?view=revision&revision=366428) commit.
+
+### Transition to monorepo
+Early in 2019, the LLVM community
 [transitioned](https://forums.swift.org/t/llvm-monorepo-transition/25689) to
 "monorepo".
 
