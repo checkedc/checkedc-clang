@@ -4,22 +4,16 @@
 // This file does not test assignments that update the set of sets of equivalent expressions
 // (assignments will be tested in a separate test file).
 //
-// RUN: %clang_cc1 -Wno-unused-value -fdump-checking-state %s | FileCheck %s
+// RUN: %clang_cc1 -Wno-unused-value -fdump-checking-state %s | FileCheck %s --dump-input=always
 
 #include <stdchecked.h>
 
 extern int a1 [12];
 extern void g1(void);
 
-// Note: the expressions tested below include some kinds of
-// expressions which bounds checking currently does update
-// equivalent expression sets for (such as casts and integer literals).
-// The equivalent expression sets after checking an unsupported expression
-// kind will be the same as the sets after checking the expression's children.
-
 // DeclRefExpr
 void f1(int i, int a checked[5]) {
-  // Non-array, non-function type
+  // Non-array type
   i;
   // CHECK: Statement S:
   // CHECK: DeclRefExpr {{.*}} 'i'
@@ -28,36 +22,17 @@ void f1(int i, int a checked[5]) {
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: UnaryOperator {{.*}} '&'
-  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT: }
-  // TODO: update equivalent expression sets for an ImplicitCastExpr
   // CHECK: Statement S:
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: UnaryOperator {{.*}} '&'
-  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT: }
-
-  // Function type
-  g1;
-  // CHECK: Statement S:
-  // CHECK: DeclRefExpr {{.*}} 'g1'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
-  // CHECK-NEXT: { }
-  // TODO: update equivalent expression sets for an ImplicitCastExpr
-  // CHECK: Statement S:
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
-  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'g1'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
-  // CHECK-NEXT: { }
 
   // Local checked array with known size
   int arr checked[10];
@@ -70,10 +45,9 @@ void f1(int i, int a checked[5]) {
   // CHECK-NEXT: {
   // CHECK-NEXT: DeclRefExpr {{.*}} 'arr'
   // CHECK-NEXT: }
-  // TODO: update equivalent expression sets for an ImplicitCastExpr
   // CHECK: Statement S:
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
@@ -91,10 +65,9 @@ void f1(int i, int a checked[5]) {
   // CHECK-NEXT: {
   // CHECK-NEXT: DeclRefExpr {{.*}} 'a1'
   // CHECK-NEXT: }
-  // TODO: update equivalent expression sets for an ImplicitCastExpr
   // CHECK: Statement S:
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'a1'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a1'
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
@@ -111,18 +84,16 @@ void f1(int i, int a checked[5]) {
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: UnaryOperator {{.*}} '&'
-  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT: }
-  // TODO: update equivalent expression sets for an ImplicitCastExpr
   // CHECK: Statement S:
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: UnaryOperator {{.*}} '&'
-  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT: }
 }
 
