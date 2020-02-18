@@ -3164,6 +3164,90 @@ namespace {
         RValueBounds = Check(E, CSS, State);
     }
 
+    // UpdateG updates the set G of expressions that produce
+    // the same value as e.
+    // e is an expression with exactly one subexpression.
+    //
+    // SubExprG is the set of expressions that produce the same
+    // value as the only subexpression of e.
+    //
+    // Val is an optional expression that may be contained in the updated G.
+    // If Val is not provided, e is used instead.
+    void UpdateG(Expr *E, const EqualExprTy SubExprG,
+                 EqualExprTy &G, Expr *Val = nullptr) {
+      Expr *SubExpr = dyn_cast<Expr>(*(E->child_begin()));
+      assert(SubExpr);
+      ExprEqualMapTy SubExprGs;
+      SubExprGs[SubExpr] = SubExprG;
+      UpdateG(E, SubExprGs, G, Val);
+    }
+
+    // UpdateG updates the set G of expressions that produce
+    // the same value as e.
+    // e is an expression with n subexpressions, where n >= 0.
+    //
+    // Some kinds of expressions (e.g. assignments) have
+    // their own rules for how to update the set G.
+    // UpdateG is used to update the set G for expressions
+    // that do not have their own defined rules for updating G.
+    //
+    // SubExprGs stores, for each subexpression Si of e, a set Gi
+    // of expressions that produce the same value as Si.
+    //
+    // Val is an optional expression that may be contained in the updated G.
+    // If Val is not provided, e is used instead.
+    void UpdateG(Expr *E, ExprEqualMapTy SubExprGs,
+                 EqualExprTy &G, Expr *Val = nullptr) {
+      G.clear();
+
+      if (!Val) Val = E;
+
+      // If Val is a call expression, G does not contain Val.
+      if (isa<CallExpr>(Val)) {
+      }
+
+      // If Val is a non-modifying expression, G contains Val.
+      else if (CheckIsNonModifying(Val))
+        G.push_back(Val);
+
+      // If Val is a modifying expression, use the Gi for the subexpressions
+      // to try to construct a non-modifying expression Val' that
+      // produces the same value as Val.
+      else {
+        Expr *ValPrime = nullptr;
+        for (llvm::detail::DenseMapPair<Expr *, EqualExprTy> Pair : SubExprGs) {
+          Expr *Si = Pair.first;
+          // For any modifying subexpression Si of e,
+          // try to set Val' to a nonmodifying expression from Gi.
+          if (!CheckIsNonModifying(Si)) {
+            EqualExprTy Gi = Pair.second;
+            for (auto I = Gi.begin(); I != Gi.end(); ++I) {
+              Expr *Ei = *I;
+              if (CheckIsNonModifying(Ei)) {
+                ValPrime = Ei;
+                break;
+              }
+            }
+          }
+        }
+
+        if (ValPrime)
+          G.push_back(ValPrime);
+      }
+
+      // If Val introduces a temporary to hold the value produced by e,
+      // add the value of the temporary to G.
+      if (CHKCBindTemporaryExpr *Temp = GetTempBinding(Val))
+        G.push_back(CreateTemporaryUse(Temp));
+    }
+
+    // CheckIsNonModifying suppresses diagnostics while checking
+    // whether e is a non-modifying expression.
+    bool CheckIsNonModifying(Expr *E) {
+      return S.CheckIsNonModifying(E, Sema::NonModifyingContext::NMC_Unknown,
+                                   Sema::NonModifyingMessage::NMM_None);
+    }
+
     BoundsExpr *CreateBoundsUnknown() {
       return Context.getPrebuiltBoundsUnknown();
     }
