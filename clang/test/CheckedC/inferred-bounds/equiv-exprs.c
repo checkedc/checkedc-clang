@@ -97,8 +97,8 @@ void f1(int i, int a checked[5]) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator: pointer dereferences
-void f2(int *p) {
+// UnaryOperator: non-increment/decrement operators
+void f2(int *p, int x, int y) {
   *p;
   // CHECK: Statement S:
   // CHECK: DeclRefExpr {{.*}} 'p'
@@ -107,37 +107,107 @@ void f2(int *p) {
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: UnaryOperator {{.*}} '&'
-  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'p'
   // CHECK-NEXT: }
-  // TODO: update equivalent expression sets for an ImplicitCastExpr
   // CHECK: Statement S:
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} '*'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: { }
+  // CHECK: Statement S:
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   UnaryOperator {{.*}} '*'
+  // CHECK-NEXT:    ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:      DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: { }
+
+  &x;
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: UnaryOperator {{.*}} '&'
-  // CHECK-NEXT: `-DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT: }
   // CHECK: Statement S:
-  // CHECK-NEXT: UnaryOperator {{.*}} '*'
-  // CHECK-NEXT: `-ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:   `-DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT: UnaryOperator {{.*}} '&'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: UnaryOperator {{.*}} '&'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT: }
+
+  int a[3];
+  &a;
+  // CHECK: Statement S:
+  // CHECK: DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
-  // TODO: update equivalent expression sets for an ImplicitCastExpr
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} '&'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: }
+
+  !y;
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: UnaryOperator {{.*}} '&'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT: }
   // CHECK: Statement S:
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT: `-UnaryOperator {{.*}} '*'
-  // CHECK-NEXT:  `-ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:  `-DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} '!'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: UnaryOperator {{.*}} '!'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT: }
 }
 
 // ArraySubscriptExpr
