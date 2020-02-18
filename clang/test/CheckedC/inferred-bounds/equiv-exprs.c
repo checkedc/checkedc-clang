@@ -427,12 +427,93 @@ void f5() {
   // CHECK-NEXT: }
 }
 
+// CStyleCastExpr, BoundsCastExpr
+void f6(int i, array_ptr<int> arr : count(1)) {
+  (double)i;
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: UnaryOperator {{.*}} '&'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: }
   // CHECK: Statement S:
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT: `-ArraySubscriptExpr {{.*}} lvalue
-  // CHECK-NEXT:   |-ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:   | `-DeclRefExpr {{.*}} 'a'
-  // CHECK-NEXT:   `-IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: CStyleCastExpr {{.*}} <IntegralToFloating>
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: CStyleCastExpr {{.*}} <IntegralToFloating>
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: }
+
+  _Assume_bounds_cast<array_ptr<char>>(arr, count(4));
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: UnaryOperator {{.*}} '&'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: CHKCBindTemporaryExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: CHKCBindTemporaryExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT: BoundsValueExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: BoundsCastExpr {{.*}} <AssumePtrBounds>
+  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:      DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:   CountBoundsExpr
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 4
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BoundsCastExpr {{.*}} <AssumePtrBounds>
+  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:   CountBoundsExpr
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 4
+  // CHECK-NEXT: BoundsValueExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT: }
+}
+
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
