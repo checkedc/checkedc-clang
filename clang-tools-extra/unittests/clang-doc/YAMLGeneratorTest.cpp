@@ -1,10 +1,9 @@
 //===-- clang-doc/YAMLGeneratorTest.cpp
 //------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -26,6 +25,7 @@ std::unique_ptr<Generator> getYAMLGenerator() {
 TEST(YAMLGeneratorTest, emitNamespaceYAML) {
   NamespaceInfo I;
   I.Name = "Namespace";
+  I.Path = "path/to/A";
   I.Namespace.emplace_back(EmptySID, "A", InfoType::IT_namespace);
 
   I.ChildNamespaces.emplace_back(EmptySID, "ChildNamespace",
@@ -46,20 +46,21 @@ TEST(YAMLGeneratorTest, emitNamespaceYAML) {
       R"raw(---
 USR:             '0000000000000000000000000000000000000000'
 Name:            'Namespace'
-Namespace:       
+Path:            'path/to/A'
+Namespace:
   - Type:            Namespace
     Name:            'A'
-ChildNamespaces: 
+ChildNamespaces:
   - Type:            Namespace
     Name:            'ChildNamespace'
-ChildRecords:    
+ChildRecords:
   - Type:            Record
     Name:            'ChildStruct'
-ChildFunctions:  
+ChildFunctions:
   - USR:             '0000000000000000000000000000000000000000'
     Name:            'OneFunction'
     ReturnType:      {}
-ChildEnums:      
+ChildEnums:
   - USR:             '0000000000000000000000000000000000000000'
     Name:            'OneEnum'
 ...
@@ -70,15 +71,18 @@ ChildEnums:
 TEST(YAMLGeneratorTest, emitRecordYAML) {
   RecordInfo I;
   I.Name = "r";
+  I.Path = "path/to/r";
   I.Namespace.emplace_back(EmptySID, "A", InfoType::IT_namespace);
 
   I.DefLoc = Location(10, llvm::SmallString<16>{"test.cpp"});
   I.Loc.emplace_back(12, llvm::SmallString<16>{"test.cpp"});
 
-  I.Members.emplace_back("int", "X", AccessSpecifier::AS_private);
+  I.Members.emplace_back("int", "path/to/int", "X",
+                         AccessSpecifier::AS_private);
   I.TagType = TagTypeKind::TTK_Class;
-  I.Parents.emplace_back(EmptySID, "F", InfoType::IT_record);
-  I.VirtualParents.emplace_back(EmptySID, "G", InfoType::IT_record);
+  I.Parents.emplace_back(EmptySID, "F", InfoType::IT_record, "path/to/F");
+  I.VirtualParents.emplace_back(EmptySID, "G", InfoType::IT_record,
+                                "path/to/G");
 
   I.ChildRecords.emplace_back(EmptySID, "ChildStruct", InfoType::IT_record);
   I.ChildFunctions.emplace_back();
@@ -96,35 +100,39 @@ TEST(YAMLGeneratorTest, emitRecordYAML) {
       R"raw(---
 USR:             '0000000000000000000000000000000000000000'
 Name:            'r'
-Namespace:       
+Path:            'path/to/r'
+Namespace:
   - Type:            Namespace
     Name:            'A'
-DefLocation:     
+DefLocation:
   LineNumber:      10
   Filename:        'test.cpp'
-Location:        
+Location:
   - LineNumber:      12
     Filename:        'test.cpp'
 TagType:         Class
-Members:         
-  - Type:            
+Members:
+  - Type:
       Name:            'int'
+      Path:            'path/to/int'
     Name:            'X'
     Access:          Private
-Parents:         
+Parents:
   - Type:            Record
     Name:            'F'
-VirtualParents:  
+    Path:            'path/to/F'
+VirtualParents:
   - Type:            Record
     Name:            'G'
-ChildRecords:    
+    Path:            'path/to/G'
+ChildRecords:
   - Type:            Record
     Name:            'ChildStruct'
-ChildFunctions:  
+ChildFunctions:
   - USR:             '0000000000000000000000000000000000000000'
     Name:            'OneFunction'
     ReturnType:      {}
-ChildEnums:      
+ChildEnums:
   - USR:             '0000000000000000000000000000000000000000'
     Name:            'OneEnum'
 ...
@@ -140,8 +148,9 @@ TEST(YAMLGeneratorTest, emitFunctionYAML) {
   I.DefLoc = Location(10, llvm::SmallString<16>{"test.cpp"});
   I.Loc.emplace_back(12, llvm::SmallString<16>{"test.cpp"});
 
-  I.ReturnType = TypeInfo(EmptySID, "void", InfoType::IT_default);
-  I.Params.emplace_back("int", "P");
+  I.ReturnType =
+      TypeInfo(EmptySID, "void", InfoType::IT_default, "path/to/void");
+  I.Params.emplace_back("int", "path/to/int", "P");
   I.IsMethod = true;
   I.Parent = Reference(EmptySID, "Parent", InfoType::IT_record);
 
@@ -155,26 +164,28 @@ TEST(YAMLGeneratorTest, emitFunctionYAML) {
       R"raw(---
 USR:             '0000000000000000000000000000000000000000'
 Name:            'f'
-Namespace:       
+Namespace:
   - Type:            Namespace
     Name:            'A'
-DefLocation:     
+DefLocation:
   LineNumber:      10
   Filename:        'test.cpp'
-Location:        
+Location:
   - LineNumber:      12
     Filename:        'test.cpp'
 IsMethod:        true
-Parent:          
+Parent:
   Type:            Record
   Name:            'Parent'
-Params:          
-  - Type:            
+Params:
+  - Type:
       Name:            'int'
+      Path:            'path/to/int'
     Name:            'P'
-ReturnType:      
-  Type:            
+ReturnType:
+  Type:
     Name:            'void'
+    Path:            'path/to/void'
 ...
 )raw";
   EXPECT_EQ(Expected, Actual.str());
@@ -201,17 +212,17 @@ TEST(YAMLGeneratorTest, emitEnumYAML) {
       R"raw(---
 USR:             '0000000000000000000000000000000000000000'
 Name:            'e'
-Namespace:       
+Namespace:
   - Type:            Namespace
     Name:            'A'
-DefLocation:     
+DefLocation:
   LineNumber:      10
   Filename:        'test.cpp'
-Location:        
+Location:
   - LineNumber:      12
     Filename:        'test.cpp'
 Scoped:          true
-Members:         
+Members:
   - 'X'
 ...
 )raw";
@@ -338,31 +349,31 @@ TEST(YAMLGeneratorTest, emitCommentYAML) {
       R"raw(---
 USR:             '0000000000000000000000000000000000000000'
 Name:            'f'
-Description:     
+Description:
   - Kind:            'FullComment'
-    Children:        
+    Children:
       - Kind:            'ParagraphComment'
-        Children:        
+        Children:
           - Kind:            'TextComment'
       - Kind:            'ParagraphComment'
-        Children:        
+        Children:
           - Kind:            'TextComment'
             Text:            ' Brief description.'
             Name:            'ParagraphComment'
       - Kind:            'ParagraphComment'
-        Children:        
+        Children:
           - Kind:            'TextComment'
             Text:            ' Extended description that'
           - Kind:            'TextComment'
             Text:            ' continues onto the next line.'
       - Kind:            'ParagraphComment'
-        Children:        
+        Children:
           - Kind:            'TextComment'
           - Kind:            'HTMLStartTagComment'
             Name:            'ul'
-            AttrKeys:        
+            AttrKeys:
               - 'class'
-            AttrValues:      
+            AttrValues:
               - 'test'
           - Kind:            'HTMLStartTagComment'
             Name:            'li'
@@ -374,48 +385,48 @@ Description:
       - Kind:            'VerbatimBlockComment'
         Name:            'verbatim'
         CloseName:       'endverbatim'
-        Children:        
+        Children:
           - Kind:            'VerbatimBlockLineComment'
             Text:            ' The description continues.'
       - Kind:            'ParamCommandComment'
         Direction:       '[out]'
         ParamName:       'I'
         Explicit:        true
-        Children:        
+        Children:
           - Kind:            'ParagraphComment'
-            Children:        
+            Children:
               - Kind:            'TextComment'
               - Kind:            'TextComment'
                 Text:            ' is a parameter.'
       - Kind:            'ParamCommandComment'
         Direction:       '[in]'
         ParamName:       'J'
-        Children:        
+        Children:
           - Kind:            'ParagraphComment'
-            Children:        
+            Children:
               - Kind:            'TextComment'
                 Text:            ' is a parameter.'
               - Kind:            'TextComment'
       - Kind:            'BlockCommandComment'
         Name:            'return'
         Explicit:        true
-        Children:        
+        Children:
           - Kind:            'ParagraphComment'
-            Children:        
+            Children:
               - Kind:            'TextComment'
                 Text:            'void'
-DefLocation:     
+DefLocation:
   LineNumber:      10
   Filename:        'test.cpp'
-Params:          
-  - Type:            
+Params:
+  - Type:
       Name:            'int'
     Name:            'I'
-  - Type:            
+  - Type:
       Name:            'int'
     Name:            'J'
-ReturnType:      
-  Type:            
+ReturnType:
+  Type:
     Name:            'void'
 ...
 )raw";

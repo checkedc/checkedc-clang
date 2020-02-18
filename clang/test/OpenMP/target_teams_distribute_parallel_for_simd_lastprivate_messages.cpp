@@ -1,6 +1,16 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
+
+typedef void **omp_allocator_handle_t;
+extern const omp_allocator_handle_t omp_default_mem_alloc;
+extern const omp_allocator_handle_t omp_large_cap_mem_alloc;
+extern const omp_allocator_handle_t omp_const_mem_alloc;
+extern const omp_allocator_handle_t omp_high_bw_mem_alloc;
+extern const omp_allocator_handle_t omp_low_lat_mem_alloc;
+extern const omp_allocator_handle_t omp_cgroup_mem_alloc;
+extern const omp_allocator_handle_t omp_pteam_mem_alloc;
+extern const omp_allocator_handle_t omp_thread_mem_alloc;
 
 void foo() {
 }
@@ -68,7 +78,7 @@ template <class I, class C>
 int foomain(int argc, char **argv) {
   I e(4);
   I g(5);
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp target teams distribute parallel for simd lastprivate // expected-error {{expected '(' after 'lastprivate'}}
   for (int k = 0; k < argc; ++k) ++k;
@@ -88,7 +98,7 @@ int foomain(int argc, char **argv) {
 #pragma omp target teams distribute parallel for simd lastprivate(argc > 0 ? argv[1] : argv[2]) // expected-error {{expected variable name}}
   for (int k = 0; k < argc; ++k) ++k;
 
-#pragma omp target teams distribute parallel for simd lastprivate(argc)
+#pragma omp target teams distribute parallel for simd lastprivate(argc) allocate , allocate(, allocate(omp_default , allocate(omp_default_mem_alloc, allocate(omp_default_mem_alloc:, allocate(omp_default_mem_alloc: argc, allocate(omp_default_mem_alloc: argv), allocate(argv) // expected-error {{expected '(' after 'allocate'}} expected-error 2 {{expected expression}} expected-error 2 {{expected ')'}} expected-error {{use of undeclared identifier 'omp_default'}} expected-note 2 {{to match this '('}}
   for (int k = 0; k < argc; ++k) ++k;
 
 #pragma omp target teams distribute parallel for simd lastprivate(S1) // expected-error {{'S1' does not refer to a value}}
@@ -100,14 +110,14 @@ int foomain(int argc, char **argv) {
 #pragma omp target teams distribute parallel for simd lastprivate(argv[1]) // expected-error {{expected variable name}}
   for (int k = 0; k < argc; ++k) ++k;
 
-#pragma omp target teams distribute parallel for simd lastprivate(e, g) // expected-error 2 {{calling a private constructor of class 'S4'}}
+#pragma omp target teams distribute parallel for simd lastprivate(e, g, z) // expected-error 2 {{calling a private constructor of class 'S4'}}
   for (int k = 0; k < argc; ++k) ++k;
 
 #pragma omp target teams distribute parallel for simd lastprivate(h) // expected-error {{threadprivate or thread local variable cannot be lastprivate}}
   for (int k = 0; k < argc; ++k) ++k;
 
   int v = 0;
-#pragma omp target teams distribute parallel for simd lastprivate(i)
+#pragma omp target teams distribute parallel for simd lastprivate(i) allocate(omp_thread_mem_alloc: i) // expected-warning {{allocator with the 'thread' trait access has unspecified behavior on 'target teams distribute parallel for simd' directive}}
   for (int k = 0; k < argc; ++k) {
     i = k;
     v += i;
@@ -142,7 +152,7 @@ int main(int argc, char **argv) {
   S5 g(5);
   S3 m;
   S6 n(2);
-  int i;
+  int i, z;
   int &j = i;
   float k;
 #pragma omp target teams distribute parallel for simd lastprivate // expected-error {{expected '(' after 'lastprivate'}}
@@ -178,7 +188,7 @@ int main(int argc, char **argv) {
 #pragma omp target teams distribute parallel for simd lastprivate(2 * 2) // expected-error {{expected variable name}}
   for (i = 0; i < argc; ++i) foo();
 
-#pragma omp target teams distribute parallel for simd lastprivate(ba)
+#pragma omp target teams distribute parallel for simd lastprivate(ba, z)
   for (i = 0; i < argc; ++i) foo();
 
 #pragma omp target teams distribute parallel for simd lastprivate(ca) // expected-error {{const-qualified variable without mutable fields cannot be lastprivate}}

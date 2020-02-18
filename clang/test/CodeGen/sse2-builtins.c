@@ -1,5 +1,6 @@
 // RUN: %clang_cc1 -ffreestanding %s -triple=x86_64-apple-darwin -target-feature +sse2 -emit-llvm -o - -Wall -Werror | FileCheck %s
 // RUN: %clang_cc1 -ffreestanding %s -triple=x86_64-apple-darwin -target-feature +sse2 -fno-signed-char -emit-llvm -o - -Wall -Werror | FileCheck %s
+// RUN: %clang_cc1 -fms-extensions -fms-compatibility -ffreestanding %s -triple=x86_64-windows-msvc -target-feature +sse2 -emit-llvm -o - -Wall -Werror | FileCheck %s
 
 
 #include <immintrin.h>
@@ -99,25 +100,13 @@ __m128i test_mm_andnot_si128(__m128i A, __m128i B) {
 
 __m128i test_mm_avg_epu8(__m128i A, __m128i B) {
   // CHECK-LABEL: test_mm_avg_epu8
-  // CHECK-NOT: call <16 x i8> @llvm.x86.sse2.pavg.b(<16 x i8> %{{.*}}, <16 x i8> %{{.*}})
-  // CHECK: zext <16 x i8> %{{.*}} to <16 x i16>
-  // CHECK: zext <16 x i8> %{{.*}} to <16 x i16>
-  // CHECK: add <16 x i16> %{{.*}}, %{{.*}}
-  // CHECK: add <16 x i16> %{{.*}}, <i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1>
-  // CHECK: lshr <16 x i16> %{{.*}}, <i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1, i16 1>
-  // CHECK:trunc <16 x i16> %{{.*}} to <16 x i8>
+  // CHECK: call <16 x i8> @llvm.x86.sse2.pavg.b(<16 x i8> %{{.*}}, <16 x i8> %{{.*}})
   return _mm_avg_epu8(A, B);
 }
 
 __m128i test_mm_avg_epu16(__m128i A, __m128i B) {
   // CHECK-LABEL: test_mm_avg_epu16
-  // CHECK-NOT: call <8 x i16> @llvm.x86.sse2.pavg.w(<8 x i16> %{{.*}}, <8 x i16> %{{.*}})
-  // CHECK: zext <8 x i16> %{{.*}} to <8 x i32>
-  // CHECK: zext <8 x i16> %{{.*}} to <8 x i32>
-  // CHECK: add <8 x i32> %{{.*}}, %{{.*}}
-  // CHECK: add <8 x i32> %{{.*}}, <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>
-  // CHECK: lshr <8 x i32> %{{.*}}, <i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1>
-  // CHECK: trunc <8 x i32> %{{.*}} to <8 x i16>
+  // CHECK: call <8 x i16> @llvm.x86.sse2.pavg.w(<8 x i16> %{{.*}}, <8 x i16> %{{.*}})
   return _mm_avg_epu16(A, B);
 }
 
@@ -511,11 +500,13 @@ int test_mm_cvtsd_si32(__m128d A) {
   return _mm_cvtsd_si32(A);
 }
 
+#ifdef __x86_64__
 long long test_mm_cvtsd_si64(__m128d A) {
   // CHECK-LABEL: test_mm_cvtsd_si64
   // CHECK: call i64 @llvm.x86.sse2.cvtsd2si64(<2 x double> %{{.*}})
   return _mm_cvtsd_si64(A);
 }
+#endif
 
 __m128 test_mm_cvtsd_ss(__m128 A, __m128d B) {
   // CHECK-LABEL: test_mm_cvtsd_ss
@@ -529,11 +520,13 @@ int test_mm_cvtsi128_si32(__m128i A) {
   return _mm_cvtsi128_si32(A);
 }
 
+#ifdef __x86_64__
 long long test_mm_cvtsi128_si64(__m128i A) {
   // CHECK-LABEL: test_mm_cvtsi128_si64
   // CHECK: extractelement <2 x i64> %{{.*}}, i32 0
   return _mm_cvtsi128_si64(A);
 }
+#endif
 
 __m128d test_mm_cvtsi32_sd(__m128d A, int B) {
   // CHECK-LABEL: test_mm_cvtsi32_sd
@@ -551,6 +544,7 @@ __m128i test_mm_cvtsi32_si128(int A) {
   return _mm_cvtsi32_si128(A);
 }
 
+#ifdef __x86_64__
 __m128d test_mm_cvtsi64_sd(__m128d A, long long B) {
   // CHECK-LABEL: test_mm_cvtsi64_sd
   // CHECK: sitofp i64 %{{.*}} to double
@@ -564,6 +558,7 @@ __m128i test_mm_cvtsi64_si128(long long A) {
   // CHECK: insertelement <2 x i64> %{{.*}}, i64 0, i32 1
   return _mm_cvtsi64_si128(A);
 }
+#endif
 
 __m128d test_mm_cvtss_sd(__m128d A, __m128 B) {
   // CHECK-LABEL: test_mm_cvtss_sd
@@ -591,11 +586,13 @@ int test_mm_cvttsd_si32(__m128d A) {
   return _mm_cvttsd_si32(A);
 }
 
+#ifdef __x86_64__
 long long test_mm_cvttsd_si64(__m128d A) {
   // CHECK-LABEL: test_mm_cvttsd_si64
   // CHECK: call i64 @llvm.x86.sse2.cvttsd2si64(<2 x double> %{{.*}})
   return _mm_cvttsd_si64(A);
 }
+#endif
 
 __m128d test_mm_div_pd(__m128d A, __m128d B) {
   // CHECK-LABEL: test_mm_div_pd
@@ -1503,11 +1500,13 @@ void test_mm_stream_si32(int *A, int B) {
   _mm_stream_si32(A, B);
 }
 
+#ifdef __x86_64__
 void test_mm_stream_si64(long long *A, long long B) {
   // CHECK-LABEL: test_mm_stream_si64
   // CHECK: store i64 %{{.*}}, i64* %{{.*}}, align 1, !nontemporal
   _mm_stream_si64(A, B);
 }
+#endif
 
 void test_mm_stream_si128(__m128i *A, __m128i B) {
   // CHECK-LABEL: test_mm_stream_si128

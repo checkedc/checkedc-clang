@@ -1,10 +1,9 @@
 #
 #//===----------------------------------------------------------------------===//
 #//
-#//                     The LLVM Compiler Infrastructure
-#//
-#// This file is dual licensed under the MIT and the University of Illinois Open
-#// Source Licenses. See LICENSE.txt for details.
+#// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+#// See https://llvm.org/LICENSE.txt for license information.
+#// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #//
 #//===----------------------------------------------------------------------===//
 #
@@ -159,14 +158,13 @@ function(libomp_get_libflags libflags)
   if(${IA32})
     libomp_append(libflags_local -lirc_pic LIBOMP_HAVE_IRC_PIC_LIBRARY)
   endif()
-  IF(${CMAKE_SYSTEM_NAME} MATCHES "DragonFly")
+  if(${CMAKE_SYSTEM_NAME} MATCHES "DragonFly")
     libomp_append(libflags_local "-Wl,--no-as-needed" LIBOMP_HAVE_AS_NEEDED_FLAG)
     libomp_append(libflags_local "-lm")
     libomp_append(libflags_local "-Wl,--as-needed" LIBOMP_HAVE_AS_NEEDED_FLAG)
-  ENDIF(${CMAKE_SYSTEM_NAME} MATCHES "DragonFly")
-  IF(${CMAKE_SYSTEM_NAME} MATCHES "NetBSD")
+  elseif(${CMAKE_SYSTEM_NAME} MATCHES "(Free|Net)BSD")
     libomp_append(libflags_local -lm)
-  ENDIF(${CMAKE_SYSTEM_NAME} MATCHES "NetBSD")
+  endif()
   set(libflags_local ${libflags_local} ${LIBOMP_LIBFLAGS})
   libomp_setup_flags(libflags_local)
   set(${libflags} ${libflags_local} PARENT_SCOPE)
@@ -200,18 +198,6 @@ function(libomp_get_gdflags gdflags)
   libomp_append(gdflags_local "-D stub" STUBS_LIBRARY)
   libomp_append(gdflags_local "-D HAVE_QUAD" LIBOMP_USE_QUAD_PRECISION)
   libomp_append(gdflags_local "-D USE_DEBUGGER" LIBOMP_USE_DEBUGGER)
-  if(${LIBOMP_OMP_VERSION} GREATER 50 OR ${LIBOMP_OMP_VERSION} EQUAL 50)
-    libomp_append(gdflags_local "-D OMP_50")
-  endif()
-  if(${LIBOMP_OMP_VERSION} GREATER 45 OR ${LIBOMP_OMP_VERSION} EQUAL 45)
-    libomp_append(gdflags_local "-D OMP_45")
-  endif()
-  if(${LIBOMP_OMP_VERSION} GREATER 40 OR ${LIBOMP_OMP_VERSION} EQUAL 40)
-    libomp_append(gdflags_local "-D OMP_40")
-  endif()
-  if(${LIBOMP_OMP_VERSION} GREATER 30 OR ${LIBOMP_OMP_VERSION} EQUAL 30)
-    libomp_append(gdflags_local "-D OMP_30")
-  endif()
   if(${DEBUG_BUILD} OR ${RELWITHDEBINFO_BUILD})
     libomp_append(gdflags_local "-D KMP_DEBUG")
   endif()

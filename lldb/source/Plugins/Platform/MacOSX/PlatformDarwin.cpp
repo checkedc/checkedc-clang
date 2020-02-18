@@ -1,9 +1,8 @@
 //===-- PlatformDarwin.cpp --------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -12,6 +11,7 @@
 #include <string.h>
 
 #include <algorithm>
+#include <memory>
 #include <mutex>
 
 #include "lldb/Breakpoint/BreakpointLocation.h"
@@ -21,9 +21,9 @@
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
-#include "lldb/Host/Symbols.h"
 #include "lldb/Host/XML.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
+#include "lldb/Symbol/LocateSymbolFile.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolFile.h"
 #include "lldb/Symbol/SymbolVendor.h"
@@ -31,6 +31,7 @@
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/Log.h"
+#include "lldb/Utility/ProcessInfo.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/Timer.h"
 #include "llvm/ADT/STLExtras.h"
@@ -45,19 +46,15 @@
 using namespace lldb;
 using namespace lldb_private;
 
-//------------------------------------------------------------------
 /// Default Constructor
-//------------------------------------------------------------------
 PlatformDarwin::PlatformDarwin(bool is_host)
     : PlatformPOSIX(is_host), // This is the local host platform
       m_developer_directory() {}
 
-//------------------------------------------------------------------
 /// Destructor.
 ///
 /// The destructor is virtual since this class is designed to be
 /// inherited from by the plug-in instance.
-//------------------------------------------------------------------
 PlatformDarwin::~PlatformDarwin() {}
 
 FileSpecList PlatformDarwin::LocateExecutableScriptingResources(
@@ -71,8 +68,6 @@ FileSpecList PlatformDarwin::LocateExecutableScriptingResources(
     // precisely that. Ideally, we should have a per-platform list of
     // extensions (".exe", ".app", ".dSYM", ".framework") which should be
     // stripped while leaving "this.binary.file" as-is.
-    ScriptInterpreter *script_interpreter =
-        target->GetDebugger().GetCommandInterpreter().GetScriptInterpreter();
 
     FileSpec module_spec = module.GetFileSpec();
 
@@ -84,7 +79,10 @@ FileSpecList PlatformDarwin::LocateExecutableScriptingResources(
           ObjectFile *objfile = symfile->GetObjectFile();
           if (objfile) {
             FileSpec symfile_spec(objfile->GetFileSpec());
-            if (symfile_spec && FileSystem::Instance().Exists(symfile_spec)) {
+            if (symfile_spec && 
+                strcasestr (symfile_spec.GetPath().c_str(), 
+                        ".dSYM/Contents/Resources/DWARF") != nullptr &&
+                FileSystem::Instance().Exists(symfile_spec)) {
               while (module_spec.GetFilename()) {
                 std::string module_basename(
                     module_spec.GetFilename().GetCString());
@@ -106,6 +104,8 @@ FileSpecList PlatformDarwin::LocateExecutableScriptingResources(
                              ' ', '_');
                 std::replace(module_basename.begin(), module_basename.end(),
                              '-', '_');
+                ScriptInterpreter *script_interpreter =
+                    target->GetDebugger().GetScriptInterpreter();
                 if (script_interpreter &&
                     script_interpreter->IsReservedWord(
                         module_basename.c_str())) {
@@ -263,7 +263,7 @@ lldb_private::Status PlatformDarwin::GetSharedModuleWithLocalCache(
                         module_spec.GetFileSpec().GetFilename().AsCString());
           ModuleSpec local_spec(module_cache_spec,
                                 module_spec.GetArchitecture());
-          module_sp.reset(new Module(local_spec));
+          module_sp = std::make_shared<Module>(local_spec);
           module_sp->SetPlatformFileSpec(module_spec.GetFileSpec());
           return Status();
         }
@@ -301,7 +301,7 @@ lldb_private::Status PlatformDarwin::GetSharedModuleWithLocalCache(
         }
 
         ModuleSpec local_spec(module_cache_spec, module_spec.GetArchitecture());
-        module_sp.reset(new Module(local_spec));
+        module_sp = std::make_shared<Module>(local_spec);
         module_sp->SetPlatformFileSpec(module_spec.GetFileSpec());
         Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM));
         if (log)
@@ -329,7 +329,7 @@ lldb_private::Status PlatformDarwin::GetSharedModuleWithLocalCache(
                       module_spec.GetFileSpec().GetDirectory().AsCString(),
                       module_spec.GetFileSpec().GetFilename().AsCString());
         ModuleSpec local_spec(module_cache_spec, module_spec.GetArchitecture());
-        module_sp.reset(new Module(local_spec));
+        module_sp = std::make_shared<Module>(local_spec);
         module_sp->SetPlatformFileSpec(module_spec.GetFileSpec());
         return Status();
       } else
@@ -374,7 +374,7 @@ Status PlatformDarwin::GetSharedModule(
           new_module_spec.GetFileSpec() = bundle_directory;
           if (Host::ResolveExecutableInBundle(new_module_spec.GetFileSpec())) {
             Status new_error(Platform::GetSharedModule(
-                new_module_spec, process, module_sp, NULL, old_module_sp_ptr,
+                new_module_spec, process, module_sp, nullptr, old_module_sp_ptr,
                 did_create_ptr));
 
             if (module_sp)
@@ -401,7 +401,7 @@ Status PlatformDarwin::GetSharedModule(
                 ModuleSpec new_module_spec(module_spec);
                 new_module_spec.GetFileSpec() = new_file_spec;
                 Status new_error(Platform::GetSharedModule(
-                    new_module_spec, process, module_sp, NULL,
+                    new_module_spec, process, module_sp, nullptr,
                     old_module_sp_ptr, did_create_ptr));
 
                 if (module_sp) {
@@ -1171,7 +1171,7 @@ const char *PlatformDarwin::GetDeveloperDirectory() {
         std::string command_output;
         Status error =
             Host::RunShellCommand("/usr/bin/xcode-select --print-path",
-                                  NULL, // current working directory
+                                  nullptr, // current working directory
                                   &exit_status, &signo, &command_output,
                                   std::chrono::seconds(2), // short timeout
                                   false); // don't run in a shell
@@ -1212,7 +1212,7 @@ const char *PlatformDarwin::GetDeveloperDirectory() {
   assert(m_developer_directory.empty() == false);
   if (m_developer_directory[0])
     return m_developer_directory.c_str();
-  return NULL;
+  return nullptr;
 }
 
 BreakpointSP PlatformDarwin::SetThreadCreationBreakpoint(Target &target) {
@@ -1233,7 +1233,7 @@ BreakpointSP PlatformDarwin::SetThreadCreationBreakpoint(Target &target) {
   bool internal = true;
   bool hardware = false;
   LazyBool skip_prologue = eLazyBoolNo;
-  bp_sp = target.CreateBreakpoint(&bp_modules, NULL, g_bp_names,
+  bp_sp = target.CreateBreakpoint(&bp_modules, nullptr, g_bp_names,
                                   llvm::array_lengthof(g_bp_names),
                                   eFunctionNameTypeFull, eLanguageTypeUnknown,
                                   0, skip_prologue, internal, hardware);
@@ -1250,7 +1250,7 @@ PlatformDarwin::GetResumeCountForLaunchInfo(ProcessLaunchInfo &launch_info) {
 
   std::string shell_string = shell.GetPath();
   const char *shell_name = strrchr(shell_string.c_str(), '/');
-  if (shell_name == NULL)
+  if (shell_name == nullptr)
     shell_name = shell_string.c_str();
   else
     shell_name++;
@@ -1341,7 +1341,7 @@ static FileSpec GetXcodeContentsPath() {
         const char *command = "/usr/bin/xcode-select -p";
         lldb_private::Status error = Host::RunShellCommand(
             command, // shell command to run
-            NULL,    // current working directory
+            nullptr, // current working directory
             &status, // Put the exit status of the process in here
             &signo,  // Put the signal that caused the process to exit in here
             &output, // Get the output from the command and place it in this
@@ -1700,12 +1700,12 @@ PlatformDarwin::FindBundleBinaryInExecSearchPaths (const ModuleSpec &module_spec
     // "UIFoundation" and "UIFoundation.framework" -- most likely the latter
     // will be the one we find there.
 
-    FileSpec platform_pull_apart(platform_file);
+    FileSpec platform_pull_upart(platform_file);
     std::vector<std::string> path_parts;
     path_parts.push_back(
-        platform_pull_apart.GetLastPathComponent().AsCString());
-    while (platform_pull_apart.RemoveLastPathComponent()) {
-      ConstString part = platform_pull_apart.GetLastPathComponent();
+        platform_pull_upart.GetLastPathComponent().AsCString());
+    while (platform_pull_upart.RemoveLastPathComponent()) {
+      ConstString part = platform_pull_upart.GetLastPathComponent();
       path_parts.push_back(part.AsCString());
     }
     const size_t path_parts_size = path_parts.size();
@@ -1742,7 +1742,7 @@ PlatformDarwin::FindBundleBinaryInExecSearchPaths (const ModuleSpec &module_spec
           ModuleSpec new_module_spec(module_spec);
           new_module_spec.GetFileSpec() = path_to_try;
           Status new_error(Platform::GetSharedModule(
-              new_module_spec, process, module_sp, NULL, old_module_sp_ptr,
+              new_module_spec, process, module_sp, nullptr, old_module_sp_ptr,
               did_create_ptr));
 
           if (module_sp) {

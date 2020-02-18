@@ -413,7 +413,7 @@ define void @TestFPTruncF128_F80() nounwind {
 ; X64-NEXT:    fstpt (%rsp)
 ; X64-NEXT:    movq (%rsp), %rax
 ; X64-NEXT:    movq %rax, {{.*}}(%rip)
-; X64-NEXT:    movzwl {{[0-9]+}}(%rsp), %eax
+; X64-NEXT:    movl {{[0-9]+}}(%rsp), %eax
 ; X64-NEXT:    movw %ax, vf80+{{.*}}(%rip)
 ; X64-NEXT:    addq $24, %rsp
 ; X64-NEXT:    retq
@@ -844,8 +844,8 @@ define fp128 @TestTruncCopysign(fp128 %x, i32 %n) nounwind {
 ; X64-NEXT:  # %bb.1: # %if.then
 ; X64-NEXT:    pushq %rax
 ; X64-NEXT:    callq __trunctfdf2
-; X64-NEXT:    movsd {{.*#+}} xmm1 = mem[0],zero
 ; X64-NEXT:    andps {{.*}}(%rip), %xmm0
+; X64-NEXT:    movsd {{.*#+}} xmm1 = mem[0],zero
 ; X64-NEXT:    orps %xmm1, %xmm0
 ; X64-NEXT:    callq __extenddftf2
 ; X64-NEXT:    addq $8, %rsp

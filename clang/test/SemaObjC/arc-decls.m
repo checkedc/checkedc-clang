@@ -3,11 +3,23 @@
 // rdar://8843524
 
 struct A {
-    id x;
+  id x[4];
+  id y;
 };
 
 union u {
-    id u; // expected-error {{ARC forbids Objective-C objects in union}}
+  id u;
+};
+
+// Volatile fields are fine.
+struct C {
+  volatile int x[4];
+  volatile int y;
+};
+
+union u_trivial_c {
+  volatile int b;
+  struct C c;
 };
 
 @interface I {

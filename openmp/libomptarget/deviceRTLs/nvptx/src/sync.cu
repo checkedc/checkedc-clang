@@ -1,9 +1,8 @@
 //===------------ sync.h - NVPTX OpenMP synchronizations --------- CUDA -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -47,10 +46,8 @@ EXTERN void __kmpc_barrier(kmp_Ident *loc_ref, int32_t tid) {
     __kmpc_barrier_simple_spmd(loc_ref, tid);
   } else {
     tid = GetLogicalThreadIdInBlock(checkSPMDMode(loc_ref));
-    omptarget_nvptx_TaskDescr *currTaskDescr =
-        omptarget_nvptx_threadPrivateContext->GetTopLevelTaskDescr(tid);
-    int numberOfActiveOMPThreads = GetNumberOfOmpThreads(
-        tid, checkSPMDMode(loc_ref), /*isRuntimeUninitialized=*/false);
+    int numberOfActiveOMPThreads =
+        GetNumberOfOmpThreads(checkSPMDMode(loc_ref));
     if (numberOfActiveOMPThreads > 1) {
       if (checkSPMDMode(loc_ref)) {
         __kmpc_barrier_simple_spmd(loc_ref, tid);
@@ -133,7 +130,7 @@ EXTERN void __kmpc_end_single(kmp_Ident *loc, int32_t global_tid) {
 
 EXTERN void __kmpc_flush(kmp_Ident *loc) {
   PRINT0(LD_IO, "call kmpc_flush\n");
-  __threadfence_system();
+  __threadfence();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

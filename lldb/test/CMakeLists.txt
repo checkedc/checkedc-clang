@@ -8,9 +8,9 @@ function(add_python_test_target name test_script args comment)
   add_custom_target(${name}
     COMMAND ${PYTHON_TEST_COMMAND} ${ARG_DEFAULT_ARGS}
     COMMENT "${comment}"
-    DEPENDS ${LLDB_TEST_DEPS}
     USES_TERMINAL
     )
+  add_dependencies(${name} ${LLDB_TEST_DEPS})
 endfunction()
 
 # The default architecture with which to compile test executables is the default LLVM target
@@ -110,10 +110,13 @@ add_python_test_target(check-lldb-single
   "--no-multiprocess;${LLDB_DOTEST_ARGS}"
   "Testing LLDB with args: ${LLDB_DOTEST_ARGS}"
   )
+set_target_properties(check-lldb-single PROPERTIES FOLDER "lldb misc")
 
 # If tests crash cause LLDB to crash, or things are otherwise unstable, or if machine-parsable
 # output is desired (i.e. in continuous integration contexts) check-lldb-single is a better target.
 add_custom_target(check-lldb)
+add_dependencies(check-lldb lldb-test-deps)
+set_target_properties(check-lldb PROPERTIES FOLDER "lldb misc")
 
 # If we're building with an in-tree clang, then list clang as a dependency
 # to run tests.
@@ -133,7 +136,6 @@ endif ()
 # Run the lit-style tests and the unittests as part of the check-lldb target.
 add_dependencies(check-lldb check-lldb-lit)
 
-add_custom_target(lldb-test-depends DEPENDS ${LLDB_TEST_DEPENDS})
 # This will add LLDB's test dependencies to the dependencies for check-all and
 # include them in the test-depends target.
 set_property(GLOBAL APPEND PROPERTY LLVM_LIT_DEPENDS ${ARG_DEPENDS})

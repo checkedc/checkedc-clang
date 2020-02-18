@@ -1,9 +1,8 @@
 //===-- main.m ------------------------------------------------*- ObjC -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -407,9 +406,11 @@ int main (int argc, const char * argv[])
 
 	    // No-copy versions of NSData initializers use NSConcreteData if over 2^16 elements are specified.
 	    unsigned concreteLength = 100000;
-	    void *zeroes = calloc(1, concreteLength);
-	    NSData *concreteData = [[NSData alloc] initWithBytesNoCopy:zeroes length:concreteLength];
-	    NSMutableData *concreteMutableData = [[NSMutableData alloc] initWithBytesNoCopy:zeroes length:concreteLength];
+	    void *zeroes1 = calloc(1, concreteLength);
+            // initWithBytesNoCopy takes ownership of the buffer.
+	    NSData *concreteData = [[NSData alloc] initWithBytesNoCopy:zeroes1 length:concreteLength];
+	    void *zeroes2 = calloc(1, concreteLength);
+	    NSMutableData *concreteMutableData = [[NSMutableData alloc] initWithBytesNoCopy:zeroes2 length:concreteLength];
 
 	    [mutableData appendBytes:"MOREDATA" length:8];
 
@@ -625,7 +626,6 @@ int main (int argc, const char * argv[])
     [molecule setAtoms:nil];
     [molecule setAtoms:[NSMutableArray new]];
 
-    free(zeroes);
     [pool drain];
     return 0;
 }

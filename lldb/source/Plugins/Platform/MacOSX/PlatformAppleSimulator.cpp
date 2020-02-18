@@ -1,9 +1,8 @@
 //===-- PlatformAppleSimulator.cpp ------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,26 +28,20 @@ using namespace lldb_private;
 #define UNSUPPORTED_ERROR ("Apple simulators aren't supported on this platform")
 #endif
 
-//------------------------------------------------------------------
 // Static Functions
-//------------------------------------------------------------------
 void PlatformAppleSimulator::Initialize() { PlatformDarwin::Initialize(); }
 
 void PlatformAppleSimulator::Terminate() { PlatformDarwin::Terminate(); }
 
-//------------------------------------------------------------------
 /// Default Constructor
-//------------------------------------------------------------------
 PlatformAppleSimulator::PlatformAppleSimulator()
     : PlatformDarwin(true), m_core_sim_path_mutex(),
       m_core_simulator_framework_path(), m_device() {}
 
-//------------------------------------------------------------------
 /// Destructor.
 ///
 /// The destructor is virtual since this class is designed to be
 /// inherited from by the plug-in instance.
-//------------------------------------------------------------------
 PlatformAppleSimulator::~PlatformAppleSimulator() {}
 
 lldb_private::Status PlatformAppleSimulator::LaunchProcess(

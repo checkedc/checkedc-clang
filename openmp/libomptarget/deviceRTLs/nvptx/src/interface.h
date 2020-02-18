@@ -1,9 +1,8 @@
 //===------- interface.h - NVPTX OpenMP interface definitions ---- CUDA -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -11,8 +10,7 @@
 //
 //  This file contains all the definitions that are relevant to
 //  the interface. The first section contains the interface as
-//  declared by OpenMP.  A second section includes library private calls
-//  (mostly debug, temporary?) The third section includes the compiler
+//  declared by OpenMP.  The second section includes the compiler
 //  specific interfaces.
 //
 //===----------------------------------------------------------------------===//
@@ -201,6 +199,7 @@ typedef void (*kmp_CopyToScratchpadFctPtr)(void *reduceData, void *scratchpad,
 typedef void (*kmp_LoadReduceFctPtr)(void *reduceData, void *scratchpad,
                                      int32_t index, int32_t width,
                                      int32_t reduce);
+typedef void (*kmp_ListGlobalFctPtr)(void *buffer, int idx, void *reduce_data);
 
 // task defs
 typedef struct kmp_TaskDescr kmp_TaskDescr;
@@ -211,50 +210,13 @@ typedef struct kmp_TaskDescr {
   int32_t partId;             // unused
   kmp_TaskFctPtr destructors; // destructor of c++ first private
 } kmp_TaskDescr;
-// task dep defs
-#define KMP_TASKDEP_IN 0x1u
-#define KMP_TASKDEP_OUT 0x2u
-typedef struct kmp_TaskDep_Public {
-  void *addr;
-  size_t len;
-  uint8_t flags; // bit 0: in, bit 1: out
-} kmp_TaskDep_Public;
-
-// flags that interpret the interface part of tasking flags
-#define KMP_TASK_IS_TIED 0x1
-#define KMP_TASK_FINAL 0x2
-#define KMP_TASK_MERGED_IF0 0x4 /* unused */
-#define KMP_TASK_DESTRUCTOR_THUNK 0x8
-
-// flags for task setup return
-#define KMP_CURRENT_TASK_NOT_SUSPENDED 0
-#define KMP_CURRENT_TASK_SUSPENDED 1
 
 // sync defs
 typedef int32_t kmp_CriticalName[8];
 
 ////////////////////////////////////////////////////////////////////////////////
-// flags for kstate (all bits initially off)
-////////////////////////////////////////////////////////////////////////////////
-
-// first 2 bits used by kmp_Reduction (defined in kmp_reduction.cpp)
-#define KMP_REDUCTION_MASK 0x3
-#define KMP_SKIP_NEXT_CALL 0x4
-#define KMP_SKIP_NEXT_CANCEL_BARRIER 0x8
-
-////////////////////////////////////////////////////////////////////////////////
-// data
-////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////
 // external interface
 ////////////////////////////////////////////////////////////////////////////////
-
-// query
-EXTERN int32_t __kmpc_global_num_threads(kmp_Ident *loc); // missing
-EXTERN int32_t __kmpc_bound_thread_num(kmp_Ident *loc);   // missing
-EXTERN int32_t __kmpc_bound_num_threads(kmp_Ident *loc);  // missing
-EXTERN int32_t __kmpc_in_parallel(kmp_Ident *loc);        // missing
 
 // parallel
 EXTERN int32_t __kmpc_global_thread_num(kmp_Ident *loc);
@@ -411,6 +373,12 @@ EXTERN int32_t __kmpc_nvptx_parallel_reduce_nowait_simple_generic(
 EXTERN int32_t __kmpc_nvptx_simd_reduce_nowait(
     int32_t global_tid, int32_t num_vars, size_t reduce_size, void *reduce_data,
     kmp_ShuffleReductFctPtr shflFct, kmp_InterWarpCopyFctPtr cpyFct);
+EXTERN int32_t __kmpc_nvptx_teams_reduce_nowait_v2(
+    kmp_Ident *loc, int32_t global_tid, void *global_buffer,
+    int32_t num_of_records, void *reduce_data, kmp_ShuffleReductFctPtr shflFct,
+    kmp_InterWarpCopyFctPtr cpyFct, kmp_ListGlobalFctPtr lgcpyFct,
+    kmp_ListGlobalFctPtr lgredFct, kmp_ListGlobalFctPtr glcpyFct,
+    kmp_ListGlobalFctPtr glredFct);
 EXTERN int32_t __kmpc_nvptx_teams_reduce_nowait(
     int32_t global_tid, int32_t num_vars, size_t reduce_size, void *reduce_data,
     kmp_ShuffleReductFctPtr shflFct, kmp_InterWarpCopyFctPtr cpyFct,

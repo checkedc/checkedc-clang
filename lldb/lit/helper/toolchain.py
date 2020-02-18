@@ -24,26 +24,36 @@ def use_lldb_substitutions(config):
 
     build_script = os.path.dirname(__file__)
     build_script = os.path.join(build_script, 'build.py')
-    build_script_args = [build_script, 
+    build_script_args = [build_script,
                         '--compiler=any', # Default to best compiler
                         '--arch=' + str(config.lldb_bitness)]
     if config.lldb_lit_tools_dir:
         build_script_args.append('--tools-dir={0}'.format(config.lldb_lit_tools_dir))
     if config.lldb_tools_dir:
         build_script_args.append('--tools-dir={0}'.format(config.lldb_tools_dir))
+    if config.llvm_libs_dir:
+        build_script_args.append('--libs-dir={0}'.format(config.llvm_libs_dir))
+
+    lldb_init = os.path.join(config.test_exec_root, 'lit-lldb-init')
 
     primary_tools = [
         ToolSubst('%lldb',
                   command=FindTool('lldb'),
-                  extra_args=['-S',
-                              os.path.join(config.test_source_root,
-                                           'lit-lldb-init')]),
+                  extra_args=['--no-lldbinit', '-S', lldb_init]),
+        ToolSubst('%lldb-init',
+                  command=FindTool('lldb'),
+                  extra_args=['-S', lldb_init]),
         lldbmi,
         ToolSubst('%debugserver',
                   command=FindTool(dsname),
                   extra_args=dsargs,
                   unresolved='ignore'),
+        ToolSubst('%platformserver',
+                  command=FindTool('lldb-server'),
+                  extra_args=['platform'],
+                  unresolved='ignore'),
         'lldb-test',
+        'lldb-instr',
         ToolSubst('%build',
                   command="'" + sys.executable + "'",
                   extra_args=build_script_args)
@@ -51,7 +61,8 @@ def use_lldb_substitutions(config):
 
     llvm_config.add_tool_substitutions(primary_tools,
                                        [config.lldb_tools_dir])
-    if lldbmi.was_resolved:
+    # lldb-mi always fails without Python support
+    if lldbmi.was_resolved and not config.lldb_disable_python:
         config.available_features.add('lldb-mi')
 
 def _use_msvc_substitutions(config):
@@ -94,9 +105,13 @@ def use_support_substitutions(config):
             sdk_path = lit.util.to_string(out)
             llvm_config.lit_config.note('using SDKROOT: %r' % sdk_path)
             flags = ['-isysroot', sdk_path]
-    elif platform.system() in ['OpenBSD', 'Linux']:
+    elif platform.system() in ['NetBSD', 'OpenBSD', 'Linux']:
         flags = ['-pthread']
 
+    if sys.platform.startswith('netbsd'):
+        # needed e.g. to use freshly built libc++
+        flags += ['-L' + config.llvm_libs_dir,
+                  '-Wl,-rpath,' + config.llvm_libs_dir]
 
     additional_tool_dirs=[]
     if config.lldb_lit_tools_dir:
@@ -117,6 +132,6 @@ def use_support_substitutions(config):
 
     support_tools = ['yaml2obj', 'obj2yaml', 'llvm-pdbutil',
                      'llvm-mc', 'llvm-readobj', 'llvm-objdump',
-                     'llvm-objcopy']
+                     'llvm-objcopy', 'lli']
     additional_tool_dirs += [config.lldb_tools_dir, config.llvm_tools_dir]
     llvm_config.add_tool_substitutions(support_tools, additional_tool_dirs)

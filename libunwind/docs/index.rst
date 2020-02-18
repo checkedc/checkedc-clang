@@ -50,7 +50,7 @@ FreeBSD      i386, x86_64, ARM64      Clang        DWARF CFI
 iOS          ARM                      Clang        SjLj
 Linux        ARM                      Clang, GCC   EHABI
 Linux        i386, x86_64, ARM64      Clang, GCC   DWARF CFI
-Mac OS X     i386, x86_64             Clang, GCC   DWARF CFI
+macOS        i386, x86_64             Clang, GCC   DWARF CFI
 NetBSD       x86_64                   Clang, GCC   DWARF CFI
 Windows      i386, x86_64, ARM, ARM64 Clang        DWARF CFI
 ============ ======================== ============ ========================
@@ -101,5 +101,4 @@ Quick Links
 * `LLVM Bugzilla <https://bugs.llvm.org/>`_
 * `cfe-commits Mailing List`_
 * `cfe-dev Mailing List`_
-* `Browse libunwind -- SVN <http://llvm.org/svn/llvm-project/libunwind/trunk/>`_
-* `Browse libunwind -- ViewVC <http://llvm.org/viewvc/llvm-project/libunwind/trunk/>`_
+* `Browse libunwind Sources <https://github.com/llvm/llvm-project/blob/master/libunwind/>`_

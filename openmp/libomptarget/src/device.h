@@ -1,9 +1,8 @@
 //===----------- device.h - Target independent OpenMP target RTL ----------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -97,13 +96,17 @@ struct DeviceTy {
 
   std::mutex DataMapMtx, PendingGlobalsMtx, ShadowMtx;
 
-  uint64_t loopTripCnt;
+  // NOTE: Once libomp gains full target-task support, this state should be
+  // moved into the target task in libomp.
+  std::map<int32_t, uint64_t> LoopTripCnt;
+
+  int64_t RTLRequiresFlags;
 
   DeviceTy(RTLInfoTy *RTL)
       : DeviceID(-1), RTL(RTL), RTLDeviceID(-1), IsInit(false), InitFlag(),
         HasPendingGlobals(false), HostDataToTargetMap(),
         PendingCtorsDtors(), ShadowPtrMap(), DataMapMtx(), PendingGlobalsMtx(),
-        ShadowMtx(), loopTripCnt(0) {}
+        ShadowMtx(), RTLRequiresFlags(0) {}
 
   // The existence of mutexes makes DeviceTy non-copyable. We need to
   // provide a copy constructor and an assignment operator explicitly.
@@ -113,7 +116,8 @@ struct DeviceTy {
         HostDataToTargetMap(d.HostDataToTargetMap),
         PendingCtorsDtors(d.PendingCtorsDtors), ShadowPtrMap(d.ShadowPtrMap),
         DataMapMtx(), PendingGlobalsMtx(),
-        ShadowMtx(), loopTripCnt(d.loopTripCnt) {}
+        ShadowMtx(), LoopTripCnt(d.LoopTripCnt),
+        RTLRequiresFlags(d.RTLRequiresFlags) {}
 
   DeviceTy& operator=(const DeviceTy &d) {
     DeviceID = d.DeviceID;
@@ -124,7 +128,8 @@ struct DeviceTy {
     HostDataToTargetMap = d.HostDataToTargetMap;
     PendingCtorsDtors = d.PendingCtorsDtors;
     ShadowPtrMap = d.ShadowPtrMap;
-    loopTripCnt = d.loopTripCnt;
+    LoopTripCnt = d.LoopTripCnt;
+    RTLRequiresFlags = d.RTLRequiresFlags;
 
     return *this;
   }

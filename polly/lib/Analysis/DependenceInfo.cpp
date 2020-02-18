@@ -1,9 +1,8 @@
 //===- DependenceInfo.cpp - Calculate dependency information for a Scop. --===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -27,15 +26,14 @@
 #include "polly/Support/GICHelper.h"
 #include "polly/Support/ISLTools.h"
 #include "llvm/Support/Debug.h"
-#include <isl/aff.h>
-#include <isl/ctx.h>
-#include <isl/flow.h>
-#include <isl/map.h>
-#include <isl/options.h>
-#include <isl/schedule.h>
-#include <isl/set.h>
-#include <isl/union_map.h>
-#include <isl/union_set.h>
+#include "isl/aff.h"
+#include "isl/ctx.h"
+#include "isl/flow.h"
+#include "isl/map.h"
+#include "isl/schedule.h"
+#include "isl/set.h"
+#include "isl/union_map.h"
+#include "isl/union_set.h"
 
 using namespace polly;
 using namespace llvm;
@@ -386,8 +384,8 @@ static isl_union_map *buildWAR(isl_union_map *Write, isl_union_map *MustWrite,
   //     { [Read+Write -> MemAccess] -> Read+Write }
   // Reverse
   //     { Read+Write -> [Read+Write -> MemAccess] }
-  auto WARMemAccesses = isl_union_map_copy(WAROverestimated);
-  WARMemAccesses = isl_union_map_range_factor_range(WAROverestimated);
+  auto WARMemAccesses =
+      isl_union_map_range_factor_range(isl_union_map_copy(WAROverestimated));
   WARMemAccesses = isl_union_map_domain_map(WARMemAccesses);
   WARMemAccesses = isl_union_map_reverse(WARMemAccesses);
 

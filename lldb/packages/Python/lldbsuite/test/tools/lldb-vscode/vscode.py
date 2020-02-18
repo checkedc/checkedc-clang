@@ -52,11 +52,11 @@ def dump_memory(base_addr, data, num_per_line, outfile):
 
 def read_packet(f, verbose=False, trace_file=None):
     '''Decode a JSON packet that starts with the content length and is
-       followed by the JSON bytes from a file 'f'
+       followed by the JSON bytes from a file 'f'. Returns None on EOF.
     '''
-    line = f.readline()
+    line = f.readline().decode("utf-8")
     if len(line) == 0:
-        return None
+        return None  # EOF.
 
     # Watch for line that starts with the prefix
     prefix = 'Content-Length: '
@@ -91,10 +91,10 @@ def read_packet_thread(vs_comm):
     done = False
     while not done:
         packet = read_packet(vs_comm.recv, trace_file=vs_comm.trace_file)
-        if packet:
-            done = not vs_comm.handle_recv_packet(packet)
-        else:
-            done = True
+        # `packet` will be `None` on EOF. We want to pass it down to
+        # handle_recv_packet anyway so the main thread can handle unexpected
+        # termination of lldb-vscode and stop waiting for new packets.
+        done = not vs_comm.handle_recv_packet(packet)
 
 
 class DebugCommunication(object):
@@ -121,7 +121,7 @@ class DebugCommunication(object):
 
     @classmethod
     def encode_content(cls, s):
-        return "Content-Length: %u\r\n\r\n%s" % (len(s), s)
+        return ("Content-Length: %u\r\n\r\n%s" % (len(s), s)).encode("utf-8")
 
     @classmethod
     def validate_response(cls, command, response):
@@ -146,6 +146,12 @@ class DebugCommunication(object):
         self.output_condition.release()
         return output
 
+    def enqueue_recv_packet(self, packet):
+        self.recv_condition.acquire()
+        self.recv_packets.append(packet)
+        self.recv_condition.notify()
+        self.recv_condition.release()
+
     def handle_recv_packet(self, packet):
         '''Called by the read thread that is waiting for all incoming packets
            to store the incoming packet in "self.recv_packets" in a thread safe
@@ -153,6 +159,11 @@ class DebugCommunication(object):
            indicate a new packet is available. Returns True if the caller
            should keep calling this function for more packets.
         '''
+        # If EOF, notify the read thread by enqueing a None.
+        if not packet:
+            self.enqueue_recv_packet(None)
+            return False
+
         # Check the packet to see if is an event packet
         keepGoing = True
         packet_type = packet['type']
@@ -191,10 +202,7 @@ class DebugCommunication(object):
         elif packet_type == 'response':
             if packet['command'] == 'disconnect':
                 keepGoing = False
-        self.recv_condition.acquire()
-        self.recv_packets.append(packet)
-        self.recv_condition.notify()
-        self.recv_condition.release()
+        self.enqueue_recv_packet(packet)
         return keepGoing
 
     def send_packet(self, command_dict, set_sequence=True):
@@ -222,27 +230,33 @@ class DebugCommunication(object):
            function will wait for the packet to arrive and return it when
            it does.'''
         while True:
-            self.recv_condition.acquire()
-            packet = None
-            while True:
-                for (i, curr_packet) in enumerate(self.recv_packets):
-                    packet_type = curr_packet['type']
-                    if filter_type is None or packet_type in filter_type:
-                        if (filter_event is None or
-                            (packet_type == 'event' and
-                             curr_packet['event'] in filter_event)):
-                            packet = self.recv_packets.pop(i)
-                            break
-                if packet:
-                    break
-                # Sleep until packet is received
-                len_before = len(self.recv_packets)
-                self.recv_condition.wait(timeout)
-                len_after = len(self.recv_packets)
-                if len_before == len_after:
-                    return None  # Timed out
-            self.recv_condition.release()
-            return packet
+            try:
+                self.recv_condition.acquire()
+                packet = None
+                while True:
+                    for (i, curr_packet) in enumerate(self.recv_packets):
+                        if not curr_packet:
+                            raise EOFError
+                        packet_type = curr_packet['type']
+                        if filter_type is None or packet_type in filter_type:
+                            if (filter_event is None or
+                                (packet_type == 'event' and
+                                 curr_packet['event'] in filter_event)):
+                                packet = self.recv_packets.pop(i)
+                                break
+                    if packet:
+                        break
+                    # Sleep until packet is received
+                    len_before = len(self.recv_packets)
+                    self.recv_condition.wait(timeout)
+                    len_after = len(self.recv_packets)
+                    if len_before == len_after:
+                        return None  # Timed out
+                return packet
+            except EOFError:
+                return None
+            finally:
+                self.recv_condition.release()
 
         return None
 
@@ -433,8 +447,10 @@ class DebugCommunication(object):
             args_dict['waitFor'] = waitFor
         if trace:
             args_dict['trace'] = trace
+        args_dict['initCommands'] = [
+            'settings set symbols.enable-external-lookup false']
         if initCommands:
-            args_dict['initCommands'] = initCommands
+            args_dict['initCommands'].extend(initCommands)
         if preRunCommands:
             args_dict['preRunCommands'] = preRunCommands
         if stopCommands:
@@ -568,8 +584,10 @@ class DebugCommunication(object):
             args_dict['shellExpandArguments'] = shellExpandArguments
         if trace:
             args_dict['trace'] = trace
+        args_dict['initCommands'] = [
+            'settings set symbols.enable-external-lookup false']
         if initCommands:
-            args_dict['initCommands'] = initCommands
+            args_dict['initCommands'].extend(initCommands)
         if preRunCommands:
             args_dict['preRunCommands'] = preRunCommands
         if stopCommands:

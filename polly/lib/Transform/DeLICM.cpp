@@ -1,9 +1,8 @@
 //===------ DeLICM.cpp -----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -16,13 +15,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "polly/DeLICM.h"
+#include "polly/LinkAllPasses.h"
 #include "polly/Options.h"
 #include "polly/ScopInfo.h"
 #include "polly/ScopPass.h"
+#include "polly/Support/GICHelper.h"
 #include "polly/Support/ISLOStream.h"
 #include "polly/Support/ISLTools.h"
 #include "polly/ZoneAlgo.h"
 #include "llvm/ADT/Statistic.h"
+
 #define DEBUG_TYPE "polly-delicm"
 
 using namespace polly;
@@ -898,8 +900,9 @@ private:
     }
 
     //  { DomainRead[] -> Scatter[] }
-    auto PerPHIWriteScatter =
-        isl::map::from_union_map(PerPHIWrites.apply_range(Schedule));
+    isl::union_map PerPHIWriteScatterUmap = PerPHIWrites.apply_range(Schedule);
+    isl::map PerPHIWriteScatter =
+        singleton(PerPHIWriteScatterUmap, PHISched.get_space());
 
     // { DomainRead[] -> Zone[] }
     auto Lifetime = betweenScatter(PerPHIWriteScatter, PHISched, false, true);

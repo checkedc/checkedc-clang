@@ -20,16 +20,16 @@ macro (add_cfi_test_suites lld thinlto newpm)
   set(CFI_LIT_TEST_MODE Standalone)
   set(CFI_TEST_CONFIG_SUFFIX -standalone${suffix})
   configure_lit_site_cfg(
-    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.in
-    ${CMAKE_CURRENT_BINARY_DIR}/Standalone${suffix}/lit.site.cfg
+    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+    ${CMAKE_CURRENT_BINARY_DIR}/Standalone${suffix}/lit.site.cfg.py
     )
   list(APPEND CFI_TESTSUITES ${CMAKE_CURRENT_BINARY_DIR}/Standalone${suffix})
 
   set(CFI_LIT_TEST_MODE Devirt)
   set(CFI_TEST_CONFIG_SUFFIX -devirt${suffix})
   configure_lit_site_cfg(
-    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.in
-    ${CMAKE_CURRENT_BINARY_DIR}/Devirt${suffix}/lit.site.cfg
+    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+    ${CMAKE_CURRENT_BINARY_DIR}/Devirt${suffix}/lit.site.cfg.py
     )
   list(APPEND CFI_TESTSUITES ${CMAKE_CURRENT_BINARY_DIR}/Devirt${suffix})
 endmacro()
@@ -74,15 +74,17 @@ if(NOT COMPILER_RT_STANDALONE_BUILD)
     opt
     sanstats
   )
-  if(LLVM_ENABLE_PIC AND LLVM_BINUTILS_INCDIR)
-    list(APPEND CFI_TEST_DEPS
-      LLVMgold
-    )
-  endif()
-  if(APPLE)
-    list(APPEND CFI_TEST_DEPS
-      LTO
-    )
+  if(LLVM_ENABLE_PIC)
+    if(LLVM_BINUTILS_INCDIR)
+      list(APPEND CFI_TEST_DEPS
+        LLVMgold
+      )
+    endif()
+    if(APPLE)
+      list(APPEND CFI_TEST_DEPS
+        LTO
+      )
+    endif()
   endif()
   if(NOT APPLE AND COMPILER_RT_HAS_LLD)
     list(APPEND CFI_TEST_DEPS

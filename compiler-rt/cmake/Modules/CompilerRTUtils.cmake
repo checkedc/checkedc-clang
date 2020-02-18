@@ -128,7 +128,7 @@ macro(test_target_arch arch def)
     if(NOT HAS_${arch}_DEF)
       set(CAN_TARGET_${arch} FALSE)
     elseif(TEST_COMPILE_ONLY)
-      try_compile_only(CAN_TARGET_${arch} ${TARGET_${arch}_CFLAGS})
+      try_compile_only(CAN_TARGET_${arch} FLAGS ${TARGET_${arch}_CFLAGS})
     else()
       set(FLAG_NO_EXCEPTIONS "")
       if(COMPILER_RT_HAS_FNO_EXCEPTIONS_FLAG)
@@ -162,6 +162,8 @@ macro(detect_target_arch)
   check_symbol_exists(__powerpc64le__ "" __PPC64LE)
   check_symbol_exists(__riscv "" __RISCV)
   check_symbol_exists(__s390x__ "" __S390X)
+  check_symbol_exists(__sparc "" __SPARC)
+  check_symbol_exists(__sparcv9 "" __SPARCV9)
   check_symbol_exists(__wasm32__ "" __WEBASSEMBLY32)
   check_symbol_exists(__wasm64__ "" __WEBASSEMBLY64)
   if(__ARM)
@@ -190,6 +192,10 @@ macro(detect_target_arch)
     endif()
   elseif(__S390X)
     add_default_target_arch(s390x)
+  elseif(__SPARCV9)
+    add_default_target_arch(sparcv9)
+  elseif(__SPARC)
+    add_default_target_arch(sparc)
   elseif(__WEBASSEMBLY32)
     add_default_target_arch(wasm32)
   elseif(__WEBASSEMBLY64)
@@ -233,7 +239,8 @@ macro(load_llvm_config)
     execute_process(
       COMMAND ${LLVM_CONFIG_PATH} "--ldflags" "--libs" "xray"
       RESULT_VARIABLE HAD_ERROR
-      OUTPUT_VARIABLE CONFIG_OUTPUT)
+      OUTPUT_VARIABLE CONFIG_OUTPUT
+      ERROR_QUIET)
     if (HAD_ERROR)
       message(WARNING "llvm-config finding xray failed with status ${HAD_ERROR}")
       set(COMPILER_RT_HAS_LLVMXRAY FALSE)
@@ -250,7 +257,8 @@ macro(load_llvm_config)
     execute_process(
       COMMAND ${LLVM_CONFIG_PATH} "--ldflags" "--libs" "testingsupport"
       RESULT_VARIABLE HAD_ERROR
-      OUTPUT_VARIABLE CONFIG_OUTPUT)
+      OUTPUT_VARIABLE CONFIG_OUTPUT
+      ERROR_QUIET)
     if (HAD_ERROR)
       message(WARNING "llvm-config finding testingsupport failed with status ${HAD_ERROR}")
     else()
@@ -363,7 +371,7 @@ endfunction()
 function(get_compiler_rt_install_dir arch install_dir)
   if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
     get_compiler_rt_target(${arch} target)
-    set(${install_dir} ${COMPILER_RT_INSTALL_PATH}/${target}/lib PARENT_SCOPE)
+    set(${install_dir} ${COMPILER_RT_INSTALL_PATH}/lib/${target} PARENT_SCOPE)
   else()
     set(${install_dir} ${COMPILER_RT_LIBRARY_INSTALL_DIR} PARENT_SCOPE)
   endif()
@@ -372,7 +380,7 @@ endfunction()
 function(get_compiler_rt_output_dir arch output_dir)
   if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
     get_compiler_rt_target(${arch} target)
-    set(${output_dir} ${COMPILER_RT_OUTPUT_DIR}/${target}/lib PARENT_SCOPE)
+    set(${output_dir} ${COMPILER_RT_OUTPUT_DIR}/lib/${target} PARENT_SCOPE)
   else()
     set(${output_dir} ${COMPILER_RT_LIBRARY_OUTPUT_DIR} PARENT_SCOPE)
   endif()
@@ -412,4 +420,54 @@ function(compiler_rt_process_sources OUTPUT_VAR)
     endif()
   endif()
   set("${OUTPUT_VAR}" ${sources} ${headers} PARENT_SCOPE)
+endfunction()
+
+# Create install targets for a library and its parent component (if specified).
+function(add_compiler_rt_install_targets name)
+  cmake_parse_arguments(ARG "" "PARENT_TARGET" "" ${ARGN})
+
+  if(ARG_PARENT_TARGET AND NOT TARGET install-${ARG_PARENT_TARGET})
+    # The parent install target specifies the parent component to scrape up
+    # anything not installed by the individual install targets, and to handle
+    # installation when running the multi-configuration generators.
+    add_custom_target(install-${ARG_PARENT_TARGET}
+                      DEPENDS ${ARG_PARENT_TARGET}
+                      COMMAND "${CMAKE_COMMAND}"
+                              -DCMAKE_INSTALL_COMPONENT=${ARG_PARENT_TARGET}
+                              -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")
+    add_custom_target(install-${ARG_PARENT_TARGET}-stripped
+                      DEPENDS ${ARG_PARENT_TARGET}
+                      COMMAND "${CMAKE_COMMAND}"
+                              -DCMAKE_INSTALL_COMPONENT=${ARG_PARENT_TARGET}
+                              -DCMAKE_INSTALL_DO_STRIP=1
+                              -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")
+    set_target_properties(install-${ARG_PARENT_TARGET} PROPERTIES
+                          FOLDER "Compiler-RT Misc")
+    set_target_properties(install-${ARG_PARENT_TARGET}-stripped PROPERTIES
+                          FOLDER "Compiler-RT Misc")
+    add_dependencies(install-compiler-rt install-${ARG_PARENT_TARGET})
+    add_dependencies(install-compiler-rt-stripped install-${ARG_PARENT_TARGET}-stripped)
+  endif()
+
+  # We only want to generate per-library install targets if you aren't using
+  # an IDE because the extra targets get cluttered in IDEs.
+  if(NOT CMAKE_CONFIGURATION_TYPES)
+    add_custom_target(install-${name}
+                      DEPENDS ${name}
+                      COMMAND "${CMAKE_COMMAND}"
+                              -DCMAKE_INSTALL_COMPONENT=${name}
+                              -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")
+    add_custom_target(install-${name}-stripped
+                      DEPENDS ${name}
+                      COMMAND "${CMAKE_COMMAND}"
+                              -DCMAKE_INSTALL_COMPONENT=${name}
+                              -DCMAKE_INSTALL_DO_STRIP=1
+                              -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")
+    # If you have a parent target specified, we bind the new install target
+    # to the parent install target.
+    if(LIB_PARENT_TARGET)
+      add_dependencies(install-${LIB_PARENT_TARGET} install-${name})
+      add_dependencies(install-${LIB_PARENT_TARGET}-stripped install-${name}-stripped)
+    endif()
+  endif()
 endfunction()

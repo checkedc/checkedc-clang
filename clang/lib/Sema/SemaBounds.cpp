@@ -381,11 +381,9 @@ namespace {
           ResultKind = VK_LValue;
         else
           ResultKind = Base->isLValue() ? VK_LValue : VK_RValue;
-        MemberExpr *ME =
-          new (Context) MemberExpr(Base, IsArrow,
-                                   SourceLocation(), FD, SourceLocation(),
-                                   E->getType(), ResultKind, OK_Ordinary);
-        return ME;
+        return
+          MemberExpr::CreateImplicit(Context, Base, IsArrow, FD,
+                                     E->getType(), ResultKind, OK_Ordinary);
       }
       return E;
     }

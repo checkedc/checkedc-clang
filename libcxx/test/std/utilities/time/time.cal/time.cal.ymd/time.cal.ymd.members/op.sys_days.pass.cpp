@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
@@ -45,7 +44,7 @@ void RunTheExample()
     static_assert(year_month_day{sys_days{year{2017}/January/32}} == year{2017}/February/1);  
 }
 
-int main()
+int main(int, char**)
 {
     using year           = std::chrono::year;
     using month          = std::chrono::month;
@@ -91,4 +90,28 @@ int main()
     assert( year_month_day{sd} == ymd); // and back
     }
 
+//  These two tests check the wording for LWG 3206
+    {
+    constexpr year_month_day ymd{year{1971}, month{1}, day{0}}; // bad day
+    static_assert(!ymd.ok(),         "");
+    static_assert( ymd.year().ok(),  "");
+    static_assert( ymd.month().ok(), "");
+    static_assert(!ymd.day().ok(),   "");
+    constexpr sys_days sd{ymd};
+    static_assert(sd.time_since_epoch() == days{364}, "");
+    static_assert(sd == sys_days{ymd.year()/ymd.month()/day{1}} + (ymd.day() - day{1}), "");
+    }
+
+    {
+    constexpr year_month_day ymd{year{1970}, month{12}, day{32}}; // bad day
+    static_assert(!ymd.ok(),         "");
+    static_assert( ymd.year().ok(),  "");
+    static_assert( ymd.month().ok(), "");
+    static_assert(!ymd.day().ok(),   "");
+    constexpr sys_days sd{ymd};
+    static_assert(sd.time_since_epoch() == days{365}, "");
+    static_assert(sd == sys_days{ymd.year()/ymd.month()/day{1}} + (ymd.day() - day{1}), "");
+    }
+
+    return 0;
 }

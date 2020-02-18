@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -75,7 +74,19 @@ void test_string_ctor()
     }
 }
 
-int main()
+struct Nonsense {
+    virtual ~Nonsense() {}
+};
+
+void test_for_non_eager_instantiation() {
+    // Ensure we don't accidentally instantiate `std::basic_string<Nonsense>`
+    // since it may not be well formed and can cause an error in the
+    // non-immediate context.
+    static_assert(!std::is_constructible<std::bitset<3>, Nonsense*>::value, "");
+    static_assert(!std::is_constructible<std::bitset<3>, Nonsense*, size_t, Nonsense&, Nonsense&>::value, "");
+}
+
+int main(int, char**)
 {
     test_string_ctor<0>();
     test_string_ctor<1>();
@@ -86,4 +97,7 @@ int main()
     test_string_ctor<64>();
     test_string_ctor<65>();
     test_string_ctor<1000>();
+    test_for_non_eager_instantiation();
+
+  return 0;
 }

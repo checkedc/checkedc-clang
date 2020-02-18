@@ -1,9 +1,8 @@
 //===--- AST.h - Utility AST functions  -------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -14,9 +13,10 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_AST_H_
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_AST_H_
 
-#include "index/Index.h"
+#include "index/SymbolID.h"
 #include "clang/AST/Decl.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Lex/MacroInfo.h"
 
 namespace clang {
 class SourceManager;
@@ -47,6 +47,12 @@ std::string printNamespaceScope(const DeclContext &DC);
 /// "(anonymous struct)" or "(anonymous namespace)".
 std::string printName(const ASTContext &Ctx, const NamedDecl &ND);
 
+/// Prints template arguments of a decl as written in the source code, including
+/// enclosing '<' and '>', e.g for a partial specialization like: template
+/// <typename U> struct Foo<int, U> will return '<int, U>'. Returns an empty
+/// string if decl is not a template specialization.
+std::string printTemplateSpecializationArgs(const NamedDecl &ND);
+
 /// Gets the symbol ID for a declaration, if possible.
 llvm::Optional<SymbolID> getSymbolID(const Decl *D);
 
@@ -60,6 +66,22 @@ llvm::Optional<SymbolID> getSymbolID(const Decl *D);
 llvm::Optional<SymbolID> getSymbolID(const IdentifierInfo &II,
                                      const MacroInfo *MI,
                                      const SourceManager &SM);
+
+/// Returns a QualType as string.
+std::string printType(const QualType QT, const DeclContext & Context);
+
+/// Try to shorten the OriginalName by removing namespaces from the left of
+/// the string that are redundant in the CurrentNamespace. This way the type
+/// idenfier become shorter and easier to read.
+/// Limitation: It only handles the qualifier of the type itself, not that of
+/// templates.
+/// FIXME: change type of parameter CurrentNamespace to DeclContext ,
+/// take in to account using directives etc
+/// Example: shortenNamespace("ns1::MyClass<ns1::OtherClass>", "ns1")
+///    --> "MyClass<ns1::OtherClass>"
+std::string  shortenNamespace(const llvm::StringRef OriginalName,
+                              const llvm::StringRef CurrentNamespace);
+
 
 } // namespace clangd
 } // namespace clang

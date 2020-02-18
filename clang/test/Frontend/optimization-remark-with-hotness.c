@@ -9,31 +9,37 @@
 // RUN: %clang_cc1 -triple x86_64-apple-macosx10.9 -main-file-name \
 // RUN:     optimization-remark-with-hotness.c %s -emit-llvm-only \
 // RUN:     -fprofile-instrument-use-path=%t.profdata -Rpass=inline \
+// RUN:     -fno-experimental-new-pass-manager \
 // RUN:     -Rpass-analysis=inline -Rpass-missed=inline \
 // RUN:     -fdiagnostics-show-hotness -verify
 // The clang version of the previous test.
 // RUN: %clang -target x86_64-apple-macosx10.9 %s -c -emit-llvm -o /dev/null \
 // RUN:     -fprofile-instr-use=%t.profdata -Rpass=inline \
+// RUN:     -fno-experimental-new-pass-manager \
 // RUN:     -Rpass-analysis=inline -Rpass-missed=inline \
 // RUN:     -fdiagnostics-show-hotness -Xclang -verify
 // RUN: %clang_cc1 -triple x86_64-apple-macosx10.9 -main-file-name \
 // RUN:     optimization-remark-with-hotness.c %s -emit-llvm-only \
 // RUN:     -fprofile-sample-use=%t-sample.profdata -Rpass=inline \
+// RUN:     -fno-experimental-new-pass-manager \
 // RUN:     -Rpass-analysis=inline -Rpass-missed=inline \
 // RUN:     -fdiagnostics-show-hotness -fdiagnostics-hotness-threshold=10 \
 // RUN:     -verify
 // RUN: %clang_cc1 -triple x86_64-apple-macosx10.9 -main-file-name \
 // RUN:     optimization-remark-with-hotness.c %s -emit-llvm-only \
 // RUN:     -fprofile-instrument-use-path=%t.profdata -Rpass=inline \
+// RUN:     -fno-experimental-new-pass-manager \
 // RUN:     -Rpass-analysis=inline -Rpass-missed=inline \
 // RUN:     -fdiagnostics-show-hotness -fdiagnostics-hotness-threshold=10 -verify
 // RUN: %clang_cc1 -triple x86_64-apple-macosx10.9 -main-file-name \
 // RUN:     optimization-remark-with-hotness.c %s -emit-llvm-only \
 // RUN:     -fprofile-instrument-use-path=%t.profdata -Rpass=inline \
+// RUN:     -fno-experimental-new-pass-manager \
 // RUN:     -Rpass-analysis=inline 2>&1 | FileCheck -check-prefix=HOTNESS_OFF %s
 // RUN: %clang_cc1 -triple x86_64-apple-macosx10.9 -main-file-name \
 // RUN:     optimization-remark-with-hotness.c %s -emit-llvm-only \
 // RUN:     -fprofile-instrument-use-path=%t.profdata -Rpass=inline \
+// RUN:     -fno-experimental-new-pass-manager \
 // RUN:     -Rpass-analysis=inline -Rno-pass-with-hotness 2>&1 | FileCheck \
 // RUN:     -check-prefix=HOTNESS_OFF %s
 // RUN: %clang_cc1 -triple x86_64-apple-macosx10.9 -main-file-name \
@@ -66,7 +72,7 @@ void bar(int x) {
 
 int main(int argc, const char *argv[]) {
   for (int i = 0; i < 30; i++)
-    // expected-remark@+1 {{bar not inlined into main because it should never be inlined (cost=never): always inliner (hotness:}}
+    // expected-remark@+1 {{bar not inlined into main because it should never be inlined (cost=never): no alwaysinline attribute (hotness:}}
     bar(argc);
   return sum;
 }

@@ -47,7 +47,7 @@ void target_template(int arg) {
 #pragma omp target
   {
 #ifdef NO_VLA
-    // expected-error@+2 {{variable length arrays are not supported for the current target}}
+    // expected-error@+2 2 {{variable length arrays are not supported for the current target}}
 #endif
     T vla[arg];
   }
@@ -73,6 +73,9 @@ void target(int arg) {
     }
   }
 
+#ifdef NO_VLA
+    // expected-note@+2 {{in instantiation of function template specialization 'target_template<long>' requested here}}
+#endif
   target_template<long>(arg);
 }
 
@@ -202,5 +205,11 @@ void for_reduction(int arg) {
 #pragma omp target map(vla[0:arg])
 #pragma omp parallel
 #pragma omp for reduction(+: vla[0:arg])
+  for (int i = 0; i < arg; i++) ;
+#ifdef NO_VLA
+  // expected-error@+3 {{cannot generate code for reduction on array section, which requires a variable length array}}
+  // expected-note@+2 {{variable length arrays are not supported for the current target}}
+#endif
+#pragma omp target reduction(+ : vla[0:arg])
   for (int i = 0; i < arg; i++) ;
 }

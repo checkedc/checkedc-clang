@@ -1,9 +1,8 @@
 //===-- Windows.cpp ---------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -85,7 +84,7 @@ char *strcasestr(const char *s, const char *find) {
     } while (strncasecmp(s, find, len) != 0);
     s--;
   }
-  return ((char *)s);
+  return const_cast<char *>(s);
 }
 
 char *realpath(const char *name, char *resolved) {

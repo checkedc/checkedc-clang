@@ -590,11 +590,20 @@ Lexicographic::CompareImpl(const GenericSelectionExpr *E1,
   Result Cmp = CompareInteger(E1AssocCount, E2->getNumAssocs());
   if (Cmp != Result::Equal)
     return Cmp;
-  for (unsigned i = 0; i != E1AssocCount; ++i) {
-    Cmp = CompareType(E1->getAssocType(i), E2->getAssocType(i));
+
+  std::vector<QualType> E1AssocTypes;
+  std::vector<const Expr *> E1AssocExprs;
+  for (const auto &E1Assoc : E1->associations()) {
+    E1AssocTypes.push_back(E1Assoc.getType());
+    E1AssocExprs.push_back(E1Assoc.getAssociationExpr());
+  }
+
+  unsigned i = 0;
+  for (const auto &E2Assoc : E2->associations()) {
+    Cmp = CompareType(E1AssocTypes[i], E2Assoc.getType());
     if (Cmp != Result::Equal)
       return Cmp;
-    Cmp = CompareExpr(E1->getAssocExpr(i), E2->getAssocExpr(i));
+    Cmp = CompareExpr(E1AssocExprs[i], E2Assoc.getAssociationExpr());
     if (Cmp != Result::Equal)
       return Cmp;
     return Cmp;

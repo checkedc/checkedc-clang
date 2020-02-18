@@ -1,9 +1,8 @@
 //===--- SymbolCollector.h ---------------------------------------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_SYMBOL_COLLECTOR_H
@@ -11,6 +10,7 @@
 
 #include "CanonicalIncludes.h"
 #include "Index.h"
+#include "SymbolOrigin.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/Basic/SourceLocation.h"
@@ -19,6 +19,7 @@
 #include "clang/Index/IndexSymbol.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/Support/Regex.h"
 #include <functional>
 
 namespace clang {
@@ -76,6 +77,10 @@ public:
     /// Collect symbols local to main-files, such as static functions
     /// and symbols inside an anonymous namespace.
     bool CollectMainFileSymbols = true;
+    /// If set to true, SymbolCollector will collect doc for all symbols.
+    /// Note that documents of symbols being indexed for completion will always
+    /// be collected regardless of this option.
+    bool StoreAllDocumentation = false;
     /// If this is set, only collect symbols/references from a file if
     /// `FileFilter(SM, FID)` is true. If not set, all files are indexed.
     std::function<bool(const SourceManager &, FileID)> FileFilter = nullptr;
@@ -105,19 +110,37 @@ public:
 
   SymbolSlab takeSymbols() { return std::move(Symbols).build(); }
   RefSlab takeRefs() { return std::move(Refs).build(); }
+  RelationSlab takeRelations() { return std::move(Relations).build(); }
 
   void finish() override;
 
 private:
-  const Symbol *addDeclaration(const NamedDecl &, SymbolID, bool IsMainFileSymbol);
+  const Symbol *addDeclaration(const NamedDecl &, SymbolID,
+                               bool IsMainFileSymbol);
   void addDefinition(const NamedDecl &, const Symbol &DeclSymbol);
+  void processRelations(const NamedDecl &ND, const SymbolID &ID,
+                        ArrayRef<index::SymbolRelation> Relations);
+
+  llvm::Optional<std::string> getIncludeHeader(llvm::StringRef QName, FileID);
+  bool isSelfContainedHeader(FileID);
+  // Heuristically headers that only want to be included via an umbrella.
+  static bool isDontIncludeMeHeader(llvm::StringRef);
 
   // All Symbols collected from the AST.
   SymbolSlab::Builder Symbols;
-  // All refs collected from the AST.
-  // Only symbols declared in preamble (from #include) and referenced from the
-  // main file will be included.
+  // File IDs for Symbol.IncludeHeaders.
+  // The final spelling is calculated in finish().
+  llvm::DenseMap<SymbolID, FileID> IncludeFiles;
+  void setIncludeLocation(const Symbol &S, SourceLocation);
+  // Indexed macros, to be erased if they turned out to be include guards.
+  llvm::DenseSet<const IdentifierInfo *> IndexedMacros;
+  // All refs collected from the AST. It includes:
+  //   1) symbols declared in the preamble and referenced from the main file (
+  //     which is not a header), or
+  //   2) symbols declared and referenced from the main file (which is a header)
   RefSlab::Builder Refs;
+  // All relations collected from the AST.
+  RelationSlab::Builder Relations;
   ASTContext *ASTCtx;
   std::shared_ptr<Preprocessor> PP;
   std::shared_ptr<GlobalCodeCompletionAllocator> CompletionAllocator;
@@ -136,8 +159,10 @@ private:
   llvm::DenseMap<const Decl *, const Decl *> CanonicalDecls;
   // Cache whether to index a file or not.
   llvm::DenseMap<FileID, bool> FilesToIndexCache;
+  llvm::DenseMap<FileID, bool> HeaderIsSelfContainedCache;
 };
 
 } // namespace clangd
 } // namespace clang
+
 #endif

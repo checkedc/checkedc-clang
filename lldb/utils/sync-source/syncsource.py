@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 """
-                     The LLVM Compiler Infrastructure
-
-This file is distributed under the University of Illinois Open Source
-License. See LICENSE.TXT for details.
+Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+See https://llvm.org/LICENSE.txt for license information.
+SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 Sync lldb and related source from a local machine to a remote machine.
 
@@ -12,7 +11,7 @@ and multiple OS types, verifying changes across all.
 """
 
 import argparse
-import cStringIO
+import io
 import importlib
 import json
 import os.path
@@ -90,11 +89,11 @@ def read_rcfile(filename):
     # preserving the line count.
     regex = re.compile(r"#.*$")
 
-    comment_stripped_file = cStringIO.StringIO()
+    comment_stripped_file = io.StringIO()
     with open(filename, "r") as json_file:
         for line in json_file:
             comment_stripped_file.write(regex.sub("", line))
-    return json.load(cStringIO.StringIO(comment_stripped_file.getvalue()))
+    return json.load(io.StringIO(comment_stripped_file.getvalue()))
 
 
 def find_appropriate_rcfile(options):
@@ -149,7 +148,7 @@ def get_configuration(options, rcdata, config_name):
 def create_transfer_agent(options, configuration):
     transfer_class_spec = configuration.get_value("transfer_class")
     if options.verbose:
-        print "specified transfer class: '{}'".format(transfer_class_spec)
+        print("specified transfer class: '{}'".format(transfer_class_spec))
 
     # Load the module (possibly package-qualified).
     components = transfer_class_spec.split(".")
@@ -251,7 +250,7 @@ def main():
     rc_filename = find_appropriate_rcfile(options)
     if rc_filename:
         if options.verbose:
-            print "reading rc data from file '{}'".format(rc_filename)
+            print("reading rc data from file '{}'".format(rc_filename))
         rcdata = read_rcfile(rc_filename)
     else:
         sys.stderr.write("no rcfile specified, cannot guess configuration")

@@ -7,6 +7,10 @@
 #include <thread>
 #ifdef __USE_POSIX
 #include <pthread.h>
+#elif defined(__APPLE__)
+#include <sys/resource.h>
+#elif defined (_WIN32)
+#include <windows.h>
 #endif
 
 namespace clang {
@@ -108,23 +112,6 @@ void wait(std::unique_lock<std::mutex> &Lock, std::condition_variable &CV,
     return CV.wait(Lock);
   CV.wait_until(Lock, D.time());
 }
-
-static std::atomic<bool> AvoidThreadStarvation = {false};
-
-void setCurrentThreadPriority(ThreadPriority Priority) {
-  // Some *really* old glibcs are missing SCHED_IDLE.
-#if defined(__linux__) && defined(SCHED_IDLE)
-  sched_param priority;
-  priority.sched_priority = 0;
-  pthread_setschedparam(
-      pthread_self(),
-      Priority == ThreadPriority::Low && !AvoidThreadStarvation ? SCHED_IDLE
-                                                                : SCHED_OTHER,
-      &priority);
-#endif
-}
-
-void preventThreadStarvationInTests() { AvoidThreadStarvation = true; }
 
 } // namespace clangd
 } // namespace clang
