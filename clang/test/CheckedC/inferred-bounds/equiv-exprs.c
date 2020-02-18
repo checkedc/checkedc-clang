@@ -10,6 +10,8 @@
 
 extern int a1 [12];
 extern void g1(void);
+extern void g2(int i);
+extern void g3(array_ptr<int> arr : count(1));
 
 // DeclRefExpr
 void f1(int i, int a checked[5]) {
@@ -514,6 +516,119 @@ void f6(int i, array_ptr<int> arr : count(1)) {
   // CHECK-NEXT: }
 }
 
+// CallExpr
+void f7(void) {
+  // Function with no parameters
+  g1();
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'g1'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'g1'
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'g1'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'g1'
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: CallExpr {{.*}} 'void'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'g1'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: { }
+
+  // Function with no parameter annotations
+  g2(0);
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'g2'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'g2'
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'g2'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'g2'
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: CallExpr {{.*}} 'void'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'g2'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: { }
+
+  // Function with parameter annotations
+  g3(0);
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'g3'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'g3'
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'g3'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'g3'
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <NullToPointer>
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <NullToPointer>
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: }
+  // CHECK: Statement S:
+  // CHECK-NEXT: CallExpr {{.*}} 'void'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'g3'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <NullToPointer>
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
