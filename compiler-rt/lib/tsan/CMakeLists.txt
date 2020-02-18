@@ -61,7 +61,6 @@ set(TSAN_CXX_SOURCES
 if(APPLE)
   list(APPEND TSAN_SOURCES
     rtl/tsan_interceptors_mac.cc
-    rtl/tsan_libdispatch_mac.cc
     rtl/tsan_platform_mac.cc
     rtl/tsan_platform_posix.cc)
 elseif(UNIX)
@@ -69,6 +68,11 @@ elseif(UNIX)
   list(APPEND TSAN_SOURCES
     rtl/tsan_platform_linux.cc
     rtl/tsan_platform_posix.cc)
+endif()
+
+if(COMPILER_RT_INTERCEPT_LIBDISPATCH)
+  list(APPEND TSAN_SOURCES rtl/tsan_libdispatch.cc)
+  list(APPEND TSAN_RTL_CFLAGS ${COMPILER_RT_LIBDISPATCH_CFLAGS})
 endif()
 
 set(TSAN_HEADERS
@@ -236,6 +240,7 @@ endif()
 
 # Build libcxx instrumented with TSan.
 if(COMPILER_RT_LIBCXX_PATH AND
+   COMPILER_RT_LIBCXXABI_PATH AND
    COMPILER_RT_TEST_COMPILER_ID STREQUAL "Clang" AND
    NOT ANDROID)
   set(libcxx_tsan_deps)

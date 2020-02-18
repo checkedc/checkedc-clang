@@ -1,9 +1,8 @@
 //===--------- SCEVAffinator.cpp  - Create Scops from LLVM IR -------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -16,7 +15,6 @@
 #include "polly/ScopInfo.h"
 #include "polly/Support/GICHelper.h"
 #include "polly/Support/SCEVValidator.h"
-#include "polly/Support/ScopHelper.h"
 #include "isl/aff.h"
 #include "isl/local_space.h"
 #include "isl/set.h"
@@ -437,8 +435,24 @@ PWACtx SCEVAffinator::visitSMaxExpr(const SCEVSMaxExpr *Expr) {
   return Max;
 }
 
+PWACtx SCEVAffinator::visitSMinExpr(const SCEVSMinExpr *Expr) {
+  PWACtx Min = visit(Expr->getOperand(0));
+
+  for (int i = 1, e = Expr->getNumOperands(); i < e; ++i) {
+    Min = combine(Min, visit(Expr->getOperand(i)), isl_pw_aff_min);
+    if (isTooComplex(Min))
+      return complexityBailout();
+  }
+
+  return Min;
+}
+
 PWACtx SCEVAffinator::visitUMaxExpr(const SCEVUMaxExpr *Expr) {
   llvm_unreachable("SCEVUMaxExpr not yet supported");
+}
+
+PWACtx SCEVAffinator::visitUMinExpr(const SCEVUMinExpr *Expr) {
+  llvm_unreachable("SCEVUMinExpr not yet supported");
 }
 
 PWACtx SCEVAffinator::visitUDivExpr(const SCEVUDivExpr *Expr) {

@@ -1,9 +1,15 @@
+# XFAIL: system-netbsd
+# UNSUPPORTED: system-linux
+#
 # RUN: %build %p/inputs/main.c --nodefaultlib -o %t
 # RUN: %lldbmi %t < %s | FileCheck %s
 
 # Test lldb-mi -exec-next command.
 
 # Check that we have a valid target created via '%lldbmi %t'.
+# CHECK: ^done
+
+settings set symbols.enable-external-lookup false
 # CHECK: ^done
 
 -break-insert main

@@ -1,10 +1,9 @@
 //===-- PlatformDarwinKernel.cpp -----------------------------------*- C++
 //-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -36,19 +35,17 @@
 
 #include <CoreFoundation/CoreFoundation.h>
 
+#include <memory>
+
 #include "Host/macosx/cfcpp/CFCBundle.h"
 
 using namespace lldb;
 using namespace lldb_private;
 
-//------------------------------------------------------------------
 // Static Variables
-//------------------------------------------------------------------
 static uint32_t g_initialize_count = 0;
 
-//------------------------------------------------------------------
 // Static Functions
-//------------------------------------------------------------------
 void PlatformDarwinKernel::Initialize() {
   PlatformDarwin::Initialize();
 
@@ -179,9 +176,7 @@ const char *PlatformDarwinKernel::GetDescriptionStatic() {
   return "Darwin Kernel platform plug-in.";
 }
 
-//------------------------------------------------------------------
 /// Code to handle the PlatformDarwinKernel settings
-//------------------------------------------------------------------
 
 static constexpr PropertyDefinition g_properties[] = {
     {"search-locally-for-kexts", OptionValue::eTypeBoolean, true, true, NULL,
@@ -201,7 +196,7 @@ public:
   }
 
   PlatformDarwinKernelProperties() : Properties() {
-    m_collection_sp.reset(new OptionValueProperties(GetSettingName()));
+    m_collection_sp = std::make_shared<OptionValueProperties>(GetSettingName());
     m_collection_sp->Initialize(g_properties);
   }
 
@@ -213,9 +208,9 @@ public:
         NULL, idx, g_properties[idx].default_uint_value != 0);
   }
 
-  FileSpecList &GetKextDirectories() const {
+  FileSpecList GetKextDirectories() const {
     const uint32_t idx = ePropertyKextDirectories;
-    OptionValueFileSpecList *option_value =
+    const OptionValueFileSpecList *option_value =
         m_collection_sp->GetPropertyAtIndexAsOptionValueFileSpecList(
             NULL, false, idx);
     assert(option_value);
@@ -229,7 +224,7 @@ typedef std::shared_ptr<PlatformDarwinKernelProperties>
 static const PlatformDarwinKernelPropertiesSP &GetGlobalProperties() {
   static PlatformDarwinKernelPropertiesSP g_settings_sp;
   if (!g_settings_sp)
-    g_settings_sp.reset(new PlatformDarwinKernelProperties());
+    g_settings_sp = std::make_shared<PlatformDarwinKernelProperties>();
   return g_settings_sp;
 }
 
@@ -245,9 +240,7 @@ void PlatformDarwinKernel::DebuggerInitialize(
   }
 }
 
-//------------------------------------------------------------------
 /// Default Constructor
-//------------------------------------------------------------------
 PlatformDarwinKernel::PlatformDarwinKernel(
     lldb_private::LazyBool is_ios_debug_session)
     : PlatformDarwin(false), // This is a remote platform
@@ -264,12 +257,10 @@ PlatformDarwinKernel::PlatformDarwinKernel(
   }
 }
 
-//------------------------------------------------------------------
 /// Destructor.
 ///
 /// The destructor is virtual since this class is designed to be
 /// inherited from by the plug-in instance.
-//------------------------------------------------------------------
 PlatformDarwinKernel::~PlatformDarwinKernel() {}
 
 void PlatformDarwinKernel::GetStatus(Stream &strm) {

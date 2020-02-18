@@ -1,9 +1,8 @@
 //===--- omptarget-nvptx.cu - NVPTX OpenMP GPU initialization ---- CUDA -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -44,6 +43,8 @@ EXTERN void __kmpc_kernel_init(int ThreadLimit, int16_t RequiresOMPRuntime) {
   ASSERT0(LT_FUSSY, RequiresOMPRuntime,
           "Generic always requires initialized runtime.");
   setExecutionParameters(Generic, RuntimeInitialized);
+  for (int I = 0; I < MAX_THREADS_PER_TEAM / WARPSIZE; ++I)
+    parallelLevel[I] = 0;
 
   int threadIdInBlock = GetThreadIdInBlock();
   ASSERT0(LT_FUSSY, threadIdInBlock == GetMasterThreadID(),
@@ -62,7 +63,7 @@ EXTERN void __kmpc_kernel_init(int ThreadLimit, int16_t RequiresOMPRuntime) {
 
   // init team context
   omptarget_nvptx_TeamDescr &currTeamDescr = getMyTeamDescriptor();
-  currTeamDescr.InitTeamDescr(/*isSPMDExecutionMode=*/false);
+  currTeamDescr.InitTeamDescr();
   // this thread will start execution... has to update its task ICV
   // to point to the level zero task ICV. That ICV was init in
   // InitTeamDescr()
@@ -72,8 +73,8 @@ EXTERN void __kmpc_kernel_init(int ThreadLimit, int16_t RequiresOMPRuntime) {
   // set number of threads and thread limit in team to started value
   omptarget_nvptx_TaskDescr *currTaskDescr =
       omptarget_nvptx_threadPrivateContext->GetTopLevelTaskDescr(threadId);
-  currTaskDescr->NThreads() = GetNumberOfWorkersInTeam();
-  currTaskDescr->ThreadLimit() = ThreadLimit;
+  nThreads = GetNumberOfWorkersInTeam();
+  threadLimit = ThreadLimit;
 }
 
 EXTERN void __kmpc_kernel_deinit(int16_t IsOMPRuntimeInitialized) {
@@ -92,35 +93,37 @@ EXTERN void __kmpc_spmd_kernel_init(int ThreadLimit, int16_t RequiresOMPRuntime,
                                     int16_t RequiresDataSharing) {
   PRINT0(LD_IO, "call to __kmpc_spmd_kernel_init\n");
 
+  setExecutionParameters(Spmd, RequiresOMPRuntime ? RuntimeInitialized
+                                                  : RuntimeUninitialized);
+  int threadId = GetThreadIdInBlock();
+  if (threadId == 0) {
+    usedSlotIdx = smid() % MAX_SM;
+    parallelLevel[0] =
+        1 + (GetNumberOfThreadsInBlock() > 1 ? OMP_ACTIVE_PARALLEL_LEVEL : 0);
+  } else if (GetLaneId() == 0) {
+    parallelLevel[GetWarpId()] =
+        1 + (GetNumberOfThreadsInBlock() > 1 ? OMP_ACTIVE_PARALLEL_LEVEL : 0);
+  }
   if (!RequiresOMPRuntime) {
-    // If OMP runtime is not required don't initialize OMP state.
-    setExecutionParameters(Spmd, RuntimeUninitialized);
-    if (GetThreadIdInBlock() == 0) {
-      parallelLevel = 0;
-      usedSlotIdx = smid() % MAX_SM;
-    }
+    // Runtime is not required - exit.
     __SYNCTHREADS();
     return;
   }
-  setExecutionParameters(Spmd, RuntimeInitialized);
 
   //
   // Team Context Initialization.
   //
   // In SPMD mode there is no master thread so use any cuda thread for team
   // context initialization.
-  int threadId = GetThreadIdInBlock();
   if (threadId == 0) {
     // Get a state object from the queue.
-    int slot = smid() % MAX_SM;
-    usedSlotIdx = slot;
     omptarget_nvptx_threadPrivateContext =
-        omptarget_nvptx_device_State[slot].Dequeue();
+        omptarget_nvptx_device_State[usedSlotIdx].Dequeue();
 
     omptarget_nvptx_TeamDescr &currTeamDescr = getMyTeamDescriptor();
     omptarget_nvptx_WorkDescr &workDescr = getMyWorkDescriptor();
     // init team context
-    currTeamDescr.InitTeamDescr(/*isSPMDExecutionMode=*/true);
+    currTeamDescr.InitTeamDescr();
   }
   // FIXME: use __syncthreads instead when the function copy is fixed in LLVM.
   __SYNCTHREADS();
@@ -134,9 +137,7 @@ EXTERN void __kmpc_spmd_kernel_init(int ThreadLimit, int16_t RequiresOMPRuntime,
   omptarget_nvptx_TaskDescr *newTaskDescr =
       omptarget_nvptx_threadPrivateContext->Level1TaskDescr(threadId);
   ASSERT0(LT_FUSSY, newTaskDescr, "expected a task descr");
-  newTaskDescr->InitLevelOneTaskDescr(ThreadLimit,
-                                      currTeamDescr.LevelZeroTaskDescr());
-  newTaskDescr->ThreadLimit() = ThreadLimit;
+  newTaskDescr->InitLevelOneTaskDescr(currTeamDescr.LevelZeroTaskDescr());
   // install new top descriptor
   omptarget_nvptx_threadPrivateContext->SetTopLevelTaskDescr(threadId,
                                                              newTaskDescr);
@@ -145,9 +146,9 @@ EXTERN void __kmpc_spmd_kernel_init(int ThreadLimit, int16_t RequiresOMPRuntime,
   PRINT(LD_PAR,
         "thread will execute parallel region with id %d in a team of "
         "%d threads\n",
-        (int)newTaskDescr->ThreadId(), (int)newTaskDescr->ThreadsInTeam());
+        (int)newTaskDescr->ThreadId(), (int)ThreadLimit);
 
-  if (RequiresDataSharing && threadId % WARPSIZE == 0) {
+  if (RequiresDataSharing && GetLaneId() == 0) {
     // Warp master innitializes data sharing environment.
     unsigned WID = threadId / WARPSIZE;
     __kmpc_data_sharing_slot *RootS = currTeamDescr.RootS(

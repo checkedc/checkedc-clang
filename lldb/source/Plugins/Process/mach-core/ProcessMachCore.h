@@ -1,9 +1,8 @@
 //===-- ProcessMachCore.h ---------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,9 +20,7 @@ class ThreadKDP;
 
 class ProcessMachCore : public lldb_private::Process {
 public:
-  //------------------------------------------------------------------
   // Constructors and Destructors
-  //------------------------------------------------------------------
   ProcessMachCore(lldb::TargetSP target_sp, lldb::ListenerSP listener,
                   const lldb_private::FileSpec &core_file);
 
@@ -41,43 +38,31 @@ public:
 
   static const char *GetPluginDescriptionStatic();
 
-  //------------------------------------------------------------------
   // Check if a given Process
-  //------------------------------------------------------------------
   bool CanDebug(lldb::TargetSP target_sp,
                 bool plugin_specified_by_name) override;
 
-  //------------------------------------------------------------------
   // Creating a new process, or attaching to an existing one
-  //------------------------------------------------------------------
   lldb_private::Status DoLoadCore() override;
 
   lldb_private::DynamicLoader *GetDynamicLoader() override;
 
-  //------------------------------------------------------------------
   // PluginInterface protocol
-  //------------------------------------------------------------------
   lldb_private::ConstString GetPluginName() override;
 
   uint32_t GetPluginVersion() override;
 
-  //------------------------------------------------------------------
   // Process Control
-  //------------------------------------------------------------------
   lldb_private::Status DoDestroy() override;
 
   void RefreshStateAfterStop() override;
 
-  //------------------------------------------------------------------
   // Process Queries
-  //------------------------------------------------------------------
   bool IsAlive() override;
 
   bool WarnBeforeDetach() const override;
 
-  //------------------------------------------------------------------
   // Process Memory
-  //------------------------------------------------------------------
   size_t ReadMemory(lldb::addr_t addr, void *buf, size_t size,
                     lldb_private::Status &error) override;
 
@@ -103,12 +88,8 @@ protected:
 private:
   bool GetDynamicLoaderAddress(lldb::addr_t addr);
 
-  typedef enum CorefilePreference {
-    eUserProcessCorefile,
-    eKernelCorefile
-  } CorefilePreferences;
+  enum CorefilePreference { eUserProcessCorefile, eKernelCorefile };
 
-  //------------------------------------------------------------------
   /// If a core file can be interpreted multiple ways, this establishes
   /// which style wins.
   ///
@@ -118,7 +99,6 @@ private:
   /// memory.  Or it could be a user process coredump of lldb while doing
   /// kernel debugging - so a copy of the kernel is in its heap.  This
   /// should become a setting so it can be over-ridden when necessary.
-  //------------------------------------------------------------------
   CorefilePreference GetCorefilePreference() {
     // For now, if both user process and kernel binaries a present,
     // assume this is a kernel coredump which has a copy of a user
@@ -126,9 +106,7 @@ private:
     return eKernelCorefile;
   }
 
-  //------------------------------------------------------------------
   // For ProcessMachCore only
-  //------------------------------------------------------------------
   typedef lldb_private::Range<lldb::addr_t, lldb::addr_t> FileRange;
   typedef lldb_private::RangeDataVector<lldb::addr_t, lldb::addr_t, FileRange>
       VMRangeToFileOffset;

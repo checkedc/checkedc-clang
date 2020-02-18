@@ -1,9 +1,8 @@
 //===-- clang-doc/ClangDocTest.cpp ----------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -131,11 +130,12 @@ void CheckNamespaceInfo(NamespaceInfo *Expected, NamespaceInfo *Actual) {
 
   ASSERT_EQ(Expected->ChildNamespaces.size(), Actual->ChildNamespaces.size());
   for (size_t Idx = 0; Idx < Actual->ChildNamespaces.size(); ++Idx)
-    EXPECT_EQ(Expected->ChildNamespaces[Idx], Actual->ChildNamespaces[Idx]);
+    CheckReference(Expected->ChildNamespaces[Idx],
+                   Actual->ChildNamespaces[Idx]);
 
   ASSERT_EQ(Expected->ChildRecords.size(), Actual->ChildRecords.size());
   for (size_t Idx = 0; Idx < Actual->ChildRecords.size(); ++Idx)
-    EXPECT_EQ(Expected->ChildRecords[Idx], Actual->ChildRecords[Idx]);
+    CheckReference(Expected->ChildRecords[Idx], Actual->ChildRecords[Idx]);
 
   ASSERT_EQ(Expected->ChildFunctions.size(), Actual->ChildFunctions.size());
   for (size_t Idx = 0; Idx < Actual->ChildFunctions.size(); ++Idx)
@@ -152,6 +152,8 @@ void CheckRecordInfo(RecordInfo *Expected, RecordInfo *Actual) {
 
   EXPECT_EQ(Expected->TagType, Actual->TagType);
 
+  EXPECT_EQ(Expected->IsTypeDef, Actual->IsTypeDef);
+
   ASSERT_EQ(Expected->Members.size(), Actual->Members.size());
   for (size_t Idx = 0; Idx < Actual->Members.size(); ++Idx)
     EXPECT_EQ(Expected->Members[Idx], Actual->Members[Idx]);
@@ -166,7 +168,7 @@ void CheckRecordInfo(RecordInfo *Expected, RecordInfo *Actual) {
 
   ASSERT_EQ(Expected->ChildRecords.size(), Actual->ChildRecords.size());
   for (size_t Idx = 0; Idx < Actual->ChildRecords.size(); ++Idx)
-    EXPECT_EQ(Expected->ChildRecords[Idx], Actual->ChildRecords[Idx]);
+    CheckReference(Expected->ChildRecords[Idx], Actual->ChildRecords[Idx]);
 
   ASSERT_EQ(Expected->ChildFunctions.size(), Actual->ChildFunctions.size());
   for (size_t Idx = 0; Idx < Actual->ChildFunctions.size(); ++Idx)

@@ -1,9 +1,8 @@
 //===-- PlatformRemoteDarwinDevice.cpp -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -35,9 +34,7 @@ PlatformRemoteDarwinDevice::SDKDirectoryInfo::SDKDirectoryInfo(
   build.SetString(build_str);
 }
 
-//------------------------------------------------------------------
 /// Default Constructor
-//------------------------------------------------------------------
 PlatformRemoteDarwinDevice::PlatformRemoteDarwinDevice()
     : PlatformDarwin(false), // This is a remote platform
       m_sdk_directory_infos(), m_device_support_directory(),
@@ -45,12 +42,10 @@ PlatformRemoteDarwinDevice::PlatformRemoteDarwinDevice()
       m_last_module_sdk_idx(UINT32_MAX),
       m_connected_module_sdk_idx(UINT32_MAX) {}
 
-//------------------------------------------------------------------
 /// Destructor.
 ///
 /// The destructor is virtual since this class is designed to be
 /// inherited from by the plug-in instance.
-//------------------------------------------------------------------
 PlatformRemoteDarwinDevice::~PlatformRemoteDarwinDevice() {}
 
 void PlatformRemoteDarwinDevice::GetStatus(Stream &strm) {
@@ -86,7 +81,7 @@ Status PlatformRemoteDarwinDevice::ResolveExecutable(
     if (resolved_module_spec.GetArchitecture().IsValid() ||
         resolved_module_spec.GetUUID().IsValid()) {
       error = ModuleList::GetSharedModule(resolved_module_spec, exe_module_sp,
-                                          NULL, NULL, NULL);
+                                          nullptr, nullptr, nullptr);
 
       if (exe_module_sp && exe_module_sp->GetObjectFile())
         return error;
@@ -100,7 +95,7 @@ Status PlatformRemoteDarwinDevice::ResolveExecutable(
              idx, resolved_module_spec.GetArchitecture());
          ++idx) {
       error = ModuleList::GetSharedModule(resolved_module_spec, exe_module_sp,
-                                          NULL, NULL, NULL);
+                                          nullptr, nullptr, nullptr);
       // Did we find an executable using one of the
       if (error.Success()) {
         if (exe_module_sp && exe_module_sp->GetObjectFile())
@@ -313,12 +308,12 @@ PlatformRemoteDarwinDevice::GetSDKDirectoryForCurrentOSVersion() {
           return &m_sdk_directory_infos[i];
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 const PlatformRemoteDarwinDevice::SDKDirectoryInfo *
 PlatformRemoteDarwinDevice::GetSDKDirectoryForLatestOSVersion() {
-  const PlatformRemoteDarwinDevice::SDKDirectoryInfo *result = NULL;
+  const PlatformRemoteDarwinDevice::SDKDirectoryInfo *result = nullptr;
   if (UpdateSDKDirectoryInfosIfNeeded()) {
     auto max = std::max_element(
         m_sdk_directory_infos.begin(), m_sdk_directory_infos.end(),
@@ -349,7 +344,7 @@ const char *PlatformRemoteDarwinDevice::GetDeviceSupportDirectory() {
   assert(m_device_support_directory.empty() == false);
   if (m_device_support_directory[0])
     return m_device_support_directory.c_str();
-  return NULL;
+  return nullptr;
 }
 
 const char *PlatformRemoteDarwinDevice::GetDeviceSupportDirectoryForOSVersion() {
@@ -359,7 +354,7 @@ const char *PlatformRemoteDarwinDevice::GetDeviceSupportDirectoryForOSVersion() 
   if (m_device_support_directory_for_os_version.empty()) {
     const PlatformRemoteDarwinDevice::SDKDirectoryInfo *sdk_dir_info =
         GetSDKDirectoryForCurrentOSVersion();
-    if (sdk_dir_info == NULL)
+    if (sdk_dir_info == nullptr)
       sdk_dir_info = GetSDKDirectoryForLatestOSVersion();
     if (sdk_dir_info) {
       char path[PATH_MAX];
@@ -379,7 +374,7 @@ const char *PlatformRemoteDarwinDevice::GetDeviceSupportDirectoryForOSVersion() 
   assert(m_device_support_directory_for_os_version.empty() == false);
   if (m_device_support_directory_for_os_version[0])
     return m_device_support_directory_for_os_version.c_str();
-  return NULL;
+  return nullptr;
 }
 
 uint32_t PlatformRemoteDarwinDevice::FindFileInAllSDKs(const char *platform_file_path,
@@ -528,7 +523,7 @@ Status PlatformRemoteDarwinDevice::GetSharedModule(
       if (GetFileInSDK(platform_file_path, connected_sdk_idx,
                        platform_module_spec.GetFileSpec())) {
         module_sp.reset();
-        error = ResolveExecutable(platform_module_spec, module_sp, NULL);
+        error = ResolveExecutable(platform_module_spec, module_sp, nullptr);
         if (module_sp) {
           m_last_module_sdk_idx = connected_sdk_idx;
           error.Clear();
@@ -545,7 +540,7 @@ Status PlatformRemoteDarwinDevice::GetSharedModule(
       if (GetFileInSDK(platform_file_path, m_last_module_sdk_idx,
                        platform_module_spec.GetFileSpec())) {
         module_sp.reset();
-        error = ResolveExecutable(platform_module_spec, module_sp, NULL);
+        error = ResolveExecutable(platform_module_spec, module_sp, nullptr);
         if (module_sp) {
           error.Clear();
           return error;
@@ -567,7 +562,7 @@ Status PlatformRemoteDarwinDevice::GetSharedModule(
       if (GetFileInSDK(platform_file_path, current_sdk_idx,
                        platform_module_spec.GetFileSpec())) {
         module_sp.reset();
-        error = ResolveExecutable(platform_module_spec, module_sp, NULL);
+        error = ResolveExecutable(platform_module_spec, module_sp, nullptr);
         if (module_sp) {
           m_last_module_sdk_idx = current_sdk_idx;
           error.Clear();
@@ -588,7 +583,7 @@ Status PlatformRemoteDarwinDevice::GetSharedModule(
                        platform_module_spec.GetFileSpec())) {
         // printf ("sdk[%u]: '%s'\n", sdk_idx, local_file.GetPath().c_str());
 
-        error = ResolveExecutable(platform_module_spec, module_sp, NULL);
+        error = ResolveExecutable(platform_module_spec, module_sp, nullptr);
         if (module_sp) {
           // Remember the index of the last SDK that we found a file in in case
           // the wrong SDK was selected.
@@ -653,7 +648,7 @@ uint32_t PlatformRemoteDarwinDevice::GetConnectedSDKIndex() {
 
 uint32_t PlatformRemoteDarwinDevice::GetSDKIndexBySDKDirectoryInfo(
     const SDKDirectoryInfo *sdk_info) {
-  if (sdk_info == NULL) {
+  if (sdk_info == nullptr) {
     return UINT32_MAX;
   }
 

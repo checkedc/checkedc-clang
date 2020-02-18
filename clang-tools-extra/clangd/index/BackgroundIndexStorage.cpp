@@ -1,9 +1,8 @@
 //== BackgroundIndexStorage.cpp - Provide caching support to BackgroundIndex ==/
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,17 +13,10 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/SHA1.h"
 
 namespace clang {
 namespace clangd {
 namespace {
-
-using FileDigest = decltype(llvm::SHA1::hash({}));
-
-static FileDigest digest(StringRef Content) {
-  return llvm::SHA1::hash({(const uint8_t *)Content.data(), Content.size()});
-}
 
 std::string getShardPathFromFilePath(llvm::StringRef ShardRoot,
                                      llvm::StringRef FilePath) {
@@ -64,19 +56,19 @@ writeAtomically(llvm::StringRef OutPath,
 }
 
 // Uses disk as a storage for index shards. Creates a directory called
-// ".clangd-index/" under the path provided during construction.
+// ".clangd/index/" under the path provided during construction.
 class DiskBackedIndexStorage : public BackgroundIndexStorage {
   std::string DiskShardRoot;
 
 public:
-  // Sets DiskShardRoot to (Directory + ".clangd-index/") which is the base
+  // Sets DiskShardRoot to (Directory + ".clangd/index/") which is the base
   // directory for all shard files.
   DiskBackedIndexStorage(llvm::StringRef Directory) {
     llvm::SmallString<128> CDBDirectory(Directory);
-    llvm::sys::path::append(CDBDirectory, ".clangd-index/");
+    llvm::sys::path::append(CDBDirectory, ".clangd", "index");
     DiskShardRoot = CDBDirectory.str();
     std::error_code OK;
-    std::error_code EC = llvm::sys::fs::create_directory(DiskShardRoot);
+    std::error_code EC = llvm::sys::fs::create_directories(DiskShardRoot);
     if (EC != OK) {
       elog("Failed to create directory {0} for index storage: {1}",
            DiskShardRoot, EC.message());
@@ -137,9 +129,6 @@ public:
       IndexStorage = create(CDBDirectory);
     return IndexStorage.get();
   }
-
-  // Creates or fetches to storage from cache for the specified CDB.
-  BackgroundIndexStorage *createStorage(llvm::StringRef CDBDirectory);
 
 private:
   std::unique_ptr<BackgroundIndexStorage> create(llvm::StringRef CDBDirectory) {

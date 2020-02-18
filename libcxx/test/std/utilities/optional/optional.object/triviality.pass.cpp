@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -24,6 +23,8 @@
 #include <type_traits>
 
 #include "archetypes.hpp"
+
+#include "test_macros.h"
 
 
 constexpr bool implies(bool p, bool q) {
@@ -86,7 +87,7 @@ struct TrivialCopyNonTrivialMove {
     TrivialCopyNonTrivialMove& operator=(TrivialCopyNonTrivialMove&&) { return *this; }
 };
 
-int main() {
+int main(int, char**) {
     sink(
         ImplicitTypes::ApplyTypes<DoTestsMetafunction>{},
         ExplicitTypes::ApplyTypes<DoTestsMetafunction>{},
@@ -94,4 +95,5 @@ int main() {
         NonTrivialTypes::ApplyTypes<DoTestsMetafunction>{},
         DoTestsMetafunction<TrivialMoveNonTrivialCopy, TrivialCopyNonTrivialMove>{}
     );
+    return 0;
 }

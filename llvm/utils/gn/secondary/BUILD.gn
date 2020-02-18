@@ -4,23 +4,22 @@ import("//llvm/utils/gn/build/toolchain/compiler.gni")
 
 group("default") {
   deps = [
+    "//clang-tools-extra/clangd/test",
+    "//clang-tools-extra/test",
     "//clang/test",
     "//lld/test",
     "//llvm/test",
   ]
-
-  # FIXME: This should be a dependency of a test target instead of being
-  # depended on from here.
-  if (android_ndk_path != "") {
-    android_aarch64_toolchain =
-        "//llvm/utils/gn/build/toolchain:stage2_android_aarch64"
+  if (current_os == "linux") {
     deps += [
-      "//compiler-rt/lib/hwasan:hwasan_shared($android_aarch64_toolchain)",
-      "//llvm/tools/llvm-symbolizer($android_aarch64_toolchain)",
+      "//compiler-rt",
+      "//libcxx",
+      "//libcxxabi",
+      "//libunwind",
     ]
   }
-  if (host_cpu == "x64" && host_os == "linux") {
-    deps += [ "//compiler-rt/lib/hwasan:hwasan_shared(//llvm/utils/gn/build/toolchain:stage2_unix)" ]
+  if (current_os == "linux" || current_os == "android") {
+    deps += [ "//compiler-rt/test/hwasan" ]
   }
 
   testonly = true

@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify -fopenmp -ferror-limit 100 -o - %s
-// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify -fopenmp -ferror-limit 100 -o - -x c++ %s
+// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify -fopenmp -ferror-limit 100 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify -fopenmp -ferror-limit 100 -o - -x c++ %s -Wuninitialized
 
-// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify -fopenmp-simd -ferror-limit 100 -o - %s
-// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify -fopenmp-simd -ferror-limit 100 -o - -x c++ %s
+// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify -fopenmp-simd -ferror-limit 100 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify -fopenmp-simd -ferror-limit 100 -o - -x c++ %s -Wuninitialized
 
 int main(int argc, char **argv) {
 
@@ -12,7 +12,7 @@ int main(int argc, char **argv) {
   #pragma omp target enter data map(r) // expected-error {{map type must be specified for '#pragma omp target enter data'}}
   #pragma omp target enter data map(tofrom: r) // expected-error {{map type 'tofrom' is not allowed for '#pragma omp target enter data'}}
 
-  #pragma omp target enter data map(always, to: r)
+  #pragma omp target enter data map(always, to: r) allocate(r) // expected-error {{unexpected OpenMP clause 'allocate' in directive '#pragma omp target enter data'}}
   #pragma omp target enter data map(always, alloc: r)
   #pragma omp target enter data map(always, from: r) // expected-error {{map type 'from' is not allowed for '#pragma omp target enter data'}}
   #pragma omp target enter data map(release: r) // expected-error {{map type 'release' is not allowed for '#pragma omp target enter data'}}

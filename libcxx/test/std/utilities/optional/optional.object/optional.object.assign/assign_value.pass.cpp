@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -242,7 +241,17 @@ enum MyEnum { Zero, One, Two, Three, FortyTwo = 42 };
 
 using Fn = void(*)();
 
-int main()
+// https://bugs.llvm.org/show_bug.cgi?id=38638
+template <class T>
+constexpr T pr38638(T v)
+{
+  std::optional<T> o;
+  o = v;
+  return *o + 2;
+}
+
+
+int main(int, char**)
 {
     test_sfinae();
     // Test with instrumented type
@@ -269,4 +278,8 @@ int main()
         assert(**opt == 3);
     }
     test_throws();
+
+    static_assert(pr38638(3) == 5, "");
+
+  return 0;
 }

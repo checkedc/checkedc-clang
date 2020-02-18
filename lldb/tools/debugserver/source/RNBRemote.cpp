@@ -1,9 +1,8 @@
 //===-- RNBRemote.cpp -------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -46,21 +45,18 @@
 
 #include <TargetConditionals.h>
 #include <iomanip>
+#include <memory>
 #include <sstream>
 #include <unordered_set>
 
-//----------------------------------------------------------------------
 // constants
-//----------------------------------------------------------------------
 
 static const std::string OS_LOG_EVENTS_KEY_NAME("events");
 static const std::string JSON_ASYNC_TYPE_KEY_NAME("type");
 static const DarwinLogEventVector::size_type DARWIN_LOG_MAX_EVENTS_PER_PACKET =
     10;
 
-//----------------------------------------------------------------------
 // std::iostream formatting macros
-//----------------------------------------------------------------------
 #define RAW_HEXBASE std::setfill('0') << std::hex << std::right
 #define HEXBASE '0' << 'x' << RAW_HEXBASE
 #define RAWHEX8(x) RAW_HEXBASE << std::setw(2) << ((uint32_t)((uint8_t)x))
@@ -89,16 +85,12 @@ static const DarwinLogEventVector::size_type DARWIN_LOG_MAX_EVENTS_PER_PACKET =
   std::setfill('\t') << std::setw((iword_idx)) << ""
 // Class to handle communications via gdb remote protocol.
 
-//----------------------------------------------------------------------
 // Prototypes
-//----------------------------------------------------------------------
 
 static std::string binary_encode_string(const std::string &s);
 
-//----------------------------------------------------------------------
 // Decode a single hex character and return the hex value as a number or
 // -1 if "ch" is not a hex character.
-//----------------------------------------------------------------------
 static inline int xdigit_to_sint(char ch) {
   if (ch >= 'a' && ch <= 'f')
     return 10 + ch - 'a';
@@ -109,10 +101,8 @@ static inline int xdigit_to_sint(char ch) {
   return -1;
 }
 
-//----------------------------------------------------------------------
 // Decode a single hex ASCII byte. Return -1 on failure, a value 0-255
 // on success.
-//----------------------------------------------------------------------
 static inline int decoded_hex_ascii_char(const char *p) {
   const int hi_nibble = xdigit_to_sint(p[0]);
   if (hi_nibble == -1)
@@ -123,9 +113,7 @@ static inline int decoded_hex_ascii_char(const char *p) {
   return (uint8_t)((hi_nibble << 4) + lo_nibble);
 }
 
-//----------------------------------------------------------------------
 // Decode a hex ASCII string back into a string
-//----------------------------------------------------------------------
 static std::string decode_hex_ascii_string(const char *p,
                                            uint32_t max_length = UINT32_MAX) {
   std::string arg;
@@ -4275,7 +4263,7 @@ rnb_err_t RNBRemote::HandlePacket_SetEnableAsyncProfiling(const char *p) {
   }
 
   if (interval_usec == 0) {
-    enable = 0;
+    enable = false;
   }
 
   DNBProcessSetEnableAsyncProfiling(pid, enable, interval_usec, scan_type);
@@ -4414,10 +4402,8 @@ rnb_err_t RNBRemote::HandlePacket_C(const char *p) {
   return rnb_success;
 }
 
-//----------------------------------------------------------------------
 // 'D' packet
 // Detach from gdb.
-//----------------------------------------------------------------------
 rnb_err_t RNBRemote::HandlePacket_D(const char *p) {
   if (m_ctx.HasValidProcessID()) {
     if (DNBProcessDetach(m_ctx.ProcessID()))
@@ -5188,7 +5174,7 @@ bool get_array_of_ints_value_for_key_name_from_json(
         while (*c != '\0' &&
                (*c == ' ' || *c == '\t' || *c == '\n' || *c == '\r'))
           c++;
-        while (1) {
+        while (true) {
           if (!isdigit(*c)) {
             return true;
           }
@@ -5228,7 +5214,7 @@ JSONGenerator::ObjectSP
 RNBRemote::GetJSONThreadsInfo(bool threads_with_valid_stop_info_only) {
   JSONGenerator::ArraySP threads_array_sp;
   if (m_ctx.HasValidProcessID()) {
-    threads_array_sp.reset(new JSONGenerator::Array());
+    threads_array_sp = std::make_shared<JSONGenerator::Array>();
 
     nub_process_t pid = m_ctx.ProcessID();
 
@@ -5821,13 +5807,11 @@ static nub_addr_t GetMachHeaderForMainExecutable(const nub_process_t pid,
   DNBDataRef::offset_t offset = 0;
   data.SetPointerSize(addr_size);
 
-  //----------------------------------------------------------------------
   // When we are sitting at __dyld_start, the kernel has placed the
   // address of the mach header of the main executable on the stack. If we
   // read the SP and dereference a pointer, we might find the mach header
   // for the executable. We also just make sure there is only 1 thread
   // since if we are at __dyld_start we shouldn't have multiple threads.
-  //----------------------------------------------------------------------
   if (DNBProcessGetNumThreads(pid) == 1) {
     nub_thread_t tid = DNBProcessGetThreadAtIndex(pid, 0);
     if (tid != INVALID_NUB_THREAD) {
@@ -5847,10 +5831,8 @@ static nub_addr_t GetMachHeaderForMainExecutable(const nub_process_t pid,
     }
   }
 
-  //----------------------------------------------------------------------
   // Check the dyld_all_image_info structure for a list of mach header
   // since it is a very easy thing to check
-  //----------------------------------------------------------------------
   if (shlib_addr != INVALID_NUB_ADDRESS) {
     bytes_read =
         DNBProcessMemoryRead(pid, shlib_addr, sizeof(AllImageInfos), bytes);
@@ -5880,12 +5862,10 @@ static nub_addr_t GetMachHeaderForMainExecutable(const nub_process_t pid,
     }
   }
 
-  //----------------------------------------------------------------------
   // We failed to find the executable's mach header from the all image
   // infos and by dereferencing the stack pointer. Now we fall back to
   // enumerating the memory regions and looking for regions that are
   // executable.
-  //----------------------------------------------------------------------
   DNBRegionInfo region_info;
   mach_header_addr = 0;
   while (DNBProcessMemoryRegionInfo(pid, mach_header_addr, &region_info)) {
@@ -6129,7 +6109,7 @@ rnb_err_t RNBRemote::HandlePacket_qProcessInfo(const char *p) {
           cstr = data.GetCStr(&offset);
           if (cstr) {
             // Skip NULLs
-            while (1) {
+            while (true) {
               const char *p = data.PeekCStr(offset);
               if ((p == NULL) || (*p != '\0'))
                 break;

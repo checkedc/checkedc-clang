@@ -4,17 +4,22 @@ Clang-Tidy Checks
 =================
 
 .. toctree::
+   abseil-duration-addition
    abseil-duration-comparison
+   abseil-duration-conversion-cast
    abseil-duration-division
    abseil-duration-factory-float
    abseil-duration-factory-scale
    abseil-duration-subtraction
+   abseil-duration-unnecessary-conversion
    abseil-faster-strsplit-delimiter
    abseil-no-internal-dependencies
    abseil-no-namespace
    abseil-redundant-strcat-calls
    abseil-str-cat-append
    abseil-string-find-startswith
+   abseil-time-comparison
+   abseil-time-subtraction
    abseil-upgrade-duration-conversions
    android-cloexec-accept
    android-cloexec-accept4
@@ -27,12 +32,15 @@ Clang-Tidy Checks
    android-cloexec-inotify-init1
    android-cloexec-memfd-create
    android-cloexec-open
+   android-cloexec-pipe
+   android-cloexec-pipe2
    android-cloexec-socket
    android-comparison-in-temp-failure-retry
    boost-use-to-string
    bugprone-argument-comment
    bugprone-assert-side-effect
    bugprone-bool-pointer-implicit-conversion
+   bugprone-branch-clone
    bugprone-copy-constructor-init
    bugprone-dangling-handle
    bugprone-exception-escape
@@ -50,6 +58,7 @@ Clang-Tidy Checks
    bugprone-move-forwarding-reference
    bugprone-multiple-statement-macro
    bugprone-parent-virtual-call
+   bugprone-posix-return
    bugprone-sizeof-container
    bugprone-sizeof-expression
    bugprone-string-constructor
@@ -66,6 +75,7 @@ Clang-Tidy Checks
    bugprone-too-small-loop-variable
    bugprone-undefined-memory-manipulation
    bugprone-undelegated-constructor
+   bugprone-unhandled-self-assignment
    bugprone-unused-raii
    bugprone-unused-return-value
    bugprone-use-after-move
@@ -91,10 +101,12 @@ Clang-Tidy Checks
    cert-msc50-cpp
    cert-msc51-cpp
    cert-oop11-cpp (redirects to performance-move-constructor-init) <cert-oop11-cpp>
+   cert-oop54-cpp (redirects to bugprone-unhandled-self-assignment) <cert-oop54-cpp>
    cppcoreguidelines-avoid-c-arrays (redirects to modernize-avoid-c-arrays) <cppcoreguidelines-avoid-c-arrays>
    cppcoreguidelines-avoid-goto
    cppcoreguidelines-avoid-magic-numbers (redirects to readability-magic-numbers) <cppcoreguidelines-avoid-magic-numbers>
    cppcoreguidelines-c-copy-assignment-signature (redirects to misc-unconventional-assign-operator) <cppcoreguidelines-c-copy-assignment-signature>
+   cppcoreguidelines-explicit-virtual-functions (redirects to modernize-use-override) <cppcoreguidelines-explicit-virtual-functions>
    cppcoreguidelines-interfaces-global-init
    cppcoreguidelines-macro-usage
    cppcoreguidelines-narrowing-conversions
@@ -113,7 +125,8 @@ Clang-Tidy Checks
    cppcoreguidelines-pro-type-vararg
    cppcoreguidelines-slicing
    cppcoreguidelines-special-member-functions
-   fuchsia-default-arguments
+   fuchsia-default-arguments-calls
+   fuchsia-default-arguments-declarations
    fuchsia-header-anon-namespaces (redirects to google-build-namespaces) <fuchsia-header-anon-namespaces>
    fuchsia-multiple-inheritance
    fuchsia-overloaded-operator
@@ -127,9 +140,11 @@ Clang-Tidy Checks
    google-default-arguments
    google-explicit-constructor
    google-global-names-in-headers
+   google-objc-avoid-nsobject-new
    google-objc-avoid-throwing-exception
    google-objc-function-naming
    google-objc-global-variable-declaration
+   google-readability-avoid-underscore-in-googletest-name
    google-readability-braces-around-statements (redirects to readability-braces-around-statements) <google-readability-braces-around-statements>
    google-readability-casting
    google-readability-function-size (redirects to readability-function-size) <google-readability-function-size>
@@ -171,6 +186,7 @@ Clang-Tidy Checks
    llvm-header-guard
    llvm-include-order
    llvm-namespace-comment
+   llvm-prefer-isa-or-dyn-cast-in-conditionals
    llvm-twine-local
    misc-definitions-in-headers
    misc-misplaced-const
@@ -211,6 +227,7 @@ Clang-Tidy Checks
    modernize-use-noexcept
    modernize-use-nullptr
    modernize-use-override
+   modernize-use-trailing-return-type
    modernize-use-transparent-functors
    modernize-use-uncaught-exceptions
    modernize-use-using
@@ -220,6 +237,9 @@ Clang-Tidy Checks
    objc-avoid-spinlock
    objc-forbidden-subclassing
    objc-property-declaration
+   objc-super-self
+   openmp-exception-escape
+   openmp-use-default-none
    performance-faster-string-find
    performance-for-range-copy
    performance-implicit-conversion-in-loop
@@ -237,6 +257,7 @@ Clang-Tidy Checks
    readability-braces-around-statements
    readability-const-return-type
    readability-container-size-empty
+   readability-convert-member-functions-to-static
    readability-delete-null-pointer
    readability-deleted-default
    readability-else-after-return

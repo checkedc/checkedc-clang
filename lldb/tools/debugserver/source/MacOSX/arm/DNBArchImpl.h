@@ -1,9 +1,8 @@
 //===-- DNBArchImpl.h -------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -114,14 +113,14 @@ protected:
                                                          nub_addr_t *nextPC,
                                                          bool *nextPCIsThumb);
 
-  typedef enum RegisterSetTag {
+  enum RegisterSet {
     e_regSetALL = REGISTER_SET_ALL,
     e_regSetGPR, // ARM_THREAD_STATE
     e_regSetVFP, // ARM_VFP_STATE (ARM_NEON_STATE if defined __arm64__)
     e_regSetEXC, // ARM_EXCEPTION_STATE
     e_regSetDBG, // ARM_DEBUG_STATE (ARM_DEBUG_STATE32 if defined __arm64__)
     kNumRegisterSets
-  } RegisterSet;
+  };
 
   enum { Read = 0, Write = 1, kNumErrors = 2 };
 

@@ -24,6 +24,7 @@ set_default("clang", "@COMPILER_RT_RESOLVED_TEST_COMPILER@")
 set_default("compiler_id", "@COMPILER_RT_TEST_COMPILER_ID@")
 set_default("python_executable", "@PYTHON_EXECUTABLE@")
 set_default("compiler_rt_debug", @COMPILER_RT_DEBUG_PYBOOL@)
+set_default("compiler_rt_intercept_libdispatch", @COMPILER_RT_INTERCEPT_LIBDISPATCH_PYBOOL@)
 set_default("compiler_rt_libdir", "@COMPILER_RT_RESOLVED_LIBRARY_OUTPUT_DIR@")
 set_default("emulator", "@COMPILER_RT_EMULATOR@")
 set_default("asan_shadow_scale", "@COMPILER_RT_ASAN_SHADOW_SCALE@")
@@ -36,15 +37,20 @@ set_default("use_thinlto", False)
 set_default("use_lto", config.use_thinlto)
 set_default("use_newpm", False)
 set_default("android", @ANDROID_PYBOOL@)
+set_default("android_ndk_version", @ANDROID_NDK_VERSION@)
 set_default("android_serial", "@ANDROID_SERIAL_FOR_TESTING@")
 set_default("android_files_to_push", [])
 set_default("have_rpc_xdr_h", @HAVE_RPC_XDR_H@)
+set_default("gwp_asan", @COMPILER_RT_HAS_GWP_ASAN_PYBOOL@)
 config.available_features.add('target-is-%s' % config.target_arch)
 
 if config.enable_per_target_runtime_dir:
   set_default("target_suffix", "")
 else:
   set_default("target_suffix", "-%s" % config.target_arch)
+
+set_default("have_zlib", "@HAVE_LIBZ@")
+set_default("libcxx_used", "@LLVM_LIBCXX_USED@")
 
 # LLVM tools dir can be passed in lit parameters, so try to
 # apply substitution.
@@ -60,4 +66,4 @@ if not os.path.exists(config.clang):
   lit_config.fatal("Can't find compiler on path %r" % config.clang)
 
 # Setup attributes common for all compiler-rt projects.
-lit_config.load_config(config, "@COMPILER_RT_SOURCE_DIR@/test/lit.common.cfg")
+lit_config.load_config(config, "@COMPILER_RT_SOURCE_DIR@/test/lit.common.cfg.py")

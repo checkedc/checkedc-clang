@@ -1,9 +1,8 @@
 //===--------- device.cpp - Target independent OpenMP target RTL ----------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.txt for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -153,7 +152,7 @@ LookupResult DeviceTy::lookupMapping(void *HstPtrBegin, int64_t Size) {
 
 // Used by target_data_begin
 // Return the target pointer begin (where the data will be moved).
-// Allocate memory if this is the first occurrence if this mapping.
+// Allocate memory if this is the first occurrence of this mapping.
 // Increment the reference counter.
 // If NULL is returned, then either data allocation failed or the user tried
 // to do an illegal mapping.
@@ -276,6 +275,9 @@ int DeviceTy::deallocTgtPtr(void *HstPtrBegin, int64_t Size, bool ForceDelete) {
 
 /// Init device, should not be called directly.
 void DeviceTy::init() {
+  // Make call to init_requires if it exists for this plugin.
+  if (RTL->init_requires)
+    RTL->init_requires(RTLRequiresFlags);
   int32_t rc = RTL->init_device(RTLDeviceID);
   if (rc == OFFLOAD_SUCCESS) {
     IsInit = true;

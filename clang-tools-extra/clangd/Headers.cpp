@@ -1,9 +1,8 @@
 //===--- Headers.cpp - Include headers ---------------------------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -15,6 +14,7 @@
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/FrontendActions.h"
 #include "clang/Lex/HeaderSearch.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Path.h"
 
 namespace clang {
@@ -72,6 +72,41 @@ bool isLiteralInclude(llvm::StringRef Include) {
 bool HeaderFile::valid() const {
   return (Verbatim && isLiteralInclude(File)) ||
          (!Verbatim && llvm::sys::path::is_absolute(File));
+}
+
+llvm::Expected<HeaderFile> toHeaderFile(llvm::StringRef Header,
+                                        llvm::StringRef HintPath) {
+  if (isLiteralInclude(Header))
+    return HeaderFile{Header.str(), /*Verbatim=*/true};
+  auto U = URI::parse(Header);
+  if (!U)
+    return U.takeError();
+
+  auto IncludePath = URI::includeSpelling(*U);
+  if (!IncludePath)
+    return IncludePath.takeError();
+  if (!IncludePath->empty())
+    return HeaderFile{std::move(*IncludePath), /*Verbatim=*/true};
+
+  auto Resolved = URI::resolve(*U, HintPath);
+  if (!Resolved)
+    return Resolved.takeError();
+  return HeaderFile{std::move(*Resolved), /*Verbatim=*/false};
+}
+
+llvm::SmallVector<llvm::StringRef, 1> getRankedIncludes(const Symbol &Sym) {
+  auto Includes = Sym.IncludeHeaders;
+  // Sort in descending order by reference count and header length.
+  llvm::sort(Includes, [](const Symbol::IncludeHeaderWithReferences &LHS,
+                          const Symbol::IncludeHeaderWithReferences &RHS) {
+    if (LHS.References == RHS.References)
+      return LHS.IncludeHeader.size() < RHS.IncludeHeader.size();
+    return LHS.References > RHS.References;
+  });
+  llvm::SmallVector<llvm::StringRef, 1> Headers;
+  for (const auto &Include : Includes)
+    Headers.push_back(Include.IncludeHeader);
+  return Headers;
 }
 
 std::unique_ptr<PPCallbacks>
@@ -139,25 +174,41 @@ void IncludeInserter::addExisting(const Inclusion &Inc) {
 /// FIXME(ioeric): we might not want to insert an absolute include path if the
 /// path is not shortened.
 bool IncludeInserter::shouldInsertInclude(
-    const HeaderFile &DeclaringHeader, const HeaderFile &InsertedHeader) const {
-  assert(DeclaringHeader.valid() && InsertedHeader.valid());
-  if (FileName == DeclaringHeader.File || FileName == InsertedHeader.File)
+    PathRef DeclaringHeader, const HeaderFile &InsertedHeader) const {
+  assert(InsertedHeader.valid());
+  if (!HeaderSearchInfo && !InsertedHeader.Verbatim)
+    return false;
+  if (FileName == DeclaringHeader || FileName == InsertedHeader.File)
     return false;
   auto Included = [&](llvm::StringRef Header) {
     return IncludedHeaders.find(Header) != IncludedHeaders.end();
   };
-  return !Included(DeclaringHeader.File) && !Included(InsertedHeader.File);
+  return !Included(DeclaringHeader) && !Included(InsertedHeader.File);
 }
 
-std::string
-IncludeInserter::calculateIncludePath(const HeaderFile &DeclaringHeader,
-                                      const HeaderFile &InsertedHeader) const {
-  assert(DeclaringHeader.valid() && InsertedHeader.valid());
+llvm::Optional<std::string>
+IncludeInserter::calculateIncludePath(const HeaderFile &InsertedHeader,
+                                      llvm::StringRef IncludingFile) const {
+  assert(InsertedHeader.valid());
   if (InsertedHeader.Verbatim)
     return InsertedHeader.File;
   bool IsSystem = false;
-  std::string Suggested = HeaderSearchInfo.suggestPathToFileForDiagnostics(
-      InsertedHeader.File, BuildDir, &IsSystem);
+  std::string Suggested;
+  if (HeaderSearchInfo) {
+    Suggested = HeaderSearchInfo->suggestPathToFileForDiagnostics(
+        InsertedHeader.File, BuildDir, IncludingFile, &IsSystem);
+  } else {
+    // Calculate include relative to including file only.
+    StringRef IncludingDir = llvm::sys::path::parent_path(IncludingFile);
+    SmallString<256> RelFile(InsertedHeader.File);
+    // Replacing with "" leaves "/RelFile" if IncludingDir doesn't end in "/".
+    llvm::sys::path::replace_path_prefix(RelFile, IncludingDir, "./");
+    Suggested = llvm::sys::path::convert_to_slash(
+        llvm::sys::path::remove_leading_dotslash(RelFile));
+  }
+  // FIXME: should we allow (some limited number of) "../header.h"?
+  if (llvm::sys::path::is_absolute(Suggested))
+    return None;
   if (IsSystem)
     Suggested = "<" + Suggested + ">";
   else

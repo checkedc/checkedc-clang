@@ -1,9 +1,8 @@
-//===--  ClangDocYAML.cpp - ClangDoc YAML -----------------------*- C++ -*-===//
+//===-- YAMLGenerator.cpp - ClangDoc YAML -----------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // Implementation of the YAML generator, converting decl info into YAML output.
@@ -114,6 +113,7 @@ static void FieldTypeInfoMapping(IO &IO, FieldTypeInfo &I) {
 static void InfoMapping(IO &IO, Info &I) {
   IO.mapRequired("USR", I.USR);
   IO.mapOptional("Name", I.Name, SmallString<16>());
+  IO.mapOptional("Path", I.Path, SmallString<128>());
   IO.mapOptional("Namespace", I.Namespace, llvm::SmallVector<Reference, 4>());
   IO.mapOptional("Description", I.Description);
 }
@@ -155,6 +155,7 @@ template <> struct MappingTraits<Reference> {
     IO.mapOptional("Type", Ref.RefType, InfoType::IT_default);
     IO.mapOptional("Name", Ref.Name, SmallString<16>());
     IO.mapOptional("USR", Ref.USR, SymbolID());
+    IO.mapOptional("Path", Ref.Path, SmallString<128>());
   }
 };
 

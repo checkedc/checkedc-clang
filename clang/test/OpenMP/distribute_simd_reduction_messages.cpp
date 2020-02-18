@@ -1,11 +1,12 @@
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 150 -o - %s
-// RUN: %clang_cc1 -verify -fopenmp -std=c++98 -ferror-limit 150 -o - %s
-// RUN: %clang_cc1 -verify -fopenmp -std=c++11 -ferror-limit 150 -o - %s
+// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp -std=c++98 -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp -std=c++11 -ferror-limit 150 -o - %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 150 -o - %s
-// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++98 -ferror-limit 150 -o - %s
-// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++11 -ferror-limit 150 -o - %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++98 -ferror-limit 150 -o - %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++11 -ferror-limit 150 -o - %s -Wuninitialized
 
+extern int omp_default_mem_alloc;
 void foo() {
 }
 
@@ -88,6 +89,7 @@ T tmain(T argc) {
   const T da[5] = {T()}; // expected-note 2 {{'da' defined here}}
   T qa[5] = {T()};
   T i;
+  long z;
   T &j = i;                        // expected-note 4 {{'j' defined here}}
   S3 &p = k;                       // expected-note 2 {{'p' defined here}}
   const T &r = da[(int)i];         // expected-note 2 {{'r' defined here}}
@@ -150,12 +152,12 @@ T tmain(T argc) {
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute simd reduction(&& : argc)
+#pragma omp distribute simd reduction(&& : argc) allocate , allocate(, allocate(omp_default , allocate(omp_default_mem_alloc, allocate(omp_default_mem_alloc:, allocate(omp_default_mem_alloc: argc, allocate(omp_default_mem_alloc: argv), allocate(argv) // expected-error {{expected '(' after 'allocate'}} expected-error 2 {{expected expression}} expected-error 2 {{expected ')'}} expected-error {{use of undeclared identifier 'omp_default'}} expected-note 2 {{to match this '('}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute simd reduction(^ : T) // expected-error {{'T' does not refer to a value}}
+#pragma omp distribute simd reduction(^ : z, T) // expected-error {{'T' does not refer to a value}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp target
@@ -271,7 +273,7 @@ int main(int argc, char **argv) {
   int qa[5] = {0};
   S4 e(4);
   S5 g(5);
-  int i;
+  int i, z;
   int &j = i;                      // expected-note 2 {{'j' defined here}}
   S3 &p = k;                       // expected-note 2 {{'p' defined here}}
   const int &r = da[i];            // expected-note {{'r' defined here}}
@@ -334,7 +336,7 @@ int main(int argc, char **argv) {
     foo();
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute simd reduction(&& : argc)
+#pragma omp distribute simd reduction(&& : z, argc)
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp target

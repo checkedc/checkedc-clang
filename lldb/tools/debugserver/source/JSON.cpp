@@ -1,9 +1,8 @@
 //===--------------------- JSON.cpp -----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -272,7 +271,7 @@ JSONParser::Token JSONParser::GetToken(std::string &value) {
     break;
 
   case '"': {
-    while (1) {
+    while (true) {
       bool was_escaped = false;
       int escaped_ch = GetEscapedChar(was_escaped);
       if (escaped_ch == -1) {
@@ -484,7 +483,7 @@ JSONValue::SP JSONParser::ParseJSONObject() {
 
   std::string value;
   std::string key;
-  while (1) {
+  while (true) {
     JSONParser::Token token = GetToken(value);
 
     if (token == JSONParser::Token::String) {
@@ -516,7 +515,7 @@ JSONValue::SP JSONParser::ParseJSONArray() {
 
   std::string value;
   std::string key;
-  while (1) {
+  while (true) {
     JSONValue::SP value_sp = ParseJSONValue();
     if (value_sp)
       array_up->AppendObject(value_sp);

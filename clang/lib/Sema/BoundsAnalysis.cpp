@@ -631,7 +631,7 @@ BoundsMapTy BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
 }
 
 Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
-  if (const Stmt *S = B->getTerminator()) {
+  if (const Stmt *S = B->getTerminatorStmt()) {
     if (const auto *IfS = dyn_cast<IfStmt>(S))
       return const_cast<Expr *>(IfS->getCond());
   }

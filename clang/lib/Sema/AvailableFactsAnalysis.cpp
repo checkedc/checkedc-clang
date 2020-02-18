@@ -45,7 +45,7 @@ void AvailableFactsAnalysis::Analyze() {
 
   // Compute Gen Sets
   for (auto B : Blocks) {
-    if (const Stmt *Term = B->Block->getTerminator()) {
+    if (const Stmt *Term = B->Block->getTerminatorStmt()) {
       if(const IfStmt *IS = dyn_cast<IfStmt>(Term)) {
         ComparisonSet Comparisons;
         ExtractComparisons(IS->getCond(), Comparisons);

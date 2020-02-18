@@ -162,7 +162,7 @@ def _decorateTest(mode,
                   debug_info=None,
                   swig_version=None, py_version=None,
                   macos_version=None,
-                  remote=None):
+                  remote=None, dwarf_version=None):
     def fn(self):
         skip_for_os = _match_decorator_property(
             lldbplatform.translate(oslist), self.getPlatform())
@@ -197,6 +197,11 @@ def _decorateTest(mode,
                 macos_version[0],
                 macos_version[1],
                 platform.mac_ver()[0])))
+        skip_for_dwarf_version = (
+             dwarf_version is None) or (
+                 (self.getDebugInfo() is 'dwarf') and
+                 _check_expected_version(
+                     dwarf_version[0], dwarf_version[1], self.getDwarfVersion()))
 
         # For the test to be skipped, all specified (e.g. not None) parameters must be True.
         # An unspecified parameter means "any", so those are marked skip by default.  And we skip
@@ -210,7 +215,8 @@ def _decorateTest(mode,
                       (swig_version, skip_for_swig_version, "swig version"),
                       (py_version, skip_for_py_version, "python version"),
                       (macos_version, skip_for_macos_version, "macOS version"),
-                      (remote, skip_for_remote, "platform locality (remote/local)")]
+                      (remote, skip_for_remote, "platform locality (remote/local)"),
+                      (dwarf_version, skip_for_dwarf_version, "dwarf version")]
         reasons = []
         final_skip_result = True
         for this_condition in conditions:
@@ -254,7 +260,7 @@ def expectedFailureAll(bugnumber=None,
                        debug_info=None,
                        swig_version=None, py_version=None,
                        macos_version=None,
-                       remote=None):
+                       remote=None, dwarf_version=None):
     return _decorateTest(DecorateMode.Xfail,
                          bugnumber=bugnumber,
                          oslist=oslist, hostoslist=hostoslist,
@@ -263,7 +269,7 @@ def expectedFailureAll(bugnumber=None,
                          debug_info=debug_info,
                          swig_version=swig_version, py_version=py_version,
                          macos_version=None,
-                         remote=remote)
+                         remote=remote,dwarf_version=dwarf_version)
 
 
 # provide a function to skip on defined oslist, compiler version, and archs
@@ -279,7 +285,7 @@ def skipIf(bugnumber=None,
            debug_info=None,
            swig_version=None, py_version=None,
            macos_version=None,
-           remote=None):
+           remote=None, dwarf_version=None):
     return _decorateTest(DecorateMode.Skip,
                          bugnumber=bugnumber,
                          oslist=oslist, hostoslist=hostoslist,
@@ -288,7 +294,7 @@ def skipIf(bugnumber=None,
                          debug_info=debug_info,
                          swig_version=swig_version, py_version=py_version,
                          macos_version=macos_version,
-                         remote=remote)
+                         remote=remote, dwarf_version=dwarf_version)
 
 
 def _skip_for_android(reason, api_levels, archs):
@@ -357,7 +363,7 @@ def apple_simulator_test(platform):
             return "simulator tests are run only on darwin hosts"
         try:
             DEVNULL = open(os.devnull, 'w')
-            output = subprocess.check_output(["xcodebuild", "-showsdks"], stderr=DEVNULL)
+            output = subprocess.check_output(["xcodebuild", "-showsdks"], stderr=DEVNULL).decode("utf-8")
             if re.search('%ssimulator' % platform, output):
                 return None
             else:
@@ -428,6 +434,12 @@ def expectedFailureAndroid(bugnumber=None, api_levels=None, archs=None):
             "xfailing on android",
             api_levels,
             archs),
+        bugnumber)
+
+
+def expectedFailureNetBSD(bugnumber=None):
+    return expectedFailureOS(
+        ['netbsd'],
         bugnumber)
 
 # Flakey tests get two chances to run. If they fail the first time round, the result formatter
@@ -584,6 +596,10 @@ def skipIfWindows(func):
     """Decorate the item to skip tests that should be skipped on Windows."""
     return skipIfPlatform(["windows"])(func)
 
+def skipIfTargetAndroid(func):
+    return unittest2.skipIf(lldbplatformutil.target_is_android(),
+                                "skip on target Android")(func)
+
 
 def skipUnlessWindows(func):
     """Decorate the item to skip tests that should be skipped on any non-Windows platform."""
@@ -593,6 +609,10 @@ def skipUnlessWindows(func):
 def skipUnlessDarwin(func):
     """Decorate the item to skip tests that should be skipped on any non Darwin platform."""
     return skipUnlessPlatform(lldbplatformutil.getDarwinOSTriples())(func)
+
+def skipUnlessTargetAndroid(func):
+    return unittest2.skipUnless(lldbplatformutil.target_is_android(),
+                                "requires target to be Android")(func)
 
 
 def skipIfHostIncompatibleWithRemote(func):
@@ -797,7 +817,7 @@ def skipUnlessFeature(feature):
         if platform.system() == 'Darwin':
             try:
                 DEVNULL = open(os.devnull, 'w')
-                output = subprocess.check_output(["/usr/sbin/sysctl", feature], stderr=DEVNULL)
+                output = subprocess.check_output(["/usr/sbin/sysctl", feature], stderr=DEVNULL).decode("utf-8")
                 # If 'feature: 1' was output, then this feature is available and
                 # the test should not be skipped.
                 if re.match('%s: 1\s*' % feature, output):

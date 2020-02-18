@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 -o - %s
+// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 -o - %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 -o - %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 -o - %s -Wuninitialized
 
 void foo();
 
@@ -25,12 +25,12 @@ int main(int argc, char **argv) {
     }
   }
 
-#pragma omp parallel sections default(none)
+#pragma omp parallel sections default(none) // expected-note {{explicit data sharing attribute requested here}}
   {
     ++argc; // expected-error {{variable 'argc' must have explicitly specified data sharing attributes}}
   }
 
-#pragma omp parallel sections default(none)
+#pragma omp parallel sections default(none) // expected-note {{explicit data sharing attribute requested here}}
   {
 #pragma omp parallel sections default(shared)
     {

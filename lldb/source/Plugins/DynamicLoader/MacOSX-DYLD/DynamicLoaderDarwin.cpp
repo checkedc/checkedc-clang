@@ -1,9 +1,8 @@
 //===-- DynamicLoaderDarwin.cpp -----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,7 +20,6 @@
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Target/ABI.h"
-#include "lldb/Target/ObjCLanguageRuntime.h"
 #include "lldb/Target/RegisterContext.h"
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/Target.h"
@@ -32,6 +30,8 @@
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/State.h"
+
+#include "Plugins/LanguageRuntime/ObjC/ObjCLanguageRuntime.h"
 
 //#define ENABLE_DEBUG_PRINTF // COMMENT THIS LINE OUT PRIOR TO CHECKIN
 #ifdef ENABLE_DEBUG_PRINTF
@@ -47,53 +47,45 @@
 #include <uuid/uuid.h>
 #endif
 
+#include <memory>
+
 using namespace lldb;
 using namespace lldb_private;
 
-//----------------------------------------------------------------------
 // Constructor
-//----------------------------------------------------------------------
 DynamicLoaderDarwin::DynamicLoaderDarwin(Process *process)
     : DynamicLoader(process), m_dyld_module_wp(), m_libpthread_module_wp(),
       m_pthread_getspecific_addr(), m_tid_to_tls_map(), m_dyld_image_infos(),
       m_dyld_image_infos_stop_id(UINT32_MAX), m_dyld(), m_mutex() {}
 
-//----------------------------------------------------------------------
 // Destructor
-//----------------------------------------------------------------------
 DynamicLoaderDarwin::~DynamicLoaderDarwin() {}
 
-//------------------------------------------------------------------
 /// Called after attaching a process.
 ///
 /// Allow DynamicLoader plug-ins to execute some code after
 /// attaching to a process.
-//------------------------------------------------------------------
 void DynamicLoaderDarwin::DidAttach() {
   PrivateInitialize(m_process);
   DoInitialImageFetch();
   SetNotificationBreakpoint();
 }
 
-//------------------------------------------------------------------
 /// Called after attaching a process.
 ///
 /// Allow DynamicLoader plug-ins to execute some code after
 /// attaching to a process.
-//------------------------------------------------------------------
 void DynamicLoaderDarwin::DidLaunch() {
   PrivateInitialize(m_process);
   DoInitialImageFetch();
   SetNotificationBreakpoint();
 }
 
-//----------------------------------------------------------------------
 // Clear out the state of this class.
-//----------------------------------------------------------------------
 void DynamicLoaderDarwin::Clear(bool clear_process) {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
   if (clear_process)
-    m_process = NULL;
+    m_process = nullptr;
   m_dyld_image_infos.clear();
   m_dyld_image_infos_stop_id = UINT32_MAX;
   m_dyld.Clear(false);
@@ -121,8 +113,10 @@ ModuleSP DynamicLoaderDarwin::FindTargetModuleForImageInfo(
 
   if (!module_sp) {
     if (can_create) {
-      module_sp = target.GetSharedModule(module_spec);
-      if (!module_sp || module_sp->GetObjectFile() == NULL)
+      // We'll call Target::ModulesDidLoad after all the modules have been
+      // added to the target, don't let it be called for every one.
+      module_sp = target.GetOrCreateModule(module_spec, false /* notify */);
+      if (!module_sp || module_sp->GetObjectFile() == nullptr)
         module_sp = m_process->ReadModuleFromMemory(image_info.file_spec,
                                                     image_info.address);
 
@@ -217,10 +211,8 @@ void DynamicLoaderDarwin::UnloadAllImages() {
   }
 }
 
-//----------------------------------------------------------------------
 // Update the load addresses for all segments in MODULE using the updated INFO
 // that is passed in.
-//----------------------------------------------------------------------
 bool DynamicLoaderDarwin::UpdateImageLoadAddress(Module *module,
                                                  ImageInfo &info) {
   bool changed = false;
@@ -256,15 +248,7 @@ bool DynamicLoaderDarwin::UpdateImageLoadAddress(Module *module,
 
               changed = m_process->GetTarget().SetSectionLoadAddress(
                   section_sp, new_section_load_addr, warn_multiple);
-            } else {
-              Host::SystemLog(
-                  Host::eSystemLogWarning,
-                  "warning: unable to find and load segment named '%s' at "
-                  "0x%" PRIx64 " in '%s' in macosx dynamic loader plug-in.\n",
-                  info.segments[i].name.AsCString("<invalid>"),
-                  (uint64_t)new_section_load_addr,
-                  image_object_file->GetFileSpec().GetPath().c_str());
-            }
+            } 
           }
         }
 
@@ -305,9 +289,7 @@ bool DynamicLoaderDarwin::UpdateImageLoadAddress(Module *module,
   return changed;
 }
 
-//----------------------------------------------------------------------
 // Unload the segments in MODULE using the INFO that is passed in.
-//----------------------------------------------------------------------
 bool DynamicLoaderDarwin::UnloadModuleSections(Module *module,
                                                ImageInfo &info) {
   bool changed = false;
@@ -477,7 +459,7 @@ bool DynamicLoaderDarwin::JSONImageInformationIntoImageInfo(
       image_infos[i].segments.push_back(segment);
     }
 
-    image_infos[i].uuid.SetFromStringRef(
+    image_infos[i].uuid.SetFromOptionalStringRef(
         image->GetValueForKey("uuid")->GetAsString()->GetValue());
 
     // All sections listed in the dyld image info structure will all either be
@@ -493,7 +475,7 @@ bool DynamicLoaderDarwin::JSONImageInformationIntoImageInfo(
       // that starts of file offset zero and that has bytes in the file...
       if ((image_infos[i].segments[k].fileoff == 0 &&
            image_infos[i].segments[k].filesize > 0) ||
-          (image_infos[i].segments[k].name == ConstString("__TEXT"))) {
+          (image_infos[i].segments[k].name == "__TEXT")) {
         image_infos[i].slide =
             image_infos[i].address - image_infos[i].segments[k].vmaddr;
         // We have found the slide amount, so we can exit this for loop.
@@ -552,8 +534,8 @@ void DynamicLoaderDarwin::UpdateSpecialBinariesFromNewImageInfos(
 
   if (exe_idx != UINT32_MAX) {
     const bool can_create = true;
-    ModuleSP exe_module_sp(
-        FindTargetModuleForImageInfo(image_infos[exe_idx], can_create, NULL));
+    ModuleSP exe_module_sp(FindTargetModuleForImageInfo(image_infos[exe_idx],
+                                                        can_create, nullptr));
     if (exe_module_sp) {
       if (log)
         log->Printf("Found executable module: %s",
@@ -568,8 +550,8 @@ void DynamicLoaderDarwin::UpdateSpecialBinariesFromNewImageInfos(
 
   if (dyld_idx != UINT32_MAX) {
     const bool can_create = true;
-    ModuleSP dyld_sp =
-        FindTargetModuleForImageInfo(image_infos[dyld_idx], can_create, NULL);
+    ModuleSP dyld_sp = FindTargetModuleForImageInfo(image_infos[dyld_idx],
+                                                    can_create, nullptr);
     if (dyld_sp.get()) {
       if (log)
         log->Printf("Found dyld module: %s",
@@ -586,7 +568,7 @@ void DynamicLoaderDarwin::UpdateDYLDImageInfoFromNewImageInfo(
   if (image_info.header.filetype == llvm::MachO::MH_DYLINKER) {
     const bool can_create = true;
     ModuleSP dyld_sp =
-        FindTargetModuleForImageInfo(image_info, can_create, NULL);
+        FindTargetModuleForImageInfo(image_info, can_create, nullptr);
     if (dyld_sp.get()) {
       Target &target = m_process->GetTarget();
       target.GetImages().AppendIfNeeded(dyld_sp);
@@ -624,7 +606,7 @@ bool DynamicLoaderDarwin::AddModulesUsingImageInfos(
     m_dyld_image_infos.push_back(image_infos[idx]);
 
     ModuleSP image_module_sp(
-        FindTargetModuleForImageInfo(image_infos[idx], true, NULL));
+        FindTargetModuleForImageInfo(image_infos[idx], true, nullptr));
 
     if (image_module_sp) {
       ObjectFile *objfile = image_module_sp->GetObjectFile();
@@ -644,9 +626,10 @@ bool DynamicLoaderDarwin::AddModulesUsingImageInfos(
               module_spec.SetObjectOffset(objfile->GetFileOffset() +
                                           commpage_section->GetFileOffset());
               module_spec.SetObjectSize(objfile->GetByteSize());
-              commpage_image_module_sp = target.GetSharedModule(module_spec);
+              commpage_image_module_sp = target.GetOrCreateModule(module_spec, 
+                                                               true /* notify */);
               if (!commpage_image_module_sp ||
-                  commpage_image_module_sp->GetObjectFile() == NULL) {
+                  commpage_image_module_sp->GetObjectFile() == nullptr) {
                 commpage_image_module_sp = m_process->ReadModuleFromMemory(
                     image_infos[idx].file_spec, image_infos[idx].address);
                 // Always load a memory image right away in the target in case
@@ -687,7 +670,6 @@ bool DynamicLoaderDarwin::AddModulesUsingImageInfos(
   return true;
 }
 
-//----------------------------------------------------------------------
 // On Mac OS X libobjc (the Objective-C runtime) has several critical dispatch
 // functions written in hand-written assembly, and also have hand-written
 // unwind information in the eh_frame section.  Normally we prefer analyzing
@@ -699,27 +681,25 @@ bool DynamicLoaderDarwin::AddModulesUsingImageInfos(
 // extensible so they could have an Apple-specific flag) which indicates that
 // the instructions are asynchronous -- accurate at every instruction, instead
 // of our normal default assumption that they are not.
-//----------------------------------------------------------------------
 
 bool DynamicLoaderDarwin::AlwaysRelyOnEHUnwindInfo(SymbolContext &sym_ctx) {
   ModuleSP module_sp;
   if (sym_ctx.symbol) {
     module_sp = sym_ctx.symbol->GetAddressRef().GetModule();
   }
-  if (module_sp.get() == NULL && sym_ctx.function) {
+  if (module_sp.get() == nullptr && sym_ctx.function) {
     module_sp =
         sym_ctx.function->GetAddressRange().GetBaseAddress().GetModule();
   }
-  if (module_sp.get() == NULL)
+  if (module_sp.get() == nullptr)
     return false;
 
-  ObjCLanguageRuntime *objc_runtime = m_process->GetObjCLanguageRuntime();
-  return objc_runtime != NULL && objc_runtime->IsModuleObjCLibrary(module_sp);
+  ObjCLanguageRuntime *objc_runtime = ObjCLanguageRuntime::Get(*m_process);
+  return objc_runtime != nullptr &&
+         objc_runtime->IsModuleObjCLibrary(module_sp);
 }
 
-//----------------------------------------------------------------------
 // Dump a Segment to the file handle provided.
-//----------------------------------------------------------------------
 void DynamicLoaderDarwin::Segment::PutToLog(Log *log,
                                             lldb::addr_t slide) const {
   if (log) {
@@ -735,18 +715,16 @@ void DynamicLoaderDarwin::Segment::PutToLog(Log *log,
 }
 
 const DynamicLoaderDarwin::Segment *
-DynamicLoaderDarwin::ImageInfo::FindSegment(const ConstString &name) const {
+DynamicLoaderDarwin::ImageInfo::FindSegment(ConstString name) const {
   const size_t num_segments = segments.size();
   for (size_t i = 0; i < num_segments; ++i) {
     if (segments[i].name == name)
       return &segments[i];
   }
-  return NULL;
+  return nullptr;
 }
 
-//----------------------------------------------------------------------
 // Dump an image info structure to the file handle provided.
-//----------------------------------------------------------------------
 void DynamicLoaderDarwin::ImageInfo::PutToLog(Log *log) const {
   if (!log)
     return;
@@ -769,9 +747,7 @@ void DynamicLoaderDarwin::PrivateInitialize(Process *process) {
   m_process->GetTarget().ClearAllLoadedSections();
 }
 
-//----------------------------------------------------------------------
 // Member function that gets called when the process state changes.
-//----------------------------------------------------------------------
 void DynamicLoaderDarwin::PrivateProcessStateChanged(Process *process,
                                                      StateType state) {
   DEBUG_PRINTF("DynamicLoaderDarwin::%s(%s)\n", __FUNCTION__,
@@ -817,11 +793,11 @@ DynamicLoaderDarwin::GetStepThroughTrampolinePlan(Thread &thread,
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
   TargetSP target_sp(thread.CalculateTarget());
 
-  if (current_symbol != NULL) {
+  if (current_symbol != nullptr) {
     std::vector<Address> addresses;
 
     if (current_symbol->IsTrampoline()) {
-      const ConstString &trampoline_name = current_symbol->GetMangled().GetName(
+      ConstString trampoline_name = current_symbol->GetMangled().GetName(
           current_symbol->GetLanguage(), Mangled::ePreferMangled);
 
       if (trampoline_name) {
@@ -948,8 +924,8 @@ DynamicLoaderDarwin::GetStepThroughTrampolinePlan(Thread &thread,
           load_addrs.push_back(address.GetLoadAddress(target_sp.get()));
         }
       }
-      thread_plan_sp.reset(
-          new ThreadPlanRunToAddress(thread, load_addrs, stop_others));
+      thread_plan_sp = std::make_shared<ThreadPlanRunToAddress>(
+          thread, load_addrs, stop_others);
     }
   } else {
     if (log)
@@ -962,7 +938,7 @@ DynamicLoaderDarwin::GetStepThroughTrampolinePlan(Thread &thread,
 size_t DynamicLoaderDarwin::FindEquivalentSymbols(
     lldb_private::Symbol *original_symbol, lldb_private::ModuleList &images,
     lldb_private::SymbolContextList &equivalent_symbols) {
-  const ConstString &trampoline_name = original_symbol->GetMangled().GetName(
+  ConstString trampoline_name = original_symbol->GetMangled().GetName(
       original_symbol->GetLanguage(), Mangled::ePreferMangled);
   if (!trampoline_name)
     return 0;

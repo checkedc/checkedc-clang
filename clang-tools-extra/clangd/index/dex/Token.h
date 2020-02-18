@@ -1,9 +1,8 @@
 //===--- Token.h - Symbol Search primitive ----------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 ///
@@ -38,7 +37,8 @@ namespace dex {
 ///
 /// Tokens can be used to perform more sophisticated search queries by
 /// constructing complex iterator trees.
-struct Token {
+class Token {
+public:
   /// Kind specifies Token type which defines semantics for the internal
   /// representation. Each Kind has different representation stored in Data
   /// field.
@@ -63,11 +63,11 @@ struct Token {
     /// Example: "file:///path/to/clang-tools-extra/clangd/index/SymbolIndex.h"
     /// and some amount of its parents.
     ProximityURI,
+    /// Type of symbol (see `Symbol::Type`).
+    Type,
     /// Internal Token type for invalid/special tokens, e.g. empty tokens for
     /// llvm::DenseMap.
     Sentinel,
-    /// FIXME(kbobyrev): Add other Token Kinds
-    /// * Type with qualified type name or its USR
   };
 
   Token(Kind TokenKind, llvm::StringRef Data)
@@ -76,10 +76,6 @@ struct Token {
   bool operator==(const Token &Other) const {
     return TokenKind == Other.TokenKind && Data == Other.Data;
   }
-
-  /// Representation which is unique among Token with the same Kind.
-  std::string Data;
-  Kind TokenKind;
 
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Token &T) {
     switch (T.TokenKind) {
@@ -92,6 +88,9 @@ struct Token {
     case Kind::ProximityURI:
       OS << "U=";
       break;
+    case Kind::Type:
+      OS << "Ty=";
+      break;
     case Kind::Sentinel:
       OS << "?=";
       break;
@@ -100,6 +99,10 @@ struct Token {
   }
 
 private:
+  /// Representation which is unique among Token with the same Kind.
+  std::string Data;
+  Kind TokenKind;
+
   friend llvm::hash_code hash_value(const Token &Token) {
     return llvm::hash_combine(static_cast<int>(Token.TokenKind), Token.Data);
   }

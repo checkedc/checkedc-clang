@@ -381,11 +381,9 @@ namespace {
           ResultKind = VK_LValue;
         else
           ResultKind = Base->isLValue() ? VK_LValue : VK_RValue;
-        MemberExpr *ME =
-          new (Context) MemberExpr(Base, IsArrow,
-                                   SourceLocation(), FD, SourceLocation(),
-                                   E->getType(), ResultKind, OK_Ordinary);
-        return ME;
+        return
+          MemberExpr::CreateImplicit(Context, Base, IsArrow, FD,
+                                     E->getType(), ResultKind, OK_Ordinary);
       }
       return E;
     }
@@ -477,11 +475,11 @@ namespace {
 
 namespace {
   // EqualExprTy denotes a set of expressions that produce
-  // the same value as some expression e.
+  // the same value as an expression e.
   using EqualExprTy = SmallVector<Expr *, 4>;
 
   // ExprEqualMapTy denotes a map of an expression e to the
-  // set of expression that produce the same value as e.
+  // set of expressions that produce the same value as e.
   using ExprEqualMapTy = llvm::DenseMap<Expr *, EqualExprTy>;
 
   // CheckingState stores the outputs of bounds checking methods.

@@ -5,7 +5,6 @@ if (COMPILER_RT_BUILD_SANITIZERS)
     sanitizer/common_interface_defs.h
     sanitizer/coverage_interface.h
     sanitizer/dfsan_interface.h
-    sanitizer/esan_interface.h
     sanitizer/hwasan_interface.h
     sanitizer/linux_syscall_hooks.h
     sanitizer/lsan_interface.h
@@ -13,13 +12,16 @@ if (COMPILER_RT_BUILD_SANITIZERS)
     sanitizer/netbsd_syscall_hooks.h
     sanitizer/scudo_interface.h
     sanitizer/tsan_interface.h
-    sanitizer/tsan_interface_atomic.h)
+    sanitizer/tsan_interface_atomic.h
+    )
 endif(COMPILER_RT_BUILD_SANITIZERS)
 
 if (COMPILER_RT_BUILD_XRAY)
   set(XRAY_HEADERS
     xray/xray_interface.h
-    xray/xray_log_interface.h)
+    xray/xray_log_interface.h
+    xray/xray_records.h
+    )
 endif(COMPILER_RT_BUILD_XRAY)
 
 set(COMPILER_RT_HEADERS

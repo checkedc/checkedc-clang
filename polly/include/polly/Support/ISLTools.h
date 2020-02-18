@@ -1,9 +1,8 @@
 //===------ ISLTools.h ------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -15,8 +14,8 @@
 #ifndef POLLY_ISLTOOLS_H
 #define POLLY_ISLTOOLS_H
 
-#include "polly/Support/GICHelper.h"
-#include "llvm/ADT/iterator_range.h"
+#include "llvm/ADT/iterator.h"
+#include "isl/isl-noexceptions.h"
 
 namespace isl {
 inline namespace noexceptions {
@@ -463,6 +462,21 @@ isl::union_map applyDomainRange(isl::union_map UMap, isl::union_map Func);
 ///
 /// @return { Domain[] -> Range[] }
 isl::map intersectRange(isl::map Map, isl::union_set Range);
+
+/// Subtract the parameter space @p Params from @p Map.
+/// This is akin to isl::map::intersect_params.
+///
+/// Example:
+///   subtractParams(
+///     { [i] -> [i] },
+///     [x] -> { : x < 0 }
+///   ) = [x] -> { [i] -> [i] : x >= 0 }
+///
+/// @param Map    Remove the conditions of @p Params from this map.
+/// @param Params Parameter set to subtract.
+///
+/// @param The map with the parameter conditions removed.
+isl::map subtractParams(isl::map Map, isl::set Params);
 
 /// If @p PwAff maps to a constant, return said constant. If @p Max/@p Min, it
 /// can also be a piecewise constant and it would return the minimum/maximum

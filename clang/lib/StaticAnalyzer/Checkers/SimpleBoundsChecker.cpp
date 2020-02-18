@@ -33,7 +33,7 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SMTConv.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/SMTSolver.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/SMTAPI.h"
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -122,7 +122,7 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt *LoadS,
   // For handling complex expressions over indices:
 
   // 1. Create a Z3 instance
-  SMTSolverRef Solver = CreateZ3Solver();
+  llvm::SMTSolverRef Solver = llvm::CreateZ3Solver();
 
   // 2. Get the Symbolic Expr of the index and bounds expressions
   //
@@ -197,23 +197,23 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt *LoadS,
   //       generalize for bounds(LB, UB)
   //
   // SMT expression of the bounds expression
-  SMTExprRef SmtBE = SMTConv::getExpr(Solver, Ctx, SymBE);
+  llvm::SMTExprRef SmtBE = SMTConv::getExpr(Solver, Ctx, SymBE);
   // SMT expression of the index
-  SMTExprRef SmtIdx = SMTConv::getExpr(Solver, Ctx, SymIdx);
+  llvm::SMTExprRef SmtIdx = SMTConv::getExpr(Solver, Ctx, SymIdx);
   // SMT expression for (idx >= UpperBound)
-  SMTExprRef OverUB = Solver->mkBVSge(SmtIdx, SmtBE);
+  llvm::SMTExprRef OverUB = Solver->mkBVSge(SmtIdx, SmtBE);
   // SMT expression for (idx < LowerBound)
-  SMTExprRef UnderLB =
+  llvm::SMTExprRef UnderLB =
     Solver->mkBVSlt(SmtIdx, Solver->mkBitvector(llvm::APSInt(32), 32));
 
-  SMTExprRef SmtOOBounds = Solver->mkOr(UnderLB, OverUB);
+  llvm::SMTExprRef SmtOOBounds = Solver->mkOr(UnderLB, OverUB);
 
   // Forcing the expression in the 'count' bounds to be positive '> 0'
-  SMTExprRef PositiveBE =
+  llvm::SMTExprRef PositiveBE =
     Solver->mkBVSgt(SmtBE, Solver->mkBitvector(llvm::APSInt(32), 32));
 
   // the final SMT expression
-  SMTExprRef Constraint = Solver->mkAnd(PositiveBE, SmtOOBounds);
+  llvm::SMTExprRef Constraint = Solver->mkAnd(PositiveBE, SmtOOBounds);
 
 #if DEBUG_DUMP
   llvm::errs() << "SMT constraints for (LB <= Idx < UB) expression:\n";
@@ -435,8 +435,11 @@ SVal SimpleBoundsChecker::replaceSVal(ProgramStateRef State,
   return NewE;
 }
 
-
-
 void ento::registerSimpleBoundsChecker(CheckerManager &mgr) {
   mgr.registerChecker<SimpleBoundsChecker>();
+}
+
+// This checker should be enabled regardless of how language options are set.
+bool ento::shouldRegisterSimpleBoundsChecker(const LangOptions &LO) {
+  return true;
 }

@@ -6,9 +6,11 @@ add_lldb_library(lldbPluginExpressionParserClang PLUGIN
   ASTDumper.cpp
   ASTResultSynthesizer.cpp
   ASTStructExtractor.cpp
+  ASTUtils.cpp
   ClangASTSource.cpp
   ClangExpressionDeclMap.cpp
   ClangExpressionParser.cpp
+  ClangExpressionSourceCode.cpp
   ClangExpressionVariable.cpp
   ClangFunctionCaller.cpp
   ClangHost.cpp
@@ -17,6 +19,7 @@ add_lldb_library(lldbPluginExpressionParserClang PLUGIN
   ClangUserExpression.cpp
   ClangUtilityFunction.cpp
   IRForTarget.cpp
+  IRDynamicChecks.cpp
 
   DEPENDS
   ${tablegen_deps}
@@ -41,6 +44,7 @@ add_lldb_library(lldbPluginExpressionParserClang PLUGIN
     lldbTarget
     lldbUtility
     lldbPluginCPlusPlusLanguage
+    lldbPluginCPPRuntime
   LINK_COMPONENTS
     Core
     ExecutionEngine

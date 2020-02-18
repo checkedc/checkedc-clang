@@ -1,9 +1,8 @@
 //===-- SystemInitializerTest.cpp -------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -58,7 +57,6 @@
 #include "Plugins/ObjectFile/PECOFF/ObjectFilePECOFF.h"
 #include "Plugins/Platform/Android/PlatformAndroid.h"
 #include "Plugins/Platform/FreeBSD/PlatformFreeBSD.h"
-#include "Plugins/Platform/Kalimba/PlatformKalimba.h"
 #include "Plugins/Platform/Linux/PlatformLinux.h"
 #include "Plugins/Platform/MacOSX/PlatformMacOSX.h"
 #include "Plugins/Platform/MacOSX/PlatformRemoteiOS.h"
@@ -113,9 +111,8 @@ SystemInitializerTest::SystemInitializerTest() {}
 
 SystemInitializerTest::~SystemInitializerTest() {}
 
-llvm::Error
-SystemInitializerTest::Initialize(const InitializerOptions &options) {
-  if (auto e = SystemInitializerCommon::Initialize(options))
+llvm::Error SystemInitializerTest::Initialize() {
+  if (auto e = SystemInitializerCommon::Initialize())
     return e;
 
   breakpad::ObjectFileBreakpad::Initialize();
@@ -131,7 +128,6 @@ SystemInitializerTest::Initialize(const InitializerOptions &options) {
   platform_netbsd::PlatformNetBSD::Initialize();
   platform_openbsd::PlatformOpenBSD::Initialize();
   PlatformWindows::Initialize();
-  PlatformKalimba::Initialize();
   platform_android::PlatformAndroid::Initialize();
   PlatformRemoteiOS::Initialize();
   PlatformMacOSX::Initialize();
@@ -217,9 +213,7 @@ SystemInitializerTest::Initialize(const InitializerOptions &options) {
   // It shouldn't be limited to __APPLE__.
   StructuredDataDarwinLog::Initialize();
 
-  //----------------------------------------------------------------------
   // Platform agnostic plugins
-  //----------------------------------------------------------------------
   platform_gdb_server::PlatformRemoteGDBServer::Initialize();
 
   process_gdb_remote::ProcessGDBRemote::Initialize();
@@ -327,7 +321,6 @@ void SystemInitializerTest::Terminate() {
   platform_netbsd::PlatformNetBSD::Terminate();
   platform_openbsd::PlatformOpenBSD::Terminate();
   PlatformWindows::Terminate();
-  PlatformKalimba::Terminate();
   platform_android::PlatformAndroid::Terminate();
   PlatformMacOSX::Terminate();
   PlatformRemoteiOS::Terminate();

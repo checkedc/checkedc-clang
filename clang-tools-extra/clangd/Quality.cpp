@@ -1,16 +1,16 @@
 //===--- Quality.cpp ---------------------------------------------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #include "Quality.h"
 #include "AST.h"
 #include "FileDistance.h"
 #include "URI.h"
-#include "index/Index.h"
+#include "index/Symbol.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
@@ -283,12 +283,12 @@ computeScope(const NamedDecl *D) {
 }
 
 void SymbolRelevanceSignals::merge(const Symbol &IndexResult) {
-  // FIXME: Index results always assumed to be at global scope. If Scope becomes
-  // relevant to non-completion requests, we should recognize class members etc.
-
   SymbolURI = IndexResult.CanonicalDeclaration.FileURI;
   SymbolScope = IndexResult.Scope;
   IsInstanceMember |= isInstanceMember(IndexResult.SymInfo);
+  if (!(IndexResult.Flags & Symbol::VisibleOutsideFile)) {
+    Scope = AccessibleScope::FileScope;
+  }
 }
 
 void SymbolRelevanceSignals::merge(const CodeCompletionResult &SemaCCResult) {
@@ -336,6 +336,15 @@ static float scopeBoost(ScopeDistance &Distance,
   return std::max(0.65, 2.0 * std::pow(0.6, D / 2.0));
 }
 
+static llvm::Optional<llvm::StringRef>
+wordMatching(llvm::StringRef Name, const llvm::StringSet<> *ContextWords) {
+  if (ContextWords)
+    for (const auto& Word : ContextWords->keys())
+      if (Name.contains_lower(Word))
+        return Word;
+  return llvm::None;
+}
+
 float SymbolRelevanceSignals::evaluate() const {
   float Score = 1;
 
@@ -357,6 +366,9 @@ float SymbolRelevanceSignals::evaluate() const {
     Score *=
         SemaSaysInScope ? 2.0 : scopeBoost(*ScopeProximityMatch, SymbolScope);
 
+  if (wordMatching(Name, ContextWords))
+    Score *= 1.5;
+
   // Symbols like local variables may only be referenced within their scope.
   // Conversely if we're in that scope, it's likely we'll reference them.
   if (Query == CodeComplete) {
@@ -366,13 +378,26 @@ float SymbolRelevanceSignals::evaluate() const {
     case GlobalScope:
       break;
     case FileScope:
-      Score *= 1.5;
+      Score *= 1.5f;
       break;
     case ClassScope:
       Score *= 2;
       break;
     case FunctionScope:
       Score *= 4;
+      break;
+    }
+  } else {
+    // For non-completion queries, the wider the scope where a symbol is
+    // visible, the more likely it is to be relevant.
+    switch (Scope) {
+    case GlobalScope:
+      break;
+    case FileScope:
+      Score *= 0.5f;
+      break;
+    default:
+      // TODO: Handle other scopes as we start to use them for index results.
       break;
     }
   }
@@ -400,7 +425,12 @@ float SymbolRelevanceSignals::evaluate() const {
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
                               const SymbolRelevanceSignals &S) {
   OS << llvm::formatv("=== Symbol relevance: {0}\n", S.evaluate());
+  OS << llvm::formatv("\tName: {0}\n", S.Name);
   OS << llvm::formatv("\tName match: {0}\n", S.NameMatch);
+  if (S.ContextWords)
+    OS << llvm::formatv(
+        "\tMatching context word: {0}\n",
+        wordMatching(S.Name, S.ContextWords).getValueOr("<none>"));
   OS << llvm::formatv("\tForbidden: {0}\n", S.Forbidden);
   OS << llvm::formatv("\tNeedsFixIts: {0}\n", S.NeedsFixIts);
   OS << llvm::formatv("\tIsInstanceMember: {0}\n", S.IsInstanceMember);
@@ -467,8 +497,6 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
   OS << llvm::formatv("\tNumber of parameters: {0}\n", S.NumberOfParameters);
   OS << llvm::formatv("\tNumber of optional parameters: {0}\n",
                       S.NumberOfOptionalParameters);
-  OS << llvm::formatv("\tContains active parameter: {0}\n",
-                      S.ContainsActiveParameter);
   OS << llvm::formatv("\tKind: {0}\n", S.Kind);
   return OS;
 }

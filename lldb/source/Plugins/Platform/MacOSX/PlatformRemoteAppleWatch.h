@@ -1,9 +1,8 @@
 //===-- PlatformRemoteAppleWatch.h ------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,9 +24,7 @@ public:
 
   ~PlatformRemoteAppleWatch() override = default;
 
-  //------------------------------------------------------------
   // Class Functions
-  //------------------------------------------------------------
   static lldb::PlatformSP CreateInstance(bool force,
                                          const lldb_private::ArchSpec *arch);
 
@@ -39,33 +36,25 @@ public:
 
   static const char *GetDescriptionStatic();
 
-  //------------------------------------------------------------
   // lldb_private::Platform functions
-  //------------------------------------------------------------
 
   const char *GetDescription() override { return GetDescriptionStatic(); }
 
-  //------------------------------------------------------------
   // lldb_private::PluginInterface functions
-  //------------------------------------------------------------
   lldb_private::ConstString GetPluginName() override {
     return GetPluginNameStatic();
   }
 
   uint32_t GetPluginVersion() override { return 1; }
 
-  //------------------------------------------------------------
   // lldb_private::Platform functions
-  //------------------------------------------------------------
 
   bool GetSupportedArchitectureAtIndex(uint32_t idx,
                                        lldb_private::ArchSpec &arch) override;
 
 protected:
 
-  //------------------------------------------------------------
   // lldb_private::PlatformRemoteDarwinDevice functions
-  //------------------------------------------------------------
 
   void GetDeviceSupportDirectoryNames (std::vector<std::string> &dirnames) override;
 

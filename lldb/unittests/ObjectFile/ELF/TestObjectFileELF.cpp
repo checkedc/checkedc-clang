@@ -1,10 +1,9 @@
 //===-- TestObjectFileELF.cpp -----------------------------------*- C++ -*-===//
 //
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -23,6 +22,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Testing/Support/Error.h"
 #include "gtest/gtest.h"
 
 using namespace lldb_private;
@@ -47,33 +47,14 @@ public:
 protected:
 };
 
-#define ASSERT_NO_ERROR(x)                                                     \
-  if (std::error_code ASSERT_NO_ERROR_ec = x) {                                \
-    llvm::SmallString<128> MessageStorage;                                     \
-    llvm::raw_svector_ostream Message(MessageStorage);                         \
-    Message << #x ": did not return errc::success.\n"                          \
-            << "error number: " << ASSERT_NO_ERROR_ec.value() << "\n"          \
-            << "error message: " << ASSERT_NO_ERROR_ec.message() << "\n";      \
-    GTEST_FATAL_FAILURE_(MessageStorage.c_str());                              \
-  } else {                                                                     \
-  }
-
 TEST_F(ObjectFileELFTest, SectionsResolveConsistently) {
-  std::string yaml = GetInputFilePath("sections-resolve-consistently.yaml");
   llvm::SmallString<128> obj;
   ASSERT_NO_ERROR(llvm::sys::fs::createTemporaryFile(
       "sections-resolve-consistently-%%%%%%", "obj", obj));
-
   llvm::FileRemover remover(obj);
-  llvm::StringRef args[] = {YAML2OBJ, yaml};
-  llvm::StringRef obj_ref = obj;
-  const llvm::Optional<llvm::StringRef> redirects[] = {llvm::None, obj_ref,
-                                                       llvm::None};
-  ASSERT_EQ(0,
-            llvm::sys::ExecuteAndWait(YAML2OBJ, args, llvm::None, redirects));
-  uint64_t size;
-  ASSERT_NO_ERROR(llvm::sys::fs::file_size(obj, size));
-  ASSERT_GT(size, 0u);
+  ASSERT_THAT_ERROR(
+      ReadYAMLObjectFile("sections-resolve-consistently.yaml", obj),
+      llvm::Succeeded());
 
   ModuleSpec spec{FileSpec(obj)};
   spec.GetSymbolFileSpec().SetFile(obj, FileSpec::Style::native);
@@ -156,21 +137,12 @@ static void CHECK_ABS64(uint8_t *bytes, uint64_t offset, uint64_t addend) {
 }
 
 TEST_F(ObjectFileELFTest, TestAARCH64Relocations) {
-  std::string yaml = GetInputFilePath("debug-info-relocations.pcm.yaml");
   llvm::SmallString<128> obj;
   ASSERT_NO_ERROR(llvm::sys::fs::createTemporaryFile(
       "debug-info-relocations-%%%%%%", "obj", obj));
-
   llvm::FileRemover remover(obj);
-  llvm::StringRef args[] = {YAML2OBJ, yaml};
-  llvm::StringRef obj_ref = obj;
-  const llvm::Optional<llvm::StringRef> redirects[] = {llvm::None, obj_ref,
-                                                       llvm::None};
-  ASSERT_EQ(0,
-            llvm::sys::ExecuteAndWait(YAML2OBJ, args, llvm::None, redirects));
-  uint64_t size;
-  ASSERT_NO_ERROR(llvm::sys::fs::file_size(obj, size));
-  ASSERT_GT(size, 0u);
+  ASSERT_THAT_ERROR(ReadYAMLObjectFile("debug-info-relocations.pcm.yaml", obj),
+                    llvm::Succeeded());
 
   ModuleSpec spec{FileSpec(obj)};
   spec.GetSymbolFileSpec().SetFile(obj, FileSpec::Style::native);

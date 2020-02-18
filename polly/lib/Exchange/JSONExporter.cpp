@@ -1,9 +1,8 @@
 //===-- JSONExporter.cpp  - Export Scops as JSON  -------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -19,18 +18,14 @@
 #include "polly/ScopPass.h"
 #include "polly/Support/ScopLocation.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Analysis/RegionInfo.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
-#include "isl/constraint.h"
 #include "isl/map.h"
-#include "isl/printer.h"
 #include "isl/set.h"
-#include "isl/union_map.h"
 #include <memory>
 #include <string>
 #include <system_error>

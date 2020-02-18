@@ -1,9 +1,8 @@
 //===-- CommunicationKDP.cpp ------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,9 +28,7 @@
 using namespace lldb;
 using namespace lldb_private;
 
-//----------------------------------------------------------------------
 // CommunicationKDP constructor
-//----------------------------------------------------------------------
 CommunicationKDP::CommunicationKDP(const char *comm_name)
     : Communication(comm_name), m_addr_byte_size(4),
       m_byte_order(eByteOrderLittle), m_packet_timeout(5), m_sequence_mutex(),
@@ -40,9 +37,7 @@ CommunicationKDP::CommunicationKDP(const char *comm_name)
       m_kdp_version_feature(0u), m_kdp_hostinfo_cpu_mask(0u),
       m_kdp_hostinfo_cpu_type(0u), m_kdp_hostinfo_cpu_subtype(0u) {}
 
-//----------------------------------------------------------------------
 // Destructor
-//----------------------------------------------------------------------
 CommunicationKDP::~CommunicationKDP() {
   if (IsConnected()) {
     Disconnect();
@@ -92,7 +87,7 @@ bool CommunicationKDP::SendRequestAndGetReply(
   for (uint32_t i = 0; i < num_retries; ++i) {
     if (SendRequestPacketNoLock(request_packet)) {
       const uint8_t request_sequence_id = (uint8_t)request_packet.GetData()[1];
-      while (1) {
+      while (true) {
         if (WaitForPacketWithTimeoutMicroSecondsNoLock(
                 reply_packet,
                 std::chrono::microseconds(GetPacketTimeout()).count())) {

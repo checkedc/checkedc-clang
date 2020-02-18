@@ -1,9 +1,8 @@
 //===-- MangledTest.cpp -----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,6 +20,7 @@
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
+#include "llvm/Testing/Support/Error.h"
 
 #include "gtest/gtest.h"
 
@@ -32,7 +32,7 @@ TEST(MangledTest, ResultForValidName) {
   bool IsMangled = true;
 
   Mangled TheMangled(MangledName, IsMangled);
-  const ConstString &TheDemangled =
+  ConstString TheDemangled =
       TheMangled.GetDemangledName(eLanguageTypeC_plus_plus);
 
   ConstString ExpectedResult("void a::b::c<int, int, int>(unsigned long)");
@@ -44,22 +44,11 @@ TEST(MangledTest, EmptyForInvalidName) {
   bool IsMangled = true;
 
   Mangled TheMangled(MangledName, IsMangled);
-  const ConstString &TheDemangled =
+  ConstString TheDemangled =
       TheMangled.GetDemangledName(eLanguageTypeC_plus_plus);
 
   EXPECT_STREQ("", TheDemangled.GetCString());
 }
-
-#define ASSERT_NO_ERROR(x)                                                     \
-  if (std::error_code ASSERT_NO_ERROR_ec = x) {                                \
-    llvm::SmallString<128> MessageStorage;                                     \
-    llvm::raw_svector_ostream Message(MessageStorage);                         \
-    Message << #x ": did not return errc::success.\n"                          \
-            << "error number: " << ASSERT_NO_ERROR_ec.value() << "\n"          \
-            << "error message: " << ASSERT_NO_ERROR_ec.message() << "\n";      \
-    GTEST_FATAL_FAILURE_(MessageStorage.c_str());                              \
-  } else {                                                                     \
-  }
 
 TEST(MangledTest, NameIndexes_FindFunctionSymbols) {
   FileSystem::Initialize();
@@ -67,21 +56,12 @@ TEST(MangledTest, NameIndexes_FindFunctionSymbols) {
   ObjectFileELF::Initialize();
   SymbolVendorELF::Initialize();
 
-  std::string Yaml = GetInputFilePath("mangled-function-names.yaml");
   llvm::SmallString<128> Obj;
   ASSERT_NO_ERROR(llvm::sys::fs::createTemporaryFile(
       "mangled-function-names-%%%%%%", "obj", Obj));
-
   llvm::FileRemover Deleter(Obj);
-  llvm::StringRef Args[] = {YAML2OBJ, Yaml};
-  llvm::StringRef ObjRef = Obj;
-  const llvm::Optional<llvm::StringRef> redirects[] = {llvm::None, ObjRef,
-                                                       llvm::None};
-  ASSERT_EQ(0,
-            llvm::sys::ExecuteAndWait(YAML2OBJ, Args, llvm::None, redirects));
-  uint64_t Size;
-  ASSERT_NO_ERROR(llvm::sys::fs::file_size(Obj, Size));
-  ASSERT_GT(Size, 0u);
+  ASSERT_THAT_ERROR(ReadYAMLObjectFile("mangled-function-names.yaml", Obj),
+                    llvm::Succeeded());
 
   ModuleSpec Spec{FileSpec(Obj)};
   Spec.GetSymbolFileSpec().SetFile(Obj, FileSpec::Style::native);

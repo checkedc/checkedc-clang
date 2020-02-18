@@ -1,9 +1,8 @@
 //===- extra/modularize/Modularize.cpp - Check modularized headers --------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -370,7 +369,7 @@ getModularizeArgumentsAdjuster(DependencyMap &Dependencies) {
     // Ignore warnings.  (Insert after "clang_tool" at beginning.)
     NewArgs.insert(NewArgs.begin() + 1, "-w");
     // Since we are compiling .h files, assume C++ unless given a -x option.
-    if (std::find(NewArgs.begin(), NewArgs.end(), "-x") == NewArgs.end()) {
+    if (!llvm::is_contained(NewArgs, "-x")) {
       NewArgs.insert(NewArgs.begin() + 2, "-x");
       NewArgs.insert(NewArgs.begin() + 3, "c++");
     }
