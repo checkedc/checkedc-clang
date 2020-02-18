@@ -2655,7 +2655,8 @@ namespace {
       UnaryOperatorKind Op = E->getOpcode();
       Expr *SubExpr = E->getSubExpr();
 
-      // Infer the lvalue or rvalue bounds of the subexpression.
+      // Infer the lvalue or rvalue bounds of the subexpression e1,
+      // setting State to contain the results for e1.
       BoundsExpr *SubExprTargetBounds, *SubExprLValueBounds, *SubExprBounds;
       InferBounds(SubExpr, CSS, SubExprTargetBounds,
                   SubExprLValueBounds, SubExprBounds, State);
@@ -2674,12 +2675,9 @@ namespace {
       if (Op == UnaryOperatorKind::UO_Deref)
         return CreateBoundsInferenceError();
 
-      // `!e` has empty bounds.
-      if (Op == UnaryOperatorKind::UO_LNot)
-        return CreateBoundsEmpty();
-
       // `&e` has the bounds of `e`.
       // `e` is an lvalue, so its bounds are its lvalue bounds.
+      // State.G for `&e` remains the same as State.G for `e`.
       if (Op == UnaryOperatorKind::UO_AddrOf) {
 
         // Functions have bounds corresponding to the empty range.
@@ -2693,6 +2691,14 @@ namespace {
       // `e` is an lvalue, so its bounds are its lvalue target bounds.
       if (UnaryOperator::isIncrementDecrementOp(Op))
         return SubExprTargetBounds;
+
+      // Update State.G for `!e`, `+e`, `-e`, and `~e`
+      // using the current State.G for `e`.
+      UpdateG(E, State.G, State.G);
+
+      // `!e` has empty bounds.
+      if (Op == UnaryOperatorKind::UO_LNot)
+        return CreateBoundsEmpty();
 
       // `+e`, `-e`, `~e` all have bounds of `e`. `e` is an rvalue.
       if (Op == UnaryOperatorKind::UO_Plus ||
