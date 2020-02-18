@@ -3291,6 +3291,52 @@ namespace {
         G.push_back(CreateTemporaryUse(Temp));
     }
 
+    // If E appears in a set F in EQ, GetEqualExprSetContainingExpr
+    // returns F.  Otherwise, it returns an empty set.
+    EqualExprTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ) {
+      for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
+        EqualExprTy F = *OuterList;
+        for (auto InnerList = F.begin(); InnerList != F.end(); ++InnerList) {
+          Expr *E1 = *InnerList;
+          if (EqualValue(S.Context, E, E1, &EQ))
+            return F;
+        }
+      }
+      return { };
+    }
+
+    // Returns true if the lvalue expression e reads memory via a pointer.
+    bool ReadsMemoryViaPointer(Expr *E) {
+      E = E->IgnoreParens();
+
+      if (!E->isLValue())
+        return false;
+
+      switch (E->getStmtClass()) {
+        case Expr::UnaryOperatorClass: {
+          UnaryOperator *UO = cast<UnaryOperator>(E);
+          // *e reads memory via a pointer.
+          return UO->getOpcode() == UnaryOperatorKind::UO_Deref;
+        }
+        // e1[e2] is a synonym for *(e1 + e2), which reads memory via a pointer.
+        case Expr::ArraySubscriptExprClass:
+          return true;
+        // e1.e2 and e1->e2 read memory via a pointer.
+        case Expr::MemberExprClass:
+          return true;
+        case Expr::ImplicitCastExprClass: {
+          ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);
+          return ReadsMemoryViaPointer(ICE->getSubExpr());
+        }
+        case Expr::CHKCBindTemporaryExprClass: {
+          CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(E);
+          return ReadsMemoryViaPointer(Binding->getSubExpr());
+        }
+        default:
+          return false;
+      }
+    }
+
     // CheckIsNonModifying suppresses diagnostics while checking
     // whether e is a non-modifying expression.
     bool CheckIsNonModifying(Expr *E) {
