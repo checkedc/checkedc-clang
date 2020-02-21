@@ -912,7 +912,8 @@ ProgramInfo::getOnDemandFuncDeclarationConstraint(FunctionDecl *targetFunc, ASTC
 
 std::set<ConstraintVariable*>&
 ProgramInfo::getFuncDefnConstraints(FunctionDecl *targetFunc, ASTContext *C) {
-  std::string funcKey = getUniqueFuncKey(targetFunc, C);
+  std::string funcKey = getUniqueDeclKey(targetFunc, C);
+
   if(targetFunc->isThisDeclarationADefinition() && targetFunc->hasBody()) {
     return CS.getFuncDefnVarMap()[funcKey];
   } else {
@@ -924,9 +925,8 @@ ProgramInfo::getFuncDefnConstraints(FunctionDecl *targetFunc, ASTContext *C) {
     }
     return CS.getFuncDeclVarMap()[funcKey];
   }
-
-
 }
+
 std::set<ConstraintVariable*>
 ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD, int parameterIndex) {
   // if this is a parameter.
