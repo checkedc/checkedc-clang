@@ -2205,7 +2205,11 @@ public:
   BoundsExpr *getBoundsExpr() { return Bounds; }
 
   /// \brief Set the bounds to use during the bounds check of this expression.
-  void setBoundsExpr(BoundsExpr *E) { Bounds = E; }
+  void setBoundsExpr(BoundsExpr *E) {
+    assert(!hasBoundsExpr() &&
+           "inferred bounds checks should not be present");
+    Bounds = E;
+  }
 
   static_assert(BCK_MaxKind < (1 << NumBoundsCheckKindBits), "kind field too small");
 
@@ -2619,7 +2623,11 @@ public:
   BoundsExpr *getBoundsExpr() { return Bounds; }
 
   /// \brief Set the bounds to use during the bounds check of this expression.
-  void setBoundsExpr(BoundsExpr *E) { Bounds = E; }
+  void setBoundsExpr(BoundsExpr *E) {
+    assert(!hasBoundsExpr() &&
+           "inferred bounds checks should not be present");
+    Bounds = E;
+  }
 
   /// \brief Return the kind of bounds check to do.
   BoundsCheckKind getBoundsCheckKind() const {
@@ -3187,7 +3195,11 @@ public:
 
   /// \brief Set the bounds to use for bounds checking the base expression
   /// lvalue.
-  void setBoundsExpr(BoundsExpr *E) { Bounds = E; }
+  void setBoundsExpr(BoundsExpr *E) {
+    assert(!hasBoundsExpr() &&
+           "inferred bounds checks should not be present");
+    Bounds = E;
+  }
 };
 
 /// CompoundLiteralExpr - [C99 6.5.2.5]
@@ -3587,6 +3599,8 @@ public:
   }
 
   void setBoundsExpr(BoundsExpr *E) {
+    assert(!hasBoundsExpr() &&
+           "inferred bounds checks should not be present");
     SubExprs[BOUNDS] = E;
   }
 
