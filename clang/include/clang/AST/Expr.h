@@ -2979,7 +2979,7 @@ class MemberExpr final
              QualType T, ExprValueKind VK, ExprObjectKind OK,
              NonOdrUseReason NOUR);
   MemberExpr(EmptyShell Empty)
-      : Expr(MemberExprClass, Empty), Base(), MemberDecl() {}
+      : Expr(MemberExprClass, Empty), Base(), MemberDecl(), Bounds(nullptr) {}
 
 public:
   static MemberExpr *Create(const ASTContext &C, Expr *Base, bool IsArrow,
