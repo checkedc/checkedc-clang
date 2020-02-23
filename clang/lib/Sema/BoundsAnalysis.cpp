@@ -19,36 +19,23 @@ namespace clang {
 void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
   assert(Cfg && "expected CFG to exist");
 
-  WorkListTy WorkList;
-
-  // Add each block to WorkList and create a mapping from Block to
-  // ElevatedCFGBlock.
-  // Note: By default, PostOrderCFGView iterates in reverse order. So we always
-  // get a reverse post order when we iterate PostOrderCFGView.
-  for (const CFGBlock *B : PostOrderCFGView(Cfg)) {
-    // SkipBlock will skip all null, entry and exit blocks. PostOrderCFGView
-    // does not contain any unreachable blocks. So at the end of this loop
-    // BlockMap only contains reachable blocks.
+  // Create a mapping from Block to ElevatedCFGBlock.
+  // BlockMap will contain reachable as well as unreachable blocks.
+  for (auto I = Cfg->begin(), E = Cfg->end(); I != E; ++I) {
+    const CFGBlock *B = *I;
+    // SkipBlock will skip all null, entry and exit blocks.
     if (SkipBlock(B))
       continue;
 
-    auto EB = new ElevatedCFGBlock(B);
-    // Note: WorkList is a queue. So we maintain the reverse post order when we
-    // iterate WorkList.
-    WorkList.append(EB);
-    BlockMap[B] = EB;
+    BlockMap[B] = new ElevatedCFGBlock(B);
   }
 
-  // At this time, BlockMap only contains reachable blocks. We iterate through
-  // all blocks in the CFG and append all unreachable blocks to the WorkList.
-  for (auto I = Cfg->begin(), E = Cfg->end(); I != E; ++I) {
-    const CFGBlock *B = *I;
-    if (!SkipBlock(B) && !BlockMap.count(B)) {
-      auto EB = new ElevatedCFGBlock(B);
-      WorkList.append(EB);
-      BlockMap[B] = EB;
-    }
-  }
+  // GetOrderedBlocks will sort the blocks in BlockMap in decreasing order of
+  // block IDs because block IDs decrease from entry to exit. Append the
+  // ordered blocks to WorkList which is a queue.
+  WorkListTy WorkList;
+  for (const CFGBlock *B : GetOrderedBlocks())
+    WorkList.append(BlockMap[B]);
 
   // Collect all ntptrs in scope.
   CollectNtPtrsInScope(FD);
