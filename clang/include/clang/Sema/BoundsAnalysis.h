@@ -17,6 +17,7 @@
 #define LLVM_CLANG_BOUNDS_ANALYSIS_H
 
 #include "clang/AST/CanonBounds.h"
+#include "clang/Analysis/Analyses/Dominators.h"
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/Sema/Sema.h"
 #include <queue>
@@ -174,7 +175,8 @@ namespace clang {
     // Compute In set for each block in BlockMap. In[B1] = n Out[B*->B1], where
     // B* are all preds of B1.
     // @param[in] EB is the block to compute the In set for.
-    void ComputeInSets(ElevatedCFGBlock *EB);
+    // @param[in] Dom is the dominator tree for the CFG.
+    void ComputeInSets(ElevatedCFGBlock *EB, CFGDomTree &Dom);
 
     // Compute Out set for each outgoing edge of EB. If the Out set on any edge
     // of EB changes then the successor of EB on that edge is added to

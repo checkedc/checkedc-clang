@@ -57,12 +57,15 @@ void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
   ComputeGenSets();
   ComputeKillSets();
 
+  CFGDomTree Dom;
+  Dom.buildDominatorTree(Cfg);
+
   // Compute In and Out sets.
   while (!WorkList.empty()) {
     ElevatedCFGBlock *EB = WorkList.next();
     WorkList.remove(EB);
 
-    ComputeInSets(EB);
+    ComputeInSets(EB, Dom);
     ComputeOutSets(EB, WorkList);
   }
 }
@@ -556,7 +559,7 @@ void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB, const Stmt *S) {
     FillKillSet(EB, St);
 }
 
-void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB) {
+void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB, CFGDomTree &Dom) {
   // In[B1] = n Out[B*->B1], where B* are all preds of B1.
 
   BoundsMapTy Intersections;
@@ -564,6 +567,19 @@ void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB) {
 
   for (const CFGBlock *pred : EB->Block->preds()) {
     if (SkipBlock(pred))
+      continue;
+
+    // In loops we can have control flow like this: B1->B2->B3->B2. Here
+    // B2->B3->B2 is a loop. There are 2 incoming edges to B2: B1->B2 and
+    // B3->B2. Let's say Gen[B1->B2] = {p:1}. Upon entry to B2, Gen[B3->B2]
+    // will be {}. So for computing In[B2] we cannot take the intesection of
+    // "all" incoming edges to B2 because that would lead to an empty set.
+
+    // So for loops we need to skip the backward edges (tail->head) to
+    // correctly compute In sets.  We can use the fact that the loop head
+    // always dominates the tail. So we can detect a backward edge (like
+    // B3->B2) by checking if B2 dominates B3.
+    if (Dom.dominates(EB->Block, pred))
       continue;
 
     ElevatedCFGBlock *PredEB = BlockMap[pred];
@@ -635,6 +651,8 @@ Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
   if (const Stmt *S = B->getTerminatorStmt()) {
     if (const auto *IfS = dyn_cast<IfStmt>(S))
       return const_cast<Expr *>(IfS->getCond());
+    if (const auto *WhileS = dyn_cast<WhileStmt>(S))
+      return const_cast<Expr *>(WhileS->getCond());
   }
   return nullptr;
 }
