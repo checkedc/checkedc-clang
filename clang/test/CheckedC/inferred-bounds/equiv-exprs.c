@@ -54,7 +54,8 @@ void f1(int i, int a checked[5]) {
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
   // CHECK-NEXT: }
 
   // Extern unchecked array with known size
@@ -74,7 +75,8 @@ void f1(int i, int a checked[5]) {
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: DeclRefExpr {{.*}} 'a1'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a1'
   // CHECK-NEXT: }
 
   // Array parameter with _Array_ptr<int> type
@@ -302,9 +304,9 @@ void f4() {
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: CHKCBindTemporaryExpr {{.*}} 'char [4]'
-  // CHECK-NEXT:   StringLiteral {{.*}} "abc"
-  // CHECK-NEXT: BoundsValueExpr {{.*}} 'char [4]'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'char [4]'
+  // CHECK-NEXT:     StringLiteral {{.*}} "abc"
   // CHECK-NEXT: }
 }
 

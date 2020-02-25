@@ -2559,8 +2559,8 @@ namespace {
       // Update the set State.G of expressions that produce the
       // same value as e.
       if (CK == CastKind::CK_ArrayToPointerDecay) {
-        // The subexpression e1 has array type, so State.G
-        // remains the same as State.G for e1.
+        // State.G = { e } for array to pointer casts.
+        State.G = { E };
       } else if (CK == CastKind::CK_LValueToRValue) {
         // If e1 appears in some set F in State.UEQ, State.G = F.
         State.G = GetEqualExprSetContainingExpr(SubExpr, State.UEQ);
