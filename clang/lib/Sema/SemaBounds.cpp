@@ -2558,23 +2558,27 @@ namespace {
 
       // Update the set State.G of expressions that produce the
       // same value as e.
-      if (CK == CastKind::CK_ArrayToPointerDecay) {
-        // State.G = { e } for array to pointer casts.
+      if (CK == CastKind::CK_ArrayToPointerDecay)
+        // State.G = { e } for lvalues with array type.
         State.G = { E };
-      } else if (CK == CastKind::CK_LValueToRValue) {
-        // If e1 appears in some set F in State.UEQ, State.G = F.
-        State.G = GetEqualExprSetContainingExpr(SubExpr, State.UEQ);
-        if (State.G.size() == 0) {
-          // Otherwise, if e1 is nonmodifying and does not read
-          // memory via a pointer, State.G = { e1 }.
-          if (CheckIsNonModifying(SubExpr) && !ReadsMemoryViaPointer(SubExpr))
-            State.G.push_back(SubExpr);
+      else if (CK == CastKind::CK_LValueToRValue) {
+        if (E->getType()->isArrayType())
+          // State.G = { e } for lvalues with array type.
+          State.G = { E };
+        else {
+          // If e appears in some set F in State.UEQ, State.G = F.
+          State.G = GetEqualExprSetContainingExpr(E, State.UEQ);
+          if (State.G.size() == 0) {
+            // Otherwise, if e is nonmodifying and does not read memory
+            // via a pointer, State.G = { e }.  Otherwise, State.G is empty.
+            if (CheckIsNonModifying(E) && !ReadsMemoryViaPointer(E))
+              State.G.push_back(E);
+          }
         }
-      } else {
-        // Use the default rules to update State.G using
+      } else
+        // Use the default rules to update State.G for e using
         // the current State.G for the subexpression e1.
         UpdateG(E, State.G, State.G);
-      }
 
       // Casts to _Ptr narrow the bounds.  If the cast to
       // _Ptr is invalid, that will be diagnosed separately.
@@ -3325,12 +3329,9 @@ namespace {
       return { };
     }
 
-    // Returns true if the lvalue expression e reads memory via a pointer.
+    // Returns true if the expression e reads memory via a pointer.
     bool ReadsMemoryViaPointer(Expr *E) {
       E = E->IgnoreParens();
-
-      if (!E->isLValue())
-        return false;
 
       switch (E->getStmtClass()) {
         case Expr::UnaryOperatorClass: {
@@ -3351,16 +3352,15 @@ namespace {
           else
             return ReadsMemoryViaPointer(ME->getBase());
         }
-        case Expr::ImplicitCastExprClass: {
-          ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);
-          return ReadsMemoryViaPointer(ICE->getSubExpr());
-        }
-        case Expr::CHKCBindTemporaryExprClass: {
-          CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(E);
-          return ReadsMemoryViaPointer(Binding->getSubExpr());
-        }
-        default:
+        default: {
+          for (auto I = E->child_begin(); I != E->child_end(); ++I) {
+            if (Expr *SubExpr = dyn_cast<Expr>(*I)) {
+              if (ReadsMemoryViaPointer(SubExpr))
+                return true;
+            }
+          }
           return false;
+        }
       }
     }
 

@@ -33,7 +33,8 @@ void f1(int i, int a checked[5]) {
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT: }
 
   // Local checked array with known size
@@ -97,7 +98,8 @@ void f1(int i, int a checked[5]) {
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT: }
 }
 
@@ -120,6 +122,7 @@ void f2(int *p, int x, int y) {
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT: DeclRefExpr {{.*}} 'p'
   // CHECK-NEXT: }
   // CHECK: Statement S:
@@ -198,7 +201,8 @@ void f2(int *p, int x, int y) {
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
   // CHECK-NEXT: }
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} '!'
@@ -233,7 +237,8 @@ void f3(int a [1]) {
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT: }
   // CHECK: Statement S:
   // CHECK-NEXT: IntegerLiteral {{.*}} 0
@@ -450,7 +455,8 @@ void f6(int i, array_ptr<int> arr : count(1)) {
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT: }
   // CHECK: Statement S:
   // CHECK-NEXT: CStyleCastExpr {{.*}} <IntegralToFloating>
@@ -482,7 +488,8 @@ void f6(int i, array_ptr<int> arr : count(1)) {
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
   // CHECK-NEXT: }
   // CHECK: Statement S:
   // CHECK-NEXT: CHKCBindTemporaryExpr {{.*}} '_Array_ptr<int>'
