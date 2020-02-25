@@ -9634,9 +9634,6 @@ ExprResult
 TreeTransform<Derived>::TransformUnaryOperator(UnaryOperator *E) {
   ExprResult SubExpr;
 
-  assert(E->getBoundsExpr() == nullptr &&
-         "inferred bounds checks should not be present");
-
   if (E->getOpcode() == UO_AddrOf)
     SubExpr = TransformAddressOfOperand(E->getSubExpr());
   else
@@ -9808,8 +9805,6 @@ TreeTransform<Derived>::TransformUnaryExprOrTypeTraitExpr(
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformArraySubscriptExpr(ArraySubscriptExpr *E) {
-  assert(E->getBoundsExpr() == nullptr &&
-         "inferred bounds checks should not be present");
   ExprResult LHS = getDerived().TransformExpr(E->getLHS());
   if (LHS.isInvalid())
     return ExprError();
@@ -9890,8 +9885,6 @@ TreeTransform<Derived>::TransformCallExpr(CallExpr *E) {
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformMemberExpr(MemberExpr *E) {
-  assert(E->getBoundsExpr() == nullptr &&
-         "inferred bounds checks should not be present");
   ExprResult Base = getDerived().TransformExpr(E->getBase());
   if (Base.isInvalid())
     return ExprError();
@@ -10069,8 +10062,6 @@ TreeTransform<Derived>::TransformImplicitCastExpr(ImplicitCastExpr *E) {
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCStyleCastExpr(CStyleCastExpr *E) {
-  assert(E->getBoundsExpr() == nullptr &&
-         "inferred bounds checks should not be present");
   TypeSourceInfo *Type = getDerived().TransformType(E->getTypeInfoAsWritten());
   if (!Type)
     return ExprError();
