@@ -475,12 +475,12 @@ namespace {
 }
 
 namespace {
-  // EqualExprTy denotes a set of expressions that produce
-  // the same value as an expression e.
+  // EqualExprTy denotes a set of expressions that produce the same value
+  // as an expression e.
   using EqualExprTy = SmallVector<Expr *, 4>;
 
-  // ExprEqualMapTy denotes a map of an expression e to the
-  // set of expressions that produce the same value as e.
+  // ExprEqualMapTy denotes a map of an expression e to the set of
+  // expressions that produce the same value as e.
   using ExprEqualMapTy = llvm::DenseMap<Expr *, EqualExprTy>;
 
   // CheckingState stores the outputs of bounds checking methods.
@@ -492,8 +492,8 @@ namespace {
       // after checking an expression e.
       EquivExprSets UEQ;
 
-      // G is a set of expressions that produce the same value
-      // as an expression e once checking of e is complete.
+      // G is a set of expressions that produce the same value as an
+      // expression e once checking of e is complete.
       EqualExprTy G;
   };
 }
@@ -2169,9 +2169,9 @@ namespace {
       return Bounds;
     }
 
-    // CheckChildren recursively checks and performs any side
-    // effects on the children of a statement or expression,
-    // throwing away the resulting bounds.
+    // CheckChildren recursively checks and performs any side effects on the
+    // children of a statement or expression, throwing away the resulting
+    // bounds.
     void CheckChildren(Stmt *S, CheckedScopeSpecifier CSS,
                        CheckingState &State) {
       ExprEqualMapTy SubExprGs;
@@ -2229,17 +2229,15 @@ namespace {
       Expr *RHS = E->getRHS();
       ExprEqualMapTy SubExprGs;
 
-      // Infer the lvalue or rvalue bounds of the LHS,
-      // saving the set G of expressions that produce
-      // the same value as the LHS.
+      // Infer the lvalue or rvalue bounds of the LHS, saving the set G 
+      // of expressions that produce the same value as the LHS.
       BoundsExpr *LHSTargetBounds, *LHSLValueBounds, *LHSBounds;
       InferBounds(LHS, CSS, LHSTargetBounds,
                   LHSLValueBounds, LHSBounds, State);
       SubExprGs[LHS] = State.G;
 
-      // Infer the rvalue bounds of the RHS,
-      // saving the set of expressions that produce the
-      // the same value as the RHS.
+      // Infer the rvalue bounds of the RHS, saving the set G
+      // of expressions that produce the same value as the RHS.
       BoundsExpr *RHSBounds = Check(RHS, CSS, State);
       SubExprGs[RHS] = State.G;
 
