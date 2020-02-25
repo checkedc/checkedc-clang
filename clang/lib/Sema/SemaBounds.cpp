@@ -3341,9 +3341,16 @@ namespace {
         // e1[e2] is a synonym for *(e1 + e2), which reads memory via a pointer.
         case Expr::ArraySubscriptExprClass:
           return true;
-        // e1.e2 and e1->e2 read memory via a pointer.
-        case Expr::MemberExprClass:
-          return true;
+        case Expr::MemberExprClass: {
+          MemberExpr *ME = cast<MemberExpr>(E);
+          // e1->f reads memory via a pointer.
+          if (ME->isArrow())
+            return true;
+          // e1.f reads memory via a pointer if and only if e1 reads
+          // memory via a pointer.
+          else
+            return ReadsMemoryViaPointer(ME->getBase());
+        }
         case Expr::ImplicitCastExprClass: {
           ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);
           return ReadsMemoryViaPointer(ICE->getSubExpr());
