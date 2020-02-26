@@ -475,9 +475,13 @@ namespace {
 }
 
 namespace {
-  // EqualExprTy denotes a set of expressions that produce
-  // the same value as some expression e.
+  // EqualExprTy denotes a set of expressions that produce the same value
+  // as an expression e.
   using EqualExprTy = SmallVector<Expr *, 4>;
+
+  // ExprEqualMapTy denotes a map of an expression e to the set of
+  // expressions that produce the same value as e.
+  using ExprEqualMapTy = llvm::DenseMap<Expr *, EqualExprTy>;
 
   // CheckingState stores the outputs of bounds checking methods.
   // These members represent the state during bounds checking
@@ -488,8 +492,8 @@ namespace {
       // after checking an expression e.
       EquivExprSets UEQ;
 
-      // G is a set of expressions that produce the same value
-      // as an expression e once checking of e is complete.
+      // G is a set of expressions that produce the same value as an
+      // expression e once checking of e is complete.
       EqualExprTy G;
   };
 }
@@ -517,10 +521,6 @@ namespace {
     // bounds of a null-terminated array.  This is used when calculating
     // physical sizes during casts to pointers to null-terminated arrays.
     bool IncludeNullTerminator;
-
-    // EqualExprTy denotes a set of expressions that are
-    // equivalent to some expression e.
-    using EqualExprTy = SmallVector<Expr *, 4>;
 
     void DumpAssignmentBounds(raw_ostream &OS, BinaryOperator *E,
                               BoundsExpr *LValueTargetBounds,
@@ -2169,14 +2169,29 @@ namespace {
       return Bounds;
     }
 
-    // Recursively check and perform any side effects on the children
-    // of an expression, throwing away the resulting rvalue bounds.
+    // CheckChildren recursively checks and performs any side effects on the
+    // children of a statement or expression, throwing away the resulting
+    // bounds.
     void CheckChildren(Stmt *S, CheckedScopeSpecifier CSS,
                        CheckingState &State) {
+      ExprEqualMapTy SubExprGs;
       auto Begin = S->child_begin(), End = S->child_end();
+
       for (auto I = Begin; I != End; ++I) {
-        Check(*I, CSS, State);
+        Stmt *Child = *I;
+        if (!Child) continue;
+        // Accumulate the UEQ from checking each child into the UEQ for S.
+        Check(Child, CSS, State);
+
+        // Store the set Gi for each subexpression Si.
+        if (Expr *SubExpr = dyn_cast<Expr>(Child))
+          SubExprGs[SubExpr] = State.G;
       }
+
+      // Use the stored sets Gi for each subexpression Si
+      // to update the set G for the expression S.
+      if (Expr *E = dyn_cast<Expr>(S))
+        UpdateG(E, SubExprGs, State.G);
     }
 
     // Traverse a top-level variable declaration.  If there is an
@@ -2212,14 +2227,19 @@ namespace {
                                     CheckingState &State) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
+      ExprEqualMapTy SubExprGs;
 
-      // Infer the lvalue or rvalue bounds of the LHS.
+      // Infer the lvalue or rvalue bounds of the LHS, saving the set G 
+      // of expressions that produce the same value as the LHS.
       BoundsExpr *LHSTargetBounds, *LHSLValueBounds, *LHSBounds;
       InferBounds(LHS, CSS, LHSTargetBounds,
                   LHSLValueBounds, LHSBounds, State);
+      SubExprGs[LHS] = State.G;
 
-      // Infer the rvalue bounds of the RHS.
+      // Infer the rvalue bounds of the RHS, saving the set G
+      // of expressions that produce the same value as the RHS.
       BoundsExpr *RHSBounds = Check(RHS, CSS, State);
+      SubExprGs[RHS] = State.G;
 
       BinaryOperatorKind Op = E->getOpcode();
 
@@ -2305,6 +2325,19 @@ namespace {
           else if (LeftBounds->isUnknown() && RHSBounds->isUnknown())
             ResultBounds = CreateBoundsEmpty();
         }
+      }
+
+      if (E->isAssignmentOp()) {
+        // TODO: update State for assignments `e1 = e2` and `e1 @= e2`.
+      } else if (BinaryOperator::isLogicalOp(Op)) {
+        // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
+      } else if (Op == BinaryOperatorKind::BO_Comma) {
+        // Do nothing for comma operators `e1, e2`. State already contains
+        // the correct UEQ and G sets as a result of checking `e1` and `e2`.
+      } else {
+        // For all other binary operators `e1 @ e2`, use the G sets for
+        // `e1` and `e2` stored in SubExprGs to update State.G for `e1 @ e2`.
+        UpdateG(E, SubExprGs, State.G);
       }
 
       if (E->isAssignmentOp()) {
@@ -2490,6 +2523,9 @@ namespace {
         Check(Arg, CSS, State);
       }
 
+      // State.G is empty for call expressions.
+      State.G.clear();
+
       return ResultBounds;
     }
 
@@ -2512,12 +2548,37 @@ namespace {
       bool PreviousIncludeNullTerminator = IncludeNullTerminator;
       IncludeNullTerminator = IncludeNullTerm;
 
-      // Infer the lvalue or rvalue bounds of the subexpression.
+      // Infer the lvalue or rvalue bounds of the subexpression e1,
+      // setting State to contain the results for e1.
       BoundsExpr *SubExprTargetBounds, *SubExprLValueBounds, *SubExprBounds;
       InferBounds(SubExpr, CSS, SubExprTargetBounds,
                   SubExprLValueBounds, SubExprBounds, State);
 
       IncludeNullTerminator = PreviousIncludeNullTerminator;
+
+      // Update the set State.G of expressions that produce the
+      // same value as e.
+      if (CK == CastKind::CK_ArrayToPointerDecay)
+        // State.G = { e } for lvalues with array type.
+        State.G = { E };
+      else if (CK == CastKind::CK_LValueToRValue) {
+        if (E->getType()->isArrayType())
+          // State.G = { e } for lvalues with array type.
+          State.G = { E };
+        else {
+          // If e appears in some set F in State.UEQ, State.G = F.
+          State.G = GetEqualExprSetContainingExpr(E, State.UEQ);
+          if (State.G.size() == 0) {
+            // Otherwise, if e is nonmodifying and does not read memory
+            // via a pointer, State.G = { e }.  Otherwise, State.G is empty.
+            if (CheckIsNonModifying(E) && !ReadsMemoryViaPointer(E))
+              State.G.push_back(E);
+          }
+        }
+      } else
+        // Use the default rules to update State.G for e using
+        // the current State.G for the subexpression e1.
+        UpdateG(E, State.G, State.G);
 
       // Casts to _Ptr narrow the bounds.  If the cast to
       // _Ptr is invalid, that will be diagnosed separately.
@@ -2618,7 +2679,8 @@ namespace {
       UnaryOperatorKind Op = E->getOpcode();
       Expr *SubExpr = E->getSubExpr();
 
-      // Infer the lvalue or rvalue bounds of the subexpression.
+      // Infer the lvalue or rvalue bounds of the subexpression e1,
+      // setting State to contain the results for e1.
       BoundsExpr *SubExprTargetBounds, *SubExprLValueBounds, *SubExprBounds;
       InferBounds(SubExpr, CSS, SubExprTargetBounds,
                   SubExprLValueBounds, SubExprBounds, State);
@@ -2637,12 +2699,9 @@ namespace {
       if (Op == UnaryOperatorKind::UO_Deref)
         return CreateBoundsInferenceError();
 
-      // `!e` has empty bounds.
-      if (Op == UnaryOperatorKind::UO_LNot)
-        return CreateBoundsEmpty();
-
       // `&e` has the bounds of `e`.
       // `e` is an lvalue, so its bounds are its lvalue bounds.
+      // State.G for `&e` remains the same as State.G for `e`.
       if (Op == UnaryOperatorKind::UO_AddrOf) {
 
         // Functions have bounds corresponding to the empty range.
@@ -2656,6 +2715,14 @@ namespace {
       // `e` is an lvalue, so its bounds are its lvalue target bounds.
       if (UnaryOperator::isIncrementDecrementOp(Op))
         return SubExprTargetBounds;
+
+      // Update State.G for `!e`, `+e`, `-e`, and `~e`
+      // using the current State.G for `e`.
+      UpdateG(E, State.G, State.G);
+
+      // `!e` has empty bounds.
+      if (Op == UnaryOperatorKind::UO_LNot)
+        return CreateBoundsEmpty();
 
       // `+e`, `-e`, `~e` all have bounds of `e`. `e` is an rvalue.
       if (Op == UnaryOperatorKind::UO_Plus ||
@@ -2753,10 +2820,14 @@ namespace {
                                       CheckingState &State) {
       Expr *Child = E->getSubExpr();
 
+      BoundsExpr *SubExprBounds = nullptr;
       if (CallExpr *CE = dyn_cast<CallExpr>(Child))
-        return CheckCallExpr(CE, CSS, State, E);
+        SubExprBounds = CheckCallExpr(CE, CSS, State, E);
       else
-        return Check(Child, CSS, State);
+        SubExprBounds = Check(Child, CSS, State);
+
+      UpdateG(E, State.G, State.G);
+      return SubExprBounds;
     }
 
     // CheckBoundsValueExpr returns the bounds for the value produced by e.
@@ -2941,6 +3012,10 @@ namespace {
       BoundsExpr *BaseTargetBounds, *BaseLValueBounds, *BaseBounds;
       InferBounds(Base, CSS, BaseTargetBounds,
                   BaseLValueBounds, BaseBounds, State);
+
+      // Clear State.G to avoid adding false equality information.
+      // TODO: implement updating state for member expressions.
+      State.G.clear();
 
       bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS,
                                                        BaseLValueBounds,
@@ -3161,6 +3236,139 @@ namespace {
         LValueBounds = CheckLValue(E, CSS, TargetBounds, State);
       else if (E->isRValue())
         RValueBounds = Check(E, CSS, State);
+    }
+
+    // UpdateG updates the set G of expressions that produce
+    // the same value as e.
+    // e is an expression with exactly one subexpression.
+    //
+    // SubExprG is the set of expressions that produce the same
+    // value as the only subexpression of e.
+    //
+    // Val is an optional expression that may be contained in the updated G.
+    // If Val is not provided, e is used instead.
+    void UpdateG(Expr *E, const EqualExprTy SubExprG,
+                 EqualExprTy &G, Expr *Val = nullptr) {
+      Expr *SubExpr = dyn_cast<Expr>(*(E->child_begin()));
+      assert(SubExpr);
+      ExprEqualMapTy SubExprGs;
+      SubExprGs[SubExpr] = SubExprG;
+      UpdateG(E, SubExprGs, G, Val);
+    }
+
+    // UpdateG updates the set G of expressions that produce
+    // the same value as e.
+    // e is an expression with n subexpressions, where n >= 0.
+    //
+    // Some kinds of expressions (e.g. assignments) have
+    // their own rules for how to update the set G.
+    // UpdateG is used to update the set G for expressions
+    // that do not have their own defined rules for updating G.
+    //
+    // SubExprGs stores, for each subexpression Si of e, a set Gi
+    // of expressions that produce the same value as Si.
+    //
+    // Val is an optional expression that may be contained in the updated G.
+    // If Val is not provided, e is used instead.
+    void UpdateG(Expr *E, ExprEqualMapTy SubExprGs,
+                 EqualExprTy &G, Expr *Val = nullptr) {
+      G.clear();
+
+      if (!Val) Val = E;
+
+      // If Val is a call expression, G does not contain Val.
+      if (isa<CallExpr>(Val)) {
+      }
+
+      // If Val is a non-modifying expression, G contains Val.
+      else if (CheckIsNonModifying(Val))
+        G.push_back(Val);
+
+      // If Val is a modifying expression, use the Gi for the subexpressions
+      // to try to construct a non-modifying expression Val' that
+      // produces the same value as Val.
+      else {
+        Expr *ValPrime = nullptr;
+        for (llvm::detail::DenseMapPair<Expr *, EqualExprTy> Pair : SubExprGs) {
+          Expr *Si = Pair.first;
+          // For any modifying subexpression Si of e,
+          // try to set Val' to a nonmodifying expression from Gi.
+          if (!CheckIsNonModifying(Si)) {
+            EqualExprTy Gi = Pair.second;
+            for (auto I = Gi.begin(); I != Gi.end(); ++I) {
+              Expr *Ei = *I;
+              if (CheckIsNonModifying(Ei)) {
+                ValPrime = Ei;
+                break;
+              }
+            }
+          }
+        }
+
+        if (ValPrime)
+          G.push_back(ValPrime);
+      }
+
+      // If Val introduces a temporary to hold the value produced by e,
+      // add the value of the temporary to G.
+      if (CHKCBindTemporaryExpr *Temp = GetTempBinding(Val))
+        G.push_back(CreateTemporaryUse(Temp));
+    }
+
+    // If E appears in a set F in EQ, GetEqualExprSetContainingExpr
+    // returns F.  Otherwise, it returns an empty set.
+    EqualExprTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ) {
+      for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
+        EqualExprTy F = *OuterList;
+        for (auto InnerList = F.begin(); InnerList != F.end(); ++InnerList) {
+          Expr *E1 = *InnerList;
+          if (EqualValue(S.Context, E, E1, &EQ))
+            return F;
+        }
+      }
+      return { };
+    }
+
+    // Returns true if the expression e reads memory via a pointer.
+    bool ReadsMemoryViaPointer(Expr *E) {
+      E = E->IgnoreParens();
+
+      switch (E->getStmtClass()) {
+        case Expr::UnaryOperatorClass: {
+          UnaryOperator *UO = cast<UnaryOperator>(E);
+          // *e reads memory via a pointer.
+          return UO->getOpcode() == UnaryOperatorKind::UO_Deref;
+        }
+        // e1[e2] is a synonym for *(e1 + e2), which reads memory via a pointer.
+        case Expr::ArraySubscriptExprClass:
+          return true;
+        case Expr::MemberExprClass: {
+          MemberExpr *ME = cast<MemberExpr>(E);
+          // e1->f reads memory via a pointer.
+          if (ME->isArrow())
+            return true;
+          // e1.f reads memory via a pointer if and only if e1 reads
+          // memory via a pointer.
+          else
+            return ReadsMemoryViaPointer(ME->getBase());
+        }
+        default: {
+          for (auto I = E->child_begin(); I != E->child_end(); ++I) {
+            if (Expr *SubExpr = dyn_cast<Expr>(*I)) {
+              if (ReadsMemoryViaPointer(SubExpr))
+                return true;
+            }
+          }
+          return false;
+        }
+      }
+    }
+
+    // CheckIsNonModifying suppresses diagnostics while checking
+    // whether e is a non-modifying expression.
+    bool CheckIsNonModifying(Expr *E) {
+      return S.CheckIsNonModifying(E, Sema::NonModifyingContext::NMC_Unknown,
+                                   Sema::NonModifyingMessage::NMM_None);
     }
 
     BoundsExpr *CreateBoundsUnknown() {
