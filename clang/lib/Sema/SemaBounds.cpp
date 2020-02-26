@@ -2332,7 +2332,7 @@ namespace {
       } else if (BinaryOperator::isLogicalOp(Op)) {
         // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
       } else if (Op == BinaryOperatorKind::BO_Comma) {
-        // Do nothing for comma operators `e1, e2`. State.G already contains
+        // Do nothing for comma operators `e1, e2`. State already contains
         // the correct UEQ and G sets as a result of checking `e1` and `e2`.
       } else {
         // For all other binary operators `e1 @ e2`, use the G sets for
