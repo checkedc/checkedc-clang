@@ -2331,12 +2331,12 @@ namespace {
         // TODO: update State for assignments `e1 = e2` and `e1 @= e2`.
       } else if (BinaryOperator::isLogicalOp(Op)) {
         // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
-      } else if (Op != BinaryOperatorKind::BO_Comma) {
-        // At this point, State.G contains expressions that produce the same
-        // value as `e2`.  The final set State.G for comma expressions 
-        // `e1, e2` remains the same as the current set State.G for `e2`.
-        // For all other binary operators `e1 @ e2`, use the sets for `e1`
-        // and `e2` stored in SubExprGs to update State.G for `e1 @ e2`.
+      } else if (Op == BinaryOperatorKind::BO_Comma) {
+        // Do nothing for comma operators `e1, e2`. State.G already contains
+        // the correct UEQ and G sets as a result of checking `e1` and `e2`.
+      } else {
+        // For all other binary operators `e1 @ e2`, use the G sets for
+        // `e1` and `e2` stored in SubExprGs to update State.G for `e1 @ e2`.
         UpdateG(E, SubExprGs, State.G);
       }
 
