@@ -3498,6 +3498,40 @@ namespace {
         G.push_back(CreateTemporaryUse(Temp));
     }
 
+    // IntersectUEQ returns the intersection of two sets of sets of equivalent
+    // expressions, where each set in UEQ1 is intersected with each set in
+    // UEQ2 to produce an element of the result.
+    EquivExprSets IntersectUEQ(const EquivExprSets UEQ1, const EquivExprSets UEQ2) {
+      EquivExprSets IntersectedUEQ;
+      for (auto I1 = UEQ1.begin(); I1 != UEQ1.end(); ++I1) {
+        EqualExprTy G1 = *I1;
+        for (auto I2 = UEQ2.begin(); I2 != UEQ2.end(); ++I2) {
+          EqualExprTy G2 = *I2;
+          EqualExprTy IntersectedG = IntersectG(G1, G2);
+          if (IntersectedG.size() > 1)
+            IntersectedUEQ.push_back(IntersectedG);
+        }
+      }
+      return IntersectedUEQ;
+    }
+
+    // IntersectG returns the intersection of two sets of equivalent expressions.
+    EqualExprTy IntersectG(const EqualExprTy G1, const EqualExprTy G2) {
+      EqualExprTy IntersectedG;
+      for (auto I = G1.begin(); I != G1.end(); ++I) {
+        Expr *E1 = *I;
+        for (auto J = G2.begin(); J != G2.end(); ++J) {
+          Expr *E2 = *J;
+          // Don't add duplicate expressions to the intersection.
+          if (EqualExprsContainsExpr(IntersectedG, E2, nullptr))
+            continue;
+          if (EqualValue(S.Context, E1, E2, nullptr))
+            IntersectedG.push_back(E1);
+        }
+      }
+      return IntersectedG;
+    }
+
     // If E appears in a set F in EQ, GetEqualExprSetContainingExpr
     // returns F.  Otherwise, it returns an empty set.
     EqualExprTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ) {
