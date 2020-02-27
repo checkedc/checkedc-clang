@@ -328,49 +328,61 @@ bool ProgramInfo::link() {
     }
   }
 
-  for (const auto &S : GlobalFunctionSymbols) {
-    std::string fname = S.first;
-    std::set<FVConstraint*> P = S.second;
-    
-    if (P.size() > 1) {
-      std::set<FVConstraint*>::iterator I = P.begin();
-      std::set<FVConstraint*>::iterator J = P.begin();
-      ++J;
-      
-      while (J != P.end()) {
-        FVConstraint *P1 = *I;
-        FVConstraint *P2 = *J;
+  if (mergeMultipleFuncDecls) {
+      int gap = 0;
+      for (const auto &S : GlobalFunctionSymbols) {
+          std::string fname = S.first;
+          std::set<FVConstraint*> P = S.second;
 
-        // Constrain the return values to be equal
-        if (!P1->hasBody() && !P2->hasBody() && mergeMultipleFuncDecls) {
-          constrainEq(P1->getReturnVars(), P2->getReturnVars(), *this, nullptr, nullptr);
+          if (P.size() > 1) {
+              std::set<FVConstraint*>::iterator I = P.begin();
+              std::set<FVConstraint*>::iterator J = P.begin();
+              ++J;
 
-          // Constrain the parameters to be equal, if the parameter arity is
-          // the same. If it is not the same, constrain both to be wild.
-          if (P1->numParams() == P2->numParams()) {
-            for ( unsigned i = 0;
-                  i < P1->numParams();
-                  i++)
-            {
-              constrainEq(P1->getParamVar(i), P2->getParamVar(i), *this, nullptr, nullptr);
-            } 
+              while (J != P.end()) {
+                  FVConstraint *P1 = *I;
+                  FVConstraint *P2 = *J;
 
-          } else {
-            // It could be the case that P1 or P2 is missing a prototype, in
-            // which case we don't need to constrain anything.
-            if (P1->hasProtoType() && P2->hasProtoType()) {
-              // Nope, we have no choice. Constrain everything to wild.
-              std::string rsn = "Return value of function:" + P1->getName();
-              P1->constrainTo(CS, CS.getWild(), rsn, true);
-              P2->constrainTo(CS, CS.getWild(), rsn, true);
-            }
+                  if (P2->hasBody()) { // skip over decl with fun body
+                       gap = 1; ++J; continue;
+                  }
+                  // Constrain the return values to be equal
+                  if (!P1->hasBody() && !P2->hasBody()) {
+                      constrainEq(P1->getReturnVars(), P2->getReturnVars(), *this, nullptr, nullptr);
+
+                      // Constrain the parameters to be equal, if the parameter arity is
+                      // the same. If it is not the same, constrain both to be wild.
+                      if (P1->numParams() == P2->numParams()) {
+                          for ( unsigned i = 0;
+                                i < P1->numParams();
+                                i++)
+                          {
+                              constrainEq(P1->getParamVar(i), P2->getParamVar(i), *this, nullptr, nullptr);
+                          }
+
+                      } else {
+                          // It could be the case that P1 or P2 is missing a prototype, in
+                          // which case we don't need to constrain anything.
+                          if (P1->hasProtoType() && P2->hasProtoType()) {
+                              // Nope, we have no choice. Constrain everything to wild.
+                              std::string rsn = "Return value of function:" + P1->getName();
+                              P1->constrainTo(CS, CS.getWild(), rsn, true);
+                              P2->constrainTo(CS, CS.getWild(), rsn, true);
+                          }
+                      }
+                  }
+                  ++I;
+                  if (!gap) {
+                      ++J;
+                  }
+                  else {
+                      gap = 0;
+                  }
+              }
           }
-        }
-        ++I;
-        ++J;
       }
-    }
   }
+
 
   // For every global function that is an unresolved external, constrain 
   // its parameter types to be wild. Unless it has a bounds-safe annotation. 

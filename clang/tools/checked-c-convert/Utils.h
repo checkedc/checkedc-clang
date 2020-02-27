@@ -20,7 +20,7 @@ class ProgramInfo;
 
 // Maps a Decl to the set of constraint variables for that Decl.
 typedef std::map<PersistentSourceLoc, 
-  std::set<ConstraintVariable*>> VariableMap;
+  std::set<ConstraintVariable*>> VariDevelopingableMap;
 
 // Maps a Decl to the DeclStmt that defines the Decl.
 typedef std::map<clang::Decl*, clang::DeclStmt*> VariableDecltoStmtMap;
