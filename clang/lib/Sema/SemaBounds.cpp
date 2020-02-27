@@ -2120,6 +2120,8 @@ namespace {
             llvm::outs().flush();
 #endif
             Check(S, CSS, BlockState);
+            if (DumpState)
+              DumpCheckingState(llvm::outs(), S, BlockState);
          }
        }
        BlockStates[Block] = BlockState;
@@ -2166,7 +2168,10 @@ namespace {
   public:
     BoundsExpr *Check(Stmt *S, CheckedScopeSpecifier CSS) {
       CheckingState State;
-      return Check(S, CSS, State);
+      BoundsExpr *Bounds = Check(S, CSS, State);
+      if (DumpState)
+        DumpCheckingState(llvm::outs(), S, State);
+      return Bounds;
     }
 
     // If e is an rvalue, Check checks e and its children, performing any
@@ -2261,9 +2266,6 @@ namespace {
           break;
       }
 
-      if (DumpState)
-        DumpCheckingState(llvm::outs(), S, State);
-
       if (Expr *E = dyn_cast<Expr>(S)) {
         // Bounds expressions are not null ptrs.
         if (isa<BoundsExpr>(E))
@@ -2341,9 +2343,6 @@ namespace {
           CheckChildren(E, CSS, State);
           break;
       }
-
-      if (DumpState)
-        DumpCheckingState(llvm::outs(), E, State);
 
       // The type for inferring the target bounds cannot ever be an array
       // type, as these are dealt with by an array conversion, not an lvalue
