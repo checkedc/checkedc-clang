@@ -557,6 +557,77 @@ namespace {
 }
 
 namespace {
+  class PruneVariableHelper : public TreeTransform<PruneVariableHelper> {
+    typedef TreeTransform<PruneVariableHelper> BaseTransform;
+    private:
+      // The variable whose uses should be replaced in an expression.
+      DeclRefExpr *Variable;
+
+      // The original value (if any) to replace uses of the variable with.
+      // If no original value is provided, an expression using the variable
+      // will be transformed into an invalid result.
+      Expr *OriginalValue;
+
+    public:
+      PruneVariableHelper(Sema &SemaRef, DeclRefExpr *V, Expr *OV) :
+        BaseTransform(SemaRef),
+        Variable(V),
+        OriginalValue(OV) { }
+
+      ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
+        if (VariableUtil::SameVariable(SemaRef, Variable, E)) {
+          if (OriginalValue)
+            return OriginalValue;
+          else
+            return ExprError();
+        } else
+          return E;
+      }
+
+      // Overriding TransformImplicitCastExpr is necessary since TreeTransform
+      // does not preserve implicit casts.
+      ExprResult TransformImplicitCastExpr(ImplicitCastExpr *E) {
+        // Replace V with OV (if applicable) in the subexpression of E.
+        ExprResult ChildResult = BaseTransform::TransformImplicitCastExpr(E);
+        if (ChildResult.isInvalid())
+          return ChildResult;
+
+        Expr *Child = ChildResult.get();
+        CastKind CK = E->getCastKind();
+
+        if (CK == CastKind::CK_LValueToRValue ||
+            CK == CastKind::CK_ArrayToPointerDecay)
+          // Only cast children of lvalue to rvalue casts to an rvalue if
+          // necessary.  The transformed child expression may no longer be
+          // an lvalue, depending on the original value.  For example, if x
+          // is transformed to the original value x + 1, it does not need to
+          // be cast to an rvalue.
+          return ExprCreatorUtil::EnsureRValue(SemaRef, Child);
+        else
+          return ExprCreatorUtil::CreateImplicitCast(SemaRef, Child,
+                                                     CK, E->getType());
+      }
+  };
+
+  // If an original value OV is provided, PruneVariableReferences returns
+  // an expression that replaces all uses of the variable V in E with OV.
+  // If no original value is provided and E uses V, PruneVariableReferences
+  // returns nullptr.
+  Expr *PruneVariableReferences(Sema &SemaRef, Expr *E, DeclRefExpr *V,
+                                Expr *OV, CheckedScopeSpecifier CSS) {
+    // Account for checked scope information when transforming the expression.
+    Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
+
+    Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics
+    ExprResult R = PruneVariableHelper(SemaRef, V, OV).TransformExpr(E);
+    if (R.isInvalid())
+      return nullptr;
+    else
+      return R.get();
+  }
+}
+
+namespace {
   // EqualExprTy denotes a set of expressions that produce the same value
   // as an expression e.
   using EqualExprTy = SmallVector<Expr *, 4>;
