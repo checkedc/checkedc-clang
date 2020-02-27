@@ -2545,15 +2545,14 @@ namespace {
             // uses the value of the LHS, e.g. *p = 2 - *p.
             State.G.push_back(Target);
             State.UEQ.push_back(State.G);
-          } else {
-            // Do nothing for compound assignments `e1 @= e2` to a
-            // non-variable `e1`. Since the RHS `e1 @ e2` of the implied
-            // assignment `e1 = e1 @ e2` uses the value of e1 and `e1` has no
-            // original value in `e1 @ e2`, State.UEQ remains unchanged.
-            // State.G already contains expressions that produce the same
-            // value as the RHS `e1 @ e2` of the assignment `e1 = e1 @ e2`,
-            // so State.G also remains unchanged.
           }
+          // Do nothing for compound assignments `e1 @= e2` to a
+          // non-variable `e1`. Since the RHS `e1 @ e2` of the implied
+          // assignment `e1 = e1 @ e2` uses the value of `e1` and `e1` has no
+          // original value in `e1 @ e2`, State.UEQ remains unchanged.
+          // State.G already contains expressions that produce the same
+          // value as the RHS `e1 @ e2` of the assignment `e1 = e1 @ e2`,
+          // so State.G also remains unchanged.
         }
       } else if (BinaryOperator::isLogicalOp(Op)) {
         // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
@@ -2924,6 +2923,44 @@ namespace {
       // `*e` is not an rvalue.
       if (Op == UnaryOperatorKind::UO_Deref)
         return CreateBoundsInferenceError();
+
+      // Update UEQ and G for inc/dec operators `++e1`, `e1++`, `--e1`, `e1--`.
+      // At this point, State contains UEQ and G for `e1`.
+      if (UnaryOperator::isIncrementDecrementOp(Op)) {
+        // Update the set G of expressions that produce the same value as `e1`.
+        State.G = GetEqualExprSetContainingExpr(SubExpr, State.UEQ);
+
+        // Create the RHS `e1 +/- 1` of the implied assignment `e1 = e1 +/- 1`.
+        BinaryOperatorKind RHSOp = UnaryOperator::isIncrementOp(Op) ?
+                                    BinaryOperatorKind::BO_Add :
+                                    BinaryOperatorKind::BO_Sub;
+        Expr *One = ExprCreatorUtil::CreateUnsignedInt(S, 1);
+        BinaryOperator *RHS =
+          ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One, RHSOp);
+
+        // Update the set G of expressions that produce the same value as
+        // the RHS `e1 +/- 1`.  For pre-inc/dec operators, use the `e1 +/- 1`
+        // to update G.  For post-inc/dec operators, use `e1` to update G.
+        bool IsPostIncDec = Op == UnaryOperatorKind::UO_PostInc ||
+                            Op == UnaryOperatorKind::UO_PostDec;
+        Expr *Val = IsPostIncDec ? SubExpr : RHS;
+        UpdateG(RHS, State.G, State.G, Val);
+
+        // Update UEQ and G for inc/dec operators on a variable `e1`.
+        if (DeclRefExpr *V = VariableUtil::GetVariable(S, SubExpr)) {
+          Expr *Target = CreateImplicitCast(SubExpr->getType(),
+                                            CK_LValueToRValue, SubExpr);
+          Expr *OV = GetOriginalValue(V, RHS, State.UEQ);
+          UpdateAfterAssignment(V, Target, OV, CSS, State, State);
+        }
+        // Do nothing for inc/dec operators on a non-variable `e1`.
+        // Since the RHS `e1 +/- 1` of the implied assignment
+        // `e1 = e1 +/- 1` uses the value of `e1` and `e1` has no
+        // original value in `e1 +/- 1`, State.UEQ remains unchanged.
+        // State.G already contains expressions that produce the same
+        // value as the RHS `e1 +/- 1` of the assignment `e1 = e1 +/- 1`,
+        // so State.G also remains unchanged.
+      }
 
       // `&e` has the bounds of `e`.
       // `e` is an lvalue, so its bounds are its lvalue bounds.
