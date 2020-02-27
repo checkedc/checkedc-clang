@@ -3421,6 +3421,68 @@ namespace {
         RValueBounds = Check(E, CSS, State);
     }
 
+  // Methods to update sets of equivalent expressions.
+
+    // UpdateAfterAssignment updates the checking state after a variable V
+    // is assigned to, based on the state before the assignment.
+    //
+    // Target is the target expression of the assignment (that accounts for
+    // any necessary casts of V).
+    //
+    // OV is the original value (if any) for V before the assignment.
+    // If OV is non-null, it is substituted for any uses of the value of V
+    // in the expressions in UEQ and G.
+    // If OV is null, any expressions in UEQ and G that use the value of V
+    // are removed from UEQ and G.
+    //
+    // PrevState is the checking state that was true before the assignment.
+    void UpdateAfterAssignment(DeclRefExpr *V, Expr *Target,
+                               Expr *OV, CheckedScopeSpecifier CSS,
+                               const CheckingState PrevState,
+                               CheckingState &State) {
+      // Adjust UEQ to account for any uses of V in PrevState.UEQ.
+      State.UEQ.clear();
+      for (auto I = PrevState.UEQ.begin(); I != PrevState.UEQ.end(); ++I) {
+        EqualExprTy ExprList;
+        for (auto InnerList = (*I).begin(); InnerList != (*I).end(); ++InnerList) {
+          Expr *E = *InnerList;
+          Expr *AdjustedE = PruneVariableReferences(S, E, V, OV, CSS);
+          if (AdjustedE)
+            ExprList.push_back(AdjustedE);
+        }
+        if (ExprList.size() > 1)
+          State.UEQ.push_back(ExprList);
+      }
+
+      // Adjust G to account for any uses of V in PrevState.G.
+      State.G.clear();
+      for (auto I = PrevState.G.begin(); I != PrevState.G.end(); ++I) {
+        Expr *E = *I;
+        Expr *AdjustedE = PruneVariableReferences(S, E, V, OV, CSS);
+        if (AdjustedE)
+          State.G.push_back(AdjustedE);
+      }
+
+      // Add the target to a set in UEQ: if G is nonempty and there is some set
+      // F in UEQ such that G is a subset of F, add the target to F.  This
+      // prevents the elements of F from appearing in multiple sets in UEQ.
+      // An expression should appear in no more than one set in UEQ.
+      if (State.G.size() > 0) {
+        for (auto I = State.UEQ.begin(); I != State.UEQ.end(); ++I) {
+          if (IsEqualExprsSubset(State.G, *I, State.UEQ)) {
+            I->push_back(Target);
+            return;
+          }
+        }
+      }
+
+      // If G is not a subset of some set in UEQ, add the target to G
+      // and add G (if it is not a singleton set) to UEQ.
+      State.G.push_back(Target);
+      if (State.G.size() > 1)
+        State.UEQ.push_back(State.G);
+    }
+
     // UpdateG updates the set G of expressions that produce
     // the same value as e.
     // e is an expression with exactly one subexpression.
