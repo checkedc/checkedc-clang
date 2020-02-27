@@ -3498,6 +3498,88 @@ namespace {
         G.push_back(CreateTemporaryUse(Temp));
     }
 
+    // IsInvertible returns true if the expression e can be inverted
+    // with respect to the variable x.
+    bool IsInvertible(DeclRefExpr *X, Expr *E) {
+      E = E->IgnoreParens();
+      if (VariableUtil::SameVariable(S, X, E))
+        return true;
+
+      switch (E->getStmtClass()) {
+        case Expr::UnaryOperatorClass:
+          return IsUnaryOperatorInvertible(X, cast<UnaryOperator>(E));
+        case Expr::BinaryOperatorClass:
+          return IsBinaryOperatorInvertible(X, cast<BinaryOperator>(E));
+        // TODO: determine whether a cast expression is invertible.
+        default:
+          return false;
+      }
+    }
+
+    // Returns true if a unary operator is invertible with respect to x.
+    bool IsUnaryOperatorInvertible(DeclRefExpr *X, UnaryOperator *E) {
+      UnaryOperatorKind Op = E->getOpcode();
+      if (Op != UnaryOperatorKind::UO_Not &&
+          Op != UnaryOperatorKind::UO_Minus &&
+          Op != UnaryOperatorKind::UO_Plus)
+        return false;
+
+      // X must appear exactly once in the subexpression of e
+      // and the subexpression must be invertible with respect to x.
+      Expr *SubExpr = E->getSubExpr();
+      int SubExprVarCount = VariableOccurrenceCount(S, X, SubExpr);
+      if (SubExprVarCount != 1)
+        return false;
+      if (!IsInvertible(X, SubExpr))
+        return false;
+
+      return true;
+    }
+
+    // Returns true if a binary operator is invertible with respect to x.
+    bool IsBinaryOperatorInvertible(DeclRefExpr *X, BinaryOperator *E) {
+      BinaryOperatorKind Op = E->getOpcode();
+      if (Op != BinaryOperatorKind::BO_Add &&
+          Op != BinaryOperatorKind::BO_Sub &&
+          Op != BinaryOperatorKind::BO_Xor)
+        return false;
+
+      Expr *LHS = E->getLHS();
+      Expr *RHS = E->getRHS();
+      
+      // Addition and subtraction operations must be for checked pointer
+      // arithmetic or unsigned integer arithmetic.
+      if (Op == BinaryOperatorKind::BO_Add || Op == BinaryOperatorKind::BO_Sub) {
+        // The LHS must be a checked pointer or an unsigned integer.
+        bool LHSHasCorrectType = LHS->getType()->isCheckedPointerType() ||
+                                 LHS->getType()->isUnsignedIntegerType();
+        if (!LHSHasCorrectType)
+          return false;
+        // The RHS must be a checked pointer or an unsigned integer.
+        bool RHSHasCorrectType = RHS->getType()->isCheckedPointerType() ||
+                                 RHS->getType()->isUnsignedIntegerType();
+        if (!RHSHasCorrectType)
+          return false;
+      }
+
+      // X must appear in exactly one subexpression of E and that
+      // subexpression must be invertible with respect to X.
+      std::pair<Expr *, Expr*> Pair = SplitByVarCount(X, LHS, RHS);
+      if (!Pair.first)
+        return false;
+      Expr *E_X = Pair.first, *E_NotX = Pair.second;
+      if (!IsInvertible(X, E_X))
+        return false;
+
+      // The subexpression not containing X must be nonmodifying
+      // and cannot be or contain a pointer dereference, member
+      // reference, or indirect member reference.
+      if (!CheckIsNonModifying(E_NotX) || ReadsMemoryViaPointer(E_NotX, true))
+        return false;
+
+      return true;
+    }
+
     // Inverse repeatedly applies mathematical rules to the expression e to
     // get the inverse of e with respect to the variable x and expression f.
     // If rules cannot be applied to e, Inverse returns nullptr.
@@ -3514,7 +3596,7 @@ namespace {
           return UnaryOperatorInverse(X, F, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
           return BinaryOperatorInverse(X, F, cast<BinaryOperator>(E));
-        // TODO: get the inverse of cast expressions.
+        // TODO: get the inverse of a cast expression.
         default:
           return nullptr;
       }
