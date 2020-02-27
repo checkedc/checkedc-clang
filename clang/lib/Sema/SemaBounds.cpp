@@ -3503,13 +3503,47 @@ namespace {
     EqualExprTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ) {
       for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
         EqualExprTy F = *OuterList;
+        if (EqualExprsContainsExpr(F, E, &EQ))
+          return F;
+      }
+      return { };
+    }
+
+    // If the (possibly parenthesized or no-op cast) variable V appears
+    // in a set F in EQ, GetEqualExprSetContainingVariable returns F.
+    // Otherwise, it returns an empty set.
+    EqualExprTy GetEqualExprSetContainingVariable(DeclRefExpr *V,
+                                                  EquivExprSets EQ) {
+      for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
+        EqualExprTy F = *OuterList;
         for (auto InnerList = F.begin(); InnerList != F.end(); ++InnerList) {
           Expr *E1 = *InnerList;
-          if (EqualValue(S.Context, E, E1, &EQ))
+          if (VariableUtil::SameVariable(S, V, E1))
             return F;
         }
       }
       return { };
+    }
+
+    // IsEqualExprsSubset returns true if G1 is a subset of G2.
+    bool IsEqualExprsSubset(const EqualExprTy G1, const EqualExprTy G2,
+                            EquivExprSets EQ) {
+      for (auto I = G1.begin(); I != G1.end(); ++I) {
+        Expr *E = *I;
+        if (!EqualExprsContainsExpr(G2, E, &EQ))
+          return false;
+      }
+      return true;
+    }
+
+    // EqualExprsContainsExpr returns true if the set G contains E.
+    bool EqualExprsContainsExpr(const EqualExprTy G, Expr *E,
+                                EquivExprSets *EQ) {
+      for (auto I = G.begin(); I != G.end(); ++I) {
+        if (EqualValue(S.Context, E, *I, EQ))
+          return true;
+      }
+      return false;
     }
 
     // Returns true if the expression e reads memory via a pointer.
