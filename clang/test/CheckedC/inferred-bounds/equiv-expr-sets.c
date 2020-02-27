@@ -9,6 +9,8 @@
 
 #include <stdchecked.h>
 
+extern array_ptr<int> g1(array_ptr<int> arr : count(1)) : count(1);
+
 //////////////////////////////////////////////
 // Functions containing a single assignment //
 //////////////////////////////////////////////
@@ -768,6 +770,492 @@ void f24(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) {
   // CHECK-NEXT: BoundsValueExpr {{.*}} '_Array_ptr<int>'
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+}
+
+/////////////////////////////////
+// Functions with control flow //
+/////////////////////////////////
+
+// If statement: assignment that affects equality sets
+void f25(int flag, int i, int j) {
+  // Updated UEQ: { { i, len } }
+  int len = i;
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclStmt
+  // CHECK-NEXT:   VarDecl {{.*}} len
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+
+  if (flag) {
+    // Current UEQ: { { i, len } }
+    // Original value of len in j: i
+    // Updated UEQ: { { i, i }, { j, len } }
+    len = j;
+    // CHECK: Statement S:
+    // CHECK:      BinaryOperator {{.*}} '='
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'j'
+    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: {
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: {
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'j'
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: }
+  }
+
+  // Current UEQ: { }
+  // Original value of len in len * 2: null
+  // Updated UEQ: { }
+  len *= 2;
+  // CHECK: Statement S:
+  // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+}
+
+// If statement: assignment that does not affect equality sets
+void f26(int flag, int i, int j) {
+  // Updated UEQ: { { i, len } }
+  int len = i;
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclStmt
+  // CHECK-NEXT:   VarDecl {{.*}} len
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+
+  if (flag) {
+    // Current UEQ: { { i, len } }
+    // Updated UEQ: { { i, len }, { 42, j } }
+    j = 42;
+    // CHECK: Statement S:
+    // CHECK:      BinaryOperator {{.*}} '='
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'j'
+    // CHECK-NEXT:   IntegerLiteral {{.*}} 42
+    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: {
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: {
+    // CHECK-NEXT: IntegerLiteral {{.*}} 42
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'j'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: }
+  }
+
+  // Current UEQ: { { i, len } }
+  // Original value of len in len * 2: i
+  // Updated UEQ: { { i, i }, { i * 2, len } }
+  len *= 2;
+  // CHECK: Statement S:
+  // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '*'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+}
+
+// If/else statements: different assignments
+void f27(int flag, int i, int j, int k) {
+  // Updated UEQ: { { i, len } }
+  int len = i;
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclStmt
+  // CHECK-NEXT:   VarDecl {{.*}} len
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+
+  // Note: the "else" block is traversed before the "if" block
+  // so the expected statement outputs are not in the same order
+  // as the statements appear in code.
+
+  if (flag) {
+    // Current UEQ: { { i, len } }
+    // Original value for len in j: i
+    // Updated UEQ: { { i, i }, { j, len } }
+    len = j;
+    // Expected output of len = k from the "else" block
+    // CHECK: Statement S:
+    // CHECK:      BinaryOperator {{.*}} '='
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'k'
+    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: {
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: {
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'k'
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: }
+  } else {
+    // Current UEQ: { { i, len } }
+    // Original value for len in k: i
+    // Updated UEQ: { { i, i }, { k, len } }
+    len = k;
+    // Expected output of len = j from the "if" block
+    // CHECK: Statement S:
+    // CHECK-NEXT: BinaryOperator {{.*}} '='
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'j'
+    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: {
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: {
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'j'
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: }
+  }
+
+  // Current UEQ: { }
+  // Original value of len in 2 * len: null
+  // Updated UEQ: { }
+  len *= 2;
+  // CHECK: Statement S:
+  // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+}
+
+// If/else statements: more complicated intersection of equality sets
+void f28(int flag, int x, int y, int z, int w) {
+  // Updated UEQ: { { 0, len } }
+  int len = 0;
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclStmt
+  // CHECK-NEXT:   VarDecl {{.*}} len
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+
+  // Note: the "else" block is traversed before the "if" block
+  // so the expected statement outputs are not in the same order
+  // as the statements appear in code.
+
+  if (flag) {
+    // Current UEQ: { { 0, len } }
+    // Updated UEQ: { { 0, len }, { 2, y } }
+    y = 2;
+    // Expected output of x = 3 from the "else" block
+    // CHECK: Statement S:
+    // CHECK:      BinaryOperator {{.*}} '='
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+    // CHECK-NEXT:   IntegerLiteral {{.*}} 3
+    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: {
+    // CHECK-NEXT: IntegerLiteral {{.*}} 0
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: {
+    // CHECK-NEXT: IntegerLiteral {{.*}} 3
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: }
+
+    // Updated UEQ: { { 0, len }, { 2, y, x } }
+    x = y;
+    // Expected output of y = x from the "else" block
+    // CHECK: Statement S:
+    // CHECK-NEXT: BinaryOperator {{.*}} '='
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'x'
+    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: {
+    // CHECK-NEXT: IntegerLiteral {{.*}} 0
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: {
+    // CHECK-NEXT: IntegerLiteral {{.*}} 3
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
+    // CHECK-NEXT: }
+
+    // Updated UEQ: { { 0, len }, { 2, y, x }, { w, z } }
+    z = w;
+    // Expected output of w = z from the "else" block
+    // CHECK: Statement S:
+    // CHECK-NEXT: BinaryOperator {{.*}} '='
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'w'
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'z'
+    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: {
+    // CHECK-NEXT: IntegerLiteral {{.*}} 0
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: {
+    // CHECK-NEXT: IntegerLiteral {{.*}} 3
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: {
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'z'
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'w'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: }
+  } else {
+    // Current UEQ: { { 0, len } }
+    // Updated UEQ: { { 0, len }, { 3, x } }
+    x = 3;
+    // Expected output of y = 2 from the "if" block
+    // CHECK: Statement S:
+    // CHECK:      BinaryOperator {{.*}} '='
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
+    // CHECK-NEXT:   IntegerLiteral {{.*}} 2
+    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: {
+    // CHECK-NEXT: IntegerLiteral {{.*}} 0
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: {
+    // CHECK-NEXT: IntegerLiteral {{.*}} 2
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: }
+
+    // Updated UEQ: { { 0, len }, { 3, x, y } }
+    y = x;
+    // Expected output of x = y from the "if" block
+    // CHECK: Statement S:
+    // CHECK-NEXT: BinaryOperator {{.*}} '='
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'y'
+    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: {
+    // CHECK-NEXT: IntegerLiteral {{.*}} 0
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: {
+    // CHECK-NEXT: IntegerLiteral {{.*}} 2
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+    // CHECK-NEXT: }
+
+    // Updated UEQ: { { 0, len }, { 3, x, y }, { z, w } }
+    w = z;
+    // Expected output of z = w from the "if" block
+    // CHECK: Statement S:
+    // CHECK-NEXT: BinaryOperator {{.*}} '='
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'z'
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'w'
+    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: {
+    // CHECK-NEXT: IntegerLiteral {{.*}} 0
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: {
+    // CHECK-NEXT: IntegerLiteral {{.*}} 2
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: {
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'w'
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'z'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: }
+  }
+
+  // Current UEQ: { { 0, len }, { y, x }, { w, z } }
+  // Original value of len in len * 2: null
+  // Updated UEQ: { { y, x }, { w, z } }
+  len *= 2;
+  // CHECK: Statement S:
+  // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'w'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'z'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+}
+
+// If/else statements: unreachable else
+void f29(int flag, int i, int j) {
+  // Updated UEQ: { { 0, len } }
+  int len = 0;
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclStmt
+  // CHECK-NEXT:   VarDecl {{.*}} len
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+
+  if (1) {
+    // Current UEQ: { { 0, len } }
+    // Updated UEQ: { { i, len } }
+    len = i;
+    // CHECK: Statement S:
+    // CHECK:      BinaryOperator {{.*}} '='
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: {
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+    // CHECK-NEXT: }
+    // CHECK-NEXT: }
+  } else {
+    // Unreachable
+    len = j;
+  }
+
+  // Current UEQ: { { i, len } }
+  // Original value of len in len * 2: i
+  // Updated UEQ: { { i, i }, { i * 2, len } }
+  len *= 2;
+  // CHECK: Statement S:
+  // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '*'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
   // CHECK-NEXT: }
   // CHECK-NEXT: }
 }
