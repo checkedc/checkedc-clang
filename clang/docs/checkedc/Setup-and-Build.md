@@ -16,14 +16,12 @@ part of your Visual Studio install.
 
 ### Developing on Windows
 
-We have a few recommendations for developing Clang on Windows using Visual Studio.
-
 We recommend that you use a 64-bit version of Windows. We have found that the 32-bit hosted
 Visual Studio linker tends to run out of memory when linking clang or clang tools.  You will
 want to use the 64-bit hosted Visual Studio toolset instead, which will require a 64-bit version
 of Windows too.
  
-You will need to install the following before building: 
+Prerequisites:
 
 - Visual Studio 2017 or later, Python (version 2.7), and versions of UNIX
   command-line tools.  We recommend using Visual Studio 2019.
@@ -42,19 +40,17 @@ You will need to install the following before building:
 - If Ninja is not already available on your machine, you can download it from [here](https://github.com/ninja-build/ninja/releases).
   Remember to set path to the ninja executable.
 
-If you plan to use Visual Studio to build projects, you must limit the amount
-of parallelism that will be used during builds.
-
-If in VS 2017 or VS 2019, go to _Debug->Options->Projects and Solutions->VC++ Project Settings_ and set
-the `Maximum Number of concurrent C++ compilations` to 3, if your development machine has
-1 GByte of memory or more per core.  If not, see the
-[Wiki page](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
+In order to limit the amount of build parallelism with Visual Studio:
+- Debug->Options->Projects and Solutions->VC++ Project Settings
+- Set `Maximum Number of concurrent C++ compilations` to 3, if your development machine has
+1 GByte of memory or more per core. If not, see the [Wiki page](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
 to figure out what number to use.
 By default, 0 causes it to be the number of available CPU cores on your machine, which is too much.
-You should also to go to  _Debug->Options->Projects and Solutions->Build and Run_ and
+You should also to go to  Debug->Options->Projects and Solutions->Build and Run and
 set the maximum number of parallel project builds to be 3/4 of the actual number of CPU cores on
 your machine.  
 
+A note about line endings:
 LLVM/Clang have some tests that depend on using UNIX line ending conventions
 (line feeds only).  This means that the sources you will be working with
 need to end with line feeds. Visual Studio preserves line endings for files, so
@@ -145,16 +141,11 @@ git clone https://github.com/Microsoft/checkedc
 4. Make sure to set the following CMake flag to enable clang in your builds: -DLLVM_ENABLE_PROJECTS=clang
 5. Make sure that you are using whatever shell you normally do compiles in.
 
-On Linux, cd your build directory and invoke CMake
-   with:
+On Windows and Linux, cd your build directory and invoke CMake:
 ```
-    cmake {llvm-path}
+  cmake -G Ninja {llvm-path}
 ```
 where `{llvm-path}` is the path to the root of your LLVM repo.
-
-The directions for generating a build system for Visual Studio depend on which
-version of CMake you are using.  You must use CMake 3.14 or higher to
-generate a build system for Visual Studio 2019.
 
 ### Building an LLVM package (advanced topic)
 If you are just trying out Checked C, you can safely ignore this section.  If
@@ -163,11 +154,11 @@ recommend that you build a release build of clang with assertions on and only
 include the toolchain in
 the package.  On Windows, you can add the following flags to your CMake options:
 ```
-   -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON -DLLVM_USE_CRT_RELEASE=MT
+  -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON -DLLVM_USE_CRT_RELEASE=MT
 ```
 On UNIX you can add,
 ```
-   -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON
+  -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON
 ```
 
 ## Building
@@ -181,9 +172,8 @@ builds.  Subsequent builds during development will be much faster (minutes, not
 an hour).
 
 ### On UNIX
-
 Change to your build directory and build `clang`:
-        ninja clang
+  ninja clang
 
 ### On Windows
 
@@ -222,7 +212,7 @@ To build an X86 version of clang:
 Follow the earlier instructions to set up the build system.
 
 To build X64 version of clang:
-"C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+  "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
 
 To build X86 version of clang:
   "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x86
