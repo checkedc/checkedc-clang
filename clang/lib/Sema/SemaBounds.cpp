@@ -120,7 +120,6 @@ namespace {
       static DeclRefExpr *GetVariable(Sema &SemaRef, Expr *E) {
         if (!E)
           return nullptr;
-
         return dyn_cast<DeclRefExpr>(E->IgnoreParenNoopCasts(SemaRef.Context));
       }
 
@@ -137,6 +136,60 @@ namespace {
 
         Lexicographic Lex(SemaRef.Context, nullptr);
         return Lex.CompareExpr(V1, V2) == Lexicographic::Result::Equal;
+      }
+  };
+}
+
+namespace {
+  class ExprCreatorUtil {
+    public:
+      // Create a binary operator, casting each child to an rvalue
+      // expression if necessary.
+      static BinaryOperator *CreateBinaryOperator(Sema &SemaRef,
+                                                  Expr *LHS, Expr *RHS,
+                                                  BinaryOperatorKind Op) {
+        LHS = EnsureRValue(SemaRef, LHS);
+        RHS = EnsureRValue(SemaRef, RHS);
+        return new (SemaRef.Context) BinaryOperator(LHS, RHS, Op,
+                                                    LHS->getType(),
+                                                    LHS->getValueKind(),
+                                                    LHS->getObjectKind(),
+                                                    SourceLocation(),
+                                                    FPOptions());
+      }
+
+      // Create an unsigned integer literal.
+      static IntegerLiteral *CreateUnsignedInt(Sema &SemaRef, unsigned Value) {
+        QualType T = SemaRef.Context.UnsignedIntTy;
+        llvm::APInt Val(SemaRef.Context.getIntWidth(T), Value);
+        return IntegerLiteral::Create(SemaRef.Context, Val,
+                                      T, SourceLocation());
+      }
+
+      // Create an implicit cast expression.
+      static ImplicitCastExpr *CreateImplicitCast(Sema &SemaRef, Expr *E,
+                                                  CastKind CK, QualType T) {
+        return ImplicitCastExpr::Create(SemaRef.Context, T,
+                                        CK, E, nullptr,
+                                        ExprValueKind::VK_RValue);
+      }
+
+      // If e is an rvalue, EnsureRValue returns e.  Otherwise, EnsureRValue
+      // returns a cast of e to an rvalue, based on the type of e.
+      static Expr *EnsureRValue(Sema &SemaRef, Expr *E) {
+        if (E->isRValue())
+          return E;
+
+        CastKind Kind;
+        QualType TargetTy;
+        if (E->getType()->isArrayType()) {
+          Kind = CK_ArrayToPointerDecay;
+          TargetTy = SemaRef.getASTContext().getArrayDecayedType(E->getType());
+        } else {
+          Kind = CK_LValueToRValue;
+          TargetTy = E->getType();
+        }
+        return CreateImplicitCast(SemaRef, E, Kind, TargetTy);
       }
   };
 }
