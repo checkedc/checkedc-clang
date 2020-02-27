@@ -113,6 +113,35 @@ public:
 }
 
 namespace {
+  class VariableUtil {
+    public:
+      // If E is a (possibly parenthesized or no-op cast) variable V,
+      // GetVariable returns V.  Otherwise, GetVariable returns nullptr.
+      static DeclRefExpr *GetVariable(Sema &SemaRef, Expr *E) {
+        if (!E)
+          return nullptr;
+
+        return dyn_cast<DeclRefExpr>(E->IgnoreParenNoopCasts(SemaRef.Context));
+      }
+
+      // SameVariable returns true if the expressions E1 and E2
+      // are the same (possibly parenthesized or no-op cast) variable.
+      static bool SameVariable(Sema &SemaRef, Expr *E1, Expr *E2) {
+        DeclRefExpr *V1 = GetVariable(SemaRef, E1);
+        if (!V1)
+          return false;
+
+        DeclRefExpr *V2 = GetVariable(SemaRef, E2);
+        if (!V2)
+          return false;
+
+        Lexicographic Lex(SemaRef.Context, nullptr);
+        return Lex.CompareExpr(V1, V2) == Lexicographic::Result::Equal;
+      }
+  };
+}
+
+namespace {
   class AbstractBoundsExpr : public TreeTransform<AbstractBoundsExpr> {
     typedef TreeTransform<AbstractBoundsExpr> BaseTransform;
     typedef ArrayRef<DeclaratorChunk::ParamInfo> ParamsInfo;
