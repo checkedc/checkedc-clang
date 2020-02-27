@@ -559,6 +559,36 @@ namespace {
 }
 
 namespace {
+  class VariableCountHelper : public RecursiveASTVisitor<VariableCountHelper> {
+    private:
+      Sema &SemaRef;
+      DeclRefExpr *V;
+      int Count;
+
+    public:
+      VariableCountHelper(Sema &SemaRef, DeclRefExpr *V) :
+        SemaRef(SemaRef),
+        V(V),
+        Count(0) {}
+
+      int GetCount() { return Count; }
+
+      bool VisitDeclRefExpr(DeclRefExpr *E) {
+        if (VariableUtil::SameVariable(SemaRef, E, V))
+          ++Count;
+        return true;
+      }
+  };
+
+  // VariableOccurrenceCount returns the number of occurrences of V in E.
+  int VariableOccurrenceCount(Sema &SemaRef, DeclRefExpr *V, Expr *E) {
+    VariableCountHelper Counter(SemaRef, V);
+    Counter.TraverseStmt(E);
+    return Counter.GetCount();
+  }
+}
+
+namespace {
   class PruneVariableHelper : public TreeTransform<PruneVariableHelper> {
     typedef TreeTransform<PruneVariableHelper> BaseTransform;
     private:
@@ -617,6 +647,13 @@ namespace {
   // returns nullptr.
   Expr *PruneVariableReferences(Sema &SemaRef, Expr *E, DeclRefExpr *V,
                                 Expr *OV, CheckedScopeSpecifier CSS) {
+    // Only transform e if v occurs at least once in e, to prevent errors
+    // caused by the fact that TreeTransform does not preserve all
+    // information about its argument expression. 
+    int VarCount = VariableOccurrenceCount(SemaRef, V, E);
+    if (VarCount < 1)
+      return E;
+
     // Account for checked scope information when transforming the expression.
     Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
 
@@ -626,36 +663,6 @@ namespace {
       return nullptr;
     else
       return R.get();
-  }
-}
-
-namespace {
-  class VariableCountHelper : public RecursiveASTVisitor<VariableCountHelper> {
-    private:
-      Sema &SemaRef;
-      DeclRefExpr *V;
-      int Count;
-
-    public:
-      VariableCountHelper(Sema &SemaRef, DeclRefExpr *V) :
-        SemaRef(SemaRef),
-        V(V),
-        Count(0) {}
-
-      int GetCount() { return Count; }
-
-      bool VisitDeclRefExpr(DeclRefExpr *E) {
-        if (VariableUtil::SameVariable(SemaRef, E, V))
-          ++Count;
-        return true;
-      }
-  };
-
-  // VariableOccurrenceCount returns the number of occurrences of V in E.
-  int VariableOccurrenceCount(Sema &SemaRef, DeclRefExpr *V, Expr *E) {
-    VariableCountHelper Counter(SemaRef, V);
-    Counter.TraverseStmt(E);
-    return Counter.GetCount();
   }
 }
 
