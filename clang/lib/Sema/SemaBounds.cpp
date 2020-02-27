@@ -3498,6 +3498,79 @@ namespace {
         G.push_back(CreateTemporaryUse(Temp));
     }
 
+    // Inverse repeatedly applies mathematical rules to the expression e to
+    // get the inverse of e with respect to the variable x and expression f.
+    // If rules cannot be applied to e, Inverse returns nullptr.
+    Expr *Inverse(DeclRefExpr *X, Expr *F, Expr *E) {
+      if (!F)
+        return nullptr;
+
+      E = E->IgnoreParens();
+      if (VariableUtil::SameVariable(S, X, E))
+        return F;
+
+      switch (E->getStmtClass()) {
+        case Expr::UnaryOperatorClass:
+          return UnaryOperatorInverse(X, F, cast<UnaryOperator>(E));
+        case Expr::BinaryOperatorClass:
+          return BinaryOperatorInverse(X, F, cast<BinaryOperator>(E));
+        // TODO: get the inverse of cast expressions.
+        default:
+          return nullptr;
+      }
+
+      return nullptr;
+    }
+
+    // Returns the inverse of a unary operator using the following rule:
+    // Inverse(f, @e1) = Inverse(@f, e1) where @ can be ~, -, or +.
+    Expr *UnaryOperatorInverse(DeclRefExpr *X, Expr *F, UnaryOperator *E) {
+      Expr *SubExpr = E->getSubExpr();
+      UnaryOperatorKind Op = E->getOpcode();
+      Expr *Child = ExprCreatorUtil::EnsureRValue(S, F);
+      Expr *F1 = new (S.Context) UnaryOperator(Child, Op, E->getType(),
+                                               E->getValueKind(),
+                                               E->getObjectKind(),
+                                               SourceLocation(),
+                                               E->canOverflow());
+      return Inverse(X, F1, SubExpr);
+    }
+
+    // Returns the inverse of a binary operator.
+    Expr *BinaryOperatorInverse(DeclRefExpr *X, Expr *F, BinaryOperator *E) {
+      std::pair<Expr *, Expr*> Pair = SplitByVarCount(X, E->getLHS(), E->getRHS());
+      if (!Pair.first)
+        return nullptr;
+
+      Expr *E_X = Pair.first, *E_NotX = Pair.second;
+      BinaryOperatorKind Op = E->getOpcode();
+      Expr *F1 = nullptr;
+
+      switch (Op) {
+        case BinaryOperatorKind::BO_Add:
+          // Inverse(f, e1 + e2) = Inverse(f - e_notx, e_x)
+          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotX, BinaryOperatorKind::BO_Sub);
+          break;
+        case BinaryOperatorKind::BO_Sub: {
+          if (E_X == E->getLHS())
+            // Inverse(f, e_x - e_notx) = Inverse(f + e_notx, e_x)
+            F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotX, BinaryOperatorKind::BO_Add);
+          else
+            // Inverse(f, e_notx - e_x) => Inverse(e_notx - f, e_x)
+            F1 = ExprCreatorUtil::CreateBinaryOperator(S, E_NotX, F, BinaryOperatorKind::BO_Sub);
+          break;
+        }
+        case BinaryOperatorKind::BO_Xor:
+          // Inverse(f, e1 ^ e2) = Inverse(x, f ^ e_notx, e_x)
+          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotX, BinaryOperatorKind::BO_Xor);
+          break;
+        default:
+          break;
+      }
+
+      return Inverse(X, F1, E_X);
+    }
+
     // IntersectUEQ returns the intersection of two sets of sets of equivalent
     // expressions, where each set in UEQ1 is intersected with each set in
     // UEQ2 to produce an element of the result.
