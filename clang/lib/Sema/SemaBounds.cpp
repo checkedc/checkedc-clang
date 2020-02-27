@@ -2510,8 +2510,51 @@ namespace {
         }
       }
 
+      // Update State.UEQ and State.G.
       if (E->isAssignmentOp()) {
-        // TODO: update State for assignments `e1 = e2` and `e1 @= e2`.
+        Expr *Target =
+             CreateImplicitCast(LHS->getType(), CK_LValueToRValue, LHS);
+        Expr *Src = RHS;
+
+        // A compound assignment `e1 @= e2` implies an assignment `e1 = e1 @ e2`.
+        if (E->isCompoundAssignmentOp()) {
+          // Create the RHS of the implied assignment `e1 = e1 @ e2`.
+          Src = ExprCreatorUtil::CreateBinaryOperator(S, Target, RHS, Op);
+
+          // Update the set of expressions that produce the same value as `e1`.
+          SubExprGs[LHS] = GetEqualExprSetContainingExpr(LHS, State.UEQ);
+
+          // Update State.G to be the set of expressions that produce the same
+          // value as the source `e1 @ e2` of the assignment `e1 = e1 @ e2`.
+          UpdateG(Src, SubExprGs, State.G);
+          SubExprGs[Src] = State.G;
+        }
+
+        // Update UEQ and G for assignments to a variable `e1`.
+        if (DeclRefExpr *V = VariableUtil::GetVariable(S, LHS)) {
+          Expr *OV = GetOriginalValue(V, Src, State.UEQ);
+          UpdateAfterAssignment(V, Target, OV, CSS, State, State);
+        }
+        // Update UEQ and G for assignments to a non-variable `e1`.
+        else {
+          if (!E->isCompoundAssignmentOp()) {
+            // Record equality implied by the assignment `e1 = e2` to a
+            // non-variable `e1`. At this point, State.G contains expressions
+            // that produce the same value as `e2`.
+            // TODO: this doesn't properly handle cases where the RHS
+            // uses the value of the LHS, e.g. *p = 2 - *p.
+            State.G.push_back(Target);
+            State.UEQ.push_back(State.G);
+          } else {
+            // Do nothing for compound assignments `e1 @= e2` to a
+            // non-variable `e1`. Since the RHS `e1 @ e2` of the implied
+            // assignment `e1 = e1 @ e2` uses the value of e1 and `e1` has no
+            // original value in `e1 @ e2`, State.UEQ remains unchanged.
+            // State.G already contains expressions that produce the same
+            // value as the RHS `e1 @ e2` of the assignment `e1 = e1 @ e2`,
+            // so State.G also remains unchanged.
+          }
+        }
       } else if (BinaryOperator::isLogicalOp(Op)) {
         // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
       } else if (Op == BinaryOperatorKind::BO_Comma) {
