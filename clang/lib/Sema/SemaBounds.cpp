@@ -2922,11 +2922,31 @@ namespace {
                              CheckingState &State) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
-      // If there is an initializer, check it.
       Expr *Init = D->getInit();
       BoundsExpr *InitBounds = nullptr;
-      if (Init)
+      // If there is an initializer, check it, and update the state to record
+      // expression equality implied by initialization.
+      if (Init) {
         InitBounds = Check(Init, CSS, State);
+
+        DeclRefExpr *TargetDeclRef =
+          DeclRefExpr::Create(S.getASTContext(), NestedNameSpecifierLoc(),
+                              SourceLocation(), D, false, SourceLocation(),
+                              D->getType(), ExprValueKind::VK_LValue);
+        CastKind Kind;
+        QualType TargetTy;
+        if (D->getType()->isArrayType()) {
+          Kind = CK_ArrayToPointerDecay;
+          TargetTy = S.getASTContext().getArrayDecayedType(D->getType());
+        } else {
+          Kind = CK_LValueToRValue;
+          TargetTy = D->getType();
+        }
+        Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
+        Expr *OV = nullptr;
+        UpdateAfterAssignment(TargetDeclRef, TargetExpr, OV,
+                              CSS, State, State);
+      }
 
       if (D->isInvalidDecl())
         return ResultBounds;
