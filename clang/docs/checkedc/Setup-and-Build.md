@@ -1,15 +1,22 @@
 # Setting up your machine and building clang
 
+Note: The automation scripts used to build and test the Checked C compiler have
+now been moved to their own [repo](https://github.com/microsoft/checkedc-automation).
+For Windows builds we have deprecated msbuild and have now switched to using
+CMake with Ninja.
+
 ## Setting up your machine
 
 See the clang [Getting started guide](http://clang.llvm.org/get_started.html) for information
-on how to set up your machine.  For Linux, you should install CMake 3.8 or later.
-If you will be developing on Windows, you should install CMake 3.14 or later on your machine.
+on how to set up your machine.
+
+We now use CMake and Ninja for Clang builds on both Windows and Linux. For
+Linux, install CMake 3.8 or later. For Windows, CMake is bundled as
+part of your Visual Studio install.
 
 ### Developing on Windows
 
-We are doing the development work for Checked C on Windows. We have a few recommendations for developing 
-clang on Windows using Visual Studio.
+We have a few recommendations for developing Clang on Windows using Visual Studio.
 
 We recommend that you use a 64-bit version of Windows. We have found that the 32-bit hosted
 Visual Studio linker tends to run out of memory when linking clang or clang tools.  You will
@@ -18,21 +25,27 @@ of Windows too.
  
 You will need to install the following before building: 
 
-- Visual Studio 2017 or later, CMake (version 3.14 or later), Python (version 2.7), and versions of UNIX command
-line tools.  We recommend using Visual Studio 2019.
-- For UNIX command-line tools, we recommend installing them via Cygwin because these are well-maintained. 
-Go to [http://www.cygwin.com](http://www.cygwin.com) and download the installer (put it in a known place).
-Then run it and use the GUI to install the coreutils and diffutils packages.  Add the bin subdirectory to your system path.
+- Visual Studio 2017 or later, Python (version 2.7), and versions of UNIX
+  command-line tools.  We recommend using Visual Studio 2019.
+  - For VS2019, go to Tools -> Get Tools and Features (this opens the VS installer)
+  - Go to Individual Components
+  - Scroll to the “SDKs, libraries, and frameworks” section (near the bottom of the list)
+  - Check “C++ ATL for latest v142 build tools (x86 and x64)”
+  - Install
 
-If you plan to use Visual Studio to build projects,  you must limit the amount
-of parallelism that will be used during builds.  By default, the Visual Studio solution
-for clang has [too much parallelism](https:/github.com/Microsoft/checkedc-clang/issues/268). 
-The parallelism will cause your build to use too much physical memory and cause your machine
-to start paging.  This will make your machine unresponsive and slow down your build too.
-See the Wiki page on [Parallel builds of clang on Windows](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
-for more details.
+- For UNIX command-line tools, install them via [GnuWin32](https://sourceforge.net/projects/getgnuwin32/postdownload)
+  - In cmd prompt, cd to the download dir and run:
+  - download.bat
+  - install.bat C:\GnuWin32
+  - set PATH=C:\GnuWin32\bin;%PATH%
 
-in VS 2017 or VS 2019, go to _Debug->Options->Projects and Solutions->VC++ Project Settings_ and set
+- If Ninja is not already available on your machine, you can download it from [here](https://github.com/ninja-build/ninja/releases).
+  Remember to set path to the ninja executable.
+
+If you plan to use Visual Studio to build projects, you must limit the amount
+of parallelism that will be used during builds.
+
+If in VS 2017 or VS 2019, go to _Debug->Options->Projects and Solutions->VC++ Project Settings_ and set
 the `Maximum Number of concurrent C++ compilations` to 3, if your development machine has
 1 GByte of memory or more per core.  If not, see the
 [Wiki page](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
@@ -143,51 +156,12 @@ The directions for generating a build system for Visual Studio depend on which
 version of CMake you are using.  You must use CMake 3.14 or higher to
 generate a build system for Visual Studio 2019.
 
-### Visual Studio with CMake 3.14 or higher
-
-If you are using CMake 3.14 or higher, you use the -G option to specify
-the generator (the target build system) and the -A option to specify
-the architecture.  The clang tests will build and run for that architecture
-and the architecture will be the default target architecture for clang (these options
-are explained [here](https://cmake.org/cmake/help/latest/generator/Visual%20Studio%2016%202019.html)).
-By default, CMake uses the 64-bit toolset on 64-bit Windows systems, so you
-do not have to worry about that.
-
-To generate a build system for Visual Studio 2019 targeting x86, use
-```
-    cmake -G "Visual Studio 16 2019" -A Win32 {llvm-path}
-```
-For x64, use
-```
-    cmake -G "Visual Studio 16 2019" -A x64 {llvm-path}
-```
-To target Visual Studio 2017, substitute "Visual Studio 15 2017" for "Visual Studio 16 2019".
-`cmake --help` will list all the available generators on your platform.
-
-### Visual Studio with earlier versions of CMake
-
-   On Windows, when using Visual Studio, you should specify that the 64-bit hosted toolset be used.
-   Visual Studio has both 32-bit hosted and 64-bit hosted versions of tools.
-   You can do that by adding the option `-T "host=x64"` to the command-line (note that this
-   option is only available using CMake version 3.8 or later).
-```
-    cmake -T "host=x64" {llvm-path}
-```
-
-   On Windows, when using Visual Studio, CMake versions earlier than 3.14
-   by default produce a build system for x86.  This means that the clang tests
-   will run in 32-bit compatiblity mode, even on a 64-bit version of Windows.
-   To build and run tests on x64, specify a different generator using the `-G`
-   option.  For Visual Studio 2017, you can use:
-```
-    cmake -T "host=x64" -G "Visual Studio 15 2017 Win64" {llvm-path}
-```
-`cmake --help` will list all the available generators on your platform.
-
 ### Building an LLVM package (advanced topic)
-If you are just trying out Checked C, you can safely ignore this section.  If you plan to build an LLVM package for installation
-on other machines,  we recommend that you build a release build of clang with assertions on and only include the toolchain in
-the package.  On Windows, you can add the following flags to your cmake command line:
+If you are just trying out Checked C, you can safely ignore this section.  If
+you plan to build an LLVM package for installation on other machines,  we
+recommend that you build a release build of clang with assertions on and only
+include the toolchain in
+the package.  On Windows, you can add the following flags to your CMake options:
 ```
    -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON -DLLVM_USE_CRT_RELEASE=MT
 ```
@@ -198,59 +172,69 @@ On UNIX you can add,
 
 ## Building
 
-You can build `clang` the usual way that it is built.   The earlier build system directions will create a Debug build,
-so `clang` will be placed in your build directory under `Debug\bin`.
-
-Note that the first time that you build clang, it may take over an hour to build.  This is because LLVM is being
-built.   The debug build of LLVM is particularly slow because it bottlenecks on table generation. LLVM generates architecture-specific
-tables at build time that are used during code generation.  The default table generation algorithm is very slow in debug builds.
-Subsequent builds during development will be much faster (minutes, not an hour).
+Note that the first time that you build clang, it may take over an hour to
+build.  This is because LLVM is being built.   The debug build of LLVM is
+particularly slow because it bottlenecks on table generation. LLVM generates
+architecture-specific tables at build time that are used during code
+generation.  The default table generation algorithm is very slow in debug
+builds.  Subsequent builds during development will be much faster (minutes, not
+an hour).
 
 ### On UNIX
 
 Change to your build directory and build `clang`:
-
-	make -j nnn clang
-
-where `nnn` is replaced by the number of CPU cores that your computer has.
+        ninja clang
 
 ### On Windows
 
-For day-to-day development, we recommend building from Visual Studio.  This will improve your productivity significantly because it will give you
-all the capabilities of Visual Studio for navigating the code base, code browsing, and Intellisense.  Note that VS launches a multi-threaded build 
-by default.  Be sure you have throttled down the number of processes following earlier directions. 
+For day-to-day development, we recommend building from Visual Studio.  This
+will improve your productivity significantly because it will give you all the
+capabilities of Visual Studio for navigating the code base, code browsing, and
+Intellisense.
 
 #### Visual Studio
-Follow the earlier instructions to set up the build system.  After you've done that, there should be a solution file LLVM.sln in
-your build directory.  Use Visual Studio to load the solution file. Then open the solution explorer (under View->Solution Explorer). 
+After you have followed the earlier instructions to set up the build system:
+- Start Visual Studio->Open a Local Folder.
+- To build llvm and clang: Open the src/llvm directory (because this contains the llvm CMakeLists file).
+- To build only clang: Open the src/clang directory (because this contains the clang CMakeLists file).
 
-To build
+To configure:
+- Project->Generate Cache for LLVM
 
-- clang only: go to _clang executables directory -> clang_ and right click to build `clang'.
-- Everything: right click on the solution and select build.
+To add options to CMake:
+- Project->CMake Settings for LLVM
+- Add your options to "Cmake command arguments" and save
+- Project->CMake Cache->Delete Cache, and configure again
 
-By default, the build type will be a Debug build.  You can switch to another build configuration in VS 2017
-by selecting the Build->Configuration Manager menu item and choosing a different solution configuration.
+To build:
+- Build->Build All
+
+The above instructions would build an X64 Release version of clang and the
+default build dir is build dir is src/llvm/out. You can change this (and many
+other settings) from Project->CMake Settings for LLVM.
+
+To build an X86 version of clang:
+- Project->CMake Settings for LLVM
+- Toolset->msvc_x86_x64
 
 #### Command-shell
 
-Follow the earlier instructions to set up the build system.  From the build directory, use the following comamnd to build clang only:
+Follow the earlier instructions to set up the build system.
 
-	msbuild tools\clang\tools\driver\clang.vcxproj /p:CL_MPCount=3 /m
+To build X64 version of clang:
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+
+To build X86 version of clang:
+  "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x86
+
+From the build directory, use the following command to build clang only:
+  ninja clang
 
 To build everything:
-
-	msbuild LLVM.sln /p:CL_MPCount=3 /m
+  ninja
 
 To clean the build directory:
-
-	msbuild /t:clean LLVM.sln
-
-By default, the build type is a Debug build.   You can specify the build type by adding `/p:Configuration=nnn`
-to the `msbuild` command line, where `nnn` is one of `Debug`, `Release`, or `RelWithDebInfo`.  For example, 
-for a Release build, use:
-
-    msbuild tools\clang\tools\driver\clang.vcxproj /p:Configuration=Release /p:CL_MPCount=3 /m
+  ninja clean
 
 ## Testing
 
@@ -260,16 +244,8 @@ are testing the Checked C version of clang on x86 and x64 Windows and on x64 Lin
 ## Building an LLVM package.
 
 If you would like to build an LLVM package, first follow the steps in setting up a build directory for
-building a package.   On Windows, install [NSIS](http://nsis.sourceforge.net).  Change directory to your
-build directory, and run
-
-	msbuild PACKAGE.sln /p:Configuration=Release /p:CL_MPCount=3 /m
-
-On UNIX, run
-
-	make -j nnn package
-
-where `nnn` is replaced by the number of CPU cores that your computer has.
+building a package. On both Windows and Linux, change directory to the build directory, and run
+  ninja package
 
 ## Updating sources to the latest sources for LLVM/Clang
 
