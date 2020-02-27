@@ -120,3 +120,125 @@ void f5(int arr[1]) {
   // CHECK-NEXT:  IntegerLiteral {{.*}} 4
   // CHECK-NEXT: }
 }
+
+// UnaryOperator: pre-increment operator on a variable (unsigned integer arithmetic)
+void f6(unsigned x) {
+  // Updated UEQ: { { (x - 1) + 1, x } }
+  ++x;
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 'unsigned int' 1
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 'unsigned int' 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+}
+
+// UnaryOperator: pre-decrement operator on a variable (checked pointer arithmetic)
+void f7(array_ptr<int> arr) {
+  // Updated UEQ: { { (arr + 1) - 1, arr } }
+  --arr;
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} prefix '--'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 'unsigned int' 1
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 'unsigned int' 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+}
+
+// UnaryOperator: post-increment operator on a variable (unsigned integer arithmetic)
+void f8(unsigned x) {
+  // Updated UEQ: { { x - 1, x } }
+  x++;
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} postfix '++'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 'unsigned int' 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+}
+
+// UnaryOperator: post-decrement operator on a variable (checked pointer arithmetic)
+void f9(array_ptr<int> arr) {
+  // Updated UEQ: { { arr + 1, arr } }
+  arr--;
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} postfix '--'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 'unsigned int' 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+}
+
+// UnaryOperator: pre-increment operator on a variable (float arithmetic)
+void f10 (float f) {
+  // Updated UEQ: { }, Updated G: { f }
+  ++f;
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'f'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'f'
+  // CHECK-NEXT: }
+}
+
+// UnaryOperator: pre-decrement operator on a non-variable
+void f11(int *p) {
+  // Updated UEQ: { }, Updated G: { *p - 1 }
+  --*p;
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} prefix '--'
+  // CHECK-NEXT:   UnaryOperator {{.*}} '*'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     UnaryOperator {{.*}} '*'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 'unsigned int' 1
+  // CHECK-NEXT: }
+}
