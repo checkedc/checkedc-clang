@@ -628,6 +628,36 @@ namespace {
 }
 
 namespace {
+  class VariableCountHelper : public RecursiveASTVisitor<VariableCountHelper> {
+    private:
+      Sema &SemaRef;
+      DeclRefExpr *V;
+      int Count;
+
+    public:
+      VariableCountHelper(Sema &SemaRef, DeclRefExpr *V) :
+        SemaRef(SemaRef),
+        V(V),
+        Count(0) {}
+
+      int GetCount() { return Count; }
+
+      bool VisitDeclRefExpr(DeclRefExpr *E) {
+        if (VariableUtil::SameVariable(SemaRef, E, V))
+          ++Count;
+        return true;
+      }
+  };
+
+  // VariableOccurrenceCount returns the number of occurrences of V in E.
+  int VariableOccurrenceCount(Sema &SemaRef, DeclRefExpr *V, Expr *E) {
+    VariableCountHelper Counter(SemaRef, V);
+    Counter.TraverseStmt(E);
+    return Counter.GetCount();
+  }
+}
+
+namespace {
   // EqualExprTy denotes a set of expressions that produce the same value
   // as an expression e.
   using EqualExprTy = SmallVector<Expr *, 4>;
