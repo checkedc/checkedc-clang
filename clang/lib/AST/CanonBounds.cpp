@@ -338,7 +338,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      // case Expr::MSPropertySubscriptExprClass:
 
      default:
-       llvm_unreachable("unexpected expression kind");         
+       return Result::LessThan;         
    }
 
    if (Cmp != Result::Equal)
