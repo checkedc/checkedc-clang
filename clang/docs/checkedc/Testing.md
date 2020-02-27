@@ -21,35 +21,20 @@ Checked C and clang tests.
 ## Running developer regressions tests
 
 ### From Visual Studio
-Load the solution and the open it using the Solution explorer (View->Solution
-Explorer). To run tests, you can right click and build the following targets:
+- Open Project->Cmake Settings
+- Add the following to "Build command arguments" box:
+  - To run Checked C unit tests: `check-checkec`
+  - To run Checked C unit tests (for ARM target): `ninja check-checkedc-arm`
+  - To run Clang unit tests: `check-clang`
+  - To run all unit tests: `check-all`
 
-- Checked C tests: go to _CheckedC tests->check-checkedc_
-- clang tests: go to _Clang tests->check-clang_
-- All LLVM and clang tests: select the check-all solution (at the top level)
-
-### From a command shell using msbuild
-Set up the build system and then change to your new object directory. Use the
-following commands to run tests:
-
-- Checked C tests: `msbuild projects\checkedc-wrapper\check-checkedc.vcxproj /p:CL_MPCount=3 /m`
-- Clang tests: `msbuild tools\clang\test\check-clang.vcxproj /p:CL_MPCount=3 /m`
-- All LLVM and clang tests: `msbuild check-all.vcxproj /p:CL_MPCount=3 /m`
-
-### Using make
+### From a command shell using ninja
 In your build directory,
 
-- Checked C tests: `make -j nnn check-checkedc`
-- Checked C tests (for ARM target): `make -j nnn check-checkedc-arm`
-- clang tests: `make -j nnn check-clang`
-- All tests: `make -j nnn check-all`
-
-where `nnn` is replaced by the number of CPU cores that your computer has.
-
-Note: If you use CMake with ninja, then you can simply replace `make -j nnn` in
-the above commands with `ninja`. For example:
-
-    `ninja check-checkedc`
+- Checked C tests: `ninja check-checkedc`
+- Checked C tests (for ARM target): `ninja check-checkedc-arm`
+- Clang tests: `ninja check-clang`
+- All unit tests: `ninja check-all`
 
 ### From a command shell using the testing harness
 You can use the testing harness to run individual tests or sets of tests.
