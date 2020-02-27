@@ -2086,8 +2086,10 @@ namespace {
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
      ResetFacts();
+     llvm::DenseMap<const CFGBlock *, CheckingState> BlockStates;
      for (const CFGBlock *Block : POView) {
        AFA.GetFacts(Facts);
+       CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
            CFGStmt CS = Elem.castAs<CFGStmt>();
@@ -2117,9 +2119,10 @@ namespace {
             S->dump(llvm::outs());
             llvm::outs().flush();
 #endif
-            Check(S, CSS);
+            Check(S, CSS, BlockState);
          }
        }
+       BlockStates[Block] = BlockState;
        AFA.Next();
      }
     }
@@ -3836,6 +3839,29 @@ namespace {
       }
 
       return Inverse(X, F1, E_X);
+    }
+
+    // GetIncomingBlockState returns the checking state that is true at
+    // the beginning of the block by taking the intersection of the UEQ
+    // sets that were true after each of the block's predecessors.
+    CheckingState GetIncomingBlockState(const CFGBlock *Block,
+                                        llvm::DenseMap<const CFGBlock *, CheckingState> BlockStates) {
+      CheckingState BlockState;
+      bool IntersectionEmpty = true;
+      for (const CFGBlock *PredBlock : Block->preds()) {
+        // Prevent non-traversed (e.g. unreachable) blocks from causing
+        // the incoming UEQ for a block to be empty.
+        if (BlockStates.find(PredBlock) == BlockStates.end())
+          continue;
+        CheckingState PredState = BlockStates[PredBlock];
+        if (IntersectionEmpty) {
+          BlockState.UEQ = PredState.UEQ;
+          IntersectionEmpty = false;
+        }
+        else
+          BlockState.UEQ = IntersectUEQ(PredState.UEQ, BlockState.UEQ);
+      }
+      return BlockState;
     }
 
     // IntersectUEQ returns the intersection of two sets of sets of equivalent
