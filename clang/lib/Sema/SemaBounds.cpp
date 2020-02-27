@@ -143,13 +143,15 @@ namespace {
 namespace {
   class ExprCreatorUtil {
     public:
-      // Create a binary operator, casting each child to an rvalue
-      // expression if necessary.
+      // Create a non-compound binary operator, casting each child to an
+      // rvalue expression if necessary.
       static BinaryOperator *CreateBinaryOperator(Sema &SemaRef,
                                                   Expr *LHS, Expr *RHS,
                                                   BinaryOperatorKind Op) {
         LHS = EnsureRValue(SemaRef, LHS);
         RHS = EnsureRValue(SemaRef, RHS);
+        if (BinaryOperator::isCompoundAssignmentOp(Op))
+          Op = BinaryOperator::getOpForCompoundAssignment(Op);
         return new (SemaRef.Context) BinaryOperator(LHS, RHS, Op,
                                                     LHS->getType(),
                                                     LHS->getValueKind(),
