@@ -3498,6 +3498,29 @@ namespace {
         G.push_back(CreateTemporaryUse(Temp));
     }
 
+  // Methods to get the original value of an expression.
+
+    // GetOriginalValue returns the original value (if it exists) of the
+    // source expression with respect to the variable v.
+    Expr *GetOriginalValue(DeclRefExpr *V, Expr *Src, const EquivExprSets EQ) {
+      // Check if Src has an inverse expression with respect to v.
+      Expr *IV = nullptr;
+      if (IsInvertible(V, Src))
+        IV = Inverse(V, V, Src);
+      if (IV)
+        return IV;
+      
+      // Check EQ for a variable w != v that produces the same value as v.
+      EqualExprTy F = GetEqualExprSetContainingVariable(V, EQ);
+      for (auto I = F.begin(); I != F.end(); ++I) {
+        DeclRefExpr *W = VariableUtil::GetVariable(S, *I);
+        if (W != nullptr && !VariableUtil::SameVariable(S, V, W))
+          return W;
+      }
+
+      return nullptr;
+    }
+
     // IsInvertible returns true if the expression e can be inverted
     // with respect to the variable x.
     bool IsInvertible(DeclRefExpr *X, Expr *E) {
