@@ -21,12 +21,12 @@ Checked C and clang tests.
 ## Running developer regressions tests
 
 ### From Visual Studio
-Load the solution and the open it using the Solution explorer (View->Solution
-Explorer). To run tests, you can right click and build the following targets:
-
-- Checked C tests: go to _CheckedC tests->check-checkedc_
-- clang tests: go to _Clang tests->check-clang_
-- All LLVM and clang tests: select the check-all solution (at the top level)
+- Open Project->Cmake Settings
+- Add the following to "Build command arguments" box:
+  - To run Checked C unit tests: `check-checkec`
+  - To run Checked C unit tests (for ARM target): `ninja check-checkedc-arm`
+  - To run Clang unit tests: `check-clang`
+  - To run all unit tests: `check-all`
 
 ### From a command shell using ninja
 In your build directory,
