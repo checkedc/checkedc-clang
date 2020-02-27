@@ -3513,7 +3513,11 @@ namespace {
     }
 
     // Returns true if the expression e reads memory via a pointer.
-    bool ReadsMemoryViaPointer(Expr *E) {
+    // IncludeAllMemberExprs is used to modify the behavior to return true
+    // if e is or contains a pointer dereference, member reference, or
+    // indirect member reference (including e1.f which may not read memory
+    // via a pointer).
+    bool ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs = false) {
       E = E->IgnoreParens();
 
       switch (E->getStmtClass()) {
@@ -3526,6 +3530,9 @@ namespace {
         case Expr::ArraySubscriptExprClass:
           return true;
         case Expr::MemberExprClass: {
+          if (IncludeAllMemberExprs)
+            return true;
+
           MemberExpr *ME = cast<MemberExpr>(E);
           // e1->f reads memory via a pointer.
           if (ME->isArrow())
