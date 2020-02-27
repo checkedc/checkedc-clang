@@ -173,7 +173,9 @@ an hour).
 
 ### On UNIX
 Change to your build directory and build `clang`:
+```
   ninja clang
+```
 
 ### On Windows
 
@@ -212,19 +214,29 @@ To build an X86 version of clang:
 Follow the earlier instructions to set up the build system.
 
 To build X64 version of clang:
+```
   "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+```
 
 To build X86 version of clang:
+```
   "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x86
+```
 
 From the build directory, use the following command to build clang only:
+```
   ninja clang
+```
 
 To build everything:
+```
   ninja
+```
 
 To clean the build directory:
+```
   ninja clean
+```
 
 ## Testing
 
