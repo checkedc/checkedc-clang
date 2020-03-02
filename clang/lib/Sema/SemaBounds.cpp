@@ -647,13 +647,6 @@ namespace {
   // returns nullptr.
   Expr *PruneVariableReferences(Sema &SemaRef, Expr *E, DeclRefExpr *V,
                                 Expr *OV, CheckedScopeSpecifier CSS) {
-    // Only transform e if v occurs at least once in e, to prevent errors
-    // caused by the fact that TreeTransform does not preserve all
-    // information about its argument expression. 
-    int VarCount = VariableOccurrenceCount(SemaRef, V, E);
-    if (VarCount < 1)
-      return E;
-
     // Account for checked scope information when transforming the expression.
     Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
 
@@ -3558,7 +3551,8 @@ namespace {
         for (auto InnerList = (*I).begin(); InnerList != (*I).end(); ++InnerList) {
           Expr *E = *InnerList;
           Expr *AdjustedE = PruneVariableReferences(S, E, V, OV, CSS);
-          if (AdjustedE)
+          // Don't add duplicate expressions to any set in UEQ.
+          if (AdjustedE && !EqualExprsContainsExpr(ExprList, AdjustedE))
             ExprList.push_back(AdjustedE);
         }
         if (ExprList.size() > 1)
@@ -3570,14 +3564,15 @@ namespace {
       for (auto I = PrevState.G.begin(); I != PrevState.G.end(); ++I) {
         Expr *E = *I;
         Expr *AdjustedE = PruneVariableReferences(S, E, V, OV, CSS);
-        if (AdjustedE)
+        // Don't add duplicate expressions to G.
+        if (AdjustedE && !EqualExprsContainsExpr(State.G, AdjustedE))
           State.G.push_back(AdjustedE);
       }
 
       // Add the target to a set in UEQ: if G is nonempty and there is some set
-      // F in UEQ such that G is a subset of F, add the target to F.  This
-      // prevents the elements of F from appearing in multiple sets in UEQ.
-      // An expression should appear in no more than one set in UEQ.
+      // F in UEQ that is a superset of G, add the target to F.  This prevents
+      // the elements of F from appearing in multiple sets in UEQ.  The target
+      // of an lvalue should appear in no more than one set in UEQ.
       if (State.G.size() > 0) {
         for (auto I = State.UEQ.begin(); I != State.UEQ.end(); ++I) {
           if (IsEqualExprsSubset(State.G, *I, State.UEQ)) {
@@ -3589,7 +3584,8 @@ namespace {
 
       // If G is not a subset of some set in UEQ, add the target to G
       // and add G (if it is not a singleton set) to UEQ.
-      State.G.push_back(Target);
+      if (!EqualExprsContainsExpr(State.G, Target))
+        State.G.push_back(Target);
       if (State.G.size() > 1)
         State.UEQ.push_back(State.G);
     }
@@ -3882,8 +3878,19 @@ namespace {
         for (auto I2 = UEQ2.begin(); I2 != UEQ2.end(); ++I2) {
           EqualExprTy G2 = *I2;
           EqualExprTy IntersectedG = IntersectG(G1, G2);
-          if (IntersectedG.size() > 1)
-            IntersectedUEQ.push_back(IntersectedG);
+          if (IntersectedG.size() > 1) {
+            // If IntersectedG is a subset of some set in IntersectedUEQ,
+            // don't add IntersectedG to IntersectedUEQ.
+            bool ContainsIntersectedG = false;
+            for (auto OuterList = IntersectedUEQ.begin(); OuterList != IntersectedUEQ.end(); ++OuterList) {
+              if (IsEqualExprsSubset(IntersectedG, *OuterList, IntersectedUEQ)) {
+                ContainsIntersectedG = true;
+                break;
+              }
+            }
+            if (!ContainsIntersectedG)
+              IntersectedUEQ.push_back(IntersectedG);
+          }
         }
       }
       return IntersectedUEQ;
@@ -3897,7 +3904,7 @@ namespace {
         for (auto J = G2.begin(); J != G2.end(); ++J) {
           Expr *E2 = *J;
           // Don't add duplicate expressions to the intersection.
-          if (EqualExprsContainsExpr(IntersectedG, E2, nullptr))
+          if (EqualExprsContainsExpr(IntersectedG, E2))
             continue;
           if (EqualValue(S.Context, E1, E2, nullptr))
             IntersectedG.push_back(E1);
@@ -3946,7 +3953,7 @@ namespace {
 
     // EqualExprsContainsExpr returns true if the set G contains E.
     bool EqualExprsContainsExpr(const EqualExprTy G, Expr *E,
-                                EquivExprSets *EQ) {
+                                EquivExprSets *EQ = nullptr) {
       for (auto I = G.begin(); I != G.end(); ++I) {
         if (EqualValue(S.Context, E, *I, EQ))
           return true;
