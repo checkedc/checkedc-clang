@@ -647,6 +647,10 @@ namespace {
   // returns nullptr.
   Expr *PruneVariableReferences(Sema &SemaRef, Expr *E, DeclRefExpr *V,
                                 Expr *OV, CheckedScopeSpecifier CSS) {
+    // Don't transform e if it does not use the value of v.
+    if (VariableOccurrenceCount(SemaRef, V, E) < 1)
+      return E;
+
     // Account for checked scope information when transforming the expression.
     Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
 
