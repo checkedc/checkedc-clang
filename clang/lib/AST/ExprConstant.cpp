@@ -7118,6 +7118,9 @@ public:
 
 static bool EvaluatePointer(const Expr* E, LValue& Result, EvalInfo &Info,
                             bool InvalidBaseOK) {
+  llvm::outs() << "*** ExprConstant::EvaluatePointer ***\n";
+  llvm::outs() << "*** E->isRValue? " << (E->isRValue() ? "true" : "false") << " ***\n";
+  llvm::outs() << "E->getType()->hasPointerRepresentation: " << (E->getType()->hasPointerRepresentation() ? "true" : "false") << " ***\n";
   assert(E->isRValue() && E->getType()->hasPointerRepresentation());
   return PointerExprEvaluator(Info, Result, InvalidBaseOK).Visit(E);
 }
