@@ -925,7 +925,10 @@ FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNa
     assert(I.size() > 0);
     ConstraintVariable *U = *(I.begin());
     assert(U != nullptr);
-    parmStrs.push_back(U->mkString(E));
+    std::string parmString = U->getRewritableOriginalTy() + U->getName();
+    if (U->anyChanges(E))
+      parmString = U->mkString(E);
+    parmStrs.push_back(parmString);
   }
 
   if (parmStrs.size() > 0) {
