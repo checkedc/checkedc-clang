@@ -534,3 +534,133 @@ void f20() {
 // CHECK:  [B1]
 // CHECK-NOT: upper_bound(u)
 }
+
+void f21() {
+  char p _Nt_checked[] : count(0) = "abc";
+
+  while (p[0])
+    while (p[1])   // expected-error {{out-of-bounds memory access}}
+      while (p[2]) // expected-error {{out-of-bounds memory access}}
+  {}
+
+// CHECK: In function: f21
+// CHECK:  [B6]
+// CHECK:    1: p[0]
+// CHECK:  [B5]
+// CHECK:    1: p[1]
+// CHECK: upper_bound(p) = 1
+// CHECK:  [B4]
+// CHECK:    1: p[2]
+// CHECK: upper_bound(p) = 2
+// CHECK:  [B3]
+// CHECK: upper_bound(p) = 3
+// CHECK:  [B2]
+// CHECK: upper_bound(p) = 2
+// CHECK:  [B1]
+// CHECK: upper_bound(p) = 1
+}
+
+void f22() {
+  _Nt_array_ptr<char> p : count(0) = "a";
+
+  if (*p)
+    while (*(p + 1))   // expected-error {{out-of-bounds memory access}}
+      if (*(p + 2)) // expected-error {{out-of-bounds memory access}}
+  {}
+
+// CHECK: In function: f22
+// CHECK:  [B5]
+// CHECK:    2: *p
+// CHECK:  [B4]
+// CHECK:    1: *(p + 1)
+// CHECK: upper_bound(p) = 1
+// CHECK:  [B3]
+// CHECK:    1: *(p + 2)
+// CHECK: upper_bound(p) = 2
+// CHECK:  [B2]
+// CHECK: upper_bound(p) = 3
+// CHECK:  [B1]
+// CHECK: upper_bound(p) = 2
+}
+
+void f23() {
+  _Nt_array_ptr<char> p : count(0) = "";
+
+// CHECK: In function: f23
+
+  goto B;
+  while (*p) {
+B:  p;
+    while (*(p + 1)) { // expected-error {{out-of-bounds memory access}}
+      p;
+    }
+  }
+
+// CHECK:  [B14]
+// CHECK:    T: goto B;
+// CHECK:  [B13]
+// CHECK:    1: *p
+// CHECK:    T: while
+// CHECK:  [B12]
+// CHECK:   B:
+// CHECK:    1: p
+// CHECK-NOT: upper_bound(p)
+// CHECK:  [B11]
+// CHECK:    1: *(p + 1)
+// CHECK:    T: while
+// CHECK:  [B10]
+// CHECK:    1: p
+// CHECK-NOT: upper_bound(p)
+
+  while (*p) {
+    p;
+    while (*(p + 1)) { // expected-error {{out-of-bounds memory access}}
+C:    p;
+    }
+  }
+  goto C;
+
+// CHECK:  [B7]
+// CHECK:    1: *p
+// CHECK:    T: while
+// CHECK:  [B6]
+// CHECK:    1: p
+// CHECK: upper_bound(p) = 1
+// CHECK:  [B5]
+// CHECK:    1: *(p + 1)
+// CHECK:    T: while
+// CHECK: upper_bound(p) = 1
+// CHECK:  [B4]
+// CHECK:   C:
+// CHECK:    1: p
+// CHECK-NOT: upper_bound(p)
+// CHECK:  [B2]
+// CHECK: upper_bound(p) = 1
+// CHECK:  [B1]
+// CHECK:    T: goto C;
+}
+
+void f24() {
+  _Nt_array_ptr<char> p : count(0) = "";
+
+  while (*p) {
+    p++;
+    while (*(p+1)) { // expected-error {{out-of-bounds memory access}}
+      p;
+    }
+  }
+
+// CHECK: In function: f24
+// CHECK:  [B6]
+// CHECK:    1: *p
+// CHECK:    T: while
+// CHECK:  [B5]
+// CHECK:    1: p++
+// CHECK: upper_bound(p) = 1
+// CHECK:  [B4]
+// CHECK:    1: *(p + 1)
+// CHECK:    T: while
+// CHECK:  [B3]
+// CHECK:    1: p
+// CHECK-NOT: upper_bound(p)
+}

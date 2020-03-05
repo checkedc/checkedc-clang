@@ -116,6 +116,26 @@ namespace clang {
       // block.
       BoundsVarTy BoundsVars;
 
+      // To compute In[B] we compute the intersection of Out[B*->B], where B*
+      // are all preds of B. When there is a back edge from block B' to B (for
+      // example in loops), the Out set for block B' will be empty when we
+      // first enter B. As a result, the intersection operation would always
+      // result in an empty In set for B.
+
+      // So to handle this, we initialize the In and Out sets for all blocks as
+      // Top so that the intersection does not result in an empty In set.
+
+      // But we also need to handle the case where there is an unconditional
+      // jump into a block (as a result of a goto). In this case, we cannot
+      // widen the bounds because we would not have checked for the ptr
+      // dereference. So we want the intersection to result in an empty set.
+
+      // So we want to initialize the In and Out sets of the entry block as
+      // empty. IsInSetEmpty and IsOutSetEmpty indicate whether the In and Out
+      // sets for a block have been initialized to empty.
+      bool IsInSetEmpty;
+      llvm::DenseMap<const CFGBlock *, bool> IsOutSetEmpty;
+
       ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
     };
 

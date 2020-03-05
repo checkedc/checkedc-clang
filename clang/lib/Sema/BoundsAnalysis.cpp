@@ -37,6 +37,10 @@ void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
     // iterate WorkList.
     WorkList.append(EB);
     BlockMap[B] = EB;
+
+    // Mark the In set for the entry block as empty. The Out set for the entry
+    // block would be marked as empty in ComputeOutSets.
+    EB->IsInSetEmpty = B == &Cfg->getEntry();
   }
 
   // At this time, BlockMap only contains reachable blocks. We iterate through
@@ -560,18 +564,27 @@ void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB) {
   // In[B1] = n Out[B*->B1], where B* are all preds of B1.
 
   BoundsMapTy Intersections;
-  bool ItersectionEmpty = true;
 
   for (const CFGBlock *pred : EB->Block->preds()) {
     if (SkipBlock(pred))
-      continue;
+      return;
 
     ElevatedCFGBlock *PredEB = BlockMap[pred];
 
-    if (ItersectionEmpty) {
+    // If the Out set on any incoming edge to a block is marked as empty, then
+    // the intersection of Out's would result in an empty In set. So we mark
+    // the In set as empty and return early.
+    if (PredEB->IsOutSetEmpty[EB->Block]) {
+      EB->IsInSetEmpty = true;
+      return;
+    }
+
+    // If the Out set of the pred on the incoming edge is not marked as empty,
+    // it means we should treat the Out set as Top. So we should perform the
+    // intersection only if the Out set has at least one element.
+    if (!Intersections.size())
       Intersections = PredEB->Out[EB->Block];
-      ItersectionEmpty = false;
-    } else
+    else if (PredEB->Out[EB->Block].size())
       Intersections = Intersect(Intersections, PredEB->Out[EB->Block]);
   }
 
@@ -591,6 +604,7 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
   }
 
   BoundsMapTy Diff = Difference(EB->In, KilledVars);
+
   for (const CFGBlock *succ : EB->Block->succs()) {
     if (SkipBlock(succ))
       continue;
@@ -616,6 +630,10 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
 
     EB->Out[succ] = Union(Diff, EB->Gen[succ]);
 
+    // The Out set on an edge is marked empty if the In set is marked empty and
+    // the Gen set on that edge is empty.
+    EB->IsOutSetEmpty[succ] = EB->IsInSetEmpty && !EB->Gen[succ].size();
+
     if (Differ(OldOut, EB->Out[succ]))
       WorkList.append(BlockMap[succ]);
   }
@@ -635,6 +653,8 @@ Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
   if (const Stmt *S = B->getTerminatorStmt()) {
     if (const auto *IfS = dyn_cast<IfStmt>(S))
       return const_cast<Expr *>(IfS->getCond());
+    if (const auto *WhileS = dyn_cast<WhileStmt>(S))
+      return const_cast<Expr *>(WhileS->getCond());
   }
   return nullptr;
 }
@@ -649,7 +669,7 @@ bool BoundsAnalysis::IsNtArrayType(const VarDecl *V) const {
 }
 
 bool BoundsAnalysis::SkipBlock(const CFGBlock *B) const {
-  return !B || B == &Cfg->getEntry() || B == &Cfg->getExit();
+  return !B || B == &Cfg->getExit();
 }
 
 template<class T>
