@@ -605,6 +605,9 @@ namespace {
       OS << "\nStatement S:\n";
       S->dump(OS);
 
+      OS << "Bounds context after checking S:\n";
+      DumpBoundsContext(OS, State.UC);
+
       OS << "Sets of equivalent expressions after checking S:\n";
       if (State.UEQ.size() == 0)
         OS << "{ }\n";
@@ -619,6 +622,37 @@ namespace {
 
       OS << "Expressions that produce the same value as S:\n";
       DumpEqualExpr(OS, State.G);
+    }
+
+    void DumpBoundsContext(raw_ostream &OS, BoundsContextTy UC) {
+      if (UC.empty())
+        OS << "{ }\n";
+      else {
+        // The keys in an llvm::DenseMap are unordered.  Create a set of
+        // variable declarations in the context ordered first by name,
+        // then by location in order to guarantee a deterministic output
+        // so that printing the bounds context can be tested.
+        std::vector<DeclaratorDecl *> OrderedDecls;
+        for (auto Pair : UC)
+          OrderedDecls.push_back(Pair.first);
+        llvm::sort(OrderedDecls.begin(), OrderedDecls.end(),
+             [] (DeclaratorDecl *A, DeclaratorDecl *B) {
+               if (A->getNameAsString() == B->getNameAsString())
+                 return A->getLocation() < B->getLocation();
+               else
+                 return A->getNameAsString() < B->getNameAsString();
+             });
+
+        OS << "{\n";
+        for (auto I = OrderedDecls.begin(); I != OrderedDecls.end(); ++I) {
+          DeclaratorDecl *Variable = *I;
+          OS << "Variable:\n";
+          Variable->dump(OS);
+          OS << "Bounds:\n";
+          UC[Variable]->dump(OS);
+        }
+        OS << "}\n";
+      }
     }
 
     void DumpEqualExpr(raw_ostream &OS, EqualExprTy G) {
