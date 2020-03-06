@@ -1957,7 +1957,7 @@ namespace {
    // Walk the CFG, traversing basic blocks in reverse post-oder.
    // For each element of a block, check bounds declarations.  Skip
    // CFG elements that are subexpressions of other CFG elements.
-   void TraverseCFG(AvailableFactsAnalysis& AFA) {
+   void TraverseCFG(AvailableFactsAnalysis& AFA, FunctionDecl *FD) {
      assert(Cfg && "expected CFG to exist");
 #if TRACE_CFG
      llvm::outs() << "Dumping AST";
@@ -1966,6 +1966,20 @@ namespace {
      Cfg->print(llvm::outs(), S.getLangOpts(), true);
      llvm::outs() << "Traversing CFG:\n";
 #endif
+
+     // Map each function parameter to its declared bounds (if any) before
+     // checking the body of the function.  The context formed by the declared
+     // parameter bounds is the initial context for checking the function body.
+     CheckingState ParamsState;
+     for (auto I = FD->param_begin(); I != FD->param_end(); ++I) {
+       ParmVarDecl *Param = *I;
+       BoundsExpr *Bounds = Param->getBoundsExpr();
+       if (Bounds)
+         ParamsState.UC[Param] = Bounds;
+     }
+     llvm::DenseMap<unsigned int, CheckingState> BlockStates;
+     BlockStates[Cfg->getEntry().getBlockID()] = ParamsState;
+
      StmtSet NestedElements;
      FindNestedElements(NestedElements);
      StmtSet MemoryCheckedStmts;
@@ -1975,6 +1989,7 @@ namespace {
      ResetFacts();
      for (const CFGBlock *Block : POView) {
        AFA.GetFacts(Facts);
+       CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
            CFGStmt CS = Elem.castAs<CFGStmt>();
@@ -2004,10 +2019,19 @@ namespace {
             S->dump(llvm::outs());
             llvm::outs().flush();
 #endif
-            Check(S, CSS);
+            // Incorporate any bounds declared in S into the initial bounds
+            // context before checking S.  TODO: save this context in a
+            // declared context DC.
+            GetDeclaredBounds(this->S, BlockState.UC, S);
+            BoundsContextTy DeclaredBounds = BlockState.UC;
+            Check(S, CSS, BlockState);
+            // TODO: validate the updated context BlockState.UC against
+            // the declared context DC.
          }
        }
        AFA.Next();
+       if (Block->getBlockID() != Cfg->getEntry().getBlockID())
+         BlockStates[Block->getBlockID()] = BlockState;
      }
     }
 
@@ -3385,6 +3409,44 @@ namespace {
         G.push_back(CreateTemporaryUse(Temp));
     }
 
+    // GetIncomingBlockState returns the checking state that is true at
+    // the beginning of the block by taking the intersection of the UC
+    // contexts that were true after each of the block's predecessors.
+    CheckingState GetIncomingBlockState(const CFGBlock *Block,
+                                        llvm::DenseMap<unsigned int, CheckingState> BlockStates) {
+      CheckingState BlockState;
+      bool IntersectionEmpty = true;
+      for (const CFGBlock *PredBlock : Block->preds()) {
+        // Prevent non-traversed (e.g. unreachable) blocks from causing
+        // the incoming UC for a block to be empty.
+        if (BlockStates.find(PredBlock->getBlockID()) == BlockStates.end())
+          continue;
+        CheckingState PredState = BlockStates[PredBlock->getBlockID()];
+        if (IntersectionEmpty) {
+          BlockState.UC = PredState.UC;
+          IntersectionEmpty = false;
+        }
+        else
+          BlockState.UC = IntersectUC(PredState.UC, BlockState.UC);
+      }
+      return BlockState;
+    }
+
+    // IntersectUC returns a bounds context resulting from taking the
+    // intersection of the contexts UC1 and UC2.
+    BoundsContextTy IntersectUC(BoundsContextTy UC1, BoundsContextTy UC2) {
+      BoundsContextTy IntersectedUC;
+      for (auto Pair : UC1) {
+        if (UC2.find(Pair.first) == UC2.end())
+          continue;
+        if (Pair.second->isUnknown() || UC2[Pair.first]->isUnknown())
+          IntersectedUC[Pair.first] = CreateBoundsUnknown();
+        else if (EqualValue(S.Context, Pair.second, UC2[Pair.first], nullptr))
+          IntersectedUC[Pair.first] = Pair.second;
+      }
+      return IntersectedUC;
+    }
+
     // If E appears in a set F in EQ, GetEqualExprSetContainingExpr
     // returns F.  Otherwise, it returns an empty set.
     EqualExprTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ) {
@@ -4194,7 +4256,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     Collector.Analyze();
     if (getLangOpts().DumpExtractedComparisonFacts)
       Collector.DumpComparisonFacts(llvm::outs(), FD->getNameInfo().getName().getAsString());
-    Checker.TraverseCFG(Collector);
+    Checker.TraverseCFG(Collector, FD);
   }
   else {
     // A CFG couldn't be constructed.  CFG construction doesn't support
