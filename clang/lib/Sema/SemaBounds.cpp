@@ -506,6 +506,35 @@ namespace {
 }
 
 namespace {
+  class DeclaredBoundsHelper : public RecursiveASTVisitor<DeclaredBoundsHelper> {
+    private:
+      Sema &SemaRef;
+      BoundsContextTy &BoundsContextRef;
+
+    public:
+      DeclaredBoundsHelper(Sema &SemaRef, BoundsContextTy &Context) :
+        SemaRef(SemaRef),
+        BoundsContextRef(Context) {}
+
+      bool VisitDeclaratorDecl(DeclaratorDecl *D) {
+        if (!D)
+          return true;
+        BoundsExpr *Bounds = D->getBoundsExpr();
+        if (Bounds)
+          BoundsContextRef[D] = Bounds;
+        return true;
+      }
+  };
+
+  // GetDeclaredBounds modifies the bounds context to map any variables
+  // declared in S to their declared bounds (if any).
+  void GetDeclaredBounds(Sema &SemaRef, BoundsContextTy &Context, Stmt *S) {
+    DeclaredBoundsHelper Declared(SemaRef, Context);
+    Declared.TraverseStmt(S);
+  }
+}
+
+namespace {
   class CheckBoundsDeclarations {
   private:
     Sema &S;
