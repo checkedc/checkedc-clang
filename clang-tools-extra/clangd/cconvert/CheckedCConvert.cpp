@@ -50,8 +50,8 @@ cl::opt<bool> Verbose("verbose",
                       cl::init(false),
                       cl::cat(ConvertCategory));
 
-cl::opt<bool> mergeMultipleFuncDecls("mergefds",
-                                     cl::desc("Merge multiple declarations of functions."),
+cl::opt<bool> seperateMultipleFuncDecls("seperatefds",
+                                     cl::desc("Do not merge multiple declarations of functions."),
                                      cl::init(false),
                                      cl::cat(ConvertCategory));
 
@@ -107,7 +107,7 @@ bool DumpIntermediate;
 
 bool Verbose;
 
-bool mergeMultipleFuncDecls;
+bool seperateMultipleFuncDecls;
 
 std::string OutputPostfix;
 
@@ -289,7 +289,7 @@ bool initializeCConvert(CommonOptionsParser &OptionsParser, struct CConvertOptio
 
   Verbose = options.Verbose;
 
-  mergeMultipleFuncDecls = options.mergeMultipleFuncDecls;
+  seperateMultipleFuncDecls = options.seperateMultipleFuncDecls;
 
   OutputPostfix = options.OutputPostfix;
 

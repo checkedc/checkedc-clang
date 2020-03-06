@@ -17,7 +17,7 @@
 extern llvm::cl::opt<bool> Verbose;
 extern llvm::cl::opt<bool> DumpIntermediate;
 extern llvm::cl::opt<bool> handleVARARGS;
-extern llvm::cl::opt<bool> mergeMultipleFuncDecls;
+extern llvm::cl::opt<bool> seperateMultipleFuncDecls;
 extern llvm::cl::opt<bool> enablePropThruIType;
 extern llvm::cl::opt<bool> considerAllocUnsafe;
 extern llvm::cl::opt<std::string> BaseDir;
@@ -27,7 +27,7 @@ extern llvm::cl::opt<bool> allTypes;
 extern bool Verbose;
 extern bool DumpIntermediate;
 extern bool handleVARARGS;
-extern bool mergeMultipleFuncDecls;
+extern bool seperateMultipleFuncDecls;
 extern bool enablePropThruIType;
 extern bool considerAllocUnsafe;
 extern bool allTypes;

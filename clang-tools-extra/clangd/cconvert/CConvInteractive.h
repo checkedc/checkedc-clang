@@ -45,7 +45,7 @@ struct CConvertOptions {
 
   bool Verbose;
 
-  bool mergeMultipleFuncDecls;
+  bool seperateMultipleFuncDecls;
 
   std::string OutputPostfix;
 
