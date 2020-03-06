@@ -475,6 +475,10 @@ namespace {
 }
 
 namespace {
+  // BoundsContextTy denotes a map of a variable or parameter declaration
+  // to the variable or parameter's current known bounds.
+  using BoundsContextTy = llvm::DenseMap<DeclaratorDecl *, BoundsExpr *>;
+
   // EqualExprTy denotes a set of expressions that produce the same value
   // as an expression e.
   using EqualExprTy = SmallVector<Expr *, 4>;
@@ -488,6 +492,9 @@ namespace {
   // and are updated while checking individual expressions.
   class CheckingState {
     public:
+      // UC is a map of variables or parameters to their current known bounds.
+      BoundsContextTy UC;
+
       // UEQ stores sets of expressions that are equivalent to each other
       // after checking an expression e.
       EquivExprSets UEQ;
