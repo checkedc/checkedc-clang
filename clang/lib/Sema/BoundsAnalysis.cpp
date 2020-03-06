@@ -579,9 +579,10 @@ void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB) {
       return;
     }
 
-    // If the Out set of the pred on the incoming edge is not marked as empty,
-    // it means we should treat the Out set as Top. So we should perform the
-    // intersection only if the Out set has at least one element.
+    // If the Out set of the pred on the incoming edge is not marked as
+    // "empty", it means we should treat the Out set as "Top". So we simulate
+    // "Top" by performing the intersection only if the size of the Out set is
+    // non-zero.
     if (!Intersections.size())
       Intersections = PredEB->Out[EB->Block];
     else if (PredEB->Out[EB->Block].size())
