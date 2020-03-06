@@ -2027,6 +2027,8 @@ namespace {
             Check(S, CSS, BlockState);
             // TODO: validate the updated context BlockState.UC against
             // the declared context DC.
+            if (DumpState)
+              DumpCheckingState(llvm::outs(), S, BlockState);
          }
        }
        AFA.Next();
@@ -2169,9 +2171,6 @@ namespace {
           break;
       }
 
-      if (DumpState)
-        DumpCheckingState(llvm::outs(), S, State);
-
       if (Expr *E = dyn_cast<Expr>(S)) {
         // Bounds expressions are not null ptrs.
         if (isa<BoundsExpr>(E))
@@ -2249,9 +2248,6 @@ namespace {
           CheckChildren(E, CSS, State);
           break;
       }
-
-      if (DumpState)
-        DumpCheckingState(llvm::outs(), E, State);
 
       // The type for inferring the target bounds cannot ever be an array
       // type, as these are dealt with by an array conversion, not an lvalue
