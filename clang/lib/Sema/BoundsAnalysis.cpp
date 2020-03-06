@@ -38,8 +38,8 @@ void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
     WorkList.append(EB);
     BlockMap[B] = EB;
 
-    // Mark the In set for the entry block as empty. The Out set for the entry
-    // block would be marked as empty in ComputeOutSets.
+    // Mark the In set for the Entry block as "empty". The Out set for the
+    // Entry block would be marked as "empty" in ComputeOutSets.
     EB->IsInSetEmpty = B == &Cfg->getEntry();
   }
 
@@ -571,9 +571,9 @@ void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB) {
 
     ElevatedCFGBlock *PredEB = BlockMap[pred];
 
-    // If the Out set on any incoming edge to a block is marked as empty, then
-    // the intersection of Out's would result in an empty In set. So we mark
-    // the In set as empty and return early.
+    // If the Out set on any incoming edge to a block is marked as "empty",
+    // then the intersection of Out's would result in an empty In set. So we
+    // mark the In set as "empty" and return early.
     if (PredEB->IsOutSetEmpty[EB->Block]) {
       EB->IsInSetEmpty = true;
       return;
@@ -630,8 +630,8 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
 
     EB->Out[succ] = Union(Diff, EB->Gen[succ]);
 
-    // The Out set on an edge is marked empty if the In set is marked empty and
-    // the Gen set on that edge is empty.
+    // The Out set on an edge is marked "empty" if the In set is marked "empty"
+    // and the Gen set on that edge is empty.
     EB->IsOutSetEmpty[succ] = EB->IsInSetEmpty && !EB->Gen[succ].size();
 
     if (Differ(OldOut, EB->Out[succ]))

@@ -122,17 +122,21 @@ namespace clang {
       // first enter B. As a result, the intersection operation would always
       // result in an empty In set for B.
 
-      // So to handle this, we initialize the In and Out sets for all blocks as
-      // Top so that the intersection does not result in an empty In set.
+      // So to handle this, we consider the In and Out sets for all blocks to
+      // have a default value of "Top" which indicates a set of all members of
+      // the Gen set. In this way we ensure that the intersection does not
+      // result in an empty set even if the Out set for a block is actually
+      // empty.
 
       // But we also need to handle the case where there is an unconditional
-      // jump into a block (as a result of a goto). In this case, we cannot
-      // widen the bounds because we would not have checked for the ptr
-      // dereference. So we want the intersection to result in an empty set.
+      // jump into a block (for example, as a result of a goto). In this case,
+      // we cannot widen the bounds because we would not have checked for the
+      // ptr dereference. So in this case we want the intersection to result in
+      // an empty set.
 
-      // So we want to initialize the In and Out sets of the entry block as
-      // empty. IsInSetEmpty and IsOutSetEmpty indicate whether the In and Out
-      // sets for a block have been initialized to empty.
+      // So we mark the In and Out sets of the Entry block as "empty".
+      // IsInSetEmpty and IsOutSetEmpty indicate whether the In and Out sets
+      // for a block have been marked as "empty".
       bool IsInSetEmpty;
       llvm::DenseMap<const CFGBlock *, bool> IsOutSetEmpty;
 
