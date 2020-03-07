@@ -3413,8 +3413,10 @@ namespace {
       CheckingState BlockState;
       bool IntersectionEmpty = true;
       for (const CFGBlock *PredBlock : Block->preds()) {
-        // Prevent non-traversed (e.g. unreachable) blocks from causing
-        // the incoming UC for a block to be empty.
+        // Prevent null or non-traversed (e.g. unreachable) blocks from
+        // causing the incoming UC for a block to be empty.
+        if (!PredBlock)
+          continue;
         if (BlockStates.find(PredBlock->getBlockID()) == BlockStates.end())
           continue;
         CheckingState PredState = BlockStates[PredBlock->getBlockID()];
