@@ -75,9 +75,21 @@ void BoundsAnalysis::ComputeGenSets() {
   // If there is an edge B1->B2 and the edge condition is of the form
   // "if (*(p + i))" then Gen[B1] = {B2, p:i} .
 
+  // Here, EB is B2.
   for (const auto item : BlockMap) {
     ElevatedCFGBlock *EB = item.second;
 
+    // Check if this is a switch case and whether it tests for a null
+    // terminator, like "case '\0'". We cannot widen the bounds for the null
+    // terminator case.
+    bool IsSwitchCaseNullTerm = false;
+    if (const auto *CS = dyn_cast_or_null<CaseStmt>(EB->Block->getLabel())) {
+      if (const auto *CE = dyn_cast_or_null<ConstantExpr>(CS->getLHS()))
+        if (const auto *CL = dyn_cast_or_null<CharacterLiteral>(CE->getSubExpr()))
+          IsSwitchCaseNullTerm = CL->getValue() == 0;
+    }
+
+    // Iterate through all preds of EB.
     for (const CFGBlock *pred : EB->Block->preds()) {
       if (SkipBlock(pred))
         continue;
@@ -91,10 +103,33 @@ void BoundsAnalysis::ComputeGenSets() {
       // Here we have the edges (B1->B2) and (B1->B3). We can add "p:i" only
       // on the true edge. Which means we will add the following entry to
       // Gen[B1]: {B2, p:i}
-      if (!pred->succ_empty() && *pred->succs().begin() == EB->Block)
+
+      // Check if EB is on a true edge of pred. The false edge (including the
+      // default case for a switch) is always the last edge in the list of
+      // edges. So we check whether EB is on the last edge for pred.
+      if (pred->succ_size() &&
+          EB->Block != *(pred->succs().end() - 1)) {
         // Get the edge condition and fill the Gen set.
-        if (Expr *E = GetTerminatorCondition(pred))
+        if (Expr *E = GetTerminatorCondition(pred)) {
+
+          // Check if the pred ends in a switch statement.
+          if (isa<SwitchStmt>(pred->getTerminatorStmt())) {
+	    // We cannot widen the bounds if the current block is a case
+	    // statement for a null terminator, like "case '\0'".
+	    if (IsSwitchCaseNullTerm)
+              continue;
+
+            // The switch expression should result in an integral constant.
+            if (auto *CE = dyn_cast<CastExpr>(E)) {
+              assert(CE->getCastKind() == CastKind::CK_IntegralCast &&
+                     "invalid switch expression");
+                E = CE->getSubExpr();
+            }
+          }
+
           FillGenSet(E, BlockMap[pred], EB);
+        }
+      }
     }
   }
 }
@@ -658,6 +693,8 @@ Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
       return const_cast<Expr *>(WhileS->getCond());
     if (const auto *ForS = dyn_cast<ForStmt>(S))
       return const_cast<Expr *>(ForS->getCond());
+    if (const auto *SwitchS = dyn_cast<SwitchStmt>(S))
+      return const_cast<Expr *>(SwitchS->getCond());
   }
   return nullptr;
 }

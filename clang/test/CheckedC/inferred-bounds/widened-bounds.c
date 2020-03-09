@@ -752,3 +752,108 @@ D:  p;
 // CHECK:    1: p
 // CHECK-NOT: upper_bound(p)
 }
+
+void f26() {
+  _Nt_array_ptr<char> p : count(0) = "";
+
+// CHECK: In function: f26
+
+  switch (*p) {
+  default: break;
+// CHECK:   default:
+// CHECK-NOT: upper_bound(p)
+  case 'a': break;
+// CHECK:   case 'a':
+// CHECK: upper_bound(p) = 1
+  case 'b': break;
+// CHECK:   case 'b':
+// CHECK: upper_bound(p) = 1
+  }
+
+  switch (*p) {
+  case 'a':
+// CHECK:   case 'a':
+// CHECK: upper_bound(p) = 1
+  default:
+// CHECK:   default:
+// CHECK-NOT: upper_bound(p)
+  case 'b': break;
+// CHECK:   case 'b':
+// CHECK-NOT: upper_bound(p)
+  }
+
+  switch (*p) {
+  case 'a': break;
+// CHECK:   case 'a':
+// CHECK: upper_bound(p) = 1
+  default:
+// CHECK:   default:
+// CHECK-NOT: upper_bound(p)
+  case 'b': break;
+// CHECK:   case 'b':
+// CHECK-NOT: upper_bound(p)
+  }
+
+  switch (*p) {
+  case '\0': break;
+// CHECK:   case '\x00':
+// CHECK-NOT: upper_bound(p)
+  case 'a': break;
+// CHECK:   case 'a':
+// CHECK: upper_bound(p) = 1
+  }
+
+  switch (*p) {
+  case '\0':
+// CHECK:   case 'a':
+// CHECK-NOT: upper_bound(p)
+  case 'a': break;
+// CHECK:   case '\x00':
+// CHECK-NOT: upper_bound(p)
+  }
+}
+
+void f27() {
+  _Nt_array_ptr<char> p : count(0) = "";
+  int i;
+
+// CHECK: In function: f27
+
+  switch (*p) {
+  case 'a':
+// CHECK:   case 'a':
+// CHECK: upper_bound(p) = 1
+
+    if (*(p + 1)) {           // expected-error {{out-of-bounds memory access}}
+      i = 0;
+// CHECK:    1: i = 0
+// CHECK: upper_bound(p) = 2
+
+      for (;*(p + 2);) {      // expected-error {{out-of-bounds memory access}}
+        i = 1;
+// CHECK:    1: i = 1
+// CHECK: upper_bound(p) = 3
+
+        while (*(p + 3)) {    // expected-error {{out-of-bounds memory access}}
+          i = 2;
+// CHECK:    1: i = 2
+// CHECK: upper_bound(p) = 4
+        }
+
+        i = 3;
+// CHECK:    1: i = 3
+// CHECK: upper_bound(p) = 3
+      }
+
+      i = 4;
+// CHECK:    1: i = 4
+// CHECK: upper_bound(p) = 2
+    }
+
+    i = 5;
+// CHECK:    1: i = 5
+// CHECK: upper_bound(p) = 1
+
+    break;
+  }
+}
