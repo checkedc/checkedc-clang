@@ -2021,7 +2021,6 @@ namespace {
             // context before checking S.  TODO: save this context in a
             // declared context DC.
             GetDeclaredBounds(this->S, BlockState.UC, S);
-            BoundsContextTy DeclaredBounds = BlockState.UC;
             Check(S, CSS, BlockState);
             // TODO: validate the updated context BlockState.UC against
             // the declared context DC.
