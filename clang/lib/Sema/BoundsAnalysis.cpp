@@ -119,10 +119,10 @@ void BoundsAnalysis::ComputeGenSets() {
 	    if (IsSwitchCaseNullTerm)
               continue;
 
-            // The switch expression should result in an integral constant.
-            if (auto *CE = dyn_cast<CastExpr>(E)) {
-              assert(CE->getCastKind() == CastKind::CK_IntegralCast &&
-                     "invalid switch expression");
+	    // If the switch expression is integral, strip off the
+	    // IntegralCast.
+	    if (auto *CE = dyn_cast<CastExpr>(E)) {
+              if (CE->getCastKind() == CastKind::CK_IntegralCast)
                 E = CE->getSubExpr();
             }
           }
