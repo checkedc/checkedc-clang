@@ -666,8 +666,10 @@ namespace {
           OrderedDecls.push_back(Pair.first);
         llvm::sort(OrderedDecls.begin(), OrderedDecls.end(),
              [] (DeclaratorDecl *A, DeclaratorDecl *B) {
-               return std::tie(A->getNameAsString(), A->getLocation()) <
-                                std::tie(B->getNameAsString(), B->getLocation());
+               if (A->getNameAsString() == B->getNameAsString())
+                 return A->getLocation() < B->getLocation();
+               else
+                 return A->getNameAsString() < B->getNameAsString();
              });
 
         OS << "{\n";
