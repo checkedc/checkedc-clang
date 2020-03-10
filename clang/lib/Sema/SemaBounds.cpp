@@ -673,6 +673,8 @@ namespace {
         OS << "{\n";
         for (auto I = OrderedDecls.begin(); I != OrderedDecls.end(); ++I) {
           DeclaratorDecl *Variable = *I;
+          if (!UC[Variable])
+            continue;
           OS << "Variable:\n";
           Variable->dump(OS);
           OS << "Bounds:\n";
@@ -2954,7 +2956,10 @@ namespace {
       BoundsExpr *B = nullptr;
       InteropTypeExpr *IT = nullptr;
       if (VD) {
-        B = VD->getBoundsExpr();
+        if (State.UC[VD])
+          B = State.UC[VD];
+        else
+          B = VD->getBoundsExpr();
         IT = VD->getInteropTypeExpr();
       }
 
@@ -3432,7 +3437,7 @@ namespace {
     BoundsContextTy IntersectUC(BoundsContextTy UC1, BoundsContextTy UC2) {
       BoundsContextTy IntersectedUC;
       for (auto Pair : UC1) {
-        if (UC2.find(Pair.first) == UC2.end())
+        if (!Pair.second || !UC2[Pair.first])
           continue;
         if (Pair.second->isUnknown() || UC2[Pair.first]->isUnknown())
           IntersectedUC[Pair.first] = CreateBoundsUnknown();
