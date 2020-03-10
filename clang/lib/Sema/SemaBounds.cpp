@@ -1987,10 +1987,20 @@ namespace {
      StmtSet MemoryCheckedStmts;
      StmtSet BoundsCheckedStmts;
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
+
+     // Check if we can widen the bounds.
+     BoundsAnalysis BA = getBoundsAnalyzer();
+     BA.WidenBounds(FD);
+     if (S.getLangOpts().DumpWidenedBounds)
+       BA.DumpWidenedBounds(FD);
+
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
      ResetFacts();
      for (const CFGBlock *Block : POView) {
        AFA.GetFacts(Facts);
+       BoundsMapTy WidenedBounds = BA.GetWidenedBounds(Block);
+       StmtDeclSetTy StmtKillSet = BA.GetKillSet(Block);
+
        CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
@@ -4268,12 +4278,14 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     Checker.Check(Body, CheckedScopeSpecifier::CSS_Unchecked);
   }
 
+#if 0
   if (Cfg != nullptr) {
     BoundsAnalysis BA = Checker.getBoundsAnalyzer();
     BA.WidenBounds(FD);
     if (getLangOpts().DumpWidenedBounds)
       BA.DumpWidenedBounds(FD);
   }
+#endif
 
 #if TRACE_CFG
   llvm::outs() << "Done " << FD->getName() << "\n";

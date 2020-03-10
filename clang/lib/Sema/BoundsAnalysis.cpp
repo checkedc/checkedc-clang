@@ -622,11 +622,15 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
 }
 
 StmtDeclSetTy BoundsAnalysis::GetKillSet(const CFGBlock *B) {
+  if (!BlockMap.count(B))
+    return StmtDeclSetTy();
   ElevatedCFGBlock *EB = BlockMap[B];
   return EB->Kill;
 }
 
 BoundsMapTy BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
+  if (!BlockMap.count(B))
+    return BoundsMapTy();
   ElevatedCFGBlock *EB = BlockMap[B];
   return EB->In;
 }
