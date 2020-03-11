@@ -1956,6 +1956,38 @@ namespace {
       }
    }
 
+   void UpdateBoundsInContext(const BoundsMapTy &WidenedBounds,
+                              BoundsContextTy &BoundsCtx) {
+     for (const auto WB : WidenedBounds) {
+       VarDecl *V = const_cast<VarDecl *>(WB.first);
+       if (!BoundsCtx.count(V))
+         continue;
+
+       BoundsExpr *CurrBoundsExpr = BoundsCtx[V];
+       if (!CurrBoundsExpr)
+         continue;
+
+       llvm::APInt WidenedOffset =
+         llvm::APInt(Context.getTargetInfo().getPointerWidth(0),
+                     WB.second);
+
+       auto *WidenedBoundsExpr =
+         new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                       CreateIntegerLiteral(WidenedOffset),
+                                       SourceLocation(), SourceLocation());
+
+       if (isa<CountBoundsExpr>(CurrBoundsExpr)) {
+         BoundsCtx[V] = WidenedBoundsExpr;
+
+       } else if (auto *RBE = dyn_cast<RangeBoundsExpr>(CurrBoundsExpr)) {
+         Expr *Upper = RBE->getUpperExpr();
+         BoundsExpr *NewUpper = ExpandToRange(Upper, WidenedBoundsExpr);
+         RBE->setUpperExpr(NewUpper);
+         BoundsCtx[V] = RBE;
+       }
+     }
+   }
+
    // Walk the CFG, traversing basic blocks in reverse post-oder.
    // For each element of a block, check bounds declarations.  Skip
    // CFG elements that are subexpressions of other CFG elements.
@@ -1999,7 +2031,7 @@ namespace {
      for (const CFGBlock *Block : POView) {
        AFA.GetFacts(Facts);
        BoundsMapTy WidenedBounds = BA.GetWidenedBounds(Block);
-       StmtDeclSetTy StmtKillSet = BA.GetKillSet(Block);
+       StmtDeclSetTy KilledBounds = BA.GetKillSet(Block);
 
        CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
        for (CFGElement Elem : *Block) {
@@ -2035,6 +2067,13 @@ namespace {
             // context before checking S.  TODO: save this context in a
             // declared context DC.
             GetDeclaredBounds(this->S, BlockState.UC, S);
+
+            if (KilledBounds.count(S)) {
+              for (const VarDecl *V : KilledBounds[S])
+                WidenedBounds.erase(V);
+            }
+            UpdateBoundsInContext(WidenedBounds, BlockState.UC);
+
             Check(S, CSS, BlockState);
             // TODO: validate the updated context BlockState.UC against
             // the declared context DC.
@@ -4277,15 +4316,6 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     // scope information is obtained from Body, which is a compound statement.
     Checker.Check(Body, CheckedScopeSpecifier::CSS_Unchecked);
   }
-
-#if 0
-  if (Cfg != nullptr) {
-    BoundsAnalysis BA = Checker.getBoundsAnalyzer();
-    BA.WidenBounds(FD);
-    if (getLangOpts().DumpWidenedBounds)
-      BA.DumpWidenedBounds(FD);
-  }
-#endif
 
 #if TRACE_CFG
   llvm::outs() << "Done " << FD->getName() << "\n";
