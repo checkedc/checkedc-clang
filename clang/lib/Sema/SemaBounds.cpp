@@ -143,11 +143,15 @@ namespace {
 namespace {
   class ExprCreatorUtil {
     public:
-      // Create a non-compound binary operator, casting each child to an
-      // rvalue expression if necessary.
+      // If Op is not a compound operator, CreateBinaryOperator returns a
+      // binary operator LHS Op RHS.  If Op is a compound operator @=,
+      // CreateBinaryOperator returns a binary operator LHS @ RHS.
+      // LHS and RHS are cast to rvalues if necessary.
       static BinaryOperator *CreateBinaryOperator(Sema &SemaRef,
                                                   Expr *LHS, Expr *RHS,
                                                   BinaryOperatorKind Op) {
+        assert(LHS && "expected LHS to exist");
+        assert(RHS && "expected RHS to exist");
         LHS = EnsureRValue(SemaRef, LHS);
         RHS = EnsureRValue(SemaRef, RHS);
         if (BinaryOperator::isCompoundAssignmentOp(Op))
