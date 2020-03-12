@@ -3710,7 +3710,8 @@ namespace {
           return IsUnaryOperatorInvertible(X, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
           return IsBinaryOperatorInvertible(X, cast<BinaryOperator>(E));
-        // TODO: determine whether a cast expression is invertible.
+        // TODO: determine whether a cast expression is invertible (is a
+        // bit-preserving or widening cast).
         default:
           return false;
       }
@@ -3724,16 +3725,7 @@ namespace {
           Op != UnaryOperatorKind::UO_Plus)
         return false;
 
-      // X must appear exactly once in the subexpression of e
-      // and the subexpression must be invertible with respect to x.
-      Expr *SubExpr = E->getSubExpr();
-      int SubExprVarCount = VariableOccurrenceCount(S, X, SubExpr);
-      if (SubExprVarCount != 1)
-        return false;
-      if (!IsInvertible(X, SubExpr))
-        return false;
-
-      return true;
+      return IsInvertible(X, E->getSubExpr());
     }
 
     // Returns true if a binary operator is invertible with respect to x.
@@ -3847,7 +3839,7 @@ namespace {
           F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotX, BinaryOperatorKind::BO_Xor);
           break;
         default:
-          break;
+          llvm_unreachable("unexpected binary operator kind");
       }
 
       return Inverse(X, F1, E_X);
