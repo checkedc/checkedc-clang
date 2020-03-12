@@ -283,6 +283,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      case Expr::DeclRefExprClass: return Compare<DeclRefExpr>(E1, E2);
      case Expr::IntegerLiteralClass: return Compare<IntegerLiteral>(E1, E2);
      case Expr::FloatingLiteralClass: return Compare<FloatingLiteral>(E1, E2);
+     case Expr::FixedPointLiteralClass: break;
      case Expr::ImaginaryLiteralClass: break;
      case Expr::StringLiteralClass: return Compare<StringLiteral>(E1, E2);
      case Expr::CharacterLiteralClass: return Compare<CharacterLiteral>(E1, E2);
@@ -298,9 +299,12 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      case Expr::CompoundAssignOperatorClass:
        Cmp = Compare<CompoundAssignOperator>(E1, E2); break;
      case Expr::BinaryConditionalOperatorClass: break;
+     case Expr::ConditionalOperatorClass: break;
      case Expr::ImplicitCastExprClass: Cmp = Compare<CastExpr>(E1, E2); break;
      case Expr::CStyleCastExprClass: Cmp = Compare<CastExpr>(E1, E2); break;
      case Expr::CompoundLiteralExprClass: Cmp = Compare<CompoundLiteralExpr>(E1, E2); break;
+     case Expr::InitListExprClass: break;
+     case Expr::ImplicitValueInitExprClass: break;
      // TODO:
      // case: ExtVectorElementExpr
      case Expr::VAArgExprClass: break;
@@ -323,9 +327,12 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      case Expr::PositionalParameterExprClass: Cmp = Compare<PositionalParameterExpr>(E1, E2); break;
      case Expr::BoundsCastExprClass: Cmp = Compare<BoundsCastExpr>(E1, E2); break;
      case Expr::BoundsValueExprClass: Cmp = Compare<BoundsValueExpr>(E1, E2); break;
-     // Binding of a tempoary to the result of an expression.  These are
+     // Binding of a temporary to the result of an expression.  These are
      // equal if their child expressions are equal.
      case Expr::CHKCBindTemporaryExprClass: break;
+
+     // Checked C extensions
+     case Expr::PackExprClass: break;
 
      // Clang extensions
      case Expr::ShuffleVectorExprClass: break;
@@ -337,8 +344,12 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      // case Expr::MSPropertyRefExprClass:
      // case Expr::MSPropertySubscriptExprClass:
 
+     case Expr::ExtVectorElementExprClass: break;
+     case Expr::ExprWithCleanupsClass: break;
+     case Expr::SourceLocExprClass: break;
+
      default:
-       return Result::LessThan;         
+       llvm_unreachable("unexpected expression kind");
    }
 
    if (Cmp != Result::Equal)
