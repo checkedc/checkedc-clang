@@ -3678,7 +3678,7 @@ namespace {
   // Methods to get the original value of an expression.
 
     // GetOriginalValue returns the original value (if it exists) of the
-    // source expression with respect to the variable v.
+    // expression Src with respect to the variable V in an assignment V = Src.
     Expr *GetOriginalValue(DeclRefExpr *V, Expr *Src, const EquivExprSets EQ) {
       // Check if Src has an inverse expression with respect to v.
       Expr *IV = nullptr;
