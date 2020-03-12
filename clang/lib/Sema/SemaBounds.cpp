@@ -3879,16 +3879,9 @@ namespace {
           EqualExprTy G2 = *I2;
           EqualExprTy IntersectedG = IntersectG(G1, G2);
           if (IntersectedG.size() > 1) {
-            // If IntersectedG is a subset of some set in IntersectedUEQ,
-            // don't add IntersectedG to IntersectedUEQ.
-            bool ContainsIntersectedG = false;
-            for (auto OuterList = IntersectedUEQ.begin(); OuterList != IntersectedUEQ.end(); ++OuterList) {
-              if (IsEqualExprsSubset(IntersectedG, *OuterList, IntersectedUEQ)) {
-                ContainsIntersectedG = true;
-                break;
-              }
-            }
-            if (!ContainsIntersectedG)
+            // Only add IntersectedG if it is not a subset of some set
+            // in IntersectedUEQ.
+            if (!IsSubsetOfSet(IntersectedG, IntersectedUEQ))
               IntersectedUEQ.push_back(IntersectedG);
           }
         }
@@ -3901,14 +3894,8 @@ namespace {
       EqualExprTy IntersectedG;
       for (auto I = G1.begin(); I != G1.end(); ++I) {
         Expr *E1 = *I;
-        for (auto J = G2.begin(); J != G2.end(); ++J) {
-          Expr *E2 = *J;
-          // Don't add duplicate expressions to the intersection.
-          if (EqualExprsContainsExpr(IntersectedG, E2))
-            continue;
-          if (EqualValue(S.Context, E1, E2, nullptr))
-            IntersectedG.push_back(E1);
-        }
+        if (EqualExprsContainsExpr(G2, E1))
+          IntersectedG.push_back(E1);
       }
       return IntersectedG;
     }
@@ -3956,6 +3943,15 @@ namespace {
                                 EquivExprSets *EQ = nullptr) {
       for (auto I = G.begin(); I != G.end(); ++I) {
         if (EqualValue(S.Context, E, *I, EQ))
+          return true;
+      }
+      return false;
+    }
+
+    // IsSubsetOfSet returns true if G is a subset of some set in EQ.
+    bool IsSubsetOfSet(const EqualExprTy G, const EquivExprSets EQ) {
+      for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
+        if (IsEqualExprsSubset(G, *OuterList, EQ))
           return true;
       }
       return false;
