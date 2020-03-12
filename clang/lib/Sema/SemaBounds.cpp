@@ -589,8 +589,8 @@ namespace {
 }
 
 namespace {
-  class PruneVariableHelper : public TreeTransform<PruneVariableHelper> {
-    typedef TreeTransform<PruneVariableHelper> BaseTransform;
+  class ReplaceVariableHelper : public TreeTransform<ReplaceVariableHelper> {
+    typedef TreeTransform<ReplaceVariableHelper> BaseTransform;
     private:
       // The variable whose uses should be replaced in an expression.
       DeclRefExpr *Variable;
@@ -601,7 +601,7 @@ namespace {
       Expr *OriginalValue;
 
     public:
-      PruneVariableHelper(Sema &SemaRef, DeclRefExpr *V, Expr *OV) :
+      ReplaceVariableHelper(Sema &SemaRef, DeclRefExpr *V, Expr *OV) :
         BaseTransform(SemaRef),
         Variable(V),
         OriginalValue(OV) { }
@@ -641,21 +641,21 @@ namespace {
       }
   };
 
-  // If an original value OV is provided, PruneVariableReferences returns
+  // If an original value OV is provided, ReplaceVariableReferences returns
   // an expression that replaces all uses of the variable V in E with OV.
-  // If no original value is provided and E uses V, PruneVariableReferences
+  // If no original value is provided and E uses V, ReplaceVariableReferences
   // returns nullptr.
-  Expr *PruneVariableReferences(Sema &SemaRef, Expr *E, DeclRefExpr *V,
+  Expr *ReplaceVariableReferences(Sema &SemaRef, Expr *E, DeclRefExpr *V,
                                 Expr *OV, CheckedScopeSpecifier CSS) {
     // Don't transform e if it does not use the value of v.
-    if (VariableOccurrenceCount(SemaRef, V, E) < 1)
+    if (!VariableOccurrenceCount(SemaRef, V, E))
       return E;
 
     // Account for checked scope information when transforming the expression.
     Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
 
     Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics
-    ExprResult R = PruneVariableHelper(SemaRef, V, OV).TransformExpr(E);
+    ExprResult R = ReplaceVariableHelper(SemaRef, V, OV).TransformExpr(E);
     if (R.isInvalid())
       return nullptr;
     else
@@ -3554,7 +3554,7 @@ namespace {
         EqualExprTy ExprList;
         for (auto InnerList = (*I).begin(); InnerList != (*I).end(); ++InnerList) {
           Expr *E = *InnerList;
-          Expr *AdjustedE = PruneVariableReferences(S, E, V, OV, CSS);
+          Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OV, CSS);
           // Don't add duplicate expressions to any set in UEQ.
           if (AdjustedE && !EqualExprsContainsExpr(ExprList, AdjustedE))
             ExprList.push_back(AdjustedE);
@@ -3567,7 +3567,7 @@ namespace {
       State.G.clear();
       for (auto I = PrevState.G.begin(); I != PrevState.G.end(); ++I) {
         Expr *E = *I;
-        Expr *AdjustedE = PruneVariableReferences(S, E, V, OV, CSS);
+        Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OV, CSS);
         // Don't add duplicate expressions to G.
         if (AdjustedE && !EqualExprsContainsExpr(State.G, AdjustedE))
           State.G.push_back(AdjustedE);
