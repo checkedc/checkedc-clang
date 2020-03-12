@@ -2043,14 +2043,28 @@ namespace {
        // block.
        StmtDeclSetTy KilledBounds = BA.GetKillSet(Block);
 
-       // Bounds killed by a statement in the current block remain killed
-       // through the end of the block. So we remove those bounds from the
-       // widened bounds for the current block.
-       for (const auto item : KilledBounds) {
-         for (const VarDecl *V : item.second)
-           WidenedBounds.erase(V);
+       bool FirstTimeInBlock = true;
+
+       for (CFGElement Elem : *Block) {
+         if (Elem.getKind() == CFGElement::Statement) {
+           CFGStmt CS = Elem.castAs<CFGStmt>();
+           // We may attach a bounds expression to Stmt, so drop the const
+           // modifier.
+           Stmt *S = const_cast<Stmt *>(CS.getStmt());
+
+           // Skip top-level elements that are nested in
+           // another top-level element.
+           if (NestedElements.find(S) != NestedElements.end())
+             continue;
+
+            // Incorporate any bounds declared in S into the initial bounds
+            // context before checking S.  TODO: save this context in a
+            // declared context DC.
+            GetDeclaredBounds(this->S, BlockState.UC, S);
+         }
        }
 
+       BoundsContextTy DeclaredCtx = BlockState.UC;
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
            CFGStmt CS = Elem.castAs<CFGStmt>();
@@ -2080,13 +2094,23 @@ namespace {
             S->dump(llvm::outs());
             llvm::outs().flush();
 #endif
-            // Incorporate any bounds declared in S into the initial bounds
-            // context before checking S.  TODO: save this context in a
-            // declared context DC.
-            GetDeclaredBounds(this->S, BlockState.UC, S);
 
-            // Update the bounds with the widened bounds.
-            UpdateBoundsInContext(WidenedBounds, BlockState.UC);
+            // Bounds killed by a statement in the current block remain killed
+            // through the end of the block. So we remove those bounds from the
+            // widened bounds for the current block. We also need to reset the
+            // bounds in the context to the declared bounds.
+            if (KilledBounds.count(S)) {
+              for (const VarDecl *V : KilledBounds[S]) {
+                WidenedBounds.erase(V);
+                VarDecl *VD = const_cast<VarDecl *>(V);
+                BlockState.UC[VD] = DeclaredCtx[VD];
+              }
+            }
+            if (FirstTimeInBlock) {
+              // Update the bounds with the widened bounds.
+              UpdateBoundsInContext(WidenedBounds, BlockState.UC);
+              FirstTimeInBlock = false;
+            }
 
             Check(S, CSS, BlockState);
             // TODO: validate the updated context BlockState.UC against
