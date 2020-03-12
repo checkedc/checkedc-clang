@@ -1976,9 +1976,13 @@ namespace {
                                        CreateIntegerLiteral(WidenedOffset),
                                        SourceLocation(), SourceLocation());
 
+       // If the declared bound is a CountBoundsExpr replace it with widened
+       // CountBoundsExpr.
        if (isa<CountBoundsExpr>(CurrBoundsExpr)) {
          BoundsCtx[V] = WidenedBoundsExpr;
 
+       // If the declared bounds are a RangeBoundsExpr, add the widened bounds
+       // to the upper bounds of the range.
        } else if (auto *RBE = dyn_cast<RangeBoundsExpr>(CurrBoundsExpr)) {
          Expr *Upper = RBE->getUpperExpr();
          BoundsExpr *NewUpper = ExpandToRange(Upper, WidenedBoundsExpr);
@@ -2020,7 +2024,7 @@ namespace {
      StmtSet BoundsCheckedStmts;
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
 
-     // Check if we can widen the bounds.
+     // Run the bounds widening algorithm on this function.
      BoundsAnalysis BA = getBoundsAnalyzer();
      BA.WidenBounds(FD);
      if (S.getLangOpts().DumpWidenedBounds)
@@ -2030,10 +2034,23 @@ namespace {
      ResetFacts();
      for (const CFGBlock *Block : POView) {
        AFA.GetFacts(Facts);
+       CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
+
+       // Get the widened bounds for the current block as computed by the
+       // bounds widening algorithm.
        BoundsMapTy WidenedBounds = BA.GetWidenedBounds(Block);
+       // Also get the bounds killed (if any) by each statement in the current
+       // block.
        StmtDeclSetTy KilledBounds = BA.GetKillSet(Block);
 
-       CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
+       // Bounds killed by a statement in the current block remain killed
+       // through the end of the block. So we remove those bounds from the
+       // widened bounds for the current block.
+       for (const auto item : KilledBounds) {
+         for (const VarDecl *V : item.second)
+           WidenedBounds.erase(V);
+       }
+
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
            CFGStmt CS = Elem.castAs<CFGStmt>();
@@ -2068,10 +2085,7 @@ namespace {
             // declared context DC.
             GetDeclaredBounds(this->S, BlockState.UC, S);
 
-            if (KilledBounds.count(S)) {
-              for (const VarDecl *V : KilledBounds[S])
-                WidenedBounds.erase(V);
-            }
+            // Update the bounds with the widened bounds.
             UpdateBoundsInContext(WidenedBounds, BlockState.UC);
 
             Check(S, CSS, BlockState);
