@@ -2524,13 +2524,15 @@ namespace {
         // Update UEQ and G for assignments to a non-variable `e1`.
         else {
           if (!E->isCompoundAssignmentOp()) {
-            // Record equality implied by the assignment `e1 = e2` to a
-            // non-variable `e1`. At this point, State.G contains expressions
-            // that produce the same value as `e2`.
-            // TODO: this doesn't properly handle cases where the RHS
-            // uses the value of the LHS, e.g. *p = 2 - *p.
-            State.G.push_back(Target);
-            State.UEQ.push_back(State.G);
+            if (CheckIsNonModifying(Target)) {
+              // Record equality implied by the assignment `e1 = e2` to a
+              // non-variable, non-modifying expression `e1`. At this point,
+              // State.G contains expressions that produce the same value as
+              // `e2`. TODO: this doesn't properly handle cases where `e2`
+              // uses the value of `e1`, e.g. *p = 2 - *p.
+              State.G.push_back(Target);
+              State.UEQ.push_back(State.G);
+            }
           }
           // Do nothing for compound assignments `e1 @= e2` to a
           // non-variable `e1`. Since the RHS `e1 @ e2` of the implied
