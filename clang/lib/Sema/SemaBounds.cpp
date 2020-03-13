@@ -113,34 +113,6 @@ public:
 }
 
 namespace {
-  class VariableUtil {
-    public:
-      // If E is a (possibly parenthesized or no-op cast) variable V,
-      // GetVariable returns V.  Otherwise, GetVariable returns nullptr.
-      static DeclRefExpr *GetVariable(Sema &SemaRef, Expr *E) {
-        if (!E)
-          return nullptr;
-        return dyn_cast<DeclRefExpr>(E->IgnoreParenNoopCasts(SemaRef.Context));
-      }
-
-      // SameVariable returns true if the expressions E1 and E2
-      // are the same (possibly parenthesized or no-op cast) variable.
-      static bool SameVariable(Sema &SemaRef, Expr *E1, Expr *E2) {
-        DeclRefExpr *V1 = GetVariable(SemaRef, E1);
-        if (!V1)
-          return false;
-
-        DeclRefExpr *V2 = GetVariable(SemaRef, E2);
-        if (!V2)
-          return false;
-
-        Lexicographic Lex(SemaRef.Context, nullptr);
-        return Lex.CompareExpr(V1, V2) == Lexicographic::Result::Equal;
-      }
-  };
-}
-
-namespace {
   class ExprCreatorUtil {
     public:
       // If Op is not a compound operator, CreateBinaryOperator returns a
@@ -578,7 +550,8 @@ namespace {
       int GetCount() { return Count; }
 
       bool VisitDeclRefExpr(DeclRefExpr *E) {
-        if (VariableUtil::SameVariable(SemaRef, E, V))
+        Lexicographic Lex(SemaRef.Context, nullptr);
+        if (Lex.CompareExpr(E, V) == Lexicographic::Result::Equal)
           ++Count;
         return true;
       }
@@ -611,7 +584,8 @@ namespace {
         OriginalValue(OV) { }
 
       ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
-        if (VariableUtil::SameVariable(SemaRef, Variable, E)) {
+        Lexicographic Lex(SemaRef.Context, nullptr);
+        if (Lex.CompareExpr(Variable, E) == Lexicographic::Result::Equal) {
           if (OriginalValue)
             return OriginalValue;
           else
@@ -2543,7 +2517,7 @@ namespace {
         }
 
         // Update UEQ and G for assignments to a variable `e1`.
-        if (DeclRefExpr *V = VariableUtil::GetVariable(S, LHS)) {
+        if (DeclRefExpr *V = GetLValueVariable(LHS)) {
           Expr *OV = GetOriginalValue(V, Src, State.UEQ);
           UpdateAfterAssignment(V, Target, OV, CSS, State, State);
         }
@@ -2959,7 +2933,7 @@ namespace {
         UpdateG(RHS, State.G, State.G, Val);
 
         // Update UEQ and G for inc/dec operators on a variable `e1`.
-        if (DeclRefExpr *V = VariableUtil::GetVariable(S, SubExpr)) {
+        if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
           Expr *Target = CreateImplicitCast(SubExpr->getType(),
                                             CK_LValueToRValue, SubExpr);
           Expr *OV = GetOriginalValue(V, RHS, State.UEQ);
@@ -3690,8 +3664,8 @@ namespace {
       // Check EQ for a variable w != v that produces the same value as v.
       EqualExprTy F = GetEqualExprSetContainingVariable(V, EQ);
       for (auto I = F.begin(); I != F.end(); ++I) {
-        DeclRefExpr *W = VariableUtil::GetVariable(S, *I);
-        if (W != nullptr && !VariableUtil::SameVariable(S, V, W))
+        DeclRefExpr *W = GetRValueVariable(*I);
+        if (W != nullptr && !EqualValue(S.Context, V, W, nullptr))
           return W;
       }
 
@@ -3702,7 +3676,7 @@ namespace {
     // with respect to the variable x.
     bool IsInvertible(DeclRefExpr *X, Expr *E) {
       E = E->IgnoreParens();
-      if (VariableUtil::SameVariable(S, X, E))
+      if (IsRValueCastOfVariable(E, X))
         return true;
 
       switch (E->getStmtClass()) {
@@ -3780,7 +3754,7 @@ namespace {
         return nullptr;
 
       E = E->IgnoreParens();
-      if (VariableUtil::SameVariable(S, X, E))
+      if (IsRValueCastOfVariable(E, X))
         return F;
 
       switch (E->getStmtClass()) {
@@ -3911,8 +3885,8 @@ namespace {
       return { };
     }
 
-    // If the (possibly parenthesized or no-op cast) variable V appears
-    // in a set F in EQ, GetEqualExprSetContainingVariable returns F.
+    // If a set F in EQ contains an expression that is an rvalue cast of
+    // the variable V, GetEqualExprSetContainingVariable returns F.
     // Otherwise, it returns an empty set.
     EqualExprTy GetEqualExprSetContainingVariable(DeclRefExpr *V,
                                                   EquivExprSets EQ) {
@@ -3920,7 +3894,7 @@ namespace {
         EqualExprTy F = *OuterList;
         for (auto InnerList = F.begin(); InnerList != F.end(); ++InnerList) {
           Expr *E1 = *InnerList;
-          if (VariableUtil::SameVariable(S, V, E1))
+          if (IsRValueCastOfVariable(E1, V))
             return F;
         }
       }
@@ -3955,6 +3929,37 @@ namespace {
           return true;
       }
       return false;
+    }
+
+    // If E is a (possibly parenthesized) lvalue variable V,
+    // GetLValueVariable returns V. Otherwise, it returns nullptr.
+    DeclRefExpr *GetLValueVariable(Expr *E) {
+      return dyn_cast<DeclRefExpr>(E->IgnoreParens());
+    }
+
+    // If E is an rvalue cast (ignoring value-preserving operations) of a
+    // variable V, GetRValueVariable returns V. Otherwise, it returns nullptr.
+    DeclRefExpr *GetRValueVariable(Expr *E) {
+      if (CastExpr *CE = dyn_cast<CastExpr>(E->IgnoreParens())) {
+        CastKind CK = CE->getCastKind();
+        if (CK == CastKind::CK_LValueToRValue ||
+            CK == CastKind::CK_ArrayToPointerDecay) {
+          Lexicographic Lex(S.Context, nullptr);
+          Expr *SubExpr = const_cast<Expr *>(CE->getSubExpr());
+          Expr *E1 = Lex.IgnoreValuePreservingOperations(S.Context, SubExpr);
+          return dyn_cast<DeclRefExpr>(E1);
+        }
+      }
+      return nullptr;
+    }
+
+    // IsRValueCastOfVariable returns true if the expression e is a possibly
+    // parenthesized lvalue-to-rvalue cast of the lvalue variable v.
+    bool IsRValueCastOfVariable(Expr *E, DeclRefExpr *V) {
+      DeclRefExpr *Var = GetRValueVariable(E);
+      if (!Var)
+        return false;
+      return EqualValue(S.Context, V, Var, nullptr);
     }
 
     // Returns true if the expression e reads memory via a pointer.
