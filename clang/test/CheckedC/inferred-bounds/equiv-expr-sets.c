@@ -179,8 +179,8 @@ void f8(array_ptr<int> arr) {
   // CHECK-NEXT:   BinaryOperator {{.*}} '+'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
-  // CHECK-NEXT:     IntegerLiteral {{.*}} 'unsigned int' 1
-  // CHECK-NEXT:   IntegerLiteral {{.*}} 'unsigned int' 1
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 'int' 1
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 'int' 1
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
   // CHECK-NEXT: }
@@ -220,7 +220,7 @@ void f10(array_ptr<int> arr) {
   // CHECK-NEXT: BinaryOperator {{.*}} '+'
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr'
-  // CHECK-NEXT:   IntegerLiteral {{.*}} 'unsigned int' 1
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 'int' 1
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
   // CHECK-NEXT: }
@@ -261,7 +261,7 @@ void f12(int *p) {
   // CHECK-NEXT:     UnaryOperator {{.*}} '*'
   // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
-  // CHECK-NEXT:   IntegerLiteral {{.*}} 'unsigned int' 1
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 'int' 1
   // CHECK-NEXT: }
 }
 

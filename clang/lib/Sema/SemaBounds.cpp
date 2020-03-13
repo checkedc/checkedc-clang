@@ -2915,39 +2915,52 @@ namespace {
       // Update UEQ and G for inc/dec operators `++e1`, `e1++`, `--e1`, `e1--`.
       // At this point, State contains UEQ and G for `e1`.
       if (UnaryOperator::isIncrementDecrementOp(Op)) {
+        // Create the target of the implied assignment `e1 = e1 +/- 1`.
+        Expr *Target = CreateImplicitCast(SubExpr->getType(),
+                                            CK_LValueToRValue, SubExpr);
+
         // Update the set G of expressions that produce the same value as `e1`.
         State.G = GetEqualExprSetContainingExpr(SubExpr, State.UEQ);
 
-        // Create the RHS `e1 +/- 1` of the implied assignment `e1 = e1 +/- 1`.
-        BinaryOperatorKind RHSOp = UnaryOperator::isIncrementOp(Op) ?
-                                    BinaryOperatorKind::BO_Add :
-                                    BinaryOperatorKind::BO_Sub;
-        Expr *One = ExprCreatorUtil::CreateUnsignedInt(S, 1);
-        BinaryOperator *RHS =
-          ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One, RHSOp);
+        // Only use the assignment `e1 = e1 +/1 ` to update UEQ and G if the
+        // integer constant 1 can be created.  The integer constant can only
+        // be created if `e1` has integer type or integer pointer type.
+        IntegerLiteral *One = CreateIntegerLiteral(1, SubExpr->getType());
+        if (One) {
+          // Create the RHS `e1 +/- 1` of the implied assignment `e1 = e1 +/- 1`.
+          BinaryOperatorKind RHSOp = UnaryOperator::isIncrementOp(Op) ?
+                                      BinaryOperatorKind::BO_Add :
+                                      BinaryOperatorKind::BO_Sub;
+          BinaryOperator *RHS =
+            ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One, RHSOp);
 
-        // Update the set G of expressions that produce the same value as
-        // the RHS `e1 +/- 1`.  For pre-inc/dec operators, use the `e1 +/- 1`
-        // to update G.  For post-inc/dec operators, use `e1` to update G.
-        bool IsPostIncDec = Op == UnaryOperatorKind::UO_PostInc ||
-                            Op == UnaryOperatorKind::UO_PostDec;
-        Expr *Val = IsPostIncDec ? SubExpr : RHS;
-        UpdateG(RHS, State.G, State.G, Val);
+          // Update the set G of expressions that produce the same value as
+          // the RHS `e1 +/- 1`.  For pre-inc/dec operators, use the `e1 +/- 1`
+          // to update G.  For post-inc/dec operators, use `e1` to update G.
+          bool IsPostIncDec = Op == UnaryOperatorKind::UO_PostInc ||
+                              Op == UnaryOperatorKind::UO_PostDec;
+          Expr *Val = IsPostIncDec ? SubExpr : RHS;
+          UpdateG(RHS, State.G, State.G, Val);
 
-        // Update UEQ and G for inc/dec operators on a variable `e1`.
-        if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
-          Expr *Target = CreateImplicitCast(SubExpr->getType(),
-                                            CK_LValueToRValue, SubExpr);
-          Expr *OV = GetOriginalValue(V, RHS, State.UEQ);
-          UpdateAfterAssignment(V, Target, OV, CSS, State, State);
+          // Update UEQ and G for inc/dec operators on a variable `e1`.
+          if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
+            Expr *OV = GetOriginalValue(V, RHS, State.UEQ);
+            UpdateAfterAssignment(V, Target, OV, CSS, State, State);
+          }
+          // Do nothing for inc/dec operators on a non-variable `e1`.
+          // Since the RHS `e1 +/- 1` of the implied assignment
+          // `e1 = e1 +/- 1` uses the value of `e1` and `e1` has no
+          // original value in `e1 +/- 1`, State.UEQ remains unchanged.
+          // State.G already contains expressions that produce the same
+          // value as the RHS `e1 +/- 1` of the assignment `e1 = e1 +/- 1`,
+          // so State.G also remains unchanged.
+        } else {
+          // Update State.G using the the target of the inc/dec operator for
+          // expressions where the integer constant 1 could not be constructed
+          // (e.g. floating point expressions). State.UEQ remains unchanged.
+          if (CheckIsNonModifying(Target))
+            State.G = { Target };
         }
-        // Do nothing for inc/dec operators on a non-variable `e1`.
-        // Since the RHS `e1 +/- 1` of the implied assignment
-        // `e1 = e1 +/- 1` uses the value of `e1` and `e1` has no
-        // original value in `e1 +/- 1`, State.UEQ remains unchanged.
-        // State.G already contains expressions that produce the same
-        // value as the RHS `e1 +/- 1` of the assignment `e1 = e1 +/- 1`,
-        // so State.G also remains unchanged.
       }
 
       // `&e` has the bounds of `e`.
@@ -3718,16 +3731,18 @@ namespace {
       // Addition and subtraction operations must be for checked pointer
       // arithmetic or unsigned integer arithmetic.
       if (Op == BinaryOperatorKind::BO_Add || Op == BinaryOperatorKind::BO_Sub) {
-        // The LHS must be a checked pointer or an unsigned integer.
-        bool LHSHasCorrectType = LHS->getType()->isCheckedPointerType() ||
-                                 LHS->getType()->isUnsignedIntegerType();
-        if (!LHSHasCorrectType)
-          return false;
-        // The RHS must be a checked pointer or an unsigned integer.
-        bool RHSHasCorrectType = RHS->getType()->isCheckedPointerType() ||
-                                 RHS->getType()->isUnsignedIntegerType();
-        if (!RHSHasCorrectType)
-          return false;
+        // The operation is checked pointer arithmetic if either the LHS
+        // or the RHS have checked pointer type.
+        bool IsCheckedPtrArithmetic = LHS->getType()->isCheckedPointerType() ||
+                                      RHS->getType()->isCheckedPointerType();
+        if (!IsCheckedPtrArithmetic) {
+          // The operation is unsigned integer arithmetic if both the LHS
+          // and the RHS have unsigned integer type.
+          bool IsUnsignedArithmetic = LHS->getType()->isUnsignedIntegerType() &&
+                                      RHS->getType()->isUnsignedIntegerType();
+          if (!IsUnsignedArithmetic)
+            return false;
+        }
       }
 
       // X must appear in exactly one subexpression of E and that
@@ -4144,6 +4159,23 @@ namespace {
       IntegerLiteral *Lit = IntegerLiteral::Create(Context, ResultVal, Ty,
                                                    SourceLocation());
       return Lit;
+    }
+
+    // If Ty is an integer type (char, unsigned int, int, etc.),
+    // CreateIntegerLiteral returns an integer literal with Ty type.
+    // If Ty denotes a pointer to an integer type (char *, ptr<int>, etc.),
+    // CreateIntegerLiteral returns an integer literal with Ty's pointee type.
+    // Otherwise, it returns nullptr.
+    IntegerLiteral *CreateIntegerLiteral(int Value, QualType Ty) {
+      QualType AdjustedType = Ty;
+      if (Ty->isPointerType())
+        AdjustedType = Ty->getPointeeType();
+      if (!AdjustedType->isIntegerType())
+        return nullptr;
+      unsigned BitSize = Context.getTypeSize(AdjustedType);
+      llvm::APInt ResultVal(BitSize, Value);
+      return IntegerLiteral::Create(Context, ResultVal, AdjustedType,
+                                    SourceLocation());
     }
 
     // Infer bounds for string literals.
