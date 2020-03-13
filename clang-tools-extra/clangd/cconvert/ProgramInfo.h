@@ -20,6 +20,10 @@
 #include "PersistentSourceLoc.h"
 #include "ArrayBoundsInformation.h"
 #include "CConvInteractive.h"
+#include "GatherTool.h"
+
+// TODO this should be superflous
+typedef std::map<std::string, std::vector<bool>> ParameterMap;
 
 class ProgramInfo;
 
@@ -31,6 +35,9 @@ public:
   void dump_json(llvm::raw_ostream &O) const;
   void dump_stats(std::set<std::string> &F) { print_stats(F, llvm::errs()); }
   void print_stats(std::set<std::string> &F, llvm::raw_ostream &O, bool onlySummary=false);
+
+  void merge_MF(ParameterMap &MF);
+  ParameterMap& get_MF();
 
   Constraints &getConstraints() { return CS;  }
 
@@ -188,6 +195,7 @@ private:
   std::map<std::string, bool> ExternFunctions;
   std::map<std::string, std::set<FVConstraint*>> GlobalFunctionSymbols;
   std::map<std::string, std::set<PVConstraint*>> GlobalVariableSymbols;
+  ParameterMap MF;
   // object that contains all the bounds information of various
   // array variables.
   ArrayBoundsInformation *ArrBoundsInfo;

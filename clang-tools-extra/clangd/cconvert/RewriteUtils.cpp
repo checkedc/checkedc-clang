@@ -1029,6 +1029,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       bool foundWild = false;
       std::set<ConstraintVariable*> cvs = Info.getVariable(st, Context);
       for (auto cv : cvs) {
+        cv->dump();
         if (cv->hasWild(Info.getConstraints().getVariables())) {
           foundWild = true;
         }
@@ -1154,6 +1155,8 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     std::set<llvm::FoldingSetNodeID>& Seen;
 };
 
+
+
 // class for visiting variable usages and function calls to add
 // explicit casting if needed.
 class CastPlacementVisitor : public RecursiveASTVisitor<CastPlacementVisitor> {
@@ -1169,6 +1172,22 @@ public:
       if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
         // get the constraint variable for the function
         std::set<ConstraintVariable *> &V = Info.getFuncDefnConstraints(FD, Context);
+        // TODO Deubgging lines
+        // llvm::errs() << "Decl for: " << FD->getNameAsString() << "\nVars:";
+        // for(auto &CV : V) {
+        //   CV->dump();
+        //   llvm::errs() << "\n";
+        // }
+
+        // Did we see this function in another file?
+        auto fn = FD->getNameAsString();
+        auto args = Info.get_MF()[fn];
+        llvm::errs() << "Encounted function: " << fn << " checked args: [";
+        for(auto c : args) {
+          llvm::errs() << (c ? "unchecked" : "checked") << ", ";
+        }
+        llvm::errs() << "]\n";
+
         if (V.size() > 0) {
           // get the FV constraint for the Callee
           FVConstraint *FV = nullptr;
@@ -1465,9 +1484,9 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   StructVariableInitializer FV = StructVariableInitializer(&Context, Info, rewriteThese);
   GlobalVariableGroups GVG(R.getSourceMgr());
-  CastPlacementVisitor ECPV(&Context, Info, R);
   std::set<llvm::FoldingSetNodeID> seen;
   CheckedRegionAdder CRA(&Context, R, Info, seen);
+  CastPlacementVisitor ECPV(&Context, Info, R);
   for (auto &D : TUD->decls()) {
     V.TraverseDecl(D);
     FV.TraverseDecl(D);

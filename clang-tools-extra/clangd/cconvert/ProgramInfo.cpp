@@ -22,6 +22,19 @@ ProgramInfo::ProgramInfo() :
   OnDemandFuncDeclConstraint.clear();
 }
 
+
+void ProgramInfo::merge_MF(ParameterMap &mf) {
+  for(auto kv : mf) {
+    MF[kv.first] = kv.second;
+  }
+}
+
+
+ParameterMap& ProgramInfo::get_MF() {
+  return MF;
+}
+
+
 void ProgramInfo::print(raw_ostream &O) const {
   CS.print(O);
   O << "\n";
