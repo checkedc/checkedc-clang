@@ -629,13 +629,13 @@ C:    p;
 // CHECK:  [B5]
 // CHECK:    1: *(p + 1)
 // CHECK:    T: while
-// CHECK: upper_bound(p) = 1
+// CHECK-NOT: upper_bound(p)
 // CHECK:  [B4]
 // CHECK:   C:
 // CHECK:    1: p
 // CHECK-NOT: upper_bound(p)
 // CHECK:  [B2]
-// CHECK: upper_bound(p) = 1
+// CHECK-NOT: upper_bound(p)
 // CHECK:  [B1]
 // CHECK:    T: goto C;
 }

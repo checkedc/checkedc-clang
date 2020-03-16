@@ -26,9 +26,9 @@ void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
   // Note: By default, PostOrderCFGView iterates in reverse order. So we always
   // get a reverse post order when we iterate PostOrderCFGView.
   for (const CFGBlock *B : PostOrderCFGView(Cfg)) {
-    // SkipBlock will skip all null, entry and exit blocks. PostOrderCFGView
-    // does not contain any unreachable blocks. So at the end of this loop
-    // BlockMap only contains reachable blocks.
+    // SkipBlock will skip all null and exit blocks. PostOrderCFGView does not
+    // contain any unreachable blocks. So at the end of this loop BlockMap only
+    // contains reachable blocks.
     if (SkipBlock(B))
       continue;
 
@@ -37,10 +37,6 @@ void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
     // iterate WorkList.
     WorkList.append(EB);
     BlockMap[B] = EB;
-
-    // Mark the In set for the Entry block as "empty". The Out set for the
-    // Entry block would be marked as "empty" in ComputeOutSets.
-    EB->IsInSetEmpty = B == &Cfg->getEntry();
   }
 
   // At this time, BlockMap only contains reachable blocks. We iterate through
@@ -61,6 +57,9 @@ void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
   ComputeGenSets();
   ComputeKillSets();
 
+  // Initialize the In and Out sets to Top.
+  InitInOutSets();
+
   // Compute In and Out sets.
   while (!WorkList.empty()) {
     ElevatedCFGBlock *EB = WorkList.next();
@@ -68,6 +67,19 @@ void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
 
     ComputeInSets(EB);
     ComputeOutSets(EB, WorkList);
+  }
+}
+
+void BoundsAnalysis::InitInOutSets() {
+  for (const auto item : BlockMap) {
+    ElevatedCFGBlock *EB = item.second;
+
+    if (EB->Block == &Cfg->getEntry())
+      continue;
+
+    EB->In = Top;
+    for (const CFGBlock *succ : EB->Block->succs())
+      EB->Out[succ] = Top;
   }
 }
 
@@ -311,7 +323,17 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
     UpperOffset = DerefOffset.ssub_ov(UpperOffset, Overflow);
     if (Overflow)
       continue;
+
     EB->Gen[SuccEB->Block][V] = UpperOffset.getLimitedValue();
+
+    // Top represents the union of the Gen sets of all edges. We have chosen
+    // the offsets of ptr variables in Top to be the max unsigned int. The
+    // reason behind this is that in order to compute the actual In sets for
+    // blocks we are going to intersect the Out sets on all the incoming edges
+    // of the block. And in that case we would always pick the ptr with the
+    // smaller offset. Chosing max unsigned int also makes handling Top much
+    // easier as we do not need to explicitly store edge info.
+    Top[V] = std::numeric_limits<unsigned>::max();
   }
 }
 
@@ -564,6 +586,7 @@ void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB) {
   // In[B1] = n Out[B*->B1], where B* are all preds of B1.
 
   BoundsMapTy Intersections;
+  bool FirstIntersection = true;
 
   for (const CFGBlock *pred : EB->Block->preds()) {
     if (SkipBlock(pred))
@@ -571,21 +594,10 @@ void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB) {
 
     ElevatedCFGBlock *PredEB = BlockMap[pred];
 
-    // If the Out set on any incoming edge to a block is marked as "empty",
-    // then the intersection of Out's would result in an empty In set. So we
-    // mark the In set as "empty" and return early.
-    if (PredEB->IsOutSetEmpty[EB->Block]) {
-      EB->IsInSetEmpty = true;
-      return;
-    }
-
-    // If the Out set of the pred on the incoming edge is not marked as
-    // "empty", it means we should treat the Out set as "Top". So we simulate
-    // "Top" by performing the intersection only if the size of the Out set is
-    // non-zero.
-    if (!Intersections.size())
+    if (FirstIntersection) {
       Intersections = PredEB->Out[EB->Block];
-    else if (PredEB->Out[EB->Block].size())
+      FirstIntersection = false;
+    } else
       Intersections = Intersect(Intersections, PredEB->Out[EB->Block]);
   }
 
@@ -630,10 +642,6 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
     // B3:     if (*(p + 2)) { // In[B2] = {p:2}, Gen[B1->B2] = {p:2} ==> bounds(p) = 3.
 
     EB->Out[succ] = Union(Diff, EB->Gen[succ]);
-
-    // The Out set on an edge is marked "empty" if the In set is marked "empty"
-    // and the Gen set on that edge is empty.
-    EB->IsOutSetEmpty[succ] = EB->IsInSetEmpty && !EB->Gen[succ].size();
 
     if (Differ(OldOut, EB->Out[succ]))
       WorkList.append(BlockMap[succ]);
@@ -736,8 +744,21 @@ template<class T>
 bool BoundsAnalysis::Differ(T &A, T &B) const {
   if (A.size() != B.size())
     return true;
-  auto Ret = Intersect(A, B);
-  return Ret.size() != A.size();
+
+  for (const auto item : A) {
+    if (!B.count(item.first))
+      return true;
+    if (B[item.first] != item.second)
+      return true;
+  }
+
+  for (const auto item : B) {
+    if (!A.count(item.first))
+      return true;
+    if (A[item.first] != item.second)
+      return true;
+  }
+  return false;
 }
 
 OrderedBlocksTy BoundsAnalysis::GetOrderedBlocks() {
