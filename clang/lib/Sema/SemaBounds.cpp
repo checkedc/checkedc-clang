@@ -4172,7 +4172,12 @@ namespace {
         AdjustedType = Ty->getPointeeType();
       if (!AdjustedType->isIntegerType())
         return nullptr;
+
       unsigned BitSize = Context.getTypeSize(AdjustedType);
+      unsigned IntWidth = Context.getIntWidth(AdjustedType);
+      if (BitSize != IntWidth)
+        return nullptr;
+
       llvm::APInt ResultVal(BitSize, Value);
       return IntegerLiteral::Create(Context, ResultVal, AdjustedType,
                                     SourceLocation());
