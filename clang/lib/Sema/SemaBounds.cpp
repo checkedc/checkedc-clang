@@ -1979,6 +1979,9 @@ namespace {
        if (Bounds)
          ParamsState.UC[Param] = Bounds;
      }
+
+     // Store a checking state for each CFG block in order to track
+     // the variables with bounds declarations that are in scope.
      llvm::DenseMap<unsigned int, CheckingState> BlockStates;
      BlockStates[Cfg->getEntry().getBlockID()] = ParamsState;
 
@@ -3413,6 +3416,11 @@ namespace {
     // GetIncomingBlockState returns the checking state that is true at
     // the beginning of the block by taking the intersection of the UC
     // contexts that were true after each of the block's predecessors.
+    //
+    // BlockStates stores the checking state including the bounds context
+    // for each CFG block in order to track the variables with bounds
+    // declarations that are in scope.  This preserves lexically scoped
+    // information that is otherwise lost during CFG traversal.
     CheckingState GetIncomingBlockState(const CFGBlock *Block,
                                         llvm::DenseMap<unsigned int, CheckingState> BlockStates) {
       CheckingState BlockState;
