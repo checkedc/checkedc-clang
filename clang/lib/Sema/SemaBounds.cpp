@@ -2524,12 +2524,12 @@ namespace {
         // Update UEQ and G for assignments to a non-variable `e1`.
         else {
           if (!E->isCompoundAssignmentOp()) {
-            if (CheckIsNonModifying(Target)) {
+            if (CheckIsNonModifying(Target) && CanBeInEqualExprSet(Target)) {
               // Record equality implied by the assignment `e1 = e2` to a
-              // non-variable, non-modifying expression `e1`. At this point,
-              // State.G contains expressions that produce the same value as
-              // `e2`. TODO: this doesn't properly handle cases where `e2`
-              // uses the value of `e1`, e.g. *p = 2 - *p.
+              // non-variable, non-modifying scalar expression `e1`. At this
+              // point, State.G contains expressions that produce the same
+              // value as `e2`. TODO: this doesn't properly handle cases where
+              // `e2` uses the value of `e1`, e.g. *p = 2 - *p.
               State.G.push_back(Target);
               State.UEQ.push_back(State.G);
             }
@@ -2771,20 +2771,24 @@ namespace {
 
       // Update the set State.G of expressions that produce the
       // same value as e.
-      if (CK == CastKind::CK_ArrayToPointerDecay)
+      if (CK == CastKind::CK_ArrayToPointerDecay) {
         // State.G = { e } for lvalues with array type.
-        State.G = { E };
-      else if (CK == CastKind::CK_LValueToRValue) {
-        if (E->getType()->isArrayType())
-          // State.G = { e } for lvalues with array type.
+        if (CanBeInEqualExprSet(E))
           State.G = { E };
+      } else if (CK == CastKind::CK_LValueToRValue) {
+        if (E->getType()->isArrayType()) {
+          // State.G = { e } for lvalues with array type.
+          if (CanBeInEqualExprSet(E))
+            State.G = { E };
+        }
         else {
           // If e appears in some set F in State.UEQ, State.G = F.
           State.G = GetEqualExprSetContainingExpr(E, State.UEQ);
           if (State.G.size() == 0) {
             // Otherwise, if e is nonmodifying and does not read memory
             // via a pointer, State.G = { e }.  Otherwise, State.G is empty.
-            if (CheckIsNonModifying(E) && !ReadsMemoryViaPointer(E))
+            if (CheckIsNonModifying(E) && !ReadsMemoryViaPointer(E) &&
+                CanBeInEqualExprSet(E))
               State.G.push_back(E);
           }
         }
@@ -2958,7 +2962,7 @@ namespace {
           // Update State.G using the the target of the inc/dec operator for
           // expressions where the integer constant 1 could not be constructed
           // (e.g. floating point expressions). State.UEQ remains unchanged.
-          if (CheckIsNonModifying(Target))
+          if (CheckIsNonModifying(Target) && CanBeInEqualExprSet(Target))
             State.G = { Target };
         }
       }
@@ -3625,6 +3629,9 @@ namespace {
 
       if (!Val) Val = E;
 
+      if (!CanBeInEqualExprSet(Val))
+        return;
+
       // If Val is a call expression, G does not contain Val.
       if (isa<CallExpr>(Val)) {
       }
@@ -3977,6 +3984,34 @@ namespace {
       if (!Var)
         return false;
       return EqualValue(S.Context, V, Var, nullptr);
+    }
+
+    // CanBeInEqualExprSet returns true if the expression e can be added to
+    // the UEQ or G sets of equivalent expressions in the checking state.
+    // Only scalar expressions should be added to the UEQ and G sets.
+    bool CanBeInEqualExprSet(Expr *E) {
+      switch (E->getStmtClass()) {
+        case Expr::InitListExprClass:
+        case Expr::ImplicitValueInitExprClass:
+        case Expr::CompoundLiteralExprClass:
+        case Expr::ExtVectorElementExprClass:
+        case Expr::ExprWithCleanupsClass:
+        case Expr::BlockExprClass:
+        case Expr::SourceLocExprClass:
+        case Expr::PackExprClass:
+        case Expr::FixedPointLiteralClass:
+        case Expr::ConditionalOperatorClass:
+          return false;
+        default: {
+          for (auto I = E->child_begin(); I != E->child_end(); ++I) {
+            if (Expr *SubExpr = dyn_cast<Expr>(*I)) {
+              if (!CanBeInEqualExprSet(SubExpr))
+                return false;
+            }
+          }
+          return true;
+        }
+      }
     }
 
     // Returns true if the expression e reads memory via a pointer.
