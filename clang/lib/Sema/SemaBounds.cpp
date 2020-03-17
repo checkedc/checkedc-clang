@@ -2958,8 +2958,9 @@ namespace {
       BoundsExpr *B = nullptr;
       InteropTypeExpr *IT = nullptr;
       if (VD) {
-        if (State.UC[VD])
-          B = State.UC[VD];
+        auto Declared = State.UC.find(VD);
+        if (Declared != State.UC.end())
+          B = (*Declared).second;
         else
           B = VD->getBoundsExpr();
         IT = VD->getInteropTypeExpr();
