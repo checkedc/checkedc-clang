@@ -17,14 +17,18 @@ class ParameterGatherer : public clang::RecursiveASTVisitor<ParameterGatherer>
             auto fn = FD->getNameAsString();
             if(FD->doesThisDeclarationHaveABody()) {
                 errs() << "Checking func: " << fn << "\n";
-                std::vector<bool> checked;
+		FD->dump();
+		errs() << "\n";
+                std::vector<IsChecked> checked;
                 for(auto &param : FD->parameters()){
                     bool foundWild = false;
                     std::set<ConstraintVariable*> cvs = Info.getVariable(param, Context);
                     for(auto cv : cvs) {
+			cv->dump();
                         foundWild |= cv->hasWild(Info.getConstraints().getVariables());
                     }
-                    checked.push_back(foundWild);
+		    if (foundWild) { errs() << "Found wild!\n";}
+                    checked.push_back(foundWild ? WILD : CHECKED );
                 }
                 MF[fn] = checked;
             }

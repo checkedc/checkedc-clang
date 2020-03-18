@@ -6,6 +6,7 @@ set( LLVM_LINK_COMPONENTS
 
 add_clang_library(CConvert
         CheckedCConvert.cpp
+	GatherTool.cpp
         ProgramInfo.cpp
         MappingVisitor.cpp
         ConstraintBuilder.cpp
@@ -18,7 +19,6 @@ add_clang_library(CConvert
         ArrayBoundsInformation.cpp
         CConvInteractive.cpp
         Utils.cpp
-	GatherTool.cpp
         LINK_LIBS
         clangAST
         clangBasic
@@ -31,6 +31,7 @@ add_clang_library(CConvert
 
 add_clang_tool(CConvertStandalone
         CheckedCConvert.cpp
+	GatherTool.cpp
         ProgramInfo.cpp
         MappingVisitor.cpp
         ConstraintBuilder.cpp
@@ -43,7 +44,6 @@ add_clang_tool(CConvertStandalone
         ArrayBoundsInformation.cpp
         CConvInteractive.cpp
         Utils.cpp
-	GatherTool.cpp
         )
 
 target_link_libraries(CConvertStandalone

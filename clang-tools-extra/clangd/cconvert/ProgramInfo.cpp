@@ -12,6 +12,7 @@
 #include "CCGlobalOptions.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "clang/Lex/Lexer.h"
+#include "GatherTool.h"
 #include <sstream>
 
 using namespace clang;

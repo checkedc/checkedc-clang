@@ -20,10 +20,9 @@
 #include "PersistentSourceLoc.h"
 #include "ArrayBoundsInformation.h"
 #include "CConvInteractive.h"
+#include "GatherTypes.h"
 #include "GatherTool.h"
 
-// TODO this should be superflous
-typedef std::map<std::string, std::vector<bool>> ParameterMap;
 
 class ProgramInfo;
 

@@ -1029,7 +1029,9 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       bool foundWild = false;
       std::set<ConstraintVariable*> cvs = Info.getVariable(st, Context);
       for (auto cv : cvs) {
+	llvm::errs() << "\nCheckedRegion:\n";
         cv->dump();
+	llvm::errs() << "\n";
         if (cv->hasWild(Info.getConstraints().getVariables())) {
           foundWild = true;
         }
@@ -1184,7 +1186,7 @@ public:
         auto args = Info.get_MF()[fn];
         llvm::errs() << "Encounted function: " << fn << " checked args: [";
         for(auto c : args) {
-          llvm::errs() << (c ? "unchecked" : "checked") << ", ";
+          llvm::errs() << (c == WILD ? "unchecked" : "checked") << ", ";
         }
         llvm::errs() << "]\n";
 

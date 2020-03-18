@@ -493,6 +493,8 @@ int main(int argc, const char **argv) {
     <RewriteAction<ArgGatherer, ProgramInfo>>(Info);
   if (GatherTool)
     Tool.run(GatherTool.get());
+  else
+    llvm_unreachable("No Action");
 
   // 4. Re-write based on constraints.
   std::unique_ptr<ToolAction> RewriteTool =

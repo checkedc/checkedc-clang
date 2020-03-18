@@ -6,11 +6,11 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/Rewrite/Core/Rewriter.h"
 
+#include "GatherTypes.h"
 #include "ProgramInfo.h"
 
 using namespace clang;
 
-typedef std::map<std::string, std::vector<bool>> ParameterMap;
 
 class ArgGatherer : public ASTConsumer {
 public:
