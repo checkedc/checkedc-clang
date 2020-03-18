@@ -287,7 +287,8 @@ void rewrite( VarDecl               *VD,
   } else {
     // There is no initializer, lets add it.
     if (isPointerType(VD) && (VD->getStorageClass() != StorageClass::SC_Extern))
-      sRewrite = sRewrite + " = NULL";
+      sRewrite = sRewrite + " = ((void *)0)";
+      //MWH -- Solves issue 43. Should make it so we insert NULL if stdlib.h or stdlib_checked.h is included
   }
 
   // Is it a variable type? This is the easy case, we can re-write it
