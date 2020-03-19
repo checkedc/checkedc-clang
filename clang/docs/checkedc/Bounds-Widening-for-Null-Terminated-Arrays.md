@@ -113,7 +113,8 @@ bounds because we would not have tested the ptr dereference on the
 unconditional edge. So in this case we want the intersection (and hence the In
 set) to result in an empty set.
 
-So we initialize the In and Out sets of all blocks to `Top`, except the Entry block
+So we initialize the In and Out sets of all blocks to `Top`, except the Entry
+block.
 
 Thus, we have the following initial value for the Entry block:
 ```
@@ -143,12 +144,12 @@ reach a fixpoint i.e.: as long as the Out sets for the blocks keep changing.
 5.        Compute the Gen set on edge B'>B
 6.      Add B to a queue called WorkList
 
-7.  For each basic block in WorkList:
-8.    Compute the In set for B
-9.    For each successor B' of B:
-10.     Store the current out set Out[B][B'] as OldOut
-11.     Compute the new Out set on edge B->B'
-12.     Add B' to WorkList if Out[B][B'] != OldOut
+7.    For each basic block in WorkList:
+8.      Compute the In set for B
+9.      For each successor B' of B:
+10.       Store the current out set Out[B][B'] as OldOut
+11.       Compute the new Out set on edge B->B'
+12.       Add B' to WorkList if Out[B][B'] != OldOut
 ```
 
 ## Debugging the analysis
