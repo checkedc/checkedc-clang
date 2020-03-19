@@ -30,7 +30,6 @@ in a basic block is taken into consideration when performing the analysis.
 4. **Intra-procedural:** The analysis is done on one function at a time.
 
 ## Dataflow Analysis Details
-
 For every basic block we compute the following sets: `In` and `Kill`. The `In`
 set for basic block `B` is denoted as `In[B]` and the `Kill` set is denoted as
 `Kill[B]`.
@@ -57,7 +56,6 @@ Thus, `Kill[B]` stores the mapping between a statement `S` and `nt_array_ptr's`
 whose bounds are killed in `S`.
 
 ### Gen[Bi][Bj]
-
 Given `nt_array_ptr V` with declared bounds `(low, high)`, the bounds of `V`
 can be widened by 1 if `V` is derefenced at the upper bound. This means that if
 there is an edge `Bi->Bj` whose edge condition is of the form `if (*(V + high +
@@ -84,9 +82,9 @@ Dataflow equation:
 ### Initial values of In and Out sets
 
 To compute `In[B]`, we compute the intersection of `Out[B*][B]`, where `B*` are
-all preds of block `B`. When there is a back edge from block `B'` to `B` (for example in
-the case of loops), the Out set for block `B'` will be empty. As a result,
-the intersection operation would always result in an empty set `In[B]`.
+all preds of block `B`. When there is a back edge from block `B'` to `B` (for
+example in the case of loops), the Out set for block `B'` will be empty. As a
+result, the intersection operation would always result in an empty set `In[B]`.
 
 So to handle this, we initialize the In and Out sets for all blocks to `Top`.
 `Top` represents the union of the Gen sets of all edges. We have chosen the
@@ -124,7 +122,6 @@ Out[Entry][B*] = ∅, where B* ∈ succ(Entry)
 ```
 
 ## Implementation details
-
 The main class that implements the analysis is
 [`BoundsAnalysis`](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/BoundsAnalysis.cpp)
 and the main function is `BoundsAnalysis::WidenBounds()`.
