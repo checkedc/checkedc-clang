@@ -7,7 +7,7 @@ pointers to these kinds of arrays. These arrays can be divided into two parts:
 a prefix with bounds followed by a null terminator.
 
 An important property of a null-terminated array is that an element of the
-array can be read, provided the preceeding element is not the null terminator.
+array can be read, provided the preceding element is not the null terminator.
 This gives rise to the following observation:
 **The bounds of a null-terminated array can be widened based on the number of
 elements read.**
@@ -91,7 +91,7 @@ So to handle this, we initialize the In and Out sets for all blocks to `Top`.
 offsets of ptr variables in `Top` to be the max unsigned int. The reason behind
 this is that in order to compute the actual In sets for blocks we are going to
 intersect the Out sets on all the incoming edges of the block. And in that case
-we would always pick the ptr with the smaller offset. Chosing max unsigned int
+we would always pick the ptr with the smaller offset. Choosing max unsigned int
 also makes handling `Top` much easier as we do not need to explicitly store edge
 info.
 
@@ -122,18 +122,18 @@ In[Entry] = ∅
 Out[Entry][B*] = ∅, where B* ∈ succ(Entry)
 ```
 
-## Implementation details
+## Implementation Details
 The main class that implements the analysis is
 [`BoundsAnalysis`](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/BoundsAnalysis.cpp)
 and the main function is `BoundsAnalysis::WidenBounds()`.
 
 `WidenBounds` will perform the bounds widening for the entire function. We can
-then we can call `BoundsAnalysis::GetWidenedBounds` to retreive the
+then we can call `BoundsAnalysis::GetWidenedBounds` to retrieve the
 widened bounds for the current basic block.
 
 The approach used for implementing the analysis is the iterative worklist
 algorithm in which we keep adding blocks to a worklist as long as we do not
-reach a fixpoint i.e.: as long as the Out sets for the blocks keep changing.
+reach a fixed point i.e.: as long as the Out sets for the blocks keep changing.
 
 ### Algorithm
 ```
@@ -152,7 +152,7 @@ reach a fixpoint i.e.: as long as the Out sets for the blocks keep changing.
 12.       Add B' to WorkList if Out[B][B'] != OldOut
 ```
 
-## Debugging the analysis
+## Debugging the Analysis
 In order to debug the bounds widening anlaysis, you can use the clang flag
 `-fdump-widened-bounds`. This will dump the function name, the basic blocks
 sorted by block ID, and for each `nt_array_ptr` in the block the variable name
