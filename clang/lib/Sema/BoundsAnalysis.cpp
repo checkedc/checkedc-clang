@@ -664,6 +664,8 @@ Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
       return const_cast<Expr *>(IfS->getCond());
     if (const auto *WhileS = dyn_cast<WhileStmt>(S))
       return const_cast<Expr *>(WhileS->getCond());
+    if (const auto *ForS = dyn_cast<ForStmt>(S))
+      return const_cast<Expr *>(ForS->getCond());
   }
   return nullptr;
 }
