@@ -476,7 +476,7 @@ int main(int argc, const char **argv) {
     outs() << "Constraints solved\n";
   if (DumpIntermediate) {
     Info.dump();
-    outs() << "Writing json output to:" << ConstraintOutputJson << "\n";
+    errs() << "Writing json output to:" << ConstraintOutputJson << "\n";
     std::error_code ec;
     llvm::raw_fd_ostream output_json(ConstraintOutputJson, ec);
     if (!output_json.has_error()) {
