@@ -132,6 +132,27 @@ namespace clang {
     // defined in the function.
     DeclSetTy NtPtrsInScope;
 
+    // To compute In[B] we compute the intersection of Out[B*->B], where B* are
+    // all preds of B. When there is a back edge from block B' to B (for
+    // example in loops), the Out set for block B' will be empty when we first
+    // enter B. As a result, the intersection operation would always result in
+    // an empty In set for B.
+
+    // So to handle this, we consider the In and Out sets for all blocks to
+    // have a default value of "Top" which indicates a set of all members of
+    // the Gen set. In this way we ensure that the intersection does not result
+    // in an empty set even if the Out set for a block is actually empty.
+
+    // But we also need to handle the case where there is an unconditional jump
+    // into a block (for example, as a result of a goto). In this case, we
+    // cannot widen the bounds because we would not have checked for the ptr
+    // dereference. So in this case we want the intersection to result in an
+    // empty set.
+
+    // So we initialize the In and Out sets of all blocks, except the Entry
+    // block, as "Top".
+    BoundsMapTy Top;
+
   public:
     BoundsAnalysis(Sema &S, CFG *Cfg) :
       S(S), Cfg(Cfg), Ctx(S.Context),
@@ -234,8 +255,8 @@ namespace clang {
     // @return E with casts stripped off.
     Expr *IgnoreCasts(const Expr *E);
 
-    // We do not want to run dataflow analysis on null, entry or exit blocks.
-    // So we skip them.
+    // We do not want to run dataflow analysis on null or exit blocks. So we
+    // skip them.
     // @param[in] B is the block which may need to the skipped from dataflow
     // analysis.
     // @return Whether B should be skipped.
@@ -273,6 +294,10 @@ namespace clang {
     // @param[in] EB is the ElevatedCFGBlock for the current block.
     // @param[in] S is the current Stmt in the block.
     void FillKillSet(ElevatedCFGBlock *EB, const Stmt *S);
+
+    // Initialize the In and Out sets for all blocks, except the Entry block,
+    // as Top.
+    void InitInOutSets();
 
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
