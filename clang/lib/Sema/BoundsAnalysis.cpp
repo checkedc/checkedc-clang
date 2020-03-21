@@ -645,6 +645,34 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
 
     if (Differ(OldOut, EB->Out[succ]))
       WorkList.append(BlockMap[succ]);
+
+    // The dataflow equation for the Out set is:
+    // Out[B1->B2] = (In[B1] - Kill[B1]) ∪ Gen[B1->B2]
+    //
+    // So if a variable is in the Gen set for an edge then it would be added to
+    // the Out set for edge even if it is killed inside the outgoing block.
+    // This happens because of the union operation with Gen. This becomes
+    // problematic for loops as we end up widening the bounds in the following
+    // case:
+    //
+    //   while (p[i])
+    //     p++;
+    //
+    // So we handle this as:
+    // 1. Compute the Out set for a block B as usual.
+    // 2. Then, if a variable V is in Kill[B], remove V from Gen[B->B'].
+    //
+    // This would have no effect on liner code but in loops this would ensure
+    // we do not widen bounds in the above case.
+
+    DeclSetTy KilledVars;
+    ElevatedCFGBlock *SuccEB = BlockMap[succ];
+    for (auto item : SuccEB->Kill) {
+      const DeclSetTy Vars = item.second;
+      KilledVars.insert(Vars.begin(), Vars.end());
+    }
+    if (KilledVars.size())
+      EB->Gen[succ] = Difference(EB->Gen[succ], KilledVars);
   }
 }
 

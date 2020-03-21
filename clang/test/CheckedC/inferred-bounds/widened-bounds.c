@@ -656,7 +656,7 @@ void f24() {
 // CHECK:    T: while
 // CHECK:  [B5]
 // CHECK:    1: p++
-// CHECK: upper_bound(p) = 1
+// CHECK-NOT: upper_bound(p)
 // CHECK:  [B4]
 // CHECK:    1: *(p + 1)
 // CHECK:    T: while
