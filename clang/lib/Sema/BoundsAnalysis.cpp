@@ -655,7 +655,7 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
     // problematic for loops as we end up widening the bounds in the following
     // case:
     //
-    //   while (p[i])
+    //   while (*p)
     //     p++;
     //
     // So we handle this as:
