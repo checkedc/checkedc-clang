@@ -539,11 +539,6 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   for (const auto &D : TUD->decls())
     V.TraverseDecl(D);
-  MappingResultsType res = V.getResults();
-  SourceToDeclMapType PSLtoDecl = res.first;
-
-  // Re-populate VarDeclToStatement.
-  VarDeclToStatement = res.second;
 
   persisted = false;
   return;
@@ -554,7 +549,6 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
 // should all be empty.
 void ProgramInfo::exitCompilationUnit() {
   assert(persisted == false);
-  VarDeclToStatement.clear();
   persisted = true;
   return;
 }
@@ -683,16 +677,6 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
       C->constrainTo(CS, CS.getWild(), pointerInMacro);
 
   return true;
-}
-
-bool ProgramInfo::getDeclStmtForDecl(Decl *D, DeclStmt *&St) {
-  assert(persisted == false);
-  auto I = VarDeclToStatement.find(D);
-  if (I != VarDeclToStatement.end()) {
-    St = I->second;
-    return true;
-  } else
-    return false;
 }
 
 // This is a bit of a hack. What we need to do is traverse the AST in a

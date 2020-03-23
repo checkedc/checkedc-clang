@@ -165,12 +165,6 @@ private:
   std::list<clang::RecordDecl*> Records;
   // Next available integer to assign to a variable.
   uint32_t freeKey;
-  // Map from a Decl to the DeclStmt that contains the Decl.
-  // I can't figure out how to go backwards from a VarDecl to a DeclStmt, so 
-  // this infrastructure is here so that the re-writer can do that to figure
-  // out how to break up variable declarations that should span lines in the
-  // new program.
-  VariableDecltoStmtMap VarDeclToStatement;
 
   // List of all constraint variables, indexed by their location in the source.
   // This information persists across invocations of the constraint analysis
