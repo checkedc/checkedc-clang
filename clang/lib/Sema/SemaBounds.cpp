@@ -4001,6 +4001,7 @@ namespace {
         case Expr::PackExprClass:
         case Expr::FixedPointLiteralClass:
         case Expr::ConditionalOperatorClass:
+        case Expr::StringLiteralClass:
           return false;
         default: {
           for (auto I = E->child_begin(); I != E->child_end(); ++I) {

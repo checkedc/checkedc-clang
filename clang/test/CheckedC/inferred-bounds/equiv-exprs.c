@@ -142,8 +142,18 @@ void f3(int a [1]) {
   // CHECK-NEXT: { }
 }
 
-// IntegerLiteral, StringLiteral, CHKCBindTemporaryExpr
+// CharacterLiteral, IntegerLiteral, FloatingLiteral
 void f4() {
+  'a';
+  // CHECK: Statement S:
+  // CHECK-NEXT: CharacterLiteral {{.*}} 'int' 97
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: CharacterLiteral {{.*}} 'int' 97
+  // CHECK-NEXT: }
+
   5;
   // CHECK: Statement S:
   // CHECK-NEXT: IntegerLiteral {{.*}} 5
@@ -154,18 +164,14 @@ void f4() {
   // CHECK-NEXT: IntegerLiteral {{.*}} 5
   // CHECK-NEXT: }
 
-  "abc";
+  3.14f;
   // CHECK: Statement S:
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'char [4]'
-  // CHECK-NEXT:     StringLiteral {{.*}} "abc"
+  // CHECK-NEXT: FloatingLiteral {{.*}} 'float' 3.14
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'char [4]'
-  // CHECK-NEXT:     StringLiteral {{.*}} "abc"
+  // CHECK-NEXT: FloatingLiteral {{.*}} 'float' 3.14
   // CHECK-NEXT: }
 }
 
@@ -297,6 +303,44 @@ void f7(void) {
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'g3'
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <NullToPointer>
   // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: { }
+}
+
+// StringLiteral, InitListExpr, CompoundLiteral
+void f8(void) {
+  "abc";
+  // CHECK: Statement S:
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'char [4]'
+  // CHECK-NEXT:     StringLiteral {{.*}} "abc"
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: { }
+
+  (int []){ 0, 1, 2 };
+  // CHECK: Statement S:
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'int [3]'
+  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int [3]'
+  // CHECK-NEXT:       InitListExpr {{.*}} 'int [3]'
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: { }
+
+  &(double []){ 2.72 };
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} prefix '&'
+  // CHECK-NEXT:   CompoundLiteralExpr {{.*}} 'double [1]'
+  // CHECK-NEXT:     InitListExpr {{.*}} 'double [1]'
+  // CHECK-NEXT:       FloatingLiteral 0{{.*}} 'double' 2.72
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:

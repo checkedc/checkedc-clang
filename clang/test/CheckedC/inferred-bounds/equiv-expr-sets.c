@@ -33,7 +33,18 @@ void f1(void) {
 }
 
 // BinaryOperator: non-compound assignment to a variable
-void f2(int i) {
+void f2(int i, nt_array_ptr<char> c) {
+  // Updated UEQ: { }
+  c = "abc";
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'c'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:     CHKCBindTemporaryExpr {{.*}} 'char [4]'
+  // CHECK-NEXT:       StringLiteral {{.*}} "abc"
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+
   // Updated UEQ: { { 1, i } }
   i = 1;
   // CHECK: Statement S:
