@@ -1070,6 +1070,14 @@ VariableMap &ProgramInfo::getVarMap() {
   return Variables;
 }
 
+bool ProgramInfo::isAValidPVConstraint(ConstraintVariable *C) {
+  if (C != nullptr) {
+    if (PVConstraint *PV = dyn_cast<PVConstraint>(C))
+      return !PV->getCvars().empty();
+  }
+  return false;
+}
+
 std::set<ConstraintVariable*> *ProgramInfo::getFuncDeclConstraintSet(std::string funcDefKey) {
   std::set<ConstraintVariable*> *declCVarsPtr = nullptr;
   auto &defnDeclKeyMap = CS.getFuncDefnDeclMap();
@@ -1098,14 +1106,28 @@ bool ProgramInfo::applySubtypingRelation(ConstraintVariable *srcCVar, Constraint
   PVConstraint *pvDst = dyn_cast<PVConstraint>(dstCVar);
 
   if (!pvSrc->getCvars().empty() && !pvDst->getCvars().empty()) {
-    auto &envMap = CS.getVariables();
 
     CVars srcCVars(pvSrc->getCvars());
     CVars dstCVars(pvDst->getCvars());
 
+    // cvars adjustment!
+    // if the number of CVars is different, then adjust the number
+    // of cvars to be same.
+    if (srcCVars.size() != dstCVars.size()) {
+      auto &bigCvars = srcCVars;
+      auto &smallCvars = dstCVars;
+      if (srcCVars.size() < dstCVars.size()) {
+        bigCvars = dstCVars;
+        smallCvars = srcCVars;
+      }
+
+      while (bigCvars.size() > smallCvars.size())
+        bigCvars.erase(*(bigCvars.begin()));
+    }
+
     // function subtyping only applies for the top level pointer.
-    ConstAtom *outerMostSrcVal = envMap[CS.getOrCreateVar(*srcCVars.begin())];
-    ConstAtom *outputMostDstVal = envMap[CS.getOrCreateVar(*dstCVars.begin())];
+    ConstAtom *outerMostSrcVal = CS.getAssignment(*srcCVars.begin());
+    ConstAtom *outputMostDstVal = CS.getAssignment(*dstCVars.begin());
 
     if (*outputMostDstVal < *outerMostSrcVal) {
       CS.addConstraint(CS.createEq(CS.getVar(*dstCVars.begin()), outerMostSrcVal));
@@ -1122,8 +1144,8 @@ bool ProgramInfo::applySubtypingRelation(ConstraintVariable *srcCVar, Constraint
       CVars::iterator DB = dstCVars.begin();
 
       while (SB != srcCVars.end()) {
-        ConstAtom *sVal = envMap[CS.getVar(*SB)];
-        ConstAtom *dVal = envMap[CS.getVar(*DB)];
+        ConstAtom *sVal = CS.getAssignment(*SB);
+        ConstAtom *dVal = CS.getAssignment(*DB);
         // if these are not equal.
         if (*sVal < *dVal || *dVal < *sVal) {
           // get the highest type.
@@ -1162,87 +1184,127 @@ bool ProgramInfo::handleFunctionSubtyping() {
 
     if (declCVarsPtr != nullptr) {
       // if we have declaration constraint variables?
-      std::set<ConstraintVariable*> &declCVars = *declCVarsPtr;
+      std::set<ConstraintVariable *> &declCVars = *declCVarsPtr;
       // get the highest def and decl FVars
-      auto defCVar = dyn_cast<FVConstraint>(getHighest(defCVars, *this));
-      auto declCVar = dyn_cast<FVConstraint>(getHighest(declCVars, *this));
+      auto defCVar = getHighestT<FVConstraint>(defCVars, *this);
+      auto declCVar = getHighestT<FVConstraint>(declCVars, *this);
+      if (defCVar != nullptr && declCVar != nullptr) {
 
-      // handle the return types.
-      auto defRetType = getHighest(defCVar->getReturnVars(), *this);
-      auto declRetType = getHighest(declCVar->getReturnVars(), *this);
+        // handle the return types.
+        auto defRetPVCons = getHighestT<PVConstraint>(defCVar->getReturnVars(), *this);
+        auto declRetPVCons = getHighestT<PVConstraint>(declCVar->getReturnVars(), *this);
 
-      if (defRetType->hasWild(envMap)) {
-        // the function is returning WILD with in the body.
-        // make the declaration type also WILD.
-        PVConstraint *toChangeVar = dyn_cast<PVConstraint>(declRetType);
-        std::string wildReason = "Function Returning WILD within the body.";
-        for (const auto &B : toChangeVar->getCvars())
-          CS.addConstraint(CS.createEq(CS.getOrCreateVar(B), CS.getWild(), wildReason));
+        if (isAValidPVConstraint(defRetPVCons) && isAValidPVConstraint(declRetPVCons)) {
+          // these are the constraint variables for top most pointers
+          auto topDefCVar = *(defRetPVCons->getCvars().begin());
+          auto topDeclCVar = *(declRetPVCons->getCvars().begin());
+          // if the top-most constraint variable in the definition is WILD?
+          // This is important in the cases of nested pointers.
+          // i.e., int** foo().
+          // if the top most pointer is WILD then we have to make everything WILD.
+          // We cannot have Ptr<int>*. However, we can have Ptr<int*>
 
-        retVal = true;
-      } else {
-        ConstraintVariable *highestNonWildCvar = declRetType;
-        // if the declaration return type is WILD ?
-        if (declRetType->hasWild(envMap)) {
-          // get the highest non-wild checked type.
-          if (PVConstraint *declPVCons = dyn_cast<PVConstraint>(declRetType))
-            highestNonWildCvar = ConstraintVariable::getHighestNonWildConstraint(declPVCons->getArgumentConstraints(),
-                                                                                 envMap, *this);
-          if (highestNonWildCvar == nullptr)
-            highestNonWildCvar = declRetType;
-        }
-        // okay, both declaration and definition are checked types.
-        // here we should apply the sub-typing relation.
-        if (!highestNonWildCvar->hasWild(envMap) && defRetType->isLt(*highestNonWildCvar, *this)) {
-          // i.e., definition is not a subtype of declaration.
-          // e.g., def = PTR and decl = ARR,
-          //  here PTR is not a subtype of ARR
-          // Oh, definition is more restrictive than declaration.
-          // promote the type of definition to higher type.
-          retVal = applySubtypingRelation(highestNonWildCvar, defRetType) || retVal;
-        }
-      }
+          // the function is returning WILD with in the body?
+          if (CS.isWild(topDefCVar)) {
+            // make everything WILD.
+            std::string wildReason = "Function Returning WILD within the body.";
+            for (const auto &B : defRetPVCons->getCvars())
+              CS.addConstraint(CS.createEq(CS.getOrCreateVar(B), CS.getWild(), wildReason));
 
-      // handle the parameter types.
-      if (declCVar->numParams() == defCVar->numParams()) {
-        std::set<ConstraintVariable*> toChangeCVars;
-        // Compare parameters.
-        for (unsigned i = 0; i < declCVar->numParams(); ++i) {
-          auto declParam = getHighest(declCVar->getParamVar(i), *this);
-          auto defParam = getHighest(defCVar->getParamVar(i), *this);
-          toChangeCVars.clear();
-          if (!defParam->hasWild(envMap)) {
-            // the declaration is not WILD.
-            // so, we just need to check with the declaration.
-            if (!declParam->hasWild(envMap)) {
-              toChangeCVars.insert(declParam);
-            } else if(PVConstraint *declPVar = dyn_cast<PVConstraint>(declParam)) {
-              // the declaration is WILD. So, we need to iterate through all
-              // the argument constraints and try to change them.
-              // this is because if we only change the declaration, as some caller
-              // is making it WILD, it will not propagate to all the arguments.
-              // we need to explicitly change each of the non-WILD arguments.
-              for (auto argCVar: declPVar->getArgumentConstraints()) {
-                if (!argCVar->hasWild(envMap))
-                  toChangeCVars.insert(argCVar);
-              }
+            for (const auto &B : declRetPVCons->getCvars())
+              CS.addConstraint(CS.createEq(CS.getOrCreateVar(B), CS.getWild(), wildReason));
+
+            retVal = true;
+          } else if (CS.isWild(topDeclCVar)) {
+            // if the declaration return type is WILD ?
+            // get the highest non-wild checked type.
+            ConstraintVariable* baseConsVar = ConstraintVariable::getHighestNonWildConstraint(declRetPVCons->getArgumentConstraints(),
+                                                            envMap, *this);
+            PVConstraint *highestNonWildCvar = declRetPVCons;
+            if (isAValidPVConstraint(baseConsVar))
+              highestNonWildCvar = dyn_cast<PVConstraint>(baseConsVar);
+
+            topDeclCVar = *(highestNonWildCvar->getCvars().begin());
+
+            auto defAssignment = CS.getAssignment(topDefCVar);
+            auto declAssignment = CS.getAssignment(topDeclCVar);
+
+            // okay, both declaration and definition are checked types.
+            // here we should apply the sub-typing relation.
+            if (!CS.isWild(topDeclCVar) && *defAssignment < *declAssignment) {
+              // i.e., definition is not a subtype of declaration.
+              // e.g., def = PTR and decl = ARR,
+              //  here PTR is not a subtype of ARR
+              // Oh, definition is more restrictive than declaration.
+              // promote the type of definition to higher type.
+              retVal = applySubtypingRelation(highestNonWildCvar, defRetPVCons) || retVal;
             }
 
-            // here we should apply the sub-typing relation
-            // for all the toChageVars
-            for (auto currToChangeVar: toChangeCVars) {
-              // i.e., declaration is not a subtype of definition.
-              // e.g., decl = PTR and defn = ARR,
-              //  here PTR is not a subtype of ARR
-              // Oh, declaration is more restrictive than definition.
-              // promote the type of declaration to higher type.
-              retVal = applySubtypingRelation(defParam, currToChangeVar) || retVal;
+          }
+
+        }
+
+        // handle the parameter types.
+        if (declCVar->numParams() == defCVar->numParams()) {
+          std::set<ConstraintVariable *> toChangeCVars;
+          // Compare parameters.
+          for (unsigned i = 0; i < declCVar->numParams(); ++i) {
+            auto declParam = getHighestT<PVConstraint>(declCVar->getParamVar(i), *this);
+            auto defParam = getHighestT<PVConstraint>(defCVar->getParamVar(i), *this);
+            if (isAValidPVConstraint(declParam) && isAValidPVConstraint(defParam)) {
+              toChangeCVars.clear();
+              auto topDefCVar = *(defParam->getCvars().begin());
+              auto topDeclCVar = *(declParam->getCvars().begin());
+
+              if (!CS.isWild(topDefCVar)) {
+                // the declaration is not WILD.
+                // so, we just need to check with the declaration.
+                if (!CS.isWild(topDeclCVar)) {
+                  toChangeCVars.insert(declParam);
+                } else {
+                  // the declaration is WILD. So, we need to iterate through all
+                  // the argument constraints and try to change them.
+                  // this is because if we only change the declaration, as some caller
+                  // is making it WILD, it will not propagate to all the arguments.
+                  // we need to explicitly change each of the non-WILD arguments.
+                  for (auto argOrigCons: declParam->getArgumentConstraints()) {
+                    if (isAValidPVConstraint(argOrigCons)) {
+                      PVConstraint *argPVCons = dyn_cast<PVConstraint>(argOrigCons);
+                      auto topArgCVar = *(argPVCons->getCvars().begin());
+                      CVars defPCVars(defParam->getCvars());
+
+                      // is the top constraint variable WILD?
+                      if (!CS.isWild(topArgCVar)) {
+                        if (defPCVars.size() > argPVCons->getCvars().size()) {
+
+                          while (defPCVars.size() > argPVCons->getCvars().size())
+                            defPCVars.erase(defPCVars.begin());
+
+                          if (!CS.isWild(*(defPCVars.begin())))
+                            toChangeCVars.insert(argPVCons);
+                        } else {
+                          toChangeCVars.insert(argPVCons);
+                        }
+                      }
+                    }
+                  }
+                }
+                // here we should apply the sub-typing relation
+                // for all the toChageVars
+                for (auto currToChangeVar: toChangeCVars) {
+                  // i.e., declaration is not a subtype of definition.
+                  // e.g., decl = PTR and defn = ARR,
+                  //  here PTR is not a subtype of ARR
+                  // Oh, declaration is more restrictive than definition.
+                  // promote the type of declaration to higher type.
+                  retVal = applySubtypingRelation(defParam, currToChangeVar) || retVal;
+                }
+              }
             }
           }
         }
       }
     }
-
   }
   return retVal;
 }

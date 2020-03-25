@@ -96,7 +96,7 @@ Constraint::Constraint(ConstraintKind K, std::string &rsn, PersistentSourceLoc *
 // remove the constraint from the global constraint set.
 bool Constraints::removeConstraint(Constraint *C) {
   removeReasonBasedConstraint(C);
-  constraints.erase(C);
+  return constraints.erase(C) != 0;
 }
 
 // Add a constraint to the set of constraints. If the constraint is already 
@@ -130,7 +130,6 @@ bool Constraints::addConstraint(Constraint *C) {
     }
     else
       llvm_unreachable("unsupported constraint");
-
     return true;
   }
 
@@ -458,16 +457,16 @@ void Constraints::dump_json(llvm::raw_ostream &O) const {
 bool Constraints::removeAllConstraintsBasedOnThisReason(std::string &targetReason,
                                                         ConstraintSet &removedConstraints) {
   // Are there any constraints with this reason?
-  unsigned  long deletedCount = 0;
+  bool anyRemoved = false;
   if (this->constraintsByReason.find(targetReason) != this->constraintsByReason.end()) {
     removedConstraints.insert(this->constraintsByReason[targetReason].begin(),
                   this->constraintsByReason[targetReason].end());
     for (auto cToDel: removedConstraints) {
-      this->removeConstraint(cToDel);
+      anyRemoved = this->removeConstraint(cToDel) || anyRemoved;
     }
-    return true;
+    return anyRemoved;
   }
-  return false;
+  return anyRemoved;
 }
 
 VarAtom *Constraints::getOrCreateVar(uint32_t v) {
@@ -504,6 +503,18 @@ NTArrAtom *Constraints::getNTArr() const {
 }
 WildAtom *Constraints::getWild() const {
   return prebuiltWild;
+}
+
+ConstAtom *Constraints::getAssignment(uint32_t v) {
+  auto currVar = getVar(v);
+  assert(currVar != nullptr && "Queried uncreated constraint variable.");
+  return environment[currVar];
+}
+
+bool Constraints::isWild(uint32_t v) {
+  auto currVar = getVar(v);
+  assert(currVar != nullptr && "Queried uncreated constraint variable.");
+  return dyn_cast<WildAtom>(environment[currVar]) != nullptr;
 }
 
 Eq *Constraints::createEq(Atom *lhs, Atom *rhs) {
