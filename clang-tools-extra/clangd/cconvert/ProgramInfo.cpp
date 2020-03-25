@@ -269,14 +269,17 @@ bool ProgramInfo::isExplicitCastSafe(clang::QualType dstType,
   if (srcPtrTypePtr || dstPtrTypePtr)
     return false;
 
+  // if both are not scalar types? Then the types must be exactly same.
+  if (!(srcTypePtr->isScalarType() && dstTypePtr->isScalarType()))
+    return srcTypePtr == dstTypePtr;
+
   // check if both types are compatible.
   unsigned bothNotChar = srcTypePtr->isCharType() ^ dstTypePtr->isCharType();
   unsigned bothNotInt = srcTypePtr->isIntegerType() ^ dstTypePtr->isIntegerType();
   unsigned bothNotFloat = srcTypePtr->isFloatingType() ^ dstTypePtr->isFloatingType();
-  unsigned bothNotVoid = srcTypePtr->isVoidType() ^ dstTypePtr->isVoidType();
 
 
-  return !(bothNotChar || bothNotInt || bothNotFloat || bothNotVoid);
+  return !(bothNotChar || bothNotInt || bothNotFloat);
 }
 
 bool ProgramInfo::isExternOkay(std::string ext) {
