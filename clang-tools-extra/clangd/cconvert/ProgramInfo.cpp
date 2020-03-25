@@ -273,9 +273,10 @@ bool ProgramInfo::isExplicitCastSafe(clang::QualType dstType,
   unsigned bothNotChar = srcTypePtr->isCharType() ^ dstTypePtr->isCharType();
   unsigned bothNotInt = srcTypePtr->isIntegerType() ^ dstTypePtr->isIntegerType();
   unsigned bothNotFloat = srcTypePtr->isFloatingType() ^ dstTypePtr->isFloatingType();
+  unsigned bothNotVoid = srcTypePtr->isVoidType() ^ dstTypePtr->isVoidType();
 
 
-  return !(bothNotChar || bothNotInt || bothNotFloat);
+  return !(bothNotChar || bothNotInt || bothNotFloat || bothNotVoid);
 }
 
 bool ProgramInfo::isExternOkay(std::string ext) {
