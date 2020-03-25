@@ -15,6 +15,7 @@
 #include <unordered_set>
 #include "llvm/Support/CommandLine.h"
 #include "clang/AST/Type.h"
+#include "llvm/Support/Casting.h"
 
 #include "PersistentSourceLoc.h"
 
@@ -35,6 +36,16 @@ extern std::set<std::string> inputFilePaths;
 const clang::Type *getNextTy(const clang::Type *Ty);
 
 ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &Info);
+
+template <typename ConstraintType>
+ConstraintType *getHighestT(std::set<ConstraintVariable*> Vs, ProgramInfo &Info) {
+  auto retVal = getHighest(Vs, Info);
+
+  if (retVal != nullptr)
+    return llvm::dyn_cast<ConstraintType>(retVal);
+
+  return nullptr;
+}
 
 clang::FunctionDecl *getDeclaration(clang::FunctionDecl *FD);
 

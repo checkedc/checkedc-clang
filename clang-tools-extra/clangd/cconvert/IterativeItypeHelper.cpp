@@ -137,30 +137,20 @@ static bool updateDeclWithDefnType(ConstraintVariable *decl, ConstraintVariable 
   assert(PVDeclCons != nullptr && PVDefnCons != nullptr &&
          "Expected a pointer variable constraint for function parameter but got nullptr");
 
-  ConstAtom *itypeAtom = nullptr;
+  // get the pointer type of the top level definition constraint variable.
+  ConstAtom *itypeAtom = CS.getAssignment(*(PVDefnCons->getCvars().begin()));
+  auto declTopCVar = *(PVDeclCons->getCvars().begin());
 
-  // get the pointer type of the definition constraint variable.
-  for(ConstraintKey k: PVDefnCons->getCvars()) {
-    itypeAtom = CS.getVariables()[CS.getVar(k)];
-  }
   assert(itypeAtom != nullptr && "Unable to find assignment for definition constraint variable.");
 
-  // check if this is already identified itype
-  for(ConstraintKey k: PVDeclCons->getCvars()) {
-    VarAtom *cK = CS.getVar(k);
-    if (itypeMap.find(cK) != itypeMap.end() && itypeMap[cK] == itypeAtom) {
-        //yes, then no need to do anything.
-        return changesHappened;
-    }
-  }
-
-  // update the type of the declaration constraint variable.
-  for(ConstraintKey k: PVDeclCons->getCvars()) {
-    VarAtom *cK = CS.getVar(k);
+  VarAtom *cK = CS.getVar(declTopCVar);
+  if (itypeMap.find(cK) == itypeMap.end() || itypeMap[cK] != itypeAtom) {
+    // update the type of the declaration constraint variable.
     itypeMap[cK] = itypeAtom;
     currIterationItypeMap[cK] = itypeAtom;
     changesHappened = true;
   }
+
   return changesHappened;
 }
 
@@ -170,12 +160,12 @@ unsigned long detectAndUpdateITypeVars(ProgramInfo &Info, std::set<std::string> 
   // clear the current iteration itype vars.
   currIterationItypeMap.clear();
   for (auto funcDefKey: modifiedFunctions) {
-    FVConstraint *cDefn = dyn_cast<FVConstraint>(getHighest(CS.getFuncDefnVarMap()[funcDefKey], Info));
+    FVConstraint *cDefn = getHighestT<FVConstraint>(CS.getFuncDefnVarMap()[funcDefKey], Info);
 
     auto declConstraintsPtr = Info.getFuncDeclConstraintSet(funcDefKey);
     assert(declConstraintsPtr != nullptr && "This cannot be nullptr, if it was null, we would never have "
                                             "inserted this info modified functions.");
-    FVConstraint *cDecl = dyn_cast<FVConstraint>(getHighest(*declConstraintsPtr, Info));
+    FVConstraint *cDecl = getHighestT<FVConstraint>(*declConstraintsPtr, Info);
 
     assert(cDecl != nullptr);
     assert(cDefn != nullptr);
@@ -183,33 +173,34 @@ unsigned long detectAndUpdateITypeVars(ProgramInfo &Info, std::set<std::string> 
     if (cDecl->numParams() == cDefn->numParams()) {
       // Compare parameters.
       for (unsigned i = 0; i < cDecl->numParams(); ++i) {
-        auto Decl = getHighest(cDecl->getParamVar(i), Info);
-        auto Defn = getHighest(cDefn->getParamVar(i), Info);
-        assert(Decl);
-        assert(Defn);
+        auto Decl = getHighestT<PVConstraint>(cDecl->getParamVar(i), Info);
+        auto Defn = getHighestT<PVConstraint>(cDefn->getParamVar(i), Info);
+        if (ProgramInfo::isAValidPVConstraint(Decl) && ProgramInfo::isAValidPVConstraint(Defn)) {
+          auto topDeclCVar = *(Decl->getCvars().begin());
+          auto topDefnCVar = *(Defn->getCvars().begin());
 
-        // If this holds, then we want to insert a bounds safe interface.
-        bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
-        // definition is more precise than declaration.
-        // and declaration has to be WILD.
-        if (anyConstrained && Decl->hasWild(CS.getVariables()) && updateDeclWithDefnType(Decl, Defn, Info)) {
-          numITypeVars++;
+          // definition is more precise than declaration.
+          // and declaration has to be WILD.
+          // If this holds, then we want to insert a bounds safe interface.
+          if (!CS.isWild(topDefnCVar) && CS.isWild(topDeclCVar) && updateDeclWithDefnType(Decl, Defn, Info)) {
+            numITypeVars++;
+          }
         }
       }
-
     }
 
-
     // Compare returns.
-    auto Decl = getHighest(cDecl->getReturnVars(), Info);
-    auto Defn = getHighest(cDefn->getReturnVars(), Info);
+    auto Decl = getHighestT<PVConstraint>(cDecl->getReturnVars(), Info);
+    auto Defn = getHighestT<PVConstraint>(cDefn->getReturnVars(), Info);
 
+    if (ProgramInfo::isAValidPVConstraint(Decl) && ProgramInfo::isAValidPVConstraint(Defn)) {
 
-    bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
-    if (anyConstrained) {
+      auto topDeclCVar = *(Decl->getCvars().begin());
+      auto topDefnCVar = *(Defn->getCvars().begin());
+
       // definition is more precise than declaration.
       // and declaration has to be WILD.
-      if (Decl->hasWild(CS.getVariables()) && updateDeclWithDefnType(Decl, Defn, Info)) {
+      if (!CS.isWild(topDefnCVar) && CS.isWild(topDeclCVar) && updateDeclWithDefnType(Decl, Defn, Info)) {
         numITypeVars++;
       }
     }

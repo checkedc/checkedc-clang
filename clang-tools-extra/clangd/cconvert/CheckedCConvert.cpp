@@ -127,6 +127,11 @@ std::string BaseDir;
 
 #endif
 
+// suffixes for constraint output files.
+#define INITIAL_OUTPUT_SUFFIX "_initial_constraints"
+#define FINAL_OUTPUT_SUFFIX "_final_output"
+#define BEFORE_SOLVING_SUFFIX "_before_solving_"
+#define AFTER_SUBTYPING_SUFFIX "_after_subtyping_"
 
 template <typename T, typename V>
 class GenericAction : public ASTFrontendAction {
@@ -174,21 +179,42 @@ newFrontendActionFactoryA(ProgramInfo &I) {
       new ArgFrontendActionFactory(I));
 }
 
-std::pair<Constraints::ConstraintSet, bool> solveConstraintsWithFunctionSubTyping(ProgramInfo &Info) {
+void dumpConstraintOutputJson(const std::string &postfixStr, ProgramInfo &infoToDump) {
+  if (DumpIntermediate) {
+    std::string jsonFilePath = ConstraintOutputJson + postfixStr + ".json";
+    errs() << "Writing json output to:" << jsonFilePath << "\n";
+    std::error_code ec;
+    llvm::raw_fd_ostream output_json(jsonFilePath, ec);
+    if (!output_json.has_error()) {
+      infoToDump.dump_json(output_json);
+      output_json.close();
+    } else {
+      infoToDump.dump_json(llvm::errs());
+    }
+  }
+}
+
+std::pair<Constraints::ConstraintSet, bool> solveConstraintsWithFunctionSubTyping(ProgramInfo &Info, unsigned iterationID) {
 // solve the constrains by handling function sub-typing.
   Constraints &CS = Info.getConstraints();
   unsigned numIterations = 0;
   std::pair<Constraints::ConstraintSet, bool> toRet;
   bool fixed = false;
+  unsigned localIteration = 1;
   while (!fixed) {
+    dumpConstraintOutputJson(BEFORE_SOLVING_SUFFIX + std::to_string(iterationID) + "_" + std::to_string(localIteration), Info);
     toRet = CS.solve(numIterations);
-    if (numIterations > 1)
+    if (numIterations > 1) {
       // this means we have made some changes to the environment
       // see if the function subtype handling causes any changes?
       fixed = !Info.handleFunctionSubtyping();
-    else
+      dumpConstraintOutputJson(AFTER_SUBTYPING_SUFFIX + std::to_string(iterationID) + "_" + std::to_string(localIteration), Info);
+    }
+    else {
       // we reached a fixed point.
       fixed = true;
+    }
+    localIteration++;
   }
   return toRet;
 }
@@ -210,6 +236,8 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
   assert(CS.checkInitialEnvSanity() && "Invalid initial environment. We expect all pointers to be "
                                        "initialized with Ptr to begin with.");
 
+  dumpConstraintOutputJson(INITIAL_OUTPUT_SUFFIX, Info);
+
   while(!fixedPointReached) {
     clock_t startTime = clock();
     if(Verbose) {
@@ -217,7 +245,7 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
       errs() << "Iterative Itype refinement, Round:" << iterationNum << "\n";
     }
 
-    std::pair<Constraints::ConstraintSet, bool> R = solveConstraintsWithFunctionSubTyping(Info);
+    std::pair<Constraints::ConstraintSet, bool> R = solveConstraintsWithFunctionSubTyping(Info, iterationNum);
 
     if(Verbose) {
       errs() << "Iteration:" << iterationNum << ", Constraint solve time:" << getTimeSpentInSeconds(startTime) << "\n";
@@ -390,15 +418,7 @@ bool buildInitialConstraints() {
   GlobalProgInfo.computePointerDisjointSet();
   if (DumpIntermediate) {
     //Info.dump();
-    errs() << "Writing json output to:" << ConstraintOutputJson << "\n";
-    std::error_code ec;
-    llvm::raw_fd_ostream output_json(ConstraintOutputJson, ec);
-    if (!output_json.has_error()) {
-      GlobalProgInfo.dump_json(output_json);
-      output_json.close();
-    } else {
-      GlobalProgInfo.dump_json(llvm::errs());
-    }
+    dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, GlobalProgInfo);
   }
   return true;
 }
@@ -476,15 +496,7 @@ int main(int argc, const char **argv) {
     outs() << "Constraints solved\n";
   if (DumpIntermediate) {
     Info.dump();
-    outs() << "Writing json output to:" << ConstraintOutputJson << "\n";
-    std::error_code ec;
-    llvm::raw_fd_ostream output_json(ConstraintOutputJson, ec);
-    if (!output_json.has_error()) {
-      Info.dump_json(output_json);
-      output_json.close();
-    } else {
-      Info.dump_json(llvm::errs());
-    }
+    dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, Info);
   }
 
   // 3. Re-write based on constraints.

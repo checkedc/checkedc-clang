@@ -144,6 +144,9 @@ public:
   DisjointSet& getPointerConstraintDisjointSet() { return ConstraintDisjointSet; }
 
   bool computePointerDisjointSet();
+
+  // check if the provided constraint variable is a valid pointer constraint
+  static bool isAValidPVConstraint(ConstraintVariable *C);
 private:
   // apply function sub-typing relation from srcCVar to dstCVar
   bool applySubtypingRelation(ConstraintVariable *srcCVar, ConstraintVariable *dstCVar);
