@@ -454,6 +454,7 @@ public:
 
   Atom *getLHS(void) const { return lhs; }
   Atom *getRHS(void) const { return rhs; }
+  void setRHS(Atom *newAt) { rhs = newAt; }
 
   bool operator==(const Constraint &other) const {
     if (const Eq *E = llvm::dyn_cast<Eq>(&other))
@@ -655,6 +656,9 @@ public:
   StringToStringBiMap &getFuncDefnDeclMap() { return FuncDefnDeclKeyMap; }
   
   EnvironmentMap &getitypeVarMap() { return itypeConstraintVars; }
+
+  void editConstraintHook(Constraint *C);
+
   // Solve the system of constraints. Return true in the second position if
   // the system is solved. If the system is solved, the first position is 
   // an empty. If the system could not be solved, the constraints in conflict
