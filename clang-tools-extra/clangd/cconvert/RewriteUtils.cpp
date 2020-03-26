@@ -611,12 +611,12 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           v = v + getExistingIType(Decl, Defn, Declaration) + ABRewriter.getBoundsString(Definition->getParamDecl(i));
 
           parmStrs.push_back(v);
-        } else {
-          std::string scratch = "";
-          raw_string_ostream declText(scratch);
-          Definition->getParamDecl(i)->print(declText);
-          parmStrs.push_back(declText.str());
         }
+      } else {
+        std::string scratch = "";
+        raw_string_ostream declText(scratch);
+        Definition->getParamDecl(i)->print(declText);
+        parmStrs.push_back(declText.str());
       }
     }
 
