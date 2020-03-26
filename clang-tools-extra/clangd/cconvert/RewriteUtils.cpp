@@ -584,6 +584,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       auto Defn = getHighestT<PVConstraint>(cDefn->getParamVar(i), Info);
       assert(Decl);
       assert(Defn);
+      bool parameterHandled = false;
 
       if (ProgramInfo::isAValidPVConstraint(Decl) && ProgramInfo::isAValidPVConstraint(Defn)) {
         auto topDefnCVar = *(Defn->getCvars().begin());
@@ -600,6 +601,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           std::string bi = Defn->getRewritableOriginalTy() + Defn->getName() + " : itype(" + ctype + ")" +
               ABRewriter.getBoundsString(Definition->getParamDecl(i), true);
           parmStrs.push_back(bi);
+          parameterHandled = true;
         } else if (anyConstrained) {
           // both the declaration and definition are same
           // and they are safer than what was originally declared.
@@ -611,8 +613,11 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           v = v + getExistingIType(Decl, Defn, Declaration) + ABRewriter.getBoundsString(Definition->getParamDecl(i));
 
           parmStrs.push_back(v);
+          parameterHandled = true;
         }
-      } else {
+      }
+      // if the parameter has no changes? Just dump the original declaration
+      if (!parameterHandled) {
         std::string scratch = "";
         raw_string_ostream declText(scratch);
         Definition->getParamDecl(i)->print(declText);
