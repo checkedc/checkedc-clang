@@ -3967,7 +3967,10 @@ namespace {
 
     // CanBeInEqualExprSet returns true if the expression e can be added to
     // the UEQ or G sets of equivalent expressions in the checking state.
-    // Only scalar expressions should be added to the UEQ and G sets.
+    // Expressions that create new objects should not be added to these sets.
+    // CanBeInEqualExprSet may return true if e is a modifying expression.
+    // It is the caller's responsibility to ensure that only non-modifying
+    // expressions are added to the UEQ and G sets.
     bool CanBeInEqualExprSet(Expr *E) {
       switch (E->getStmtClass()) {
         case Expr::InitListExprClass:
