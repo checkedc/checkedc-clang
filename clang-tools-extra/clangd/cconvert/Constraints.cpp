@@ -99,11 +99,28 @@ bool Constraints::removeConstraint(Constraint *C) {
   return constraints.erase(C) != 0;
 }
 
+// Check if we can add this constraint. This provides a global switch to
+// control what constraints we can add to our system.
+void Constraints::editConstraintHook(Constraint *C) {
+  if (!allTypes) {
+    // if this is an equality constraint, check if we are adding
+    // only Ptr or WILD constraints? if not? make it WILD
+    if (Eq *E = dyn_cast<Eq>(C)) {
+      if (ConstAtom *rConst = dyn_cast<ConstAtom>(E->getRHS())) {
+        if (!(isa<PtrAtom>(rConst) || isa<WildAtom>(rConst)))
+          E->setRHS(getWild());
+      }
+    }
+  }
+}
+
 // Add a constraint to the set of constraints. If the constraint is already 
 // present (by syntactic equality) return false. 
 bool Constraints::addConstraint(Constraint *C) {
   // Validate the constraint to be added.
   assert(check(C));
+
+  editConstraintHook(C);
 
   // Check if C is already in the set of constraints. 
   if (constraints.find(C) == constraints.end()) {
@@ -330,8 +347,13 @@ bool Constraints::step_solve(EnvironmentMap &env) {
         if (Eq *E = dyn_cast<Eq>(N->getBody())) {
           // If this is Not ( q == Ptr )
           if (isa<PtrAtom>(E->getRHS())) {
-            // check if we can make it an Arr?
-            if (*Val < *getArr() && canAssignConst<ArrAtom>(Var)) {
+            if (!allTypes && *Val < *getWild()) {
+              // this pointer cannot be Ptr.
+              // and allTypes is disabled, only choice is to make it WILD.
+              VI->second = getWild();
+              changedEnvironment = true;
+              // check if we can make it an Arr?
+            } else if (*Val < *getArr() && canAssignConst<ArrAtom>(Var)) {
               // yes? make it Arr
               VI->second = getArr();
               changedEnvironment = true;
