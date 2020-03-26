@@ -298,6 +298,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      case Expr::CompoundAssignOperatorClass:
        Cmp = Compare<CompoundAssignOperator>(E1, E2); break;
      case Expr::BinaryConditionalOperatorClass: break;
+     case Expr::ConditionalOperatorClass: break;
      case Expr::ImplicitCastExprClass: Cmp = Compare<CastExpr>(E1, E2); break;
      case Expr::CStyleCastExprClass: Cmp = Compare<CastExpr>(E1, E2); break;
      case Expr::CompoundLiteralExprClass: Cmp = Compare<CompoundLiteralExpr>(E1, E2); break;

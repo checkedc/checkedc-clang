@@ -89,7 +89,7 @@ void f3(unsigned i) {
 
 // BinaryOperator: non-compound assignment to a non-variable
 void f4(ptr<int> p) {
-  // Updated UEQ: { { 3, *p } }
+  // Updated UEQ: { }, Updated G: { 3 }
   *p = 3;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -98,14 +98,10 @@ void f4(ptr<int> p) {
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 3
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: {
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: IntegerLiteral {{.*}} 3
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:   UnaryOperator {{.*}} '*'
-  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
-  // CHECK-NEXT: }
   // CHECK-NEXT: }
 }
 

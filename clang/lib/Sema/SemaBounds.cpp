@@ -2524,15 +2524,9 @@ namespace {
         // Update UEQ and G for assignments to a non-variable `e1`.
         else {
           if (!E->isCompoundAssignmentOp()) {
-            if (CheckIsNonModifying(Target) && CanBeInEqualExprSet(Target)) {
-              // Record equality implied by the assignment `e1 = e2` to a
-              // non-variable, non-modifying scalar expression `e1`. At this
-              // point, State.G contains expressions that produce the same
-              // value as `e2`. TODO: this doesn't properly handle cases where
-              // `e2` uses the value of `e1`, e.g. *p = 2 - *p.
-              State.G.push_back(Target);
-              State.UEQ.push_back(State.G);
-            }
+            // TODO: update State for non-compound assignments `e1 = e2`
+            // to a non-variable `e1`, i.e. generalize the current
+            // approach to updating the state from variables to lvalues.
           }
           // Do nothing for compound assignments `e1 @= e2` to a
           // non-variable `e1`. Since the RHS `e1 @ e2` of the implied
@@ -3576,7 +3570,7 @@ namespace {
       // of an lvalue should appear in no more than one set in UEQ.
       if (State.G.size() > 0) {
         for (auto I = State.UEQ.begin(); I != State.UEQ.end(); ++I) {
-          if (IsEqualExprsSubset(State.G, *I, State.UEQ)) {
+          if (IsEqualExprsSubset(State.G, *I)) {
             I->push_back(Target);
             return;
           }
@@ -3876,12 +3870,8 @@ namespace {
         for (auto I2 = UEQ2.begin(); I2 != UEQ2.end(); ++I2) {
           EqualExprTy G2 = *I2;
           EqualExprTy IntersectedG = IntersectG(G1, G2);
-          if (IntersectedG.size() > 1) {
-            // Only add IntersectedG if it is not a subset of some set
-            // in IntersectedUEQ.
-            if (!IsSubsetOfSet(IntersectedG, IntersectedUEQ))
-              IntersectedUEQ.push_back(IntersectedG);
-          }
+          if (IntersectedG.size() > 1)
+            IntersectedUEQ.push_back(IntersectedG);
         }
       }
       return IntersectedUEQ;
@@ -3903,7 +3893,7 @@ namespace {
     EqualExprTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ) {
       for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
         EqualExprTy F = *OuterList;
-        if (EqualExprsContainsExpr(F, E, &EQ))
+        if (EqualExprsContainsExpr(F, E))
           return F;
       }
       return { };
@@ -3926,30 +3916,19 @@ namespace {
     }
 
     // IsEqualExprsSubset returns true if G1 is a subset of G2.
-    bool IsEqualExprsSubset(const EqualExprTy G1, const EqualExprTy G2,
-                            EquivExprSets EQ) {
+    bool IsEqualExprsSubset(const EqualExprTy G1, const EqualExprTy G2) {
       for (auto I = G1.begin(); I != G1.end(); ++I) {
         Expr *E = *I;
-        if (!EqualExprsContainsExpr(G2, E, &EQ))
+        if (!EqualExprsContainsExpr(G2, E))
           return false;
       }
       return true;
     }
 
     // EqualExprsContainsExpr returns true if the set G contains E.
-    bool EqualExprsContainsExpr(const EqualExprTy G, Expr *E,
-                                EquivExprSets *EQ = nullptr) {
+    bool EqualExprsContainsExpr(const EqualExprTy G, Expr *E) {
       for (auto I = G.begin(); I != G.end(); ++I) {
-        if (EqualValue(S.Context, E, *I, EQ))
-          return true;
-      }
-      return false;
-    }
-
-    // IsSubsetOfSet returns true if G is a subset of some set in EQ.
-    bool IsSubsetOfSet(const EqualExprTy G, const EquivExprSets EQ) {
-      for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
-        if (IsEqualExprsSubset(G, *OuterList, EQ))
+        if (EqualValue(S.Context, E, *I, nullptr))
           return true;
       }
       return false;
@@ -4000,7 +3979,6 @@ namespace {
         case Expr::SourceLocExprClass:
         case Expr::PackExprClass:
         case Expr::FixedPointLiteralClass:
-        case Expr::ConditionalOperatorClass:
         case Expr::StringLiteralClass:
           return false;
         default: {
