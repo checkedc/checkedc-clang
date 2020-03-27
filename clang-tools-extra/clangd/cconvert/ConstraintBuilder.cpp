@@ -97,32 +97,23 @@ void constrainEq(ConstraintVariable *LHS,
     }
     else if (PVConstraint *PCLHS = dyn_cast<PVConstraint>(CLHS)) {
       if (PVConstraint *PCRHS = dyn_cast<PVConstraint>(CRHS)) {
-        // This is to handle function subtyping.
-        // try to add LHS and RHS to each others
-        // argument constraints.
+        // This is to handle function subtyping. Try to add LHS and RHS
+        // to each others argument constraints.
         PCLHS->addArgumentConstraint(PCRHS);
         PCRHS->addArgumentConstraint(PCLHS);
         // Element-wise constrain PCLHS and PCRHS to be equal
         CVars CLHS = PCLHS->getCvars();
         CVars CRHS = PCRHS->getCvars();
-        if (CLHS.size() == CRHS.size()) {
-          CVars::iterator I = CLHS.begin();
-          CVars::iterator J = CRHS.begin();
-          while (I != CLHS.end()) {
-            CS.addConstraint(
+        // we equate the constraints in a left-justified manner.
+        // This to handle cases like: e.g., p = &q;
+        // here, we need to equate the inside constraint variables
+        CVars::reverse_iterator I = CLHS.rbegin();
+        CVars::reverse_iterator J = CRHS.rbegin();
+        while (I != CLHS.rend() && J != CRHS.rend()) {
+          CS.addConstraint(
               CS.createEq(CS.getOrCreateVar(*I), CS.getOrCreateVar(*J)));
-            ++I;
-            ++J;
-          }
-        } else {
-          // There is un-even-ness in the arity of CLHS and CRHS. The 
-          // conservative thing to do would be to constrain both to 
-          // wild. We'll do one step below the conservative step, which
-          // is to constrain everything in PCLHS and PCRHS to be equal.
-          for (const auto &I : PCLHS->getCvars())
-            for (const auto &J : PCRHS->getCvars())
-              CS.addConstraint(
-                CS.createEq(CS.getOrCreateVar(I), CS.getOrCreateVar(J)));
+          ++I;
+          ++J;
         }
       } else
         llvm_unreachable("impossible");

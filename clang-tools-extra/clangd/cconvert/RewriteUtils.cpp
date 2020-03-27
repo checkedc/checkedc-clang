@@ -287,7 +287,8 @@ void rewrite( VarDecl               *VD,
   } else {
     // There is no initializer, lets add it.
     if (isPointerType(VD) && (VD->getStorageClass() != StorageClass::SC_Extern))
-      sRewrite = sRewrite + " = NULL";
+      sRewrite = sRewrite + " = ((void *)0)";
+      //MWH -- Solves issue 43. Should make it so we insert NULL if stdlib.h or stdlib_checked.h is included
   }
 
   // Is it a variable type? This is the easy case, we can re-write it
@@ -532,6 +533,8 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
   auto funcName = FD->getNameAsString();
 
+  auto &CS = Info.getConstraints();
+
   // Do we have a definition for this declaration?
   FunctionDecl *Definition = getDefinition(FD);
   FunctionDecl *Declaration = getDeclaration(FD);
@@ -546,8 +549,8 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   else
     VisitedSet.insert(funcName);
 
-  FVConstraint *cDefn = dyn_cast<FVConstraint>(
-    getHighest(Info.getVariableOnDemand(Definition, Context, true), Info));
+  FVConstraint *cDefn =
+    getHighestT<FVConstraint>(Info.getVariableOnDemand(Definition, Context, true), Info);
 
   FVConstraint *cDecl = nullptr;
   // Get constraint variables for the declaration and the definition.
@@ -558,13 +561,13 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     auto funcDefKey = Info.getUniqueFuncKey(Definition, Context);
     auto &onDemandMap = Info.getOnDemandFuncDeclConstraintMap();
     if(onDemandMap.find(funcDefKey) != onDemandMap.end()) {
-      cDecl = dyn_cast<FVConstraint>(getHighest(onDemandMap[funcDefKey], Info));
+      cDecl = getHighestT<FVConstraint>(onDemandMap[funcDefKey], Info);
     } else {
       cDecl = cDefn;
     }
   } else {
-    cDecl = dyn_cast<FVConstraint>(
-      getHighest(Info.getVariableOnDemand(Declaration, Context, false), Info));
+    cDecl =
+        getHighestT<FVConstraint>(Info.getVariableOnDemand(Declaration, Context, false), Info);
   }
 
   assert(cDecl != nullptr);
@@ -577,35 +580,44 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     std::vector<std::string> parmStrs;
     // Compare parameters.
     for (unsigned i = 0; i < cDecl->numParams(); ++i) {
-      auto Decl = getHighest(cDecl->getParamVar(i), Info);
-      auto Defn = getHighest(cDefn->getParamVar(i), Info);
+      auto Decl = getHighestT<PVConstraint>(cDecl->getParamVar(i), Info);
+      auto Defn = getHighestT<PVConstraint>(cDefn->getParamVar(i), Info);
       assert(Decl);
       assert(Defn);
+      bool parameterHandled = false;
 
-      // If this holds, then we want to insert a bounds safe interface.
-      bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
-      // definition is more precise than declaration.
-      // Section 5.3:
-      // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-      if(anyConstrained && Decl->hasWild(Info.getConstraints().getVariables())) {
-        // if definition is more precise
-        // than declaration emit an itype
-        std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
-        std::string bi =  Defn->getRewritableOriginalTy() + Defn->getName() + " : itype("+ctype + ")" +
-                          ABRewriter.getBoundsString(Definition->getParamDecl(i), true);
-        parmStrs.push_back(bi);
-      } else if (anyConstrained) {
-        // both the declaration and definition are same
-        // and they are safer than what was originally declared.
-        // here we should emit a checked type!
-        std::string v = Defn->mkString(Info.getConstraints().getVariables());
+      if (ProgramInfo::isAValidPVConstraint(Decl) && ProgramInfo::isAValidPVConstraint(Defn)) {
+        auto topDefnCVar = *(Defn->getCvars().begin());
+        auto topDeclCVar = *(Decl->getCvars().begin());
+        // If this holds, then we want to insert a bounds safe interface.
+        bool anyConstrained = !CS.isWild(topDefnCVar);
+        // definition is more precise than declaration.
+        // Section 5.3:
+        // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
+        if (anyConstrained && CS.isWild(topDeclCVar)) {
+          // if definition is more precise
+          // than declaration emit an itype
+          std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
+          std::string bi = Defn->getRewritableOriginalTy() + Defn->getName() + " : itype(" + ctype + ")" +
+              ABRewriter.getBoundsString(Definition->getParamDecl(i), true);
+          parmStrs.push_back(bi);
+          parameterHandled = true;
+        } else if (anyConstrained) {
+          // both the declaration and definition are same
+          // and they are safer than what was originally declared.
+          // here we should emit a checked type!
+          std::string v = Defn->mkString(Info.getConstraints().getVariables());
 
-        // if there is no declaration?
-        // check the itype in definition
-        v = v + getExistingIType(Decl, Defn, Declaration) + ABRewriter.getBoundsString(Definition->getParamDecl(i));
+          // if there is no declaration?
+          // check the itype in definition
+          v = v + getExistingIType(Decl, Defn, Declaration) + ABRewriter.getBoundsString(Definition->getParamDecl(i));
 
-        parmStrs.push_back(v);
-      } else {
+          parmStrs.push_back(v);
+          parameterHandled = true;
+        }
+      }
+      // if the parameter has no changes? Just dump the original declaration
+      if (!parameterHandled) {
         std::string scratch = "";
         raw_string_ostream declText(scratch);
         Definition->getParamDecl(i)->print(declText);
@@ -614,35 +626,39 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     }
 
     // Compare returns.
-    auto Decl = getHighest(cDecl->getReturnVars(), Info);
-    auto Defn = getHighest(cDefn->getReturnVars(), Info);
-
-    // Insert a bounds safe interface for the return.
+    auto Decl = getHighestT<PVConstraint>(cDecl->getReturnVars(), Info);
+    auto Defn = getHighestT<PVConstraint>(cDefn->getReturnVars(), Info);
     std::string returnVar = "";
     std::string endStuff = "";
     bool returnHandled = false;
-    bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
-    if(anyConstrained) {
-      returnHandled = true;
-      didAny = true;
-      std::string ctype = "";
-      didAny = true;
-      // definition is more precise than declaration.
-      // Section 5.3:
-      // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-      if(Decl->hasWild(Info.getConstraints().getVariables())) {
-        ctype = Defn->mkString(Info.getConstraints().getVariables(), true, true);
-        returnVar = Defn->getRewritableOriginalTy();
-        endStuff = " : itype("+ctype+") ";
-      } else {
-        // this means we were able to infer that return type
-        // is a checked type.
-        // however, the function returns a less precise type, whereas
-        // all the uses of the function converts the return value
-        // into a more precise type.
-        // do not change the type
-        returnVar = Decl->mkString(Info.getConstraints().getVariables());
-        endStuff = getExistingIType(Decl, Defn, Declaration);
+
+    if (ProgramInfo::isAValidPVConstraint(Decl) && ProgramInfo::isAValidPVConstraint(Defn)) {
+      auto topDefnCVar = *(Defn->getCvars().begin());
+      auto topDeclCVar = *(Decl->getCvars().begin());
+      // Insert a bounds safe interface for the return.
+      bool anyConstrained = !CS.isWild(topDefnCVar);
+      if (anyConstrained) {
+        returnHandled = true;
+        didAny = true;
+        std::string ctype = "";
+        didAny = true;
+        // definition is more precise than declaration.
+        // Section 5.3:
+        // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
+        if (CS.isWild(topDeclCVar)) {
+          ctype = Defn->mkString(Info.getConstraints().getVariables(), true, true);
+          returnVar = Defn->getRewritableOriginalTy();
+          endStuff = " : itype(" + ctype + ") ";
+        } else {
+          // this means we were able to infer that return type
+          // is a checked type.
+          // however, the function returns a less precise type, whereas
+          // all the uses of the function converts the return value
+          // into a more precise type.
+          // do not change the type
+          returnVar = Decl->mkString(Info.getConstraints().getVariables());
+          endStuff = getExistingIType(Decl, Defn, Declaration);
+        }
       }
     }
 

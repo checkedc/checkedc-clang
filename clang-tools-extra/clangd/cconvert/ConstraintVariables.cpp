@@ -54,7 +54,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
                                                      DeclaratorDecl *D, std::string N, Constraints &CS,
                                                      const ASTContext &C, bool partOfFunc) :
         ConstraintVariable(ConstraintVariable::PointerVariable,
-                           tyToStr(QT.getTypePtr()),N), partOFFuncPrototype(partOfFunc), FV(nullptr)
+                           tyToStr(QT.getTypePtr()),N), FV(nullptr), partOFFuncPrototype(partOfFunc)
 {
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
@@ -111,8 +111,10 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
       assert(CS.getVar(K) == nullptr);
       VarAtom *stArrAtom = CS.getOrCreateVar(K);
 
-      // This is a static array and make it impossible to ever have WILD.
-      stArrAtom->setConstImpossible(CS.getWild());
+      // If all types are enabled? Then make sure that this variable can
+      // never be WILD
+      if (allTypes)
+        stArrAtom->setConstImpossible(CS.getWild());
 
       // See if there is a constant size to this array type at this position.
       if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {

@@ -150,6 +150,9 @@ public:
   DisjointSet& getPointerConstraintDisjointSet() { return ConstraintDisjointSet; }
 
   bool computePointerDisjointSet();
+
+  // check if the provided constraint variable is a valid pointer constraint
+  static bool isAValidPVConstraint(ConstraintVariable *C);
 private:
   // apply function sub-typing relation from srcCVar to dstCVar
   bool applySubtypingRelation(ConstraintVariable *srcCVar, ConstraintVariable *dstCVar);
@@ -171,12 +174,6 @@ private:
   std::list<clang::RecordDecl*> Records;
   // Next available integer to assign to a variable.
   uint32_t freeKey;
-  // Map from a Decl to the DeclStmt that contains the Decl.
-  // I can't figure out how to go backwards from a VarDecl to a DeclStmt, so 
-  // this infrastructure is here so that the re-writer can do that to figure
-  // out how to break up variable declarations that should span lines in the
-  // new program.
-  VariableDecltoStmtMap VarDeclToStatement;
 
   // List of all constraint variables, indexed by their location in the source.
   // This information persists across invocations of the constraint analysis

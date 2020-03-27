@@ -96,7 +96,22 @@ Constraint::Constraint(ConstraintKind K, std::string &rsn, PersistentSourceLoc *
 // remove the constraint from the global constraint set.
 bool Constraints::removeConstraint(Constraint *C) {
   removeReasonBasedConstraint(C);
-  constraints.erase(C);
+  return constraints.erase(C) != 0;
+}
+
+// Check if we can add this constraint. This provides a global switch to
+// control what constraints we can add to our system.
+void Constraints::editConstraintHook(Constraint *C) {
+  if (!allTypes) {
+    // if this is an equality constraint, check if we are adding
+    // only Ptr or WILD constraints? if not? make it WILD
+    if (Eq *E = dyn_cast<Eq>(C)) {
+      if (ConstAtom *rConst = dyn_cast<ConstAtom>(E->getRHS())) {
+        if (!(isa<PtrAtom>(rConst) || isa<WildAtom>(rConst)))
+          E->setRHS(getWild());
+      }
+    }
+  }
 }
 
 // Add a constraint to the set of constraints. If the constraint is already 
@@ -104,6 +119,8 @@ bool Constraints::removeConstraint(Constraint *C) {
 bool Constraints::addConstraint(Constraint *C) {
   // Validate the constraint to be added.
   assert(check(C));
+
+  editConstraintHook(C);
 
   // Check if C is already in the set of constraints. 
   if (constraints.find(C) == constraints.end()) {
@@ -130,7 +147,6 @@ bool Constraints::addConstraint(Constraint *C) {
     }
     else
       llvm_unreachable("unsupported constraint");
-
     return true;
   }
 
@@ -331,8 +347,13 @@ bool Constraints::step_solve(EnvironmentMap &env) {
         if (Eq *E = dyn_cast<Eq>(N->getBody())) {
           // If this is Not ( q == Ptr )
           if (isa<PtrAtom>(E->getRHS())) {
-            // check if we can make it an Arr?
-            if (*Val < *getArr() && canAssignConst<ArrAtom>(Var)) {
+            if (!allTypes && *Val < *getWild()) {
+              // this pointer cannot be Ptr.
+              // and allTypes is disabled, only choice is to make it WILD.
+              VI->second = getWild();
+              changedEnvironment = true;
+              // check if we can make it an Arr?
+            } else if (*Val < *getArr() && canAssignConst<ArrAtom>(Var)) {
               // yes? make it Arr
               VI->second = getArr();
               changedEnvironment = true;
@@ -458,16 +479,16 @@ void Constraints::dump_json(llvm::raw_ostream &O) const {
 bool Constraints::removeAllConstraintsBasedOnThisReason(std::string &targetReason,
                                                         ConstraintSet &removedConstraints) {
   // Are there any constraints with this reason?
-  unsigned  long deletedCount = 0;
+  bool anyRemoved = false;
   if (this->constraintsByReason.find(targetReason) != this->constraintsByReason.end()) {
     removedConstraints.insert(this->constraintsByReason[targetReason].begin(),
                   this->constraintsByReason[targetReason].end());
     for (auto cToDel: removedConstraints) {
-      this->removeConstraint(cToDel);
+      anyRemoved = this->removeConstraint(cToDel) || anyRemoved;
     }
-    return true;
+    return anyRemoved;
   }
-  return false;
+  return anyRemoved;
 }
 
 VarAtom *Constraints::getOrCreateVar(uint32_t v) {
@@ -504,6 +525,18 @@ NTArrAtom *Constraints::getNTArr() const {
 }
 WildAtom *Constraints::getWild() const {
   return prebuiltWild;
+}
+
+ConstAtom *Constraints::getAssignment(uint32_t v) {
+  auto currVar = getVar(v);
+  assert(currVar != nullptr && "Queried uncreated constraint variable.");
+  return environment[currVar];
+}
+
+bool Constraints::isWild(uint32_t v) {
+  auto currVar = getVar(v);
+  assert(currVar != nullptr && "Queried uncreated constraint variable.");
+  return dyn_cast<WildAtom>(environment[currVar]) != nullptr;
 }
 
 Eq *Constraints::createEq(Atom *lhs, Atom *rhs) {
