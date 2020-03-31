@@ -9124,6 +9124,43 @@ QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
     return QualType();
 }
 
+/// Get the bounds-safe interface type for an rvalue expression, if the
+/// rvalue expression has a bounds-safe interface. Return a null QualType
+/// otherwise.  The rvalue expression may appear as part of the left-hand
+/// side of an assignment - for example, as the subexpression of a pointer
+/// deference or an array subscript.  For rvalue expressions appearing as
+/// part of the left-hand side of an assignment, only lvalue-to-rvalue casts
+/// and pointer arithmetic have bounds-safe interfaces.
+QualType Sema::GetCheckedCRValueInteropType(ExprResult RHS) {
+  if (!RHS.isInvalid()) {
+    Expr *RHSExpr = RHS.get()->IgnoreParens();
+    // If `e` has bounds-safe interface T, then `LValueToRValue(e)` has
+    // bounds-safe interface T.
+    if (CastExpr *Cast = dyn_cast<CastExpr>(RHSExpr)) {
+      if (Cast->getCastKind() == CastKind::CK_LValueToRValue) {
+        QualType T = GetCheckedCInteropType(Cast->getSubExpr());
+        return T;
+      }
+    }
+    // If `p` has bounds-safe interface T, then `p +/- i` has bounds-safe
+    // interface T, where `p` is a pointer and `i` is an integer.
+    else if (BinaryOperator *Binary = dyn_cast<BinaryOperator>(RHSExpr)) {
+      if (BinaryOperator::isAdditiveOp(Binary->getOpcode())) {
+        Expr *Left = Binary->getLHS();
+        Expr *Right = Binary->getRHS();
+        if (Left->getType()->isPointerType() &&
+            Right->getType()->isIntegerType())
+          return GetCheckedCRValueInteropType(Left);
+        else if (Right->getType()->isPointerType() &&
+                 Left->getType()->isIntegerType())
+          return GetCheckedCRValueInteropType(Right);
+      }
+    }
+  }
+
+  return QualType();
+}
+
 QualType Sema::InvalidOperands(SourceLocation Loc, ExprResult &LHS,
                                ExprResult &RHS) {
   OriginalOperand OrigLHS(LHS.get()), OrigRHS(RHS.get());

@@ -10565,6 +10565,10 @@ public:
   /// Returns a null QualType if there isn't one.
   QualType GetCheckedCInteropType(ExprResult LHS);
 
+  /// \brief Get the bounds-safe interface type for RHS.
+  /// Returns a null QualType if there isn't one.
+  QualType GetCheckedCRValueInteropType(ExprResult RHS);
+
   /// \brief If T is an array type, create a checked array type version of T.
   /// This includes propagating the checked property to nested array types. If
   /// a valid checked array type cannot be constructed and Diagnose is true,
