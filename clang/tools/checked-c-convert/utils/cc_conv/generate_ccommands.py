@@ -103,6 +103,13 @@ def runCheckedCConvert(checkedc_bin, compile_commands_json, run_individual=False
 
     # get the common path of the files as the base directory
     compilation_base_dir = os.path.commonprefix(all_files)
+    # if this is not a directory? get the directory
+    # this can happen when we have files like: /a/b/c1.c, /a/b/c2.c
+    # the common prefix will be /a/b/c which is not correct, what we need is:
+    # /a/b
+    if len(all_files) > 0 and \
+            not os.path.exists(os.path.join(compilation_base_dir, os.path.basename(all_files[0]))):
+        compilation_base_dir = os.path.dirname(compilation_base_dir)
     prog_name = checkedc_bin
     f = open(INDIVIDUAL_COMMANDS_FILE, 'w')
     for compiler_args, target_directory, src_file in s:
