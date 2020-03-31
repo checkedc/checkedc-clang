@@ -9116,6 +9116,22 @@ QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
         IsParam = isa<ParmVarDecl>(Var);
       }
     }
+    // If `e` has bounds-safe interface T* (or ptr<T>, etc.), then `*e` has
+    // bounds-safe interface T.
+    else if (UnaryOperator *Unary = dyn_cast<UnaryOperator>(LHSExpr)) { 
+      if (Unary->getOpcode() == UnaryOperatorKind::UO_Deref) {
+        QualType T = GetCheckedCRValueInteropType(Unary->getSubExpr());
+        if (!T.isNull() && T->isPointerType())
+          return T->getPointeeType();
+      }
+    }
+    // If `e2` is an integer and `e1` has bounds-safe interface T* (or ptr<T>,
+    // etc.), then `e1[e2]` and `e2[e1]` have bounds-safe interface T.
+    else if (ArraySubscriptExpr *Array = dyn_cast<ArraySubscriptExpr>(LHSExpr)) {
+      QualType T = GetCheckedCRValueInteropType(Array->getBase());
+      if (!T.isNull() && T->isPointerType())
+        return T->getPointeeType();
+    }
   }
 
   if (D)
