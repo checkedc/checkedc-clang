@@ -28,12 +28,12 @@
 #include "RewriteUtils.h"
 #include "IterativeItypeHelper.h"
 #include "CConvInteractive.h"
+#include "GatherTool.h"
 
 using namespace clang::driver;
 using namespace clang::tooling;
 using namespace clang;
 using namespace llvm;
-
 static cl::OptionCategory ConvertCategory("checked-c-convert options");
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp("");
@@ -499,11 +499,19 @@ int main(int argc, const char **argv) {
     dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, Info);
   }
 
-  // 3. Re-write based on constraints.
+  // 3. Gather pre-rewrite data
+  std::unique_ptr<ToolAction> GatherTool =
+    newFrontendActionFactoryA
+    <RewriteAction<ArgGatherer, ProgramInfo>>(Info);
+  if (GatherTool)
+    Tool.run(GatherTool.get());
+  else
+    llvm_unreachable("No Action");
+
+  // 4. Re-write based on constraints.
   std::unique_ptr<ToolAction> RewriteTool =
       newFrontendActionFactoryA
-      <RewriteAction<RewriteConsumer, ProgramInfo>>(
-          Info);
+      <RewriteAction<RewriteConsumer, ProgramInfo>>(Info);
   
   if (RewriteTool)
     Tool.run(RewriteTool.get());

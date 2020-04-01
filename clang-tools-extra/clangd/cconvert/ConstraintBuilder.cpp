@@ -164,8 +164,9 @@ public:
   explicit FunctionVisitor(ASTContext *C, ProgramInfo &I, FunctionDecl *FD)
       : Context(C), Info(I), Function(FD) {}
 
+
   // Introduce a variable into the environment.
-  bool MyVisitVarDecl(VarDecl *D, DeclStmt *S) {
+  bool MyVisitVarDecl(VarDecl *D,  DeclStmt *S) {
     if (D->isLocalVarDecl()) {
       FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
       SourceRange SR = D->getSourceRange();
@@ -869,6 +870,7 @@ public:
           for (unsigned i = 0; i < FT->getNumParams(); i++) {
             if (i < D->getNumParams()) {
               ParmVarDecl *PVD = D->getParamDecl(i);
+              Info.addVariable(PVD, nullptr, Context);
               specialCaseVarIntros(PVD, Info, Context, functionHasBody);
             }
           }

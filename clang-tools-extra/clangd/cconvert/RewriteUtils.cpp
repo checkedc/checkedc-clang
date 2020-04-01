@@ -1045,6 +1045,9 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       bool foundWild = false;
       std::set<ConstraintVariable*> cvs = Info.getVariable(st, Context);
       for (auto cv : cvs) {
+	llvm::errs() << "\nCheckedRegion:\n";
+        cv->dump();
+	llvm::errs() << "\n";
         if (cv->hasWild(Info.getConstraints().getVariables())) {
           foundWild = true;
         }
@@ -1170,6 +1173,8 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     std::set<llvm::FoldingSetNodeID>& Seen;
 };
 
+
+
 // class for visiting variable usages and function calls to add
 // explicit casting if needed.
 class CastPlacementVisitor : public RecursiveASTVisitor<CastPlacementVisitor> {
@@ -1185,6 +1190,17 @@ public:
       if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
         // get the constraint variable for the function
         std::set<ConstraintVariable *> &V = Info.getFuncDefnConstraints(FD, Context);
+        // TODO Deubgging lines
+        // llvm::errs() << "Decl for: " << FD->getNameAsString() << "\nVars:";
+        // for(auto &CV : V) {
+        //   CV->dump();
+        //   llvm::errs() << "\n";
+        // }
+
+        // Did we see this function in another file?
+        auto fn = FD->getNameAsString();
+        auto param_info = Info.get_MF()[fn];
+
         if (V.size() > 0) {
           // get the FV constraint for the Callee
           FVConstraint *FV = nullptr;
@@ -1213,9 +1229,10 @@ public:
                 for (auto *argumentC: ArgumentConstraints) {
                   castInserted = false;
                   for (auto *parameterC: ParameterConstraints) {
-                    if (needCasting(argumentC, parameterC)) {
+                    auto dst_info = i < param_info.size() ?  param_info[i] : CHECKED;
+                    if (needCasting(argumentC, parameterC, dst_info)) {
                       // we expect the cast string to end with "("
-                      std::string castString = getCastString(argumentC, parameterC);
+                      std::string castString = getCastString(argumentC, parameterC, dst_info);
                       Writer.InsertTextBefore(A->getBeginLoc(), castString);
                       Writer.InsertTextAfterToken(A->getEndLoc(), ")");
                       castInserted = true;
@@ -1245,18 +1262,19 @@ public:
 private:
   // Check whether an explicit casting is needed when the pointer represented
   // by src variable is assigned to dst
-  bool needCasting(ConstraintVariable *src, ConstraintVariable *dst) {
+  bool needCasting(ConstraintVariable *src, ConstraintVariable *dst, IsChecked dst_info) {
     auto &E = Info.getConstraints().getVariables();
+    auto srcChecked = src->anyChanges(E);
     // check if the src is a checked type and destination is not.
-    return src->anyChanges(E) && !dst->anyChanges(E);
+    return (srcChecked && !dst->anyChanges(E)) || (srcChecked && dst_info == WILD);
   }
 
   // get the type name to insert for casting.
-  std::string getCastString(ConstraintVariable *src, ConstraintVariable *dst) {
-    assert(needCasting(src, dst) && "No casting needed.");
+  std::string getCastString(ConstraintVariable *src, ConstraintVariable *dst, IsChecked dst_info) {
+    assert(needCasting(src, dst, dst_info) && "No casting needed.");
     auto &E = Info.getConstraints().getVariables();
     // the destination type should be a non-checked type.
-    assert(!dst->anyChanges(E));
+    assert(!dst->anyChanges(E) || dst_info == WILD);
     return "((" + dst->getRewritableOriginalTy() + ")";
   }
   ASTContext            *Context;
@@ -1481,9 +1499,9 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   StructVariableInitializer FV = StructVariableInitializer(&Context, Info, rewriteThese);
   GlobalVariableGroups GVG(R.getSourceMgr());
-  CastPlacementVisitor ECPV(&Context, Info, R);
   std::set<llvm::FoldingSetNodeID> seen;
   CheckedRegionAdder CRA(&Context, R, Info, seen);
+  CastPlacementVisitor ECPV(&Context, Info, R);
   for (auto &D : TUD->decls()) {
     V.TraverseDecl(D);
     FV.TraverseDecl(D);

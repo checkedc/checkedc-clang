@@ -6,6 +6,7 @@ set( LLVM_LINK_COMPONENTS
 
 add_clang_library(CConvert
         CheckedCConvert.cpp
+	GatherTool.cpp
         ProgramInfo.cpp
         MappingVisitor.cpp
         ConstraintBuilder.cpp
@@ -30,6 +31,7 @@ add_clang_library(CConvert
 
 add_clang_tool(CConvertStandalone
         CheckedCConvert.cpp
+	GatherTool.cpp
         ProgramInfo.cpp
         MappingVisitor.cpp
         ConstraintBuilder.cpp
