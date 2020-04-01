@@ -43,8 +43,6 @@ void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C, bool i
         for (const auto &J : PVC->getCvars())
           CS.addConstraint(
             CS.createEq(CS.getOrCreateVar(J), CS.getWild(), rsn, &psl));
-  } else {
-    errs() << "Hit else\n";
   }
 }
 
@@ -169,7 +167,6 @@ public:
 
   // Introduce a variable into the environment.
   bool MyVisitVarDecl(VarDecl *D,  DeclStmt *S) {
-    errs() << "Called!\n";
     if (D->isLocalVarDecl()) {
       FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
       SourceRange SR = D->getSourceRange();

@@ -1199,12 +1199,7 @@ public:
 
         // Did we see this function in another file?
         auto fn = FD->getNameAsString();
-        auto args = Info.get_MF()[fn];
-        llvm::errs() << "Encounted function: " << fn << " checked args: [";
-        for(auto c : args) {
-          llvm::errs() << (c == WILD ? "unchecked" : "checked") << ", ";
-        }
-        llvm::errs() << "]\n";
+        auto param_info = Info.get_MF()[fn];
 
         if (V.size() > 0) {
           // get the FV constraint for the Callee
@@ -1234,9 +1229,10 @@ public:
                 for (auto *argumentC: ArgumentConstraints) {
                   castInserted = false;
                   for (auto *parameterC: ParameterConstraints) {
-                    if (needCasting(argumentC, parameterC)) {
+                    auto dst_info = i < param_info.size() ?  param_info[i] : CHECKED;
+                    if (needCasting(argumentC, parameterC, dst_info)) {
                       // we expect the cast string to end with "("
-                      std::string castString = getCastString(argumentC, parameterC);
+                      std::string castString = getCastString(argumentC, parameterC, dst_info);
                       Writer.InsertTextBefore(A->getBeginLoc(), castString);
                       Writer.InsertTextAfterToken(A->getEndLoc(), ")");
                       castInserted = true;
@@ -1266,18 +1262,19 @@ public:
 private:
   // Check whether an explicit casting is needed when the pointer represented
   // by src variable is assigned to dst
-  bool needCasting(ConstraintVariable *src, ConstraintVariable *dst) {
+  bool needCasting(ConstraintVariable *src, ConstraintVariable *dst, IsChecked dst_info) {
     auto &E = Info.getConstraints().getVariables();
+    auto srcChecked = src->anyChanges(E);
     // check if the src is a checked type and destination is not.
-    return src->anyChanges(E) && !dst->anyChanges(E);
+    return (srcChecked && !dst->anyChanges(E)) || (srcChecked && dst_info == WILD);
   }
 
   // get the type name to insert for casting.
-  std::string getCastString(ConstraintVariable *src, ConstraintVariable *dst) {
-    assert(needCasting(src, dst) && "No casting needed.");
+  std::string getCastString(ConstraintVariable *src, ConstraintVariable *dst, IsChecked dst_info) {
+    assert(needCasting(src, dst, dst_info) && "No casting needed.");
     auto &E = Info.getConstraints().getVariables();
     // the destination type should be a non-checked type.
-    assert(!dst->anyChanges(E));
+    assert(!dst->anyChanges(E) || dst_info == WILD);
     return "((" + dst->getRewritableOriginalTy() + ")";
   }
   ASTContext            *Context;
