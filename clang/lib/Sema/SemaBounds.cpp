@@ -3521,7 +3521,7 @@ namespace {
         RValueBounds = Check(E, CSS, State);
     }
 
-  // Methods to update sets of equivalent expressions.
+    // Methods to update sets of equivalent expressions.
 
     // UpdateAfterAssignment updates the checking state after a variable V
     // is assigned to, based on the state before the assignment.
@@ -3666,7 +3666,7 @@ namespace {
         G.push_back(CreateTemporaryUse(Temp));
     }
 
-  // Methods to get the original value of an expression.
+    // Methods to get the original value of an expression.
 
     // GetOriginalValue returns the original value (if it exists) of the
     // expression Src with respect to the variable V in an assignment V = Src.
