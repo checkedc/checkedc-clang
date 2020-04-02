@@ -3640,21 +3640,23 @@ namespace {
       else if (CheckIsNonModifying(Val))
         G.push_back(Val);
 
-      // If Val is a modifying expression, use the Gi for the subexpressions
-      // to try to construct a non-modifying expression Val' that
-      // produces the same value as Val.
+      // If Val is a modifying expression, use the G_i sets of expressions
+      // that produce the same value as the subexpressions of e to try to
+      // construct a non-modifying expression ValPrime that produces the same
+      // value as Val.
       else {
         Expr *ValPrime = nullptr;
         for (llvm::detail::DenseMapPair<Expr *, EqualExprTy> Pair : SubExprGs) {
-          Expr *Si = Pair.first;
-          // For any modifying subexpression Si of e,
-          // try to set Val' to a nonmodifying expression from Gi.
-          if (!CheckIsNonModifying(Si)) {
-            EqualExprTy Gi = Pair.second;
-            for (auto I = Gi.begin(); I != Gi.end(); ++I) {
-              Expr *Ei = *I;
-              if (CheckIsNonModifying(Ei)) {
-                ValPrime = Ei;
+          Expr *SubExpr_i = Pair.first;
+          // For any modifying subexpression SubExpr_i of e, try to set
+          // ValPrime to a nonmodifying expression from the set G_i of
+          // expressions that produce the same value as SubExpr_i.
+          if (!CheckIsNonModifying(SubExpr_i)) {
+            EqualExprTy G_i = Pair.second;
+            for (auto I = G_i.begin(); I != G_i.end(); ++I) {
+              Expr *E_i = *I;
+              if (CheckIsNonModifying(E_i)) {
+                ValPrime = E_i;
                 break;
               }
             }
