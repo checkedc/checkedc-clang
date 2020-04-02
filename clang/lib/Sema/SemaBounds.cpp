@@ -2507,7 +2507,9 @@ namespace {
           // Create the RHS of the implied assignment `e1 = e1 @ e2`.
           Src = ExprCreatorUtil::CreateBinaryOperator(S, Target, RHS, Op);
 
-          // Update the set of expressions that produce the same value as `e1`.
+          // Update the set of expressions that produce the same value as `e1`
+          // to be the set of expressions equal to `e1` before the assignment,
+          // since the compound assignment modifies `e1`.
           SubExprGs[LHS] = GetEqualExprSetContainingExpr(LHS, State.UEQ);
 
           // Update State.G to be the set of expressions that produce the same
@@ -2516,12 +2518,12 @@ namespace {
           SubExprGs[Src] = State.G;
         }
 
-        // Update UEQ and G for assignments to a variable `e1`.
+        // Update UEQ and G for assignments to `e1` where `e1` is a variable.
         if (DeclRefExpr *V = GetLValueVariable(LHS)) {
           Expr *OV = GetOriginalValue(V, Src, State.UEQ);
           UpdateAfterAssignment(V, Target, OV, CSS, State, State);
         }
-        // Update UEQ and G for assignments to a non-variable `e1`.
+        // Update UEQ and G for assignments where `e1` is not a variable.
         else {
           if (!E->isCompoundAssignmentOp()) {
             // TODO: update State for non-compound assignments `e1 = e2`
@@ -2940,12 +2942,12 @@ namespace {
           Expr *Val = IsPostIncDec ? SubExpr : RHS;
           UpdateG(RHS, State.G, State.G, Val);
 
-          // Update UEQ and G for inc/dec operators on a variable `e1`.
+          // Update UEQ and G for inc/dec operators where `e1` is a variable.
           if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
             Expr *OV = GetOriginalValue(V, RHS, State.UEQ);
             UpdateAfterAssignment(V, Target, OV, CSS, State, State);
           }
-          // Do nothing for inc/dec operators on a non-variable `e1`.
+          // Do nothing for inc/dec operators where `e1` is not a variable.
           // Since the RHS `e1 +/- 1` of the implied assignment
           // `e1 = e1 +/- 1` uses the value of `e1` and `e1` has no
           // original value in `e1 +/- 1`, State.UEQ remains unchanged.
