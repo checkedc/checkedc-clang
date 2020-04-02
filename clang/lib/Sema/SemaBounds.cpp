@@ -2769,12 +2769,12 @@ namespace {
       // same value as e.
       if (CK == CastKind::CK_ArrayToPointerDecay) {
         // State.G = { e } for lvalues with array type.
-        if (CanBeInEqualExprSet(E))
+        if (!CreatesNewObject(E))
           State.G = { E };
       } else if (CK == CastKind::CK_LValueToRValue) {
         if (E->getType()->isArrayType()) {
           // State.G = { e } for lvalues with array type.
-          if (CanBeInEqualExprSet(E))
+          if (!CreatesNewObject(E))
             State.G = { E };
         }
         else {
@@ -2784,7 +2784,7 @@ namespace {
             // Otherwise, if e is nonmodifying and does not read memory
             // via a pointer, State.G = { e }.  Otherwise, State.G is empty.
             if (CheckIsNonModifying(E) && !ReadsMemoryViaPointer(E) &&
-                CanBeInEqualExprSet(E))
+                !CreatesNewObject(E))
               State.G.push_back(E);
           }
         }
@@ -3628,7 +3628,8 @@ namespace {
 
       if (!Val) Val = E;
 
-      if (!CanBeInEqualExprSet(Val))
+      // Expressions that create new objects should not be included in G.
+      if (CreatesNewObject(Val))
         return;
 
       // If Val is a call expression, G does not contain Val.
@@ -3970,13 +3971,10 @@ namespace {
       return EqualValue(S.Context, V, Var, nullptr);
     }
 
-    // CanBeInEqualExprSet returns true if the expression e can be added to
-    // the UEQ or G sets of equivalent expressions in the checking state.
-    // Expressions that create new objects should not be added to these sets.
-    // CanBeInEqualExprSet may return true if e is a modifying expression.
-    // It is the caller's responsibility to ensure that only non-modifying
-    // expressions are added to the UEQ and G sets.
-    bool CanBeInEqualExprSet(Expr *E) {
+    // CreatesNewObject returns true if the expression e creates a new object.
+    // Expressions that create new objects should not be added to the UEQ or G
+    // sets of equivalent expressions in the checking state.
+    bool CreatesNewObject(Expr *E) {
       switch (E->getStmtClass()) {
         case Expr::InitListExprClass:
         case Expr::ImplicitValueInitExprClass:
@@ -3988,15 +3986,15 @@ namespace {
         case Expr::PackExprClass:
         case Expr::FixedPointLiteralClass:
         case Expr::StringLiteralClass:
-          return false;
+          return true;
         default: {
           for (auto I = E->child_begin(); I != E->child_end(); ++I) {
             if (Expr *SubExpr = dyn_cast<Expr>(*I)) {
-              if (!CanBeInEqualExprSet(SubExpr))
-                return false;
+              if (CreatesNewObject(SubExpr))
+                return true;
             }
           }
-          return true;
+          return false;
         }
       }
     }
