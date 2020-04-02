@@ -475,6 +475,10 @@ namespace {
 }
 
 namespace {
+  // BoundsContextTy denotes a map of a variable or parameter declaration
+  // to the variable or parameter's current known bounds.
+  using BoundsContextTy = llvm::DenseMap<DeclaratorDecl *, BoundsExpr *>;
+
   // EqualExprTy denotes a set of expressions that produce the same value
   // as an expression e.
   using EqualExprTy = SmallVector<Expr *, 4>;
@@ -488,6 +492,9 @@ namespace {
   // and are updated while checking individual expressions.
   class CheckingState {
     public:
+      // UC is a map of variables or parameters to their current known bounds.
+      BoundsContextTy UC;
+
       // UEQ stores sets of expressions that are equivalent to each other
       // after checking an expression e.
       EquivExprSets UEQ;
@@ -496,6 +503,35 @@ namespace {
       // expression e once checking of e is complete.
       EqualExprTy G;
   };
+}
+
+namespace {
+  class DeclaredBoundsHelper : public RecursiveASTVisitor<DeclaredBoundsHelper> {
+    private:
+      Sema &SemaRef;
+      BoundsContextTy &BoundsContextRef;
+
+    public:
+      DeclaredBoundsHelper(Sema &SemaRef, BoundsContextTy &Context) :
+        SemaRef(SemaRef),
+        BoundsContextRef(Context) {}
+
+      bool VisitDeclaratorDecl(DeclaratorDecl *D) {
+        if (!D)
+          return true;
+        BoundsExpr *Bounds = D->getBoundsExpr();
+        if (Bounds)
+          BoundsContextRef[D] = Bounds;
+        return true;
+      }
+  };
+
+  // GetDeclaredBounds modifies the bounds context to map any variables
+  // declared in S to their declared bounds (if any).
+  void GetDeclaredBounds(Sema &SemaRef, BoundsContextTy &Context, Stmt *S) {
+    DeclaredBoundsHelper Declared(SemaRef, Context);
+    Declared.TraverseStmt(S);
+  }
 }
 
 namespace {
@@ -598,6 +634,9 @@ namespace {
       OS << "\nStatement S:\n";
       S->dump(OS);
 
+      OS << "Bounds context after checking S:\n";
+      DumpBoundsContext(OS, State.UC);
+
       OS << "Sets of equivalent expressions after checking S:\n";
       if (State.UEQ.size() == 0)
         OS << "{ }\n";
@@ -612,6 +651,39 @@ namespace {
 
       OS << "Expressions that produce the same value as S:\n";
       DumpEqualExpr(OS, State.G);
+    }
+
+    void DumpBoundsContext(raw_ostream &OS, BoundsContextTy UC) {
+      if (UC.empty())
+        OS << "{ }\n";
+      else {
+        // The keys in an llvm::DenseMap are unordered.  Create a set of
+        // variable declarations in the context ordered first by name,
+        // then by location in order to guarantee a deterministic output
+        // so that printing the bounds context can be tested.
+        std::vector<DeclaratorDecl *> OrderedDecls;
+        for (auto Pair : UC)
+          OrderedDecls.push_back(Pair.first);
+        llvm::sort(OrderedDecls.begin(), OrderedDecls.end(),
+             [] (DeclaratorDecl *A, DeclaratorDecl *B) {
+               if (A->getNameAsString() == B->getNameAsString())
+                 return A->getLocation() < B->getLocation();
+               else
+                 return A->getNameAsString() < B->getNameAsString();
+             });
+
+        OS << "{\n";
+        for (auto I = OrderedDecls.begin(); I != OrderedDecls.end(); ++I) {
+          DeclaratorDecl *Variable = *I;
+          if (!UC[Variable])
+            continue;
+          OS << "Variable:\n";
+          Variable->dump(OS);
+          OS << "Bounds:\n";
+          UC[Variable]->dump(OS);
+        }
+        OS << "}\n";
+      }
     }
 
     void DumpEqualExpr(raw_ostream &OS, EqualExprTy G) {
@@ -1887,7 +1959,7 @@ namespace {
    // Walk the CFG, traversing basic blocks in reverse post-oder.
    // For each element of a block, check bounds declarations.  Skip
    // CFG elements that are subexpressions of other CFG elements.
-   void TraverseCFG(AvailableFactsAnalysis& AFA) {
+   void TraverseCFG(AvailableFactsAnalysis& AFA, FunctionDecl *FD) {
      assert(Cfg && "expected CFG to exist");
 #if TRACE_CFG
      llvm::outs() << "Dumping AST";
@@ -1896,6 +1968,23 @@ namespace {
      Cfg->print(llvm::outs(), S.getLangOpts(), true);
      llvm::outs() << "Traversing CFG:\n";
 #endif
+
+     // Map each function parameter to its declared bounds (if any) before
+     // checking the body of the function.  The context formed by the declared
+     // parameter bounds is the initial context for checking the function body.
+     CheckingState ParamsState;
+     for (auto I = FD->param_begin(); I != FD->param_end(); ++I) {
+       ParmVarDecl *Param = *I;
+       BoundsExpr *Bounds = Param->getBoundsExpr();
+       if (Bounds)
+         ParamsState.UC[Param] = Bounds;
+     }
+
+     // Store a checking state for each CFG block in order to track
+     // the variables with bounds declarations that are in scope.
+     llvm::DenseMap<unsigned int, CheckingState> BlockStates;
+     BlockStates[Cfg->getEntry().getBlockID()] = ParamsState;
+
      StmtSet NestedElements;
      FindNestedElements(NestedElements);
      StmtSet MemoryCheckedStmts;
@@ -1905,6 +1994,7 @@ namespace {
      ResetFacts();
      for (const CFGBlock *Block : POView) {
        AFA.GetFacts(Facts);
+       CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
            CFGStmt CS = Elem.castAs<CFGStmt>();
@@ -1934,10 +2024,20 @@ namespace {
             S->dump(llvm::outs());
             llvm::outs().flush();
 #endif
-            Check(S, CSS);
+            // Incorporate any bounds declared in S into the initial bounds
+            // context before checking S.  TODO: save this context in a
+            // declared context DC.
+            GetDeclaredBounds(this->S, BlockState.UC, S);
+            Check(S, CSS, BlockState);
+            // TODO: validate the updated context BlockState.UC against
+            // the declared context DC.
+            if (DumpState)
+              DumpCheckingState(llvm::outs(), S, BlockState);
          }
        }
        AFA.Next();
+       if (Block->getBlockID() != Cfg->getEntry().getBlockID())
+         BlockStates[Block->getBlockID()] = BlockState;
      }
     }
 
@@ -2075,9 +2175,6 @@ namespace {
           break;
       }
 
-      if (DumpState)
-        DumpCheckingState(llvm::outs(), S, State);
-
       if (Expr *E = dyn_cast<Expr>(S)) {
         // Bounds expressions are not null ptrs.
         if (isa<BoundsExpr>(E))
@@ -2155,9 +2252,6 @@ namespace {
           CheckChildren(E, CSS, State);
           break;
       }
-
-      if (DumpState)
-        DumpCheckingState(llvm::outs(), E, State);
 
       // The type for inferring the target bounds cannot ever be an array
       // type, as these are dealt with by an array conversion, not an lvalue
@@ -2867,7 +2961,10 @@ namespace {
       BoundsExpr *B = nullptr;
       InteropTypeExpr *IT = nullptr;
       if (VD) {
-        B = VD->getBoundsExpr();
+        if (State.UC.count(VD))
+          B = State.UC[VD];
+        else
+          B = VD->getBoundsExpr();
         IT = VD->getInteropTypeExpr();
       }
 
@@ -3313,6 +3410,51 @@ namespace {
       // add the value of the temporary to G.
       if (CHKCBindTemporaryExpr *Temp = GetTempBinding(Val))
         G.push_back(CreateTemporaryUse(Temp));
+    }
+
+    // GetIncomingBlockState returns the checking state that is true at
+    // the beginning of the block by taking the intersection of the UC
+    // contexts that were true after each of the block's predecessors.
+    //
+    // BlockStates stores the checking state including the bounds context
+    // for each CFG block in order to track the variables with bounds
+    // declarations that are in scope.  This preserves lexically scoped
+    // information that is otherwise lost during CFG traversal.
+    CheckingState GetIncomingBlockState(const CFGBlock *Block,
+                                        llvm::DenseMap<unsigned int, CheckingState> BlockStates) {
+      CheckingState BlockState;
+      bool IntersectionEmpty = true;
+      for (const CFGBlock *PredBlock : Block->preds()) {
+        // Prevent null or non-traversed (e.g. unreachable) blocks from
+        // causing the incoming UC for a block to be empty.
+        if (!PredBlock)
+          continue;
+        if (BlockStates.find(PredBlock->getBlockID()) == BlockStates.end())
+          continue;
+        CheckingState PredState = BlockStates[PredBlock->getBlockID()];
+        if (IntersectionEmpty) {
+          BlockState.UC = PredState.UC;
+          IntersectionEmpty = false;
+        }
+        else
+          BlockState.UC = IntersectUC(PredState.UC, BlockState.UC);
+      }
+      return BlockState;
+    }
+
+    // IntersectUC returns a bounds context resulting from taking the
+    // intersection of the contexts UC1 and UC2.
+    BoundsContextTy IntersectUC(BoundsContextTy UC1, BoundsContextTy UC2) {
+      BoundsContextTy IntersectedUC;
+      for (auto Pair : UC1) {
+        if (!Pair.second || !UC2[Pair.first])
+          continue;
+        if (Pair.second->isUnknown() || UC2[Pair.first]->isUnknown())
+          IntersectedUC[Pair.first] = CreateBoundsUnknown();
+        else if (EqualValue(S.Context, Pair.second, UC2[Pair.first], nullptr))
+          IntersectedUC[Pair.first] = Pair.second;
+      }
+      return IntersectedUC;
     }
 
     // If E appears in a set F in EQ, GetEqualExprSetContainingExpr
@@ -4124,7 +4266,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     Collector.Analyze();
     if (getLangOpts().DumpExtractedComparisonFacts)
       Collector.DumpComparisonFacts(llvm::outs(), FD->getNameInfo().getName().getAsString());
-    Checker.TraverseCFG(Collector);
+    Checker.TraverseCFG(Collector, FD);
   }
   else {
     // A CFG couldn't be constructed.  CFG construction doesn't support
