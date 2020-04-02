@@ -2955,11 +2955,10 @@ namespace {
           // value as the RHS `e1 +/- 1` of the assignment `e1 = e1 +/- 1`,
           // so State.G also remains unchanged.
         } else {
-          // Update State.G using the the target of the inc/dec operator for
-          // expressions where the integer constant 1 could not be constructed
-          // (e.g. floating point expressions). State.UEQ remains unchanged.
-          if (CheckIsNonModifying(Target) && CanBeInEqualExprSet(Target))
-            State.G = { Target };
+          // State.G is empty for expressions where the integer constant 1
+          // could not be constructed (e.g. floating point expressions).
+          // State.UEQ remains unchanged.
+          State.G.clear();
         }
       }
 

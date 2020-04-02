@@ -236,7 +236,7 @@ void f10(array_ptr<int> arr) {
 
 // UnaryOperator: pre-increment operator on a variable (float arithmetic)
 void f11 (float f) {
-  // Updated UEQ: { }, Updated G: { f }
+  // Updated UEQ: { }, Updated G: { }
   ++f;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
@@ -244,10 +244,7 @@ void f11 (float f) {
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
-  // CHECK-NEXT: {
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:   DeclRefExpr {{.*}} 'f'
-  // CHECK-NEXT: }
+  // CHECK-NEXT: { }
 }
 
 // UnaryOperator: pre-decrement operator on a non-variable
