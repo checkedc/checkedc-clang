@@ -3908,6 +3908,11 @@ namespace {
     // If a set F in EQ contains an expression that is an rvalue cast of
     // the variable V, GetEqualExprSetContainingVariable returns F.
     // Otherwise, it returns an empty set.
+    //
+    // This is a specialized version of GetEqualExprSetContainingExpr
+    // for variables.  It prevents the need to allocate a cast expression
+    // containing the variable v (which would be needed to call
+    // GetEqualExprSetContainingExpr).
     EqualExprTy GetEqualExprSetContainingVariable(DeclRefExpr *V,
                                                   EquivExprSets EQ) {
       for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
