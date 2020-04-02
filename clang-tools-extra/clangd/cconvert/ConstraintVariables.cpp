@@ -208,17 +208,22 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
 
   BaseType = tyToStr(Ty);
 
+  bool constraintWild = BaseType == "struct __va_list_tag *" || BaseType == "va_list" ||
+                        BaseType == "struct __va_list_tag" || isTypeHasVoid(QT);
+  if (constraintWild) {
+    std::string rsn = "Default Var arg list type.";
+    if (hasVoidType(D))
+      rsn = "Default void* type";
+    // TODO: Github issue #61: improve handling of types for
+    // variable arguments.
+    for (const auto &V : vars)
+      CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild(), rsn));
+  }
+
+  // add qualifiers
   if (QTy.isConstQualified()) {
     BaseType = "const " + BaseType;
   }
-
-  std::string rsn = "Default Var arg list type.";
-  // TODO: Github issue #61: improve handling of types for
-  // variable arguments.
-  if (BaseType == "struct __va_list_tag *" || BaseType == "va_list" ||
-      BaseType == "struct __va_list_tag")
-    for (const auto &V : vars)
-      CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild(), rsn));
 }
 
 bool PVConstraint::liftedOnCVars(const ConstraintVariable &O,

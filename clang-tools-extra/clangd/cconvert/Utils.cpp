@@ -215,8 +215,9 @@ Expr* removeAuxillaryCasts(Expr *srcExpr) {
   return srcExpr;
 }
 
-bool hasVoidType(clang::ValueDecl *D) {
-  const clang::Type* currType = D->getType().getTypePtrOrNull();
+
+bool isTypeHasVoid(clang::QualType QT) {
+  const clang::Type* currType = QT.getTypePtrOrNull();
   if (currType != nullptr) {
     if (currType->isVoidType())
       return true;
@@ -229,6 +230,10 @@ bool hasVoidType(clang::ValueDecl *D) {
     return innerType->isVoidType();
   }
   return false;
+}
+
+bool hasVoidType(clang::ValueDecl *D) {
+  return isTypeHasVoid(D->getType());
 }
 
 bool canWrite(const std::string &filePath) {

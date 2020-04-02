@@ -91,6 +91,8 @@ bool canWrite(const std::string &filePath);
 
 // check if the provided variable has void as one of its type
 bool hasVoidType(clang::ValueDecl *D);
+// check if the provided type has void as one of its type
+bool isTypeHasVoid(clang::QualType QT);
 
 // Simple Bimap implementation, with only STL dependency
 // Inspired from: https://github.com/Mazyod/Bimap/tree/master/Bimap
