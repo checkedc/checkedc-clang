@@ -3005,10 +3005,14 @@ namespace {
       Expr *Init = D->getInit();
       BoundsExpr *InitBounds = nullptr;
       // If there is an initializer, check it, and update the state to record
-      // expression equality implied by initialization.
+      // expression equality implied by initialization. After checking Init,
+      // State.G will contain non-modifying expressions that produce values
+      // equivalent to the value produced by Init.
       if (Init) {
         InitBounds = Check(Init, CSS, State);
 
+        // Create an rvalue expression for v. v could be an array or
+        // non-array variable.
         DeclRefExpr *TargetDeclRef =
           DeclRefExpr::Create(S.getASTContext(), NestedNameSpecifierLoc(),
                               SourceLocation(), D, false, SourceLocation(),
