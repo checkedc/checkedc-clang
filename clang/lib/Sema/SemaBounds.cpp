@@ -2507,15 +2507,9 @@ namespace {
           // Create the RHS of the implied assignment `e1 = e1 @ e2`.
           Src = ExprCreatorUtil::CreateBinaryOperator(S, Target, RHS, Op);
 
-          // Update the set of expressions that produce the same value as `e1`
-          // to be the set of expressions equal to `e1` before the assignment,
-          // since the compound assignment modifies `e1`.
-          SubExprGs[LHS] = GetEqualExprSetContainingExpr(LHS, State.UEQ);
-
           // Update State.G to be the set of expressions that produce the same
           // value as the source `e1 @ e2` of the assignment `e1 = e1 @ e2`.
           UpdateG(Src, SubExprGs, State.G);
-          SubExprGs[Src] = State.G;
         }
 
         // Update UEQ and G for assignments to `e1` where `e1` is a variable.
