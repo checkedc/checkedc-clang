@@ -2905,45 +2905,42 @@ namespace {
         Expr *Target = CreateImplicitCast(SubExpr->getType(),
                                             CK_LValueToRValue, SubExpr);
 
-        // Update the set G of expressions that produce the same value as `e1`.
-        State.G = GetEqualExprSetContainingExpr(SubExpr, State.UEQ);
-
-        // Only use the assignment `e1 = e1 +/1 ` to update UEQ and G if the
-        // integer constant 1 can be created.  The integer constant can only
-        // be created if `e1` has integer type or integer pointer type.
+        // Only use the RHS `e1 +/1 ` of the implied assignment to update
+        // UEQ and G if the integer constant 1 can be created, which is
+        // only true if `e1` has integer type or integer pointer type.
         IntegerLiteral *One = CreateIntegerLiteral(1, SubExpr->getType());
+        Expr *RHS = nullptr;
         if (One) {
-          // Create the RHS `e1 +/- 1` of the implied assignment `e1 = e1 +/- 1`.
           BinaryOperatorKind RHSOp = UnaryOperator::isIncrementOp(Op) ?
                                       BinaryOperatorKind::BO_Add :
                                       BinaryOperatorKind::BO_Sub;
-          BinaryOperator *RHS =
-            ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One, RHSOp);
+          RHS = ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One, RHSOp);
+        }
 
-          // Update the set G of expressions that produce the same value as
-          // the RHS `e1 +/- 1`.  For pre-inc/dec operators, use the `e1 +/- 1`
-          // to update G.  For post-inc/dec operators, use `e1` to update G.
+        // Update UEQ for inc/dec operators where `e1` is a variable.  Any
+        // expressions in UEQ that use the value of `e1` need to be adjusted
+        // using the original value of `e1`, since `e1` has been updated.
+        if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
+          // Clear G before updating UEQ since G currently contains
+          // expressions that produce the same value as the variable `e1`,
+          // and these expressions should not be added to UEQ.
+          State.G.clear();
+          Expr *OV = GetOriginalValue(V, RHS, State.UEQ);
+          Dragon.Message("+++ Original value: ").Stmt(OV).Message(" +++\n");
+          UpdateAfterAssignment(V, Target, OV, CSS, State, State);
+        }
+
+        // Update the set G of expressions that produce the same value as e.
+        if (RHS) {
+          // For post-inc/dec operators, use the rvalue for `e1` to update G.
+          // For pre-inc/dec operators, use `e1 +/- 1` to update G.
           bool IsPostIncDec = Op == UnaryOperatorKind::UO_PostInc ||
                               Op == UnaryOperatorKind::UO_PostDec;
-          Expr *Val = IsPostIncDec ? SubExpr : RHS;
-          UpdateG(RHS, State.G, State.G, Val);
-
-          // Update UEQ and G for inc/dec operators where `e1` is a variable.
-          if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
-            Expr *OV = GetOriginalValue(V, RHS, State.UEQ);
-            UpdateAfterAssignment(V, Target, OV, CSS, State, State);
-          }
-          // Do nothing for inc/dec operators where `e1` is not a variable.
-          // Since the RHS `e1 +/- 1` of the implied assignment
-          // `e1 = e1 +/- 1` uses the value of `e1` and `e1` has no
-          // original value in `e1 +/- 1`, State.UEQ remains unchanged.
-          // State.G already contains expressions that produce the same
-          // value as the RHS `e1 +/- 1` of the assignment `e1 = e1 +/- 1`,
-          // so State.G also remains unchanged.
+          Expr *Val = IsPostIncDec ? Target : RHS;
+          UpdateG(E, State.G, State.G, Val);
         } else {
-          // State.G is empty for expressions where the integer constant 1
+          // G is empty for expressions where the RHS of the assignment
           // could not be constructed (e.g. floating point expressions).
-          // State.UEQ remains unchanged.
           State.G.clear();
         }
       }
