@@ -16,7 +16,7 @@ extern array_ptr<int> g1(array_ptr<int> arr : count(1)) : count(1);
 //////////////////////////////////////////////
 
 // VarDecl: initializer
-void f1(void) {
+void vardecl_1(void) {
   int i = 0;
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
@@ -33,7 +33,7 @@ void f1(void) {
 }
 
 // BinaryOperator: non-compound assignment to a variable
-void f2(int i, nt_array_ptr<char> c) {
+void binary_1(int i, nt_array_ptr<char> c) {
   // Updated UEQ: { }
   c = "abc";
   // CHECK: Statement S:
@@ -62,7 +62,7 @@ void f2(int i, nt_array_ptr<char> c) {
 }
 
 // BinaryOperator: compound assignment to a variable
-void f3(unsigned i) {
+void binary_2(unsigned i) {
   // Updated UEQ: { { (i - 2) + 2, i } }
   i += 2;
   // CHECK: Statement S:
@@ -87,27 +87,23 @@ void f3(unsigned i) {
   // CHECK-NEXT: }
 }
 
-// BinaryOperator: non-compound assignment to a non-variable
-void f4(ptr<int> p) {
-  // Updated UEQ: { }, Updated G: { 3 }
-  *p = 3;
+// BinaryOperator: non-compound assignments to non-variables
+// (non-modifying and modifying expressions)
+void binary_3(int arr[1], int i) {
+  // Updated UEQ: { }, Updated G: { }
+  *arr = 3;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   UnaryOperator {{.*}} '*'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 3
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
-  // CHECK-NEXT: {
-  // CHECK-NEXT: IntegerLiteral {{.*}} 3
-  // CHECK-NEXT: }
-}
+  // CHECK-NEXT: { }
 
-// BinaryOperator: non-compound assignment to a modifying expression
-void f5(int arr[1], int i) {
-  // Updated UEQ: { }, Updated G: { 3 }
+  // Updated UEQ: { }, Updated G: { }
   arr[i++] = 3;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -120,14 +116,13 @@ void f5(int arr[1], int i) {
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
-  // CHECK-NEXT: {
-  // CHECK-NEXT: IntegerLiteral {{.*}} 3
-  // CHECK-NEXT: }
+  // CHECK-NEXT: { }
 }
 
-// BinaryOperator: compound assignment to a non-variable
-void f6(int arr[1]) {
-  // Updated UEQ: { }, Updated G: { arr[0] * 4 }
+// BinaryOperator: compound assignments to non-variables
+// (non-modifying and modifying expressions)
+void binary_4(int arr[1], int i) {
+  // Updated UEQ: { }, Updated G: { }
   arr[0] *= 4;
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
@@ -139,19 +134,26 @@ void f6(int arr[1]) {
   // CHECK-NEXT: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
-  // CHECK-NEXT: {
-  // CHECK-NEXT: BinaryOperator {{.*}} '*'
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:     ArraySubscriptExpr
-  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:         DeclRefExpr {{.*}} 'arr'
-  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
-  // CHECK-NEXT:  IntegerLiteral {{.*}} 4
-  // CHECK-NEXT: }
+  // CHECK-NEXT: { }
+
+  // Updated UEQ: { }, Updated G: { }
+  arr[--i] += 4;
+  // CHECK: Statement S:
+  // CHECK-NEXT: CompoundAssignOperator {{.*}} '+='
+  // CHECK-NEXT:   ArraySubscriptExpr
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:     UnaryOperator {{.*}} prefix '--'
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 4
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: { }
 }
 
 // UnaryOperator: pre-increment operator on a variable (unsigned integer arithmetic)
-void f7(unsigned x) {
+void binary_5(unsigned x) {
   // Updated UEQ: { { (x - 1) + 1, x } }
   ++x;
   // CHECK: Statement S:
@@ -173,7 +175,7 @@ void f7(unsigned x) {
 }
 
 // UnaryOperator: pre-decrement operator on a variable (checked pointer arithmetic)
-void f8(array_ptr<int> arr) {
+void binary_6(array_ptr<int> arr) {
   // Updated UEQ: { { (arr + 1) - 1, arr } }
   --arr;
   // CHECK: Statement S:
@@ -195,7 +197,7 @@ void f8(array_ptr<int> arr) {
 }
 
 // UnaryOperator: post-increment operator on a variable (unsigned integer arithmetic)
-void f9(unsigned x) {
+void unary_1(unsigned x) {
   // Updated UEQ: { { x - 1, x } }
   x++;
   // CHECK: Statement S:
@@ -215,7 +217,7 @@ void f9(unsigned x) {
 }
 
 // UnaryOperator: post-decrement operator on a variable (checked pointer arithmetic)
-void f10(array_ptr<int> arr) {
+void unary_2(array_ptr<int> arr) {
   // Updated UEQ: { { arr + 1, arr } }
   arr--;
   // CHECK: Statement S:
@@ -235,7 +237,7 @@ void f10(array_ptr<int> arr) {
 }
 
 // UnaryOperator: pre-increment operator on a variable (float arithmetic)
-void f11 (float f) {
+void unary_3(float f) {
   // Updated UEQ: { }, Updated G: { }
   ++f;
   // CHECK: Statement S:
@@ -248,7 +250,7 @@ void f11 (float f) {
 }
 
 // UnaryOperator: pre-decrement operator on a non-variable
-void f12(int *p) {
+void unary_4(int *p) {
   // Updated UEQ: { }, Updated G: { *p - 1 }
   --*p;
   // CHECK: Statement S:
@@ -274,7 +276,7 @@ void f12(int *p) {
 //////////////////////////////////////////////////////////////
 
 // Assign one value to each variable.
-void f13(int x, int y, int z, int w) {
+void multiple_assign1(int x, int y, int z, int w) {
   // Updated UEQ: { { 1, x }, { 2, y } }
   x = 1, y = 2;
   // CHECK: Statement S:
@@ -331,7 +333,7 @@ void f13(int x, int y, int z, int w) {
 }
 
 // Overwrite variable values.
-void f14(int x, int y) {
+void multiple_assign2(int x, int y) {
   // Updated UEQ: { { 1, x } }
   x = 1;
   // CHECK: Statement S:
@@ -391,7 +393,7 @@ void f14(int x, int y) {
 ///////////////////////////////////////////
 
 // UnaryOperator: '+' inverse
-void f15(int i) {
+void original_value1(int i) {
   // Original value of i in +i: +i
   // Updated UEQ: { { +(+i), i } }
   i = +i;
@@ -415,7 +417,7 @@ void f15(int i) {
 }
 
 // UnaryOperator: '-' inverse
-void f16(int i) {
+void original_value2(int i) {
   // Original value of i in -i: -i
   // Updated UEQ: { { -(-i), i } }
   i = -i;
@@ -439,7 +441,7 @@ void f16(int i) {
 }
 
 // UnaryOperator: '~' inverse
-void f17(int i) {
+void original_value3(int i) {
   // Original value of i in ~i: ~i
   // Updated UEQ: { { ~(~i), i } }
   i = ~i;
@@ -463,7 +465,7 @@ void f17(int i) {
 }
 
 // BinaryOperator: '^' inverse
-void f18(int i) {
+void original_value4(int i) {
   // Original value of i in 2 ^ i: i ^ 2
   // Updated UEQ: { { 2 ^ (i ^ 2), i } }
   i = 2 ^ i;
@@ -490,7 +492,7 @@ void f18(int i) {
 }
 
 // BinaryOperator: '+' inverse
-void f19(unsigned i, unsigned j) {
+void original_value5(unsigned i, unsigned j) {
   // Original value of i in i - j: i + j
   // Updated UEQ: { { (i + j) - j, i } }
   i = i - j;
@@ -520,7 +522,7 @@ void f19(unsigned i, unsigned j) {
 }
 
 // Combined UnaryOperator and BinaryOperator inverse
-void f20(unsigned i) {
+void original_value6(unsigned i) {
   // Original value of i in -(i + 2): -i - 2
   // Updated UEQ: { { -((-i - 2) + 2), i } }
   i = -(i + 2);
@@ -555,7 +557,7 @@ void f20(unsigned i) {
 }
 
 // Combined BinaryOperator and UnaryOperator inverse
-void f21(unsigned i) {
+void original_value7(unsigned i) {
   // Original value of i in ~i + 3: ~(i - 3)
   // Updated UEQ: { { ~(~(i - 3)) + 3, i } }
   i = ~i + 3;
@@ -588,7 +590,7 @@ void f21(unsigned i) {
 }
 
 // No inverse
-void f22(unsigned i, unsigned *p, unsigned arr[1]) {
+void original_value8(unsigned i, unsigned *p, unsigned arr[1]) {
   // Updated UEQ: { }, Updated G: { i }
   i = i + i;
   // CHECK: Statement S:
@@ -662,7 +664,7 @@ void f22(unsigned i, unsigned *p, unsigned arr[1]) {
 }
 
 // Original value from equivalence with another variable
-void f23(int x, int y) {
+void original_value9(int x, int y) {
   // Updated UEQ: { { y, x } }
   x = y;
   // CHECK: Statement S:
@@ -701,7 +703,7 @@ void f23(int x, int y) {
 }
 
 // The left-hand side variable is the original value
-void f24(int x) {
+void original_value10(int x) {
   // Original value of x in x: x
   // Updated UEQ: { }
   x = x;
@@ -727,7 +729,7 @@ void f24(int x) {
 }
 
 // CallExpr: using the left-hand side of an assignment as a call argument
-void f25(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) {
+void original_value11(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) {
   // Updated UEQ: { { b, a } }
   a = b;
   // CHECK: Statement S:
@@ -773,7 +775,7 @@ void f25(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) {
 /////////////////////////////////
 
 // If statement: assignment that affects equality sets
-void f26(int flag, int i, int j) {
+void control_flow1(int flag, int i, int j) {
   // Updated UEQ: { { i, len } }
   int len = i;
   // CHECK: Statement S:
@@ -825,7 +827,7 @@ void f26(int flag, int i, int j) {
 }
 
 // If statement: assignment that does not affect equality sets
-void f27(int flag, int i, int j) {
+void control_flow2(int flag, int i, int j) {
   // Updated UEQ: { { i, len } }
   int len = i;
   // CHECK: Statement S:
@@ -889,7 +891,7 @@ void f27(int flag, int i, int j) {
 }
 
 // If/else statements: different assignments
-void f28(int flag, int i, int j, int k) {
+void control_flow3(int flag, int i, int j, int k) {
   // Updated UEQ: { { i, len } }
   int len = i;
   // CHECK: Statement S:
@@ -966,7 +968,7 @@ void f28(int flag, int i, int j, int k) {
 }
 
 // If/else statements: more complicated intersection of equality sets
-void f29(int flag, int x, int y, int z, int w) {
+void control_flow4(int flag, int x, int y, int z, int w) {
   // Updated UEQ: { { 0, len } }
   int len = 0;
   // CHECK: Statement S:
@@ -1164,7 +1166,7 @@ void f29(int flag, int x, int y, int z, int w) {
 }
 
 // If/else statements: unreachable else
-void f30(int flag, int i, int j) {
+void control_flow5(int flag, int i, int j) {
   // Updated UEQ: { { 0, len } }
   int len = 0;
   // CHECK: Statement S:

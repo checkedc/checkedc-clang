@@ -2519,18 +2519,10 @@ namespace {
         }
         // Update UEQ and G for assignments where `e1` is not a variable.
         else {
-          if (!E->isCompoundAssignmentOp()) {
-            // TODO: update State for non-compound assignments `e1 = e2`
-            // to a non-variable `e1`, i.e. generalize the current
-            // approach to updating the state from variables to lvalues.
-          }
-          // Do nothing for compound assignments `e1 @= e2` to a
-          // non-variable `e1`. Since the RHS `e1 @ e2` of the implied
-          // assignment `e1 = e1 @ e2` uses the value of `e1` and `e1` has no
-          // original value in `e1 @ e2`, State.UEQ remains unchanged.
-          // State.G already contains expressions that produce the same
-          // value as the RHS `e1 @ e2` of the assignment `e1 = e1 @ e2`,
-          // so State.G also remains unchanged.
+          // G is empty for assignments to a non-variable.  This conservative
+          // approach avoids recording false equality facts for assignments
+          // where the LHS appears on the RHS, e.g. *p = *p + 1.
+          State.G.clear();
         }
       } else if (BinaryOperator::isLogicalOp(Op)) {
         // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
