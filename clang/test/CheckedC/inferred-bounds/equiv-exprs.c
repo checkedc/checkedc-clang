@@ -346,3 +346,19 @@ void f8(void) {
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 }
+
+// ArrayToPointerDecay cast of a modifying expression
+void f9(array_ptr<int [3]> arr : count(1), int i) {
+  arr[i++];
+  // CHECK: Statement S:
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:   ArraySubscriptExpr
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:     UnaryOperator {{.*}} postfix '++'
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK-NEXT: { }
+}

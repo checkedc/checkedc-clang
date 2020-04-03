@@ -2755,12 +2755,12 @@ namespace {
       // same value as e.
       if (CK == CastKind::CK_ArrayToPointerDecay) {
         // State.G = { e } for lvalues with array type.
-        if (!CreatesNewObject(E))
+        if (!CreatesNewObject(E) && CheckIsNonModifying(E))
           State.G = { E };
       } else if (CK == CastKind::CK_LValueToRValue) {
         if (E->getType()->isArrayType()) {
           // State.G = { e } for lvalues with array type.
-          if (!CreatesNewObject(E))
+          if (!CreatesNewObject(E) && CheckIsNonModifying(E))
             State.G = { E };
         }
         else {
