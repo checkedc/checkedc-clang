@@ -3681,6 +3681,9 @@ namespace {
     // IsInvertible returns true if the expression e can be inverted
     // with respect to the variable x.
     bool IsInvertible(DeclRefExpr *X, Expr *E) {
+      if (!E)
+        return false;
+
       E = E->IgnoreParens();
       if (IsRValueCastOfVariable(E, X))
         return true;
