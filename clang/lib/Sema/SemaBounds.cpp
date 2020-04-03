@@ -2926,7 +2926,6 @@ namespace {
           // and these expressions should not be added to UEQ.
           State.G.clear();
           Expr *OV = GetOriginalValue(V, RHS, State.UEQ);
-          Dragon.Message("+++ Original value: ").Stmt(OV).Message(" +++\n");
           UpdateAfterAssignment(V, Target, OV, CSS, State, State);
         }
 
