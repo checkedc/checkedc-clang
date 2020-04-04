@@ -3024,16 +3024,28 @@ namespace {
           UpdateAfterAssignment(V, Target, OV, CSS, State, State);
         }
 
-        // Update the set G of expressions that produce the same value as e.
-        if (RHS) {
-          // For post-inc/dec operators, use the rvalue for `e1` to update G.
-          // For pre-inc/dec operators, use `e1 +/- 1` to update G.
-          bool IsPostIncDec = Op == UnaryOperatorKind::UO_PostInc ||
-                              Op == UnaryOperatorKind::UO_PostDec;
-          Expr *Val = IsPostIncDec ? Target : RHS;
+        // Update the set G of expressions that produce the same value as `e`.
+        if (One) {
+          // For integer or integer pointer-typed expressions, create the
+          // expression Val that is equivalent to `e` in the program state
+          // after the increment/decrement expression `e` has executed.
+          // (The call to UpdateG will only add Val to G if Val is a
+          // non-modifying expression).
+
+          // `++e1` and `--e1` produce the same value as the rvalue cast of
+          // `e1` after executing `++e1` or `--e1`.
+          Expr *Val = Target;
+          // `e1++` produces the same value as `e1 - 1` after executing `e1++`.
+          if (Op == UnaryOperatorKind::UO_PostInc)
+            Val = ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One,
+                                    BinaryOperatorKind::BO_Sub);
+          // `e1--` produces the same value as `e1 + 1` after executing `e1--`.
+          else if (Op == UnaryOperatorKind::UO_PostDec)
+            Val = ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One,
+                                    BinaryOperatorKind::BO_Add);
           UpdateG(E, State.G, State.G, Val);
         } else {
-          // G is empty for expressions where the RHS of the assignment
+          // G is empty for expressions where the integer constant 1
           // could not be constructed (e.g. floating point expressions).
           State.G.clear();
         }
