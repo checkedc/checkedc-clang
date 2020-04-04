@@ -20,9 +20,7 @@ void f1(int i, int a checked[5]) {
   // CHECK: Statement S:
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
@@ -32,14 +30,9 @@ void f1(int i, int a checked[5]) {
   int arr checked[10];
   arr;
   // CHECK: Statement S:
-  // CHECK-NEXT: DeclStmt
-  // CHECK-NEXT:   VarDecl {{.*}} arr
-  // CHECK: Statement S:
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK:      ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
@@ -50,9 +43,7 @@ void f1(int i, int a checked[5]) {
   // CHECK: Statement S:
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a1'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a1'
@@ -63,9 +54,7 @@ void f1(int i, int a checked[5]) {
   // CHECK: Statement S:
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
@@ -80,34 +69,28 @@ void f2(int *p, int x, int y) {
   // CHECK-NEXT:   UnaryOperator {{.*}} '*'
   // CHECK-NEXT:    ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:      DeclRefExpr {{.*}} 'p'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 
   &x;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} '&'
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: UnaryOperator {{.*}} '&'
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT: }
 
   int a[3];
-  &a;
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
   // CHECK-NEXT:   VarDecl {{.*}} a
+  &a;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} '&'
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT: }
@@ -117,9 +100,7 @@ void f2(int *p, int x, int y) {
   // CHECK-NEXT: UnaryOperator {{.*}} '!'
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'y'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: UnaryOperator {{.*}} '!'
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -136,9 +117,7 @@ void f3(int a [1]) {
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT:     IntegerLiteral {{.*}} 0
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 }
 
@@ -147,9 +126,7 @@ void f4() {
   'a';
   // CHECK: Statement S:
   // CHECK-NEXT: CharacterLiteral {{.*}} 'int' 97
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: CharacterLiteral {{.*}} 'int' 97
   // CHECK-NEXT: }
@@ -157,9 +134,7 @@ void f4() {
   5;
   // CHECK: Statement S:
   // CHECK-NEXT: IntegerLiteral {{.*}} 5
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: IntegerLiteral {{.*}} 5
   // CHECK-NEXT: }
@@ -167,9 +142,7 @@ void f4() {
   3.14f;
   // CHECK: Statement S:
   // CHECK-NEXT: FloatingLiteral {{.*}} 'float' 3.14
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: FloatingLiteral {{.*}} 'float' 3.14
   // CHECK-NEXT: }
@@ -182,9 +155,7 @@ void f5() {
   // CHECK-NEXT: BinaryOperator {{.*}} '+'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 1
   // CHECK-NEXT:   IntegerLiteral {{.*}} 2
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: BinaryOperator {{.*}} '+'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 1
@@ -196,9 +167,7 @@ void f5() {
   // CHECK-NEXT: BinaryOperator {{.*}} '<'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 3
   // CHECK-NEXT:   IntegerLiteral {{.*}} 4
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: BinaryOperator {{.*}} '<'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 3
@@ -210,9 +179,7 @@ void f5() {
   // CHECK-NEXT: BinaryOperator {{.*}} '&'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 5
   // CHECK-NEXT:   IntegerLiteral {{.*}} 6
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: BinaryOperator {{.*}} '&'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 5
@@ -224,9 +191,7 @@ void f5() {
   // CHECK-NEXT: BinaryOperator {{.*}} ','
   // CHECK-NEXT:   IntegerLiteral {{.*}} 7
   // CHECK-NEXT:   IntegerLiteral {{.*}} 8
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: IntegerLiteral {{.*}} 8
   // CHECK-NEXT: }
@@ -239,9 +204,7 @@ void f6(int i, array_ptr<int> arr : count(1)) {
   // CHECK-NEXT: CStyleCastExpr {{.*}} <IntegralToFloating>
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'i'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: CStyleCastExpr {{.*}} <IntegralToFloating>
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -256,9 +219,7 @@ void f6(int i, array_ptr<int> arr : count(1)) {
   // CHECK-NEXT:      DeclRefExpr {{.*}} 'arr'
   // CHECK-NEXT:   CountBoundsExpr
   // CHECK-NEXT:     IntegerLiteral {{.*}} 4
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
   // CHECK-NEXT: BoundsCastExpr {{.*}} <AssumePtrBounds>
   // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} '_Array_ptr<int>'
@@ -278,9 +239,7 @@ void f7(void) {
   // CHECK-NEXT: CallExpr {{.*}} 'void'
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'g1'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 
   // Function with no parameter annotations
@@ -290,9 +249,7 @@ void f7(void) {
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'g2'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 0
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 
   // Function with parameter annotations
@@ -303,9 +260,7 @@ void f7(void) {
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'g3'
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <NullToPointer>
   // CHECK-NEXT:     IntegerLiteral {{.*}} 0
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 }
 
@@ -316,9 +271,7 @@ void f8(void) {
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'char [4]'
   // CHECK-NEXT:     StringLiteral {{.*}} "abc"
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 
   (int []){ 0, 1, 2 };
@@ -330,9 +283,7 @@ void f8(void) {
   // CHECK-NEXT:         IntegerLiteral {{.*}} 0
   // CHECK-NEXT:         IntegerLiteral {{.*}} 1
   // CHECK-NEXT:         IntegerLiteral {{.*}} 2
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 
   &(double []){ 2.72 };
@@ -341,9 +292,7 @@ void f8(void) {
   // CHECK-NEXT:   CompoundLiteralExpr {{.*}} 'double [1]'
   // CHECK-NEXT:     InitListExpr {{.*}} 'double [1]'
   // CHECK-NEXT:       FloatingLiteral 0{{.*}} 'double' 2.72
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 }
 
@@ -357,8 +306,6 @@ void f9(array_ptr<int [3]> arr : count(1), int i) {
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
   // CHECK-NEXT:     UnaryOperator {{.*}} postfix '++'
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
-  // CHECK-NEXT: { }
-  // CHECK-NEXT: Expressions that produce the same value as S:
+  // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 }

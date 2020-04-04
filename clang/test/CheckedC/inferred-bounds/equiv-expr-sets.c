@@ -22,7 +22,7 @@ void vardecl1(void) {
   // CHECK-NEXT: DeclStmt
   // CHECK-NEXT:   VarDecl {{.*}} i
   // CHECK-NEXT:     IntegerLiteral {{.*}} 0
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: IntegerLiteral {{.*}} 0
@@ -42,7 +42,7 @@ void binary1(int i, nt_array_ptr<char> c) {
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:     CHKCBindTemporaryExpr {{.*}} 'char [4]'
   // CHECK-NEXT:       StringLiteral {{.*}} "abc"
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
 
   // Updated UEQ: { { 1, i } }
@@ -51,7 +51,7 @@ void binary1(int i, nt_array_ptr<char> c) {
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 1
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: IntegerLiteral {{.*}} 1
@@ -70,7 +70,7 @@ void binary2(unsigned i) {
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} 'unsigned int' <IntegralCast>
   // CHECK-NEXT:     IntegerLiteral {{.*}} 2
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: BinaryOperator {{.*}} '+'
@@ -98,7 +98,7 @@ void binary3(int arr[1], int i) {
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 3
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
@@ -113,7 +113,7 @@ void binary3(int arr[1], int i) {
   // CHECK-NEXT:     UnaryOperator {{.*}} postfix '++'
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT:  IntegerLiteral {{.*}} 3
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
@@ -131,7 +131,7 @@ void binary4(int arr[1], int i) {
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
   // CHECK-NEXT:     IntegerLiteral {{.*}} 0
   // CHECK-NEXT:   IntegerLiteral {{.*}} 4
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
@@ -146,7 +146,7 @@ void binary4(int arr[1], int i) {
   // CHECK-NEXT:     UnaryOperator {{.*}} prefix '--'
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 4
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
@@ -159,7 +159,7 @@ void unary1(unsigned x) {
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
@@ -177,7 +177,7 @@ void unary2(array_ptr<int> arr) {
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '--'
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
@@ -195,7 +195,7 @@ void unary3(unsigned x) {
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '++'
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
@@ -211,7 +211,7 @@ void unary4(array_ptr<int> arr) {
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '--'
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
@@ -227,7 +227,7 @@ void unary5(float f) {
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'f'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
@@ -242,7 +242,7 @@ void unary6(int *p) {
   // CHECK-NEXT:   UnaryOperator {{.*}} '*'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
@@ -271,7 +271,7 @@ void multiple_assign1(int x, int y, int z, int w) {
   // CHECK-NEXT:   BinaryOperator {{.*}} '='
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'y'
   // CHECK-NEXT:     IntegerLiteral {{.*}} 2
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: IntegerLiteral {{.*}} 1
@@ -294,7 +294,7 @@ void multiple_assign1(int x, int y, int z, int w) {
   // CHECK-NEXT:     BinaryOperator {{.*}} '='
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'w'
   // CHECK-NEXT:       IntegerLiteral {{.*}} 3
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: IntegerLiteral {{.*}} 1
@@ -324,7 +324,7 @@ void multiple_assign2(int x, int y) {
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 1
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: IntegerLiteral {{.*}} 1
@@ -340,7 +340,7 @@ void multiple_assign2(int x, int y) {
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'x'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: IntegerLiteral {{.*}} 1
@@ -357,7 +357,7 @@ void multiple_assign2(int x, int y) {
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 2
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: IntegerLiteral {{.*}} 1
@@ -387,7 +387,7 @@ void original_value1(int i) {
   // CHECK-NEXT:   UnaryOperator {{.*}} '+'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: UnaryOperator {{.*}} '+'
@@ -411,7 +411,7 @@ void original_value2(int i) {
   // CHECK-NEXT:   UnaryOperator {{.*}} '-'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: UnaryOperator {{.*}} '-'
@@ -435,7 +435,7 @@ void original_value3(int i) {
   // CHECK-NEXT:   UnaryOperator {{.*}} '~'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: UnaryOperator {{.*}} '~'
@@ -460,7 +460,7 @@ void original_value4(int i) {
   // CHECK-NEXT:     IntegerLiteral {{.*}} 2
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: BinaryOperator {{.*}} '^'
@@ -488,7 +488,7 @@ void original_value5(unsigned i, unsigned j) {
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'j'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: BinaryOperator {{.*}} '-'
@@ -520,7 +520,7 @@ void original_value6(unsigned i) {
   // CHECK-NEXT:           DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT:         ImplicitCastExpr {{.*}} 'unsigned int' <IntegralCast>
   // CHECK-NEXT:           IntegerLiteral {{.*}} 2
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: UnaryOperator {{.*}} '-'
@@ -554,7 +554,7 @@ void original_value7(unsigned i) {
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} 'unsigned int' <IntegralCast>
   // CHECK-NEXT:       IntegerLiteral {{.*}} 3
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: BinaryOperator {{.*}} '+'
@@ -585,7 +585,7 @@ void original_value8(unsigned i, unsigned *p, unsigned arr[1]) {
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
@@ -603,7 +603,7 @@ void original_value8(unsigned i, unsigned *p, unsigned arr[1]) {
   // CHECK-NEXT:       IntegerLiteral {{.*}} 2
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
@@ -620,7 +620,7 @@ void original_value8(unsigned i, unsigned *p, unsigned arr[1]) {
   // CHECK-NEXT:     UnaryOperator {{.*}} '*'
   // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
@@ -638,7 +638,7 @@ void original_value8(unsigned i, unsigned *p, unsigned arr[1]) {
   // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'arr'
   // CHECK-NEXT:       IntegerLiteral {{.*}} 0
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: {
@@ -656,7 +656,7 @@ void original_value9(int x, int y) {
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'y'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -673,7 +673,7 @@ void original_value9(int x, int y) {
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 2
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: BinaryOperator {{.*}} '*'
@@ -696,7 +696,7 @@ void original_value10(int x) {
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'x'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
 
   // Original value of x in (int)x: x
@@ -708,7 +708,7 @@ void original_value10(int x) {
   // CHECK-NEXT:   CStyleCastExpr {{.*}} 'int' <NoOp>
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
 }
 
@@ -721,7 +721,7 @@ void original_value11(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) 
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'b'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -744,7 +744,7 @@ void original_value11(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) 
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'g1'
   // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'a'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: BoundsValueExpr {{.*}} '_Array_ptr<int>'
@@ -767,7 +767,7 @@ void control_flow1(int flag, int i, int j) {
   // CHECK-NEXT:   VarDecl {{.*}} len
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -787,7 +787,7 @@ void control_flow1(int flag, int i, int j) {
     // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
     // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:     DeclRefExpr {{.*}} 'j'
-    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK: Sets of equivalent expressions after checking S:
     // CHECK-NEXT: {
     // CHECK-NEXT: {
     // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -806,7 +806,7 @@ void control_flow1(int flag, int i, int j) {
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 2
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
 }
 
@@ -819,7 +819,7 @@ void control_flow2(int flag, int i, int j) {
   // CHECK-NEXT:   VarDecl {{.*}} len
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -837,7 +837,7 @@ void control_flow2(int flag, int i, int j) {
     // CHECK:      BinaryOperator {{.*}} '='
     // CHECK-NEXT:   DeclRefExpr {{.*}} 'j'
     // CHECK-NEXT:   IntegerLiteral {{.*}} 42
-    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK: Sets of equivalent expressions after checking S:
     // CHECK-NEXT: {
     // CHECK-NEXT: {
     // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -861,7 +861,7 @@ void control_flow2(int flag, int i, int j) {
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 2
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: BinaryOperator {{.*}} '*'
@@ -883,7 +883,7 @@ void control_flow3(int flag, int i, int j, int k) {
   // CHECK-NEXT:   VarDecl {{.*}} len
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -908,7 +908,7 @@ void control_flow3(int flag, int i, int j, int k) {
     // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
     // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:     DeclRefExpr {{.*}} 'k'
-    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK: Sets of equivalent expressions after checking S:
     // CHECK-NEXT: {
     // CHECK-NEXT: {
     // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -928,7 +928,7 @@ void control_flow3(int flag, int i, int j, int k) {
     // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
     // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:     DeclRefExpr {{.*}} 'j'
-    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK: Sets of equivalent expressions after checking S:
     // CHECK-NEXT: {
     // CHECK-NEXT: {
     // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -947,7 +947,7 @@ void control_flow3(int flag, int i, int j, int k) {
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 2
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
 }
 
@@ -959,7 +959,7 @@ void control_flow4(int flag, int x, int y, int z, int w) {
   // CHECK-NEXT: DeclStmt
   // CHECK-NEXT:   VarDecl {{.*}} len
   // CHECK-NEXT:     IntegerLiteral {{.*}} 0
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: IntegerLiteral {{.*}} 0
@@ -981,7 +981,7 @@ void control_flow4(int flag, int x, int y, int z, int w) {
     // CHECK:      BinaryOperator {{.*}} '='
     // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
     // CHECK-NEXT:   IntegerLiteral {{.*}} 3
-    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK: Sets of equivalent expressions after checking S:
     // CHECK-NEXT: {
     // CHECK-NEXT: {
     // CHECK-NEXT: IntegerLiteral {{.*}} 0
@@ -1003,7 +1003,7 @@ void control_flow4(int flag, int x, int y, int z, int w) {
     // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
     // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:     DeclRefExpr {{.*}} 'x'
-    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK: Sets of equivalent expressions after checking S:
     // CHECK-NEXT: {
     // CHECK-NEXT: {
     // CHECK-NEXT: IntegerLiteral {{.*}} 0
@@ -1026,7 +1026,7 @@ void control_flow4(int flag, int x, int y, int z, int w) {
     // CHECK-NEXT:   DeclRefExpr {{.*}} 'w'
     // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:     DeclRefExpr {{.*}} 'z'
-    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK: Sets of equivalent expressions after checking S:
     // CHECK-NEXT: {
     // CHECK-NEXT: {
     // CHECK-NEXT: IntegerLiteral {{.*}} 0
@@ -1056,7 +1056,7 @@ void control_flow4(int flag, int x, int y, int z, int w) {
     // CHECK:      BinaryOperator {{.*}} '='
     // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
     // CHECK-NEXT:   IntegerLiteral {{.*}} 2
-    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK: Sets of equivalent expressions after checking S:
     // CHECK-NEXT: {
     // CHECK-NEXT: {
     // CHECK-NEXT: IntegerLiteral {{.*}} 0
@@ -1078,7 +1078,7 @@ void control_flow4(int flag, int x, int y, int z, int w) {
     // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
     // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:     DeclRefExpr {{.*}} 'y'
-    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK: Sets of equivalent expressions after checking S:
     // CHECK-NEXT: {
     // CHECK-NEXT: {
     // CHECK-NEXT: IntegerLiteral {{.*}} 0
@@ -1101,7 +1101,7 @@ void control_flow4(int flag, int x, int y, int z, int w) {
     // CHECK-NEXT:   DeclRefExpr {{.*}} 'z'
     // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:     DeclRefExpr {{.*}} 'w'
-    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK: Sets of equivalent expressions after checking S:
     // CHECK-NEXT: {
     // CHECK-NEXT: {
     // CHECK-NEXT: IntegerLiteral {{.*}} 0
@@ -1132,7 +1132,7 @@ void control_flow4(int flag, int x, int y, int z, int w) {
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 2
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -1157,7 +1157,7 @@ void control_flow5(int flag, int i, int j) {
   // CHECK-NEXT: DeclStmt
   // CHECK-NEXT:   VarDecl {{.*}} len
   // CHECK-NEXT:     IntegerLiteral {{.*}} 0
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: IntegerLiteral {{.*}} 0
@@ -1175,7 +1175,7 @@ void control_flow5(int flag, int i, int j) {
     // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
     // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:     DeclRefExpr {{.*}} 'i'
-    // CHECK-NEXT: Sets of equivalent expressions after checking S:
+    // CHECK: Sets of equivalent expressions after checking S:
     // CHECK-NEXT: {
     // CHECK-NEXT: {
     // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -1197,7 +1197,7 @@ void control_flow5(int flag, int i, int j) {
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
   // CHECK-NEXT:   IntegerLiteral {{.*}} 2
-  // CHECK-NEXT: Sets of equivalent expressions after checking S:
+  // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: {
   // CHECK-NEXT: BinaryOperator {{.*}} '*'

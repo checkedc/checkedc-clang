@@ -26,9 +26,9 @@ void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
   // Note: By default, PostOrderCFGView iterates in reverse order. So we always
   // get a reverse post order when we iterate PostOrderCFGView.
   for (const CFGBlock *B : PostOrderCFGView(Cfg)) {
-    // SkipBlock will skip all null, entry and exit blocks. PostOrderCFGView
-    // does not contain any unreachable blocks. So at the end of this loop
-    // BlockMap only contains reachable blocks.
+    // SkipBlock will skip all null and exit blocks. PostOrderCFGView does not
+    // contain any unreachable blocks. So at the end of this loop BlockMap only
+    // contains reachable blocks.
     if (SkipBlock(B))
       continue;
 
@@ -57,6 +57,9 @@ void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
   ComputeGenSets();
   ComputeKillSets();
 
+  // Initialize the In and Out sets to Top.
+  InitInOutSets();
+
   // Compute In and Out sets.
   while (!WorkList.empty()) {
     ElevatedCFGBlock *EB = WorkList.next();
@@ -64,6 +67,19 @@ void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
 
     ComputeInSets(EB);
     ComputeOutSets(EB, WorkList);
+  }
+}
+
+void BoundsAnalysis::InitInOutSets() {
+  for (const auto item : BlockMap) {
+    ElevatedCFGBlock *EB = item.second;
+
+    if (EB->Block == &Cfg->getEntry())
+      continue;
+
+    EB->In = Top;
+    for (const CFGBlock *succ : EB->Block->succs())
+      EB->Out[succ] = Top;
   }
 }
 
@@ -307,7 +323,17 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
     UpperOffset = DerefOffset.ssub_ov(UpperOffset, Overflow);
     if (Overflow)
       continue;
+
     EB->Gen[SuccEB->Block][V] = UpperOffset.getLimitedValue();
+
+    // Top represents the union of the Gen sets of all edges. We have chosen
+    // the offsets of ptr variables in Top to be the max unsigned int. The
+    // reason behind this is that in order to compute the actual In sets for
+    // blocks we are going to intersect the Out sets on all the incoming edges
+    // of the block. And in that case we would always pick the ptr with the
+    // smaller offset. Chosing max unsigned int also makes handling Top much
+    // easier as we do not need to explicitly store edge info.
+    Top[V] = std::numeric_limits<unsigned>::max();
   }
 }
 
@@ -560,17 +586,17 @@ void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB) {
   // In[B1] = n Out[B*->B1], where B* are all preds of B1.
 
   BoundsMapTy Intersections;
-  bool ItersectionEmpty = true;
+  bool FirstIntersection = true;
 
   for (const CFGBlock *pred : EB->Block->preds()) {
     if (SkipBlock(pred))
-      continue;
+      return;
 
     ElevatedCFGBlock *PredEB = BlockMap[pred];
 
-    if (ItersectionEmpty) {
+    if (FirstIntersection) {
       Intersections = PredEB->Out[EB->Block];
-      ItersectionEmpty = false;
+      FirstIntersection = false;
     } else
       Intersections = Intersect(Intersections, PredEB->Out[EB->Block]);
   }
@@ -591,6 +617,7 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
   }
 
   BoundsMapTy Diff = Difference(EB->In, KilledVars);
+
   for (const CFGBlock *succ : EB->Block->succs()) {
     if (SkipBlock(succ))
       continue;
@@ -635,6 +662,8 @@ Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
   if (const Stmt *S = B->getTerminatorStmt()) {
     if (const auto *IfS = dyn_cast<IfStmt>(S))
       return const_cast<Expr *>(IfS->getCond());
+    if (const auto *WhileS = dyn_cast<WhileStmt>(S))
+      return const_cast<Expr *>(WhileS->getCond());
   }
   return nullptr;
 }
@@ -649,7 +678,7 @@ bool BoundsAnalysis::IsNtArrayType(const VarDecl *V) const {
 }
 
 bool BoundsAnalysis::SkipBlock(const CFGBlock *B) const {
-  return !B || B == &Cfg->getEntry() || B == &Cfg->getExit();
+  return !B || B == &Cfg->getExit();
 }
 
 template<class T>
@@ -715,8 +744,21 @@ template<class T>
 bool BoundsAnalysis::Differ(T &A, T &B) const {
   if (A.size() != B.size())
     return true;
-  auto Ret = Intersect(A, B);
-  return Ret.size() != A.size();
+
+  for (const auto item : A) {
+    if (!B.count(item.first))
+      return true;
+    if (B[item.first] != item.second)
+      return true;
+  }
+
+  for (const auto item : B) {
+    if (!A.count(item.first))
+      return true;
+    if (A[item.first] != item.second)
+      return true;
+  }
+  return false;
 }
 
 OrderedBlocksTy BoundsAnalysis::GetOrderedBlocks() {
