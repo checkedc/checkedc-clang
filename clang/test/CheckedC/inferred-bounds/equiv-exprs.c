@@ -2,7 +2,7 @@
 // This file tests updating the set of expressions that produces the same value as an expression
 // after checking the expression during bounds analysis.
 // This file does not test assignments that update the set of sets of equivalent expressions
-// (assignments will be tested in a separate test file).
+// (assignments are tested in equiv-expr-sets.c).
 //
 // RUN: %clang_cc1 -Wno-unused-value -fdump-checking-state %s | FileCheck %s
 
@@ -121,8 +121,16 @@ void f3(int a [1]) {
   // CHECK-NEXT: { }
 }
 
-// IntegerLiteral, StringLiteral, CHKCBindTemporaryExpr
+// CharacterLiteral, IntegerLiteral, FloatingLiteral
 void f4() {
+  'a';
+  // CHECK: Statement S:
+  // CHECK-NEXT: CharacterLiteral {{.*}} 'int' 97
+  // CHECK: Expressions that produce the same value as S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: CharacterLiteral {{.*}} 'int' 97
+  // CHECK-NEXT: }
+
   5;
   // CHECK: Statement S:
   // CHECK-NEXT: IntegerLiteral {{.*}} 5
@@ -131,16 +139,12 @@ void f4() {
   // CHECK-NEXT: IntegerLiteral {{.*}} 5
   // CHECK-NEXT: }
 
-  "abc";
+  3.14f;
   // CHECK: Statement S:
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'char [4]'
-  // CHECK-NEXT:     StringLiteral {{.*}} "abc"
+  // CHECK-NEXT: FloatingLiteral {{.*}} 'float' 3.14
   // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'char [4]'
-  // CHECK-NEXT:     StringLiteral {{.*}} "abc"
+  // CHECK-NEXT: FloatingLiteral {{.*}} 'float' 3.14
   // CHECK-NEXT: }
 }
 
@@ -256,6 +260,52 @@ void f7(void) {
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'g3'
   // CHECK-NEXT:   ImplicitCastExpr {{.*}} <NullToPointer>
   // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK: Expressions that produce the same value as S:
+  // CHECK-NEXT: { }
+}
+
+// StringLiteral, InitListExpr, CompoundLiteral
+void f8(void) {
+  "abc";
+  // CHECK: Statement S:
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'char [4]'
+  // CHECK-NEXT:     StringLiteral {{.*}} "abc"
+  // CHECK: Expressions that produce the same value as S:
+  // CHECK-NEXT: { }
+
+  (int []){ 0, 1, 2 };
+  // CHECK: Statement S:
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'int [3]'
+  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int [3]'
+  // CHECK-NEXT:       InitListExpr {{.*}} 'int [3]'
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 2
+  // CHECK: Expressions that produce the same value as S:
+  // CHECK-NEXT: { }
+
+  &(double []){ 2.72 };
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} prefix '&'
+  // CHECK-NEXT:   CompoundLiteralExpr {{.*}} 'double [1]'
+  // CHECK-NEXT:     InitListExpr {{.*}} 'double [1]'
+  // CHECK-NEXT:       FloatingLiteral 0{{.*}} 'double' 2.72
+  // CHECK: Expressions that produce the same value as S:
+  // CHECK-NEXT: { }
+}
+
+// ArrayToPointerDecay cast of a modifying expression
+void f9(array_ptr<int [3]> arr : count(1), int i) {
+  arr[i++];
+  // CHECK: Statement S:
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:   ArraySubscriptExpr
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:     UnaryOperator {{.*}} postfix '++'
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
   // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 }

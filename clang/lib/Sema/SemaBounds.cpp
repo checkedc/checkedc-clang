@@ -113,6 +113,66 @@ public:
 }
 
 namespace {
+  class ExprCreatorUtil {
+    public:
+      // If Op is not a compound operator, CreateBinaryOperator returns a
+      // binary operator LHS Op RHS.  If Op is a compound operator @=,
+      // CreateBinaryOperator returns a binary operator LHS @ RHS.
+      // LHS and RHS are cast to rvalues if necessary.
+      static BinaryOperator *CreateBinaryOperator(Sema &SemaRef,
+                                                  Expr *LHS, Expr *RHS,
+                                                  BinaryOperatorKind Op) {
+        assert(LHS && "expected LHS to exist");
+        assert(RHS && "expected RHS to exist");
+        LHS = EnsureRValue(SemaRef, LHS);
+        RHS = EnsureRValue(SemaRef, RHS);
+        if (BinaryOperator::isCompoundAssignmentOp(Op))
+          Op = BinaryOperator::getOpForCompoundAssignment(Op);
+        return new (SemaRef.Context) BinaryOperator(LHS, RHS, Op,
+                                                    LHS->getType(),
+                                                    LHS->getValueKind(),
+                                                    LHS->getObjectKind(),
+                                                    SourceLocation(),
+                                                    FPOptions());
+      }
+
+      // Create an unsigned integer literal.
+      static IntegerLiteral *CreateUnsignedInt(Sema &SemaRef, unsigned Value) {
+        QualType T = SemaRef.Context.UnsignedIntTy;
+        llvm::APInt Val(SemaRef.Context.getIntWidth(T), Value);
+        return IntegerLiteral::Create(SemaRef.Context, Val,
+                                      T, SourceLocation());
+      }
+
+      // Create an implicit cast expression.
+      static ImplicitCastExpr *CreateImplicitCast(Sema &SemaRef, Expr *E,
+                                                  CastKind CK, QualType T) {
+        return ImplicitCastExpr::Create(SemaRef.Context, T,
+                                        CK, E, nullptr,
+                                        ExprValueKind::VK_RValue);
+      }
+
+      // If e is an rvalue, EnsureRValue returns e.  Otherwise, EnsureRValue
+      // returns a cast of e to an rvalue, based on the type of e.
+      static Expr *EnsureRValue(Sema &SemaRef, Expr *E) {
+        if (E->isRValue())
+          return E;
+
+        CastKind Kind;
+        QualType TargetTy;
+        if (E->getType()->isArrayType()) {
+          Kind = CK_ArrayToPointerDecay;
+          TargetTy = SemaRef.getASTContext().getArrayDecayedType(E->getType());
+        } else {
+          Kind = CK_LValueToRValue;
+          TargetTy = E->getType();
+        }
+        return CreateImplicitCast(SemaRef, E, Kind, TargetTy);
+      }
+  };
+}
+
+namespace {
   class AbstractBoundsExpr : public TreeTransform<AbstractBoundsExpr> {
     typedef TreeTransform<AbstractBoundsExpr> BaseTransform;
     typedef ArrayRef<DeclaratorChunk::ParamInfo> ParamsInfo;
@@ -472,6 +532,113 @@ namespace {
     else
       return R.get();
   }	
+}
+
+namespace {
+  class VariableCountHelper : public RecursiveASTVisitor<VariableCountHelper> {
+    private:
+      Sema &SemaRef;
+      DeclRefExpr *V;
+      int Count;
+
+    public:
+      VariableCountHelper(Sema &SemaRef, DeclRefExpr *V) :
+        SemaRef(SemaRef),
+        V(V),
+        Count(0) {}
+
+      int GetCount() { return Count; }
+
+      bool VisitDeclRefExpr(DeclRefExpr *E) {
+        Lexicographic Lex(SemaRef.Context, nullptr);
+        if (Lex.CompareExpr(E, V) == Lexicographic::Result::Equal)
+          ++Count;
+        return true;
+      }
+  };
+
+  // VariableOccurrenceCount returns the number of occurrences of V in E.
+  int VariableOccurrenceCount(Sema &SemaRef, DeclRefExpr *V, Expr *E) {
+    VariableCountHelper Counter(SemaRef, V);
+    Counter.TraverseStmt(E);
+    return Counter.GetCount();
+  }
+}
+
+namespace {
+  class ReplaceVariableHelper : public TreeTransform<ReplaceVariableHelper> {
+    typedef TreeTransform<ReplaceVariableHelper> BaseTransform;
+    private:
+      // The variable whose uses should be replaced in an expression.
+      DeclRefExpr *Variable;
+
+      // The original value (if any) to replace uses of the variable with.
+      // If no original value is provided, an expression using the variable
+      // will be transformed into an invalid result.
+      Expr *OriginalValue;
+
+    public:
+      ReplaceVariableHelper(Sema &SemaRef, DeclRefExpr *V, Expr *OV) :
+        BaseTransform(SemaRef),
+        Variable(V),
+        OriginalValue(OV) { }
+
+      ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
+        Lexicographic Lex(SemaRef.Context, nullptr);
+        if (Lex.CompareExpr(Variable, E) == Lexicographic::Result::Equal) {
+          if (OriginalValue)
+            return OriginalValue;
+          else
+            return ExprError();
+        } else
+          return E;
+      }
+
+      // Overriding TransformImplicitCastExpr is necessary since TreeTransform
+      // does not preserve implicit casts.
+      ExprResult TransformImplicitCastExpr(ImplicitCastExpr *E) {
+        // Replace V with OV (if applicable) in the subexpression of E.
+        ExprResult ChildResult = BaseTransform::TransformImplicitCastExpr(E);
+        if (ChildResult.isInvalid())
+          return ChildResult;
+
+        Expr *Child = ChildResult.get();
+        CastKind CK = E->getCastKind();
+
+        if (CK == CastKind::CK_LValueToRValue ||
+            CK == CastKind::CK_ArrayToPointerDecay)
+          // Only cast children of lvalue to rvalue casts to an rvalue if
+          // necessary.  The transformed child expression may no longer be
+          // an lvalue, depending on the original value.  For example, if x
+          // is transformed to the original value x + 1, it does not need to
+          // be cast to an rvalue.
+          return ExprCreatorUtil::EnsureRValue(SemaRef, Child);
+        else
+          return ExprCreatorUtil::CreateImplicitCast(SemaRef, Child,
+                                                     CK, E->getType());
+      }
+  };
+
+  // If an original value OV is provided, ReplaceVariableReferences returns
+  // an expression that replaces all uses of the variable V in E with OV.
+  // If no original value is provided and E uses V, ReplaceVariableReferences
+  // returns nullptr.
+  Expr *ReplaceVariableReferences(Sema &SemaRef, Expr *E, DeclRefExpr *V,
+                                Expr *OV, CheckedScopeSpecifier CSS) {
+    // Don't transform e if it does not use the value of v.
+    if (!VariableOccurrenceCount(SemaRef, V, E))
+      return E;
+
+    // Account for checked scope information when transforming the expression.
+    Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
+
+    Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics
+    ExprResult R = ReplaceVariableHelper(SemaRef, V, OV).TransformExpr(E);
+    if (R.isInvalid())
+      return nullptr;
+    else
+      return R.get();
+  }
 }
 
 namespace {
@@ -2035,9 +2202,9 @@ namespace {
               DumpCheckingState(llvm::outs(), S, BlockState);
          }
        }
-       AFA.Next();
        if (Block->getBlockID() != Cfg->getEntry().getBlockID())
          BlockStates[Block->getBlockID()] = BlockState;
+       AFA.Next();
      }
     }
 
@@ -2080,7 +2247,10 @@ namespace {
   public:
     BoundsExpr *Check(Stmt *S, CheckedScopeSpecifier CSS) {
       CheckingState State;
-      return Check(S, CSS, State);
+      BoundsExpr *Bounds = Check(S, CSS, State);
+      if (DumpState)
+        DumpCheckingState(llvm::outs(), S, State);
+      return Bounds;
     }
 
     // If e is an rvalue, Check checks e and its children, performing any
@@ -2421,8 +2591,34 @@ namespace {
         }
       }
 
+      // Update State.UEQ and State.G.
       if (E->isAssignmentOp()) {
-        // TODO: update State for assignments `e1 = e2` and `e1 @= e2`.
+        Expr *Target =
+             CreateImplicitCast(LHS->getType(), CK_LValueToRValue, LHS);
+        Expr *Src = RHS;
+
+        // A compound assignment `e1 @= e2` implies an assignment `e1 = e1 @ e2`.
+        if (E->isCompoundAssignmentOp()) {
+          // Create the RHS of the implied assignment `e1 = e1 @ e2`.
+          Src = ExprCreatorUtil::CreateBinaryOperator(S, Target, RHS, Op);
+
+          // Update State.G to be the set of expressions that produce the same
+          // value as the source `e1 @ e2` of the assignment `e1 = e1 @ e2`.
+          UpdateG(Src, SubExprGs, State.G);
+        }
+
+        // Update UEQ and G for assignments to `e1` where `e1` is a variable.
+        if (DeclRefExpr *V = GetLValueVariable(LHS)) {
+          Expr *OV = GetOriginalValue(V, Src, State.UEQ);
+          UpdateAfterAssignment(V, Target, OV, CSS, State, State);
+        }
+        // Update UEQ and G for assignments where `e1` is not a variable.
+        else {
+          // G is empty for assignments to a non-variable.  This conservative
+          // approach avoids recording false equality facts for assignments
+          // where the LHS appears on the RHS, e.g. *p = *p + 1.
+          State.G.clear();
+        }
       } else if (BinaryOperator::isLogicalOp(Op)) {
         // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
       } else if (Op == BinaryOperatorKind::BO_Comma) {
@@ -2652,20 +2848,24 @@ namespace {
 
       // Update the set State.G of expressions that produce the
       // same value as e.
-      if (CK == CastKind::CK_ArrayToPointerDecay)
+      if (CK == CastKind::CK_ArrayToPointerDecay) {
         // State.G = { e } for lvalues with array type.
-        State.G = { E };
-      else if (CK == CastKind::CK_LValueToRValue) {
-        if (E->getType()->isArrayType())
-          // State.G = { e } for lvalues with array type.
+        if (!CreatesNewObject(E) && CheckIsNonModifying(E))
           State.G = { E };
+      } else if (CK == CastKind::CK_LValueToRValue) {
+        if (E->getType()->isArrayType()) {
+          // State.G = { e } for lvalues with array type.
+          if (!CreatesNewObject(E) && CheckIsNonModifying(E))
+            State.G = { E };
+        }
         else {
           // If e appears in some set F in State.UEQ, State.G = F.
           State.G = GetEqualExprSetContainingExpr(E, State.UEQ);
           if (State.G.size() == 0) {
             // Otherwise, if e is nonmodifying and does not read memory
             // via a pointer, State.G = { e }.  Otherwise, State.G is empty.
-            if (CheckIsNonModifying(E) && !ReadsMemoryViaPointer(E))
+            if (CheckIsNonModifying(E) && !ReadsMemoryViaPointer(E) &&
+                !CreatesNewObject(E))
               State.G.push_back(E);
           }
         }
@@ -2793,6 +2993,64 @@ namespace {
       if (Op == UnaryOperatorKind::UO_Deref)
         return CreateBoundsInferenceError();
 
+      // Update UEQ and G for inc/dec operators `++e1`, `e1++`, `--e1`, `e1--`.
+      // At this point, State contains UEQ and G for `e1`.
+      if (UnaryOperator::isIncrementDecrementOp(Op)) {
+        // Create the target of the implied assignment `e1 = e1 +/- 1`.
+        Expr *Target = CreateImplicitCast(SubExpr->getType(),
+                                            CK_LValueToRValue, SubExpr);
+
+        // Only use the RHS `e1 +/1 ` of the implied assignment to update
+        // UEQ and G if the integer constant 1 can be created, which is
+        // only true if `e1` has integer type or integer pointer type.
+        IntegerLiteral *One = CreateIntegerLiteral(1, SubExpr->getType());
+        Expr *RHS = nullptr;
+        if (One) {
+          BinaryOperatorKind RHSOp = UnaryOperator::isIncrementOp(Op) ?
+                                      BinaryOperatorKind::BO_Add :
+                                      BinaryOperatorKind::BO_Sub;
+          RHS = ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One, RHSOp);
+        }
+
+        // Update UEQ for inc/dec operators where `e1` is a variable.  Any
+        // expressions in UEQ that use the value of `e1` need to be adjusted
+        // using the original value of `e1`, since `e1` has been updated.
+        if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
+          // Clear G before updating UEQ since G currently contains
+          // expressions that produce the same value as the variable `e1`,
+          // and these expressions should not be added to UEQ.
+          State.G.clear();
+          Expr *OV = GetOriginalValue(V, RHS, State.UEQ);
+          UpdateAfterAssignment(V, Target, OV, CSS, State, State);
+        }
+
+        // Update the set G of expressions that produce the same value as `e`.
+        if (One) {
+          // For integer or integer pointer-typed expressions, create the
+          // expression Val that is equivalent to `e` in the program state
+          // after the increment/decrement expression `e` has executed.
+          // (The call to UpdateG will only add Val to G if Val is a
+          // non-modifying expression).
+
+          // `++e1` and `--e1` produce the same value as the rvalue cast of
+          // `e1` after executing `++e1` or `--e1`.
+          Expr *Val = Target;
+          // `e1++` produces the same value as `e1 - 1` after executing `e1++`.
+          if (Op == UnaryOperatorKind::UO_PostInc)
+            Val = ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One,
+                                    BinaryOperatorKind::BO_Sub);
+          // `e1--` produces the same value as `e1 + 1` after executing `e1--`.
+          else if (Op == UnaryOperatorKind::UO_PostDec)
+            Val = ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One,
+                                    BinaryOperatorKind::BO_Add);
+          UpdateG(E, State.G, State.G, Val);
+        } else {
+          // G is empty for expressions where the integer constant 1
+          // could not be constructed (e.g. floating point expressions).
+          State.G.clear();
+        }
+      }
+
       // `&e` has the bounds of `e`.
       // `e` is an lvalue, so its bounds are its lvalue bounds.
       // State.G for `&e` remains the same as State.G for `e`.
@@ -2833,11 +3091,35 @@ namespace {
                              CheckingState &State) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
-      // If there is an initializer, check it.
       Expr *Init = D->getInit();
       BoundsExpr *InitBounds = nullptr;
-      if (Init)
+      // If there is an initializer, check it, and update the state to record
+      // expression equality implied by initialization. After checking Init,
+      // State.G will contain non-modifying expressions that produce values
+      // equivalent to the value produced by Init.
+      if (Init) {
         InitBounds = Check(Init, CSS, State);
+
+        // Create an rvalue expression for v. v could be an array or
+        // non-array variable.
+        DeclRefExpr *TargetDeclRef =
+          DeclRefExpr::Create(S.getASTContext(), NestedNameSpecifierLoc(),
+                              SourceLocation(), D, false, SourceLocation(),
+                              D->getType(), ExprValueKind::VK_LValue);
+        CastKind Kind;
+        QualType TargetTy;
+        if (D->getType()->isArrayType()) {
+          Kind = CK_ArrayToPointerDecay;
+          TargetTy = S.getASTContext().getArrayDecayedType(D->getType());
+        } else {
+          Kind = CK_LValueToRValue;
+          TargetTy = D->getType();
+        }
+        Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
+        Expr *OV = nullptr;
+        UpdateAfterAssignment(TargetDeclRef, TargetExpr, OV,
+                              CSS, State, State);
+      }
 
       if (D->isInvalidDecl())
         return ResultBounds;
@@ -3335,6 +3617,71 @@ namespace {
         RValueBounds = Check(E, CSS, State);
     }
 
+    // Methods to update sets of equivalent expressions.
+
+    // UpdateAfterAssignment updates the checking state after a variable V
+    // is assigned to, based on the state before the assignment.
+    //
+    // Target is the target expression of the assignment (that accounts for
+    // any necessary casts of V).
+    //
+    // OV is the original value (if any) for V before the assignment.
+    // If OV is non-null, it is substituted for any uses of the value of V
+    // in the expressions in UEQ and G.
+    // If OV is null, any expressions in UEQ and G that use the value of V
+    // are removed from UEQ and G.
+    //
+    // PrevState is the checking state that was true before the assignment.
+    void UpdateAfterAssignment(DeclRefExpr *V, Expr *Target,
+                               Expr *OV, CheckedScopeSpecifier CSS,
+                               const CheckingState PrevState,
+                               CheckingState &State) {
+      // Adjust UEQ to account for any uses of V in PrevState.UEQ.
+      State.UEQ.clear();
+      for (auto I = PrevState.UEQ.begin(); I != PrevState.UEQ.end(); ++I) {
+        EqualExprTy ExprList;
+        for (auto InnerList = (*I).begin(); InnerList != (*I).end(); ++InnerList) {
+          Expr *E = *InnerList;
+          Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OV, CSS);
+          // Don't add duplicate expressions to any set in UEQ.
+          if (AdjustedE && !EqualExprsContainsExpr(ExprList, AdjustedE))
+            ExprList.push_back(AdjustedE);
+        }
+        if (ExprList.size() > 1)
+          State.UEQ.push_back(ExprList);
+      }
+
+      // Adjust G to account for any uses of V in PrevState.G.
+      State.G.clear();
+      for (auto I = PrevState.G.begin(); I != PrevState.G.end(); ++I) {
+        Expr *E = *I;
+        Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OV, CSS);
+        // Don't add duplicate expressions to G.
+        if (AdjustedE && !EqualExprsContainsExpr(State.G, AdjustedE))
+          State.G.push_back(AdjustedE);
+      }
+
+      // Add the target to a set in UEQ: if G is nonempty and there is some set
+      // F in UEQ that is a superset of G, add the target to F.  This prevents
+      // the elements of F from appearing in multiple sets in UEQ.  The target
+      // of an lvalue should appear in no more than one set in UEQ.
+      if (State.G.size() > 0) {
+        for (auto I = State.UEQ.begin(); I != State.UEQ.end(); ++I) {
+          if (IsEqualExprsSubset(State.G, *I)) {
+            I->push_back(Target);
+            return;
+          }
+        }
+      }
+
+      // If G is not a subset of some set in UEQ, add the target to G
+      // and add G (if it is not a singleton set) to UEQ.
+      if (!EqualExprsContainsExpr(State.G, Target))
+        State.G.push_back(Target);
+      if (State.G.size() > 1)
+        State.UEQ.push_back(State.G);
+    }
+
     // UpdateG updates the set G of expressions that produce
     // the same value as e.
     // e is an expression with exactly one subexpression.
@@ -3373,6 +3720,10 @@ namespace {
 
       if (!Val) Val = E;
 
+      // Expressions that create new objects should not be included in G.
+      if (CreatesNewObject(Val))
+        return;
+
       // If Val is a call expression, G does not contain Val.
       if (isa<CallExpr>(Val)) {
       }
@@ -3381,21 +3732,23 @@ namespace {
       else if (CheckIsNonModifying(Val))
         G.push_back(Val);
 
-      // If Val is a modifying expression, use the Gi for the subexpressions
-      // to try to construct a non-modifying expression Val' that
-      // produces the same value as Val.
+      // If Val is a modifying expression, use the G_i sets of expressions
+      // that produce the same value as the subexpressions of e to try to
+      // construct a non-modifying expression ValPrime that produces the same
+      // value as Val.
       else {
         Expr *ValPrime = nullptr;
         for (llvm::detail::DenseMapPair<Expr *, EqualExprTy> Pair : SubExprGs) {
-          Expr *Si = Pair.first;
-          // For any modifying subexpression Si of e,
-          // try to set Val' to a nonmodifying expression from Gi.
-          if (!CheckIsNonModifying(Si)) {
-            EqualExprTy Gi = Pair.second;
-            for (auto I = Gi.begin(); I != Gi.end(); ++I) {
-              Expr *Ei = *I;
-              if (CheckIsNonModifying(Ei)) {
-                ValPrime = Ei;
+          Expr *SubExpr_i = Pair.first;
+          // For any modifying subexpression SubExpr_i of e, try to set
+          // ValPrime to a nonmodifying expression from the set G_i of
+          // expressions that produce the same value as SubExpr_i.
+          if (!CheckIsNonModifying(SubExpr_i)) {
+            EqualExprTy G_i = Pair.second;
+            for (auto I = G_i.begin(); I != G_i.end(); ++I) {
+              Expr *E_i = *I;
+              if (CheckIsNonModifying(E_i)) {
+                ValPrime = E_i;
                 break;
               }
             }
@@ -3412,14 +3765,184 @@ namespace {
         G.push_back(CreateTemporaryUse(Temp));
     }
 
+    // Methods to get the original value of an expression.
+
+    // GetOriginalValue returns the original value (if it exists) of the
+    // expression Src with respect to the variable V in an assignment V = Src.
+    Expr *GetOriginalValue(DeclRefExpr *V, Expr *Src, const EquivExprSets EQ) {
+      // Check if Src has an inverse expression with respect to v.
+      Expr *IV = nullptr;
+      if (IsInvertible(V, Src))
+        IV = Inverse(V, V, Src);
+      if (IV)
+        return IV;
+      
+      // Check EQ for a variable w != v that produces the same value as v.
+      EqualExprTy F = GetEqualExprSetContainingVariable(V, EQ);
+      for (auto I = F.begin(); I != F.end(); ++I) {
+        DeclRefExpr *W = GetRValueVariable(*I);
+        if (W != nullptr && !EqualValue(S.Context, V, W, nullptr))
+          return W;
+      }
+
+      return nullptr;
+    }
+
+    // IsInvertible returns true if the expression e can be inverted
+    // with respect to the variable x.
+    bool IsInvertible(DeclRefExpr *X, Expr *E) {
+      if (!E)
+        return false;
+
+      E = E->IgnoreParens();
+      if (IsRValueCastOfVariable(E, X))
+        return true;
+
+      switch (E->getStmtClass()) {
+        case Expr::UnaryOperatorClass:
+          return IsUnaryOperatorInvertible(X, cast<UnaryOperator>(E));
+        case Expr::BinaryOperatorClass:
+          return IsBinaryOperatorInvertible(X, cast<BinaryOperator>(E));
+        // TODO: determine whether a cast expression is invertible (is a
+        // bit-preserving or widening cast).
+        default:
+          return false;
+      }
+    }
+
+    // Returns true if a unary operator is invertible with respect to x.
+    bool IsUnaryOperatorInvertible(DeclRefExpr *X, UnaryOperator *E) {
+      UnaryOperatorKind Op = E->getOpcode();
+      if (Op != UnaryOperatorKind::UO_Not &&
+          Op != UnaryOperatorKind::UO_Minus &&
+          Op != UnaryOperatorKind::UO_Plus)
+        return false;
+
+      return IsInvertible(X, E->getSubExpr());
+    }
+
+    // Returns true if a binary operator is invertible with respect to x.
+    bool IsBinaryOperatorInvertible(DeclRefExpr *X, BinaryOperator *E) {
+      BinaryOperatorKind Op = E->getOpcode();
+      if (Op != BinaryOperatorKind::BO_Add &&
+          Op != BinaryOperatorKind::BO_Sub &&
+          Op != BinaryOperatorKind::BO_Xor)
+        return false;
+
+      Expr *LHS = E->getLHS();
+      Expr *RHS = E->getRHS();
+      
+      // Addition and subtraction operations must be for checked pointer
+      // arithmetic or unsigned integer arithmetic.
+      if (Op == BinaryOperatorKind::BO_Add || Op == BinaryOperatorKind::BO_Sub) {
+        // The operation is checked pointer arithmetic if either the LHS
+        // or the RHS have checked pointer type.
+        bool IsCheckedPtrArithmetic = LHS->getType()->isCheckedPointerType() ||
+                                      RHS->getType()->isCheckedPointerType();
+        if (!IsCheckedPtrArithmetic) {
+          // The operation is unsigned integer arithmetic if both the LHS
+          // and the RHS have unsigned integer type.
+          bool IsUnsignedArithmetic = LHS->getType()->isUnsignedIntegerType() &&
+                                      RHS->getType()->isUnsignedIntegerType();
+          if (!IsUnsignedArithmetic)
+            return false;
+        }
+      }
+
+      // X must appear in exactly one subexpression of E and that
+      // subexpression must be invertible with respect to X.
+      std::pair<Expr *, Expr*> Pair = SplitByVarCount(X, LHS, RHS);
+      if (!Pair.first)
+        return false;
+      Expr *E_X = Pair.first, *E_NotX = Pair.second;
+      if (!IsInvertible(X, E_X))
+        return false;
+
+      // The subexpression not containing X must be nonmodifying
+      // and cannot be or contain a pointer dereference, member
+      // reference, or indirect member reference.
+      if (!CheckIsNonModifying(E_NotX) || ReadsMemoryViaPointer(E_NotX, true))
+        return false;
+
+      return true;
+    }
+
+    // Inverse repeatedly applies mathematical rules to the expression e to
+    // get the inverse of e with respect to the variable x and expression f.
+    // If rules cannot be applied to e, Inverse returns nullptr.
+    Expr *Inverse(DeclRefExpr *X, Expr *F, Expr *E) {
+      if (!F)
+        return nullptr;
+
+      E = E->IgnoreParens();
+      if (IsRValueCastOfVariable(E, X))
+        return F;
+
+      switch (E->getStmtClass()) {
+        case Expr::UnaryOperatorClass:
+          return UnaryOperatorInverse(X, F, cast<UnaryOperator>(E));
+        case Expr::BinaryOperatorClass:
+          return BinaryOperatorInverse(X, F, cast<BinaryOperator>(E));
+        // TODO: get the inverse of a cast expression.
+        default:
+          return nullptr;
+      }
+
+      return nullptr;
+    }
+
+    // Returns the inverse of a unary operator using the following rule:
+    // Inverse(f, @e1) = Inverse(@f, e1) where @ can be ~, -, or +.
+    Expr *UnaryOperatorInverse(DeclRefExpr *X, Expr *F, UnaryOperator *E) {
+      Expr *SubExpr = E->getSubExpr();
+      UnaryOperatorKind Op = E->getOpcode();
+      Expr *Child = ExprCreatorUtil::EnsureRValue(S, F);
+      Expr *F1 = new (S.Context) UnaryOperator(Child, Op, E->getType(),
+                                               E->getValueKind(),
+                                               E->getObjectKind(),
+                                               SourceLocation(),
+                                               E->canOverflow());
+      return Inverse(X, F1, SubExpr);
+    }
+
+    // Returns the inverse of a binary operator.
+    Expr *BinaryOperatorInverse(DeclRefExpr *X, Expr *F, BinaryOperator *E) {
+      std::pair<Expr *, Expr*> Pair = SplitByVarCount(X, E->getLHS(), E->getRHS());
+      if (!Pair.first)
+        return nullptr;
+
+      Expr *E_X = Pair.first, *E_NotX = Pair.second;
+      BinaryOperatorKind Op = E->getOpcode();
+      Expr *F1 = nullptr;
+
+      switch (Op) {
+        case BinaryOperatorKind::BO_Add:
+          // Inverse(f, e1 + e2) = Inverse(f - e_notx, e_x)
+          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotX, BinaryOperatorKind::BO_Sub);
+          break;
+        case BinaryOperatorKind::BO_Sub: {
+          if (E_X == E->getLHS())
+            // Inverse(f, e_x - e_notx) = Inverse(f + e_notx, e_x)
+            F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotX, BinaryOperatorKind::BO_Add);
+          else
+            // Inverse(f, e_notx - e_x) => Inverse(e_notx - f, e_x)
+            F1 = ExprCreatorUtil::CreateBinaryOperator(S, E_NotX, F, BinaryOperatorKind::BO_Sub);
+          break;
+        }
+        case BinaryOperatorKind::BO_Xor:
+          // Inverse(f, e1 ^ e2) = Inverse(x, f ^ e_notx, e_x)
+          F1 = ExprCreatorUtil::CreateBinaryOperator(S, F, E_NotX, BinaryOperatorKind::BO_Xor);
+          break;
+        default:
+          llvm_unreachable("unexpected binary operator kind");
+      }
+
+      return Inverse(X, F1, E_X);
+    }
+
     // GetIncomingBlockState returns the checking state that is true at
-    // the beginning of the block by taking the intersection of the UC
-    // contexts that were true after each of the block's predecessors.
-    //
-    // BlockStates stores the checking state including the bounds context
-    // for each CFG block in order to track the variables with bounds
-    // declarations that are in scope.  This preserves lexically scoped
-    // information that is otherwise lost during CFG traversal.
+    // the beginning of the block by taking the intersection of the UEQ
+    // sets that were true after each of the block's predecessors.
     CheckingState GetIncomingBlockState(const CFGBlock *Block,
                                         llvm::DenseMap<unsigned int, CheckingState> BlockStates) {
       CheckingState BlockState;
@@ -3434,10 +3957,13 @@ namespace {
         CheckingState PredState = BlockStates[PredBlock->getBlockID()];
         if (IntersectionEmpty) {
           BlockState.UC = PredState.UC;
+          BlockState.UEQ = PredState.UEQ;
           IntersectionEmpty = false;
         }
-        else
+        else {
           BlockState.UC = IntersectUC(PredState.UC, BlockState.UC);
+          BlockState.UEQ = IntersectUEQ(PredState.UEQ, BlockState.UEQ);
+        }
       }
       return BlockState;
     }
@@ -3457,22 +3983,150 @@ namespace {
       return IntersectedUC;
     }
 
+    // IntersectUEQ returns the intersection of two sets of sets of equivalent
+    // expressions, where each set in UEQ1 is intersected with each set in
+    // UEQ2 to produce an element of the result.
+    EquivExprSets IntersectUEQ(const EquivExprSets UEQ1, const EquivExprSets UEQ2) {
+      EquivExprSets IntersectedUEQ;
+      for (auto I1 = UEQ1.begin(); I1 != UEQ1.end(); ++I1) {
+        EqualExprTy G1 = *I1;
+        for (auto I2 = UEQ2.begin(); I2 != UEQ2.end(); ++I2) {
+          EqualExprTy G2 = *I2;
+          EqualExprTy IntersectedG = IntersectG(G1, G2);
+          if (IntersectedG.size() > 1)
+            IntersectedUEQ.push_back(IntersectedG);
+        }
+      }
+      return IntersectedUEQ;
+    }
+
+    // IntersectG returns the intersection of two sets of equivalent expressions.
+    EqualExprTy IntersectG(const EqualExprTy G1, const EqualExprTy G2) {
+      EqualExprTy IntersectedG;
+      for (auto I = G1.begin(); I != G1.end(); ++I) {
+        Expr *E1 = *I;
+        if (EqualExprsContainsExpr(G2, E1))
+          IntersectedG.push_back(E1);
+      }
+      return IntersectedG;
+    }
+
     // If E appears in a set F in EQ, GetEqualExprSetContainingExpr
     // returns F.  Otherwise, it returns an empty set.
     EqualExprTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ) {
       for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
         EqualExprTy F = *OuterList;
+        if (EqualExprsContainsExpr(F, E))
+          return F;
+      }
+      return { };
+    }
+
+    // If a set F in EQ contains an expression that is an rvalue cast of
+    // the variable V, GetEqualExprSetContainingVariable returns F.
+    // Otherwise, it returns an empty set.
+    //
+    // This is a specialized version of GetEqualExprSetContainingExpr
+    // for variables.  It prevents the need to allocate a cast expression
+    // containing the variable v (which would be needed to call
+    // GetEqualExprSetContainingExpr).
+    EqualExprTy GetEqualExprSetContainingVariable(DeclRefExpr *V,
+                                                  EquivExprSets EQ) {
+      for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
+        EqualExprTy F = *OuterList;
         for (auto InnerList = F.begin(); InnerList != F.end(); ++InnerList) {
           Expr *E1 = *InnerList;
-          if (EqualValue(S.Context, E, E1, &EQ))
+          if (IsRValueCastOfVariable(E1, V))
             return F;
         }
       }
       return { };
     }
 
+    // IsEqualExprsSubset returns true if G1 is a subset of G2.
+    bool IsEqualExprsSubset(const EqualExprTy G1, const EqualExprTy G2) {
+      for (auto I = G1.begin(); I != G1.end(); ++I) {
+        Expr *E = *I;
+        if (!EqualExprsContainsExpr(G2, E))
+          return false;
+      }
+      return true;
+    }
+
+    // EqualExprsContainsExpr returns true if the set G contains E.
+    bool EqualExprsContainsExpr(const EqualExprTy G, Expr *E) {
+      for (auto I = G.begin(); I != G.end(); ++I) {
+        if (EqualValue(S.Context, E, *I, nullptr))
+          return true;
+      }
+      return false;
+    }
+
+    // If E is a (possibly parenthesized) lvalue variable V,
+    // GetLValueVariable returns V. Otherwise, it returns nullptr.
+    DeclRefExpr *GetLValueVariable(Expr *E) {
+      return dyn_cast<DeclRefExpr>(E->IgnoreParens());
+    }
+
+    // If E is an rvalue cast (ignoring value-preserving operations) of a
+    // variable V, GetRValueVariable returns V. Otherwise, it returns nullptr.
+    DeclRefExpr *GetRValueVariable(Expr *E) {
+      if (CastExpr *CE = dyn_cast<CastExpr>(E->IgnoreParens())) {
+        CastKind CK = CE->getCastKind();
+        if (CK == CastKind::CK_LValueToRValue ||
+            CK == CastKind::CK_ArrayToPointerDecay) {
+          Lexicographic Lex(S.Context, nullptr);
+          Expr *SubExpr = const_cast<Expr *>(CE->getSubExpr());
+          Expr *E1 = Lex.IgnoreValuePreservingOperations(S.Context, SubExpr);
+          return dyn_cast<DeclRefExpr>(E1);
+        }
+      }
+      return nullptr;
+    }
+
+    // IsRValueCastOfVariable returns true if the expression e is a possibly
+    // parenthesized lvalue-to-rvalue cast of the lvalue variable v.
+    bool IsRValueCastOfVariable(Expr *E, DeclRefExpr *V) {
+      DeclRefExpr *Var = GetRValueVariable(E);
+      if (!Var)
+        return false;
+      return EqualValue(S.Context, V, Var, nullptr);
+    }
+
+    // CreatesNewObject returns true if the expression e creates a new object.
+    // Expressions that create new objects should not be added to the UEQ or G
+    // sets of equivalent expressions in the checking state.
+    bool CreatesNewObject(Expr *E) {
+      switch (E->getStmtClass()) {
+        case Expr::InitListExprClass:
+        case Expr::ImplicitValueInitExprClass:
+        case Expr::CompoundLiteralExprClass:
+        case Expr::ExtVectorElementExprClass:
+        case Expr::ExprWithCleanupsClass:
+        case Expr::BlockExprClass:
+        case Expr::SourceLocExprClass:
+        case Expr::PackExprClass:
+        case Expr::FixedPointLiteralClass:
+        case Expr::StringLiteralClass:
+          return true;
+        default: {
+          for (auto I = E->child_begin(); I != E->child_end(); ++I) {
+            if (Expr *SubExpr = dyn_cast<Expr>(*I)) {
+              if (CreatesNewObject(SubExpr))
+                return true;
+            }
+          }
+          return false;
+        }
+      }
+    }
+
     // Returns true if the expression e reads memory via a pointer.
-    bool ReadsMemoryViaPointer(Expr *E) {
+    // IncludeAllMemberExprs is used to modify the behavior to return true
+    // if e is or contains a pointer dereference, member reference, or
+    // indirect member reference (including e1.f which may not read memory
+    // via a pointer).
+    bool ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs = false) {
       E = E->IgnoreParens();
 
       switch (E->getStmtClass()) {
@@ -3485,6 +4139,9 @@ namespace {
         case Expr::ArraySubscriptExprClass:
           return true;
         case Expr::MemberExprClass: {
+          if (IncludeAllMemberExprs)
+            return true;
+
           MemberExpr *ME = cast<MemberExpr>(E);
           // e1->f reads memory via a pointer.
           if (ME->isArrow())
@@ -3504,6 +4161,25 @@ namespace {
           return false;
         }
       }
+    }
+
+    // If the variable X appears exactly once in Ei and does not appear in
+    // Ej, SplitByVarCount returns the pair (Ei, Ej).  Otherwise, it returns
+    // an empty pair.
+    std::pair<Expr *, Expr *> SplitByVarCount(DeclRefExpr *X, Expr *E1, Expr *E2) {
+      std::pair<Expr *, Expr *> Pair;
+      int Count1 = VariableOccurrenceCount(S, X, E1);
+      int Count2 = VariableOccurrenceCount(S, X, E2);
+      if (Count1 == 1 && Count2 == 0) {
+        // X appears once in E1 and does not appear in E2.
+        Pair.first = E1;
+        Pair.second = E2;
+      } else if (Count2 == 1 && Count1 == 0) {
+        // X appears once in E2 and does not appear in E1.
+        Pair.first = E2;
+        Pair.second = E1;
+      }
+      return Pair;
     }
 
     // CheckIsNonModifying suppresses diagnostics while checking
@@ -3625,6 +4301,28 @@ namespace {
       IntegerLiteral *Lit = IntegerLiteral::Create(Context, ResultVal, Ty,
                                                    SourceLocation());
       return Lit;
+    }
+
+    // If Ty is an integer type (char, unsigned int, int, etc.),
+    // CreateIntegerLiteral returns an integer literal with Ty type.
+    // If Ty denotes a pointer to an integer type (char *, ptr<int>, etc.),
+    // CreateIntegerLiteral returns an integer literal with Ty's pointee type.
+    // Otherwise, it returns nullptr.
+    IntegerLiteral *CreateIntegerLiteral(int Value, QualType Ty) {
+      QualType AdjustedType = Ty;
+      if (Ty->isPointerType())
+        AdjustedType = Ty->getPointeeType();
+      if (!AdjustedType->isIntegerType())
+        return nullptr;
+
+      unsigned BitSize = Context.getTypeSize(AdjustedType);
+      unsigned IntWidth = Context.getIntWidth(AdjustedType);
+      if (BitSize != IntWidth)
+        return nullptr;
+
+      llvm::APInt ResultVal(BitSize, Value);
+      return IntegerLiteral::Create(Context, ResultVal, AdjustedType,
+                                    SourceLocation());
     }
 
     // Infer bounds for string literals.

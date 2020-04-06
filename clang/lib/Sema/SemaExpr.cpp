@@ -13917,9 +13917,11 @@ ExprResult Sema::CreateBuiltinUnaryOp(SourceLocation OpLoc,
   auto *UO = new (Context)
       UnaryOperator(Input.get(), Opc, resultType, VK, OK, OpLoc, CanOverflow);
 
-  if (Opc == UO_Deref && UO->getType()->hasAttr(attr::NoDeref) &&
-      !isa<ArrayType>(UO->getType().getDesugaredType(Context)))
-    ExprEvalContexts.back().PossibleDerefs.insert(UO);
+  if (!DisableSubstitionDiagnostics) {
+    if (Opc == UO_Deref && UO->getType()->hasAttr(attr::NoDeref) &&
+        !isa<ArrayType>(UO->getType().getDesugaredType(Context)))
+      ExprEvalContexts.back().PossibleDerefs.insert(UO);
+  }
 
   // Convert the result back to a half vector.
   if (ConvertHalfVec)
