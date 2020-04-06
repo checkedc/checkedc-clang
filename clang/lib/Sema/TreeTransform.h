@@ -12955,7 +12955,8 @@ TreeTransform<Derived>::TransformBlockExpr(BlockExpr *E) {
       VarDecl *newCapture =
         cast<VarDecl>(getDerived().TransformDecl(E->getCaretLocation(),
                                                  oldCapture));
-      assert(blockScope->CaptureMap.count(newCapture));
+      assert(blockScope->CaptureMap.count(newCapture) ==
+             blockScope->CaptureMap.count(oldCapture));
     }
     assert(oldBlock->capturesCXXThis() == blockScope->isCXXThisCaptured());
   }
