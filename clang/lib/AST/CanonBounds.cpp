@@ -298,6 +298,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      case Expr::CompoundAssignOperatorClass:
        Cmp = Compare<CompoundAssignOperator>(E1, E2); break;
      case Expr::BinaryConditionalOperatorClass: break;
+     case Expr::ConditionalOperatorClass: break;
      case Expr::ImplicitCastExprClass: Cmp = Compare<CastExpr>(E1, E2); break;
      case Expr::CStyleCastExprClass: Cmp = Compare<CastExpr>(E1, E2); break;
      case Expr::CompoundLiteralExprClass: Cmp = Compare<CompoundLiteralExpr>(E1, E2); break;
@@ -323,7 +324,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      case Expr::PositionalParameterExprClass: Cmp = Compare<PositionalParameterExpr>(E1, E2); break;
      case Expr::BoundsCastExprClass: Cmp = Compare<BoundsCastExpr>(E1, E2); break;
      case Expr::BoundsValueExprClass: Cmp = Compare<BoundsValueExpr>(E1, E2); break;
-     // Binding of a tempoary to the result of an expression.  These are
+     // Binding of a temporary to the result of an expression.  These are
      // equal if their child expressions are equal.
      case Expr::CHKCBindTemporaryExprClass: break;
 
@@ -338,7 +339,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      // case Expr::MSPropertySubscriptExprClass:
 
      default:
-       llvm_unreachable("unexpected expression kind");         
+       llvm_unreachable("unexpected expression kind");
    }
 
    if (Cmp != Result::Equal)

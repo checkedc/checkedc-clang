@@ -664,3 +664,91 @@ void f24() {
 // CHECK:    1: p
 // CHECK-NOT: upper_bound(p)
 }
+
+void f25() {
+  _Nt_array_ptr<char> p : count(0) = "";
+  int i;
+
+// CHECK: In function: f25
+
+  for (; *p; ) {
+    i = 0;
+    for (; *(p + 1); ) { // expected-error {{out-of-bounds memory access}}
+      i = 1;
+      for (; *(p + 2); ) { // expected-error {{out-of-bounds memory access}}
+        i = 2;
+      }
+    }
+  }
+
+// CHECK:  [B22]
+// CHECK:    1: *p
+// CHECK:    T: for
+// CHECK:  [B21]
+// CHECK:    1: i = 0
+// CHECK: upper_bound(p) = 1
+// CHECK:  [B20]
+// CHECK:    1: *(p + 1)
+// CHECK:    T: for
+// CHECK: upper_bound(p) = 1
+// CHECK:  [B19]
+// CHECK:    1: i = 1
+// CHECK: upper_bound(p) = 2
+// CHECK:  [B18]
+// CHECK:    1: *(p + 2)
+// CHECK:    T: for
+// CHECK: upper_bound(p) = 2
+// CHECK:  [B17]
+// CHECK:    1: i = 2
+// CHECK: upper_bound(p) = 3
+// CHECK:  [B16]
+// CHECK: upper_bound(p) = 3
+// CHECK:  [B15]
+// CHECK: upper_bound(p) = 2
+// CHECK:  [B14]
+// CHECK: upper_bound(p) = 1
+
+  for (; *p; ) {
+D:  p;
+    for (; *(p + 1); ) { // expected-error {{out-of-bounds memory access}}
+      p;
+    }
+  }
+  goto D;
+
+// CHECK:  [B13]
+// CHECK:    1: *p
+// CHECK:    T: for
+// CHECK:  [B12]
+// CHECK:   D:
+// CHECK:    1: p
+// CHECK-NOT: upper_bound(p)
+// CHECK:  [B11]
+// CHECK:    1: *(p + 1)
+// CHECK:    T: for
+// CHECK:  [B10]
+// CHECK:    1: p
+// CHECK-NOT: upper_bound(p)
+// CHECK:  [B7]
+// CHECK:    T: goto D;
+
+  for (; *p; ) {
+    p++;
+    for (; *(p + 1); ) {
+      p;
+    }
+  }
+
+// CHECK:  [B6]
+// CHECK:    1: *p
+// CHECK:    T: for
+// CHECK:  [B5]
+// CHECK:    1: p++
+// CHECK: upper_bound(p) = 1
+// CHECK:  [B4]
+// CHECK:    1: *(p + 1)
+// CHECK:    T: for
+// CHECK:  [B3]
+// CHECK:    1: p
+// CHECK-NOT: upper_bound(p)
+}
