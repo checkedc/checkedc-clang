@@ -9128,21 +9128,22 @@ QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
         IsParam = isa<ParmVarDecl>(Var);
       }
     }
-    // If `e` has bounds-safe interface T* (or ptr<T>, etc.), then `*e` has
-    // bounds-safe interface T.
+    // If `e` has bounds-safe interface type with referent type T, then
+    // `*e` has bounds-safe interface type T.
     else if (UnaryOperator *Unary = dyn_cast<UnaryOperator>(LHSExpr)) { 
       if (Unary->getOpcode() == UnaryOperatorKind::UO_Deref) {
         QualType T = GetCheckedCRValueInteropType(Unary->getSubExpr());
-        if (!T.isNull() && T->isPointerType())
-          return T->getPointeeType();
+        if (!T.isNull())
+          return QualType(T->getPointeeOrArrayElementType(), 0);
       }
     }
-    // If `e2` is an integer and `e1` has bounds-safe interface T* (or ptr<T>,
-    // etc.), then `e1[e2]` and `e2[e1]` have bounds-safe interface T.
+    // If `e1` has bounds-safe interface type with referent type T and `e2`
+    // is an integer, then `e1[e2]` and `e2[e1`] have bounds-safe interface
+    // type T.
     else if (ArraySubscriptExpr *Array = dyn_cast<ArraySubscriptExpr>(LHSExpr)) {
       QualType T = GetCheckedCRValueInteropType(Array->getBase());
-      if (!T.isNull() && T->isPointerType())
-        return T->getPointeeType();
+      if (!T.isNull())
+        return QualType(T->getPointeeOrArrayElementType(), 0);
     }
   }
 
@@ -9162,16 +9163,14 @@ QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
 QualType Sema::GetCheckedCRValueInteropType(ExprResult RHS) {
   if (!RHS.isInvalid()) {
     Expr *RHSExpr = RHS.get()->IgnoreParens();
-    // If `e` has bounds-safe interface T, then `LValueToRValue(e)` has
-    // bounds-safe interface T.
+    // If `e` has bounds-safe interface type T, then `LValueToRValue(e)`
+    // has bounds-safe interface type T.
     if (CastExpr *Cast = dyn_cast<CastExpr>(RHSExpr)) {
-      if (Cast->getCastKind() == CastKind::CK_LValueToRValue) {
-        QualType T = GetCheckedCInteropType(Cast->getSubExpr());
-        return T;
-      }
+      if (Cast->getCastKind() == CastKind::CK_LValueToRValue)
+        return GetCheckedCInteropType(Cast->getSubExpr());
     }
-    // If `p` has bounds-safe interface T, then `p +/- i` has bounds-safe
-    // interface T, where `p` is a pointer and `i` is an integer.
+    // If `p` is a pointer with bounds-safe interface type T and `i` is an
+    // integer, then `p +/- i` and `i +/- p` have bounds-safe interface type T.
     else if (BinaryOperator *Binary = dyn_cast<BinaryOperator>(RHSExpr)) {
       if (BinaryOperator::isAdditiveOp(Binary->getOpcode())) {
         Expr *Left = Binary->getLHS();
