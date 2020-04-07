@@ -3662,10 +3662,17 @@ namespace {
       }
 
       // Adjust G to account for any uses of V in PrevState.G.
+      // If the original value uses the value of V, then any expressions that
+      // use the value of V should be removed from G.  For example, in the
+      // assignment i = i + 2, where the original value is i - 2, the
+      // expression i + 2 in G should be removed rather than replaced with
+      // (i - 2) + 2.  Otherwise, G would contain (i - 2) + 2 and i, and UEQ
+      // would record equality between (i - 2) + 2 and i, which is a tautology.
       State.G.clear();
+      Expr *OriginalGVal = OVUsesV ? nullptr : OV;
       for (auto I = PrevState.G.begin(); I != PrevState.G.end(); ++I) {
         Expr *E = *I;
-        Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OV, CSS);
+        Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OriginalGVal, CSS);
         // Don't add duplicate expressions to G.
         if (AdjustedE && !EqualExprsContainsExpr(State.G, AdjustedE))
           State.G.push_back(AdjustedE);
