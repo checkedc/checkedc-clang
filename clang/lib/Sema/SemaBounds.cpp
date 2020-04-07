@@ -3017,10 +3017,9 @@ namespace {
         // expressions in UEQ that use the value of `e1` need to be adjusted
         // using the original value of `e1`, since `e1` has been updated.
         if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
-          // Clear G before updating UEQ since G currently contains
-          // expressions that produce the same value as the variable `e1`,
-          // and these expressions should not be added to UEQ.
-          State.G.clear();
+          // Update G to be the set of expressions that produce the same
+          // value as the RHS `e1 +/- 1` (if the RHS could be created).
+          UpdateG(E, State.G, State.G, RHS);
           bool OVUsesV = false;
           Expr *OV = GetOriginalValue(V, RHS, State.UEQ, OVUsesV);
           UpdateAfterAssignment(V, Target, OV, OVUsesV, CSS, State, State);
@@ -3736,6 +3735,8 @@ namespace {
       G.clear();
 
       if (!Val) Val = E;
+      if (!Val)
+        return;
 
       // Expressions that create new objects should not be included in G.
       if (CreatesNewObject(Val))
