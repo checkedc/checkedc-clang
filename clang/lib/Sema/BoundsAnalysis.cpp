@@ -87,6 +87,40 @@ void BoundsAnalysis::InitInOutSets() {
   }
 }
 
+bool BoundsAnalysis::CheckIsSwitchCaseNull(ElevatedCFGBlock *EB) {
+  bool IsSwitchCaseNull = true;
+
+  if (const auto *CS = dyn_cast_or_null<CaseStmt>(EB->Block->getLabel())) {
+    Expr *E = const_cast<Expr *>(CS->getLHS());
+
+    while (auto *ICE = dyn_cast<ImplicitCastExpr>(E))
+      E = ICE->getSubExpr();
+
+    llvm::APSInt Zero (Ctx.getTypeSize(Ctx.IntTy), 0);
+    llvm::APSInt IntVal = Zero;
+
+    // case '1': This is how it is represented in the CFG:
+    // ConstantExpr 'int'
+    //   -CharacterLiteral 'int' 49
+    // This is an IntegerConstantExpr. After the call to isIntegerConstantExpr,
+    // the variable IntVal would contain the value '1'.
+
+    // const int i = 1;
+    // case i: This is how it is represented in the CFG:
+    // ConstantExpr 'const int' lvalue 1
+    //   -DeclRefExpr 'const int' lvalue Var 'i' 'const int'
+    // This is not an IntegerConstantExpr. It is a ConstantExpr and we get its
+    // value by calling the getResultAsAPSInt() method.
+
+    if (!E->isIntegerConstantExpr(IntVal, Ctx)) {
+      if (const auto *CE = dyn_cast_or_null<ConstantExpr>(E))
+        IntVal = CE->getResultAsAPSInt();
+    }
+    IsSwitchCaseNull = (llvm::APSInt::compareValues(IntVal, Zero) == 0);
+  }
+  return IsSwitchCaseNull;
+}
+
 void BoundsAnalysis::ComputeGenSets() {
   // If there is an edge B1->B2 and the edge condition is of the form
   // "if (*(p + i))" then Gen[B1] = {B2, p:i} .
@@ -95,15 +129,9 @@ void BoundsAnalysis::ComputeGenSets() {
   for (const auto item : BlockMap) {
     ElevatedCFGBlock *EB = item.second;
 
-    // Check if this is a switch case and whether it tests for a null
-    // terminator, like "case '\0'". We cannot widen the bounds for the null
-    // terminator case.
-    bool IsSwitchCaseNullTerm = false;
-    if (const auto *CS = dyn_cast_or_null<CaseStmt>(EB->Block->getLabel())) {
-      if (const auto *CE = dyn_cast_or_null<ConstantExpr>(CS->getLHS()))
-        if (const auto *CL = dyn_cast_or_null<CharacterLiteral>(CE->getSubExpr()))
-          IsSwitchCaseNullTerm = CL->getValue() == 0;
-    }
+    // Check if this is a switch case and whether the case label is non-null.
+    // We can only widen the bounds for a non-null case label.
+    bool IsSwitchCaseNull = CheckIsSwitchCaseNull(EB);
 
     // Iterate through all preds of EB.
     for (const CFGBlock *pred : EB->Block->preds()) {
@@ -130,9 +158,9 @@ void BoundsAnalysis::ComputeGenSets() {
 
           // Check if the pred ends in a switch statement.
           if (isa<SwitchStmt>(pred->getTerminatorStmt())) {
-	    // We cannot widen the bounds if the current block is a case
-	    // statement for a null terminator, like "case '\0'".
-	    if (IsSwitchCaseNullTerm)
+            // We can widen the bounds only if the current block has a non-null
+            // case statement.
+            if (IsSwitchCaseNull)
               continue;
 
 	    // If the switch expression is integral, strip off the

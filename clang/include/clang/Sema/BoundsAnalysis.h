@@ -323,6 +323,10 @@ namespace clang {
     // as Top.
     void InitInOutSets();
 
+    // Check if the switch case label is null.
+    // @param[in] EB is the ElevatedCFGBlock for the current block.
+    bool CheckIsSwitchCaseNull(ElevatedCFGBlock *EB);
+
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
     // @param[in] B is a set.
