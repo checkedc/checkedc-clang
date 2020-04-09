@@ -859,10 +859,10 @@ void f28() {
 // CHECK: In function: f28
 
   switch (*p) {
-    case 0:
-      switch (*p) {
-        case 1: break;
-      }
+  case 0:
+    switch (*p) {
+      case 1: break;
+    }
 // CHECK:  [B11]
 // CHECK:   case 1:
 // CHECK: upper_bound(p) = 1
@@ -872,10 +872,10 @@ void f28() {
   }
 
   switch (*p) {
-    case 1:
-      switch (*(p + 1)) {  // expected-error {{out-of-bounds memory access}}
-        case 2: break;
-      }
+  case 1:
+    switch (*(p + 1)) {  // expected-error {{out-of-bounds memory access}}
+      case 2: break;
+    }
 // CHECK:  [B8]
 // CHECK:   case 2:
 // CHECK:    T: break;
@@ -958,39 +958,39 @@ void f30() {
   const int j = 1;
 
   switch (*p) {
-    case i ... j: break;
+  case i ... j: break;
 // CHECK:   case i ... j:
 // CHECK-NOT: upper_bound(p)
   }
 
   switch (*p) {
-    case 1 ... -1: break;
+  case 1 ... -1: break;
 // CHECK:   case 1 ... -1:
 // CHECK-NOT: upper_bound(p)
 
-    case 1 ... 0: break;
+  case 1 ... 0: break;
 // CHECK:   case 1 ... 0:
 // CHECK-NOT: upper_bound(p)
 
-    case -2 ... -1: break;
+  case -2 ... -1: break;
 // CHECK:   case -2 ... -1:
 // CHECK: upper_bound(p) = 1
   }
 
   switch (*p) {
-    case -1 ... 1: break;
+  case -1 ... 1: break;
 // CHECK:   case -1 ... 1:
 // CHECK-NOT: upper_bound(p)
   }
 
   switch (*p) {
-    case 0 ... 1: break;
+  case 0 ... 1: break;
 // CHECK:   case 0 ... 1:
 // CHECK-NOT: upper_bound(p)
   }
 
   switch (*p) {
-    case 1 ... 2: break;
+  case 1 ... 2: break;
 // CHECK:   case 1 ... 2:
 // CHECK: upper_bound(p) = 1
   }
