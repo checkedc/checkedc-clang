@@ -327,6 +327,10 @@ namespace clang {
     // @param[in] EB is the ElevatedCFGBlock for the current block.
     bool CheckIsSwitchCaseNull(ElevatedCFGBlock *EB);
 
+    // Get the value of the switch case label.
+    // @param[in] CaseExpr is the expr for the case label.
+    llvm::APSInt GetSwitchCaseVal(const Expr *CaseExpr);
+
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
     // @param[in] B is a set.

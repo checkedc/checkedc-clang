@@ -852,51 +852,6 @@ void f27() {
   }
 }
 
-void f29() {
-  _Nt_array_ptr<char> p : count(0) = "";
-  int i;
-
-// CHECK: In function: f29
-
-  switch (*p) {
-  case 'a':
-// CHECK:   case 'a':
-// CHECK: upper_bound(p) = 1
-
-    if (*(p + 1)) {           // expected-error {{out-of-bounds memory access}}
-      i = 0;
-// CHECK:    1: i = 0
-// CHECK: upper_bound(p) = 2
-
-      for (;*(p + 2);) {      // expected-error {{out-of-bounds memory access}}
-        i = 1;
-// CHECK:    1: i = 1
-// CHECK: upper_bound(p) = 3
-
-        while (*(p + 3)) {    // expected-error {{out-of-bounds memory access}}
-          i = 2;
-// CHECK:    1: i = 2
-// CHECK: upper_bound(p) = 4
-        }
-
-        i = 3;
-// CHECK:    1: i = 3
-// CHECK: upper_bound(p) = 3
-      }
-
-      i = 4;
-// CHECK:    1: i = 4
-// CHECK: upper_bound(p) = 2
-    }
-
-    i = 5;
-// CHECK:    1: i = 5
-// CHECK: upper_bound(p) = 1
-
-    break;
-  }
-}
-
 void f28() {
   _Nt_array_ptr<char> p : count(0) = "";
   int a;
@@ -948,4 +903,95 @@ void f28() {
 // CHECK:    1: a
 // CHECK:    T: do ... while
 // CHECK: upper_bound(p) = 1
+}
+
+void f29() {
+  _Nt_array_ptr<char> p : count(0) = "";
+  int i;
+
+// CHECK: In function: f29
+
+  switch (*p) {
+  case 'a':
+// CHECK:   case 'a':
+// CHECK: upper_bound(p) = 1
+
+    if (*(p + 1)) {           // expected-error {{out-of-bounds memory access}}
+      i = 0;
+// CHECK:    1: i = 0
+// CHECK: upper_bound(p) = 2
+
+      for (;*(p + 2);) {      // expected-error {{out-of-bounds memory access}}
+        i = 1;
+// CHECK:    1: i = 1
+// CHECK: upper_bound(p) = 3
+
+        while (*(p + 3)) {    // expected-error {{out-of-bounds memory access}}
+          i = 2;
+// CHECK:    1: i = 2
+// CHECK: upper_bound(p) = 4
+        }
+
+        i = 3;
+// CHECK:    1: i = 3
+// CHECK: upper_bound(p) = 3
+      }
+
+      i = 4;
+// CHECK:    1: i = 4
+// CHECK: upper_bound(p) = 2
+    }
+
+    i = 5;
+// CHECK:    1: i = 5
+// CHECK: upper_bound(p) = 1
+
+    break;
+  }
+}
+
+void f30() {
+// CHECK: In function: f30
+
+  _Nt_array_ptr<char> p : count(0) = "";
+  const int i = -1;
+  const int j = 1;
+
+  switch (*p) {
+    case i ... j: break;
+// CHECK:   case i ... j:
+// CHECK-NOT: upper_bound(p)
+  }
+
+  switch (*p) {
+    case 1 ... -1: break;
+// CHECK:   case 1 ... -1:
+// CHECK-NOT: upper_bound(p)
+
+    case 1 ... 0: break;
+// CHECK:   case 1 ... 0:
+// CHECK-NOT: upper_bound(p)
+
+    case -2 ... -1: break;
+// CHECK:   case -2 ... -1:
+// CHECK: upper_bound(p) = 1
+  }
+
+  switch (*p) {
+    case -1 ... 1: break;
+// CHECK:   case -1 ... 1:
+// CHECK-NOT: upper_bound(p)
+  }
+
+  switch (*p) {
+    case 0 ... 1: break;
+// CHECK:   case 0 ... 1:
+// CHECK-NOT: upper_bound(p)
+  }
+
+  switch (*p) {
+    case 1 ... 2: break;
+// CHECK:   case 1 ... 2:
+// CHECK: upper_bound(p) = 1
+  }
 }

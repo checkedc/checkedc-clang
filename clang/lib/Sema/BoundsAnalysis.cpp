@@ -87,38 +87,56 @@ void BoundsAnalysis::InitInOutSets() {
   }
 }
 
-bool BoundsAnalysis::CheckIsSwitchCaseNull(ElevatedCFGBlock *EB) {
-  bool IsSwitchCaseNull = true;
+llvm::APSInt BoundsAnalysis::GetSwitchCaseVal(const Expr *CaseExpr) {
+  Expr *E = const_cast<Expr *>(CaseExpr);
 
-  if (const auto *CS = dyn_cast_or_null<CaseStmt>(EB->Block->getLabel())) {
-    Expr *E = const_cast<Expr *>(CS->getLHS());
+  while (auto *ICE = dyn_cast<ImplicitCastExpr>(E))
+    E = ICE->getSubExpr();
 
-    while (auto *ICE = dyn_cast<ImplicitCastExpr>(E))
-      E = ICE->getSubExpr();
+  // const int i = 1;
+  // case i: This is how it is represented in the CFG:
+  // ConstantExpr 'const int' lvalue 1
+  //   -DeclRefExpr 'const int' lvalue Var 'i' 'const int'
+  // This is not an IntegerConstantExpr. It is a ConstantExpr and we get its
+  // value by calling the getResultAsAPSInt() method.
 
-    llvm::APSInt Zero (Ctx.getTypeSize(Ctx.IntTy), 0);
-    llvm::APSInt IntVal = Zero;
+  // case '1': This is how it is represented in the CFG:
+  // ConstantExpr 'int'
+  //   -CharacterLiteral 'int' 49
+  // This is an IntegerConstantExpr. After the call to isIntegerConstantExpr,
+  // the variable IntVal would contain the value '1'.
 
-    // case '1': This is how it is represented in the CFG:
-    // ConstantExpr 'int'
-    //   -CharacterLiteral 'int' 49
-    // This is an IntegerConstantExpr. After the call to isIntegerConstantExpr,
-    // the variable IntVal would contain the value '1'.
+  llvm::APSInt IntVal (Ctx.getTypeSize(Ctx.IntTy), 0);
 
-    // const int i = 1;
-    // case i: This is how it is represented in the CFG:
-    // ConstantExpr 'const int' lvalue 1
-    //   -DeclRefExpr 'const int' lvalue Var 'i' 'const int'
-    // This is not an IntegerConstantExpr. It is a ConstantExpr and we get its
-    // value by calling the getResultAsAPSInt() method.
-
-    if (!E->isIntegerConstantExpr(IntVal, Ctx)) {
-      if (const auto *CE = dyn_cast_or_null<ConstantExpr>(E))
-        IntVal = CE->getResultAsAPSInt();
-    }
-    IsSwitchCaseNull = (llvm::APSInt::compareValues(IntVal, Zero) == 0);
+  if (const auto *CE = dyn_cast_or_null<ConstantExpr>(E)) {
+    if (!E->isIntegerConstantExpr(IntVal, Ctx))
+      IntVal = CE->getResultAsAPSInt();
   }
-  return IsSwitchCaseNull;
+  return IntVal;
+}
+
+bool BoundsAnalysis::CheckIsSwitchCaseNull(ElevatedCFGBlock *EB) {
+  if (const auto *CS = dyn_cast_or_null<CaseStmt>(EB->Block->getLabel())) {
+    llvm::APSInt Zero (Ctx.getTypeSize(Ctx.IntTy), 0);
+
+    llvm::APSInt LHSVal = GetSwitchCaseVal(CS->getLHS());
+    if (llvm::APSInt::compareValues(LHSVal, Zero) == 0)
+      return true;
+
+    // Check if the case statement is of the form "case LHS ... RHS" (a GNU
+    // extension).
+    if (CS->caseStmtIsGNURange()) {
+      llvm::APSInt RHSVal = GetSwitchCaseVal(CS->getRHS());
+      if (llvm::APSInt::compareValues(RHSVal, Zero) == 0)
+        return true;
+
+      // Check if 0 if contained within the range [LHS, RHS].
+      return (LHSVal <= Zero && Zero <= RHSVal) ||
+             (LHSVal >= Zero && Zero >= RHSVal);
+    }
+    return false;
+  }
+  return true;
 }
 
 void BoundsAnalysis::ComputeGenSets() {
