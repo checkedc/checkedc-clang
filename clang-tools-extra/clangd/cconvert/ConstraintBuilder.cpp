@@ -294,10 +294,10 @@ public:
           SE = Temp->getSubExpr();
         RHSConstraints = Info.getVariable(SE, Context);
         QualType rhsTy = RHS->getType();
-        bool castSafe = false;
+        bool externalCastSafe = false;
         bool rulesFired = false;
         if (Info.checkStructuralEquality(V, RHSConstraints, lhsType, rhsTy)) {
-          castSafe = true;
+          externalCastSafe = true;
           // This has become a little stickier to think about.
           // What do you do here if we determine that two things with
           // very different arity are structurally equal? Is that even
@@ -351,10 +351,10 @@ public:
 
         // If none of the above rules for cast behavior fired, then
         // we need to fall back to doing something conservative.
-        if (!castSafe) {
+        if (!rulesFired) {
           PersistentSourceLoc psl = PersistentSourceLoc::mkPSL(RHS, *Context);
           // Is the explicit cast safe?
-          if (!Info.isExplicitCastSafe(lhsType, SE->getType())) {
+          if (!externalCastSafe || !Info.isExplicitCastSafe(lhsType, SE->getType())) {
             std::string cstdToDifType = "Casted To Different Type.";
             std::string cfDifType = "Casted From Different Type.";
             // Constrain everything in both to top.
@@ -374,13 +374,11 @@ public:
                   CS.addConstraint(
                       CS.createEq(CS.getOrCreateVar(B), CS.getWild(), cfDifType, &psl));
             }
+          } else {
+            // the cast is safe and it is not a special function.
+            RHSConstraints = Info.getVariable(RHS, Context, true);
+            constrainEq(V, RHSConstraints, Info, RHS, Context);
           }
-        } else {
-            if (!rulesFired) {
-                // the cast is safe and it is not a special function.
-                RHSConstraints = Info.getVariable(RHS, Context, true);
-                constrainEq(V, RHSConstraints, Info, RHS, Context);
-            }
         }
       } else {
         // get the constraint variables of the
