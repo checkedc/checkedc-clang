@@ -111,10 +111,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
       assert(CS.getVar(K) == nullptr);
       VarAtom *stArrAtom = CS.getOrCreateVar(K);
 
-      // If all types are enabled? Then make sure that this variable can
-      // never be WILD
-      if (allTypes)
-        stArrAtom->setConstImpossible(CS.getWild());
+      // if this is a statically declared array? Then make it impossible
+      // to become WILD.
+      stArrAtom->setConstImpossible(CS.getWild());
 
       // See if there is a constant size to this array type at this position.
       if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
@@ -790,15 +789,12 @@ void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, std::
 bool PointerVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
   bool f = false;
 
+  // are there any non-WILD pointers?
   for (const auto &C : vars) {
     VarAtom V(C);
     ConstAtom *CS = E[&V];
     assert(CS != nullptr);
-    f |= isa<PtrAtom>(CS);
-    if (allTypes) {
-      f |= isa<NTArrAtom>(CS);
-      f |= isa<ArrAtom>(CS);
-    }
+    f |= !(isa<WildAtom>(CS));
   }
 
   if (FV)

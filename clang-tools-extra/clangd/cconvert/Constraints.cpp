@@ -107,8 +107,12 @@ void Constraints::editConstraintHook(Constraint *C) {
     // only Ptr or WILD constraints? if not? make it WILD
     if (Eq *E = dyn_cast<Eq>(C)) {
       if (ConstAtom *rConst = dyn_cast<ConstAtom>(E->getRHS())) {
-        if (!(isa<PtrAtom>(rConst) || isa<WildAtom>(rConst)))
-          E->setRHS(getWild());
+        if (!(isa<PtrAtom>(rConst) || isa<WildAtom>(rConst))) {
+          // can we assign WILD to the left side var?
+          VarAtom *LHSA = dyn_cast<VarAtom>(E->getLHS());
+          if (!LHSA || LHSA->canAssign(getWild()))
+            E->setRHS(getWild());
+        }
       }
     }
   }
