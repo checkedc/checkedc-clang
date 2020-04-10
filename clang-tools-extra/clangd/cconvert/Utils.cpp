@@ -232,6 +232,10 @@ bool isTypeHasVoid(clang::QualType QT) {
   return false;
 }
 
+bool isVarArgType(const std::string &typeName) {
+  return typeName == "struct __va_list_tag *" || typeName == "va_list" || typeName == "struct __va_list_tag";
+}
+
 bool hasVoidType(clang::ValueDecl *D) {
   return isTypeHasVoid(D->getType());
 }

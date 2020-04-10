@@ -276,6 +276,7 @@ bool ProgramInfo::isExplicitCastSafe(clang::QualType dstType,
 
   const clang::PointerType *srcPtrTypePtr = dyn_cast<PointerType>(srcTypePtr);
   const clang::PointerType *dstPtrTypePtr = dyn_cast<PointerType>(dstTypePtr);
+
   // both are pointers? check their pointee
   if (srcPtrTypePtr && dstPtrTypePtr)
     return isExplicitCastSafe(dstPtrTypePtr->getPointeeType(), srcPtrTypePtr->getPointeeType());
@@ -1275,7 +1276,7 @@ bool ProgramInfo::handleFunctionSubtyping() {
               auto topDeclCVar = *(declParam->getCvars().begin());
 
               if (!CS.isWild(topDefCVar)) {
-                // the declaration is not WILD.
+                // the definition is not WILD.
                 // so, we just need to check with the declaration.
                 if (!CS.isWild(topDeclCVar)) {
                   toChangeCVars.insert(declParam);

@@ -31,7 +31,7 @@ void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C, bool i
   Constraints &CS = Info.getConstraints();
 
   // Special-case for va_list, constrain to wild.
-  if (D->getType().getAsString() == "va_list" ||
+  if (isVarArgType(D->getType().getAsString()) ||
       hasVoidType(D)) {
     // set the reason for making this variable WILD.
     std::string rsn = "Variable type void.";
@@ -205,6 +205,39 @@ public:
     return true;
   }
 
+  std::set<ConstraintVariable*>
+  getRHSConsVariables(Expr *RHS, QualType lhsType, ASTContext *C) {
+    Expr *finalExpr = RHS;
+    if (lhsType->isFunctionPointerType()) {
+      // we are assigning to a function pointer. Lets first get the
+      // function definition
+      Decl *targetDecl = nullptr;
+      while(targetDecl == nullptr && finalExpr != nullptr) {
+        if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(finalExpr)) {
+          targetDecl = DRE->getDecl();
+        } else if(UnaryOperator *UO = dyn_cast<UnaryOperator>(finalExpr)) {
+          finalExpr = UO->getSubExpr();
+        } else if (ImplicitCastExpr *IE = dyn_cast<ImplicitCastExpr>(finalExpr)) {
+          finalExpr = IE->getSubExpr();
+        } else if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(finalExpr)) {
+          finalExpr = ECE->getSubExpr();
+        } else {
+          if(!dyn_cast<IntegerLiteral>(finalExpr)) {
+            dbgs() << "Unable to handle function pointer assignment from:";
+            finalExpr->dump();
+          }
+          break;
+        }
+      }
+      // if we found the function definition
+      // lets try to get the constraint variable within the function context.
+      if (targetDecl != nullptr) {
+        return Info.getVariableOnDemand(targetDecl, C, true);
+      }
+    }
+    return Info.getVariable(RHS, C, true);
+  }
+
   // Adds constraints for the case where an expression RHS is being assigned
   // to a variable V. There are a few different cases:
   //  1. Straight-up assignment, i.e. int * a = b; with no casting. In this
@@ -376,14 +409,14 @@ public:
             }
           } else {
             // the cast is safe and it is not a special function.
-            RHSConstraints = Info.getVariable(RHS, Context, true);
+            RHSConstraints = getRHSConsVariables(RHS, lhsType, Context);
             constrainEq(V, RHSConstraints, Info, RHS, Context);
           }
         }
       } else {
         // get the constraint variables of the
         // expression from RHS side.
-        RHSConstraints = Info.getVariable(RHS, Context, true);
+        RHSConstraints = getRHSConsVariables(RHS, lhsType, Context);
         if(RHSConstraints.size() > 0) {
           // Case 1.
           // There are constraint variables for the RHS, so, use those over

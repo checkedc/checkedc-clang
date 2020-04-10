@@ -111,9 +111,11 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
       assert(CS.getVar(K) == nullptr);
       VarAtom *stArrAtom = CS.getOrCreateVar(K);
 
-      // if this is a statically declared array? Then make it impossible
-      // to become WILD.
-      stArrAtom->setConstImpossible(CS.getWild());
+      if (!isVarArgType(tyToStr(Ty))) {
+        // if this is not a vararg and a statically declared array?
+        // Then make it impossible to become WILD.
+        stArrAtom->setConstImpossible(CS.getWild());
+      }
 
       // See if there is a constant size to this array type at this position.
       if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
@@ -181,7 +183,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
       std::string TyName = tyToStr(Ty);
       // TODO: Github issue #61: improve handling of types for
       // // variable arguments.
-      if (TyName == "struct __va_list_tag *" || TyName == "va_list")
+      if (isVarArgType(TyName))
         break;
 
       // Iterate.
@@ -207,8 +209,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
 
   BaseType = tyToStr(Ty);
 
-  bool constraintWild = BaseType == "struct __va_list_tag *" || BaseType == "va_list" ||
-                        BaseType == "struct __va_list_tag" || isTypeHasVoid(QT);
+  bool constraintWild = isVarArgType(BaseType) || isTypeHasVoid(QT);
   if (constraintWild) {
     std::string rsn = "Default Var arg list type.";
     if (hasVoidType(D))
@@ -472,7 +473,9 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
     ss << ">";
   }
 
-  ss << " ";
+  // No space after itype
+  if (!forItype)
+    ss << " ";
 
   std::string finalDec;
   if (emittedName == false) {
