@@ -128,8 +128,8 @@ int arrcheck(int *a, int b) {
 int badcall(int *a, int b) {
   return arrcheck(a, b);
 }
-//CHECK: int badcall(int *a, int b) {
-//CHECK-NEXT: return arrcheck(a, b); 
+//CHECK: int badcall(_Ptr<int> a, int b) {
+//CHECK-NEXT: return arrcheck(((int *)a), b); 
 //CHECK-NEXT: }
 
 void pullit(char *base, char *out, int *index) {
@@ -217,7 +217,7 @@ void dknbhd(void) {
 //CHECK: void dknbhd(void) {
 //CHECK-NEXT: int a = 0;
 //CHECK-NEXT: int *b = &a;
-//CHECK-NEXT: int **c = &b;
+//CHECK-NEXT: _Ptr<int*> c = &b;
 //CHECK-NEXT: int *d = *c;
 
 extern void dfefwefrw(int **);
@@ -252,5 +252,5 @@ void ptrarr(void) {
   return;
 }
 //CHECK: void ptrarr(void) { 
-//CHECK-NEXT: _Ptr<int> vals[4] =  { 0 };
+//CHECK-NEXT: _Ptr<int> vals _Checked[4] =  { 0 };
 
