@@ -2,7 +2,7 @@
 //
 // Tests basic rewriting of Nt_array_ptrs
 
-// RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
+// RUN: checked-c-convert -alltypes %s -- | FileCheck -match-full-lines %s
 //
 
 #include <string_checked.h>

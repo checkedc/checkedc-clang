@@ -2,7 +2,7 @@
 //
 // Tests properties about rewriter for return type when it is an itype
 //
-// RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
+// RUN: checked-c-convert -alltypes %s -- | FileCheck -match-full-lines %s
 //
 
 static int funcvar;

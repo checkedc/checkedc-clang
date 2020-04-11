@@ -2,7 +2,7 @@
 //
 // Tests checked-c-convert tool for any regressions.
 //
-// RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
+// RUN: checked-c-convert -alltypes %s -- | FileCheck -match-full-lines %s
 //
 
 #include <stdlib_checked.h>
@@ -24,4 +24,4 @@ int main() {
   return 0;
 }
 //CHECK: _Ptr<char> ptr1 =  NULL;
-//CHECK-NEXT: _Nt_array_ptr<char> d =  "sss";
+//CHECK-NEXT: _Nt_array_ptr<char> d: count(3) =  "sss";

@@ -2,7 +2,7 @@
 //
 // Tests rewriting and propagation of Nt_array_ptr constraints across functions.
 //
-// RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
+// RUN: checked-c-convert -alltypes %s -- | FileCheck -match-full-lines %s
 //
 #include<string_checked.h>
 // here we test the propagation of constraints
@@ -32,7 +32,7 @@ int func(int *ptr, int *iptr, int *wild) {
   wild = (int*)0xdeadbeef;
   return 0;
 }
-//CHECK: int func(int *ptr, int *iptr : itype(_Ptr<int>), int *wild) {
+//CHECK: int func(_Array_ptr<int> ptr, int *iptr : itype(_Ptr<int>), int *wild) {
 
 int main() {
   int a, b, c;
@@ -65,7 +65,7 @@ int main() {
 }
 //CHECK: int main() {
 //CHECK-NEXT: int a, b, c;
-//CHECK-NEXT: int *ap = 0;
+//CHECK-NEXT: _Array_ptr<int> ap = 0;
 //CHECK-NEXT: int *bp = 0;
 //CHECK-NEXT: _Ptr<int> cp =  0;
 //CHECK-NEXT: char *ap1 = 0;
