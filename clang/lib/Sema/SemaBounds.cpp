@@ -2610,7 +2610,7 @@ namespace {
 
         // Update UEQ and G for assignments to `e1` where `e1` is a variable.
         if (DeclRefExpr *V = GetLValueVariable(LHS)) {
-          Expr *OV = GetOriginalValue(V, Src, State.UEQ);
+          Expr *OV = GetOriginalValue(V, Target, Src, State.UEQ);
           UpdateAfterAssignment(V, Target, OV, CSS, State, State);
         }
         // Update UEQ and G for assignments where `e1` is not a variable.
@@ -3021,7 +3021,7 @@ namespace {
           // expressions that produce the same value as the variable `e1`,
           // and these expressions should not be added to UEQ.
           State.G.clear();
-          Expr *OV = GetOriginalValue(V, RHS, State.UEQ);
+          Expr *OV = GetOriginalValue(V, Target, RHS, State.UEQ);
           UpdateAfterAssignment(V, Target, OV, CSS, State, State);
         }
 
@@ -3770,7 +3770,11 @@ namespace {
 
     // GetOriginalValue returns the original value (if it exists) of the
     // expression Src with respect to the variable V in an assignment V = Src.
-    Expr *GetOriginalValue(DeclRefExpr *V, Expr *Src, const EquivExprSets EQ) {
+    //
+    // Target is the target expression of the assignment (that accounts for
+    // any necessary casts of V).
+    Expr *GetOriginalValue(DeclRefExpr *V, Expr *Target, Expr *Src,
+                           const EquivExprSets EQ) {
       // Check if Src has an inverse expression with respect to v.
       Expr *IV = nullptr;
       if (IsInvertible(V, Src))
@@ -3779,7 +3783,7 @@ namespace {
         return IV;
       
       // Check EQ for a variable w != v that produces the same value as v.
-      EqualExprTy F = GetEqualExprSetContainingVariable(V, EQ);
+      EqualExprTy F = GetEqualExprSetContainingExpr(Target, EQ);
       for (auto I = F.begin(); I != F.end(); ++I) {
         // Account for any value-preserving operations when searching for
         // a variable w in F. For example, if F contains (T)LValueToRValue(w),
@@ -4025,27 +4029,6 @@ namespace {
         EqualExprTy F = *OuterList;
         if (EqualExprsContainsExpr(F, E))
           return F;
-      }
-      return { };
-    }
-
-    // If a set F in EQ contains an expression that is an rvalue cast of
-    // the variable V, GetEqualExprSetContainingVariable returns F.
-    // Otherwise, it returns an empty set.
-    //
-    // This is a specialized version of GetEqualExprSetContainingExpr
-    // for variables.  It prevents the need to allocate a cast expression
-    // containing the variable v (which would be needed to call
-    // GetEqualExprSetContainingExpr).
-    EqualExprTy GetEqualExprSetContainingVariable(DeclRefExpr *V,
-                                                  EquivExprSets EQ) {
-      for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
-        EqualExprTy F = *OuterList;
-        for (auto InnerList = F.begin(); InnerList != F.end(); ++InnerList) {
-          Expr *E1 = *InnerList;
-          if (IsRValueCastOfVariable(E1, V))
-            return F;
-        }
       }
       return { };
     }
