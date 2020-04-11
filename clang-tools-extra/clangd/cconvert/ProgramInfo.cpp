@@ -1259,6 +1259,11 @@ bool ProgramInfo::handleFunctionSubtyping() {
               retVal = applySubtypingRelation(highestNonWildCvar, defRetPVCons) || retVal;
             }
 
+          } else {
+            auto defAssignment = CS.getAssignment(topDefCVar);
+            auto declAssignment = CS.getAssignment(topDeclCVar);
+            if (*defAssignment < *declAssignment)
+              retVal = applySubtypingRelation(declRetPVCons, defRetPVCons) || retVal;
           }
 
         }

@@ -648,7 +648,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         if (CS.isWild(topDeclCVar)) {
           ctype = Defn->mkString(Info.getConstraints().getVariables(), true, true);
           returnVar = Defn->getRewritableOriginalTy();
-          endStuff = " : itype(" + ctype + ") ";
+          endStuff = " : itype(" + ctype + ")";
         } else {
           // this means we were able to infer that return type
           // is a checked type.
