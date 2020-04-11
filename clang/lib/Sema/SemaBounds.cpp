@@ -3781,9 +3781,15 @@ namespace {
       // Check EQ for a variable w != v that produces the same value as v.
       EqualExprTy F = GetEqualExprSetContainingVariable(V, EQ);
       for (auto I = F.begin(); I != F.end(); ++I) {
-        DeclRefExpr *W = GetRValueVariable(*I);
+        // Account for any value-preserving operations when searching for
+        // a variable w in F. For example, if F contains (T)LValueToRValue(w),
+        // where w is a variable != v and (T) is a value-preserving cast, the
+        // original value should be (T)LValueToRValue(w).
+        Lexicographic Lex(S.Context, nullptr);
+        Expr *E = Lex.IgnoreValuePreservingOperations(S.Context, *I);
+        DeclRefExpr *W = GetRValueVariable(E);
         if (W != nullptr && !EqualValue(S.Context, V, W, nullptr))
-          return W;
+          return *I;
       }
 
       return nullptr;
