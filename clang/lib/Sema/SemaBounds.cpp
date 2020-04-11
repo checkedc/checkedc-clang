@@ -4068,8 +4068,12 @@ namespace {
       return dyn_cast<DeclRefExpr>(E->IgnoreParens());
     }
 
-    // If E is an rvalue cast (ignoring value-preserving operations) of a
-    // variable V, GetRValueVariable returns V. Otherwise, it returns nullptr.
+    // If E is a possibly parenthesized rvalue cast of a variable V,
+    // GetRValueVariable returns V. Otherwise, it returns nullptr.
+    //
+    // V may have value-preserving operations applied to it.  For example,
+    // if E is (LValueToRValue(LValueBitCast(V))), where V is a variable,
+    // GetRValueVariable will return V.
     DeclRefExpr *GetRValueVariable(Expr *E) {
       if (CastExpr *CE = dyn_cast<CastExpr>(E->IgnoreParens())) {
         CastKind CK = CE->getCastKind();
