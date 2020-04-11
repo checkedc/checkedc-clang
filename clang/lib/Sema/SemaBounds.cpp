@@ -598,7 +598,7 @@ namespace {
       // does not preserve implicit casts.
       ExprResult TransformImplicitCastExpr(ImplicitCastExpr *E) {
         // Replace V with OV (if applicable) in the subexpression of E.
-        ExprResult ChildResult = BaseTransform::TransformImplicitCastExpr(E);
+        ExprResult ChildResult = TransformExpr(E->getSubExpr());
         if (ChildResult.isInvalid())
           return ChildResult;
 
