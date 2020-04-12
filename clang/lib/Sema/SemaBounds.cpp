@@ -3117,9 +3117,9 @@ namespace {
           TargetTy = D->getType();
         }
         Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
-        Expr *OV = nullptr;
-        UpdateAfterAssignment(TargetDeclRef, TargetExpr, OV,
-                              CSS, State, State);
+        
+        // Record equality between the target and initializer.
+        RecordEqualityWithTarget(TargetExpr, State);
       }
 
       if (D->isInvalidDecl())
@@ -3662,10 +3662,19 @@ namespace {
           State.G.push_back(AdjustedE);
       }
 
-      // Add the target to a set in UEQ: if G is nonempty and there is some set
-      // F in UEQ that is a superset of G, add the target to F.  This prevents
-      // the elements of F from appearing in multiple sets in UEQ.  The target
-      // of an lvalue should appear in no more than one set in UEQ.
+      RecordEqualityWithTarget(Target, State);
+    }
+
+    // RecordEqualityWithTarget updates the checking state to record equality
+    // between the target expression of an assignment and the source of the
+    // assignment.
+    //
+    // State.G is assumed to contain expressions that produce the same value
+    // as the source of the assignment.
+    void RecordEqualityWithTarget(Expr *Target, CheckingState &State) {
+      // If G is nonempty and there is some set F in UEQ that is a superset
+      // of G, add the target to F.  This prevents the expressions in F from
+      // appearing in multiple sets in UEQ.
       if (State.G.size() > 0) {
         for (auto I = State.UEQ.begin(); I != State.UEQ.end(); ++I) {
           if (IsEqualExprsSubset(State.G, *I)) {
