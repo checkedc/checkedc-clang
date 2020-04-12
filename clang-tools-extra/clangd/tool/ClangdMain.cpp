@@ -341,7 +341,7 @@ int main(int argc, char *argv[]) {
   ccOptions.Verbose = Verbose;
   ccOptions.DumpIntermediate = DumpIntermediate;
   ccOptions.ConstraintOutputJson = ConstraintOutputJson.getValue();
-  ccOptions.mergeMultipleFuncDecls = mergeMultipleFuncDecls;
+  ccOptions.seperateMultipleFuncDecls = mergeMultipleFuncDecls;
   if (initializeCConvert(OptionsParser, ccOptions)) {
     log("Initialized CConvert successfully\n");
   } else {
