@@ -4,7 +4,8 @@
 //
 // RUN: checked-c-convert -alltypes %s -- | FileCheck -match-full-lines %s
 //
-#include<string_checked.h>
+char *strstr(const char *s1 : itype(_Nt_array_ptr<const char>),
+             const char *s2 : itype(_Nt_array_ptr<const char>)) : itype(_Nt_array_ptr<char>);
 // here we test the propagation of constraints
 // between functions.
 
