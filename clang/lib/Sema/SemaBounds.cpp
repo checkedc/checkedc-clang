@@ -3679,6 +3679,9 @@ namespace {
         for (auto I = State.UEQ.begin(); I != State.UEQ.end(); ++I) {
           if (IsEqualExprsSubset(State.G, *I)) {
             I->push_back(Target);
+            // Add the target to G if G does not already contain the target.
+            if (!EqualExprsContainsExpr(State.G, Target))
+              State.G.push_back(Target);
             return;
           }
         }
