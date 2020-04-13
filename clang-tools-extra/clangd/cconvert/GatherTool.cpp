@@ -27,7 +27,7 @@ public:
           foundWild |= cv->hasWild(CS.getVariables());
           // if this an extern function, then check if there is
           // any explicit annotation to. If not? then add a cast
-          if (!foundWild || isThisAnExternFunction) {
+          if (isThisAnExternFunction && !foundWild) {
             if (PVConstraint *PV = dyn_cast<PVConstraint>(cv)) {
               for (auto cKey: PV->getCvars()) {
                 if (PV->canConstraintCKey(CS, cKey, CS.getWild(), true)) {
