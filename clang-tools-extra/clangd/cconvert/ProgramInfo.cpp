@@ -597,28 +597,44 @@ bool ProgramInfo::hasConstraintType(std::set<ConstraintVariable*> &S) {
   return false;
 }
 
+// This function takes care of handling multiple declarations of an external
+// function across multiple files. Specifically, it will create a mapping of
+// definition and declaration, and sets a flag to indicate that rewrites have
+// to done twice inorder to correctly rewrite the prototype of all the function
+// declarations
 void ProgramInfo::performDefnDeclarationAssociation(FunctionDecl *FD, ASTContext *C) {
   std::string funcKey =  getUniqueDeclKey(FD, C);
-  // if this is global function and not previosly processed?
+  // if this is global function and not previously processed?
   // look into external declarations in other C files.
   auto &defDeclMap = CS.getFuncDefnDeclMap();
   if (FD->isGlobal() && !defDeclMap.hasKey(funcKey) && !defDeclMap.hasValue(funcKey)) {
     std::string funcName = FD->getNameAsString();
     bool thisHasBody = (FD->isThisDeclarationADefinition() && FD->hasBody());
+    bool handled = false;
     // check all the global function and when a declaration is found.
     // add it as the declaration for the current definition
     if (GlobalFunctionSymbols.find(funcName) != GlobalFunctionSymbols.end()) {
       for (auto &foundSymbol: GlobalFunctionSymbols[funcName]) {
-        if (foundSymbol.first != funcKey &&
-            foundSymbol.second->hasBody() != thisHasBody) {
-          // declarations across multiple files and should be rewritten.
-          performMultipleRewrites = true;
-          if (thisHasBody) {
-            CS.getFuncDefnDeclMap().set(funcKey, foundSymbol.first);
-          } else {
-            CS.getFuncDefnDeclMap().set(foundSymbol.first, funcKey);
+        if (foundSymbol.first != funcKey) {
+          if (foundSymbol.second->hasBody() != thisHasBody || !thisHasBody) {
+            // declarations across multiple files and should be rewritten.
+            performMultipleRewrites = true;
           }
-          break;
+          // this is a definition and we have seen a declaration
+          if (thisHasBody && !foundSymbol.second->hasBody()) {
+            CS.getFuncDefnDeclMap().set(funcKey, foundSymbol.first);
+            handled = true;
+          } else if (foundSymbol.second->hasBody() && !thisHasBody) {
+            // this is first external declaration and we have seen a definition
+            if (!CS.getFuncDefnDeclMap().hasKey(foundSymbol.first))
+                CS.getFuncDefnDeclMap().set(foundSymbol.first, funcKey);
+            handled = true;
+          } else {
+             assert((thisHasBody != foundSymbol.second->hasBody() || !thisHasBody) &&
+                    "Multiple definitions of a single function.");
+          }
+          if (handled)
+            break;
         }
       }
     }
@@ -698,23 +714,6 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
         CS.getFuncDefnDeclMap().set(funcKey, fDeclKey);
       } else {
         performDefnDeclarationAssociation(UD, C);
-        // if this is global function? look into external declarations
-        // in other C files.
-        if (UD->isGlobal()) {
-           std::string funcName = UD->getNameAsString();
-           // check all the global function and when a declaration is found.
-           // add it as the declaration for the current definition
-           if (GlobalFunctionSymbols.find(funcName) != GlobalFunctionSymbols.end()) {
-             for (auto &foundSymbol: GlobalFunctionSymbols[funcName]) {
-               if (foundSymbol.first != funcKey && !foundSymbol.second->hasBody()) {
-                 // declarations across multiple files and should be rewritten.
-                 performMultipleRewrites = true;
-                 CS.getFuncDefnDeclMap().set(funcKey, foundSymbol.first);
-                 break;
-               }
-             }
-           }
-        }
       }
     } else {
       // this is a declaration, just save the constraint variable.
