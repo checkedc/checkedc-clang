@@ -4077,6 +4077,7 @@ namespace {
       Lexicographic Lex(S.Context, nullptr);
       for (auto I = G2.begin(); I != G2.end(); ++I) {
         Expr *E = Lex.IgnoreValuePreservingOperations(S.Context, *I);
+        DeclRefExpr *V = GetRValueVariable(E);
         if (!EqualExprsContainsExpr(G1, E))
           return false;
       }
