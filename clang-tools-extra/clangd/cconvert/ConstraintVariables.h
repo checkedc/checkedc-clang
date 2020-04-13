@@ -246,7 +246,6 @@ public:
 
   virtual ~PointerVariableConstraint() {};
 
-private:
   bool canConstraintCKey(Constraints &CS, ConstraintKey ck, ConstAtom *CA, bool checkSkip);
 };
 

@@ -158,6 +158,9 @@ public:
   // perform multiple rewrites because declarations are spread across multiple
   // files and need to be rewritten multiple times.
   bool performMultipleRewrites;
+
+  // check if the given function is an extern function.
+  bool isAnExternFunction(const std::string &funcName);
 private:
   // insert the provided constraint variables for the given function into
   // a global function map.

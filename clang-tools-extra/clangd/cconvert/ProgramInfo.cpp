@@ -468,6 +468,10 @@ void ProgramInfo::insertIntoGlobalFunctions(FunctionDecl *FD, ASTContext *C, FVC
   insertIntoGlobalFunctions(FD, tmpVars);
 }
 
+bool ProgramInfo::isAnExternFunction(const std::string &funcName) {
+  return ExternFunctions[funcName];
+}
+
 void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
   if (!F->isGlobal())
     return;
