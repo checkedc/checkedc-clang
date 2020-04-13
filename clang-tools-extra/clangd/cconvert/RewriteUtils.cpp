@@ -549,25 +549,20 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   else
     VisitedSet.insert(funcName);
 
-  FVConstraint *cDefn =
-    getHighestT<FVConstraint>(Info.getVariableOnDemand(Definition, Context, true), Info);
+  FVConstraint *cDefn = getHighestT<FVConstraint>(Info.getFuncDefnConstraints(Definition, Context), Info);
 
   FVConstraint *cDecl = nullptr;
+  std::set<ConstraintVariable*> *funcDeclKeys = Info.getFuncDeclConstraintSet(Info.getUniqueDeclKey(Definition, Context));
   // Get constraint variables for the declaration and the definition.
   // Those constraints should be function constraints.
-  if(Declaration == nullptr) {
+  if(funcDeclKeys != nullptr) {
     // if there is no declaration?
     // get the on demand function variable constraint.
-    auto funcDefKey = Info.getUniqueFuncKey(Definition, Context);
-    auto &onDemandMap = Info.getOnDemandFuncDeclConstraintMap();
-    if(onDemandMap.find(funcDefKey) != onDemandMap.end()) {
-      cDecl = getHighestT<FVConstraint>(onDemandMap[funcDefKey], Info);
-    } else {
-      cDecl = cDefn;
-    }
+    cDecl = getHighestT<FVConstraint>(*funcDeclKeys, Info);
   } else {
+    // no declaration constraints found. So, create on demand declaration constraints.
     cDecl =
-        getHighestT<FVConstraint>(Info.getVariableOnDemand(Declaration, Context, false), Info);
+        getHighestT<FVConstraint>(Info.getVariableOnDemand(Definition, Context, false), Info);
   }
 
   assert(cDecl != nullptr);

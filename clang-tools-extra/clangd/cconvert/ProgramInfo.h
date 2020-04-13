@@ -28,6 +28,7 @@ class ProgramInfo;
 
 class ProgramInfo {
 public:
+  typedef std::pair<std::string, FVConstraint*> GlobFuncConstraintType;
   ProgramInfo();
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
@@ -153,7 +154,18 @@ public:
 
   // check if the provided constraint variable is a valid pointer constraint
   static bool isAValidPVConstraint(ConstraintVariable *C);
+
+  // perform multiple rewrites because declarations are spread across multiple
+  // files and need to be rewritten multiple times.
+  bool performMultipleRewrites;
 private:
+  // insert the provided constraint variables for the given function into
+  // a global function map.
+  void insertIntoGlobalFunctions(FunctionDecl *FD, std::set<GlobFuncConstraintType> &toAdd);
+  void insertIntoGlobalFunctions(FunctionDecl *FD, ASTContext *C, FVConstraint *toAdd);
+
+  // Create an association of definition and declartion
+  void performDefnDeclarationAssociation(FunctionDecl *FD, ASTContext *C);
   // apply function sub-typing relation from srcCVar to dstCVar
   bool applySubtypingRelation(ConstraintVariable *srcCVar, ConstraintVariable *dstCVar);
   // check if the given set has the corresponding constraint variable type
@@ -189,7 +201,7 @@ private:
   // names of external functions, the value is whether the body has been
   // seen before.
   std::map<std::string, bool> ExternFunctions;
-  std::map<std::string, std::set<FVConstraint*>> GlobalFunctionSymbols;
+  std::map<std::string, std::set<GlobFuncConstraintType>> GlobalFunctionSymbols;
   std::map<std::string, std::set<PVConstraint*>> GlobalVariableSymbols;
   ParameterMap MF;
   // object that contains all the bounds information of various

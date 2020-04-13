@@ -508,15 +508,19 @@ int main(int argc, const char **argv) {
   else
     llvm_unreachable("No Action");
 
-  // 4. Re-write based on constraints.
-  std::unique_ptr<ToolAction> RewriteTool =
-      newFrontendActionFactoryA
-      <RewriteAction<RewriteConsumer, ProgramInfo>>(Info);
-  
-  if (RewriteTool)
-    Tool.run(RewriteTool.get());
-  else
-    llvm_unreachable("No action");
+  unsigned numOfRewrites = Info.performMultipleRewrites ? 2 : 1;
+
+  while (numOfRewrites > 0) {
+    // 4. Re-write based on constraints.
+    std::unique_ptr<ToolAction> RewriteTool =
+       newFrontendActionFactoryA
+         <RewriteAction<RewriteConsumer, ProgramInfo>>(Info);
+    if (RewriteTool)
+      Tool.run(RewriteTool.get());
+    else
+      llvm_unreachable("No action");
+    numOfRewrites--;
+  }
 
   if (DumpStats)
     Info.dump_stats(inoutPaths);

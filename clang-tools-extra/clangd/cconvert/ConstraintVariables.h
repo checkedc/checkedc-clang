@@ -282,6 +282,7 @@ public:
 
   bool hasProtoType() { return hasproto; }
   bool hasBody() { return hasbody; }
+  void setHasBody(bool hbody) { this->hasbody = hbody; }
 
   static bool classof(const ConstraintVariable *S) {
     return S->getKind() == FunctionVariable;

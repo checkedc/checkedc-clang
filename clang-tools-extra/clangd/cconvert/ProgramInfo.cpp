@@ -21,6 +21,7 @@ ProgramInfo::ProgramInfo() :
   freeKey(0), persisted(true) {
   ArrBoundsInfo = new ArrayBoundsInformation(*this);
   OnDemandFuncDeclConstraint.clear();
+  performMultipleRewrites = false;
 }
 
 
@@ -351,16 +352,16 @@ bool ProgramInfo::link() {
       int gap = 0;
       for (const auto &S : GlobalFunctionSymbols) {
           std::string fname = S.first;
-          std::set<FVConstraint*> P = S.second;
+          std::set<GlobFuncConstraintType> P = S.second;
 
           if (P.size() > 1) {
-              std::set<FVConstraint*>::iterator I = P.begin();
-              std::set<FVConstraint*>::iterator J = P.begin();
+              std::set<GlobFuncConstraintType>::iterator I = P.begin();
+              std::set<GlobFuncConstraintType>::iterator J = P.begin();
               ++J;
 
               while (J != P.end()) {
-                  FVConstraint *P1 = *I;
-                  FVConstraint *P2 = *J;
+                  FVConstraint *P1 = (*I).second;
+                  FVConstraint *P2 = (*J).second;
 
                   if (P2->hasBody()) { // skip over decl with fun body
                        gap = 1; ++J; continue;
@@ -412,14 +413,15 @@ bool ProgramInfo::link() {
       // Some global symbols we don't need to constrain to wild, like 
       // malloc and free. Check those here and skip if we find them. 
       std::string UnkSymbol = U.first;
-      std::map<std::string, std::set<FVConstraint*> >::iterator I =
+      auto globFuncIterator =
           GlobalFunctionSymbols.find(UnkSymbol);
-      assert(I != GlobalFunctionSymbols.end());
-      const std::set<FVConstraint*> &Gs = (*I).second;
+      assert(globFuncIterator != GlobalFunctionSymbols.end());
+      const std::set<GlobFuncConstraintType> &Gs = (*globFuncIterator).second;
 
-      for (const auto &G : Gs) {
+      for (const auto &GIterator : Gs) {
+        auto G = GIterator.second;
         for (const auto &U : G->getReturnVars()) {
-          std::string rsn = "Return value of function:" + (*I).first;
+          std::string rsn = "Return value of function:" + (*globFuncIterator).first;
           U->constrainTo(CS, CS.getWild(), rsn, true);
         }
 
@@ -446,6 +448,26 @@ bool ProgramInfo::link() {
   return true;
 }
 
+void ProgramInfo::insertIntoGlobalFunctions(FunctionDecl *FD, std::set<GlobFuncConstraintType> &toAdd) {
+  std::string fn = FD->getNameAsString();
+  auto globFuncIterator =
+      GlobalFunctionSymbols.find(fn);
+
+  if (globFuncIterator == GlobalFunctionSymbols.end()) {
+      GlobalFunctionSymbols.insert(std::pair<std::string, std::set<GlobFuncConstraintType> >
+                                       (fn, toAdd));
+  } else {
+    (*globFuncIterator).second.insert(toAdd.begin(), toAdd.end());
+  }
+}
+
+void ProgramInfo::insertIntoGlobalFunctions(FunctionDecl *FD, ASTContext *C, FVConstraint *toAdd) {
+  std::set<GlobFuncConstraintType> tmpVars;
+  tmpVars.clear();
+  tmpVars.insert(std::make_pair(getUniqueDeclKey(FD, C), toAdd));
+  insertIntoGlobalFunctions(FD, tmpVars);
+}
+
 void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
   if (!F->isGlobal())
     return;
@@ -456,28 +478,21 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
     ExternFunctions[fn] = (F->isThisDeclarationADefinition() && F->hasBody());
   
   // Add this to the map of global symbols. 
-  std::set<FVConstraint*> toAdd;
+  std::set<GlobFuncConstraintType> toAdd;
   // get the constraint variable directly.
   std::set<ConstraintVariable*> K;
   VariableMap::iterator I = Variables.find(PersistentSourceLoc::mkPSL(F, *C));
   if (I != Variables.end()) {
     K = I->second;
   }
-  for (const auto &J : K)
-    if(FVConstraint *FJ = dyn_cast<FVConstraint>(J))
-      toAdd.insert(FJ);
+  for (const auto &J : K) {
+    if (FVConstraint *FJ = dyn_cast<FVConstraint>(J))
+      toAdd.insert(std::make_pair(getUniqueDeclKey(F, C),FJ));
+  }
 
   assert(toAdd.size() > 0);
 
-  std::map<std::string, std::set<FVConstraint*> >::iterator it =
-      GlobalFunctionSymbols.find(fn);
-  
-  if (it == GlobalFunctionSymbols.end()) {
-    GlobalFunctionSymbols.insert(std::pair<std::string, std::set<FVConstraint*> >
-      (fn, toAdd));
-  } else {
-    (*it).second.insert(toAdd.begin(), toAdd.end());
-  }
+  insertIntoGlobalFunctions(F, toAdd);
 
   // Look up the constraint variables for the return type and parameter 
   // declarations of this function, if any.
@@ -582,6 +597,34 @@ bool ProgramInfo::hasConstraintType(std::set<ConstraintVariable*> &S) {
   return false;
 }
 
+void ProgramInfo::performDefnDeclarationAssociation(FunctionDecl *FD, ASTContext *C) {
+  std::string funcKey =  getUniqueDeclKey(FD, C);
+  // if this is global function and not previosly processed?
+  // look into external declarations in other C files.
+  auto &defDeclMap = CS.getFuncDefnDeclMap();
+  if (FD->isGlobal() && !defDeclMap.hasKey(funcKey) && !defDeclMap.hasValue(funcKey)) {
+    std::string funcName = FD->getNameAsString();
+    bool thisHasBody = (FD->isThisDeclarationADefinition() && FD->hasBody());
+    // check all the global function and when a declaration is found.
+    // add it as the declaration for the current definition
+    if (GlobalFunctionSymbols.find(funcName) != GlobalFunctionSymbols.end()) {
+      for (auto &foundSymbol: GlobalFunctionSymbols[funcName]) {
+        if (foundSymbol.first != funcKey &&
+            foundSymbol.second->hasBody() != thisHasBody) {
+          // declarations across multiple files and should be rewritten.
+          performMultipleRewrites = true;
+          if (thisHasBody) {
+            CS.getFuncDefnDeclMap().set(funcKey, foundSymbol.first);
+          } else {
+            CS.getFuncDefnDeclMap().set(foundSymbol.first, funcKey);
+          }
+          break;
+        }
+      }
+    }
+  }
+}
+
 // For each pointer type in the declaration of D, add a variable to the
 // constraint system for that pointer type.
 bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
@@ -644,19 +687,39 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
     FunctionDecl *UD = dyn_cast<FunctionDecl>(D);
     std::string funcKey =  getUniqueDeclKey(UD, C);
     // this is a definition. Create a constraint variable
-    // and save the mapping between defintion and declaration.
+    // and save the mapping between definition and declaration.
     if(UD->isThisDeclarationADefinition() && UD->hasBody()) {
       CS.getFuncDefnVarMap()[funcKey].insert(F);
       // this is a definition.
-      // get the declartion and store the unique key mapping
+      // get the declaration and store the unique key mapping
       FunctionDecl *FDecl = getDeclaration(UD);
       if(FDecl != nullptr) {
         std::string fDeclKey = getUniqueDeclKey(FDecl, C);
         CS.getFuncDefnDeclMap().set(funcKey, fDeclKey);
+      } else {
+        performDefnDeclarationAssociation(UD, C);
+        // if this is global function? look into external declarations
+        // in other C files.
+        if (UD->isGlobal()) {
+           std::string funcName = UD->getNameAsString();
+           // check all the global function and when a declaration is found.
+           // add it as the declaration for the current definition
+           if (GlobalFunctionSymbols.find(funcName) != GlobalFunctionSymbols.end()) {
+             for (auto &foundSymbol: GlobalFunctionSymbols[funcName]) {
+               if (foundSymbol.first != funcKey && !foundSymbol.second->hasBody()) {
+                 // declarations across multiple files and should be rewritten.
+                 performMultipleRewrites = true;
+                 CS.getFuncDefnDeclMap().set(funcKey, foundSymbol.first);
+                 break;
+               }
+             }
+           }
+        }
       }
     } else {
       // this is a declaration, just save the constraint variable.
       CS.getFuncDeclVarMap()[funcKey].insert(F);
+      performDefnDeclarationAssociation(UD, C);
     }
   }
 
@@ -918,6 +981,10 @@ ProgramInfo::getOnDemandFuncDeclarationConstraint(FunctionDecl *targetFunc, ASTC
     assert (!(Ty->isPointerType() || Ty->isArrayType()) && "");
     assert(Ty->isFunctionType() && "");
     FVConstraint *F = new FVConstraint(targetFunc, freeKey, CS, *C);
+    // set has body is false, as this is for function declaration
+    F->setHasBody(false);
+    // insert into function declarations which will help in linking
+    insertIntoGlobalFunctions(targetFunc, C, F);
     OnDemandFuncDeclConstraint[declKey].insert(F);
     // insert into declaration map.
     CS.getFuncDeclVarMap()[declKey].insert(F);
