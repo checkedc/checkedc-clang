@@ -3671,13 +3671,20 @@ namespace {
     //
     // State.G is assumed to contain expressions that produce the same value
     // as the source of the assignment.
+    //
+    // If all rvalue variables in State.G appear in a set F in UEQ, the
+    // target of the assignment will be added to F.  This prevents the rvalue
+    // variables in F from appearing in multiple sets in UEQ.  For example,
+    // if x == z and y == z (so UEQ contains the set F = { z, x }, G is { z },
+    // and the target is y), UEQ should contain the set { z, x, y } rather
+    // than the sets { z, x } and { z, y }.
     void RecordEqualityWithTarget(Expr *Target, CheckingState &State) {
-      // If G is nonempty and there is some set F in UEQ that is a superset
-      // of G, add the target to F.  This prevents the expressions in F from
-      // appearing in multiple sets in UEQ.
+      // If the variables that produce the same value as the source are
+      // equal to some other expressions in UEQ, record equality between
+      // the target and those expressions.
       if (State.G.size() > 0) {
         for (auto I = State.UEQ.begin(); I != State.UEQ.end(); ++I) {
-          if (IsEqualExprsSubset(State.G, *I)) {
+          if (EqualExprsContainsAllVars(*I, State.G)) {
             I->push_back(Target);
             // Add the target to G if G does not already contain the target.
             if (!EqualExprsContainsExpr(State.G, Target))
@@ -3687,8 +3694,8 @@ namespace {
         }
       }
 
-      // If G is not a subset of some set in UEQ, add the target to G
-      // and add G (if it is not a singleton set) to UEQ.
+      // Avoid adding sets with duplicate expressions such as { e, e }
+      // and singleton sets such as { e } to UEQ.
       if (!EqualExprsContainsExpr(State.G, Target))
         State.G.push_back(Target);
       if (State.G.size() > 1)
@@ -4050,6 +4057,27 @@ namespace {
       for (auto I = G1.begin(); I != G1.end(); ++I) {
         Expr *E = *I;
         if (!EqualExprsContainsExpr(G2, E))
+          return false;
+      }
+      return true;
+    }
+
+    // EqualExprsContainsAllVars returns true if G2 contains at least one
+    // rvalue cast of a variable, and every expression in G2 that is an
+    // rvalue cast of a variable is contained in G1.
+    //
+    // An rvalue cast of a variable may have value-preserving operations
+    // applied to it.  For example, if G2 contains (T)LValueToRValue(V),
+    // where (T) is a value-preserving cast, and G1 contains LValueToRValue(V),
+    // (T)LValuetoRValue(V) from G2 is considered to be contained in G1.
+    //
+    // TODO: fix so LNT tests pass
+    bool EqualExprsContainsAllVars(const EqualExprTy G1,
+                                   const EqualExprTy G2) {
+      Lexicographic Lex(S.Context, nullptr);
+      for (auto I = G2.begin(); I != G2.end(); ++I) {
+        Expr *E = Lex.IgnoreValuePreservingOperations(S.Context, *I);
+        if (!EqualExprsContainsExpr(G1, E))
           return false;
       }
       return true;
