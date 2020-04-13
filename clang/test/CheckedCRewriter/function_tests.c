@@ -21,7 +21,7 @@ void a1(void) {
   int a = 0;
   int *b = &a;
 
-  mut(b);
+  mut(((int *)b));
 }
 //CHECK: int a = 0;
 //CHECK-NEXT: _Ptr<int> b =  &a;
