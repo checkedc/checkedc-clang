@@ -1256,6 +1256,18 @@ namespace {
         UpperOffsetVariable = Upper;
       }
 
+      Expr *GetBase() const {
+        return Base;
+      }
+
+      llvm::APSInt GetUpperConstant() const {
+        return UpperOffsetConstant;
+      }
+
+      Expr *GetUpperVariable() const {
+        return UpperOffsetVariable;
+      }
+
       void Dump(raw_ostream &OS) {
         OS << "Range:\n";
         OS << "Base: ";
@@ -2123,6 +2135,44 @@ namespace {
       }
    }
 
+   void UpdateBoundsInContext(const BoundsMapTy &WidenedBounds,
+                              BoundsContextTy &BoundsCtx) {
+     for (const auto WB : WidenedBounds) {
+       VarDecl *V = const_cast<VarDecl *>(WB.first);
+       if (!BoundsCtx.count(V))
+         continue;
+
+       BoundsExpr *CurrBoundsExpr = BoundsCtx[V];
+       if (!CurrBoundsExpr)
+         continue;
+
+       const llvm::APInt Offset =
+         llvm::APInt(Context.getTargetInfo().getPointerWidth(0),
+                     WB.second);
+       IntegerLiteral *WidenedOffset = CreateIntegerLiteral(Offset);
+
+       // If the declared bounds is a CountBoundsExpr replace it with widened
+       // CountBoundsExpr.
+       if (isa<CountBoundsExpr>(CurrBoundsExpr)) {
+         auto *WidenedBoundsExpr =
+           new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                         WidenedOffset,
+                                         SourceLocation(), SourceLocation());
+         BoundsCtx[V] = WidenedBoundsExpr;
+
+       // If the declared bounds are a RangeBoundsExpr, widen the upper bounds
+       // by 1.
+       } else if (auto *RBE = dyn_cast<RangeBoundsExpr>(CurrBoundsExpr)) {
+         Expr *Upper = RBE->getUpperExpr();
+         IntegerLiteral *One = CreateIntegerLiteral(1, Upper->getType());
+         Expr *NewUpper = ExprCreatorUtil::CreateBinaryOperator(
+                          S, Upper, One, BinaryOperatorKind::BO_Add);
+         RBE->setUpperExpr(NewUpper);
+         BoundsCtx[V] = RBE;
+       }
+     }
+   }
+
    // Walk the CFG, traversing basic blocks in reverse post-oder.
    // For each element of a block, check bounds declarations.  Skip
    // CFG elements that are subexpressions of other CFG elements.
@@ -2157,11 +2207,49 @@ namespace {
      StmtSet MemoryCheckedStmts;
      StmtSet BoundsCheckedStmts;
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
+
+     // Run the bounds widening algorithm on this function.
+     BoundsAnalysis BA = getBoundsAnalyzer();
+     BA.WidenBounds(FD);
+     if (S.getLangOpts().DumpWidenedBounds)
+       BA.DumpWidenedBounds(FD);
+
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
      ResetFacts();
      for (const CFGBlock *Block : POView) {
        AFA.GetFacts(Facts);
+
        CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
+
+       // Get the widened bounds for the current block as computed by the
+       // bounds widening algorithm.
+       BoundsMapTy WidenedBounds = BA.GetWidenedBounds(Block);
+       // Also get the bounds killed (if any) by each statement in the current
+       // block.
+       StmtDeclSetTy KilledBounds = BA.GetKilledBounds(Block);
+
+       bool FirstTimeInBlock = true;
+       for (CFGElement Elem : *Block) {
+         if (Elem.getKind() == CFGElement::Statement) {
+           CFGStmt CS = Elem.castAs<CFGStmt>();
+           // We may attach a bounds expression to Stmt, so drop the const
+           // modifier.
+           Stmt *S = const_cast<Stmt *>(CS.getStmt());
+
+           // Skip top-level elements that are nested in
+           // another top-level element.
+           if (NestedElements.find(S) != NestedElements.end())
+             continue;
+
+           // Incorporate any bounds declared in S into the initial bounds
+           // context before checking S.  TODO: save this context in a
+           // declared context DC.
+           GetDeclaredBounds(this->S, BlockState.UC, S);
+         }
+       }
+
+       BoundsContextTy DeclaredCtx = BlockState.UC;
+
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
            CFGStmt CS = Elem.castAs<CFGStmt>();
@@ -2191,10 +2279,23 @@ namespace {
             S->dump(llvm::outs());
             llvm::outs().flush();
 #endif
-            // Incorporate any bounds declared in S into the initial bounds
-            // context before checking S.  TODO: save this context in a
-            // declared context DC.
-            GetDeclaredBounds(this->S, BlockState.UC, S);
+            // Bounds killed by a statement in the current block remain killed
+            // through the end of the block. So we remove those bounds from the
+            // widened bounds for the current block. We also need to reset the
+            // bounds in the context to the declared bounds.
+            if (KilledBounds.count(S)) {
+              for (const VarDecl *V : KilledBounds[S]) {
+                WidenedBounds.erase(V);
+                VarDecl *VD = const_cast<VarDecl *>(V);
+                BlockState.UC[VD] = DeclaredCtx[VD];
+              }
+            }
+            if (FirstTimeInBlock) {
+              // Update the bounds with the widened bounds.
+              UpdateBoundsInContext(WidenedBounds, BlockState.UC);
+              FirstTimeInBlock = false;
+            }
+
             Check(S, CSS, BlockState);
             // TODO: validate the updated context BlockState.UC against
             // the declared context DC.
@@ -4972,13 +5073,6 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     // based analysis.  The CSS parameter is ignored because the checked
     // scope information is obtained from Body, which is a compound statement.
     Checker.Check(Body, CheckedScopeSpecifier::CSS_Unchecked);
-  }
-
-  if (Cfg != nullptr) {
-    BoundsAnalysis BA = Checker.getBoundsAnalyzer();
-    BA.WidenBounds(FD);
-    if (getLangOpts().DumpWidenedBounds)
-      BA.DumpWidenedBounds(FD);
   }
 
 #if TRACE_CFG
