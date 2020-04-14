@@ -20,8 +20,8 @@ void f2() {
   _Nt_array_ptr<char> p : count(0) = "ab";
 
   if (*p)
-    if (*(p + 1))   // expected-error {{out-of-bounds memory access}}
-      if (*(p + 2)) // expected-error {{out-of-bounds memory access}}
+    if (*(p + 1))
+      if (*(p + 2))
   {}
 
 // CHECK: In function: f2
@@ -83,8 +83,8 @@ void f5() {
   char p _Nt_checked[] : count(0) = "abc";
 
   if (p[0])
-    if (p[1])   // expected-error {{out-of-bounds memory access}}
-      if (p[2]) // expected-error {{out-of-bounds memory access}}
+    if (p[1])
+      if (p[2])
   {}
 
 // CHECK: In function: f5
@@ -148,7 +148,7 @@ void f8() {
   if (*p)
     if (*(p + 1))
       if (*(p + 2))
-        if (*(p + 3)) // expected-error {{out-of-bounds memory access}}
+        if (*(p + 3))
   {}
 
 // CHECK: In function: f8
@@ -266,8 +266,8 @@ void f13() {
 
   if (p[0])
     if (1[p])
-      if (p[2])   // expected-error {{out-of-bounds memory access}}
-        if (3[p]) // expected-error {{out-of-bounds memory access}}
+      if (p[2])
+        if (3[p])
   {}
 
 // CHECK: In function: f13
@@ -318,7 +318,7 @@ void f15(int i) {
 
   _Nt_array_ptr<char> q : count(0) = "a";
   if (*q)
-    if (*(q - 1)) // expected-error {{out-of-bounds memory access}}
+    if (*(q - 1))
   {}
 
 // CHECK:  [B7]
@@ -354,7 +354,7 @@ void f16(_Nt_array_ptr<char> p : bounds(p, p)) {
   _Nt_array_ptr<char> r : bounds(p, p + 1) = "a";
 
   if (*(p))
-    if (*(p + 1)) // expected-error {{out-of-bounds memory access}}
+    if (*(p + 1))
   {}
 
 // CHECK: In function: f16
@@ -446,9 +446,9 @@ void f19() {
   _Nt_array_ptr<char> p : count(0) = "a";
 
   if (*p)
-    if (*(p + 1))     // expected-error {{out-of-bounds memory access}}
-      if (*(p + 3))   // expected-error {{out-of-bounds memory access}}
-        if (*(p + 2)) // expected-error {{out-of-bounds memory access}}
+    if (*(p + 1))
+      if (*(p + 3))
+        if (*(p + 2))
   {}
 
 // CHECK: In function: f19
@@ -539,8 +539,8 @@ void f21() {
   char p _Nt_checked[] : count(0) = "abc";
 
   while (p[0])
-    while (p[1])   // expected-error {{out-of-bounds memory access}}
-      while (p[2]) // expected-error {{out-of-bounds memory access}}
+    while (p[1])
+      while (p[2])
   {}
 
 // CHECK: In function: f21
@@ -564,8 +564,8 @@ void f22() {
   _Nt_array_ptr<char> p : count(0) = "a";
 
   if (*p)
-    while (*(p + 1))   // expected-error {{out-of-bounds memory access}}
-      if (*(p + 2)) // expected-error {{out-of-bounds memory access}}
+    while (*(p + 1))
+      if (*(p + 2))
   {}
 
 // CHECK: In function: f22
@@ -614,7 +614,7 @@ B:  p;
 
   while (*p) {
     p;
-    while (*(p + 1)) { // expected-error {{out-of-bounds memory access}}
+    while (*(p + 1)) {
 C:    p;
     }
   }
@@ -673,9 +673,9 @@ void f25() {
 
   for (; *p; ) {
     i = 0;
-    for (; *(p + 1); ) { // expected-error {{out-of-bounds memory access}}
+    for (; *(p + 1); ) {
       i = 1;
-      for (; *(p + 2); ) { // expected-error {{out-of-bounds memory access}}
+      for (; *(p + 2); ) {
         i = 2;
       }
     }
