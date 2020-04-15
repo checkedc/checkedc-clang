@@ -212,27 +212,32 @@ public:
       // we are assigning to a function pointer. Lets first get the
       // function definition
       Decl *targetDecl = nullptr;
-      while(targetDecl == nullptr && finalExpr != nullptr) {
+      while (targetDecl == nullptr && finalExpr != nullptr) {
         if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(finalExpr)) {
           targetDecl = DRE->getDecl();
-        } else if(UnaryOperator *UO = dyn_cast<UnaryOperator>(finalExpr)) {
+        } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(finalExpr)) {
           finalExpr = UO->getSubExpr();
         } else if (ImplicitCastExpr *IE = dyn_cast<ImplicitCastExpr>(finalExpr)) {
           finalExpr = IE->getSubExpr();
         } else if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(finalExpr)) {
           finalExpr = ECE->getSubExpr();
         } else {
-          if(!dyn_cast<IntegerLiteral>(finalExpr)) {
+          if (!dyn_cast<IntegerLiteral>(finalExpr)) {
             dbgs() << "Unable to handle function pointer assignment from:";
             finalExpr->dump();
           }
           break;
         }
       }
-      // if we found the function definition
+      // if we found the function declaration?
       // lets try to get the constraint variable within the function context.
-      if (targetDecl != nullptr) {
-        return Info.getVariableOnDemand(targetDecl, C, true);
+      if (targetDecl != nullptr && isa<FunctionDecl>(targetDecl)) {
+        // TODO: What should we do for function pointers?
+        // should we equate definition constraints or declaration
+        // declaration constraints?
+        // We need resolution for this:
+        // https://github.com/plum-umd/checkedc-clang/issues/50
+        return Info.getVariableOnDemand(targetDecl, C, false);
       }
     }
     return Info.getVariable(RHS, C, true);
