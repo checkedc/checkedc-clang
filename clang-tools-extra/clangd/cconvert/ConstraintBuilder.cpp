@@ -584,14 +584,19 @@ public:
     std::set<ConstraintVariable*> Fun =
       Info.getVariableOnDemand(Function, Context, true);
     // get the constraint of the return variable (again with in the context of the body)
-    std::set<ConstraintVariable*> Var =
-      Info.getVariable(S->getRetValue(), Context, true);
+    //std::set<ConstraintVariable*> Var =
+    //  Info.getVariable(S->getRetValue(), Context, true);
 
     // Constrain the value returned (if present) against the return value
-    // of the function.   
+    // of the function.
+    Expr *RetExpr = S->getRetValue();
+    QualType Typ;
+    Typ = Function->getReturnType(); //OR?: if (RetExpr) QualType Typ = RetExpr->getType();
+    
     for (const auto &F : Fun ) {
       if (FVConstraint *FV = dyn_cast<FVConstraint>(F)) {
-        constrainEq(FV->getReturnVars(), Var, Info, S, Context);
+    	constrainLocalAssign(FV->getReturnVars(), Typ, RetExpr);
+	    //constrainEq(FV->getReturnVars(), Var, Info, S, Context);
       }
     }
     return true;
