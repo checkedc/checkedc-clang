@@ -3671,20 +3671,30 @@ namespace {
     //
     // State.G is assumed to contain expressions that produce the same value
     // as the source of the assignment.
-    //
-    // If all rvalue variables in State.G appear in a set F in UEQ, the
-    // target of the assignment will be added to F.  This prevents the rvalue
-    // variables in F from appearing in multiple sets in UEQ.  For example,
-    // if x == z and y == z (so UEQ contains the set F = { z, x }, G is { z },
-    // and the target is y), UEQ should contain the set { z, x, y } rather
-    // than the sets { z, x } and { z, y }.
     void RecordEqualityWithTarget(Expr *Target, CheckingState &State) {
-      // If the variables that produce the same value as the source are
-      // equal to some other expressions in UEQ, record equality between
-      // the target and those expressions.
+      // Do not record equality between the target and source if the source
+      // produces the same value as a NullToPointer cast.  This avoids
+      // recording equality between non-assignment-compatible variables
+      // with pointer types.  For example, for the assignments int *p = 0;
+      // array_ptr<int> a = 0; UEQ should not contain { 0, p, a }.  UEQ
+      // also should not contain { 0, p } and { 0, a } so that UEQ does not
+      // grow too large.
+      for (auto I = State.G.begin(); I != State.G.end(); ++I) {
+        if (CastExpr *CE = dyn_cast<CastExpr>(*I)) {
+          if (CE->getCastKind() == CastKind::CK_NullToPointer)
+            return;
+        }
+      }
+
+      // If UEQ contains a set F of expressions that produce the same value
+      // as the source, add the target to F.  This prevents UEQ from growing
+      // too large and containing redundant equality information.  For example,
+      // for the assignments x = 1; y = x; where the target is y, G = { 1, x },
+      // and UEQ contains F = { 1, x }, UEQ should contain { 1, x, y } rather
+      // than { 1, x } and { 1, x, y }.
       if (State.G.size() > 0) {
         for (auto I = State.UEQ.begin(); I != State.UEQ.end(); ++I) {
-          if (EqualExprsContainsAllVars(*I, State.G)) {
+          if (IsEqualExprsSubset(State.G, *I)) {
             I->push_back(Target);
             // Add the target to G if G does not already contain the target.
             if (!EqualExprsContainsExpr(State.G, Target))
@@ -3971,8 +3981,9 @@ namespace {
     }
 
     // GetIncomingBlockState returns the checking state that is true at
-    // the beginning of the block by taking the intersection of the UEQ
-    // sets that were true after each of the block's predecessors.
+    // the beginning of the block by taking the intersection of the UC
+    // bounds contexts and UEQ sets that were true after each of the
+    // block's predecessors.
     CheckingState GetIncomingBlockState(const CFGBlock *Block,
                                         llvm::DenseMap<unsigned int, CheckingState> BlockStates) {
       CheckingState BlockState;
@@ -4062,28 +4073,6 @@ namespace {
       return true;
     }
 
-    // EqualExprsContainsAllVars returns true if G2 contains at least one
-    // rvalue cast of a variable, and every expression in G2 that is an
-    // rvalue cast of a variable is contained in G1.
-    //
-    // An rvalue cast of a variable may have value-preserving operations
-    // applied to it.  For example, if G2 contains (T)LValueToRValue(V),
-    // where (T) is a value-preserving cast, and G1 contains LValueToRValue(V),
-    // (T)LValuetoRValue(V) from G2 is considered to be contained in G1.
-    //
-    // TODO: fix so LNT tests pass
-    bool EqualExprsContainsAllVars(const EqualExprTy G1,
-                                   const EqualExprTy G2) {
-      Lexicographic Lex(S.Context, nullptr);
-      for (auto I = G2.begin(); I != G2.end(); ++I) {
-        Expr *E = Lex.IgnoreValuePreservingOperations(S.Context, *I);
-        DeclRefExpr *V = GetRValueVariable(E);
-        if (!EqualExprsContainsExpr(G1, E))
-          return false;
-      }
-      return true;
-    }
-
     // EqualExprsContainsExpr returns true if the set G contains E.
     bool EqualExprsContainsExpr(const EqualExprTy G, Expr *E) {
       for (auto I = G.begin(); I != G.end(); ++I) {
@@ -4106,6 +4095,8 @@ namespace {
     // if E is (LValueToRValue(LValueBitCast(V))), where V is a variable,
     // GetRValueVariable will return V.
     DeclRefExpr *GetRValueVariable(Expr *E) {
+      if (!E)
+        return nullptr;
       if (CastExpr *CE = dyn_cast<CastExpr>(E->IgnoreParens())) {
         CastKind CK = CE->getCastKind();
         if (CK == CastKind::CK_LValueToRValue ||
