@@ -18,6 +18,7 @@
 #ifndef _CONSTRAINTS_H
 #define _CONSTRAINTS_H
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/JSON.h"
 #include "llvm/Support/raw_ostream.h"
 #include <set>
 #include <map>
@@ -438,6 +439,7 @@ public:
     lhs->print(O);
     O << " == ";
     rhs->print(O);
+    O << ", Reason:" << REASON;
   }
 
   void dump(void) const {
@@ -449,6 +451,9 @@ public:
     lhs->dump_json(O);
     O << ", \"Atom2\":";
     rhs->dump_json(O);
+    O << ", \"Reason\":";
+    llvm::json::Value reasonVal(REASON);
+    O << reasonVal;
     O << "}}";
   }
 
