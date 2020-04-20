@@ -3921,7 +3921,9 @@ namespace {
           return UnaryOperatorInverse(X, F, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
           return BinaryOperatorInverse(X, F, cast<BinaryOperator>(E));
-        // TODO: get the inverse of a cast expression.
+        case Expr::CStyleCastExprClass:
+        case Expr::ImplicitCastExprClass:
+          return CastExprInverse(X, F, cast<CastExpr>(E));
         default:
           return nullptr;
       }
@@ -3976,6 +3978,23 @@ namespace {
       }
 
       return Inverse(X, F1, E_X);
+    }
+
+    // Returns the inverse of a cast expression.  If e1 has type T2,
+    // Inverse(f, (T1)e1) = Inverse((T2)f, e1) (assuming that (T1) is
+    // not a narrowing cast).
+    Expr *CastExprInverse(DeclRefExpr *X, Expr *F, CastExpr *E) {
+      QualType T1 = E->getType();
+      QualType T2 = E->getSubExpr()->getType();
+      Expr *F1 = nullptr;
+      if (isa<ImplicitCastExpr>(E))
+        F1 = CreateImplicitCast(T2, E->getCastKind(), F);
+      else if (isa<CStyleCastExpr>(E))
+        F1 = CreateExplicitCast(T2, E->getCastKind(), F,
+                                E->isBoundsSafeInterface());
+      if (!F1)
+        return nullptr;
+      return Inverse(X, F1, E->getSubExpr());
     }
 
     // GetIncomingBlockState returns the checking state that is true at
