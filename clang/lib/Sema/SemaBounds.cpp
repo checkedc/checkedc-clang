@@ -3804,8 +3804,9 @@ namespace {
           return IsUnaryOperatorInvertible(X, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
           return IsBinaryOperatorInvertible(X, cast<BinaryOperator>(E));
-        // TODO: determine whether a cast expression is invertible (is a
-        // bit-preserving or widening cast).
+        case Expr::ImplicitCastExprClass:
+        case Expr::CStyleCastExprClass:
+          return IsCastExprInvertible(X, cast<CastExpr>(E));
         default:
           return false;
       }
@@ -3866,6 +3867,42 @@ namespace {
         return false;
 
       return true;
+    }
+
+    // Returns true if a cast expression is invertible with respect to x.
+    // A cast expression (T1)e1 is invertible if T1 is a bit-preserving
+    // or widening cast and e1 is invertible.
+    bool IsCastExprInvertible(DeclRefExpr *X, CastExpr *E) {
+      QualType T1 = E->getType();
+      QualType T2 = E->getSubExpr()->getType();
+      uint64_t Size1 = S.Context.getTypeSize(T1);
+      uint64_t Size2 = S.Context.getTypeSize(T2);
+
+      // If T1 is a smaller type than T2, then (T1)e1 is a narrowing cast.
+      if (Size1 < Size2)
+        return false;
+
+      switch (E->getCastKind()) {
+        // Bit-preserving casts
+        case CastKind::CK_BitCast:
+        case CastKind::CK_LValueBitCast:
+        case CastKind::CK_NoOp:
+        case CastKind::CK_ArrayToPointerDecay:
+        case CastKind::CK_FunctionToPointerDecay:
+        case CastKind::CK_NullToPointer:
+        // Widening casts
+        case CastKind::CK_BooleanToSignedIntegral:
+        case CastKind::CK_IntegralToFloating:
+          return IsInvertible(X, E->getSubExpr());
+        // Potentially non-narrowing casts, depending on type sizes
+        case CastKind::CK_IntegralToPointer:
+        case CastKind::CK_PointerToIntegral:
+        case CastKind::CK_IntegralCast:
+          return Size1 >= Size2 && IsInvertible(X, E->getSubExpr());
+        // All other casts are considered narrowing
+        default:
+          return false;
+      }
     }
 
     // Inverse repeatedly applies mathematical rules to the expression e to
