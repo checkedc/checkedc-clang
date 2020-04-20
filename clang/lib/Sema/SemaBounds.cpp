@@ -2609,7 +2609,7 @@ namespace {
 
         // Update UEQ and G for assignments to `e1` where `e1` is a variable.
         if (DeclRefExpr *V = GetLValueVariable(LHS)) {
-          Expr *OV = GetOriginalValue(V, Src, State.UEQ);
+          Expr *OV = GetOriginalValue(V, Target, Src, State.UEQ);
           UpdateAfterAssignment(V, Target, OV, CSS, State, State);
         }
         // Update UEQ and G for assignments where `e1` is not a variable.
@@ -3020,7 +3020,7 @@ namespace {
           // expressions that produce the same value as the variable `e1`,
           // and these expressions should not be added to UEQ.
           State.G.clear();
-          Expr *OV = GetOriginalValue(V, RHS, State.UEQ);
+          Expr *OV = GetOriginalValue(V, Target, RHS, State.UEQ);
           UpdateAfterAssignment(V, Target, OV, CSS, State, State);
         }
 
@@ -3769,11 +3769,12 @@ namespace {
 
     // GetOriginalValue returns the original value (if it exists) of the
     // expression Src with respect to the variable V in an assignment V = Src.
-    Expr *GetOriginalValue(DeclRefExpr *V, Expr *Src, const EquivExprSets EQ) {
+    Expr *GetOriginalValue(DeclRefExpr *V, Expr *Target, Expr *Src,
+                           const EquivExprSets EQ) {
       // Check if Src has an inverse expression with respect to v.
       Expr *IV = nullptr;
       if (IsInvertible(V, Src))
-        IV = Inverse(V, V, Src);
+        IV = Inverse(V, Target, Src);
       if (IV)
         return IV;
       
