@@ -2,8 +2,9 @@
 //
 //                     The LLVM Compiler Infrastructure
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -45,7 +46,7 @@ void AvailableFactsAnalysis::Analyze() {
 
   // Compute Gen Sets
   for (auto B : Blocks) {
-    if (const Stmt *Term = B->Block->getTerminator()) {
+    if (const Stmt *Term = B->Block->getTerminatorStmt()) {
       if(const IfStmt *IS = dyn_cast<IfStmt>(Term)) {
         ComparisonSet Comparisons;
         ExtractComparisons(IS->getCond(), Comparisons);
@@ -293,7 +294,7 @@ bool AvailableFactsAnalysis::ContainsPointerAssignment(const Expr *E) {
     if (UO->isIncrementDecrementOp())
       if (IsPointerDerefLValue(UO->getSubExpr()))
         return true;
-  if (const CallExpr *CE = dyn_cast<CallExpr>(E))
+  if (isa<CallExpr>(E))
     return true;
   for (auto Child : E->children())
     if (const Expr *EChild = dyn_cast<Expr>(Child))
@@ -319,7 +320,7 @@ bool AvailableFactsAnalysis::IsPointerDerefLValue(const Expr *E) {
     else
       return IsPointerDerefLValue(ME->getBase());
   }
-  if (const ArraySubscriptExpr *AE = dyn_cast<ArraySubscriptExpr>(E))
+  if (isa<ArraySubscriptExpr>(E))
     return true;
   if (const ParenExpr *PE = dyn_cast<ParenExpr>(E))
     return IsPointerDerefLValue(PE->getSubExpr());

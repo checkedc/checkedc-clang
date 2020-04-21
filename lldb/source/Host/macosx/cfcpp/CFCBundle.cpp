@@ -1,18 +1,15 @@
 //===-- CFCBundle.cpp -------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "CFCBundle.h"
 #include "CFCString.h"
 
-//----------------------------------------------------------------------
 // CFCBundle constructor
-//----------------------------------------------------------------------
 CFCBundle::CFCBundle(const char *path) : CFCReleaser<CFBundleRef>() {
   if (path && path[0])
     SetPath(path);
@@ -21,14 +18,10 @@ CFCBundle::CFCBundle(const char *path) : CFCReleaser<CFBundleRef>() {
 CFCBundle::CFCBundle(CFURLRef url)
     : CFCReleaser<CFBundleRef>(url ? CFBundleCreate(NULL, url) : NULL) {}
 
-//----------------------------------------------------------------------
 // Destructor
-//----------------------------------------------------------------------
 CFCBundle::~CFCBundle() {}
 
-//----------------------------------------------------------------------
 // Set the path for a bundle by supplying a
-//----------------------------------------------------------------------
 bool CFCBundle::SetPath(const char *path) {
   CFAllocatorRef alloc = kCFAllocatorDefault;
   // Release our old bundle and URL

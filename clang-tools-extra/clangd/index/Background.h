@@ -1,9 +1,8 @@
 //===--- Background.h - Build an index in a background thread ----*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -13,18 +12,20 @@
 #include "Context.h"
 #include "FSProvider.h"
 #include "GlobalCompilationDatabase.h"
+#include "SourceCode.h"
 #include "Threading.h"
+#include "index/BackgroundRebuild.h"
 #include "index/FileIndex.h"
 #include "index/Index.h"
 #include "index/Serialization.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/Support/SHA1.h"
 #include "llvm/Support/Threading.h"
 #include <atomic>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <queue>
 #include <string>
 #include <thread>
 #include <vector>
@@ -55,8 +56,53 @@ public:
       llvm::unique_function<BackgroundIndexStorage *(llvm::StringRef)>;
 
   // Creates an Index Storage that saves shards into disk. Index storage uses
-  // CDBDirectory + ".clangd-index/" as the folder to save shards.
+  // CDBDirectory + ".clangd/index/" as the folder to save shards.
   static Factory createDiskBackedStorageFactory();
+};
+
+// A priority queue of tasks which can be run on (external) worker threads.
+class BackgroundQueue {
+public:
+  /// A work item on the thread pool's queue.
+  struct Task {
+    explicit Task(std::function<void()> Run) : Run(std::move(Run)) {}
+
+    std::function<void()> Run;
+    llvm::ThreadPriority ThreadPri = llvm::ThreadPriority::Background;
+    unsigned QueuePri = 0; // Higher-priority tasks will run first.
+    std::string Tag;       // Allows priority to be boosted later.
+
+    bool operator<(const Task &O) const { return QueuePri < O.QueuePri; }
+  };
+
+  // Add tasks to the queue.
+  void push(Task);
+  void append(std::vector<Task>);
+  // Boost priority of current and new tasks with matching Tag, if they are
+  // lower priority.
+  // Reducing the boost of a tag affects future tasks but not current ones.
+  void boost(llvm::StringRef Tag, unsigned NewPriority);
+
+  // Process items on the queue until the queue is stopped.
+  // If the queue becomes empty, OnIdle will be called (on one worker).
+  void work(std::function<void()> OnIdle = nullptr);
+
+  // Stop processing new tasks, allowing all work() calls to return soon.
+  void stop();
+
+  // Disables thread priority lowering to ensure progress on loaded systems.
+  // Only affects tasks that run after the call.
+  static void preventThreadStarvationInTests();
+  LLVM_NODISCARD bool
+  blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds);
+
+private:
+  std::mutex Mu;
+  unsigned NumActiveTasks = 0; // Only idle when queue is empty *and* no tasks.
+  std::condition_variable CV;
+  bool ShouldStop = false;
+  std::vector<Task> Queue; // max-heap
+  llvm::StringMap<unsigned> Boosts;
 };
 
 // Builds an in-memory index by by running the static indexer action over
@@ -68,54 +114,63 @@ public:
   /// If BuildIndexPeriodMs is greater than 0, the symbol index will only be
   /// rebuilt periodically (one per \p BuildIndexPeriodMs); otherwise, index is
   /// rebuilt for each indexed file.
-  // FIXME: resource-dir injection should be hoisted somewhere common.
-  BackgroundIndex(Context BackgroundContext, llvm::StringRef ResourceDir,
-                  const FileSystemProvider &,
-                  const GlobalCompilationDatabase &CDB,
-                  BackgroundIndexStorage::Factory IndexStorageFactory,
-                  size_t BuildIndexPeriodMs = 0,
-                  size_t ThreadPoolSize = llvm::hardware_concurrency());
+  BackgroundIndex(
+      Context BackgroundContext, const FileSystemProvider &,
+      const GlobalCompilationDatabase &CDB,
+      BackgroundIndexStorage::Factory IndexStorageFactory,
+      size_t ThreadPoolSize = llvm::heavyweight_hardware_concurrency());
   ~BackgroundIndex(); // Blocks while the current task finishes.
 
   // Enqueue translation units for indexing.
   // The indexing happens in a background thread, so the symbols will be
   // available sometime later.
-  void enqueue(const std::vector<std::string> &ChangedFiles);
+  void enqueue(const std::vector<std::string> &ChangedFiles) {
+    Queue.push(changedFilesTask(ChangedFiles));
+  }
+
+  /// Boosts priority of indexing related to Path.
+  /// Typically used to index TUs when headers are opened.
+  void boostRelated(llvm::StringRef Path);
 
   // Cause background threads to stop after ther current task, any remaining
   // tasks will be discarded.
-  void stop();
+  void stop() {
+    Rebuilder.shutdown();
+    Queue.stop();
+  }
 
   // Wait until the queue is empty, to allow deterministic testing.
   LLVM_NODISCARD bool
-  blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10);
+  blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10) {
+    return Queue.blockUntilIdleForTest(TimeoutSeconds);
+  }
 
 private:
+  /// Represents the state of a single file when indexing was performed.
+  struct ShardVersion {
+    FileDigest Digest{{0}};
+    bool HadErrors = false;
+  };
+
   /// Given index results from a TU, only update symbols coming from files with
-  /// different digests than \p DigestsSnapshot. Also stores new index
+  /// different digests than \p ShardVersionsSnapshot. Also stores new index
   /// information on IndexStorage.
   void update(llvm::StringRef MainFile, IndexFileIn Index,
-              const llvm::StringMap<FileDigest> &DigestsSnapshot,
-              BackgroundIndexStorage *IndexStorage);
+              const llvm::StringMap<ShardVersion> &ShardVersionsSnapshot,
+              BackgroundIndexStorage *IndexStorage, bool HadErrors);
 
   // configuration
-  std::string ResourceDir;
   const FileSystemProvider &FSProvider;
   const GlobalCompilationDatabase &CDB;
   Context BackgroundContext;
 
-  // index state
   llvm::Error index(tooling::CompileCommand,
                     BackgroundIndexStorage *IndexStorage);
-  void buildIndex(); // Rebuild index periodically every BuildIndexPeriodMs.
-  const size_t BuildIndexPeriodMs;
-  std::atomic<bool> SymbolsUpdatedSinceLastIndex;
-  std::mutex IndexMu;
-  std::condition_variable IndexCV;
 
   FileSymbols IndexedSymbols;
-  llvm::StringMap<FileDigest> IndexedFileDigests; // Key is absolute file path.
-  std::mutex DigestsMu;
+  BackgroundIndexRebuilder Rebuilder;
+  llvm::StringMap<ShardVersion> ShardVersions; // Key is absolute file path.
+  std::mutex ShardVersionsMu;
 
   BackgroundIndexStorage::Factory IndexStorageFactory;
   struct Source {
@@ -132,20 +187,20 @@ private:
   // Tries to load shards for the ChangedFiles.
   std::vector<std::pair<tooling::CompileCommand, BackgroundIndexStorage *>>
   loadShards(std::vector<std::string> ChangedFiles);
-  void enqueue(tooling::CompileCommand Cmd, BackgroundIndexStorage *Storage);
 
-  // queue management
-  using Task = std::function<void()>;
-  void run(); // Main loop executed by Thread. Runs tasks from Queue.
-  void enqueueTask(Task T, ThreadPriority Prioirty);
-  void enqueueLocked(tooling::CompileCommand Cmd,
-                     BackgroundIndexStorage *IndexStorage);
-  std::mutex QueueMu;
-  unsigned NumActiveTasks = 0; // Only idle when queue is empty *and* no tasks.
-  std::condition_variable QueueCV;
-  bool ShouldStop = false;
-  std::deque<std::pair<Task, ThreadPriority>> Queue;
-  std::vector<std::thread> ThreadPool; // FIXME: Abstract this away.
+  BackgroundQueue::Task
+  changedFilesTask(const std::vector<std::string> &ChangedFiles);
+  BackgroundQueue::Task indexFileTask(tooling::CompileCommand Cmd,
+                                      BackgroundIndexStorage *Storage);
+
+  // from lowest to highest priority
+  enum QueuePriority {
+    IndexFile,
+    IndexBoostedFile,
+    LoadShards,
+  };
+  BackgroundQueue Queue;
+  AsyncTaskRunner ThreadPool;
   GlobalCompilationDatabase::CommandChanged::Subscription CommandsChanged;
 };
 

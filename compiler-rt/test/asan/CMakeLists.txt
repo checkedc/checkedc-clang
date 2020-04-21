@@ -18,9 +18,9 @@ if (SHADOW_MAPPING_UNRELIABLE)
 endif()
 
 macro(get_bits_for_arch arch bits)
-  if (${arch} MATCHES "x86_64|powerpc64|powerpc64le|aarch64|arm64|mips64|mips64el|s390x")
+  if (${arch} MATCHES "x86_64|powerpc64|powerpc64le|aarch64|arm64|mips64|mips64el|s390x|sparcv9")
     set(${bits} 64)
-  elseif (${arch} MATCHES "i386|arm|mips|mipsel")
+  elseif (${arch} MATCHES "i386|arm|mips|mipsel|sparc")
     set(${bits} 32)
   else()
     message(FATAL_ERROR "Unknown target architecture: ${arch}")
@@ -40,19 +40,14 @@ set(ASAN_TEST_ARCH ${ASAN_SUPPORTED_ARCH})
 if(APPLE)
   darwin_filter_host_archs(ASAN_SUPPORTED_ARCH ASAN_TEST_ARCH)
 endif()
+list(REMOVE_ITEM ASAN_TEST_ARCH sparc sparcv9)
 if(OS_NAME MATCHES "SunOS")
   list(REMOVE_ITEM ASAN_TEST_ARCH x86_64)
 endif()
 
 foreach(arch ${ASAN_TEST_ARCH})
-  if(ANDROID)
-    set(ASAN_TEST_TARGET_ARCH ${arch}-android)
-  else()
-    set(ASAN_TEST_TARGET_ARCH ${arch})
-  endif()
-
+  set(ASAN_TEST_TARGET_ARCH ${arch})
   set(ASAN_TEST_APPLE_PLATFORM "osx")
-
   string(TOLOWER "-${arch}-${OS_NAME}" ASAN_TEST_CONFIG_SUFFIX)
   get_bits_for_arch(${arch} ASAN_TEST_BITS)
   get_test_cc_for_arch(${arch} ASAN_TEST_TARGET_CC ASAN_TEST_TARGET_CFLAGS)
@@ -64,8 +59,8 @@ foreach(arch ${ASAN_TEST_ARCH})
   string(TOUPPER ${arch} ARCH_UPPER_CASE)
   set(CONFIG_NAME ${ARCH_UPPER_CASE}${OS_NAME}Config)
   configure_lit_site_cfg(
-    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.in
-    ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg
+    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+    ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg.py
     )
   list(APPEND ASAN_TESTSUITES ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME})
 
@@ -74,8 +69,8 @@ foreach(arch ${ASAN_TEST_ARCH})
     set(ASAN_TEST_DYNAMIC True)
     set(CONFIG_NAME ${ARCH_UPPER_CASE}${OS_NAME}DynamicConfig)
     configure_lit_site_cfg(
-      ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.in
-      ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg)
+      ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+      ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg.py)
     list(APPEND ASAN_DYNAMIC_TESTSUITES
       ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME})
   endif()
@@ -101,8 +96,8 @@ if(APPLE)
     string(TOUPPER ${arch} ARCH_UPPER_CASE)
     set(CONFIG_NAME "IOSSim${ARCH_UPPER_CASE}Config")
     configure_lit_site_cfg(
-      ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.in
-      ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg
+      ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+      ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg.py
       )
     add_lit_testsuite(check-asan-iossim-${arch} "AddressSanitizer iOS Simulator ${arch} tests"
       ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/
@@ -118,8 +113,8 @@ if(APPLE)
     string(TOUPPER ${arch} ARCH_UPPER_CASE)
     set(CONFIG_NAME "IOS${ARCH_UPPER_CASE}Config")
     configure_lit_site_cfg(
-      ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.in
-      ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg
+      ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+      ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg.py
       )
     add_lit_testsuite(check-asan-ios-${arch} "AddressSanitizer iOS ${arch} tests"
       ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/
@@ -133,13 +128,13 @@ endif()
 if(COMPILER_RT_INCLUDE_TESTS)
   set(ASAN_TEST_DYNAMIC False)
   configure_lit_site_cfg(
-    ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.site.cfg.in
-    ${CMAKE_CURRENT_BINARY_DIR}/Unit/lit.site.cfg)
+    ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.site.cfg.py.in
+    ${CMAKE_CURRENT_BINARY_DIR}/Unit/lit.site.cfg.py)
   if(COMPILER_RT_ASAN_HAS_STATIC_RUNTIME)
     set(ASAN_TEST_DYNAMIC True)
     configure_lit_site_cfg(
-      ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.site.cfg.in
-      ${CMAKE_CURRENT_BINARY_DIR}/Unit/dynamic/lit.site.cfg)
+      ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.site.cfg.py.in
+      ${CMAKE_CURRENT_BINARY_DIR}/Unit/dynamic/lit.site.cfg.py)
   endif()
   # FIXME: support unit test in the android test runner
   if (NOT ANDROID)

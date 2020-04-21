@@ -11,9 +11,15 @@ if (MSVC)
   set_source_files_properties(CheckedCSubst.cpp PROPERTIES COMPILE_FLAGS /bigobj)
 endif()
 
+clang_tablegen(OpenCLBuiltins.inc -gen-clang-opencl-builtins
+  SOURCE OpenCLBuiltins.td
+  TARGET ClangOpenCLBuiltinsImpl
+  )
+
 add_clang_library(clangSema
   AnalysisBasedWarnings.cpp
   AvailableFactsAnalysis.cpp
+  BoundsAnalysis.cpp
   CheckedCAlias.cpp
   CheckedCInterop.cpp
   CheckedCSubst.cpp
@@ -50,6 +56,7 @@ add_clang_library(clangSema
   SemaInit.cpp
   SemaLambda.cpp
   SemaLookup.cpp
+  SemaModule.cpp
   SemaObjCProperty.cpp
   SemaOpenMP.cpp
   SemaOverload.cpp
@@ -64,6 +71,9 @@ add_clang_library(clangSema
   SemaTemplateVariadic.cpp
   SemaType.cpp
   TypeLocBuilder.cpp
+
+  DEPENDS
+  ClangOpenCLBuiltinsImpl
 
   LINK_LIBS
   clangAST

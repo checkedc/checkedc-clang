@@ -1,9 +1,8 @@
 //===-- DynamicLoaderMacOS.cpp -----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -28,11 +27,9 @@
 using namespace lldb;
 using namespace lldb_private;
 
-//----------------------------------------------------------------------
 // Create an instance of this class. This function is filled into the plugin
 // info class that gets handed out by the plugin factory and allows the lldb to
 // instantiate an instance of this class.
-//----------------------------------------------------------------------
 DynamicLoader *DynamicLoaderMacOS::CreateInstance(Process *process,
                                                   bool force) {
   bool create = force;
@@ -71,20 +68,16 @@ DynamicLoader *DynamicLoaderMacOS::CreateInstance(Process *process,
 
   if (create)
     return new DynamicLoaderMacOS(process);
-  return NULL;
+  return nullptr;
 }
 
-//----------------------------------------------------------------------
 // Constructor
-//----------------------------------------------------------------------
 DynamicLoaderMacOS::DynamicLoaderMacOS(Process *process)
     : DynamicLoaderDarwin(process), m_image_infos_stop_id(UINT32_MAX),
       m_break_id(LLDB_INVALID_BREAK_ID), m_mutex(),
       m_maybe_image_infos_address(LLDB_INVALID_ADDRESS) {}
 
-//----------------------------------------------------------------------
 // Destructor
-//----------------------------------------------------------------------
 DynamicLoaderMacOS::~DynamicLoaderMacOS() {
   if (LLDB_BREAK_ID_IS_VALID(m_break_id))
     m_process->GetTarget().RemoveBreakpointByID(m_break_id);
@@ -118,7 +111,7 @@ bool DynamicLoaderMacOS::ProcessDidExec() {
             const Symbol *symbol =
                 frame_sp->GetSymbolContext(eSymbolContextSymbol).symbol;
             if (symbol) {
-              if (symbol->GetName() == ConstString("_dyld_start"))
+              if (symbol->GetName() == "_dyld_start")
                 did_exec = true;
             }
           }
@@ -134,9 +127,7 @@ bool DynamicLoaderMacOS::ProcessDidExec() {
   return did_exec;
 }
 
-//----------------------------------------------------------------------
 // Clear out the state of this class.
-//----------------------------------------------------------------------
 void DynamicLoaderMacOS::DoClear() {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
 
@@ -146,9 +137,7 @@ void DynamicLoaderMacOS::DoClear() {
   m_break_id = LLDB_INVALID_BREAK_ID;
 }
 
-//----------------------------------------------------------------------
 // Check if we have found DYLD yet
-//----------------------------------------------------------------------
 bool DynamicLoaderMacOS::DidSetNotificationBreakpoint() {
   return LLDB_BREAK_ID_IS_VALID(m_break_id);
 }
@@ -160,12 +149,10 @@ void DynamicLoaderMacOS::ClearNotificationBreakpoint() {
   }
 }
 
-//----------------------------------------------------------------------
 // Try and figure out where dyld is by first asking the Process if it knows
 // (which currently calls down in the lldb::Process to get the DYLD info
 // (available on SnowLeopard only). If that fails, then check in the default
 // addresses.
-//----------------------------------------------------------------------
 void DynamicLoaderMacOS::DoInitialImageFetch() {
   Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER));
 
@@ -201,12 +188,10 @@ void DynamicLoaderMacOS::DoInitialImageFetch() {
 
 bool DynamicLoaderMacOS::NeedToDoInitialImageFetch() { return true; }
 
-//----------------------------------------------------------------------
 // Static callback function that gets called when our DYLD notification
 // breakpoint gets hit. We update all of our image infos and then let our super
 // class DynamicLoader class decide if we should stop or not (based on global
 // preference).
-//----------------------------------------------------------------------
 bool DynamicLoaderMacOS::NotifyBreakpointHit(void *baton,
                                              StoppointCallbackContext *context,
                                              lldb::user_id_t break_id,
@@ -348,9 +333,8 @@ void DynamicLoaderMacOS::AddBinaries(
 
 // Dump the _dyld_all_image_infos members and all current image infos that we
 // have parsed to the file handle provided.
-//----------------------------------------------------------------------
 void DynamicLoaderMacOS::PutToLog(Log *log) const {
-  if (log == NULL)
+  if (log == nullptr)
     return;
 }
 
@@ -538,9 +522,7 @@ const char *DynamicLoaderMacOS::GetPluginDescriptionStatic() {
          "in MacOSX user processes.";
 }
 
-//------------------------------------------------------------------
 // PluginInterface protocol
-//------------------------------------------------------------------
 lldb_private::ConstString DynamicLoaderMacOS::GetPluginName() {
   return GetPluginNameStatic();
 }

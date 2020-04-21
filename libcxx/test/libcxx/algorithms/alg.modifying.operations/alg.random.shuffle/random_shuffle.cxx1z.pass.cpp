@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -27,9 +26,12 @@
 
 // MODULES_DEFINES: _LIBCPP_ENABLE_CXX17_REMOVED_RANDOM_SHUFFLE
 #define _LIBCPP_ENABLE_CXX17_REMOVED_RANDOM_SHUFFLE
+#define _LIBCPP_DISABLE_DEPRECATION_WARNINGS
 
 #include <algorithm>
 #include <vector>
+
+#include "test_macros.h"
 
 struct gen
 {
@@ -40,10 +42,12 @@ struct gen
 };
 
 
-int main()
+int main(int, char**)
 {
     std::vector<int> v;
     std::random_shuffle(v.begin(), v.end());
     gen r;
     std::random_shuffle(v.begin(), v.end(), r);
+
+  return 0;
 }

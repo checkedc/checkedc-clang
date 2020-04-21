@@ -1,9 +1,8 @@
 //===--- UseNullptrCheck.cpp - clang-tidy----------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -243,10 +242,8 @@ public:
           getOutermostMacroName(StartLoc, SM, Context.getLangOpts());
 
       // Check to see if the user wants to replace the macro being expanded.
-      if (std::find(NullMacros.begin(), NullMacros.end(), OutermostMacroName) ==
-          NullMacros.end()) {
+      if (!llvm::is_contained(NullMacros, OutermostMacroName))
         return skipSubTree();
-      }
 
       StartLoc = SM.getFileLoc(StartLoc);
       EndLoc = SM.getFileLoc(EndLoc);
@@ -328,8 +325,7 @@ private:
 
         StringRef Name =
             Lexer::getImmediateMacroName(OldArgLoc, SM, Context.getLangOpts());
-        return std::find(NullMacros.begin(), NullMacros.end(), Name) !=
-               NullMacros.end();
+        return llvm::is_contained(NullMacros, Name);
       }
 
       MacroLoc = SM.getExpansionRange(ArgLoc).getBegin();

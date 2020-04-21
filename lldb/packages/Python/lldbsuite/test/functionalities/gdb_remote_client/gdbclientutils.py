@@ -4,6 +4,7 @@ import subprocess
 import threading
 import socket
 import lldb
+from lldbsuite.support import seven
 from lldbsuite.test.lldbtest import *
 from lldbsuite.test import lldbtest_config
 
@@ -102,6 +103,8 @@ class MockGDBServerResponder:
             return self.interrupt()
         if packet == "c":
             return self.cont()
+        if packet.startswith("vCont;c"):
+            return self.vCont(packet)
         if packet[0] == "g":
             return self.readRegisters()
         if packet[0] == "G":
@@ -167,6 +170,9 @@ class MockGDBServerResponder:
     def cont(self):
         raise self.UnexpectedPacketException()
 
+    def vCont(self, packet):
+        raise self.UnexpectedPacketException()
+    
     def readRegisters(self):
         return "00000000" * self.registerCount
 
@@ -305,13 +311,9 @@ class MockGDBServer:
         data = None
         while True:
             try:
-                data = self._client.recv(4096)
+                data = seven.bitcast_to_string(self._client.recv(4096))
                 if data is None or len(data) == 0:
                     break
-                # In Python 2, sockets return byte strings. In Python 3, sockets return bytes.
-                # If we got bytes (and not a byte string), decode them to a string for later handling.
-                if isinstance(data, bytes) and not isinstance(data, str):
-                    data = data.decode()
                 self._receive(data)
             except Exception as e:
                 self._client.close()
@@ -406,7 +408,7 @@ class MockGDBServer:
         # We'll handle the ack stuff here since it's not something any of the
         # tests will be concerned about, and it'll get turned off quickly anyway.
         if self._shouldSendAck:
-            self._client.sendall('+'.encode())
+            self._client.sendall(seven.bitcast_to_bytes('+'))
         if packet == "QStartNoAckMode":
             self._shouldSendAck = False
             response = "OK"
@@ -416,11 +418,7 @@ class MockGDBServer:
         # Handle packet framing since we don't want to bother tests with it.
         if response is not None:
             framed = frame_packet(response)
-            # In Python 2, sockets send byte strings. In Python 3, sockets send bytes.
-            # If we got a string (and not a byte string), encode it before sending.
-            if isinstance(framed, str) and not isinstance(framed, bytes):
-                framed = framed.encode()
-            self._client.sendall(framed)
+            self._client.sendall(seven.bitcast_to_bytes(framed))
 
     PACKET_ACK = object()
     PACKET_INTERRUPT = object()
@@ -504,4 +502,4 @@ class GDBRemoteTestBase(TestBase):
             j += 1
         if i < len(packets):
             self.fail(u"Did not receive: %s\nLast 10 packets:\n\t%s" %
-                    (packets[i], u'\n\t'.join(log[-10:])))
+                    (packets[i], u'\n\t'.join(log)))

@@ -120,11 +120,52 @@ fi
 
 if [ -z "$BUILD_CPU_COUNT" ]; then
   declare -i NPROC=$(nproc);
-  export BUILD_CPU_COUNT=$(($NPROC*3/4))
+  if [ "$BUILDCONFIGURATION" = "Release" ]; then
+    export BUILD_CPU_COUNT=$(($NPROC*3/4))
+  else
+    # Reduce build parallelism for debug builds.
+    export BUILD_CPU_COUNT=$(($NPROC*3/8))
+  fi
 fi
 
 if [ -z "$RUN_LOCAL" ]; then
   export RUN_LOCAL="no"
+fi
+
+if [[ -z "$BENCHMARK" ]]; then
+  export BMARK=no
+
+else
+  LNT_DB_DIR=/usr/local/checkedc/lnt-setup/llvm.lnt.db
+  if [ ! -d ${LNT_DB_DIR} ]; then
+    echo "No LNT DB found at $LNT_DB_DIR"
+    exit 1
+  fi
+  export BMARK=yes
+  export LNT_DB_DIR
+
+  EXTRA_LNT_ARGS=
+  for OPT in $METRICS; do
+    case "$OPT" in
+      PERF)
+        EXTRA_LNT_ARGS+="--threads=1 "
+        ;;
+      COMPILETIME)
+        EXTRA_LNT_ARGS+="--build-threads=1 "
+        ;;
+    esac
+  done
+  export EXTRA_LNT_ARGS
+
+  if [[ -z "$ONLY_TEST" ]]; then
+    ONLY_TEST=""
+  fi
+  export ONLY_TEST
+
+  if [[ -z "$SAMPLES" ]]; then
+    SAMPLES=3
+  fi
+  export SAMPLES
 fi
 
 # LLVM Nightly Tests are enabled when LNT is a non-empty
@@ -155,6 +196,8 @@ if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
   echo " LNT: $LNT"
   echo " LNT_SCRIPT: $LNT_SCRIPT"
   echo " RUN_LOCAL: $RUN_LOCAL"
+  echo " BENCHMARK: $BMARK"
+  echo " LNT_DB_DIR: $LNT_DB_DIR"
   echo
   echo " Directories:"
   echo "  BUILD_SOURCESDIRECTORY: $BUILD_SOURCESDIRECTORY"

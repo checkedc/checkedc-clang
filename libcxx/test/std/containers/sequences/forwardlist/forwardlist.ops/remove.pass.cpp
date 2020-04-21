@@ -1,21 +1,37 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 // <forward_list>
 
-// void remove(const value_type& v);
+// void remove(const value_type& v);      // C++17 and before
+// size_type remove(const value_type& v); // C++20 and after
 
 #include <forward_list>
 #include <iterator>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
+
+template <class L>
+void do_remove(L &l, const typename L::value_type &value, typename L::size_type expected)
+{
+    typename L::size_type old_size = std::distance(l.begin(), l.end());
+#if TEST_STD_VER > 17
+    ASSERT_SAME_TYPE(decltype(l.remove(value)), typename L::size_type);
+    assert(l.remove(value) == expected);
+#else
+    ASSERT_SAME_TYPE(decltype(l.remove(value)), void);
+    l.remove(value);
+#endif
+    assert(old_size - std::distance(l.begin(), l.end()) == expected);
+}
+
 
 struct S {
     S(int i) : i_(new int(i)) {}
@@ -28,7 +44,7 @@ struct S {
     };
 
 
-int main()
+int main(int, char**)
 {
     {
         typedef int T;
@@ -37,7 +53,7 @@ int main()
         const T t2[] = {5, 5, 5};
         C c1(std::begin(t1), std::end(t1));
         C c2(std::begin(t2), std::end(t2));
-        c1.remove(0);
+        do_remove(c1, 0, 4);
         assert(c1 == c2);
     }
     {
@@ -46,7 +62,7 @@ int main()
         const T t1[] = {0, 0, 0, 0};
         C c1(std::begin(t1), std::end(t1));
         C c2;
-        c1.remove(0);
+        do_remove(c1, 0, 4);
         assert(c1 == c2);
     }
     {
@@ -56,7 +72,7 @@ int main()
         const T t2[] = {5, 5, 5};
         C c1(std::begin(t1), std::end(t1));
         C c2(std::begin(t2), std::end(t2));
-        c1.remove(0);
+        do_remove(c1, 0, 0);
         assert(c1 == c2);
     }
     {
@@ -64,7 +80,7 @@ int main()
         typedef std::forward_list<T> C;
         C c1;
         C c2;
-        c1.remove(0);
+        do_remove(c1, 0, 0);
         assert(c1 == c2);
     }
     {
@@ -74,7 +90,7 @@ int main()
         const T t2[] = {5, 5, 5};
         C c1(std::begin(t1), std::end(t1));
         C c2(std::begin(t2), std::end(t2));
-        c1.remove(0);
+        do_remove(c1, 0, 1);
         assert(c1 == c2);
     }
     {  // LWG issue #526
@@ -84,7 +100,7 @@ int main()
     int t2[] = {   2,    3, 5, 8, 11};
     C c1(std::begin(t1), std::end(t1));
     C c2(std::begin(t2), std::end(t2));
-    c1.remove(c1.front());
+    do_remove(c1, c1.front(), 2);
     assert(c1 == c2);
     }
     {
@@ -95,7 +111,7 @@ int main()
     C c;
     for(int *ip = std::end(t1); ip != std::begin(t1);)
         c.push_front(S(*--ip));
-    c.remove(c.front());
+    do_remove(c, c.front(), 3);
     C::const_iterator it = c.begin();
     for(int *ip = std::begin(t2); ip != std::end(t2); ++ip, ++it) {
         assert ( it != c.end());
@@ -111,7 +127,7 @@ int main()
         const T t2[] = {5, 5, 5};
         C c1(std::begin(t1), std::end(t1));
         C c2(std::begin(t2), std::end(t2));
-        c1.remove(0);
+        do_remove(c1, 0, 4);
         assert(c1 == c2);
     }
     {
@@ -120,7 +136,7 @@ int main()
         const T t1[] = {0, 0, 0, 0};
         C c1(std::begin(t1), std::end(t1));
         C c2;
-        c1.remove(0);
+        do_remove(c1, 0, 4);
         assert(c1 == c2);
     }
     {
@@ -130,7 +146,7 @@ int main()
         const T t2[] = {5, 5, 5};
         C c1(std::begin(t1), std::end(t1));
         C c2(std::begin(t2), std::end(t2));
-        c1.remove(0);
+        do_remove(c1, 0, 0);
         assert(c1 == c2);
     }
     {
@@ -138,7 +154,7 @@ int main()
         typedef std::forward_list<T, min_allocator<T>> C;
         C c1;
         C c2;
-        c1.remove(0);
+        do_remove(c1, 0, 0);
         assert(c1 == c2);
     }
     {
@@ -148,8 +164,10 @@ int main()
         const T t2[] = {5, 5, 5};
         C c1(std::begin(t1), std::end(t1));
         C c2(std::begin(t2), std::end(t2));
-        c1.remove(0);
+        do_remove(c1, 0, 1);
         assert(c1 == c2);
     }
 #endif
+
+  return 0;
 }

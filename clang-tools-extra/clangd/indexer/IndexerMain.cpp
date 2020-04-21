@@ -1,9 +1,8 @@
 //===--- IndexerMain.cpp -----------------------------------------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -11,11 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "index/Index.h"
 #include "index/IndexAction.h"
 #include "index/Merge.h"
+#include "index/Ref.h"
 #include "index/Serialization.h"
+#include "index/Symbol.h"
 #include "index/SymbolCollector.h"
+#include "clang/Tooling/ArgumentsAdjusters.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Execution.h"
 #include "clang/Tooling/Tooling.h"
@@ -40,6 +41,7 @@ public:
 
   clang::FrontendAction *create() override {
     SymbolCollector::Options Opts;
+    Opts.CountReferences = true;
     return createStaticIndexingAction(
                Opts,
                [&](SymbolSlab S) {
@@ -55,9 +57,15 @@ public:
                [&](RefSlab S) {
                  std::lock_guard<std::mutex> Lock(SymbolsMu);
                  for (const auto &Sym : S) {
-                   // No need to merge as currently all Refs are from main file.
+                   // Deduplication happens during insertion.
                    for (const auto &Ref : Sym.second)
                      Refs.insert(Sym.first, Ref);
+                 }
+               },
+               [&](RelationSlab S) {
+                 std::lock_guard<std::mutex> Lock(SymbolsMu);
+                 for (const auto &R : S) {
+                   Relations.insert(R);
                  }
                },
                /*IncludeGraphCallback=*/nullptr)
@@ -69,6 +77,7 @@ public:
   ~IndexActionFactory() {
     Result.Symbols = std::move(Symbols).build();
     Result.Refs = std::move(Refs).build();
+    Result.Relations = std::move(Relations).build();
   }
 
 private:
@@ -76,6 +85,7 @@ private:
   std::mutex SymbolsMu;
   SymbolSlab::Builder Symbols;
   RefSlab::Builder Refs;
+  RelationSlab::Builder Relations;
 };
 
 } // namespace
@@ -110,7 +120,8 @@ int main(int argc, const char **argv) {
   // Collect symbols found in each translation unit, merging as we go.
   clang::clangd::IndexFileIn Data;
   auto Err = Executor->get()->execute(
-      llvm::make_unique<clang::clangd::IndexActionFactory>(Data));
+      llvm::make_unique<clang::clangd::IndexActionFactory>(Data),
+      clang::tooling::getStripPluginsAdjuster());
   if (Err) {
     llvm::errs() << llvm::toString(std::move(Err)) << "\n";
   }

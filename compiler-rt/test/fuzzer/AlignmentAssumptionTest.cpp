@@ -1,5 +1,6 @@
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 // Test for alignment assumption failure.
 
@@ -19,7 +20,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     if (Size > 1 && Data[1] == 'i') {
       Sink = 2;
       if (Size > 2 && Data[2] == '!') {
-        __builtin_assume_aligned(Data + 1, 0x8000);
+        auto r = __builtin_assume_aligned(Data + 1, 0x8000);
       }
     }
   }

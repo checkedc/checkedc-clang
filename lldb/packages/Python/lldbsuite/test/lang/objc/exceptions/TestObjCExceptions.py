@@ -37,13 +37,14 @@ class ObjCExceptionsTestCase(TestBase):
         target = self.dbg.GetSelectedTarget()
         thread = target.GetProcess().GetSelectedThread()
         frame = thread.GetSelectedFrame()
-        
+
         opts = lldb.SBVariablesOptions()
         opts.SetIncludeRecognizedArguments(True)
         variables = frame.GetVariables(opts)
 
         self.assertEqual(variables.GetSize(), 1)
         self.assertEqual(variables.GetValueAtIndex(0).name, "exception")
+        self.assertEqual(variables.GetValueAtIndex(0).GetValueType(), lldb.eValueTypeVariableArgument)
 
         lldbutil.run_to_source_breakpoint(self, "// Set break point at this line.", lldb.SBFileSpec("main.mm"), launch_info=launch_info)
 
@@ -142,8 +143,8 @@ class ObjCExceptionsTestCase(TestBase):
                 '(NSException *) exception = ',
                 'name: "ThrownException" - reason: "SomeReason"',
                 'libobjc.A.dylib`objc_exception_throw',
-                'a.out`foo', 'at main.mm:25',
-                'a.out`rethrow', 'at main.mm:36',
+                'a.out`foo', 'at main.mm:24',
+                'a.out`rethrow', 'at main.mm:35',
                 'a.out`main',
             ])
 
@@ -169,8 +170,8 @@ class ObjCExceptionsTestCase(TestBase):
         self.expect('thread exception', substrs=[
                 '(MyCustomException *) exception = ',
                 'libobjc.A.dylib`objc_exception_throw',
-                'a.out`foo', 'at main.mm:27',
-                'a.out`rethrow', 'at main.mm:36',
+                'a.out`foo', 'at main.mm:26',
+                'a.out`rethrow', 'at main.mm:35',
                 'a.out`main',
             ])
 
@@ -195,11 +196,12 @@ class ObjCExceptionsTestCase(TestBase):
         self.expect("thread list",
             substrs=['stopped', 'stop reason = signal SIGABRT'])
 
-        self.expect('thread exception', substrs=[])
+        self.expect('thread exception', substrs=['exception ='])
 
         process = self.dbg.GetSelectedTarget().process
         thread = process.GetSelectedThread()
 
-        # C++ exceptions are not exposed in the API (yet).
-        self.assertFalse(thread.GetCurrentException().IsValid())
+        self.assertTrue(thread.GetCurrentException().IsValid())
+
+        # C++ exception backtraces are not exposed in the API (yet).
         self.assertFalse(thread.GetCurrentExceptionBacktrace().IsValid())

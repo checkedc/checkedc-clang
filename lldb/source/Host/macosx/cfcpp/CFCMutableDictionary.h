@@ -1,9 +1,8 @@
 //===-- CFCMutableDictionary.h ----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -14,16 +13,12 @@
 
 class CFCMutableDictionary : public CFCReleaser<CFMutableDictionaryRef> {
 public:
-  //------------------------------------------------------------------
   // Constructors and Destructors
-  //------------------------------------------------------------------
   CFCMutableDictionary(CFMutableDictionaryRef s = NULL);
   CFCMutableDictionary(const CFCMutableDictionary &rhs);
   virtual ~CFCMutableDictionary();
 
-  //------------------------------------------------------------------
   // Operators
-  //------------------------------------------------------------------
   const CFCMutableDictionary &operator=(const CFCMutableDictionary &rhs);
 
   CFIndex GetCount() const;
@@ -62,14 +57,10 @@ public:
   CFMutableDictionaryRef Dictionary(bool can_create);
 
 protected:
-  //------------------------------------------------------------------
   // Classes that inherit from CFCMutableDictionary can see and modify these
-  //------------------------------------------------------------------
 
 private:
-  //------------------------------------------------------------------
   // For CFCMutableDictionary only
-  //------------------------------------------------------------------
 };
 
 #endif // CoreFoundationCPP_CFMutableDictionary_h_

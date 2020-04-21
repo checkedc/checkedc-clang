@@ -394,7 +394,7 @@ template<double* ...A> class class_ptrs {};
 void set13(class_ptrs<&a13, &b13>) {}
 void test13() {
   set13(class_ptrs<&c13>());
-  set13(class_ptrss<&a13, &b13, &d13>());
+  set13(class_ptrs<&a13, &b13, &d13>());
 }
 // CHECK-ELIDE-NOTREE: no matching function for call to 'set13'
 // CHECK-ELIDE-NOTREE: candidate function not viable: no known conversion from 'class_ptrs<&c13, (no argument)>' to 'class_ptrs<&a13, &b13>' for 1st argument
@@ -1252,7 +1252,7 @@ using T = condition<(is_const())>;
 void foo(const T &t) {
   T &t2 = t;
 }
-// CHECK-ELIDE-NOTREE: binding value of type 'const condition<...>' to reference to type 'condition<...>' drops 'const' qualifier
+// CHECK-ELIDE-NOTREE: binding reference of type 'condition<...>' to value of type 'const condition<...>' drops 'const' qualifier
 }
 
 namespace BoolArgumentBitExtended {

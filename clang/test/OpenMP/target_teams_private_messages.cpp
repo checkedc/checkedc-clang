@@ -1,6 +1,16 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
+
+typedef void **omp_allocator_handle_t;
+extern const omp_allocator_handle_t omp_default_mem_alloc;
+extern const omp_allocator_handle_t omp_large_cap_mem_alloc;
+extern const omp_allocator_handle_t omp_const_mem_alloc;
+extern const omp_allocator_handle_t omp_high_bw_mem_alloc;
+extern const omp_allocator_handle_t omp_low_lat_mem_alloc;
+extern const omp_allocator_handle_t omp_cgroup_mem_alloc;
+extern const omp_allocator_handle_t omp_pteam_mem_alloc;
+extern const omp_allocator_handle_t omp_thread_mem_alloc;
 
 void foo() {
 }
@@ -56,7 +66,7 @@ int main(int argc, char **argv) {
   const int da[5] = { 0 }; // expected-note {{'da' defined here}}
   S4 e(4);
   S5 g(5);
-  int i;
+  int i, z;
   int &j = i;
 #pragma omp target teams private // expected-error {{expected '(' after 'private'}}
   foo();
@@ -78,7 +88,7 @@ int main(int argc, char **argv) {
   foo();
 #pragma omp target teams private (argv[1]) // expected-error {{expected variable name}}
   foo();
-#pragma omp target teams private(ba)
+#pragma omp target teams private(ba) allocate , allocate(, allocate(omp_default , allocate(omp_default_mem_alloc, allocate(omp_default_mem_alloc:, allocate(omp_default_mem_alloc: argc, allocate(omp_default_mem_alloc: argv), allocate(argv) // expected-error {{expected '(' after 'allocate'}} expected-error 2 {{expected expression}} expected-error 2 {{expected ')'}} expected-error {{use of undeclared identifier 'omp_default'}} expected-note 2 {{to match this '('}}
   foo();
 #pragma omp target teams private(ca) // expected-error {{const-qualified variable without mutable fields cannot be private}}
   foo();
@@ -94,11 +104,11 @@ int main(int argc, char **argv) {
   foo();
 #pragma omp target teams firstprivate(i) private(i) // expected-error {{firstprivate variable cannot be private}} expected-note {{defined as firstprivate}}
   foo();
-#pragma omp target teams private(i)
+#pragma omp target teams private(i, z)
   foo();
 #pragma omp target teams private(j)
   foo();
-#pragma omp target teams firstprivate(i)
+#pragma omp target teams firstprivate(i) allocate(omp_thread_mem_alloc: i) // expected-warning {{allocator with the 'thread' trait access has unspecified behavior on 'target teams' directive}}
   for (int k = 0; k < 10; ++k) {
 #pragma omp parallel private(i)
     foo();

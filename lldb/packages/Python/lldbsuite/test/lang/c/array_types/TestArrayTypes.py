@@ -81,6 +81,7 @@ class ArrayTypesTestCase(TestBase):
             VARIABLES_DISPLAYED_CORRECTLY,
             startstr='(long [6])')
 
+    @expectedFailureNetBSD
     @add_test_categories(['pyapi'])
     def test_and_python_api(self):
         """Use Python APIs to inspect variables with array types."""
@@ -174,6 +175,8 @@ class ArrayTypesTestCase(TestBase):
         self.DebugSBValue(variable)
         self.assertTrue(variable.GetNumChildren() == 4,
                         "Variable 'strings' should have 4 children")
+        byte_size = variable.GetByteSize()
+        self.assertTrue(byte_size >= 4*4 and byte_size <= 1024)
 
         child3 = variable.GetChildAtIndex(3)
         self.DebugSBValue(child3)

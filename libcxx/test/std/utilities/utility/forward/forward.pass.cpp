@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,12 +20,12 @@ struct A
 {
 };
 
-A source() noexcept {return A();}
-const A csource() noexcept {return A();}
+A source() TEST_NOEXCEPT {return A();}
+const A csource() TEST_NOEXCEPT {return A();}
 
 
-constexpr bool test_constexpr_forward() {
 #if TEST_STD_VER > 11
+constexpr bool test_constexpr_forward() {
     int x = 42;
     const int cx = 101;
     return std::forward<int&>(x)        == 42
@@ -37,12 +36,10 @@ constexpr bool test_constexpr_forward() {
         && std::forward<const int&&>(x) == 42
         && std::forward<const int&>(cx) == 101
         && std::forward<const int>(cx)  == 101;
-#else
-    return true;
-#endif
 }
+#endif
 
-int main()
+int main(int, char**)
 {
     A a;
     const A ca = A();
@@ -53,23 +50,23 @@ int main()
     static_assert(std::is_same<decltype(std::forward<A&>(a)), A&>::value, "");
     static_assert(std::is_same<decltype(std::forward<A>(a)), A&&>::value, "");
     static_assert(std::is_same<decltype(std::forward<A>(source())), A&&>::value, "");
-    static_assert(noexcept(std::forward<A&>(a)), "");
-    static_assert(noexcept(std::forward<A>(a)), "");
-    static_assert(noexcept(std::forward<A>(source())), "");
+    ASSERT_NOEXCEPT(std::forward<A&>(a));
+    ASSERT_NOEXCEPT(std::forward<A>(a));
+    ASSERT_NOEXCEPT(std::forward<A>(source()));
 
     static_assert(std::is_same<decltype(std::forward<const A&>(a)), const A&>::value, "");
     static_assert(std::is_same<decltype(std::forward<const A>(a)), const A&&>::value, "");
     static_assert(std::is_same<decltype(std::forward<const A>(source())), const A&&>::value, "");
-    static_assert(noexcept(std::forward<const A&>(a)), "");
-    static_assert(noexcept(std::forward<const A>(a)), "");
-    static_assert(noexcept(std::forward<const A>(source())), "");
+    ASSERT_NOEXCEPT(std::forward<const A&>(a));
+    ASSERT_NOEXCEPT(std::forward<const A>(a));
+    ASSERT_NOEXCEPT(std::forward<const A>(source()));
 
     static_assert(std::is_same<decltype(std::forward<const A&>(ca)), const A&>::value, "");
     static_assert(std::is_same<decltype(std::forward<const A>(ca)), const A&&>::value, "");
     static_assert(std::is_same<decltype(std::forward<const A>(csource())), const A&&>::value, "");
-    static_assert(noexcept(std::forward<const A&>(ca)), "");
-    static_assert(noexcept(std::forward<const A>(ca)), "");
-    static_assert(noexcept(std::forward<const A>(csource())), "");
+    ASSERT_NOEXCEPT(std::forward<const A&>(ca));
+    ASSERT_NOEXCEPT(std::forward<const A>(ca));
+    ASSERT_NOEXCEPT(std::forward<const A>(csource()));
 
 #if TEST_STD_VER > 11
     {
@@ -88,4 +85,6 @@ int main()
     static_assert(std::forward<const int&>(i2) == 42, "");
     }
 #endif
+
+  return 0;
 }

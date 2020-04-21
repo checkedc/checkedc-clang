@@ -6,60 +6,56 @@ common programming  errors such as out-of-bounds memory accesses.  The Checked
 C specification is available  at the 
 [Checked C repo](https://github.com/Microsoft/checkedc).
 
-## Announcement
+## Announcements
 
-Earlier this year, the LLVM community
+### Source code update
+On Feb 18, 2020 we updated the checkedc-clang sources to upstream release_90,
+specifically [this](http://llvm.org/viewvc/llvm-project?view=revision&revision=366428) commit.
+
+### Transition to monorepo
+Early in 2019, the LLVM community
 [transitioned](https://forums.swift.org/t/llvm-monorepo-transition/25689) to
-"monorepo". To align with upstream, we are now planning to transition CheckedC
-to a monorepo.
+"monorepo".
 
-Starting first week of Oct 2019, the checkedc-clang project will transition to
-monorepo. This would result in the following changes:
+We moved Checked C to a monorepo on Oct 30, 2019.  This has resulted in the following changes:
 
 1. [checkedc-llvm](https://github.com/Microsoft/checkedc-llvm) and
 [checkedc-clang](https://github.com/Microsoft/checkedc-clang) (as well as other
-LLVM subprojects) would be tracked via a single git repo.
+LLVM subprojects) are now tracked via a single git repo.
 
-2. The [checkedc-llvm](https://github.com/Microsoft/checkedc-llvm) repo would
+2. The [checkedc-llvm](https://github.com/Microsoft/checkedc-llvm) repo will
 no longer be maintained. The
-[checkedc-clang](https://github.com/Microsoft/checkedc-clang) repo would be the
+[checkedc-clang](https://github.com/Microsoft/checkedc-clang) repo will be the
 new monorepo.
 
-3. There would be no changes to the
-[checkedc](https://github.com/Microsoft/checkedc) repo. It would continue to be
+3. There will be no changes to the
+[checkedc](https://github.com/Microsoft/checkedc) repo. It will continue to be
 a separate git repo.
 
 4. All future patches should be based off this new monorepo.
 
 5. You can use
-[this](https://github.com/microsoft/checkedc-clang/blob/monorepo/clang/automation/UNIX/cherry-pick-to-monorepo.sh)
+[this](https://github.com/microsoft/checkedc-clang/blob/master/clang/automation/UNIX/cherry-pick-to-monorepo.sh)
 script to cherry-pick your existing patches to the new monorepo.
 
 6. Make sure to set the following CMake flag to enable clang in your builds:
   `-DLLVM_ENABLE_PROJECTS=clang`
 
-## Compiler source code update
-
-On January 25, 2019, we updated to LLVM/Clang sources from January 16, 2019.
-If you are building the Checked C clang compiler from source code, we suggest
-you do a clean build by deleting your cmake object directory.
-
 ## We are hiring.
 
-We have a position available for a [Principal Software
-Engineer](https://careers.microsoft.com/us/en/job/559081/Principal-Software-Engineer)
-or a [Senior Software
-Engineer](https://careers.microsoft.com/us/en/job/570339/Senior-Software-Engineer).
-We are looking for someone wih compiler and programming language implementation
-experience who is passionate about making software more secure and reliable.
+We have positions available for a [Principal Software
+Engineer](https://careers.microsoft.com/us/en/job/725522/Principal-Software-Engineer)
+and a [Senior Software
+Engineer](https://careers.microsoft.com/us/en/job/731826/Senior-Software-Engineer).
+We are looking for an engineer who has production compiler development
+experience and who values shipping software.
 
 ## Trying out Checked C
 
-Programmers are welcome to "kick the tires" on Checked C as it is being
-implemented.  We have pre-built compiler installers for Windows available for
-download on the [release
-page](https://github.com/Microsoft/checkedc-clang/releases).  For other
-platforms, you will have to build your own copy of the compiler.  For
+Programmers are welcome to use Checked C as it is being implemented.  We have
+pre-built compiler installers for Windows available for download on the
+[release page](https://github.com/Microsoft/checkedc-clang/releases).  For
+other platforms, you will have to build your own copy of the compiler.  For
 directions on how to do this, see the [Checked C clang
 wiki](https://github.com/Microsoft/checkedc-clang/wiki).   The compiler user
 manual is

@@ -1,9 +1,8 @@
 //===-- PseudoTerminal.cpp --------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -16,27 +15,21 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-//----------------------------------------------------------------------
 // PseudoTerminal constructor
-//----------------------------------------------------------------------
 PseudoTerminal::PseudoTerminal()
     : m_master_fd(invalid_fd), m_slave_fd(invalid_fd) {}
 
-//----------------------------------------------------------------------
 // Destructor
 // The master and slave file descriptors will get closed if they are
 // valid. Call the ReleaseMasterFD()/ReleaseSlaveFD() member functions
 // to release any file descriptors that are needed beyond the lifespan
 // of this object.
-//----------------------------------------------------------------------
 PseudoTerminal::~PseudoTerminal() {
   CloseMaster();
   CloseSlave();
 }
 
-//----------------------------------------------------------------------
 // Close the master file descriptor if it is valid.
-//----------------------------------------------------------------------
 void PseudoTerminal::CloseMaster() {
   if (m_master_fd > 0) {
     ::close(m_master_fd);
@@ -44,9 +37,7 @@ void PseudoTerminal::CloseMaster() {
   }
 }
 
-//----------------------------------------------------------------------
 // Close the slave file descriptor if it is valid.
-//----------------------------------------------------------------------
 void PseudoTerminal::CloseSlave() {
   if (m_slave_fd > 0) {
     ::close(m_slave_fd);
@@ -54,7 +45,6 @@ void PseudoTerminal::CloseSlave() {
   }
 }
 
-//----------------------------------------------------------------------
 // Open the first available pseudo terminal with OFLAG as the
 // permissions. The file descriptor is store in the m_master_fd member
 // variable and can be accessed via the MasterFD() or ReleaseMasterFD()
@@ -64,7 +54,6 @@ void PseudoTerminal::CloseSlave() {
 //
 // RETURNS:
 //  Zero when successful, non-zero indicating an error occurred.
-//----------------------------------------------------------------------
 PseudoTerminal::Status PseudoTerminal::OpenFirstAvailableMaster(int oflag) {
   // Open the master side of a pseudo terminal
   m_master_fd = ::posix_openpt(oflag);
@@ -87,7 +76,6 @@ PseudoTerminal::Status PseudoTerminal::OpenFirstAvailableMaster(int oflag) {
   return success;
 }
 
-//----------------------------------------------------------------------
 // Open the slave pseudo terminal for the current master pseudo
 // terminal. A master pseudo terminal should already be valid prior to
 // calling this function (see PseudoTerminal::OpenFirstAvailableMaster()).
@@ -96,7 +84,6 @@ PseudoTerminal::Status PseudoTerminal::OpenFirstAvailableMaster(int oflag) {
 //
 // RETURNS:
 //  Zero when successful, non-zero indicating an error occurred.
-//----------------------------------------------------------------------
 PseudoTerminal::Status PseudoTerminal::OpenSlave(int oflag) {
   CloseSlave();
 
@@ -114,7 +101,6 @@ PseudoTerminal::Status PseudoTerminal::OpenSlave(int oflag) {
   return success;
 }
 
-//----------------------------------------------------------------------
 // Get the name of the slave pseudo terminal. A master pseudo terminal
 // should already be valid prior to calling this function (see
 // PseudoTerminal::OpenFirstAvailableMaster()).
@@ -124,14 +110,12 @@ PseudoTerminal::Status PseudoTerminal::OpenSlave(int oflag) {
 //  The name of the slave pseudo terminal as a NULL terminated C string
 //  that comes from static memory, so a copy of the string should be
 //  made as subsequent calls can change this value.
-//----------------------------------------------------------------------
 const char *PseudoTerminal::SlaveName() const {
   if (m_master_fd < 0)
     return NULL;
   return ::ptsname(m_master_fd);
 }
 
-//----------------------------------------------------------------------
 // Fork a child process that and have its stdio routed to a pseudo
 // terminal.
 //
@@ -151,7 +135,6 @@ const char *PseudoTerminal::SlaveName() const {
 // RETURNS:
 //  in the parent process: the pid of the child, or -1 if fork fails
 //  in the child process: zero
-//----------------------------------------------------------------------
 
 pid_t PseudoTerminal::Fork(PseudoTerminal::Status &error) {
   pid_t pid = invalid_pid;

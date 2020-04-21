@@ -1,9 +1,8 @@
 #===----------------------------------------------------------------------===##
 #
-#                     The LLVM Compiler Infrastructure
-#
-# This file is dual licensed under the MIT and the University of Illinois Open
-# Source Licenses. See LICENSE.TXT for details.
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 #===----------------------------------------------------------------------===##
 import os
@@ -22,12 +21,10 @@ class Configuration(LibcxxConfiguration):
         self.libcxx_src_root = None
 
     def configure_src_root(self):
-        self.libunwind_src_root = self.get_lit_conf(
-            'libunwind_src_root',
-            os.path.dirname(self.config.test_source_root))
-        self.libcxx_src_root = self.get_lit_conf(
-            'libcxx_src_root',
-            os.path.join(self.libunwind_src_root, '/../libcxx'))
+        self.libunwind_src_root = (self.get_lit_conf('libunwind_src_root')
+            or os.path.dirname(self.config.test_source_root))
+        self.libcxx_src_root = (self.get_lit_conf('libcxx_src_root')
+            or os.path.join(self.libunwind_src_root, '..', 'libcxx'))
 
     def configure_obj_root(self):
         self.libunwind_obj_root = self.get_lit_conf('libunwind_obj_root')

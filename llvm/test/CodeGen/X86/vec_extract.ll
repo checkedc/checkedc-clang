@@ -7,15 +7,15 @@ define void @test1(<4 x float>* %F, float* %f) nounwind {
 ; X32:       # %bb.0: # %entry
 ; X32-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; X32-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; X32-NEXT:    movaps (%ecx), %xmm0
-; X32-NEXT:    addps %xmm0, %xmm0
+; X32-NEXT:    movss {{.*#+}} xmm0 = mem[0],zero,zero,zero
+; X32-NEXT:    addss %xmm0, %xmm0
 ; X32-NEXT:    movss %xmm0, (%eax)
 ; X32-NEXT:    retl
 ;
 ; X64-LABEL: test1:
 ; X64:       # %bb.0: # %entry
-; X64-NEXT:    movaps (%rdi), %xmm0
-; X64-NEXT:    addps %xmm0, %xmm0
+; X64-NEXT:    movss {{.*#+}} xmm0 = mem[0],zero,zero,zero
+; X64-NEXT:    addss %xmm0, %xmm0
 ; X64-NEXT:    movss %xmm0, (%rsi)
 ; X64-NEXT:    retq
 entry:
@@ -100,5 +100,28 @@ entry:
   %tmp3 = fadd double %tmp2, %A
   ret double %tmp3
 }
-
 declare <2 x double> @foo()
+
+; OSS-Fuzz #15662
+; https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=15662
+define <4 x i32> @ossfuzz15662(<4 x i32*>* %in) {
+; X32-LABEL: ossfuzz15662:
+; X32:       # %bb.0:
+; X32-NEXT:    xorps %xmm0, %xmm0
+; X32-NEXT:    movaps %xmm0, (%eax)
+; X32-NEXT:    xorps %xmm0, %xmm0
+; X32-NEXT:    retl
+;
+; X64-LABEL: ossfuzz15662:
+; X64:       # %bb.0:
+; X64-NEXT:    xorps %xmm0, %xmm0
+; X64-NEXT:    movaps %xmm0, (%rax)
+; X64-NEXT:    xorps %xmm0, %xmm0
+; X64-NEXT:    retq
+   %C10 = icmp ule i1 false, false
+   %C3 = icmp ule i1 true, undef
+   %B = sdiv i1 %C10, %C3
+   %I = insertelement <4 x i32> zeroinitializer, i32 0, i1 %B
+   store <4 x i32> %I, <4 x i32>* undef
+   ret <4 x i32> zeroinitializer
+}

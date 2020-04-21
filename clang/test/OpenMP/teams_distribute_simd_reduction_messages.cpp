@@ -1,11 +1,12 @@
-// RUN: %clang_cc1 -verify -fopenmp %s -Wno-openmp-target
-// RUN: %clang_cc1 -verify -fopenmp -std=c++98 %s -Wno-openmp-target
-// RUN: %clang_cc1 -verify -fopenmp -std=c++11 %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify -fopenmp %s -Wno-openmp-target -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp -std=c++98 %s -Wno-openmp-target -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp -std=c++11 %s -Wno-openmp-target -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wno-openmp-target
-// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++98 %s -Wno-openmp-target
-// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++11 %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wno-openmp-target -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++98 %s -Wno-openmp-target -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++11 %s -Wno-openmp-target -Wuninitialized
 
+extern int omp_default_mem_alloc;
 void foo() {
 }
 
@@ -79,7 +80,7 @@ T tmain(T argc) {
   const T d = T();       // expected-note 4 {{'d' defined here}}
   const T da[5] = {T()}; // expected-note 2 {{'da' defined here}}
   T qa[5] = {T()};
-  T i;
+  T i, z;
   T &j = i;                    // expected-note 4 {{'j' defined here}}
   S3 &p = k;                   // expected-note 2 {{'p' defined here}}
   const T &r = da[(int)i];     // expected-note 2 {{'r' defined here}}
@@ -119,7 +120,7 @@ T tmain(T argc) {
 #pragma omp teams distribute simd reduction(foo : argc) //expected-error {{incorrect reduction identifier, expected one of '+', '-', '*', '&', '|', '^', '&&', '||', 'min' or 'max' or declare reduction for type 'float'}} expected-error {{incorrect reduction identifier, expected one of '+', '-', '*', '&', '|', '^', '&&', '||', 'min' or 'max' or declare reduction for type 'int'}}
   for (int j=0; j<100; j++) foo();
 #pragma omp target
-#pragma omp teams distribute simd reduction(&& : argc)
+#pragma omp teams distribute simd reduction(&& : argc) allocate , allocate(, allocate(omp_default , allocate(omp_default_mem_alloc, allocate(omp_default_mem_alloc:, allocate(omp_default_mem_alloc: argc, allocate(omp_default_mem_alloc: argv), allocate(argv) // expected-error {{expected '(' after 'allocate'}} expected-error 2 {{expected expression}} expected-error 2 {{expected ')'}} expected-error {{use of undeclared identifier 'omp_default'}} expected-note 2 {{to match this '('}}
   for (int j=0; j<100; j++) foo();
 #pragma omp target
 #pragma omp teams distribute simd reduction(^ : T) // expected-error {{'T' does not refer to a value}}
@@ -155,7 +156,7 @@ T tmain(T argc) {
 #pragma omp teams distribute simd reduction(+ : h, k) // expected-error {{threadprivate or thread local variable cannot be reduction}}
   for (int j=0; j<100; j++) foo();
 #pragma omp target
-#pragma omp teams distribute simd reduction(+ : o) // expected-error 2 {{no viable overloaded '='}}
+#pragma omp teams distribute simd reduction(+ : z, o) // expected-error 2 {{no viable overloaded '='}}
   for (int j=0; j<100; j++) foo();
 #pragma omp target
 #pragma omp teams distribute simd private(i), reduction(+ : j), reduction(+ : q) // expected-error 4 {{argument of OpenMP clause 'reduction' must reference the same object in all threads}}
@@ -196,7 +197,7 @@ int main(int argc, char **argv) {
   int qa[5] = {0};
   S4 e(4);
   S5 g(5);
-  int i;
+  int i, z;
   int &j = i;                  // expected-note 2 {{'j' defined here}}
   S3 &p = k;                   // expected-note 2 {{'p' defined here}}
   const int &r = da[i];        // expected-note {{'r' defined here}}
@@ -236,16 +237,16 @@ int main(int argc, char **argv) {
 #pragma omp teams distribute simd reduction(~ : argc) // expected-error {{expected unqualified-id}}
   for (int j=0; j<100; j++) foo();
 #pragma omp target
-#pragma omp teams distribute simd reduction(&& : argc)
+#pragma omp teams distribute simd reduction(&& : argc, z)
   for (int j=0; j<100; j++) foo();
 #pragma omp target
 #pragma omp teams distribute simd reduction(^ : S1) // expected-error {{'S1' does not refer to a value}}
   for (int j=0; j<100; j++) foo();
 #pragma omp target
-#pragma omp teams distribute simd reduction(+ : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{const-qualified variable cannot be reduction}} expected-error {{'operator+' is a private member of 'S2'}}
+#pragma omp teams distribute simd reduction(+ : a, b, c, d, f) // expected-error {{incomplete type 'S1' where a complete type is required}} expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{const-qualified variable cannot be reduction}} expected-error {{'operator+' is a private member of 'S2'}}
   for (int j=0; j<100; j++) foo();
 #pragma omp target
-#pragma omp teams distribute simd reduction(min : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{arguments of OpenMP clause 'reduction' for 'min' or 'max' must be of arithmetic type}} expected-error 2 {{const-qualified variable cannot be reduction}}
+#pragma omp teams distribute simd reduction(min : a, b, c, d, f) // expected-error {{incomplete type 'S1' where a complete type is required}} expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{arguments of OpenMP clause 'reduction' for 'min' or 'max' must be of arithmetic type}} expected-error 2 {{const-qualified variable cannot be reduction}}
   for (int j=0; j<100; j++) foo();
 #pragma omp target
 #pragma omp teams distribute simd reduction(max : h.b) // expected-error {{expected variable name, array element or array section}}

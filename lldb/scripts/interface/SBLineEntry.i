@@ -1,9 +1,8 @@
 //===-- SWIG Interface for SBLineEntry --------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -56,6 +55,8 @@ public:
     bool
     IsValid () const;
 
+    explicit operator bool() const;
+
     lldb::SBFileSpec
     GetFileSpec () const;
 
@@ -70,37 +71,26 @@ public:
 
     void
     SetFileSpec (lldb::SBFileSpec filespec);
-    
+
     void
     SetLine (uint32_t line);
-    
+
     void
     SetColumn (uint32_t column);
 
     bool
     operator == (const lldb::SBLineEntry &rhs) const;
-    
+
     bool
     operator != (const lldb::SBLineEntry &rhs) const;
-    
-    %pythoncode %{
-        __swig_getmethods__["file"] = GetFileSpec
-        if _newclass: file = property(GetFileSpec, None, doc='''A read only property that returns an lldb object that represents the file (lldb.SBFileSpec) for this line entry.''')
-        
-        __swig_getmethods__["line"] = GetLine
-        if _newclass: line = property(GetLine, None, doc='''A read only property that returns the 1 based line number for this line entry, a return value of zero indicates that no line information is available.''')
-        
-        __swig_getmethods__["column"] = GetColumn
-        if _newclass: column = property(GetColumn, None, doc='''A read only property that returns the 1 based column number for this line entry, a return value of zero indicates that no column information is available.''')
-        
-        __swig_getmethods__["addr"] = GetStartAddress
-        if _newclass: addr = property(GetStartAddress, None, doc='''A read only property that returns an lldb object that represents the start address (lldb.SBAddress) for this line entry.''')
-        
-        __swig_getmethods__["end_addr"] = GetEndAddress
-        if _newclass: end_addr = property(GetEndAddress, None, doc='''A read only property that returns an lldb object that represents the end address (lldb.SBAddress) for this line entry.''')
-        
-    %}
 
+    %pythoncode %{
+        file = property(GetFileSpec, None, doc='''A read only property that returns an lldb object that represents the file (lldb.SBFileSpec) for this line entry.''')
+        line = property(GetLine, None, doc='''A read only property that returns the 1 based line number for this line entry, a return value of zero indicates that no line information is available.''')
+        column = property(GetColumn, None, doc='''A read only property that returns the 1 based column number for this line entry, a return value of zero indicates that no column information is available.''')
+        addr = property(GetStartAddress, None, doc='''A read only property that returns an lldb object that represents the start address (lldb.SBAddress) for this line entry.''')
+        end_addr = property(GetEndAddress, None, doc='''A read only property that returns an lldb object that represents the end address (lldb.SBAddress) for this line entry.''')
+    %}
 };
 
 } // namespace lldb

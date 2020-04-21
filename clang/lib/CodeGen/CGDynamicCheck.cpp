@@ -2,8 +2,9 @@
 //
 //                     The LLVM Compiler Infrastructure
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -380,6 +381,17 @@ BasicBlock *CodeGenFunction::EmitDynamicCheckFailedBlock() {
   // Add a "failed block", which will be inserted at the end of CurFn
   BasicBlock *FailBlock = createBasicBlock("_Dynamic_check.failed", CurFn);
   Builder.SetInsertPoint(FailBlock);
+  if (getLangOpts().InjectVerifierCalls) {
+    llvm::Module &module = CGM.getModule();
+    static llvm::Function *verr = llvm::Function::Create(
+        llvm::FunctionType::get(Builder.getVoidTy(), false),
+        llvm::Function::ExternalLinkage,
+        "__VERIFIER_error",
+        &module);
+    CallInst *VerifierError = Builder.CreateCall(verr);
+    VerifierError->setDoesNotReturn();
+    VerifierError->setDoesNotThrow();
+  }
   CallInst *TrapCall = Builder.CreateCall(CGM.getIntrinsic(Intrinsic::trap));
   TrapCall->setDoesNotReturn();
   TrapCall->setDoesNotThrow();

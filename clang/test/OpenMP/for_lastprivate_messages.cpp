@@ -1,7 +1,8 @@
-// RUN: %clang_cc1 -verify -fopenmp %s
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
 
+extern int omp_default_mem_alloc;
 void foo() {
 }
 
@@ -68,7 +69,7 @@ template <class I, class C>
 int foomain(int argc, char **argv) {
   I e(4);
   I g(5);
-  int i;
+  int i, k;
   int &j = i;
 #pragma omp parallel
 #pragma omp for lastprivate // expected-error {{expected '(' after 'lastprivate'}}
@@ -95,7 +96,7 @@ int foomain(int argc, char **argv) {
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp parallel
-#pragma omp for lastprivate(argc)
+#pragma omp for lastprivate(argc) allocate , allocate(, allocate(omp_default , allocate(omp_default_mem_alloc, allocate(omp_default_mem_alloc:, allocate(omp_default_mem_alloc: argc, allocate(omp_default_mem_alloc: argv), allocate(argv) // expected-error {{expected '(' after 'allocate'}} expected-error 2 {{expected expression}} expected-error 2 {{expected ')'}} expected-error {{use of undeclared identifier 'omp_default'}} expected-note 2 {{to match this '('}}
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp parallel
@@ -111,7 +112,7 @@ int foomain(int argc, char **argv) {
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp parallel
-#pragma omp for lastprivate(e, g) // expected-error 2 {{calling a private constructor of class 'S4'}}
+#pragma omp for lastprivate(k, e, g) // expected-error 2 {{calling a private constructor of class 'S4'}}
   for (int k = 0; k < argc; ++k)
     ++k;
 #pragma omp parallel
@@ -162,7 +163,7 @@ int main(int argc, char **argv) {
   S5 g(5);
   S3 m;
   S6 n(2);
-  int i;
+  int i, k;
   int &j = i;
 #pragma omp parallel
 #pragma omp for lastprivate // expected-error {{expected '(' after 'lastprivate'}}
@@ -189,7 +190,7 @@ int main(int argc, char **argv) {
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for lastprivate(argc)
+#pragma omp for lastprivate(argc, k)
   for (i = 0; i < argc; ++i)
     foo();
 #pragma omp parallel

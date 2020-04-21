@@ -1,9 +1,8 @@
 //===-- AppleGetQueuesHandler.cpp -------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -158,8 +157,8 @@ AppleGetQueuesHandler::SetupGetQueuesFunction(Thread &thread,
 
     // First stage is to make the ClangUtility to hold our injected function:
 
-    if (!m_get_queues_impl_code_up.get()) {
-      if (g_get_current_queues_function_code != NULL) {
+    if (!m_get_queues_impl_code_up) {
+      if (g_get_current_queues_function_code != nullptr) {
         Status error;
         m_get_queues_impl_code_up.reset(
             exe_ctx.GetTargetRef().GetUtilityFunctionForLanguage(
@@ -336,7 +335,7 @@ AppleGetQueuesHandler::GetCurrentQueues(Thread &thread, addr_t page_to_free,
   FunctionCaller *get_queues_caller =
       m_get_queues_impl_code_up->GetFunctionCaller();
 
-  if (get_queues_caller == NULL) {
+  if (get_queues_caller == nullptr) {
     error.SetErrorString(
         "Unable to get caller for call __introspection_dispatch_get_queues");
     return return_value;
@@ -348,7 +347,7 @@ AppleGetQueuesHandler::GetCurrentQueues(Thread &thread, addr_t page_to_free,
   options.SetUnwindOnError(true);
   options.SetIgnoreBreakpoints(true);
   options.SetStopOthers(true);
-  options.SetTimeout(std::chrono::milliseconds(500));
+  options.SetTimeout(process_sp->GetUtilityExpressionTimeout());
   options.SetTryAllThreads(false);
   options.SetIsForUtilityExpr(true);
   thread.CalculateExecutionContext(exe_ctx);

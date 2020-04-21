@@ -1,9 +1,8 @@
 //===--- FSProvider.cpp - VFS provider for ClangdServer -------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -75,9 +74,10 @@ clang::clangd::RealFileSystemProvider::getFileSystem() const {
 // FIXME: Try to use a similar approach in Sema instead of relying on
 //        propagation of the 'isVolatile' flag through all layers.
 #ifdef _WIN32
-  return new VolatileFileSystem(llvm::vfs::getRealFileSystem());
+  return new VolatileFileSystem(
+      llvm::vfs::createPhysicalFileSystem().release());
 #else
-  return llvm::vfs::getRealFileSystem();
+  return llvm::vfs::createPhysicalFileSystem().release();
 #endif
 }
 } // namespace clangd

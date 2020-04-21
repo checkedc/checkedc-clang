@@ -1,9 +1,8 @@
 //===-- DarwinLogCollector.h ------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -30,21 +29,17 @@ class DarwinLogCollector
     : public std::enable_shared_from_this<DarwinLogCollector>,
       public ActivityStore {
 public:
-  //------------------------------------------------------------------
   /// Return whether the os_log and activity tracing SPI is available.
   ///
-  /// @return \b true if the activity stream support is available,
+  /// \return \b true if the activity stream support is available,
   /// \b false otherwise.
-  //------------------------------------------------------------------
   static bool IsSupported();
 
-  //------------------------------------------------------------------
   /// Return a log function suitable for DNBLog to use as the internal
   /// logging function.
   ///
-  /// @return a DNBLog-style logging function if IsSupported() returns
+  /// \return a DNBLog-style logging function if IsSupported() returns
   ///      true; otherwise, returns nullptr.
-  //------------------------------------------------------------------
   static DNBCallbackLog GetLogFunction();
 
   static bool StartCollectingForProcess(nub_process_t pid,
@@ -58,9 +53,7 @@ public:
 
   pid_t GetProcessID() const { return m_pid; }
 
-  //------------------------------------------------------------------
   // ActivityStore API
-  //------------------------------------------------------------------
   const char *GetActivityForID(os_activity_id_t activity_id) const override;
 
   std::string

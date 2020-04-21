@@ -1,9 +1,8 @@
 //===-- Mapper.cpp - ClangDoc Mapper ----------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -44,9 +43,12 @@ template <typename T> bool MapASTVisitor::mapDecl(const T *D) {
 
   // A null in place of I indicates that the serializer is skipping this decl
   // for some reason (e.g. we're only reporting public decls).
-  if (I)
-    CDCtx.ECtx->reportResult(llvm::toHex(llvm::toStringRef(I->USR)),
-                       serialize::serialize(I));
+  if (I.first)
+    CDCtx.ECtx->reportResult(llvm::toHex(llvm::toStringRef(I.first->USR)),
+                             serialize::serialize(I.first));
+  if (I.second)
+    CDCtx.ECtx->reportResult(llvm::toHex(llvm::toStringRef(I.second->USR)),
+                             serialize::serialize(I.second));
   return true;
 }
 

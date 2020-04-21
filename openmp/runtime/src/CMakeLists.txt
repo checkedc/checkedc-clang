@@ -1,10 +1,9 @@
 #
 #//===----------------------------------------------------------------------===//
 #//
-#//                     The LLVM Compiler Infrastructure
-#//
-#// This file is dual licensed under the MIT and the University of Illinois Open
-#// Source Licenses. See LICENSE.txt for details.
+#// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+#// See https://llvm.org/LICENSE.txt for license information.
+#// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #//
 #//===----------------------------------------------------------------------===//
 #
@@ -74,7 +73,6 @@ else()
     kmp_settings.cpp
     kmp_str.cpp
     kmp_tasking.cpp
-    kmp_taskq.cpp
     kmp_threadprivate.cpp
     kmp_utility.cpp
     kmp_barrier.cpp
@@ -99,10 +97,8 @@ else()
   libomp_append(LIBOMP_CXXFILES kmp_debugger.cpp LIBOMP_USE_DEBUGGER)
   libomp_append(LIBOMP_CXXFILES kmp_stats.cpp LIBOMP_STATS)
   libomp_append(LIBOMP_CXXFILES kmp_stats_timing.cpp LIBOMP_STATS)
-  if(${LIBOMP_OMP_VERSION} GREATER 40 OR ${LIBOMP_OMP_VERSION} EQUAL 40)
-    libomp_append(LIBOMP_CXXFILES kmp_taskdeps.cpp)
-    libomp_append(LIBOMP_CXXFILES kmp_cancel.cpp)
-  endif()
+  libomp_append(LIBOMP_CXXFILES kmp_taskdeps.cpp)
+  libomp_append(LIBOMP_CXXFILES kmp_cancel.cpp)
 endif()
 # Files common to stubs and normal library
 libomp_append(LIBOMP_CXXFILES kmp_ftn_cdecl.cpp)
@@ -241,6 +237,11 @@ if(${LIBOMP_FORTRAN_MODULES})
   configure_file(${LIBOMP_INC_DIR}/omp_lib.h.var omp_lib.h @ONLY)
   configure_file(${LIBOMP_INC_DIR}/omp_lib.f.var omp_lib.f @ONLY)
   configure_file(${LIBOMP_INC_DIR}/omp_lib.f90.var omp_lib.f90 @ONLY)
+  # Workaround for gfortran to build modules with the
+  # omp_sched_monotonic integer parameter
+  if (CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    set(ADDITIONAL_Fortran_FLAGS "-fno-range-check")
+  endif()
   add_custom_target(libomp-mod ALL DEPENDS omp_lib.mod omp_lib_kinds.mod)
   libomp_get_fflags(LIBOMP_CONFIGURED_FFLAGS)
   if(CMAKE_Fortran_COMPILER_SUPPORTS_F90)
@@ -250,7 +251,8 @@ if(${LIBOMP_FORTRAN_MODULES})
   endif()
   add_custom_command(
     OUTPUT omp_lib.mod omp_lib_kinds.mod
-    COMMAND ${CMAKE_Fortran_COMPILER} -c ${LIBOMP_CONFIGURED_FFLAGS} ${LIBOMP_FORTRAN_SOURCE_FILE}
+    COMMAND ${CMAKE_Fortran_COMPILER} -c ${ADDITIONAL_Fortran_FLAGS}
+            ${LIBOMP_CONFIGURED_FFLAGS} ${LIBOMP_FORTRAN_SOURCE_FILE}
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${LIBOMP_FORTRAN_SOURCE_FILE}
       ${CMAKE_CURRENT_BINARY_DIR}/omp_lib.h
   )
@@ -297,7 +299,7 @@ if(WIN32)
     install(CODE "execute_process(COMMAND \"\${CMAKE_COMMAND}\" -E copy \"${LIBOMP_LIB_FILE}\"
       \"${alias}${LIBOMP_LIBRARY_SUFFIX}\" WORKING_DIRECTORY \${CMAKE_INSTALL_PREFIX}/bin)")
     install(CODE "execute_process(COMMAND \"\${CMAKE_COMMAND}\" -E copy \"${LIBOMP_IMP_LIB_FILE}\"
-      \"${alias}${LIBOMP_LIBRARY_SUFFIX}\" WORKING_DIRECTORY \${CMAKE_INSTALL_PREFIX}/${OPENMP_INSTALL_LIBDIR})")
+      \"${alias}${CMAKE_STATIC_LIBRARY_SUFFIX}\" WORKING_DIRECTORY \${CMAKE_INSTALL_PREFIX}/${OPENMP_INSTALL_LIBDIR})")
   endforeach()
 else()
 
@@ -331,4 +333,3 @@ if(${LIBOMP_FORTRAN_MODULES})
     DESTINATION ${LIBOMP_HEADERS_INSTALL_PATH}
   )
 endif()
-

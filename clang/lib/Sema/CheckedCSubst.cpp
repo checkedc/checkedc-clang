@@ -2,8 +2,9 @@
 //
 //                     The LLVM Compiler Infrastructure
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -504,15 +505,24 @@ private:
   llvm::DenseSet<const TypeVariableType *> BoundVars;
   /// The set of free variables found so far
   llvm::DenseSet<const TypeVariableType *> FreeVars;
+  /// The set of free typedef declarations found so far
+  llvm::DenseSet<const TypedefNameDecl *> FreeTypedefDecls;
   ASTContext &Context;
 
 public:
   FreeVariablesFinder(Sema &SemaRef) : BaseTransform(SemaRef), Context(SemaRef.Context) {}
 
   /// Returns the list of free type variables referenced in the given type.
-  std::vector<const TypeVariableType *> find(QualType Tpe) {
-    getDerived().TransformType(Tpe); // Populates `FreeVars` as a side effect.
+  std::vector<const TypeVariableType *> find(QualType Ty) {
+    getDerived().TransformType(Ty); // Populates `FreeVars` as a side effect.
     return std::vector<const TypeVariableType *>(FreeVars.begin(), FreeVars.end());
+  }
+
+  /// Returns the list of free typedef declarations referenced in the given type.
+  /// Typedef declarations enable more readable diagnostics than type variable types.
+  std::vector<const TypedefNameDecl *> findTypedefDecls(QualType Ty) {
+    getDerived().TransformType(Ty); // Populates `FreeTypedefDecls` as a side effect.
+    return std::vector<const TypedefNameDecl *>(FreeTypedefDecls.begin(), FreeTypedefDecls.end());
   }
 
   // The TransformType* static overrides are below.
@@ -546,11 +556,19 @@ public:
     return BaseTransform::TransformExistentialType(TLB, TL);
   }
 
-  /// For a `TypedefType`, just visit the underlying type.
+  /// For a `TypedefType`, if it declares a free type variable,
+  /// add its declaration to the set of free declarations.
   QualType TransformTypedefType(TypeLocBuilder &TLB, TypedefTypeLoc TL) {
+    auto *Typedef = TL.getTypePtr()->getAs<TypedefType>();
+    QualType Underlying = Typedef->desugar();
+
+    if (const TypeVariableType *TypeVar = dyn_cast<TypeVariableType>(Underlying))
+      if (BoundVars.find(TypeVar) == BoundVars.end())
+        FreeTypedefDecls.insert(Typedef->getDecl());
+
     // TODO: doing two recursive calls is potentially slow. Figure out a way to do this
     // with just one call.
-    QualType TransformedType = TransformType(TL.getTypePtr()->desugar());
+    TransformType(Underlying);
     return BaseTransform::TransformTypedefType(TLB, TL);
   }
 
@@ -728,4 +746,9 @@ const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Typ
     Context.addCachedExistentialType(TypeVar, InnerType, ExistType);
   }
   return ExistType;
+}
+
+std::vector<const TypedefNameDecl *> Sema::FindFreeVariableDecls(QualType T) {
+  FreeVariablesFinder finder(*this);
+  return finder.findTypedefDecls(T);
 }

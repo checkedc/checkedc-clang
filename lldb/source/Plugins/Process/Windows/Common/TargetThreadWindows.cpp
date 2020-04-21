@@ -1,9 +1,8 @@
 //===-- TargetThreadWindows.cpp----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,9 +20,10 @@
 #include "ProcessWindowsLog.h"
 #include "TargetThreadWindows.h"
 
-#if defined(_WIN64)
+// TODO support _M_ARM and _M_ARM64
+#if defined(_M_AMD64)
 #include "x64/RegisterContextWindows_x64.h"
-#else
+#elif defined(_M_IX86)
 #include "x86/RegisterContextWindows_x86.h"
 #endif
 
@@ -67,23 +67,33 @@ TargetThreadWindows::CreateRegisterContextForFrame(StackFrame *frame) {
     if (!m_thread_reg_ctx_sp) {
       ArchSpec arch = HostInfo::GetArchitecture();
       switch (arch.GetMachine()) {
+      case llvm::Triple::arm:
+      case llvm::Triple::thumb:
+        LLDB_LOG(log, "debugging ARM (NT) targets is currently unsupported");
+        break;
+
+      case llvm::Triple::aarch64:
+        LLDB_LOG(log, "debugging ARM64 targets is currently unsupported");
+        break;
+
       case llvm::Triple::x86:
-#if defined(_WIN64)
-        // FIXME: This is a Wow64 process, create a RegisterContextWindows_Wow64
-        LLDB_LOG(log, "This is a Wow64 process, we should create a "
-                      "RegisterContextWindows_Wow64, but we don't.");
-#else
+#if defined(_M_IX86)
         m_thread_reg_ctx_sp.reset(
             new RegisterContextWindows_x86(*this, concrete_frame_idx));
+#else
+        LLDB_LOG(log, "debugging foreign targets is currently unsupported");
 #endif
         break;
+
       case llvm::Triple::x86_64:
-#if defined(_WIN64)
+#if defined(_M_AMD64)
         m_thread_reg_ctx_sp.reset(
             new RegisterContextWindows_x64(*this, concrete_frame_idx));
 #else
-        LLDB_LOG(log, "LLDB is 32-bit, but the target process is 64-bit.");
+        LLDB_LOG(log, "debugging foreign targets is currently unsupported");
 #endif
+        break;
+
       default:
         break;
       }
@@ -106,9 +116,9 @@ bool TargetThreadWindows::CalculateStopInfo() {
 Unwind *TargetThreadWindows::GetUnwinder() {
   // FIXME: Implement an unwinder based on the Windows unwinder exposed through
   // DIA SDK.
-  if (!m_unwinder_ap)
-    m_unwinder_ap.reset(new UnwindLLDB(*this));
-  return m_unwinder_ap.get();
+  if (!m_unwinder_up)
+    m_unwinder_up.reset(new UnwindLLDB(*this));
+  return m_unwinder_up.get();
 }
 
 Status TargetThreadWindows::DoResume() {

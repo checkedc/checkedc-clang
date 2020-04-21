@@ -1,10 +1,14 @@
 # XFAIL: system-windows
 # -> llvm.org/pr24452
+# XFAIL: system-netbsd
 #
 # RUN: %clang -o %t %p/inputs/break-insert-pending.c -g
 # RUN: %lldbmi %t < %s | FileCheck %s
 
 # Test for enabling pending breakpoints globally
+
+settings set symbols.enable-external-lookup false
+# CHECK: ^done
 
 -break-insert printf
 # CHECK: ^error,msg="Command 'break-insert'. Breakpoint location 'printf' not found

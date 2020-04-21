@@ -1,9 +1,8 @@
 //===-- DNBArchImplX86_64.cpp -----------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -981,9 +980,7 @@ kern_return_t DNBArchImplX86_64::EnableHardwareSingleStep(bool enable) {
   return m_state.GetError(e_regSetGPR, Read);
 }
 
-//----------------------------------------------------------------------
 // Register information definitions
-//----------------------------------------------------------------------
 
 enum {
   gpr_rax = 0,
@@ -2063,11 +2060,9 @@ const size_t DNBArchImplX86_64::k_num_fpu_registers_avx512f =
 const size_t DNBArchImplX86_64::k_num_all_registers_avx512f =
     k_num_gpr_registers + k_num_fpu_registers_avx512f + k_num_exc_registers;
 
-//----------------------------------------------------------------------
 // Register set definitions. The first definitions at register set index
 // of zero is for all registers, followed by other registers sets. The
 // register information for the all register set need not be filled in.
-//----------------------------------------------------------------------
 const DNBRegisterSetInfo DNBArchImplX86_64::g_reg_sets_no_avx[] = {
     {"x86_64 Registers", NULL, k_num_all_registers_no_avx},
     {"General Purpose Registers", g_gpr_registers, k_num_gpr_registers},

@@ -1,9 +1,8 @@
 //===-- SWIG Interface for SBSourceManager ----------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -26,20 +25,19 @@ For example (from test/source-manager/TestSourceManager.py),
                                                      '=>', # prefix for current line
                                                      stream)
 
-        #    2    
+        #    2
         #    3    int main(int argc, char const *argv[]) {
         # => 4        printf('Hello world.\\n'); // Set break point at this line.
         #    5        return 0;
         #    6    }
         self.expect(stream.GetData(), 'Source code displayed correctly',
                     exe=False,
-            patterns = ['=> %d.*Hello world' % self.line])
-") SBSourceManager;
+            patterns = ['=> %d.*Hello world' % self.line])") SBSourceManager;
 class SBSourceManager
 {
 public:
     SBSourceManager (const lldb::SBSourceManager &rhs);
-    
+
     ~SBSourceManager();
 
     size_t

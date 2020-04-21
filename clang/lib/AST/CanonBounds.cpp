@@ -2,8 +2,9 @@
 //
 //                     The LLVM Compiler Infrastructure
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -36,8 +37,6 @@ namespace {
       case CK_ArrayToPointerDecay:
       case CK_FunctionToPointerDecay:
       case CK_NullToPointer:
-      case CK_AssumePtrBounds:
-      case CK_DynamicPtrBounds:
         return true;
       default:
         return false;
@@ -49,90 +48,6 @@ namespace {
       return T->getPointeeType()->isArrayType();
     else
       return false;
-  }
-  // Ignore operations that don't change runtime values: parens, some cast operations,
-  // array/function address-of and dereference operators, and address-of/dereference
-  // operators that cancel (&* and *&).
-  //
-  // The code for casts is adapted from Expr::IgnoreNoopCasts, which seems like doesn't
-  // do enough filtering (it'll ignore LValueToRValue casts for example).
-  // TODO: reconcile with CheckValuePreservingCast
-  static Expr *IgnoreValuePreservingOperations(ASTContext &Ctx, Expr *E) {
-    while (true) {
-      E = E->IgnoreParens();
-
-      if (CastExpr *P = dyn_cast<CastExpr>(E)) {
-        CastKind CK = P->getCastKind();
-        Expr *SE = P->getSubExpr();
-        if (IsValuePreserving(CK)) {
-          E = SE;
-          continue;
-        }
-
-        // Ignore integer <-> casts that are of the same width, ptr<->ptr
-        // and ptr<->int casts of the same width.
-        if (CK == CK_IntegralToPointer || CK == CK_PointerToIntegral ||
-            CK == CK_IntegralCast) {
-          if (Ctx.hasSameUnqualifiedType(E->getType(), SE->getType())) {
-            E = SE;
-            continue;
-          }
-
-          if ((E->getType()->isPointerType() ||
-                E->getType()->isIntegralType(Ctx)) &&
-                (SE->getType()->isPointerType() ||
-                SE->getType()->isIntegralType(Ctx)) &&
-              Ctx.getTypeSize(E->getType()) == Ctx.getTypeSize(SE->getType())) {
-            E = SE;
-            continue;
-          }
-        }
-      } else if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
-        QualType ETy = UO->getType();
-        Expr *SE = UO->getSubExpr();
-        QualType SETy = SE->getType();
-
-        UnaryOperator::Opcode Op = UO->getOpcode();
-        if (Op == UO_Deref) {
-          // This may be more conservative than necessary.
-          bool between_functions = ETy->isFunctionType() && SETy->isFunctionPointerType();
-          bool between_arrays = ETy->isArrayType() && isPointerToArrayType(SETy);
-          if (between_functions || between_arrays) {
-            E = SE;
-            continue;
-          }
-
-          // handle *&e, which reduces to e.
-          if (const UnaryOperator *Child =
-              dyn_cast<UnaryOperator>(SE->IgnoreParens())) {
-            if (Child->getOpcode() == UO_AddrOf) {
-              E = Child->getSubExpr();
-              continue;
-            }
-          }
-
-        } else if (Op == UO_AddrOf) {
-          // This may be more conservative than necessary.
-          bool between_functions = ETy->isFunctionPointerType() && SETy->isFunctionType();
-          bool between_arrays = isPointerToArrayType(ETy) && SETy->isArrayType();
-          if (between_functions || between_arrays) {
-            E = SE;
-            continue;
-          }
-
-          // handle &*e, which reduces to e.
-          if (const UnaryOperator *Child =
-              dyn_cast<UnaryOperator>(SE->IgnoreParens())) {
-            if (Child->getOpcode() == UO_Deref) {
-              E = Child->getSubExpr();
-              continue;
-            }
-          }
-        }
-      }
-
-      return E;
-    }
   }
 }
 
@@ -158,7 +73,8 @@ Result Lexicographic::CompareInteger(unsigned I1, unsigned I2) const {
     return Result::Equal;
 }
 
-static Result CompareAPInt(const llvm::APInt &I1, const llvm::APInt &I2) {
+Result Lexicographic::CompareAPInt(const llvm::APInt &I1,
+                                   const llvm::APInt &I2) const {
   if (I1.slt(I2))
     return Result::LessThan;
   else if (I1.eq(I2))
@@ -323,13 +239,25 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
 
   // The use of an expression temporary is equal to the
   // value of the binding expression.
-  if (BoundsValueExpr *BV1 = dyn_cast<BoundsValueExpr>(E1))
-    if (BV1->getTemporaryBinding() == E2)
+  if (BoundsValueExpr *BV1 = dyn_cast<BoundsValueExpr>(E1)) {
+    CHKCBindTemporaryExpr *Binding = BV1->getTemporaryBinding();
+    if (Binding == E2)
       return Result::Equal;
 
-  if (BoundsValueExpr *BV2 = dyn_cast<BoundsValueExpr>(E2))
-    if (BV2->getTemporaryBinding() == E1)
+    if (Binding)
+      if (CompareExpr(Binding->getSubExpr(), E2) == Result::Equal)
+        return Result::Equal;
+  }
+  
+  if (BoundsValueExpr *BV2 = dyn_cast<BoundsValueExpr>(E2)) {
+    CHKCBindTemporaryExpr *Binding = BV2->getTemporaryBinding();
+    if (Binding == E1)
       return Result::Equal;
+
+    if (Binding)
+      if (CompareExpr(Binding->getSubExpr(), E1) == Result::Equal)
+        return Result::Equal;
+  }
 
    // Compare expressions structurally, recursively invoking
    // comparison for subcomponents.  If that fails, consult
@@ -370,6 +298,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      case Expr::CompoundAssignOperatorClass:
        Cmp = Compare<CompoundAssignOperator>(E1, E2); break;
      case Expr::BinaryConditionalOperatorClass: break;
+     case Expr::ConditionalOperatorClass: break;
      case Expr::ImplicitCastExprClass: Cmp = Compare<CastExpr>(E1, E2); break;
      case Expr::CStyleCastExprClass: Cmp = Compare<CastExpr>(E1, E2); break;
      case Expr::CompoundLiteralExprClass: Cmp = Compare<CompoundLiteralExpr>(E1, E2); break;
@@ -395,7 +324,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      case Expr::PositionalParameterExprClass: Cmp = Compare<PositionalParameterExpr>(E1, E2); break;
      case Expr::BoundsCastExprClass: Cmp = Compare<BoundsCastExpr>(E1, E2); break;
      case Expr::BoundsValueExprClass: Cmp = Compare<BoundsValueExpr>(E1, E2); break;
-     // Binding of a tempoary to the result of an expression.  These are
+     // Binding of a temporary to the result of an expression.  These are
      // equal if their child expressions are equal.
      case Expr::CHKCBindTemporaryExprClass: break;
 
@@ -410,7 +339,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      // case Expr::MSPropertySubscriptExprClass:
 
      default:
-       llvm_unreachable("unexpected expression kind");         
+       llvm_unreachable("unexpected expression kind");
    }
 
    if (Cmp != Result::Equal)
@@ -446,8 +375,11 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
        // - Pointer arithmetic where the pointer referent types are the same
        //   size, checkedness is the same, and the integer types are the
        //    same size/signedness.
-       Cmp = CompareTypeIgnoreCheckedness(E1ChildExpr->getType(),
-                                          E2ChildExpr->getType());
+       
+       // Bounds expressions don't have types.
+       if (!isa<BoundsExpr>(E1ChildExpr))
+         Cmp = CompareTypeIgnoreCheckedness(E1ChildExpr->getType(), E2ChildExpr->getType());
+
        if (Cmp != Result::Equal)
          return CheckEquivExprs(Cmp, E1, E2);
      } else
@@ -484,8 +416,8 @@ Result Lexicographic::CheckEquivExprs(Result Current, const Expr *E1, const Expr
     bool LHSAppears = false;
     bool RHSAppears = false;
     // See if the LHS expression appears in the set.
-    SmallVector<Expr *, 4> *ExprList = *OuterList;
-    for (auto InnerList = ExprList->begin(); InnerList != ExprList->end(); ++InnerList) {
+    SmallVector<Expr *, 4> ExprList = *OuterList;
+    for (auto InnerList = ExprList.begin(); InnerList != ExprList.end(); ++InnerList) {
       if (SimpleComparer.CompareExpr(E1, *InnerList)  == Result::Equal) {
         LHSAppears = true;
         break;
@@ -495,7 +427,7 @@ Result Lexicographic::CheckEquivExprs(Result Current, const Expr *E1, const Expr
       continue;
 
     // See if the RHS expression appears in the set.
-    for (auto InnerList = ExprList->begin(); InnerList != ExprList->end(); ++InnerList) {
+    for (auto InnerList = ExprList.begin(); InnerList != ExprList.end(); ++InnerList) {
       if (SimpleComparer.CompareExpr(E2, *InnerList)  == Result::Equal) {
         RHSAppears = true;
         break;
@@ -660,11 +592,20 @@ Lexicographic::CompareImpl(const GenericSelectionExpr *E1,
   Result Cmp = CompareInteger(E1AssocCount, E2->getNumAssocs());
   if (Cmp != Result::Equal)
     return Cmp;
-  for (unsigned i = 0; i != E1AssocCount; ++i) {
-    Cmp = CompareType(E1->getAssocType(i), E2->getAssocType(i));
+
+  std::vector<QualType> E1AssocTypes;
+  std::vector<const Expr *> E1AssocExprs;
+  for (const auto &E1Assoc : E1->associations()) {
+    E1AssocTypes.push_back(E1Assoc.getType());
+    E1AssocExprs.push_back(E1Assoc.getAssociationExpr());
+  }
+
+  unsigned i = 0;
+  for (const auto &E2Assoc : E2->associations()) {
+    Cmp = CompareType(E1AssocTypes[i], E2Assoc.getType());
     if (Cmp != Result::Equal)
       return Cmp;
-    Cmp = CompareExpr(E1->getAssocExpr(i), E2->getAssocExpr(i));
+    Cmp = CompareExpr(E1AssocExprs[i], E2Assoc.getAssociationExpr());
     if (Cmp != Result::Equal)
       return Cmp;
     return Cmp;
@@ -754,9 +695,14 @@ Lexicographic::CompareImpl(const PositionalParameterExpr *E1,
 Result
 Lexicographic::CompareImpl(const BoundsCastExpr *E1,
                            const BoundsCastExpr *E2) {
-  Result Cmp = CompareExpr(E1->getBoundsExpr(), E2->getBoundsExpr());
+  Result Cmp = CompareInteger(E1->getCastKind(), E2->getCastKind());
   if (Cmp != Result::Equal)
     return Cmp;
+
+  Cmp = CompareExpr(E1->getBoundsExpr(), E2->getBoundsExpr());
+  if (Cmp != Result::Equal)
+    return Cmp;
+
   return CompareType(E1->getType(), E2->getType());
 }
 
@@ -796,4 +742,90 @@ Lexicographic::CompareImpl(const BoundsValueExpr *E1,
 Result
 Lexicographic::CompareImpl(const BlockExpr *E1, const BlockExpr *E2) {
   return Result::Equal;
+}
+
+// Ignore operations that don't change runtime values: parens, some cast operations,
+// array/function address-of and dereference operators, and address-of/dereference
+// operators that cancel (&* and *&).
+//
+// The code for casts is adapted from Expr::IgnoreNoopCasts, which seems like doesn't
+// do enough filtering (it'll ignore LValueToRValue casts for example).
+// TODO: reconcile with CheckValuePreservingCast
+Expr *Lexicographic::IgnoreValuePreservingOperations(ASTContext &Ctx,
+                                                     Expr *E) {
+  while (true) {
+    E = E->IgnoreParens();
+
+    if (CastExpr *P = dyn_cast<CastExpr>(E)) {
+      CastKind CK = P->getCastKind();
+      Expr *SE = P->getSubExpr();
+      if (IsValuePreserving(CK)) {
+        E = SE;
+        continue;
+      }
+
+      // Ignore integer <-> casts that are of the same width, ptr<->ptr
+      // and ptr<->int casts of the same width.
+      if (CK == CK_IntegralToPointer || CK == CK_PointerToIntegral ||
+          CK == CK_IntegralCast) {
+        if (Ctx.hasSameUnqualifiedType(E->getType(), SE->getType())) {
+          E = SE;
+          continue;
+        }
+
+        if ((E->getType()->isPointerType() ||
+              E->getType()->isIntegralType(Ctx)) &&
+              (SE->getType()->isPointerType() ||
+              SE->getType()->isIntegralType(Ctx)) &&
+            Ctx.getTypeSize(E->getType()) == Ctx.getTypeSize(SE->getType())) {
+          E = SE;
+          continue;
+        }
+      }
+    } else if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
+      QualType ETy = UO->getType();
+      Expr *SE = UO->getSubExpr();
+      QualType SETy = SE->getType();
+
+      UnaryOperator::Opcode Op = UO->getOpcode();
+      if (Op == UO_Deref) {
+        // This may be more conservative than necessary.
+        bool between_functions = ETy->isFunctionType() && SETy->isFunctionPointerType();
+        bool between_arrays = ETy->isArrayType() && isPointerToArrayType(SETy);
+        if (between_functions || between_arrays) {
+          E = SE;
+          continue;
+        }
+
+        // handle *&e, which reduces to e.
+        if (const UnaryOperator *Child =
+            dyn_cast<UnaryOperator>(SE->IgnoreParens())) {
+          if (Child->getOpcode() == UO_AddrOf) {
+            E = Child->getSubExpr();
+            continue;
+          }
+        }
+
+      } else if (Op == UO_AddrOf) {
+        // This may be more conservative than necessary.
+        bool between_functions = ETy->isFunctionPointerType() && SETy->isFunctionType();
+        bool between_arrays = isPointerToArrayType(ETy) && SETy->isArrayType();
+        if (between_functions || between_arrays) {
+          E = SE;
+          continue;
+        }
+
+        // handle &*e, which reduces to e.
+        if (const UnaryOperator *Child =
+            dyn_cast<UnaryOperator>(SE->IgnoreParens())) {
+          if (Child->getOpcode() == UO_Deref) {
+            E = Child->getSubExpr();
+            continue;
+          }
+        }
+      }
+    }
+
+    return E;
+  }
 }

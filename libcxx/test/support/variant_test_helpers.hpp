@@ -1,10 +1,9 @@
 // -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 #ifndef SUPPORT_VARIANT_TEST_HELPERS_HPP
@@ -22,6 +21,15 @@
 
 // FIXME: Currently the variant<T&> tests are disabled using this macro.
 #define TEST_VARIANT_HAS_NO_REFERENCES
+#ifdef _LIBCPP_ENABLE_NARROWING_CONVERSIONS_IN_VARIANT
+# define TEST_VARIANT_ALLOWS_NARROWING_CONVERSIONS
+#endif
+
+#ifdef TEST_VARIANT_ALLOWS_NARROWING_CONVERSIONS
+constexpr bool VariantAllowsNarrowingConversions = true;
+#else
+constexpr bool VariantAllowsNarrowingConversions = false;
+#endif
 
 #ifndef TEST_HAS_NO_EXCEPTIONS
 struct CopyThrows {

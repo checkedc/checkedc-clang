@@ -1,7 +1,8 @@
 //                     The LLVM Compiler Infrastructure
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // Implementation of ConstraintVariables methods.
@@ -53,7 +54,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
                                                      DeclaratorDecl *D, std::string N, Constraints &CS,
                                                      const ASTContext &C, bool partOfFunc) :
         ConstraintVariable(ConstraintVariable::PointerVariable,
-                           tyToStr(QT.getTypePtr()),N), partOFFuncPrototype(partOfFunc), FV(nullptr)
+                           tyToStr(QT.getTypePtr()),N), FV(nullptr), partOFFuncPrototype(partOfFunc)
 {
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();

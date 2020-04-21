@@ -1,9 +1,8 @@
 //===------ RegisterPasses.cpp - Add the Polly Passes to default passes  --===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -24,15 +23,11 @@
 #include "polly/CodeGen/CodeGeneration.h"
 #include "polly/CodeGen/CodegenCleanup.h"
 #include "polly/CodeGen/IslAst.h"
-#include "polly/CodeGen/PPCGCodeGeneration.h"
 #include "polly/CodePreparation.h"
-#include "polly/DeLICM.h"
 #include "polly/DependenceInfo.h"
-#include "polly/FlattenSchedule.h"
 #include "polly/ForwardOpTree.h"
 #include "polly/JSONExporter.h"
 #include "polly/LinkAllPasses.h"
-#include "polly/Options.h"
 #include "polly/PolyhedralInfo.h"
 #include "polly/ScopDetection.h"
 #include "polly/ScopInfo.h"
@@ -46,8 +41,6 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Vectorize.h"
 
 using namespace llvm;
 using namespace polly;
@@ -350,12 +343,9 @@ void registerPollyPasses(llvm::legacy::PassManagerBase &PM) {
     PM.add(polly::createPruneUnprofitablePass());
 
 #ifdef GPU_CODEGEN
-  if (Target == TARGET_HYBRID) {
+  if (Target == TARGET_HYBRID)
     PM.add(
         polly::createPPCGCodeGenerationPass(GPUArchChoice, GPURuntimeChoice));
-    PM.add(polly::createManagedMemoryRewritePassPass(GPUArchChoice,
-                                                     GPURuntimeChoice));
-  }
 #endif
   if (Target == TARGET_CPU || Target == TARGET_HYBRID)
     switch (Optimizer) {
@@ -387,6 +377,12 @@ void registerPollyPasses(llvm::legacy::PassManagerBase &PM) {
         polly::createPPCGCodeGenerationPass(GPUArchChoice, GPURuntimeChoice));
     PM.add(polly::createManagedMemoryRewritePassPass());
   }
+#endif
+
+#ifdef GPU_CODEGEN
+  if (Target == TARGET_HYBRID)
+    PM.add(polly::createManagedMemoryRewritePassPass(GPUArchChoice,
+                                                     GPURuntimeChoice));
 #endif
 
   // FIXME: This dummy ModulePass keeps some programs from miscompiling,

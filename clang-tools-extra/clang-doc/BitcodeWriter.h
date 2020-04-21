@@ -1,9 +1,8 @@
 //===--  BitcodeWriter.h - ClangDoc Bitcode Writer --------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -21,7 +20,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Bitcode/BitstreamWriter.h"
+#include "llvm/Bitstream/BitstreamWriter.h"
 #include <initializer_list>
 #include <vector>
 
@@ -45,7 +44,7 @@ struct BitCodeConstants {
   static constexpr unsigned ReferenceTypeSize = 8U;
   static constexpr unsigned USRLengthSize = 6U;
   static constexpr unsigned USRBitLengthSize = 8U;
-  static constexpr char Signature[4] = {'D', 'O', 'C', 'S'};
+  static constexpr unsigned char Signature[4] = {'D', 'O', 'C', 'S'};
   static constexpr int USRHashSize = 20;
 };
 
@@ -92,6 +91,7 @@ enum RecordId {
   MEMBER_TYPE_ACCESS,
   NAMESPACE_USR,
   NAMESPACE_NAME,
+  NAMESPACE_PATH,
   ENUM_USR,
   ENUM_NAME,
   ENUM_DEFLOCATION,
@@ -100,12 +100,15 @@ enum RecordId {
   ENUM_SCOPED,
   RECORD_USR,
   RECORD_NAME,
+  RECORD_PATH,
   RECORD_DEFLOCATION,
   RECORD_LOCATION,
   RECORD_TAG_TYPE,
+  RECORD_IS_TYPE_DEF,
   REFERENCE_USR,
   REFERENCE_NAME,
   REFERENCE_TYPE,
+  REFERENCE_PATH,
   REFERENCE_FIELD,
   RI_LAST,
   RI_FIRST = VERSION

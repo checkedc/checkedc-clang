@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 %s -Wno-openmp-target -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 %s -Wno-openmp-target -Wuninitialized
 
 void foo() {
 }
@@ -61,7 +61,7 @@ T tmain(T argc) {
   T &j = i;
   T *k = &j;
   T x;
-  T y;
+  T y, z;
   T to, tofrom, always;
   const T (&l)[5] = da;
 
@@ -86,7 +86,9 @@ T tmain(T argc) {
   foo();
 #pragma omp target parallel map(l[:-1]) // expected-error 2 {{section length is evaluated to a negative value -1}}
   foo();
-#pragma omp target parallel map(x)
+#pragma omp target parallel map(l[true:true])
+  foo();
+#pragma omp target parallel map(x, z)
   foo();
 #pragma omp target parallel map(tofrom: t[:I])
   foo();
@@ -163,7 +165,7 @@ T tmain(T argc) {
   foo();
 #pragma omp target parallel map(always: x) // expected-error {{missing map type}}
   foo();
-#pragma omp target parallel map(tofrom, always: x) // expected-error {{incorrect map type modifier, expected 'always' or 'close'}} expected-error {{missing map type}}
+#pragma omp target parallel map(tofrom, always: x) // expected-error {{incorrect map type modifier, expected 'always', 'close', or 'mapper'}} expected-error {{missing map type}}
   foo();
 #pragma omp target parallel map(always, tofrom: always, tofrom, x)
   foo();
@@ -204,6 +206,8 @@ int main(int argc, char **argv) {
 #pragma omp target parallel map(l[-1:]) // expected-error {{array section must be a subset of the original array}}
   foo();
 #pragma omp target parallel map(l[:-1]) // expected-error {{section length is evaluated to a negative value -1}}
+  foo();
+#pragma omp target parallel map(l[true:true])
   foo();
 #pragma omp target parallel map(x)
   foo();
@@ -270,7 +274,7 @@ int main(int argc, char **argv) {
   foo();
 #pragma omp target parallel map(always: x) // expected-error {{missing map type}}
   foo();
-#pragma omp target parallel map(tofrom, always: x) // expected-error {{incorrect map type modifier, expected 'always' or 'close'}} expected-error {{missing map type}}
+#pragma omp target parallel map(tofrom, always: x) // expected-error {{incorrect map type modifier, expected 'always', 'close', or 'mapper'}} expected-error {{missing map type}}
   foo();
 #pragma omp target parallel map(always, tofrom: always, tofrom, x)
   foo();

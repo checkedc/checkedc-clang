@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,9 +28,7 @@ class A
 public:
 
     A() {}
-#if TEST_STD_VER >= 11
     A(A&&) {}
-#endif
 };
 
 struct legacy
@@ -40,7 +37,7 @@ struct legacy
     legacy(const legacy&);
 };
 
-int main()
+int main(int, char**)
 {
     int i = 0;
     const int ci = 0;
@@ -56,9 +53,7 @@ int main()
     static_assert((std::is_same<decltype(std::move_if_noexcept(ca)), const A&&>::value), "");
     static_assert((std::is_same<decltype(std::move_if_noexcept(l)), const legacy&>::value), "");
 #else  // C++ < 11
-    // In C++03 libc++ #define's decltype to be __decltype on clang and
-    // __typeof__ for other compilers. __typeof__ does not deduce the reference
-    // qualifiers and will cause this test to fail.
+    // In C++03 we don't have noexcept so we can never move :-(
     static_assert((std::is_same<decltype(std::move_if_noexcept(i)), const int&>::value), "");
     static_assert((std::is_same<decltype(std::move_if_noexcept(ci)), const int&>::value), "");
     static_assert((std::is_same<decltype(std::move_if_noexcept(a)), const A&>::value), "");
@@ -72,4 +67,6 @@ int main()
     static_assert(i2 == 23, "" );
 #endif
 
+
+  return 0;
 }

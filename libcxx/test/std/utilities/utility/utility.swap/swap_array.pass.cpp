@@ -1,9 +1,8 @@
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -54,8 +53,22 @@ constexpr bool can_swap() {
 }
 #endif
 
+#if TEST_STD_VER > 17
+constexpr bool test_swap_constexpr()
+{
+    int i[3] = {1, 2, 3};
+    int j[3] = {4, 5, 6};
+    std::swap(i, j);
+    return i[0] == 4 &&
+           i[1] == 5 &&
+           i[2] == 6 &&
+           j[0] == 1 &&
+           j[1] == 2 &&
+           j[2] == 3;
+}
+#endif // TEST_STD_VER > 17
 
-int main()
+int main(int, char**)
 {
     {
         int i[3] = {1, 2, 3};
@@ -98,4 +111,10 @@ int main()
         static_assert(noexcept(std::swap(ma, ma)), "");
     }
 #endif
+
+#if TEST_STD_VER > 17
+    static_assert(test_swap_constexpr());
+#endif // TEST_STD_VER > 17
+
+  return 0;
 }

@@ -1,9 +1,8 @@
 //===- ScopDetection.h - Detect Scops ---------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -49,46 +48,16 @@
 
 #include "polly/ScopDetectionDiagnostic.h"
 #include "polly/Support/ScopHelper.h"
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AliasSetTracker.h"
 #include "llvm/Analysis/RegionInfo.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Pass.h"
-#include <algorithm>
-#include <map>
-#include <memory>
 #include <set>
-#include <string>
-#include <utility>
-#include <vector>
 
 using namespace llvm;
 
 namespace llvm {
-
-class BasicBlock;
-class BranchInst;
-class CallInst;
-class DebugLoc;
-class DominatorTree;
-class Function;
-class Instruction;
-class IntrinsicInst;
-class Loop;
-class LoopInfo;
-class OptimizationRemarkEmitter;
-class PassRegistry;
-class raw_ostream;
-class ScalarEvolution;
-class SCEV;
-class SCEVUnknown;
-class SwitchInst;
-class Value;
-
 void initializeScopDetectionWrapperPassPass(PassRegistry &);
 } // namespace llvm
 

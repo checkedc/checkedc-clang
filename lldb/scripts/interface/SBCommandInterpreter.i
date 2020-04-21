@@ -1,9 +1,8 @@
 //===-- SWIG Interface for SBCommandInterpreter -----------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -18,7 +17,6 @@ A default SBCommandInterpreterRunOptions object has:
     EchoCommands:   true
     PrintResults:   true
     AddToHistory:   true
-
 
 ") SBCommandInterpreterRunOptions;
 class SBCommandInterpreterRunOptions
@@ -116,8 +114,7 @@ python_api/interpreter/TestCommandInterpreterAPI.py),
 
 The HandleCommand() instance method takes two args: the command string and
 an SBCommandReturnObject instance which encapsulates the result of command
-execution.
-") SBCommandInterpreter;
+execution.") SBCommandInterpreter;
 class SBCommandInterpreter
 {
 public:
@@ -145,6 +142,8 @@ public:
 
     bool
     IsValid() const;
+
+    explicit operator bool() const;
 
     const char *
     GetIOHandlerControlSequence(char ch);

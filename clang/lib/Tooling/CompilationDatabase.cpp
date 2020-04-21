@@ -1,9 +1,8 @@
 //===- CompilationDatabase.cpp --------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -278,7 +277,8 @@ static bool stripPositionalArgs(std::vector<const char *> Args,
 
   // This becomes the new argv[0]. The value is used to detect libc++ include
   // dirs on Mac, it isn't used for other platforms.
-  Args.insert(Args.begin(), GetClangToolCommand().c_str());
+  std::string Argv0 = GetClangToolCommand();
+  Args.insert(Args.begin(), Argv0.c_str());
 
   // By adding -c, we force the driver to treat compilation as the last phase.
   // It will then issue warnings via Diagnostics about un-used options that

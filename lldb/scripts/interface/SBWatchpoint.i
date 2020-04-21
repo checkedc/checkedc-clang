@@ -1,9 +1,8 @@
 //===-- SWIG Interface for SBWatchpoint -----------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -31,6 +30,12 @@ public:
     bool
     IsValid();
 
+    explicit operator bool() const;
+
+    bool operator==(const SBWatchpoint &rhs) const;
+
+    bool operator!=(const SBWatchpoint &rhs) const;
+
     SBError
     GetError();
 
@@ -38,10 +43,7 @@ public:
     GetID ();
 
     %feature("docstring", "
-    //------------------------------------------------------------------
-    /// With -1 representing an invalid hardware index.
-    //------------------------------------------------------------------
-    ") GetHardwareIndex;
+    With -1 representing an invalid hardware index.") GetHardwareIndex;
     int32_t
     GetHardwareIndex ();
 
@@ -67,27 +69,21 @@ public:
     SetIgnoreCount (uint32_t n);
 
     %feature("docstring", "
-    //------------------------------------------------------------------
-    /// Get the condition expression for the watchpoint.
-    //------------------------------------------------------------------
-    ") GetCondition;
+    Get the condition expression for the watchpoint.") GetCondition;
     const char *
     GetCondition ();
 
     %feature("docstring", "
-    //--------------------------------------------------------------------------
-    /// The watchpoint stops only if the condition expression evaluates to true.
-    //--------------------------------------------------------------------------
-    ") SetCondition;
-    void 
+    The watchpoint stops only if the condition expression evaluates to true.") SetCondition;
+    void
     SetCondition (const char *condition);
-    
+
     bool
     GetDescription (lldb::SBStream &description, DescriptionLevel level);
 
     static bool
     EventIsWatchpointEvent (const lldb::SBEvent &event);
-    
+
     static lldb::WatchpointEventType
     GetWatchpointEventTypeFromEvent (const lldb::SBEvent& event);
 

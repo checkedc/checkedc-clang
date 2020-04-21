@@ -39,7 +39,7 @@ add_clang_tool(clang
   ${tablegen_deps}
   )
 
-target_link_libraries(clang
+clang_target_link_libraries(clang
   PRIVATE
   clangBasic
   clangCodeGen
@@ -60,7 +60,7 @@ if(CLANG_PLUGIN_SUPPORT)
   export_executable_symbols(clang)
 endif()
 
-add_dependencies(clang clang-headers)
+add_dependencies(clang clang-resource-headers)
 
 if (CHECKEDC_IN_TREE)
   add_dependencies(clang checkedc-headers)

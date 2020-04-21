@@ -1,9 +1,8 @@
 //===------ Support/ScopHelper.h -- Some Helper Functions for Scop. -------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -14,13 +13,10 @@
 #ifndef POLLY_SUPPORT_IRHELPER_H
 #define POLLY_SUPPORT_IRHELPER_H
 
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/ValueHandle.h"
-#include <tuple>
-#include <vector>
 
 namespace llvm {
 class LoopInfo;
@@ -31,7 +27,7 @@ class Region;
 class Pass;
 class DominatorTree;
 class RegionInfo;
-class GetElementPtrInst;
+class RegionNode;
 } // namespace llvm
 
 namespace polly {
@@ -383,6 +379,27 @@ bool isErrorBlock(llvm::BasicBlock &BB, const llvm::Region &R,
 ///
 /// @return The condition of @p TI and nullptr if none could be extracted.
 llvm::Value *getConditionFromTerminator(llvm::Instruction *TI);
+
+/// Get the smallest loop that contains @p S but is not in @p S.
+llvm::Loop *getLoopSurroundingScop(Scop &S, llvm::LoopInfo &LI);
+
+/// Get the number of blocks in @p L.
+///
+/// The number of blocks in a loop are the number of basic blocks actually
+/// belonging to the loop, as well as all single basic blocks that the loop
+/// exits to and which terminate in an unreachable instruction. We do not
+/// allow such basic blocks in the exit of a scop, hence they belong to the
+/// scop and represent run-time conditions which we want to model and
+/// subsequently speculate away.
+///
+/// @see getRegionNodeLoop for additional details.
+unsigned getNumBlocksInLoop(llvm::Loop *L);
+
+/// Get the number of blocks in @p RN.
+unsigned getNumBlocksInRegionNode(llvm::RegionNode *RN);
+
+/// Return the smallest loop surrounding @p RN.
+llvm::Loop *getRegionNodeLoop(llvm::RegionNode *RN, llvm::LoopInfo &LI);
 
 /// Check if @p LInst can be hoisted in @p R.
 ///

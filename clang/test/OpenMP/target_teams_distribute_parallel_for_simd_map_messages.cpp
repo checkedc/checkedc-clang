@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 %s -Wno-openmp-target -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 %s -Wno-openmp-target
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 %s -Wno-openmp-target -Wuninitialized
 
 void foo() {
 }
@@ -61,7 +61,7 @@ T tmain(T argc) {
   T &j = i;
   T *k = &j;
   T x;
-  T y;
+  T y, z;
   T to, tofrom, always;
   const T (&l)[5] = da;
 
@@ -86,7 +86,9 @@ T tmain(T argc) {
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for simd map(l[:-1]) // expected-error 2 {{section length is evaluated to a negative value -1}}
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for simd map(x)
+#pragma omp target teams distribute parallel for simd map(l[true:true])
+  for (i = 0; i < argc; ++i) foo();
+#pragma omp target teams distribute parallel for simd map(x, z)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for simd map(tofrom: t[:I])
   for (i = 0; i < argc; ++i) foo();
@@ -163,7 +165,7 @@ T tmain(T argc) {
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for simd map(always: x) // expected-error {{missing map type}}
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for simd map(tofrom, always: x) // expected-error {{incorrect map type modifier, expected 'always' or 'close'}} expected-error {{missing map type}}
+#pragma omp target teams distribute parallel for simd map(tofrom, always: x) // expected-error {{incorrect map type modifier, expected 'always', 'close', or 'mapper'}} expected-error {{missing map type}}
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for simd map(always, tofrom: always, tofrom, x)
   for (i = 0; i < argc; ++i) foo();
@@ -182,7 +184,7 @@ int main(int argc, char **argv) {
   int &j = i;
   int *k = &j;
   int x;
-  int y;
+  int y, z;
   int to, tofrom, always;
   const int (&l)[5] = da;
 
@@ -206,6 +208,8 @@ int main(int argc, char **argv) {
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for simd map(l[:-1]) // expected-error {{section length is evaluated to a negative value -1}}
   for (i = 0; i < argc; ++i) foo();
+#pragma omp target teams distribute parallel for simd map(l[true:true])
+  for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for simd map(x)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for simd map(to: x)
@@ -214,7 +218,7 @@ int main(int argc, char **argv) {
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for simd map(to)
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for simd map(to, x)
+#pragma omp target teams distribute parallel for simd map(to, x, z)
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for simd map(to x) // expected-error {{expected ',' or ')' in 'map' clause}}
   for (i = 0; i < argc; ++i) foo();
@@ -271,7 +275,7 @@ int main(int argc, char **argv) {
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for simd map(always: x) // expected-error {{missing map type}}
   for (i = 0; i < argc; ++i) foo();
-#pragma omp target teams distribute parallel for simd map(tofrom, always: x) // expected-error {{incorrect map type modifier, expected 'always' or 'close'}} expected-error {{missing map type}}
+#pragma omp target teams distribute parallel for simd map(tofrom, always: x) // expected-error {{incorrect map type modifier, expected 'always', 'close', or 'mapper'}} expected-error {{missing map type}}
   for (i = 0; i < argc; ++i) foo();
 #pragma omp target teams distribute parallel for simd map(always, tofrom: always, tofrom, x)
   for (i = 0; i < argc; ++i) foo();

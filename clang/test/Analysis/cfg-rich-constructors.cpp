@@ -459,7 +459,7 @@ namespace temporary_object_expr_without_dtors {
 // TODO: Should provide construction context for the constructor,
 // even if there is no specific trigger statement here.
 // CHECK: void simpleTemporary()
-// CHECK           1: C() (CXXConstructExpr, class C)
+// CHECK:          1: C() (CXXConstructExpr, class C)
 void simpleTemporary() {
   C();
 }
@@ -1043,3 +1043,23 @@ void testCrashOnVariadicArgument() {
   C c(variadic(0 ? c : 0)); // no-crash
 }
 } // namespace variadic_function_arguments
+
+// CHECK: void testTransparentInitListExprs()
+// CHECK:        [B1]
+// CHECK-NEXT:     1: getC
+// CHECK-NEXT:     2: [B1.1] (ImplicitCastExpr, FunctionToPointerDecay, class transparent_init_list_exprs::C (*)(void))
+// CXX11-ELIDE-NEXT:     3: [B1.2]() (CXXRecordTypedCall, [B1.4], [B1.5])
+// CXX11-NOELIDE-NEXT:     3: [B1.2]() (CXXRecordTypedCall, [B1.4])
+// CXX11-NEXT:     4: [B1.3]
+// CXX11-NEXT:     5: {[B1.4]} (CXXConstructExpr, [B1.6], class transparent_init_list_exprs::C)
+// CXX11-NEXT:     6: transparent_init_list_exprs::C c{getC()};
+// CXX17-NEXT:     3: [B1.2]() (CXXRecordTypedCall, [B1.5])
+// CXX17-NEXT:     4: {[B1.3]}
+// CXX17-NEXT:     5: transparent_init_list_exprs::C c{getC()};
+namespace transparent_init_list_exprs {
+class C {};
+C getC();
+void testTransparentInitListExprs() {
+  C c{getC()};
+}
+} // namespace transparent_init_list_exprs

@@ -1,9 +1,8 @@
 //===-- main.cpp ------------------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -30,7 +29,6 @@
 
 using namespace lldb;
 
-//----------------------------------------------------------------------
 // This quick sample code shows how to create a debugger instance and
 // create an executable target without adding dependent shared
 // libraries. It will then set a regular expression breakpoint to get
@@ -48,7 +46,6 @@ using namespace lldb;
 //
 //    $ DYLD_FRAMEWORK_PATH=/Volumes/data/lldb/tot/build/Debug ./a.out
 //    executable_path1 [executable_path2 ...]
-//----------------------------------------------------------------------
 class LLDBSentry {
 public:
   LLDBSentry() {

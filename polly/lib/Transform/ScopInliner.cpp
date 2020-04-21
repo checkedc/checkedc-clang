@@ -1,9 +1,8 @@
 //===---- ScopInliner.cpp - Polyhedral based inliner ----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-/// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -15,10 +14,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "polly/LinkAllPasses.h"
-#include "polly/RegisterPasses.h"
 #include "polly/ScopDetection.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
-#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
@@ -85,6 +82,7 @@ public:
 
       ModuleAnalysisManager MAM;
       PB.registerModuleAnalyses(MAM);
+      MAM.registerPass([&] { return FunctionAnalysisManagerModuleProxy(FAM); });
       ModulePassManager MPM;
       MPM.addPass(AlwaysInlinerPass());
       Module *M = F->getParent();

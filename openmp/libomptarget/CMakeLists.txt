@@ -1,9 +1,8 @@
 ##===----------------------------------------------------------------------===##
 # 
-#                     The LLVM Compiler Infrastructure
-#
-# This file is dual licensed under the MIT and the University of Illinois Open
-# Source Licenses. See LICENSE.txt for details.
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # 
 ##===----------------------------------------------------------------------===##
 #
@@ -41,13 +40,17 @@ set (LIBOMPTARGET_ALL_TARGETS "${LIBOMPTARGET_ALL_TARGETS} nvptx64-nvidia-cuda")
 # the list of supported targets in the current system.
 set (LIBOMPTARGET_SYSTEM_TARGETS "")
 
-# If building this library in debug mode, we define a macro to enable
-# dumping progress messages at runtime.
+# Check whether using debug mode. In debug mode, allow dumping progress
+# messages at runtime by default. Otherwise, it can be enabled
+# independently using the LIBOMPTARGET_ENABLE_DEBUG option.
 string( TOLOWER "${CMAKE_BUILD_TYPE}" LIBOMPTARGET_CMAKE_BUILD_TYPE)
 if(LIBOMPTARGET_CMAKE_BUILD_TYPE MATCHES debug)
+  option(LIBOMPTARGET_ENABLE_DEBUG "Allow debug output with the environment variable LIBOMPTARGET_DEBUG=1" ON)
+else()
+  option(LIBOMPTARGET_ENABLE_DEBUG "Allow debug output with the environment variable LIBOMPTARGET_DEBUG=1" OFF)
+endif()
+if(LIBOMPTARGET_ENABLE_DEBUG)
   add_definitions(-DOMPTARGET_DEBUG)
-  add_definitions(-g)
-  add_definitions(-O0)
 endif()
 
 include_directories(include)

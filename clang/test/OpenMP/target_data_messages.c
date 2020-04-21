@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify -fopenmp -ferror-limit 100 -o - %s
+// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify -fopenmp -ferror-limit 100 -o - %s -Wuninitialized
 
-// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify -fopenmp-simd -ferror-limit 100 -o - %s
+// RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -verify -fopenmp-simd -ferror-limit 100 -o - %s -Wuninitialized
 
 void foo() { }
 
@@ -10,7 +10,7 @@ int main(int argc, char **argv) {
   {}
   L1:
     foo();
-  #pragma omp target data map(a)
+  #pragma omp target data map(a) allocate(a) // expected-error {{unexpected OpenMP clause 'allocate' in directive '#pragma omp target data'}}
   {
     foo();
     goto L1; // expected-error {{use of undeclared label 'L1'}}

@@ -1,7 +1,7 @@
-# Instructions for updating to the latest LLVM/clang sources
+# Instructions for updating to the latest LLVM/Clang sources
 
-We are staying in sync with the LLVM/clang mainline sources.   The baseline branch is a pristine copy of
-LLVM/clang sources.  We periodically update the baseline branch and then push the changes to other branches
+We are staying in sync with the LLVM/Clang mainline sources.   The baseline branch is a pristine copy of
+LLVM/Clang sources.  We periodically update the baseline branch and then push the changes to other branches.
 
 The first step is to create updated baseline branches:
 1. Create new branches of your local baseline branches (we suggest creating new
@@ -20,39 +20,16 @@ The third step is to merge your changes back into your baseline and master branc
 
 ## Create updated branches of your baseline branches
 
-First create remotes to the mirrored GitHub repos that contain the updated sources
-for LLVM and clang. Go to your LLVM repo and do:
+First create remote to the mirrored GitHub repo that contains the updated sources
+for LLVM/Clang. Go to your LLVM/Clang repo and do:
 
-	git remote add mirror https://github.com/llvm-mirror/llvm
+    git remote add mirror https://github.com/llvm-mirror/llvm-project
 
 Then branch your baseline branch and merge changes into it:
 
     git checkout baseline
     git checkout -b updated-baseline
     git pull mirror master
-
-Repeat the process for your clang repo:
-
-	git remote add mirror https://github.com/llvm-mirror/clang
-    git checkout baseline
-    git checkout -b updated-baseline
-    git pull mirror master
-
-## Ensure the clang and LLVM sources are synchronized
-
-LLVM has unified its projects into one repo.  However, we have not migrated our
-repos into one repo yet.   This means that our sources are being
-pulled from partial mirrors of a unifed repo.   You need to make sure that the
-changes are in sync. The pace of commits is fast enough that a change that
-causes a build break could be introduced between syncing.
-
-
-While the LLVM ecosystem is migrating, you can look at the SVN IDs in the
-upstream git repo commits to see if you've gotten out-of-sync.  If the 
-changes are not very close, for each of your branched baselines
-)updated-baseline in the above example), use
-
-	git reset --hard commit-number,  where commit-number is the Git commit.
 
 ## Run testing on your branched baseline branches.
 
@@ -68,14 +45,14 @@ that first.
 
 You can now branch your baseline branches to create a new master branch:
 
-	git checkout -b updated-master
+    git checkout -b updated-master
     git merge master
 
 You will very likely have merge conflicts and some test failures.  The test
 failures usually stem from incorrect merges or Checked C-specific data not being
 initialized by new or changed constructor methods.
 
-You may also need to pick up changes from LLVM/clang for fixes to any unexpected
+You may also need to pick up changes from LLVM/Clang for fixes to any unexpected
 baseline failures.
 
 You can push your updated master branches up to GitHub for automated

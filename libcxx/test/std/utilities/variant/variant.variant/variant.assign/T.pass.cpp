@@ -1,22 +1,15 @@
 // -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is dual licensed under the MIT and the University of Illinois Open
-// Source Licenses. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++98, c++03, c++11, c++14
 
-// XFAIL: availability=macosx10.13
-// XFAIL: availability=macosx10.12
-// XFAIL: availability=macosx10.11
-// XFAIL: availability=macosx10.10
-// XFAIL: availability=macosx10.9
-// XFAIL: availability=macosx10.8
-// XFAIL: availability=macosx10.7
+// XFAIL: dylib-has-no-bad_variant_access && !libcpp-no-exceptions
 
 // <variant>
 
@@ -29,6 +22,7 @@
 #include <string>
 #include <type_traits>
 #include <variant>
+#include <memory>
 
 #include "test_macros.h"
 #include "variant_test_helpers.hpp"
@@ -129,7 +123,7 @@ void test_T_assignment_noexcept() {
 
 void test_T_assignment_sfinae() {
   {
-    using V = std::variant<long, unsigned>;
+    using V = std::variant<long, long long>;
     static_assert(!std::is_assignable<V, int>::value, "ambiguous");
   }
   {
@@ -139,6 +133,32 @@ void test_T_assignment_sfinae() {
   {
     using V = std::variant<std::string, void *>;
     static_assert(!std::is_assignable<V, int>::value, "no matching operator=");
+  }
+  {
+    using V = std::variant<std::string, float>;
+    static_assert(std::is_assignable<V, int>::value == VariantAllowsNarrowingConversions,
+    "no matching operator=");
+  }
+  {
+    using V = std::variant<std::unique_ptr<int>, bool>;
+    static_assert(!std::is_assignable<V, std::unique_ptr<char>>::value,
+                  "no explicit bool in operator=");
+    struct X {
+      operator void*();
+    };
+    static_assert(!std::is_assignable<V, X>::value,
+                  "no boolean conversion in operator=");
+    static_assert(!std::is_assignable<V, std::false_type>::value,
+                  "no converted to bool in operator=");
+  }
+  {
+    struct X {};
+    struct Y {
+      operator X();
+    };
+    using V = std::variant<X>;
+    static_assert(std::is_assignable<V, Y>::value,
+                  "regression on user-defined conversions in operator=");
   }
 #if !defined(TEST_VARIANT_HAS_NO_REFERENCES)
   {
@@ -167,6 +187,39 @@ void test_T_assignment_basic() {
     v = 43l;
     assert(v.index() == 1);
     assert(std::get<1>(v) == 43);
+  }
+#ifndef TEST_VARIANT_ALLOWS_NARROWING_CONVERSIONS
+  {
+    std::variant<unsigned, long> v;
+    v = 42;
+    assert(v.index() == 1);
+    assert(std::get<1>(v) == 42);
+    v = 43u;
+    assert(v.index() == 0);
+    assert(std::get<0>(v) == 43);
+  }
+#endif
+  {
+    std::variant<std::string, bool> v = true;
+    v = "bar";
+    assert(v.index() == 0);
+    assert(std::get<0>(v) == "bar");
+  }
+  {
+    std::variant<bool, std::unique_ptr<int>> v;
+    v = nullptr;
+    assert(v.index() == 1);
+    assert(std::get<1>(v) == nullptr);
+  }
+  {
+    std::variant<bool volatile, int> v = 42;
+    v = false;
+    assert(v.index() == 0);
+    assert(!std::get<0>(v));
+    bool lvt = true;
+    v = lvt;
+    assert(v.index() == 0);
+    assert(std::get<0>(v));
   }
 #if !defined(TEST_VARIANT_HAS_NO_REFERENCES)
   {
@@ -255,10 +308,12 @@ void test_T_assignment_performs_assignment() {
 #endif // TEST_HAS_NO_EXCEPTIONS
 }
 
-int main() {
+int main(int, char**) {
   test_T_assignment_basic();
   test_T_assignment_performs_construction();
   test_T_assignment_performs_assignment();
   test_T_assignment_noexcept();
   test_T_assignment_sfinae();
+
+  return 0;
 }

@@ -1,9 +1,8 @@
 //===- lldb-test.cpp ------------------------------------------ *- C++ --*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -313,7 +312,7 @@ int opts::breakpoint::evaluateBreakpoints(Debugger &Dbg) {
   while (!Rest.empty()) {
     StringRef Line;
     std::tie(Line, Rest) = Rest.split('\n');
-    Line = Line.ltrim();
+    Line = Line.ltrim().rtrim();
     if (Line.empty() || Line[0] == '#')
       continue;
 
@@ -365,8 +364,10 @@ Error opts::symbols::findFunctions(lldb_private::Module &Module) {
       cu_sp->FindLineEntry(0, Line, &src_file, false, &le);
       if (!le.IsValid())
         continue;
-
-      auto addr = le.GetSameLineContiguousAddressRange().GetBaseAddress();
+      const bool include_inlined_functions = false;
+      auto addr =
+          le.GetSameLineContiguousAddressRange(include_inlined_functions)
+              .GetBaseAddress();
       if (!addr.IsValid())
         continue;
 
@@ -415,8 +416,9 @@ Error opts::symbols::findBlocks(lldb_private::Module &Module) {
     cu_sp->FindLineEntry(0, Line, &src_file, false, &le);
     if (!le.IsValid())
       continue;
-
-    auto addr = le.GetSameLineContiguousAddressRange().GetBaseAddress();
+    const bool include_inlined_functions = false;
+    auto addr = le.GetSameLineContiguousAddressRange(include_inlined_functions)
+                    .GetBaseAddress();
     if (!addr.IsValid())
       continue;
 
@@ -737,7 +739,7 @@ static void dumpSectionList(LinePrinter &Printer, const SectionList &List, bool 
     Printer.formatLine("File size: {0}", S->GetFileSize());
 
     if (opts::object::SectionContents) {
-      DataExtractor Data;
+      lldb_private::DataExtractor Data;
       S->GetSectionData(Data);
       ArrayRef<uint8_t> Bytes = {Data.GetDataStart(), Data.GetDataEnd()};
       Printer.formatBinary("Data: ", Bytes, 0);
@@ -937,7 +939,7 @@ int opts::irmemorymap::evaluateMemoryMapCommands(Debugger &Dbg) {
   while (!Rest.empty()) {
     StringRef Line;
     std::tie(Line, Rest) = Rest.split('\n');
-    Line = Line.ltrim();
+    Line = Line.ltrim().rtrim();
 
     if (Line.empty() || Line[0] == '#')
       continue;
@@ -964,7 +966,7 @@ int main(int argc, const char *argv[]) {
 
   SystemLifetimeManager DebuggerLifetime;
   if (auto e = DebuggerLifetime.Initialize(
-          llvm::make_unique<SystemInitializerTest>(), {}, nullptr)) {
+          llvm::make_unique<SystemInitializerTest>(), nullptr)) {
     WithColor::error() << "initialization failed: " << toString(std::move(e))
                        << '\n';
     return 1;
@@ -973,6 +975,7 @@ int main(int argc, const char *argv[]) {
   CleanUp TerminateDebugger([&] { DebuggerLifetime.Terminate(); });
 
   auto Dbg = lldb_private::Debugger::CreateInstance();
+  ModuleList::GetGlobalModuleListProperties().SetEnableExternalLookup(false);
 
   if (!opts::Log.empty())
     Dbg->EnableLog("lldb", {"all"}, opts::Log, 0, errs());

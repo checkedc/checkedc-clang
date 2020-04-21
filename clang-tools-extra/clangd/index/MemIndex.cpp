@@ -1,9 +1,8 @@
 //===--- MemIndex.cpp - Dynamic in-memory symbol index. ----------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===-------------------------------------------------------------------===//
 
@@ -12,16 +11,18 @@
 #include "Logger.h"
 #include "Quality.h"
 #include "Trace.h"
+#include "clang/Index/IndexSymbol.h"
 
 namespace clang {
 namespace clangd {
 
-std::unique_ptr<SymbolIndex> MemIndex::build(SymbolSlab Slab, RefSlab Refs) {
+std::unique_ptr<SymbolIndex> MemIndex::build(SymbolSlab Slab, RefSlab Refs,
+                                             RelationSlab Relations) {
   // Store Slab size before it is moved.
   const auto BackingDataSize = Slab.bytes() + Refs.bytes();
   auto Data = std::make_pair(std::move(Slab), std::move(Refs));
-  return llvm::make_unique<MemIndex>(Data.first, Data.second, std::move(Data),
-                                     BackingDataSize);
+  return llvm::make_unique<MemIndex>(Data.first, Data.second, Relations,
+                                     std::move(Data), BackingDataSize);
 }
 
 bool MemIndex::fuzzyFind(
@@ -84,8 +85,29 @@ void MemIndex::refs(const RefsRequest &Req,
   }
 }
 
+void MemIndex::relations(
+    const RelationsRequest &Req,
+    llvm::function_ref<void(const SymbolID &, const Symbol &)> Callback) const {
+  uint32_t Remaining =
+      Req.Limit.getValueOr(std::numeric_limits<uint32_t>::max());
+  for (const SymbolID &Subject : Req.Subjects) {
+    LookupRequest LookupReq;
+    auto It = Relations.find(std::make_pair(Subject, Req.Predicate));
+    if (It != Relations.end()) {
+      for (const auto &Obj : It->second) {
+        if (Remaining > 0) {
+          --Remaining;
+          LookupReq.IDs.insert(Obj);
+        }
+      }
+    }
+    lookup(LookupReq, [&](const Symbol &Object) { Callback(Subject, Object); });
+  }
+}
+
 size_t MemIndex::estimateMemoryUsage() const {
-  return Index.getMemorySize() + Refs.getMemorySize() + BackingDataSize;
+  return Index.getMemorySize() + Refs.getMemorySize() +
+         Relations.getMemorySize() + BackingDataSize;
 }
 
 } // namespace clangd

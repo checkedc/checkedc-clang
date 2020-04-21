@@ -270,6 +270,9 @@ def parseOptionsAndInitTestdirs():
             else:
                 os.environ[parts[0]] = parts[1]
 
+    if args.set_inferior_env_vars:
+        lldbtest_config.inferior_env = ' '.join(args.set_inferior_env_vars)
+
     # only print the args if being verbose (and parsable is off)
     if args.v and not args.q:
         print(sys.argv)
@@ -524,8 +527,7 @@ def parseOptionsAndInitTestdirs():
 
     # Gather all the dirs passed on the command line.
     if len(args.args) > 0:
-        configuration.testdirs = list(
-            map(lambda x: os.path.realpath(os.path.abspath(x)), args.args))
+        configuration.testdirs = [os.path.realpath(os.path.abspath(x)) for x in args.args]
         # Shut off multiprocessing mode when test directories are specified.
         configuration.no_multiprocess_test_runner = True
 
@@ -650,8 +652,11 @@ def get_llvm_bin_dirs():
         "llvm-build/Release/x86_64/bin",
         "llvm-build/Debug/x86_64/bin",
         "llvm-build/Ninja-DebugAssert/llvm-macosx-x86_64/bin",
+        "llvm-build/Ninja-DebugAssert+asan/llvm-macosx-x86_64/bin",
         "llvm-build/Ninja-ReleaseAssert/llvm-macosx-x86_64/bin",
+        "llvm-build/Ninja-ReleaseAssert+asan/llvm-macosx-x86_64/bin",
         "llvm-build/Ninja-RelWithDebInfoAssert/llvm-macosx-x86_64/bin",
+        "llvm-build/Ninja-RelWithDebInfoAssert+asan/llvm-macosx-x86_64/bin",
     ]
     for p in paths_to_try:
         path = os.path.join(lldb_root_path, p)
@@ -1179,6 +1184,32 @@ def checkLibstdcxxSupport():
     print("libstdcxx tests will not be run because: " + reason)
     configuration.skipCategories.append("libstdcxx")
 
+def canRunWatchpointTests():
+    from lldbsuite.test import lldbplatformutil
+
+    platform = lldbplatformutil.getPlatform()
+    if platform == "netbsd":
+      if os.geteuid() == 0:
+        return True, "root can always write dbregs"
+      try:
+        output = subprocess.check_output(["/sbin/sysctl", "-n",
+          "security.models.extensions.user_set_dbregs"]).decode().strip()
+        if output == "1":
+          return True, "security.models.extensions.user_set_dbregs enabled"
+      except subprocess.CalledProcessError:
+        pass
+      return False, "security.models.extensions.user_set_dbregs disabled"
+    return True, "watchpoint support available"
+
+def checkWatchpointSupport():
+    result, reason = canRunWatchpointTests()
+    if result:
+        return # watchpoints supported
+    if "watchpoint" in configuration.categoriesList:
+        return # watchpoint category explicitly requested, let it run.
+    print("watchpoint tests will not be run because: " + reason)
+    configuration.skipCategories.append("watchpoint")
+
 def checkDebugInfoSupport():
     import lldb
 
@@ -1303,6 +1334,7 @@ def run_suite():
 
     checkLibcxxSupport()
     checkLibstdcxxSupport()
+    checkWatchpointSupport()
     checkDebugInfoSupport()
 
     # Don't do debugserver tests on anything except OS X.

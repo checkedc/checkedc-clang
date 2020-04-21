@@ -1,9 +1,8 @@
 //===--- ForwardingReferenceOverloadCheck.cpp - clang-tidy-----------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -106,7 +105,7 @@ void ForwardingReferenceOverloadCheck::check(
   // template as the function parameter of that type. (This implies that type
   // deduction will happen on the type.)
   const TemplateParameterList *Params = FuncTemplate->getTemplateParameters();
-  if (std::find(Params->begin(), Params->end(), TypeParmDecl) == Params->end())
+  if (!llvm::is_contained(*Params, TypeParmDecl))
     return;
 
   // Every parameter after the first must have a default value.

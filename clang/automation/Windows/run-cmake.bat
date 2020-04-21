@@ -23,7 +23,7 @@ set OLD_DIR=%CD%
 cd %LLVM_OBJ_DIR%
 rem  This generates a build system that supports multiple configurations.  Don't try setting CMAKE_BUILD_TYPE here 
 rem because it is ignored.
-cmake %CMAKE_GENERATOR% -T "host=x64" %EXTRA_FLAGS% -DLLVM_ENABLE_PROJECTS=clang -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON %BUILD_SOURCESDIRECTORY%\llvm
+cmake %CMAKE_GENERATOR% -T "host=x64" %EXTRA_FLAGS% -DLLVM_ENABLE_PROJECTS=clang -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON %BUILD_SOURCESDIRECTORY%\checkedc-clang\llvm
 if ERRORLEVEL 1 (goto cmdfailed)
 
 :succeeded

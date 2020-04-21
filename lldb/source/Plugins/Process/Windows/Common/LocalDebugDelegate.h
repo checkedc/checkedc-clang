@@ -1,9 +1,8 @@
 //===-- LocalDebugDelegate.h ------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,7 +20,6 @@ namespace lldb_private {
 class ProcessWindows;
 typedef std::shared_ptr<ProcessWindows> ProcessWindowsSP;
 
-//----------------------------------------------------------------------
 // LocalDebugDelegate
 //
 // LocalDebugDelegate creates a connection between a ProcessWindows and the
@@ -40,7 +38,6 @@ typedef std::shared_ptr<ProcessWindows> ProcessWindowsSP;
 //    a ProcessSP (which is exactly what we are trying to decouple from the
 //    driver), so this adapter serves as a way to transparently hold the
 //    ProcessSP while still keeping it decoupled from the driver.
-//----------------------------------------------------------------------
 class LocalDebugDelegate : public IDebugDelegate {
 public:
   explicit LocalDebugDelegate(lldb::ProcessWP process);

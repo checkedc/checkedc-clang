@@ -1,29 +1,22 @@
 //===-- CFCMutableDictionary.cpp --------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
 #include "CFCMutableDictionary.h"
 #include "CFCString.h"
-//----------------------------------------------------------------------
 // CFCString constructor
-//----------------------------------------------------------------------
 CFCMutableDictionary::CFCMutableDictionary(CFMutableDictionaryRef s)
     : CFCReleaser<CFMutableDictionaryRef>(s) {}
 
-//----------------------------------------------------------------------
 // CFCMutableDictionary copy constructor
-//----------------------------------------------------------------------
 CFCMutableDictionary::CFCMutableDictionary(const CFCMutableDictionary &rhs)
     : CFCReleaser<CFMutableDictionaryRef>(rhs) {}
 
-//----------------------------------------------------------------------
 // CFCMutableDictionary copy constructor
-//----------------------------------------------------------------------
 const CFCMutableDictionary &CFCMutableDictionary::
 operator=(const CFCMutableDictionary &rhs) {
   if (this != &rhs)
@@ -31,9 +24,7 @@ operator=(const CFCMutableDictionary &rhs) {
   return *this;
 }
 
-//----------------------------------------------------------------------
 // Destructor
-//----------------------------------------------------------------------
 CFCMutableDictionary::~CFCMutableDictionary() {}
 
 CFIndex CFCMutableDictionary::GetCount() const {

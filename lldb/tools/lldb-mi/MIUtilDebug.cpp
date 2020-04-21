@@ -1,9 +1,8 @@
 //===-- MIUtilDebug.cpp -----------------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -18,7 +17,6 @@
 #include "MIUtilDebug.h"
 
 //++
-//------------------------------------------------------------------------------------
 // Details: CMIUtilDebug constructor.
 // Type:    Method.
 // Args:    None.
@@ -28,7 +26,6 @@
 CMIUtilDebug::CMIUtilDebug() {}
 
 //++
-//------------------------------------------------------------------------------------
 // Details: CMIUtilDebug destructor.
 // Type:    Method.
 // Args:    None.
@@ -38,26 +35,6 @@ CMIUtilDebug::CMIUtilDebug() {}
 CMIUtilDebug::~CMIUtilDebug() {}
 
 //++
-//------------------------------------------------------------------------------------
-// Details: Show a dialog to the process/application halts. It gives the
-// opportunity to
-//          attach a debugger.
-// Type:    Static method.
-// Args:    None.
-// Return:  None.
-// Throws:  None.
-//--
-void CMIUtilDebug::ShowDlgWaitForDbgAttach() {
-  const CMIUtilString strCaption(CMIDriver::Instance().GetAppNameShort());
-#ifdef _WIN32
-  ::MessageBoxA(NULL, "Attach your debugger now", strCaption.c_str(), MB_OK);
-#else
-// ToDo: Implement other platform version of an Ok to continue dialog box
-#endif // _WIN32
-}
-
-//++
-//------------------------------------------------------------------------------------
 // Details: Temporarily stall the process/application to give the programmer the
 //          opportunity to attach a debugger. How to use: Put a break in the
 //          programmer
@@ -81,16 +58,12 @@ void CMIUtilDebug::WaitForDbgAttachInfinteLoop() {
   }
 }
 
-//---------------------------------------------------------------------------------------
-//---------------------------------------------------------------------------------------
-//---------------------------------------------------------------------------------------
 
 // Instantiations:
 CMICmnLog &CMIUtilDebugFnTrace::ms_rLog = CMICmnLog::Instance();
 MIuint CMIUtilDebugFnTrace::ms_fnDepthCnt = 0;
 
 //++
-//------------------------------------------------------------------------------------
 // Details: CMIUtilDebugFnTrace constructor.
 // Type:    Method.
 // Args:    vFnName - (R) The text to insert into the log.
@@ -105,7 +78,6 @@ CMIUtilDebugFnTrace::CMIUtilDebugFnTrace(const CMIUtilString &vFnName)
 }
 
 //++
-//------------------------------------------------------------------------------------
 // Details: CMIUtilDebugFnTrace destructor.
 // Type:    Method.
 // Args:    None.

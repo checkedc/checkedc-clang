@@ -2,8 +2,9 @@
 //
 //                     The LLVM Compiler Infrastructure
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -42,7 +43,7 @@ namespace clang {
   class VarDecl;
 
   // List of sets of equivalent expressions.
-  typedef SmallVector<SmallVector<Expr *, 4> *, 4> EquivExprSets;
+  typedef SmallVector<SmallVector<Expr *, 4>, 4> EquivExprSets;
 
   class Lexicographic {
   public:
@@ -62,7 +63,6 @@ namespace clang {
       const T *E1 = dyn_cast<T>(Raw1);
       const T *E2 = dyn_cast<T>(Raw2);
       if (!E1 || !E2) {
-        llvm_unreachable("dyn_cast failed");
         return Result::LessThan;
       }
       return Lexicographic::CompareImpl(E1, E2);
@@ -124,6 +124,9 @@ namespace clang {
     Result CompareDecl(const NamedDecl *D1, const NamedDecl *D2) const;
     Result CompareType(QualType T1, QualType T2) const;
     Result CompareTypeIgnoreCheckedness(QualType QT1, QualType QT2) const;
+
+    Result CompareAPInt(const llvm::APInt &I1, const llvm::APInt &I2) const;
+    Expr *IgnoreValuePreservingOperations(ASTContext &Ctx, Expr *E);
   };
 }  // end namespace clang
 

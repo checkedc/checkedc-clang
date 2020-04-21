@@ -17,6 +17,7 @@ set(LLVM_LINK_COMPONENTS
   Object
   Passes
   ProfileData
+  Remarks
   ScalarOpts
   Support
   Target
@@ -89,6 +90,7 @@ add_clang_library(clangCodeGen
   MicrosoftCXXABI.cpp
   ModuleBuilder.cpp
   ObjectFilePCHContainerOperations.cpp
+  PatternInit.cpp
   SanitizerMetadata.cpp
   SwiftCallingConv.cpp
   TargetInfo.cpp
@@ -100,6 +102,7 @@ add_clang_library(clangCodeGen
   LINK_LIBS
   clangAnalysis
   clangAST
+  clangASTMatchers
   clangBasic
   clangFrontend
   clangLex

@@ -1,9 +1,8 @@
 //===-- SWIG Interface for SBError ------------------------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -54,8 +53,7 @@ And (from test/python_api/event/TestEvent.py),
         self.assertTrue(error.Success() and process, PROCESS_IS_VALID)
 
 checks that after calling the target.Launch() method there's no error
-condition and we get back a void process object.
-") SBError;
+condition and we get back a void process object.") SBError;
 
 class SBError {
 public:
@@ -102,25 +100,17 @@ public:
     bool
     IsValid () const;
 
+    explicit operator bool() const;
+
     bool
     GetDescription (lldb::SBStream &description);
-    
+
     %pythoncode %{
-        __swig_getmethods__["value"] = GetError
-        if _newclass: value = property(GetError, None, doc='''A read only property that returns the same result as GetError().''')
-        
-        __swig_getmethods__["fail"] = Fail
-        if _newclass: fail = property(Fail, None, doc='''A read only property that returns the same result as Fail().''')
-        
-        __swig_getmethods__["success"] = Success
-        if _newclass: success = property(Success, None, doc='''A read only property that returns the same result as Success().''')
-        
-        __swig_getmethods__["description"] = GetCString
-        if _newclass: description = property(GetCString, None, doc='''A read only property that returns the same result as GetCString().''')
-        
-        __swig_getmethods__["type"] = GetType
-        if _newclass: type = property(GetType, None, doc='''A read only property that returns the same result as GetType().''')
-        
+        value = property(GetError, None, doc='''A read only property that returns the same result as GetError().''')
+        fail = property(Fail, None, doc='''A read only property that returns the same result as Fail().''')
+        success = property(Success, None, doc='''A read only property that returns the same result as Success().''')
+        description = property(GetCString, None, doc='''A read only property that returns the same result as GetCString().''')
+        type = property(GetType, None, doc='''A read only property that returns the same result as GetType().''')
     %}
 
 };
