@@ -995,3 +995,87 @@ void f30() {
 // CHECK: upper_bound(p) = 1
   }
 }
+
+void f31() {
+// CHECK: In function: f31
+
+  _Nt_array_ptr<char> p : count(0) = "";
+  const int i = 'abc';
+  const char c = 'xyz';
+  const unsigned u = UINT_MAX;
+
+  switch (*p) {
+  case 999999999999999999999999999: break; // expected-error {{integer literal is too large to be represented in any integer type}}
+// CHECK: case 11515845246265065471ULL:
+// CHECK: upper_bound(p) = 1
+
+  case 00000000000000000000000000000000000: break;
+// CHECK: case 0:
+// CHECK-NOT: upper_bound(p)
+
+  case 00000000000000000000000000000000001: break;
+// CHECK: case 1:
+// CHECK: upper_bound(p) = 1
+
+  case '00000000000000000000000000000000000': break;
+// CHECK: case '\U30303030':
+// CHECK: upper_bound(p) = 1
+
+  case i: break;
+// CHECK: case i:
+// CHECK: upper_bound(p) = 1
+
+  case c: break;
+// CHECK: case c:
+// CHECK: upper_bound(p) = 1
+
+  case u: break;
+// CHECK: case u:
+// CHECK: upper_bound(p) = 1
+  }
+
+  switch (*p) {
+  case INT_MAX: break;
+// CHECK: case 2147483647:
+// CHECK: upper_bound(p) = 1
+
+  case INT_MIN: break;
+// CHECK: case (-2147483647 - 1):
+// CHECK: upper_bound(p) = 1
+
+  case INT_MAX + INT_MAX: break;
+// CHECK: case 2147483647 + 2147483647:
+// CHECK: upper_bound(p) = 1
+
+  case INT_MAX - INT_MAX: break;
+// CHECK: case 2147483647 - 2147483647:
+// CHECK-NOT: upper_bound(p)
+
+  case INT_MAX + INT_MIN: break;
+// CHECK: case 2147483647 + (-2147483647 - 1):
+// CHECK: upper_bound(p) = 1
+  }
+
+  switch (*p) {
+  case INT_MIN - INT_MIN: break;
+// CHECK: case (-2147483647 - 1) - (-2147483647 - 1):
+// CHECK-NOT: upper_bound(p)
+
+  case INT_MAX - INT_MIN: break;
+// CHECK: case 2147483647 - (-2147483647 - 1):
+// CHECK: upper_bound(p) = 1
+  }
+
+  switch (*p) {
+  // Note: This does not widen the bounds as the value of the expression is
+  // computed to 0 and we have the warning: overflow in expression; result is 0
+  // with type 'int'.
+  case INT_MIN + INT_MIN: break;
+// CHECK: case (-2147483647 - 1) + (-2147483647 - 1):
+// CHECK-NOT: upper_bound(p)
+
+  case UINT_MAX: break;
+// CHECK: case (2147483647 * 2U + 1U):
+// CHECK: upper_bound(p) = 1
+  }
+}

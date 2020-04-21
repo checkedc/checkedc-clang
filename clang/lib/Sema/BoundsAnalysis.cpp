@@ -93,25 +93,25 @@ llvm::APSInt BoundsAnalysis::GetSwitchCaseVal(const Expr *CaseExpr) {
   while (auto *ICE = dyn_cast<ImplicitCastExpr>(E))
     E = ICE->getSubExpr();
 
-  // const int i = 1;
-  // case i: This is how it is represented in the CFG:
-  // ConstantExpr 'const int' lvalue 1
-  //   -DeclRefExpr 'const int' lvalue Var 'i' 'const int'
-  // This is not an IntegerConstantExpr. It is a ConstantExpr and we get its
-  // value by calling the getResultAsAPSInt() method.
+  llvm::APSInt IntVal (Ctx.getTypeSize(Ctx.IntTy), 0);
 
   // case '1': This is how it is represented in the CFG:
   // ConstantExpr 'int'
   //   -CharacterLiteral 'int' 49
   // This is an IntegerConstantExpr. After the call to isIntegerConstantExpr,
   // the variable IntVal would contain the value '1'.
+  if (E->isIntegerConstantExpr(IntVal, Ctx))
+    return IntVal;
 
-  llvm::APSInt IntVal (Ctx.getTypeSize(Ctx.IntTy), 0);
+  // const int i = 1;
+  // case i: This is how it is represented in the CFG:
+  // ConstantExpr 'const int' lvalue 1
+  //   -DeclRefExpr 'const int' lvalue Var 'i' 'const int'
+  // This is not an IntegerConstantExpr. It is a ConstantExpr and we get its
+  // value by calling the getResultAsAPSInt() method.
+  if (const auto *CE = dyn_cast_or_null<ConstantExpr>(E))
+    return CE->getResultAsAPSInt();
 
-  if (const auto *CE = dyn_cast_or_null<ConstantExpr>(E)) {
-    if (!E->isIntegerConstantExpr(IntVal, Ctx))
-      IntVal = CE->getResultAsAPSInt();
-  }
   return IntVal;
 }
 
@@ -168,11 +168,17 @@ void BoundsAnalysis::ComputeGenSets() {
 
       // Check if EB is on a true edge of pred. The false edge (including the
       // default case for a switch) is always the last edge in the list of
-      // edges. So we check whether EB is on the last edge for pred.
-      if (pred->succ_size() &&
-          EB->Block != *(pred->succs().end() - 1)) {
-        // Get the edge condition and fill the Gen set.
-        if (Expr *E = GetTerminatorCondition(pred)) {
+      // edges. So we check that EB is not on the last edge for pred.
+
+      // TODO: Allow bounds widening for the default case of a switch-case.
+      // If we establish that another label in a switch statement tests for 0,
+      // then the default case will handle non-zero case, and the bounds can be
+      // widened there. The following github issue tracks this:
+      // https://github.com/microsoft/checkedc-clang/issues/818.
+
+      if (pred->succ_size() && EB->Block != *(pred->succs().end() - 1)) {
+	// Get the edge condition and fill the Gen set.
+	if (Expr *E = GetTerminatorCondition(pred)) {
 
           // Check if the pred ends in a switch statement.
           if (isa<SwitchStmt>(pred->getTerminatorStmt())) {
