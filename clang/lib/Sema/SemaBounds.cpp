@@ -797,9 +797,14 @@ namespace {
       }
     }
 
-    void DumpCheckingState(raw_ostream &OS, Stmt *S, CheckingState &State) {
+    void DumpCheckingState(raw_ostream &OS, Stmt *S,
+                           BoundsContextTy DeclaredBounds,
+                           CheckingState &State) {
       OS << "\nStatement S:\n";
       S->dump(OS);
+
+      OS << "Declared bounds context before checking S:\n";
+      DumpBoundsContext(OS, DeclaredBounds);
 
       OS << "Bounds context after checking S:\n";
       DumpBoundsContext(OS, State.UC);
@@ -2192,15 +2197,15 @@ namespace {
             llvm::outs().flush();
 #endif
             // Incorporate any bounds declared in S into the initial bounds
-            // context before checking S.  TODO: save this context in a
-            // declared context DC.
+            // context before checking S.
             GetDeclaredBounds(this->S, BlockState.UC, S);
+            BoundsContextTy DC = BlockState.UC;
             BlockState.G.clear();
             Check(S, CSS, BlockState);
             // TODO: validate the updated context BlockState.UC against
             // the declared context DC.
             if (DumpState)
-              DumpCheckingState(llvm::outs(), S, BlockState);
+              DumpCheckingState(llvm::outs(), S, DC, BlockState);
          }
        }
        if (Block->getBlockID() != Cfg->getEntry().getBlockID())
@@ -2248,9 +2253,11 @@ namespace {
   public:
     BoundsExpr *Check(Stmt *S, CheckedScopeSpecifier CSS) {
       CheckingState State;
+      GetDeclaredBounds(this->S, State.UC, S);
+      BoundsContextTy DC = State.UC;
       BoundsExpr *Bounds = Check(S, CSS, State);
       if (DumpState)
-        DumpCheckingState(llvm::outs(), S, State);
+        DumpCheckingState(llvm::outs(), S, DC, State);
       return Bounds;
     }
 

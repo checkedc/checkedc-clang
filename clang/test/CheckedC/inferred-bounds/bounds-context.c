@@ -17,7 +17,7 @@ void f1(array_ptr<int> arr : count(len), int len, int size) {
   // CHECK-NEXT:       IntegerLiteral {{.*}} 5
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <NullToPointer>
   // CHECK-NEXT:       IntegerLiteral {{.*}} 0
-  // CHECK-NEXT: Bounds context after checking S:
+  // CHECK-NEXT: Declared bounds context before checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: Variable:
   // CHECK-NEXT: VarDecl {{.*}} a
@@ -42,7 +42,7 @@ void f1(array_ptr<int> arr : count(len), int len, int size) {
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'size'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <NullToPointer>
   // CHECK-NEXT:       IntegerLiteral {{.*}} 0
-  // CHECK-NEXT: Bounds context after checking S:
+  // CHECK-NEXT: Declared bounds context before checking S:
   // CHECK-NEXT: {
   // CHECK: Variable:
   // CHECK-NEXT: VarDecl {{.*}} a
@@ -76,7 +76,7 @@ void f2(int flag, int x, int y) {
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT:       ImplicitCastExpr {{.*}} <NullToPointer>
   // CHECK-NEXT:         IntegerLiteral {{.*}} 0
-  // CHECK-NEXT: Bounds context after checking S:
+  // CHECK-NEXT: Declared bounds context before checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: Variable:
   // CHECK-NEXT: VarDecl {{.*}} a
@@ -97,7 +97,7 @@ void f2(int flag, int x, int y) {
     // CHECK-NEXT:         DeclRefExpr {{.*}} 'y'
     // CHECK-NEXT:       ImplicitCastExpr {{.*}} <NullToPointer>
     // CHECK-NEXT:         IntegerLiteral {{.*}} 0
-    // CHECK-NEXT: Bounds context after checking S:
+    // CHECK-NEXT: Declared bounds context before checking S:
     // CHECK-NEXT: {
     // CHECK-NEXT: Variable:
     // CHECK-NEXT: VarDecl {{.*}} a
@@ -123,7 +123,7 @@ void f2(int flag, int x, int y) {
     // CHECK-NEXT:         DeclRefExpr {{.*}} 'y'
     // CHECK-NEXT:       ImplicitCastExpr {{.*}} <NullToPointer>
     // CHECK-NEXT:         IntegerLiteral {{.*}} 0
-    // CHECK-NEXT: Bounds context after checking S:
+    // CHECK-NEXT: Declared bounds context before checking S:
     // CHECK-NEXT: {
     // CHECK-NEXT: Variable:
     // CHECK-NEXT: VarDecl {{.*}} a
@@ -156,7 +156,7 @@ void f2(int flag, int x, int y) {
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
-  // CHECK-NEXT: Bounds context after checking S:
+  // CHECK-NEXT: Declared bounds context before checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: Variable:
   // CHECK-NEXT: VarDecl {{.*}} a
