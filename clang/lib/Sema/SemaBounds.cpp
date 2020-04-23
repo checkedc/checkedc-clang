@@ -1799,13 +1799,20 @@ namespace {
     // Given an assignment target = e, where target has declared bounds
     // DeclaredBounds and and e has inferred bounds SrcBounds, make sure
     // that SrcBounds implies that DeclaredBounds are provably true.
+    //
+    // EQ contains sets of expressions that produce the same value, from
+    // updating the checking state during bounds checking.
     void CheckBoundsDeclAtAssignment(SourceLocation ExprLoc, Expr *Target,
                                      BoundsExpr *DeclaredBounds, Expr *Src,
                                      BoundsExpr *SrcBounds,
-                                     CheckedScopeSpecifier CSS) {
-      // Record expression equality implied by assignment.
-      SmallVector<SmallVector <Expr *, 4>, 4> EquivExprs;
-      SmallVector<Expr *, 4> EqualExpr;
+                                     CheckedScopeSpecifier CSS,
+                                     EquivExprSets EQ) {
+      // Record expression equality implied by assignment.  This equality
+      // is used to check the assignment bounds, but may not already be
+      // recorded in EQ. For example, EQ will not contain expression equality
+      // that results from an assignment to a non-variable lvalue, such as
+      // { 1, *p } from *p = 1;
+      EqualExprTy EqualExpr;
 
       if (S.CheckIsNonModifying(Target, Sema::NonModifyingContext::NMC_Unknown,
                                 Sema::NonModifyingMessage::NMM_None)) {
@@ -1822,13 +1829,13 @@ namespace {
              EqualExpr.push_back(CreateTemporaryUse(Temp));
            else
              EqualExpr.push_back(Src);
-           EquivExprs.push_back(EqualExpr);
+           EQ.push_back(EqualExpr);
          }
       }
 
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds,
-                                                   Cause, &EquivExprs);
+                                                   Cause, &EQ);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -2668,7 +2675,7 @@ namespace {
             }
 
             CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
-                                        RHS, RightBounds, CSS);
+                                        RHS, RightBounds, CSS, State.UEQ);
           }
         }
 
