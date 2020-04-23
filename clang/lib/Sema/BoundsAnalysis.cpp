@@ -93,7 +93,7 @@ llvm::APSInt BoundsAnalysis::GetSwitchCaseVal(const Expr *CaseExpr) {
   while (auto *ICE = dyn_cast<ImplicitCastExpr>(E))
     E = ICE->getSubExpr();
 
-  llvm::APSInt IntVal (Ctx.getTypeSize(Ctx.IntTy), 0);
+  llvm::APSInt IntVal (Ctx.getTypeSize(CaseExpr->getType()), 0);
 
   // case '1': This is how it is represented in the CFG:
   // ConstantExpr 'int'
@@ -109,6 +109,10 @@ llvm::APSInt BoundsAnalysis::GetSwitchCaseVal(const Expr *CaseExpr) {
   //   -DeclRefExpr 'const int' lvalue Var 'i' 'const int'
   // This is not an IntegerConstantExpr. It is a ConstantExpr and we get its
   // value by calling the getResultAsAPSInt() method.
+
+  // Note: According to C11 spec sections 6.6 and 6.8.1 a DeclRefExpr is not
+  // considered a constant expr. But clang allows for this additional
+  // extension. So we handle this here.
   if (const auto *CE = dyn_cast_or_null<ConstantExpr>(E))
     return CE->getResultAsAPSInt();
 
@@ -117,7 +121,7 @@ llvm::APSInt BoundsAnalysis::GetSwitchCaseVal(const Expr *CaseExpr) {
 
 bool BoundsAnalysis::CheckIsSwitchCaseNull(ElevatedCFGBlock *EB) {
   if (const auto *CS = dyn_cast_or_null<CaseStmt>(EB->Block->getLabel())) {
-    llvm::APSInt Zero (Ctx.getTypeSize(Ctx.IntTy), 0);
+    llvm::APSInt Zero (Ctx.getTypeSize(CS->getLHS()->getType()), 0);
 
     llvm::APSInt LHSVal = GetSwitchCaseVal(CS->getLHS());
     if (llvm::APSInt::compareValues(LHSVal, Zero) == 0)

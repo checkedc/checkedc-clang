@@ -3,6 +3,7 @@
 // RUN: %clang_cc1 -fdump-widened-bounds -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s 2>&1 | FileCheck %s
 
 #include <limits.h>
+#include <stdint.h>
 
 void f1() {
   _Nt_array_ptr<char> p : count(0) = "a";
@@ -1076,6 +1077,19 @@ void f31() {
 
   case UINT_MAX: break;
 // CHECK: case (2147483647 * 2U + 1U):
+// CHECK: upper_bound(p) = 1
+  }
+
+  _Nt_array_ptr<uint64_t> q : count(0) = 0;
+  const uint64_t x = 0x0000444400004444LL;
+
+  switch (*p) {
+    case ULLONG_MAX: break;
+// CHECK: case (9223372036854775807LL * 2ULL + 1ULL):
+// CHECK: upper_bound(p) = 1
+
+    case x: break;
+// CHECK: case x:
 // CHECK: upper_bound(p) = 1
   }
 }
