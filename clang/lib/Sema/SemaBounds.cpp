@@ -3682,6 +3682,21 @@ namespace {
       }
 
       RecordEqualityWithTarget(Target, State);
+
+    // ReplaceVariableInBounds returns a bounds expression where all uses
+    // of the variable v have been replaced with the original value (if any).
+    // If the original value is null and the bounds expression uses the value
+    // of v, the resulting bounds expression will be bounds(unknown).
+    BoundsExpr *ReplaceVariableInBounds(BoundsExpr *B, DeclRefExpr *V,
+                                        Expr *OV,
+                                        CheckedScopeSpecifier CSS) {
+      Expr *Replaced = ReplaceVariableReferences(S, B, V, OV, CSS);
+      if (!Replaced)
+        return CreateBoundsUnknown();
+      else if (BoundsExpr *Bounds = dyn_cast<BoundsExpr>(Replaced))
+        return Bounds;
+      else
+        return CreateBoundsUnknown();
     }
 
     // RecordEqualityWithTarget updates the checking state to record equality
@@ -4029,7 +4044,7 @@ namespace {
       return BlockState;
     }
 
-    // IntersectBoundsContexts returns a bounds context resulting from taking the
+    // IntersectBoundsContexts returns a bounds context resulting from taking
     // the intersection of the contexts Context1 and Context2.
     BoundsContextTy IntersectBoundsContexts(BoundsContextTy Context1,
                                             BoundsContextTy Context2) {
