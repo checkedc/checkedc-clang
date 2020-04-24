@@ -4377,7 +4377,7 @@ namespace {
             assert(ME->getBase()->isRValue());
             // This can happen if the base expression is an rvalue expression.
             // It could be a function call that returns a struct, for example.
-            CreateBoundsNotAllowedYet();
+            return CreateBoundsNotAllowedYet();
           }
           if (B->isElementCount() || B->isByteCount()) {
             Expr *Base = CreateImplicitCast(Context.getDecayedType(ME->getType()),
