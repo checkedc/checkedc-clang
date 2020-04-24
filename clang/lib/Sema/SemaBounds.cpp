@@ -3140,6 +3140,11 @@ namespace {
           TargetTy = D->getType();
         }
         Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
+
+        // If v has declared bounds, update the observed bounds of v to the
+        // initializer bounds.
+        if (D->hasBoundsExpr())
+          State.ObservedBounds[D] = InitBounds;
         
         // Record equality between the target and initializer.
         RecordEqualityWithTarget(TargetExpr, State);
