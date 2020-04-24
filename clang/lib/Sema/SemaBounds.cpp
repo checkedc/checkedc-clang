@@ -692,9 +692,11 @@ namespace {
       bool VisitVarDecl(VarDecl *D) {
         if (!D)
           return true;
+        if (D->isInvalidDecl())
+          return true;
         BoundsExpr *Bounds = D->getBoundsExpr();
         if (Bounds)
-          BoundsContextRef[D] = Bounds;
+          BoundsContextRef[D] = SemaRef.ExpandBoundsToRange(D, Bounds);
         return true;
       }
   };
@@ -2158,10 +2160,10 @@ namespace {
      // parameter bounds is the initial context for checking the function body.
      CheckingState ParamsState;
      for (auto I = FD->param_begin(); I != FD->param_end(); ++I) {
-       ParmVarDecl *Param = *I;
-       BoundsExpr *Bounds = Param->getBoundsExpr();
+       ParmVarDecl *D = *I;
+       BoundsExpr *Bounds = D->getBoundsExpr();
        if (Bounds)
-         ParamsState.UC[Param] = Bounds;
+         ParamsState.DeclaredBounds[D] = S.ExpandBoundsToRange(D, Bounds);
      }
 
      // Store a checking state for each CFG block in order to track
