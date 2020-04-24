@@ -642,9 +642,9 @@ namespace {
 }
 
 namespace {
-  // BoundsContextTy denotes a map of a variable or parameter declaration
-  // to the variable or parameter's current known bounds.
-  using BoundsContextTy = llvm::DenseMap<DeclaratorDecl *, BoundsExpr *>;
+  // BoundsContextTy denotes a map of a variable declaration to a bounds
+  // expression for the variable.
+  using BoundsContextTy = llvm::DenseMap<VarDecl *, BoundsExpr *>;
 
   // EqualExprTy denotes a set of expressions that produce the same value
   // as an expression e.
@@ -683,7 +683,7 @@ namespace {
         SemaRef(SemaRef),
         BoundsContextRef(Context) {}
 
-      bool VisitDeclaratorDecl(DeclaratorDecl *D) {
+      bool VisitVarDecl(VarDecl *D) {
         if (!D)
           return true;
         BoundsExpr *Bounds = D->getBoundsExpr();
@@ -833,11 +833,11 @@ namespace {
         // variable declarations in the context ordered first by name,
         // then by location in order to guarantee a deterministic output
         // so that printing the bounds context can be tested.
-        std::vector<DeclaratorDecl *> OrderedDecls;
+        std::vector<VarDecl *> OrderedDecls;
         for (auto Pair : UC)
           OrderedDecls.push_back(Pair.first);
         llvm::sort(OrderedDecls.begin(), OrderedDecls.end(),
-             [] (DeclaratorDecl *A, DeclaratorDecl *B) {
+             [] (VarDecl *A, VarDecl *B) {
                if (A->getNameAsString() == B->getNameAsString())
                  return A->getLocation() < B->getLocation();
                else
