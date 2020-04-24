@@ -121,22 +121,23 @@ llvm::APSInt BoundsAnalysis::GetSwitchCaseVal(const Expr *CaseExpr) {
 
 bool BoundsAnalysis::CheckIsSwitchCaseNull(ElevatedCFGBlock *EB) {
   if (const auto *CS = dyn_cast_or_null<CaseStmt>(EB->Block->getLabel())) {
-    llvm::APSInt Zero (Ctx.getTypeSize(CS->getLHS()->getType()), 0);
 
     llvm::APSInt LHSVal = GetSwitchCaseVal(CS->getLHS());
-    if (llvm::APSInt::compareValues(LHSVal, Zero) == 0)
+    llvm::APSInt LHSZero (LHSVal.getBitWidth(), LHSVal.isUnsigned());
+    if (llvm::APSInt::compareValues(LHSVal, LHSZero) == 0)
       return true;
 
     // Check if the case statement is of the form "case LHS ... RHS" (a GNU
     // extension).
     if (CS->caseStmtIsGNURange()) {
       llvm::APSInt RHSVal = GetSwitchCaseVal(CS->getRHS());
-      if (llvm::APSInt::compareValues(RHSVal, Zero) == 0)
+      llvm::APSInt RHSZero (RHSVal.getBitWidth(), RHSVal.isUnsigned());
+      if (llvm::APSInt::compareValues(RHSVal, RHSZero) == 0)
         return true;
 
       // Check if 0 if contained within the range [LHS, RHS].
-      return (LHSVal <= Zero && Zero <= RHSVal) ||
-             (LHSVal >= Zero && Zero >= RHSVal);
+      return (LHSVal <= LHSZero && RHSZero <= RHSVal) ||
+             (LHSVal >= LHSZero && RHSZero >= RHSVal);
     }
     return false;
   }
