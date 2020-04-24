@@ -3258,10 +3258,7 @@ namespace {
       BoundsExpr *B = nullptr;
       InteropTypeExpr *IT = nullptr;
       if (VD) {
-        if (State.UC.count(VD))
-          B = State.UC[VD];
-        else
-          B = VD->getBoundsExpr();
+        B = VD->getBoundsExpr();
         IT = VD->getInteropTypeExpr();
       }
 
