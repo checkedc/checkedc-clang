@@ -2633,7 +2633,7 @@ namespace {
         // Update UEQ and G for assignments to `e1` where `e1` is a variable.
         if (DeclRefExpr *V = GetLValueVariable(LHS)) {
           Expr *OV = GetOriginalValue(V, Target, Src, State.UEQ);
-          UpdateAfterAssignment(V, Target, OV, CSS, State, State);
+          UpdateAfterAssignment(V, Target, OV, ResultBounds, CSS, State, State);
         }
         // Update UEQ and G for assignments where `e1` is not a variable.
         else {
@@ -3044,7 +3044,8 @@ namespace {
           // and these expressions should not be added to UEQ.
           State.G.clear();
           Expr *OV = GetOriginalValue(V, Target, RHS, State.UEQ);
-          UpdateAfterAssignment(V, Target, OV, CSS, State, State);
+          UpdateAfterAssignment(V, Target, OV, SubExprTargetBounds,
+                                CSS, State, State);
         }
 
         // Update the set G of expressions that produce the same value as `e`.
@@ -3652,11 +3653,41 @@ namespace {
     // are removed from UEQ and G.
     //
     // PrevState is the checking state that was true before the assignment.
-    void UpdateAfterAssignment(DeclRefExpr *V, Expr *Target,
-                               Expr *OV, CheckedScopeSpecifier CSS,
+    BoundsExpr *UpdateAfterAssignment(DeclRefExpr *V, Expr *Target,
+                               Expr *OV, BoundsExpr *SrcBounds,
+                               CheckedScopeSpecifier CSS,
                                const CheckingState PrevState,
                                CheckingState &State) {
-      // Adjust UEQ to account for any uses of V in PrevState.UEQ.
+
+      // Determine whether v has declared bounds.
+      VarDecl *VariableDecl = nullptr;
+      bool HasDeclaredBounds = nullptr;
+      if (V->getDecl()) {
+        if (VariableDecl = dyn_cast<VarDecl>(V->getDecl()))
+          HasDeclaredBounds = VariableDecl->hasBoundsExpr();
+      }
+
+      // If v has declared bounds, set ObservedBounds[v] => SrcBounds.
+      State.ObservedBounds = PrevState.ObservedBounds;
+      if (HasDeclaredBounds)
+        State.ObservedBounds[VariableDecl] = SrcBounds;
+
+      // Adjust ObservedBounds to account for any uses of v in
+      // PrevState.ObservedBounds.
+      for (auto Pair : State.ObservedBounds) {
+        VarDecl *Decl = Pair.first;
+        BoundsExpr *Bounds = Pair.second;
+        BoundsExpr *AdjustedBounds = ReplaceVariableInBounds(Bounds, V, OV, CSS);
+        State.ObservedBounds[Decl] = AdjustedBounds;
+      }
+
+      // Adjust SrcBounds to account for any uses of v, and adjust the
+      // observed bounds of v (if v has declared bounds).
+      BoundsExpr *AdjustedSrcBounds = ReplaceVariableInBounds(SrcBounds, V, OV, CSS);
+      if (HasDeclaredBounds)
+        State.ObservedBounds[VariableDecl] = AdjustedSrcBounds;
+
+      // Adjust UEQ to account for any uses of v in PrevState.UEQ.
       State.UEQ.clear();
       for (auto I = PrevState.UEQ.begin(); I != PrevState.UEQ.end(); ++I) {
         EqualExprTy ExprList;
@@ -3671,7 +3702,7 @@ namespace {
           State.UEQ.push_back(ExprList);
       }
 
-      // Adjust G to account for any uses of V in PrevState.G.
+      // Adjust G to account for any uses of v in PrevState.G.
       State.G.clear();
       for (auto I = PrevState.G.begin(); I != PrevState.G.end(); ++I) {
         Expr *E = *I;
@@ -3682,6 +3713,8 @@ namespace {
       }
 
       RecordEqualityWithTarget(Target, State);
+      return AdjustedSrcBounds;
+    }
 
     // ReplaceVariableInBounds returns a bounds expression where all uses
     // of the variable v have been replaced with the original value (if any).
