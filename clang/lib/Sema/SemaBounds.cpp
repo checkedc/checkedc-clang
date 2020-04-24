@@ -3706,7 +3706,8 @@ namespace {
     // value as the only subexpression of e.
     //
     // Val is an optional expression that may be contained in the updated G.
-    // If Val is not provided, e is used instead.
+    // If Val is not provided, e is used instead.  If Val and e are null,
+    // G is not updated.
     void UpdateG(Expr *E, const EqualExprTy SubExprG,
                  EqualExprTy &G, Expr *Val = nullptr) {
       Expr *SubExpr = dyn_cast<Expr>(*(E->child_begin()));
@@ -3729,7 +3730,8 @@ namespace {
     // of expressions that produce the same value as Si.
     //
     // Val is an optional expression that may be contained in the updated G.
-    // If Val is not provided, e is used instead.
+    // If Val is not provided, e is used instead.  If Val and e are null,
+    // G is not updated.
     void UpdateG(Expr *E, ExprEqualMapTy SubExprGs,
                  EqualExprTy &G, Expr *Val = nullptr) {
       G.clear();
