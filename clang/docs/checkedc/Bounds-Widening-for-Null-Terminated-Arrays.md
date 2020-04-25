@@ -4,11 +4,12 @@
 A null-terminated array is a sequence of elements in memory that ends with a
 null terminator. Checked C adds the type `nt_array_ptr<T>` to represent
 pointers to these kinds of arrays. These arrays can be divided into two parts:
-a prefix with bounds followed by a null terminator.
+a prefix with bounds and a sequence of additional elements that ends with a
+null terminator.
 
-An important property of a null-terminated array is that an element of the
-array can be read, provided the preceding element is not the null terminator.
-This gives rise to the following observation:
+An important property of a null-terminated array is that the initial elements
+of the sequence can be read, provided that preceding elements are not the null
+terminator. This gives rise to the following observation:
 **The bounds of a null-terminated array can be widened based on the number of
 elements read.**
 
