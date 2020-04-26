@@ -1,12 +1,14 @@
-//                     The LLVM Compiler Infrastructure
+//=--RewriteUtils.h-----------------------------------------------*- C++-*-===//
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // This class contains functions and classes that deal with
 // rewriting the source file after converting to CheckedC format.
 //===----------------------------------------------------------------------===//
+
 #ifndef _REWRITEUTILS_H
 #define _REWRITEUTILS_H
 

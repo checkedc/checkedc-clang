@@ -1,157 +1,136 @@
+//=--CConvInteractive.cpp-----------------------------------------*- C++-*-===//
 //
-// Created by machiry on 11/11/19.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
+//===----------------------------------------------------------------------===//
+//
+// Implementation of the methods in CConvInteractive.h
+//
+//===----------------------------------------------------------------------===//
 
 #include "CConvInteractive.h"
-#include "ProgramInfo.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 
-bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info, std::set<std::string> &inputSourceFiles);
+bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
+                                     std::set<std::string> &inputSourceFiles);
 
-void DisjointSet::clear() {
-  leaders.clear();
-  groups.clear();
-  realWildPtrsWithReasons.clear();
-  PtrSourceMap.clear();
-  allWildPtrs.clear();
-  totalNonDirectWildPointers.clear();
-  validSourceFiles.clear();
-}
-void DisjointSet::addElements(ConstraintKey a, ConstraintKey b) {
-  if (leaders.find(a) != leaders.end()) {
-    if (leaders.find(b) != leaders.end()) {
-      auto leadera = leaders[a];
-      auto leaderb = leaders[b];
-      auto &grpa = groups[leadera];
-      auto &grpb = groups[leaderb];
-
-      if (grpa.size() < grpb.size()) {
-        grpa = groups[leaderb];
-        grpb = groups[leadera];
-        leadera = leaders[b];
-        leaderb = leaders[a];
-      }
-      grpa.insert(grpb.begin(), grpb.end());
-      groups.erase(leaderb);
-      for (auto k: grpb) {
-        leaders[k] = leadera;
-      }
-
-    } else {
-      groups[leaders[a]].insert(b);
-      leaders[b] = leaders[a];
-    }
-  } else {
-    if (leaders.find(b) != leaders.end()) {
-      groups[leaders[b]].insert(a);
-      leaders[a] = leaders[b];
-    } else {
-      leaders[a] = leaders[b] = a;
-      groups[a].insert(a);
-      groups[a].insert(b);
-    }
-  }
+DisjointSet& CConvInterface::GetWILDPtrsInfo() {
+  return GlobalProgramInfo.getPointerConstraintDisjointSet();
 }
 
-DisjointSet& getWILDPtrsInfo() {
-  return GlobalProgInfo.getPointerConstraintDisjointSet();
-}
-
-static void resetAllPointerConstraints() {
-  Constraints::EnvironmentMap &currEnvMap = GlobalProgInfo.getConstraints().getVariables();
+void CConvInterface::ResetAllPointerConstraints() {
+  // restore all the deleted constraints
+  Constraints::EnvironmentMap &currEnvMap = GlobalProgramInfo.getConstraints().getVariables();
   for (auto &CV : currEnvMap) {
     CV.first->resetErasedConstraints();
   }
 }
 
-bool makeSinglePtrNonWild(ConstraintKey targetPtr) {
-
+bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
+  std::lock_guard<std::mutex> lock(InterfaceMutex);
   CVars removePtrs;
   removePtrs.clear();
-  CVars oldWILDPtrs = GlobalProgInfo.getPointerConstraintDisjointSet().allWildPtrs;
 
-  resetAllPointerConstraints();
+  auto &ptrDisjointSet = GlobalProgramInfo.getPointerConstraintDisjointSet();
+  auto &CS = GlobalProgramInfo.getConstraints();
 
-  errs() << "After resetting\n";
+  // get all the current WILD pointers
+  CVars oldWILDPtrs = ptrDisjointSet.AllWildPtrs;
 
-  VarAtom *VA = GlobalProgInfo.getConstraints().getOrCreateVar(targetPtr);
+  // reset all the pointer constraints
+  ResetAllPointerConstraints();
 
-  Eq newE(VA, GlobalProgInfo.getConstraints().getWild());
-
-  Constraint *originalConstraint = *GlobalProgInfo.getConstraints().getConstraints().find(&newE);
-
-  GlobalProgInfo.getConstraints().removeConstraint(originalConstraint);
+  // Delete the constraint that make the provided targetPtr WILD
+  VarAtom *VA = CS.getOrCreateVar(targetPtr);
+  Eq newE(VA, CS.getWild());
+  Constraint *originalConstraint = *CS.getConstraints().find(&newE);
+  CS.removeConstraint(originalConstraint);
   VA->getAllConstraints().erase(originalConstraint);
-
   delete(originalConstraint);
 
-  GlobalProgInfo.getConstraints().resetConstraints();
+  // Reset the constraint system
+  CS.resetConstraints();
 
-  performIterativeItypeRefinement(GlobalProgInfo.getConstraints(), GlobalProgInfo, inputFilePaths);
-  GlobalProgInfo.computePointerDisjointSet();
+  // Solve the constraints
+  performIterativeItypeRefinement(CS, GlobalProgramInfo, inputFilePaths);
 
-  CVars &newWILDPtrs = GlobalProgInfo.getPointerConstraintDisjointSet().allWildPtrs;
+  // Compute new disjoint set
+  GlobalProgramInfo.computePointerDisjointSet();
 
+  // get new WILD pointers
+  CVars &newWILDPtrs = ptrDisjointSet.AllWildPtrs;
+
+  // Get the number of pointers that have now converted to non-WILD
   std::set_difference(oldWILDPtrs.begin(), oldWILDPtrs.end(),
                       newWILDPtrs.begin(),
                       newWILDPtrs.end(),
                       std::inserter(removePtrs, removePtrs.begin()));
-  errs() << "Returning\n";
 
   return !removePtrs.empty();
 }
 
 
-static void invalidateAllConstraintsWithReason(Constraint *constraintToRemove) {
+void CConvInterface::InvalidateAllConstraintsWithReason(
+                     Constraint *constraintToRemove) {
+  // get the reason for the current constraint
   std::string constraintReason = constraintToRemove->getReason();
   Constraints::ConstraintSet toRemoveConstraints;
-  Constraints &CS = GlobalProgInfo.getConstraints();
-  CS.removeAllConstraintsBasedOnThisReason(constraintReason, toRemoveConstraints);
+  Constraints &CS = GlobalProgramInfo.getConstraints();
+  // Remove all constraints that have the reason
+  CS.removeAllConstraintsOnReason(constraintReason,
+                                  toRemoveConstraints);
 
+  // free up memory by deleting all the removed constraints
   for (auto *toDelCons: toRemoveConstraints) {
     assert(dyn_cast<Eq>(toDelCons) && "We can only delete Eq constraints.");
     Eq* tCons = dyn_cast<Eq>(toDelCons);
-    VarAtom *VS = CS.getOrCreateVar((dyn_cast<VarAtom>(tCons->getLHS()))->getLoc());
+    auto *vatom = dyn_cast<VarAtom>(tCons->getLHS());
+    assert(vatom != nullptr && "Equality constraint with out VarAtom as LHS");
+    VarAtom *VS = CS.getOrCreateVar(vatom->getLoc());
     VS->getAllConstraints().erase(tCons);
-    // free the memory.
     delete (toDelCons);
   }
 }
 
-bool invalidateWildReasonGlobally(ConstraintKey targetPtr) {
+bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey targetPtr) {
+  std::lock_guard<std::mutex> lock(InterfaceMutex);
 
   CVars removePtrs;
   removePtrs.clear();
-  CVars oldWILDPtrs = GlobalProgInfo.getPointerConstraintDisjointSet().allWildPtrs;
 
-  resetAllPointerConstraints();
+  auto &ptrDisjointSet = GlobalProgramInfo.getPointerConstraintDisjointSet();
+  auto &CS = GlobalProgramInfo.getConstraints();
 
-  errs() << "After resetting\n";
+  CVars oldWILDPtrs = ptrDisjointSet.AllWildPtrs;
 
-  VarAtom *VA = GlobalProgInfo.getConstraints().getOrCreateVar(targetPtr);
+  ResetAllPointerConstraints();
 
-  Eq newE(VA, GlobalProgInfo.getConstraints().getWild());
+  // Delete ALL the constraints that have the same given reason
+  VarAtom *VA = CS.getOrCreateVar(targetPtr);
+  Eq newE(VA, CS.getWild());
+  Constraint *originalConstraint = *CS.getConstraints().find(&newE);
+  InvalidateAllConstraintsWithReason(originalConstraint);
 
-  Constraint *originalConstraint = *GlobalProgInfo.getConstraints().getConstraints().find(&newE);
+  // reset constraint solver
+  CS.resetConstraints();
 
-  invalidateAllConstraintsWithReason(originalConstraint);
+  // solve the constraint
+  performIterativeItypeRefinement(CS, GlobalProgramInfo, inputFilePaths);
 
-  GlobalProgInfo.getConstraints().resetConstraints();
+  // recompute the WILD pointer disjoint sets
+  GlobalProgramInfo.computePointerDisjointSet();
 
-  performIterativeItypeRefinement(GlobalProgInfo.getConstraints(), GlobalProgInfo, inputFilePaths);
-
-  GlobalProgInfo.computePointerDisjointSet();
-
-  CVars &newWILDPtrs = GlobalProgInfo.getPointerConstraintDisjointSet().allWildPtrs;
+  // computed the number of removed pointers
+  CVars &newWILDPtrs = ptrDisjointSet.AllWildPtrs;
 
   std::set_difference(oldWILDPtrs.begin(), oldWILDPtrs.end(),
                       newWILDPtrs.begin(),
                       newWILDPtrs.end(),
                       std::inserter(removePtrs, removePtrs.begin()));
-
-  errs() << "Returning\n";
 
   return !removePtrs.empty();
 }

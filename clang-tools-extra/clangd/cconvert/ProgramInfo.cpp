@@ -1,11 +1,13 @@
-//                     The LLVM Compiler Infrastructure
+//=--ProgramInfo.cpp----------------------------------------------*- C++-*-===//
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // Implementation of ProgramInfo methods.
 //===----------------------------------------------------------------------===//
+
 #include "ProgramInfo.h"
 #include "MappingVisitor.h"
 #include "ConstraintBuilder.h"
@@ -26,7 +28,7 @@ ProgramInfo::ProgramInfo() :
 
 
 void ProgramInfo::merge_MF(ParameterMap &mf) {
-  for(auto kv : mf) {
+  for (auto kv : mf) {
     MF[kv.first] = kv.second;
   }
 }
@@ -42,12 +44,12 @@ void ProgramInfo::print(raw_ostream &O) const {
   O << "\n";
 
   O << "Constraint Variables\n";
-  for( const auto &I : Variables ) {
+  for ( const auto &I : Variables ) {
     PersistentSourceLoc L = I.first;
     const std::set<ConstraintVariable*> &S = I.second;
     L.print(O);
     O << "=>";
-    for(const auto &J : S) {
+    for (const auto &J : S) {
       O << "[ ";
       J->print(O);
       O << " ]";
@@ -56,10 +58,10 @@ void ProgramInfo::print(raw_ostream &O) const {
   }
 
   O << "Dummy Declaration Constraint Variables\n";
-  for(const auto &declCons: OnDemandFuncDeclConstraint) {
+  for (const auto &declCons: OnDemandFuncDeclConstraint) {
     O << "Func Name:" << declCons.first << " => ";
     const std::set<ConstraintVariable*> &S = declCons.second;
-    for(const auto &J : S) {
+    for (const auto &J : S) {
       O << "[ ";
       J->print(O);
       O << " ]";
@@ -74,8 +76,8 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
   // dump the constraint variables.
   O << ", \"ConstraintVariables\":[";
   bool addComma = false;
-  for( const auto &I : Variables ) {
-    if(addComma) {
+  for ( const auto &I : Variables ) {
+    if (addComma) {
       O << ",\n";
     }
     PersistentSourceLoc L = I.first;
@@ -86,8 +88,8 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
     O << "\",";
     O << "\"Variables\":[";
     bool addComma1 = false;
-    for(const auto &J : S) {
-      if(addComma1) {
+    for (const auto &J : S) {
+      if (addComma1) {
         O << ",";
       }
       J->dump_json(O);
@@ -101,16 +103,16 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
   // dump on demand constraints
   O << ", \"DummyFunctionConstraints\":[";
   addComma = false;
-  for(const auto &declCons: OnDemandFuncDeclConstraint) {
-    if(addComma) {
+  for (const auto &declCons: OnDemandFuncDeclConstraint) {
+    if (addComma) {
       O << ",";
     }
     O << "{\"functionName\":\"" << declCons.first << "\"";
     O << ", \"Constraints\":[";
     const std::set<ConstraintVariable*> &S = declCons.second;
     bool addComma1 = false;
-    for(const auto &J : S) {
-      if(addComma1) {
+    for (const auto &J : S) {
+      if (addComma1) {
         O << ",";
       }
       J->dump_json(O);
@@ -156,10 +158,10 @@ CVars getVarsFromConstraint(ConstraintVariable *V, CVars T) {
 
 // Print out statistics of constraint variables on a per-file basis.
 void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O, bool onlySummary) {
-  if(!onlySummary) {
-    O << "Enable itype propagation:" << enablePropThruIType << "\n";
-    O << "Merge multiple function declaration:" << !seperateMultipleFuncDecls << "\n";
-    O << "Sound handling of var args functions:" << handleVARARGS << "\n";
+  if (!onlySummary) {
+    O << "Enable itype propagation:" << EnablePropThruIType << "\n";
+    O << "Merge multiple function declaration:" << !SeperateMultipleFuncDecls << "\n";
+    O << "Sound handling of var args functions:" << HandleVARARGS << "\n";
   }
   std::map<std::string, std::tuple<int, int, int, int, int> > filesToVars;
   Constraints::EnvironmentMap env = CS.getVariables();
@@ -184,7 +186,7 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O, bool onl
       for (auto &C : I.second) {
         CVars tmp = getVarsFromConstraint(C, foundVars);
         foundVars.insert(tmp.begin(), tmp.end());
-        }
+      }
 
       varC += foundVars.size();
       for (const auto &N : foundVars) {
@@ -348,7 +350,7 @@ bool ProgramInfo::link() {
     }
   }
 
-  if (!seperateMultipleFuncDecls) {
+  if (!SeperateMultipleFuncDecls) {
       int gap = 0;
       for (const auto &S : GlobalFunctionSymbols) {
           std::string fname = S.first;
@@ -549,7 +551,7 @@ void ProgramInfo::seeGlobalDecl(clang::VarDecl *G, ASTContext *C) {
     K = I->second;
   }
   for (const auto &J : K)
-    if(PVConstraint *FJ = dyn_cast<PVConstraint>(J))
+    if (PVConstraint *FJ = dyn_cast<PVConstraint>(J))
       toAdd.insert(FJ);
 
   assert(toAdd.size() > 0);
@@ -690,7 +692,7 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
   std::set<ConstraintVariable*> &S = Variables[PLoc];
   bool newFunction = false;
 
-  if(F != nullptr && !hasConstraintType<FVConstraint>(S)) {
+  if (F != nullptr && !hasConstraintType<FVConstraint>(S)) {
     // insert the function constraint only if it doesn't exist
     newFunction = true;
     S.insert(F);
@@ -708,12 +710,12 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
     std::string funcKey =  getUniqueDeclKey(UD, C);
     // this is a definition. Create a constraint variable
     // and save the mapping between definition and declaration.
-    if(UD->isThisDeclarationADefinition() && UD->hasBody()) {
+    if (UD->isThisDeclarationADefinition() && UD->hasBody()) {
       CS.getFuncDefnVarMap()[funcKey].insert(F);
       // this is a definition.
       // get the declaration and store the unique key mapping
       FunctionDecl *FDecl = getDeclaration(UD);
-      if(FDecl != nullptr) {
+      if (FDecl != nullptr) {
         std::string fDeclKey = getUniqueDeclKey(FDecl, C);
         CS.getFuncDefnDeclMap().set(funcKey, fDeclKey);
       } else {
@@ -726,7 +728,7 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
     }
   }
 
-  if(P != nullptr && !hasConstraintType<PVConstraint>(S)) {
+  if (P != nullptr && !hasConstraintType<PVConstraint>(S)) {
     // if there is no pointer constraint in this location
     // insert it.
     S.insert(P);
@@ -806,7 +808,7 @@ ProgramInfo::getVariableHelper( Expr                            *E,
         // Subtract one from this constraint. If that generates an empty 
         // constraint, then, don't add it 
         std::set<uint32_t> C = PVC->getCvars();
-        if(C.size() > 0) {
+        if (C.size() > 0) {
           C.erase(C.begin());
           if (C.size() > 0) {
             bool a = PVC->getArrPresent();
@@ -832,7 +834,7 @@ ProgramInfo::getVariableHelper( Expr                            *E,
           // Subtract one from this constraint. If that generates an empty 
           // constraint, then, don't add it 
           std::set<uint32_t> C = PVC->getCvars();
-          if(C.size() > 0) {
+          if (C.size() > 0) {
             C.erase(C.begin());
             if (C.size() > 0) {
               bool a = PVC->getArrPresent();
@@ -875,7 +877,7 @@ ProgramInfo::getVariableHelper( Expr                            *E,
       for (ConstraintVariable *C : tmp) {
         if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
           T.insert(FV->getReturnVars().begin(), FV->getReturnVars().end());
-        } else if(PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
+        } else if (PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
           if (FVConstraint *FV = PV->getFV()) {
             T.insert(FV->getReturnVars().begin(), FV->getReturnVars().end());
           }
@@ -1082,7 +1084,7 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C, bool inFunctionContext)
       
       // if this is an external function and we are unable
       // to find the body. Get the FD object from the parameter.
-      if(!funcDefinition && !funcDeclaration) {
+      if (!funcDefinition && !funcDeclaration) {
         funcDeclaration = FD;
       }
       assert(parameterIndex >= 0 && "Got request for invalid parameter");
@@ -1172,17 +1174,17 @@ std::set<ConstraintVariable*> *ProgramInfo::getFuncDeclConstraintSet(std::string
   auto &defnDeclKeyMap = CS.getFuncDefnDeclMap();
   auto &declConstrains = CS.getFuncDeclVarMap();
   // see if we do not have constraint variables for declaration
-  if(defnDeclKeyMap.hasKey(funcDefKey)) {
+  if (defnDeclKeyMap.hasKey(funcDefKey)) {
     auto funcDeclKey = defnDeclKeyMap.keyMap().at(funcDefKey);
     // if this has a declaration constraint?
     // then fetch the constraint.
-    if(declConstrains.find(funcDeclKey) != declConstrains.end()) {
+    if (declConstrains.find(funcDeclKey) != declConstrains.end()) {
       declCVarsPtr = &(declConstrains[funcDeclKey]);
     }
   } else {
     // no? then check the ondemand declarations
     auto &onDemandMap = getOnDemandFuncDeclConstraintMap();
-    if(onDemandMap.find(funcDefKey) != onDemandMap.end()) {
+    if (onDemandMap.find(funcDefKey) != onDemandMap.end()) {
       declCVarsPtr = &(onDemandMap[funcDefKey]);
     }
   }
@@ -1404,79 +1406,84 @@ bool ProgramInfo::handleFunctionSubtyping() {
 }
 
 bool ProgramInfo::computePointerDisjointSet() {
-  ConstraintDisjointSet.clear();
+  ConstraintDisjointSet.Clear();
   CVars allWILDPtrs;
   allWILDPtrs.clear();
+  auto &wildPtrsReason = ConstraintDisjointSet.RealWildPtrsWithReasons;
+  auto &currLeaders = ConstraintDisjointSet.Leaders;
+  auto &currGroups = ConstraintDisjointSet.Groups;
   for (auto currC: CS.getConstraints()) {
     if (Eq *EC = dyn_cast<Eq>(currC)) {
       VarAtom *VLhs = dyn_cast<VarAtom>(EC->getLHS());
       if (dyn_cast<WildAtom>(EC->getRHS())) {
-        ConstraintDisjointSet.realWildPtrsWithReasons[VLhs->getLoc()].wildPtrReason = EC->getReason();
+        wildPtrsReason[VLhs->getLoc()].WildPtrReason = EC->getReason();
         if (!EC->sourceFileName.empty() && EC->lineNo != 0) {
-          ConstraintDisjointSet.realWildPtrsWithReasons[VLhs->getLoc()].isValid = true;
-          ConstraintDisjointSet.realWildPtrsWithReasons[VLhs->getLoc()].sourceFileName = EC->sourceFileName;
-          ConstraintDisjointSet.realWildPtrsWithReasons[VLhs->getLoc()].lineNo = EC->lineNo;
-          ConstraintDisjointSet.realWildPtrsWithReasons[VLhs->getLoc()].colStart = EC->colStart;
+          wildPtrsReason[VLhs->getLoc()].IsValid = true;
+          wildPtrsReason[VLhs->getLoc()].SourceFileName = EC->sourceFileName;
+          wildPtrsReason[VLhs->getLoc()].LineNo = EC->lineNo;
+          wildPtrsReason[VLhs->getLoc()].ColStart = EC->colStart;
         }
         allWILDPtrs.insert(VLhs->getLoc());
       } else {
         VarAtom *Vrhs = dyn_cast<VarAtom>(EC->getRHS());
         if (Vrhs != nullptr)
-          ConstraintDisjointSet.addElements(VLhs->getLoc(), Vrhs->getLoc());
+          ConstraintDisjointSet.AddElements(VLhs->getLoc(), Vrhs->getLoc());
       }
     }
   }
 
   // perform adjustment of group leaders. So that, the real-WILD
   // pointers are the leaders for each group.
-  for (auto &realCP: ConstraintDisjointSet.realWildPtrsWithReasons) {
+  for (auto &realCP: wildPtrsReason) {
     auto &realCVar = realCP.first;
     // check if the leader CVar is a real WILD Ptr
-    if (ConstraintDisjointSet.leaders.find(realCVar) != ConstraintDisjointSet.leaders.end()) {
-      auto oldGroupLeader = ConstraintDisjointSet.leaders[realCVar];
+    if (currLeaders.find(realCVar) != currLeaders.end()) {
+      auto oldGroupLeader = currLeaders[realCVar];
       // if not?
-      if (ConstraintDisjointSet.realWildPtrsWithReasons.find(oldGroupLeader) ==
-          ConstraintDisjointSet.realWildPtrsWithReasons.end()) {
-        for (auto &leadersP: ConstraintDisjointSet.leaders) {
+      if (ConstraintDisjointSet.RealWildPtrsWithReasons.find(oldGroupLeader) ==
+          ConstraintDisjointSet.RealWildPtrsWithReasons.end()) {
+        for (auto &leadersP: currLeaders) {
           if (leadersP.second == oldGroupLeader) {
             leadersP.second = realCVar;
           }
         }
 
-        auto &oldG = ConstraintDisjointSet.groups[oldGroupLeader];
-        ConstraintDisjointSet.groups[realCVar].insert(oldG.begin(), oldG.end());
-        ConstraintDisjointSet.groups[realCVar].insert(realCVar);
-        ConstraintDisjointSet.groups.erase(oldGroupLeader);
+        auto &oldG = currGroups[oldGroupLeader];
+        currGroups[realCVar].insert(oldG.begin(), oldG.end());
+        currGroups[realCVar].insert(realCVar);
+        currGroups.erase(oldGroupLeader);
       }
     }
   }
 
   // compute non-direct WILD pointers.
-  for (auto &gm : ConstraintDisjointSet.groups) {
+  for (auto &gm : currGroups) {
     // is this group a WILD pointer group?
-    if (ConstraintDisjointSet.realWildPtrsWithReasons.find(gm.first) !=
-        ConstraintDisjointSet.realWildPtrsWithReasons.end()) {
-        ConstraintDisjointSet.totalNonDirectWildPointers.insert(gm.second.begin(), gm.second.end());
+    if (ConstraintDisjointSet.RealWildPtrsWithReasons.find(gm.first) !=
+        ConstraintDisjointSet.RealWildPtrsWithReasons.end()) {
+        ConstraintDisjointSet.TotalNonDirectWildPointers.insert(gm.second.begin(),
+                                                                gm.second.end());
     }
   }
 
   CVars tmpCKeys;
   tmpCKeys.clear();
+  auto &totalNDirectWPtrs = ConstraintDisjointSet.TotalNonDirectWildPointers;
   // remove direct WILD pointers from non-direct wild pointers.
-  std::set_difference(ConstraintDisjointSet.totalNonDirectWildPointers.begin(),
-                      ConstraintDisjointSet.totalNonDirectWildPointers.end(),
+  std::set_difference(totalNDirectWPtrs.begin(),
+                      totalNDirectWPtrs.end(),
                       allWILDPtrs.begin(), allWILDPtrs.end(),
                       std::inserter(tmpCKeys, tmpCKeys.begin()));
 
   // update the totalNonDirectWildPointers
-  ConstraintDisjointSet.totalNonDirectWildPointers.clear();
-  ConstraintDisjointSet.totalNonDirectWildPointers.insert(tmpCKeys.begin(), tmpCKeys.end());
+  totalNDirectWPtrs.clear();
+  totalNDirectWPtrs.insert(tmpCKeys.begin(), tmpCKeys.end());
 
   for ( const auto &I : Variables ) {
     PersistentSourceLoc L = I.first;
     std::string filePath = L.getFileName();
     if (canWrite(filePath)) {
-      ConstraintDisjointSet.validSourceFiles.insert(filePath);
+      ConstraintDisjointSet.ValidSourceFiles.insert(filePath);
     } else {
       continue;
     }
@@ -1502,13 +1509,14 @@ bool ProgramInfo::computePointerDisjointSet() {
 
   // compute all the WILD pointers.
   CVars WildCkeys;
-  for (auto &gm : ConstraintDisjointSet.groups) {
+  for (auto &gm : currGroups) {
     WildCkeys.clear();
-    std::set_intersection(gm.second.begin(), gm.second.end(), allWILDPtrs.begin(), allWILDPtrs.end(),
+    std::set_intersection(gm.second.begin(), gm.second.end(),
+                          allWILDPtrs.begin(), allWILDPtrs.end(),
                           std::inserter(WildCkeys, WildCkeys.begin()));
 
     if (!WildCkeys.empty()) {
-      ConstraintDisjointSet.allWildPtrs.insert(WildCkeys.begin(), WildCkeys.end());
+      ConstraintDisjointSet.AllWildPtrs.insert(WildCkeys.begin(), WildCkeys.end());
     }
   }
 

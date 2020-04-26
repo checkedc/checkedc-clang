@@ -1,12 +1,14 @@
-//                     The LLVM Compiler Infrastructure
+//=--RewriteUtils.cpp---------------------------------------------*- C++-*-===//
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // This class contains implementation of the functions and
 // classes of RewriteUtils.h
 //===----------------------------------------------------------------------===//
+
 #include "llvm/Support/raw_ostream.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include <algorithm>
@@ -505,7 +507,7 @@ std::string TypeRewritingVisitor::getExistingIType(ConstraintVariable *decl,
                                                    FunctionDecl *funcDecl) {
   std::string ret = "";
   ConstraintVariable *target = decl;
-  if(funcDecl == nullptr) {
+  if (funcDecl == nullptr) {
     target = defn;
   }
   if (PVConstraint *PVC = dyn_cast<PVConstraint>(target)) {
@@ -539,7 +541,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   FunctionDecl *Definition = getDefinition(FD);
   FunctionDecl *Declaration = getDeclaration(FD);
 
-  if(Definition == nullptr)
+  if (Definition == nullptr)
     return true;
 
   // Make sure we haven't visited this function name before, and that we
@@ -555,7 +557,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   std::set<ConstraintVariable*> *funcDeclKeys = Info.getFuncDeclConstraintSet(Info.getUniqueDeclKey(Definition, Context));
   // Get constraint variables for the declaration and the definition.
   // Those constraints should be function constraints.
-  if(funcDeclKeys != nullptr) {
+  if (funcDeclKeys != nullptr) {
     // if there is no declaration?
     // get the on demand function variable constraint.
     cDecl = getHighestT<FVConstraint>(*funcDeclKeys, Info);
@@ -659,12 +661,12 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
     // this means inside the function, the return value is WILD
     // so the return type is what was originally declared.
-    if(!returnHandled) {
+    if (!returnHandled) {
       // If we used to implement a bounds-safe interface, continue to do that.
       returnVar = Decl->getOriginalTy() + " ";
 
       endStuff = getExistingIType(Decl, Defn, Declaration);
-      if(!endStuff.empty()) {
+      if (!endStuff.empty()) {
         didAny = true;
       }
     }
@@ -679,7 +681,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
       s = s + ss.str();
       // add varargs
-      if(functionHasVarArgs(Definition)) {
+      if (functionHasVarArgs(Definition)) {
         s = s + ", ...";
       }
       s = s + ")";
@@ -766,7 +768,7 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files, std::strin
 
   SmallString<254> baseAbs(BaseDir);
   std::string baseDirFP;
-  if(getAbsoluteFilePath(BaseDir, baseDirFP)) {
+  if (getAbsoluteFilePath(BaseDir, baseDirFP)) {
     baseAbs = baseDirFP;
   }
   sys::path::remove_filename(baseAbs);
@@ -801,11 +803,11 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files, std::strin
           // Write this file out if it was specified as a file on the command
           // line.
           std::string feAbsS = "";
-          if(getAbsoluteFilePath(FE->getName(), feAbsS)) {
+          if (getAbsoluteFilePath(FE->getName(), feAbsS)) {
             feAbsS = sys::path::remove_leading_dotslash(feAbsS);
           }
 
-          if(canWrite(feAbsS)) {
+          if (canWrite(feAbsS)) {
             std::error_code EC;
             raw_fd_ostream out(nFile, EC, sys::fs::F_None);
 
@@ -841,7 +843,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     bool VisitForStmt(ForStmt *s) {
       int localwild = 0;
 
-      for(const auto& subStmt : s->children()) {
+      for (const auto& subStmt : s->children()) {
         CheckedRegionAdder sub(Context,Writer,Info,Seen);
         sub.TraverseStmt(subStmt);
         localwild += sub.wild;
@@ -854,7 +856,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     bool VisitSwitchStmt(SwitchStmt *s) {
       int localwild = 0;
 
-      for(const auto& subStmt : s->children()) {
+      for (const auto& subStmt : s->children()) {
         CheckedRegionAdder sub(Context,Writer,Info,Seen);
         sub.TraverseStmt(subStmt);
         localwild += sub.wild;
@@ -867,7 +869,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     bool VisitIfStmt(IfStmt *s) {
       int localwild = 0;
 
-      for(const auto& subStmt : s->children()) {
+      for (const auto& subStmt : s->children()) {
         CheckedRegionAdder sub(Context,Writer,Info,Seen);
         sub.TraverseStmt(subStmt);
         localwild += sub.wild;
@@ -880,7 +882,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     bool VisitWhileStmt(WhileStmt *s) {
       int localwild = 0;
 
-      for(const auto& subStmt : s->children()) {
+      for (const auto& subStmt : s->children()) {
         CheckedRegionAdder sub(Context,Writer,Info,Seen);
         sub.TraverseStmt(subStmt);
         localwild += sub.wild;
@@ -893,7 +895,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     bool VisitDoStmt(DoStmt *s) {
       int localwild = 0;
 
-      for(const auto& subStmt : s->children()) {
+      for (const auto& subStmt : s->children()) {
         CheckedRegionAdder sub(Context,Writer,Info,Seen);
         sub.TraverseStmt(subStmt);
         localwild += sub.wild;
@@ -946,7 +948,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       }
 
       auto parent = parents[0].get<FunctionDecl>();
-      if(!parent) {
+      if (!parent) {
         return false;
       }
 
@@ -976,10 +978,10 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
         return false; // This case shouldn't happen, but if it does play it safe and mark WILD
       }
       auto parent = parents[0].get<CompoundStmt>();
-      if(parent) {
+      if (parent) {
         //Check if we are the only child
         int numChilds = 0;
-        for(const auto& child: parent->children()) {
+        for (const auto& child: parent->children()) {
           numChilds++;
         }
         return numChilds > 1;
@@ -997,7 +999,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
         // an unsafe block and avoid polluting the entire block as unsafe.
         // If it's not (as in it is used in an expression) then we fall back to
         // reporting an WILD value
-        if(isInStatementPosition(c)) {
+        if (isInStatementPosition(c)) {
           // Insert an _Unchecked block around the call
           auto begin = c->getBeginLoc();
           Writer.InsertTextBefore(begin, "_Unchecked { ");
@@ -1142,7 +1144,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 
     bool VisitMemberExpr(MemberExpr *me){
       ValueDecl* st = me->getMemberDecl();
-      if(st) {
+      if (st) {
         // Check if the variable is WILD
         bool foundWild = false;
         std::set<ConstraintVariable*> cvs = Info.getVariable(st, Context);
@@ -1180,14 +1182,14 @@ public:
 
   bool VisitCallExpr(CallExpr *CE) {
     Decl *D = CE->getCalleeDecl();
-    if(D) {
+    if (D) {
       PersistentSourceLoc psl = PersistentSourceLoc::mkPSL(CE, *Context);
       if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
         // get the constraint variable for the function
         std::set<ConstraintVariable *> &V = Info.getFuncDefnConstraints(FD, Context);
         // TODO Deubgging lines
         // llvm::errs() << "Decl for: " << FD->getNameAsString() << "\nVars:";
-        // for(auto &CV : V) {
+        // for (auto &CV : V) {
         //   CV->dump();
         //   llvm::errs() << "\n";
         // }
@@ -1303,7 +1305,7 @@ public:
     std::set<ConstraintVariable*> a;
     // check if the function body exists before
     // fetching inbody variable.
-    if(hasFunctionBody(D)) {
+    if (hasFunctionBody(D)) {
       a = Info.getVariable(D, Context, true);
     }
 
@@ -1360,7 +1362,7 @@ public:
     RecordDecl *RD = VD->getType().getTypePtr()->getAsRecordDecl();
     if (RecordDecl *Definition = RD->getDefinition()) {
       // see if we already know that this structure has a checked pointer.
-      if(RecordsWithCPointers.find(Definition) != RecordsWithCPointers.end()) {
+      if (RecordsWithCPointers.find(Definition) != RecordsWithCPointers.end()) {
         return true;
       }
       for (const auto &D : Definition->fields()) {
@@ -1398,11 +1400,11 @@ public:
       }
     }
 
-    for(auto VD: allDecls) {
+    for (auto VD: allDecls) {
       // check if this variable is a structure or union and doesn't have an initializer.
-      if(!VD->hasInit() && isStructOrUnionType(VD)) {
+      if (!VD->hasInit() && isStructOrUnionType(VD)) {
         // check if the variable needs a initializer.
-        if(VariableNeedsInitializer(VD, S)) {
+        if (VariableNeedsInitializer(VD, S)) {
           const clang::Type *Ty = VD->getType().getTypePtr();
           std::string OriginalType = tyToStr(Ty);
           // create replacement text with an initializer.
@@ -1425,7 +1427,7 @@ private:
 std::map<std::string, std::string> RewriteConsumer::ModifiedFuncSignatures;
 
 std::string RewriteConsumer::getModifiedFuncSignature(std::string funcName) {
-  if(RewriteConsumer::ModifiedFuncSignatures.find(funcName) != RewriteConsumer::ModifiedFuncSignatures.end()) {
+  if (RewriteConsumer::ModifiedFuncSignatures.find(funcName) != RewriteConsumer::ModifiedFuncSignatures.end()) {
     return RewriteConsumer::ModifiedFuncSignatures[funcName];
   }
   return "";
@@ -1455,10 +1457,6 @@ std::string ArrayBoundsRewriter::getBoundsString(Decl *decl, bool isitype) {
   }
   return boundsString;
 }
-
-#ifdef CCCONVSTANDALONE
-extern cl::opt<bool> addCheckedRegions;
-#endif
 
 void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   Info.enterCompilationUnit(Context);
@@ -1501,13 +1499,9 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
     V.TraverseDecl(D);
     FV.TraverseDecl(D);
     ECPV.TraverseDecl(D);
-#ifdef CCCONVSTANDALONE
-    // adding checked regions enabled!?
-    if (addCheckedRegions)
+    if (AddCheckedRegions)
+      // adding checked regions enabled!?
       CRA.TraverseDecl(D);
-#else
-    CRA.TraverseDecl(D);
-#endif
     GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
   }
 

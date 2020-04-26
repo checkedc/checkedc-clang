@@ -195,8 +195,6 @@ struct Location {
     return std::tie(LHS.uri, LHS.range) < std::tie(RHS.uri, RHS.range);
   }
 };
-
-bool fromJSON(const llvm::json::Value &, Location &);
 llvm::json::Value toJSON(const Location &);
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Location &);
 
@@ -641,13 +639,6 @@ struct DiagnosticRelatedInformation {
 llvm::json::Value toJSON(const DiagnosticRelatedInformation &);
 
 struct CodeAction;
-struct DiagnosticRelatedInformation {
-  Location location;
-  std::string message;
-};
-llvm::json::Value toJSON(const DiagnosticRelatedInformation &);
-bool fromJSON(const llvm::json::Value &, DiagnosticRelatedInformation &);
-
 struct Diagnostic {
   /// The range at which the message applies.
   Range range;
@@ -657,13 +648,11 @@ struct Diagnostic {
   int severity = 0;
 
   /// The diagnostic's code. Can be omitted.
-  /// Note: Not currently used by clangd
-  int code = 0;
+  std::string code;
 
   /// A human-readable string describing the source of this
   /// diagnostic, e.g. 'typescript' or 'super lint'.
-  /// Note: Not currently used by clangd
-  std::string source = "default";
+  std::string source;
 
   /// The diagnostic's message.
   std::string message;
@@ -682,8 +671,6 @@ struct Diagnostic {
   /// Only with capability textDocument.publishDiagnostics.codeActionsInline.
   /// (These actions can also be obtained using textDocument/codeAction).
   llvm::Optional<std::vector<CodeAction>> codeActions;
-
-  llvm::Optional<std::vector<DiagnosticRelatedInformation>> relatedInformation;
 };
 llvm::json::Value toJSON(const Diagnostic &);
 
@@ -716,7 +703,6 @@ struct CodeActionParams {
   /// Context carrying additional information.
   CodeActionContext context;
 };
-
 bool fromJSON(const llvm::json::Value &, CodeActionParams &);
 
 struct CodeLensParams {
@@ -725,7 +711,6 @@ struct CodeLensParams {
 };
 
 bool fromJSON(const llvm::json::Value &, CodeLensParams &);
-
 
 struct WorkspaceEdit {
   /// Holds changes to existing resources.
@@ -737,12 +722,16 @@ struct WorkspaceEdit {
 bool fromJSON(const llvm::json::Value &, WorkspaceEdit &);
 llvm::json::Value toJSON(const WorkspaceEdit &WE);
 
+#ifdef INTERACTIVECCCONV
+/// Data corresponding to the manual fix
 struct CConvertManualFix {
   int ptrID;
 };
 
 bool fromJSON(const llvm::json::Value &, CConvertManualFix &);
 llvm::json::Value toJSON(const CConvertManualFix &WE);
+#endif
+
 /// Arguments for the 'applyTweak' command. The server sends these commands as a
 /// response to the textDocument/codeAction request. The client can later send a
 /// command back to the server if the user requests to execute a particular code
@@ -769,18 +758,23 @@ llvm::json::Value toJSON(const TweakArgs &A);
 struct ExecuteCommandParams {
   // Command to apply fix-its. Uses WorkspaceEdit as argument.
   const static llvm::StringLiteral CLANGD_APPLY_FIX_COMMAND;
-  const static llvm::StringLiteral CCONV_APPLY_ONLY_FOR_THIS;
-  const static llvm::StringLiteral CCONV_APPLY_FOR_ALL;
   // Command to apply the code action. Uses TweakArgs as argument.
   const static llvm::StringLiteral CLANGD_APPLY_TWEAK;
+#ifdef INTERACTIVECCCONV
+  // Command to apply the change for this pointer only
+  const static llvm::StringLiteral CCONV_APPLY_ONLY_FOR_THIS;
+  // Command to apply the change for all pointers with same reason
+  const static llvm::StringLiteral CCONV_APPLY_FOR_ALL;
+#endif
 
   /// The command identifier, e.g. CLANGD_APPLY_FIX_COMMAND
   std::string command;
 
   // Arguments
   llvm::Optional<WorkspaceEdit> workspaceEdit;
-
+#ifdef INTERACTIVECCCONV
   llvm::Optional<CConvertManualFix> ccConvertManualFix;
+#endif
   llvm::Optional<TweakArgs> tweakArgs;
 };
 bool fromJSON(const llvm::json::Value &, ExecuteCommandParams &);
@@ -816,9 +810,9 @@ struct CodeAction {
   /// and a command, first the edit is executed and then the command.
   llvm::Optional<Command> command;
 };
-
 llvm::json::Value toJSON(const CodeAction &);
 
+#ifdef INTERACTIVECCCONV
 //
 // A code lens represents a command that should be shown along with
 // source text, like the number of references, a way to run tests, etc.
@@ -844,6 +838,7 @@ struct CodeLens {
 
 llvm::json::Value toJSON(const CodeLens &);
 bool fromJSON(const llvm::json::Value &, CodeLens &);
+#endif
 
 /// Represents programming constructs like variables, classes, interfaces etc.
 /// that appear in a document. Document symbols can be hierarchical and they

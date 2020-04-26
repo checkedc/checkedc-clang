@@ -36,7 +36,9 @@
 #include <string>
 #include <type_traits>
 #include <utility>
+#ifdef INTERACTIVECCCONV
 #include "CConvertDiagnostics.h"
+#endif
 
 namespace clang {
 namespace clangd {
@@ -58,10 +60,14 @@ public:
                        std::vector<HighlightingToken> Highlightings) {}
 };
 
+#ifdef INTERACTIVECCCONV
 class CConvLSPCallBack {
 public:
-    virtual void ccConvResultsReady(std::string targetFileName) = 0;
+  virtual void ccConvResultsReady(std::string targetFileName, bool clearDiags = false) = 0;
+  virtual void sendCConvMessage(std::string msg) = 0;
 };
+#endif
+
 /// When set, used by ClangdServer to get clang-tidy options for each particular
 /// file. Must be thread-safe. We use this instead of ClangTidyOptionsProvider
 /// to allow reading tidy configs from the VFS used for parsing.
@@ -161,7 +167,12 @@ public:
   /// synchronize access to shared state.
   ClangdServer(const GlobalCompilationDatabase &CDB,
                const FileSystemProvider &FSProvider,
+#ifdef INTERACTIVECCCONV
+               DiagnosticsConsumer &DiagConsumer, const Options &Opts,
+               CConvInterface &CCInterface);
+#else
                DiagnosticsConsumer &DiagConsumer, const Options &Opts);
+#endif
 
   /// Add a \p File to the list of tracked C++ files or update the contents if
   /// \p File is already tracked. Also schedules parsing of the AST for it on a
@@ -293,7 +304,7 @@ public:
   LLVM_NODISCARD bool
   blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10);
 
-
+#ifdef INTERACTIVECCCONV
   // ccconv specific commands
   // collect and build initial set of constraints on the source
   // files.
@@ -306,7 +317,7 @@ public:
   CConvertDiagnostics CConvDiagInfo;
 
   void cconvCloseDocument(std::string file);
-
+#endif
 
 private:
   /// FIXME: This stats several files to find a .clang-format file. I/O can be
@@ -315,11 +326,11 @@ private:
   formatCode(llvm::StringRef Code, PathRef File,
              ArrayRef<tooling::Range> Ranges);
 
-  tooling::CompileCommand getCompileCommand(PathRef File);
-
+#ifdef INTERACTIVECCCONV
   void reportCConvDiagsForAllFiles(DisjointSet &ccInfo, CConvLSPCallBack *ConvCB);
+  void clearCConvDiagsForAllFiles(DisjointSet &ccInfo, CConvLSPCallBack *ConvCB);
+#endif
 
-  const GlobalCompilationDatabase &CDB;
   const FileSystemProvider &FSProvider;
 
   Path ResourceDir;
@@ -356,6 +367,9 @@ private:
   // called before all other members to stop the worker thread that references
   // ClangdServer.
   TUScheduler WorkScheduler;
+#ifdef INTERACTIVECCCONV
+  CConvInterface &CConvInter;
+#endif
 };
 
 } // namespace clangd

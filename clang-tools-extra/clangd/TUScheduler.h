@@ -208,8 +208,7 @@ public:
   /// Mostly useful for synchronizing tests.
   bool blockUntilIdle(Deadline D) const;
 
-  bool isFileAlreadyAnalyzed(PathRef File);
-
+private:
   /// This class stores per-file data in the Files map.
   struct FileData;
 
@@ -225,16 +224,12 @@ public:
   // integration.
   static llvm::Optional<llvm::StringRef> getFileBeingProcessedInContext();
 
-  llvm::StringMap<std::unique_ptr<FileData>> Files;
-  std::unique_ptr<ParsingCallbacks> Callbacks; // not nullptr
-
 private:
   const GlobalCompilationDatabase &CDB;
   const bool StorePreamblesInMemory;
-  const std::shared_ptr<PCHContainerOperations> PCHOps;
-
   std::unique_ptr<ParsingCallbacks> Callbacks; // not nullptr
   Semaphore Barrier;
+  llvm::StringMap<std::unique_ptr<FileData>> Files;
   std::unique_ptr<ASTCache> IdleASTs;
   // None when running tasks synchronously and non-None when running tasks
   // asynchronously.

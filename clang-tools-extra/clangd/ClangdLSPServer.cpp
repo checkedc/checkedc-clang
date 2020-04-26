@@ -15,7 +15,9 @@
 #include "SourceCode.h"
 #include "Trace.h"
 #include "URI.h"
-#include "Protocol.h"
+#ifdef INTERACTIVECCCONV
+#include "CConvertCommands.h"
+#endif
 #include "refactor/Tweak.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -26,8 +28,6 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ScopedPrinter.h"
-#include "CConvertDiagnostics.h"
-#include "CConvertCommands.h"
 
 namespace clang {
 namespace clangd {
@@ -364,7 +364,11 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
   CDB.emplace(BaseCDB.get(), Params.initializationOptions.fallbackFlags,
               ClangdServerOpts.ResourceDir);
   Server.emplace(*CDB, FSProvider, static_cast<DiagnosticsConsumer &>(*this),
+#ifdef INTERACTIVECCCONV
+                 ClangdServerOpts, CCInterface);
+#else
                  ClangdServerOpts);
+#endif
   applyConfiguration(Params.initializationOptions.ConfigSettings);
 
   CCOpts.EnableSnippets = Params.capabilities.CompletionSnippets;
@@ -383,11 +387,27 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
   SupportsHierarchicalDocumentSymbol =
       Params.capabilities.HierarchicalDocumentSymbol;
   SupportFileStatus = Params.initializationOptions.FileStatus;
-  // initialize our constraint building system.
-  Server->cconvCollectAndBuildInitialConstraints(this);
-  Reply(llvm::json::Object{
   HoverContentFormat = Params.capabilities.HoverContentFormat;
   SupportsOffsetsInSignatureHelp = Params.capabilities.OffsetsInSignatureHelp;
+#ifdef INTERACTIVECCCONV
+  // initialize our constraint building system.
+  log("Interactive CheckedC convert mode.\n");
+  Server->cconvCollectAndBuildInitialConstraints(this);
+  llvm::json::Object Result{
+      {{"capabilities",
+        llvm::json::Object{
+            {"textDocumentSync", (int)TextDocumentSyncKind::Incremental},
+            {"codeActionProvider", true},
+            {"codeLensProvider", llvm::json::Object{
+                {"resolveProvider", true}}},
+            {"executeCommandProvider",
+             llvm::json::Object{
+                 {"commands",
+                  {ExecuteCommandParams::CCONV_APPLY_FOR_ALL,
+                   ExecuteCommandParams::CCONV_APPLY_ONLY_FOR_THIS}},
+             }},
+        }}}};
+#else
   llvm::json::Object Result{
       {{"capabilities",
         llvm::json::Object{
@@ -400,8 +420,6 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
                  {"moreTriggerCharacter", {}},
              }},
             {"codeActionProvider", true},
-            {"codeLensProvider", llvm::json::Object{
-                {"resolveProvider", true}}},
             {"completionProvider",
              llvm::json::Object{
                  {"resolveProvider", false},
@@ -423,10 +441,9 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
             {"referencesProvider", true},
             {"executeCommandProvider",
              llvm::json::Object{
-                 {"commands", {ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND,
-                               ExecuteCommandParams::CLANGD_APPLY_TWEAK,
-                               ExecuteCommandParams::CCONV_APPLY_ONLY_FOR_THIS,
-                               ExecuteCommandParams::CCONV_APPLY_FOR_ALL}},
+                 {"commands",
+                  {ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND,
+                   ExecuteCommandParams::CLANGD_APPLY_TWEAK}},
              }},
             {"typeHierarchyProvider", true},
         }}}};
@@ -437,14 +454,26 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
         ->insert(
             {"semanticHighlighting",
              llvm::json::Object{{"scopes", buildHighlightScopeLookupTable()}}});
+#endif
   Reply(std::move(Result));
 }
 
 void ClangdLSPServer::onShutdown(const ShutdownParams &Params,
                                  Callback<std::nullptr_t> Reply) {
+#ifdef INTERACTIVECCCONV
+  sendCConvMessage("Writing all CheckedC files back to disk");
+  // write all files back
+  auto &allDiags = Server->CConvDiagInfo.GetAllFilesDiagnostics();
+  for (auto &currF: allDiags) {
+    Server->cconvCloseDocument(currF.first);
+  }
+  sendCConvMessage("Finished Writing all CheckedC files back to disk");
+  Reply(nullptr);
+#else
   // Do essentially nothing, just say we're ready to exit.
   ShutdownRequestReceived = true;
   Reply(nullptr);
+#endif
 }
 
 // sync is a clangd extension: it blocks until all background work completes.
@@ -460,16 +489,19 @@ void ClangdLSPServer::onSync(const NoParams &Params,
 
 void ClangdLSPServer::onDocumentDidOpen(
     const DidOpenTextDocumentParams &Params) {
+#ifndef INTERACTIVECCCONV
   PathRef File = Params.textDocument.uri.file();
 
   const std::string &Contents = Params.textDocument.text;
 
   DraftMgr.addDraft(File, Contents);
   Server->addDocument(File, Contents, WantDiagnostics::Yes);
+#endif
 }
 
 void ClangdLSPServer::onDocumentDidChange(
     const DidChangeTextDocumentParams &Params) {
+#ifndef INTERACTIVECCCONV
   auto WantDiags = WantDiagnostics::Auto;
   if (Params.wantDiagnostics.hasValue())
     WantDiags = Params.wantDiagnostics.getValue() ? WantDiagnostics::Yes
@@ -489,19 +521,56 @@ void ClangdLSPServer::onDocumentDidChange(
   }
 
   Server->addDocument(File, *Contents, WantDiags);
+#endif
 }
 
 void ClangdLSPServer::onFileEvent(const DidChangeWatchedFilesParams &Params) {
   Server->onFileEvent(Params);
 }
 
-void ClangdLSPServer::ccConvResultsReady(std::string targetFileName) {
-  std::vector<Diag> dummyDiagnostics;
-  this->onDiagnosticsReady(targetFileName, dummyDiagnostics);
+#ifdef INTERACTIVECCCONV
+void ClangdLSPServer::ccConvResultsReady(std::string targetFileName,
+                                         bool clearDiags) {
+  // Get the diagnostics and update the client
+  std::vector<Diag> Diagnostics;
+  Diagnostics.clear();
+  if (!clearDiags) {
+    std::lock_guard<std::mutex> lock(Server->CConvDiagInfo.DiagMutex);
+    auto &allDiags = Server->CConvDiagInfo.GetAllFilesDiagnostics();
+    if (allDiags.find(targetFileName) !=
+        allDiags.end()) {
+      Diagnostics.insert(
+          Diagnostics.begin(),
+          allDiags[targetFileName].begin(),
+          allDiags[targetFileName].end());
+    }
+  }
+  this->onDiagnosticsReady(targetFileName, Diagnostics);
 }
 
+void ClangdLSPServer::sendCConvMessage(std::string msg) {\
+ // send message as info to the client
+  notify("window/showMessage",
+         llvm::json::Object{
+             // Info message.
+             {"type", 3},
+             {"message", std::move(msg)},
+         });
+}
+#endif
 void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
                                 Callback<llvm::json::Value> Reply) {
+#ifdef INTERACTIVECCCONV
+  // In this mode, we support only CConv commands
+  if(IsCConvCommand(Params)) {
+    Server->executeCConvCommand(Params, this);
+    Reply("CConv Background work scheduled.");
+  } else {
+    Reply(llvm::make_error<LSPError>(
+        llvm::formatv("Unsupported command \"{0}\".", Params.command).str(),
+        ErrorCode::InvalidParams));
+  }
+#else
   auto ApplyEdit = [this](WorkspaceEdit WE) {
     ApplyWorkspaceEditParams Edit;
     Edit.edit = std::move(WE);
@@ -509,7 +578,6 @@ void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
     // would reply success/failure to the original RPC.
     call("workspace/applyEdit", Edit);
   };
-  std::string replyMessage = "";
   if (Params.command == ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND &&
       Params.workspaceEdit) {
     // The flow for "apply-fix" :
@@ -523,9 +591,6 @@ void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
 
     Reply("Fix applied.");
     ApplyEdit(*Params.workspaceEdit);
-  } else if(isCConvCommand(Params)) {
-    Server->executeCConvCommand(Params, this);
-    Reply("Background work scheduled.");
   } else if (Params.command == ExecuteCommandParams::CLANGD_APPLY_TWEAK &&
              Params.tweakArgs) {
     auto Code = DraftMgr.getDraft(Params.tweakArgs->file.file());
@@ -566,6 +631,7 @@ void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
         llvm::formatv("Unsupported command \"{0}\".", Params.command).str(),
         ErrorCode::InvalidParams));
   }
+#endif
 }
 
 void ClangdLSPServer::onWorkspaceSymbol(
@@ -611,8 +677,12 @@ void ClangdLSPServer::onRename(const RenameParams &Params,
 
 void ClangdLSPServer::onDocumentDidClose(
     const DidCloseTextDocumentParams &Params) {
+#ifdef INTERACTIVECCCONV
   PathRef File = Params.textDocument.uri.file();
   Server->cconvCloseDocument(File.str());
+  sendCConvMessage("CConv finished Rewriting the file:" + File.str());
+#else
+  PathRef File = Params.textDocument.uri.file();
   DraftMgr.removeDraft(File);
   Server->removeDocument(File);
 
@@ -626,6 +696,7 @@ void ClangdLSPServer::onDocumentDidClose(
   // because removeDocument() guarantees no diagnostic callbacks will be
   // executed after it returns.
   publishDiagnostics(URIForFile::canonicalize(File, /*TUPath=*/File), {});
+#endif
 }
 
 void ClangdLSPServer::onDocumentOnTypeFormatting(
@@ -734,7 +805,6 @@ static llvm::Optional<Command> asCommand(const CodeAction &Action) {
     return None;
   }
   Cmd.title = Action.title;
-  Cmd.title = Action.title;
   if (Action.kind && *Action.kind == CodeAction::QUICKFIX_KIND)
     Cmd.title = "Apply fix: " + Cmd.title;
   return Cmd;
@@ -742,41 +812,30 @@ static llvm::Optional<Command> asCommand(const CodeAction &Action) {
 
 void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
                                    Callback<llvm::json::Value> Reply) {
+#ifdef INTERACTIVECCCONV
+  URIForFile File = Params.textDocument.uri;
+  std::vector<Command> CCommands;
+  // Convert the diagnostics into CConv commands
+  for (const Diagnostic &D : Params.context.diagnostics) {
+    AsCCCommands(D, CCommands);
+  }
+  Reply(llvm::json::Array(CCommands));
+#else
+
   URIForFile File = Params.textDocument.uri;
   auto Code = DraftMgr.getDraft(File.file());
   if (!Code)
     return Reply(llvm::make_error<LSPError>(
         "onCodeAction called for non-added file", ErrorCode::InvalidParams));
   // We provide a code action for Fixes on the specified diagnostics.
-  std::vector<CodeAction> Actions;
-  std::vector<Command> CCommands;
   std::vector<CodeAction> FixIts;
   for (const Diagnostic &D : Params.context.diagnostics) {
     for (auto &F : getFixes(File.file(), D)) {
       FixIts.push_back(toCodeAction(F, Params.textDocument.uri));
       FixIts.back().diagnostics = {D};
     }
-
-    if (auto cmd1 = asCCCommand(D))
-      CCommands.push_back(std::move(*cmd1));
-
-    if (auto cmd1 = asCCCommand(D, true))
-      CCommands.push_back(std::move(*cmd1));
-
   }
 
-  Reply(llvm::json::Array(CCommands));
-
-  /*
-  if (SupportsCodeAction)
-    Reply(llvm::json::Array(Actions));
-  else {
-    std::vector<Command> Commands;
-    for (const auto &Action : Actions)
-      if (auto Command = asCommand(Action))
-        Commands.push_back(std::move(*Command));
-    Reply(llvm::json::Array(Commands));
-  }*/
   // Now enumerate the semantic code actions.
   auto ConsumeActions =
       [this](decltype(Reply) Reply, URIForFile File, std::string Code,
@@ -804,32 +863,8 @@ void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
                           Bind(ConsumeActions, std::move(Reply), File,
                                std::move(*Code), Params.range,
                                std::move(FixIts)));
+#endif
 }
-
-void ClangdLSPServer::onCodeLens(const CodeLensParams &Params,
-                                 Callback<llvm::json::Value> Reply) {
-  std::vector<CodeLens> allCodeLens;
-  /*CodeLens dummyGuy;
-  dummyGuy.range.start.line = 4;
-  dummyGuy.range.end.line = 4;
-  dummyGuy.range.start.character = 13;
-  dummyGuy.range.end.character = 17;
-  Command newCmd;
-  newCmd.command = "Dummy";
-  newCmd.title = "DummyTitle";
-  dummyGuy.command = newCmd;
-  allCodeLens.clear();
-  allCodeLens.push_back(dummyGuy);*/
-  Reply(llvm::json::Array(allCodeLens));
-}
-
-void ClangdLSPServer::onCodeLensResolve(const CodeLens &Params,
-                                        Callback<llvm::json::Value> Reply) {
-  CodeLens dummyGuy;
-  dummyGuy.range = Params.range;
-  Reply(clang::clangd::toJSON(dummyGuy));
-}
-
 
 void ClangdLSPServer::onCompletion(const CompletionParams &Params,
                                    Callback<CompletionList> Reply) {
@@ -879,6 +914,32 @@ void ClangdLSPServer::onSignatureHelp(const TextDocumentPositionParams &Params,
                             std::move(Reply)));
 }
 
+#ifdef INTERACTIVECCCONV
+void ClangdLSPServer::onCodeLens(const CodeLensParams &Params,
+                                 Callback<llvm::json::Value> Reply) {
+  // This is just a beacon to display for user
+  std::vector<CodeLens> allCodeLens;
+  CodeLens ccBecon;
+  ccBecon.range.start.line = 15;
+  ccBecon.range.end.line = 16;
+  ccBecon.range.start.character = 13;
+  ccBecon.range.end.character = 17;
+  Command newCmd;
+  newCmd.command = "CCconv Interactive Mode On";
+  newCmd.title = "CConv Mode On";
+  ccBecon.command = newCmd;
+  allCodeLens.clear();
+  allCodeLens.push_back(ccBecon);
+  Reply(llvm::json::Array(allCodeLens));
+}
+
+void ClangdLSPServer::onCodeLensResolve(const CodeLens &Params,
+                                        Callback<llvm::json::Value> Reply) {
+  CodeLens ccBeaconResolve;
+  ccBeaconResolve.range = Params.range;
+  Reply(clang::clangd::toJSON(ccBeaconResolve));
+}
+#endif
 // Go to definition has a toggle function: if def and decl are distinct, then
 // the first press gives you the def, the second gives you the matching def.
 // getToggle() returns the counterpart location that under the cursor.
@@ -1059,15 +1120,37 @@ ClangdLSPServer::ClangdLSPServer(
     const clangd::CodeCompleteOptions &CCOpts,
     llvm::Optional<Path> CompileCommandsDir, bool UseDirBasedCDB,
     llvm::Optional<OffsetEncoding> ForcedOffsetEncoding,
+#ifdef INTERACTIVECCCONV
+    const ClangdServer::Options &Opts, CConvInterface &Cinter)
+#else
     const ClangdServer::Options &Opts)
+#endif
     : Transp(Transp), MsgHandler(new MessageHandler(*this)),
       FSProvider(FSProvider), CCOpts(CCOpts),
       SupportedSymbolKinds(defaultSymbolKinds()),
       SupportedCompletionItemKinds(defaultCompletionItemKinds()),
       UseDirBasedCDB(UseDirBasedCDB),
       CompileCommandsDir(std::move(CompileCommandsDir)), ClangdServerOpts(Opts),
+#ifdef INTERACTIVECCCONV
+      NegotiatedOffsetEncoding(ForcedOffsetEncoding), CCInterface(Cinter) {
+#else
       NegotiatedOffsetEncoding(ForcedOffsetEncoding) {
+#endif
   // clang-format off
+#ifdef INTERACTIVECCCONV
+// we only support these methods in Interactive CConv mode
+  MsgHandler->bind("initialize", &ClangdLSPServer::onInitialize);
+  MsgHandler->bind("shutdown", &ClangdLSPServer::onShutdown);
+  MsgHandler->bind("sync", &ClangdLSPServer::onSync);
+  MsgHandler->bind("textDocument/codeLens", &ClangdLSPServer::onCodeLens);
+  MsgHandler->bind("codeLens/resolve", &ClangdLSPServer::onCodeLensResolve);
+  MsgHandler->bind("textDocument/codeAction", &ClangdLSPServer::onCodeAction);
+  MsgHandler->bind("workspace/executeCommand", &ClangdLSPServer::onCommand);
+  MsgHandler->bind("textDocument/didOpen", &ClangdLSPServer::onDocumentDidOpen);
+  MsgHandler->bind("textDocument/didClose", &ClangdLSPServer::onDocumentDidClose);
+  MsgHandler->bind("textDocument/didChange", &ClangdLSPServer::onDocumentDidChange);
+  // clang-format on
+#else
   MsgHandler->bind("initialize", &ClangdLSPServer::onInitialize);
   MsgHandler->bind("shutdown", &ClangdLSPServer::onShutdown);
   MsgHandler->bind("sync", &ClangdLSPServer::onSync);
@@ -1075,8 +1158,6 @@ ClangdLSPServer::ClangdLSPServer(
   MsgHandler->bind("textDocument/onTypeFormatting", &ClangdLSPServer::onDocumentOnTypeFormatting);
   MsgHandler->bind("textDocument/formatting", &ClangdLSPServer::onDocumentFormatting);
   MsgHandler->bind("textDocument/codeAction", &ClangdLSPServer::onCodeAction);
-  MsgHandler->bind("textDocument/codeLens", &ClangdLSPServer::onCodeLens);
-  MsgHandler->bind("codeLens/resolve", &ClangdLSPServer::onCodeLensResolve);
   MsgHandler->bind("textDocument/completion", &ClangdLSPServer::onCompletion);
   MsgHandler->bind("textDocument/signatureHelp", &ClangdLSPServer::onSignatureHelp);
   MsgHandler->bind("textDocument/definition", &ClangdLSPServer::onGoToDefinition);
@@ -1097,7 +1178,7 @@ ClangdLSPServer::ClangdLSPServer(
   MsgHandler->bind("textDocument/symbolInfo", &ClangdLSPServer::onSymbolInfo);
   MsgHandler->bind("textDocument/typeHierarchy", &ClangdLSPServer::onTypeHierarchy);
   MsgHandler->bind("typeHierarchy/resolve", &ClangdLSPServer::onResolveTypeHierarchy);
-  // clang-format on
+#endif
 }
 
 ClangdLSPServer::~ClangdLSPServer() = default;
@@ -1174,23 +1255,24 @@ void ClangdLSPServer::onHighlightingsReady(
 
 void ClangdLSPServer::onDiagnosticsReady(PathRef File,
                                          std::vector<Diag> Diagnostics) {
+
+#ifdef INTERACTIVECCCONV
+  auto URI = URIForFile::canonicalize(File, /*TUPath=*/File);
+  std::vector<Diagnostic> LSPDiagnostics;
+
+  for (auto &Diag : Diagnostics) {
+    toLSPDiags(Diag, URI, DiagOpts,
+               [&](clangd::Diagnostic Diag, llvm::ArrayRef<Fix> Fixes) {
+                 LSPDiagnostics.push_back(std::move(Diag));
+               });
+  }
+
+  publishDiagnostics(URI, std::move(LSPDiagnostics));
+
+#else
   auto URI = URIForFile::canonicalize(File, /*TUPath=*/File);
   std::vector<Diagnostic> LSPDiagnostics;
   DiagnosticToReplacementMap LocalFixIts; // Temporary storage
-
-  //Diagnostics.clear();
-  /*for (auto &s : Server->CConvDiagInfo.AllFileDiagnostics) {
-    log("File present: {0}\n", s.first);
-    log("Number of diags: {0}\n", s.second.size());
-  }*/
-  Diagnostics.clear();
-  // cconv diagnostics.
-  if (Server->CConvDiagInfo.AllFileDiagnostics.find(File) != Server->CConvDiagInfo.AllFileDiagnostics.end()) {
-    Diagnostics.insert(Diagnostics.begin(),
-                       Server->CConvDiagInfo.AllFileDiagnostics[File].begin(),
-                       Server->CConvDiagInfo.AllFileDiagnostics[File].end());
-  }
-
   for (auto &Diag : Diagnostics) {
     toLSPDiags(Diag, URI, DiagOpts,
                [&](clangd::Diagnostic Diag, llvm::ArrayRef<Fix> Fixes) {
@@ -1208,6 +1290,7 @@ void ClangdLSPServer::onDiagnosticsReady(PathRef File,
 
   // Send a notification to the LSP client.
   publishDiagnostics(URI, std::move(LSPDiagnostics));
+#endif
 }
 
 void ClangdLSPServer::onFileUpdated(PathRef File, const TUStatus &Status) {

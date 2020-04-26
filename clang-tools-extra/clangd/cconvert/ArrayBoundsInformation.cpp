@@ -1,10 +1,13 @@
-//                     The LLVM Compiler Infrastructure
+//=--ArrayBoundsInformation.cpp-----------------------------------*- C++-*-===//
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// This contains the implementation of the methods in ArrayBoundsInformation.
+//
+// This contains the implementation of the methods in ArrayBoundsInformation.h
+//
 //===----------------------------------------------------------------------===//
 
 #include "ArrayBoundsInformation.h"
@@ -12,7 +15,8 @@
 #include "Utils.h"
 
 ConstraintKey ArrayBoundsInformation::getTopLevelConstraintVar(Decl *decl) {
-  std::set<ConstraintVariable *> defsCVar = Info.getVariable(decl, &(decl->getASTContext()), true);
+  std::set<ConstraintVariable *> defsCVar =
+      Info.getVariable(decl, &(decl->getASTContext()), true);
   for (auto constraintVar: defsCVar) {
     if (PVConstraint *PV = dyn_cast<PVConstraint>(constraintVar)) {
       auto &cVars = PV->getCvars();
@@ -24,13 +28,16 @@ ConstraintKey ArrayBoundsInformation::getTopLevelConstraintVar(Decl *decl) {
   assert (false && "Invalid declaration variable requested.");
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *arrFD, FieldDecl *lenFD) {
+bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *arrFD,
+                                                  FieldDecl *lenFD) {
   ConstraintKey arrCKey = getTopLevelConstraintVar(arrFD);
   std::string boundsString = lenFD->getNameAsString();
-  return BoundsInfo[arrCKey].insert(std::make_pair(BoundsKind::LocalFieldBound, boundsString)).second;
+  auto bPair = std::make_pair(BoundsKind::LocalFieldBound, boundsString);
+  return BoundsInfo[arrCKey].insert(bPair).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *arrFD, Expr *expr) {
+bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *arrFD,
+                                                  Expr *expr) {
   ConstraintKey arrCKey = getTopLevelConstraintVar(arrFD);
   auto boundInfo = getExprBoundsInfo(arrFD, expr);
   if (boundInfo.first != ArrayBoundsInformation::BoundsKind::InvalidKind)
@@ -38,29 +45,36 @@ bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *arrFD, Expr *expr) 
   return false;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *arrFD, BOUNDSINFOTYPE binfo) {
+bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *arrFD,
+                                                  BOUNDSINFOTYPE binfo) {
   ConstraintKey arrCKey = getTopLevelConstraintVar(arrFD);
   return BoundsInfo[arrCKey].insert(binfo).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(ParmVarDecl *arrFD, ParmVarDecl *lenFD) {
+bool ArrayBoundsInformation::addBoundsInformation(ParmVarDecl *arrFD,
+                                                  ParmVarDecl *lenFD) {
   ConstraintKey arrCKey = getTopLevelConstraintVar(arrFD);
   std::string boundsString = lenFD->getNameAsString();
-  return BoundsInfo[arrCKey].insert(std::make_pair(BoundsKind::LocalParamBound, boundsString)).second;
+  auto bPair = std::make_pair(BoundsKind::LocalParamBound, boundsString);
+  return BoundsInfo[arrCKey].insert(bPair).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(ParmVarDecl *arrFD, BOUNDSINFOTYPE binfo) {
+bool ArrayBoundsInformation::addBoundsInformation(ParmVarDecl *arrFD,
+                                                  BOUNDSINFOTYPE binfo) {
   ConstraintKey arrCKey = getTopLevelConstraintVar(arrFD);
   return BoundsInfo[arrCKey].insert(binfo).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(VarDecl *arrFD, VarDecl *lenFD) {
+bool ArrayBoundsInformation::addBoundsInformation(VarDecl *arrFD,
+                                                  VarDecl *lenFD) {
   ConstraintKey arrCKey = getTopLevelConstraintVar(arrFD);
   std::string boundsString = lenFD->getNameAsString();
-  return BoundsInfo[arrCKey].insert(std::make_pair(BoundsKind::LocalVarBound, boundsString)).second;
+  auto bPair = std::make_pair(BoundsKind::LocalVarBound, boundsString);
+  return BoundsInfo[arrCKey].insert(bPair).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(VarDecl *arrFD, BOUNDSINFOTYPE binfo) {
+bool ArrayBoundsInformation::addBoundsInformation(VarDecl *arrFD,
+                                                  BOUNDSINFOTYPE binfo) {
   ConstraintKey arrCKey = getTopLevelConstraintVar(arrFD);
   return BoundsInfo[arrCKey].insert(binfo).second;
 }
@@ -87,29 +101,34 @@ bool ArrayBoundsInformation::hasBoundsInformation(Decl *decl) {
   return BoundsInfo.find(arrCKey) != BoundsInfo.end();
 }
 
-ArrayBoundsInformation::BOUNDSINFOTYPE ArrayBoundsInformation::getBoundsInformation(Decl *decl) {
+ArrayBoundsInformation::BOUNDSINFOTYPE
+ArrayBoundsInformation::getBoundsInformation(Decl *decl) {
   assert(hasBoundsInformation(decl) && "Has no bounds information for the decl");
   ConstraintKey arrCKey = getTopLevelConstraintVar(decl);
   return *(BoundsInfo[arrCKey].begin());
 }
-bool ArrayBoundsInformation::isValidBoundKindForField(ArrayBoundsInformation::BoundsKind targetBoundKind) {
-  return targetBoundKind != ArrayBoundsInformation::BoundsKind::LocalParamBound &&
-         targetBoundKind != ArrayBoundsInformation::BoundsKind::LocalVarBound &&
-         targetBoundKind != ArrayBoundsInformation::BoundsKind::InvalidKind;
+bool ArrayBoundsInformation::isValidBoundKindForField(
+    ArrayBoundsInformation::BoundsKind targetBKind) {
+  return targetBKind != ArrayBoundsInformation::BoundsKind::LocalParamBound &&
+         targetBKind != ArrayBoundsInformation::BoundsKind::LocalVarBound &&
+         targetBKind != ArrayBoundsInformation::BoundsKind::InvalidKind;
 }
 
-ArrayBoundsInformation::BOUNDSINFOTYPE ArrayBoundsInformation::combineBoundsInfo(
-                                                            FieldDecl *srcField,
-                                                            ArrayBoundsInformation::BOUNDSINFOTYPE &bounds1,
-                                                            ArrayBoundsInformation::BOUNDSINFOTYPE &bounds2,
-                                                            std::string op) {
-  auto invalidBoundRet = std::make_pair(ArrayBoundsInformation::BoundsKind::InvalidKind, "");
+ArrayBoundsInformation::BOUNDSINFOTYPE
+ArrayBoundsInformation::combineBoundsInfo(FieldDecl *srcField,
+                                          ArrayBoundsInformation::
+                                              BOUNDSINFOTYPE &bounds1,
+                                          ArrayBoundsInformation::
+                                              BOUNDSINFOTYPE &bounds2,
+                                          std::string op) {
+  auto invalidB = std::make_pair(ArrayBoundsInformation::
+                                     BoundsKind::InvalidKind, "");
   ArrayBoundsInformation::BoundsKind targetKind = BoundsKind ::InvalidKind;
-  if(bounds1.first != ArrayBoundsInformation::BoundsKind::InvalidKind &&
+  if (bounds1.first != ArrayBoundsInformation::BoundsKind::InvalidKind &&
     bounds2.first != ArrayBoundsInformation::BoundsKind::InvalidKind) {
     targetKind = bounds1.first;
 
-    if(bounds1.first != bounds2.first) {
+    if (bounds1.first != bounds2.first) {
       targetKind = BoundsKind ::InvalidKind;
       if (bounds1.first == ArrayBoundsInformation::BoundsKind::ConstantBound) {
         targetKind = bounds2.first;
@@ -120,69 +139,88 @@ ArrayBoundsInformation::BOUNDSINFOTYPE ArrayBoundsInformation::combineBoundsInfo
     }
   }
 
-  if (targetKind != BoundsKind::InvalidKind && (srcField == nullptr || isValidBoundKindForField(targetKind))) {
-    return std::make_pair(targetKind,
-                          "(" + bounds1.second + " " + op + " " + bounds2.second + ")");
+  if (targetKind != BoundsKind::InvalidKind &&
+      (srcField == nullptr || isValidBoundKindForField(targetKind))) {
+    auto bStr = "(" + bounds1.second + " " + op + " " + bounds2.second + ")";
+    return std::make_pair(targetKind,bStr);
   }
-  return invalidBoundRet;
+  return invalidB;
 }
 
-ArrayBoundsInformation::BOUNDSINFOTYPE ArrayBoundsInformation::getExprBoundsInfo(
-  FieldDecl *srcField,
-  Expr *expr) {
+ArrayBoundsInformation::BOUNDSINFOTYPE
+ArrayBoundsInformation::getExprBoundsInfo(FieldDecl *srcField, Expr *expr) {
   expr = removeAuxillaryCasts(expr);
-  auto invalidBoundRet = std::make_pair(ArrayBoundsInformation::BoundsKind::InvalidKind, "");
+  auto invalidB = std::make_pair(ArrayBoundsInformation::
+                                     BoundsKind::InvalidKind, "");
   if (BinaryOperator *BO = dyn_cast<BinaryOperator>(expr)) {
     Expr *LHS = BO->getLHS();
     Expr *RHS = BO->getRHS();
 
     auto lhsInfo = getExprBoundsInfo(srcField, LHS);
     auto rhsInfo = getExprBoundsInfo(srcField, RHS);
-    return combineBoundsInfo(srcField, lhsInfo, rhsInfo, BO->getOpcodeStr().str());
+    return combineBoundsInfo(srcField, lhsInfo, rhsInfo,
+                             BO->getOpcodeStr().str());
 
   } else if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(expr)) {
     if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(DRE->getDecl())) {
       if (FieldDecl *FD = dyn_cast<FieldDecl>(DD)) {
         if (srcField != nullptr && FD->getParent() == srcField->getParent())
-          return std::make_pair(ArrayBoundsInformation::BoundsKind::LocalFieldBound, FD->getNameAsString());
+          return std::make_pair(ArrayBoundsInformation::
+                                    BoundsKind::LocalFieldBound,
+                                FD->getNameAsString());
 
-        return invalidBoundRet;
+        return invalidB;
       }
       if (ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(DD)) {
         if (srcField == nullptr)
-          return std::make_pair(ArrayBoundsInformation::BoundsKind::LocalParamBound, PVD->getNameAsString());
+          return std::make_pair(ArrayBoundsInformation::
+                                    BoundsKind::LocalParamBound,
+                                PVD->getNameAsString());
 
-        return invalidBoundRet;
+        return invalidB;
       } else if (VarDecl *VD = dyn_cast<VarDecl>(DD)) {
         if (VD->hasGlobalStorage())
-          return std::make_pair(ArrayBoundsInformation::BoundsKind::ConstantBound, VD->getNameAsString());
+          return std::make_pair(ArrayBoundsInformation::
+                                    BoundsKind::ConstantBound,
+                                VD->getNameAsString());
 
         if (!VD->hasGlobalStorage() && srcField == nullptr)
-          return std::make_pair(ArrayBoundsInformation::BoundsKind::LocalVarBound, VD->getNameAsString());
+          return std::make_pair(ArrayBoundsInformation::
+                                    BoundsKind::LocalVarBound,
+                                VD->getNameAsString());
 
-        return invalidBoundRet;
+        return invalidB;
       }
     }
   } else if (IntegerLiteral *IL = dyn_cast<IntegerLiteral>(expr)) {
     std::string boundsInfo = "" + std::to_string(IL->getValue().getZExtValue());
-    return std::make_pair(ArrayBoundsInformation::BoundsKind::ConstantBound, boundsInfo);
+    return std::make_pair(ArrayBoundsInformation::BoundsKind::ConstantBound,
+                          boundsInfo);
   } else if (MemberExpr *DRE = dyn_cast<MemberExpr>(expr)) {
     if (FieldDecl *FD = dyn_cast<FieldDecl>(DRE->getMemberDecl())) {
       if (srcField != nullptr && FD->getParent() == srcField->getParent())
-        return std::make_pair(ArrayBoundsInformation::BoundsKind::LocalFieldBound, FD->getNameAsString());
+        return std::make_pair(ArrayBoundsInformation::
+                                  BoundsKind::LocalFieldBound,
+                              FD->getNameAsString());
 
-      return invalidBoundRet;
+      return invalidB;
     }
-  } else if(UnaryExprOrTypeTraitExpr *UETE = dyn_cast<UnaryExprOrTypeTraitExpr>(expr)) {
+  } else if (UnaryExprOrTypeTraitExpr *UETE =
+                 dyn_cast<UnaryExprOrTypeTraitExpr>(expr)) {
     if (UETE->getKind() == UETT_SizeOf) {
       std::string tmpString;
       llvm::raw_string_ostream rawStr(tmpString);
-      UETE->printPretty(rawStr, nullptr, PrintingPolicy(LangOptions()));
-      return std::make_pair(ArrayBoundsInformation::BoundsKind::ConstantBound, rawStr.str());
+      UETE->printPretty(rawStr, nullptr,
+                        PrintingPolicy(LangOptions()));
+      return std::make_pair(ArrayBoundsInformation::
+                                BoundsKind::ConstantBound,
+                            rawStr.str());
     }
   } else if (StringLiteral *SL = dyn_cast<StringLiteral>(expr)) {
     std::string boundsInfo = "" + std::to_string(SL->getLength());
-    return std::make_pair(ArrayBoundsInformation::BoundsKind::ConstantBound, boundsInfo);
+    return std::make_pair(ArrayBoundsInformation::
+                              BoundsKind::ConstantBound,
+                          boundsInfo);
   }
   expr->dump();
   assert(false && "Unable to handle expression type");

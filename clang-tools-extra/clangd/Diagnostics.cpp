@@ -314,32 +314,15 @@ void toLSPDiags(
     clangd::Diagnostic Res;
     Res.range = D.Range;
     Res.severity = getSeverity(D.Severity);
-    Res.source = D.source;
-    Res.code = D.code;
     return Res;
   };
 
-<<<<<<< HEAD
-  {
-    clangd::Diagnostic Main = FillBasicFields(D);
-    Main.message = mainMessage(D);
-    if (Opts.EmbedFixesInDiagnostics) {
-      Main.codeActions.emplace();
-      for (const auto &Fix : D.Fixes)
-        Main.codeActions->push_back(toCodeAction(Fix, File));
-    }
-    if (!D.DiagRelInfo.empty()) {
-      Main.relatedInformation.emplace();
-      for (const auto &drel: D.DiagRelInfo)
-        Main.relatedInformation->push_back(drel);
-    }
-    if (Opts.SendDiagnosticCategory && !D.Category.empty())
-      Main.category = D.Category;
-
-    OutFn(std::move(Main), D.Fixes);
-=======
   clangd::Diagnostic Main = FillBasicFields(D);
+#ifdef INTERACTIVECCCONV
+  Main.code = D.code;
+#else
   Main.code = D.Name;
+#endif
   switch (D.Source) {
   case Diag::Clang:
     Main.source = "clang";
@@ -347,9 +330,16 @@ void toLSPDiags(
   case Diag::ClangTidy:
     Main.source = "clang-tidy";
     break;
+#ifdef INTERACTIVECCCONV
+  case Diag::CConvMain:
+    Main.source = "CConv_RealWild";
+    break;
+  case Diag::CConvSec:
+    Main.source = "CConv_AffWild";
+    break;
+#endif
   case Diag::Unknown:
     break;
->>>>>>> 58d23d11df487769899b71204ec88d91b8104e64
   }
   if (Opts.EmbedFixesInDiagnostics) {
     Main.codeActions.emplace();

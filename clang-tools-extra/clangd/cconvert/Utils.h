@@ -1,11 +1,13 @@
-//                     The LLVM Compiler Infrastructure
+//=--Utils.h------------------------------------------------------*- C++-*-===//
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Type declarations for map data structures.
+// Type declarations for map data structures and other general helper methods.
 //===----------------------------------------------------------------------===//
+
 #ifndef _UTILS_H
 #define _UTILS_H
 #include <set>
@@ -35,10 +37,12 @@ extern std::set<std::string> inputFilePaths;
 
 const clang::Type *getNextTy(const clang::Type *Ty);
 
-ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &Info);
+ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs,
+                               ProgramInfo &Info);
 
 template <typename ConstraintType>
-ConstraintType *getHighestT(std::set<ConstraintVariable*> Vs, ProgramInfo &Info) {
+ConstraintType *getHighestT(std::set<ConstraintVariable*> Vs,
+                            ProgramInfo &Info) {
   auto retVal = getHighest(Vs, Info);
 
   if (retVal != nullptr)
@@ -83,7 +87,8 @@ bool isStructOrUnionType(clang::VarDecl *VD);
 std::string tyToStr(const clang::Type *T);
 
 // get the end source location of the end of the provided function.
-clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
+clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD,
+                                                clang::SourceManager &S);
 
 // remove auxillary casts from the provided expression.
 clang::Expr* removeAuxillaryCasts(clang::Expr *srcExpr);

@@ -1,7 +1,8 @@
-//                     The LLVM Compiler Infrastructure
+//=--ConstraintVariables.h----------------------------------------*- C++-*-===//
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // The class allocates constraint variables and maps program locations
@@ -53,9 +54,10 @@ public:
 
   // from a given set of ConstraintVariables (toCheck), get the constraint
   // variable that is not WILD and sits highest in the type lattice.
-  static ConstraintVariable* getHighestNonWildConstraint(std::set<ConstraintVariable*> &toCheck,
-                                                         Constraints::EnvironmentMap &E,
-                                                         ProgramInfo &I);
+  static
+  ConstraintVariable* getHighestNonWildConstraint(std::set<ConstraintVariable*> &toCheck,
+                                                  Constraints::EnvironmentMap &E,
+                                                  ProgramInfo &I);
 
 private:
   ConstraintVariableKind Kind;
@@ -79,7 +81,8 @@ public:
   // the name of the variable, false for just the type.
   // The 'forIType' parameter is true when the generated string is expected
   // to be used inside an itype
-  virtual std::string mkString(Constraints::EnvironmentMap &E, bool emitName=true, bool forItype=false) = 0;
+  virtual std::string mkString(Constraints::EnvironmentMap &E,
+                               bool emitName=true, bool forItype=false) = 0;
 
   // Debug printing of the constraint variable.
   virtual void print(llvm::raw_ostream &O) const = 0;
@@ -90,8 +93,10 @@ public:
   // Set checkSkip to true if you would like constrainTo to consider the
   // ConstrainedVars when applying constraints. This should be set when
   // applying constraints due to external symbols, during linking.
-  virtual void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false) = 0;
-  virtual void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn, bool checkSkip=false) = 0;
+  virtual void constrainTo(Constraints &CS, ConstAtom *C,
+                           bool checkSkip=false) = 0;
+  virtual void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn,
+                           bool checkSkip=false) = 0;
   virtual void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn,
                            PersistentSourceLoc *psl, bool checkSkip=false) = 0;
 
@@ -130,7 +135,8 @@ public:
   // for the specific comparison operation to perform.
   virtual bool liftedOnCVars(const ConstraintVariable &O,
                              ProgramInfo &Info,
-                             llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const = 0;
+                             llvm::function_ref<bool (ConstAtom *,
+                                                     ConstAtom *)>) const = 0;
 
 };
 
@@ -167,12 +173,13 @@ private:
   // Is there an itype associated with this constraint? If there is, how was it
   // originally stored in the program?
   std::string itypeStr;
-  // get the qualifier string (e.g., const, etc) for the provided constraint var (targetCvar)
-  // into the provided string stream (ss)
+  // get the qualifier string (e.g., const, etc) for the provided constraint
+  // var (targetCvar) into the provided string stream (ss)
   void getQualString(ConstraintKey targetCVar, std::ostringstream &ss);
   // This function tries to emit an array size for the variable.
   // and returns true if the variable is an array and a size is emitted.
-  bool emitArraySize(std::ostringstream &pss, ConstraintKey V, bool &emitName, bool &emittedCheckedAnnotation, bool nt);
+  bool emitArraySize(std::ostringstream &pss, ConstraintKey V, bool &emitName,
+                     bool &emittedCheckedAnnotation, bool nt);
   // flag to indicate that this constraint is a part of function prototype
   // e.g., Parameters or Return
   bool partOFFuncPrototype;
@@ -183,7 +190,8 @@ private:
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CVars V, std::string T, std::string Name,
-                            FunctionVariableConstraint *F, bool isArr, bool isItype, std::string is) :
+                            FunctionVariableConstraint *F, bool isArr,
+                            bool isItype, std::string is) :
           ConstraintVariable(PointerVariable, T, Name)
           ,vars(V),FV(F),arrPresent(isArr), itypeStr(is), partOFFuncPrototype(false) {}
 
@@ -212,7 +220,8 @@ public:
     return S->getKind() == PointerVariable;
   }
 
-  std::string mkString(Constraints::EnvironmentMap &E, bool emitName=true, bool forItype=false);
+  std::string mkString(Constraints::EnvironmentMap &E, bool emitName=true,
+                       bool forItype=false);
 
   FunctionVariableConstraint *getFV() { return FV; }
 
@@ -220,7 +229,8 @@ public:
   void dump() const { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const;
   void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
-  void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn, bool checkSkip=false);
+  void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn,
+                   bool checkSkip=false);
   void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn,
                    PersistentSourceLoc *psl, bool checkSkip=false);
   bool anyChanges(Constraints::EnvironmentMap &E);
@@ -246,7 +256,8 @@ public:
 
   virtual ~PointerVariableConstraint() {};
 
-  bool canConstraintCKey(Constraints &CS, ConstraintKey ck, ConstAtom *CA, bool checkSkip);
+  bool canConstraintCKey(Constraints &CS, ConstraintKey ck, ConstAtom *CA,
+                         bool checkSkip);
 };
 
 typedef PointerVariableConstraint PVConstraint;
@@ -266,12 +277,14 @@ private:
   bool hasbody;
 public:
   FunctionVariableConstraint() :
-          ConstraintVariable(FunctionVariable, "", ""),name(""),hasproto(false),hasbody(false) { }
+          ConstraintVariable(FunctionVariable, "", ""),name(""),
+                                 hasproto(false),hasbody(false) { }
 
   FunctionVariableConstraint(clang::DeclaratorDecl *D, ConstraintKey &K,
                              Constraints &CS, const clang::ASTContext &C);
   FunctionVariableConstraint(const clang::Type *Ty, ConstraintKey &K,
-                             clang::DeclaratorDecl *D, std::string N, Constraints &CS, const clang::ASTContext &C);
+                             clang::DeclaratorDecl *D, std::string N,
+                             Constraints &CS, const clang::ASTContext &C);
 
   std::set<ConstraintVariable*> &
   getReturnVars() { return returnVars; }
@@ -293,12 +306,14 @@ public:
     return paramVars.at(i);
   }
 
-  std::string mkString(Constraints::EnvironmentMap &E, bool emitName=true, bool forItype=false);
+  std::string mkString(Constraints::EnvironmentMap &E, bool emitName=true,
+                       bool forItype=false);
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const;
   void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
-  void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn, bool checkSkip=false);
+  void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn,
+                   bool checkSkip=false);
   void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn,
                    PersistentSourceLoc *psl, bool checkSkip=false);
   bool anyChanges(Constraints::EnvironmentMap &E);

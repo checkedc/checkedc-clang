@@ -1,51 +1,32 @@
-//                     The LLVM Compiler Infrastructure
+//=--CConvInteractive.h-------------------------------------------*- C++-*-===//
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// The main file that controls the interaction between clangd and cconv
-//===----------------------------------------------------------------------===/
+//
+// The main file that defines the interaction between clangd and cconv.
+//
+//===----------------------------------------------------------------------===//
 
-#ifndef CLANG_TOOLS_EXTRA_CLANGD_CCONVERT_CCONVINTERACTIVE_H
-#define CLANG_TOOLS_EXTRA_CLANGD_CCONVERT_CCONVINTERACTIVE_H
+#ifndef _CCONVINTERACTIVE_H
+#define _CCONVINTERACTIVE_H
 
 #include "ConstraintVariables.h"
 #include "PersistentSourceLoc.h"
 #include "clang/Tooling/CommonOptionsParser.h"
+#include "CConvInteractiveData.h"
+#include "ProgramInfo.h"
+#include <mutex>
 
-struct WildPointerInferenceInfo {
-  std::string sourceFileName = "";
-  std::string wildPtrReason = "";
-  bool isValid = false;
-  unsigned lineNo = 0;
-  unsigned colStart = 0;
-};
-
-class DisjointSet {
-public:
-  DisjointSet() {
-
-  }
-  void clear();
-  void addElements(ConstraintKey, ConstraintKey);
-
-  std::map<ConstraintKey, ConstraintKey> leaders;
-  std::map<ConstraintKey, CVars> groups;
-  std::map<ConstraintKey, struct WildPointerInferenceInfo> realWildPtrsWithReasons;
-  CVars allWildPtrs;
-  CVars totalNonDirectWildPointers;
-  std::set<std::string> validSourceFiles;
-  std::map<ConstraintKey, PersistentSourceLoc*> PtrSourceMap;
-};
-
-
+// Options used to initialize CConv tool
 struct CConvertOptions {
   bool DumpIntermediate;
 
   bool Verbose;
 
-  bool seperateMultipleFuncDecls;
+  bool SeperateMultipleFuncDecls;
 
   std::string OutputPostfix;
 
@@ -53,32 +34,48 @@ struct CConvertOptions {
 
   bool DumpStats;
 
-  bool handleVARARGS;
+  bool HandleVARARGS;
 
-  bool enablePropThruIType;
+  bool EnablePropThruIType;
 
-  bool considerAllocUnsafe;
+  bool ConsiderAllocUnsafe;
 
   std::string BaseDir;
 };
 
-extern ProgramInfo GlobalProgInfo;
+// The main interface exposed by the CConv to interact with the tool
+class CConvInterface {
 
-DisjointSet& getWILDPtrsInfo();
+public:
+  ProgramInfo GlobalProgramInfo;
+  // Mutex for this interface
+  std::mutex InterfaceMutex;
 
-// make the provided pointer non-wild
-bool makeSinglePtrNonWild(ConstraintKey targetPtr);
+  DisjointSet &GetWILDPtrsInfo();
 
-// make the provided pointer non-WILD and also make all the
-// pointers, which are wild because of the same reason, as non-wild
-// as well
-bool invalidateWildReasonGlobally(ConstraintKey targetPtr);
+  // Make only the provided pointer non-wild
+  bool MakeSinglePtrNonWild(ConstraintKey targetPtr);
 
-bool initializeCConvert(clang::tooling::CommonOptionsParser &OptionsParser,
-                        struct CConvertOptions &options);
-bool buildInitialConstraints();
+  // Make the provided pointer non-WILD and also make all the
+  // pointers, which are wild because of the same reason, as non-wild
+  // as well
+  bool InvalidateWildReasonGlobally(ConstraintKey targetPtr);
 
-bool writeConvertedFileToDisk(const std::string &filePath);
+  // Initialize CConv interface
+  bool InitializeCConvert(clang::tooling::CommonOptionsParser &OptionsParser,
+                          struct CConvertOptions &options);
+
+  // Build initial constraints
+  bool BuildInitialConstraints();
+
+  // Write the current converted state of the provided file.
+  bool WriteConvertedFileToDisk(const std::string &filePath);
+
+private:
+  void ResetAllPointerConstraints();
+  void InvalidateAllConstraintsWithReason(Constraint *constraintToRemove);
+
+};
 
 
-#endif //CLANG_TOOLS_EXTRA_CLANGD_CCONVERT_CCONVINTERACTIVE_H
+#endif //_CCONVINTERACTIVE_H

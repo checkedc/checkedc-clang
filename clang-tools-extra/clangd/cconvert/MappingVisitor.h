@@ -1,16 +1,18 @@
-//                     The LLVM Compiler Infrastructure
+//=--MappingVisitor.h---------------------------------------------*- C++-*-===//
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // The MappingVisitor is used to traverse an AST and re-define a mapping from
-// PersistendSourceLocations to "live" AST objects. This is needed to support
-// multi-compilation unit analyses, where after each compilation unit is 
+// PersistentSourceLocations to "live" AST objects. This is needed to support
+// multi-compilation unit analyses, where after each compilation unit is
 // analyzed, the state of the analysis is "shelved" and all references to AST
 // data structures are replaced with data structures that survive the clang
 // constructed AST.
 //===----------------------------------------------------------------------===//
+
 #ifndef _MAPPING_VISITOR_H
 #define _MAPPING_VISITOR_H
 #include "clang/AST/ASTConsumer.h"

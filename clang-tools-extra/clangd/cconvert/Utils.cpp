@@ -1,11 +1,13 @@
-//                     The LLVM Compiler Infrastructure
+//=--Utils.cpp----------------------------------------------------*- C++-*-===//
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // Implementation of Utils methods.
 //===----------------------------------------------------------------------===//
+
 #include "llvm/Support/Path.h"
 
 #include "Utils.h"
@@ -16,7 +18,7 @@ using namespace llvm;
 using namespace clang;
 
 const clang::Type *getNextTy(const clang::Type *Ty) {
-  if(Ty->isPointerType()) {
+  if (Ty->isPointerType()) {
     // TODO: how to keep the qualifiers around, and what qualifiers do
     //       we want to keep?
     QualType qtmp = Ty->getLocallyUnqualifiedSingleStepDesugaredType();
@@ -26,7 +28,8 @@ const clang::Type *getNextTy(const clang::Type *Ty) {
     return Ty;
 }
 
-ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &Info) {
+ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs,
+                               ProgramInfo &Info) {
   if (Vs.size() == 0)
     return nullptr;
 
@@ -49,7 +52,7 @@ ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &In
 // a definition and does NOT have a body.
 FunctionDecl *getDeclaration(FunctionDecl *FD) {
   // optimization
-  if(!FD->isThisDeclarationADefinition()) {
+  if (!FD->isThisDeclarationADefinition()) {
     return FD;
   }
   for (const auto &D : FD->redecls())
@@ -64,7 +67,7 @@ FunctionDecl *getDeclaration(FunctionDecl *FD) {
 // a definition and a function body.
 FunctionDecl *getDefinition(FunctionDecl *FD) {
   // optimization
-  if(FD->isThisDeclarationADefinition() && FD->hasBody()) {
+  if (FD->isThisDeclarationADefinition() && FD->hasBody()) {
     return FD;
   }
   for (const auto &D : FD->redecls())
@@ -101,13 +104,13 @@ getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S)
 clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *itypeExpr) {
   TypeSourceInfo * interopTypeInfo = itypeExpr->getTypeInfoAsWritten();
   const clang::Type *innerType = interopTypeInfo->getType().getTypePtr();
-  if(innerType->isCheckedPointerNtArrayType()) {
+  if (innerType->isCheckedPointerNtArrayType()) {
     return CheckedPointerKind ::NtArray;
   }
-  if(innerType->isCheckedPointerArrayType()) {
+  if (innerType->isCheckedPointerArrayType()) {
     return CheckedPointerKind ::Array;
   }
-  if(innerType->isCheckedPointerType()) {
+  if (innerType->isCheckedPointerType()) {
     return CheckedPointerKind ::Ptr;
   }
   return CheckedPointerKind::Unchecked;
@@ -117,8 +120,8 @@ clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *itypeExpr) {
 // provided declaration.
 bool hasFunctionBody(clang::Decl *param) {
   // if this a parameter?
-  if(ParmVarDecl *PD = dyn_cast<ParmVarDecl>(param)) {
-    if(DeclContext *DC = PD->getParentFunctionOrMethod()) {
+  if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(param)) {
+    if (DeclContext *DC = PD->getParentFunctionOrMethod()) {
       FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
       if (getDefinition(FD) != nullptr) {
         return true;
@@ -132,7 +135,7 @@ bool hasFunctionBody(clang::Decl *param) {
 }
 
 static std::string storageClassToString(StorageClass SC) {
-  switch(SC) {
+  switch (SC) {
     case StorageClass::SC_Static: return "static ";
     case StorageClass::SC_Extern: return "extern ";
     case StorageClass::SC_Register: return "register ";
@@ -144,10 +147,10 @@ static std::string storageClassToString(StorageClass SC) {
 // this method gets the storage qualifier for the
 // provided declaration i.e., static, extern, etc.
 std::string getStorageQualifierString(Decl *D) {
-  if(FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     return storageClassToString(FD->getStorageClass());
   }
-  if(VarDecl *VD = dyn_cast<VarDecl>(D)) {
+  if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
     return storageClassToString(VD->getStorageClass());
   }
   return "";
@@ -155,7 +158,7 @@ std::string getStorageQualifierString(Decl *D) {
 
 bool isNULLExpression(clang::Expr *expr, ASTContext &Ctx) {
   // this checks if the expression is NULL. Specifically, (void*)0
-  if(CStyleCastExpr *CS = dyn_cast<CStyleCastExpr>(expr)) {
+  if (CStyleCastExpr *CS = dyn_cast<CStyleCastExpr>(expr)) {
     Expr *subExpr = CS->getSubExpr();
 
     return subExpr->isIntegerConstantExpr(Ctx) &&
@@ -168,17 +171,15 @@ bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP) {
   // get absolute path of the provided file
   // returns true if successful else false
   SmallString<255> abs_path(fileName);
-  std::error_code ec = llvm::sys::fs::make_absolute(BaseDir,abs_path);
-  if(!ec) {
-    absoluteFP = abs_path.str();
-    return true;
-  }
-  return false;
+  llvm::sys::fs::make_absolute(BaseDir,abs_path);
+  absoluteFP = abs_path.str();
+  return true;
 }
 
 bool functionHasVarArgs(clang::FunctionDecl *FD) {
-  if(FD && FD->getFunctionType()->isFunctionProtoType()) {
-    const FunctionProtoType *srcType = dyn_cast<FunctionProtoType>(FD->getFunctionType());
+  if (FD && FD->getFunctionType()->isFunctionProtoType()) {
+    const FunctionProtoType *srcType =
+        dyn_cast<FunctionProtoType>(FD->getFunctionType());
     return srcType->isVariadic();
   }
   return false;
@@ -199,7 +200,8 @@ bool isPointerType(clang::VarDecl *VD) {
 }
 
 bool isStructOrUnionType(clang::VarDecl *VD) {
-  return VD->getType().getTypePtr()->isStructureType() || VD->getType().getTypePtr()->isUnionType();
+  return VD->getType().getTypePtr()->isStructureType() ||
+         VD->getType().getTypePtr()->isUnionType();
 }
 
 std::string tyToStr(const clang::Type *T) {
@@ -233,7 +235,8 @@ bool isTypeHasVoid(clang::QualType QT) {
 }
 
 bool isVarArgType(const std::string &typeName) {
-  return typeName == "struct __va_list_tag *" || typeName == "va_list" || typeName == "struct __va_list_tag";
+  return typeName == "struct __va_list_tag *" || typeName == "va_list" ||
+         typeName == "struct __va_list_tag";
 }
 
 bool hasVoidType(clang::ValueDecl *D) {

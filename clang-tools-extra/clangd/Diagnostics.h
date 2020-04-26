@@ -57,11 +57,11 @@ struct DiagBase {
   std::string File;
   // Absolute path to containing file, if available.
   llvm::Optional<std::string> AbsFile;
-
+#ifdef INTERACTIVECCCONV
+  std::string code;
+#endif
   clangd::Range Range;
   DiagnosticsEngine::Level Severity = DiagnosticsEngine::Note;
-  int code = 0;
-  std::string source = "default";
   std::string Category;
   // Since File is only descriptive, we store a separate flag to distinguish
   // diags from the main file.
@@ -91,13 +91,15 @@ struct Diag : DiagBase {
     Unknown,
     Clang,
     ClangTidy,
+#ifdef INTERACTIVECCCONV
+    CConvMain,
+    CConvSec,
+#endif
   } Source = Unknown;
   /// Elaborate on the problem, usually pointing to a related piece of code.
   std::vector<Note> Notes;
   /// *Alternative* fixes for this diagnostic, one should be chosen.
   std::vector<Fix> Fixes;
-
-  std::vector<DiagnosticRelatedInformation> DiagRelInfo;
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Diag &D);
 

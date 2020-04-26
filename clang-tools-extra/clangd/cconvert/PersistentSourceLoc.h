@@ -1,15 +1,17 @@
-//                     The LLVM Compiler Infrastructure
+//=--PersistentSourceLoc.h----------------------------------------*- C++-*-===//
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // This class specifies a location in a source file that persists across
 // invocations of the frontend. Given a Decl/Stmt/Expr, the FullSourceLoc
-// of that value can be compared with an instance of this class for 
+// of that value can be compared with an instance of this class for
 // equality. If they are equal, then you can substitute the Decl/Stmt/Expr
-// for the instance of this class. 
+// for the instance of this class.
 //===----------------------------------------------------------------------===//
+
 #ifndef _PERSISTENT_SOURCE_LOC_H
 #define _PERSISTENT_SOURCE_LOC_H
 #include "clang/AST/ASTConsumer.h"
@@ -29,7 +31,8 @@ protected:
     fileName(f), lineNo(l), colNo(c), isValid(true) {}
   
 public:
-  PersistentSourceLoc() : fileName(""), lineNo(0), colNo(0), isValid(false) {}
+  PersistentSourceLoc() : fileName(""), lineNo(0), colNo(0),
+                          isValid(false) {}
   std::string getFileName() const { return fileName; }
   uint32_t getLineNo() const { return lineNo; }
   uint32_t getColNo() const { return colNo; }

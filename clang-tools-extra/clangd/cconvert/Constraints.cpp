@@ -1,9 +1,11 @@
-//                     The LLVM Compiler Infrastructure
+//=--Constraints.cpp----------------------------------------------*- C++-*-===//
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// Constraint solver implementation
 //
 //===----------------------------------------------------------------------===//
 
@@ -22,7 +24,9 @@ static cl::opt<bool> DebugSolver("debug-solver",
   cl::desc("Dump intermediate solver state"),
   cl::init(false), cl::cat(SolverCategory));
 
-unsigned VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAtoms, class Constraints &CS) {
+unsigned
+VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAtoms,
+                              class Constraints &CS) {
   unsigned removedConstraints = 0;
   std::set<Constraint*, PComp<Constraint*>> toRemoveConstraints;
   toRemoveConstraints.clear();
@@ -30,8 +34,8 @@ unsigned VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAto
   oldConstraints.clear();
   oldConstraints.insert(Constraints.begin(), Constraints.end());
 
-  for(auto currC: oldConstraints) {
-    for(auto &vatomP: toRemoveVAtoms) {
+  for (auto currC: oldConstraints) {
+    for (auto &vatomP: toRemoveVAtoms) {
       ConstAtom *targetCons = vatomP.second;
       VarAtom *dstCons = vatomP.first;
       // check if the constraint contains
@@ -65,9 +69,9 @@ unsigned VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAto
             }
           }
           // if we have created a new equality constraint
-          if(newC) {
+          if (newC) {
             // add the constraint
-            if(!CS.addConstraint(newC)) {
+            if (!CS.addConstraint(newC)) {
               // if this is already added?
               // delete it.
               delete(newC);
@@ -78,14 +82,15 @@ unsigned VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAto
     }
   }
 
-  for(auto toDel: toRemoveConstraints) {
+  for (auto toDel: toRemoveConstraints) {
     delete(toDel);
   }
 
   return removedConstraints;
 }
 
-Constraint::Constraint(ConstraintKind K, std::string &rsn, PersistentSourceLoc *psl): Constraint(K, rsn) {
+Constraint::Constraint(ConstraintKind K, std::string &rsn,
+                       PersistentSourceLoc *psl): Constraint(K, rsn) {
   if (psl != nullptr && psl->valid()) {
     sourceFileName = psl->getFileName();
     lineNo = psl->getLineNo();
@@ -102,7 +107,7 @@ bool Constraints::removeConstraint(Constraint *C) {
 // Check if we can add this constraint. This provides a global switch to
 // control what constraints we can add to our system.
 void Constraints::editConstraintHook(Constraint *C) {
-  if (!allTypes) {
+  if (!AllTypes) {
     // if this is an equality constraint, check if we are adding
     // only Ptr or WILD constraints? if not? make it WILD
     if (Eq *E = dyn_cast<Eq>(C)) {
@@ -169,7 +174,8 @@ bool Constraints::addReasonBasedConstraint(Constraint *C) {
 bool Constraints::removeReasonBasedConstraint(Constraint *C) {
   if (Eq *e = dyn_cast<Eq>(C)) {
     // remove if the constraint is present.
-    if (this->constraintsByReason.find(e->getReason()) != this->constraintsByReason.end())
+    if (this->constraintsByReason.find(e->getReason()) !=
+        this->constraintsByReason.end())
       return this->constraintsByReason[e->getReason()].erase(e) > 0;
   }
   return false;
@@ -183,7 +189,7 @@ bool Constraints::removeReasonBasedConstraint(Constraint *C) {
 bool Constraints::check(Constraint *C) {
 
   if (Not *N = dyn_cast<Not>(C)) {
-    if(Eq *E = dyn_cast<Eq>(N->getBody()))
+    if (Eq *E = dyn_cast<Eq>(N->getBody()))
       if (!isa<VarAtom>(E->getLHS()) || isa<VarAtom>(E->getRHS()))
         return false;
   }
@@ -216,7 +222,8 @@ bool Constraints::check(Constraint *C) {
 // function that handles assignment of the provided ConstAtom to
 // the provided srcVar.
 // returns true if the assignment has been made.
-bool Constraints::assignConstToVar(EnvironmentMap::iterator &srcVar, ConstAtom *toAssign) {
+bool Constraints::assignConstToVar(EnvironmentMap::iterator &srcVar,
+                                   ConstAtom *toAssign) {
   if (srcVar->first->canAssign(toAssign)) {
     srcVar->second = toAssign;
     return true;
@@ -296,7 +303,7 @@ bool Constraints::canAssignConst(VarAtom *src) {
     // of the provided type.
     if (Not *N = dyn_cast<Not>(C)) {
       if (Eq *E = dyn_cast<Eq>(N->getBody())) {
-        if(dyn_cast<T>(E->getRHS())) {
+        if (dyn_cast<T>(E->getRHS())) {
           return false;
         }
       }
@@ -317,7 +324,7 @@ bool Constraints::step_solve(EnvironmentMap &env) {
 
   EnvironmentMap::iterator VI = env.begin();
   // Step 1. Propagate any WILD constraint as far as we can.
-  while(VI != env.end()) {
+  while (VI != env.end()) {
     // Iterate over the environment, VI is a pair of a variable q_i and 
     // the constant (one of Ptr, Arr, Wild) that the variable is bound to.
     VarAtom *Var = VI->first;
@@ -326,9 +333,11 @@ bool Constraints::step_solve(EnvironmentMap &env) {
     ConstraintSet rmConstraints;
     for (const auto &C : Var->Constraints) 
       if (Eq *E = dyn_cast<Eq>(C)) 
-        changedEnvironment |= propEq<WildAtom>(env, E, getWild(), rmConstraints, VI);
+        changedEnvironment |= propEq<WildAtom>(env, E, getWild(),
+                                               rmConstraints, VI);
       else if (Implies *Imp = dyn_cast<Implies>(C)) 
-        changedEnvironment |= propImp<WildAtom>(Imp, getWild(), rmConstraints, Val);
+        changedEnvironment |= propImp<WildAtom>(Imp, getWild(),
+                                                rmConstraints, Val);
 
     for (const auto &RC : rmConstraints)
       Var->eraseConstraint(RC);
@@ -338,7 +347,7 @@ bool Constraints::step_solve(EnvironmentMap &env) {
 
   VI = env.begin();
   // Step 2. Propagate any ARITH constraints.
-  while(VI != env.end()) {
+  while (VI != env.end()) {
     VarAtom *Var = VI->first;
 
     ConstraintSet rmConstraints;
@@ -351,7 +360,7 @@ bool Constraints::step_solve(EnvironmentMap &env) {
         if (Eq *E = dyn_cast<Eq>(N->getBody())) {
           // If this is Not ( q == Ptr )
           if (isa<PtrAtom>(E->getRHS())) {
-            if (!allTypes && *Val < *getWild()) {
+            if (!AllTypes && *Val < *getWild()) {
               // this pointer cannot be Ptr.
               // and allTypes is disabled, only choice is to make it WILD.
               VI->second = getWild();
@@ -365,11 +374,15 @@ bool Constraints::step_solve(EnvironmentMap &env) {
           }
         }
       } else if (Eq *E = dyn_cast<Eq>(C)) {
-        changedEnvironment |= propEq<NTArrAtom>(env, E, getNTArr(), rmConstraints, VI);
-        changedEnvironment |= propEq<ArrAtom>(env, E, getArr(), rmConstraints, VI);
+        changedEnvironment |= propEq<NTArrAtom>(env, E, getNTArr(),
+                                                rmConstraints, VI);
+        changedEnvironment |= propEq<ArrAtom>(env, E, getArr(),
+                                              rmConstraints, VI);
       } else if (Implies *Imp = dyn_cast<Implies>(C)) {
-        changedEnvironment |= propImp<NTArrAtom>(Imp, getNTArr(), rmConstraints, Val);
-        changedEnvironment |= propImp<ArrAtom>(Imp, getArr(), rmConstraints, Val);
+        changedEnvironment |= propImp<NTArrAtom>(Imp, getNTArr(),
+                                                 rmConstraints, Val);
+        changedEnvironment |= propImp<ArrAtom>(Imp, getArr(),
+                                               rmConstraints, Val);
       }
     }
 
@@ -395,7 +408,8 @@ bool Constraints::step_solve(EnvironmentMap &env) {
   return (changedEnvironment == false);
 }
 
-std::pair<Constraints::ConstraintSet, bool> Constraints::solve(unsigned &numOfIterations) {
+std::pair<Constraints::ConstraintSet, bool>
+    Constraints::solve(unsigned &numOfIterations) {
   bool fixed = false;
   Constraints::ConstraintSet conflicts;
 
@@ -454,7 +468,7 @@ void Constraints::dump_json(llvm::raw_ostream &O) const {
   O << "{\"Constraints\":[";
   bool addComma = false;
   for (const auto &C : constraints) {
-    if(addComma) {
+    if (addComma) {
       O << ",\n";
     }
     C->dump_json(O);
@@ -466,7 +480,7 @@ void Constraints::dump_json(llvm::raw_ostream &O) const {
 
   O << "\"Environment\":[";
   for (const auto &V : environment) {
-    if(addComma) {
+    if (addComma) {
       O << ",\n";
     }
     O << "{\"var\":";
@@ -480,11 +494,13 @@ void Constraints::dump_json(llvm::raw_ostream &O) const {
 
 }
 
-bool Constraints::removeAllConstraintsBasedOnThisReason(std::string &targetReason,
-                                                        ConstraintSet &removedConstraints) {
+bool
+Constraints::removeAllConstraintsOnReason(std::string &targetReason,
+                                          ConstraintSet &removedConstraints) {
   // Are there any constraints with this reason?
   bool anyRemoved = false;
-  if (this->constraintsByReason.find(targetReason) != this->constraintsByReason.end()) {
+  if (this->constraintsByReason.find(targetReason) !=
+      this->constraintsByReason.end()) {
     removedConstraints.insert(this->constraintsByReason[targetReason].begin(),
                   this->constraintsByReason[targetReason].end());
     for (auto cToDel: removedConstraints) {
@@ -551,7 +567,8 @@ Eq *Constraints::createEq(Atom *lhs, Atom *rhs, std::string &rsn) {
   return new Eq(lhs, rhs, rsn);
 }
 
-Eq *Constraints::createEq(Atom *lhs, Atom *rhs, std::string &rsn, PersistentSourceLoc *psl) {
+Eq *Constraints::createEq(Atom *lhs, Atom *rhs, std::string &rsn,
+                          PersistentSourceLoc *psl) {
   if (psl != nullptr && psl->valid()) {
     // make this invalid, if the source location is not absolute path
     // this is to avoid crashes in clangd
@@ -565,21 +582,22 @@ Not *Constraints::createNot(Constraint *body) {
   return new Not(body);
 }
 
-Implies *Constraints::createImplies(Constraint *premise, Constraint *conclusion) {
+Implies *Constraints::createImplies(Constraint *premise,
+                                    Constraint *conclusion) {
   return new Implies(premise, conclusion);
 }
 
 void Constraints::resetConstraints() {
   // update all constraints to pointers
-  for(auto &currE: environment) {
+  for (auto &currE: environment) {
     currE.second = getPtr();
   }
 }
 
 bool Constraints::checkInitialEnvSanity() {
   // all variables should be Ptrs
-  for(const auto &envVar: environment) {
-    if(envVar.second != getPtr()) {
+  for (const auto &envVar: environment) {
+    if (envVar.second != getPtr()) {
       return false;
     }
   }

@@ -1,9 +1,12 @@
-//                     The LLVM Compiler Infrastructure
+//=--CheckedCConvert.cpp------------------------------------------*- C++-*-===//
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+// CConv tool
 //
 //===----------------------------------------------------------------------===//
 #include "clang/AST/ASTConsumer.h"
@@ -34,7 +37,7 @@ using namespace clang::driver;
 using namespace clang::tooling;
 using namespace clang;
 using namespace llvm;
-static cl::OptionCategory ConvertCategory("checked-c-convert options");
+static cl::OptionCategory ConvertCategory("cconv options");
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp("");
 
@@ -50,47 +53,55 @@ cl::opt<bool> Verbose("verbose",
                       cl::init(false),
                       cl::cat(ConvertCategory));
 
-cl::opt<bool> seperateMultipleFuncDecls("seperatefds",
-                                     cl::desc("Do not merge multiple declarations of functions."),
+cl::opt<bool> SeperateMultipleFuncDecls("seperatefds",
+                                     cl::desc("Do not merge multiple "
+                                                 "declarations of functions."),
                                      cl::init(false),
                                      cl::cat(ConvertCategory));
 
 static cl::opt<std::string>
     OutputPostfix("output-postfix",
-                  cl::desc("Postfix to add to the names of rewritten files, if "
-                           "not supplied writes to STDOUT"),
+                  cl::desc("Postfix to add to the names of rewritten "
+                           "files, if not supplied writes to STDOUT"),
                   cl::init("-"), cl::cat(ConvertCategory));
 
 static cl::opt<std::string>
   ConstraintOutputJson("constraint-output",
-                       cl::desc("Path to the file where all the analysis information will be dumped as json"),
-                       cl::init("constraint_output.json"), cl::cat(ConvertCategory));
+                       cl::desc("Path to the file where all the analysis "
+                                  "information will be dumped as json"),
+                       cl::init("constraint_output.json"),
+                         cl::cat(ConvertCategory));
 
 static cl::opt<bool> DumpStats( "dump-stats",
                                 cl::desc("Dump statistics"),
                                 cl::init(false),
                                 cl::cat(ConvertCategory));
 
-cl::opt<bool> handleVARARGS( "handle-varargs",
-                             cl::desc("Enable handling of varargs in a sound manner"),
+cl::opt<bool> HandleVARARGS( "handle-varargs",
+                             cl::desc("Enable handling of varargs in a "
+                                     "sound manner"),
                              cl::init(false),
                              cl::cat(ConvertCategory));
 
-cl::opt<bool> enablePropThruIType( "enable-itypeprop",
-                                   cl::desc("Enable propagation of constraints through ityped parameters/returns."),
+cl::opt<bool> EnablePropThruIType( "enable-itypeprop",
+                                   cl::desc("Enable propagation of "
+                                           "constraints through ityped "
+                                           "parameters/returns."),
                                    cl::init(false),
                                    cl::cat(ConvertCategory));
 
-cl::opt<bool> considerAllocUnsafe( "alloc-unsafe",
-                                   cl::desc("Consider the allocators (i.e., malloc/calloc) as unsafe."),
+cl::opt<bool> ConsiderAllocUnsafe( "alloc-unsafe",
+                                   cl::desc("Consider the allocators "
+                                           "(i.e., malloc/calloc) as unsafe."),
                                    cl::init(false),
                                    cl::cat(ConvertCategory));
-cl::opt<bool> allTypes( "alltypes",
-                         cl::desc("Consider all Checked C types for conversion"),
+cl::opt<bool> AllTypes( "alltypes",
+                         cl::desc("Consider all Checked C types for "
+                                "conversion"),
                          cl::init(false),
                          cl::cat(ConvertCategory));
 
-cl::opt<bool> addCheckedRegions( "addcr",
+cl::opt<bool> AddCheckedRegions( "addcr",
                                  cl::desc("Add Checked Regions"),
                                  cl::init(false),
                                  cl::cat(ConvertCategory));
@@ -107,7 +118,7 @@ bool DumpIntermediate;
 
 bool Verbose;
 
-bool seperateMultipleFuncDecls;
+bool SeperateMultipleFuncDecls;
 
 std::string OutputPostfix;
 
@@ -115,15 +126,17 @@ std::string ConstraintOutputJson;
 
 bool DumpStats;
 
-bool handleVARARGS;
+bool HandleVARARGS;
 
-bool enablePropThruIType;
+bool EnablePropThruIType;
 
-bool considerAllocUnsafe;
+bool ConsiderAllocUnsafe;
 
-bool allTypes;
+bool AllTypes;
 
 std::string BaseDir;
+
+bool AddCheckedRegions;
 
 #endif
 
@@ -179,7 +192,8 @@ newFrontendActionFactoryA(ProgramInfo &I) {
       new ArgFrontendActionFactory(I));
 }
 
-void dumpConstraintOutputJson(const std::string &postfixStr, ProgramInfo &infoToDump) {
+void dumpConstraintOutputJson(const std::string &postfixStr,
+                              ProgramInfo &infoToDump) {
   if (DumpIntermediate) {
     std::string jsonFilePath = ConstraintOutputJson + postfixStr + ".json";
     errs() << "Writing json output to:" << jsonFilePath << "\n";
@@ -194,7 +208,9 @@ void dumpConstraintOutputJson(const std::string &postfixStr, ProgramInfo &infoTo
   }
 }
 
-std::pair<Constraints::ConstraintSet, bool> solveConstraintsWithFunctionSubTyping(ProgramInfo &Info, unsigned iterationID) {
+std::pair<Constraints::ConstraintSet, bool>
+    solveConstraintsWithFunctionSubTyping(ProgramInfo &Info,
+                                      unsigned iterationID) {
 // solve the constrains by handling function sub-typing.
   Constraints &CS = Info.getConstraints();
   unsigned numIterations = 0;
@@ -202,13 +218,17 @@ std::pair<Constraints::ConstraintSet, bool> solveConstraintsWithFunctionSubTypin
   bool fixed = false;
   unsigned localIteration = 1;
   while (!fixed) {
-    dumpConstraintOutputJson(BEFORE_SOLVING_SUFFIX + std::to_string(iterationID) + "_" + std::to_string(localIteration), Info);
+    auto logFileName = BEFORE_SOLVING_SUFFIX + std::to_string(iterationID) +
+                       "_" + std::to_string(localIteration);
+    dumpConstraintOutputJson(logFileName, Info);
     toRet = CS.solve(numIterations);
     if (numIterations > 1) {
       // this means we have made some changes to the environment
       // see if the function subtype handling causes any changes?
       fixed = !Info.handleFunctionSubtyping();
-      dumpConstraintOutputJson(AFTER_SUBTYPING_SUFFIX + std::to_string(iterationID) + "_" + std::to_string(localIteration), Info);
+      logFileName = AFTER_SUBTYPING_SUFFIX + std::to_string(iterationID) +
+                    "_" + std::to_string(localIteration);
+      dumpConstraintOutputJson(logFileName, Info);
     }
     else {
       // we reached a fixed point.
@@ -226,38 +246,41 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
   unsigned long numberOfEdgesRemoved = 0;
   unsigned long numItypeVars = 0;
   std::set<std::string> modifiedFunctions;
-  if(Verbose) {
+  if (Verbose) {
     errs() << "Trying to capture Constraint Variables for all functions\n";
   }
   // first capture itype parameters and return values for all functions
   performConstraintSetup(Info);
 
   // sanity check
-  assert(CS.checkInitialEnvSanity() && "Invalid initial environment. We expect all pointers to be "
+  assert(CS.checkInitialEnvSanity() && "Invalid initial environment. "
+                                       "We expect all pointers to be "
                                        "initialized with Ptr to begin with.");
 
   dumpConstraintOutputJson(INITIAL_OUTPUT_SUFFIX, Info);
 
-  while(!fixedPointReached) {
+  while (!fixedPointReached) {
     clock_t startTime = clock();
-    if(Verbose) {
+    if (Verbose) {
       errs() << "****Iteration " << iterationNum << " starts.****\n";
       errs() << "Iterative Itype refinement, Round:" << iterationNum << "\n";
     }
 
-    std::pair<Constraints::ConstraintSet, bool> R = solveConstraintsWithFunctionSubTyping(Info, iterationNum);
+    std::pair<Constraints::ConstraintSet, bool> R =
+        solveConstraintsWithFunctionSubTyping(Info, iterationNum);
 
-    if(Verbose) {
-      errs() << "Iteration:" << iterationNum << ", Constraint solve time:" << getTimeSpentInSeconds(startTime) << "\n";
+    if (Verbose) {
+      errs() << "Iteration:" << iterationNum << ", Constraint solve time:" <<
+                getTimeSpentInSeconds(startTime) << "\n";
     }
 
-    if(R.second) {
-      if(Verbose) {
+    if (R.second) {
+      if (Verbose) {
         errs() << "Constraints solved for iteration:" << iterationNum << "\n";
       }
     }
 
-    if(DumpStats) {
+    if (DumpStats) {
       Info.print_stats(inputSourceFiles, llvm::errs(), true);
     }
 
@@ -268,31 +291,37 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
     // detect and update new found itype vars.
     numItypeVars = detectAndUpdateITypeVars(Info, modifiedFunctions);
 
-    if(Verbose) {
-      errs() << "Iteration:" << iterationNum << ", Number of detected itype vars:" << numItypeVars
-             << ", detection time:" << getTimeSpentInSeconds(startTime) << "\n";
+    if (Verbose) {
+      errs() << "Iteration:" << iterationNum <<
+                ", Number of detected itype vars:" << numItypeVars <<
+                ", detection time:" << getTimeSpentInSeconds(startTime) << "\n";
     }
 
     startTime = clock();
-    // update the constraint graph by removing edges from/to iype parameters and returns.
+    // update the constraint graph by removing edges from/to iype parameters
+    // and returns.
     numberOfEdgesRemoved = resetWithitypeConstraints(CS);
 
-    if(Verbose) {
-      errs() << "Iteration:" << iterationNum << ", Number of edges removed:" << numberOfEdgesRemoved << "\n";
+    if (Verbose) {
+      errs() << "Iteration:" << iterationNum << ", Number of edges removed:" <<
+                numberOfEdgesRemoved << "\n";
 
-      errs() << "Iteration:" << iterationNum << ", Refinement Time:" << getTimeSpentInSeconds(startTime) << "\n";
+      errs() << "Iteration:" << iterationNum << ", Refinement Time:" <<
+                getTimeSpentInSeconds(startTime) << "\n";
     }
 
     // if we removed any edges, that means we did not reach fix point.
-    // In other words, we reach fixed point when no edges are removed from the constraint graph.
+    // In other words, we reach fixed point when no edges are removed from
+    // the constraint graph.
     fixedPointReached = !(numberOfEdgesRemoved > 0);
-    if(Verbose) {
+    if (Verbose) {
       errs() << "****Iteration " << iterationNum << " ends****\n";
     }
     iterationNum++;
   }
-  if(Verbose) {
-    errs() << "Fixed point reached after " << (iterationNum - 1) << " iterations.\n";
+  if (Verbose) {
+    errs() << "Fixed point reached after " << (iterationNum - 1) <<
+              " iterations.\n";
   }
 
   return fixedPointReached;
@@ -302,11 +331,10 @@ std::set<std::string> inputFilePaths;
 
 static CompilationDatabase *CurrCompDB = nullptr;
 
-ProgramInfo GlobalProgInfo;
-
 static tooling::CommandLineArguments sourceFiles;
 
-bool initializeCConvert(CommonOptionsParser &OptionsParser, struct CConvertOptions &options) {
+bool CConvInterface::InitializeCConvert(CommonOptionsParser &OptionsParser,
+                                        struct CConvertOptions &options) {
 
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();
@@ -317,7 +345,7 @@ bool initializeCConvert(CommonOptionsParser &OptionsParser, struct CConvertOptio
 
   Verbose = options.Verbose;
 
-  seperateMultipleFuncDecls = options.seperateMultipleFuncDecls;
+  SeperateMultipleFuncDecls = options.SeperateMultipleFuncDecls;
 
   OutputPostfix = options.OutputPostfix;
 
@@ -325,11 +353,11 @@ bool initializeCConvert(CommonOptionsParser &OptionsParser, struct CConvertOptio
 
   DumpStats = options.DumpStats;
 
-  handleVARARGS = options.handleVARARGS;
+  HandleVARARGS = options.HandleVARARGS;
 
-  enablePropThruIType = options.enablePropThruIType;
+  EnablePropThruIType = options.EnablePropThruIType;
 
-  considerAllocUnsafe = options.considerAllocUnsafe;
+  ConsiderAllocUnsafe = options.ConsiderAllocUnsafe;
 
   BaseDir = options.BaseDir;
 
@@ -338,7 +366,8 @@ bool initializeCConvert(CommonOptionsParser &OptionsParser, struct CConvertOptio
   getAbsoluteFilePath(BaseDir, tmpPath);
   BaseDir = tmpPath;
 
-  allTypes = true;
+  AllTypes = false;
+  AddCheckedRegions = false;
 
   if (BaseDir.empty()) {
     SmallString<256>  cp;
@@ -367,14 +396,16 @@ bool initializeCConvert(CommonOptionsParser &OptionsParser, struct CConvertOptio
   return true;
 }
 
-bool writeConvertedFileToDisk(const std::string &filePath) {
-  if (std::find(sourceFiles.begin(), sourceFiles.end(), filePath) != sourceFiles.end()) {
+bool CConvInterface::WriteConvertedFileToDisk(const std::string &filePath) {
+  if (std::find(sourceFiles.begin(), sourceFiles.end(), filePath) !=
+      sourceFiles.end()) {
     std::vector<std::string> currSourceFiles;
     currSourceFiles.clear();
     currSourceFiles.push_back(filePath);
     ClangTool Tool(*CurrCompDB, currSourceFiles);
     std::unique_ptr<ToolAction> RewriteTool =
-        newFrontendActionFactoryA<RewriteAction<RewriteConsumer, ProgramInfo>>(GlobalProgInfo);
+        newFrontendActionFactoryA<RewriteAction<RewriteConsumer,
+                                                ProgramInfo>>(GlobalProgramInfo);
 
     if (RewriteTool)
       Tool.run(RewriteTool.get());
@@ -384,20 +415,23 @@ bool writeConvertedFileToDisk(const std::string &filePath) {
 
 }
 
-bool buildInitialConstraints() {
+bool CConvInterface::BuildInitialConstraints() {
+
+  std::lock_guard<std::mutex> lock(InterfaceMutex);
 
   ClangTool Tool(*CurrCompDB, sourceFiles);
 
   // 1. Gather constraints.
   std::unique_ptr<ToolAction> ConstraintTool = newFrontendActionFactoryA<
-      GenericAction<ConstraintBuilderConsumer, ProgramInfo>>(GlobalProgInfo);
+      GenericAction<ConstraintBuilderConsumer,
+                    ProgramInfo>>(GlobalProgramInfo);
 
   if (ConstraintTool)
     Tool.run(ConstraintTool.get());
   else
     llvm_unreachable("No action");
 
-  if (!GlobalProgInfo.link()) {
+  if (!GlobalProgramInfo.link()) {
     errs() << "Linking failed!\n";
     return false;
   }
@@ -406,19 +440,21 @@ bool buildInitialConstraints() {
   if (Verbose)
     outs() << "Solving constraints\n";
 
-  Constraints &CS = GlobalProgInfo.getConstraints();
+  Constraints &CS = GlobalProgramInfo.getConstraints();
 
   // perform constraint solving by iteratively refining based on itypes.
-  bool fPointReached = performIterativeItypeRefinement(CS, GlobalProgInfo, inputFilePaths);
+  bool fPointReached = performIterativeItypeRefinement(CS,
+                                                       GlobalProgramInfo,
+                                                       inputFilePaths);
 
   assert(fPointReached);
   if (Verbose)
     outs() << "Constraints solved\n";
 
-  GlobalProgInfo.computePointerDisjointSet();
+  GlobalProgramInfo.computePointerDisjointSet();
   if (DumpIntermediate) {
     //Info.dump();
-    dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, GlobalProgInfo);
+    dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, GlobalProgramInfo);
   }
   return true;
 }
@@ -489,7 +525,9 @@ int main(int argc, const char **argv) {
   Constraints &CS = Info.getConstraints();
 
   // perform constraint solving by iteratively refining based on itypes.
-  bool fPointReached = performIterativeItypeRefinement(CS, Info, inoutPaths);
+  bool fPointReached = performIterativeItypeRefinement(CS,
+                                                       Info,
+                                                       inoutPaths);
 
   assert(fPointReached == true);
   if (Verbose)

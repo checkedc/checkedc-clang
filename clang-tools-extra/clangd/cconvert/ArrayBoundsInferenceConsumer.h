@@ -1,7 +1,8 @@
-//                     The LLVM Compiler Infrastructure
+//=--ArrayBoundsInferenceConsumer.h-------------------------------*- C++-*-===//
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // This is an ASTConsumer that tries to infer the CheckedC style bounds
@@ -15,9 +16,11 @@
 
 #include "ProgramInfo.h"
 
+using namespace clang;
+
 // This class handles determining bounds of global array variables.
 // i.e., function parameters, structure fields and global variables.
-class GlobalABVisitor: public clang::RecursiveASTVisitor<GlobalABVisitor> {
+class GlobalABVisitor: public RecursiveASTVisitor<GlobalABVisitor> {
 public:
   explicit GlobalABVisitor(ASTContext *C, ProgramInfo &I)
           : Context(C), Info(I) {}
@@ -33,7 +36,7 @@ private:
 };
 
 // This class handles determining bounds of function-local array variables.
-class LocalVarABVisitor : public clang::RecursiveASTVisitor<LocalVarABVisitor> {
+class LocalVarABVisitor : public RecursiveASTVisitor<LocalVarABVisitor> {
 
 public:
   explicit LocalVarABVisitor(ASTContext *C, ProgramInfo &I)

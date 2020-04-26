@@ -6,9 +6,13 @@ add_clang_tool(clangd
   $<TARGET_OBJECTS:obj.clangDaemonTweaks>
   )
 
+add_clang_tool(icconv
+   ClangdMain.cpp
+   $<TARGET_OBJECTS:obj.clangDaemonTweaks>
+   )
+
 set(LLVM_LINK_COMPONENTS
   support
-  Option
   )
 
 set(CLANGD_XPC_LIBS "")
@@ -22,6 +26,21 @@ target_link_libraries(clangd
   clangBasic
   clangTidy
   clangDaemon
+  clangFormat
+  clangFrontend
+  clangSema
+  clangTooling
+  clangToolingCore
+  clangToolingSyntax
+  ${CLANGD_XPC_LIBS}
+  )
+
+target_link_libraries(icconv
+  PRIVATE
+  clangAST
+  clangBasic
+  clangTidy
+  cconvClangDaemon
   CConvert
   clangFormat
   clangFrontend
@@ -31,3 +50,5 @@ target_link_libraries(clangd
   clangToolingSyntax
   ${CLANGD_XPC_LIBS}
   )
+
+target_compile_definitions(icconv PUBLIC INTERACTIVECCCONV=1)

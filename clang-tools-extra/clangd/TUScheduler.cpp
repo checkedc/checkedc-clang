@@ -879,10 +879,6 @@ bool TUScheduler::update(PathRef File, ParseInputs Inputs,
   return NewFile;
 }
 
-bool TUScheduler::isFileAlreadyAnalyzed(PathRef File) {
-  return Files[File] != nullptr;
-}
-
 void TUScheduler::remove(PathRef File) {
   bool Removed = Files.erase(File);
   if (!Removed)

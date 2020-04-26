@@ -1,3 +1,13 @@
+//=--GatherTool.cpp-----------------------------------------------*- C++-*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+// Implementation of methods in GatherTool.h
+//===----------------------------------------------------------------------===//
+
 #include "clang/AST/RecursiveASTVisitor.h"
 
 #include "clang/AST/Type.h"
@@ -6,7 +16,6 @@
 using namespace llvm;
 using namespace clang;
 
-//ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD, int parameterIndex) {
 
 class ParameterGatherer : public clang::RecursiveASTVisitor<ParameterGatherer> {
 public:
@@ -22,7 +31,8 @@ public:
       auto &CS = Info.getConstraints();
       for (auto &param : FD->parameters()) {
         bool foundWild = false;
-        std::set<ConstraintVariable *> cvs = Info.getVariable(param, Context, FD, pi);
+        std::set<ConstraintVariable *> cvs = Info.getVariable(param,
+                                                              Context, FD, pi);
         for (auto cv : cvs) {
           foundWild |= cv->hasWild(CS.getVariables());
           // if this an extern function, then check if there is

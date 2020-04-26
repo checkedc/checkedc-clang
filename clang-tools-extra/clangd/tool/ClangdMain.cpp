@@ -26,15 +26,15 @@
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/TargetSelect.h"
-#include "clang/Tooling/CommonOptionsParser.h"
 #include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
+#ifdef INTERACTIVECCCONV
 #include "cconvert/CConvInteractive.h"
+#endif
 
 namespace clang {
 namespace clangd {
@@ -48,7 +48,7 @@ static llvm::cl::opt<Path> CompileCommandsDir(
 static llvm::cl::opt<unsigned>
     WorkerThreadsCount("j",
                        llvm::cl::desc("Number of async workers used by clangd"),
-                       llvm::cl::init(getDefaultAsyncThreadsCount()), llvm::cl::cat(ClangDCategory));
+                       llvm::cl::init(getDefaultAsyncThreadsCount()));
 
 // FIXME: also support "plain" style where signatures are always omitted.
 enum CompletionStyleFlag { Detailed, Bundled };
@@ -70,7 +70,7 @@ static llvm::cl::opt<bool> IncludeIneligibleResults(
     llvm::cl::desc(
         "Include ineligible completion results (e.g. private members)"),
     llvm::cl::init(CodeCompleteOptions().IncludeIneligibleResults),
-    llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
+    llvm::cl::Hidden);
 
 static llvm::cl::opt<JSONStreamStyle> InputStyle(
     "input-style", llvm::cl::desc("Input JSON stream encoding"),
@@ -82,7 +82,7 @@ static llvm::cl::opt<JSONStreamStyle> InputStyle(
 
 static llvm::cl::opt<bool>
     PrettyPrint("pretty", llvm::cl::desc("Pretty-print JSON output"),
-                llvm::cl::init(false), llvm::cl::cat(ClangDCategory));
+                llvm::cl::init(false));
 
 static llvm::cl::opt<Logger::Level> LogLevel(
     "log", llvm::cl::desc("Verbosity of log messages written to stderr"),
@@ -90,7 +90,7 @@ static llvm::cl::opt<Logger::Level> LogLevel(
                      clEnumValN(Logger::Info, "info",
                                 "High level execution tracing"),
                      clEnumValN(Logger::Debug, "verbose", "Low level details")),
-    llvm::cl::init(Logger::Info), llvm::cl::cat(ClangDCategory));
+    llvm::cl::init(Logger::Info));
 
 static llvm::cl::opt<bool>
     Test("lit-test",
@@ -112,7 +112,7 @@ static llvm::cl::opt<PCHStorageFlag> PCHStorage(
     llvm::cl::values(
         clEnumValN(PCHStorageFlag::Disk, "disk", "store PCHs on disk"),
         clEnumValN(PCHStorageFlag::Memory, "memory", "store PCHs in memory")),
-    llvm::cl::init(PCHStorageFlag::Disk), llvm::cl::cat(ClangDCategory));
+    llvm::cl::init(PCHStorageFlag::Disk));
 
 static llvm::cl::opt<int> LimitResults(
     "limit-results",
@@ -127,7 +127,7 @@ static llvm::cl::opt<bool>
 static llvm::cl::opt<Path>
     ResourceDir("resource-dir",
                 llvm::cl::desc("Directory for system clang headers"),
-                llvm::cl::init(""), llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
+                llvm::cl::init(""), llvm::cl::Hidden);
 
 static llvm::cl::opt<Path> InputMirrorFile(
     "input-mirror-file",
@@ -154,7 +154,7 @@ static llvm::cl::opt<bool> AllScopesCompletion(
 
 static llvm::cl::opt<bool> ShowOrigins(
     "debug-origin", llvm::cl::desc("Show origins of completion items"),
-    llvm::cl::init(CodeCompleteOptions().ShowOrigins), llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
+    llvm::cl::init(CodeCompleteOptions().ShowOrigins), llvm::cl::Hidden);
 
 static llvm::cl::opt<CodeCompleteOptions::IncludeInsertion> HeaderInsertion(
     "header-insertion",
@@ -202,60 +202,12 @@ static llvm::cl::opt<CompileArgsFrom> CompileArgsFrom(
                      clEnumValN(FilesystemCompileArgs, "filesystem",
                                 "All compile commands come from the "
                                 "'compile_commands.json' files")),
-    llvm::cl::init(FilesystemCompileArgs), llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
+    llvm::cl::init(FilesystemCompileArgs), llvm::cl::Hidden);
 
 static llvm::cl::opt<bool> EnableFunctionArgSnippets(
     "function-arg-placeholders",
     llvm::cl::desc("When disabled, completions contain only parentheses for "
                    "function calls. When enabled, completions also contain "
-                   "placeholders for method parameters."),
-    llvm::cl::init(CodeCompleteOptions().EnableFunctionArgSnippets), llvm::cl::cat(ClangDCategory));
-
-
-// checked-c-convert commands.
-
-llvm::cl::opt<bool> DumpIntermediate( "dump-intermediate",
-                                      llvm::cl::desc("Dump intermediate information"),
-                                      llvm::cl::init(false), llvm::cl::cat(ClangDCategory));
-
-llvm::cl::opt<bool> Verbose("verbose",
-                      llvm::cl::desc("Print verbose information"),
-                      llvm::cl::init(false), llvm::cl::cat(ClangDCategory));
-
-llvm::cl::opt<bool> mergeMultipleFuncDecls("mergefds",
-                                     llvm::cl::desc("Merge multiple declarations of functions."),
-                                     llvm::cl::init(false), llvm::cl::cat(ClangDCategory));
-
-llvm::cl::opt<std::string>
-    OutputPostfix("output-postfix",
-                  llvm::cl::desc("Postfix to add to the names of rewritten files, if "
-                           "not supplied writes to STDOUT"),
-                  llvm::cl::init("-"), llvm::cl::cat(ClangDCategory));
-
-llvm::cl::opt<std::string>
-    ConstraintOutputJson("constraint-output",
-                         llvm::cl::desc("Path to the file where all the analysis information will be dumped as json"),
-                         llvm::cl::init("constraint_output.json"), llvm::cl::cat(ClangDCategory));
-
-llvm::cl::opt<bool> DumpStats( "dump-stats",
-                                llvm::cl::desc("Dump statistics"),
-                                llvm::cl::init(false), llvm::cl::cat(ClangDCategory));
-
-llvm::cl::opt<bool> handleVARARGS( "handle-varargs",
-                             llvm::cl::desc("Enable handling of varargs in a sound manner"),
-                             llvm::cl::init(false), llvm::cl::cat(ClangDCategory));
-
-llvm::cl::opt<bool> enablePropThruIType( "enable-itypeprop",
-                                   llvm::cl::desc("Enable propagation of constraints through ityped parameters/returns."),
-                                   llvm::cl::init(false), llvm::cl::cat(ClangDCategory));
-
-llvm::cl::opt<bool> considerAllocUnsafe( "alloc-unsafe",
-                                   llvm::cl::desc("Consider the allocators (i.e., malloc/calloc) as unsafe."),
-                                   llvm::cl::init(false), llvm::cl::cat(ClangDCategory));
-
-llvm::cl::opt<std::string> BaseDir("base-dir",
-            llvm::cl::desc("Base directory for the code we're translating"),
-            llvm::cl::init(""), llvm::cl::cat(ClangDCategory));
                    "placeholders for method parameters"),
     llvm::cl::init(CodeCompleteOptions().EnableFunctionArgSnippets),
     llvm::cl::Hidden);
@@ -327,6 +279,78 @@ static llvm::cl::list<std::string> TweakList(
         "Specify a list of Tweaks to enable (only for clangd developers)."),
     llvm::cl::Hidden, llvm::cl::CommaSeparated);
 
+#ifdef INTERACTIVECCCONV
+static llvm::cl::OptionCategory CConvCategory("cconv", "This is "
+                                                       "an interactive version "
+                                                       "of checked c convert "
+                                                       "tool.");
+
+llvm::cl::opt<bool> DumpIntermediate( "dump-intermediate",
+                                      llvm::cl::desc("Dump intermediate "
+                                                    "information"),
+                                      llvm::cl::init(false),
+                                     llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<bool> Verbose("verbose",
+                            llvm::cl::desc("Print verbose information"),
+                            llvm::cl::init(false),
+                            llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<bool> MergeMultipleFuncDecls("mergefds",
+                                           llvm::cl::desc("Merge multiple "
+                                                          "declarations of "
+                                                          "functions."),
+                                           llvm::cl::init(false),
+                                           llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<std::string>
+    OutputPostfix("output-postfix",
+                  llvm::cl::desc("Postfix to add to the names of "
+                                 "rewritten files, if "
+                                 "not supplied writes to STDOUT"),
+                  llvm::cl::init("-"), llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<std::string>
+    ConstraintOutputJson("constraint-output",
+                         llvm::cl::desc("Path to the file where all the "
+                                        "analysis information will be dumped "
+                                        "as json"),
+                         llvm::cl::init("constraint_output.json"),
+                         llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<bool> DumpStats( "dump-stats",
+                               llvm::cl::desc("Dump statistics"),
+                               llvm::cl::init(false),
+                              llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<bool> HandleVARARGS( "handle-varargs",
+                                   llvm::cl::desc("Enable handling of "
+                                                 "varargs in a sound manner"),
+                                   llvm::cl::init(false),
+                                  llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<bool> EnablePropThruIType( "enable-itypeprop",
+                                         llvm::cl::desc("Enable propagation "
+                                                       "of constraints through "
+                                                       "ityped parameters/returns."),
+                                         llvm::cl::init(false),
+                                        llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<bool> ConsiderAllocUnsafe( "alloc-unsafe",
+                                         llvm::cl::desc("Consider the "
+                                                       "allocators "
+                                                       "(i.e., malloc/calloc) "
+                                                       "as unsafe."),
+                                         llvm::cl::init(false),
+                                        llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<std::string> BaseDir("base-dir",
+                                   llvm::cl::desc("Base directory for the "
+                                                  "code we're translating"),
+                                   llvm::cl::init(""),
+                                   llvm::cl::cat(CConvCategory));
+#endif
+
 namespace {
 
 /// \brief Supports a test URI scheme with relaxed constraints for lit tests.
@@ -394,33 +418,42 @@ int main(int argc, char *argv[]) {
     OS << clang::getClangToolFullVersion("clangd") << "\n";
   });
 
-  tooling::CommonOptionsParser OptionsParser(argc, (const char**)(argv), ClangDCategory);
-  /*llvm::cl::ParseCommandLineOptions(
+#ifdef INTERACTIVECCCONV
+  tooling::CommonOptionsParser OptionsParser(argc,
+                                             (const char**)(argv),
+                                             CConvCategory);
+  LogLevel = Logger::Debug;
+  // Setup options
+  struct CConvertOptions ccOptions;
+  CConvInterface cconvInterface;
+  ccOptions.BaseDir = BaseDir.getValue();
+  ccOptions.ConsiderAllocUnsafe = ConsiderAllocUnsafe;
+  ccOptions.EnablePropThruIType = EnablePropThruIType;
+  ccOptions.HandleVARARGS = HandleVARARGS;
+  ccOptions.DumpStats = DumpStats;
+  ccOptions.OutputPostfix = OutputPostfix.getValue();
+  ccOptions.Verbose = Verbose;
+  ccOptions.DumpIntermediate = DumpIntermediate;
+  ccOptions.ConstraintOutputJson = ConstraintOutputJson.getValue();
+  ccOptions.SeperateMultipleFuncDecls = MergeMultipleFuncDecls;
+  // initialize CConvInterface
+  if (cconvInterface.InitializeCConvert(OptionsParser, ccOptions)) {
+    log("Initialized CConvert successfully\n");
+  } else {
+    log("Failed to initialize CConvert successfully\n");
+    return 1;
+  }
+#else
+  llvm::cl::ParseCommandLineOptions(
       argc, argv,
       "clangd is a language server that provides IDE-like features to editors. "
       "\n\nIt should be used via an editor plugin rather than invoked "
       "directly. "
       "For more information, see:"
       "\n\thttps://clang.llvm.org/extra/clangd.html"
-      "\n\thttps://microsoft.github.io/language-server-protocol/");*/
+      "\n\thttps://microsoft.github.io/language-server-protocol/");
+#endif
 
-  struct CConvertOptions ccOptions;
-  ccOptions.BaseDir = BaseDir.getValue();
-  ccOptions.considerAllocUnsafe = considerAllocUnsafe;
-  ccOptions.enablePropThruIType = enablePropThruIType;
-  ccOptions.handleVARARGS = handleVARARGS;
-  ccOptions.DumpStats = DumpStats;
-  ccOptions.OutputPostfix = OutputPostfix.getValue();
-  ccOptions.Verbose = Verbose;
-  ccOptions.DumpIntermediate = DumpIntermediate;
-  ccOptions.ConstraintOutputJson = ConstraintOutputJson.getValue();
-  ccOptions.seperateMultipleFuncDecls = mergeMultipleFuncDecls;
-  if (initializeCConvert(OptionsParser, ccOptions)) {
-    log("Initialized CConvert successfully\n");
-  } else {
-    log("Failed to initialize CConvert successfully\n");
-    return 1;
-  }
   if (Test) {
     Sync = true;
     InputStyle = JSONStreamStyle::Delimited;
@@ -615,7 +648,12 @@ int main(int argc, char *argv[]) {
   ClangdLSPServer LSPServer(
       *TransportLayer, FSProvider, CCOpts, CompileCommandsDirPath,
       /*UseDirBasedCDB=*/CompileArgsFrom == FilesystemCompileArgs,
+#ifdef INTERACTIVECCCONV
+      // pass the cconvInterface object
+      OffsetEncodingFromFlag, Opts, cconvInterface);
+#else
       OffsetEncodingFromFlag, Opts);
+#endif
   llvm::set_thread_name("clangd.main");
   return LSPServer.run() ? 0
                          : static_cast<int>(ErrorResultCode::NoShutdownRequest);

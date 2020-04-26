@@ -1,133 +1,117 @@
-//===--- CConvertDiagnostics.cpp -----------------------------------------*- C++-*-===//
+//=--CConvertDiagnostics.cpp--------------------------------------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// Implementation of CConvertDiagnostics methods
+//===----------------------------------------------------------------------===//
 
+#ifdef INTERACTIVECCCONV
 #include "CConvertDiagnostics.h"
 
 namespace clang {
 namespace clangd {
-#define CCONVSOURCE "CConv_RealWild"
-#define CCONVSECSOURCE "CConv_AffWild"
+
 #define DEFAULT_PTRSIZE 4
 
-bool getPtrIDFromDiagMessage(const Diagnostic &diagMsg, unsigned long &ptrID) {
-  if (diagMsg.source.rfind(CCONVSOURCE, 0) == 0) {
-    ptrID = diagMsg.code;
-    return true;
-  }
-  return false;
-}
-
-void CConvertDiagnostics::clearAllDiags() {
+void CConvertDiagnostics::ClearAllDiags() {
+  std::lock_guard<std::mutex> lock(DiagMutex);
   AllFileDiagnostics.clear();
 }
 
-bool isValidSourceFile(DisjointSet &CCRes, std::string &filePath) {
-  return CCRes.validSourceFiles.find(filePath) != CCRes.validSourceFiles.end();
+static bool IsValidSourceFile(DisjointSet &CCRes, std::string &filePath) {
+  return CCRes.ValidSourceFiles.find(filePath) != CCRes.ValidSourceFiles.end();
 }
 
-bool CConvertDiagnostics::populateDiagsFromDisjointSet(DisjointSet &CCRes) {
+
+bool CConvertDiagnostics::PopulateDiagsFromDisjointSet(DisjointSet &CCRes) {
+  std::lock_guard<std::mutex> lock(DiagMutex);
   std::set<ConstraintKey> processedCKeys;
   processedCKeys.clear();
-  for (auto &wReason: CCRes.realWildPtrsWithReasons) {
+  auto GetLocRange = [](uint32_t line, uint32_t colNo) -> Range {
+    Range nRange;
+    line--;
+    nRange.start.line = line;
+    nRange.end.line = line;
+    nRange.start.character = colNo;
+    nRange.end.character = colNo + DEFAULT_PTRSIZE;
+    return nRange;
+  };
+
+  for (auto &wReason: CCRes.RealWildPtrsWithReasons) {
     if (CCRes.PtrSourceMap.find(wReason.first) != CCRes.PtrSourceMap.end()) {
       auto *psInfo = CCRes.PtrSourceMap[wReason.first];
       std::string filePath = psInfo->getFileName();
       // if this is not a file in a project? Then ignore.
-      if (!isValidSourceFile(CCRes, filePath))
+      if (!IsValidSourceFile(CCRes, filePath))
         continue;
 
-      int line = psInfo->getLineNo()-1;
-      int colNo = psInfo->getColNo();
+      processedCKeys.insert(wReason.first);
+
       Diag newDiag;
-      newDiag.code = wReason.first;
-      processedCKeys.insert(newDiag.code);
-      newDiag.source = CCONVSOURCE;
+      newDiag.Range = GetLocRange(psInfo->getLineNo(), psInfo->getColNo());
+      newDiag.Source = Diag::CConvMain;
       newDiag.Severity = DiagnosticsEngine::Level::Error;
-      newDiag.Range.start.line = line;
-      newDiag.Range.end.line = line;
-      newDiag.Range.start.character = colNo;
-      newDiag.Range.end.character = colNo + DEFAULT_PTRSIZE;
-      newDiag.Message = "Pointer is wild because of:" + wReason.second.wildPtrReason;
-      if (wReason.second.isValid) {
-        DiagnosticRelatedInformation diagRelInfo;
-        auto duri = URIForFile::fromURI(URI::createFile(wReason.second.sourceFileName), "");
-        if (duri)
-          diagRelInfo.location.uri = std::move(*duri);
-        int rootCauseLineNum = wReason.second.lineNo - 1;
-        int rootCauseColNum = wReason.second.colStart;
-        diagRelInfo.location.range.start.line = rootCauseLineNum;
-        diagRelInfo.location.range.start.character = rootCauseColNum;
-        diagRelInfo.location.range.end.character = rootCauseColNum + DEFAULT_PTRSIZE;
-        diagRelInfo.location.range.end.line = rootCauseLineNum;
-        diagRelInfo.message = "Go here to know the root cause for this.";
-        newDiag.DiagRelInfo.push_back(diagRelInfo);
+      newDiag.code = std::to_string(wReason.first);
+      newDiag.Message = "Pointer is wild because of:" + wReason.second.WildPtrReason;
+
+      // Create notes for the information about root cause
+      if (wReason.second.IsValid) {
+        Note diagNote;
+        diagNote.AbsFile = wReason.second.SourceFileName;
+        diagNote.Range = GetLocRange(wReason.second.LineNo, wReason.second.ColStart);
+        diagNote.Message = "Go here to know the root cause for this.";
+        newDiag.Notes.push_back(diagNote);
       }
       AllFileDiagnostics[filePath].push_back(newDiag);
     }
   }
 
   // for non-direct wild pointers..update the reason and diag information.
-  for (auto nonWildCK: CCRes.totalNonDirectWildPointers) {
+  for (auto nonWildCK: CCRes.TotalNonDirectWildPointers) {
     if (processedCKeys.find(nonWildCK) == processedCKeys.end()) {
       processedCKeys.insert(nonWildCK);
       if (CCRes.PtrSourceMap.find(nonWildCK) != CCRes.PtrSourceMap.end()) {
         auto *psInfo = CCRes.PtrSourceMap[nonWildCK];
         std::string filePath = psInfo->getFileName();
         // if this is not a file in a project? Then ignore.
-        if (!isValidSourceFile(CCRes, filePath))
+        if (!IsValidSourceFile(CCRes, filePath))
           continue;
 
-        int line = psInfo->getLineNo() - 1;
-        int colNo = psInfo->getColNo();
-
+        processedCKeys.insert(nonWildCK);
         Diag newDiag;
-        newDiag.code = nonWildCK;
-        processedCKeys.insert(newDiag.code);
-        newDiag.source = CCONVSECSOURCE;
+        newDiag.Range = GetLocRange(psInfo->getLineNo(), psInfo->getColNo());
+
+        newDiag.code = std::to_string(nonWildCK);
+        newDiag.Source = Diag::CConvSec;
         newDiag.Severity = DiagnosticsEngine::Level::Warning;
-        newDiag.Range.start.line = line;
-        newDiag.Range.end.line = line;
-        newDiag.Range.start.character = colNo;
-        newDiag.Range.end.character = colNo + DEFAULT_PTRSIZE;
         newDiag.Message = "Pointer is wild because it transitively depends on other pointer(s)";
 
         // find the pointer group
-        auto directWildPtrKey = CCRes.leaders[nonWildCK];
-        auto &ptrGroup = CCRes.groups[directWildPtrKey];
+        auto directWildPtrKey = CCRes.GetLeader(nonWildCK);
+        auto &ptrGroup = CCRes.GetGroup(directWildPtrKey);
         CVars directWildPtrs;
         directWildPtrs.clear();
         std::set_intersection(ptrGroup.begin(), ptrGroup.end(),
-                              CCRes.allWildPtrs.begin(), CCRes.allWildPtrs.end(),
+                              CCRes.AllWildPtrs.begin(), CCRes.AllWildPtrs.end(),
                               std::inserter(directWildPtrs, directWildPtrs.begin()));
 
         unsigned maxPtrReasons = 4;
         for (auto tC : directWildPtrs) {
-          DiagnosticRelatedInformation diagRelInfo;
+          Note diagNote;
 
           if (CCRes.PtrSourceMap.find(tC) != CCRes.PtrSourceMap.end()) {
             psInfo = CCRes.PtrSourceMap[tC];
             filePath = psInfo->getFileName();
-            line = psInfo->getLineNo() - 1;
-            colNo = psInfo->getColNo();
-
-            auto duri = URIForFile::fromURI(URI::createFile(filePath), "");
-            if (duri)
-              diagRelInfo.location.uri = std::move(*duri);
-            diagRelInfo.location.range.start.line = line;
-            diagRelInfo.location.range.start.character = colNo;
-            diagRelInfo.location.range.end.character = colNo + DEFAULT_PTRSIZE;
-            diagRelInfo.location.range.end.line = line;
+            diagNote.AbsFile = filePath;
+            diagNote.Range = GetLocRange(psInfo->getLineNo(), psInfo->getColNo());
             maxPtrReasons--;
-            diagRelInfo.message = CCRes.realWildPtrsWithReasons[tC].wildPtrReason;
+            diagNote.Message = CCRes.RealWildPtrsWithReasons[tC].WildPtrReason;
             if (maxPtrReasons <= 1)
-              diagRelInfo.message += " (others)";
-            newDiag.DiagRelInfo.push_back(diagRelInfo);
+              diagNote.Message += " (others)";
+            newDiag.Notes.push_back(diagNote);
             if (maxPtrReasons <= 1)
               break;
           }
@@ -143,3 +127,4 @@ bool CConvertDiagnostics::populateDiagsFromDisjointSet(DisjointSet &CCRes) {
 
 }
 }
+#endif

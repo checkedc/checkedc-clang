@@ -1,12 +1,14 @@
-//                     The LLVM Compiler Infrastructure
+//=--ProgramInfo.h------------------------------------------------*- C++-*-===//
 //
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 // This class represents all the information about a source file
 // collected by the converter.
 //===----------------------------------------------------------------------===//
+
 #ifndef _PROGRAM_INFO_H
 #define _PROGRAM_INFO_H
 #include "clang/AST/ASTConsumer.h"
@@ -19,7 +21,7 @@
 #include "Utils.h"
 #include "PersistentSourceLoc.h"
 #include "ArrayBoundsInformation.h"
-#include "CConvInteractive.h"
+#include "CConvInteractiveData.h"
 #include "GatherTypes.h"
 #include "GatherTool.h"
 
@@ -186,7 +188,6 @@ private:
   // instances of the program AST
   std::map<std::string, std::set<ConstraintVariable*>> OnDemandFuncDeclConstraint;
 
-  std::list<clang::RecordDecl*> Records;
   // Next available integer to assign to a variable.
   uint32_t freeKey;
 

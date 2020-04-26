@@ -1,12 +1,14 @@
-//===--- CConvertDiagnostics.h -CConvertDisagnostics code ----------------*- C++-*-===//
+//=--CConvertDiagnostics.h----------------------------------------*- C++-*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// Class that handles CConv Diagnostic messages.
+//===----------------------------------------------------------------------===//
 
+#ifdef INTERACTIVECCCONV
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_CCONVERTDIAGNOSTICS_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_CCONVERTDIAGNOSTICS_H
 
@@ -17,19 +19,27 @@
 namespace clang {
 namespace clangd {
 
-void getCConvertDiagnostics(PathRef File, std::vector<Diag> &diagVector);
-bool getPtrIDFromDiagMessage(const Diagnostic &diagMsg, unsigned long &ptrID);
-
+// class that represents diagnostics messages specific to CConv
 class CConvertDiagnostics {
 public:
+  std::mutex DiagMutex;
 
+  // GUARDED by DiagMutex
+  // Populate diagnostics from the given disjoint set.
+  bool PopulateDiagsFromDisjointSet(DisjointSet &CCRes);
+  // GUARDED by DiagMutex
+  // Clear diagnostics of all files.
+  void ClearAllDiags();
+  std::map<std::string, std::vector<Diag>>& GetAllFilesDiagnostics() {
+    return AllFileDiagnostics;
+  }
+private:
+  // Diagnostics of all files.
   std::map<std::string, std::vector<Diag>> AllFileDiagnostics;
 
-  bool populateDiagsFromDisjointSet(DisjointSet &CCRes);
-
-  void clearAllDiags();
 
 };
 }
 }
 #endif //LLVM_CLANG_TOOLS_EXTRA_CLANGD_
+#endif

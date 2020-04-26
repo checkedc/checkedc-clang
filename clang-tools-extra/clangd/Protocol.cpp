@@ -121,11 +121,6 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Range &R) {
   return OS << R.start << '-' << R.end;
 }
 
-bool fromJSON(const llvm::json::Value &Params, Location &L) {
-  llvm::json::ObjectMapper O(Params);
-  return O && O.map("uri", L.uri) && O.map("range", L.range);
-}
-
 llvm::json::Value toJSON(const Location &P) {
   return llvm::json::Object{
       {"uri", P.uri},
@@ -412,6 +407,13 @@ bool fromJSON(const llvm::json::Value &Params, FileEvent &R) {
   return O && O.map("uri", R.uri) && O.map("type", R.type);
 }
 
+#ifdef INTERACTIVECCCONV
+bool fromJSON(const llvm::json::Value &Params, CodeLensParams &L) {
+  llvm::json::ObjectMapper O(Params);
+  return O && O.map("textDocument", L.textDocument);
+}
+#endif
+
 bool fromJSON(const llvm::json::Value &Params, DidChangeWatchedFilesParams &R) {
   llvm::json::ObjectMapper O(Params);
   return O && O.map("changes", R.changes);
@@ -447,17 +449,11 @@ bool fromJSON(const llvm::json::Value &Params, DocumentSymbolParams &R) {
   return O && O.map("textDocument", R.textDocument);
 }
 
-llvm::json::Value toJSON(const DiagnosticRelatedInformation &D) {
-  llvm::json::Object Drel{
-      {"location", D.location},
-      {"message", D.message},
+llvm::json::Value toJSON(const DiagnosticRelatedInformation &DRI) {
+  return llvm::json::Object{
+      {"location", DRI.location},
+      {"message", DRI.message},
   };
-  return std::move(Drel);
-}
-
-bool fromJSON(const llvm::json::Value &Params, DiagnosticRelatedInformation &R) {
-  llvm::json::ObjectMapper O(Params);
-  return O && O.map("location", R.location) && O.map("message", R.message);
 }
 
 llvm::json::Value toJSON(const Diagnostic &D) {
@@ -465,15 +461,10 @@ llvm::json::Value toJSON(const Diagnostic &D) {
       {"range", D.range},
       {"severity", D.severity},
       {"message", D.message},
-      {"code", D.code},
-      {"source", D.source},
   };
   if (D.category)
     Diag["category"] = *D.category;
   if (D.codeActions)
-    Diag["codeActions"] = llvm::json::Array(*D.codeActions);
-  if (D.relatedInformation)
-    Diag["relatedInformation"] = llvm::json::Array(*D.relatedInformation);
     Diag["codeActions"] = D.codeActions;
   if (!D.code.empty())
     Diag["code"] = D.code;
@@ -490,14 +481,6 @@ bool fromJSON(const llvm::json::Value &Params, Diagnostic &R) {
     return false;
   O.map("severity", R.severity);
   O.map("category", R.category);
-  auto cArg = Params.getAsObject()->getInteger("code");
-  if (cArg && cArg.hasValue()) {
-    O.map("code", R.code);
-  }
-  auto sArg = Params.getAsObject()->getString("source");
-  if (sArg && sArg.hasValue()) {
-    O.map("source", R.source);
-  }
   O.map("code", R.code);
   O.map("source", R.source);
   return true;
@@ -536,28 +519,29 @@ bool fromJSON(const llvm::json::Value &Params, CodeActionParams &R) {
          O.map("range", R.range) && O.map("context", R.context);
 }
 
-bool fromJSON(const llvm::json::Value &Params, CodeLensParams &L) {
-  llvm::json::ObjectMapper O(Params);
-  return O && O.map("textDocument", L.textDocument);
-}
-
 bool fromJSON(const llvm::json::Value &Params, WorkspaceEdit &R) {
   llvm::json::ObjectMapper O(Params);
   return O && O.map("changes", R.changes);
 }
 
+#ifdef INTERACTIVECCCONV
 bool fromJSON(const llvm::json::Value &Params, CConvertManualFix &CCM) {
   llvm::json::ObjectMapper O(Params);
   CCM.ptrID = (*Params.getAsObject()->getInteger("ptrID"));
   return O;
 }
 
-const llvm::StringLiteral ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND =
-    "clangd.applyFix";
+llvm::json::Value toJSON(const CConvertManualFix &WE) {
+  return llvm::json::Object{{"ptrID", std::move(WE.ptrID)}};
+}
+
 const llvm::StringLiteral ExecuteCommandParams::CCONV_APPLY_ONLY_FOR_THIS =
     "cconv.onlyThisPtr";
 const llvm::StringLiteral ExecuteCommandParams::CCONV_APPLY_FOR_ALL =
     "cconv.applyAllPtr";
+#endif
+const llvm::StringLiteral ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND =
+    "clangd.applyFix";
 const llvm::StringLiteral ExecuteCommandParams::CLANGD_APPLY_TWEAK =
     "clangd.applyTweak";
 
@@ -571,18 +555,15 @@ bool fromJSON(const llvm::json::Value &Params, ExecuteCommandParams &R) {
     return Args && Args->size() == 1 &&
            fromJSON(Args->front(), R.workspaceEdit);
   }
-
+  if (R.command == ExecuteCommandParams::CLANGD_APPLY_TWEAK)
+    return Args && Args->size() == 1 && fromJSON(Args->front(), R.tweakArgs);
+#ifdef INTERACTIVECCCONV
   if (R.command == ExecuteCommandParams::CCONV_APPLY_ONLY_FOR_THIS ||
       R.command == ExecuteCommandParams::CCONV_APPLY_FOR_ALL) {
     return Args && Args->size() == 1 &&
         fromJSON(Args->front(), R.ccConvertManualFix);
   }
-
-  if (R.command == "Dummy") {
-    return true;
-  }
-  if (R.command == ExecuteCommandParams::CLANGD_APPLY_TWEAK)
-    return Args && Args->size() == 1 && fromJSON(Args->front(), R.tweakArgs);
+#endif
   return false; // Unrecognized command.
 }
 
@@ -645,19 +626,23 @@ bool fromJSON(const llvm::json::Value &Params, WorkspaceSymbolParams &R) {
   return O && O.map("query", R.query);
 }
 
+#ifdef INTERACTIVECCCONV
 bool fromJSON(const llvm::json::Value &Params, CodeLens &CL) {
   llvm::json::ObjectMapper O(Params);
   return O && O.map("range", CL.range) && O.map("command", CL.command);
 }
+#endif
 
 llvm::json::Value toJSON(const Command &C) {
   auto Cmd = llvm::json::Object{{"title", C.title}, {"command", C.command}};
   if (C.workspaceEdit)
     Cmd["arguments"] = {*C.workspaceEdit};
-  if (C.ccConvertManualFix)
-    Cmd["arguments"] = {*C.ccConvertManualFix};
   if (C.tweakArgs)
     Cmd["arguments"] = {*C.tweakArgs};
+#ifdef INTERACTIVECCCONV
+  if (C.ccConvertManualFix)
+    Cmd["arguments"] = {*C.ccConvertManualFix};
+#endif
   return std::move(Cmd);
 }
 
@@ -678,13 +663,14 @@ llvm::json::Value toJSON(const CodeAction &CA) {
   return std::move(CodeAction);
 }
 
+#ifdef INTERACTIVECCCONV
 llvm::json::Value toJSON(const CodeLens &CL) {
   auto CodeLens = llvm::json::Object{{"range", CL.range}};
   if (CL.command)
     CodeLens["command"] = *CL.command;
   return std::move(CodeLens);
 }
-
+#endif
 llvm::raw_ostream &operator<<(llvm::raw_ostream &O, const DocumentSymbol &S) {
   return O << S.name << " - " << toJSON(S);
 }
@@ -712,10 +698,6 @@ llvm::json::Value toJSON(const WorkspaceEdit &WE) {
   for (auto &Change : *WE.changes)
     FileChanges[Change.first] = llvm::json::Array(Change.second);
   return llvm::json::Object{{"changes", std::move(FileChanges)}};
-}
-
-llvm::json::Value toJSON(const CConvertManualFix &WE) {
-  return llvm::json::Object{{"ptrID", std::move(WE.ptrID)}};
 }
 
 bool fromJSON(const llvm::json::Value &Params, TweakArgs &A) {
