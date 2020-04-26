@@ -21,10 +21,10 @@ void a1(void) {
   int a = 0;
   int *b = &a;
 
-  mut(((int *)b));
+  mut(b);
 }
 //CHECK: int a = 0;
-//CHECK-NEXT: _Ptr<int> b =  &a;
+//CHECK-NEXT: int *b = &a;
 
 // Test function pointer assignment and constraint propagation. 
 
@@ -33,7 +33,7 @@ void *xyzzy(int *a, int b) {
 
   return 0;
 }
-//CHECK: void * xyzzy(_Ptr<int> a, int b) {
+//CHECK: void* xyzzy(_Ptr<int> a, int b) {
 //CHECK-NEXT: *a = b;
 
 void xyzzy_driver(void) {
@@ -61,7 +61,7 @@ void bad_mut_driver(void) {
   bad_mut_ptr(b, 2, 0);
 }
 //CHECK: void bad_mut_driver(void) {
-//CHECK-NEXT: _Ptr<void (int *, int , int )> bad_mut_ptr = &bad_mut;
+//CHECK-NEXT: _Ptr<void (int* , int , int )> bad_mut_ptr = &bad_mut;
 //CHECK-NEXT: int a = 0;
 //CHECK-NEXT: int *b = &a;
 //CHECK-NEXT: bad_mut_ptr(b, 2, 0);
@@ -98,7 +98,7 @@ void varargxyzzy_driver(void) {
   varargxyzzy(1, b);
 }
 //CHECK: void varargxyzzy_driver(void) {
-//CHECK-NEXT: char a _Checked[10];
+//CHECK-NEXT: char a[10];
 //CHECK-NEXT: char *b = &a[0];
 //CHECK-NEXT: _Ptr<char> c = &a[0];
 //CHECK-NEXT: *c = 0;
@@ -204,7 +204,7 @@ void f_test(void) {
   return;
 } 
 //CHECK: void f_test(void) {
-//CHECK-NEXT: _Ptr<_Ptr<int> (_Ptr<int> )> arr _Checked[3] =  { 0 };
+//CHECK-NEXT: _Ptr<_Ptr<int> (_Ptr<int> )> arr[3] =  { 0 };
 
 // Arrays of function pointers.
 void f_test2(int i, int *(*arr[])(int *)) {

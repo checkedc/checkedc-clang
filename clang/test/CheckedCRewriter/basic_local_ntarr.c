@@ -2,13 +2,10 @@
 //
 // Tests basic rewriting of Nt_array_ptrs
 
-// RUN: checked-c-convert -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
 //
 
-unsigned long strlen(const char *s : itype(_Nt_array_ptr<const char>));
-char *strstr(const char *s1 : itype(_Nt_array_ptr<const char>),
-             const char *s2 : itype(_Nt_array_ptr<const char>)) : itype(_Nt_array_ptr<char>);
-
+#include <string_checked.h>
 // basic test
 // just create a NT pointer
 int main() {

@@ -20,7 +20,7 @@ void typd_driver(void) {
   *(b+4) = 0;
 }
 //CHECK: void typd_driver(void) {
-//CHECK-NEXT: wchar_t buf _Checked[10];
+//CHECK-NEXT: wchar_t buf[10];
 //CHECK-NEXT: _Ptr<wchar_t> a = &buf[0];
 //CHECK-NEXT: wchar_t *b = &buf[0];
 
