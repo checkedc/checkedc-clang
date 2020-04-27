@@ -2609,8 +2609,9 @@ namespace {
 
         // Update UEQ and G for assignments to `e1` where `e1` is a variable.
         if (DeclRefExpr *V = GetLValueVariable(LHS)) {
-          Expr *OV = GetOriginalValue(V, Src, State.UEQ);
-          UpdateAfterAssignment(V, Target, OV, CSS, State, State);
+          bool OVUsesV = false;
+          Expr *OV = GetOriginalValue(V, Src, State.UEQ, OVUsesV);
+          UpdateAfterAssignment(V, Target, OV, OVUsesV, CSS, State, State);
         }
         // Update UEQ and G for assignments where `e1` is not a variable.
         else {
@@ -3016,12 +3017,12 @@ namespace {
         // expressions in UEQ that use the value of `e1` need to be adjusted
         // using the original value of `e1`, since `e1` has been updated.
         if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
-          // Clear G before updating UEQ since G currently contains
-          // expressions that produce the same value as the variable `e1`,
-          // and these expressions should not be added to UEQ.
-          State.G.clear();
-          Expr *OV = GetOriginalValue(V, RHS, State.UEQ);
-          UpdateAfterAssignment(V, Target, OV, CSS, State, State);
+          // Update G to be the set of expressions that produce the same
+          // value as the RHS `e1 +/- 1` (if the RHS could be created).
+          UpdateG(E, State.G, State.G, RHS);
+          bool OVUsesV = false;
+          Expr *OV = GetOriginalValue(V, RHS, State.UEQ, OVUsesV);
+          UpdateAfterAssignment(V, Target, OV, OVUsesV, CSS, State, State);
         }
 
         // Update the set G of expressions that produce the same value as `e`.
@@ -3117,7 +3118,8 @@ namespace {
         }
         Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
         Expr *OV = nullptr;
-        UpdateAfterAssignment(TargetDeclRef, TargetExpr, OV,
+        bool OVUsesV = false;
+        UpdateAfterAssignment(TargetDeclRef, TargetExpr, OV, OVUsesV,
                               CSS, State, State);
       }
 
@@ -3631,9 +3633,16 @@ namespace {
     // If OV is null, any expressions in UEQ and G that use the value of V
     // are removed from UEQ and G.
     //
+    // OVUsesV is true if the original value (if any) uses the value of V.
+    // It is used to prevent the UEQ and G sets from recording equality
+    // between two mathematically equivalent expressions, which can occur
+    // for assignments where the variable appears on the right-hand side,
+    // e.g. i = i + 2.
+    //
     // PrevState is the checking state that was true before the assignment.
     void UpdateAfterAssignment(DeclRefExpr *V, Expr *Target,
-                               Expr *OV, CheckedScopeSpecifier CSS,
+                               Expr *OV, bool OVUsesV,
+                               CheckedScopeSpecifier CSS,
                                const CheckingState PrevState,
                                CheckingState &State) {
       // Adjust UEQ to account for any uses of V in PrevState.UEQ.
@@ -3652,10 +3661,17 @@ namespace {
       }
 
       // Adjust G to account for any uses of V in PrevState.G.
+      // If the original value uses the value of V, then any expressions that
+      // use the value of V should be removed from G.  For example, in the
+      // assignment i = i + 2, where the original value is i - 2, the
+      // expression i + 2 in G should be removed rather than replaced with
+      // (i - 2) + 2.  Otherwise, G would contain (i - 2) + 2 and i, and UEQ
+      // would record equality between (i - 2) + 2 and i, which is a tautology.
       State.G.clear();
+      Expr *OriginalGVal = OVUsesV ? nullptr : OV;
       for (auto I = PrevState.G.begin(); I != PrevState.G.end(); ++I) {
         Expr *E = *I;
-        Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OV, CSS);
+        Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OriginalGVal, CSS);
         // Don't add duplicate expressions to G.
         if (AdjustedE && !EqualExprsContainsExpr(State.G, AdjustedE))
           State.G.push_back(AdjustedE);
@@ -3690,7 +3706,8 @@ namespace {
     // value as the only subexpression of e.
     //
     // Val is an optional expression that may be contained in the updated G.
-    // If Val is not provided, e is used instead.
+    // If Val is not provided, e is used instead.  If Val and e are null,
+    // G is not updated.
     void UpdateG(Expr *E, const EqualExprTy SubExprG,
                  EqualExprTy &G, Expr *Val = nullptr) {
       Expr *SubExpr = dyn_cast<Expr>(*(E->child_begin()));
@@ -3713,12 +3730,15 @@ namespace {
     // of expressions that produce the same value as Si.
     //
     // Val is an optional expression that may be contained in the updated G.
-    // If Val is not provided, e is used instead.
+    // If Val is not provided, e is used instead.  If Val and e are null,
+    // G is not updated.
     void UpdateG(Expr *E, ExprEqualMapTy SubExprGs,
                  EqualExprTy &G, Expr *Val = nullptr) {
       G.clear();
 
       if (!Val) Val = E;
+      if (!Val)
+        return;
 
       // Expressions that create new objects should not be included in G.
       if (CreatesNewObject(Val))
@@ -3769,13 +3789,29 @@ namespace {
 
     // GetOriginalValue returns the original value (if it exists) of the
     // expression Src with respect to the variable V in an assignment V = Src.
-    Expr *GetOriginalValue(DeclRefExpr *V, Expr *Src, const EquivExprSets EQ) {
+    //
+    // The out parameter OVUsesV will be set to true if the original value
+    // uses the value of the variable V.  This prevents callers from having
+    // to compute the variable occurrence count of V in the original value,
+    // since GetOriginalValue computes this count while trying to construct
+    // the inverse expression of the source with respect to V.
+    Expr *GetOriginalValue(DeclRefExpr *V, Expr *Src, const EquivExprSets EQ,
+                           bool &OVUsesV) {
       // Check if Src has an inverse expression with respect to v.
       Expr *IV = nullptr;
       if (IsInvertible(V, Src))
         IV = Inverse(V, V, Src);
-      if (IV)
+      if (IV) {
+        // If Src has an inverse with respect to v, then the original
+        // value (the inverse) must use the value of v.
+        OVUsesV = true;
         return IV;
+      }
+
+      // If Src does not have an inverse with respect to v, then the original
+      // value is either some variable w != v in EQ, or it is null.  In either
+      // case, the original value cannot use the value of v.
+      OVUsesV = false;
       
       // Check EQ for a variable w != v that produces the same value as v.
       EqualExprTy F = GetEqualExprSetContainingVariable(V, EQ);
