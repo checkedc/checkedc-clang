@@ -20,7 +20,7 @@
 #include "ProgramInfo.h"
 #include <mutex>
 
-// Options used to initialize CConv tool
+// Options used to initialize CConv tool.
 struct CConvertOptions {
   bool DumpIntermediate;
 
@@ -43,29 +43,29 @@ struct CConvertOptions {
   std::string BaseDir;
 };
 
-// The main interface exposed by the CConv to interact with the tool
+// The main interface exposed by the CConv to interact with the tool.
 class CConvInterface {
 
 public:
   ProgramInfo GlobalProgramInfo;
-  // Mutex for this interface
+  // Mutex for this interface.
   std::mutex InterfaceMutex;
 
   DisjointSet &GetWILDPtrsInfo();
 
-  // Make only the provided pointer non-wild
+  // Make only the provided pointer non-wild.
   bool MakeSinglePtrNonWild(ConstraintKey targetPtr);
 
   // Make the provided pointer non-WILD and also make all the
   // pointers, which are wild because of the same reason, as non-wild
-  // as well
+  // as well.
   bool InvalidateWildReasonGlobally(ConstraintKey targetPtr);
 
-  // Initialize CConv interface
+  // Initialize CConv interface.
   bool InitializeCConvert(clang::tooling::CommonOptionsParser &OptionsParser,
                           struct CConvertOptions &options);
 
-  // Build initial constraints
+  // Build initial constraints.
   bool BuildInitialConstraints();
 
   // Write the current converted state of the provided file.

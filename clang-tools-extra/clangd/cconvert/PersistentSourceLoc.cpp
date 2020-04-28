@@ -56,7 +56,7 @@ PersistentSourceLoc::mkPSL(clang::SourceRange SR, SourceLocation SL,
   assert(FESL.isValid());
   std::string fn = PL.getFilename();
 
-  // get the absolute filename of the file
+  // Get the absolute filename of the file.
   FullSourceLoc tFSL(SR.getBegin(), SM);
   if (tFSL.isValid()) {
     const FileEntry *fe = SM.getFileEntryForID(tFSL.getFileID());

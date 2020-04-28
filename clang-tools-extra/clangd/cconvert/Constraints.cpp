@@ -38,18 +38,18 @@ VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAtoms,
     for (auto &vatomP: toRemoveVAtoms) {
       ConstAtom *targetCons = vatomP.second;
       VarAtom *dstCons = vatomP.first;
-      // check if the constraint contains
+      // Check if the constraint contains
       // the provided constraint variable.
       if (currC->containsConstraint(dstCons) && dyn_cast<Eq>(currC)) {
         removedConstraints++;
-        // this has to be an equality constraint.
+        // This has to be an equality constraint.
         Eq *equalityConstraint = dyn_cast<Eq>(currC);
-        // we will modify this constraint remove it
+        // We will modify this constraint remove it
         // from the local and global sets.
         CS.removeConstraint(currC);
         Constraints.erase(currC);
 
-        // mark this constraint to be deleted.
+        // Mark this constraint to be deleted.
         toRemoveConstraints.insert(currC);
 
         assert(equalityConstraint != nullptr &&
@@ -57,20 +57,20 @@ VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAtoms,
         if (targetCons != nullptr) {
           Eq* newC = nullptr;
           if (*(equalityConstraint->getLHS()) == *(dstCons)) {
-            // if this is of the form var1 = var2
+            // If this is of the form var1 = var2.
             if (dyn_cast<VarAtom>(equalityConstraint->rhs)) {
-              // create a constraint var2 = const
+              // Create a constraint var2 = const.
               VarAtom *VA = dyn_cast<VarAtom>(equalityConstraint->rhs);
               newC = CS.createEq(VA, targetCons);
             } else {
-              // else, create a constraint var1 = const
+              // Else, create a constraint var1 = const.
               VarAtom *VA = dyn_cast<VarAtom>(equalityConstraint->lhs);
               newC = CS.createEq(VA, targetCons);
             }
           }
-          // if we have created a new equality constraint
+          // If we have created a new equality constraint.
           if (newC) {
-            // add the constraint
+            // Add the constraint.
             if (!CS.addConstraint(newC)) {
               // if this is already added?
               // delete it.
@@ -98,7 +98,7 @@ Constraint::Constraint(ConstraintKind K, std::string &rsn,
   }
 }
 
-// remove the constraint from the global constraint set.
+// Remove the constraint from the global constraint set.
 bool Constraints::removeConstraint(Constraint *C) {
   removeReasonBasedConstraint(C);
   return constraints.erase(C) != 0;
@@ -108,12 +108,12 @@ bool Constraints::removeConstraint(Constraint *C) {
 // control what constraints we can add to our system.
 void Constraints::editConstraintHook(Constraint *C) {
   if (!AllTypes) {
-    // if this is an equality constraint, check if we are adding
-    // only Ptr or WILD constraints? if not? make it WILD
+    // If this is an equality constraint, check if we are adding
+    // only Ptr or WILD constraints? if not? make it WILD.
     if (Eq *E = dyn_cast<Eq>(C)) {
       if (ConstAtom *rConst = dyn_cast<ConstAtom>(E->getRHS())) {
         if (!(isa<PtrAtom>(rConst) || isa<WildAtom>(rConst))) {
-          // can we assign WILD to the left side var?
+          // Can we assign WILD to the left side var?.
           VarAtom *LHSA = dyn_cast<VarAtom>(E->getLHS());
           if (!LHSA || LHSA->canAssign(getWild()))
             E->setRHS(getWild());
@@ -136,7 +136,7 @@ bool Constraints::addConstraint(Constraint *C) {
     constraints.insert(C);
     addReasonBasedConstraint(C);
 
-    // Update the variables that depend on this constraint
+    // Update the variables that depend on this constraint.
     if (Eq *E = dyn_cast<Eq>(C)) {
       if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
         vLHS->Constraints.insert(C);
@@ -163,7 +163,7 @@ bool Constraints::addConstraint(Constraint *C) {
 }
 
 bool Constraints::addReasonBasedConstraint(Constraint *C) {
-  // only insert if this is an Eq constraint and has a valid reason.
+  // Only insert if this is an Eq constraint and has a valid reason.
   if (Eq *e = dyn_cast<Eq>(C)) {
     if (e->getReason() != DEFAULT_REASON && !e->getReason().empty())
       return this->constraintsByReason[e->getReason()].insert(e).second;
@@ -173,7 +173,7 @@ bool Constraints::addReasonBasedConstraint(Constraint *C) {
 
 bool Constraints::removeReasonBasedConstraint(Constraint *C) {
   if (Eq *e = dyn_cast<Eq>(C)) {
-    // remove if the constraint is present.
+    // Remove if the constraint is present.
     if (this->constraintsByReason.find(e->getReason()) !=
         this->constraintsByReason.end())
       return this->constraintsByReason[e->getReason()].erase(e) > 0;
@@ -219,9 +219,9 @@ bool Constraints::check(Constraint *C) {
   return true;
 }
 
-// function that handles assignment of the provided ConstAtom to
+// Function that handles assignment of the provided ConstAtom to
 // the provided srcVar.
-// returns true if the assignment has been made.
+// Returns true if the assignment has been made.
 bool Constraints::assignConstToVar(EnvironmentMap::iterator &srcVar,
                                    ConstAtom *toAssign) {
   if (srcVar->first->canAssign(toAssign)) {
@@ -299,7 +299,7 @@ template <typename T>
 bool Constraints::canAssignConst(VarAtom *src) {
 
   for (const auto &C : src->Constraints) {
-    // check if there is a non-equality constraint
+    // Check if there is a non-equality constraint
     // of the provided type.
     if (Not *N = dyn_cast<Not>(C)) {
       if (Eq *E = dyn_cast<Eq>(N->getBody())) {
@@ -352,7 +352,7 @@ bool Constraints::step_solve(EnvironmentMap &env) {
 
     ConstraintSet rmConstraints;
     for (const auto &C : Var->Constraints) {
-      // re-read the assignment as the propagating might have
+      // Re-read the assignment as the propagating might have
       // changed this and the constraints will get removed.
       ConstAtom *Val = VI->second;
       // Propagate the Neg constraint.
@@ -361,13 +361,13 @@ bool Constraints::step_solve(EnvironmentMap &env) {
           // If this is Not ( q == Ptr )
           if (isa<PtrAtom>(E->getRHS())) {
             if (!AllTypes && *Val < *getWild()) {
-              // this pointer cannot be Ptr.
-              // and allTypes is disabled, only choice is to make it WILD.
+              // This pointer cannot be Ptr.
+              // And allTypes is disabled, only choice is to make it WILD.
               VI->second = getWild();
               changedEnvironment = true;
-              // check if we can make it an Arr?
+              // Check if we can make it an Arr?
             } else if (*Val < *getArr() && canAssignConst<ArrAtom>(Var)) {
-              // yes? make it Arr
+              // Yes? make it Arr
               VI->second = getArr();
               changedEnvironment = true;
             }
@@ -570,8 +570,8 @@ Eq *Constraints::createEq(Atom *lhs, Atom *rhs, std::string &rsn) {
 Eq *Constraints::createEq(Atom *lhs, Atom *rhs, std::string &rsn,
                           PersistentSourceLoc *psl) {
   if (psl != nullptr && psl->valid()) {
-    // make this invalid, if the source location is not absolute path
-    // this is to avoid crashes in clangd
+    // Make this invalid, if the source location is not absolute path
+    // this is to avoid crashes in clangd.
     if (psl->getFileName().c_str()[0] != '/')
       psl = nullptr;
   }
@@ -588,14 +588,14 @@ Implies *Constraints::createImplies(Constraint *premise,
 }
 
 void Constraints::resetConstraints() {
-  // update all constraints to pointers
+  // Update all constraints to pointers.
   for (auto &currE: environment) {
     currE.second = getPtr();
   }
 }
 
 bool Constraints::checkInitialEnvSanity() {
-  // all variables should be Ptrs
+  // All variables should be Ptrs.
   for (const auto &envVar: environment) {
     if (envVar.second != getPtr()) {
       return false;

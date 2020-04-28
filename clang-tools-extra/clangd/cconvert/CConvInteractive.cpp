@@ -23,8 +23,9 @@ DisjointSet& CConvInterface::GetWILDPtrsInfo() {
 }
 
 void CConvInterface::ResetAllPointerConstraints() {
-  // restore all the deleted constraints
-  Constraints::EnvironmentMap &currEnvMap = GlobalProgramInfo.getConstraints().getVariables();
+  // Restore all the deleted constraints.
+  Constraints::EnvironmentMap &currEnvMap =
+      GlobalProgramInfo.getConstraints().getVariables();
   for (auto &CV : currEnvMap) {
     CV.first->resetErasedConstraints();
   }
@@ -38,13 +39,13 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   auto &ptrDisjointSet = GlobalProgramInfo.getPointerConstraintDisjointSet();
   auto &CS = GlobalProgramInfo.getConstraints();
 
-  // get all the current WILD pointers
+  // Get all the current WILD pointers.
   CVars oldWILDPtrs = ptrDisjointSet.AllWildPtrs;
 
-  // reset all the pointer constraints
+  // Reset all the pointer constraints.
   ResetAllPointerConstraints();
 
-  // Delete the constraint that make the provided targetPtr WILD
+  // Delete the constraint that make the provided targetPtr WILD.
   VarAtom *VA = CS.getOrCreateVar(targetPtr);
   Eq newE(VA, CS.getWild());
   Constraint *originalConstraint = *CS.getConstraints().find(&newE);
@@ -52,19 +53,19 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   VA->getAllConstraints().erase(originalConstraint);
   delete(originalConstraint);
 
-  // Reset the constraint system
+  // Reset the constraint system.
   CS.resetConstraints();
 
-  // Solve the constraints
+  // Solve the constraints.
   performIterativeItypeRefinement(CS, GlobalProgramInfo, inputFilePaths);
 
-  // Compute new disjoint set
+  // Compute new disjoint set.
   GlobalProgramInfo.computePointerDisjointSet();
 
-  // get new WILD pointers
+  // Get new WILD pointers.
   CVars &newWILDPtrs = ptrDisjointSet.AllWildPtrs;
 
-  // Get the number of pointers that have now converted to non-WILD
+  // Get the number of pointers that have now converted to non-WILD.
   std::set_difference(oldWILDPtrs.begin(), oldWILDPtrs.end(),
                       newWILDPtrs.begin(),
                       newWILDPtrs.end(),
@@ -76,15 +77,15 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
 
 void CConvInterface::InvalidateAllConstraintsWithReason(
                      Constraint *constraintToRemove) {
-  // get the reason for the current constraint
+  // Get the reason for the current constraint.
   std::string constraintReason = constraintToRemove->getReason();
   Constraints::ConstraintSet toRemoveConstraints;
   Constraints &CS = GlobalProgramInfo.getConstraints();
-  // Remove all constraints that have the reason
+  // Remove all constraints that have the reason.
   CS.removeAllConstraintsOnReason(constraintReason,
                                   toRemoveConstraints);
 
-  // free up memory by deleting all the removed constraints
+  // Free up memory by deleting all the removed constraints.
   for (auto *toDelCons: toRemoveConstraints) {
     assert(dyn_cast<Eq>(toDelCons) && "We can only delete Eq constraints.");
     Eq* tCons = dyn_cast<Eq>(toDelCons);
@@ -109,22 +110,22 @@ bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey targetPtr) {
 
   ResetAllPointerConstraints();
 
-  // Delete ALL the constraints that have the same given reason
+  // Delete ALL the constraints that have the same given reason.
   VarAtom *VA = CS.getOrCreateVar(targetPtr);
   Eq newE(VA, CS.getWild());
   Constraint *originalConstraint = *CS.getConstraints().find(&newE);
   InvalidateAllConstraintsWithReason(originalConstraint);
 
-  // reset constraint solver
+  // Reset constraint solver.
   CS.resetConstraints();
 
-  // solve the constraint
+  // Solve the constraint.
   performIterativeItypeRefinement(CS, GlobalProgramInfo, inputFilePaths);
 
-  // recompute the WILD pointer disjoint sets
+  // Recompute the WILD pointer disjoint sets.
   GlobalProgramInfo.computePointerDisjointSet();
 
-  // computed the number of removed pointers
+  // Computed the number of removed pointers.
   CVars &newWILDPtrs = ptrDisjointSet.AllWildPtrs;
 
   std::set_difference(oldWILDPtrs.begin(), oldWILDPtrs.end(),

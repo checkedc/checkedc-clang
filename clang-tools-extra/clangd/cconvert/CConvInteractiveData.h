@@ -16,7 +16,7 @@
 #include "ConstraintVariables.h"
 #include "PersistentSourceLoc.h"
 
-// Source info and reason for each wild pointer
+// Source info and reason for each wild pointer.
 struct WildPointerInferenceInfo {
   std::string SourceFileName = "";
   std::string WildPtrReason = "";
@@ -25,7 +25,7 @@ struct WildPointerInferenceInfo {
   unsigned ColStart = 0;
 };
 
-// Standard implementation of disjoint sets
+// Standard implementation of disjoint sets.
 class DisjointSet {
   friend class ProgramInfo;
 public:

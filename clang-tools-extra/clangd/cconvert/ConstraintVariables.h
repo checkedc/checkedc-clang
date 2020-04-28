@@ -52,12 +52,12 @@ public:
 
   ConstraintVariableKind getKind() const { return Kind; }
 
-  // from a given set of ConstraintVariables (toCheck), get the constraint
+  // From a given set of ConstraintVariables (toCheck), get the constraint
   // variable that is not WILD and sits highest in the type lattice.
-  static
-  ConstraintVariable* getHighestNonWildConstraint(std::set<ConstraintVariable*> &toCheck,
-                                                  Constraints::EnvironmentMap &E,
-                                                  ProgramInfo &I);
+  static ConstraintVariable*
+  getHighestNonWildConstraint(std::set<ConstraintVariable*> &toCheck,
+                              Constraints::EnvironmentMap &E,
+                              ProgramInfo &I);
 
 private:
   ConstraintVariableKind Kind;
@@ -108,12 +108,12 @@ public:
   virtual bool hasWild(Constraints::EnvironmentMap &E) = 0;
   virtual bool hasArr(Constraints::EnvironmentMap &E) = 0;
   virtual bool hasNtArr(Constraints::EnvironmentMap &E) = 0;
-  // get the highest type assigned to the cvars of this constraint variable
+  // Get the highest type assigned to the cvars of this constraint variable.
   virtual ConstAtom* getHighestType(Constraints::EnvironmentMap &E) = 0;
 
   std::string getTy() { return BaseType; }
   std::string getOriginalTy() { return OriginalType; }
-  // get the original type string that can be directly
+  // Get the original type string that can be directly
   // used for rewriting.
   std::string getRewritableOriginalTy();
   std::string getName() const { return Name; }
@@ -173,17 +173,17 @@ private:
   // Is there an itype associated with this constraint? If there is, how was it
   // originally stored in the program?
   std::string itypeStr;
-  // get the qualifier string (e.g., const, etc) for the provided constraint
-  // var (targetCvar) into the provided string stream (ss)
+  // Get the qualifier string (e.g., const, etc) for the provided constraint
+  // var (targetCvar) into the provided string stream (ss).
   void getQualString(ConstraintKey targetCVar, std::ostringstream &ss);
   // This function tries to emit an array size for the variable.
   // and returns true if the variable is an array and a size is emitted.
   bool emitArraySize(std::ostringstream &pss, ConstraintKey V, bool &emitName,
                      bool &emittedCheckedAnnotation, bool nt);
-  // flag to indicate that this constraint is a part of function prototype
-  // e.g., Parameters or Return
+  // Flag to indicate that this constraint is a part of function prototype
+  // e.g., Parameters or Return.
   bool partOFFuncPrototype;
-  // for the function parameters and returns,
+  // For the function parameters and returns,
   // this set contains the constraint variable of
   // the values used as arguments.
   std::set<ConstraintVariable*> argumentConstraints;
@@ -193,11 +193,13 @@ public:
                             FunctionVariableConstraint *F, bool isArr,
                             bool isItype, std::string is) :
           ConstraintVariable(PointerVariable, T, Name)
-          ,vars(V),FV(F),arrPresent(isArr), itypeStr(is), partOFFuncPrototype(false) {}
+          ,vars(V),FV(F),arrPresent(isArr), itypeStr(is),
+           partOFFuncPrototype(false) {}
 
   bool getArrPresent() { return arrPresent; }
 
-  // Is an itype present for this constraint? If yes, what is the text of that itype?
+  // Is an itype present for this constraint? If yes,
+  // what is the text of that itype?
   bool getItypePresent() { return itypeStr.size() > 0; }
   std::string getItype() { return itypeStr; }
 
@@ -237,13 +239,13 @@ public:
   bool hasWild(Constraints::EnvironmentMap &E);
   bool hasArr(Constraints::EnvironmentMap &E);
   bool hasNtArr(Constraints::EnvironmentMap &E);
-  // get the highest type assigned to the cvars of this constraint variable
+  // Get the highest type assigned to the cvars of this constraint variable.
   ConstAtom* getHighestType(Constraints::EnvironmentMap &E);
 
   bool isPartOfFunctionPrototype() const  { return partOFFuncPrototype; }
-  // add the provided constraint variable as an argument constraint.
+  // Add the provided constraint variable as an argument constraint.
   bool addArgumentConstraint(ConstraintVariable *dstCons);
-  // get the set of constraint variables corresponding to the arguments.
+  // Get the set of constraint variables corresponding to the arguments.
   std::set<ConstraintVariable*> &getArgumentConstraints();
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;

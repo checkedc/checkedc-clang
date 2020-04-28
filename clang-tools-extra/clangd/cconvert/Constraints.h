@@ -67,7 +67,7 @@ public:
   virtual bool operator==(const Atom &) const = 0;
   virtual bool operator!=(const Atom &) const = 0;
   virtual bool operator<(const Atom &other) const = 0;
-  // check if this atom contains the provided atom
+  // Check if this atom contains the provided atom.
   virtual bool containsConstraint(VarAtom *toFind) = 0;
 };
 
@@ -82,7 +82,7 @@ public:
   }
 
   virtual bool containsConstraint(VarAtom *toFind) {
-    // constant atom can never contain a VarAtom
+    // Constant atom can never contain a VarAtom.
     return false;
   }
 };
@@ -136,52 +136,52 @@ public:
   }
 
   void eraseConstraint(Constraint *todel) {
-    // remove the constraint
+    // Remove the constraint.
     Constraints.erase(todel);
-    // add the constraint into another set so that
+    // Add the constraint into another set so that
     // we can restore in future.
     ErasedConstraints.insert(todel);
   }
 
-  // replace the equality constraints that contains the provided
-  // constraint variable with the constant atom
+  // Replace the equality constraints that contains the provided
+  // constraint variable with the constant atom.
   unsigned replaceEqConstraints(std::map<VarAtom*, ConstAtom*,
                                 PComp<VarAtom*> > &toRemoveVAtoms,
                                 class Constraints &CS);
 
-  // restore the erased constraints into the regular constraints.
+  // Restore the erased constraints into the regular constraints.
   bool resetErasedConstraints() {
     bool added = false;
-    // insert the erased constraints into the original
+    // Insert the erased constraints into the original
     // constraints.
     for(auto c: ErasedConstraints) {
       added = Constraints.insert(c).second || added;
     }
-    // remove all the erased constraints.
+    // Remove all the erased constraints.
     ErasedConstraints.clear();
     return added;
   }
 
   bool containsConstraint(VarAtom *toFind) {
-    // this is a VarAtom and contains is same as equality.
+    // This is a VarAtom and contains is same as equality.
     return (*this == *toFind);
   }
 
-  // returns the constraints associated with this atom.
+  // Returns the constraints associated with this atom.
   std::set<Constraint*, PComp<Constraint*>> &getAllConstraints() {
     return Constraints;
   }
 
-  // check if we can assign the provided const atom to this VarAtom
+  // Check if we can assign the provided const atom to this VarAtom
   // this is to implement a Band Pass filter mechanism.
   // i.e., this VarAtom cannot be assigned or involved in propagating
   // some ConstAtom.
-  // for example: a static array i.e., int arr[10] can never be WILD.
+  // For example: a static array i.e., int arr[10] can never be WILD.
   bool inline canAssign(ConstAtom *toAssign) {
     return ImpossibleVals.find(toAssign->getKind()) == ImpossibleVals.end();
   }
 
-  // set the provided constant atom as being impossible for this VarAtom
+  // Set the provided constant atom as being impossible for this VarAtom.
   void setConstImpossible(ConstAtom *impossibleConst) {
     ImpossibleVals.insert(impossibleConst->getKind());
   }
@@ -214,13 +214,13 @@ public:
 
 private:
   std::set<ConstAtom::AtomKind> ImpossibleVals;
-  // flag that indicates that if this atom is an array then
+  // Flag that indicates that if this atom is an array then
   // should be tried to promote to NtArr.
   bool ifArrThenNtArray;
   bool shouldBeArr;
   bool shouldBeNtArr;
   uint32_t  Loc;
-  // these are the constraints erased during constraint solving.
+  // These are the constraints erased during constraint solving.
   std::set<Constraint*, PComp<Constraint*>> ErasedConstraints;
   // The constraint expressions where this variable is mentioned on the 
   // LHS of an equality.
@@ -413,8 +413,8 @@ public:
   virtual std::string getReason() {
     return REASON;
   }
-  // check if the provided constraint contains the
-  // provided VarAtom
+  // Check if the provided constraint contains the
+  // provided VarAtom.
   virtual bool containsConstraint(VarAtom *toFind) = 0;
 };
 
@@ -689,16 +689,16 @@ public:
   WildAtom *getWild() const;
   ConstAtom *getAssignment(uint32_t v);
 
-  // check if the provided constraint variable is WILD.
+  // Check if the provided constraint variable is WILD.
   bool isWild(uint32_t v);
 
-  // reset all constraint variables to Ptrs.
+  // Reset all constraint variables to Ptrs.
   void resetConstraints();
 
-  // check the sanity of environment map before solving the constraints.
+  // Check the sanity of environment map before solving the constraints.
   bool checkInitialEnvSanity();
 
-  // remove all constraints that were generated because of the
+  // Remove all constraints that were generated because of the
   // provided reason.
   bool removeAllConstraintsOnReason(std::string &targetReason,
                                     ConstraintSet &removedConstraints);
@@ -707,15 +707,15 @@ private:
   ConstraintSet constraints;
   std::map<std::string, ConstraintSet> constraintsByReason;
   EnvironmentMap environment;
-  // map of constraint variables, which are identified
+  // Map of constraint variables, which are identified
   // as itype pointers
   // These should be the constraint variables of only
   // function parameters or returns.
   EnvironmentMap itypeConstraintVars;
 
-  // map of function unique key to it declaration FVConstraintVariable
+  // Map of function unique key to it declaration FVConstraintVariable.
   FuncKeyToConsMap FuncDeclConstraints;
-  // map of function unique key to it definition FVConstraintVariable
+  // Map of function unique key to it definition FVConstraintVariable.
   FuncKeyToConsMap FuncDefnConstraints;
 
   template <typename T>
@@ -735,9 +735,9 @@ private:
   propImp(Implies *, T*, ConstraintSet &, ConstAtom *);
 
   // Managing constraints based on the underlying reason.
-  // add constraint to the map
+  // add constraint to the map.
   bool addReasonBasedConstraint(Constraint *C);
-  // remove constraint from the map.
+  // Remove constraint from the map.
   bool removeReasonBasedConstraint(Constraint *C);
 
   // These atoms can be singletons, so we'll store them in the 
@@ -747,7 +747,7 @@ private:
   NTArrAtom *prebuiltNTArr;
   WildAtom *prebuiltWild;
 
-  // bi-directional map that contains the mapping between the unique keys of
+  // Bi-directional map that contains the mapping between the unique keys of
   // function definition to its declaration.
   StringToStringBiMap FuncDefnDeclKeyMap;
 };

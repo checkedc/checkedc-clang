@@ -23,9 +23,9 @@ static std::set<std::string> possibleLengthVarNamesPrefixes = {"len", "count",
 static std::set<std::string> possibleLengthVarNamesSubstring = {"length"};
 #define PREFIXLENRATIO 1
 
-// Name based heuristics
+// Name based heuristics.
 static bool hasNameMatch(std::string ptrName, std::string lenFieldName) {
-  // if the name field starts with ptrName?
+  // If the name field starts with ptrName?
   if (lenFieldName.rfind(ptrName, 0) == 0)
     return true;
 
@@ -54,7 +54,7 @@ static bool prefixNameMatch(std::string ptrName, std::string lenFieldName) {
 }
 
 static bool fieldNameMatch(std::string lenFieldName) {
-  // convert the field name to lower case
+  // Convert the field name to lower case.
   std::transform(lenFieldName.begin(), lenFieldName.end(), lenFieldName.begin(),
                  [](unsigned char c){ return std::tolower(c); });
   for (auto &potentialName : possibleLengthVarNamesPrefixes) {
@@ -70,7 +70,7 @@ static bool fieldNameMatch(std::string lenFieldName) {
 }
 
 static bool hasLengthKeyword(std::string varName) {
-  // convert the field name to lower case
+  // Convert the field name to lower case.
   std::transform(varName.begin(), varName.end(), varName.begin(),
                  [](unsigned char c){ return std::tolower(c); });
 
@@ -84,7 +84,7 @@ static bool hasLengthKeyword(std::string varName) {
   return false;
 }
 
-// check if the provided constraint variable is an array and it needs bounds.
+// Check if the provided constraint variable is an array and it needs bounds.
 static bool needArrayBounds(ConstraintVariable *CV,
                             Constraints::EnvironmentMap &envMap) {
   if (CV->hasArr(envMap)) {
@@ -107,14 +107,14 @@ static bool needArrayBounds(Decl *decl, ProgramInfo &Info,
   return false;
 }
 
-// map that contains association of allocator functions and indexes of
+// Map that contains association of allocator functions and indexes of
 // parameters that correspond to the size of the object being assigned.
 static std::map<std::string, std::set<int>> AllocatorSizeAssoc = {
                                             {"malloc", {0}},
                                             {"calloc", {0, 1}}};
 
 
-// get the name of the function called by this call expression
+// Get the name of the function called by this call expression.
 std::string getCalledFunctionName(Expr *E) {
   CallExpr *CE = dyn_cast<CallExpr>(E);
   assert(CE && "The provided expression should be a call expression.");
@@ -124,14 +124,14 @@ std::string getCalledFunctionName(Expr *E) {
   return "";
 }
 
-// check if the provided expression is a call to
+// Check if the provided expression is a call to
 // one of the known memory allocators.
 static bool isAllocatorCall(Expr *E) {
   if (CallExpr *CE = dyn_cast<CallExpr>(removeAuxillaryCasts(E)))
     if (CE->getCalleeDecl() != nullptr) {
       // Is this a call to a named function?
       std::string funcName = getCalledFunctionName(CE);
-      // check if the called function is a known allocator?
+      // Check if the called function is a known allocator?
       return AllocatorSizeAssoc.find(funcName) !=
              AllocatorSizeAssoc.end();
     }
@@ -168,7 +168,7 @@ static ArrayBoundsInformation::BOUNDSINFOTYPE getAllocatedSizeExpr(Expr *E,
 
 }
 
-// check if expression is a simple local variable
+// Check if expression is a simple local variable
 // i.e., ptr = .
 // if yes, return the referenced local variable as the return
 // value of the argument.
@@ -198,10 +198,10 @@ bool isExpressionStructField(Expr *toCheck, FieldDecl **targetDecl) {
 
 // This handles the length based heuristics for structure fields.
 bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
-  // for each of the struct or union types.
+  // For each of the struct or union types.
   if (RD->isStruct() || RD->isUnion()) {
     // Get fields that are identified as arrays and also fields that could be
-    // potential be the length fields
+    // potential be the length fields.
     std::set<FieldDecl*> potentialLengthFields;
     std::set<FieldDecl*> identifiedArrayVars;
     const auto &allFields = RD->fields();
@@ -209,13 +209,13 @@ bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
     auto &envMap = Info.getConstraints().getVariables();
     for (auto *fld: allFields) {
       FieldDecl *fldDecl = dyn_cast<FieldDecl>(fld);
-      // this is an integer field and could be a length field
+      // This is an integer field and could be a length field
       if (fldDecl->getType().getTypePtr()->isIntegerType())
         potentialLengthFields.insert(fldDecl);
 
       std::set<ConstraintVariable*> consVar = Info.getVariable(fldDecl, Context);
       for (auto currCVar: consVar) {
-        // is this an array field?
+        // Is this an array field?
         if (needArrayBounds(currCVar, envMap)) {
           identifiedArrayVars.insert(fldDecl);
         }
@@ -229,7 +229,7 @@ bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
         for (auto lenField: potentialLengthFields) {
           if (hasNameMatch(ptrField->getNameAsString(),
                            lenField->getNameAsString())) {
-            // if we find a field which matches both the pointer name and
+            // If we find a field which matches both the pointer name and
             // variable name heuristic lets use it.
             if (hasLengthKeyword(lenField->getNameAsString())) {
               arrBoundInfo.removeBoundsInformation(ptrField);
@@ -239,7 +239,7 @@ bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
             arrBoundInfo.addBoundsInformation(ptrField, lenField);
           }
         }
-        // if the name-correspondence heuristics failed.
+        // If the name-correspondence heuristics failed.
         // Then use the named based heuristics.
         if (!arrBoundInfo.hasBoundsInformation(ptrField)) {
           for (auto lenField: potentialLengthFields) {
@@ -254,7 +254,7 @@ bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
 }
 
 bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
-  // if we have seen the body of this function? Then try to guess the length
+  // If we have seen the body of this function? Then try to guess the length
   // of the parameters that are arrays.
   if (FD->isThisDeclarationADefinition() && FD->hasBody()) {
     auto &arrBInfo = Info.getArrayBoundsInformation();
@@ -272,12 +272,12 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
                                                                    true);
         if (!defsCVar.empty()) {
           for (auto currCVar: defsCVar) {
-            // is this an array?
+            // Is this an array?
             if (needArrayBounds(currCVar, envMap))
               identifiedParamArrays[i] = PVD;
           }
         }
-        // if this is a length field?
+        // If this is a length field?
         if (PVD->getType().getTypePtr()->isIntegerType())
           potentialLengthParams[i] = PVD;
       }
@@ -307,7 +307,7 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           }
 
           for (auto &currLenParamPair: potentialLengthParams) {
-            // if the name of the length field matches
+            // If the name of the length field matches.
             if (hasNameMatch(currArrParamPair.second->getNameAsString(),
                              currLenParamPair.second->getNameAsString())) {
               foundLen = true;
@@ -315,7 +315,7 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
                                             currLenParamPair.second);
               break;
             }
-            // check if the length parameter name matches our heuristics.
+            // Check if the length parameter name matches our heuristics.
             if (fieldNameMatch(currLenParamPair.second->getNameAsString())) {
               foundLen = true;
               arrBInfo.addBoundsInformation(currArrParamPair.second,
@@ -343,13 +343,13 @@ bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
   auto &arrBInfo = Info.getArrayBoundsInformation();
   Expr *sizeExpression;
   auto &envMap = Info.getConstraints().getVariables();
-  // is the RHS expression a call to allocator function?
+  // Is the RHS expression a call to allocator function?
   if (isAllocatorCall(RHS)) {
-    // if this is an allocator function then sizeExpression contains the
-    // argument used for size argument
+    // If this is an allocator function then sizeExpression contains the
+    // argument used for size argument.
 
-    // if LHS is just a variable or struct field i.e., ptr = ..,
-    // get the AST node of the target variable
+    // If LHS is just a variable or struct field i.e., ptr = ..,
+    // get the AST node of the target variable.
     VarDecl *targetVar = nullptr;
     FieldDecl *structField = nullptr;
     if (isExpressionSimpleLocalVar(LHS, &targetVar) &&
@@ -414,14 +414,14 @@ void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
           if (PVConstraint *PV = dyn_cast<PVConstraint>(constraintVar)) {
             auto &cVars = PV->getCvars();
             if (cVars.size() > 0) {
-              // we should constraint only the outer most constraint variable.
+              // We should constraint only the outer most constraint variable.
               auto cVar = *(cVars.begin());
               CS.getOrCreateVar(cVar)->setNtArrayIfArray();
             }
           }
       } else if (FD->getNameInfo().getAsString() == std::string("main") &&
                  FT->getNumParams() == 2) {
-        // If the function is `main` then we know second arg is _Array_ptr
+        // If the function is `main` then we know second arg is _Array_ptr.
         ParmVarDecl *argv = FD->getParamDecl(1);
         assert(argv != NULL);
         auto &CS = I.getConstraints();
@@ -447,14 +447,14 @@ void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
 }
 
 void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {
-  // Run array bounds
+  // Run array bounds.
   GlobalABVisitor GlobABV(C, I);
   TranslationUnitDecl *TUD = C->getTranslationUnitDecl();
-  // first visit all the structure members.
+  // First visit all the structure members.
   for (const auto &D : TUD->decls()) {
     GlobABV.TraverseDecl(D);
   }
-  // next try to guess the bounds information for function locals.
+  // Next try to guess the bounds information for function locals.
   for (const auto &D : TUD->decls()) {
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       if (FD->hasBody() && FD->isThisDeclarationADefinition()) {

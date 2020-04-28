@@ -35,8 +35,8 @@ public:
                                                               Context, FD, pi);
         for (auto cv : cvs) {
           foundWild |= cv->hasWild(CS.getVariables());
-          // if this an extern function, then check if there is
-          // any explicit annotation to. If not? then add a cast
+          // If this an extern function, then check if there is
+          // any explicit annotation to. If not? then add a cast.
           if (isThisAnExternFunction && !foundWild) {
             if (PVConstraint *PV = dyn_cast<PVConstraint>(cv)) {
               for (auto cKey: PV->getCvars()) {

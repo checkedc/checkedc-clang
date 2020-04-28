@@ -140,7 +140,7 @@ bool AddCheckedRegions;
 
 #endif
 
-// suffixes for constraint output files.
+// Suffixes for constraint output files.
 #define INITIAL_OUTPUT_SUFFIX "_initial_constraints"
 #define FINAL_OUTPUT_SUFFIX "_final_output"
 #define BEFORE_SOLVING_SUFFIX "_before_solving_"
@@ -211,7 +211,7 @@ void dumpConstraintOutputJson(const std::string &postfixStr,
 std::pair<Constraints::ConstraintSet, bool>
     solveConstraintsWithFunctionSubTyping(ProgramInfo &Info,
                                       unsigned iterationID) {
-// solve the constrains by handling function sub-typing.
+// Solve the constrains by handling function sub-typing.
   Constraints &CS = Info.getConstraints();
   unsigned numIterations = 0;
   std::pair<Constraints::ConstraintSet, bool> toRet;
@@ -223,7 +223,7 @@ std::pair<Constraints::ConstraintSet, bool>
     dumpConstraintOutputJson(logFileName, Info);
     toRet = CS.solve(numIterations);
     if (numIterations > 1) {
-      // this means we have made some changes to the environment
+      // This means we have made some changes to the environment
       // see if the function subtype handling causes any changes?
       fixed = !Info.handleFunctionSubtyping();
       logFileName = AFTER_SUBTYPING_SUFFIX + std::to_string(iterationID) +
@@ -249,10 +249,10 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
   if (Verbose) {
     errs() << "Trying to capture Constraint Variables for all functions\n";
   }
-  // first capture itype parameters and return values for all functions
+  // First capture itype parameters and return values for all functions.
   performConstraintSetup(Info);
 
-  // sanity check
+  // Sanity check.
   assert(CS.checkInitialEnvSanity() && "Invalid initial environment. "
                                        "We expect all pointers to be "
                                        "initialized with Ptr to begin with.");
@@ -284,11 +284,11 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
       Info.print_stats(inputSourceFiles, llvm::errs(), true);
     }
 
-    // get all the functions whose constraints have been modified.
+    // Get all the functions whose constraints have been modified.
     identifyModifiedFunctions(CS, modifiedFunctions);
 
     startTime = clock();
-    // detect and update new found itype vars.
+    // Detect and update new found itype vars.
     numItypeVars = detectAndUpdateITypeVars(Info, modifiedFunctions);
 
     if (Verbose) {
@@ -298,7 +298,7 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
     }
 
     startTime = clock();
-    // update the constraint graph by removing edges from/to iype parameters
+    // Update the constraint graph by removing edges from/to iype parameters
     // and returns.
     numberOfEdgesRemoved = resetWithitypeConstraints(CS);
 
@@ -310,7 +310,7 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
                 getTimeSpentInSeconds(startTime) << "\n";
     }
 
-    // if we removed any edges, that means we did not reach fix point.
+    // If we removed any edges, that means we did not reach fix point.
     // In other words, we reach fixed point when no edges are removed from
     // the constraint graph.
     fixedPointReached = !(numberOfEdgesRemoved > 0);
@@ -361,7 +361,7 @@ bool CConvInterface::InitializeCConvert(CommonOptionsParser &OptionsParser,
 
   BaseDir = options.BaseDir;
 
-  // get the absolute path of the base directory.
+  // Get the absolute path of the base directory.
   std::string tmpPath = BaseDir;
   getAbsoluteFilePath(BaseDir, tmpPath);
   BaseDir = tmpPath;
@@ -479,7 +479,7 @@ int main(int argc, const char **argv) {
     BaseDir = cp.str();
   }
 
-  // get the absolute path of the base directory.
+  // Get the absolute path of the base directory.
   std::string tmpPath = BaseDir;
   getAbsoluteFilePath(BaseDir, tmpPath);
   BaseDir = tmpPath;
@@ -524,7 +524,7 @@ int main(int argc, const char **argv) {
 
   Constraints &CS = Info.getConstraints();
 
-  // perform constraint solving by iteratively refining based on itypes.
+  // Perform constraint solving by iteratively refining based on itypes.
   bool fPointReached = performIterativeItypeRefinement(CS,
                                                        Info,
                                                        inoutPaths);
@@ -537,7 +537,7 @@ int main(int argc, const char **argv) {
     dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, Info);
   }
 
-  // 3. Gather pre-rewrite data
+  // 3. Gather pre-rewrite data.
   std::unique_ptr<ToolAction> GatherTool =
     newFrontendActionFactoryA
     <RewriteAction<ArgGatherer, ProgramInfo>>(Info);
