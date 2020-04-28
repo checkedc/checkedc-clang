@@ -106,11 +106,11 @@ ArrayBoundsInformation::BOUNDSINFOTYPE ArrayBoundsInformation::combineBoundsInfo
                                                             std::string op) {
   auto invalidBoundRet = std::make_pair(ArrayBoundsInformation::BoundsKind::InvalidKind, "");
   ArrayBoundsInformation::BoundsKind targetKind = BoundsKind ::InvalidKind;
-  if(bounds1.first != ArrayBoundsInformation::BoundsKind::InvalidKind &&
+  if (bounds1.first != ArrayBoundsInformation::BoundsKind::InvalidKind &&
     bounds2.first != ArrayBoundsInformation::BoundsKind::InvalidKind) {
     targetKind = bounds1.first;
 
-    if(bounds1.first != bounds2.first) {
+    if (bounds1.first != bounds2.first) {
       targetKind = BoundsKind ::InvalidKind;
       if (bounds1.first == ArrayBoundsInformation::BoundsKind::ConstantBound) {
         targetKind = bounds2.first;
@@ -174,7 +174,7 @@ ArrayBoundsInformation::BOUNDSINFOTYPE ArrayBoundsInformation::getExprBoundsInfo
 
       return invalidBoundRet;
     }
-  } else if(UnaryExprOrTypeTraitExpr *UETE = dyn_cast<UnaryExprOrTypeTraitExpr>(expr)) {
+  } else if (UnaryExprOrTypeTraitExpr *UETE = dyn_cast<UnaryExprOrTypeTraitExpr>(expr)) {
     if (UETE->getKind() == UETT_SizeOf) {
       std::string tmpString;
       llvm::raw_string_ostream rawStr(tmpString);

@@ -29,8 +29,8 @@ unsigned VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAto
   oldConstraints.clear();
   oldConstraints.insert(Constraints.begin(), Constraints.end());
 
-  for(auto currC: oldConstraints) {
-    for(auto &vatomP: toRemoveVAtoms) {
+  for (auto currC: oldConstraints) {
+    for (auto &vatomP: toRemoveVAtoms) {
       ConstAtom *targetCons = vatomP.second;
       VarAtom *dstCons = vatomP.first;
       // check if the constraint contains
@@ -64,9 +64,9 @@ unsigned VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAto
             }
           }
           // if we have created a new equality constraint
-          if(newC) {
+          if (newC) {
             // add the constraint
-            if(!CS.addConstraint(newC)) {
+            if (!CS.addConstraint(newC)) {
               // if this is already added?
               // delete it.
               delete(newC);
@@ -77,7 +77,7 @@ unsigned VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAto
     }
   }
 
-  for(auto toDel: toRemoveConstraints) {
+  for (auto toDel: toRemoveConstraints) {
     delete(toDel);
   }
 
@@ -129,7 +129,7 @@ bool Constraints::addConstraint(Constraint *C) {
 bool Constraints::check(Constraint *C) {
 
   if (Not *N = dyn_cast<Not>(C)) {
-    if(Eq *E = dyn_cast<Eq>(N->getBody()))
+    if (Eq *E = dyn_cast<Eq>(N->getBody()))
       if (!isa<VarAtom>(E->getLHS()) || isa<VarAtom>(E->getRHS()))
         return false;
   }
@@ -242,7 +242,7 @@ bool Constraints::canAssignConst(VarAtom *src) {
     // of the provided type.
     if (Not *N = dyn_cast<Not>(C)) {
       if (Eq *E = dyn_cast<Eq>(N->getBody())) {
-        if(dyn_cast<T>(E->getRHS())) {
+        if (dyn_cast<T>(E->getRHS())) {
           return false;
         }
       }
@@ -263,7 +263,7 @@ bool Constraints::step_solve(EnvironmentMap &env) {
 
   EnvironmentMap::iterator VI = env.begin();
   // Step 1. Propagate any WILD constraint as far as we can.
-  while(VI != env.end()) {
+  while (VI != env.end()) {
     // Iterate over the environment, VI is a pair of a variable q_i and 
     // the constant (one of Ptr, Arr, Wild) that the variable is bound to.
     VarAtom *Var = VI->first;
@@ -284,7 +284,7 @@ bool Constraints::step_solve(EnvironmentMap &env) {
 
   VI = env.begin();
   // Step 2. Propagate any ARITH constraints.
-  while(VI != env.end()) {
+  while (VI != env.end()) {
     VarAtom *Var = VI->first;
 
     ConstraintSet rmConstraints;
@@ -395,7 +395,7 @@ void Constraints::dump_json(llvm::raw_ostream &O) const {
   O << "{\"Constraints\":[";
   bool addComma = false;
   for (const auto &C : constraints) {
-    if(addComma) {
+    if (addComma) {
       O << ",\n";
     }
     C->dump_json(O);
@@ -407,7 +407,7 @@ void Constraints::dump_json(llvm::raw_ostream &O) const {
 
   O << "\"Environment\":[";
   for (const auto &V : environment) {
-    if(addComma) {
+    if (addComma) {
       O << ",\n";
     }
     O << "{\"var\":";
@@ -475,15 +475,15 @@ Implies *Constraints::createImplies(Constraint *premise, Constraint *conclusion)
 
 void Constraints::resetConstraints() {
   // update all constraints to pointers
-  for(auto &currE: environment) {
+  for (auto &currE: environment) {
     currE.second = getPtr();
   }
 }
 
 bool Constraints::checkInitialEnvSanity() {
   // all variables should be Ptrs
-  for(const auto &envVar: environment) {
-    if(envVar.second != getPtr()) {
+  for (const auto &envVar: environment) {
+    if (envVar.second != getPtr()) {
       return false;
     }
   }

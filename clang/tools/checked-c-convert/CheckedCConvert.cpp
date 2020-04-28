@@ -187,7 +187,7 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
   unsigned long numberOfEdgesRemoved = 0;
   unsigned long numItypeVars = 0;
   std::set<std::string> modifiedFunctions;
-  if(Verbose) {
+  if (Verbose) {
     errs() << "Trying to capture Constraint Variables for all functions\n";
   }
   // first capture itype parameters and return values for all functions
@@ -197,10 +197,10 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
   assert(CS.checkInitialEnvSanity() && "Invalid initial environment. We expect all pointers to be "
                                        "initialized with Ptr to begin with.");
 
-  while(!fixedPointReached) {
+  while (!fixedPointReached) {
     clock_t startTime = clock();
     errs() << "****Iteration " << iterationNum << " starts.****\n";
-    if(Verbose) {
+    if (Verbose) {
       errs() << "Iterative Itype refinement, Round:" << iterationNum << "\n";
     }
 
@@ -208,11 +208,11 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
 
     errs() << "Iteration:" << iterationNum << ", Constraint solve time:" << getTimeSpentInSeconds(startTime) << "\n";
 
-    if(R.second) {
+    if (R.second) {
       errs() << "Constraints solved for iteration:" << iterationNum << "\n";
     }
 
-    if(DumpStats) {
+    if (DumpStats) {
       Info.print_stats(inoutPaths, llvm::errs(), true);
     }
 

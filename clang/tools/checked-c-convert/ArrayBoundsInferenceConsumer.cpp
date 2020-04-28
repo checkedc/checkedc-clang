@@ -490,10 +490,10 @@ void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
         auto &envMap = CS.getVariables();
         std::set<ConstraintVariable*> defsCVar = I.getVariable(argv, C, true);
         for (auto constraintVar : defsCVar) {
-          if(PVConstraint *PV = dyn_cast<PVConstraint>(constraintVar)) {
+          if (PVConstraint *PV = dyn_cast<PVConstraint>(constraintVar)) {
             auto &cVars = PV->getCvars();
             llvm::errs() << cVars.size() << "\n";
-            if(cVars.size() == 2) {
+            if (cVars.size() == 2) {
               std::vector<ConstraintKey> vars(cVars.begin(), cVars.end());
               auto outerCVar = CS.getOrCreateVar(vars[0]);
               auto innerCVar = CS.getOrCreateVar(vars[1]);

@@ -23,9 +23,9 @@ static std::map<std::string, std::map<VarAtom*, ConstAtom*>> funcParamsReturnSav
 // these are used to later check if anything has changed, in which case the corresponding
 // function will be considered as modified.
 static void updateFunctionConstraintVars(std::string funcUniqKey, Constraints &CS, std::set<ConstraintVariable*> &fvconstraintVars) {
-  for(auto topVar: fvconstraintVars) {
+  for (auto topVar: fvconstraintVars) {
     // if this is a function constraint?
-    if(FVConstraint *fvCons = dyn_cast<FVConstraint>(topVar)) {
+    if (FVConstraint *fvCons = dyn_cast<FVConstraint>(topVar)) {
       // update the variables of function parameters
       for (unsigned i = 0; i < fvCons->numParams(); i++) {
         for (ConstraintVariable *paramVar: fvCons->getParamVar(i)) {
@@ -84,7 +84,7 @@ unsigned long resetWithitypeConstraints(Constraints &CS) {
   // depend on ityped constraint variables.
 
   // make a map of constraints to remove
-  for(auto &currITypeVar: currIterationItypeMap) {
+  for (auto &currITypeVar: currIterationItypeMap) {
     ConstAtom *targetCons = currITypeVar.second;
     if (!dyn_cast<NTArrAtom>(currITypeVar.second)) {
       targetCons = nullptr;
@@ -99,7 +99,7 @@ unsigned long resetWithitypeConstraints(Constraints &CS) {
   }
 
   // Check if we removed any constraints?
-  if(numConstraintsRemoved > 0) {
+  if (numConstraintsRemoved > 0) {
     // we removed constraints.
     // Reset everything.
 
@@ -141,13 +141,13 @@ static bool updateDeclWithDefnType(ConstraintVariable *decl, ConstraintVariable 
   ConstAtom *itypeAtom = nullptr;
 
   // get the pointer type of the definition constraint variable.
-  for(ConstraintKey k: PVDefnCons->getCvars()) {
+  for (ConstraintKey k: PVDefnCons->getCvars()) {
     itypeAtom = CS.getVariables()[CS.getVar(k)];
   }
   assert(itypeAtom != nullptr && "Unable to find assignment for definition constraint variable.");
 
   // check if this is already identified itype
-  for(ConstraintKey k: PVDeclCons->getCvars()) {
+  for (ConstraintKey k: PVDeclCons->getCvars()) {
     VarAtom *cK = CS.getVar(k);
     if (itypeMap.find(cK) != itypeMap.end() && itypeMap[cK] == itypeAtom) {
         //yes, then no need to do anything.
@@ -156,7 +156,7 @@ static bool updateDeclWithDefnType(ConstraintVariable *decl, ConstraintVariable 
   }
 
   // update the type of the declaration constraint variable.
-  for(ConstraintKey k: PVDeclCons->getCvars()) {
+  for (ConstraintKey k: PVDeclCons->getCvars()) {
     VarAtom *cK = CS.getVar(k);
     itypeMap[cK] = itypeAtom;
     currIterationItypeMap[cK] = itypeAtom;
@@ -221,7 +221,7 @@ unsigned long detectAndUpdateITypeVars(ProgramInfo &Info, std::set<std::string> 
 bool performConstraintSetup(ProgramInfo &Info) {
   bool hasSome = false;
   Constraints &CS = Info.getConstraints();
-  for(auto &currFDef: CS.getFuncDefnVarMap()) {
+  for (auto &currFDef: CS.getFuncDefnVarMap()) {
     // get the key for the function definition.
     auto funcDefKey = currFDef.first;
     std::set<ConstraintVariable *> &defCVars = currFDef.second;

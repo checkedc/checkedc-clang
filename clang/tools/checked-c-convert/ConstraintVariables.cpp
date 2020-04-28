@@ -23,7 +23,7 @@ std::string ConstraintVariable::getRewritableOriginalTy() {
   std::string asterixStr = "*";
   // if the type does not end with " " or *
   // we need to add space.
-  if(!std::equal(spaceStr.rbegin(), spaceStr.rend(), originalTyString.rbegin()) &&
+  if (!std::equal(spaceStr.rbegin(), spaceStr.rend(), originalTyString.rbegin()) &&
      !std::equal(asterixStr.rbegin(), asterixStr.rend(), originalTyString.rbegin())) {
     originalTyString += " ";
   }
@@ -81,7 +81,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
     // external variables can also have itype.
     // check if the provided declaration is an external
     // variable.
-    if(!dyn_cast<ParmVarDecl>(D) && !dyn_cast<FunctionDecl>(D)) {
+    if (!dyn_cast<ParmVarDecl>(D) && !dyn_cast<FunctionDecl>(D)) {
       QualType InteropType = C.getInteropTypeAndAdjust(ITE, false);
       // TODO: handle array_ptr types.
       if (InteropType->isCheckedPointerPtrType()) {
@@ -126,13 +126,13 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
       K++;
 
       // Boil off the typedefs in the array case.
-      while(const TypedefType *tydTy = dyn_cast<TypedefType>(Ty)) {
+      while (const TypedefType *tydTy = dyn_cast<TypedefType>(Ty)) {
         QTy = tydTy->desugar();
         Ty = QTy.getTypePtr();
       }
 
       // Iterate.
-      if(const ArrayType *arrTy = dyn_cast<ArrayType>(Ty)) {
+      if (const ArrayType *arrTy = dyn_cast<ArrayType>(Ty)) {
         QTy = arrTy->getElementType();
         Ty = QTy.getTypePtr();
       } else {
@@ -238,7 +238,7 @@ bool PVConstraint::liftedOnCVars(const ConstraintVariable &O,
   Constraints &CS = Info.getConstraints();
   auto &env = CS.getVariables();
 
-  while(I != getCvars().end() && J != OC.end()) {
+  while (I != getCvars().end() && J != OC.end()) {
     // Look up the valuation for I and J.
     ConstAtom *CI = env[CS.getVar(*I)];
     ConstAtom *CJ = env[CS.getVar(*J)];
@@ -296,14 +296,14 @@ void PointerVariableConstraint::dump_json(llvm::raw_ostream &O) const {
   O << "\"Vars\":[";
   bool addComma = false;
   for (const auto &I : vars) {
-    if(addComma) {
+    if (addComma) {
       O << ",";
     }
     O << "\"q_" << I << "\"";
     addComma = true;
   }
   O << "], \"name\":\"" << getName() << "\"";
-  if(FV) {
+  if (FV) {
     O << ", \"FunctionVariable\":";
     FV->dump_json(O);
   }
@@ -412,7 +412,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
         if (emitArraySize(pss, V, emittedName, emittedCheckedAnnotation))
           break;
         // this additional check is to prevent fall-through from the array.
-        if(K == Atom::A_NTArr) {
+        if (K == Atom::A_NTArr) {
           // if this is an NTArray
           getQualString(V, ss);
 
@@ -450,7 +450,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
     }
   }
 
-  if(emittedBase == false) {
+  if (emittedBase == false) {
     // If we have a FV pointer, then our "base" type is a function pointer
     // type.
     if (FV) {
@@ -706,7 +706,7 @@ ConstAtom* FunctionVariableConstraint::getHighestType(Constraints::EnvironmentMa
   for (const auto& C: returnVars) {
     ConstAtom *CS = C->getHighestType(E);
     assert(CS != nullptr);
-    if(toRet == nullptr || ((*toRet) < *CS)) {
+    if (toRet == nullptr || ((*toRet) < *CS)) {
       toRet = CS;
     }
   }
@@ -838,7 +838,7 @@ ConstAtom* PointerVariableConstraint::getHighestType(Constraints::EnvironmentMap
     VarAtom V(C);
     ConstAtom *CS = E[&V];
     assert(CS != nullptr);
-    if(toRet == nullptr || ((*toRet) < *CS)) {
+    if (toRet == nullptr || ((*toRet) < *CS)) {
       toRet = CS;
     }
   }
@@ -863,7 +863,7 @@ void FunctionVariableConstraint::dump_json(raw_ostream &O) const {
   O << "{\"FunctionVar\":{\"ReturnVar\":[";
   bool addComma = false;
   for (const auto &I : returnVars) {
-    if(addComma) {
+    if (addComma) {
       O << ",";
     }
     I->dump_json(O);
@@ -872,14 +872,14 @@ void FunctionVariableConstraint::dump_json(raw_ostream &O) const {
   O << "\"Parameters\":[";
   addComma = false;
   for (const auto &I : paramVars) {
-    if(I.size() > 0) {
+    if (I.size() > 0) {
       if (addComma) {
         O << ",\n";
       }
       O << "[";
       bool innerComma = false;
       for (const auto &J : I) {
-        if(innerComma) {
+        if (innerComma) {
           O << ",";
         }
         J->dump_json(O);

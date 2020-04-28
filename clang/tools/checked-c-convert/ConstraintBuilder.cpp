@@ -262,7 +262,7 @@ public:
       RHS = RHS->IgnoreParens();
 
       // Cases 2
-      if(isNULLExpression(RHS, *Context)) {
+      if (isNULLExpression(RHS, *Context)) {
         // Do Nothing.
       } else if (RHS->isIntegerConstantExpr(*Context) &&
                 !RHS->isNullPointerConstant(*Context, Expr::NPC_ValueDependentIsNotNull)) {
@@ -304,7 +304,7 @@ public:
               dyn_cast<FunctionDecl>(CA->getCalleeDecl());
             if (calleeDecl && isFunctionAllocator(calleeDecl->getName())) {
               // this is an allocator, should we treat it as safe?
-              if(!considerAllocUnsafe) {
+              if (!considerAllocUnsafe) {
                 rulesFired = true;
               } else {
                 // It's a call to allocator. What about the parameter to the call?
@@ -368,7 +368,7 @@ public:
         // get the constraint variables of the
         // expression from RHS side.
         RHSConstraints = Info.getVariable(RHS, Context, true);
-        if(RHSConstraints.size() > 0) {
+        if (RHSConstraints.size() > 0) {
           // Case 1.
           // There are constraint variables for the RHS, so, use those over
           // anything else we could infer.
@@ -456,7 +456,7 @@ public:
       // get the function declaration,
       // if exists, this is needed to check
       // for itype
-      if(getDeclaration(FD) != nullptr) {
+      if (getDeclaration(FD) != nullptr) {
         FD = getDeclaration(FD);
       }
       // Call of a function directly.
@@ -469,12 +469,12 @@ public:
 
         if (i < FD->getNumParams()) {
           bool handled = false;
-          if(FD->getParamDecl(i)->hasInteropTypeExpr()) {
+          if (FD->getParamDecl(i)->hasInteropTypeExpr()) {
             // try handling interop parameters.
             handled = handleITypeAssignment(ArgumentConstraints,
                                             FD->getParamDecl(i)->getInteropTypeExpr());
           }
-          if(!handled) {
+          if (!handled) {
             // Here, we need to get the constraints of the
             // parameter from the callee's declaration.
             std::set<ConstraintVariable*> ParameterConstraints =
@@ -489,11 +489,11 @@ public:
           // this is the case of an argument passed to a function
           // with varargs.
           // Constrain this parameter to be wild.
-          if(handleVARARGS) {
+          if (handleVARARGS) {
             Constraints &CS = Info.getConstraints();
             assignType(ArgumentConstraints, CS.getWild());
           } else {
-            if(Verbose) {
+            if (Verbose) {
               std::string funcName = FD->getName();
               errs() << "Ignoring function as it contains varargs:" << funcName << "\n";
             }
@@ -582,7 +582,7 @@ private:
 
   bool handleFunctionPointerCall(CallExpr *E) {
     Decl *D = E->getCalleeDecl();
-    if(D) {
+    if (D) {
       if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
         // This could be a function pointer,
         // get the declaration of the function pointer variable
@@ -763,13 +763,13 @@ private:
   }
 
   Expr* getNormalizedExpr(Expr *CE) {
-    if(dyn_cast<ImplicitCastExpr>(CE)) {
+    if (dyn_cast<ImplicitCastExpr>(CE)) {
       CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
     }
-    if(dyn_cast<CHKCBindTemporaryExpr>(CE)) {
+    if (dyn_cast<CHKCBindTemporaryExpr>(CE)) {
       CE = (dyn_cast<CHKCBindTemporaryExpr>(CE))->getSubExpr();
     }
-    if(dyn_cast<ImplicitCastExpr>(CE)) {
+    if (dyn_cast<ImplicitCastExpr>(CE)) {
       CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
     }
     return CE;

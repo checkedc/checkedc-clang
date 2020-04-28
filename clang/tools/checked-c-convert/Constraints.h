@@ -148,7 +148,7 @@ public:
     bool added = false;
     // insert the erased constraints into the original
     // constraints.
-    for(auto c: ErasedConstraints) {
+    for (auto c: ErasedConstraints) {
       added = Constraints.insert(c).second || added;
     }
     // remove all the erased constraints.

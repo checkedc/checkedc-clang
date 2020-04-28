@@ -173,7 +173,7 @@ void rewrite( VarDecl               *VD,
       sRewrite = sRewrite + " = ";
     } else {
       // DAMN, there is no initializer, lets add it.
-      if(isPointerType(VD)) {
+      if (isPointerType(VD)) {
         sRewrite = sRewrite + " = NULL";
       }
     }
@@ -236,7 +236,7 @@ void rewrite( VarDecl               *VD,
         DAndReplace N;
         bool found = false;
         VarDecl *VDL = dyn_cast<VarDecl>(DL);
-        if(VDL == nullptr) {
+        if (VDL == nullptr) {
           // Example:
           //        struct {
           //           const wchar_t *start;
@@ -262,7 +262,7 @@ void rewrite( VarDecl               *VD,
             newMLDecl << " = ";
             E->printPretty(newMLDecl, nullptr, A.getPrintingPolicy());
           } else {
-            if(isPointerType(VDL)) {
+            if (isPointerType(VDL)) {
               newMLDecl << " = NULL";
             }
           }
@@ -395,7 +395,7 @@ std::string CastPlacementVisitor::getExistingIType(ConstraintVariable *decl,
                                                    FunctionDecl *funcDecl) {
   std::string ret = "";
   ConstraintVariable *target = decl;
-  if(funcDecl == nullptr) {
+  if (funcDecl == nullptr) {
     target = defn;
   }
   if (PVConstraint *PVC = dyn_cast<PVConstraint>(target)) {
@@ -427,7 +427,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   FunctionDecl *Definition = getDefinition(FD);
   FunctionDecl *Declaration = getDeclaration(FD);
 
-  if(Definition == nullptr)
+  if (Definition == nullptr)
     return true;
 
   // Make sure we haven't visited this function name before, and that we
@@ -443,12 +443,12 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   FVConstraint *cDecl = nullptr;
   // Get constraint variables for the declaration and the definition.
   // Those constraints should be function constraints.
-  if(Declaration == nullptr) {
+  if (Declaration == nullptr) {
     // if there is no declaration?
     // get the on demand function variable constraint.
     auto funcDefKey = Info.getUniqueFuncKey(Definition, Context);
     auto &onDemandMap = Info.getOnDemandFuncDeclConstraintMap();
-    if(onDemandMap.find(funcDefKey) != onDemandMap.end()) {
+    if (onDemandMap.find(funcDefKey) != onDemandMap.end()) {
       cDecl = dyn_cast<FVConstraint>(getHighest(onDemandMap[funcDefKey], Info));
     } else {
       cDecl = cDefn;
@@ -478,7 +478,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       // definition is more precise than declaration.
       // Section 5.3:
       // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-      if(anyConstrained && Decl->hasWild(Info.getConstraints().getVariables())) {
+      if (anyConstrained && Decl->hasWild(Info.getConstraints().getVariables())) {
         // if definition is more precise
         // than declaration emit an itype
         std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
@@ -513,7 +513,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     std::string endStuff = "";
     bool returnHandled = false;
     bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
-    if(anyConstrained) {
+    if (anyConstrained) {
       returnHandled = true;
       didAny = true;
       std::string ctype = "";
@@ -521,7 +521,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       // definition is more precise than declaration.
       // Section 5.3:
       // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-      if(Decl->hasWild(Info.getConstraints().getVariables())) {
+      if (Decl->hasWild(Info.getConstraints().getVariables())) {
         ctype = Defn->mkString(Info.getConstraints().getVariables(), true, true);
         returnVar = Defn->getRewritableOriginalTy();
         endStuff = " : itype("+ctype+") ";
@@ -539,12 +539,12 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
     // this means inside the function, the return value is WILD
     // so the return type is what was originally declared.
-    if(!returnHandled) {
+    if (!returnHandled) {
       // If we used to implement a bounds-safe interface, continue to do that.
       returnVar = Decl->getOriginalTy() + " ";
 
       endStuff = getExistingIType(Decl, Defn, Declaration);
-      if(!endStuff.empty()) {
+      if (!endStuff.empty()) {
         didAny = true;
       }
     }
@@ -559,7 +559,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
       s = s + ss.str();
       // add varargs
-      if(functionHasVarArgs(Definition)) {
+      if (functionHasVarArgs(Definition)) {
         s = s + ", ...";
       }
       s = s + ")";
@@ -648,7 +648,7 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 
   SmallString<254> baseAbs(BaseDir);
   std::string baseDirFP;
-  if(getAbsoluteFilePath(BaseDir, baseDirFP)) {
+  if (getAbsoluteFilePath(BaseDir, baseDirFP)) {
     baseAbs = baseDirFP;
   }
   sys::path::remove_filename(baseAbs);
@@ -683,11 +683,11 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
           // Write this file out if it was specified as a file on the command
           // line.
           std::string feAbsS = "";
-          if(getAbsoluteFilePath(FE->getName(), feAbsS)) {
+          if (getAbsoluteFilePath(FE->getName(), feAbsS)) {
             feAbsS = sys::path::remove_leading_dotslash(feAbsS);
           }
 
-          if(canWrite(feAbsS, InOutFiles, base)) {
+          if (canWrite(feAbsS, InOutFiles, base)) {
             std::error_code EC;
             raw_fd_ostream out(nFile, EC, sys::fs::F_None);
 
@@ -762,7 +762,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       }
 
       auto parent = parents[0].get<FunctionDecl>();
-      if(!parent) {
+      if (!parent) {
         return false;
       }
 
@@ -909,7 +909,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 
     bool VisitMemberExpr(MemberExpr *me){
       ValueDecl* st = me->getMemberDecl();
-      if(st) {
+      if (st) {
         // Check if the variable is WILD
         bool foundWild = false;
         std::set<ConstraintVariable*> cvs = Info.getVariable(st, Context);
@@ -965,7 +965,7 @@ public:
     std::set<ConstraintVariable*> a;
     // check if the function body exists before
     // fetching inbody variable.
-    if(hasFunctionBody(D)) {
+    if (hasFunctionBody(D)) {
       a = Info.getVariable(D, Context, true);
     }
 
@@ -1022,7 +1022,7 @@ public:
     RecordDecl *RD = VD->getType().getTypePtr()->getAsRecordDecl();
     if (RecordDecl *Definition = RD->getDefinition()) {
       // see if we already know that this structure has a checked pointer.
-      if(RecordsWithCPointers.find(Definition) != RecordsWithCPointers.end()) {
+      if (RecordsWithCPointers.find(Definition) != RecordsWithCPointers.end()) {
         return true;
       }
       for (const auto &D : Definition->fields()) {
@@ -1060,11 +1060,11 @@ public:
       }
     }
 
-    for(auto VD: allDecls) {
+    for (auto VD: allDecls) {
       // check if this variable is a structure or union and doesn't have an initializer.
-      if(!VD->hasInit() && isStructOrUnionType(VD)) {
+      if (!VD->hasInit() && isStructOrUnionType(VD)) {
         // check if the variable needs a initializer.
-        if(VariableNeedsInitializer(VD, S)) {
+        if (VariableNeedsInitializer(VD, S)) {
           const clang::Type *Ty = VD->getType().getTypePtr();
           std::string OriginalType = tyToStr(Ty);
           // create replacement text with an initializer.
@@ -1087,7 +1087,7 @@ private:
 std::map<std::string, std::string> RewriteConsumer::ModifiedFuncSignatures;
 
 std::string RewriteConsumer::getModifiedFuncSignature(std::string funcName) {
-  if(RewriteConsumer::ModifiedFuncSignatures.find(funcName) != RewriteConsumer::ModifiedFuncSignatures.end()) {
+  if (RewriteConsumer::ModifiedFuncSignatures.find(funcName) != RewriteConsumer::ModifiedFuncSignatures.end()) {
     return RewriteConsumer::ModifiedFuncSignatures[funcName];
   }
   return "";
