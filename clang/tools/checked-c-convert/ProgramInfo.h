@@ -1,4 +1,4 @@
-//                     The LLVM Compiler Infrastructure
+//=--ProgramInfo.h------------------------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,6 +8,7 @@
 // This class represents all the information about a source file
 // collected by the converter.
 //===----------------------------------------------------------------------===//
+
 #ifndef _PROGRAM_INFO_H
 #define _PROGRAM_INFO_H
 #include "clang/AST/ASTConsumer.h"

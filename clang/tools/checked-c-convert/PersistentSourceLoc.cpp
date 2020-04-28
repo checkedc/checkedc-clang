@@ -1,4 +1,4 @@
-//                     The LLVM Compiler Infrastructure
+//=--PersistentSourceLoc.cpp--------------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // Implementation of the PersistentSourceLoc infrastructure.
 //===----------------------------------------------------------------------===//
+
 #include "PersistentSourceLoc.h"
 #include "Utils.h"
 

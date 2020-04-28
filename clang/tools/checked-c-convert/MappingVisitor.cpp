@@ -1,4 +1,4 @@
-//                     The LLVM Compiler Infrastructure
+//=--MappingVisitor.cpp-------------------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 // Implementations of the MappingVisitor functions for VisitStmt and VisitDecl.
 //===----------------------------------------------------------------------===//
+
 #include "llvm/Support/Path.h"
 
 #include "MappingVisitor.h"

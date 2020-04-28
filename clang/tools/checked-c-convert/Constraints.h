@@ -1,21 +1,20 @@
-//                     The LLVM Compiler Infrastructure
+//=--Constraints.h------------------------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
 // This implements a simple constraint solver for expressions of the form:
 //  a = b
 //  not a
 //  a implies b
 //
-// The Checked C converter tool performs type inference to identify locations 
-// where a C type might be replaced with a Checked C type. This interface 
+// The Checked C converter tool performs type inference to identify locations
+// where a C type might be replaced with a Checked C type. This interface
 // does the solving to figure out where those substitions might happen.
-//
 //===----------------------------------------------------------------------===//
+
 #ifndef _CONSTRAINTS_H
 #define _CONSTRAINTS_H
 #include "llvm/Support/Casting.h"

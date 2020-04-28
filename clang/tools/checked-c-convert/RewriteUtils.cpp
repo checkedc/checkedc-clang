@@ -1,4 +1,4 @@
-//                     The LLVM Compiler Infrastructure
+//=--RewriteUtils.cpp---------------------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,6 +8,7 @@
 // This class contains implementation of the functions and
 // classes of RewriteUtils.h
 //===----------------------------------------------------------------------===//
+
 #include "llvm/Support/raw_ostream.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include <algorithm>

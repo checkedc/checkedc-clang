@@ -1,13 +1,14 @@
-//                     The LLVM Compiler Infrastructure
+//=--ConstraintBuilder.cpp----------------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Implementation of visitor methods for the FunctionVisitor class. These 
-// visitors create constraints based on the AST of the program. 
+// Implementation of visitor methods for the FunctionVisitor class. These
+// visitors create constraints based on the AST of the program.
 //===----------------------------------------------------------------------===//
+
 #include "ConstraintBuilder.h"
 #include "ArrayBoundsInferenceConsumer.h"
 
