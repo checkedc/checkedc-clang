@@ -351,58 +351,58 @@ bool ProgramInfo::link() {
   }
 
   if (!SeperateMultipleFuncDecls) {
-      int gap = 0;
-      for (const auto &S : GlobalFunctionSymbols) {
-          std::string fname = S.first;
-          std::set<GlobFuncConstraintType> P = S.second;
+    int gap = 0;
+    for (const auto &S : GlobalFunctionSymbols) {
+      std::string fname = S.first;
+      std::set<GlobFuncConstraintType> P = S.second;
 
-          if (P.size() > 1) {
-              std::set<GlobFuncConstraintType>::iterator I = P.begin();
-              std::set<GlobFuncConstraintType>::iterator J = P.begin();
-              ++J;
+      if (P.size() > 1) {
+        std::set<GlobFuncConstraintType>::iterator I = P.begin();
+        std::set<GlobFuncConstraintType>::iterator J = P.begin();
+        ++J;
 
-              while (J != P.end()) {
-                  FVConstraint *P1 = (*I).second;
-                  FVConstraint *P2 = (*J).second;
+        while (J != P.end()) {
+          FVConstraint *P1 = (*I).second;
+          FVConstraint *P2 = (*J).second;
 
-                  if (P2->hasBody()) { // skip over decl with fun body
-                       gap = 1; ++J; continue;
-                  }
-                  // Constrain the return values to be equal
-                  if (!P1->hasBody() && !P2->hasBody()) {
-                      constrainEq(P1->getReturnVars(), P2->getReturnVars(), *this, nullptr, nullptr);
-
-                      // Constrain the parameters to be equal, if the parameter arity is
-                      // the same. If it is not the same, constrain both to be wild.
-                      if (P1->numParams() == P2->numParams()) {
-                          for ( unsigned i = 0;
-                                i < P1->numParams();
-                                i++)
-                          {
-                              constrainEq(P1->getParamVar(i), P2->getParamVar(i), *this, nullptr, nullptr);
-                          }
-
-                      } else {
-                          // It could be the case that P1 or P2 is missing a prototype, in
-                          // which case we don't need to constrain anything.
-                          if (P1->hasProtoType() && P2->hasProtoType()) {
-                              // Nope, we have no choice. Constrain everything to wild.
-                              std::string rsn = "Return value of function:" + P1->getName();
-                              P1->constrainTo(CS, CS.getWild(), rsn, true);
-                              P2->constrainTo(CS, CS.getWild(), rsn, true);
-                          }
-                      }
-                  }
-                  ++I;
-                  if (!gap) {
-                      ++J;
-                  }
-                  else {
-                      gap = 0;
-                  }
-              }
+          if (P2->hasBody()) { // skip over decl with fun body
+            gap = 1;
+            ++J;
+            continue;
           }
+          // Constrain the return values to be equal
+          if (!P1->hasBody() && !P2->hasBody()) {
+            constrainEq(P1->getReturnVars(), P2->getReturnVars(), *this,
+                        nullptr, nullptr);
+
+            // Constrain the parameters to be equal, if the parameter arity is
+            // the same. If it is not the same, constrain both to be wild.
+            if (P1->numParams() == P2->numParams()) {
+              for (unsigned i = 0; i < P1->numParams(); i++) {
+                constrainEq(P1->getParamVar(i), P2->getParamVar(i), *this,
+                            nullptr, nullptr);
+              }
+
+            } else {
+              // It could be the case that P1 or P2 is missing a prototype, in
+              // which case we don't need to constrain anything.
+              if (P1->hasProtoType() && P2->hasProtoType()) {
+                // Nope, we have no choice. Constrain everything to wild.
+                std::string rsn = "Return value of function:" + P1->getName();
+                P1->constrainTo(CS, CS.getWild(), rsn, true);
+                P2->constrainTo(CS, CS.getWild(), rsn, true);
+              }
+            }
+          }
+          ++I;
+          if (!gap) {
+            ++J;
+          } else {
+            gap = 0;
+          }
+        }
       }
+    }
   }
 
 
