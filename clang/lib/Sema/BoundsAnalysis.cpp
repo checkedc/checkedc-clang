@@ -88,19 +88,13 @@ void BoundsAnalysis::InitInOutSets() {
 }
 
 llvm::APSInt BoundsAnalysis::GetSwitchCaseVal(const Expr *CaseExpr) {
-  Expr *E = const_cast<Expr *>(CaseExpr);
-
-  while (auto *ICE = dyn_cast<ImplicitCastExpr>(E))
-    E = ICE->getSubExpr();
-
-  llvm::APSInt IntVal (Ctx.getTypeSize(CaseExpr->getType()), 0);
-
   // case '1': This is how it is represented in the CFG:
   // ConstantExpr 'int'
   //   -CharacterLiteral 'int' 49
   // This is an IntegerConstantExpr. After the call to isIntegerConstantExpr,
   // the variable IntVal would contain the value '1'.
-  if (E->isIntegerConstantExpr(IntVal, Ctx))
+  llvm::APSInt IntVal;
+  if (CaseExpr->isIntegerConstantExpr(IntVal, Ctx))
     return IntVal;
 
   // const int i = 1;
@@ -113,10 +107,15 @@ llvm::APSInt BoundsAnalysis::GetSwitchCaseVal(const Expr *CaseExpr) {
   // Note: According to C11 spec sections 6.6 and 6.8.1 a DeclRefExpr is not
   // considered a constant expr. But clang allows for this additional
   // extension. So we handle this here.
+  Expr *E = const_cast<Expr *>(CaseExpr);
+
+  while (auto *ICE = dyn_cast<ImplicitCastExpr>(E))
+    E = ICE->getSubExpr();
+
   if (const auto *CE = dyn_cast_or_null<ConstantExpr>(E))
     return CE->getResultAsAPSInt();
 
-  return IntVal;
+  return llvm::APSInt(Ctx.getTypeSize(CaseExpr->getType()), 0);
 }
 
 bool BoundsAnalysis::CheckIsSwitchCaseNull(ElevatedCFGBlock *EB) {
