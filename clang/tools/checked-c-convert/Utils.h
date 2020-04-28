@@ -10,12 +10,12 @@
 
 #ifndef _UTILS_H
 #define _UTILS_H
-#include <set>
-#include <ctime>
-#include "llvm/Support/CommandLine.h"
-#include "clang/AST/Type.h"
-
 #include "PersistentSourceLoc.h"
+#include "clang/AST/Type.h"
+#include "llvm/Support/CommandLine.h"
+
+#include <ctime>
+#include <set>
 
 class ConstraintVariable;
 class ProgramInfo;
@@ -36,13 +36,15 @@ extern llvm::cl::opt<bool> considerAllocUnsafe;
 
 const clang::Type *getNextTy(const clang::Type *Ty);
 
-ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &Info);
+ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs,
+                               ProgramInfo &Info);
 
 clang::FunctionDecl *getDeclaration(clang::FunctionDecl *FD);
 
 clang::FunctionDecl *getDefinition(clang::FunctionDecl *FD);
 
-clang::CheckedPointerKind getCheckedPointerKind(clang::InteropTypeExpr *itypeExpr);
+clang::CheckedPointerKind getCheckedPointerKind(clang::InteropTypeExpr
+                                                    *itypeExpr);
 
 bool hasFunctionBody(clang::Decl *param);
 

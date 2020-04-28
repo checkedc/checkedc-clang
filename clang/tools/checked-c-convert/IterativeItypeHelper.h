@@ -12,9 +12,9 @@
 #ifndef _ITYPECONSTRAINTDETECTOR_H
 #define _ITYPECONSTRAINTDETECTOR_H
 
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/Rewrite/Core/Rewriter.h"
 
 #include "ProgramInfo.h"
