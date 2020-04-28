@@ -29,7 +29,7 @@ struct DAndReplace
     Stmt        *Statement;   // The Stmt, if it exists.
     std::string Replacement;  // The string to replace the declaration with.
     bool        fullDecl;     // If the declaration is a function, true if
-    // replace the entire declaration or just the
+    // Replace the entire declaration or just the
     // return declaration.
     DAndReplace() : Declaration(nullptr),
                     Statement(nullptr),
@@ -116,9 +116,9 @@ void rewrite( Rewriter              &R,
 class ArrayBoundsRewriter {
 public:
   ArrayBoundsRewriter(ASTContext *C, ProgramInfo &I): Context(C), Info(I) {}
-  // compute the possible bounds for all the array variables.
+  // Compute the possible bounds for all the array variables.
   void computeArrayBounds();
-  // get the string representation of the bounds for the given variable.
+  // Get the string representation of the bounds for the given variable.
   std::string getBoundsString(Decl *decl, bool isitype = false);
 private:
   ASTContext *Context;
@@ -131,7 +131,8 @@ class CastPlacementVisitor : public RecursiveASTVisitor<CastPlacementVisitor> {
 public:
   explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I,
                                 RSet &DR, std::set<std::string> &V,
-                                std::map<std::string, std::string> &newFuncSig, ArrayBoundsRewriter &ArrRewriter)
+                                std::map<std::string, std::string> &newFuncSig,
+                                ArrayBoundsRewriter &ArrRewriter)
           : Context(C), Info(I), rewriteThese(DR), VisitedSet(V),
             ModifiedFuncSignatures(newFuncSig), ABRewriter(ArrRewriter) {}
 
@@ -140,11 +141,12 @@ public:
   bool isFunctionVisited(std::string funcName);
 private:
   std::set<unsigned int> getParamsForExtern(std::string);
-  // get existing itype string from constraint variables.
-  // if tries to get the string from declaration, however,
+  // Get existing itype string from constraint variables.
+  // If tries to get the string from declaration, however,
   // if there is no declaration of the function,
   // it will try to get it from the definition.
-  std::string getExistingIType(ConstraintVariable *decl, ConstraintVariable *defn,
+  std::string getExistingIType(ConstraintVariable *decl,
+                               ConstraintVariable *defn,
                                FunctionDecl *funcDecl);
   bool anyTop(std::set<ConstraintVariable*>);
   ASTContext            *Context;
@@ -159,14 +161,16 @@ private:
 class RewriteConsumer : public ASTConsumer {
 public:
   explicit RewriteConsumer(ProgramInfo &I,
-                           std::set<std::string> &F, ASTContext *Context, std::string &OPostfix, std::string &bDir) :
-                           Info(I), InOutFiles(F), OutputPostfix(OPostfix), BaseDir(bDir) {}
+                           std::set<std::string> &F, ASTContext *Context,
+                           std::string &OPostfix, std::string &bDir) :
+                           Info(I), InOutFiles(F), OutputPostfix(OPostfix),
+                           BaseDir(bDir) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context);
 
 private:
-  // functions to handle modified signatures and ensuring that
-  // we always use the latest signature.
+  // Functions to handle modified signatures and ensuring that we always use
+  // the latest signature.
   static std::string getModifiedFuncSignature(std::string funcName);
   static bool hasModifiedSignature(std::string funcName);
   ProgramInfo &Info;

@@ -61,7 +61,7 @@ public:
   virtual bool operator==(const Atom &) const = 0;
   virtual bool operator!=(const Atom &) const = 0;
   virtual bool operator<(const Atom &other) const = 0;
-  // check if this atom contains the provided atom
+  // Check if this atom contains the provided atom
   virtual bool containsConstraint(VarAtom *toFind) = 0;
 };
 
@@ -76,7 +76,7 @@ public:
   }
 
   virtual bool containsConstraint(VarAtom *toFind) {
-    // constant atom can never contain a VarAtom
+    // Constant atom can never contain a VarAtom
     return false;
   }
 };
@@ -130,43 +130,42 @@ public:
   }
 
   void eraseConstraint(Constraint *todel) {
-    // remove the constraint
+    // Remove the constraint
     Constraints.erase(todel);
-    // add the constraint into another set so that
+    // Add the constraint into another set so that
     // we can restore in future.
     ErasedConstraints.insert(todel);
   }
 
-  // replace the equality constraints that contains the provided
+  // Replace the equality constraints that contains the provided
   // constraint variable with the constant atom
   unsigned replaceEqConstraints(std::map<VarAtom*, ConstAtom*,
                                 PComp<VarAtom*> > &toRemoveVAtoms,
                                 class Constraints &CS);
 
-  // restore the erased constraints into the regular constraints.
+  // Restore the erased constraints into the regular constraints.
   bool resetErasedConstraints() {
     bool added = false;
-    // insert the erased constraints into the original
-    // constraints.
+    // Insert the erased constraints into the original constraints.
     for (auto c: ErasedConstraints) {
       added = Constraints.insert(c).second || added;
     }
-    // remove all the erased constraints.
+    // Remove all the erased constraints.
     ErasedConstraints.clear();
     return added;
   }
 
   bool containsConstraint(VarAtom *toFind) {
-    // this is a VarAtom and contains is same as equality.
+    // This is a VarAtom and contains is same as equality.
     return (*this == *toFind);
   }
 
-  // returns the constraints associated with this atom.
+  // Returns the constraints associated with this atom.
   std::set<Constraint*, PComp<Constraint*>> &getAllConstraints() {
     return Constraints;
   }
 
-  // check if we can assign the provided const atom to this VarAtom
+  // Check if we can assign the provided const atom to this VarAtom
   // this is to implement a Band Pass filter mechanism.
   // i.e., this VarAtom cannot be assigned or involved in propagating
   // some ConstAtom.
@@ -175,7 +174,7 @@ public:
     return ImpossibleVals.find(toAssign->getKind()) == ImpossibleVals.end();
   }
 
-  // set the provided constant atom as being impossible for this VarAtom
+  // Set the provided constant atom as being impossible for this VarAtom.
   void setConstImpossible(ConstAtom *impossibleConst) {
     ImpossibleVals.insert(impossibleConst->getKind());
   }
@@ -206,13 +205,13 @@ public:
 
 private:
   std::set<ConstAtom::AtomKind> ImpossibleVals;
-  // flag that indicates that if this atom is an array then
-  // should be tried to promote to NtArr.
+  // Flag that indicates that if this atom is an array then should be tried
+  // to promote to NtArr.
   bool ifArrThenNtArray;
   bool shouldBeArr;
   bool shouldBeNtArr;
   uint32_t  Loc;
-  // these are the constraints erased during constraint solving.
+  // These are the constraints erased during constraint solving.
   std::set<Constraint*, PComp<Constraint*>> ErasedConstraints;
   // The constraint expressions where this variable is mentioned on the 
   // LHS of an equality.
@@ -320,7 +319,8 @@ public:
   }
 
   bool operator<(const Atom &other) const {
-    if (llvm::isa<PtrAtom>(&other) || llvm::isa<ArrAtom>(&other) || *this == other)
+    if (llvm::isa<PtrAtom>(&other) || llvm::isa<ArrAtom>(&other) ||
+        *this == other)
       return false;
     else
       return true;
@@ -400,8 +400,7 @@ public:
   virtual std::string getReason() {
     return REASON;
   }
-  // check if the provided constraint contains the
-  // provided VarAtom
+  // Check if the provided constraint contains the provided VarAtom.
   virtual bool containsConstraint(VarAtom *toFind) = 0;
 };
 
@@ -478,7 +477,7 @@ private:
   Atom *rhs;
 };
 
-// not a
+// Not a
 class Not : public Constraint {
 public:
   Not(Constraint *b)
@@ -660,24 +659,23 @@ public:
   NTArrAtom *getNTArr() const;
   WildAtom *getWild() const;
 
-  // reset all constraint variables to Ptrs.
+  // Reset all constraint variables to Ptrs.
   void resetConstraints();
 
-  // check the sanity of environment map before solving the constraints.
+  // Check the sanity of environment map before solving the constraints.
   bool checkInitialEnvSanity();
 
 private:
   ConstraintSet constraints;
   EnvironmentMap environment;
-  // map of constraint variables, which are identified
-  // as itype pointers
-  // These should be the constraint variables of only
-  // function parameters or returns.
+  // Map of constraint variables, which are identified as itype pointers.
+  // These should be the constraint variables of only function parameters
+  // or returns.
   EnvironmentMap itypeConstraintVars;
 
-  // map of function unique key to it declaration FVConstraintVariable
+  // Map of function unique key to it declaration FVConstraintVariable.
   FuncKeyToConsMap FuncDeclConstraints;
-  // map of function unique key to it definition FVConstraintVariable
+  // Map of function unique key to it definition FVConstraintVariable.
   FuncKeyToConsMap FuncDefnConstraints;
 
   template <typename T>
@@ -696,14 +694,14 @@ private:
   bool
   propImp(Implies *, T*, ConstraintSet &, ConstAtom *);
 
-  // These atoms can be singletons, so we'll store them in the 
-  // Constraints class.
+  // These atoms can be singletons, so we'll store them in the
+  // constraints class.
   PtrAtom *prebuiltPtr;
   ArrAtom *prebuiltArr;
   NTArrAtom *prebuiltNTArr;
   WildAtom *prebuiltWild;
 
-  // map that contains the mapping between the unique keys of function
+  // Map that contains the mapping between the unique keys of function
   // definition to its declaration.
   std::map<std::string, std::string> FuncDefnDeclKeyMap;
 };

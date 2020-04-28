@@ -20,7 +20,9 @@ static cl::opt<bool> DebugSolver("debug-solver",
   cl::desc("Dump intermediate solver state"),
   cl::init(false), cl::cat(SolverCategory));
 
-unsigned VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAtoms, class Constraints &CS) {
+unsigned
+VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAtoms,
+                              class Constraints &CS) {
   unsigned removedConstraints = 0;
   std::set<Constraint*, PComp<Constraint*>> toRemoveConstraints;
   toRemoveConstraints.clear();
@@ -33,18 +35,17 @@ unsigned VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAto
     for (auto &vatomP: toRemoveVAtoms) {
       ConstAtom *targetCons = vatomP.second;
       VarAtom *dstCons = vatomP.first;
-      // check if the constraint contains
-      // the provided constraint variable.
+      // Check if the constraint contains the provided constraint variable.
       if (currC->containsConstraint(dstCons) && dyn_cast<Eq>(currC)) {
         removedConstraints++;
-        // this has to be an equality constraint.
+        // This has to be an equality constraint.
         Eq *equalityConstraint = dyn_cast<Eq>(currC);
-        // we will modify this constraint remove it
-        // from the local and global sets.
+        // We will modify this constraint remove it from the local and
+        // global sets.
         globalConstraints.erase(currC);
         Constraints.erase(currC);
 
-        // mark this constraint to be deleted.
+        // Mark this constraint to be deleted.
         toRemoveConstraints.insert(currC);
 
         assert(equalityConstraint != nullptr &&
@@ -52,23 +53,21 @@ unsigned VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAto
         if (targetCons != nullptr) {
           Eq* newC = nullptr;
           if (*(equalityConstraint->getLHS()) == *(dstCons)) {
-            // if this is of the form var1 = var2
+            // If this is of the form var1 = var2.
             if (dyn_cast<VarAtom>(equalityConstraint->rhs)) {
-              // create a constraint var2 = const
+              // Create a constraint var2 = const.
               VarAtom *VA = dyn_cast<VarAtom>(equalityConstraint->rhs);
               newC = CS.createEq(VA, targetCons);
             } else {
-              // else, create a constraint var1 = const
+              // Else, create a constraint var1 = const.
               VarAtom *VA = dyn_cast<VarAtom>(equalityConstraint->lhs);
               newC = CS.createEq(VA, targetCons);
             }
           }
-          // if we have created a new equality constraint
+          // If we have created a new equality constraint?
           if (newC) {
-            // add the constraint
             if (!CS.addConstraint(newC)) {
-              // if this is already added?
-              // delete it.
+              // If this is already added? delete it.
               delete(newC);
             }
           }
@@ -159,9 +158,8 @@ bool Constraints::check(Constraint *C) {
   return true;
 }
 
-// function that handles assignment of the provided ConstAtom to
-// the provided srcVar.
-// returns true if the assignment has been made.
+// Function that handles assignment of the provided ConstAtom to the
+// provided srcVar. This returns true if the assignment has been made.
 bool Constraints::assignConstToVar(EnvironmentMap::iterator &srcVar, ConstAtom *toAssign) {
   if (srcVar->first->canAssign(toAssign)) {
     srcVar->second = toAssign;
@@ -289,7 +287,7 @@ bool Constraints::step_solve(EnvironmentMap &env) {
 
     ConstraintSet rmConstraints;
     for (const auto &C : Var->Constraints) {
-      // re-read the assignment as the propagating might have
+      // Re-read the assignment as the propagating might have
       // changed this and the constraints will get removed.
       ConstAtom *Val = VI->second;
       // Propagate the Neg constraint.
@@ -297,9 +295,9 @@ bool Constraints::step_solve(EnvironmentMap &env) {
         if (Eq *E = dyn_cast<Eq>(N->getBody())) {
           // If this is Not ( q == Ptr )
           if (isa<PtrAtom>(E->getRHS())) {
-            // check if we can make it an Arr?
+            // Check if we can make it an Arr?
             if (*Val < *getArr() && canAssignConst<ArrAtom>(Var)) {
-              // yes? make it Arr
+              // Yes? make it Arr
               VI->second = getArr();
               changedEnvironment = true;
             }
@@ -469,19 +467,20 @@ Not *Constraints::createNot(Constraint *body) {
   return new Not(body);
 }
 
-Implies *Constraints::createImplies(Constraint *premise, Constraint *conclusion) {
+Implies *Constraints::createImplies(Constraint *premise,
+                                    Constraint *conclusion) {
   return new Implies(premise, conclusion);
 }
 
 void Constraints::resetConstraints() {
-  // update all constraints to pointers
+  // Update all constraints to pointers
   for (auto &currE: environment) {
     currE.second = getPtr();
   }
 }
 
 bool Constraints::checkInitialEnvSanity() {
-  // all variables should be Ptrs
+  // All variables should be Ptrs
   for (const auto &envVar: environment) {
     if (envVar.second != getPtr()) {
       return false;

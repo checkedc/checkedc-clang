@@ -172,7 +172,7 @@ void rewrite( VarDecl               *VD,
       TR.setEnd(eqLoc);
       sRewrite = sRewrite + " = ";
     } else {
-      // DAMN, there is no initializer, lets add it.
+      // There is no initializer, lets add one.
       if (isPointerType(VD)) {
         sRewrite = sRewrite + " = NULL";
       }

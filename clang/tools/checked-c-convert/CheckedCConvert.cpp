@@ -52,7 +52,8 @@ cl::opt<bool> Verbose("verbose",
                       cl::cat(ConvertCategory));
 
 cl::opt<bool> mergeMultipleFuncDecls("mergefds",
-                                     cl::desc("Merge multiple declarations of functions."),
+                                     cl::desc("Merge multiple declarations of "
+                                              "functions."),
                                      cl::init(false),
                                      cl::cat(ConvertCategory));
 
@@ -64,8 +65,10 @@ static cl::opt<std::string>
 
 static cl::opt<std::string>
   ConstraintOutputJson("constraint-output",
-                       cl::desc("Path to the file where all the analysis information will be dumped as json"),
-                       cl::init("constraint_output.json"), cl::cat(ConvertCategory));
+                       cl::desc("Path to the file where all the analysis "
+                                  "information will be dumped as json"),
+                       cl::init("constraint_output.json"),
+                         cl::cat(ConvertCategory));
 
 static cl::opt<bool> DumpStats( "dump-stats",
                                 cl::desc("Dump statistics"),
@@ -73,17 +76,21 @@ static cl::opt<bool> DumpStats( "dump-stats",
                                 cl::cat(ConvertCategory));
 
 cl::opt<bool> handleVARARGS( "handle-varargs",
-                             cl::desc("Enable handling of varargs in a sound manner"),
+                             cl::desc("Enable handling of varargs in a "
+                                     "sound manner"),
                              cl::init(false),
                              cl::cat(ConvertCategory));
 
 cl::opt<bool> enablePropThruIType( "enable-itypeprop",
-                                   cl::desc("Enable propagation of constraints through ityped parameters/returns."),
+                                   cl::desc("Enable propagation of "
+                                           "constraints through ityped "
+                                           "parameters/returns."),
                                    cl::init(false),
                                    cl::cat(ConvertCategory));
 
 cl::opt<bool> considerAllocUnsafe( "alloc-unsafe",
-                                   cl::desc("Consider the allocators (i.e., malloc/calloc) as unsafe."),
+                                   cl::desc("Consider the allocators "
+                                           "(i.e., malloc/calloc) as unsafe."),
                                    cl::init(false),
                                    cl::cat(ConvertCategory));
 
@@ -101,7 +108,8 @@ public:
 
   virtual std::unique_ptr<ASTConsumer>
   CreateASTConsumer(CompilerInstance &Compiler, StringRef InFile) {
-    return std::unique_ptr<ASTConsumer>(new T(Info, &Compiler.getASTContext()));
+    return std::unique_ptr<ASTConsumer>(new T(Info,
+                                              &Compiler.getASTContext()));
   }
 
 private:
@@ -116,7 +124,8 @@ public:
   virtual std::unique_ptr<ASTConsumer>
     CreateASTConsumer(CompilerInstance &Compiler, StringRef InFile) {
     return std::unique_ptr<ASTConsumer>
-      (new T(Info, Files, &Compiler.getASTContext(), OutputPostfix, BaseDir));
+      (new T(Info, Files, &Compiler.getASTContext(),
+               OutputPostfix, BaseDir));
   }
 
 private:
@@ -161,8 +170,9 @@ newFrontendActionFactoryB(ProgramInfo &I, std::set<std::string> &PS) {
 }
 
 
-std::pair<Constraints::ConstraintSet, bool> solveConstraintsWithFunctionSubTyping(ProgramInfo &Info) {
-// solve the constrains by handling function sub-typing.
+std::pair<Constraints::ConstraintSet, bool>
+    solveConstraintsWithFunctionSubTyping(ProgramInfo &Info) {
+  // Solve the constrains by handling function sub-typing.
   Constraints &CS = Info.getConstraints();
   unsigned numIterations = 0;
   std::pair<Constraints::ConstraintSet, bool> toRet;
@@ -170,7 +180,7 @@ std::pair<Constraints::ConstraintSet, bool> solveConstraintsWithFunctionSubTypin
   while (!fixed) {
     toRet = CS.solve(numIterations);
     if (numIterations > 1)
-      // this means we have made some changes to the environment
+      // This means we have made some changes to the environment
       // see if the function subtype handling causes any changes?
       fixed = !Info.handleFunctionSubtyping();
     else
@@ -181,7 +191,8 @@ std::pair<Constraints::ConstraintSet, bool> solveConstraintsWithFunctionSubTypin
 }
 
 bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
-                                     ClangTool &Tool, std::set<std::string> &inoutPaths) {
+                                     ClangTool &Tool, std::set<std::string>
+                                         &inoutPaths) {
   bool fixedPointReached = false;
   unsigned long iterationNum = 1;
   unsigned long numberOfEdgesRemoved = 0;
@@ -190,11 +201,12 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
   if (Verbose) {
     errs() << "Trying to capture Constraint Variables for all functions\n";
   }
-  // first capture itype parameters and return values for all functions
+  // First capture itype parameters and return values for all functions.
   performConstraintSetup(Info);
 
-  // sanity check
-  assert(CS.checkInitialEnvSanity() && "Invalid initial environment. We expect all pointers to be "
+  // Sanity check.
+  assert(CS.checkInitialEnvSanity() && "Invalid initial environment. "
+                                       "We expect all pointers to be "
                                        "initialized with Ptr to begin with.");
 
   while (!fixedPointReached) {
@@ -204,9 +216,11 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
       errs() << "Iterative Itype refinement, Round:" << iterationNum << "\n";
     }
 
-    std::pair<Constraints::ConstraintSet, bool> R = solveConstraintsWithFunctionSubTyping(Info);
+    std::pair<Constraints::ConstraintSet, bool> R =
+        solveConstraintsWithFunctionSubTyping(Info);
 
-    errs() << "Iteration:" << iterationNum << ", Constraint solve time:" << getTimeSpentInSeconds(startTime) << "\n";
+    errs() << "Iteration:" << iterationNum << ", Constraint solve time:" <<
+        getTimeSpentInSeconds(startTime) << "\n";
 
     if (R.second) {
       errs() << "Constraints solved for iteration:" << iterationNum << "\n";
@@ -216,32 +230,38 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
       Info.print_stats(inoutPaths, llvm::errs(), true);
     }
 
-    // get all the functions whose constraints have been modified.
+    // Get all the functions whose constraints have been modified.
     identifyModifiedFunctions(CS, modifiedFunctions);
 
     startTime = clock();
-    // detect and update new found itype vars.
+    // Detect and update new found itype vars.
     numItypeVars = detectAndUpdateITypeVars(Info, modifiedFunctions);
 
-    errs() << "Iteration:" << iterationNum << ", Number of detected itype vars:" << numItypeVars
-           << ", detection time:" << getTimeSpentInSeconds(startTime) << "\n";
+    errs() << "Iteration:" << iterationNum << ", Number of detected itype vars:"
+           << numItypeVars << ", detection time:" <<
+        getTimeSpentInSeconds(startTime) << "\n";
 
     startTime = clock();
-    // update the constraint graph by removing edges from/to iype parameters and returns.
+    // Update the constraint graph by removing edges from/to iype parameters
+    // and returns.
     numberOfEdgesRemoved = resetWithitypeConstraints(CS);
 
-    errs() << "Iteration:" << iterationNum << ", Number of edges removed:" << numberOfEdgesRemoved << "\n";
+    errs() << "Iteration:" << iterationNum << ", Number of edges removed:" <<
+        numberOfEdgesRemoved << "\n";
 
-    errs() << "Iteration:" << iterationNum << ", Refinement Time:" << getTimeSpentInSeconds(startTime) << "\n";
+    errs() << "Iteration:" << iterationNum << ", Refinement Time:" <<
+        getTimeSpentInSeconds(startTime) << "\n";
 
-    // if we removed any edges, that means we did not reach fix point.
-    // In other words, we reach fixed point when no edges are removed from the constraint graph.
+    // If we removed any edges, that means we did not reach fix point.
+    // In other words, we reach fixed point when no edges are removed from the
+    // constraint graph.
     fixedPointReached = !(numberOfEdgesRemoved > 0);
     errs() << "****Iteration " << iterationNum << " ends****\n";
     iterationNum++;
   }
 
-  errs() << "Fixed point reached after " << (iterationNum-1) << " iterations.\n";
+  errs() << "Fixed point reached after " << (iterationNum-1) <<
+      " iterations.\n";
 
   return fixedPointReached;
 }
@@ -306,7 +326,8 @@ int main(int argc, const char **argv) {
   Constraints &CS = Info.getConstraints();
 
   // perform constraint solving by iteratively refining based on itypes.
-  bool fPointReached = performIterativeItypeRefinement(CS, Info, Tool, inoutPaths);
+  bool fPointReached = performIterativeItypeRefinement(CS, Info,
+                                                       Tool, inoutPaths);
 
   assert(fPointReached == true);
   if (Verbose)

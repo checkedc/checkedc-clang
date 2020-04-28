@@ -26,7 +26,8 @@ const clang::Type *getNextTy(const clang::Type *Ty) {
     return Ty;
 }
 
-ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &Info) {
+ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs,
+                               ProgramInfo &Info) {
   if (Vs.size() == 0)
     return nullptr;
 
@@ -47,7 +48,7 @@ ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &In
 // Walk the list of declarations and find a declaration that is NOT
 // a definition and does NOT have a body.
 FunctionDecl *getDeclaration(FunctionDecl *FD) {
-  // optimization
+  // Optimization.
   if (!FD->isThisDeclarationADefinition()) {
     return FD;
   }
@@ -62,7 +63,7 @@ FunctionDecl *getDeclaration(FunctionDecl *FD) {
 // Walk the list of declarations and find a declaration accompanied by
 // a definition and a function body.
 FunctionDecl *getDefinition(FunctionDecl *FD) {
-  // optimization
+  // Optimization.
   if (FD->isThisDeclarationADefinition() && FD->hasBody()) {
     return FD;
   }
@@ -112,10 +113,9 @@ clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *itypeExpr) {
   return CheckedPointerKind::Unchecked;
 }
 
-// check if function body exists for the
-// provided declaration.
+// Check if function body exists for the provided declaration.
 bool hasFunctionBody(clang::Decl *param) {
-  // if this a parameter?
+  // If this a parameter?
   if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(param)) {
     if (DeclContext *DC = PD->getParentFunctionOrMethod()) {
       FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
@@ -125,8 +125,7 @@ bool hasFunctionBody(clang::Decl *param) {
     }
     return false;
   }
-  // else this should be within body and
-  // the function body should exist.
+  // Else this should be within body and the function body should exist.
   return true;
 }
 
@@ -135,12 +134,12 @@ static std::string storageClassToString(StorageClass SC) {
     case StorageClass::SC_Static: return "static ";
     case StorageClass::SC_Extern: return "extern ";
     case StorageClass::SC_Register: return "register ";
-    // for all other cases, we do not care.
+    // For all other cases, we do not care.
     default: return "";
   }
 }
 
-// this method gets the storage qualifier for the
+// This method gets the storage qualifier for the
 // provided declaration i.e., static, extern, etc.
 std::string getStorageQualifierString(Decl *D) {
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
@@ -153,19 +152,20 @@ std::string getStorageQualifierString(Decl *D) {
 }
 
 bool isNULLExpression(clang::Expr *expr, ASTContext &Ctx) {
-  // this checks if the expression is NULL. Specifically, (void*)0
+  // This checks if the expression is NULL. Specifically, (void*)0.
   if (CStyleCastExpr *CS = dyn_cast<CStyleCastExpr>(expr)) {
     Expr *subExpr = CS->getSubExpr();
 
     return subExpr->isIntegerConstantExpr(Ctx) &&
-           subExpr->isNullPointerConstant(Ctx, Expr::NPC_ValueDependentIsNotNull);
+           subExpr->isNullPointerConstant(Ctx,
+                                          Expr::NPC_ValueDependentIsNotNull);
   }
   return false;
 }
 
 bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP) {
-  // get absolute path of the provided file
-  // returns true if successful else false
+  // Get absolute path of the provided file returns true if successful
+  // else false.
   SmallString<255> abs_path(fileName);
   std::error_code ec = llvm::sys::fs::make_absolute(abs_path);
   if (!ec) {
@@ -177,7 +177,8 @@ bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP) {
 
 bool functionHasVarArgs(clang::FunctionDecl *FD) {
   if (FD && FD->getFunctionType()->isFunctionProtoType()) {
-    const FunctionProtoType *srcType = dyn_cast<FunctionProtoType>(FD->getFunctionType());
+    const FunctionProtoType *srcType =
+        dyn_cast<FunctionProtoType>(FD->getFunctionType());
     return srcType->isVariadic();
   }
   return false;
@@ -198,7 +199,8 @@ bool isPointerType(clang::VarDecl *VD) {
 }
 
 bool isStructOrUnionType(clang::VarDecl *VD) {
-  return VD->getType().getTypePtr()->isStructureType() || VD->getType().getTypePtr()->isUnionType();
+  return VD->getType().getTypePtr()->isStructureType() ||
+         VD->getType().getTypePtr()->isUnionType();
 }
 
 std::string tyToStr(const Type *T) {
@@ -214,11 +216,13 @@ Expr* removeAuxillaryCasts(Expr *srcExpr) {
   return srcExpr;
 }
 
-unsigned longestCommonSubsequence(const char* str1, const char* str2, unsigned str1Len, unsigned str2Len) {
+unsigned longestCommonSubsequence(const char* str1, const char* str2,
+                                  unsigned str1Len, unsigned str2Len) {
   if (str1Len == 0 || str2Len == 0)
     return 0;
   if (str1[str1Len - 1] == str2[str2Len - 1])
     return 1 + longestCommonSubsequence(str1, str2, str1Len - 1, str2Len - 1);
   else
-    return std::max(longestCommonSubsequence(str1, str2, str1Len, str2Len - 1), longestCommonSubsequence(str1, str2, str1Len - 1, str2Len));
+    return std::max(longestCommonSubsequence(str1, str2, str1Len, str2Len - 1),
+                    longestCommonSubsequence(str1, str2, str1Len - 1, str2Len));
 }

@@ -52,29 +52,31 @@ bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP);
 
 bool isNULLExpression(clang::Expr *expr, clang::ASTContext &Ctx);
 
-// get the time spent in seconds since the provided time stamp.
+// Get the time spent in seconds since the provided time stamp.
 float getTimeSpentInSeconds(clock_t startTime);
 
-// check if the function has varargs i.e., foo(<named_arg>,...)
+// Check if the function has varargs i.e., foo(<named_arg>,...)
 bool functionHasVarArgs(clang::FunctionDecl *FD);
 
-// check if the function is a allocator.
+// Check if the function is a allocator.
 bool isFunctionAllocator(std::string funcName);
 
 // Is the given variable built  in type?
 bool isPointerType(clang::VarDecl *VD);
 
-// check if the variable is of a structure or union type.
+// Check if the variable is of a structure or union type.
 bool isStructOrUnionType(clang::VarDecl *VD);
 
 // Helper method to print a Type in a way that can be represented in the source.
 std::string tyToStr(const clang::Type *T);
 
-clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
+clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD,
+                                                clang::SourceManager &S);
 
 clang::Expr* removeAuxillaryCasts(clang::Expr *srcExpr);
 
-// find the longest common subsequence
-unsigned longestCommonSubsequence(const char* str1, const char* str2, unsigned str1Len, unsigned str2Len);
+// Find the longest common subsequence.
+unsigned longestCommonSubsequence(const char* str1, const char* str2,
+                                  unsigned str1Len, unsigned str2Len);
 
 #endif
