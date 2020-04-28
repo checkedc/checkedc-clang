@@ -1298,15 +1298,15 @@ void original_value16(array_ptr<int> arr_int, array_ptr<const int> arr_const, ar
   // CHECK-NEXT:       IntegerLiteral {{.*}} 1
   // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: {
-  // CHECK-NEXT: BinaryOperator {{.*}} '+'
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr_int'
-  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
-  // CHECK-NEXT: }
-  // CHECK-NEXT: }
+  // C HECK-NEXT: {
+  // C HECK-NEXT: BinaryOperator {{.*}} '+'
+  // C HECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // C HECK-NEXT:     DeclRefExpr {{.*}} 'arr_int'
+  // C HECK-NEXT:     IntegerLiteral {{.*}} 1
+  // C HECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // C HECK-NEXT:   DeclRefExpr {{.*}} 'arr'
+  // C HECK-NEXT: }
+  // C HECK-NEXT: }
 
   // Updated UEQ: { { arr_int + 1, arr } { (array_ptr<const int>)arr_int, arr_const } }
   arr_const = arr_int;
@@ -1318,22 +1318,22 @@ void original_value16(array_ptr<int> arr_int, array_ptr<const int> arr_const, ar
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr_int'
   // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: {
-  // CHECK-NEXT: BinaryOperator {{.*}} '+'
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr_int'
-  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
-  // CHECK-NEXT: }
-  // CHECK-NEXT: {
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<const int>' <NoOp>
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr_int'
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr_const'
-  // CHECK-NEXT: }
-  // CHECK-NEXT: }
+  // C HECK-NEXT: {
+  // C HECK-NEXT: BinaryOperator {{.*}} '+'
+  // C HECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // C HECK-NEXT:     DeclRefExpr {{.*}} 'arr_int'
+  // C HECK-NEXT:     IntegerLiteral {{.*}} 1
+  // C HECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // C HECK-NEXT:   DeclRefExpr {{.*}} 'arr'
+  // C HECK-NEXT: }
+  // C HECK-NEXT: {
+  // C HECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<const int>' <NoOp>
+  // C HECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // C HECK-NEXT:     DeclRefExpr {{.*}} 'arr_int'
+  // C HECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // C HECK-NEXT:   DeclRefExpr {{.*}} 'arr_const'
+  // C HECK-NEXT: }
+  // C HECK-NEXT: }
 
   // Original value of arr_int: arr_const
   // Updated UEQ: { { arr_const + 1, arr } }
@@ -1345,15 +1345,15 @@ void original_value16(array_ptr<int> arr_int, array_ptr<const int> arr_const, ar
   // CHECK-NEXT:     IntegerLiteral {{.*}} 0
   // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: {
-  // CHECK-NEXT: BinaryOperator {{.*}} '+'
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr_const'
-  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
-  // CHECK-NEXT: }
-  // CHECK-NEXT: }
+  // C HECK-NEXT: {
+  // C HECK-NEXT: BinaryOperator {{.*}} '+'
+  // C HECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // C HECK-NEXT:     DeclRefExpr {{.*}} 'arr_const'
+  // C HECK-NEXT:   IntegerLiteral {{.*}} 1
+  // C HECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // C HECK-NEXT:   DeclRefExpr {{.*}} 'arr'
+  // C HECK-NEXT: }
+  // C HECK-NEXT: }
 }
 
 // Original value is a value-preserving cast of another variable
@@ -1368,14 +1368,14 @@ void original_value17(array_ptr<int> arr_int, array_ptr<const int> arr_const, ar
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr_const'
   // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: {
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<int>' <NoOp>
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr_const'
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr_int'
-  // CHECK-NEXT: }
-  // CHECK-NEXT: }
+  // C HECK-NEXT: {
+  // C HECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<int>' <NoOp>
+  // C HECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // C HECK-NEXT:     DeclRefExpr {{.*}} 'arr_const'
+  // C HECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // C HECK-NEXT:   DeclRefExpr {{.*}} 'arr_int'
+  // C HECK-NEXT: }
+  // C HECK-NEXT: }
 
   // Updated UEQ: { { (array_ptr<int>)arr_const, arr_int }, { arr_int + 1, arr } }
   arr = arr_int + 1;
@@ -1388,22 +1388,22 @@ void original_value17(array_ptr<int> arr_int, array_ptr<const int> arr_const, ar
   // CHECK-NEXT:     IntegerLiteral {{.*}} 1
   // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: {
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<int>' <NoOp>
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr_const'
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr_int'
-  // CHECK-NEXT: }
-  // CHECK-NEXT: {
-  // CHECK-NEXT: BinaryOperator {{.*}} '+'
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr_int'
-  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
-  // CHECK-NEXT: }
-  // CHECK-NEXT: }
+  // C HECK-NEXT: {
+  // C HECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<int>' <NoOp>
+  // C HECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // C HECK-NEXT:     DeclRefExpr {{.*}} 'arr_const'
+  // C HECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // C HECK-NEXT:   DeclRefExpr {{.*}} 'arr_int'
+  // C HECK-NEXT: }
+  // C HECK-NEXT: {
+  // C HECK-NEXT: BinaryOperator {{.*}} '+'
+  // C HECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // C HECK-NEXT:     DeclRefExpr {{.*}} 'arr_int'
+  // C HECK-NEXT:   IntegerLiteral {{.*}} 1
+  // C HECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // C HECK-NEXT:   DeclRefExpr {{.*}} 'arr'
+  // C HECK-NEXT: }
+  // C HECK-NEXT: }
 
   // Original value of arr_int: (array_ptr<int>)arr_const
   // Updated UEQ: { { (array_ptr<int>)arr_const + 1, arr } }
@@ -1415,16 +1415,16 @@ void original_value17(array_ptr<int> arr_int, array_ptr<const int> arr_const, ar
   // CHECK-NEXT:     IntegerLiteral {{.*}} 0
   // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
-  // CHECK-NEXT: {
-  // CHECK-NEXT: BinaryOperator {{.*}} '+'
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} '_Array_ptr<int>' <NoOp>
-  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr_const'
-  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
-  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
-  // CHECK-NEXT: }
-  // CHECK-NEXT: }
+  // C HECK-NEXT: {
+  // C HECK-NEXT: BinaryOperator {{.*}} '+'
+  // C HECK-NEXT:   ImplicitCastExpr {{.*}} '_Array_ptr<int>' <NoOp>
+  // C HECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // C HECK-NEXT:       DeclRefExpr {{.*}} 'arr_const'
+  // C HECK-NEXT:   IntegerLiteral {{.*}} 1
+  // C HECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // C HECK-NEXT:   DeclRefExpr {{.*}} 'arr'
+  // C HECK-NEXT: }
+  // C HECK-NEXT: }
 }
 
 // The left-hand side variable is the original value

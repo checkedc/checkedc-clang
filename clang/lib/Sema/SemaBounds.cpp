@@ -3855,8 +3855,10 @@ namespace {
         Lexicographic Lex(S.Context, nullptr);
         Expr *E = Lex.IgnoreValuePreservingOperations(S.Context, *I);
         DeclRefExpr *W = GetRValueVariable(E);
-        if (W != nullptr && !EqualValue(S.Context, V, W, nullptr))
-          return *I;
+        if (W != nullptr && !EqualValue(S.Context, V, W, nullptr)) {
+          if (S.Context.typesAreCompatible(V->getType(), (*I)->getType()))
+            return *I;
+        }
       }
 
       return nullptr;
