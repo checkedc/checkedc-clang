@@ -19,7 +19,7 @@ namespace clang {
 namespace clangd {
   // Convert the provided Diagnostic into Commands
   void AsCCCommands(const Diagnostic &D, std::vector<Command> &OutCommands);
-  // Check if the execute command request from the client is a CConv command
+  // Check if the execute command request from the client is a CConv command.
   bool IsCConvCommand(const ExecuteCommandParams &Params);
 
   // Interpret the provided execute command request as CConv command

@@ -19,7 +19,7 @@
 namespace clang {
 namespace clangd {
 
-// class that represents diagnostics messages specific to CConv
+// Class that represents diagnostics messages specific to CConv.
 class CConvertDiagnostics {
 public:
   std::mutex DiagMutex;

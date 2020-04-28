@@ -103,7 +103,7 @@ void constrainEq(ConstraintVariable *LHS,
         CVars CRHS = PCRHS->getCvars();
         // We equate the constraints in a left-justified manner.
         // This to handle cases like: e.g., p = &q;
-        // here, we need to equate the inside constraint variables
+        // Here, we need to equate the inside constraint variables
         CVars::reverse_iterator I = CLHS.rbegin();
         CVars::reverse_iterator J = CRHS.rbegin();
         while (I != CLHS.rend() && J != CRHS.rend()) {
@@ -213,7 +213,7 @@ public:
     Expr *finalExpr = RHS;
     if (lhsType->isFunctionPointerType()) {
       // We are assigning to a function pointer. Lets first get the
-      // function definition
+      // function definition.
       Decl *targetDecl = nullptr;
       while (targetDecl == nullptr && finalExpr != nullptr) {
         if (DeclRefExpr *DRE =
@@ -673,7 +673,8 @@ private:
         // This could be a function pointer,
         // get the declaration of the function pointer variable
         // with in the caller context.
-        std::set<ConstraintVariable*> V = Info.getVariable(DD, Context, true);
+        std::set<ConstraintVariable*> V =
+            Info.getVariable(DD, Context, true);
         if (V.size() > 0) {
           for (const auto &C : V) {
             FVConstraint *FV = nullptr;
@@ -714,7 +715,7 @@ private:
               // This can happen when someone does something really wacky, like
               // cast a char* to a function pointer, then call it. Constrain
               // everything.
-              // what we do is, constraint all arguments to wild.
+              // What we do is, constraint all arguments to wild.
               constraintAllArgumentsToWild(E);
               Constraints &CS = Info.getConstraints();
               // Also constraint parameter with-in the body to WILD.

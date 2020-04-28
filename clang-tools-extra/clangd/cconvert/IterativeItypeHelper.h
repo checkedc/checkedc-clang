@@ -35,7 +35,8 @@ bool identifyModifiedFunctions(Constraints &CS,
 // provided set of functions (modifiedFunctions). Note that, these are the
 // detections made by the tool, i.e., not the ones provided by user.
 unsigned long detectAndUpdateITypeVars(ProgramInfo &Info,
-                                       std::set<std::string> &modifiedFunctions);
+                                       std::set<std::string> &
+                                           modifiedFunctions);
 
 // Set up a map of constraint variables.
 // So that we know if a function constraint variables are modified.

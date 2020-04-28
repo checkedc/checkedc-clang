@@ -29,7 +29,7 @@ struct DAndReplace
     Stmt        *Statement;   // The Stmt, if it exists.
     std::string Replacement;  // The string to replace the declaration with.
     bool        fullDecl;     // If the declaration is a function, true if
-    // replace the entire declaration or just the
+    // Replace the entire declaration or just the
     // return declaration.
     DAndReplace() : Declaration(nullptr),
                     Statement(nullptr),
@@ -85,7 +85,7 @@ struct DComp
 
 typedef std::set<DAndReplace, DComp> RSet;
 
-// class that maintains global variables according to the line numbers
+// Class that maintains global variables according to the line numbers
 // this groups global variables according to the line numbers in source files.
 // All global variables that belong to the same file and are on the same line
 // will be in the same group.
@@ -93,7 +93,7 @@ typedef std::set<DAndReplace, DComp> RSet;
 // where as
 // int *c;
 // int *d
-// will be in different groups
+// will be in different groups.
 
 class GlobalVariableGroups {
 public:
@@ -142,9 +142,9 @@ void rewrite( Rewriter              &R,
 class ArrayBoundsRewriter {
 public:
   ArrayBoundsRewriter(ASTContext *C, ProgramInfo &I): Context(C), Info(I) {}
-  // compute the possible bounds for all the array variables.
+  // Compute the possible bounds for all the array variables.
   void computeArrayBounds();
-  // get the string representation of the bounds for the given variable.
+  // Get the string representation of the bounds for the given variable.
   std::string getBoundsString(Decl *decl, bool isitype = false);
 private:
   ASTContext *Context;
@@ -156,7 +156,8 @@ class TypeRewritingVisitor : public RecursiveASTVisitor<TypeRewritingVisitor> {
 public:
   explicit TypeRewritingVisitor(ASTContext *C, ProgramInfo &I,
                                 RSet &DR, std::set<std::string> &V,
-                                std::map<std::string, std::string> &newFuncSig, ArrayBoundsRewriter &ArrRewriter)
+                                std::map<std::string, std::string> &newFuncSig,
+                                ArrayBoundsRewriter &ArrRewriter)
           : Context(C), Info(I), rewriteThese(DR), VisitedSet(V),
             ModifiedFuncSignatures(newFuncSig), ABRewriter(ArrRewriter) {}
 
@@ -165,11 +166,12 @@ public:
   bool isFunctionVisited(std::string funcName);
 private:
   std::set<unsigned int> getParamsForExtern(std::string);
-  // get existing itype string from constraint variables.
+  // Get existing itype string from constraint variables.
   // if tries to get the string from declaration, however,
   // if there is no declaration of the function,
   // it will try to get it from the definition.
-  std::string getExistingIType(ConstraintVariable *decl, ConstraintVariable *defn,
+  std::string getExistingIType(ConstraintVariable *decl,
+                               ConstraintVariable *defn,
                                FunctionDecl *funcDecl);
   bool anyTop(std::set<ConstraintVariable*>);
   ASTContext            *Context;
@@ -183,13 +185,14 @@ private:
 
 class RewriteConsumer : public ASTConsumer {
 public:
-  explicit RewriteConsumer(ProgramInfo &I, ASTContext *Context, std::string &OPostfix) :
+  explicit RewriteConsumer(ProgramInfo &I, ASTContext *Context,
+                           std::string &OPostfix) :
                            Info(I), OutputPostfix(OPostfix) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context);
 
 private:
-  // functions to handle modified signatures and ensuring that
+  // Functions to handle modified signatures and ensuring that
   // we always use the latest signature.
   static std::string getModifiedFuncSignature(std::string funcName);
   static bool hasModifiedSignature(std::string funcName);

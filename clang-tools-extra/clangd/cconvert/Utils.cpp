@@ -105,21 +105,21 @@ clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *itypeExpr) {
   TypeSourceInfo * interopTypeInfo = itypeExpr->getTypeInfoAsWritten();
   const clang::Type *innerType = interopTypeInfo->getType().getTypePtr();
   if (innerType->isCheckedPointerNtArrayType()) {
-    return CheckedPointerKind ::NtArray;
+    return CheckedPointerKind::NtArray;
   }
   if (innerType->isCheckedPointerArrayType()) {
-    return CheckedPointerKind ::Array;
+    return CheckedPointerKind::Array;
   }
   if (innerType->isCheckedPointerType()) {
-    return CheckedPointerKind ::Ptr;
+    return CheckedPointerKind::Ptr;
   }
   return CheckedPointerKind::Unchecked;
 }
 
-// check if function body exists for the
+// Check if function body exists for the
 // provided declaration.
 bool hasFunctionBody(clang::Decl *param) {
-  // if this a parameter?
+  // If this a parameter?
   if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(param)) {
     if (DeclContext *DC = PD->getParentFunctionOrMethod()) {
       FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
@@ -129,7 +129,7 @@ bool hasFunctionBody(clang::Decl *param) {
     }
     return false;
   }
-  // else this should be within body and
+  // Else this should be within body and
   // the function body should exist.
   return true;
 }
@@ -139,12 +139,12 @@ static std::string storageClassToString(StorageClass SC) {
     case StorageClass::SC_Static: return "static ";
     case StorageClass::SC_Extern: return "extern ";
     case StorageClass::SC_Register: return "register ";
-    // for all other cases, we do not care.
+    // For all other cases, we do not care.
     default: return "";
   }
 }
 
-// this method gets the storage qualifier for the
+// This method gets the storage qualifier for the
 // provided declaration i.e., static, extern, etc.
 std::string getStorageQualifierString(Decl *D) {
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
@@ -157,19 +157,20 @@ std::string getStorageQualifierString(Decl *D) {
 }
 
 bool isNULLExpression(clang::Expr *expr, ASTContext &Ctx) {
-  // this checks if the expression is NULL. Specifically, (void*)0
+  // This checks if the expression is NULL. Specifically, (void*)0
   if (CStyleCastExpr *CS = dyn_cast<CStyleCastExpr>(expr)) {
     Expr *subExpr = CS->getSubExpr();
 
     return subExpr->isIntegerConstantExpr(Ctx) &&
-           subExpr->isNullPointerConstant(Ctx, Expr::NPC_ValueDependentIsNotNull);
+           subExpr->isNullPointerConstant(Ctx,
+                                          Expr::NPC_ValueDependentIsNotNull);
   }
   return false;
 }
 
 bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP) {
-  // get absolute path of the provided file
-  // returns true if successful else false
+  // Get absolute path of the provided file
+  // returns true if successful else false.
   SmallString<255> abs_path(fileName);
   llvm::sys::fs::make_absolute(BaseDir,abs_path);
   absoluteFP = abs_path.str();
@@ -247,7 +248,7 @@ bool canWrite(const std::string &filePath) {
   // Was this file explicitly provided on the command line?
   if (inputFilePaths.count(filePath) > 0)
     return true;
-  // get the absolute path of the file and check that
+  // Get the absolute path of the file and check that
   // the file path starts with the base directory.
   std::string fileAbsPath = filePath;
   getAbsoluteFilePath(filePath, fileAbsPath);

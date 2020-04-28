@@ -103,7 +103,8 @@ bool ArrayBoundsInformation::hasBoundsInformation(Decl *decl) {
 
 ArrayBoundsInformation::BOUNDSINFOTYPE
 ArrayBoundsInformation::getBoundsInformation(Decl *decl) {
-  assert(hasBoundsInformation(decl) && "Has no bounds information for the decl");
+  assert(hasBoundsInformation(decl) &&
+         "Has no bounds information for the decl");
   ConstraintKey arrCKey = getTopLevelConstraintVar(decl);
   return *(BoundsInfo[arrCKey].begin());
 }

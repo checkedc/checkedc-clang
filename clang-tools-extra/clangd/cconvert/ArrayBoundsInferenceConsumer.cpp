@@ -224,7 +224,7 @@ bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
     }
 
     if (identifiedArrayVars.size() > 0 && potentialLengthFields.size() > 0) {
-      // first check for variable name match?
+      // First check for variable name match?
       for (auto ptrField : identifiedArrayVars) {
         for (auto lenField: potentialLengthFields) {
           if (hasNameMatch(ptrField->getNameAsString(),

@@ -462,7 +462,7 @@ void ClangdLSPServer::onShutdown(const ShutdownParams &Params,
                                  Callback<std::nullptr_t> Reply) {
 #ifdef INTERACTIVECCCONV
   sendCConvMessage("Writing all CheckedC files back to disk");
-  // write all files back
+  // Write all files back.
   auto &allDiags = Server->CConvDiagInfo.GetAllFilesDiagnostics();
   for (auto &currF: allDiags) {
     Server->cconvCloseDocument(currF.first);
@@ -531,7 +531,7 @@ void ClangdLSPServer::onFileEvent(const DidChangeWatchedFilesParams &Params) {
 #ifdef INTERACTIVECCCONV
 void ClangdLSPServer::ccConvResultsReady(std::string targetFileName,
                                          bool clearDiags) {
-  // Get the diagnostics and update the client
+  // Get the diagnostics and update the client.
   std::vector<Diag> Diagnostics;
   Diagnostics.clear();
   if (!clearDiags) {
@@ -549,7 +549,7 @@ void ClangdLSPServer::ccConvResultsReady(std::string targetFileName,
 }
 
 void ClangdLSPServer::sendCConvMessage(std::string msg) {\
- // send message as info to the client
+ // Send message as info to the client.
   notify("window/showMessage",
          llvm::json::Object{
              // Info message.
@@ -561,7 +561,7 @@ void ClangdLSPServer::sendCConvMessage(std::string msg) {\
 void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
                                 Callback<llvm::json::Value> Reply) {
 #ifdef INTERACTIVECCCONV
-  // In this mode, we support only CConv commands
+  // In this mode, we support only CConv commands.
   if(IsCConvCommand(Params)) {
     Server->executeCConvCommand(Params, this);
     Reply("CConv Background work scheduled.");
@@ -815,7 +815,7 @@ void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
 #ifdef INTERACTIVECCCONV
   URIForFile File = Params.textDocument.uri;
   std::vector<Command> CCommands;
-  // Convert the diagnostics into CConv commands
+  // Convert the diagnostics into CConv commands.
   for (const Diagnostic &D : Params.context.diagnostics) {
     AsCCCommands(D, CCommands);
   }
@@ -917,7 +917,7 @@ void ClangdLSPServer::onSignatureHelp(const TextDocumentPositionParams &Params,
 #ifdef INTERACTIVECCCONV
 void ClangdLSPServer::onCodeLens(const CodeLensParams &Params,
                                  Callback<llvm::json::Value> Reply) {
-  // This is just a beacon to display for user
+  // This is just a beacon to display for user.
   std::vector<CodeLens> allCodeLens;
   CodeLens ccBecon;
   ccBecon.range.start.line = 15;
@@ -1138,7 +1138,7 @@ ClangdLSPServer::ClangdLSPServer(
 #endif
   // clang-format off
 #ifdef INTERACTIVECCCONV
-// we only support these methods in Interactive CConv mode
+  // We only support these methods in Interactive CConv mode.
   MsgHandler->bind("initialize", &ClangdLSPServer::onInitialize);
   MsgHandler->bind("shutdown", &ClangdLSPServer::onShutdown);
   MsgHandler->bind("sync", &ClangdLSPServer::onSync);

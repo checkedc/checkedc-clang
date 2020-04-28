@@ -211,7 +211,7 @@ void dumpConstraintOutputJson(const std::string &postfixStr,
 std::pair<Constraints::ConstraintSet, bool>
     solveConstraintsWithFunctionSubTyping(ProgramInfo &Info,
                                       unsigned iterationID) {
-// Solve the constrains by handling function sub-typing.
+  // Solve the constrains by handling function sub-typing.
   Constraints &CS = Info.getConstraints();
   unsigned numIterations = 0;
   std::pair<Constraints::ConstraintSet, bool> toRet;
@@ -231,7 +231,7 @@ std::pair<Constraints::ConstraintSet, bool>
       dumpConstraintOutputJson(logFileName, Info);
     }
     else {
-      // we reached a fixed point.
+      // We reached a fixed point.
       fixed = true;
     }
     localIteration++;

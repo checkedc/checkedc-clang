@@ -65,41 +65,41 @@ bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP);
 
 bool isNULLExpression(clang::Expr *expr, clang::ASTContext &Ctx);
 
-// get the time spent in seconds since the provided time stamp.
+// Get the time spent in seconds since the provided time stamp.
 float getTimeSpentInSeconds(clock_t startTime);
 
-// check if the function has varargs i.e., foo(<named_arg>,...)
+// Check if the function has varargs i.e., foo(<named_arg>,...)
 bool functionHasVarArgs(clang::FunctionDecl *FD);
 
-// check if the function is a allocator.
+// Check if the function is a allocator.
 bool isFunctionAllocator(std::string funcName);
 
 // Is the given variable built  in type?
 bool isPointerType(clang::VarDecl *VD);
 
-// check if provided type is a var arg type?
+// Check if provided type is a var arg type?
 bool isVarArgType(const std::string &typeName);
 
-// check if the variable is of a structure or union type.
+// Check if the variable is of a structure or union type.
 bool isStructOrUnionType(clang::VarDecl *VD);
 
 // Helper method to print a Type in a way that can be represented in the source.
 std::string tyToStr(const clang::Type *T);
 
-// get the end source location of the end of the provided function.
+// Get the end source location of the end of the provided function.
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD,
                                                 clang::SourceManager &S);
 
-// remove auxillary casts from the provided expression.
+// Remove auxillary casts from the provided expression.
 clang::Expr* removeAuxillaryCasts(clang::Expr *srcExpr);
 
-// check if the provided file path belongs to the input project
-// and can be rewritten
+// Check if the provided file path belongs to the input project
+// and can be rewritten.
 bool canWrite(const std::string &filePath);
 
-// check if the provided variable has void as one of its type
+// Check if the provided variable has void as one of its type.
 bool hasVoidType(clang::ValueDecl *D);
-// check if the provided type has void as one of its type
+// Check if the provided type has void as one of its type
 bool isTypeHasVoid(clang::QualType QT);
 
 // Simple Bimap implementation, with only STL dependency

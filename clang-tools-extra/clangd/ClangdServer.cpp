@@ -170,16 +170,18 @@ void ClangdServer::addDocument(PathRef File, llvm::StringRef Contents,
 }
 
 #ifdef INTERACTIVECCCONV
-void ClangdServer::reportCConvDiagsForAllFiles(DisjointSet &ccInfo, CConvLSPCallBack *ConvCB) {
-  // update the diag information for all the valid files.
+void ClangdServer::reportCConvDiagsForAllFiles(DisjointSet &ccInfo,
+                                               CConvLSPCallBack *ConvCB) {
+  // Update the diag information for all the valid files.
   for (auto &srcFileDiags: CConvDiagInfo.GetAllFilesDiagnostics()) {
     ConvCB->ccConvResultsReady(srcFileDiags.first);
   }
 }
 
-void ClangdServer::clearCConvDiagsForAllFiles(DisjointSet &ccInfo, CConvLSPCallBack *ConvCB) {
+void ClangdServer::clearCConvDiagsForAllFiles(DisjointSet &ccInfo,
+                                              CConvLSPCallBack *ConvCB) {
   for (auto &srcFileDiags: CConvDiagInfo.GetAllFilesDiagnostics()) {
-    // clear diags for all files.
+    // Clear diags for all files.
     ConvCB->ccConvResultsReady(srcFileDiags.first, true);
   }
 }

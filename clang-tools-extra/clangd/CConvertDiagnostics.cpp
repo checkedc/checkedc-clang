@@ -44,7 +44,7 @@ bool CConvertDiagnostics::PopulateDiagsFromDisjointSet(DisjointSet &CCRes) {
     if (CCRes.PtrSourceMap.find(wReason.first) != CCRes.PtrSourceMap.end()) {
       auto *psInfo = CCRes.PtrSourceMap[wReason.first];
       std::string filePath = psInfo->getFileName();
-      // if this is not a file in a project? Then ignore.
+      // If this is not a file in a project? Then ignore.
       if (!IsValidSourceFile(CCRes, filePath))
         continue;
 
@@ -55,13 +55,15 @@ bool CConvertDiagnostics::PopulateDiagsFromDisjointSet(DisjointSet &CCRes) {
       newDiag.Source = Diag::CConvMain;
       newDiag.Severity = DiagnosticsEngine::Level::Error;
       newDiag.code = std::to_string(wReason.first);
-      newDiag.Message = "Pointer is wild because of:" + wReason.second.WildPtrReason;
+      newDiag.Message = "Pointer is wild because of:" +
+                        wReason.second.WildPtrReason;
 
-      // Create notes for the information about root cause
+      // Create notes for the information about root cause.
       if (wReason.second.IsValid) {
         Note diagNote;
         diagNote.AbsFile = wReason.second.SourceFileName;
-        diagNote.Range = GetLocRange(wReason.second.LineNo, wReason.second.ColStart);
+        diagNote.Range = GetLocRange(wReason.second.LineNo,
+                                     wReason.second.ColStart);
         diagNote.Message = "Go here to know the root cause for this.";
         newDiag.Notes.push_back(diagNote);
       }
@@ -69,14 +71,14 @@ bool CConvertDiagnostics::PopulateDiagsFromDisjointSet(DisjointSet &CCRes) {
     }
   }
 
-  // for non-direct wild pointers..update the reason and diag information.
+  // For non-direct wild pointers..update the reason and diag information.
   for (auto nonWildCK: CCRes.TotalNonDirectWildPointers) {
     if (processedCKeys.find(nonWildCK) == processedCKeys.end()) {
       processedCKeys.insert(nonWildCK);
       if (CCRes.PtrSourceMap.find(nonWildCK) != CCRes.PtrSourceMap.end()) {
         auto *psInfo = CCRes.PtrSourceMap[nonWildCK];
         std::string filePath = psInfo->getFileName();
-        // if this is not a file in a project? Then ignore.
+        // If this is not a file in a project? Then ignore.
         if (!IsValidSourceFile(CCRes, filePath))
           continue;
 
@@ -87,7 +89,8 @@ bool CConvertDiagnostics::PopulateDiagsFromDisjointSet(DisjointSet &CCRes) {
         newDiag.code = std::to_string(nonWildCK);
         newDiag.Source = Diag::CConvSec;
         newDiag.Severity = DiagnosticsEngine::Level::Warning;
-        newDiag.Message = "Pointer is wild because it transitively depends on other pointer(s)";
+        newDiag.Message = "Pointer is wild because it transitively "
+                          "depends on other pointer(s)";
 
         // find the pointer group
         auto directWildPtrKey = CCRes.GetLeader(nonWildCK);
@@ -95,8 +98,10 @@ bool CConvertDiagnostics::PopulateDiagsFromDisjointSet(DisjointSet &CCRes) {
         CVars directWildPtrs;
         directWildPtrs.clear();
         std::set_intersection(ptrGroup.begin(), ptrGroup.end(),
-                              CCRes.AllWildPtrs.begin(), CCRes.AllWildPtrs.end(),
-                              std::inserter(directWildPtrs, directWildPtrs.begin()));
+                              CCRes.AllWildPtrs.begin(),
+                              CCRes.AllWildPtrs.end(),
+                              std::inserter(directWildPtrs,
+                                            directWildPtrs.begin()));
 
         unsigned maxPtrReasons = 4;
         for (auto tC : directWildPtrs) {

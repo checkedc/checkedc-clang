@@ -72,7 +72,7 @@ VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAtoms,
           if (newC) {
             // Add the constraint.
             if (!CS.addConstraint(newC)) {
-              // if this is already added?
+              // If this is already added?
               // delete it.
               delete(newC);
             }
@@ -367,7 +367,7 @@ bool Constraints::step_solve(EnvironmentMap &env) {
               changedEnvironment = true;
               // Check if we can make it an Arr?
             } else if (*Val < *getArr() && canAssignConst<ArrAtom>(Var)) {
-              // Yes? make it Arr
+              // Yes? make it Arr.
               VI->second = getArr();
               changedEnvironment = true;
             }

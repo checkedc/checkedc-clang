@@ -23,17 +23,20 @@ std::string ConstraintVariable::getRewritableOriginalTy() {
   std::string originalTyString = getOriginalTy();
   std::string spaceStr = " ";
   std::string asterixStr = "*";
-  // if the type does not end with " " or *
+  // If the type does not end with " " or *
   // we need to add space.
-  if (!std::equal(spaceStr.rbegin(), spaceStr.rend(), originalTyString.rbegin()) &&
-     !std::equal(asterixStr.rbegin(), asterixStr.rend(), originalTyString.rbegin())) {
+  if (!std::equal(spaceStr.rbegin(), spaceStr.rend(),
+                  originalTyString.rbegin()) &&
+     !std::equal(asterixStr.rbegin(), asterixStr.rend(),
+                  originalTyString.rbegin())) {
     originalTyString += " ";
   }
   return originalTyString;
 }
 
 ConstraintVariable*
-ConstraintVariable::getHighestNonWildConstraint(std::set<ConstraintVariable*> &toCheck,
+ConstraintVariable::getHighestNonWildConstraint(std::set<ConstraintVariable*>
+                                                &toCheck,
                                                 Constraints::EnvironmentMap &E,
                                                 ProgramInfo &I) {
   ConstraintVariable *highestConVar = nullptr;
@@ -187,7 +190,8 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       // indexes K to the qualification of QTy, if any.
       if (QTy.isConstQualified())
         QualMap.insert(
-                std::pair<ConstraintKey, Qualification>(K, ConstQualification));
+                std::pair<ConstraintKey, Qualification>(K,
+                                                    ConstQualification));
 
       arrSizes[K] = std::pair<OriginalArrType,uint64_t>(O_Pointer,0);
 
@@ -480,7 +484,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E,
   }
 
   if (emittedBase == false) {
-    // If we have a FV pointer, then our "base" type is a function pointer
+    // If we have a FV pointer, then our "base" type is a function pointer.
     // type.
     if (FV) {
       ss << FV->mkString(E);
@@ -611,7 +615,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   // This has to be a mapping for all parameter/return types, even those that
   // aren't pointer types. If we need to re-emit the function signature
   // as a type, then we will need the types for all the parameters and the
-  // return values
+  // return values.
 
   returnVars.insert(new PVConstraint(returnType, K, D, "", CS, Ctx, true));
   std::string rsn = "Function pointer return value.";
@@ -791,7 +795,7 @@ bool PointerVariableConstraint::canConstraintCKey(Constraints &CS,
       doAdd = false;
   }
   // See, if we can constrain the current constraint var to the provided
-  // ConstAtom
+  // ConstAtom.
   if (!CS.getOrCreateVar(ck)->canAssign(CA))
     doAdd = false;
 
@@ -897,7 +901,8 @@ bool PointerVariableConstraint::hasNtArr(Constraints::EnvironmentMap &E)
   return false;
 }
 
-ConstAtom* PointerVariableConstraint::getHighestType(Constraints::EnvironmentMap &E) {
+ConstAtom*
+PointerVariableConstraint::getHighestType(Constraints::EnvironmentMap &E) {
   ConstAtom *toRet = nullptr;
   for (const auto& C: vars) {
     VarAtom V(C);

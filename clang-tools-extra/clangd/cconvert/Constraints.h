@@ -328,7 +328,8 @@ public:
   }
 
   bool operator<(const Atom &other) const {
-    if (llvm::isa<PtrAtom>(&other) || llvm::isa<ArrAtom>(&other) || *this == other)
+    if (llvm::isa<PtrAtom>(&other) || llvm::isa<ArrAtom>(&other) ||
+        *this == other)
       return false;
     else
       return true;
@@ -621,7 +622,8 @@ public:
   }
 
   bool containsConstraint(VarAtom *toFind) {
-    return premise->containsConstraint(toFind) || conclusion->containsConstraint(toFind);
+    return premise->containsConstraint(toFind) ||
+           conclusion->containsConstraint(toFind);
   }
 
 private:
