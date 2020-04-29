@@ -23,35 +23,35 @@ public:
       : Context(_C), Info(_I), MF(_MF) {}
 
   bool VisitFunctionDecl(FunctionDecl *FD) {
-    auto fn = FD->getNameAsString();
-    bool isThisAnExternFunction = FD->isGlobal() && Info.isAnExternFunction(fn);
-    if (FD->doesThisDeclarationHaveABody() || isThisAnExternFunction) {
-      std::vector<IsChecked> checked;
-      int pi = 0;
+    auto Fn = FD->getNameAsString();
+    bool AnExternFunction = FD->isGlobal() && Info.isAnExternFunction(Fn);
+    if (FD->doesThisDeclarationHaveABody() || AnExternFunction) {
+      std::vector<IsChecked> ParmTypes;
+      int Pi = 0;
       auto &CS = Info.getConstraints();
-      for (auto &param : FD->parameters()) {
-        bool foundWild = false;
-        std::set<ConstraintVariable *> cvs = Info.getVariable(param,
-                                                              Context, FD, pi);
-        for (auto cv : cvs) {
-          foundWild |= cv->hasWild(CS.getVariables());
+      for (auto &Param : FD->parameters()) {
+        bool IsWild = false;
+        std::set<ConstraintVariable *> Cvs = Info.getVariable(Param,
+                                                              Context, FD, Pi);
+        for (auto Cv : Cvs) {
+          IsWild |= Cv->hasWild(CS.getVariables());
           // If this an extern function, then check if there is
           // any explicit annotation to. If not? then add a cast.
-          if (isThisAnExternFunction && !foundWild) {
-            if (PVConstraint *PV = dyn_cast<PVConstraint>(cv)) {
+          if (AnExternFunction && !IsWild) {
+            if (PVConstraint *PV = dyn_cast<PVConstraint>(Cv)) {
               for (auto cKey: PV->getCvars()) {
                 if (PV->canConstraintCKey(CS, cKey, CS.getWild(), true)) {
-                  foundWild = true;
+                  IsWild = true;
                   break;
                 }
               }
             }
           }
         }
-        checked.push_back(foundWild ? WILD : CHECKED);
-        pi++;
+        ParmTypes.push_back(IsWild ? WILD : CHECKED);
+        Pi++;
       }
-      MF[fn] = checked;
+      MF[Fn] = ParmTypes;
     }
 
     return false;

@@ -12,46 +12,47 @@
 
 // Map that stored the newly detected itype parameters and
 // returns that are detected in this iteration.
-static Constraints::EnvironmentMap currIterationItypeMap;
+static Constraints::EnvironmentMap IterationItypeMap;
 // Map that contains the constraint variables of parameters
 // and its return for all functions (including their declarations
 // and definitions). This map is used to determine new detection of itypes.
 static std::map<std::string,
-                std::map<VarAtom*, ConstAtom*>> funcParamsReturnSavedValues;
+                std::map<VarAtom*, ConstAtom*>>
+    ParamsReturnSavedValues;
 
 // This method saves the constraint vars of parameters and return of all
 // the provided FVConstraint vars with default value as null.
 // These are used to later check if anything has changed, in which case the
 // corresponding function will be considered as modified.
 static void
-updateFunctionConstraintVars(std::string funcUniqKey,
+updateFunctionConstraintVars(std::string FuncKey,
                              Constraints &CS,
-                             std::set<ConstraintVariable*> &fvconstraintVars) {
-  for (auto topVar: fvconstraintVars) {
+                             std::set<ConstraintVariable*> &FVConstVars) {
+  for (auto TopVar : FVConstVars) {
     // If this is a function constraint?
-    if (FVConstraint *fvCons = dyn_cast<FVConstraint>(topVar)) {
+    if (FVConstraint *FvCons = dyn_cast<FVConstraint>(TopVar)) {
       // Update the variables of function parameters.
-      for (unsigned i = 0; i < fvCons->numParams(); i++) {
-        for (ConstraintVariable *paramVar: fvCons->getParamVar(i)) {
-          assert(dyn_cast<PVConstraint>(paramVar) && "Expected a pointer "
+      for (unsigned i = 0; i < FvCons->numParams(); i++) {
+        for (ConstraintVariable *PVar : FvCons->getParamVar(i)) {
+          assert(dyn_cast<PVConstraint>(PVar) && "Expected a pointer "
                                                      "variable constraint.");
-          PVConstraint *pvConst = dyn_cast<PVConstraint>(paramVar);
-          for (auto cVar: pvConst->getCvars()) {
-            VarAtom *currVarAtom = CS.getVar(cVar);
+          PVConstraint *PvConst = dyn_cast<PVConstraint>(PVar);
+          for (auto ConsVar : PvConst->getCvars()) {
+            VarAtom *CurrVarAtom = CS.getVar(ConsVar);
             // Default value is null.
-            funcParamsReturnSavedValues[funcUniqKey][currVarAtom] = nullptr;
+            ParamsReturnSavedValues[FuncKey][CurrVarAtom] = nullptr;
           }
         }
       }
       // Update the variables of function return vars.
-      for (ConstraintVariable *returnVar: fvCons->getReturnVars()) {
-        assert(dyn_cast<PVConstraint>(returnVar) && "Expected a pointer "
+      for (ConstraintVariable *ReturnVar : FvCons->getReturnVars()) {
+        assert(dyn_cast<PVConstraint>(ReturnVar) && "Expected a pointer "
                                                     "variable constraint.");
-        PVConstraint *retVarConst = dyn_cast<PVConstraint>(returnVar);
-        for (auto cVar: retVarConst->getCvars()) {
-          VarAtom *currVarAtom = CS.getVar(cVar);
+        PVConstraint *RetVarCons = dyn_cast<PVConstraint>(ReturnVar);
+        for (auto ConsVar : RetVarCons->getCvars()) {
+          VarAtom *CurrVarAtom = CS.getVar(ConsVar);
           // The default value is null.
-          funcParamsReturnSavedValues[funcUniqKey][currVarAtom] = nullptr;
+          ParamsReturnSavedValues[FuncKey][CurrVarAtom] = nullptr;
         }
       }
     }
@@ -59,90 +60,89 @@ updateFunctionConstraintVars(std::string funcUniqKey,
 }
 
 bool identifyModifiedFunctions(Constraints &CS,
-                               std::set<std::string> &modifiedFunctions) {
-  modifiedFunctions.clear();
+                               std::set<std::string> &ModFuncs) {
+  ModFuncs.clear();
   // Get the current values.
-  Constraints::EnvironmentMap &currEnvMap = CS.getVariables();
+  Constraints::EnvironmentMap &EnvMap = CS.getVariables();
   // Check to see if they differ from previous values.
-  for (auto &prevFuncVals: funcParamsReturnSavedValues) {
-    std::string funcDefKey = prevFuncVals.first;
-    for (auto &currVar: prevFuncVals.second) {
+  for (auto &FuncVals : ParamsReturnSavedValues) {
+    std::string DefKey = FuncVals.first;
+    for (auto &CurrVar : FuncVals.second) {
       // Check if the value of the constraint variable changed?
       // then we consider the corresponding function as modified.
-      if (currEnvMap[currVar.first] != currVar.second) {
-        currVar.second = currEnvMap[currVar.first];
-        modifiedFunctions.insert(funcDefKey);
+      if (EnvMap[CurrVar.first] != CurrVar.second) {
+        CurrVar.second = EnvMap[CurrVar.first];
+        ModFuncs.insert(DefKey);
       }
     }
   }
-  return !modifiedFunctions.empty();
+  return !ModFuncs.empty();
 }
 
 unsigned long resetWithitypeConstraints(Constraints &CS) {
-  Constraints::EnvironmentMap backupDeclConstraints;
-  backupDeclConstraints.clear();
-  Constraints::EnvironmentMap &currEnvMap = CS.getVariables();
-  unsigned long numConstraintsRemoved = 0;
+  Constraints::EnvironmentMap DeclConstraints;
+  DeclConstraints.clear();
+  Constraints::EnvironmentMap &EnvMap = CS.getVariables();
+  unsigned long Removed = 0;
 
-  Constraints::EnvironmentMap toRemoveVAtoms;
+  Constraints::EnvironmentMap ToRemoveVAtoms;
 
   // Restore the erased constraints.
   // Now, try to remove constraints that
   // depend on ityped constraint variables.
 
   // Make a map of constraints to remove.
-  for (auto &currITypeVar: currIterationItypeMap) {
-    ConstAtom *targetCons = currITypeVar.second;
-    if (!dyn_cast<NTArrAtom>(currITypeVar.second)) {
+  for (auto &ITypeVar : IterationItypeMap) {
+    ConstAtom *targetCons = ITypeVar.second;
+    if (!dyn_cast<NTArrAtom>(ITypeVar.second)) {
       targetCons = nullptr;
     }
-    toRemoveVAtoms[currITypeVar.first] = targetCons;
+    ToRemoveVAtoms[ITypeVar.first] = targetCons;
   }
 
   // Now try to remove the constraints.
-  for (auto &currE: currEnvMap) {
-    currE.first->resetErasedConstraints();
-    numConstraintsRemoved +=
-        currE.first->replaceEqConstraints(toRemoveVAtoms, CS);
+  for (auto &CurrE : EnvMap) {
+    CurrE.first->resetErasedConstraints();
+    Removed += CurrE.first->replaceEqConstraints(ToRemoveVAtoms, CS);
   }
 
   // Check if we removed any constraints?
-  if (numConstraintsRemoved > 0) {
+  if (Removed > 0) {
     // We removed constraints.
     // Reset everything.
 
     // Backup the computed results of
     // declaration parameters and returns.
-    for (auto &currITypeVar: CS.getitypeVarMap()) {
-      backupDeclConstraints[currITypeVar.first] =
-          currEnvMap[CS.getVar(currITypeVar.first->getLoc())];
+    for (auto &ITypeVar : CS.getitypeVarMap()) {
+      DeclConstraints[ITypeVar.first] =
+          EnvMap[CS.getVar(ITypeVar.first->getLoc())];
     }
 
     // Reset all constraints to Ptrs.
     CS.resetConstraints();
 
     // Restore the precomputed constraints for declarations.
-    for (auto &currITypeVar: backupDeclConstraints) {
-      currEnvMap[CS.getVar(currITypeVar.first->getLoc())] = currITypeVar.second;
+    for (auto &ITypeVar: DeclConstraints) {
+      EnvMap[CS.getVar(ITypeVar.first->getLoc())] = ITypeVar.second;
     }
   }
 
-  return numConstraintsRemoved;
+  return Removed;
 
 }
 
 // This method updates the pointer type of the declaration constraint variable
 // with the type of the definition constraint variable.
-static bool updateDeclWithDefnType(ConstraintVariable *decl,
-                                   ConstraintVariable *defn,
+static bool updateDeclWithDefnType(ConstraintVariable *Pdecl,
+                                   ConstraintVariable *Pdefn,
                                    ProgramInfo &Info) {
   Constraints &CS = Info.getConstraints();
-  bool changesHappened = false;
+  bool Changed = false;
   // Get the itype map where we store the pointer type of
   // the declaration constraint variables.
-  Constraints::EnvironmentMap &itypeMap = CS.getitypeVarMap();
-  PVConstraint *PVDeclCons = dyn_cast<PVConstraint>(decl);
-  PVConstraint *PVDefnCons = dyn_cast<PVConstraint>(defn);
+  Constraints::EnvironmentMap &ItypeMap = CS.getitypeVarMap();
+  PVConstraint *PVDeclCons = dyn_cast<PVConstraint>(Pdecl);
+  PVConstraint *PVDefnCons = dyn_cast<PVConstraint>(Pdefn);
 
   // These has to be pointer constraint variables.
   assert(PVDeclCons != nullptr && PVDefnCons != nullptr &&
@@ -150,104 +150,104 @@ static bool updateDeclWithDefnType(ConstraintVariable *decl,
          "but got nullptr");
 
   // Get the pointer type of the top level definition constraint variable.
-  ConstAtom *itypeAtom = CS.getAssignment(*(PVDefnCons->getCvars().begin()));
-  auto declTopCVar = *(PVDeclCons->getCvars().begin());
+  ConstAtom *ItypeAtom = CS.getAssignment(*(PVDefnCons->getCvars().begin()));
+  auto DeclTopCVar = *(PVDeclCons->getCvars().begin());
 
-  assert(itypeAtom != nullptr && "Unable to find assignment for definition "
+  assert(ItypeAtom != nullptr && "Unable to find assignment for definition "
                                  "constraint variable.");
 
-  VarAtom *cK = CS.getVar(declTopCVar);
-  if (itypeMap.find(cK) == itypeMap.end() || itypeMap[cK] != itypeAtom) {
+  VarAtom *CK = CS.getVar(DeclTopCVar);
+  if (ItypeMap.find(CK) == ItypeMap.end() || ItypeMap[CK] != ItypeAtom) {
     // Update the type of the declaration constraint variable.
-    itypeMap[cK] = itypeAtom;
-    currIterationItypeMap[cK] = itypeAtom;
-    changesHappened = true;
+    ItypeMap[CK] = ItypeAtom;
+    IterationItypeMap[CK] = ItypeAtom;
+    Changed = true;
   }
 
-  return changesHappened;
+  return Changed;
 }
 
 unsigned long detectAndUpdateITypeVars(ProgramInfo &Info,
-                                       std::set<std::string> &modifiedFunctions) {
+                                       std::set<std::string> &ModFuncs) {
   Constraints &CS = Info.getConstraints();
-  unsigned long numITypeVars = 0;
+  unsigned long NumITypeVars = 0;
   // Clear the current iteration itype vars.
-  currIterationItypeMap.clear();
-  for (auto funcDefKey: modifiedFunctions) {
-    FVConstraint *cDefn =
-        getHighestT<FVConstraint>(CS.getFuncDefnVarMap()[funcDefKey], Info);
+  IterationItypeMap.clear();
+  for (auto FuncDefKey : ModFuncs) {
+    FVConstraint *CDefn =
+        getHighestT<FVConstraint>(CS.getFuncDefnVarMap()[FuncDefKey], Info);
 
-    auto declConstraintsPtr = Info.getFuncDeclConstraintSet(funcDefKey);
-    assert(declConstraintsPtr != nullptr && "This cannot be nullptr, "
+    auto DeclConstraintsPtr = Info.getFuncDeclConstraintSet(FuncDefKey);
+    assert(DeclConstraintsPtr != nullptr && "This cannot be nullptr, "
                                             "if it was null, we would never "
                                             "have inserted this info into "
                                             "modified functions.");
-    FVConstraint *cDecl = getHighestT<FVConstraint>(*declConstraintsPtr, Info);
+    FVConstraint *CDecl = getHighestT<FVConstraint>(*DeclConstraintsPtr, Info);
 
-    assert(cDecl != nullptr);
-    assert(cDefn != nullptr);
+    assert(CDecl != nullptr);
+    assert(CDefn != nullptr);
 
-    if (cDecl->numParams() == cDefn->numParams()) {
+    if (CDecl->numParams() == CDefn->numParams()) {
       // Compare parameters.
-      for (unsigned i = 0; i < cDecl->numParams(); ++i) {
-        auto Decl = getHighestT<PVConstraint>(cDecl->getParamVar(i), Info);
-        auto Defn = getHighestT<PVConstraint>(cDefn->getParamVar(i), Info);
+      for (unsigned i = 0; i < CDecl->numParams(); ++i) {
+        auto Decl = getHighestT<PVConstraint>(CDecl->getParamVar(i), Info);
+        auto Defn = getHighestT<PVConstraint>(CDefn->getParamVar(i), Info);
         if (ProgramInfo::isAValidPVConstraint(Decl) &&
             ProgramInfo::isAValidPVConstraint(Defn)) {
-          auto topDeclCVar = *(Decl->getCvars().begin());
-          auto topDefnCVar = *(Defn->getCvars().begin());
+          auto HeadDeclCVar = *(Decl->getCvars().begin());
+          auto HeadDefnCVar = *(Defn->getCvars().begin());
 
           // Definition is more precise than declaration
           // and declaration has to be WILD.
           // If this holds, then we want to insert a bounds safe interface.
-          if (!CS.isWild(topDefnCVar) && CS.isWild(topDeclCVar) &&
+          if (!CS.isWild(HeadDefnCVar) && CS.isWild(HeadDeclCVar) &&
               updateDeclWithDefnType(Decl, Defn, Info)) {
-            numITypeVars++;
+            NumITypeVars++;
           }
         }
       }
     }
 
     // Compare returns.
-    auto Decl = getHighestT<PVConstraint>(cDecl->getReturnVars(), Info);
-    auto Defn = getHighestT<PVConstraint>(cDefn->getReturnVars(), Info);
+    auto Decl = getHighestT<PVConstraint>(CDecl->getReturnVars(), Info);
+    auto Defn = getHighestT<PVConstraint>(CDefn->getReturnVars(), Info);
 
     if (ProgramInfo::isAValidPVConstraint(Decl) &&
         ProgramInfo::isAValidPVConstraint(Defn)) {
 
-      auto topDeclCVar = *(Decl->getCvars().begin());
-      auto topDefnCVar = *(Defn->getCvars().begin());
+      auto HeadDeclCVar = *(Decl->getCvars().begin());
+      auto HeadDefnCVar = *(Defn->getCvars().begin());
 
       // Definition is more precise than declaration
       // and declaration has to be WILD.
-      if (!CS.isWild(topDefnCVar) && CS.isWild(topDeclCVar) &&
+      if (!CS.isWild(HeadDefnCVar) && CS.isWild(HeadDeclCVar) &&
           updateDeclWithDefnType(Decl, Defn, Info)) {
-        numITypeVars++;
+        NumITypeVars++;
       }
     }
   }
-  return numITypeVars;
+  return NumITypeVars;
 }
 
 bool performConstraintSetup(ProgramInfo &Info) {
-  bool hasSome = false;
+  bool Ret = false;
   Constraints &CS = Info.getConstraints();
-  for (auto &currFDef: CS.getFuncDefnVarMap()) {
+  for (auto &FDef : CS.getFuncDefnVarMap()) {
     // Get the key for the function definition.
-    auto funcDefKey = currFDef.first;
-    std::set<ConstraintVariable *> &defCVars = currFDef.second;
+    auto DefKey = FDef.first;
+    std::set<ConstraintVariable *> &DefCVars = FDef.second;
 
-    std::set<ConstraintVariable *> *declCVarsPtr =
-        Info.getFuncDeclConstraintSet(funcDefKey);
+    std::set<ConstraintVariable *> *DeclCVarsPtr =
+        Info.getFuncDeclConstraintSet(DefKey);
 
-    if (declCVarsPtr != nullptr) {
+    if (DeclCVarsPtr != nullptr) {
       // Okay, we have constraint variables for declaration.
       // There could be a possibility of itypes.
       // Save the var atoms.
-      updateFunctionConstraintVars(funcDefKey, CS, defCVars);
-      hasSome = true;
+      updateFunctionConstraintVars(DefKey, CS, DefCVars);
+      Ret = true;
     }
   }
-  return hasSome;
+  return Ret;
 }
 
