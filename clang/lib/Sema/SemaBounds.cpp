@@ -643,8 +643,9 @@ namespace {
 
 namespace {
   // BoundsContextTy denotes a map of a variable declaration to a bounds
-  // expression for the variable.
-  using BoundsContextTy = llvm::DenseMap<VarDecl *, BoundsExpr *>;
+  // expression for the variable (e.g. the variable's declared bounds or the
+  // observed bounds for the variable that are updated during bounds checking).
+  using BoundsContextTy = llvm::DenseMap<const VarDecl *, BoundsExpr *>;
 
   // EqualExprTy denotes a set of expressions that produce the same value
   // as an expression e.
@@ -840,11 +841,11 @@ namespace {
         // variable declarations in the context ordered first by name,
         // then by location in order to guarantee a deterministic output
         // so that printing the bounds context can be tested.
-        std::vector<VarDecl *> OrderedDecls;
+        std::vector<const VarDecl *> OrderedDecls;
         for (auto Pair : Context)
           OrderedDecls.push_back(Pair.first);
         llvm::sort(OrderedDecls.begin(), OrderedDecls.end(),
-             [] (VarDecl *A, VarDecl *B) {
+             [] (const VarDecl *A, const VarDecl *B) {
                if (A->getNameAsString() == B->getNameAsString())
                  return A->getLocation() < B->getLocation();
                else
@@ -853,7 +854,7 @@ namespace {
 
         OS << "{\n";
         for (auto I = OrderedDecls.begin(); I != OrderedDecls.end(); ++I) {
-          VarDecl *Variable = *I;
+          const VarDecl *Variable = *I;
           if (!Context[Variable])
             continue;
           OS << "Variable:\n";
@@ -3680,7 +3681,7 @@ namespace {
       // Adjust ObservedBounds to account for any uses of v in
       // PrevState.ObservedBounds.
       for (auto Pair : State.ObservedBounds) {
-        VarDecl *Decl = Pair.first;
+        const VarDecl *Decl = Pair.first;
         BoundsExpr *Bounds = Pair.second;
         BoundsExpr *AdjustedBounds = ReplaceVariableInBounds(Bounds, V, OV, CSS);
         State.ObservedBounds[Decl] = AdjustedBounds;
