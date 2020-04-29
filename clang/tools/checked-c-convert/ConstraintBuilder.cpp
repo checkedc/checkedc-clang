@@ -171,17 +171,19 @@ public:
         if (D->getType()->isArrayType()) {
           // Try to see if this is a multi-dimensional array?
           // if yes, assign ARR constraint to all the inside vars.
-          const clang::Type *currTypePtr = D->getType().getTypePtr();
+          const clang::Type *TypePtr = D->getType().getTypePtr();
           Constraints &CS = Info.getConstraints();
           std::set<ConstraintVariable*> Var = Info.getVariable(D, Context, true);
           assert(Var.size() == 1 && "Invalid number of ConstraintVariables.");
-          const CVars &PtrCVars = (dyn_cast<PVConstraint>(*(Var.begin())))->getCvars();
-          for (ConstraintKey cKey: PtrCVars) {
-            if (const clang::ArrayType *AT = dyn_cast<clang::ArrayType>(currTypePtr)) {
+          const CVars &PtrCVars =
+              (dyn_cast<PVConstraint>(*(Var.begin())))->getCvars();
+          for (ConstraintKey ConsKey : PtrCVars) {
+            if (const clang::ArrayType *AT =
+                    dyn_cast<clang::ArrayType>(TypePtr)) {
               CS.addConstraint(
                 CS.createEq(
-                  CS.getOrCreateVar(cKey), CS.getArr()));
-              currTypePtr = AT->getElementType().getTypePtr();
+                  CS.getOrCreateVar(ConsKey), CS.getArr()));
+              TypePtr = AT->getElementType().getTypePtr();
               continue;
             }
             break;
@@ -220,7 +222,7 @@ public:
   // an expression which might produce constraint variables, or, it might 
   // be some expression like NULL, an integer constant or a cast.
   void constrainLocalAssign( std::set<ConstraintVariable*> V,
-                        QualType lhsType,
+                        QualType LhsType,
                         Expr *RHS) {
     if (!RHS || V.size() == 0)
       return;
@@ -242,13 +244,13 @@ public:
       if (getDeclaration(Calle) != nullptr) {
         Calle = getDeclaration(Calle);
       }
-      bool itypeHandled = false;
+      bool ItypeHandled = false;
       // If this function return an itype?
       if (Calle->hasInteropTypeExpr()) {
-        itypeHandled = handleITypeAssignment(V, Calle->getInteropTypeExpr());
+        ItypeHandled = handleITypeAssignment(V, Calle->getInteropTypeExpr());
       }
       // If this is not an itype
-      if (!itypeHandled) {
+      if (!ItypeHandled) {
         // Get the constraint variable corresponding to the declaration.
         RHSConstraints = Info.getVariable(RHS, Context, false);
         if (RHSConstraints.size() > 0) {
@@ -281,9 +283,9 @@ public:
         if (CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(SE))
           SE = Temp->getSubExpr();
         RHSConstraints = Info.getVariable(SE, Context);
-        QualType rhsTy = RHS->getType();
-        bool rulesFired = false;
-        if (Info.checkStructuralEquality(V, RHSConstraints, lhsType, rhsTy)) {
+        QualType RhsTy = RHS->getType();
+        bool RulesFired = false;
+        if (Info.checkStructuralEquality(V, RHSConstraints, LhsType, RhsTy)) {
           // This has become a little stickier to think about.
           // What do you do here if we determine that two things with
           // very different arity are structurally equal? Is that even
@@ -299,31 +301,31 @@ public:
             RHSConstraints = Info.getVariable(SE, Context);
             // Is this a call to malloc? Can we coerce the callee
             // to a NamedDecl?
-            FunctionDecl *calleeDecl =
+            FunctionDecl *CalleeDecl =
               dyn_cast<FunctionDecl>(CA->getCalleeDecl());
-            if (calleeDecl && isFunctionAllocator(calleeDecl->getName())) {
+            if (CalleeDecl && isFunctionAllocator(CalleeDecl->getName())) {
               // This is an allocator, should we treat it as safe?
               if (!AllocUnsafe) {
-                rulesFired = true;
+                RulesFired = true;
               } else {
                 // It's a call to allocator. What about the parameter
                 // to the call?
                 if (CA->getNumArgs() > 0) {
-                  UnaryExprOrTypeTraitExpr *arg =
+                  UnaryExprOrTypeTraitExpr *Arg =
                     dyn_cast<UnaryExprOrTypeTraitExpr>(CA->getArg(0));
-                  if (arg && arg->isArgumentType()) {
+                  if (Arg && Arg->isArgumentType()) {
                     // Check that the argument is a sizeof.
-                    if (arg->getKind() == UETT_SizeOf) {
-                      QualType argTy = arg->getArgumentType();
+                    if (Arg->getKind() == UETT_SizeOf) {
+                      QualType ArgTy = Arg->getArgumentType();
                       // argTy should be made a pointer, then compared for
                       // equality to lhsType and rhsTy.
-                      QualType argPTy = Context->getPointerType(argTy);
+                      QualType ArgPTy = Context->getPointerType(ArgTy);
 
                       if (Info.checkStructuralEquality(V, RHSConstraints,
-                                                       argPTy, lhsType) &&
+                                                       ArgPTy, LhsType) &&
                           Info.checkStructuralEquality(V, RHSConstraints,
-                                                       argPTy, rhsTy)) {
-                        rulesFired = true;
+                                                       ArgPTy, RhsTy)) {
+                        RulesFired = true;
                         // At present, I don't think we need to add an
                         // implication based constraint since this rule
                         // only fires if there is a cast from a call to malloc.
@@ -340,9 +342,9 @@ public:
 
         // If none of the above rules for cast behavior fired, then
         // we need to fall back to doing something conservative.
-        if (rulesFired == false) {
+        if (RulesFired == false) {
           // Is the explicit cast safe?
-          if (!Info.isExplicitCastSafe(lhsType, SE->getType())) {
+          if (!Info.isExplicitCastSafe(LhsType, SE->getType())) {
             // Constrain everything in both to top.
             // Remove the casts from RHS and try again to get a variable
             // from it. We want to constrain that side to wild as well.
@@ -469,14 +471,14 @@ public:
           Info.getVariable(A, Context, true);
 
         if (i < FD->getNumParams()) {
-          bool handled = false;
+          bool Handled = false;
           if (FD->getParamDecl(i)->hasInteropTypeExpr()) {
             // try handling interop parameters.
-            handled =
+            Handled =
                 handleITypeAssignment(ArgumentConstraints,
                                       FD->getParamDecl(i)->getInteropTypeExpr());
           }
-          if (!handled) {
+          if (!Handled) {
             // Here, we need to get the constraints of the
             // parameter from the callee's declaration.
             std::set<ConstraintVariable*> ParameterConstraints =
@@ -497,9 +499,9 @@ public:
             assignType(ArgumentConstraints, CS.getWild());
           } else {
             if (Verbose) {
-              std::string funcName = FD->getName();
-              errs() << "Ignoring function as it contains varargs:" <<
-                  funcName << "\n";
+              std::string FuncName = FD->getName();
+              errs() << "Ignoring function as it contains varargs:" << FuncName
+                     << "\n";
             }
           }
         }
@@ -646,32 +648,32 @@ private:
 
   // Handle the assignment of constraint variables to an itype expression.
   bool handleITypeAssignment(std::set<ConstraintVariable*> &Vars,
-                             InteropTypeExpr *expr) {
-    bool isHandled = false;
-    CheckedPointerKind ptrKind = getCheckedPointerKind(expr);
+                             InteropTypeExpr *IExpr) {
+    bool Handled = false;
+    CheckedPointerKind PtrKind = getCheckedPointerKind(IExpr);
     // Currently we only handle NT arrays.
-    if (ptrKind == CheckedPointerKind::NtArray) {
-      isHandled = true;
+    if (PtrKind == CheckedPointerKind::NtArray) {
+      Handled = true;
       Constraints &CS = Info.getConstraints();
       // Assign the corresponding checked type only to the top level
       // constraint var.
-      for (auto cVar:Vars) {
-        if (PVConstraint *PV = dyn_cast<PVConstraint>(cVar))
+      for (auto ConsVar :Vars) {
+        if (PVConstraint *PV = dyn_cast<PVConstraint>(ConsVar))
           if (!PV->getCvars().empty())
             CS.addConstraint(CS.createEq(
                 CS.getOrCreateVar(*PV->getCvars().begin()),
-                getCheckedPointerConstraint(ptrKind)));
+                getCheckedPointerConstraint(PtrKind)));
       }
     }
     // Is this handled or propagation through itype has been disabled.
     // In which case, all itypes values will be handled.
-    return isHandled || !EnablePropThruIType;
+    return Handled || !EnablePropThruIType;
   }
 
   // Constraint all the provided vars to be not equal to the provided
   // type i.e., ~(V = type).
   void constrainVarsNotEq(std::set<ConstraintVariable*> &Vars,
-                          ConstAtom *type) {
+                          ConstAtom *CAtom) {
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Vars)
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
@@ -679,20 +681,20 @@ private:
           CS.addConstraint(
             CS.createNot(
               CS.createEq(
-                CS.getOrCreateVar(*(PVC->getCvars().begin())), type)));
+                CS.getOrCreateVar(*(PVC->getCvars().begin())), CAtom)));
       }
   }
 
   // Constraint all the provided vars to equal to the provided
   // type i.e., (V = type).
-  void constrainVarsEq(std::set<ConstraintVariable*> &Vars, ConstAtom *type) {
+  void constrainVarsEq(std::set<ConstraintVariable*> &Vars, ConstAtom *CAtom) {
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Vars)
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
         if (PVC->getCvars().size() > 0)
           CS.addConstraint(
             CS.createEq(
-              CS.getOrCreateVar(*(PVC->getCvars().begin())), type));
+              CS.getOrCreateVar(*(PVC->getCvars().begin())), CAtom));
       }
   }
 
@@ -707,24 +709,24 @@ private:
   }
 
   // Constraint helpers.
-  void constraintInBodyVariable(Expr *e, ConstAtom *target) {
+  void constraintInBodyVariable(Expr *e, ConstAtom *CAtom) {
     std::set<ConstraintVariable*> Var =
       Info.getVariable(e, Context, true);
-    constrainVarsEq(Var, target);
+    constrainVarsEq(Var, CAtom);
   }
 
-  void constraintInBodyVariable(Decl *d, ConstAtom *target) {
+  void constraintInBodyVariable(Decl *d, ConstAtom *CAtom) {
     std::set<ConstraintVariable*> Var =
       Info.getVariable(d, Context, true);
-    constrainVarsEq(Var, target);
+    constrainVarsEq(Var, CAtom);
   }
 
   // Assign the provided type (target) to all the constraint variables (CVars).
   void assignType(std::set<ConstraintVariable*> &CVars,
-                  ConstAtom *target) {
+                  ConstAtom *CAtom) {
     Constraints &CS = Info.getConstraints();
     for (const auto &C : CVars) {
-      C->constrainTo(CS, target);
+      C->constrainTo(CS, CAtom);
     }
   }
 
@@ -746,9 +748,9 @@ private:
     constrainInBodyExprNotPtr(O->getRHS());
   }
 
-  ConstAtom* getCheckedPointerConstraint(CheckedPointerKind ptrKind) {
+  ConstAtom* getCheckedPointerConstraint(CheckedPointerKind PtrKind) {
     Constraints &CS = Info.getConstraints();
-    switch(ptrKind) {
+    switch(PtrKind) {
       case CheckedPointerKind::NtArray:
         return CS.getNTArr();
       case CheckedPointerKind::Array:
@@ -762,17 +764,17 @@ private:
     assert(false && "Invalid Pointer kind.");
   }
 
-  Expr* getNormalizedExpr(Expr *CE) {
-    if (dyn_cast<ImplicitCastExpr>(CE)) {
-      CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
+  Expr* getNormalizedExpr(Expr *E) {
+    if (dyn_cast<ImplicitCastExpr>(E)) {
+      E = (dyn_cast<ImplicitCastExpr>(E))->getSubExpr();
     }
-    if (dyn_cast<CHKCBindTemporaryExpr>(CE)) {
-      CE = (dyn_cast<CHKCBindTemporaryExpr>(CE))->getSubExpr();
+    if (dyn_cast<CHKCBindTemporaryExpr>(E)) {
+      E = (dyn_cast<CHKCBindTemporaryExpr>(E))->getSubExpr();
     }
-    if (dyn_cast<ImplicitCastExpr>(CE)) {
-      CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
+    if (dyn_cast<ImplicitCastExpr>(E)) {
+      E = (dyn_cast<ImplicitCastExpr>(E))->getSubExpr();
     }
-    return CE;
+    return E;
   }
 
   ASTContext *Context;

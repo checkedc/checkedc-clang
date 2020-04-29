@@ -1466,11 +1466,11 @@ bool ProgramInfo::computePointerDisjointSet() {
       VarAtom *VLhs = dyn_cast<VarAtom>(EC->getLHS());
       if (dyn_cast<WildAtom>(EC->getRHS())) {
         wildPtrsReason[VLhs->getLoc()].WildPtrReason = EC->getReason();
-        if (!EC->sourceFileName.empty() && EC->lineNo != 0) {
+        if (!EC->FileName.empty() && EC->LineNo != 0) {
           wildPtrsReason[VLhs->getLoc()].IsValid = true;
-          wildPtrsReason[VLhs->getLoc()].SourceFileName = EC->sourceFileName;
-          wildPtrsReason[VLhs->getLoc()].LineNo = EC->lineNo;
-          wildPtrsReason[VLhs->getLoc()].ColStart = EC->colStart;
+          wildPtrsReason[VLhs->getLoc()].SourceFileName = EC->FileName;
+          wildPtrsReason[VLhs->getLoc()].LineNo = EC->LineNo;
+          wildPtrsReason[VLhs->getLoc()].ColStart = EC->ColStart;
         }
         allWILDPtrs.insert(VLhs->getLoc());
       } else {
