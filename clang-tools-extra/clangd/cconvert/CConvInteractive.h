@@ -59,21 +59,21 @@ public:
   // Make the provided pointer non-WILD and also make all the
   // pointers, which are wild because of the same reason, as non-wild
   // as well.
-  bool InvalidateWildReasonGlobally(ConstraintKey targetPtr);
+  bool InvalidateWildReasonGlobally(ConstraintKey PtrKey);
 
   // Initialize CConv interface.
   bool InitializeCConvert(clang::tooling::CommonOptionsParser &OptionsParser,
-                          struct CConvertOptions &options);
+                          struct CConvertOptions &CCopt);
 
   // Build initial constraints.
   bool BuildInitialConstraints();
 
   // Write the current converted state of the provided file.
-  bool WriteConvertedFileToDisk(const std::string &filePath);
+  bool WriteConvertedFileToDisk(const std::string &FilePath);
 
 private:
   void ResetAllPointerConstraints();
-  void InvalidateAllConstraintsWithReason(Constraint *constraintToRemove);
+  void InvalidateAllConstraintsWithReason(Constraint *ConstraintToRemove);
 
 };
 

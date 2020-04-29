@@ -303,7 +303,7 @@ public:
               dyn_cast<FunctionDecl>(CA->getCalleeDecl());
             if (calleeDecl && isFunctionAllocator(calleeDecl->getName())) {
               // This is an allocator, should we treat it as safe?
-              if (!considerAllocUnsafe) {
+              if (!AllocUnsafe) {
                 rulesFired = true;
               } else {
                 // It's a call to allocator. What about the parameter
@@ -492,7 +492,7 @@ public:
         } else {
           // This is the case of an argument passed to a function with varargs.
           // Constrain this parameter to be wild.
-          if (handleVARARGS) {
+          if (HandleVARARGS) {
             Constraints &CS = Info.getConstraints();
             assignType(ArgumentConstraints, CS.getWild());
           } else {
@@ -665,7 +665,7 @@ private:
     }
     // Is this handled or propagation through itype has been disabled.
     // In which case, all itypes values will be handled.
-    return isHandled || !enablePropThruIType;
+    return isHandled || !EnablePropThruIType;
   }
 
   // Constraint all the provided vars to be not equal to the provided

@@ -42,46 +42,46 @@ public:
 
   // Helper methods for adding bounds information to various
   // declaration objects.
-  bool addBoundsInformation(FieldDecl *arrFD, FieldDecl *lenFD);
-  bool addBoundsInformation(FieldDecl *arrFD, Expr *expr);
-  bool addBoundsInformation(FieldDecl *arrFD, BOUNDSINFOTYPE binfo);
+  bool addBoundsInformation(FieldDecl *ArrFd, FieldDecl *LenFD);
+  bool addBoundsInformation(FieldDecl *ArrFd, Expr *E);
+  bool addBoundsInformation(FieldDecl *ArrFd, BOUNDSINFOTYPE Binfo);
 
   // For function parameters.
-  bool addBoundsInformation(ParmVarDecl *arrFD, ParmVarDecl *lenFD);
-  bool addBoundsInformation(ParmVarDecl *arrFD, BOUNDSINFOTYPE binfo);
+  bool addBoundsInformation(ParmVarDecl *ArrFd, ParmVarDecl *LenFd);
+  bool addBoundsInformation(ParmVarDecl *ArrFd, BOUNDSINFOTYPE Binfo);
 
   // For local variables.
-  bool addBoundsInformation(VarDecl *arrFD, VarDecl *lenFD);
-  bool addBoundsInformation(VarDecl *arrFD, Expr *expr);
-  bool addBoundsInformation(VarDecl *arrFD, BOUNDSINFOTYPE binfo);
+  bool addBoundsInformation(VarDecl *ArrFd, VarDecl *LenFd);
+  bool addBoundsInformation(VarDecl *ArrFd, Expr *E);
+  bool addBoundsInformation(VarDecl *ArrFd, BOUNDSINFOTYPE Binfo);
 
   // Remove all the bounds information for the provided declaration.
-  bool removeBoundsInformation(Decl *decl);
+  bool removeBoundsInformation(Decl *D);
 
   // Check if the provided declaration has bounds information.
-  bool hasBoundsInformation(Decl *decl);
+  bool hasBoundsInformation(Decl *D);
 
   // Get bounds information for the provided declaration.
-  BOUNDSINFOTYPE getBoundsInformation(Decl *decl);
+  BOUNDSINFOTYPE getBoundsInformation(Decl *D);
 
   // Get bounds info from expression. Here, srcField indicates
   // if the bounds is for structure field, in which case this method
   // tries to enforce certain restrictions on the type of bounds info.
-  BOUNDSINFOTYPE getExprBoundsInfo(FieldDecl *srcField, Expr *expr);
+  BOUNDSINFOTYPE getExprBoundsInfo(FieldDecl *Field, Expr *E);
 
   // Combine the provided bounds info by using the provided
   // infix operator op.
-  BOUNDSINFOTYPE combineBoundsInfo(FieldDecl *srcField,
-                                   BOUNDSINFOTYPE &bounds1,
-                                   BOUNDSINFOTYPE &bounds2,
-                                   std::string op);
+  BOUNDSINFOTYPE combineBoundsInfo(FieldDecl *Field,
+                                   BOUNDSINFOTYPE &B1,
+                                   BOUNDSINFOTYPE &B2,
+                                   std::string OpStr);
 
 private:
   // Get the constraint key of the top level pointer of provided declaration.
-  ConstraintKey getTopLevelConstraintVar(Decl *decl);
+  ConstraintKey getTopLevelConstraintVar(Decl *D);
 
   // Check if the provided bounds kind is valid for a field.
-  bool isValidBoundKindForField(BoundsKind targetBoundKind);
+  bool isValidBoundKindForField(BoundsKind BoundsKind);
 
   // Map that contains the bounds information.
   std::map<ConstraintKey, std::set<BOUNDSINFOTYPE>> BoundsInfo;

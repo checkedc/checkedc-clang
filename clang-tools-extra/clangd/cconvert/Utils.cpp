@@ -246,7 +246,7 @@ bool hasVoidType(clang::ValueDecl *D) {
 
 bool canWrite(const std::string &filePath) {
   // Was this file explicitly provided on the command line?
-  if (inputFilePaths.count(filePath) > 0)
+  if (FilePaths.count(filePath) > 0)
     return true;
   // Get the absolute path of the file and check that
   // the file path starts with the base directory.

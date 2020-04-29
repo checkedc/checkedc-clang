@@ -23,7 +23,7 @@ ProgramInfo::ProgramInfo() :
   freeKey(0), persisted(true) {
   ArrBoundsInfo = new ArrayBoundsInformation(*this);
   OnDemandFuncDeclConstraint.clear();
-  performMultipleRewrites = false;
+  MultipleRewrites = false;
 }
 
 
@@ -631,7 +631,7 @@ void ProgramInfo::performDefnDeclarationAssociation(FunctionDecl *FD, ASTContext
         if (foundSymbol.first != funcKey) {
           if (foundSymbol.second->hasBody() != thisHasBody || !thisHasBody) {
             // Declarations across multiple files and should be rewritten.
-            performMultipleRewrites = true;
+            MultipleRewrites = true;
           }
           // This is a definition and we have seen a declaration.
           if (thisHasBody && !foundSymbol.second->hasBody()) {

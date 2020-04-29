@@ -169,7 +169,7 @@ public:
 
   // Perform multiple rewrites because declarations are spread across multiple
   // files and need to be rewritten multiple times.
-  bool performMultipleRewrites;
+  bool MultipleRewrites;
 
   // Check if the given function is an extern function.
   bool isAnExternFunction(const std::string &funcName);

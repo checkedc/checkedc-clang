@@ -18,67 +18,67 @@
 #include "Utils.h"
 #include "ArrayBoundsInformation.h"
 
-static std::set<std::string> possibleLengthVarNamesPrefixes = {"len", "count",
+static std::set<std::string> LengthVarNamesPrefixes = {"len", "count",
                                                                "size", "num"};
-static std::set<std::string> possibleLengthVarNamesSubstring = {"length"};
+static std::set<std::string> LengthVarNamesSubstring = {"length"};
 #define PREFIXLENRATIO 1
 
 // Name based heuristics.
-static bool hasNameMatch(std::string ptrName, std::string lenFieldName) {
+static bool hasNameMatch(std::string PtrName, std::string FieldName) {
   // If the name field starts with ptrName?
-  if (lenFieldName.rfind(ptrName, 0) == 0)
+  if (FieldName.rfind(PtrName, 0) == 0)
     return true;
 
   return false;
 }
 
-std::string commonPrefixUtil(std::string str1, std::string str2) {
-  std::string result;
-  int n1 = str1.length(), n2 = str2.length();
+std::string commonPrefixUtil(std::string Str1, std::string Str2) {
+  std::string Res;
+  int n1 = Str1.length(), n2 = Str2.length();
 
   // Compare str1 and str2
   for (int i=0, j=0; i<=n1-1 && j<=n2-1; i++,j++) {
-    if (str1[i] != str2[j])
+    if (Str1[i] != Str2[j])
       break;
-    result.push_back(str1[i]);
+    Res.push_back(Str1[i]);
   }
-  return (result);
+  return (Res);
 }
 
-static bool prefixNameMatch(std::string ptrName, std::string lenFieldName) {
-    std::string commonPrefix = commonPrefixUtil(ptrName, lenFieldName);
-    if (commonPrefix.length() > 0)
-      return (ptrName.length() / commonPrefix.length()) <= PREFIXLENRATIO;
+static bool prefixNameMatch(std::string PtrName, std::string FieldName) {
+    std::string Prefix = commonPrefixUtil(PtrName, FieldName);
+    if (Prefix.length() > 0)
+      return (PtrName.length() / Prefix.length()) <= PREFIXLENRATIO;
 
     return false;
 }
 
-static bool fieldNameMatch(std::string lenFieldName) {
+static bool fieldNameMatch(std::string FieldName) {
   // Convert the field name to lower case.
-  std::transform(lenFieldName.begin(), lenFieldName.end(), lenFieldName.begin(),
+  std::transform(FieldName.begin(), FieldName.end(), FieldName.begin(),
                  [](unsigned char c){ return std::tolower(c); });
-  for (auto &potentialName : possibleLengthVarNamesPrefixes) {
-    if (lenFieldName.rfind(potentialName, 0) == 0)
+  for (auto &PName : LengthVarNamesPrefixes) {
+    if (FieldName.rfind(PName, 0) == 0)
       return true;
   }
 
-  for (auto &potentialName : possibleLengthVarNamesSubstring) {
-    if (lenFieldName.find(potentialName) != std::string::npos)
+  for (auto &TmpName : LengthVarNamesSubstring) {
+    if (FieldName.find(TmpName) != std::string::npos)
       return true;
   }
   return false;
 }
 
-static bool hasLengthKeyword(std::string varName) {
+static bool hasLengthKeyword(std::string VarName) {
   // Convert the field name to lower case.
-  std::transform(varName.begin(), varName.end(), varName.begin(),
+  std::transform(VarName.begin(), VarName.end(), VarName.begin(),
                  [](unsigned char c){ return std::tolower(c); });
 
-  std::set<std::string> allLengthKeywords(possibleLengthVarNamesPrefixes);
-  allLengthKeywords.insert(possibleLengthVarNamesSubstring.begin(),
-                           possibleLengthVarNamesSubstring.end());
-  for (auto &potentialName : allLengthKeywords) {
-    if (varName.find(potentialName) != std::string::npos)
+  std::set<std::string> LengthKeywords(LengthVarNamesPrefixes);
+  LengthKeywords.insert(LengthVarNamesSubstring.begin(),
+                           LengthVarNamesSubstring.end());
+  for (auto &PName : LengthKeywords) {
+    if (VarName.find(PName) != std::string::npos)
       return true;
   }
   return false;
@@ -86,8 +86,8 @@ static bool hasLengthKeyword(std::string varName) {
 
 // Check if the provided constraint variable is an array and it needs bounds.
 static bool needArrayBounds(ConstraintVariable *CV,
-                            Constraints::EnvironmentMap &envMap) {
-  if (CV->hasArr(envMap)) {
+                            Constraints::EnvironmentMap &E) {
+  if (CV->hasArr(E)) {
     PVConstraint *PV = dyn_cast<PVConstraint>(CV);
     if (PV && PV->getArrPresent())
       return false;
@@ -96,11 +96,11 @@ static bool needArrayBounds(ConstraintVariable *CV,
   return false;
 }
 
-static bool needArrayBounds(Decl *decl, ProgramInfo &Info,
+static bool needArrayBounds(Decl *D, ProgramInfo &Info,
                             ASTContext *Context) {
-  std::set<ConstraintVariable*> consVar = Info.getVariable(decl, Context);
-  for (auto currCVar: consVar) {
-    if (needArrayBounds(currCVar, Info.getConstraints().getVariables()))
+  std::set<ConstraintVariable*> consVar = Info.getVariable(D, Context);
+  for (auto CurrCVar : consVar) {
+    if (needArrayBounds(CurrCVar, Info.getConstraints().getVariables()))
       return true;
     return false;
   }
@@ -118,9 +118,9 @@ static std::map<std::string, std::set<int>> AllocatorSizeAssoc = {
 std::string getCalledFunctionName(Expr *E) {
   CallExpr *CE = dyn_cast<CallExpr>(E);
   assert(CE && "The provided expression should be a call expression.");
-  FunctionDecl *calleeDecl = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
-  if (calleeDecl && calleeDecl->getDeclName().isIdentifier())
-    return calleeDecl->getName();
+  FunctionDecl *CalleeDecl = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
+  if (CalleeDecl && CalleeDecl->getDeclName().isIdentifier())
+    return CalleeDecl->getName();
   return "";
 }
 
@@ -130,9 +130,9 @@ static bool isAllocatorCall(Expr *E) {
   if (CallExpr *CE = dyn_cast<CallExpr>(removeAuxillaryCasts(E)))
     if (CE->getCalleeDecl() != nullptr) {
       // Is this a call to a named function?
-      std::string funcName = getCalledFunctionName(CE);
+      std::string FName = getCalledFunctionName(CE);
       // Check if the called function is a known allocator?
-      return AllocatorSizeAssoc.find(funcName) !=
+      return AllocatorSizeAssoc.find(FName) !=
              AllocatorSizeAssoc.end();
     }
   return false;
@@ -144,27 +144,26 @@ static bool isStringLiteral(Expr *E) {
 
 static ArrayBoundsInformation::BOUNDSINFOTYPE getAllocatedSizeExpr(Expr *E,
                                               ASTContext *C, ProgramInfo &Info,
-                                              FieldDecl *isField = nullptr) {
+                                              FieldDecl *IsField = nullptr) {
   assert(isAllocatorCall(E) && "The provided expression should be a call to "
                                 "to a known allocator function.");
-  auto &arrBInfo = Info.getArrayBoundsInformation();
+  auto &ArrBInfo = Info.getArrayBoundsInformation();
   CallExpr *CE = dyn_cast<CallExpr>(removeAuxillaryCasts(E));
-  std::string funcName = getCalledFunctionName(CE);
-  std::string sizeExpr = "";
-  ArrayBoundsInformation::BOUNDSINFOTYPE previousBoundsInfo;
-  bool isFirstExpr = true;
-  for (auto parmIdx : AllocatorSizeAssoc[funcName]) {
+  std::string FName = getCalledFunctionName(CE);
+  std::string SzExprStr = "";
+  ArrayBoundsInformation::BOUNDSINFOTYPE PrevBInfo;
+  bool IsFirstExpr = true;
+  for (auto parmIdx : AllocatorSizeAssoc[FName]) {
     Expr *e = CE->getArg(parmIdx);
-    auto currBoundsInfo = arrBInfo.getExprBoundsInfo(isField, e);
-    if (!isFirstExpr) {
-      currBoundsInfo = arrBInfo.combineBoundsInfo(isField,
-                                                  previousBoundsInfo,
-                                                  currBoundsInfo, "*");
-      isFirstExpr = false;
+    auto CurrBInfo = ArrBInfo.getExprBoundsInfo(IsField, e);
+    if (!IsFirstExpr) {
+      CurrBInfo =
+          ArrBInfo.combineBoundsInfo(IsField, PrevBInfo, CurrBInfo, "*");
     }
-    previousBoundsInfo = currBoundsInfo;
+    PrevBInfo = CurrBInfo;
+    IsFirstExpr = false;
   }
-  return previousBoundsInfo;
+  return PrevBInfo;
 
 }
 
@@ -172,22 +171,22 @@ static ArrayBoundsInformation::BOUNDSINFOTYPE getAllocatedSizeExpr(Expr *E,
 // i.e., ptr = .
 // if yes, return the referenced local variable as the return
 // value of the argument.
-bool isExpressionSimpleLocalVar(Expr *toCheck, VarDecl **targetDecl) {
-  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(toCheck))
+bool isExpressionSimpleLocalVar(Expr *ToCheck, VarDecl **TargetDecl) {
+  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ToCheck))
     if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(DRE->getDecl()))
       if (!dyn_cast<FieldDecl>(FD) && !dyn_cast<ParmVarDecl>(FD))
         if (VarDecl *VD = dyn_cast<VarDecl>(FD))
           if (!VD->hasGlobalStorage()) {
-            *targetDecl = VD;
+            *TargetDecl = VD;
             return true;
           }
   return false;
 }
 
-bool isExpressionStructField(Expr *toCheck, FieldDecl **targetDecl) {
-  if (MemberExpr *DRE = dyn_cast<MemberExpr>(toCheck)) {
+bool isExpressionStructField(Expr *ToCheck, FieldDecl **TargetDecl) {
+  if (MemberExpr *DRE = dyn_cast<MemberExpr>(ToCheck)) {
     if (FieldDecl *FD = dyn_cast<FieldDecl>(DRE->getMemberDecl())) {
-      *targetDecl = FD;
+      *TargetDecl = FD;
       return true;
     }
   }
@@ -202,49 +201,49 @@ bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
   if (RD->isStruct() || RD->isUnion()) {
     // Get fields that are identified as arrays and also fields that could be
     // potential be the length fields.
-    std::set<FieldDecl*> potentialLengthFields;
-    std::set<FieldDecl*> identifiedArrayVars;
-    const auto &allFields = RD->fields();
-    auto &arrBoundInfo = Info.getArrayBoundsInformation();
-    auto &envMap = Info.getConstraints().getVariables();
-    for (auto *fld: allFields) {
-      FieldDecl *fldDecl = dyn_cast<FieldDecl>(fld);
+    std::set<FieldDecl*> PotLenFields;
+    std::set<FieldDecl*> IdentifiedArrVars;
+    const auto &AllFields = RD->fields();
+    auto &ArrBInfo = Info.getArrayBoundsInformation();
+    auto &E = Info.getConstraints().getVariables();
+    for (auto *Fld : AllFields) {
+      FieldDecl *FldDecl = dyn_cast<FieldDecl>(Fld);
       // This is an integer field and could be a length field
-      if (fldDecl->getType().getTypePtr()->isIntegerType())
-        potentialLengthFields.insert(fldDecl);
+      if (FldDecl->getType().getTypePtr()->isIntegerType())
+        PotLenFields.insert(FldDecl);
 
-      std::set<ConstraintVariable*> consVar = Info.getVariable(fldDecl, Context);
-      for (auto currCVar: consVar) {
+      std::set<ConstraintVariable*> ConsVars = Info.getVariable(FldDecl, Context);
+      for (auto CurrCVar : ConsVars) {
         // Is this an array field?
-        if (needArrayBounds(currCVar, envMap)) {
-          identifiedArrayVars.insert(fldDecl);
+        if (needArrayBounds(CurrCVar, E)) {
+          IdentifiedArrVars.insert(FldDecl);
         }
 
       }
     }
 
-    if (identifiedArrayVars.size() > 0 && potentialLengthFields.size() > 0) {
+    if (IdentifiedArrVars.size() > 0 && PotLenFields.size() > 0) {
       // First check for variable name match?
-      for (auto ptrField : identifiedArrayVars) {
-        for (auto lenField: potentialLengthFields) {
-          if (hasNameMatch(ptrField->getNameAsString(),
-                           lenField->getNameAsString())) {
+      for (auto PtrField : IdentifiedArrVars) {
+        for (auto LenField : PotLenFields) {
+          if (hasNameMatch(PtrField->getNameAsString(),
+                           LenField->getNameAsString())) {
             // If we find a field which matches both the pointer name and
             // variable name heuristic lets use it.
-            if (hasLengthKeyword(lenField->getNameAsString())) {
-              arrBoundInfo.removeBoundsInformation(ptrField);
-              arrBoundInfo.addBoundsInformation(ptrField, lenField);
+            if (hasLengthKeyword(LenField->getNameAsString())) {
+              ArrBInfo.removeBoundsInformation(PtrField);
+              ArrBInfo.addBoundsInformation(PtrField, LenField);
               break;
             }
-            arrBoundInfo.addBoundsInformation(ptrField, lenField);
+            ArrBInfo.addBoundsInformation(PtrField, LenField);
           }
         }
         // If the name-correspondence heuristics failed.
         // Then use the named based heuristics.
-        if (!arrBoundInfo.hasBoundsInformation(ptrField)) {
-          for (auto lenField: potentialLengthFields) {
-            if (fieldNameMatch(lenField->getNameAsString()))
-              arrBoundInfo.addBoundsInformation(ptrField, lenField);
+        if (!ArrBInfo.hasBoundsInformation(PtrField)) {
+          for (auto LenField : PotLenFields) {
+            if (fieldNameMatch(LenField->getNameAsString()))
+              ArrBInfo.addBoundsInformation(PtrField, LenField);
           }
         }
       }
@@ -261,70 +260,68 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     const Type *Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     const FunctionProtoType *FT = Ty->getAs<FunctionProtoType>();
     if (FT != nullptr) {
-      std::map<ParmVarDecl *, std::set<ParmVarDecl *>> arrayVarLenCorrespondence;
-      std::map<unsigned , ParmVarDecl *> identifiedParamArrays;
-      std::map<unsigned , ParmVarDecl *> potentialLengthParams;
+      std::map<ParmVarDecl *, std::set<ParmVarDecl *>> ArrVarLenMap;
+      std::map<unsigned , ParmVarDecl *> ParamArrays;
+      std::map<unsigned , ParmVarDecl *> LengthParams;
 
       for (unsigned i = 0; i < FT->getNumParams(); i++) {
         ParmVarDecl *PVD = FD->getParamDecl(i);
-        auto &envMap = Info.getConstraints().getVariables();
-        std::set<ConstraintVariable *> defsCVar = Info.getVariable(PVD, Context,
+        auto &E = Info.getConstraints().getVariables();
+        std::set<ConstraintVariable *> DefCVars = Info.getVariable(PVD, Context,
                                                                    true);
-        if (!defsCVar.empty()) {
-          for (auto currCVar: defsCVar) {
+        if (!DefCVars.empty()) {
+          for (auto CurrCVar : DefCVars) {
             // Is this an array?
-            if (needArrayBounds(currCVar, envMap))
-              identifiedParamArrays[i] = PVD;
+            if (needArrayBounds(CurrCVar, E))
+              ParamArrays[i] = PVD;
           }
         }
         // If this is a length field?
         if (PVD->getType().getTypePtr()->isIntegerType())
-          potentialLengthParams[i] = PVD;
+          LengthParams[i] = PVD;
       }
-      if (!identifiedParamArrays.empty() && !potentialLengthParams.empty()) {
+      if (!ParamArrays.empty() && !LengthParams.empty()) {
         // We have multiple parameters that are arrays and multiple params
         // that could be potentially length fields
-        for (auto &currArrParamPair: identifiedParamArrays) {
-          bool foundLen = false;
+        for (auto &currArrParamPair: ParamArrays) {
+          bool FoundLen = false;
 
           // If this is right next to the array param?
           // Then most likely this will be a length field.
-          unsigned pIdx = currArrParamPair.first;
-          if (potentialLengthParams.find(pIdx+1) !=
-              potentialLengthParams.end()) {
+          unsigned PIdx = currArrParamPair.first;
+          if (LengthParams.find(PIdx +1) != LengthParams.end()) {
             arrBInfo.addBoundsInformation(currArrParamPair.second,
-                                          potentialLengthParams[pIdx+1]);
+                                          LengthParams[PIdx +1]);
             continue;
           }
-          if (pIdx > 0 && potentialLengthParams.find(pIdx-1) !=
-                                  potentialLengthParams.end()) {
+          if (PIdx > 0 && LengthParams.find(PIdx -1) != LengthParams.end()) {
             if (prefixNameMatch(currArrParamPair.second->getNameAsString(),
-                                potentialLengthParams[pIdx-1]->getNameAsString()))
+                                LengthParams[PIdx -1]->getNameAsString()))
               arrBInfo.addBoundsInformation(currArrParamPair.second,
-                                            potentialLengthParams[pIdx-1]);
+                                            LengthParams[PIdx -1]);
             continue;
 
           }
 
-          for (auto &currLenParamPair: potentialLengthParams) {
+          for (auto &LenParamPair : LengthParams) {
             // If the name of the length field matches.
             if (hasNameMatch(currArrParamPair.second->getNameAsString(),
-                             currLenParamPair.second->getNameAsString())) {
-              foundLen = true;
+                             LenParamPair.second->getNameAsString())) {
+              FoundLen = true;
               arrBInfo.addBoundsInformation(currArrParamPair.second,
-                                            currLenParamPair.second);
+                                            LenParamPair.second);
               break;
             }
             // Check if the length parameter name matches our heuristics.
-            if (fieldNameMatch(currLenParamPair.second->getNameAsString())) {
-              foundLen = true;
+            if (fieldNameMatch(LenParamPair.second->getNameAsString())) {
+              FoundLen = true;
               arrBInfo.addBoundsInformation(currArrParamPair.second,
-                                            currLenParamPair.second);
+                                            LenParamPair.second);
               continue;
             }
           }
 
-          if (!foundLen) {
+          if (!FoundLen) {
             llvm::errs() << "[-] Array variable length not found.\n";
             currArrParamPair.second->dump();
           }
@@ -340,9 +337,7 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
   Expr *LHS = O->getLHS()->IgnoreImpCasts();
   Expr *RHS = O->getRHS()->IgnoreImpCasts();
-  auto &arrBInfo = Info.getArrayBoundsInformation();
-  Expr *sizeExpression;
-  auto &envMap = Info.getConstraints().getVariables();
+  auto &ArrBInfo = Info.getArrayBoundsInformation();
   // Is the RHS expression a call to allocator function?
   if (isAllocatorCall(RHS)) {
     // If this is an allocator function then sizeExpression contains the
@@ -350,28 +345,28 @@ bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
 
     // If LHS is just a variable or struct field i.e., ptr = ..,
     // get the AST node of the target variable.
-    VarDecl *targetVar = nullptr;
-    FieldDecl *structField = nullptr;
-    if (isExpressionSimpleLocalVar(LHS, &targetVar) &&
-        needArrayBounds(targetVar, Info, Context)) {
-      arrBInfo.addBoundsInformation(targetVar,
+    VarDecl *TargetVar = nullptr;
+    FieldDecl *StructField = nullptr;
+    if (isExpressionSimpleLocalVar(LHS, &TargetVar) &&
+        needArrayBounds(TargetVar, Info, Context)) {
+      ArrBInfo.addBoundsInformation(TargetVar,
                       getAllocatedSizeExpr(RHS, Context, Info));
-    } else if (isExpressionStructField(LHS, &structField) &&
-               needArrayBounds(structField, Info, Context)) {
-      if (!arrBInfo.hasBoundsInformation(structField))
-        arrBInfo.addBoundsInformation(structField,
-                      getAllocatedSizeExpr(RHS, Context, Info,
-                                                 structField));
+    } else if (isExpressionStructField(LHS, &StructField) &&
+               needArrayBounds(StructField, Info, Context)) {
+      if (!ArrBInfo.hasBoundsInformation(StructField))
+        ArrBInfo.addBoundsInformation(
+            StructField,
+                      getAllocatedSizeExpr(RHS, Context, Info, StructField));
     }
   } else if (isStringLiteral(RHS)) {
-    VarDecl *targetVar = nullptr;
+    VarDecl *TargetVar = nullptr;
     StringLiteral* SL = dyn_cast<StringLiteral>(removeAuxillaryCasts(RHS));
 
     assert(SL);
 
-    if (isExpressionSimpleLocalVar(LHS, &targetVar)) {
-      auto boundsType = arrBInfo.getExprBoundsInfo(nullptr, RHS);
-      arrBInfo.addBoundsInformation(targetVar, boundsType);
+    if (isExpressionSimpleLocalVar(LHS, &TargetVar)) {
+      auto BType = ArrBInfo.getExprBoundsInfo(nullptr, RHS);
+      ArrBInfo.addBoundsInformation(TargetVar, BType);
     }
 
   }
@@ -380,17 +375,17 @@ bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
 
 bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
   // Build rules based on initializers.
-  auto &arrBInfo = Info.getArrayBoundsInformation();
+  auto &ArrBInfo = Info.getArrayBoundsInformation();
   for (const auto &D : S->decls())
     if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       Expr *InitE = VD->getInit();
       if (needArrayBounds(VD, Info, Context) && InitE &&
           isAllocatorCall(InitE)) {
-        auto boundsType = getAllocatedSizeExpr(InitE, Context, Info);
-        arrBInfo.addBoundsInformation(VD, boundsType);
+        auto BType = getAllocatedSizeExpr(InitE, Context, Info);
+        ArrBInfo.addBoundsInformation(VD, BType);
       } else if (InitE && isStringLiteral(InitE)) {
-        auto boundsType = arrBInfo.getExprBoundsInfo(nullptr, InitE);
-        arrBInfo.addBoundsInformation(VD, boundsType);
+        auto BType = ArrBInfo.getExprBoundsInfo(nullptr, InitE);
+        ArrBInfo.addBoundsInformation(VD, BType);
       }
     }
 
@@ -407,37 +402,35 @@ void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
       if (FT->getNumParams() == 1) {
         ParmVarDecl *PVD = FD->getParamDecl(0);
         auto &CS = I.getConstraints();
-        auto &envMap = CS.getVariables();
-        std::set<ConstraintVariable *> defsCVar =
+        std::set<ConstraintVariable *> DefCVars =
             I.getVariable(PVD, C, true);
-        for (auto constraintVar: defsCVar)
+        for (auto constraintVar: DefCVars)
           if (PVConstraint *PV = dyn_cast<PVConstraint>(constraintVar)) {
-            auto &cVars = PV->getCvars();
-            if (cVars.size() > 0) {
+            auto &Cvars = PV->getCvars();
+            if (Cvars.size() > 0) {
               // We should constraint only the outer most constraint variable.
-              auto cVar = *(cVars.begin());
-              CS.getOrCreateVar(cVar)->setNtArrayIfArray();
+              auto CVar = *(Cvars.begin());
+              CS.getOrCreateVar(CVar)->setNtArrayIfArray();
             }
           }
       } else if (FD->getNameInfo().getAsString() == std::string("main") &&
                  FT->getNumParams() == 2) {
         // If the function is `main` then we know second arg is _Array_ptr.
-        ParmVarDecl *argv = FD->getParamDecl(1);
-        assert(argv != NULL);
+        ParmVarDecl *Argv = FD->getParamDecl(1);
+        assert(Argv != NULL);
         auto &CS = I.getConstraints();
-        auto &envMap = CS.getVariables();
-        std::set<ConstraintVariable*> defsCVar =
-            I.getVariable(argv, C, true);
-        for (auto constraintVar : defsCVar) {
-          if (PVConstraint *PV = dyn_cast<PVConstraint>(constraintVar)) {
-            auto &cVars = PV->getCvars();
-            llvm::errs() << cVars.size() << "\n";
-            if (cVars.size() == 2) {
-              std::vector<ConstraintKey> vars(cVars.begin(), cVars.end());
-              auto outerCVar = CS.getOrCreateVar(vars[0]);
-              auto innerCVar = CS.getOrCreateVar(vars[1]);
-              outerCVar->setShouldBeArr();
-              innerCVar->setShouldBeNtArr();
+        std::set<ConstraintVariable*> DefCVars =
+            I.getVariable(Argv, C, true);
+        for (auto ConsVar : DefCVars) {
+          if (PVConstraint *PV = dyn_cast<PVConstraint>(ConsVar)) {
+            auto &Cvars = PV->getCvars();
+            llvm::errs() << Cvars.size() << "\n";
+            if (Cvars.size() == 2) {
+              std::vector<ConstraintKey> vars(Cvars.begin(), Cvars.end());
+              auto OuterCVar = CS.getOrCreateVar(vars[0]);
+              auto InnerCVar = CS.getOrCreateVar(vars[1]);
+              OuterCVar->setShouldBeArr();
+              InnerCVar->setShouldBeNtArr();
             }
           }
         }

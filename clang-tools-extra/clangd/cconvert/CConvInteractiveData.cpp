@@ -21,46 +21,46 @@ void DisjointSet::Clear() {
   TotalNonDirectWildPointers.clear();
   ValidSourceFiles.clear();
 }
-void DisjointSet::AddElements(ConstraintKey a, ConstraintKey b) {
-  if (Leaders.find(a) != Leaders.end()) {
-    if (Leaders.find(b) != Leaders.end()) {
-      auto leadera = Leaders[a];
-      auto leaderb = Leaders[b];
-      auto &grpa = Groups[leadera];
-      auto &grpb = Groups[leaderb];
+void DisjointSet::AddElements(ConstraintKey A, ConstraintKey B) {
+  if (Leaders.find(A) != Leaders.end()) {
+    if (Leaders.find(B) != Leaders.end()) {
+      auto LeaderA = Leaders[A];
+      auto LeaderB = Leaders[B];
+      auto &GrpA = Groups[LeaderA];
+      auto &GrpB = Groups[LeaderB];
 
-      if (grpa.size() < grpb.size()) {
-        grpa = Groups[leaderb];
-        grpb = Groups[leadera];
-        leadera = Leaders[b];
-        leaderb = Leaders[a];
+      if (GrpA.size() < GrpB.size()) {
+        GrpA = Groups[LeaderB];
+        GrpB = Groups[LeaderA];
+        LeaderA = Leaders[B];
+        LeaderB = Leaders[A];
       }
-      grpa.insert(grpb.begin(), grpb.end());
-      Groups.erase(leaderb);
-      for (auto k: grpb) {
-        Leaders[k] = leadera;
+      GrpA.insert(GrpB.begin(), GrpB.end());
+      Groups.erase(LeaderB);
+      for (auto k: GrpB) {
+        Leaders[k] = LeaderA;
       }
 
     } else {
-      Groups[Leaders[a]].insert(b);
-      Leaders[b] = Leaders[a];
+      Groups[Leaders[A]].insert(B);
+      Leaders[B] = Leaders[A];
     }
   } else {
-    if (Leaders.find(b) != Leaders.end()) {
-      Groups[Leaders[b]].insert(a);
-      Leaders[a] = Leaders[b];
+    if (Leaders.find(B) != Leaders.end()) {
+      Groups[Leaders[B]].insert(A);
+      Leaders[A] = Leaders[B];
     } else {
-      Leaders[a] = Leaders[b] = a;
-      Groups[a].insert(a);
-      Groups[a].insert(b);
+      Leaders[A] = Leaders[B] = A;
+      Groups[A].insert(A);
+      Groups[A].insert(B);
     }
   }
 }
 
-ConstraintKey DisjointSet::GetLeader(ConstraintKey ckey) {
-  return Leaders[ckey];
+ConstraintKey DisjointSet::GetLeader(ConstraintKey Ckey) {
+  return Leaders[Ckey];
 }
 
-CVars& DisjointSet::GetGroup(ConstraintKey ckey) {
-  return Groups[ckey];
+CVars& DisjointSet::GetGroup(ConstraintKey Ckey) {
+  return Groups[Ckey];
 }

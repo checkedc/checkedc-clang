@@ -51,7 +51,7 @@ cl::opt<bool> Verbose("verbose",
                       cl::init(false),
                       cl::cat(ConvertCategory));
 
-cl::opt<bool> mergeMultipleFuncDecls("mergefds",
+cl::opt<bool> MergeMultipleFuncDecls("mergefds",
                                      cl::desc("Merge multiple declarations of "
                                               "functions."),
                                      cl::init(false),
@@ -75,24 +75,24 @@ static cl::opt<bool> DumpStats( "dump-stats",
                                 cl::init(false),
                                 cl::cat(ConvertCategory));
 
-cl::opt<bool> handleVARARGS( "handle-varargs",
+cl::opt<bool> HandleVARARGS( "handle-varargs",
                              cl::desc("Enable handling of varargs in a "
                                      "sound manner"),
                              cl::init(false),
                              cl::cat(ConvertCategory));
 
-cl::opt<bool> enablePropThruIType( "enable-itypeprop",
+cl::opt<bool> EnablePropThruIType( "enable-itypeprop",
                                    cl::desc("Enable propagation of "
                                            "constraints through ityped "
                                            "parameters/returns."),
                                    cl::init(false),
                                    cl::cat(ConvertCategory));
 
-cl::opt<bool> considerAllocUnsafe( "alloc-unsafe",
-                                   cl::desc("Consider the allocators "
-                                           "(i.e., malloc/calloc) as unsafe."),
-                                   cl::init(false),
-                                   cl::cat(ConvertCategory));
+cl::opt<bool> AllocUnsafe( "alloc-unsafe",
+                          cl::desc("Consider the allocators "
+                                       "(i.e., malloc/calloc) as unsafe."),
+                          cl::init(false),
+                          cl::cat(ConvertCategory));
 
 static cl::opt<std::string>
 BaseDir("base-dir",
@@ -174,30 +174,30 @@ std::pair<Constraints::ConstraintSet, bool>
     solveConstraintsWithFunctionSubTyping(ProgramInfo &Info) {
   // Solve the constrains by handling function sub-typing.
   Constraints &CS = Info.getConstraints();
-  unsigned numIterations = 0;
-  std::pair<Constraints::ConstraintSet, bool> toRet;
-  bool fixed = false;
-  while (!fixed) {
-    toRet = CS.solve(numIterations);
-    if (numIterations > 1)
+  unsigned NumIter = 0;
+  std::pair<Constraints::ConstraintSet, bool> Ret;
+  bool Fixed = false;
+  while (!Fixed) {
+    Ret = CS.solve(NumIter);
+    if (NumIter > 1)
       // This means we have made some changes to the environment
       // see if the function subtype handling causes any changes?
-      fixed = !Info.handleFunctionSubtyping();
+      Fixed = !Info.handleFunctionSubtyping();
     else
       // we reached a fixed point.
-      fixed = true;
+      Fixed = true;
   }
-  return toRet;
+  return Ret;
 }
 
 bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
                                      ClangTool &Tool, std::set<std::string>
-                                         &inoutPaths) {
-  bool fixedPointReached = false;
-  unsigned long iterationNum = 1;
-  unsigned long numberOfEdgesRemoved = 0;
-  unsigned long numItypeVars = 0;
-  std::set<std::string> modifiedFunctions;
+                                         &InoutPaths) {
+  bool FixedPoint = false;
+  unsigned long IterNum = 1;
+  unsigned long EdgesRemoved = 0;
+  unsigned long NumItypeVars = 0;
+  std::set<std::string> ModFunctions;
   if (Verbose) {
     errs() << "Trying to capture Constraint Variables for all functions\n";
   }
@@ -209,61 +209,65 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
                                        "We expect all pointers to be "
                                        "initialized with Ptr to begin with.");
 
-  while (!fixedPointReached) {
-    clock_t startTime = clock();
-    errs() << "****Iteration " << iterationNum << " starts.****\n";
+  while (!FixedPoint) {
+    clock_t StartTime = clock();
+    errs() << "****Iteration " << IterNum << " starts.****\n";
     if (Verbose) {
-      errs() << "Iterative Itype refinement, Round:" << iterationNum << "\n";
+      errs() << "Iterative Itype refinement, Round:" << IterNum << "\n";
     }
 
     std::pair<Constraints::ConstraintSet, bool> R =
         solveConstraintsWithFunctionSubTyping(Info);
 
-    errs() << "Iteration:" << iterationNum << ", Constraint solve time:" <<
-        getTimeSpentInSeconds(startTime) << "\n";
+    errs() << "Iteration:" << IterNum
+           << ", Constraint solve time:" <<
+        getTimeSpentInSeconds(StartTime) << "\n";
 
     if (R.second) {
-      errs() << "Constraints solved for iteration:" << iterationNum << "\n";
+      errs() << "Constraints solved for iteration:" << IterNum << "\n";
     }
 
     if (DumpStats) {
-      Info.print_stats(inoutPaths, llvm::errs(), true);
+      Info.print_stats(InoutPaths, llvm::errs(), true);
     }
 
     // Get all the functions whose constraints have been modified.
-    identifyModifiedFunctions(CS, modifiedFunctions);
+    identifyModifiedFunctions(CS, ModFunctions);
 
-    startTime = clock();
+    StartTime = clock();
     // Detect and update new found itype vars.
-    numItypeVars = detectAndUpdateITypeVars(Info, modifiedFunctions);
+    NumItypeVars = detectAndUpdateITypeVars(Info, ModFunctions);
 
-    errs() << "Iteration:" << iterationNum << ", Number of detected itype vars:"
-           << numItypeVars << ", detection time:" <<
-        getTimeSpentInSeconds(startTime) << "\n";
+    errs() << "Iteration:" << IterNum
+           << ", Number of detected itype vars:"
+           << NumItypeVars
+           << ", detection time:" <<
+        getTimeSpentInSeconds(StartTime) << "\n";
 
-    startTime = clock();
+    StartTime = clock();
     // Update the constraint graph by removing edges from/to iype parameters
     // and returns.
-    numberOfEdgesRemoved = resetWithitypeConstraints(CS);
+    EdgesRemoved = resetWithitypeConstraints(CS);
 
-    errs() << "Iteration:" << iterationNum << ", Number of edges removed:" <<
-        numberOfEdgesRemoved << "\n";
+    errs() << "Iteration:" << IterNum
+           << ", Number of edges removed:" << EdgesRemoved << "\n";
 
-    errs() << "Iteration:" << iterationNum << ", Refinement Time:" <<
-        getTimeSpentInSeconds(startTime) << "\n";
+    errs() << "Iteration:" << IterNum
+           << ", Refinement Time:" <<
+        getTimeSpentInSeconds(StartTime) << "\n";
 
     // If we removed any edges, that means we did not reach fix point.
     // In other words, we reach fixed point when no edges are removed from the
     // constraint graph.
-    fixedPointReached = !(numberOfEdgesRemoved > 0);
-    errs() << "****Iteration " << iterationNum << " ends****\n";
-    iterationNum++;
+    FixedPoint = !(EdgesRemoved > 0);
+    errs() << "****Iteration " << IterNum << " ends****\n";
+    IterNum++;
   }
 
-  errs() << "Fixed point reached after " << (iterationNum-1) <<
+  errs() << "Fixed point reached after " << (IterNum -1) <<
       " iterations.\n";
 
-  return fixedPointReached;
+  return FixedPoint;
 }
 
 int main(int argc, const char **argv) {
@@ -276,29 +280,29 @@ int main(int argc, const char **argv) {
   InitializeAllAsmParsers();
 
   if (BaseDir.size() == 0) {
-    SmallString<256>  cp;
-    if (std::error_code ec = sys::fs::current_path(cp)) {
+    SmallString<256> Cp;
+    if (std::error_code E = sys::fs::current_path(Cp)) {
       errs() << "could not get current working dir\n";
       return 1;
     }
 
-    BaseDir = cp.str();
+    BaseDir = Cp.str();
   }
 
   CommonOptionsParser OptionsParser(argc, argv, ConvertCategory);
 
-  tooling::CommandLineArguments args = OptionsParser.getSourcePathList();
+  tooling::CommandLineArguments Args = OptionsParser.getSourcePathList();
 
-  ClangTool Tool(OptionsParser.getCompilations(), args);
-  std::set<std::string> inoutPaths;
+  ClangTool Tool(OptionsParser.getCompilations(), Args);
+  std::set<std::string> InoutPaths;
 
-  for (const auto &S : args) {
-    std::string abs_path;
-    if (getAbsoluteFilePath(S, abs_path))
-      inoutPaths.insert(abs_path);
+  for (const auto &S : Args) {
+    std::string AbsPath;
+    if (getAbsoluteFilePath(S, AbsPath))
+      InoutPaths.insert(AbsPath);
   }
 
-  if (OutputPostfix == "-" && inoutPaths.size() > 1) {
+  if (OutputPostfix == "-" && InoutPaths.size() > 1) {
     errs() << "If rewriting more than one , can't output to stdout\n";
     return 1;
   }
@@ -326,20 +330,20 @@ int main(int argc, const char **argv) {
   Constraints &CS = Info.getConstraints();
 
   // perform constraint solving by iteratively refining based on itypes.
-  bool fPointReached = performIterativeItypeRefinement(CS, Info,
-                                                       Tool, inoutPaths);
+  bool FixPoint = performIterativeItypeRefinement(CS, Info,
+                                                  Tool, InoutPaths);
 
-  assert(fPointReached == true);
+  assert(FixPoint == true);
   if (Verbose)
     outs() << "Constraints solved\n";
   if (DumpIntermediate) {
     Info.dump();
     outs() << "Writing json output to:" << ConstraintOutputJson << "\n";
-    std::error_code ec;
-    llvm::raw_fd_ostream output_json(ConstraintOutputJson, ec);
-    if (!output_json.has_error()) {
-      Info.dump_json(output_json);
-      output_json.close();
+    std::error_code Ec;
+    llvm::raw_fd_ostream OutputJson(ConstraintOutputJson, Ec);
+    if (!OutputJson.has_error()) {
+      Info.dump_json(OutputJson);
+      OutputJson.close();
     } else {
       Info.dump_json(llvm::errs());
     }
@@ -349,7 +353,7 @@ int main(int argc, const char **argv) {
   std::unique_ptr<ToolAction> RewriteTool =
       newFrontendActionFactoryB
       <RewriteAction<RewriteConsumer, ProgramInfo, std::set<std::string>>>(
-          Info, inoutPaths);
+          Info, InoutPaths);
 
   if (RewriteTool)
     Tool.run(RewriteTool.get());
@@ -357,7 +361,7 @@ int main(int argc, const char **argv) {
     llvm_unreachable("No action");
 
   if (DumpStats)
-    Info.dump_stats(inoutPaths);
+    Info.dump_stats(InoutPaths);
 
   return 0;
 }

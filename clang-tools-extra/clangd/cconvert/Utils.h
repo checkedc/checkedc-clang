@@ -33,7 +33,7 @@ typedef std::map<clang::Decl*, clang::DeclStmt*> VariableDecltoStmtMap;
 
 
 
-extern std::set<std::string> inputFilePaths;
+extern std::set<std::string> FilePaths;
 
 const clang::Type *getNextTy(const clang::Type *Ty);
 

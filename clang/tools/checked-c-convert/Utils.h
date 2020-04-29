@@ -29,10 +29,10 @@ typedef std::map<clang::Decl*, clang::DeclStmt*> VariableDecltoStmtMap;
 
 extern llvm::cl::opt<bool> Verbose;
 extern llvm::cl::opt<bool> DumpIntermediate;
-extern llvm::cl::opt<bool> handleVARARGS;
-extern llvm::cl::opt<bool> mergeMultipleFuncDecls;
-extern llvm::cl::opt<bool> enablePropThruIType;
-extern llvm::cl::opt<bool> considerAllocUnsafe;
+extern llvm::cl::opt<bool> HandleVARARGS;
+extern llvm::cl::opt<bool> MergeMultipleFuncDecls;
+extern llvm::cl::opt<bool> EnablePropThruIType;
+extern llvm::cl::opt<bool> AllocUnsafe;
 
 const clang::Type *getNextTy(const clang::Type *Ty);
 

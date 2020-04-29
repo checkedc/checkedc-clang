@@ -192,60 +192,60 @@ newFrontendActionFactoryA(ProgramInfo &I) {
       new ArgFrontendActionFactory(I));
 }
 
-void dumpConstraintOutputJson(const std::string &postfixStr,
-                              ProgramInfo &infoToDump) {
+void dumpConstraintOutputJson(const std::string &PostfixStr,
+                              ProgramInfo &Info) {
   if (DumpIntermediate) {
-    std::string jsonFilePath = ConstraintOutputJson + postfixStr + ".json";
-    errs() << "Writing json output to:" << jsonFilePath << "\n";
-    std::error_code ec;
-    llvm::raw_fd_ostream output_json(jsonFilePath, ec);
-    if (!output_json.has_error()) {
-      infoToDump.dump_json(output_json);
-      output_json.close();
+    std::string FilePath = ConstraintOutputJson + PostfixStr + ".json";
+    errs() << "Writing json output to:" << FilePath << "\n";
+    std::error_code Ec;
+    llvm::raw_fd_ostream OutputJson(FilePath, Ec);
+    if (!OutputJson.has_error()) {
+      Info.dump_json(OutputJson);
+      OutputJson.close();
     } else {
-      infoToDump.dump_json(llvm::errs());
+      Info.dump_json(llvm::errs());
     }
   }
 }
 
 std::pair<Constraints::ConstraintSet, bool>
     solveConstraintsWithFunctionSubTyping(ProgramInfo &Info,
-                                      unsigned iterationID) {
+                                      unsigned IterID) {
   // Solve the constrains by handling function sub-typing.
   Constraints &CS = Info.getConstraints();
-  unsigned numIterations = 0;
-  std::pair<Constraints::ConstraintSet, bool> toRet;
-  bool fixed = false;
-  unsigned localIteration = 1;
-  while (!fixed) {
-    auto logFileName = BEFORE_SOLVING_SUFFIX + std::to_string(iterationID) +
-                       "_" + std::to_string(localIteration);
-    dumpConstraintOutputJson(logFileName, Info);
-    toRet = CS.solve(numIterations);
-    if (numIterations > 1) {
+  unsigned NumIter = 0;
+  std::pair<Constraints::ConstraintSet, bool> Ret;
+  bool Fixed = false;
+  unsigned LocalIter = 1;
+  while (!Fixed) {
+    auto FileName = BEFORE_SOLVING_SUFFIX + std::to_string(IterID) +
+                       "_" + std::to_string(LocalIter);
+    dumpConstraintOutputJson(FileName, Info);
+    Ret = CS.solve(NumIter);
+    if (NumIter > 1) {
       // This means we have made some changes to the environment
       // see if the function subtype handling causes any changes?
-      fixed = !Info.handleFunctionSubtyping();
-      logFileName = AFTER_SUBTYPING_SUFFIX + std::to_string(iterationID) +
-                    "_" + std::to_string(localIteration);
-      dumpConstraintOutputJson(logFileName, Info);
+      Fixed = !Info.handleFunctionSubtyping();
+      FileName = AFTER_SUBTYPING_SUFFIX + std::to_string(IterID) +
+                    "_" + std::to_string(LocalIter);
+      dumpConstraintOutputJson(FileName, Info);
     }
     else {
       // We reached a fixed point.
-      fixed = true;
+      Fixed = true;
     }
-    localIteration++;
+    LocalIter++;
   }
-  return toRet;
+  return Ret;
 }
 
 bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
-                                     std::set<std::string> &inputSourceFiles) {
-  bool fixedPointReached = false;
-  unsigned long iterationNum = 1;
-  unsigned long numberOfEdgesRemoved = 0;
-  unsigned long numItypeVars = 0;
-  std::set<std::string> modifiedFunctions;
+                                     std::set<std::string> &SourceFiles) {
+  bool Fixed = false;
+  unsigned long IterNum = 1;
+  unsigned long EdgesRemoved = 0;
+  unsigned long NumItypeVars = 0;
+  std::set<std::string> ModFunctions;
   if (Verbose) {
     errs() << "Trying to capture Constraint Variables for all functions\n";
   }
@@ -259,112 +259,116 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
 
   dumpConstraintOutputJson(INITIAL_OUTPUT_SUFFIX, Info);
 
-  while (!fixedPointReached) {
-    clock_t startTime = clock();
+  while (!Fixed) {
+    clock_t StartTime = clock();
     if (Verbose) {
-      errs() << "****Iteration " << iterationNum << " starts.****\n";
-      errs() << "Iterative Itype refinement, Round:" << iterationNum << "\n";
+      errs() << "****Iteration " << IterNum << " starts.****\n";
+      errs() << "Iterative Itype refinement, Round:" << IterNum << "\n";
     }
 
     std::pair<Constraints::ConstraintSet, bool> R =
-        solveConstraintsWithFunctionSubTyping(Info, iterationNum);
+        solveConstraintsWithFunctionSubTyping(Info, IterNum);
 
     if (Verbose) {
-      errs() << "Iteration:" << iterationNum << ", Constraint solve time:" <<
-                getTimeSpentInSeconds(startTime) << "\n";
+      errs() << "Iteration:" << IterNum
+             << ", Constraint solve time:" <<
+                getTimeSpentInSeconds(StartTime) << "\n";
     }
 
     if (R.second) {
       if (Verbose) {
-        errs() << "Constraints solved for iteration:" << iterationNum << "\n";
+        errs() << "Constraints solved for iteration:" << IterNum << "\n";
       }
     }
 
     if (DumpStats) {
-      Info.print_stats(inputSourceFiles, llvm::errs(), true);
+      Info.print_stats(SourceFiles, llvm::errs(), true);
     }
 
     // Get all the functions whose constraints have been modified.
-    identifyModifiedFunctions(CS, modifiedFunctions);
+    identifyModifiedFunctions(CS, ModFunctions);
 
-    startTime = clock();
+    StartTime = clock();
     // Detect and update new found itype vars.
-    numItypeVars = detectAndUpdateITypeVars(Info, modifiedFunctions);
+    NumItypeVars = detectAndUpdateITypeVars(Info, ModFunctions);
 
     if (Verbose) {
-      errs() << "Iteration:" << iterationNum <<
-                ", Number of detected itype vars:" << numItypeVars <<
-                ", detection time:" << getTimeSpentInSeconds(startTime) << "\n";
+      errs() << "Iteration:" << IterNum
+             <<
+                ", Number of detected itype vars:" << NumItypeVars
+             <<
+                ", detection time:" << getTimeSpentInSeconds(StartTime) << "\n";
     }
 
-    startTime = clock();
+    StartTime = clock();
     // Update the constraint graph by removing edges from/to iype parameters
     // and returns.
-    numberOfEdgesRemoved = resetWithitypeConstraints(CS);
+    EdgesRemoved = resetWithitypeConstraints(CS);
 
     if (Verbose) {
-      errs() << "Iteration:" << iterationNum << ", Number of edges removed:" <<
-                numberOfEdgesRemoved << "\n";
+      errs() << "Iteration:" << IterNum
+             << ", Number of edges removed:" << EdgesRemoved << "\n";
 
-      errs() << "Iteration:" << iterationNum << ", Refinement Time:" <<
-                getTimeSpentInSeconds(startTime) << "\n";
+      errs() << "Iteration:" << IterNum
+             << ", Refinement Time:" <<
+                getTimeSpentInSeconds(StartTime) << "\n";
     }
 
     // If we removed any edges, that means we did not reach fix point.
     // In other words, we reach fixed point when no edges are removed from
     // the constraint graph.
-    fixedPointReached = !(numberOfEdgesRemoved > 0);
+    Fixed = !(EdgesRemoved > 0);
     if (Verbose) {
-      errs() << "****Iteration " << iterationNum << " ends****\n";
+      errs() << "****Iteration " << IterNum << " ends****\n";
     }
-    iterationNum++;
+    IterNum++;
   }
   if (Verbose) {
-    errs() << "Fixed point reached after " << (iterationNum - 1) <<
+    errs() << "Fixed point reached after " << (IterNum - 1) <<
               " iterations.\n";
   }
 
-  return fixedPointReached;
+  return Fixed;
 }
 
-std::set<std::string> inputFilePaths;
+std::set<std::string> FilePaths;
 
 static CompilationDatabase *CurrCompDB = nullptr;
 
-static tooling::CommandLineArguments sourceFiles;
+static tooling::CommandLineArguments SourceFiles;
 
 bool CConvInterface::InitializeCConvert(CommonOptionsParser &OptionsParser,
-                                        struct CConvertOptions &options) {
+                                        struct CConvertOptions &CCopt) {
 
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();
   llvm::InitializeAllAsmPrinters();
   llvm::InitializeAllAsmParsers();
 
-  DumpIntermediate = options.DumpIntermediate;
+  DumpIntermediate = CCopt.DumpIntermediate;
 
-  Verbose = options.Verbose;
+  Verbose = CCopt.Verbose;
 
-  SeperateMultipleFuncDecls = options.SeperateMultipleFuncDecls;
+  SeperateMultipleFuncDecls = CCopt.SeperateMultipleFuncDecls;
 
-  OutputPostfix = options.OutputPostfix;
+  OutputPostfix = CCopt.OutputPostfix;
 
-  ConstraintOutputJson = options.ConstraintOutputJson;
+  ConstraintOutputJson = CCopt.ConstraintOutputJson;
 
-  DumpStats = options.DumpStats;
+  DumpStats = CCopt.DumpStats;
 
-  HandleVARARGS = options.HandleVARARGS;
+  HandleVARARGS = CCopt.HandleVARARGS;
 
-  EnablePropThruIType = options.EnablePropThruIType;
+  EnablePropThruIType = CCopt.EnablePropThruIType;
 
-  ConsiderAllocUnsafe = options.ConsiderAllocUnsafe;
+  ConsiderAllocUnsafe = CCopt.ConsiderAllocUnsafe;
 
-  BaseDir = options.BaseDir;
+  BaseDir = CCopt.BaseDir;
 
   // Get the absolute path of the base directory.
-  std::string tmpPath = BaseDir;
-  getAbsoluteFilePath(BaseDir, tmpPath);
-  BaseDir = tmpPath;
+  std::string TmpPath = BaseDir;
+  getAbsoluteFilePath(BaseDir, TmpPath);
+  BaseDir = TmpPath;
 
   AllTypes = false;
   AddCheckedRegions = false;
@@ -379,30 +383,30 @@ bool CConvInterface::InitializeCConvert(CommonOptionsParser &OptionsParser,
     BaseDir = cp.str();
   }
 
-  sourceFiles = OptionsParser.getSourcePathList();
+  SourceFiles = OptionsParser.getSourcePathList();
 
-  for (const auto &S : sourceFiles) {
-    std::string abs_path;
-    if (getAbsoluteFilePath(S, abs_path))
-      inputFilePaths.insert(abs_path);
+  for (const auto &S : SourceFiles) {
+    std::string AbsPath;
+    if (getAbsoluteFilePath(S, AbsPath))
+      FilePaths.insert(AbsPath);
   }
 
   CurrCompDB = &(OptionsParser.getCompilations());
 
-  if (OutputPostfix == "-" && inputFilePaths.size() > 1) {
+  if (OutputPostfix == "-" && FilePaths.size() > 1) {
     errs() << "If rewriting more than one , can't output to stdout\n";
     return false;
   }
   return true;
 }
 
-bool CConvInterface::WriteConvertedFileToDisk(const std::string &filePath) {
-  if (std::find(sourceFiles.begin(), sourceFiles.end(), filePath) !=
-      sourceFiles.end()) {
-    std::vector<std::string> currSourceFiles;
-    currSourceFiles.clear();
-    currSourceFiles.push_back(filePath);
-    ClangTool Tool(*CurrCompDB, currSourceFiles);
+bool CConvInterface::WriteConvertedFileToDisk(const std::string &FilePath) {
+  if (std::find(SourceFiles.begin(), SourceFiles.end(), FilePath) !=
+      SourceFiles.end()) {
+    std::vector<std::string> SourceFiles;
+    SourceFiles.clear();
+    SourceFiles.push_back(FilePath);
+    ClangTool Tool(*CurrCompDB, SourceFiles);
     std::unique_ptr<ToolAction> RewriteTool =
         newFrontendActionFactoryA<RewriteAction<RewriteConsumer,
                                                 ProgramInfo>>(GlobalProgramInfo);
@@ -417,9 +421,9 @@ bool CConvInterface::WriteConvertedFileToDisk(const std::string &filePath) {
 
 bool CConvInterface::BuildInitialConstraints() {
 
-  std::lock_guard<std::mutex> lock(InterfaceMutex);
+  std::lock_guard<std::mutex> Lock(InterfaceMutex);
 
-  ClangTool Tool(*CurrCompDB, sourceFiles);
+  ClangTool Tool(*CurrCompDB, SourceFiles);
 
   // 1. Gather constraints.
   std::unique_ptr<ToolAction> ConstraintTool = newFrontendActionFactoryA<
@@ -443,11 +447,11 @@ bool CConvInterface::BuildInitialConstraints() {
   Constraints &CS = GlobalProgramInfo.getConstraints();
 
   // perform constraint solving by iteratively refining based on itypes.
-  bool fPointReached = performIterativeItypeRefinement(CS,
-                                                       GlobalProgramInfo,
-                                                       inputFilePaths);
+  bool Fixed = performIterativeItypeRefinement(CS,
+                                               GlobalProgramInfo,
+                                               FilePaths);
 
-  assert(fPointReached);
+  assert(Fixed);
   if (Verbose)
     outs() << "Constraints solved\n";
 
@@ -480,24 +484,24 @@ int main(int argc, const char **argv) {
   }
 
   // Get the absolute path of the base directory.
-  std::string tmpPath = BaseDir;
-  getAbsoluteFilePath(BaseDir, tmpPath);
-  BaseDir = tmpPath;
+  std::string TmpPath = BaseDir;
+  getAbsoluteFilePath(BaseDir, TmpPath);
+  BaseDir = TmpPath;
 
   CommonOptionsParser OptionsParser(argc, argv, ConvertCategory);
 
-  tooling::CommandLineArguments args = OptionsParser.getSourcePathList();
+  tooling::CommandLineArguments Args = OptionsParser.getSourcePathList();
 
-  ClangTool Tool(OptionsParser.getCompilations(), args);
-  std::set<std::string> inoutPaths;
+  ClangTool Tool(OptionsParser.getCompilations(), Args);
+  std::set<std::string> InoutPaths;
 
-  for (const auto &S : args) {
-    std::string abs_path;
-    if (getAbsoluteFilePath(S, abs_path))
-      inoutPaths.insert(abs_path);
+  for (const auto &S : Args) {
+    std::string AbsPath;
+    if (getAbsoluteFilePath(S, AbsPath))
+      InoutPaths.insert(AbsPath);
   }
 
-  if (OutputPostfix == "-" && inoutPaths.size() > 1) {
+  if (OutputPostfix == "-" && InoutPaths.size() > 1) {
     errs() << "If rewriting more than one , can't output to stdout\n";
     return 1;
   }
@@ -525,11 +529,10 @@ int main(int argc, const char **argv) {
   Constraints &CS = Info.getConstraints();
 
   // Perform constraint solving by iteratively refining based on itypes.
-  bool fPointReached = performIterativeItypeRefinement(CS,
-                                                       Info,
-                                                       inoutPaths);
+  bool Fixed = performIterativeItypeRefinement(CS,
+                                               Info, InoutPaths);
 
-  assert(fPointReached == true);
+  assert(Fixed == true);
   if (Verbose)
     outs() << "Constraints solved\n";
   if (DumpIntermediate) {
@@ -546,9 +549,9 @@ int main(int argc, const char **argv) {
   else
     llvm_unreachable("No Action");
 
-  unsigned numOfRewrites = Info.performMultipleRewrites ? 2 : 1;
+  unsigned NumOfRewrites = Info.MultipleRewrites ? 2 : 1;
 
-  while (numOfRewrites > 0) {
+  while (NumOfRewrites > 0) {
     // 4. Re-write based on constraints.
     std::unique_ptr<ToolAction> RewriteTool =
        newFrontendActionFactoryA
@@ -557,11 +560,11 @@ int main(int argc, const char **argv) {
       Tool.run(RewriteTool.get());
     else
       llvm_unreachable("No action");
-    numOfRewrites--;
+    NumOfRewrites--;
   }
 
   if (DumpStats)
-    Info.dump_stats(inoutPaths);
+    Info.dump_stats(InoutPaths);
 
   return 0;
 }
