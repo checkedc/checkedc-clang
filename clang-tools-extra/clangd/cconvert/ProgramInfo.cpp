@@ -525,9 +525,9 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
   std::set<ConstraintVariable*> FV = getVariable(F, C);
   assert(FV.size() == 1);
   const ConstraintVariable *PFV = (*(FV.begin()));
-  assert(PFV != NULL);
+  assert(PFV != nullptr);
   const FVConstraint *FVC = dyn_cast<FVConstraint>(PFV);
-  assert(FVC != NULL);
+  assert(FVC != nullptr);
 
   //returnVars = FVC->getReturnVars();
   //unsigned i = 0;

@@ -863,7 +863,7 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
     SourceManager &SM = C.getSourceManager();
     FileID mainFileID = SM.getMainFileID();
     const FileEntry *FE = SM.getFileEntryForID(mainFileID);
-    if (FE != NULL)
+    if (FE != nullptr)
       errs() << "Analyzing file " << FE->getName() << "\n";
     else
       errs() << "Analyzing\n";

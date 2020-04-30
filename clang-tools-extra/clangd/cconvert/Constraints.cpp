@@ -278,7 +278,7 @@ Constraints::propEq(EnvironmentMap &E, Eq *Dyn, T *A, ConstraintSet &R,
 template <typename T>
 bool
 Constraints::propImp(Implies *Imp, T *A, ConstraintSet &R, ConstAtom *V) {
-  Constraint *Con = NULL;
+  Constraint *Con = nullptr;
   bool ChangedEnv = false;
 
   if (Eq *DynP = dyn_cast<Eq>(Imp->getPremise())) 

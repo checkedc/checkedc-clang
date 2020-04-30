@@ -25,11 +25,11 @@ bool MappingVisitor::VisitDeclStmt(DeclStmt *S) {
     // PersistentSourceLocation to the Stmt object S.
     std::set<PersistentSourceLoc>::iterator I = SourceLocs.find(PSL);
     if (I != SourceLocs.end()) {
-      Decl *D = NULL;
-      Stmt *So = NULL;
-      Type *T = NULL;
+      Decl *D = nullptr;
+      Stmt *So = nullptr;
+      Type *T = nullptr;
       std::tie<Stmt *, Decl *, Type *>(So, D, T) = PSLtoSDT[PSL];
-      if (So != NULL && Verbose) {
+      if (So != nullptr && Verbose) {
         llvm::errs() << "\nOverriding ";
         S->dump();
         llvm::errs() << "\n";
@@ -41,7 +41,7 @@ bool MappingVisitor::VisitDeclStmt(DeclStmt *S) {
         llvm::errs() << "\n";
       }
 
-      if (So == NULL)
+      if (So == nullptr)
         PSLtoSDT[PSL] = StmtDeclOrType(S, D, T);
     }
 
@@ -65,11 +65,11 @@ bool MappingVisitor::VisitDecl(Decl *D) {
   if (PSL.valid()) {
     std::set<PersistentSourceLoc>::iterator I = SourceLocs.find(PSL);
     if (I != SourceLocs.end()) {
-      Decl *Do = NULL;
-      Stmt *S = NULL;
-      Type *T = NULL;
+      Decl *Do = nullptr;
+      Stmt *S = nullptr;
+      Type *T = nullptr;
       std::tie<Stmt *, Decl *, Type *>(S, Do, T) = PSLtoSDT[PSL];
-      if (Do != NULL && Verbose) {
+      if (Do != nullptr && Verbose) {
         llvm::errs() << "Overriding ";
         Do->dump();
         llvm::errs() << " with ";
@@ -78,7 +78,7 @@ bool MappingVisitor::VisitDecl(Decl *D) {
         llvm::errs() << " the same location";
       }
       
-      if (Do == NULL)
+      if (Do == nullptr)
         PSLtoSDT[PSL] = StmtDeclOrType(S, D, T);
     }
   }

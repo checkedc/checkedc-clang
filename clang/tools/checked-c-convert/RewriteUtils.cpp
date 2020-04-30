@@ -130,13 +130,13 @@ void rewrite(ParmVarDecl *PV, Rewriter &R, std::string SRewrite) {
   }
   assert(PIdx >= 0);
 
-  for (FunctionDecl *ToR = FD; ToR != NULL; ToR = ToR->getPreviousDecl()) {
+  for (FunctionDecl *ToR = FD; ToR != nullptr; ToR = ToR->getPreviousDecl()) {
     int U = ToR->getNumParams();
     if (PIdx < U) {
       // TODO these declarations could get us into deeper
       // header files.
       ParmVarDecl *Rewrite = ToR->getParamDecl(PIdx);
-      assert(Rewrite != NULL);
+      assert(Rewrite != nullptr && "Invalid param decl.");
       SourceRange TR = Rewrite->getSourceRange();
 
       if (canRewrite(R, TR))
@@ -156,7 +156,7 @@ void rewrite( VarDecl               *VD,
 {
   DeclStmt *Where = dyn_cast_or_null<DeclStmt>(WhereStmt);
 
-  if (Where != NULL) {
+  if (Where != nullptr) {
     if (Verbose) {
       errs() << "VarDecl at:\n";
       Where->dump();
@@ -246,7 +246,7 @@ void rewrite( VarDecl               *VD,
           DL->dump();
           continue;
         }
-        assert(VDL != NULL);
+        assert(VDL != nullptr && "Invalid decl.");
 
         for (const auto &NLT : RewritesForThisDecl)
           if (NLT.Declaration == DL) {
@@ -326,7 +326,7 @@ void rewrite( Rewriter              &R,
 
     // Is it a parameter type?
     if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) {
-      assert(Where == NULL);
+      assert(Where == nullptr && "Invalid statement.");
       rewrite(PV, R, N.Replacement);
     } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       rewrite(VD, R, N.Replacement, Where, Skip, N, ToRewrite, A);

@@ -195,14 +195,14 @@ void rewrite(ParmVarDecl *PV, Rewriter &R, std::string SRewrite) {
   }
   assert(PIdx >= 0);
 
-  for (FunctionDecl *toRewrite = FD; toRewrite != NULL;
+  for (FunctionDecl *toRewrite = FD; toRewrite != nullptr;
        toRewrite = toRewrite->getPreviousDecl()) {
     int U = toRewrite->getNumParams();
     if (PIdx < U) {
       // TODO these declarations could get us into deeper
       // Header files.
       ParmVarDecl *Rewrite = toRewrite->getParamDecl(PIdx);
-      assert(Rewrite != NULL);
+      assert(Rewrite != nullptr);
       SourceRange TR = Rewrite->getSourceRange();
 
       if (canRewrite(R, TR))
@@ -365,7 +365,7 @@ void rewrite( VarDecl               *VD,
       DAndReplace N;
       bool Found = false;
       VarDecl *VDL = dyn_cast<VarDecl>(DL);
-      if (VDL == NULL) {
+      if (VDL == nullptr) {
         // Example:
         //        struct {
         //           const wchar_t *start;
@@ -376,7 +376,7 @@ void rewrite( VarDecl               *VD,
         DL->dump();
         continue;
       }
-      assert(VDL != NULL);
+      assert(VDL != nullptr);
 
       for (const auto &NLT : RewritesForThisDecl)
         if (NLT.Declaration == DL) {
@@ -392,7 +392,7 @@ void rewrite( VarDecl               *VD,
           E->printPretty(NewMlDecl, nullptr, A.getPrintingPolicy());
         } else {
           if (isPointerType(VDL))
-            NewMlDecl << " = NULL";
+            NewMlDecl << " = nullptr";
         }
         NewMlDecl << ";\n";
       } else {
@@ -449,7 +449,7 @@ void rewrite( Rewriter              &R,
 
     // Is it a parameter type?
     if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) {
-      assert(Where == NULL);
+      assert(Where == nullptr);
       rewrite(PV, R, N.Replacement);
     } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       rewrite(VD, R, N.Replacement, Where, Skip, N, ToRewrite, A, GP);

@@ -110,9 +110,9 @@ static std::map<std::string, std::set<int>> AllocatorSizeAssoc = {
 
 // Get the name of the function called by this call expression.
 static std::string getCalledFunctionName(const Expr *E) {
-  static CallExpr *CE = dyn_cast<CallExpr>(E);
+  const CallExpr *CE = dyn_cast<CallExpr>(E);
   assert(CE && "The provided expression should be a call expression.");
-  static FunctionDecl *CalleeDecl = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
+  const FunctionDecl *CalleeDecl = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
   if (CalleeDecl && CalleeDecl->getDeclName().isIdentifier())
     return CalleeDecl->getName();
   return "";
@@ -412,7 +412,7 @@ void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
                  FT->getNumParams() == 2) {
         // If the function is `main` then we know second arg is _Array_ptr.
         ParmVarDecl *Argv = FD->getParamDecl(1);
-        assert(Argv != NULL);
+        assert(Argv != nullptr);
         auto &CS = I.getConstraints();
         std::set<ConstraintVariable*> DefCVars =
             I.getVariable(Argv, C, true);

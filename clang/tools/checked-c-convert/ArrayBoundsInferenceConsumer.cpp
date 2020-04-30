@@ -508,7 +508,7 @@ void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
                  FT->getNumParams() == 2) {
         // If the function is `main` then we know second argument is _Array_ptr.
         ParmVarDecl *Argv = FD->getParamDecl(1);
-        assert(Argv != NULL);
+        assert(Argv != nullptr && "Argument cannot be nullptr");
         auto &CS = I.getConstraints();
         std::set<ConstraintVariable*> DefCVars = I.getVariable(Argv, C, true);
         for (auto ConsVar : DefCVars) {

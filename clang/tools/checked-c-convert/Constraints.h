@@ -445,7 +445,7 @@ public:
     ConstraintKind K = Other.getKind();
     if (K == C_Eq) {
       const Eq *E = llvm::dyn_cast<Eq>(&Other);
-      assert(E != NULL);
+      assert(E != nullptr && "Invalid type.");
 
       if (*lhs == *E->lhs && *rhs == *E->rhs)
         return false;
@@ -508,7 +508,7 @@ public:
     ConstraintKind K = Other.getKind();
     if (K == C_Not) {
       const Not *N = llvm::dyn_cast<Not>(&Other);
-      assert(N != NULL);
+      assert(N != nullptr && "Invalid type");
 
       return *body < *N->body;
     }
@@ -575,7 +575,7 @@ public:
     ConstraintKind K = Other.getKind();
     if (K == C_Imp) {
       const Implies *I = llvm::dyn_cast<Implies>(&Other);
-      assert(I != NULL);
+      assert(I != nullptr && "Invalid type.");
 
       if (*premise == *I->premise && *conclusion == *I->conclusion)
         return false;
