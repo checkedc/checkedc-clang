@@ -54,8 +54,8 @@ public:
 
   // From a given set of ConstraintVariables (toCheck), get the constraint
   // variable that is not WILD and sits highest in the type lattice.
-  static ConstraintVariable*
-  getHighestNonWildConstraint(std::set<ConstraintVariable*> &ToCheck,
+  static ConstraintVariable *
+  getHighestNonWildConstraint(std::set<ConstraintVariable *> &ToCheck,
                               Constraints::EnvironmentMap &E,
                               ProgramInfo &I);
 
@@ -109,7 +109,7 @@ public:
   virtual bool hasArr(Constraints::EnvironmentMap &E) = 0;
   virtual bool hasNtArr(Constraints::EnvironmentMap &E) = 0;
   // Get the highest type assigned to the cvars of this constraint variable.
-  virtual ConstAtom* getHighestType(Constraints::EnvironmentMap &E) = 0;
+  virtual ConstAtom *getHighestType(Constraints::EnvironmentMap &E) = 0;
 
   std::string getTy() { return BaseType; }
   std::string getOriginalTy() { return OriginalType; }
@@ -186,7 +186,7 @@ private:
   // For the function parameters and returns,
   // this set contains the constraint variable of
   // the values used as arguments.
-  std::set<ConstraintVariable*> argumentConstraints;
+  std::set<ConstraintVariable *> argumentConstraints;
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CVars V, std::string T, std::string Name,
@@ -241,13 +241,13 @@ public:
   bool hasArr(Constraints::EnvironmentMap &E);
   bool hasNtArr(Constraints::EnvironmentMap &E);
   // Get the highest type assigned to the cvars of this constraint variable.
-  ConstAtom* getHighestType(Constraints::EnvironmentMap &E);
+  ConstAtom *getHighestType(Constraints::EnvironmentMap &E);
 
   bool isPartOfFunctionPrototype() const  { return partOFFuncPrototype; }
   // Add the provided constraint variable as an argument constraint.
   bool addArgumentConstraint(ConstraintVariable *DstCons);
   // Get the set of constraint variables corresponding to the arguments.
-  std::set<ConstraintVariable*> &getArgumentConstraints();
+  std::set<ConstraintVariable *> &getArgumentConstraints();
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
@@ -270,10 +270,10 @@ typedef PointerVariableConstraint PVConstraint;
 class FunctionVariableConstraint : public ConstraintVariable {
 private:
   // N constraints on the return value of the function.
-  std::set<ConstraintVariable*> returnVars;
+  std::set<ConstraintVariable *> returnVars;
   // A vector of K sets of N constraints on the parameter values, for
   // K parameters accepted by the function.
-  std::vector<std::set<ConstraintVariable*>> paramVars;
+  std::vector<std::set<ConstraintVariable *>> paramVars;
   // Name of the function or function variable. Used by mkString.
   std::string name;
   bool Hasproto;
@@ -289,7 +289,7 @@ public:
                              clang::DeclaratorDecl *D, std::string N,
                              Constraints &CS, const clang::ASTContext &C);
 
-  std::set<ConstraintVariable*> &
+  std::set<ConstraintVariable *> &
   getReturnVars() { return returnVars; }
 
   size_t numParams() { return paramVars.size(); }
@@ -303,7 +303,7 @@ public:
     return S->getKind() == FunctionVariable;
   }
 
-  std::set<ConstraintVariable*> &
+  std::set<ConstraintVariable *> &
   getParamVar(unsigned i) {
     assert(i < paramVars.size());
     return paramVars.at(i);
@@ -323,7 +323,7 @@ public:
   bool hasWild(Constraints::EnvironmentMap &E);
   bool hasArr(Constraints::EnvironmentMap &E);
   bool hasNtArr(Constraints::EnvironmentMap &E);
-  ConstAtom* getHighestType(Constraints::EnvironmentMap &E);
+  ConstAtom *getHighestType(Constraints::EnvironmentMap &E);
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;

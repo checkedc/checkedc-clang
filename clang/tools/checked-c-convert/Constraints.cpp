@@ -76,7 +76,7 @@ VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &VAtoms,
     }
   }
 
-  for (auto toDel: ConstraintsToRem) {
+  for (auto toDel : ConstraintsToRem) {
     delete(toDel);
   }
 

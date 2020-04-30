@@ -28,7 +28,7 @@ const clang::Type *getNextTy(const clang::Type *Ty) {
     return Ty;
 }
 
-ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs,
+ConstraintVariable *getHighest(std::set<ConstraintVariable *> Vs,
                                ProgramInfo &Info) {
   if (Vs.size() == 0)
     return nullptr;
@@ -210,11 +210,16 @@ std::string tyToStr(const clang::Type *T) {
   return QT.getAsString();
 }
 
-Expr* removeAuxillaryCasts(Expr *E) {
-  E = E->IgnoreParenImpCasts();
-  if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(E))
-    E = C->getSubExpr();
-  E = E->IgnoreParenImpCasts();
+Expr *removeAuxillaryCasts(Expr *E) {
+  bool NeedStrip = true;
+  while (NeedStrip) {
+    NeedStrip = false;
+    E = E->IgnoreParenImpCasts();
+    if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(E)) {
+      E = C->getSubExpr();
+      NeedStrip = true;
+    }
+  }
   return E;
 }
 

@@ -145,8 +145,8 @@ public:
 
   // Replace the equality constraints that contains the provided
   // constraint variable with the constant atom.
-  unsigned replaceEqConstraints(std::map<VarAtom*, ConstAtom*,
-                                PComp<VarAtom*> > &VAtoms,
+  unsigned replaceEqConstraints(std::map<VarAtom *, ConstAtom *,
+                                PComp<VarAtom *>> &VAtoms,
                                 class Constraints &CS);
 
   // Restore the erased constraints into the regular constraints.
@@ -168,7 +168,7 @@ public:
   }
 
   // Returns the constraints associated with this atom.
-  std::set<Constraint*, PComp<Constraint*>> &getAllConstraints() {
+  std::set<Constraint *, PComp<Constraint *>> &getAllConstraints() {
     return Constraints;
   }
 
@@ -211,10 +211,10 @@ private:
   bool ShouldBeNtArr;
   uint32_t  Loc;
   // These are the constraints erased during constraint solving.
-  std::set<Constraint*, PComp<Constraint*>> ErasedConstraints;
+  std::set<Constraint *, PComp<Constraint *>> ErasedConstraints;
   // The constraint expressions where this variable is mentioned on the 
   // LHS of an equality.
-  std::set<Constraint*, PComp<Constraint*>> Constraints;
+  std::set<Constraint *, PComp<Constraint *>> Constraints;
 };
 
 // This refers to the constant PTR.
@@ -628,18 +628,18 @@ public:
   Constraints();
   ~Constraints();
   // Remove the copy constructor, so we never accidentally copy this thing.
-  Constraints(const Constraints& O) = delete;
+  Constraints(const Constraints &O) = delete;
 
-  typedef std::set<Constraint*, PComp<Constraint*> > ConstraintSet;
+  typedef std::set<Constraint *, PComp<Constraint *>> ConstraintSet;
   // The environment maps from Vars to Consts (one of Ptr, Arr, Wild).
-  typedef std::map<VarAtom*, ConstAtom*, PComp<VarAtom*> > EnvironmentMap;
+  typedef std::map<VarAtom *, ConstAtom *, PComp<VarAtom *>> EnvironmentMap;
 
   typedef Bimap<std::string, std::string> StringToStringBiMap;
 
   // Map from a unique key of a function to its constraint variables.
-  typedef std::map<std::string, std::set<ConstraintVariable*>> FuncKeyToConsMap;
+  typedef std::map<std::string, std::set<ConstraintVariable *>> FuncKeyToConsMap;
 
-  typedef std::map<std::string, std::set<ConstraintVariable*>> NameToConsMap;
+  typedef std::map<std::string, std::set<ConstraintVariable *>> NameToConsMap;
 
   bool removeConstraint(Constraint *C);
   bool addConstraint(Constraint *c);

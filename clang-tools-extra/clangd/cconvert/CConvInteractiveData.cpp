@@ -37,7 +37,7 @@ void DisjointSet::AddElements(ConstraintKey A, ConstraintKey B) {
       }
       GrpA.insert(GrpB.begin(), GrpB.end());
       Groups.erase(LeaderB);
-      for (auto k: GrpB) {
+      for (auto k : GrpB) {
         Leaders[k] = LeaderA;
       }
 
@@ -61,6 +61,6 @@ ConstraintKey DisjointSet::GetLeader(ConstraintKey Ckey) {
   return Leaders[Ckey];
 }
 
-CVars& DisjointSet::GetGroup(ConstraintKey Ckey) {
+CVars &DisjointSet::GetGroup(ConstraintKey Ckey) {
   return Groups[Ckey];
 }

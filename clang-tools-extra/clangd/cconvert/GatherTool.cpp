@@ -39,7 +39,7 @@ public:
           // any explicit annotation to. If not? then add a cast.
           if (AnExternFunction && !IsWild) {
             if (PVConstraint *PV = dyn_cast<PVConstraint>(Cv)) {
-              for (auto cKey: PV->getCvars()) {
+              for (auto cKey : PV->getCvars()) {
                 if (PV->canConstraintCKey(CS, cKey, CS.getWild(), true)) {
                   IsWild = true;
                   break;

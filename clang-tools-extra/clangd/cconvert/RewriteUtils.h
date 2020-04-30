@@ -98,15 +98,15 @@ typedef std::set<DAndReplace, DComp> RSet;
 class GlobalVariableGroups {
 public:
   GlobalVariableGroups(SourceManager &SourceMgr) : SM(SourceMgr) { }
-  void addGlobalDecl(VarDecl *VD, std::set<VarDecl*> *VDSet = nullptr);
+  void addGlobalDecl(VarDecl *VD, std::set<VarDecl *> *VDSet = nullptr);
 
-  std::set<VarDecl*> &getVarsOnSameLine(VarDecl *VD);
+  std::set<VarDecl *> &getVarsOnSameLine(VarDecl *VD);
 
   virtual ~GlobalVariableGroups();
 
 private:
   SourceManager &SM;
-  std::map<VarDecl*, std::set<VarDecl*>*> globVarGroups;
+  std::map<VarDecl *, std::set<VarDecl *>*> globVarGroups;
 };
 
 void rewrite(ParmVarDecl *PV, Rewriter &R, std::string SRewrite);
@@ -173,7 +173,7 @@ private:
   std::string getExistingIType(ConstraintVariable *DeclC,
                                ConstraintVariable *Defc,
                                FunctionDecl *FuncDecl);
-  bool anyTop(std::set<ConstraintVariable*>);
+  bool anyTop(std::set<ConstraintVariable *>);
   ASTContext            *Context;
   ProgramInfo           &Info;
   RSet                  &rewriteThese;

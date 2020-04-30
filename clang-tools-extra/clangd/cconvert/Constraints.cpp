@@ -28,9 +28,9 @@ unsigned
 VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &VAtoms,
                               class Constraints &CS) {
   unsigned NumRemConstraints = 0;
-  std::set<Constraint*, PComp<Constraint*>> ConstraintsToRem;
+  std::set<Constraint *, PComp<Constraint *>> ConstraintsToRem;
   ConstraintsToRem.clear();
-  std::set<Constraint*, PComp<Constraint*>> OldConstraints;
+  std::set<Constraint *, PComp<Constraint *>> OldConstraints;
   OldConstraints.clear();
   OldConstraints.insert(Constraints.begin(), Constraints.end());
 
@@ -503,7 +503,7 @@ Constraints::removeAllConstraintsOnReason(std::string &Reason,
       this->constraintsByReason.end()) {
     RemovedCons.insert(this->constraintsByReason[Reason].begin(),
                   this->constraintsByReason[Reason].end());
-    for (auto cToDel: RemovedCons) {
+    for (auto cToDel : RemovedCons) {
       Removed = this->removeConstraint(cToDel) || Removed;
     }
     return Removed;

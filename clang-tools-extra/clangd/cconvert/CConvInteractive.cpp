@@ -18,7 +18,7 @@ using namespace llvm;
 bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
                                      std::set<std::string> &SourceFiles);
 
-DisjointSet& CConvInterface::GetWILDPtrsInfo() {
+DisjointSet &CConvInterface::GetWILDPtrsInfo() {
   return GlobalProgramInfo.getPointerConstraintDisjointSet();
 }
 
@@ -84,7 +84,7 @@ void CConvInterface::InvalidateAllConstraintsWithReason(
   CS.removeAllConstraintsOnReason(ConstraintRsn, ToRemoveConstraints);
 
   // Free up memory by deleting all the removed constraints.
-  for (auto *toDelCons: ToRemoveConstraints) {
+  for (auto *toDelCons : ToRemoveConstraints) {
     assert(dyn_cast<Eq>(toDelCons) && "We can only delete Eq constraints.");
     Eq*TCons = dyn_cast<Eq>(toDelCons);
     auto *Vatom = dyn_cast<VarAtom>(TCons->getLHS());

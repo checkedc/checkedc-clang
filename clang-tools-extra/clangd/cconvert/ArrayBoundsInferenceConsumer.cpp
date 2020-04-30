@@ -92,7 +92,7 @@ static bool needArrayBounds(ConstraintVariable *CV,
 
 static bool needArrayBounds(Decl *D, ProgramInfo &Info,
                             ASTContext *Context) {
-  std::set<ConstraintVariable*> consVar = Info.getVariable(D, Context);
+  std::set<ConstraintVariable *> consVar = Info.getVariable(D, Context);
   for (auto CurrCVar : consVar) {
     if (needArrayBounds(CurrCVar, Info.getConstraints().getVariables()))
       return true;
@@ -207,7 +207,7 @@ bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
       if (FldDecl->getType().getTypePtr()->isIntegerType())
         PotLenFields.insert(FldDecl);
 
-      std::set<ConstraintVariable*> ConsVars = Info.getVariable(FldDecl, Context);
+      std::set<ConstraintVariable *> ConsVars = Info.getVariable(FldDecl, Context);
       for (auto CurrCVar : ConsVars) {
         // Is this an array field?
         if (needArrayBounds(CurrCVar, E)) {
@@ -278,7 +278,7 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       if (!ParamArrays.empty() && !LengthParams.empty()) {
         // We have multiple parameters that are arrays and multiple params
         // that could be potentially length fields
-        for (auto &currArrParamPair: ParamArrays) {
+        for (auto &currArrParamPair : ParamArrays) {
           bool FoundLen = false;
 
           // If this is right next to the array param?
@@ -355,7 +355,7 @@ bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
     }
   } else if (isStringLiteral(RHS)) {
     VarDecl *TargetVar = nullptr;
-    StringLiteral* SL = dyn_cast<StringLiteral>(removeAuxillaryCasts(RHS));
+    StringLiteral *SL = dyn_cast<StringLiteral>(removeAuxillaryCasts(RHS));
 
     assert(SL);
 
@@ -399,7 +399,7 @@ void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
         auto &CS = I.getConstraints();
         std::set<ConstraintVariable *> DefCVars =
             I.getVariable(PVD, C, true);
-        for (auto constraintVar: DefCVars)
+        for (auto constraintVar : DefCVars)
           if (PVConstraint *PV = dyn_cast<PVConstraint>(constraintVar)) {
             auto &Cvars = PV->getCvars();
             if (Cvars.size() > 0) {
@@ -414,7 +414,7 @@ void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
         ParmVarDecl *Argv = FD->getParamDecl(1);
         assert(Argv != nullptr);
         auto &CS = I.getConstraints();
-        std::set<ConstraintVariable*> DefCVars =
+        std::set<ConstraintVariable *> DefCVars =
             I.getVariable(Argv, C, true);
         for (auto ConsVar : DefCVars) {
           if (PVConstraint *PV = dyn_cast<PVConstraint>(ConsVar)) {

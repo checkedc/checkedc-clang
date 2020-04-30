@@ -26,10 +26,10 @@ class ProgramInfo;
 
 // Maps a Decl to the set of constraint variables for that Decl.
 typedef std::map<PersistentSourceLoc, 
-  std::set<ConstraintVariable*>> VariableMap;
+  std::set<ConstraintVariable *>> VariableMap;
 
 // Maps a Decl to the DeclStmt that defines the Decl.
-typedef std::map<clang::Decl*, clang::DeclStmt*> VariableDecltoStmtMap;
+typedef std::map<clang::Decl *, clang::DeclStmt *> VariableDecltoStmtMap;
 
 
 
@@ -37,11 +37,11 @@ extern std::set<std::string> FilePaths;
 
 const clang::Type *getNextTy(const clang::Type *Ty);
 
-ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs,
+ConstraintVariable *getHighest(std::set<ConstraintVariable *> Vs,
                                ProgramInfo &Info);
 
 template <typename ConstraintType>
-ConstraintType *getHighestT(std::set<ConstraintVariable*> Vs,
+ConstraintType *getHighestT(std::set<ConstraintVariable *> Vs,
                             ProgramInfo &Info) {
   auto retVal = getHighest(Vs, Info);
 
@@ -92,7 +92,7 @@ clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD,
                                                 clang::SourceManager &S);
 
 // Remove auxillary casts from the provided expression.
-clang::Expr* removeAuxillaryCasts(clang::Expr *SrcExpr);
+clang::Expr *removeAuxillaryCasts(clang::Expr *SrcExpr);
 
 // Check if the provided file path belongs to the input project
 // and can be rewritten.
@@ -116,13 +116,13 @@ class Bimap {
   typedef std::pair<ValueType, Keys> ValueMapEntry;
 
 public:
-  void set(const KeyType& key, const ValueType& value) {
+  void set(const KeyType &key, const ValueType &value) {
 
     _normalMap.insert(std::make_pair(key, value));
     _transposeMap[value].insert(key);
   }
 
-  bool removeKey(const KeyType& key) {
+  bool removeKey(const KeyType &key) {
 
     auto has = hasKey(key);
     if (has) {
@@ -140,7 +140,7 @@ public:
     return has;
   }
 
-  bool removeValue(const ValueType& value) {
+  bool removeValue(const ValueType &value) {
 
     auto has = hasValue(value);
     if (has) {
@@ -156,11 +156,11 @@ public:
     return has;
   }
 
-  bool hasKey(const KeyType& key) const {
+  bool hasKey(const KeyType &key) const {
     return _normalMap.find(key) != _normalMap.end();
   }
 
-  bool hasValue(const ValueType& value) const {
+  bool hasValue(const ValueType &value) const {
     return _transposeMap.find(value) != _transposeMap.end();
   }
 
@@ -168,11 +168,11 @@ public:
     return _normalMap.size();
   }
 
-  const ValueMap& valueMap() const {
+  const ValueMap &valueMap() const {
     return _transposeMap;
   };
 
-  const KeyMap& keyMap() const {
+  const KeyMap &keyMap() const {
     return _normalMap;
   };
 

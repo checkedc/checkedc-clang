@@ -967,7 +967,7 @@ public:
         if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
           std::set<ConstraintVariable *> FieldConsVars =
               I.getVariable(D, Context, false);
-          for (auto CV: FieldConsVars) {
+          for (auto CV : FieldConsVars) {
             PVConstraint *PV = dyn_cast<PVConstraint>(CV);
             if (PV && PV->anyChanges(I.getConstraints().getVariables())) {
               // ok this contains a pointer that is checked.
@@ -999,7 +999,7 @@ public:
       }
     }
 
-    for (auto VD: AllDecls) {
+    for (auto VD : AllDecls) {
       // check if this variable is a structure or union and doesn't have an initializer.
       if (!VD->hasInit() && isStructOrUnionType(VD)) {
         // check if the variable needs a initializer.

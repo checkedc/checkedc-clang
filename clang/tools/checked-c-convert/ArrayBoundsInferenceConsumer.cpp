@@ -363,7 +363,7 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           }
 
           if (!FoundLen) {
-            for (auto &currLenParamPair: LengthParams) {
+            for (auto &currLenParamPair : LengthParams) {
               // Check if the length parameter name matches our heuristics.
               if (fieldNameMatch(currLenParamPair.second->getNameAsString())) {
                 FoundLen = true;
@@ -495,7 +495,7 @@ void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
         ParmVarDecl *PVD = FD->getParamDecl(0);
         auto &CS = I.getConstraints();
         std::set<ConstraintVariable *> defsCVar = I.getVariable(PVD, C, true);
-        for (auto constraintVar: defsCVar)
+        for (auto constraintVar : defsCVar)
           if (PVConstraint *PV = dyn_cast<PVConstraint>(constraintVar)) {
             auto &Cvars = PV->getCvars();
             if (Cvars.size() > 0) {

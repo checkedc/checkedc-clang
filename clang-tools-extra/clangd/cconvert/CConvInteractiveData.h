@@ -35,14 +35,14 @@ public:
   void Clear();
   void AddElements(ConstraintKey, ConstraintKey);
   ConstraintKey GetLeader(ConstraintKey);
-  CVars& GetGroup(ConstraintKey);
+  CVars &GetGroup(ConstraintKey);
 
   std::map<ConstraintKey, struct WildPointerInferenceInfo>
       RealWildPtrsWithReasons;
   CVars AllWildPtrs;
   CVars TotalNonDirectWildPointers;
   std::set<std::string> ValidSourceFiles;
-  std::map<ConstraintKey, PersistentSourceLoc*> PtrSourceMap;
+  std::map<ConstraintKey, PersistentSourceLoc *> PtrSourceMap;
 
 private:
   std::map<ConstraintKey, ConstraintKey> Leaders;

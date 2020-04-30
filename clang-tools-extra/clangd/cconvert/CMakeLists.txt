@@ -5,20 +5,20 @@ set( LLVM_LINK_COMPONENTS
         )
 
 add_clang_library(CConvert
-  CheckedCConvert.cpp
-  GatherTool.cpp
-  ProgramInfo.cpp
-  MappingVisitor.cpp
-  ConstraintBuilder.cpp
-  PersistentSourceLoc.cpp
-  Constraints.cpp
-  ConstraintVariables.cpp
   ArrayBoundsInferenceConsumer.cpp
-  RewriteUtils.cpp
-  IterativeItypeHelper.cpp
   ArrayBoundsInformation.cpp
-  CConvInteractiveData.cpp
   CConvInteractive.cpp
+  CConvInteractiveData.cpp
+  CheckedCConvert.cpp
+  ConstraintBuilder.cpp
+  ConstraintVariables.cpp
+  Constraints.cpp
+  GatherTool.cpp
+  IterativeItypeHelper.cpp
+  MappingVisitor.cpp
+  PersistentSourceLoc.cpp
+  ProgramInfo.cpp
+  RewriteUtils.cpp
   Utils.cpp
   LINK_LIBS
   clangAST
@@ -31,20 +31,20 @@ add_clang_library(CConvert
  )
 
 add_clang_tool(CConvertStandalone
-  CheckedCConvert.cpp
-  GatherTool.cpp
-  ProgramInfo.cpp
-  MappingVisitor.cpp
-  ConstraintBuilder.cpp
-  PersistentSourceLoc.cpp
-  Constraints.cpp
-  ConstraintVariables.cpp
   ArrayBoundsInferenceConsumer.cpp
-  CConvInteractiveData.cpp
-  CConvInteractive.cpp
-  RewriteUtils.cpp
-  IterativeItypeHelper.cpp
   ArrayBoundsInformation.cpp
+  CConvInteractive.cpp
+  CConvInteractiveData.cpp
+  CheckedCConvert.cpp
+  ConstraintBuilder.cpp
+  ConstraintVariables.cpp
+  Constraints.cpp
+  GatherTool.cpp
+  IterativeItypeHelper.cpp
+  MappingVisitor.cpp
+  PersistentSourceLoc.cpp
+  ProgramInfo.cpp
+  RewriteUtils.cpp
   Utils.cpp
 )
 

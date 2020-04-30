@@ -36,6 +36,8 @@ endif()
 
 add_clang_library(clangDaemon
   AST.cpp
+  CConvertCommands.cpp
+  CConvertDiagnostics.cpp
   Cancellation.cpp
   ClangdLSPServer.cpp
   ClangdServer.cpp
@@ -71,8 +73,6 @@ add_clang_library(clangDaemon
   TUScheduler.cpp
   URI.cpp
   XRefs.cpp
-  CConvertDiagnostics.cpp
-  CConvertCommands.cpp
 
   index/Background.cpp
   index/BackgroundIndexStorage.cpp
@@ -143,6 +143,8 @@ add_clang_library(clangDaemon
 
 add_clang_library(cconvClangDaemon
   AST.cpp
+  CConvertCommands.cpp
+  CConvertDiagnostics.cpp
   Cancellation.cpp
   ClangdLSPServer.cpp
   ClangdServer.cpp
@@ -178,8 +180,6 @@ add_clang_library(cconvClangDaemon
   TUScheduler.cpp
   URI.cpp
   XRefs.cpp
-  CConvertDiagnostics.cpp
-  CConvertCommands.cpp
 
   index/Background.cpp
   index/BackgroundIndexStorage.cpp

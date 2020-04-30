@@ -181,7 +181,7 @@ detectAndUpdateITypeVars(ProgramInfo &Info,
   unsigned long NumITypeVars = 0;
   // Clear the current iteration itype vars.
   IterationItypeMap.clear();
-  for (auto funcDefKey: ModFuncs) {
+  for (auto funcDefKey : ModFuncs) {
     FVConstraint *CDefn =
         dyn_cast<FVConstraint>(getHighest(CS.getFuncDefnVarMap()[funcDefKey],
                                           Info));

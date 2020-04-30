@@ -173,14 +173,14 @@ void ClangdServer::addDocument(PathRef File, llvm::StringRef Contents,
 void ClangdServer::reportCConvDiagsForAllFiles(DisjointSet &ccInfo,
                                                CConvLSPCallBack *ConvCB) {
   // Update the diag information for all the valid files.
-  for (auto &srcFileDiags: CConvDiagInfo.GetAllFilesDiagnostics()) {
+  for (auto &srcFileDiags : CConvDiagInfo.GetAllFilesDiagnostics()) {
     ConvCB->ccConvResultsReady(srcFileDiags.first);
   }
 }
 
 void ClangdServer::clearCConvDiagsForAllFiles(DisjointSet &ccInfo,
                                               CConvLSPCallBack *ConvCB) {
-  for (auto &srcFileDiags: CConvDiagInfo.GetAllFilesDiagnostics()) {
+  for (auto &srcFileDiags : CConvDiagInfo.GetAllFilesDiagnostics()) {
     // Clear diags for all files.
     ConvCB->ccConvResultsReady(srcFileDiags.first, true);
   }

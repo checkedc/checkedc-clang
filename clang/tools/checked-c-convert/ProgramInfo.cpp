@@ -392,7 +392,7 @@ bool ProgramInfo::link() {
               CVars C = PVC->getCvars();
               if (!C.empty())
                 C.erase(C.begin());
-              for (auto cVar: C)
+              for (auto cVar : C)
                 CS.addConstraint(CS.createEq(CS.getVar(cVar), CS.getWild()));
             } else {
               PVar->constrainTo(CS, CS.getWild(), true);

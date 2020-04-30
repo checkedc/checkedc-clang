@@ -147,7 +147,7 @@ public:
   bool resetErasedConstraints() {
     bool Added = false;
     // Insert the erased constraints into the original constraints.
-    for (auto c: ErasedConstraints) {
+    for (auto c : ErasedConstraints) {
       Added = Constraints.insert(c).second || Added;
     }
     // Remove all the erased constraints.
