@@ -10,13 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sstream>
+
+#include "ArrayBoundsInferenceConsumer.h"
+#include "ArrayBoundsInformation.h"
+#include "Constraints.h"
+#include "Utils.h"
+
 #include "clang/AST/RecursiveASTVisitor.h"
 
-#include "Constraints.h"
-#include "ArrayBoundsInferenceConsumer.h"
-#include "Utils.h"
-#include "ArrayBoundsInformation.h"
+#include <sstream>
 
 static std::set<std::string> LengthVarNamesPrefixes = {"len", "count",
                                                                "size", "num"};
@@ -33,16 +35,8 @@ static bool hasNameMatch(std::string PtrName, std::string FieldName) {
 }
 
 std::string commonPrefixUtil(std::string Str1, std::string Str2) {
-  std::string Res;
-  int n1 = Str1.length(), n2 = Str2.length();
-
-  // Compare str1 and str2
-  for (int i=0, j=0; i<=n1-1 && j<=n2-1; i++,j++) {
-    if (Str1[i] != Str2[j])
-      break;
-    Res.push_back(Str1[i]);
-  }
-  return (Res);
+  auto MRes = std::mismatch(Str1.begin(), Str1.end(), Str2.begin());
+  return Str1.substr(0, MRes.first - Str1.begin());
 }
 
 static bool prefixNameMatch(std::string PtrName, std::string FieldName) {
@@ -115,10 +109,10 @@ static std::map<std::string, std::set<int>> AllocatorSizeAssoc = {
 
 
 // Get the name of the function called by this call expression.
-std::string getCalledFunctionName(Expr *E) {
-  CallExpr *CE = dyn_cast<CallExpr>(E);
+static std::string getCalledFunctionName(const Expr *E) {
+  static CallExpr *CE = dyn_cast<CallExpr>(E);
   assert(CE && "The provided expression should be a call expression.");
-  FunctionDecl *CalleeDecl = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
+  static FunctionDecl *CalleeDecl = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
   if (CalleeDecl && CalleeDecl->getDeclName().isIdentifier())
     return CalleeDecl->getName();
   return "";
@@ -149,6 +143,7 @@ static ArrayBoundsInformation::BOUNDSINFOTYPE getAllocatedSizeExpr(Expr *E,
                                 "to a known allocator function.");
   auto &ArrBInfo = Info.getArrayBoundsInformation();
   CallExpr *CE = dyn_cast<CallExpr>(removeAuxillaryCasts(E));
+  assert(CE != nullptr && "Auxillary expression cannot be nullptr");
   std::string FName = getCalledFunctionName(CE);
   std::string SzExprStr = "";
   ArrayBoundsInformation::BOUNDSINFOTYPE PrevBInfo;
@@ -201,8 +196,8 @@ bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
   if (RD->isStruct() || RD->isUnion()) {
     // Get fields that are identified as arrays and also fields that could be
     // potential be the length fields.
-    std::set<FieldDecl*> PotLenFields;
-    std::set<FieldDecl*> IdentifiedArrVars;
+    std::set<FieldDecl *> PotLenFields;
+    std::set<FieldDecl *> IdentifiedArrVars;
     const auto &AllFields = RD->fields();
     auto &ArrBInfo = Info.getArrayBoundsInformation();
     auto &E = Info.getConstraints().getVariables();

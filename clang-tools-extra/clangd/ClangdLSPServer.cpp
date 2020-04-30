@@ -463,9 +463,9 @@ void ClangdLSPServer::onShutdown(const ShutdownParams &Params,
 #ifdef INTERACTIVECCCONV
   sendCConvMessage("Writing all CheckedC files back to disk");
   // Write all files back.
-  auto &allDiags = Server->CConvDiagInfo.GetAllFilesDiagnostics();
-  for (auto &currF: allDiags) {
-    Server->cconvCloseDocument(currF.first);
+  auto &AllDiags = Server->CConvDiagInfo.GetAllFilesDiagnostics();
+  for (auto &CD : AllDiags) {
+    Server->cconvCloseDocument(CD.first);
   }
   sendCConvMessage("Finished Writing all CheckedC files back to disk");
   Reply(nullptr);
@@ -529,23 +529,23 @@ void ClangdLSPServer::onFileEvent(const DidChangeWatchedFilesParams &Params) {
 }
 
 #ifdef INTERACTIVECCCONV
-void ClangdLSPServer::ccConvResultsReady(std::string targetFileName,
-                                         bool clearDiags) {
+void ClangdLSPServer::ccConvResultsReady(std::string FileName,
+                                         bool ClearDiags) {
   // Get the diagnostics and update the client.
   std::vector<Diag> Diagnostics;
   Diagnostics.clear();
-  if (!clearDiags) {
+  if (!ClearDiags) {
     std::lock_guard<std::mutex> lock(Server->CConvDiagInfo.DiagMutex);
     auto &allDiags = Server->CConvDiagInfo.GetAllFilesDiagnostics();
-    if (allDiags.find(targetFileName) !=
+    if (allDiags.find(FileName) !=
         allDiags.end()) {
       Diagnostics.insert(
           Diagnostics.begin(),
-          allDiags[targetFileName].begin(),
-          allDiags[targetFileName].end());
+          allDiags[FileName].begin(),
+          allDiags[FileName].end());
     }
   }
-  this->onDiagnosticsReady(targetFileName, Diagnostics);
+  this->onDiagnosticsReady(FileName, Diagnostics);
 }
 
 void ClangdLSPServer::sendCConvMessage(std::string msg) {\
@@ -918,26 +918,26 @@ void ClangdLSPServer::onSignatureHelp(const TextDocumentPositionParams &Params,
 void ClangdLSPServer::onCodeLens(const CodeLensParams &Params,
                                  Callback<llvm::json::Value> Reply) {
   // This is just a beacon to display for user.
-  std::vector<CodeLens> allCodeLens;
-  CodeLens ccBecon;
-  ccBecon.range.start.line = 15;
-  ccBecon.range.end.line = 16;
-  ccBecon.range.start.character = 13;
-  ccBecon.range.end.character = 17;
-  Command newCmd;
-  newCmd.command = "CCconv Interactive Mode On";
-  newCmd.title = "CConv Mode On";
-  ccBecon.command = newCmd;
-  allCodeLens.clear();
-  allCodeLens.push_back(ccBecon);
-  Reply(llvm::json::Array(allCodeLens));
+  std::vector<CodeLens> AllCodeLens;
+  CodeLens CcBecon;
+  CcBecon.range.start.line = 15;
+  CcBecon.range.end.line = 16;
+  CcBecon.range.start.character = 13;
+  CcBecon.range.end.character = 17;
+  Command NewCmd;
+  NewCmd.command = "CCconv Interactive Mode On";
+  NewCmd.title = "CConv Mode On";
+  CcBecon.command = NewCmd;
+  AllCodeLens.clear();
+  AllCodeLens.push_back(CcBecon);
+  Reply(llvm::json::Array(AllCodeLens));
 }
 
 void ClangdLSPServer::onCodeLensResolve(const CodeLens &Params,
                                         Callback<llvm::json::Value> Reply) {
-  CodeLens ccBeaconResolve;
-  ccBeaconResolve.range = Params.range;
-  Reply(clang::clangd::toJSON(ccBeaconResolve));
+  CodeLens CcBeaconResolve;
+  CcBeaconResolve.range = Params.range;
+  Reply(clang::clangd::toJSON(CcBeaconResolve));
 }
 #endif
 // Go to definition has a toggle function: if def and decl are distinct, then

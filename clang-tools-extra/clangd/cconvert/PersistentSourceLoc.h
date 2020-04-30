@@ -27,32 +27,32 @@
 
 class PersistentSourceLoc {
 protected:
-  PersistentSourceLoc(std::string f, uint32_t l, uint32_t c) :
-    fileName(f), lineNo(l), colNo(c), isValid(true) {}
+  PersistentSourceLoc(std::string f, uint32_t l, uint32_t c) : FileName(f), LineNo(l), ColNo(c),
+                                                               isValid(true) {}
   
 public:
-  PersistentSourceLoc() : fileName(""), lineNo(0), colNo(0),
+  PersistentSourceLoc() : FileName(""), LineNo(0), ColNo(0),
                           isValid(false) {}
-  std::string getFileName() const { return fileName; }
-  uint32_t getLineNo() const { return lineNo; }
-  uint32_t getColNo() const { return colNo; }
+  std::string getFileName() const { return FileName; }
+  uint32_t getLineNo() const { return LineNo; }
+  uint32_t getColNo() const { return ColNo; }
   bool valid() { return isValid; }
 
   bool operator<(const PersistentSourceLoc &o) const {
-    if (fileName == o.fileName)
-      if (lineNo == o.lineNo)
-        if (colNo == o.colNo)
+    if (FileName == o.FileName)
+      if (LineNo == o.LineNo)
+        if (ColNo == o.ColNo)
           return false;
         else
-          return colNo < o.colNo;
+          return ColNo < o.ColNo;
       else
-        return lineNo < o.lineNo;
+        return LineNo < o.LineNo;
     else
-      return fileName < o.fileName;
+      return FileName < o.FileName;
   }
 
   void print(llvm::raw_ostream &O) const {
-    O << fileName << ":" << lineNo << ":" << colNo;
+    O << FileName << ":" << LineNo << ":" << ColNo;
   }
 
   void dump() const { print(llvm::errs()); }
@@ -70,9 +70,9 @@ private:
   PersistentSourceLoc mkPSL(clang::SourceRange SR,
                             clang::SourceLocation SL,
                             clang::ASTContext &Context);
-  std::string fileName;
-  uint32_t lineNo;
-  uint32_t colNo;
+  std::string FileName;
+  uint32_t LineNo;
+  uint32_t ColNo;
   bool isValid;
 };
 

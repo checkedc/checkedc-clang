@@ -42,7 +42,8 @@ PersistentSourceLoc::mkPSL(const Stmt *S, ASTContext &Context) {
 // Use the PresumedLoc infrastructure to get a file name and expansion
 // line and column numbers for a SourceLocation.
 PersistentSourceLoc 
-PersistentSourceLoc::mkPSL(clang::SourceRange SR, SourceLocation SL, ASTContext &Context) {
+PersistentSourceLoc::mkPSL(clang::SourceRange SR, SourceLocation SL,
+                           ASTContext &Context) {
   SourceManager &SM = Context.getSourceManager();
   PresumedLoc PL = SM.getPresumedLoc(SL);
 
@@ -53,19 +54,19 @@ PersistentSourceLoc::mkPSL(clang::SourceRange SR, SourceLocation SL, ASTContext 
   SourceLocation ESL = SM.getExpansionLoc(SL);
   FullSourceLoc FESL = Context.getFullLoc(ESL);
   assert(FESL.isValid());
-  std::string fn = PL.getFilename();
+  std::string Filename = PL.getFilename();
 
   // get the absolute filename of the file
-  FullSourceLoc tFSL(SR.getBegin(), SM);
-  if (tFSL.isValid()) {
-    const FileEntry *fe = SM.getFileEntryForID(tFSL.getFileID());
+  FullSourceLoc Fsl(SR.getBegin(), SM);
+  if (Fsl.isValid()) {
+    const FileEntry *Fe = SM.getFileEntryForID(Fsl.getFileID());
     std::string feAbsS = "";
-    if (fe != nullptr && getAbsoluteFilePath(fe->getName(), feAbsS)) {
-      fn = sys::path::remove_leading_dotslash(feAbsS);
+    if (Fe != nullptr && getAbsoluteFilePath(Fe->getName(), feAbsS)) {
+      Filename = sys::path::remove_leading_dotslash(feAbsS);
     }
   }
 
-  PersistentSourceLoc PSL(fn, 
+  PersistentSourceLoc PSL(Filename,
     FESL.getExpansionLineNumber(), FESL.getExpansionColumnNumber());
 
   return PSL;

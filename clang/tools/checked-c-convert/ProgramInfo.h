@@ -34,7 +34,7 @@ public:
   void dump_stats(std::set<std::string> &F) {
     print_stats(F, llvm::errs()); }
   void print_stats(std::set<std::string> &F, llvm::raw_ostream &O,
-                   bool onlySummary=false);
+                   bool OnlySummary =false);
 
   Constraints &getConstraints() { return CS;  }
 
@@ -66,8 +66,8 @@ public:
   bool checkStructuralEquality(clang::QualType, clang::QualType);
 
   // Check if casting from srcType to dstType is fine.
-  bool isExplicitCastSafe(clang::QualType dstType,
-                          clang::QualType srcType);
+  bool isExplicitCastSafe(clang::QualType DstType,
+                          clang::QualType SrcType);
 
   // Called when we are done adding constraints and visiting ASTs. 
   // Links information about global symbols together and adds constraints
@@ -96,7 +96,7 @@ public:
   // a constraint variable cannot be found.
   std::set<ConstraintVariable *> 
   getVariableHelper(clang::Expr *E,std::set<ConstraintVariable *>V,
-    clang::ASTContext *C, bool ifc);
+    clang::ASTContext *C, bool Ifc);
 
   // Given some expression E, what is the top-most constraint variable that
   // E refers to? 
@@ -107,17 +107,17 @@ public:
   // non-Declaration Definition.
   std::set<ConstraintVariable*>
     getVariable(clang::Expr *E, clang::ASTContext *C,
-              bool inFunctionContext = false);
+              bool InFuncCtx = false);
   std::set<ConstraintVariable*>
     getVariableOnDemand(clang::Decl *D, clang::ASTContext *C,
-                      bool inFunctionContext = false);
+                      bool InFuncCtx = false);
   std::set<ConstraintVariable*>
     getVariable(clang::Decl *D, clang::ASTContext *C,
-              bool inFunctionContext = false);
+              bool InFuncCtx = false);
   // get constraint variable for the provided function or its parameter
   std::set<ConstraintVariable*>
     getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD,
-              int parameterIndex=-1);
+              int PIdx =-1);
 
   VariableMap &getVarMap();
 
@@ -126,18 +126,18 @@ public:
   // For all functions that do not have corresponding declaration,
   // we create an on demand FunctionVariableConstraint.
   std::set<ConstraintVariable*>&
-  getOnDemandFuncDeclarationConstraint(FunctionDecl *targetFunc, ASTContext *C);
+  getOnDemandFuncDeclarationConstraint(FunctionDecl *D, ASTContext *C);
 
   // Get a unique key for a given function declaration node.
-  std::string getUniqueFuncKey(FunctionDecl *funcDecl, ASTContext *C);
+  std::string getUniqueFuncKey(FunctionDecl *D, ASTContext *C);
 
   // Get a unique string representing the declaration object.
-  std::string getUniqueDeclKey(Decl *decl, ASTContext *C);
+  std::string getUniqueDeclKey(Decl *D, ASTContext *C);
 
   // Given the unique key for the function definition, get the pointer to
   // the constraint set of the declaration (if exists) else null.
   std::set<ConstraintVariable*> *
-      getFuncDeclConstraintSet(std::string funcDefKey);
+      getFuncDeclConstraintSet(std::string FuncDefKey);
 
   std::map<std::string, std::set<ConstraintVariable*>>&
   getOnDemandFuncDeclConstraintMap();
@@ -150,13 +150,13 @@ public:
   }
 private:
   // Apply function sub-typing relation from srcCVar to dstCVar.
-  bool applySubtypingRelation(ConstraintVariable *srcCVar,
-                              ConstraintVariable *dstCVar);
+  bool applySubtypingRelation(ConstraintVariable *SrcCVar,
+                              ConstraintVariable *DstCVar);
   // Check if the given set has the corresponding constraint variable type.
   template <typename T>
   bool hasConstraintType(std::set<ConstraintVariable*> &S);
   // Function to check if an external symbol is okay to leave constrained.
-  bool isExternOkay(std::string ext);
+  bool isExternOkay(std::string Ext);
 
   // Map that contains function name and corresponding
   // set of function variable constraints.

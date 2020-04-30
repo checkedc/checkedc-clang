@@ -24,127 +24,131 @@
 using namespace llvm;
 using namespace clang;
 
-SourceRange DComp::getWholeSR(SourceRange orig, DAndReplace dr) const {
-  SourceRange newSourceRange(orig);
+SourceRange DComp::getWholeSR(SourceRange Orig, DAndReplace Dr) const {
+  SourceRange newSourceRange(Orig);
 
-  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(dr.Declaration)) {
+  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(Dr.Declaration)) {
     newSourceRange.setEnd(getFunctionDeclarationEnd(FD, SM));
-    if (dr.fullDecl == false)
+    if (Dr.fullDecl == false)
       newSourceRange = FD->getReturnTypeSourceRange();
   }
 
   return newSourceRange;
 }
 
-bool DComp::operator()(const DAndReplace lhs, const DAndReplace rhs) const {
+bool DComp::operator()(const DAndReplace Lhs, const DAndReplace Rhs) const {
   // Does the source location of the Decl in lhs overlap at all with
   // the source location of rhs?
-  SourceRange srLHS = lhs.Declaration->getSourceRange();
-  SourceRange srRHS = rhs.Declaration->getSourceRange();
+  SourceRange SrLhs = Lhs.Declaration->getSourceRange();
+  SourceRange SrRhs = Rhs.Declaration->getSourceRange();
 
   // Take into account whether or not a FunctionDeclaration specifies
   // the "whole" declaration or not. If it does not, it just specifies
   // the return position.
-  srLHS = getWholeSR(srLHS, lhs);
-  srRHS = getWholeSR(srRHS, rhs);
+  SrLhs = getWholeSR(SrLhs, Lhs);
+  SrRhs = getWholeSR(SrRhs, Rhs);
 
   // Also take into account whether or not there is a multi-statement
   // decl, because the generated ranges will overlap.
-  DeclStmt *lhStmt = dyn_cast_or_null<DeclStmt>(lhs.Statement);
+  DeclStmt *St = dyn_cast_or_null<DeclStmt>(Lhs.Statement);
 
-  if (lhStmt && !lhStmt->isSingleDecl()) {
-    SourceLocation  newBegin = (*lhStmt->decls().begin())->getSourceRange().getBegin();
-    bool            found;
-    for (const auto &DT : lhStmt->decls()) {
-      if (DT == lhs.Declaration) {
-        found = true;
+  if (St && !St->isSingleDecl()) {
+    SourceLocation NewBegin =
+        (*St->decls().begin())->getSourceRange().getBegin();
+    bool Found;
+    for (const auto &DT : St->decls()) {
+      if (DT == Lhs.Declaration) {
+        Found = true;
         break;
       }
-      newBegin = DT->getSourceRange().getEnd();
+      NewBegin = DT->getSourceRange().getEnd();
     }
-    assert (found);
-    srLHS.setBegin(newBegin);
+    assert (Found);
+    SrLhs.setBegin(NewBegin);
     // This is needed to make the subsequent test inclusive.
-    srLHS.setEnd(srLHS.getEnd().getLocWithOffset(-1));
+    SrLhs.setEnd(SrLhs.getEnd().getLocWithOffset(-1));
   }
 
-  DeclStmt *rhStmt = dyn_cast_or_null<DeclStmt>(rhs.Statement);
-  if (rhStmt && !rhStmt->isSingleDecl()) {
-    SourceLocation  newBegin = (*rhStmt->decls().begin())->getSourceRange().getBegin();
-    bool            found;
-    for (const auto &DT : rhStmt->decls()) {
-      if (DT == rhs.Declaration) {
-        found = true;
+  DeclStmt *RhStmt = dyn_cast_or_null<DeclStmt>(Rhs.Statement);
+  if (RhStmt && !RhStmt->isSingleDecl()) {
+    SourceLocation NewBegin = (*RhStmt->decls().begin())->getSourceRange().getBegin();
+    bool Found;
+    for (const auto &DT : RhStmt->decls()) {
+      if (DT == Rhs.Declaration) {
+        Found = true;
         break;
       }
-      newBegin = DT->getSourceRange().getEnd();
+      NewBegin = DT->getSourceRange().getEnd();
     }
-    assert (found);
-    srRHS.setBegin(newBegin);
+    assert (Found);
+    SrRhs.setBegin(NewBegin);
     // This is needed to make the subsequent test inclusive.
-    srRHS.setEnd(srRHS.getEnd().getLocWithOffset(-1));
+    SrRhs.setEnd(SrRhs.getEnd().getLocWithOffset(-1));
   }
 
-  SourceLocation x1 = srLHS.getBegin();
-  SourceLocation x2 = srLHS.getEnd();
-  SourceLocation y1 = srRHS.getBegin();
-  SourceLocation y2 = srRHS.getEnd();
+  SourceLocation X1 = SrLhs.getBegin();
+  SourceLocation X2 = SrLhs.getEnd();
+  SourceLocation Y1 = SrRhs.getBegin();
+  SourceLocation Y2 = SrRhs.getEnd();
 
-  if (lhStmt == nullptr && rhStmt == nullptr) {
+  if (St == nullptr && RhStmt == nullptr) {
     // These are global declarations. Get the source location
     // and compare them lexicographically.
-    PresumedLoc lHsPLocB = SM.getPresumedLoc(x2);
-    PresumedLoc rHsPLocE = SM.getPresumedLoc(y2);
+    PresumedLoc LHsPLocB = SM.getPresumedLoc(X2);
+    PresumedLoc RHsPLocE = SM.getPresumedLoc(Y2);
 
     // Are both the source location valid?
-    if (lHsPLocB.isValid() && rHsPLocE.isValid()) {
+    if (LHsPLocB.isValid() && RHsPLocE.isValid()) {
       // They are in same fine?
-      if (!strcmp(lHsPLocB.getFilename(), rHsPLocE.getFilename())) {
+      if (!strcmp(LHsPLocB.getFilename(), RHsPLocE.getFilename())) {
         // Are they in same line?
-        if (lHsPLocB.getLine() == rHsPLocE.getLine())
-          return lHsPLocB.getColumn() < rHsPLocE.getColumn();
+        if (LHsPLocB.getLine() == RHsPLocE.getLine())
+          return LHsPLocB.getColumn() < RHsPLocE.getColumn();
 
-        return lHsPLocB.getLine() < rHsPLocE.getLine();
+        return LHsPLocB.getLine() < RHsPLocE.getLine();
       }
-      return strcmp(lHsPLocB.getFilename(), rHsPLocE.getFilename()) > 0;
+      return strcmp(LHsPLocB.getFilename(), RHsPLocE.getFilename()) > 0;
     }
-    return lHsPLocB.isValid();
+    return LHsPLocB.isValid();
   }
 
-  bool contained =  SM.isBeforeInTranslationUnit(x1, y2) &&
-                    SM.isBeforeInTranslationUnit(y1, x2);
+  bool Contained =  SM.isBeforeInTranslationUnit(X1, Y2) &&
+                    SM.isBeforeInTranslationUnit(Y1, X2);
 
-  if (contained)
+  if (Contained)
     return false;
   else
-    return SM.isBeforeInTranslationUnit(x2, y1);
+    return SM.isBeforeInTranslationUnit(X2, Y1);
 }
 
-void GlobalVariableGroups::addGlobalDecl(VarDecl *decl, std::set<VarDecl *> *targetSet) {
-  if (decl && globVarGroups.find(decl) == globVarGroups.end()) {
-    if (targetSet == nullptr) {
-      targetSet = new std::set<VarDecl *>();
+void GlobalVariableGroups::addGlobalDecl(VarDecl *VD,
+                                         std::set<VarDecl *> *VDSet) {
+  if (VD && globVarGroups.find(VD) == globVarGroups.end()) {
+    if (VDSet == nullptr) {
+      VDSet = new std::set<VarDecl *>();
     }
-    targetSet->insert(decl);
-    globVarGroups[decl] = targetSet;
+    VDSet->insert(VD);
+    globVarGroups[VD] = VDSet;
     // Process the next decl.
-    Decl *nextDecl = decl->getNextDeclInContext();
-    if (nextDecl && dyn_cast<VarDecl>(nextDecl)) {
-      PresumedLoc origDeclLoc = SM.getPresumedLoc(decl->getSourceRange().getBegin());
-      PresumedLoc newDeclLoc = SM.getPresumedLoc(nextDecl->getSourceRange().getBegin());
+    Decl *NDecl = VD->getNextDeclInContext();
+    if (NDecl && dyn_cast<VarDecl>(NDecl)) {
+      PresumedLoc OrigDeclLoc =
+          SM.getPresumedLoc(VD->getSourceRange().getBegin());
+      PresumedLoc NewDeclLoc =
+          SM.getPresumedLoc(NDecl->getSourceRange().getBegin());
       // Check if both declarations are on the same line.
-      if (origDeclLoc.isValid() && newDeclLoc.isValid() &&
-          !strcmp(origDeclLoc.getFilename(), newDeclLoc.getFilename()) &&
-          origDeclLoc.getLine() == newDeclLoc.getLine())
-        addGlobalDecl(dyn_cast<VarDecl>(nextDecl), targetSet);
+      if (OrigDeclLoc.isValid() && NewDeclLoc.isValid() &&
+          !strcmp(OrigDeclLoc.getFilename(), NewDeclLoc.getFilename()) &&
+          OrigDeclLoc.getLine() == NewDeclLoc.getLine())
+        addGlobalDecl(dyn_cast<VarDecl>(NDecl), VDSet);
     }
   }
 }
 
-std::set<VarDecl *> &GlobalVariableGroups::getVarsOnSameLine(VarDecl *decl) {
-  assert (globVarGroups.find(decl) != globVarGroups.end() &&
+std::set<VarDecl *> &GlobalVariableGroups::getVarsOnSameLine(VarDecl *VD) {
+  assert (globVarGroups.find(VD) != globVarGroups.end() &&
          "Expected to find the group.");
-  return *(globVarGroups[decl]);
+  return *(globVarGroups[VD]);
 }
 
 GlobalVariableGroups::~GlobalVariableGroups() {
@@ -168,7 +172,7 @@ static bool canRewrite(Rewriter &R, SourceRange &SR) {
   return SR.isValid() && (R.getRangeSize(SR) != -1);
 }
 
-void rewrite(ParmVarDecl *PV, Rewriter &R, std::string sRewrite) {
+void rewrite(ParmVarDecl *PV, Rewriter &R, std::string SRewrite) {
   // First, find all the declarations of the containing function.
   DeclContext *DF = PV->getParentFunctionOrMethod();
   assert(DF != nullptr && "no parent function or method for decl");
@@ -180,29 +184,29 @@ void rewrite(ParmVarDecl *PV, Rewriter &R, std::string sRewrite) {
 
   // This is kind of hacky, maybe we should record the index of the
   // parameter when we find it, instead of re-discovering it here.
-  int parmIndex = -1;
+  int PIdx = -1;
   int c = 0;
   for (const auto &I : FD->parameters()) {
     if (I == PV) {
-      parmIndex = c;
+      PIdx = c;
       break;
     }
     c++;
   }
-  assert(parmIndex >= 0);
+  assert(PIdx >= 0);
 
   for (FunctionDecl *toRewrite = FD; toRewrite != NULL;
        toRewrite = toRewrite->getPreviousDecl()) {
     int U = toRewrite->getNumParams();
-    if (parmIndex < U) {
+    if (PIdx < U) {
       // TODO these declarations could get us into deeper
       // Header files.
-      ParmVarDecl *Rewrite = toRewrite->getParamDecl(parmIndex);
+      ParmVarDecl *Rewrite = toRewrite->getParamDecl(PIdx);
       assert(Rewrite != NULL);
       SourceRange TR = Rewrite->getSourceRange();
 
       if (canRewrite(R, TR))
-        R.ReplaceText(TR, sRewrite);
+        R.ReplaceText(TR, SRewrite);
     }
   }
 }
@@ -232,11 +236,12 @@ bool isSingleDeclaration(VarDecl *VD, DeclStmt *Stmt, GlobalVariableGroups &GP) 
 }
 
 void getDeclsOnSameLine(VarDecl *VD, DeclStmt *Stmt, GlobalVariableGroups &GP,
-                        std::set<Decl*> &decls) {
+                        std::set<Decl*> &Decls) {
   if (Stmt != nullptr) {
-    decls.insert(Stmt->decls().begin(), Stmt->decls().end());
+    Decls.insert(Stmt->decls().begin(), Stmt->decls().end());
   } else {
-    decls.insert(GP.getVarsOnSameLine(VD).begin(), GP.getVarsOnSameLine(VD).end());
+    Decls.insert(GP.getVarsOnSameLine(VD).begin(),
+                 GP.getVarsOnSameLine(VD).end());
   }
 }
 
@@ -248,26 +253,27 @@ SourceLocation deleteAllDeclarationsOnLine(VarDecl *VD, DeclStmt *Stmt,
     R.RemoveText(Stmt->getSourceRange());
     return Stmt->getSourceRange().getEnd();
   } else {
-    SourceLocation beginLoc;
+    SourceLocation BLoc;
     SourceManager &SM = R.getSourceMgr();
     // Remove all vars on the line.
-    for (auto decl: GP.getVarsOnSameLine(VD)) {
-      SourceRange toDel = decl->getSourceRange();
-      if (beginLoc.isInvalid() || SM.isBeforeInTranslationUnit(toDel.getBegin(), beginLoc))
-        beginLoc = toDel.getBegin();
-      R.RemoveText(decl->getSourceRange());
+    for (auto D : GP.getVarsOnSameLine(VD)) {
+      SourceRange ToDel = D->getSourceRange();
+      if (BLoc.isInvalid() ||
+          SM.isBeforeInTranslationUnit(ToDel.getBegin(), BLoc))
+        BLoc = ToDel.getBegin();
+      R.RemoveText(D->getSourceRange());
     }
-    return beginLoc;
+    return BLoc;
   }
 }
 
 void rewrite( VarDecl               *VD,
               Rewriter              &R,
-              std::string           sRewrite,
+              std::string SRewrite,
               Stmt                  *WhereStmt,
               RSet                  &skip,
               const DAndReplace     &N,
-              RSet                  &toRewrite,
+              RSet                  &ToRewrite,
               ASTContext            &A,
               GlobalVariableGroups  &GP)
 {
@@ -284,13 +290,14 @@ void rewrite( VarDecl               *VD,
   // to the START of the SourceRange of the initializer text, and drop
   // an '=' token into sRewrite.
   if (VD->hasInit()) {
-    SourceLocation eqLoc = VD->getInitializerStartLoc();
-    TR.setEnd(eqLoc);
-    sRewrite = sRewrite + " = ";
+    SourceLocation EqLoc = VD->getInitializerStartLoc();
+    TR.setEnd(EqLoc);
+    SRewrite = SRewrite + " = ";
   } else {
     // There is no initializer, lets add it.
-    if (isPointerType(VD) && (VD->getStorageClass() != StorageClass::SC_Extern))
-      sRewrite = sRewrite + " = ((void *)0)";
+    if (isPointerType(VD) &&
+        (VD->getStorageClass() != StorageClass::SC_Extern))
+      SRewrite = SRewrite + " = ((void *)0)";
       //MWH -- Solves issue 43. Should make it so we insert NULL if
     // stdlib.h or stdlib_checked.h is included
   }
@@ -299,19 +306,19 @@ void rewrite( VarDecl               *VD,
   // locally, at the site of the declaration.
   if (isSingleDeclaration(VD, Where, GP)) {
     if (canRewrite(R, TR)) {
-      R.ReplaceText(TR, sRewrite);
+      R.ReplaceText(TR, SRewrite);
     } else {
       // This can happen if SR is within a macro. If that is the case,
       // maybe there is still something we can do because Decl refers
       // to a non-macro line.
 
-      SourceRange possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()),
+      SourceRange Possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()),
                            VD->getLocation());
 
-      if (canRewrite(R, possible)) {
-        R.ReplaceText(possible, sRewrite);
-        std::string newStr = " " + VD->getName().str();
-        R.InsertTextAfter(VD->getLocation(), newStr);
+      if (canRewrite(R, Possible)) {
+        R.ReplaceText(Possible, SRewrite);
+        std::string NewStr = " " + VD->getName().str();
+        R.InsertTextAfter(VD->getLocation(), NewStr);
       } else {
         if (Verbose) {
           errs() << "Still don't know how to re-write VarDecl\n";
@@ -319,7 +326,7 @@ void rewrite( VarDecl               *VD,
           errs() << "at\n";
           if (Where)
             Where->dump();
-          errs() << "with " << sRewrite << "\n";
+          errs() << "with " << SRewrite << "\n";
         }
       }
     }
@@ -333,30 +340,30 @@ void rewrite( VarDecl               *VD,
     // we don't want to process twice. We'll skip them here.
 
     // Step 1: get the re-written types.
-    RSet rewritesForThisDecl(DComp(R.getSourceMgr()));
-    auto I = toRewrite.find(N);
-    while (I != toRewrite.end()) {
+    RSet RewritesForThisDecl(DComp(R.getSourceMgr()));
+    auto I = ToRewrite.find(N);
+    while (I != ToRewrite.end()) {
       DAndReplace tmp = *I;
       if (areDeclarationsOnSameLine(VD, Where, dyn_cast<VarDecl>(tmp.Declaration),
                                     dyn_cast_or_null<DeclStmt>(tmp.Statement), GP))
-        rewritesForThisDecl.insert(tmp);
+        RewritesForThisDecl.insert(tmp);
       ++I;
     }
 
     // Step 2: Remove the original line from the program.
-    SourceLocation endOfLine = deleteAllDeclarationsOnLine(VD, Where, R, GP);
+    SourceLocation EndOfLine = deleteAllDeclarationsOnLine(VD, Where, R, GP);
 
     // Step 3: For each decl in the original, build up a new string
     //         and if the original decl was re-written, write that
     //         out instead (WITH the initializer).
-    std::string newMultiLineDeclS = "";
-    raw_string_ostream newMLDecl(newMultiLineDeclS);
-    std::set<Decl *> sameLineDecls;
-    getDeclsOnSameLine(VD, Where, GP, sameLineDecls);
+    std::string NewMultiLineDeclS = "";
+    raw_string_ostream NewMlDecl(NewMultiLineDeclS);
+    std::set<Decl *> SameLineDecls;
+    getDeclsOnSameLine(VD, Where, GP, SameLineDecls);
 
-    for (const auto &DL : sameLineDecls) {
+    for (const auto &DL : SameLineDecls) {
       DAndReplace N;
-      bool found = false;
+      bool Found = false;
       VarDecl *VDL = dyn_cast<VarDecl>(DL);
       if (VDL == NULL) {
         // Example:
@@ -371,37 +378,37 @@ void rewrite( VarDecl               *VD,
       }
       assert(VDL != NULL);
 
-      for (const auto &NLT : rewritesForThisDecl)
+      for (const auto &NLT : RewritesForThisDecl)
         if (NLT.Declaration == DL) {
           N = NLT;
-          found = true;
+          Found = true;
           break;
         }
 
-      if (found) {
-        newMLDecl << N.Replacement;
+      if (Found) {
+        NewMlDecl << N.Replacement;
         if (Expr *E = VDL->getInit()) {
-          newMLDecl << " = ";
-          E->printPretty(newMLDecl, nullptr, A.getPrintingPolicy());
+          NewMlDecl << " = ";
+          E->printPretty(NewMlDecl, nullptr, A.getPrintingPolicy());
         } else {
           if (isPointerType(VDL))
-            newMLDecl << " = NULL";
+            NewMlDecl << " = NULL";
         }
-        newMLDecl << ";\n";
+        NewMlDecl << ";\n";
       } else {
-        DL->print(newMLDecl);
-        newMLDecl << ";\n";
+        DL->print(NewMlDecl);
+        NewMlDecl << ";\n";
       }
     }
 
     // Step 4: Write out the string built up in step 3.
-    R.InsertTextAfter(endOfLine, newMLDecl.str());
+    R.InsertTextAfter(EndOfLine, NewMlDecl.str());
 
     // Step 5: Be sure and skip all of the NewTyps that we dealt with
     //         during this time of hacking, by adding them to the
     //         skip set.
 
-    for (const auto &TN : rewritesForThisDecl)
+    for (const auto &TN : RewritesForThisDecl)
       skip.insert(TN);
   } else {
     if (Verbose) {
@@ -416,14 +423,14 @@ void rewrite( VarDecl               *VD,
 }
 
 void rewrite( Rewriter              &R,
-              RSet                  &toRewrite,
-              RSet                  &skip,
+              RSet                  &ToRewrite,
+              RSet                  &Skip,
               SourceManager         &S,
               ASTContext            &A,
               std::set<FileID>      &Files,
               GlobalVariableGroups  &GP)
 {
-  for (const auto &N : toRewrite) {
+  for (const auto &N : ToRewrite) {
     Decl *D = N.Declaration;
     DeclStmt *Where = dyn_cast_or_null<DeclStmt>(N.Statement);
     assert(D != nullptr);
@@ -445,7 +452,7 @@ void rewrite( Rewriter              &R,
       assert(Where == NULL);
       rewrite(PV, R, N.Replacement);
     } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-      rewrite(VD, R, N.Replacement, Where, skip, N, toRewrite, A, GP);
+      rewrite(VD, R, N.Replacement, Where, Skip, N, ToRewrite, A, GP);
     } else if (FunctionDecl *UD = dyn_cast<FunctionDecl>(D)) {
       // TODO: If the return type is a fully-specified function pointer,
       //       then clang will give back an invalid source range for the
@@ -468,10 +475,10 @@ void rewrite( Rewriter              &R,
       }
     } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
       SourceRange SR = FD->getSourceRange();
-      std::string sRewrite = N.Replacement;
+      std::string SRewrite = N.Replacement;
 
       if (canRewrite(R, SR))
-        R.ReplaceText(SR, sRewrite);
+        R.ReplaceText(SR, SRewrite);
     }
   }
 }
@@ -489,7 +496,7 @@ std::set<unsigned int> TypeRewritingVisitor::getParamsForExtern(std::string E) {
 // associated with C and returns true if any of those constraints
 // are WILD.
 bool TypeRewritingVisitor::anyTop(std::set<ConstraintVariable*> C) {
-  bool anyTopFound = false;
+  bool TopFound = false;
   Constraints &CS = Info.getConstraints();
   Constraints::EnvironmentMap &env = CS.getVariables();
   for (ConstraintVariable *c : C) {
@@ -497,28 +504,28 @@ bool TypeRewritingVisitor::anyTop(std::set<ConstraintVariable*> C) {
       for (uint32_t v : pvc->getCvars()) {
         ConstAtom *CK = env[CS.getVar(v)];
         if (CK->getKind() == Atom::A_Wild) {
-          anyTopFound = true;
+          TopFound = true;
         }
       }
     }
   }
-  return anyTopFound;
+  return TopFound;
 }
 
-std::string TypeRewritingVisitor::getExistingIType(ConstraintVariable *decl,
-                                                   ConstraintVariable *defn,
-                                                   FunctionDecl *funcDecl) {
-  std::string ret = "";
-  ConstraintVariable *target = decl;
-  if (funcDecl == nullptr) {
-    target = defn;
+std::string TypeRewritingVisitor::getExistingIType(ConstraintVariable *DeclC,
+                                                   ConstraintVariable *Defc,
+                                                   FunctionDecl *FuncDecl) {
+  std::string Ret = "";
+  ConstraintVariable *T = DeclC;
+  if (FuncDecl == nullptr) {
+    T = Defc;
   }
-  if (PVConstraint *PVC = dyn_cast<PVConstraint>(target)) {
+  if (PVConstraint *PVC = dyn_cast<PVConstraint>(T)) {
     if (PVC->getItypePresent()) {
-      ret = " : " + PVC->getItype();
+      Ret = " : " + PVC->getItype();
     }
   }
-  return ret;
+  return Ret;
 }
 
 // This function checks how to re-write a function declaration.
@@ -536,7 +543,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   // Finally, we need to note that we've visited this particular function, and
   // that we shouldn't make one of these visits again.
 
-  auto funcName = FD->getNameAsString();
+  auto FuncName = FD->getNameAsString();
 
   auto &CS = Info.getConstraints();
 
@@ -549,120 +556,121 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
   // Make sure we haven't visited this function name before, and that we
   // only visit it once.
-  if (VisitedSet.find(funcName) != VisitedSet.end())
+  if (VisitedSet.find(FuncName) != VisitedSet.end())
     return true;
   else
-    VisitedSet.insert(funcName);
+    VisitedSet.insert(FuncName);
 
-  FVConstraint *cDefn =
+  FVConstraint *Defnc =
       getHighestT<FVConstraint>(
           Info.getFuncDefnConstraints(Definition, Context),
           Info);
 
-  FVConstraint *cDecl = nullptr;
-  std::set<ConstraintVariable*> *funcDeclKeys =
+  FVConstraint *Declc = nullptr;
+  std::set<ConstraintVariable*> *FuncDeclKeys =
       Info.getFuncDeclConstraintSet(
           Info.getUniqueDeclKey(Definition, Context));
   // Get constraint variables for the declaration and the definition.
   // Those constraints should be function constraints.
-  if (funcDeclKeys != nullptr) {
+  if (FuncDeclKeys != nullptr) {
     // If there is no declaration?
     // Get the on demand function variable constraint.
-    cDecl = getHighestT<FVConstraint>(*funcDeclKeys, Info);
+    Declc = getHighestT<FVConstraint>(*FuncDeclKeys, Info);
   } else {
     // No declaration constraints found. So, create on demand
     // declaration constraints.
-    cDecl =
+    Declc =
         getHighestT<FVConstraint>(
             Info.getVariableOnDemand(Definition, Context, false), Info);
   }
 
-  assert(cDecl != nullptr);
-  assert(cDefn != nullptr);
+  assert(Declc != nullptr);
+  assert(Defnc != nullptr);
 
-  if (cDecl->numParams() == cDefn->numParams()) {
+  if (Declc->numParams() == Defnc->numParams()) {
     // Track whether we did any work and need to make a substitution or not.
-    bool didAny = cDecl->numParams() > 0;
+    bool DidAny = Declc->numParams() > 0;
     std::string s = "";
-    std::vector<std::string> parmStrs;
+    std::vector<std::string> ParmStrs;
     // Compare parameters.
-    for (unsigned i = 0; i < cDecl->numParams(); ++i) {
-      auto Decl = getHighestT<PVConstraint>(cDecl->getParamVar(i), Info);
-      auto Defn = getHighestT<PVConstraint>(cDefn->getParamVar(i), Info);
+    for (unsigned i = 0; i < Declc->numParams(); ++i) {
+      auto Decl = getHighestT<PVConstraint>(Declc->getParamVar(i), Info);
+      auto Defn = getHighestT<PVConstraint>(Defnc->getParamVar(i), Info);
       assert(Decl);
       assert(Defn);
-      bool parameterHandled = false;
+      bool ParameterHandled = false;
 
       if (ProgramInfo::isAValidPVConstraint(Decl) &&
           ProgramInfo::isAValidPVConstraint(Defn)) {
-        auto topDefnCVar = *(Defn->getCvars().begin());
-        auto topDeclCVar = *(Decl->getCvars().begin());
+        auto HeadDefnCVar = *(Defn->getCvars().begin());
+        auto HeadDeclCVar = *(Decl->getCvars().begin());
         // If this holds, then we want to insert a bounds safe interface.
-        bool anyConstrained = !CS.isWild(topDefnCVar);
+        bool Constrained = !CS.isWild(HeadDefnCVar);
         // Definition is more precise than declaration.
         // Section 5.3:
         // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-        if (anyConstrained && CS.isWild(topDeclCVar)) {
+        if (Constrained && CS.isWild(HeadDeclCVar)) {
           // If definition is more precise
           // than declaration emit an itype.
-          std::string ctype =
+          std::string PtypeS =
               Defn->mkString(Info.getConstraints().getVariables(), false, true);
           std::string bi = Defn->getRewritableOriginalTy() +
-                           Defn->getName() + " : itype(" + ctype + ")" +
+                           Defn->getName() + " : itype(" +
+              PtypeS + ")" +
               ABRewriter.getBoundsString(Definition->getParamDecl(i), true);
-          parmStrs.push_back(bi);
-          parameterHandled = true;
-        } else if (anyConstrained) {
+          ParmStrs.push_back(bi);
+          ParameterHandled = true;
+        } else if (Constrained) {
           // Both the declaration and definition are same
           // and they are safer than what was originally declared.
           // Here we should emit a checked type!
-          std::string v =
+          std::string PtypeS =
               Defn->mkString(Info.getConstraints().getVariables());
 
           // If there is no declaration?
           // check the itype in definition.
-          v = v + getExistingIType(Decl, Defn, Declaration) +
+          PtypeS = PtypeS + getExistingIType(Decl, Defn, Declaration) +
               ABRewriter.getBoundsString(Definition->getParamDecl(i));
 
-          parmStrs.push_back(v);
-          parameterHandled = true;
+          ParmStrs.push_back(PtypeS);
+          ParameterHandled = true;
         }
       }
       // If the parameter has no changes? Just dump the original declaration.
-      if (!parameterHandled) {
-        std::string scratch = "";
-        raw_string_ostream declText(scratch);
-        Definition->getParamDecl(i)->print(declText);
-        parmStrs.push_back(declText.str());
+      if (!ParameterHandled) {
+        std::string Scratch = "";
+        raw_string_ostream DeclText(Scratch);
+        Definition->getParamDecl(i)->print(DeclText);
+        ParmStrs.push_back(DeclText.str());
       }
     }
 
     // Compare returns.
-    auto Decl = getHighestT<PVConstraint>(cDecl->getReturnVars(), Info);
-    auto Defn = getHighestT<PVConstraint>(cDefn->getReturnVars(), Info);
-    std::string returnVar = "";
-    std::string endStuff = "";
-    bool returnHandled = false;
+    auto Decl = getHighestT<PVConstraint>(Declc->getReturnVars(), Info);
+    auto Defn = getHighestT<PVConstraint>(Defnc->getReturnVars(), Info);
+    std::string ReturnVar = "";
+    std::string EndStuff = "";
+    bool ReturnHandled = false;
 
     if (ProgramInfo::isAValidPVConstraint(Decl) &&
         ProgramInfo::isAValidPVConstraint(Defn)) {
-      auto topDefnCVar = *(Defn->getCvars().begin());
-      auto topDeclCVar = *(Decl->getCvars().begin());
+      auto HeadDefnCVar = *(Defn->getCvars().begin());
+      auto HeadDeclCVar = *(Decl->getCvars().begin());
       // Insert a bounds safe interface for the return.
-      bool anyConstrained = !CS.isWild(topDefnCVar);
+      bool anyConstrained = !CS.isWild(HeadDefnCVar);
       if (anyConstrained) {
-        returnHandled = true;
-        didAny = true;
-        std::string ctype = "";
-        didAny = true;
+        ReturnHandled = true;
+        DidAny = true;
+        std::string Ctype = "";
+        DidAny = true;
         // Definition is more precise than declaration.
         // Section 5.3:
         // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-        if (CS.isWild(topDeclCVar)) {
-          ctype =
+        if (CS.isWild(HeadDeclCVar)) {
+          Ctype =
               Defn->mkString(Info.getConstraints().getVariables(), true, true);
-          returnVar = Defn->getRewritableOriginalTy();
-          endStuff = " : itype(" + ctype + ")";
+          ReturnVar = Defn->getRewritableOriginalTy();
+          EndStuff = " : itype(" + Ctype + ")";
         } else {
           // This means we were able to infer that return type
           // is a checked type.
@@ -670,32 +678,31 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           // all the uses of the function converts the return value
           // into a more precise type.
           // Do not change the type
-          returnVar = Decl->mkString(Info.getConstraints().getVariables());
-          endStuff = getExistingIType(Decl, Defn, Declaration);
+          ReturnVar = Decl->mkString(Info.getConstraints().getVariables());
+          EndStuff = getExistingIType(Decl, Defn, Declaration);
         }
       }
     }
 
     // This means inside the function, the return value is WILD
     // so the return type is what was originally declared.
-    if (!returnHandled) {
+    if (!ReturnHandled) {
       // If we used to implement a bounds-safe interface, continue to do that.
-      returnVar = Decl->getOriginalTy() + " ";
+      ReturnVar = Decl->getOriginalTy() + " ";
 
-      endStuff = getExistingIType(Decl, Defn, Declaration);
-      if (!endStuff.empty()) {
-        didAny = true;
+      EndStuff = getExistingIType(Decl, Defn, Declaration);
+      if (!EndStuff.empty()) {
+        DidAny = true;
       }
     }
 
-    s = getStorageQualifierString(Definition) + returnVar +
-        cDecl->getName() + "(";
-    if (parmStrs.size() > 0) {
+    s = getStorageQualifierString(Definition) + ReturnVar + Declc->getName() + "(";
+    if (ParmStrs.size() > 0) {
       std::ostringstream ss;
 
-      std::copy(parmStrs.begin(), parmStrs.end() - 1,
+      std::copy(ParmStrs.begin(), ParmStrs.end() - 1,
                 std::ostream_iterator<std::string>(ss, ", "));
-      ss << parmStrs.back();
+      ss << ParmStrs.back();
 
       s = s + ss.str();
       // Add varargs.
@@ -707,15 +714,15 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       s = s + "void)";
     }
 
-    if (endStuff.size() > 0)
-      s = s + endStuff;
+    if (EndStuff.size() > 0)
+      s = s + EndStuff;
 
-    if (didAny) {
+    if (DidAny) {
       // Do all of the declarations.
       for (const auto &RD : Definition->redecls())
         rewriteThese.insert(DAndReplace(RD, s, true));
       // Save the modified function signature.
-      ModifiedFuncSignatures[funcName] = s;
+      ModifiedFuncSignatures[FuncName] = s;
     }
   }
 
@@ -727,8 +734,8 @@ bool TypeRewritingVisitor::VisitCallExpr(CallExpr *E) {
 }
 
 // Check if the function is handled by this visitor.
-bool TypeRewritingVisitor::isFunctionVisited(std::string funcName) {
-  return VisitedSet.find(funcName) != VisitedSet.end();
+bool TypeRewritingVisitor::isFunctionVisited(std::string FuncName) {
+  return VisitedSet.find(FuncName) != VisitedSet.end();
 }
 
 static bool
@@ -777,20 +784,21 @@ canWrite(std::string filePath, std::set<std::string> &iof, std::string b) {
     return false;
 }
 
-static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files, std::string &OutputPostfix) {
+static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
+                 std::string &OutputPostfix) {
 
   // Check if we are outputing to stdout or not, if we are, just output the
   // main file ID to stdout.
   if (Verbose)
     errs() << "Writing files out\n";
 
-  SmallString<254> baseAbs(BaseDir);
-  std::string baseDirFP;
-  if (getAbsoluteFilePath(BaseDir, baseDirFP)) {
-    baseAbs = baseDirFP;
+  SmallString<254> BaseAbs(BaseDir);
+  std::string BaseDirFp;
+  if (getAbsoluteFilePath(BaseDir, BaseDirFp)) {
+    BaseAbs = BaseDirFp;
   }
-  sys::path::remove_filename(baseAbs);
-  std::string base = baseAbs.str();
+  sys::path::remove_filename(BaseAbs);
+  std::string base = BaseAbs.str();
 
   SourceManager &SM = C.getSourceManager();
   if (OutputPostfix == "-") {
@@ -845,166 +853,165 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files, std::strin
 }
 
 
-
 // This Visitor adds _Checked and _UnChecked annotations to blocks
 class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 {
   public:
     explicit CheckedRegionAdder(ASTContext *_C, Rewriter& _R, ProgramInfo &_I,
-                                std::set<llvm::FoldingSetNodeID>& seen)
-      : Context(_C), Writer(_R), Info(_I), Seen(seen) {
+                                std::set<llvm::FoldingSetNodeID> &S)
+      : Context(_C), Writer(_R), Info(_I), Seen(S) {
 
     }
-    int wild = 0;
-    int checked = 0;
-    int decls = 0;
+    int Nwild = 0;
+    int Nchecked = 0;
+    int Ndecls = 0;
 
-    bool VisitForStmt(ForStmt *s) {
-      int localwild = 0;
+    bool VisitForStmt(ForStmt *S) {
+      int Localwild = 0;
 
-      for (const auto& subStmt : s->children()) {
-        CheckedRegionAdder sub(Context,Writer,Info,Seen);
-        sub.TraverseStmt(subStmt);
-        localwild += sub.wild;
+      for (const auto &SubStmt : S->children()) {
+        CheckedRegionAdder Sub(Context,Writer,Info,Seen);
+        Sub.TraverseStmt(SubStmt);
+        Localwild += Sub.Nwild;
       }
 
-      wild += localwild;
+      Nwild += Localwild;
       return false;
     }
 
-    bool VisitSwitchStmt(SwitchStmt *s) {
-      int localwild = 0;
+    bool VisitSwitchStmt(SwitchStmt *S) {
+      int Localwild = 0;
 
-      for (const auto& subStmt : s->children()) {
-        CheckedRegionAdder sub(Context,Writer,Info,Seen);
-        sub.TraverseStmt(subStmt);
-        localwild += sub.wild;
+      for (const auto &SubStmt : S->children()) {
+        CheckedRegionAdder Sub(Context,Writer,Info,Seen);
+        Sub.TraverseStmt(SubStmt);
+        Localwild += Sub.Nwild;
       }
 
-      wild += localwild;
+      Nwild += Localwild;
       return false;
     }
 
-    bool VisitIfStmt(IfStmt *s) {
-      int localwild = 0;
+    bool VisitIfStmt(IfStmt *S) {
+      int Localwild = 0;
 
-      for (const auto& subStmt : s->children()) {
-        CheckedRegionAdder sub(Context,Writer,Info,Seen);
-        sub.TraverseStmt(subStmt);
-        localwild += sub.wild;
+      for (const auto &SubStmt : S->children()) {
+        CheckedRegionAdder Sub(Context,Writer,Info,Seen);
+        Sub.TraverseStmt(SubStmt);
+        Localwild += Sub.Nwild;
       }
 
-      wild += localwild;
+      Nwild += Localwild;
       return false;
     }
 
-    bool VisitWhileStmt(WhileStmt *s) {
-      int localwild = 0;
+    bool VisitWhileStmt(WhileStmt *S) {
+      int Localwild = 0;
 
-      for (const auto& subStmt : s->children()) {
-        CheckedRegionAdder sub(Context,Writer,Info,Seen);
-        sub.TraverseStmt(subStmt);
-        localwild += sub.wild;
+      for (const auto &SubStmt : S->children()) {
+        CheckedRegionAdder Sub(Context,Writer,Info,Seen);
+        Sub.TraverseStmt(SubStmt);
+        Localwild += Sub.Nwild;
       }
 
-      wild += localwild;
+      Nwild += Localwild;
       return false;
     }
 
-    bool VisitDoStmt(DoStmt *s) {
-      int localwild = 0;
+    bool VisitDoStmt(DoStmt *S) {
+      int Localwild = 0;
 
-      for (const auto& subStmt : s->children()) {
-        CheckedRegionAdder sub(Context,Writer,Info,Seen);
-        sub.TraverseStmt(subStmt);
-        localwild += sub.wild;
+      for (const auto &subStmt : S->children()) {
+        CheckedRegionAdder Sub(Context,Writer,Info,Seen);
+        Sub.TraverseStmt(subStmt);
+        Localwild += Sub.Nwild;
       }
 
-      wild += localwild;
+      Nwild += Localwild;
       return false;
     }
 
 
-    bool VisitCompoundStmt(CompoundStmt *s) {
+    bool VisitCompoundStmt(CompoundStmt *S) {
       // Visit all subblocks, find all unchecked types
-      int localwild = 0;
-      for (const auto& subStmt : s->children()) {
-        CheckedRegionAdder sub(Context,Writer,Info,Seen);
-        sub.TraverseStmt(subStmt);
-        localwild += sub.wild;
-        checked += sub.checked;
-        decls += sub.decls;
+      int Localwild = 0;
+      for (const auto &SubStmt : S->children()) {
+        CheckedRegionAdder Sub(Context,Writer,Info,Seen);
+        Sub.TraverseStmt(SubStmt);
+        Localwild += Sub.Nwild;
+        Nchecked += Sub.Nchecked;
+        Ndecls += Sub.Ndecls;
       }
 
-      addCheckedAnnotation(s, localwild);
+      addCheckedAnnotation(S, Localwild);
 
       // Compound Statements are always considered to have 0 wild types
       // This is because a compound statement marked w/ _Unchecked can live
       // inside a _Checked region.
-      wild = 0;
+      Nwild = 0;
 
-      llvm::FoldingSetNodeID id;
-      s->Profile(id, *Context, true);
-      Seen.insert(id);
+      llvm::FoldingSetNodeID Id;
+      S->Profile(Id, *Context, true);
+      Seen.insert(Id);
 
       // Compound Statements should be the bottom of the visitor,
       // as it creates it's own sub-visitor.
       return false;
     }
 
-    bool VisitCStyleCastExpr(CStyleCastExpr *e) {
+    bool VisitCStyleCastExpr(CStyleCastExpr *E) {
       // TODO This is over cautious
-      wild++;
+      Nwild++;
       return true;
     }
 
     // Check if this compound statement is the body
     // to a function with unsafe parameters.
-    bool hasUncheckedParameters(CompoundStmt *s) {
-      const auto& parents = Context->getParents(*s);
-      if (parents.empty()) {
+    bool hasUncheckedParameters(CompoundStmt *S) {
+      const auto &Parents = Context->getParents(*S);
+      if (Parents.empty()) {
         return false;
       }
 
-      auto parent = parents[0].get<FunctionDecl>();
-      if (!parent) {
+      auto Parent = Parents[0].get<FunctionDecl>();
+      if (!Parent) {
         return false;
       }
 
-      int localwild = 0;
-      for (auto child : parent->parameters()) {
-        CheckedRegionAdder sub(Context,Writer,Info,Seen);
-        sub.TraverseParmVarDecl(child);
-        localwild += sub.wild;
+      int Localwild = 0;
+      for (auto Child : Parent->parameters()) {
+        CheckedRegionAdder Sub(Context,Writer,Info,Seen);
+        Sub.TraverseParmVarDecl(Child);
+        Localwild += Sub.Nwild;
       }
 
-      return localwild != 0 || parent->isVariadic();
+      return Localwild != 0 || Parent->isVariadic();
     }
 
 
-    bool VisitUnaryOperator(UnaryOperator* u) {
+    bool VisitUnaryOperator(UnaryOperator *U) {
       //TODO handle computing pointers
-      if (u->getOpcode() == UO_AddrOf) {
+      if (U->getOpcode() == UO_AddrOf) {
         // wild++;
       }
       return true;
     }
 
-    bool isInStatementPosition(CallExpr *c) {
+    bool isInStatementPosition(CallExpr *C) {
       // First check if our parent is a compound statement
-      const auto& parents = Context->getParents(*c);
-      if (parents.empty()) {
+      const auto &Parents = Context->getParents(*C);
+      if (Parents.empty()) {
         return false; // This case shouldn't happen,
                       // but if it does play it safe and mark WILD.
       }
-      auto parent = parents[0].get<CompoundStmt>();
-      if (parent) {
+      auto Parent = Parents[0].get<CompoundStmt>();
+      if (Parent) {
         //Check if we are the only child
-        int numChilds = 0;
-        for (const auto& child: parent->children()) {
-          numChilds++;
+        int NumChilds = 0;
+        for (const auto& child: Parent->children()) {
+          NumChilds++;
         }
-        return numChilds > 1;
+        return NumChilds > 1;
       } else {
         //TODO there are other statement positions
         //     besides child of compound stmt
@@ -1012,97 +1019,102 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       }
     }
 
-    bool VisitCallExpr(CallExpr *c) {
-      auto FD = c->getDirectCallee();
+    bool VisitCallExpr(CallExpr *C) {
+      auto FD = C->getDirectCallee();
       if (FD && FD->isVariadic()) {
         // If this variadic call is in statement positon, we can wrap in it
         // an unsafe block and avoid polluting the entire block as unsafe.
         // If it's not (as in it is used in an expression) then we fall back to
         // reporting an WILD value.
-        if (isInStatementPosition(c)) {
+        if (isInStatementPosition(C)) {
           // Insert an _Unchecked block around the call
-          auto begin = c->getBeginLoc();
-          Writer.InsertTextBefore(begin, "_Unchecked { ");
-          auto end = c->getEndLoc();
-          Writer.InsertTextAfterToken(end, "; }");
+          auto Begin = C->getBeginLoc();
+          Writer.InsertTextBefore(Begin, "_Unchecked { ");
+          auto End = C->getEndLoc();
+          Writer.InsertTextAfterToken(End, "; }");
         } else {
           // Call is inside an epxression, mark WILD.
-          wild++;
+          Nwild++;
         }
       }
       if (FD) {
         auto type = FD->getReturnType();
-        if (type->isPointerType()) wild++;
+        if (type->isPointerType())
+          Nwild++;
       }
       return true;
     }
 
 
-    bool VisitVarDecl(VarDecl *st) {
+    bool VisitVarDecl(VarDecl *VD) {
       // Check if the variable is WILD.
-      bool foundWild = false;
-      std::set<ConstraintVariable*> cvs = Info.getVariable(st, Context);
-      for (auto cv : cvs) {
-        if (cv->hasWild(Info.getConstraints().getVariables())) {
-          foundWild = true;
+      bool FoundWild = false;
+      std::set<ConstraintVariable*> CVSet = Info.getVariable(VD, Context);
+      for (auto Cv : CVSet) {
+        if (Cv->hasWild(Info.getConstraints().getVariables())) {
+          FoundWild = true;
         }
       }
 
-      if (foundWild) wild++;
+      if (FoundWild)
+        Nwild++;
 
 
       // Check if the variable contains an unchecked type.
-      if (isUncheckedPtr(st->getType())) wild++;
-      decls++;
+      if (isUncheckedPtr(VD->getType()))
+        Nwild++;
+      Ndecls++;
       return true;
     }
 
-    bool VisitParmVarDecl(ParmVarDecl *st) {
+    bool VisitParmVarDecl(ParmVarDecl *PVD) {
       // Check if the variable is WILD.
-      bool foundWild = false;
-      std::set<ConstraintVariable*> cvs = Info.getVariable(st, Context);
-      for (auto cv : cvs) {
+      bool FoundWild = false;
+      std::set<ConstraintVariable*> CVSet = Info.getVariable(PVD, Context);
+      for (auto Cv : CVSet) {
 	llvm::errs() << "\nCheckedRegion:\n";
-        cv->dump();
+        Cv->dump();
 	llvm::errs() << "\n";
-        if (cv->hasWild(Info.getConstraints().getVariables())) {
-          foundWild = true;
+        if (Cv->hasWild(Info.getConstraints().getVariables())) {
+          FoundWild = true;
         }
       }
 
-      if (foundWild) wild++;
+      if (FoundWild)
+        Nwild++;
 
       // Check if the variable is a void*.
-      if (isUncheckedPtr(st->getType())) wild++;
-      decls++;
+      if (isUncheckedPtr(PVD->getType()))
+        Nwild++;
+      Ndecls++;
       return true;
     }
 
-    bool isUncheckedPtr(QualType t) {
+    bool isUncheckedPtr(QualType Qt) {
       // TODO does a more efficient representation exist?
-      std::set<std::string> seen;
-      return isUncheckedPtrAcc(t, seen);
+      std::set<std::string> Seen;
+      return isUncheckedPtrAcc(Qt, Seen);
     }
 
     // Recursively determine if a type is unchecked.
-    bool isUncheckedPtrAcc(QualType t, std::set<std::string> &seen) {
-      auto ct = t.getCanonicalType();
-      auto id = ct.getAsString();
-      auto search = seen.find(id);
-      if (search == seen.end()) {
-        seen.insert(id);
+    bool isUncheckedPtrAcc(QualType Qt, std::set<std::string> &Seen) {
+      auto Ct = Qt.getCanonicalType();
+      auto TyStr = Ct.getAsString();
+      auto Search = Seen.find(TyStr);
+      if (Search == Seen.end()) {
+        Seen.insert(TyStr);
       } else {
         return false;
       }
 
-      if (ct->isVoidPointerType()) {
+      if (Ct->isVoidPointerType()) {
         return true;
-      } else if (ct->isVoidType()) {
+      } else if (Ct->isVoidType()) {
         return true;
-      } if (ct->isPointerType()) {
-        return isUncheckedPtrAcc(ct->getPointeeType(), seen);
-      } else if (ct->isRecordType()) {
-        return isUncheckedStruct(ct, seen);
+      } if (Ct->isPointerType()) {
+        return isUncheckedPtrAcc(Ct->getPointeeType(), Seen);
+      } else if (Ct->isRecordType()) {
+        return isUncheckedStruct(Ct, Seen);
       } else {
         return false;
       }
@@ -1110,22 +1122,22 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 
     // Iterate through all fields of the struct and find unchecked types.
     // TODO doesn't handle recursive structs correctly
-    bool isUncheckedStruct(QualType t, std::set<std::string> &seen) {
-      auto rt = dyn_cast<RecordType>(t);
-      if (rt) {
-        auto decl = rt->getDecl();
-        if (decl) {
-          bool unsafe = false;
-          for (auto const &field : decl->fields()) {
-            auto field_type = field->getType();
-            unsafe |= isUncheckedPtrAcc(field_type, seen);
-            std::set<ConstraintVariable*> cvs =
-                Info.getVariable(field, Context);
-            for (auto cv : cvs) {
-              unsafe |= cv->hasWild(Info.getConstraints().getVariables());
+    bool isUncheckedStruct(QualType Qt, std::set<std::string> &Seen) {
+      auto RcdTy = dyn_cast<RecordType>(Qt);
+      if (RcdTy) {
+        auto D = RcdTy->getDecl();
+        if (D) {
+          bool Unsafe = false;
+          for (auto const &Fld : D->fields()) {
+            auto Ftype = Fld->getType();
+            Unsafe |= isUncheckedPtrAcc(Ftype, Seen);
+            std::set<ConstraintVariable*> CVSet =
+                Info.getVariable(Fld, Context);
+            for (auto Cv : CVSet) {
+              Unsafe |= Cv->hasWild(Info.getConstraints().getVariables());
             }
           }
-          return unsafe;
+          return Unsafe;
         } else {
           return true;
         }
@@ -1134,68 +1146,68 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       }
     }
 
-    void addCheckedAnnotation(CompoundStmt *s, int localwild) {
-      auto cur = s->getWrittenCheckedSpecifier();
+    void addCheckedAnnotation(CompoundStmt *S, int Localwild) {
+      auto Cur = S->getWrittenCheckedSpecifier();
 
-      llvm::FoldingSetNodeID id;
-      s->Profile(id, *Context, true);
-      auto search = Seen.find(id);
+      llvm::FoldingSetNodeID Id;
+      S->Profile(Id, *Context, true);
+      auto Search = Seen.find(Id);
 
-      if (search == Seen.end()) {
-        auto loc = s->getBeginLoc();
-        bool checked = !hasUncheckedParameters(s) &&
-          cur == CheckedScopeSpecifier::CSS_None &&
-          localwild == 0;
+      if (Search == Seen.end()) {
+        auto Loc = S->getBeginLoc();
+        bool IsChecked = !hasUncheckedParameters(S) &&
+                       Cur == CheckedScopeSpecifier::CSS_None && Localwild == 0;
 
         // Don't add _Unchecked to top level functions.
-        if (!(!checked && isFunctionBody(s))) {
-          Writer.InsertTextBefore(loc, checked ? "_Checked" : "_Unchecked");
+        if (!(!IsChecked && isFunctionBody(S))) {
+          Writer.InsertTextBefore(Loc, IsChecked ? "_Checked" : "_Unchecked");
         }
       }
     }
 
-    bool isFunctionBody(CompoundStmt *s) {
-      const auto& parents = Context->getParents(*s);
-      if (parents.empty()) {
+    bool isFunctionBody(CompoundStmt *S) {
+      const auto &Parents = Context->getParents(*S);
+      if (Parents.empty()) {
         return false;
       }
-      return parents[0].get<FunctionDecl>();
+      return Parents[0].get<FunctionDecl>();
     }
 
 
-    bool VisitMemberExpr(MemberExpr *me){
-      ValueDecl* st = me->getMemberDecl();
-      if (st) {
+    bool VisitMemberExpr(MemberExpr *E){
+      ValueDecl *VD = E->getMemberDecl();
+      if (VD) {
         // Check if the variable is WILD.
-        bool foundWild = false;
-        std::set<ConstraintVariable*> cvs = Info.getVariable(st, Context);
-        for (auto cv : cvs) {
-          if (cv->hasWild(Info.getConstraints().getVariables())) {
-            foundWild = true;
+        bool FoundWild = false;
+        std::set<ConstraintVariable*> CVSet = Info.getVariable(VD, Context);
+        for (auto Cv : CVSet) {
+          if (Cv->hasWild(Info.getConstraints().getVariables())) {
+            FoundWild = true;
           }
         }
 
-        if (foundWild) wild++;
+        if (FoundWild)
+          Nwild++;
 
         // Check if the variable is a void*.
-        if (isUncheckedPtr(st->getType())) wild++;
-        decls++;
+        if (isUncheckedPtr(VD->getType()))
+          Nwild++;
+        Ndecls++;
       }
       return true;
     }
 
   private:
-    ASTContext*  Context;
-    Rewriter&    Writer;
-    ProgramInfo& Info;
-    std::set<llvm::FoldingSetNodeID>& Seen;
+    ASTContext *Context;
+    Rewriter &Writer;
+    ProgramInfo &Info;
+    std::set<llvm::FoldingSetNodeID> &Seen;
 };
-
-
 
 // Class for visiting variable usages and function calls to add
 // explicit casting if needed.
-class CastPlacementVisitor : public RecursiveASTVisitor<CastPlacementVisitor> {
+class CastPlacementVisitor :
+    public RecursiveASTVisitor<CastPlacementVisitor> {
 public:
   explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I,
                                 Rewriter& R)
@@ -1204,7 +1216,7 @@ public:
   bool VisitCallExpr(CallExpr *CE) {
     Decl *D = CE->getCalleeDecl();
     if (D) {
-      PersistentSourceLoc psl = PersistentSourceLoc::mkPSL(CE, *Context);
+      PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CE, *Context);
       if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
         // Get the constraint variable for the function.
         std::set<ConstraintVariable *> &V = Info.getFuncDefnConstraints(FD, Context);
@@ -1216,8 +1228,8 @@ public:
         // }
 
         // Did we see this function in another file?
-        auto fn = FD->getNameAsString();
-        auto param_info = Info.get_MF()[fn];
+        auto Fname = FD->getNameAsString();
+        auto PInfo = Info.get_MF()[Fname];
 
         if (V.size() > 0) {
           // Get the FV constraint for the Callee.
@@ -1243,24 +1255,23 @@ public:
                     Info.getVariable(A, Context, true);
                 std::set<ConstraintVariable *> &ParameterConstraints =
                     FV->getParamVar(i);
-                bool castInserted = false;
-                for (auto *argumentC: ArgumentConstraints) {
-                  castInserted = false;
-                  for (auto *parameterC: ParameterConstraints) {
-                    auto dst_info = i < param_info.size() ?
-                                                          param_info[i] : CHECKED;
-                    if (needCasting(argumentC, parameterC, dst_info)) {
+                bool CastInserted = false;
+                for (auto *ArgumentC : ArgumentConstraints) {
+                  CastInserted = false;
+                  for (auto *ParameterC : ParameterConstraints) {
+                    auto Dinfo = i < PInfo.size() ? PInfo[i] : CHECKED;
+                    if (needCasting(ArgumentC, ParameterC, Dinfo)) {
                       // We expect the cast string to end with "(".
-                      std::string castString =
-                          getCastString(argumentC, parameterC, dst_info);
-                      Writer.InsertTextBefore(A->getBeginLoc(), castString);
+                      std::string CastString =
+                          getCastString(ArgumentC, ParameterC, Dinfo);
+                      Writer.InsertTextBefore(A->getBeginLoc(), CastString);
                       Writer.InsertTextAfterToken(A->getEndLoc(), ")");
-                      castInserted = true;
+                      CastInserted = true;
                       break;
                     }
                   }
                   // If we have already inserted a cast, then break.
-                  if (castInserted) break;
+                  if (CastInserted) break;
                 }
 
               }
@@ -1282,95 +1293,28 @@ public:
 private:
   // Check whether an explicit casting is needed when the pointer represented
   // by src variable is assigned to dst.
-  bool needCasting(ConstraintVariable *src, ConstraintVariable *dst,
-                   IsChecked dst_info) {
+  bool needCasting(ConstraintVariable *Src, ConstraintVariable *Dst,
+                   IsChecked Dinfo) {
     auto &E = Info.getConstraints().getVariables();
-    auto srcChecked = src->anyChanges(E);
+    auto SrcChecked = Src->anyChanges(E);
     // Check if the src is a checked type and destination is not.
-    return (srcChecked && !dst->anyChanges(E)) ||
-           (srcChecked && dst_info == WILD);
+    return (SrcChecked && !Dst->anyChanges(E)) ||
+           (SrcChecked && Dinfo == WILD);
   }
 
   // Get the type name to insert for casting.
-  std::string getCastString(ConstraintVariable *src, ConstraintVariable *dst,
-                            IsChecked dst_info) {
-    assert(needCasting(src, dst, dst_info) && "No casting needed.");
+  std::string getCastString(ConstraintVariable *Src, ConstraintVariable *Dst,
+                            IsChecked Dinfo) {
+    assert(needCasting(Src, Dst, Dinfo) && "No casting needed.");
     auto &E = Info.getConstraints().getVariables();
     // The destination type should be a non-checked type.
-    assert(!dst->anyChanges(E) || dst_info == WILD);
-    return "((" + dst->getRewritableOriginalTy() + ")";
+    assert(!Dst->anyChanges(E) || Dinfo == WILD);
+    return "((" + Dst->getRewritableOriginalTy() + ")";
   }
   ASTContext            *Context;
   ProgramInfo           &Info;
   Rewriter&    Writer;
 
-};
-
-
-// This is a visitor that tries to find all the variables
-// inferred as arrayed by the checked-c-convert.
-class DeclArrayVisitor : public clang::RecursiveASTVisitor<DeclArrayVisitor>
-{
-public:
-  explicit DeclArrayVisitor(ASTContext *_C, Rewriter& _R, ProgramInfo& _I)
-          : Context(_C), Writer(_R), Info(_I)
-  {
-  }
-
-  bool VisitDecl(Decl* D)
-  {
-    // Check if this is a variable declaration.
-    VarDecl* VD = dyn_cast_or_null<clang::VarDecl>(D);
-    if (!VD)
-      return true;
-
-    // ProgramInfo.getVariable() can find variables in a function
-    // context or not.  I'm not clear of the difference yet, so we
-    // just run our analysis on both.
-
-    std::set<ConstraintVariable*> a;
-    // Check if the function body exists before
-    // fetching inbody variable.
-    if (hasFunctionBody(D)) {
-      a = Info.getVariable(D, Context, true);
-    }
-
-    std::set<ConstraintVariable*> b = Info.getVariable(D, Context, false);
-    std::set<ConstraintVariable*> CV;
-    std::set_union(a.begin(), a.end(),
-                   b.begin(), b.end(),
-                   std::inserter(CV, CV.begin()));
-
-    bool foundArr = false;
-    for (const auto& C: CV) {
-      foundArr |= C->hasArr(Info.getConstraints().getVariables());
-    }
-
-    if (foundArr) {
-      // Find the end of the line that contains this statement.
-      FullSourceLoc sl(D->getEndLoc(), Context->getSourceManager());
-      const char* buf = sl.getCharacterData();
-      const char* ptr = strchr(buf, '\n');
-
-      // Deal with Windows/DOS "\r\n" line endings.
-      if (ptr && ptr > buf && ptr[-1] == '\r')
-        --ptr;
-
-      if (ptr) {
-        SourceLocation eol = D->getEndLoc().getLocWithOffset(ptr-buf);
-        sl = FullSourceLoc(eol, Context->getSourceManager());
-        Writer.InsertTextBefore(eol, "*/");
-        Writer.InsertTextBefore(eol, VD->getName());
-        Writer.InsertTextBefore(eol, "/*ARR:");
-      }
-    }
-    return true;
-  }
-
-private:
-  ASTContext*  Context;
-  Rewriter&    Writer;
-  ProgramInfo& Info;
 };
 
 // This class initializes all the structure variables that
@@ -1395,9 +1339,9 @@ public:
       }
       for (const auto &D : Definition->fields()) {
         if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
-          std::set<ConstraintVariable *> fieldConsVars =
+          std::set<ConstraintVariable *> FieldConsVars =
               I.getVariable(D, Context, false);
-          for (auto CV: fieldConsVars) {
+          for (auto CV: FieldConsVars) {
             PVConstraint *PV = dyn_cast<PVConstraint>(CV);
             if (PV && PV->anyChanges(I.getConstraints().getVariables())) {
               // Ok this contains a pointer that is checked.
@@ -1415,21 +1359,21 @@ public:
   // Check to see if this variable require an initialization.
   bool VisitDeclStmt(DeclStmt *S) {
 
-    std::set<VarDecl*> allDecls;
+    std::set<VarDecl*> AllDecls;
 
     if (S->isSingleDecl()) {
       if (VarDecl *VD = dyn_cast<VarDecl>(S->getSingleDecl())) {
-        allDecls.insert(VD);
+        AllDecls.insert(VD);
       }
     } else {
       for (const auto &D : S->decls()) {
         if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-          allDecls.insert(VD);
+          AllDecls.insert(VD);
         }
       }
     }
 
-    for (auto VD: allDecls) {
+    for (auto VD: AllDecls) {
       // Check if this variable is a structure or union and
       // doesn't have an initializer.
       if (!VD->hasInit() && isStructOrUnionType(VD)) {
@@ -1438,9 +1382,9 @@ public:
           const clang::Type *Ty = VD->getType().getTypePtr();
           std::string OriginalType = tyToStr(Ty);
           // Create replacement text with an initializer.
-          std::string toReplace = OriginalType + " " +
+          std::string ToReplace = OriginalType + " " +
                                   VD->getName().str() + " = {}";
-          RewriteThese.insert(DAndReplace(VD, S, toReplace));
+          RewriteThese.insert(DAndReplace(VD, S, ToReplace));
         }
       }
     }
@@ -1457,16 +1401,16 @@ private:
 
 std::map<std::string, std::string> RewriteConsumer::ModifiedFuncSignatures;
 
-std::string RewriteConsumer::getModifiedFuncSignature(std::string funcName) {
-  if (RewriteConsumer::ModifiedFuncSignatures.find(funcName) !=
+std::string RewriteConsumer::getModifiedFuncSignature(std::string FuncName) {
+  if (RewriteConsumer::ModifiedFuncSignatures.find(FuncName) !=
       RewriteConsumer::ModifiedFuncSignatures.end()) {
-    return RewriteConsumer::ModifiedFuncSignatures[funcName];
+    return RewriteConsumer::ModifiedFuncSignatures[FuncName];
   }
   return "";
 }
 
-bool RewriteConsumer::hasModifiedSignature(std::string funcName) {
-  return RewriteConsumer::ModifiedFuncSignatures.find(funcName) !=
+bool RewriteConsumer::hasModifiedSignature(std::string FuncName) {
+  return RewriteConsumer::ModifiedFuncSignatures.find(FuncName) !=
          RewriteConsumer::ModifiedFuncSignatures.end();
 }
 
@@ -1474,21 +1418,21 @@ void ArrayBoundsRewriter::computeArrayBounds() {
   HandleArrayVariablesBoundsDetection(Context, Info);
 }
 
-std::string ArrayBoundsRewriter::getBoundsString(Decl *decl, bool isitype) {
-  std::string boundsString = "";
-  std::string boundVarString = "";
-  auto &arrBoundsInfo = Info.getArrayBoundsInformation();
+std::string ArrayBoundsRewriter::getBoundsString(Decl *D, bool Isitype) {
+  std::string BString = "";
+  std::string BVarString = "";
+  auto &ArrBInfo = Info.getArrayBoundsInformation();
 
-  if (arrBoundsInfo.hasBoundsInformation(decl))
-    boundVarString = arrBoundsInfo.getBoundsInformation(decl).second;
+  if (ArrBInfo.hasBoundsInformation(D))
+    BVarString = ArrBInfo.getBoundsInformation(D).second;
 
-  if (boundVarString.length() > 0) {
+  if (BVarString.length() > 0) {
     // For itype we do not need ":".
-    if (!isitype)
-      boundsString = ":";
-    boundsString += " count(" + boundVarString + ")";
+    if (!Isitype)
+      BString = ":";
+    BString += " count(" + BVarString + ")";
   }
-  return boundsString;
+  return BString;
 }
 
 void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
@@ -1502,11 +1446,10 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   std::set<FileID> Files;
 
   std::set<std::string> v;
-  RSet rewriteThese(DComp(Context.getSourceManager()));
+  RSet RewriteThese(DComp(Context.getSourceManager()));
   // Unification is done, so visit and see if we need to place any casts
   // in the program.
-  TypeRewritingVisitor TRV = TypeRewritingVisitor(&Context, Info,
-                                                  rewriteThese, v,
+  TypeRewritingVisitor TRV = TypeRewritingVisitor(&Context, Info, RewriteThese, v,
                                                   RewriteConsumer::
                                                       ModifiedFuncSignatures,
                                                   ABRewriter);
@@ -1527,7 +1470,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   MappingVisitor V(keys, Context);
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   StructVariableInitializer FV =
-      StructVariableInitializer(&Context, Info, rewriteThese);
+      StructVariableInitializer(&Context, Info, RewriteThese);
   GlobalVariableGroups GVG(R.getSourceMgr());
   std::set<llvm::FoldingSetNodeID> seen;
   CheckedRegionAdder CRA(&Context, R, Info, seen);
@@ -1591,19 +1534,19 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
         std::string newTy = getStorageQualifierString(D) +
                             PV->mkString(Info.getConstraints().getVariables()) +
                             ABRewriter.getBoundsString(D);
-        rewriteThese.insert(DAndReplace(D, DS, newTy));
+        RewriteThese.insert(DAndReplace(D, DS, newTy));
       } else if (FV && RewriteConsumer::hasModifiedSignature(FV->getName()) &&
                  !TRV.isFunctionVisited(FV->getName())) {
         // If this function already has a modified signature? and it is not
         // visited by our cast placement visitor then rewrite it.
         std::string newSig =
             RewriteConsumer::getModifiedFuncSignature(FV->getName());
-        rewriteThese.insert(DAndReplace(D, newSig, true));
+        RewriteThese.insert(DAndReplace(D, newSig, true));
       }
     }
   }
 
-  rewrite(R, rewriteThese, skip, Context.getSourceManager(),
+  rewrite(R, RewriteThese, skip, Context.getSourceManager(),
           Context, Files, GVG);
 
   // Output files.

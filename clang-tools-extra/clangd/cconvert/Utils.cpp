@@ -101,16 +101,16 @@ getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S)
   }
 }
 
-clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *itypeExpr) {
-  TypeSourceInfo * interopTypeInfo = itypeExpr->getTypeInfoAsWritten();
-  const clang::Type *innerType = interopTypeInfo->getType().getTypePtr();
-  if (innerType->isCheckedPointerNtArrayType()) {
+clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *ItypeExpr) {
+  TypeSourceInfo *InteropTypeInfo = ItypeExpr->getTypeInfoAsWritten();
+  const clang::Type *InnerType = InteropTypeInfo->getType().getTypePtr();
+  if (InnerType->isCheckedPointerNtArrayType()) {
     return CheckedPointerKind::NtArray;
   }
-  if (innerType->isCheckedPointerArrayType()) {
+  if (InnerType->isCheckedPointerArrayType()) {
     return CheckedPointerKind::Array;
   }
-  if (innerType->isCheckedPointerType()) {
+  if (InnerType->isCheckedPointerType()) {
     return CheckedPointerKind::Ptr;
   }
   return CheckedPointerKind::Unchecked;
@@ -118,9 +118,9 @@ clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *itypeExpr) {
 
 // Check if function body exists for the
 // provided declaration.
-bool hasFunctionBody(clang::Decl *param) {
+bool hasFunctionBody(clang::Decl *D) {
   // If this a parameter?
-  if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(param)) {
+  if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
     if (DeclContext *DC = PD->getParentFunctionOrMethod()) {
       FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
       if (getDefinition(FD) != nullptr) {
@@ -156,24 +156,24 @@ std::string getStorageQualifierString(Decl *D) {
   return "";
 }
 
-bool isNULLExpression(clang::Expr *expr, ASTContext &Ctx) {
+bool isNULLExpression(clang::Expr *E, ASTContext &C) {
   // This checks if the expression is NULL. Specifically, (void*)0
-  if (CStyleCastExpr *CS = dyn_cast<CStyleCastExpr>(expr)) {
-    Expr *subExpr = CS->getSubExpr();
+  if (CStyleCastExpr *CS = dyn_cast<CStyleCastExpr>(E)) {
+    Expr *SE = CS->getSubExpr();
 
-    return subExpr->isIntegerConstantExpr(Ctx) &&
-           subExpr->isNullPointerConstant(Ctx,
-                                          Expr::NPC_ValueDependentIsNotNull);
+    return SE->isIntegerConstantExpr(C) &&
+           SE->isNullPointerConstant(C,
+                                     Expr::NPC_ValueDependentIsNotNull);
   }
   return false;
 }
 
-bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP) {
+bool getAbsoluteFilePath(std::string FileName, std::string &AbsoluteFp) {
   // Get absolute path of the provided file
   // returns true if successful else false.
-  SmallString<255> abs_path(fileName);
+  SmallString<255> abs_path(FileName);
   llvm::sys::fs::make_absolute(BaseDir,abs_path);
-  absoluteFP = abs_path.str();
+  AbsoluteFp = abs_path.str();
   return true;
 }
 
@@ -186,14 +186,14 @@ bool functionHasVarArgs(clang::FunctionDecl *FD) {
   return false;
 }
 
-bool isFunctionAllocator(std::string funcName) {
-  return llvm::StringSwitch<bool>(funcName)
+bool isFunctionAllocator(std::string FuncName) {
+  return llvm::StringSwitch<bool>(FuncName)
     .Cases("malloc", "calloc", "realloc", true)
     .Default(false);
 }
 
-float getTimeSpentInSeconds(clock_t startTime) {
-  return float(clock() - startTime)/CLOCKS_PER_SEC;
+float getTimeSpentInSeconds(clock_t StartTime) {
+  return float(clock() - StartTime)/CLOCKS_PER_SEC;
 }
 
 bool isPointerType(clang::VarDecl *VD) {
@@ -210,47 +210,47 @@ std::string tyToStr(const clang::Type *T) {
   return QT.getAsString();
 }
 
-Expr* removeAuxillaryCasts(Expr *srcExpr) {
-  srcExpr = srcExpr->IgnoreParenImpCasts();
-  if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(srcExpr))
-    srcExpr = C->getSubExpr();
-  srcExpr = srcExpr->IgnoreParenImpCasts();
-  return srcExpr;
+Expr* removeAuxillaryCasts(Expr *E) {
+  E = E->IgnoreParenImpCasts();
+  if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(E))
+    E = C->getSubExpr();
+  E = E->IgnoreParenImpCasts();
+  return E;
 }
 
 
 bool isTypeHasVoid(clang::QualType QT) {
-  const clang::Type* currType = QT.getTypePtrOrNull();
-  if (currType != nullptr) {
-    if (currType->isVoidType())
+  const clang::Type *CurrType = QT.getTypePtrOrNull();
+  if (CurrType != nullptr) {
+    if (CurrType->isVoidType())
       return true;
-    const clang::Type* innerType = getNextTy(currType);
-    while (innerType != currType) {
-      currType = innerType;
-      innerType = getNextTy(innerType);
+    const clang::Type *InnerType = getNextTy(CurrType);
+    while (InnerType != CurrType) {
+      CurrType = InnerType;
+      InnerType = getNextTy(InnerType);
     }
 
-    return innerType->isVoidType();
+    return InnerType->isVoidType();
   }
   return false;
 }
 
-bool isVarArgType(const std::string &typeName) {
-  return typeName == "struct __va_list_tag *" || typeName == "va_list" ||
-         typeName == "struct __va_list_tag";
+bool isVarArgType(const std::string &TypeName) {
+  return TypeName == "struct __va_list_tag *" || TypeName == "va_list" ||
+         TypeName == "struct __va_list_tag";
 }
 
 bool hasVoidType(clang::ValueDecl *D) {
   return isTypeHasVoid(D->getType());
 }
 
-bool canWrite(const std::string &filePath) {
+bool canWrite(const std::string &FilePath) {
   // Was this file explicitly provided on the command line?
-  if (FilePaths.count(filePath) > 0)
+  if (FilePaths.count(FilePath) > 0)
     return true;
   // Get the absolute path of the file and check that
   // the file path starts with the base directory.
-  std::string fileAbsPath = filePath;
-  getAbsoluteFilePath(filePath, fileAbsPath);
+  std::string fileAbsPath = FilePath;
+  getAbsoluteFilePath(FilePath, fileAbsPath);
   return fileAbsPath.rfind(BaseDir, 0) == 0;
 }

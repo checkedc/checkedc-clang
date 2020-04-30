@@ -55,30 +55,31 @@ clang::FunctionDecl *getDeclaration(clang::FunctionDecl *FD);
 
 clang::FunctionDecl *getDefinition(clang::FunctionDecl *FD);
 
-clang::CheckedPointerKind getCheckedPointerKind(clang::InteropTypeExpr *itypeExpr);
+clang::CheckedPointerKind
+getCheckedPointerKind(clang::InteropTypeExpr *ItypeExpr);
 
-bool hasFunctionBody(clang::Decl *param);
+bool hasFunctionBody(clang::Decl *D);
 
 std::string getStorageQualifierString(clang::Decl *D);
 
-bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP);
+bool getAbsoluteFilePath(std::string FileName, std::string &AbsoluteFp);
 
-bool isNULLExpression(clang::Expr *expr, clang::ASTContext &Ctx);
+bool isNULLExpression(clang::Expr *E, clang::ASTContext &C);
 
 // Get the time spent in seconds since the provided time stamp.
-float getTimeSpentInSeconds(clock_t startTime);
+float getTimeSpentInSeconds(clock_t StartTime);
 
 // Check if the function has varargs i.e., foo(<named_arg>,...)
 bool functionHasVarArgs(clang::FunctionDecl *FD);
 
 // Check if the function is a allocator.
-bool isFunctionAllocator(std::string funcName);
+bool isFunctionAllocator(std::string FuncName);
 
 // Is the given variable built  in type?
 bool isPointerType(clang::VarDecl *VD);
 
 // Check if provided type is a var arg type?
-bool isVarArgType(const std::string &typeName);
+bool isVarArgType(const std::string &TypeName);
 
 // Check if the variable is of a structure or union type.
 bool isStructOrUnionType(clang::VarDecl *VD);
@@ -91,11 +92,11 @@ clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD,
                                                 clang::SourceManager &S);
 
 // Remove auxillary casts from the provided expression.
-clang::Expr* removeAuxillaryCasts(clang::Expr *srcExpr);
+clang::Expr* removeAuxillaryCasts(clang::Expr *SrcExpr);
 
 // Check if the provided file path belongs to the input project
 // and can be rewritten.
-bool canWrite(const std::string &filePath);
+bool canWrite(const std::string &FilePath);
 
 // Check if the provided variable has void as one of its type.
 bool hasVoidType(clang::ValueDecl *D);

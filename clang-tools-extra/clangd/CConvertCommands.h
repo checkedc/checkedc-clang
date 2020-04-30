@@ -25,8 +25,8 @@ namespace clangd {
   // Interpret the provided execute command request as CConv command
   // and execute them.
   bool ExecuteCCCommand(const ExecuteCommandParams &Params,
-                        std::string &replyMessage,
-                        CConvInterface &ccInterface);
+                        std::string &ReplyMessage,
+                        CConvInterface &CcInterface);
 }
 }
 #endif //LLVM_TOOLS_CLANG_TOOLS_EXTRA_CLANGD_CCONVERTCOMMANDS_H

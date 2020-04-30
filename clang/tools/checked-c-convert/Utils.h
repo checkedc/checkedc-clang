@@ -44,24 +44,24 @@ clang::FunctionDecl *getDeclaration(clang::FunctionDecl *FD);
 clang::FunctionDecl *getDefinition(clang::FunctionDecl *FD);
 
 clang::CheckedPointerKind getCheckedPointerKind(clang::InteropTypeExpr
-                                                    *itypeExpr);
+                                                    *ItypeExpr);
 
-bool hasFunctionBody(clang::Decl *param);
+bool hasFunctionBody(clang::Decl *D);
 
 std::string getStorageQualifierString(clang::Decl *D);
 
-bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP);
+bool getAbsoluteFilePath(std::string FileName, std::string &AbsoluteFp);
 
-bool isNULLExpression(clang::Expr *expr, clang::ASTContext &Ctx);
+bool isNULLExpression(clang::Expr *E, clang::ASTContext &C);
 
 // Get the time spent in seconds since the provided time stamp.
-float getTimeSpentInSeconds(clock_t startTime);
+float getTimeSpentInSeconds(clock_t StartTime);
 
 // Check if the function has varargs i.e., foo(<named_arg>,...)
 bool functionHasVarArgs(clang::FunctionDecl *FD);
 
 // Check if the function is a allocator.
-bool isFunctionAllocator(std::string funcName);
+bool isFunctionAllocator(std::string FuncName);
 
 // Is the given variable built  in type?
 bool isPointerType(clang::VarDecl *VD);
@@ -75,7 +75,7 @@ std::string tyToStr(const clang::Type *T);
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD,
                                                 clang::SourceManager &S);
 
-clang::Expr* removeAuxillaryCasts(clang::Expr *srcExpr);
+clang::Expr* removeAuxillaryCasts(clang::Expr *SrcExpr);
 
 // Find the longest common subsequence.
 unsigned longestCommonSubsequence(const char* str1, const char* str2,

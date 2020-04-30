@@ -78,9 +78,9 @@ struct DComp
     SourceManager &SM;
     DComp(SourceManager &S) : SM(S) { }
 
-    SourceRange getWholeSR(SourceRange orig, DAndReplace dr) const;
+    SourceRange getWholeSR(SourceRange Orig, DAndReplace Dr) const;
 
-    bool operator()(const DAndReplace lhs, const DAndReplace rhs) const;
+    bool operator()(const DAndReplace Lhs, const DAndReplace Rhs) const;
 };
 
 typedef std::set<DAndReplace, DComp> RSet;
@@ -98,9 +98,9 @@ typedef std::set<DAndReplace, DComp> RSet;
 class GlobalVariableGroups {
 public:
   GlobalVariableGroups(SourceManager &SourceMgr) : SM(SourceMgr) { }
-  void addGlobalDecl(VarDecl *decl, std::set<VarDecl*> *targetSet = nullptr);
+  void addGlobalDecl(VarDecl *VD, std::set<VarDecl*> *VDSet = nullptr);
 
-  std::set<VarDecl*> &getVarsOnSameLine(VarDecl *decl);
+  std::set<VarDecl*> &getVarsOnSameLine(VarDecl *VD);
 
   virtual ~GlobalVariableGroups();
 
@@ -109,15 +109,15 @@ private:
   std::map<VarDecl*, std::set<VarDecl*>*> globVarGroups;
 };
 
-void rewrite(ParmVarDecl *PV, Rewriter &R, std::string sRewrite);
+void rewrite(ParmVarDecl *PV, Rewriter &R, std::string SRewrite);
 
 void rewrite( VarDecl               *VD,
               Rewriter              &R,
-              std::string           sRewrite,
+              std::string SRewrite,
               Stmt                  *WhereStmt,
               RSet                  &skip,
               const DAndReplace     &N,
-              RSet                  &toRewrite,
+              RSet                  &ToRewrite,
               ASTContext            &A,
               GlobalVariableGroups  &GP);
 
@@ -130,8 +130,8 @@ void rewrite( VarDecl               *VD,
 // we should skip because we already applied them, for example, as part
 // of turning a single line declaration into a multi-line declaration.
 void rewrite( Rewriter              &R,
-              RSet                  &toRewrite,
-              RSet                  &skip,
+              RSet                  &ToRewrite,
+              RSet                  &Skip,
               SourceManager         &S,
               ASTContext            &A,
               std::set<FileID>      &Files,
@@ -145,7 +145,7 @@ public:
   // Compute the possible bounds for all the array variables.
   void computeArrayBounds();
   // Get the string representation of the bounds for the given variable.
-  std::string getBoundsString(Decl *decl, bool isitype = false);
+  std::string getBoundsString(Decl *D, bool Isitype = false);
 private:
   ASTContext *Context;
   ProgramInfo &Info;
@@ -163,16 +163,16 @@ public:
 
   bool VisitCallExpr(CallExpr *);
   bool VisitFunctionDecl(FunctionDecl *);
-  bool isFunctionVisited(std::string funcName);
+  bool isFunctionVisited(std::string FuncName);
 private:
   std::set<unsigned int> getParamsForExtern(std::string);
   // Get existing itype string from constraint variables.
   // if tries to get the string from declaration, however,
   // if there is no declaration of the function,
   // it will try to get it from the definition.
-  std::string getExistingIType(ConstraintVariable *decl,
-                               ConstraintVariable *defn,
-                               FunctionDecl *funcDecl);
+  std::string getExistingIType(ConstraintVariable *DeclC,
+                               ConstraintVariable *Defc,
+                               FunctionDecl *FuncDecl);
   bool anyTop(std::set<ConstraintVariable*>);
   ASTContext            *Context;
   ProgramInfo           &Info;
@@ -194,8 +194,8 @@ public:
 private:
   // Functions to handle modified signatures and ensuring that
   // we always use the latest signature.
-  static std::string getModifiedFuncSignature(std::string funcName);
-  static bool hasModifiedSignature(std::string funcName);
+  static std::string getModifiedFuncSignature(std::string FuncName);
+  static bool hasModifiedSignature(std::string FuncName);
   ProgramInfo &Info;
   static std::map<std::string, std::string> ModifiedFuncSignatures;
   std::string &OutputPostfix;

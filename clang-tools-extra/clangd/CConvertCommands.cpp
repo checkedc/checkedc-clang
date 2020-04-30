@@ -16,34 +16,34 @@ namespace clangd {
 
 #define CCONVSOURCE "CConv_RealWild"
 
-static bool GetPtrIDFromDiagMessage(const Diagnostic &diagMsg,
-                                    unsigned long &ptrID) {
-  if (diagMsg.source.rfind(CCONVSOURCE, 0) == 0) {
-    ptrID = atoi(diagMsg.code.c_str());
+static bool GetPtrIDFromDiagMessage(const Diagnostic &DiagMsg,
+                                    unsigned long &PtrId) {
+  if (DiagMsg.source.rfind(CCONVSOURCE, 0) == 0) {
+    PtrId = atoi(DiagMsg.code.c_str());
     return true;
   }
   return false;
 }
 
 void AsCCCommands(const Diagnostic &D, std::vector<Command> &OutCommands) {
-  unsigned long ptrID;
-  if (GetPtrIDFromDiagMessage(D, ptrID)) {
-    Command allPtrsCmd;
-    CConvertManualFix ptrFix;
-    ptrFix.ptrID = ptrID;
-    allPtrsCmd.ccConvertManualFix = ptrFix;
-    Command singlePtrCmd = allPtrsCmd;
+  unsigned long PtrId;
+  if (GetPtrIDFromDiagMessage(D, PtrId)) {
+    Command AllPtrsCmd;
+    CConvertManualFix PtrFix;
+    PtrFix.ptrID = PtrId;
+    AllPtrsCmd.ccConvertManualFix = PtrFix;
+    Command SinglePtrCmd = AllPtrsCmd;
 
-    allPtrsCmd.command = Command::CCONV_APPLY_FOR_ALL;
-    allPtrsCmd.title = "Make this pointer non-WILD and apply the "
+    AllPtrsCmd.command = Command::CCONV_APPLY_FOR_ALL;
+    AllPtrsCmd.title = "Make this pointer non-WILD and apply the "
                        "same observation to all the pointers.";
 
-    OutCommands.push_back(allPtrsCmd);
+    OutCommands.push_back(AllPtrsCmd);
 
-    singlePtrCmd.command = Command::CCONV_APPLY_ONLY_FOR_THIS;
-    singlePtrCmd.title = "Make ONLY this pointer non-WILD.";
+    SinglePtrCmd.command = Command::CCONV_APPLY_ONLY_FOR_THIS;
+    SinglePtrCmd.title = "Make ONLY this pointer non-WILD.";
 
-    OutCommands.push_back(singlePtrCmd);
+    OutCommands.push_back(SinglePtrCmd);
   }
 }
 
@@ -53,17 +53,17 @@ bool IsCConvCommand(const ExecuteCommandParams &Params) {
 }
 
 bool ExecuteCCCommand(const ExecuteCommandParams &Params,
-                    std::string &replyMessage,
-                    CConvInterface &ccInterface) {
-  replyMessage = "Checked C Pointer Modified.";
+                    std::string &ReplyMessage,
+                    CConvInterface &CcInterface) {
+  ReplyMessage = "Checked C Pointer Modified.";
   if (Params.command.rfind(Command::CCONV_APPLY_ONLY_FOR_THIS, 0) == 0) {
-    int ptrID = Params.ccConvertManualFix->ptrID;
-    ccInterface.MakeSinglePtrNonWild(ptrID);
+    int PtrId = Params.ccConvertManualFix->ptrID;
+    CcInterface.MakeSinglePtrNonWild(PtrId);
     return true;
   }
   if (Params.command.rfind(Command::CCONV_APPLY_FOR_ALL, 0) == 0) {
-    int ptrID = Params.ccConvertManualFix->ptrID;
-    ccInterface.InvalidateWildReasonGlobally(ptrID);
+    int PtrId = Params.ccConvertManualFix->ptrID;
+    CcInterface.InvalidateWildReasonGlobally(PtrId);
     return true;
   }
   return false;
