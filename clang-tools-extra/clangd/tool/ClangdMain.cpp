@@ -423,7 +423,7 @@ int main(int argc, char *argv[]) {
                                              (const char**)(argv),
                                              CConvCategory);
   LogLevel = Logger::Debug;
-  // Setup options
+  // Setup options.
   struct CConvertOptions ccOptions;
   CConvInterface cconvInterface;
   ccOptions.BaseDir = BaseDir.getValue();
@@ -436,7 +436,7 @@ int main(int argc, char *argv[]) {
   ccOptions.DumpIntermediate = DumpIntermediate;
   ccOptions.ConstraintOutputJson = ConstraintOutputJson.getValue();
   ccOptions.SeperateMultipleFuncDecls = MergeMultipleFuncDecls;
-  // initialize CConvInterface
+  // Initialize CConvInterface.
   if (cconvInterface.InitializeCConvert(OptionsParser, ccOptions)) {
     log("Initialized CConvert successfully\n");
   } else {
@@ -649,7 +649,7 @@ int main(int argc, char *argv[]) {
       *TransportLayer, FSProvider, CCOpts, CompileCommandsDirPath,
       /*UseDirBasedCDB=*/CompileArgsFrom == FilesystemCompileArgs,
 #ifdef INTERACTIVECCCONV
-      // pass the cconvInterface object
+      // Pass the cconvInterface object.
       OffsetEncodingFromFlag, Opts, cconvInterface);
 #else
       OffsetEncodingFromFlag, Opts);
