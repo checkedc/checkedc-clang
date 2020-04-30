@@ -643,8 +643,10 @@ namespace {
 
 namespace {
   // BoundsContextTy denotes a map of a variable declaration to a bounds
-  // expression for the variable (e.g. the variable's declared bounds or the
-  // observed bounds for the variable that are updated during bounds checking).
+  // expression for the variable.  The bounds expression can refer to
+  // different types of bounds: e.g. the variable's declared bounds, the
+  // widened bounds for the variable, or the observed bounds for the variable
+  // after checking a statement.
   using BoundsContextTy = llvm::DenseMap<const VarDecl *, BoundsExpr *>;
 
   // EqualExprTy denotes a set of expressions that produce the same value
@@ -660,10 +662,6 @@ namespace {
   // and are updated while checking individual expressions.
   class CheckingState {
     public:
-      // DeclaredBounds maps a variable to the bounds that the programmer
-      // has declared for the variable.
-      BoundsContextTy DeclaredBounds;
-
       // ObservedBounds maps variables to their current known bounds as
       // inferred by bounds checking.  These bounds are updated after
       // assignments to variables.
@@ -810,9 +808,6 @@ namespace {
                            CheckingState &State) {
       OS << "\nStatement S:\n";
       S->dump(OS);
-
-      OS << "Declared bounds context before checking S:\n";
-      DumpBoundsContext(OS, State.DeclaredBounds);
 
       OS << "Observed bounds context after checking S:\n";
       DumpBoundsContext(OS, State.ObservedBounds);
@@ -2164,7 +2159,7 @@ namespace {
        ParmVarDecl *D = *I;
        BoundsExpr *Bounds = D->getBoundsExpr();
        if (Bounds)
-         ParamsState.DeclaredBounds[D] = S.ExpandBoundsToRange(D, Bounds);
+         ParamsState.ObservedBounds[D] = S.ExpandBoundsToRange(D, Bounds);
      }
 
      // Store a checking state for each CFG block in order to track
@@ -2211,17 +2206,21 @@ namespace {
             S->dump(llvm::outs());
             llvm::outs().flush();
 #endif
-            // Modify the TargetBounds context to include any bounds declared
-            // in S.  Before checking S, the observed bounds for each variable
-            // are the same as the declared bounds for the variable.
-            GetDeclaredBounds(this->S, BlockState.DeclaredBounds, S);
-            BlockState.ObservedBounds = BlockState.DeclaredBounds;
+            // Modify the ObservedBounds context to include any variables with
+            // bounds that are declared in S.  Before checking S, the observed
+            // bounds for each variable v that is in scope are the widened
+            // bounds for v (if any), or the declared bounds for v (if any).
+            GetDeclaredBounds(this->S, BlockState.ObservedBounds, S);
+
             BlockState.G.clear();
             Check(S, CSS, BlockState);
-            // TODO: validate the observed context BlockState.ObservedBounds
-            // against the declared context BlockState.DeclaredBounds.
+
             if (DumpState)
               DumpCheckingState(llvm::outs(), S, BlockState);
+
+            // TODO: for each variable v in ObservedBounds, check that the
+            // observed bounds of v imply the declared bounds of v.
+
          }
        }
        if (Block->getBlockID() != Cfg->getEntry().getBlockID())
@@ -2269,8 +2268,6 @@ namespace {
   public:
     BoundsExpr *Check(Stmt *S, CheckedScopeSpecifier CSS) {
       CheckingState State;
-      GetDeclaredBounds(this->S, State.DeclaredBounds, S);
-      State.ObservedBounds = State.DeclaredBounds;
       BoundsExpr *Bounds = Check(S, CSS, State);
       if (DumpState)
         DumpCheckingState(llvm::outs(), S, State);
@@ -4054,29 +4051,35 @@ namespace {
     }
 
     // GetIncomingBlockState returns the checking state that is true at the
-    // beginning of the block by taking the intersection of the declared
-    // bounds contexts and UEQ sets that were true after each of the
-    // block's predecessors.
+    // beginning of the block by taking the intersection of the observed
+    // bounds contexts and UEQ sets of equivalent expressions that were true
+    // after each of the block's predecessors.
+    //
+    // Taking the intersection of the observed bounds contexts of the block's
+    // predecessors ensures that, before checking a statement S in the block,
+    // the block's observed bounds context contains only variables with bounds
+    // that are in scope at S.
     CheckingState GetIncomingBlockState(const CFGBlock *Block,
                                         llvm::DenseMap<unsigned int, CheckingState> BlockStates) {
       CheckingState BlockState;
       bool IntersectionEmpty = true;
       for (const CFGBlock *PredBlock : Block->preds()) {
-        // Prevent null or non-traversed (e.g. unreachable) blocks from
-        // causing the incoming DeclaredBounds for a block to be empty.
+        // Prevent null or non-traversed (e.g. unreachable) blocks from causing
+        // the incoming bounds context and UEQ set for a block to be empty.
         if (!PredBlock)
           continue;
         if (BlockStates.find(PredBlock->getBlockID()) == BlockStates.end())
           continue;
         CheckingState PredState = BlockStates[PredBlock->getBlockID()];
         if (IntersectionEmpty) {
-          BlockState.DeclaredBounds = PredState.DeclaredBounds;
+          BlockState.ObservedBounds = PredState.ObservedBounds;
           BlockState.UEQ = PredState.UEQ;
           IntersectionEmpty = false;
         }
         else {
-          BlockState.DeclaredBounds =
-            IntersectBoundsContexts(PredState.DeclaredBounds, BlockState.DeclaredBounds);
+          BlockState.ObservedBounds =
+            IntersectBoundsContexts(PredState.ObservedBounds,
+                                    BlockState.ObservedBounds);
           BlockState.UEQ = IntersectUEQ(PredState.UEQ, BlockState.UEQ);
         }
       }
@@ -4091,10 +4094,7 @@ namespace {
       for (auto Pair : Context1) {
         if (!Pair.second || !Context2[Pair.first])
           continue;
-        if (Pair.second->isUnknown() || Context2[Pair.first]->isUnknown())
-          IntersectedContext[Pair.first] = CreateBoundsUnknown();
-        else if (EqualValue(S.Context, Pair.second, Context2[Pair.first], nullptr))
-          IntersectedContext[Pair.first] = Pair.second;
+        IntersectedContext[Pair.first] = Pair.second;
       }
       return IntersectedContext;
     }
