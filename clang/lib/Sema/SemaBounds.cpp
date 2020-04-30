@@ -2903,9 +2903,9 @@ namespace {
         if (E->getType()->isCheckedPointerPtrType())
           ResultBounds = CreateTypeBasedBounds(E, E->getType(), false, false);
         else
-          ResultBounds = RValueCastBounds(CK, SubExprTargetBounds,
+          ResultBounds = RValueCastBounds(E, SubExprTargetBounds,
                                           SubExprLValueBounds,
-                                          SubExprBounds);
+                                          SubExprBounds, State);
       }
 
       CheckDisallowedFunctionPtrCasts(E);
@@ -4575,10 +4575,12 @@ namespace {
     }
 
     // Compute the bounds of a cast operation that produces an rvalue.
-    BoundsExpr *RValueCastBounds(CastKind CK, BoundsExpr *TargetBounds,
+    BoundsExpr *RValueCastBounds(CastExpr *E,
+                                 BoundsExpr *TargetBounds,
                                  BoundsExpr *LValueBounds,
-                                 BoundsExpr *RValueBounds) {
-      switch (CK) {
+                                 BoundsExpr *RValueBounds,
+                                 CheckingState State) {
+      switch (E->getCastKind()) {
         case CastKind::CK_BitCast:
         case CastKind::CK_NoOp:
         case CastKind::CK_NullToPointer:
@@ -4589,8 +4591,21 @@ namespace {
         case CastKind::CK_IntegralToBoolean:
         case CastKind::CK_BooleanToSignedIntegral:
           return RValueBounds;
-        case CastKind::CK_LValueToRValue:
+        case CastKind::CK_LValueToRValue: {
+          // For an rvalue cast of a variable v, if v has observed bounds,
+          // the rvalue bounds of the value of v should be the observed bounds.
+          // This also accounts for any variables that have widened bounds.
+          if (DeclRefExpr *V = GetRValueVariable(E)) {
+            if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
+              if (BoundsExpr *B = State.ObservedBounds[D])
+                return B;
+            }
+          }
+          // If an lvalue to rvalue cast e is not the value of a variable
+          // with observed bounds, the rvalue bounds of e default to the
+          // given target bounds.
           return TargetBounds;
+        }
         case CastKind::CK_ArrayToPointerDecay:
           return LValueBounds;
         case CastKind::CK_DynamicPtrBounds:
