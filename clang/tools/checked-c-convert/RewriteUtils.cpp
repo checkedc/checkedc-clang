@@ -372,7 +372,7 @@ std::set<unsigned int> CastPlacementVisitor::getParamsForExtern(std::string E) {
 // Checks the bindings in the environment for all of the constraints
 // associated with C and returns true if any of those constraints
 // are WILD.
-bool CastPlacementVisitor::anyTop(std::set<ConstraintVariable*> C) {
+bool CastPlacementVisitor::anyTop(std::set<ConstraintVariable *> C) {
   bool TopFound = false;
   Constraints &CS = Info.getConstraints();
   Constraints::EnvironmentMap &env = CS.getVariables();
@@ -713,8 +713,8 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 {
   public:
-    explicit CheckedRegionAdder(ASTContext *_C, Rewriter& _R, ProgramInfo &_I,
-                                std::set<llvm::FoldingSetNodeID>& seen)
+    explicit CheckedRegionAdder(ASTContext *_C, Rewriter &_R, ProgramInfo &_I,
+                                std::set<llvm::FoldingSetNodeID> &seen)
       : Context(_C), Writer(_R), Info(_I), Seen(seen) {
 
     }
@@ -803,7 +803,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     bool VisitVarDecl(VarDecl *VD) {
       // Check if the variable is WILD
       bool FoundWild = false;
-      std::set<ConstraintVariable*> ConsVars = Info.getVariable(VD, Context);
+      std::set<ConstraintVariable *> ConsVars = Info.getVariable(VD, Context);
       for (auto ConsVar : ConsVars) {
         if (ConsVar->hasWild(Info.getConstraints().getVariables())) {
           FoundWild = true;
@@ -824,7 +824,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     bool VisitParmVarDecl(ParmVarDecl *PVD) {
       // Check if the variable is WILD
       bool FoundWild = false;
-      std::set<ConstraintVariable*> CVSet = Info.getVariable(PVD, Context);
+      std::set<ConstraintVariable *> CVSet = Info.getVariable(PVD, Context);
       for (auto CV : CVSet) {
         if (CV->hasWild(Info.getConstraints().getVariables())) {
           FoundWild = true;
@@ -882,7 +882,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
           for (auto const &Fld : D->fields()) {
             auto Ftype = Fld->getType();
             Unsafe |= isUncheckedPtrAcc(Ftype, Seen);
-            std::set<ConstraintVariable*> CvSet =
+            std::set<ConstraintVariable *> CvSet =
                 Info.getVariable(Fld, Context);
             for (auto Cv : CvSet) {
               Unsafe |= Cv->hasWild(Info.getConstraints().getVariables());
@@ -919,7 +919,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       if (St) {
         // Check if the variable is WILD
         bool FoundWild = false;
-        std::set<ConstraintVariable*> CvSet = Info.getVariable(St, Context);
+        std::set<ConstraintVariable *> CvSet = Info.getVariable(St, Context);
         for (auto Cv : CvSet) {
           if (Cv->hasWild(Info.getConstraints().getVariables())) {
             FoundWild = true;
@@ -938,10 +938,10 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     }
 
   private:
-    ASTContext*  Context;
-    Rewriter&    Writer;
-    ProgramInfo& Info;
-    std::set<llvm::FoldingSetNodeID>& Seen;
+    ASTContext  *Context;
+    Rewriter     &Writer;
+    ProgramInfo    &Info;
+    std::set<llvm::FoldingSetNodeID> &Seen;
 };
 
 // This class initializes all the structure variables that
@@ -985,7 +985,7 @@ public:
   // check to see if this variable require an initialization.
   bool VisitDeclStmt(DeclStmt *S) {
 
-    std::set<VarDecl*> AllDecls;
+    std::set<VarDecl *> AllDecls;
 
     if (S->isSingleDecl()) {
       if (VarDecl *VD = dyn_cast<VarDecl>(S->getSingleDecl())) {
@@ -1017,10 +1017,10 @@ public:
     return true;
   }
 private:
-  ASTContext*  Context;
+  ASTContext *Context;
   ProgramInfo &I;
   RSet &RewriteThese;
-  std::set<RecordDecl*> RecordsWithCPointers;
+  std::set<RecordDecl *> RecordsWithCPointers;
 
 };
 
@@ -1109,7 +1109,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
 
   for (const auto &V : Info.getVarMap()) {
     PersistentSourceLoc PLoc = V.first;
-    std::set<ConstraintVariable*> Vars = V.second;
+    std::set<ConstraintVariable *> Vars = V.second;
     // I don't think it's important that Vars have any especial size, but
     // at one point I did so I'm keeping this comment here. It's possible
     // that what we really need to do is to ensure that when we work with

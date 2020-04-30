@@ -123,7 +123,7 @@ static bool needNTArrayBounds(ConstraintVariable *CV,
 }
 
 static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C) {
-  std::set<ConstraintVariable*> ConsVar = Info.getVariable(D, C);
+  std::set<ConstraintVariable *> ConsVar = Info.getVariable(D, C);
   for (auto CurrCVar : ConsVar) {
     if (needArrayBounds(CurrCVar, Info.getConstraints().getVariables()))
       return true;
@@ -220,7 +220,7 @@ void GlobalABVisitor::SetParamHeuristicInfo(LocalVarABVisitor *LAB) {
   this->ParamInfo = LAB;
 }
 
-bool GlobalABVisitor::IsPotentialLengthVar(ParmVarDecl* PVD) {
+bool GlobalABVisitor::IsPotentialLengthVar(ParmVarDecl *PVD) {
   if (PVD->getType().getTypePtr()->isIntegerType()) {
     return ParamInfo == nullptr || !ParamInfo->isNonLengthParameter(PVD);
   }
@@ -244,7 +244,7 @@ bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
       if (FldDecl->getType().getTypePtr()->isIntegerType())
         PotLenFields.insert(FldDecl);
 
-      std::set<ConstraintVariable*> ConsVars =
+      std::set<ConstraintVariable *> ConsVars =
           Info.getVariable(FldDecl, Context);
       for (auto CurrCVar : ConsVars) {
         // Is this an array field?
@@ -459,9 +459,9 @@ bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
       if (needArrayBounds(VD, Info, Context) &&
           InitE && isAllocatorCall(InitE)) {
         ArrBInfo.addBoundsInformation(VD,
-                                           getAllocatedSizeExpr(InitE,
-                                                                Context,
-                                                                Info));
+                                      getAllocatedSizeExpr(InitE,
+                                                           Context,
+                                                           Info));
       }
     }
 
@@ -478,7 +478,7 @@ bool LocalVarABVisitor::VisitSwitchStmt(SwitchStmt *S) {
 }
 
 // Check if the provided parameter cannot be a length of an array.
-bool LocalVarABVisitor::isNonLengthParameter(ParmVarDecl* PVD) {
+bool LocalVarABVisitor::isNonLengthParameter(ParmVarDecl *PVD) {
   if (PVD->getType().getTypePtr()->isEnumeralType())
     return true;
   return NonLengthParameters.find(PVD) != NonLengthParameters.end();
@@ -510,7 +510,7 @@ void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
         ParmVarDecl *Argv = FD->getParamDecl(1);
         assert(Argv != nullptr && "Argument cannot be nullptr");
         auto &CS = I.getConstraints();
-        std::set<ConstraintVariable*> DefCVars = I.getVariable(Argv, C, true);
+        std::set<ConstraintVariable *> DefCVars = I.getVariable(Argv, C, true);
         for (auto ConsVar : DefCVars) {
           if (PVConstraint *PV = dyn_cast<PVConstraint>(ConsVar)) {
             auto &Cvars = PV->getCvars();

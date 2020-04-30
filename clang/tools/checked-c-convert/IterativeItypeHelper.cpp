@@ -17,7 +17,7 @@ static Constraints::EnvironmentMap IterationItypeMap;
 // and its return for all functions (including their declarations
 // and definitions).
 // This map is used to determine new detection of itypes.
-static std::map<std::string, std::map<VarAtom*, ConstAtom*>>
+static std::map<std::string, std::map<VarAtom *, ConstAtom *>>
     ParamsReturnSavedValues;
 
 // This method saves the constraint vars of parameters and return of all the
@@ -27,7 +27,7 @@ static std::map<std::string, std::map<VarAtom*, ConstAtom*>>
 static void
 updateFunctionConstraintVars(std::string FuncKey,
                              Constraints &CS,
-                             std::set<ConstraintVariable*> &FVConstVars) {
+                             std::set<ConstraintVariable *> &FVConstVars) {
   for (auto TopVar : FVConstVars) {
     // If this is a function constraint?
     if (FVConstraint *FvCons = dyn_cast<FVConstraint>(TopVar)) {

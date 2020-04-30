@@ -26,7 +26,7 @@ const clang::Type *getNextTy(const clang::Type *Ty) {
     return Ty;
 }
 
-ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs,
+ConstraintVariable *getHighest(std::set<ConstraintVariable *> Vs,
                                ProgramInfo &Info) {
   if (Vs.size() == 0)
     return nullptr;
@@ -208,7 +208,7 @@ std::string tyToStr(const Type *T) {
   return QT.getAsString();
 }
 
-Expr* removeAuxillaryCasts(Expr *SrcExpr) {
+Expr *removeAuxillaryCasts(Expr *SrcExpr) {
   SrcExpr = SrcExpr->IgnoreParenImpCasts();
   if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(SrcExpr))
     SrcExpr = C->getSubExpr();
@@ -216,7 +216,7 @@ Expr* removeAuxillaryCasts(Expr *SrcExpr) {
   return SrcExpr;
 }
 
-unsigned longestCommonSubsequence(const char* str1, const char* str2,
+unsigned longestCommonSubsequence(const char *str1, const char *str2,
                                   unsigned str1Len, unsigned str2Len) {
   if (str1Len == 0 || str2Len == 0)
     return 0;

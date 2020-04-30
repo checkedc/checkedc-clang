@@ -59,8 +59,8 @@ public:
   // needed if you are casting from U to V. If this returns true, then it's 
   // safe to add an implication that if U is wild, then V is wild. However,
   // if this returns false, then both U and V must be constrained to wild.
-  bool checkStructuralEquality( std::set<ConstraintVariable*> V, 
-                                std::set<ConstraintVariable*> U,
+  bool checkStructuralEquality( std::set<ConstraintVariable *> V, 
+                                std::set<ConstraintVariable *> U,
                                 clang::QualType VTy,
                                 clang::QualType UTy);
   bool checkStructuralEquality(clang::QualType, clang::QualType);
@@ -105,17 +105,17 @@ public:
   // the function Definition (if present). If set to false, we skip the 
   // Declaration associated with the Definition and find the first 
   // non-Declaration Definition.
-  std::set<ConstraintVariable*>
+  std::set<ConstraintVariable *>
     getVariable(clang::Expr *E, clang::ASTContext *C,
               bool InFuncCtx = false);
-  std::set<ConstraintVariable*>
+  std::set<ConstraintVariable *>
     getVariableOnDemand(clang::Decl *D, clang::ASTContext *C,
                       bool InFuncCtx = false);
-  std::set<ConstraintVariable*>
+  std::set<ConstraintVariable *>
     getVariable(clang::Decl *D, clang::ASTContext *C,
               bool InFuncCtx = false);
   // get constraint variable for the provided function or its parameter
-  std::set<ConstraintVariable*>
+  std::set<ConstraintVariable *>
     getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD,
               int PIdx =-1);
 
@@ -125,7 +125,7 @@ public:
   // that do not have corresponding declaration.
   // For all functions that do not have corresponding declaration,
   // we create an on demand FunctionVariableConstraint.
-  std::set<ConstraintVariable*>&
+  std::set<ConstraintVariable *>&
   getOnDemandFuncDeclarationConstraint(FunctionDecl *D, ASTContext *C);
 
   // Get a unique key for a given function declaration node.
@@ -136,10 +136,10 @@ public:
 
   // Given the unique key for the function definition, get the pointer to
   // the constraint set of the declaration (if exists) else null.
-  std::set<ConstraintVariable*> *
+  std::set<ConstraintVariable *> *
       getFuncDeclConstraintSet(std::string FuncDefKey);
 
-  std::map<std::string, std::set<ConstraintVariable*>>&
+  std::map<std::string, std::set<ConstraintVariable *>>&
   getOnDemandFuncDeclConstraintMap();
 
   // Handle assigning constraints based on function subtyping.
@@ -154,7 +154,7 @@ private:
                               ConstraintVariable *DstCVar);
   // Check if the given set has the corresponding constraint variable type.
   template <typename T>
-  bool hasConstraintType(std::set<ConstraintVariable*> &S);
+  bool hasConstraintType(std::set<ConstraintVariable *> &S);
   // Function to check if an external symbol is okay to leave constrained.
   bool isExternOkay(std::string Ext);
 
@@ -164,10 +164,10 @@ private:
   // we store the constraints based on function name
   // as the information needs to be stored across multiple
   // instances of the program AST
-  std::map<std::string, std::set<ConstraintVariable*>>
+  std::map<std::string, std::set<ConstraintVariable *>>
       OnDemandFuncDeclConstraint;
 
-  std::list<clang::RecordDecl*> Records;
+  std::list<clang::RecordDecl *> Records;
   // Next available integer to assign to a variable.
   uint32_t freeKey;
   // Map from a Decl to the DeclStmt that contains the Decl.
@@ -191,7 +191,7 @@ private:
   // names of external functions, the value is whether the body has been
   // seen before.
   std::map<std::string, bool> ExternFunctions;
-  std::map<std::string, std::set<FVConstraint*>> GlobalSymbols;
+  std::map<std::string, std::set<FVConstraint *>> GlobalSymbols;
 
   // Object that contains all the bounds information of various array variables.
   ArrayBoundsInformation *ArrBoundsInfo;

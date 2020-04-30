@@ -148,7 +148,7 @@ private:
   std::string getExistingIType(ConstraintVariable *Declc,
                                ConstraintVariable *Defc,
                                FunctionDecl *FuncDecl);
-  bool anyTop(std::set<ConstraintVariable*>);
+  bool anyTop(std::set<ConstraintVariable *>);
   ASTContext            *Context;
   ProgramInfo           &Info;
   RSet                  &rewriteThese;

@@ -32,7 +32,7 @@ std::string ConstraintVariable::getRewritableOriginalTy() {
 
 ConstraintVariable*
 ConstraintVariable::
-    getHighestNonWildConstraint(std::set<ConstraintVariable*> &ToCheck,
+    getHighestNonWildConstraint(std::set<ConstraintVariable *> &ToCheck,
                                 Constraints::EnvironmentMap &E,
                                 ProgramInfo &I) {
   ConstraintVariable *HighestConVar = nullptr;
@@ -499,7 +499,7 @@ bool PVConstraint::addArgumentConstraint(ConstraintVariable *DstCons) {
 
   return false;
 }
-std::set<ConstraintVariable*> &PVConstraint::getArgumentConstraints() {
+std::set<ConstraintVariable *> &PVConstraint::getArgumentConstraints() {
   return argumentConstraints;
 }
 
@@ -573,7 +573,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
         }
       }
 
-      std::set<ConstraintVariable*> C;
+      std::set<ConstraintVariable *> C;
       C.insert(new PVConstraint(QT, K, TmpD, Pname, CS, Ctx, true));
       paramVars.push_back(C);
     }
@@ -703,7 +703,7 @@ bool FunctionVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
 
 bool FunctionVariableConstraint::hasWild(Constraints::EnvironmentMap &E)
 {
-  for (const auto& C: returnVars)
+  for (const auto &C : returnVars)
     if (C->hasWild(E))
       return true;
 
@@ -712,7 +712,7 @@ bool FunctionVariableConstraint::hasWild(Constraints::EnvironmentMap &E)
 
 bool FunctionVariableConstraint::hasArr(Constraints::EnvironmentMap &E)
 {
-  for (const auto& C: returnVars)
+  for (const auto &C : returnVars)
     if (C->hasArr(E))
       return true;
 
@@ -721,7 +721,7 @@ bool FunctionVariableConstraint::hasArr(Constraints::EnvironmentMap &E)
 
 bool FunctionVariableConstraint::hasNtArr(Constraints::EnvironmentMap &E)
 {
-  for (const auto& C: returnVars)
+  for (const auto &C : returnVars)
     if (C->hasNtArr(E))
       return true;
 
@@ -731,7 +731,7 @@ bool FunctionVariableConstraint::hasNtArr(Constraints::EnvironmentMap &E)
 ConstAtom*
 FunctionVariableConstraint::getHighestType(Constraints::EnvironmentMap &E) {
   ConstAtom *Ret = nullptr;
-  for (const auto& C: returnVars) {
+  for (const auto &C : returnVars) {
     ConstAtom *CS = C->getHighestType(E);
     assert(CS != nullptr);
     if (Ret == nullptr || ((*Ret) < *CS)) {
@@ -816,7 +816,7 @@ bool PointerVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
 
 bool PointerVariableConstraint::hasWild(Constraints::EnvironmentMap &E)
 {
-  for (const auto& C: vars) {
+  for (const auto &C : vars) {
     VarAtom V(C);
     ConstAtom *CS = E[&V];
     assert(CS != nullptr);
@@ -832,7 +832,7 @@ bool PointerVariableConstraint::hasWild(Constraints::EnvironmentMap &E)
 
 bool PointerVariableConstraint::hasArr(Constraints::EnvironmentMap &E)
 {
-  for (const auto& C: vars) {
+  for (const auto &C : vars) {
     VarAtom V(C);
     ConstAtom *CS = E[&V];
     assert(CS != nullptr);
@@ -848,7 +848,7 @@ bool PointerVariableConstraint::hasArr(Constraints::EnvironmentMap &E)
 
 bool PointerVariableConstraint::hasNtArr(Constraints::EnvironmentMap &E)
 {
-  for (const auto& C: vars) {
+  for (const auto &C : vars) {
     VarAtom V(C);
     ConstAtom *CS = E[&V];
     assert(CS != nullptr);
@@ -865,7 +865,7 @@ bool PointerVariableConstraint::hasNtArr(Constraints::EnvironmentMap &E)
 ConstAtom*
 PointerVariableConstraint::getHighestType(Constraints::EnvironmentMap &E) {
   ConstAtom *Ret = nullptr;
-  for (const auto& C: vars) {
+  for (const auto &C : vars) {
     VarAtom V(C);
     ConstAtom *CS = E[&V];
     assert(CS != nullptr);

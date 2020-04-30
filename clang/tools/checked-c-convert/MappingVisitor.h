@@ -23,7 +23,7 @@
 
 // TODO: It's possible the Type field in this tuple isn't needed.
 
-typedef std::tuple<clang::Stmt*, clang::Decl*, clang::Type*>
+typedef std::tuple<clang::Stmt *, clang::Decl *, clang::Type *>
         StmtDeclOrType;
 typedef std::map<PersistentSourceLoc, StmtDeclOrType> SourceToDeclMapType;
 typedef std::pair<SourceToDeclMapType,

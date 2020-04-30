@@ -22,10 +22,10 @@ class ProgramInfo;
 
 // Maps a Decl to the set of constraint variables for that Decl.
 typedef std::map<PersistentSourceLoc, 
-  std::set<ConstraintVariable*>> VariableMap;
+  std::set<ConstraintVariable *>> VariableMap;
 
 // Maps a Decl to the DeclStmt that defines the Decl.
-typedef std::map<clang::Decl*, clang::DeclStmt*> VariableDecltoStmtMap;
+typedef std::map<clang::Decl *, clang::DeclStmt *> VariableDecltoStmtMap;
 
 extern llvm::cl::opt<bool> Verbose;
 extern llvm::cl::opt<bool> DumpIntermediate;
@@ -36,7 +36,7 @@ extern llvm::cl::opt<bool> AllocUnsafe;
 
 const clang::Type *getNextTy(const clang::Type *Ty);
 
-ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs,
+ConstraintVariable *getHighest(std::set<ConstraintVariable *> Vs,
                                ProgramInfo &Info);
 
 clang::FunctionDecl *getDeclaration(clang::FunctionDecl *FD);
@@ -75,10 +75,10 @@ std::string tyToStr(const clang::Type *T);
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD,
                                                 clang::SourceManager &S);
 
-clang::Expr* removeAuxillaryCasts(clang::Expr *SrcExpr);
+clang::Expr *removeAuxillaryCasts(clang::Expr *SrcExpr);
 
 // Find the longest common subsequence.
-unsigned longestCommonSubsequence(const char* str1, const char* str2,
+unsigned longestCommonSubsequence(const char *str1, const char *str2,
                                   unsigned str1Len, unsigned str2Len);
 
 #endif

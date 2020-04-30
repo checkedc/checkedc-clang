@@ -32,7 +32,7 @@ public:
   void SetParamHeuristicInfo(LocalVarABVisitor *LAB);
 
 private:
-  bool IsPotentialLengthVar(ParmVarDecl* PVD);
+  bool IsPotentialLengthVar(ParmVarDecl *PVD);
   LocalVarABVisitor *ParamInfo;
   ASTContext *Context;
   ProgramInfo &Info;
@@ -49,11 +49,11 @@ public:
   bool VisitDeclStmt(DeclStmt *S);
   bool VisitSwitchStmt(SwitchStmt *S);
   bool VisitIfStmt(IfStmt *IFS);
-  bool isNonLengthParameter(ParmVarDecl* PVD);
+  bool isNonLengthParameter(ParmVarDecl *PVD);
 
 private:
   void addUsedParmVarDecl(Expr *CE);
-  std::set<ParmVarDecl*> NonLengthParameters;
+  std::set<ParmVarDecl *> NonLengthParameters;
   ASTContext *Context;
   ProgramInfo &Info;
 };

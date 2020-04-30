@@ -24,10 +24,10 @@ unsigned
 VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &VAtoms,
                               class Constraints &CS) {
   unsigned NumRemConstraints = 0;
-  std::set<Constraint*, PComp<Constraint*>> ConstraintsToRem;
+  std::set<Constraint *, PComp<Constraint *>> ConstraintsToRem;
   ConstraintsToRem.clear();
   Constraints::ConstraintSet &GlobalConstraints = CS.getConstraints();
-  std::set<Constraint*, PComp<Constraint*>> OldConstraints;
+  std::set<Constraint *, PComp<Constraint *>> OldConstraints;
   OldConstraints.clear();
   OldConstraints.insert(Constraints.begin(), Constraints.end());
 

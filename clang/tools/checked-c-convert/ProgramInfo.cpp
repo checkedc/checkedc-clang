@@ -31,7 +31,7 @@ void ProgramInfo::print(raw_ostream &O) const {
   O << "Constraint Variables\n";
   for ( const auto &I : Variables ) {
     PersistentSourceLoc L = I.first;
-    const std::set<ConstraintVariable*> &S = I.second;
+    const std::set<ConstraintVariable *> &S = I.second;
     L.print(O);
     O << "=>";
     for (const ConstraintVariable *J : S) {
@@ -45,7 +45,7 @@ void ProgramInfo::print(raw_ostream &O) const {
   O << "Dummy Declaration Constraint Variables\n";
   for (const auto &DeclCons : OnDemandFuncDeclConstraint) {
     O << "Func Name:" << DeclCons.first << " => ";
-    const std::set<ConstraintVariable*> &S = DeclCons.second;
+    const std::set<ConstraintVariable *> &S = DeclCons.second;
     for (const ConstraintVariable *J : S) {
       O << "[ ";
       J->print(O);
@@ -66,7 +66,7 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
       O << ",\n";
     }
     PersistentSourceLoc L = I.first;
-    const std::set<ConstraintVariable*> &S = I.second;
+    const std::set<ConstraintVariable *> &S = I.second;
 
     O << "{\"line\":\"";
     L.print(O);
@@ -89,14 +89,14 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
   O << ", \"DummyFunctionConstraints\":[";
   AddComma = false;
   for (const std::pair<const std::string,
-                       std::set<ConstraintVariable*>> &DeclCons :
+                       std::set<ConstraintVariable *>> &DeclCons :
        OnDemandFuncDeclConstraint) {
     if (AddComma) {
       O << ",";
     }
     O << "{\"functionName\":\"" << DeclCons.first << "\"";
     O << ", \"Constraints\":[";
-    const std::set<ConstraintVariable*> &S = DeclCons.second;
+    const std::set<ConstraintVariable *> &S = DeclCons.second;
     bool AddComma1 = false;
     for (const ConstraintVariable *J : S) {
       if (AddComma1) {
@@ -236,8 +236,8 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
 
 // Check the equality of VTy and UTy. There are some specific rules that
 // fire, and a general check is yet to be implemented. 
-bool ProgramInfo::checkStructuralEquality(std::set<ConstraintVariable*> V, 
-                                          std::set<ConstraintVariable*> U,
+bool ProgramInfo::checkStructuralEquality(std::set<ConstraintVariable *> V,
+                                          std::set<ConstraintVariable *> U,
                                           QualType VTy,
                                           QualType UTy) 
 {
@@ -304,11 +304,11 @@ bool ProgramInfo::link() {
   // constrain that everything that is at the same location is explicitly
   // equal.
   for (const auto &V : Variables) {
-    std::set<ConstraintVariable*> C = V.second;
+    std::set<ConstraintVariable *> C = V.second;
 
     if (C.size() > 1) {
-      std::set<ConstraintVariable*>::iterator I = C.begin();
-      std::set<ConstraintVariable*>::iterator J = C.begin();
+      std::set<ConstraintVariable *>::iterator I = C.begin();
+      std::set<ConstraintVariable *>::iterator J = C.begin();
       ++J;
 
       while (J != C.end()) {
@@ -321,11 +321,11 @@ bool ProgramInfo::link() {
 
   for (const auto &S : GlobalSymbols) {
     std::string Fname = S.first;
-    std::set<FVConstraint*> P = S.second;
+    std::set<FVConstraint *> P = S.second;
     
     if (P.size() > 1) {
-      std::set<FVConstraint*>::iterator I = P.begin();
-      std::set<FVConstraint*>::iterator J = P.begin();
+      std::set<FVConstraint *>::iterator I = P.begin();
+      std::set<FVConstraint *>::iterator J = P.begin();
       ++J;
       
       while (J != P.end()) {
@@ -372,10 +372,10 @@ bool ProgramInfo::link() {
       // Some global symbols we don't need to constrain to wild, like 
       // malloc and free. Check those here and skip if we find them. 
       std::string UnkSymbol = U.first;
-      std::map<std::string, std::set<FVConstraint*> >::iterator I =
+      std::map<std::string, std::set<FVConstraint *>>::iterator I =
         GlobalSymbols.find(UnkSymbol);
       assert(I != GlobalSymbols.end());
-      const std::set<FVConstraint*> &Gs = (*I).second;
+      const std::set<FVConstraint *> &Gs = (*I).second;
 
       for (const auto &G : Gs) {
         for (const auto &U : G->getReturnVars()) {
@@ -416,9 +416,9 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
                               F->hasBody());
   
   // Add this to the map of global symbols. 
-  std::set<FVConstraint*> Add;
+  std::set<FVConstraint *> Add;
   // Get the constraint variable directly.
-  std::set<ConstraintVariable*> K;
+  std::set<ConstraintVariable *> K;
   VariableMap::iterator I = Variables.find(PersistentSourceLoc::mkPSL(F, *C));
   if (I != Variables.end()) {
     K = I->second;
@@ -429,11 +429,11 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
 
   assert(Add.size() > 0);
 
-  std::map<std::string, std::set<FVConstraint*> >::iterator it = 
+  std::map<std::string, std::set<FVConstraint *>>::iterator it =
     GlobalSymbols.find(Fname);
   
   if (it == GlobalSymbols.end()) {
-    GlobalSymbols.insert(std::pair<std::string, std::set<FVConstraint*> >
+    GlobalSymbols.insert(std::pair<std::string, std::set<FVConstraint *>>
       (Fname, Add));
   } else {
     (*it).second.insert(Add.begin(), Add.end());
@@ -518,7 +518,7 @@ void ProgramInfo::exitCompilationUnit() {
 }
 
 template <typename T>
-bool ProgramInfo::hasConstraintType(std::set<ConstraintVariable*> &S) {
+bool ProgramInfo::hasConstraintType(std::set<ConstraintVariable *> &S) {
   for (const auto &I : S) {
     if (isa<T>(I)) {
       return true;
@@ -569,7 +569,7 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
     // Create a function value for the type.
     F = new FVConstraint(D, freeKey, CS, *C);
 
-  std::set<ConstraintVariable*> &S = Variables[PLoc];
+  std::set<ConstraintVariable *> &S = Variables[PLoc];
   bool NewFunction = false;
 
   if (F != nullptr && !hasConstraintType<FVConstraint>(S)) {
@@ -620,7 +620,7 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
     assert(FD->getNumParams() == F->numParams());
     for (unsigned i = 0; i < FD->getNumParams(); i++) {
       ParmVarDecl *PVD = FD->getParamDecl(i);
-      std::set<ConstraintVariable*> S = F->getParamVar(i); 
+      std::set<ConstraintVariable *> S = F->getParamVar(i);
       if (S.size()) {
         PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *C);
         Variables[PSL].insert(S.begin(), S.end());
@@ -666,7 +666,7 @@ bool ProgramInfo::getDeclStmtForDecl(Decl *D, DeclStmt *&St) {
 // currentVariable field of V is that constraint variable. Returns false if
 // a constraint variable cannot be found.
 // ifc mirrors the inFunctionContext boolean parameter to getVariable. 
-std::set<ConstraintVariable *> 
+std::set<ConstraintVariable *>
 ProgramInfo::getVariableHelper( Expr                            *E,
                                 std::set<ConstraintVariable *>  V,
                                 ASTContext                      *C,
@@ -678,9 +678,9 @@ ProgramInfo::getVariableHelper( Expr                            *E,
   } else if (MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
     return getVariable(ME->getMemberDecl(), C, Ifc);
   } else if (BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
-    std::set<ConstraintVariable*> T1 = getVariableHelper(BO->getLHS(), V,
+    std::set<ConstraintVariable *> T1 = getVariableHelper(BO->getLHS(), V,
                                                           C, Ifc);
-    std::set<ConstraintVariable*> T2 = getVariableHelper(BO->getRHS(), V,
+    std::set<ConstraintVariable *> T2 = getVariableHelper(BO->getRHS(), V,
                                                           C, Ifc);
     T1.insert(T2.begin(), T2.end());
     return T1;
@@ -689,7 +689,7 @@ ProgramInfo::getVariableHelper( Expr                            *E,
     // the address or doing a dereference. 
     std::set<ConstraintVariable *> T = getVariableHelper(AE->getBase(), V,
                                                          C, Ifc);
-    std::set<ConstraintVariable*> tmp;
+    std::set<ConstraintVariable *> tmp;
     for (const auto &CV : T) {
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
         // Subtract one from this constraint. If that generates an empty 
@@ -712,10 +712,10 @@ ProgramInfo::getVariableHelper( Expr                            *E,
     T.swap(tmp);
     return T;
   } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
-    std::set<ConstraintVariable *> T = 
+    std::set<ConstraintVariable *> T =
       getVariableHelper(UO->getSubExpr(), V, C, Ifc);
    
-    std::set<ConstraintVariable*> tmp;
+    std::set<ConstraintVariable *> tmp;
     if (UO->getOpcode() == UO_Deref) {
       for (const auto &CV : T) {
         if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
@@ -759,9 +759,9 @@ ProgramInfo::getVariableHelper( Expr                            *E,
       // There are a few reasons that we couldn't get a decl. For example,
       // the call could be done through an array subscript. 
       Expr *CalledExpr = CE->getCallee();
-      std::set<ConstraintVariable*> tmp = getVariableHelper(CalledExpr, V,
+      std::set<ConstraintVariable *> tmp = getVariableHelper(CalledExpr, V,
                                                              C, Ifc);
-      std::set<ConstraintVariable*> T;
+      std::set<ConstraintVariable *> T;
 
       for (ConstraintVariable *C : tmp) {
         if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
@@ -779,8 +779,8 @@ ProgramInfo::getVariableHelper( Expr                            *E,
     // D could be a FunctionDecl, or a VarDecl, or a FieldDecl. 
     // Really it could be any DeclaratorDecl. 
     if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
-      std::set<ConstraintVariable*> CS = getVariable(FD, C, Ifc);
-      std::set<ConstraintVariable*> TR;
+      std::set<ConstraintVariable *> CS = getVariable(FD, C, Ifc);
+      std::set<ConstraintVariable *> TR;
       FVConstraint *FVC = nullptr;
       for (const auto &J : CS) {
         if (FVConstraint *tmp = dyn_cast<FVConstraint>(J))
@@ -814,8 +814,8 @@ ProgramInfo::getVariableHelper( Expr                            *E,
     }
   } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
     // Explore the three exprs individually.
-    std::set<ConstraintVariable*> T;
-    std::set<ConstraintVariable*> R;
+    std::set<ConstraintVariable *> T;
+    std::set<ConstraintVariable *> R;
     T = getVariableHelper(CO->getCond(), V, C, Ifc);
     R.insert(T.begin(), T.end());
     T = getVariableHelper(CO->getLHS(), V, C, Ifc);
@@ -842,11 +842,11 @@ ProgramInfo::getVariableHelper( Expr                            *E,
     return T;
 
   } else {
-    return std::set<ConstraintVariable*>();
+    return std::set<ConstraintVariable *>();
   }
 }
 
-std::map<std::string, std::set<ConstraintVariable*>>&
+std::map<std::string, std::set<ConstraintVariable *>>&
 ProgramInfo::getOnDemandFuncDeclConstraintMap() {
   return OnDemandFuncDeclConstraint;
 }
@@ -873,7 +873,7 @@ std::string ProgramInfo::getUniqueFuncKey(FunctionDecl *D,
   return getUniqueDeclKey(D, C);
 }
 
-std::set<ConstraintVariable*>&
+std::set<ConstraintVariable *>&
 ProgramInfo::getOnDemandFuncDeclarationConstraint(FunctionDecl *D,
                                                   ASTContext *C) {
   std::string DeclKey = getUniqueFuncKey(D, C);
@@ -889,7 +889,7 @@ ProgramInfo::getOnDemandFuncDeclarationConstraint(FunctionDecl *D,
   }
   return OnDemandFuncDeclConstraint[DeclKey];
 }
-std::set<ConstraintVariable*>
+std::set<ConstraintVariable *>
 ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C,
                          FunctionDecl *FD, int PIdx) {
   // If this is a parameter.
@@ -907,7 +907,7 @@ ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C,
 
 }
 
-std::set<ConstraintVariable*>
+std::set<ConstraintVariable *>
 ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C,
                          bool InFuncCtx) {
   // Here, we auto-correct the inFunctionContext flag.
@@ -922,7 +922,7 @@ ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C,
 }
 
 // Given a decl, return the variables for the constraints of the Decl.
-std::set<ConstraintVariable*>
+std::set<ConstraintVariable *>
 ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C,
                                  bool InFuncCtx) {
   assert(persisted == false);
@@ -985,11 +985,11 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C,
         if (FuncDec == nullptr) {
           // We need constraint variable with in the function declaration,
           // but there is no declaration get on demand declaration.
-          std::set<ConstraintVariable*> &FvConstraints =
+          std::set<ConstraintVariable *> &FvConstraints =
               getOnDemandFuncDeclarationConstraint(FuncDef, C);
           if (PIdx != -1) {
             // This is a parameter.
-            std::set<ConstraintVariable*> ParameterCons;
+            std::set<ConstraintVariable *> ParameterCons;
             ParameterCons.clear();
             assert(FvConstraints.size() && "Unable to find on demand "
                                            "fv constraints.");
@@ -1015,19 +1015,19 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C,
     // Just return the original constraint.
     return I->second;
   } else {
-    return std::set<ConstraintVariable*>();
+    return std::set<ConstraintVariable *>();
   }
 }
 // Given some expression E, what is the top-most constraint variable that
 // E refers to? It could be none, in which case the returned set is empty. 
 // Otherwise, the returned setcontains the constraint variable(s) that E 
 // refers to.
-std::set<ConstraintVariable*>
+std::set<ConstraintVariable *>
 ProgramInfo::getVariable(Expr *E, ASTContext *C, bool InFuncCtx) {
   assert(persisted == false);
 
   // Get the constraint variables represented by this Expr
-  std::set<ConstraintVariable*> T;
+  std::set<ConstraintVariable *> T;
   if (E)
     return getVariableHelper(E, T, C, InFuncCtx);
   else
@@ -1038,9 +1038,9 @@ VariableMap &ProgramInfo::getVarMap() {
   return Variables;
 }
 
-std::set<ConstraintVariable*> *
+std::set<ConstraintVariable *> *
     ProgramInfo::getFuncDeclConstraintSet(std::string FuncDefKey) {
-  std::set<ConstraintVariable*> *DeclCVarsPtr = nullptr;
+  std::set<ConstraintVariable *> *DeclCVarsPtr = nullptr;
   auto &DefnDeclMap = CS.getFuncDefnDeclMap();
   auto &DeclConstrains = CS.getFuncDeclVarMap();
   // See if we do not have constraint variables for declaration
@@ -1127,14 +1127,14 @@ bool ProgramInfo::handleFunctionSubtyping() {
   for (auto &CurrFDef : CS.getFuncDefnVarMap()) {
     // Get the key for the function definition.
     auto DefKey = CurrFDef.first;
-    std::set<ConstraintVariable*> &DefCVars = CurrFDef.second;
+    std::set<ConstraintVariable *> &DefCVars = CurrFDef.second;
 
-    std::set<ConstraintVariable*> *DeclCVarsPtr =
+    std::set<ConstraintVariable *> *DeclCVarsPtr =
         getFuncDeclConstraintSet(DefKey);
 
     if (DeclCVarsPtr != nullptr) {
       // If we have declaration constraint variables?
-      std::set<ConstraintVariable*> &DeclCVars = *DeclCVarsPtr;
+      std::set<ConstraintVariable *> &DeclCVars = *DeclCVarsPtr;
       // Get the highest def and decl FVars.
       auto DefCVar = dyn_cast<FVConstraint>(getHighest(DefCVars, *this));
       auto DeclCVar = dyn_cast<FVConstraint>(getHighest(DeclCVars, *this));
@@ -1178,7 +1178,7 @@ bool ProgramInfo::handleFunctionSubtyping() {
 
       // Handle the parameter types.
       if (DeclCVar->numParams() == DefCVar->numParams()) {
-        std::set<ConstraintVariable*> ChangeCVars;
+        std::set<ConstraintVariable *> ChangeCVars;
         // Compare parameters.
         for (unsigned i = 0; i < DeclCVar->numParams(); ++i) {
           auto DeclParam = getHighest(DeclCVar->getParamVar(i), *this);
