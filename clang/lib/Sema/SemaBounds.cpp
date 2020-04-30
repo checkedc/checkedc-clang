@@ -624,7 +624,7 @@ namespace {
   // If no original value is provided and E uses V, ReplaceVariableReferences
   // returns nullptr.
   Expr *ReplaceVariableReferences(Sema &SemaRef, Expr *E, DeclRefExpr *V,
-                                Expr *OV, CheckedScopeSpecifier CSS) {
+                                  Expr *OV, CheckedScopeSpecifier CSS) {
     // Don't transform e if it does not use the value of v.
     if (!VariableOccurrenceCount(SemaRef, V, E))
       return E;
@@ -642,9 +642,10 @@ namespace {
 }
 
 namespace {
-  // BoundsContextTy denotes a map of a variable or parameter declaration
-  // to the variable or parameter's current known bounds.
-  using BoundsContextTy = llvm::DenseMap<DeclaratorDecl *, BoundsExpr *>;
+  // BoundsContextTy denotes a map of a variable declaration to a bounds
+  // expression for the variable (e.g. the variable's declared bounds or the
+  // observed bounds for the variable that are updated during bounds checking).
+  using BoundsContextTy = llvm::DenseMap<const VarDecl *, BoundsExpr *>;
 
   // EqualExprTy denotes a set of expressions that produce the same value
   // as an expression e.
@@ -683,7 +684,7 @@ namespace {
         SemaRef(SemaRef),
         BoundsContextRef(Context) {}
 
-      bool VisitDeclaratorDecl(DeclaratorDecl *D) {
+      bool VisitVarDecl(VarDecl *D) {
         if (!D)
           return true;
         BoundsExpr *Bounds = D->getBoundsExpr();
@@ -820,19 +821,19 @@ namespace {
       DumpEqualExpr(OS, State.G);
     }
 
-    void DumpBoundsContext(raw_ostream &OS, BoundsContextTy UC) {
-      if (UC.empty())
+    void DumpBoundsContext(raw_ostream &OS, BoundsContextTy Context) {
+      if (Context.empty())
         OS << "{ }\n";
       else {
         // The keys in an llvm::DenseMap are unordered.  Create a set of
         // variable declarations in the context ordered first by name,
         // then by location in order to guarantee a deterministic output
         // so that printing the bounds context can be tested.
-        std::vector<DeclaratorDecl *> OrderedDecls;
-        for (auto Pair : UC)
+        std::vector<const VarDecl *> OrderedDecls;
+        for (auto Pair : Context)
           OrderedDecls.push_back(Pair.first);
         llvm::sort(OrderedDecls.begin(), OrderedDecls.end(),
-             [] (DeclaratorDecl *A, DeclaratorDecl *B) {
+             [] (const VarDecl *A, const VarDecl *B) {
                if (A->getNameAsString() == B->getNameAsString())
                  return A->getLocation() < B->getLocation();
                else
@@ -841,13 +842,13 @@ namespace {
 
         OS << "{\n";
         for (auto I = OrderedDecls.begin(); I != OrderedDecls.end(); ++I) {
-          DeclaratorDecl *Variable = *I;
-          if (!UC[Variable])
+          const VarDecl *Variable = *I;
+          if (!Context[Variable])
             continue;
           OS << "Variable:\n";
           Variable->dump(OS);
           OS << "Bounds:\n";
-          UC[Variable]->dump(OS);
+          Context[Variable]->dump(OS);
         }
         OS << "}\n";
       }
