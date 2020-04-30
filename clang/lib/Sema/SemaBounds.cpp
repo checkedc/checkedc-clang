@@ -2166,6 +2166,8 @@ namespace {
      for (const CFGBlock *Block : POView) {
        AFA.GetFacts(Facts);
        CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
+       // TODO: update BlockState.ObservedBounds to reflect the widened bounds
+       // for the block.
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
            CFGStmt CS = Elem.castAs<CFGStmt>();
@@ -2200,7 +2202,11 @@ namespace {
             // bounds for each variable v that is in scope are the widened
             // bounds for v (if any), or the declared bounds for v (if any).
             GetDeclaredBounds(this->S, BlockState.ObservedBounds, S);
+            // TODO: update BlockState.ObservedBounds to reset any widened
+            // bounds that are killed by S to the declared variable bounds.
+            BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
             BlockState.G.clear();
+
             Check(S, CSS, BlockState);
 
             if (DumpState)
@@ -2208,6 +2214,13 @@ namespace {
 
             // TODO: for each variable v in ObservedBounds, check that the
             // observed bounds of v imply the declared bounds of v.
+
+            // The observed bounds that were updated after checking S should
+            // only be used to check that the updated observed bounds imply
+            // the declared variable bounds.  After checking the observed and
+            // declared bounds, the observed bounds for each variable should
+            // be reset to their observed bounds from before checking S.
+            BlockState.ObservedBounds = InitialObservedBounds;
          }
        }
        if (Block->getBlockID() != Cfg->getEntry().getBlockID())
