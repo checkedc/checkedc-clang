@@ -106,6 +106,7 @@ ArrayBoundsInformation::getBoundsInformation(Decl *D) {
   ConstraintKey ArrCKey = getTopLevelConstraintVar(D);
   return *(BoundsInfo[ArrCKey].begin());
 }
+
 bool ArrayBoundsInformation::isValidBoundKindForField(
     ArrayBoundsInformation::BoundsKind BoundsKind) {
   return BoundsKind != ArrayBoundsInformation::BoundsKind::
