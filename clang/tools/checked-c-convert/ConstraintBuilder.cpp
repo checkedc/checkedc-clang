@@ -42,7 +42,7 @@ void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C) {
 
 void constrainEq(std::set<ConstraintVariable *> &RHS,
   std::set<ConstraintVariable *> &LHS, ProgramInfo &Info);
-// Given two ConstraintVariable *s, do the right thing to assign 
+// Given two ConstraintVariables, do the right thing to assign
 // constraints. 
 // If they are both PVConstraint, then do an element-wise constraint
 // generation.
@@ -542,7 +542,7 @@ public:
 
     // Constrain the value returned (if present) against the return value
     // of the function.   
-    for (const auto &F : Fun ) {
+    for (const auto &F : Fun) {
       if (FVConstraint *FV = dyn_cast<FVConstraint>(F)) {
         constrainEq(FV->getReturnVars(), Var, Info);
       }
@@ -659,7 +659,7 @@ private:
       Constraints &CS = Info.getConstraints();
       // Assign the corresponding checked type only to the top level
       // constraint var.
-      for (auto ConsVar :Vars) {
+      for (auto ConsVar : Vars) {
         if (PVConstraint *PV = dyn_cast<PVConstraint>(ConsVar))
           if (!PV->getCvars().empty())
             CS.addConstraint(CS.createEq(
