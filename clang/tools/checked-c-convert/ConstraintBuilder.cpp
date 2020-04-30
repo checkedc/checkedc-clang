@@ -767,14 +767,21 @@ private:
   }
 
   Expr *getNormalizedExpr(Expr *E) {
-    if (dyn_cast<ImplicitCastExpr>(E)) {
-      E = (dyn_cast<ImplicitCastExpr>(E))->getSubExpr();
-    }
-    if (dyn_cast<CHKCBindTemporaryExpr>(E)) {
-      E = (dyn_cast<CHKCBindTemporaryExpr>(E))->getSubExpr();
-    }
-    if (dyn_cast<ImplicitCastExpr>(E)) {
-      E = (dyn_cast<ImplicitCastExpr>(E))->getSubExpr();
+    bool NeedStrip = true;
+    while (NeedStrip) {
+      NeedStrip = false;
+      if (dyn_cast<ImplicitCastExpr>(E)) {
+        E = (dyn_cast<ImplicitCastExpr>(E))->getSubExpr();
+        NeedStrip = true;
+      }
+      if (dyn_cast<CHKCBindTemporaryExpr>(E)) {
+        E = (dyn_cast<CHKCBindTemporaryExpr>(E))->getSubExpr();
+        NeedStrip = true;
+      }
+      if (dyn_cast<ImplicitCastExpr>(E)) {
+        E = (dyn_cast<ImplicitCastExpr>(E))->getSubExpr();
+        NeedStrip = true;
+      }
     }
     return E;
   }
