@@ -778,10 +778,6 @@ private:
         E = (dyn_cast<CHKCBindTemporaryExpr>(E))->getSubExpr();
         NeedStrip = true;
       }
-      if (dyn_cast<ImplicitCastExpr>(E)) {
-        E = (dyn_cast<ImplicitCastExpr>(E))->getSubExpr();
-        NeedStrip = true;
-      }
     }
     return E;
   }
