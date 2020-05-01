@@ -1102,7 +1102,8 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   for (auto &D : TUD->decls()) {
     V.TraverseDecl(D);
     FV.TraverseDecl(D);
-    CRA.TraverseDecl(D);
+    if (AddCheckedRegions)
+      CRA.TraverseDecl(D);
   }
 
   std::tie(PSLMap, VDLToStmtMap) = V.getResults();

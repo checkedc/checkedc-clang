@@ -33,6 +33,7 @@ extern llvm::cl::opt<bool> HandleVARARGS;
 extern llvm::cl::opt<bool> MergeMultipleFuncDecls;
 extern llvm::cl::opt<bool> EnablePropThruIType;
 extern llvm::cl::opt<bool> AllocUnsafe;
+extern llvm::cl::opt<bool> AddCheckedRegions;
 
 const clang::Type *getNextTy(const clang::Type *Ty);
 

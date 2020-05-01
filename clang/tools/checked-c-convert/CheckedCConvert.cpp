@@ -94,6 +94,11 @@ cl::opt<bool> AllocUnsafe( "alloc-unsafe",
                           cl::init(false),
                           cl::cat(ConvertCategory));
 
+cl::opt<bool> AddCheckedRegions( "addcr",
+                                 cl::desc("Add Checked Regions"),
+                                 cl::init(false),
+                                 cl::cat(ConvertCategory));
+
 static cl::opt<std::string>
 BaseDir("base-dir",
   cl::desc("Base directory for the code we're translating"),
