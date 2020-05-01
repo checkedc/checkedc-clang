@@ -28,10 +28,11 @@ static
 void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C) {
   // Constrain everything that is void to wild.
   Constraints &CS = Info.getConstraints();
+  std::string TyStr = D->getType().getAsString();
 
   // Special-case for va_list, constrain to wild.
-  if (D->getType().getAsString() == "va_list" ||
-      D->getType()->isVoidType()) {
+  if (TyStr == "va_list" || TyStr == "struct __va_list_tag *" ||
+      TyStr == "struct __va_list_tag" || D->getType()->isVoidType()) {
     for (const auto &I : Info.getVariable(D, C))
       if (const PVConstraint *PVC = dyn_cast<PVConstraint>(I))
         for (const auto &J : PVC->getCvars())
