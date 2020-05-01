@@ -392,7 +392,7 @@ void multiple_assign2(int x, int y) {
   // CHECK-NEXT: }
 }
 
-// Equivalence with NullToPointer casts is not recorded
+// Equivalence resulting from assignments to 0 (including NullToPointer casts)
 void multiple_assign3(int i, int *p, ptr<int> pt, array_ptr<int> a, array_ptr<int> b) {
   // Updated UEQ: { { 0, i } }
   i = 0;
@@ -409,7 +409,7 @@ void multiple_assign3(int i, int *p, ptr<int> pt, array_ptr<int> a, array_ptr<in
   // CHECK-NEXT: }
   // CHECK-NEXT: }
 
-  // Updated UEQ: { { 0, i } }
+  // Updated UEQ: { { 0, i, p } }
   p = 0;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -422,10 +422,12 @@ void multiple_assign3(int i, int *p, ptr<int> pt, array_ptr<int> a, array_ptr<in
   // CHECK-NEXT: IntegerLiteral {{.*}} 0
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'p'
   // CHECK-NEXT: }
   // CHECK-NEXT: }
 
-  // Updated UEQ: { { 0, i } }
+  // Updated UEQ: { { 0, i, p, a } }
   a = 0;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -438,10 +440,14 @@ void multiple_assign3(int i, int *p, ptr<int> pt, array_ptr<int> a, array_ptr<in
   // CHECK-NEXT: IntegerLiteral {{.*}} 0
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT: }
   // CHECK-NEXT: }
 
-  // Updated UEQ: { { 0, i }, { a, b } }
+  // Updated UEQ: { { 0, i, p, a, b } }
   b = a;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -454,8 +460,8 @@ void multiple_assign3(int i, int *p, ptr<int> pt, array_ptr<int> a, array_ptr<in
   // CHECK-NEXT: IntegerLiteral {{.*}} 0
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
-  // CHECK-NEXT: }
-  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'p'
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -1336,7 +1342,7 @@ void original_value16(array_ptr<int> arr_int, array_ptr<const int> arr_const, ar
   // CHECK-NEXT: }
 
   // Original value of arr_int: arr_const
-  // Updated UEQ: { { arr_const + 1, arr } }
+  // Updated UEQ: { { arr_const + 1, arr }, { NullToPointer(0), arr_int } }
   arr_int = 0;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1353,6 +1359,11 @@ void original_value16(array_ptr<int> arr_int, array_ptr<const int> arr_const, ar
   // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
   // CHECK-NEXT: }
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <NullToPointer>
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr_int'
   // CHECK-NEXT: }
 }
 
@@ -1368,14 +1379,14 @@ void original_value17(array_ptr<int> arr_int, array_ptr<const int> arr_const, ar
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr_const'
   // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
-  // C HECK-NEXT: {
-  // C HECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<int>' <NoOp>
-  // C HECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
-  // C HECK-NEXT:     DeclRefExpr {{.*}} 'arr_const'
-  // C HECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // C HECK-NEXT:   DeclRefExpr {{.*}} 'arr_int'
-  // C HECK-NEXT: }
-  // C HECK-NEXT: }
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<int>' <NoOp>
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr_const'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr_int'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
 
   // Updated UEQ: { { (array_ptr<int>)arr_const, arr_int }, { arr_int + 1, arr } }
   arr = arr_int + 1;
@@ -1388,25 +1399,25 @@ void original_value17(array_ptr<int> arr_int, array_ptr<const int> arr_const, ar
   // CHECK-NEXT:     IntegerLiteral {{.*}} 1
   // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
-  // C HECK-NEXT: {
-  // C HECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<int>' <NoOp>
-  // C HECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
-  // C HECK-NEXT:     DeclRefExpr {{.*}} 'arr_const'
-  // C HECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // C HECK-NEXT:   DeclRefExpr {{.*}} 'arr_int'
-  // C HECK-NEXT: }
-  // C HECK-NEXT: {
-  // C HECK-NEXT: BinaryOperator {{.*}} '+'
-  // C HECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
-  // C HECK-NEXT:     DeclRefExpr {{.*}} 'arr_int'
-  // C HECK-NEXT:   IntegerLiteral {{.*}} 1
-  // C HECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // C HECK-NEXT:   DeclRefExpr {{.*}} 'arr'
-  // C HECK-NEXT: }
-  // C HECK-NEXT: }
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<int>' <NoOp>
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr_const'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr_int'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr_int'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
 
   // Original value of arr_int: (array_ptr<int>)arr_const
-  // Updated UEQ: { { (array_ptr<int>)arr_const + 1, arr } }
+  // Updated UEQ: { { (array_ptr<int>)arr_const + 1, arr }, { NullToPointer(0), arr_int } }
   arr_int = 0;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1415,16 +1426,21 @@ void original_value17(array_ptr<int> arr_int, array_ptr<const int> arr_const, ar
   // CHECK-NEXT:     IntegerLiteral {{.*}} 0
   // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: {
-  // C HECK-NEXT: {
-  // C HECK-NEXT: BinaryOperator {{.*}} '+'
-  // C HECK-NEXT:   ImplicitCastExpr {{.*}} '_Array_ptr<int>' <NoOp>
-  // C HECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
-  // C HECK-NEXT:       DeclRefExpr {{.*}} 'arr_const'
-  // C HECK-NEXT:   IntegerLiteral {{.*}} 1
-  // C HECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // C HECK-NEXT:   DeclRefExpr {{.*}} 'arr'
-  // C HECK-NEXT: }
-  // C HECK-NEXT: }
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} '_Array_ptr<int>' <NoOp>
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr_const'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <NullToPointer>
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr_int'
+  // CHECK-NEXT: }
 }
 
 // The left-hand side variable is the original value

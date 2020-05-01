@@ -3687,20 +3687,6 @@ namespace {
     // State.G is assumed to contain expressions that produce the same value
     // as the source of the assignment.
     void RecordEqualityWithTarget(Expr *Target, CheckingState &State) {
-      // Do not record equality between the target and source if the source
-      // produces the same value as a NullToPointer cast.  This avoids
-      // recording equality between non-assignment-compatible variables
-      // with pointer types.  For example, for the assignments int *p = 0;
-      // array_ptr<int> a = 0; UEQ should not contain { 0, p, a }.  UEQ
-      // also should not contain { 0, p } and { 0, a } so that UEQ does not
-      // grow too large.
-      for (auto I = State.G.begin(); I != State.G.end(); ++I) {
-        if (CastExpr *CE = dyn_cast<CastExpr>(*I)) {
-          if (CE->getCastKind() == CastKind::CK_NullToPointer)
-            return;
-        }
-      }
-
       // If UEQ contains a set F of expressions that produce the same value
       // as the source, add the target to F.  This prevents UEQ from growing
       // too large and containing redundant equality information.  For example,
