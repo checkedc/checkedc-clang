@@ -448,6 +448,7 @@ bool LocalVarABVisitor::VisitIfStmt(IfStmt *IFS) {
       addUsedParmVarDecl(BO->getRHS());
     }
   }
+  return true;
 }
 
 bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
@@ -475,6 +476,8 @@ bool LocalVarABVisitor::VisitSwitchStmt(SwitchStmt *S) {
   if (CondVar != nullptr)
     if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(CondVar))
       NonLengthParameters.insert(PD);
+
+  return true;
 }
 
 // Check if the provided parameter cannot be a length of an array.
