@@ -662,6 +662,13 @@ namespace {
       // ObservedBounds maps variables to their current known bounds as
       // inferred by bounds checking.  These bounds are updated after
       // assignments to variables.
+      //
+      // The bounds in the ObservedBounds context should always be normalized
+      // to range bounds if possible.  This allows updates to variables that
+      // are implicitly used in bounds declarations to update the observed
+      // bounds.  For example, an assignment to the variable p where p has
+      // declared bounds count(i) should update the bounds of p, which
+      // normalize to bounds(p, p + i).
       BoundsContextTy ObservedBounds;
 
       // UEQ stores sets of expressions that are equivalent to each other
@@ -685,12 +692,20 @@ namespace {
         SemaRef(SemaRef),
         BoundsContextRef(Context) {}
 
-      bool VisitVarDecl(VarDecl *D) {
+      // If a variable declaration has declared bounds, modify BoundsContextRef
+      // to map the variable declaration to the normalized declared bounds.
+      // 
+      // Returns true if visiting the variable declaration did not terminate
+      // early.  Visiting variable declarations in DeclaredBoundsHelper should
+      // never terminate early.
+      bool VisitVarDecl(const VarDecl *D) {
         if (!D)
           return true;
         if (D->isInvalidDecl())
           return true;
-        BoundsExpr *Bounds = D->getBoundsExpr();
+        const BoundsExpr *Bounds = D->getBoundsExpr();
+        // The bounds expressions in the bounds context should be normalized
+        // to range bounds.
         if (Bounds)
           BoundsContextRef[D] = SemaRef.ExpandBoundsToRange(D, Bounds);
         return true;
@@ -824,7 +839,7 @@ namespace {
       DumpEqualExpr(OS, State.G);
     }
 
-    void DumpBoundsContext(raw_ostream &OS, BoundsContextTy Context) {
+    void DumpBoundsContext(raw_ostream &OS, BoundsContextTy &Context) {
       if (Context.empty())
         OS << "{ }\n";
       else {
@@ -2141,9 +2156,10 @@ namespace {
      llvm::outs() << "Traversing CFG:\n";
 #endif
 
-     // Map each function parameter to its declared bounds (if any) before
-     // checking the body of the function.  The context formed by the declared
-     // parameter bounds is the initial context for checking the function body.
+     // Map each function parameter to its declared bounds (if any),
+     // normalized to range bounds, before checking the body of the function.
+     // The context formed by the declared parameter bounds is the initial
+     // observed bounds context for checking the function body.
      CheckingState ParamsState;
      for (auto I = FD->param_begin(); I != FD->param_end(); ++I) {
        ParmVarDecl *Param = *I;
