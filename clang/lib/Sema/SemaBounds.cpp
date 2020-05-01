@@ -3846,9 +3846,10 @@ namespace {
       OVUsesV = false;
       
       // Check EQ for a variable w != v that produces the same value as v.
-      EqualExprTy F = GetEqualExprSetContainingExpr(Target, EQ);
+      Expr *ValuePreservingV = nullptr;
+      EqualExprTy F = GetEqualExprSetContainingExpr(Target, EQ, ValuePreservingV);
       for (auto I = F.begin(); I != F.end(); ++I) {
-        // Account for any value-preserving operations when searching for
+        // Account for value-preserving operations on w when searching for
         // a variable w in F. For example, if F contains (T)LValueToRValue(w),
         // where w is a variable != v and (T) is a value-preserving cast, the
         // original value should be (T)LValueToRValue(w).
@@ -3856,7 +3857,16 @@ namespace {
         Expr *E = Lex.IgnoreValuePreservingOperations(S.Context, *I);
         DeclRefExpr *W = GetRValueVariable(E);
         if (W != nullptr && !EqualValue(S.Context, V, W, nullptr)) {
-          if (S.Context.typesAreCompatible(V->getType(), (*I)->getType()))
+          // Expression equality in UEQ does not account for types, so
+          // expressions in the same set in UEQ may not have the same type.
+          // The original value of Src with respect to v must have a type
+          // compatible with the type of v (accounting for value-preserving
+          // operations on v). For example, if F contains (T1)LValueToRValue(v)
+          // and LValueToRValue(w), where v and w have type T2, (T1) is a value-
+          // preserving cast, and T1 and T2 are not compatible types, the
+          // original value should be LValueToRValue(w).
+          if (S.Context.typesAreCompatible(ValuePreservingV->getType(),
+                                            (*I)->getType()))
             return *I;
         }
       }
@@ -4088,7 +4098,31 @@ namespace {
       return IntersectedG;
     }
 
-    // If E appears in a set F in EQ, GetEqualExprSetContainingExpr
+    // GetEqualExprSetContainingExpr returns the set F in EQ that contains e
+    // if such a set F exists, or an empty set otherwise.
+    //
+    // If there is a set F in EQ that contains an expression e1 such that
+    // e1 is canonically equivalent to e, ValuePreservingE is set to e1.
+    // e1 may include value-preserving operations.  For example, if a set F
+    // in EQ contains (T)e, where (T) is a value-preserving cast,
+    // ValuePreservingE will be set to (T)e.
+    EqualExprTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ,
+                                              Expr *&ValuePreservingE) {
+      ValuePreservingE = nullptr;
+      for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
+        EqualExprTy F = *OuterList;
+        for (auto InnerList = F.begin(); InnerList != F.end(); ++InnerList) {
+          Expr *E1 = *InnerList;
+          if (EqualValue(S.Context, E, E1, nullptr)) {
+            ValuePreservingE = E1;
+            return F;
+          }
+        }
+      }
+      return { };
+    }
+
+    // If e appears in a set F in EQ, GetEqualExprSetContainingExpr
     // returns F.  Otherwise, it returns an empty set.
     EqualExprTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ) {
       for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
