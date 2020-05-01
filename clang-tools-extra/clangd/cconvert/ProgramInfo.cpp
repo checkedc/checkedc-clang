@@ -272,13 +272,13 @@ bool ProgramInfo::checkStructuralEquality(QualType D, QualType S) {
 }
 
 bool ProgramInfo::isExplicitCastSafe(clang::QualType DstType,
-                                     clang::QualType srcType) {
+                                     clang::QualType SrcType) {
 
   // Check if both types are same.
-  if (srcType == DstType)
+  if (SrcType == DstType)
     return true;
 
-  const clang::Type *SrcTypePtr = srcType.getTypePtr();
+  const clang::Type *SrcTypePtr = SrcType.getTypePtr();
   const clang::Type *DstTypePtr = DstType.getTypePtr();
 
   const clang::PointerType *SrcPtrTypePtr = dyn_cast<PointerType>(SrcTypePtr);

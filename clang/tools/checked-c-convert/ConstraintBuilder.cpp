@@ -285,8 +285,10 @@ public:
           SE = Temp->getSubExpr();
         RHSConstraints = Info.getVariable(SE, Context);
         QualType RhsTy = RHS->getType();
+        bool ExternalCastSafe = false;
         bool RulesFired = false;
         if (Info.checkStructuralEquality(V, RHSConstraints, LhsType, RhsTy)) {
+          ExternalCastSafe = true;
           // This has become a little stickier to think about.
           // What do you do here if we determine that two things with
           // very different arity are structurally equal? Is that even
@@ -343,9 +345,10 @@ public:
 
         // If none of the above rules for cast behavior fired, then
         // we need to fall back to doing something conservative.
-        if (RulesFired == false) {
+        if (!RulesFired) {
           // Is the explicit cast safe?
-          if (!Info.isExplicitCastSafe(LhsType, SE->getType())) {
+          if (!ExternalCastSafe ||
+              !Info.isExplicitCastSafe(LhsType, SE->getType())) {
             // Constrain everything in both to top.
             // Remove the casts from RHS and try again to get a variable
             // from it. We want to constrain that side to wild as well.
@@ -363,11 +366,11 @@ public:
                   CS.addConstraint(
                       CS.createEq(CS.getOrCreateVar(B), CS.getWild()));
             }
+          } else {
+            // The cast if safe, just equate the constraints.
+            RHSConstraints = Info.getVariable(RHS, Context, true);
+            constrainEq(V, RHSConstraints, Info);
           }
-        } else {
-          // The cast if safe, just equate the constraints.
-          RHSConstraints = Info.getVariable(RHS, Context, true);
-          constrainEq(V, RHSConstraints, Info);
         }
       } else {
         // Get the constraint variables of the

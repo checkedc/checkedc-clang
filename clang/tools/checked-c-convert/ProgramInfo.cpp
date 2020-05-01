@@ -269,13 +269,18 @@ bool ProgramInfo::isExplicitCastSafe(clang::QualType DstType,
 
   const clang::PointerType *SrcPtrTypePtr = dyn_cast<PointerType>(SrcTypePtr);
   const clang::PointerType *DstPtrTypePtr = dyn_cast<PointerType>(DstTypePtr);
-  // Both are pointers? check their pointee.
+
+  // Both are pointers? check their pointee
   if (SrcPtrTypePtr && DstPtrTypePtr)
     return isExplicitCastSafe(DstPtrTypePtr->getPointeeType(),
                               SrcPtrTypePtr->getPointeeType());
   // Only one of them is pointer?
   if (SrcPtrTypePtr || DstPtrTypePtr)
     return false;
+
+  // If both are not scalar types? Then the types must be exactly same.
+  if (!(SrcTypePtr->isScalarType() && DstTypePtr->isScalarType()))
+    return SrcTypePtr == DstTypePtr;
 
   // Check if both types are compatible.
   unsigned BothNotChar = SrcTypePtr->isCharType() ^ DstTypePtr->isCharType();
