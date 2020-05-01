@@ -87,41 +87,14 @@ void BoundsAnalysis::InitInOutSets() {
   }
 }
 
-llvm::APSInt BoundsAnalysis::GetSwitchCaseVal(const Expr *CaseExpr) {
-  // case '1': This is how it is represented in the CFG:
-  // ConstantExpr 'int'
-  //   -CharacterLiteral 'int' 49
-  // This is an IntegerConstantExpr. After the call to isIntegerConstantExpr,
-  // the variable IntVal would contain the value '1'.
-  llvm::APSInt IntVal;
-  if (CaseExpr->isIntegerConstantExpr(IntVal, Ctx))
-    return IntVal;
-
-  // const int i = 1;
-  // case i: This is how it is represented in the CFG:
-  // ConstantExpr 'const int' lvalue 1
-  //   -DeclRefExpr 'const int' lvalue Var 'i' 'const int'
-  // This is not an IntegerConstantExpr. It is a ConstantExpr and we get its
-  // value by calling the getResultAsAPSInt() method.
-
-  // Note: According to C11 spec sections 6.6 and 6.8.1 a DeclRefExpr is not
-  // considered a constant expr. But clang allows for this additional
-  // extension. So we handle this here.
-  Expr *E = const_cast<Expr *>(CaseExpr);
-
-  while (auto *ICE = dyn_cast<ImplicitCastExpr>(E))
-    E = ICE->getSubExpr();
-
-  if (const auto *CE = dyn_cast_or_null<ConstantExpr>(E))
-    return CE->getResultAsAPSInt();
-
-  return llvm::APSInt(Ctx.getTypeSize(CaseExpr->getType()), 0);
-}
-
 bool BoundsAnalysis::CheckIsSwitchCaseNull(ElevatedCFGBlock *EB) {
   if (const auto *CS = dyn_cast_or_null<CaseStmt>(EB->Block->getLabel())) {
 
-    llvm::APSInt LHSVal = GetSwitchCaseVal(CS->getLHS());
+    // We mimic how clang (in SemaStmt.cpp) gets the value of a switch case. It
+    // invokes EvaluateKnownConstInt and we do the same here. SemaStmt has
+    // already extended/truncated the case value to fit the integer range and
+    // EvaluateKnownConstInt gives us that value.
+    llvm::APSInt LHSVal = CS->getLHS()->EvaluateKnownConstInt(Ctx);
     llvm::APSInt LHSZero (LHSVal.getBitWidth(), LHSVal.isUnsigned());
     if (llvm::APSInt::compareValues(LHSVal, LHSZero) == 0)
       return true;
@@ -129,7 +102,7 @@ bool BoundsAnalysis::CheckIsSwitchCaseNull(ElevatedCFGBlock *EB) {
     // Check if the case statement is of the form "case LHS ... RHS" (a GNU
     // extension).
     if (CS->caseStmtIsGNURange()) {
-      llvm::APSInt RHSVal = GetSwitchCaseVal(CS->getRHS());
+      llvm::APSInt RHSVal = CS->getRHS()->EvaluateKnownConstInt(Ctx);
       llvm::APSInt RHSZero (RHSVal.getBitWidth(), RHSVal.isUnsigned());
       if (llvm::APSInt::compareValues(RHSVal, RHSZero) == 0)
         return true;
