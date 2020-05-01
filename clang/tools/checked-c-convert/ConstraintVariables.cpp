@@ -120,8 +120,11 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       assert(CS.getVar(K) == nullptr);
       VarAtom *stArrAtom = CS.getOrCreateVar(K);
 
-      // This is a static array and make it impossible to ever have WILD.
-      stArrAtom->setConstImpossible(CS.getWild());
+      if (!isVarArgType(tyToStr(Ty))) {
+        // If this is not a vararg and a statically declared array?
+        // Then make it impossible to become WILD.
+        stArrAtom->setConstImpossible(CS.getWild());
+      }
 
       // See if there is a constant size to this array type at this position.
       if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
@@ -191,7 +194,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       std::string TyName = tyToStr(Ty);
       // TODO: Github issue #61: improve handling of types for
       // // variable arguments.
-      if (TyName == "struct __va_list_tag *" || TyName == "va_list")
+      if (isVarArgType(TyName))
         break;
 
       // Iterate.
@@ -223,8 +226,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
   // TODO: Github issue #61: improve handling of types for
   // variable arguments.
-  if (BaseType == "struct __va_list_tag *" || BaseType == "va_list" ||
-      BaseType == "struct __va_list_tag")
+  if (isVarArgType(BaseType))
     for (const auto &V : vars)
       CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
 }

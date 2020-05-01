@@ -198,6 +198,11 @@ bool isPointerType(clang::VarDecl *VD) {
   return VD->getType().getTypePtr()->isPointerType();
 }
 
+bool isVarArgType(const std::string &TypeName) {
+  return TypeName == "struct __va_list_tag *" || TypeName == "va_list" ||
+      TypeName == "struct __va_list_tag";
+}
+
 bool isStructOrUnionType(clang::VarDecl *VD) {
   return VD->getType().getTypePtr()->isStructureType() ||
          VD->getType().getTypePtr()->isUnionType();
