@@ -846,12 +846,13 @@ namespace {
         OS << "{\n";
         for (auto I = OrderedDecls.begin(); I != OrderedDecls.end(); ++I) {
           const VarDecl *Variable = *I;
-          if (!Context[Variable])
+          auto It = Context.find(Variable);
+          if (It == Context.end())
             continue;
           OS << "Variable:\n";
           Variable->dump(OS);
           OS << "Bounds:\n";
-          Context[Variable]->dump(OS);
+          It->second->dump(OS);
         }
         OS << "}\n";
       }
@@ -4030,13 +4031,13 @@ namespace {
       return BlockState;
     }
 
-    // IntersectUC returns a bounds context resulting from taking the
-    // intersection of the contexts Context1 and Context2.
+    // IntersectBoundsContexts returns a bounds context resulting from taking
+    // the intersection of the contexts Context1 and Context2.
     BoundsContextTy IntersectBoundsContexts(BoundsContextTy Context1,
                                             BoundsContextTy Context2) {
       BoundsContextTy IntersectedContext;
       for (auto Pair : Context1) {
-        if (!Pair.second || !Context2[Pair.first])
+        if (!Pair.second || !Context2.count(Pair.first))
           continue;
         IntersectedContext[Pair.first] = Pair.second;
       }
