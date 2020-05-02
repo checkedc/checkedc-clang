@@ -703,10 +703,9 @@ namespace {
           return true;
         if (D->isInvalidDecl())
           return true;
-        const BoundsExpr *Bounds = D->getBoundsExpr();
         // The bounds expressions in the bounds context should be normalized
         // to range bounds.
-        if (Bounds)
+        if (const BoundsExpr *Bounds = D->getBoundsExpr())
           BoundsContextRef[D] = SemaRef.ExpandBoundsToRange(D, Bounds);
         return true;
       }
@@ -4019,7 +4018,8 @@ namespace {
     // Taking the intersection of the observed bounds contexts of the block's
     // predecessors ensures that, before checking a statement S in the block,
     // the block's observed bounds context contains only variables with bounds
-    // that are in scope at S.
+    // that are in scope at S.  At the beginning of the block, each variable in
+    // scope is mapped to its normalized declared bounds.
     CheckingState GetIncomingBlockState(const CFGBlock *Block,
                                         llvm::DenseMap<unsigned int, CheckingState> BlockStates) {
       CheckingState BlockState;
@@ -4049,13 +4049,22 @@ namespace {
 
     // IntersectBoundsContexts returns a bounds context resulting from taking
     // the intersection of the contexts Context1 and Context2.
+    //
+    // For each variable declaration v that is in both Context1 and Contex2,
+    // the intersected context maps v to its normalized declared bounds.
+    // Context1 or Context2 may map v to widened bounds, but those bounds
+    // should not persist across CFG blocks.  The observed bounds for each
+    // in-scope variable should be reset to its normalized declared bounds
+    // at the beginning of a block, before widening the bounds in the block.
     BoundsContextTy IntersectBoundsContexts(BoundsContextTy Context1,
                                             BoundsContextTy Context2) {
       BoundsContextTy IntersectedContext;
       for (auto Pair : Context1) {
-        if (!Pair.second || !Context2.count(Pair.first))
+        const VarDecl *D = Pair.first;
+        if (!Pair.second || !Context2.count(D))
           continue;
-        IntersectedContext[Pair.first] = Pair.second;
+        if (const BoundsExpr *B = D->getBoundsExpr())
+          IntersectedContext[D] = S.ExpandBoundsToRange(D, B);
       }
       return IntersectedContext;
     }
