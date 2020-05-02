@@ -9,11 +9,11 @@
 char *c;
 //CHECK: char *c;
 int *p,*q;
-//CHECK: _Ptr<int> p = NULL;
+//CHECK: _Ptr<int> p = ((void *)0);
 //CHECK-NEXT: int *q;
 int *p1, *q1;
-//CHECK: _Ptr<int> p1 = NULL;
-//CHECK-NEXT: _Ptr<int> q1 = NULL;
+//CHECK: _Ptr<int> p1 = ((void *)0);
+//CHECK-NEXT: _Ptr<int> q1 = ((void *)0);
 int main(void) { 
   q = (int*)(0xdeadbeef);
   c = (char*)(0xdeadbeef);
