@@ -14,7 +14,6 @@ from lit.llvm import llvm_config
 # name: The name of this test suite.
 config.name = 'Clang Tools'
 
-
 # Tweak PATH for Win32
 if platform.system() == 'Windows':
     # Seek sane tools in directories and set to $PATH.
