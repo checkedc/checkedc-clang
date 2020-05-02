@@ -392,7 +392,7 @@ void rewrite( VarDecl               *VD,
           E->printPretty(NewMlDecl, nullptr, A.getPrintingPolicy());
         } else {
           if (isPointerType(VDL))
-            NewMlDecl << " = nullptr";
+            NewMlDecl << " = ((void *)0)";
         }
         NewMlDecl << ";\n";
       } else {
