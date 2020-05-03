@@ -13,7 +13,7 @@
 #define LLVM_TOOLS_CLANG_TOOLS_EXTRA_CLANGD_CCONVERTCOMMANDS_H
 
 #include "Protocol.h"
-#include "cconvert/CConvInteractive.h"
+#include "clang/CConv/CConv.h"
 
 namespace clang {
 namespace clangd {

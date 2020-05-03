@@ -14,7 +14,7 @@
 
 #include <set>
 #include "Diagnostics.h"
-#include "cconvert/CConvInteractive.h"
+#include "clang/CConv/CConv.h"
 
 namespace clang {
 namespace clangd {
