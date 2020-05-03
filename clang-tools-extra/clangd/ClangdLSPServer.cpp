@@ -548,13 +548,13 @@ void ClangdLSPServer::ccConvResultsReady(std::string FileName,
   this->onDiagnosticsReady(FileName, Diagnostics);
 }
 
-void ClangdLSPServer::sendCConvMessage(std::string msg) {\
+void ClangdLSPServer::sendCConvMessage(std::string MsgStr) {
  // Send message as info to the client.
   notify("window/showMessage",
          llvm::json::Object{
              // Info message.
              {"type", 3},
-             {"message", std::move(msg)},
+             {"message", std::move(MsgStr)},
          });
 }
 #endif

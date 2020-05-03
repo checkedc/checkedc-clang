@@ -63,8 +63,9 @@ public:
 #ifdef INTERACTIVECCCONV
 class CConvLSPCallBack {
 public:
-  virtual void ccConvResultsReady(std::string targetFileName, bool clearDiags = false) = 0;
-  virtual void sendCConvMessage(std::string msg) = 0;
+  virtual void ccConvResultsReady(std::string FileName,
+                                  bool ClearDiags = false) = 0;
+  virtual void sendCConvMessage(std::string MsgStr) = 0;
 };
 #endif
 
@@ -316,7 +317,7 @@ public:
 
   CConvertDiagnostics CConvDiagInfo;
 
-  void cconvCloseDocument(std::string file);
+  void cconvCloseDocument(std::string FileName);
 #endif
 
 private:
@@ -327,8 +328,8 @@ private:
              ArrayRef<tooling::Range> Ranges);
 
 #ifdef INTERACTIVECCCONV
-  void reportCConvDiagsForAllFiles(DisjointSet &ccInfo, CConvLSPCallBack *ConvCB);
-  void clearCConvDiagsForAllFiles(DisjointSet &ccInfo, CConvLSPCallBack *ConvCB);
+  void reportCConvDiagsForAllFiles(DisjointSet &CcInfo, CConvLSPCallBack *ConvCB);
+  void clearCConvDiagsForAllFiles(DisjointSet &CcInfo, CConvLSPCallBack *ConvCB);
 #endif
 
   const FileSystemProvider &FSProvider;
