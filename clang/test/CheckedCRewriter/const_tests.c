@@ -2,8 +2,8 @@
 //
 // Checks for conversions involving const-qualified types.
 //
-// RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
-// RUN: checked-c-convert %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
+// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 
 void cst1(const int *a) {
@@ -19,7 +19,7 @@ void cst2(int * const a) {
 void cst3(const int *a, int i) {
   int c = *(a+i);
 }
-//CHECK: void cst3(_Array_ptr<const int> a: count(i), int i) {
+//CHECK: void cst3(const int *a, int i) {
 //CHECK-NEXT: int c = *(a+i);
 
 void cst4(const int *b) {
