@@ -54,7 +54,6 @@ set(CLANG_TOOLS_TEST_DEPS
   find-all-symbols
   modularize
   pp-trace
-  CConvertStandalone
 
   # Unit tests
   ExtraToolsUnitTests

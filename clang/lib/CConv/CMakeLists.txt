@@ -28,3 +28,5 @@ add_clang_library(CConv
   clangStaticAnalyzerFrontend
   clangTooling
 )
+
+add_subdirectory(unittests)
