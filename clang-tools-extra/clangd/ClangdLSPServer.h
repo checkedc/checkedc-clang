@@ -64,7 +64,7 @@ public:
 
 #ifdef INTERACTIVECCCONV
   void ccConvResultsReady(std::string FileName, bool ClearDiags = false) override;
-  void sendCConvMessage(std::string msg) override;
+  void sendCConvMessage(std::string MsgStr) override;
 #endif
 
 private:
