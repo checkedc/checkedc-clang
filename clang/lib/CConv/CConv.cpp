@@ -424,6 +424,8 @@ bool CConvInterface::WriteAllConvertedFilesToDisk() {
 
   if (DumpStats)
     GlobalProgramInfo.dump_stats(FilePaths);
+
+  return true;
 }
 
 void CConvInterface::ResetAllPointerConstraints() {
