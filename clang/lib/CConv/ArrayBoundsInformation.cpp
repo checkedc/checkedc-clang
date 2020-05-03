@@ -27,11 +27,11 @@ ConstraintKey ArrayBoundsInformation::getTopLevelConstraintVar(Decl *D) {
 }
 
 bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *ArrFd,
-                                                  FieldDecl *LenFd) {
+                                                  FieldDecl *LenFD) {
   ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFd);
-  std::string BString = LenFd->getNameAsString();
-  return BoundsInfo[ArrCKey].insert
-      (std::make_pair(BoundsKind::LocalFieldBound, BString)).second;
+  std::string BString = LenFD->getNameAsString();
+  auto BPair = std::make_pair(BoundsKind::LocalFieldBound, BString);
+  return BoundsInfo[ArrCKey].insert(BPair).second;
 }
 
 bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *ArrFd,
@@ -53,8 +53,8 @@ bool ArrayBoundsInformation::addBoundsInformation(ParmVarDecl *ArrFd,
                                                   ParmVarDecl *LenFd) {
   ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFd);
   std::string BString = LenFd->getNameAsString();
-  return BoundsInfo[ArrCKey].insert(std::make_pair(BoundsKind::LocalParamBound,
-                                                   BString)).second;
+  auto BPair = std::make_pair(BoundsKind::LocalParamBound, BString);
+  return BoundsInfo[ArrCKey].insert(BPair).second;
 }
 
 bool ArrayBoundsInformation::addBoundsInformation(ParmVarDecl *ArrFd,
@@ -63,12 +63,12 @@ bool ArrayBoundsInformation::addBoundsInformation(ParmVarDecl *ArrFd,
   return BoundsInfo[ArrCKey].insert(Binfo).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(VarDecl *ArrFd,
-                                                  VarDecl *LenFd) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFd);
-  std::string BString = LenFd->getNameAsString();
-  return BoundsInfo[ArrCKey].insert(std::make_pair(BoundsKind::LocalVarBound,
-                                                   BString)).second;
+bool ArrayBoundsInformation::addBoundsInformation(VarDecl *arrFD,
+                                                  VarDecl *lenFD) {
+  ConstraintKey ArrCKey = getTopLevelConstraintVar(arrFD);
+  std::string BString = lenFD->getNameAsString();
+  auto BPair = std::make_pair(BoundsKind::LocalVarBound, BString);
+  return BoundsInfo[ArrCKey].insert(BPair).second;
 }
 
 bool ArrayBoundsInformation::addBoundsInformation(VarDecl *ArrFd,
@@ -79,9 +79,9 @@ bool ArrayBoundsInformation::addBoundsInformation(VarDecl *ArrFd,
 
 bool ArrayBoundsInformation::addBoundsInformation(VarDecl *ArrFd, Expr *E) {
   ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFd);
-  auto BInfo = getExprBoundsInfo(nullptr, E);
-  if (BInfo.first != ArrayBoundsInformation::BoundsKind::InvalidKind)
-    return BoundsInfo[ArrCKey].insert(BInfo).second;
+  auto Binfo = getExprBoundsInfo(nullptr, E);
+  if (Binfo.first != ArrayBoundsInformation::BoundsKind::InvalidKind)
+    return BoundsInfo[ArrCKey].insert(Binfo).second;
   return false;
 }
 
@@ -143,8 +143,8 @@ ArrayBoundsInformation::combineBoundsInfo(FieldDecl *Field,
 
   if (BKind != BoundsKind::InvalidKind &&
       (Field == nullptr || isValidBoundKindForField(BKind))) {
-    return std::make_pair(BKind,
-                          "(" + B1.second + " " + OpStr + " " + B2.second + ")");
+    auto BStr = "(" + B1.second + " " + OpStr + " " + B2.second + ")";
+    return std::make_pair(BKind, BStr);
   }
   return InvalidB;
 }
@@ -221,6 +221,11 @@ ArrayBoundsInformation::getExprBoundsInfo(
                              ConstantBound,
                             RawStr.str());
     }
+  } else if (StringLiteral *SL = dyn_cast<StringLiteral>(E)) {
+    std::string BInfo = "" + std::to_string(SL->getLength());
+    return std::make_pair(ArrayBoundsInformation::
+                              BoundsKind::ConstantBound,
+                          BInfo);
   }
   E->dump();
   assert(false && "Unable to handle expression type");
