@@ -191,6 +191,7 @@ void ClangdServer::cconvCollectAndBuildInitialConstraints(CConvLSPCallBack *Conv
     CConvDiagInfo.ClearAllDiags();
     ConvCB->sendCConvMessage("Running CConv for first time.");
     CConvInter.BuildInitialConstraints();
+    CConvInter.SolveConstraints();
     ConvCB->sendCConvMessage("Finished running CConv.");
     log("CConv: Built initial constraints successfully.\n");
     auto &ccInterfaceInfo = CConvInter.GetWILDPtrsInfo();
