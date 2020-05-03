@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "../Constraints.h"
+#include "clang/CConv/Constraints.h"
 
 TEST(BasicConstraintTest, insert) {
   Constraints CS;
