@@ -32,6 +32,8 @@ static bool hasNameMatch(std::string PtrName, std::string FieldName) {
   // If the name field starts with ptrName?
   if (FieldName.rfind(PtrName, 0) == 0)
     return true;
+
+  return false;
 }
 
 std::string commonPrefixUtil(std::string Str1, std::string Str2) {
@@ -161,6 +163,10 @@ static bool isAllocatorCall(Expr *E) {
              AllocatorSizeAssoc.end();
     }
   return false;
+}
+
+static bool isStringLiteral(Expr *E) {
+  return dyn_cast<StringLiteral>(removeAuxillaryCasts(E));
 }
 
 static ArrayBoundsInformation::BOUNDSINFOTYPE
@@ -457,12 +463,13 @@ bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
   for (const auto &D : S->decls())
     if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       Expr *InitE = VD->getInit();
-      if (needArrayBounds(VD, Info, Context) &&
-          InitE && isAllocatorCall(InitE)) {
-        ArrBInfo.addBoundsInformation(VD,
-                                      getAllocatedSizeExpr(InitE,
-                                                           Context,
-                                                           Info));
+      if (needArrayBounds(VD, Info, Context) && InitE &&
+          isAllocatorCall(InitE)) {
+        auto BType = getAllocatedSizeExpr(InitE, Context, Info);
+        ArrBInfo.addBoundsInformation(VD, BType);
+      } else if (InitE && isStringLiteral(InitE)) {
+        auto BType = ArrBInfo.getExprBoundsInfo(nullptr, InitE);
+        ArrBInfo.addBoundsInformation(VD, BType);
       }
     }
 
