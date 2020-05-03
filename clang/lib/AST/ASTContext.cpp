@@ -2897,7 +2897,14 @@ QualType ASTContext::getPointerType(QualType T, CheckedPointerKind kind) const {
     PointerType *NewIP = PointerTypes.FindNodeOrInsertPos(ID, InsertPos);
     assert(!NewIP && "Shouldn't be in the map!"); (void)NewIP;
   }
-  auto *New = new (*this, TypeAlignment) PointerType(T, Canonical, kind);
+  PointerType *New = nullptr;
+  if (!LangOpts.IgnoreCheckedPtr) {
+    New = new (*this, TypeAlignment) PointerType(T, Canonical, kind);
+  } else {
+    New = new (*this, TypeAlignment) PointerType(T, Canonical,
+                                                 CheckedPointerKind::Unchecked,
+                                                 kind);
+  }
   Types.push_back(New);
   PointerTypes.InsertNode(New, InsertPos);
   return QualType(New, 0);
@@ -8536,6 +8543,9 @@ bool ASTContext::typesAreCompatible(QualType LHS, QualType RHS,
                                     bool IgnoreBounds) {
   if (getLangOpts().CPlusPlus)
     return hasSameType(LHS, RHS);
+
+  // Ignore bounds if checked pointers are ignored
+  IgnoreBounds = IgnoreBounds || getLangOpts().IgnoreCheckedPtr;
 
   return !mergeTypes(LHS, RHS, false, CompareUnqualified, 
                      /*BlockReturnType=*/false, IgnoreBounds).isNull();

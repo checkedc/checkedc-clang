@@ -1967,7 +1967,8 @@ ExprResult Sema::ConvertToFullyCheckedType(Expr *E,
   if (CheckedTy.isNull())
     return ExprError();
 
-  assert(!CheckedTy->isOrContainsUncheckedType());
+  assert(!CheckedTy->isOrContainsUncheckedType() ||
+         getLangOpts().IgnoreCheckedPtr);
   if (VK == ExprValueKind::VK_RValue) {
     ExprResult ER = ImpCastExprToType(E, CheckedTy, CK_BitCast, VK, nullptr,
                                       Sema::CCK_ImplicitConversion, true);
@@ -14534,13 +14535,15 @@ ExprResult Sema::ActOnBoundsCastExprBounds(
   if (CheckBoundsCastBaseType(E1))
     return ExprError();
 
-  if (!DestTy->isCheckedPointerArrayType()) {
-    Diag(TypeLoc, diag::err_bounds_cast_expected_array_ptr);
-    return ExprError();
-  } else if (Bounds->isElementCount() && DestTy->isVoidPointerType()) {
-    Diag(Bounds->getBeginLoc(),
-         diag::err_typecheck_void_pointer_count_bounds_cast);
-    return ExprError();
+  if (!getLangOpts().IgnoreCheckedPtr) {
+    if (!DestTy->isCheckedPointerArrayType()) {
+      Diag(TypeLoc, diag::err_bounds_cast_expected_array_ptr);
+      return ExprError();
+    } else if (Bounds->isElementCount() && DestTy->isVoidPointerType()) {
+      Diag(Bounds->getBeginLoc(),
+           diag::err_typecheck_void_pointer_count_bounds_cast);
+      return ExprError();
+    }
   }
 
   return BuildBoundsCastExpr(OpLoc, Kind, CastTInfo,
