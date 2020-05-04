@@ -252,5 +252,5 @@ void ptrarr(void) {
   return;
 }
 //CHECK: void ptrarr(void) { 
-//CHECK-NEXT: _Ptr<int> vals _Checked[4] =  { 0 };
+//CHECK-NEXT: _Ptr<int> vals[4] =  { 0 };
 

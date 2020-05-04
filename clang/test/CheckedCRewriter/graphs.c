@@ -47,7 +47,7 @@ struct Stack
 	int top;
 
 };
-//CHECK: int arr _Checked[40];
+//CHECK: int arr[MAX_SIZE];
 
 struct Graph* createGraph(int);
 

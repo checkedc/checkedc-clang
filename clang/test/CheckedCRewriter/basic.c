@@ -14,9 +14,9 @@ void basic1() {
 	free(buffer); // Double free
 }
 
-//CHECK: char data _Checked[17]: count(16) =  "abcdefghijklmnop";
+//CHECK: char data[] = "abcdefghijklmnop";
 //CHECK: char *buffer = malloc(50);
-//CHECK-NEXT: strcpy(buffer, ((const char *)data));
+//CHECK-NEXT: strcpy(buffer, data);
 
 char* basic2(int temp) {
 	char data[] = "abcdefghijklmnop";
@@ -133,7 +133,7 @@ struct student
     int roll;
     float perc;
 };
-//CHECK: char name _Checked[30];
+//CHECK: char name[30];
 
 void basic_struct(int count) {
 
@@ -181,7 +181,7 @@ struct student * new_student() {
 
 }
 //CHECK: _Ptr<struct student> new_student(void) {
-//CHECK-NEXT: char name _Checked[14]: count(13) =  "Bilbo Baggins";
+//CHECK-NEXT: char name[] = "Bilbo Baggins";
 //CHECK: struct student *new_s = malloc(sizeof(struct student));
 
 int main() {
