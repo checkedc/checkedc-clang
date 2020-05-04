@@ -134,22 +134,22 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
 // a function, then recurses on the return and parameter
 // constraints.
 static
-CVars getVarsFromConstraint(ConstraintVariable *V, CVars T) {
-  CVars R = T;
+CAtoms getVarsFromConstraint(ConstraintVariable *V, CAtoms T) {
+  CAtoms R = T;
 
   if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
-    R.insert(PVC->getCvars().begin(), PVC->getCvars().end());
+    R.insert(R.begin(), PVC->getCvars().begin(), PVC->getCvars().end());
    if (FVConstraint *FVC = PVC->getFV()) 
      return getVarsFromConstraint(FVC, R);
   } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(V)) {
     for (const auto &C : FVC->getReturnVars()) {
-      CVars tmp = getVarsFromConstraint(C, R);
-      R.insert(tmp.begin(), tmp.end());
+      CAtoms tmp = getVarsFromConstraint(C, R);
+      R.insert(R.begin(), tmp.begin(), tmp.end());
     }
     for (unsigned i = 0; i < FVC->numParams(); i++) {
       for (const auto &C : FVC->getParamVar(i)) {
-        CVars tmp = getVarsFromConstraint(C, R);
-        R.insert(tmp.begin(), tmp.end());
+        CAtoms tmp = getVarsFromConstraint(C, R);
+        R.insert(R.begin(), tmp.begin(), tmp.end());
       }
     }
   }
@@ -184,10 +184,10 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
       if (J != FilesToVars.end())
         std::tie(varC, pC, ntAC, aC, wC) = J->second;
 
-      CVars FoundVars;
+      CAtoms FoundVars;
       for (auto &C : I.second) {
-        CVars tmp = getVarsFromConstraint(C, FoundVars);
-        FoundVars.insert(tmp.begin(), tmp.end());
+        CAtoms tmp = getVarsFromConstraint(C, FoundVars);
+        FoundVars.insert(FoundVars.begin(), tmp.begin(), tmp.end());
       }
 
       varC += FoundVars.size();
