@@ -23,6 +23,9 @@ static cl::OptionCategory SolverCategory("solver options");
 static cl::opt<bool> DebugSolver("debug-solver",
   cl::desc("Dump intermediate solver state"),
   cl::init(false), cl::cat(SolverCategory));
+static cl::opt<bool> UseNewSolver("new-solver",
+                                 cl::desc("Use new solver"),
+                                 cl::init(false), cl::cat(SolverCategory));
 
 unsigned
 VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &VAtoms,
@@ -514,6 +517,12 @@ int Constraints::solve_alt(void) {
                 Var->eraseConstraint(RC);
             VI++;
         }
+
+        if (DebugSolver) {
+            errs() << "constraints after iter #" << n << "\n";
+            dump();
+        }
+
     }
 
     return n;
@@ -536,7 +545,7 @@ std::pair<Constraints::ConstraintSet, bool>
   // bound of k*n for k lattice levels and n variables. This will require 
   // some dependency tracking, we will do that later.
 
-  if (0) {
+  if (!UseNewSolver) {
       while (Fixed == false) {
 
           if (DebugSolver) {
@@ -554,7 +563,9 @@ std::pair<Constraints::ConstraintSet, bool>
           NumOfIter++;
       }
   }
-  solve_alt();
+  else { /* New Solver */
+      solve_alt();
+  }
 
   return std::pair<Constraints::ConstraintSet, bool>(Conflicts, true);
 }
