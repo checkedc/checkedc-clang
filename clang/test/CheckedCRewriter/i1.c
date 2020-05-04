@@ -1,4 +1,4 @@
-// RUN: cconv-standalone %s -- | wc -l | grep '^0$'
+// RUN: cconv-standalone %s -- | wc -l | grep '^[/t ]*0$'
 
 int *foo() {
   int x = 1;
