@@ -368,11 +368,13 @@ public:
 
 // Represents constraints of the form:
 //  - a = b
+//  - a >= b
 //  - a => b
 class Constraint {
 public:
   enum ConstraintKind {
     C_Eq,
+    C_Geq,
     C_Imp
   };
 private:
@@ -485,6 +487,87 @@ public:
 private:
   Atom *lhs;
   Atom *rhs;
+};
+
+// a >= b
+class Geq : public Constraint {
+    friend class VarAtom;
+public:
+
+    Geq(Atom *Lhs, Atom *Rhs)
+            : Constraint(C_Geq), lhs(Lhs), rhs(Rhs) {}
+
+    Geq(Atom *Lhs, Atom *Rhs, std::string &Rsn)
+            : Constraint(C_Geq, Rsn), lhs(Lhs), rhs(Rhs) {}
+
+    Geq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL)
+            : Constraint(C_Geq, Rsn, PL), lhs(Lhs), rhs(Rhs) {}
+
+    static bool classof(const Constraint *C) {
+        return C->getKind() == C_Geq;
+    }
+
+    void print(llvm::raw_ostream &O) const {
+        lhs->print(O);
+        O << " >= ";
+        rhs->print(O);
+        O << ", Reason:" << REASON;
+    }
+
+    void dump(void) const {
+        print(llvm::errs());
+    }
+
+    void dump_json(llvm::raw_ostream &O) const {
+        O << "{\"Geq\":{\"Atom1\":";
+        lhs->dump_json(O);
+        O << ", \"Atom2\":";
+        rhs->dump_json(O);
+        O << ", \"Reason\":";
+        llvm::json::Value reasonVal(REASON);
+        O << reasonVal;
+        O << "}}";
+    }
+
+    Atom *getLHS(void) const { return lhs; }
+    Atom *getRHS(void) const { return rhs; }
+    void setRHS(Atom *NewAt) { rhs = NewAt; }
+
+    bool operator==(const Constraint &Other) const {
+        if (const Geq *E = llvm::dyn_cast<Geq>(&Other))
+            return *lhs == *E->lhs && *rhs == *E->rhs;
+        else
+            return false;
+    }
+
+    bool operator!=(const Constraint &Other) const {
+        return !(*this == Other);
+    }
+
+    bool operator<(const Constraint &Other) const {
+        ConstraintKind K = Other.getKind();
+        if (K == C_Geq) {
+            const Geq *E = llvm::dyn_cast<Geq>(&Other);
+            assert(E != nullptr);
+
+            if (*lhs == *E->lhs && *rhs == *E->rhs)
+                return false;
+            else if (*lhs == *E->lhs && *rhs != *E->rhs)
+                return *rhs < *E->rhs;
+            else
+                return *lhs < *E->lhs;
+        }
+        else
+            return C_Geq < K;
+    }
+
+    bool containsConstraint(VarAtom *ToFind) {
+        return lhs->containsConstraint(ToFind) || rhs->containsConstraint(ToFind);
+    }
+
+private:
+    Atom *lhs;
+    Atom *rhs;
 };
 
 // a => b
@@ -603,9 +686,12 @@ public:
   void print(llvm::raw_ostream &) const;
   void dump_json(llvm::raw_ostream &) const;
 
-  Eq *createEq(Atom *Lhs, Atom *Rhs);
-  Eq *createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn);
-  Eq *createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL);
+  Constraint *createEq(Atom *Lhs, Atom *Rhs);
+  Constraint *createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn);
+  Constraint *createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL);
+  //Eq *createGeq(Atom *Lhs, Atom *Rhs);
+  //Eq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn);
+  //Eq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL);
   Implies *createImplies(Constraint *Premise, Constraint *Conclusion);
 
   VarAtom *getOrCreateVar(uint32_t V);
@@ -647,17 +733,18 @@ private:
   // Map of function unique key to it definition FVConstraintVariable.
   FuncKeyToConsMap FuncDefnConstraints;
 
-  template <typename T>
-  bool canAssignConst(VarAtom *Src);
   bool step_solve(EnvironmentMap &);
   bool check(Constraint *C);
 
   bool assignConstToVar(EnvironmentMap::iterator &SrcVar, ConstAtom *C);
 
+  bool
+  propEq(EnvironmentMap &E, Eq *Dyn, EnvironmentMap::iterator &CurValLHS);
+
   template <typename T>
   bool
-  propEq(EnvironmentMap &E, Eq *Dyn, T *A, ConstraintSet &R,
-      EnvironmentMap::iterator &CurValLHS);
+  propGeq(EnvironmentMap &E, Geq *Dyn, T *A, ConstraintSet &R,
+          EnvironmentMap::iterator &CurValLHS);
 
   template <typename T>
   bool

@@ -40,10 +40,8 @@ VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &VAtoms,
       VarAtom *DVatom = VatomP.first;
       // Check if the constraint contains
       // the provided constraint variable.
-      if (CC->containsConstraint(DVatom) && dyn_cast<Eq>(CC)) {
+      if (CC->containsConstraint(DVatom) && (dyn_cast<Eq>(CC) || dyn_cast<Geq>(CC))) {
         NumRemConstraints++;
-        // This has to be an equality constraint.
-        Eq *EqCons = dyn_cast<Eq>(CC);
         // We will modify this constraint remove it
         // from the local and global sets.
         CS.removeConstraint(CC);
@@ -52,19 +50,29 @@ VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &VAtoms,
         // Mark this constraint to be deleted.
         ConstraintsToRem.insert(CC);
 
-        assert(EqCons != nullptr &&
-               "Do not know how to replace a non-equality constraint.");
         if (CCons != nullptr) {
-          Eq *NewC = nullptr;
-          if (*(EqCons->getLHS()) == *(DVatom)) {
+          Constraint *NewC = nullptr;
+          Atom *LHS = nullptr;
+          Atom *RHS = nullptr;
+
+          // This has to be an (G)equality constraint.
+          if (Eq *EqCons = dyn_cast<Eq>(CC)) {
+              LHS = EqCons->getLHS();
+              RHS = EqCons->getRHS();
+          } else if (Geq *GeqCons = dyn_cast<Geq>(CC)) {
+              LHS = GeqCons->getLHS();
+              RHS = GeqCons->getRHS();
+          }
+
+          if (*LHS == *(DVatom)) {
             // If this is of the form var1 = var2.
-            if (dyn_cast<VarAtom>(EqCons->rhs)) {
+            if (dyn_cast<VarAtom>(RHS)) {
               // Create a constraint var2 = const.
-              VarAtom *VA = dyn_cast<VarAtom>(EqCons->rhs);
+              VarAtom *VA = dyn_cast<VarAtom>(RHS);
               NewC = CS.createEq(VA, CCons);
             } else {
               // Else, create a constraint var1 = const.
-              VarAtom *VA = dyn_cast<VarAtom>(EqCons->lhs);
+              VarAtom *VA = dyn_cast<VarAtom>(LHS);
               NewC = CS.createEq(VA, CCons);
             }
           }
@@ -110,7 +118,7 @@ void Constraints::editConstraintHook(Constraint *C) {
   if (!AllTypes) {
     // If this is an equality constraint, check if we are adding
     // only Ptr or WILD constraints? if not? make it WILD.
-    if (Eq *E = dyn_cast<Eq>(C)) {
+    if (Geq *E = dyn_cast<Geq>(C)) {
       if (ConstAtom *RConst = dyn_cast<ConstAtom>(E->getRHS())) {
         if (!(isa<PtrAtom>(RConst) || isa<WildAtom>(RConst))) {
           // Can we assign WILD to the left side var?.
@@ -141,8 +149,12 @@ bool Constraints::addConstraint(Constraint *C) {
       if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
         vLHS->Constraints.insert(C);
     }
+    else if (Geq *E = dyn_cast<Geq>(C)) {
+      if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
+        vLHS->Constraints.insert(C);
+    }
     else if (Implies *I = dyn_cast<Implies>(C)) {
-      if (Eq *E = dyn_cast<Eq>(I->getPremise())) {
+      if (Geq *E = dyn_cast<Geq>(I->getPremise())) {
         if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
           vLHS->Constraints.insert(C);
       }
@@ -161,6 +173,10 @@ bool Constraints::addReasonBasedConstraint(Constraint *C) {
     if (E->getReason() != DEFAULT_REASON && !E->getReason().empty())
       return this->constraintsByReason[E->getReason()].insert(E).second;
   }
+  else if (Geq *E = dyn_cast<Geq>(C)) {
+      if (E->getReason() != DEFAULT_REASON && !E->getReason().empty())
+          return this->constraintsByReason[E->getReason()].insert(E).second;
+  }
   return false;
 }
 
@@ -171,24 +187,31 @@ bool Constraints::removeReasonBasedConstraint(Constraint *C) {
         this->constraintsByReason.end())
       return this->constraintsByReason[E->getReason()].erase(E) > 0;
   }
+  else if (Geq *E = dyn_cast<Geq>(C)) {
+      // Remove if the constraint is present.
+      if (this->constraintsByReason.find(E->getReason()) !=
+          this->constraintsByReason.end())
+          return this->constraintsByReason[E->getReason()].erase(E) > 0;
+  }
   return false;
 }
 
 // Checks to see if the constraint is of a form that we expect.
 // The expected forms are the following:
-// EQ : (q_i = A) | (q_i = q_k) for A constant or
-// IMPLIES : (q_i = A) => (q_k = B) for A,B constant
+// EQ : (q_i = q_k)
+// GEQ : (q_i >= A) for A constant
+// IMPLIES : (q_i >= A) => (q_k >= B) for A,B constant
 bool Constraints::check(Constraint *C) {
 
   if (Implies *I = dyn_cast<Implies>(C)) {
-    if (Eq *P = dyn_cast<Eq>(I->getPremise())) {
+    if (Geq *P = dyn_cast<Geq>(I->getPremise())) {
       if (!isa<VarAtom>(P->getLHS()) || isa<VarAtom>(P->getRHS()))
         return false;
     }
     else {
       return false;
     }
-    if (Eq *CO = dyn_cast<Eq>(I->getConclusion())) {
+    if (Geq *CO = dyn_cast<Geq>(I->getConclusion())) {
       if (!isa<VarAtom>(CO->getLHS()) || isa<VarAtom>(CO->getRHS()))
         return false;
     }
@@ -197,11 +220,15 @@ bool Constraints::check(Constraint *C) {
     }
   }
   else if (Eq *E = dyn_cast<Eq>(C)) {
-    if (!isa<VarAtom>(E->getLHS()))
+    if (!isa<VarAtom>(E->getLHS()) || !isa<VarAtom>(E->getRHS()))
       return false;
   }
+  else if (Geq *GE = dyn_cast<Geq>(C)) {
+      if (!isa<VarAtom>(GE->getLHS()) || isa<VarAtom>(GE->getRHS()))
+          return false;
+  }
   else
-    return false; // Not Eq or Implies; what is it?!
+    return false; // Not Eq, Geq, or Implies; what is it?!
 
   return true;
 }
@@ -220,29 +247,15 @@ bool Constraints::assignConstToVar(EnvironmentMap::iterator &SrcVar,
 
 // Given an equality constraint _Dyn_, and a current variable binding 
 // _CurValLHS_, where _CurValLHS_ represents the pair (q_i:C) and the
-// equality constraint _Dyn_ := q_i == K, pattern match over K. It 
-// could be either a constant value such as WildAtom, or, it could be
-// another variable. 
-//
-// T is constrained to be one of the types from the constant lattice. 
-// T is parametric because the logic for equality propagation is common
-// between different cases of constraint solving. 
+// equality constraint _Dyn_ := q_i == q_j. Joins the solutions for q_i and q_j.
 // 
 // Return true if propEq modified the binding of (q_i:C) or the binding
 // of (q_j:K) if _Dyn_ was of the form q_i == q_k.
-template <typename T>
 bool
-Constraints::propEq(EnvironmentMap &E, Eq *Dyn, T *A, ConstraintSet &R,
-  EnvironmentMap::iterator &CurValLHS) {
+Constraints::propEq(EnvironmentMap &E, Eq *Dyn, EnvironmentMap::iterator &CurValLHS) {
   bool ChangedEnv = false;
 
-  if (isa<T>(Dyn->getRHS())) {
-    if (*(CurValLHS->second) < *A) {
-      R.insert(Dyn);
-      ChangedEnv = assignConstToVar(CurValLHS, A);
-    }
-  } // Also propagate from equality when v = v'.
-  else if (VarAtom *RHSVar = dyn_cast<VarAtom>(Dyn->getRHS())) {
+ if (VarAtom *RHSVar = dyn_cast<VarAtom>(Dyn->getRHS())) {
     EnvironmentMap::iterator CurValRHS = E.find(RHSVar);
     assert(CurValRHS != E.end()); // The var on the RHS should be in the env.
 
@@ -259,6 +272,31 @@ Constraints::propEq(EnvironmentMap &E, Eq *Dyn, T *A, ConstraintSet &R,
   return ChangedEnv;
 }
 
+// Given an equality constraint _Dyn_, and a current variable binding
+// _CurValLHS_, where _CurValLHS_ represents the pair (q_i:C) and the
+// equality constraint _Dyn_ := q_i == K; if K <: T then update the solution.
+//
+// T is constrained to be one of the types from the constant lattice.
+// T is parametric because the logic for equality propagation is common
+// between different cases of constraint solving.
+//
+// Return true if propEq modified the binding of (q_i:C).
+template <typename T>
+bool
+Constraints::propGeq(EnvironmentMap &E, Geq *Dyn, T *A, ConstraintSet &R,
+                    EnvironmentMap::iterator &CurValLHS) {
+    bool ChangedEnv = false;
+
+    if (isa<T>(Dyn->getRHS())) {
+        if (*(CurValLHS->second) < *A) {
+            R.insert(Dyn);
+            ChangedEnv = assignConstToVar(CurValLHS, A);
+        }
+    }
+
+    return ChangedEnv;
+}
+
 // Propagates implication through the environment for a single 
 // variable (whose value is given by _V_) used in an implication 
 // constraint _Imp_.
@@ -268,7 +306,7 @@ Constraints::propImp(Implies *Imp, T *A, ConstraintSet &R, ConstAtom *V) {
   Constraint *Con = nullptr;
   bool ChangedEnv = false;
 
-  if (Eq *DynP = dyn_cast<Eq>(Imp->getPremise())) 
+  if (Geq *DynP = dyn_cast<Geq>(Imp->getPremise()))
     if (isa<T>(DynP->getRHS()) && *V == *A) {
       Con = Imp->getConclusion();
       R.insert(Imp);
@@ -300,11 +338,12 @@ bool Constraints::step_solve(EnvironmentMap &Env) {
     ConstraintSet rmConstraints;
     for (const auto &C : Var->Constraints) 
       if (Eq *E = dyn_cast<Eq>(C))
-        ChangedEnv |= propEq<WildAtom>(Env, E, getWild(),
-                                               rmConstraints, VI);
+        ChangedEnv |= propEq(Env, E, VI);
+      else if (Geq *E = dyn_cast<Geq>(C))
+          ChangedEnv |= propGeq<WildAtom>(Env, E, getWild(),
+                  rmConstraints, VI);
       else if (Implies *Imp = dyn_cast<Implies>(C))
-        ChangedEnv |= propImp<WildAtom>(Imp, getWild(),
-                                                rmConstraints, Val);
+        ChangedEnv |= propImp<WildAtom>(Imp, getWild(),rmConstraints, Val);
 
     for (const auto &RC : rmConstraints)
       Var->eraseConstraint(RC);
@@ -313,7 +352,7 @@ bool Constraints::step_solve(EnvironmentMap &Env) {
   }
 
   VI = Env.begin();
-  // Step 2. Propagate any ARITH constraints.
+  // Step 2. Propagate any ARR constraints.
   while (VI != Env.end()) {
     VarAtom *Var = VI->first;
 
@@ -322,11 +361,13 @@ bool Constraints::step_solve(EnvironmentMap &Env) {
       // Re-read the assignment as the propagating might have
       // changed this and the constraints will get removed.
       ConstAtom *Val = VI->second;
-      if (Eq *E = dyn_cast<Eq>(C)) {
-        ChangedEnv |= propEq<NTArrAtom>(Env, E, getNTArr(),
-                                                RemCons, VI);
-        ChangedEnv |= propEq<ArrAtom>(Env, E, getArr(),
-                                              RemCons, VI);
+      if (Geq *E = dyn_cast<Geq>(C)) {
+          ChangedEnv |= propGeq < NTArrAtom > (Env, E, getNTArr(),
+                  RemCons, VI);
+          ChangedEnv |= propGeq < ArrAtom > (Env, E, getArr(),
+                  RemCons, VI);
+      } else if (Eq *E = dyn_cast<Eq>(C)) {
+          ChangedEnv |= propEq(Env, E, VI);
       } else if (Implies *Imp = dyn_cast<Implies>(C)) {
         ChangedEnv |= propImp<NTArrAtom>(Imp, getNTArr(),
                                                  RemCons, Val);
@@ -521,15 +562,21 @@ bool Constraints::isWild(Atom *A) {
   return dyn_cast<WildAtom>(getAssignment(A)) != nullptr;
 }
 
-Eq *Constraints::createEq(Atom *Lhs, Atom *Rhs) {
-  return new Eq(Lhs, Rhs);
+Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs) {
+  if (dyn_cast<VarAtom>(Lhs) != nullptr && dyn_cast<VarAtom>(Rhs) != nullptr)
+    return new Eq(Lhs, Rhs);
+  assert(dyn_cast<VarAtom>(Lhs) != nullptr && dyn_cast<ConstAtom>(Rhs) != nullptr && "Bogus form for Eq constraint");
+  return new Geq(Lhs, Rhs);
 }
 
-Eq *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn) {
-  return new Eq(Lhs, Rhs, Rsn);
+Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn) {
+  if (dyn_cast<VarAtom>(Lhs) != nullptr && dyn_cast<VarAtom>(Rhs) != nullptr)
+    return new Eq(Lhs, Rhs, Rsn);
+  assert(dyn_cast<VarAtom>(Lhs) != nullptr && dyn_cast<ConstAtom>(Rhs) != nullptr && "Bogus form for Eq constraint");
+  return new Geq(Lhs, Rhs, Rsn);
 }
 
-Eq *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
+Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
                           PersistentSourceLoc *PL) {
   if (PL != nullptr && PL->valid()) {
     // Make this invalid, if the source location is not absolute path
@@ -537,7 +584,10 @@ Eq *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
     if (PL->getFileName().c_str()[0] != '/')
       PL = nullptr;
   }
-  return new Eq(Lhs, Rhs, Rsn, PL);
+  if (dyn_cast<VarAtom>(Lhs) != nullptr && dyn_cast<VarAtom>(Rhs) != nullptr)
+    return new Eq(Lhs, Rhs, Rsn, PL);
+  assert(dyn_cast<VarAtom>(Lhs) != nullptr && dyn_cast<ConstAtom>(Rhs) != nullptr && "Bogus form for Eq constraint");
+  return new Geq(Lhs, Rhs, Rsn, PL);
 }
 
 Implies *Constraints::createImplies(Constraint *Premise,
