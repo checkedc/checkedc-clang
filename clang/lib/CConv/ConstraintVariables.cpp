@@ -181,8 +181,12 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       std::string TyName = tyToStr(Ty);
       // TODO: Github issue #61: improve handling of types for
       // // Variable arguments.
-      if (isVarArgType(TyName))
+      if (isVarArgType(TyName)) {
+        // Variable number of arguments. Make it WILD.
+        vars.push_back(CS.getWild());
+        VarCreated = true;
         break;
+      }
 
       // Iterate.
       QTy = QTy.getSingleStepDesugaredType(C);
@@ -315,7 +319,8 @@ void PointerVariableConstraint::dump_json(llvm::raw_ostream &O) const {
     if (addComma) {
       O << ",";
     }
-    O << "\"q_" << I << "\"";
+    I->dump_json(O);
+
     addComma = true;
   }
   O << "], \"name\":\"" << getName() << "\"";
