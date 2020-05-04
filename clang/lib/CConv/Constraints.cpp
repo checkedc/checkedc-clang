@@ -319,17 +319,16 @@ Constraints::propImp(Implies *Imp, T *A, ConstraintSet &R, ConstAtom *V) {
 
 // Takes one iteration to solve the system of constraints. Each step 
 // involves the propagation of quantifiers and the potential firing of
-// implications. Accepts a single parameter, _env_, that is a map of 
-// variables to their current value in the ConstAtom lattice. 
+// implications. Updates the global environment map.
 //
 // Returns true if the step didn't change any bindings of variables in
 // the environment. 
-bool Constraints::step_solve(EnvironmentMap &Env) {
+bool Constraints::step_solve(void) {
   bool ChangedEnv = false;
 
-  EnvironmentMap::iterator VI = Env.begin();
+  EnvironmentMap::iterator VI = environment.begin();
   // Step 1. Propagate any WILD constraint as far as we can.
-  while (VI != Env.end()) {
+  while (VI != environment.end()) {
     // Iterate over the environment, VI is a pair of a variable q_i and 
     // the constant (one of Ptr, Arr, Wild) that the variable is bound to.
     VarAtom *Var = VI->first;
@@ -338,9 +337,9 @@ bool Constraints::step_solve(EnvironmentMap &Env) {
     ConstraintSet rmConstraints;
     for (const auto &C : Var->Constraints) 
       if (Eq *E = dyn_cast<Eq>(C))
-        ChangedEnv |= propEq(Env, E, VI);
+        ChangedEnv |= propEq(environment, E, VI);
       else if (Geq *E = dyn_cast<Geq>(C))
-          ChangedEnv |= propGeq<WildAtom>(Env, E, getWild(),
+          ChangedEnv |= propGeq<WildAtom>(environment, E, getWild(),
                   rmConstraints, VI);
       else if (Implies *Imp = dyn_cast<Implies>(C))
         ChangedEnv |= propImp<WildAtom>(Imp, getWild(),rmConstraints, Val);
@@ -351,9 +350,9 @@ bool Constraints::step_solve(EnvironmentMap &Env) {
     ++VI;
   }
 
-  VI = Env.begin();
+  VI = environment.begin();
   // Step 2. Propagate any ARR constraints.
-  while (VI != Env.end()) {
+  while (VI != environment.end()) {
     VarAtom *Var = VI->first;
 
     ConstraintSet RemCons;
@@ -362,12 +361,12 @@ bool Constraints::step_solve(EnvironmentMap &Env) {
       // changed this and the constraints will get removed.
       ConstAtom *Val = VI->second;
       if (Geq *E = dyn_cast<Geq>(C)) {
-          ChangedEnv |= propGeq < NTArrAtom > (Env, E, getNTArr(),
+          ChangedEnv |= propGeq < NTArrAtom > (environment, E, getNTArr(),
                   RemCons, VI);
-          ChangedEnv |= propGeq < ArrAtom > (Env, E, getArr(),
+          ChangedEnv |= propGeq < ArrAtom > (environment, E, getArr(),
                   RemCons, VI);
       } else if (Eq *E = dyn_cast<Eq>(C)) {
-          ChangedEnv |= propEq(Env, E, VI);
+          ChangedEnv |= propEq(environment, E, VI);
       } else if (Implies *Imp = dyn_cast<Implies>(C)) {
         ChangedEnv |= propImp<NTArrAtom>(Imp, getNTArr(),
                                                  RemCons, Val);
@@ -378,15 +377,15 @@ bool Constraints::step_solve(EnvironmentMap &Env) {
 
     // NTArray adjustment.
     if (Var->couldBeNtArr(VI->second)) {
-      ChangedEnv |= addConstraint(createEq(Var, getNTArr()));
+      ChangedEnv |= addConstraint(createGeq(Var, getNTArr()));
     }
 
     if (Var->getShouldBeArr()) {
-      ChangedEnv |= addConstraint(createEq(Var, getArr()));
+      ChangedEnv |= addConstraint(createGeq(Var, getArr()));
     }
 
     if (Var->getShouldBeNtArr()) {
-      ChangedEnv |= addConstraint(createEq(Var, getNTArr()));
+      ChangedEnv |= addConstraint(createGeq(Var, getNTArr()));
     }
 
     for (const auto &RC : RemCons)
@@ -396,6 +395,128 @@ bool Constraints::step_solve(EnvironmentMap &Env) {
   }
 
   return (ChangedEnv == false);
+}
+
+// Alternative solving algorithm.
+//
+//Given ptr < arr < ntarr < wild
+//
+//Constraints have form
+//
+//k = k’
+//k >= q
+//k > q ==> k’ > q’
+//
+//Til fixpoint
+//  For all k >= q constraints, set sol(k) = q. Remove these constraints
+//  For all k = k’ constraints, propagate solutions. [This will be quadratic without a graph-based approach]
+//    NOTE: This easily generalizes to k >= k’, since we just modify LHS based on RHS, rather than both ways
+//  For all k >= q ==> k’ >= q’ constraints, if the lhs fires, replace with the rhs and delete the constraint
+
+int Constraints::solve_alt(void) {
+    bool ChangedEnv = true;
+    bool NotFixedPoint = true;
+    int n = 0;
+
+    // NT/ARR adjustments first [Should go away -- generate these constraints originally]
+    EnvironmentMap::iterator VI = environment.begin();
+    while (VI != environment.end()) {
+        VarAtom *Var = VI->first;
+
+        if (Var->couldBeNtArr(VI->second)) {
+            addConstraint(createGeq(Var, getNTArr()));
+        }
+
+        if (Var->getShouldBeArr()) {
+            addConstraint(createGeq(Var, getArr()));
+        }
+
+        if (Var->getShouldBeNtArr()) {
+            addConstraint(createGeq(Var, getNTArr()));
+        }
+        ++VI;
+    }
+
+    // Proper solving
+    while (ChangedEnv) {
+        ChangedEnv = false;
+        n++;
+
+        // Step 1. Propagate any Geq constraints
+        VI = environment.begin();
+        while (VI != environment.end()) {
+            VarAtom *Var = VI->first;
+            ConstraintSet RemCons;
+            for (const auto &C : Var->Constraints) {
+                if (Geq *GE = dyn_cast<Geq>(C)) {
+                    VarAtom *VA = dyn_cast<VarAtom>(GE->getLHS());
+                    ConstAtom *CA = dyn_cast<ConstAtom>(GE->getRHS());
+
+                    EnvironmentMap::iterator CurVal = environment.find(VA);
+                    assert(CurVal != environment.end()); // The var on the RHS should be in the env.
+
+                    if (*(CurVal->second) < *CA) {
+                        ChangedEnv |= assignConstToVar(CurVal, CA);
+                    }
+                    RemCons.insert(GE);
+                }
+            }
+            for (const auto &RC : RemCons)
+                Var->eraseConstraint(RC);
+            VI++;
+        }
+
+
+        // Step 2. Propagate any Eq constraints until a fixed point -- warning, is quadratic (want graph)
+        NotFixedPoint = true;
+        while (NotFixedPoint) {
+            NotFixedPoint = false;
+            VI = environment.begin();
+            while (VI != environment.end()) {
+                VarAtom *Var = VI->first;
+                for (const auto &C : Var->Constraints) {
+                    if (Eq *E = dyn_cast<Eq>(C)) {
+                        VarAtom *lhs = dyn_cast<VarAtom>(E->getLHS());
+                        EnvironmentMap::iterator CurValLHS = environment.find(lhs);
+                        assert(CurValLHS != environment.end());
+                        NotFixedPoint |= propEq(environment, E, CurValLHS);
+                    }
+                }
+                VI++;
+            }
+            ChangedEnv |= NotFixedPoint;
+        }
+
+        // Step 3. Propagate implications
+        VI = environment.begin();
+        while (VI != environment.end()) {
+            VarAtom *Var = VI->first;
+            ConstraintSet RemCons;
+            for (const auto &C : Var->Constraints) {
+                if (Implies *Imp = dyn_cast<Implies>(C)) {
+                    Geq *premise = dyn_cast<Geq>(Imp->getPremise());
+                    assert(premise != nullptr);
+                    VarAtom *lhs = dyn_cast<VarAtom>(premise->getLHS());
+                    ConstAtom *rhs = dyn_cast<ConstAtom>(premise->getRHS());
+                    assert(lhs != nullptr && rhs != nullptr);
+                    EnvironmentMap::iterator CurValLHS = environment.find(lhs);
+                    assert(CurValLHS != environment.end());
+
+                    if (*(CurValLHS->second) == *rhs || *rhs < *(CurValLHS->second)) {
+                        Constraint *Con = Imp->getConclusion();
+                        addConstraint(Con);
+                        RemCons.insert(Imp); // delete it; won't need anymore
+                        ChangedEnv = true;
+                    }
+                }
+            }
+            for (const auto &RC : RemCons)
+                Var->eraseConstraint(RC);
+            VI++;
+        }
+    }
+
+    return n;
 }
 
 std::pair<Constraints::ConstraintSet, bool>
@@ -414,22 +535,26 @@ std::pair<Constraints::ConstraintSet, bool>
   // could cause us to loop n**2 times. It would be ideal to have an upper 
   // bound of k*n for k lattice levels and n variables. This will require 
   // some dependency tracking, we will do that later.
-  while (Fixed == false) {
-    
-    if (DebugSolver) {
-      errs() << "constraints pre step\n";
-      dump();
-    }
 
-    Fixed = step_solve(environment);
+  if (0) {
+      while (Fixed == false) {
 
-    if (DebugSolver) {
-      errs() << "constraints post step\n";
-      dump();
-    }
+          if (DebugSolver) {
+              errs() << "constraints pre step\n";
+              dump();
+          }
 
-    NumOfIter++;
+          Fixed = step_solve();
+
+          if (DebugSolver) {
+              errs() << "constraints post step\n";
+              dump();
+          }
+
+          NumOfIter++;
+      }
   }
+  solve_alt();
 
   return std::pair<Constraints::ConstraintSet, bool>(Conflicts, true);
 }
@@ -562,32 +687,52 @@ bool Constraints::isWild(Atom *A) {
   return dyn_cast<WildAtom>(getAssignment(A)) != nullptr;
 }
 
+Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs) {
+    assert(dyn_cast<VarAtom>(Lhs) != nullptr && "Bogus form for Geq constraint");
+    return new Geq(Lhs, Rhs);
+}
+
 Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs) {
   if (dyn_cast<VarAtom>(Lhs) != nullptr && dyn_cast<VarAtom>(Rhs) != nullptr)
     return new Eq(Lhs, Rhs);
-  assert(dyn_cast<VarAtom>(Lhs) != nullptr && dyn_cast<ConstAtom>(Rhs) != nullptr && "Bogus form for Eq constraint");
-  return new Geq(Lhs, Rhs);
+  return Constraints::createGeq(Lhs, Rhs);
+}
+
+Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn) {
+    assert(dyn_cast<VarAtom>(Lhs) != nullptr && "Bogus form for Geq constraint");
+    return new Geq(Lhs, Rhs, Rsn);
 }
 
 Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn) {
   if (dyn_cast<VarAtom>(Lhs) != nullptr && dyn_cast<VarAtom>(Rhs) != nullptr)
     return new Eq(Lhs, Rhs, Rsn);
-  assert(dyn_cast<VarAtom>(Lhs) != nullptr && dyn_cast<ConstAtom>(Rhs) != nullptr && "Bogus form for Eq constraint");
-  return new Geq(Lhs, Rhs, Rsn);
+  return Constraints::createGeq(Lhs,Rhs,Rsn);
+}
+
+Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
+                                  PersistentSourceLoc *PL) {
+  assert(dyn_cast<VarAtom>(Lhs) != nullptr && "Bogus form for Eq constraint");
+    if (PL != nullptr && PL->valid()) {
+        // Make this invalid, if the source location is not absolute path
+        // this is to avoid crashes in clangd.
+        if (PL->getFileName().c_str()[0] != '/')
+            PL = nullptr;
+    }
+    return new Geq(Lhs, Rhs, Rsn, PL);
 }
 
 Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
                           PersistentSourceLoc *PL) {
-  if (PL != nullptr && PL->valid()) {
-    // Make this invalid, if the source location is not absolute path
-    // this is to avoid crashes in clangd.
-    if (PL->getFileName().c_str()[0] != '/')
-      PL = nullptr;
+  if (dyn_cast<VarAtom>(Lhs) != nullptr && dyn_cast<VarAtom>(Rhs) != nullptr) {
+      if (PL != nullptr && PL->valid()) {
+          // Make this invalid, if the source location is not absolute path
+          // this is to avoid crashes in clangd.
+          if (PL->getFileName().c_str()[0] != '/')
+              PL = nullptr;
+      }
+      return new Eq(Lhs, Rhs, Rsn, PL);
   }
-  if (dyn_cast<VarAtom>(Lhs) != nullptr && dyn_cast<VarAtom>(Rhs) != nullptr)
-    return new Eq(Lhs, Rhs, Rsn, PL);
-  assert(dyn_cast<VarAtom>(Lhs) != nullptr && dyn_cast<ConstAtom>(Rhs) != nullptr && "Bogus form for Eq constraint");
-  return new Geq(Lhs, Rhs, Rsn, PL);
+  return Constraints::createGeq(Lhs,Rhs,Rsn,PL);
 }
 
 Implies *Constraints::createImplies(Constraint *Premise,

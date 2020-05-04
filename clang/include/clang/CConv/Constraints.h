@@ -682,6 +682,7 @@ public:
   // are returned in the first position.
   // TODO: this functionality is not implemented yet.
   std::pair<ConstraintSet, bool> solve(unsigned &NumOfIter);
+  int solve_alt(void);
   void dump() const;
   void print(llvm::raw_ostream &) const;
   void dump_json(llvm::raw_ostream &) const;
@@ -689,9 +690,9 @@ public:
   Constraint *createEq(Atom *Lhs, Atom *Rhs);
   Constraint *createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn);
   Constraint *createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL);
-  //Eq *createGeq(Atom *Lhs, Atom *Rhs);
-  //Eq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn);
-  //Eq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL);
+  Geq *createGeq(Atom *Lhs, Atom *Rhs);
+  Geq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn);
+  Geq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL);
   Implies *createImplies(Constraint *Premise, Constraint *Conclusion);
 
   VarAtom *getOrCreateVar(uint32_t V);
@@ -733,7 +734,7 @@ private:
   // Map of function unique key to it definition FVConstraintVariable.
   FuncKeyToConsMap FuncDefnConstraints;
 
-  bool step_solve(EnvironmentMap &);
+  bool step_solve(void);
   bool check(Constraint *C);
 
   bool assignConstToVar(EnvironmentMap::iterator &SrcVar, ConstAtom *C);
