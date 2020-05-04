@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 #include "clang/CConv/Constraints.h"
 
+bool AllTypes = true;
 TEST(BasicConstraintTest, insert) {
   Constraints CS;
   VarAtom *q_0 = CS.getOrCreateVar(0);
