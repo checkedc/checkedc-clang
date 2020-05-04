@@ -1,4 +1,4 @@
-// RUN: CConvertStandalone %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
 
 char *sus(int *, int *);
 //CHECK: char *sus(int *x, _Ptr<int> y) : itype(_Ptr<char>);

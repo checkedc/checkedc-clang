@@ -4,7 +4,7 @@
 // return value stuff.
 //
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-// RUN: cconv-standalone %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
+// RUN: cconv-standalone %s -- | %clang_cc1 -fignore-checkedc-pointers -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 //
 

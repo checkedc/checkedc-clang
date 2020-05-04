@@ -1,4 +1,4 @@
-// RUN: CConvertStandalone %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,7 +39,7 @@ char* basic2(int temp) {
 }
 //CHECK: char * basic2(int temp) {
 //CHECK: char *buffer = malloc(8);
-//CHECKL char *buffer = malloc(1024);
+//CHECK: char *buffer = malloc(1024);
 
 char* basic3(int* data, int count) {
 	while (count > 1) {
@@ -133,7 +133,7 @@ struct student
     int roll;
     float perc;
 };
-//CHECK: _Ptr<char> name;
+//CHECK: char name _Checked[30];
 
 void basic_struct(int count) {
 
