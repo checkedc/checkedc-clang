@@ -1407,8 +1407,85 @@ void original_value19(int i, unsigned j, int val) {
   // CHECK-NEXT: }
 }
 
+// No original value for an implicit narrowing cast
+void original_value20(int i, float f, int val) {
+  // Updated UEQ: { { i + 1, val } }
+  val = i + 1;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'val'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'val'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+
+  // Original value of i in i + f: null (the implicit FloatingToIntegral cast is narrowing)
+  // Updated UEQ: { }
+  i = i + f;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} 'int' <FloatingToIntegral>
+  // CHECK-NEXT:     BinaryOperator {{.*}} 'float' '+'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} 'float' <IntegralToFloating>
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'f'
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+}
+
+// No original value for an explicit narrowing cast
+void original_value21(double d, double val) {
+  // Updated UEQ: { { d + 1.0, val } }
+  val = d + 1.0;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'val'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'd'
+  // CHECK-NEXT:     FloatingLiteral {{.*}} 1.0
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'd'
+  // CHECK-NEXT:   FloatingLiteral {{.*}} 1.0
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'val'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+
+  // Original value of d in (int)d: null (the explicit FloatingToIntegral cast is narrowing)
+  // Updated UEQ: { }
+  d = (int)d;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'd'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} 'double' <IntegralToFloating>
+  // CHECK-NEXT:     CStyleCastExpr {{.*}} 'int' <FloatingToIntegral>
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} 'double' <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'd'
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+}
+
 // CallExpr: using the left-hand side of an assignment as a call argument
-void original_value20(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) {
+void original_value22(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) {
   // Updated UEQ: { { b, a } }
   a = b;
   // CHECK: Statement S:
