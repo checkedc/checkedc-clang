@@ -138,9 +138,11 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
         arrSizes[TypeIdx] = std::pair<OriginalArrType,uint64_t>(
                 O_SizedArray,CAT->getSize().getZExtValue());
-        // This is a statically declared array. Make it a Checked Array.
-        vars.push_back(CS.getArr());
-        VarCreated = true;
+        if (AllTypes) {
+	  // This is a statically declared array. Make it a Checked Array.
+          vars.push_back(CS.getArr());
+          VarCreated = true;
+	}
       } else {
         arrSizes[TypeIdx] = std::pair<OriginalArrType,uint64_t>(
                 O_UnSizedArray,0);
