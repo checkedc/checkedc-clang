@@ -118,6 +118,16 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   uint32_t TypeIdx = 0;
   while (Ty->isPointerType() || Ty->isArrayType()) {
     VarCreated = false;
+    // Is this a VarArg type?
+    std::string TyName = tyToStr(Ty);
+    // TODO: Github issue #61: improve handling of types for
+    // // Variable arguments.
+    if (isVarArgType(TyName)) {
+      // Variable number of arguments. Make it WILD.
+      vars.push_back(CS.getWild());
+      VarCreated = true;
+      break;
+    }
     if (Ty->isArrayType() || Ty->isIncompleteArrayType()) {
       ArrPresent = true;
       // If it's an array, then we need both a constraint variable
@@ -177,16 +187,6 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
                                                     ConstQualification));
 
       arrSizes[TypeIdx] = std::pair<OriginalArrType,uint64_t>(O_Pointer,0);
-
-      std::string TyName = tyToStr(Ty);
-      // TODO: Github issue #61: improve handling of types for
-      // // Variable arguments.
-      if (isVarArgType(TyName)) {
-        // Variable number of arguments. Make it WILD.
-        vars.push_back(CS.getWild());
-        VarCreated = true;
-        break;
-      }
 
       // Iterate.
       QTy = QTy.getSingleStepDesugaredType(C);
