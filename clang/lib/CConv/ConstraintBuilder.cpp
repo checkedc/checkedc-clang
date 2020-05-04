@@ -35,11 +35,35 @@ void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C,
     PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(D, *C);
     if (!D->getType()->isVoidType())
       Rsn = "Variable type is va_list.";
-    for (const auto &I : Info.getVariable(D, C, FuncCtx))
-      if (const PVConstraint *PVC = dyn_cast<PVConstraint>(I))
-        for (const auto &J : PVC->getCvars())
-          CS.addConstraint(
-            CS.createEq(CS.getOrCreateVar(J), CS.getWild(), Rsn, &PL));
+    for (const auto &I : Info.getVariable(D, C, FuncCtx)) {
+      if (const PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
+        for (const auto &J : PVC->getCvars()) {
+          if (VarAtom *VA = dyn_cast<VarAtom>(J)) {
+            CS.addConstraint(CS.createEq(VA, CS.getWild(), Rsn, &PL));
+          }
+        }
+      }
+    }
+  }
+}
+
+void createAtomEq(Atom *A1, Atom *A2, Constraints &CS) {
+  VarAtom *VA1, *VA2;
+  ConstAtom *CA1, *CA2;
+
+  VA1 = dyn_cast<VarAtom>(A1);
+  VA2 = dyn_cast<VarAtom>(A2);
+  CA1 = dyn_cast<ConstAtom>(A1);
+  CA2 = dyn_cast<ConstAtom>(A2);
+
+  if (VA1 != nullptr && VA2 != nullptr) {
+    CS.addConstraint(CS.createEq(VA1, VA2));
+  } else if (VA1 != nullptr) {
+    assert(CA2 != nullptr);
+    CS.addConstraint(CS.createEq(VA1, CA2));
+  } else if (VA2 != nullptr) {
+    assert(CA1 != nullptr);
+    CS.addConstraint(CS.createEq(VA2, CA1));
   }
 }
 
@@ -99,16 +123,15 @@ void constrainEq(ConstraintVariable *LHS,
         PCLHS->addArgumentConstraint(PCRHS);
         PCRHS->addArgumentConstraint(PCLHS);
         // Element-wise constrain PCLHS and PCRHS to be equal
-        CVars CLHS = PCLHS->getCvars();
-        CVars CRHS = PCRHS->getCvars();
+        CAtoms CLHS = PCLHS->getCvars();
+        CAtoms CRHS = PCRHS->getCvars();
         // We equate the constraints in a left-justified manner.
         // This to handle cases like: e.g., p = &q;
         // Here, we need to equate the inside constraint variables
-        CVars::reverse_iterator I = CLHS.rbegin();
-        CVars::reverse_iterator J = CRHS.rbegin();
+        CAtoms::reverse_iterator I = CLHS.rbegin();
+        CAtoms::reverse_iterator J = CRHS.rbegin();
         while (I != CLHS.rend() && J != CRHS.rend()) {
-          CS.addConstraint(
-              CS.createEq(CS.getOrCreateVar(*I), CS.getOrCreateVar(*J)));
+          createAtomEq(*I, *J, CS);
           ++I;
           ++J;
         }
@@ -188,13 +211,13 @@ public:
           assert(Var.size() == 1 && "Invalid number of ConstraintVariables.");
           auto *PvConstr = dyn_cast<PVConstraint>(*(Var.begin()));
           assert(PvConstr != nullptr && "Constraint variable cannot be nullptr");
-          const CVars &PtrCVars = PvConstr->getCvars();
-          for (ConstraintKey ConsKey : PtrCVars) {
+          const CAtoms &PtrCVars = PvConstr->getCvars();
+          for (Atom *ConsKey : PtrCVars) {
             if (const clang::ArrayType *AT =
                     dyn_cast<clang::ArrayType>(TypePtr)) {
-              CS.addConstraint(
-                CS.createEq(
-                  CS.getOrCreateVar(ConsKey), CS.getArr()));
+              if (VarAtom *VA = dyn_cast<VarAtom>(ConsKey)) {
+                CS.addConstraint(CS.createEq(VA, CS.getArr()));
+              }
               TypePtr = AT->getElementType().getTypePtr();
               continue;
             }
@@ -328,8 +351,9 @@ public:
           if (PVConstraint *PVC = dyn_cast<PVConstraint>(U))
             for (const auto &J : PVC->getCvars()) {
               std::string Rsn = "Casting to pointer from constant.";
-              CS.addConstraint(
-                CS.createEq(CS.getOrCreateVar(J), CS.getWild(), Rsn, &PL));
+              if (VarAtom *VA = dyn_cast<VarAtom>(J)) {
+                CS.addConstraint(CS.createEq(VA, CS.getWild(), Rsn, &PL));
+              }
             }
         }
       } else if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(RHS)) {
@@ -414,18 +438,22 @@ public:
             RHSConstraints = Info.getVariable(SE, Context, true);
             for (const auto &A : RHSConstraints) {
               if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
-                for (const auto &B : PVC->getCvars())
-                  CS.addConstraint(
-                      CS.createEq(CS.getOrCreateVar(B), CS.getWild(),
-                                  CToDiffType, &PL));
+                for (const auto &B : PVC->getCvars()) {
+                  if (VarAtom *VA = dyn_cast<VarAtom>(B)) {
+                    CS.addConstraint(CS.createEq(VA, CS.getWild(),
+                                    CToDiffType, &PL));
+                  }
+                }
             }
 
             for (const auto &A : V) {
               if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
-                for (const auto &B : PVC->getCvars())
-                  CS.addConstraint(
-                      CS.createEq(CS.getOrCreateVar(B), CS.getWild(),
-                                  CFDifType, &PL));
+                for (const auto &B : PVC->getCvars()) {
+                  if (VarAtom *VA = dyn_cast<VarAtom>(B)) {
+                    CS.addConstraint(CS.createEq(VA, CS.getWild(),
+                                                 CFDifType, &PL));
+                  }
+                }
             }
           } else {
             // The cast is safe and it is not a special function.
@@ -746,9 +774,10 @@ private:
       for (auto ConsVar :Vars) {
         if (PVConstraint *PV = dyn_cast<PVConstraint>(ConsVar))
           if (!PV->getCvars().empty()) {
-            CS.addConstraint(
-                CS.createEq(CS.getOrCreateVar(*PV->getCvars().begin()),
-                            getCheckedPointerConstraint(PtrKind)));
+            if (VarAtom *VA = dyn_cast<VarAtom>(*PV->getCvars().begin())) {
+              CS.addConstraint(
+                  CS.createEq(VA, getCheckedPointerConstraint(PtrKind)));
+            }
           }
       }
     }
@@ -765,11 +794,11 @@ private:
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Vars)
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-        if (PVC->getCvars().size() > 0)
-          CS.addConstraint(
-            CS.createNot(
-              CS.createEq(
-                CS.getOrCreateVar(*(PVC->getCvars().begin())), CAtom)));
+        if (!PVC->getCvars().empty()) {
+          if (VarAtom *VA = dyn_cast<VarAtom>(*PVC->getCvars().begin())) {
+            CS.addConstraint(CS.createNot(CS.createEq(VA, CAtom)));
+          }
+        }
       }
   }
 
@@ -780,10 +809,11 @@ private:
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Vars)
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-        if (PVC->getCvars().size() > 0)
-          CS.addConstraint(
-            CS.createEq(
-              CS.getOrCreateVar(*(PVC->getCvars().begin())), CAtom));
+        if (!PVC->getCvars().empty()) {
+          if (VarAtom *VA = dyn_cast<VarAtom>(*PVC->getCvars().begin())) {
+            CS.addConstraint(CS.createEq(VA, CAtom));
+          }
+        }
       }
   }
 

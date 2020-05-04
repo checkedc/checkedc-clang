@@ -501,12 +501,7 @@ bool TypeRewritingVisitor::anyTop(std::set<ConstraintVariable *> C) {
   Constraints::EnvironmentMap &env = CS.getVariables();
   for (ConstraintVariable *c : C) {
     if (PointerVariableConstraint *pvc = dyn_cast<PointerVariableConstraint>(c)) {
-      for (uint32_t v : pvc->getCvars()) {
-        ConstAtom *CK = env[CS.getVar(v)];
-        if (CK->getKind() == Atom::A_Wild) {
-          TopFound = true;
-        }
-      }
+      TopFound = pvc->hasWild(env);
     }
   }
   return TopFound;

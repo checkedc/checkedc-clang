@@ -441,12 +441,14 @@ bool ProgramInfo::link() {
               // Remove the first constraint var and make all the internal
               // constraint vars WILD. For more details, refer Section 5.3 of
               // http://www.cs.umd.edu/~mwh/papers/checkedc-incr.pdf
-              CVars C = PVC->getCvars();
+              CAtoms C = PVC->getCvars();
               if (!C.empty())
                 C.erase(C.begin());
-              for (auto cVar : C)
-                CS.addConstraint(CS.createEq(CS.getVar(cVar),
-                                             CS.getWild(), rsn));
+              for (auto cVar : C) {
+                if (VarAtom *VA = dyn_cast<VarAtom>(cVar)) {
+                  CS.addConstraint(CS.createEq(VA, CS.getWild(), rsn));
+                }
+              }
             } else {
               PVar->constrainTo(CS, CS.getWild(), rsn,true);
             }
@@ -823,7 +825,7 @@ ProgramInfo::getVariableHelper( Expr                            *E,
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
         // Subtract one from this constraint. If that generates an empty 
         // constraint, then, don't add it 
-        std::set<uint32_t> C = PVC->getCvars();
+        CAtoms C = PVC->getCvars();
         if (C.size() > 0) {
           C.erase(C.begin());
           if (C.size() > 0) {
@@ -850,7 +852,7 @@ ProgramInfo::getVariableHelper( Expr                            *E,
         if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
           // Subtract one from this constraint. If that generates an empty 
           // constraint, then, don't add it 
-          std::set<uint32_t> C = PVC->getCvars();
+          CAtoms C = PVC->getCvars();
           if (C.size() > 0) {
             C.erase(C.begin());
             if (C.size() > 0) {
@@ -957,19 +959,15 @@ ProgramInfo::getVariableHelper( Expr                            *E,
     // If this is a string literal. i.e., "foo".
     // We create a new constraint variable and constraint it to an Nt_array.
     std::set<ConstraintVariable *> T;
-    // Create a new constraint var number.
-    CVars V;
-    V.insert(freeKey);
-    CS.getOrCreateVar(freeKey);
-    freeKey++;
+    // Create a new constraint var number and make it NTArr.
+    CAtoms V;
+    V.push_back(CS.getNTArr());
     ConstraintVariable *newC = new PointerVariableConstraint(V,
                                                              "const char*",
                                                              exr->getBytes(),
                                                              nullptr,
                                                              false,
                                                              false, "");
-    // Constraint the newly created variable to NTArray.
-    newC->constrainTo(CS, CS.getNTArr());
     T.insert(newC);
     return T;
 
@@ -1236,8 +1234,8 @@ bool ProgramInfo::applySubtypingRelation(ConstraintVariable *SrcCVar,
 
   if (!PvSrc->getCvars().empty() && !PvDst->getCvars().empty()) {
 
-    CVars SrcCVars(PvSrc->getCvars());
-    CVars DstCVars(PvDst->getCvars());
+    CAtoms SrcCVars(PvSrc->getCvars());
+    CAtoms DstCVars(PvDst->getCvars());
 
     // Cvars adjustment!
     // if the number of CVars is different, then adjust the number
@@ -1250,8 +1248,9 @@ bool ProgramInfo::applySubtypingRelation(ConstraintVariable *SrcCVar,
         SmallCvars = SrcCVars;
       }
 
-      while (BigCvars.size() > SmallCvars.size())
-        BigCvars.erase(*(BigCvars.begin()));
+      while (BigCvars.size() > SmallCvars.size()) {
+        BigCvars.erase(BigCvars.begin());
+      }
     }
 
     // Function subtyping only applies for the top level pointer.
@@ -1259,8 +1258,9 @@ bool ProgramInfo::applySubtypingRelation(ConstraintVariable *SrcCVar,
     ConstAtom *OutputMostDstVal = CS.getAssignment(*DstCVars.begin());
 
     if (*OutputMostDstVal < *OuterMostSrcVal) {
-      CS.addConstraint(CS.createEq(CS.getVar(*DstCVars.begin()),
-                                   OuterMostSrcVal));
+      if (VarAtom *VA = dyn_cast<VarAtom>(*DstCVars.begin())) {
+        CS.addConstraint(CS.createEq(VA, OuterMostSrcVal));
+      }
       Ret = true;
     }
 
@@ -1271,8 +1271,8 @@ bool ProgramInfo::applySubtypingRelation(ConstraintVariable *SrcCVar,
     DstCVars.erase(DstCVars.begin());
 
     if (SrcCVars.size() == DstCVars.size()) {
-      CVars::iterator SB = SrcCVars.begin();
-      CVars::iterator DB = DstCVars.begin();
+      CAtoms::iterator SB = SrcCVars.begin();
+      CAtoms::iterator DB = DstCVars.begin();
 
       while (SB != SrcCVars.end()) {
         ConstAtom *SVal = CS.getAssignment(*SB);
@@ -1282,8 +1282,10 @@ bool ProgramInfo::applySubtypingRelation(ConstraintVariable *SrcCVar,
           // Get the highest type.
           ConstAtom *FinalVal = *SVal < *DVal ? DVal : SVal;
           // Get the lowest constraint variable to change.
-          VarAtom *Change = *SVal < *DVal ? CS.getVar(*SB) : CS.getVar(*DB);
-          CS.addConstraint(CS.createEq(Change, FinalVal));
+          Atom *Change = *SVal < *DVal ? *SB : *DB;
+          if (VarAtom *VA = dyn_cast<VarAtom>(Change)) {
+            CS.addConstraint(CS.createEq(VA, FinalVal));
+          }
           Ret = true;
         }
         SB++;
@@ -1344,13 +1346,10 @@ bool ProgramInfo::handleFunctionSubtyping() {
           if (CS.isWild(HeadDefCVar)) {
             // Make everything WILD.
             std::string Rsn = "Function Returning WILD within the body.";
-            for (const auto &B : DefRetPvCons->getCvars())
-              CS.addConstraint(CS.createEq(CS.getOrCreateVar(B),
-                                           CS.getWild(), Rsn));
 
-            for (const auto &B : DeclRetPvCons->getCvars())
-              CS.addConstraint(CS.createEq(CS.getOrCreateVar(B),
-                                           CS.getWild(), Rsn));
+            DefRetPvCons->constrainTo(CS, CS.getWild(), Rsn);
+
+            DeclRetPvCons->constrainTo(CS, CS.getWild(), Rsn);
 
             Ret = true;
           } else if (CS.isWild(HeadDeclCVar)) {
@@ -1422,7 +1421,7 @@ bool ProgramInfo::handleFunctionSubtyping() {
                       PVConstraint *ArgPvCons =
                           dyn_cast<PVConstraint>(ArgOrigCons);
                       auto HeadArgCVar = *(ArgPvCons->getCvars().begin());
-                      CVars DefPcVars(DefParam->getCvars());
+                      CAtoms DefPcVars(DefParam->getCvars());
 
                       // Is the top constraint variable WILD?
                       if (!CS.isWild(HeadArgCVar)) {
@@ -1546,16 +1545,20 @@ bool ProgramInfo::computePointerDisjointSet() {
     for (auto *CV : S) {
       if (PVConstraint *PV = dyn_cast<PVConstraint>(CV)) {
         for (auto ck : PV->getCvars()) {
-          ConstraintDisjointSet.PtrSourceMap[ck] =
-              (PersistentSourceLoc*)(&(I.first));
+          if (VarAtom *VA = dyn_cast<VarAtom>(ck)) {
+            ConstraintDisjointSet.PtrSourceMap[VA->getLoc()] =
+                (PersistentSourceLoc*)(&(I.first));
+          }
         }
       }
       if (FVConstraint *FV = dyn_cast<FVConstraint>(CV)) {
         for (auto PV : FV->getReturnVars()) {
           if (PVConstraint *RPV = dyn_cast<PVConstraint>(PV)) {
             for (auto ck : RPV->getCvars()) {
-              ConstraintDisjointSet.PtrSourceMap[ck] =
-                  (PersistentSourceLoc*)(&(I.first));
+              if (VarAtom *VA = dyn_cast<VarAtom>(ck)) {
+                ConstraintDisjointSet.PtrSourceMap[VA->getLoc()] =
+                    (PersistentSourceLoc*)(&(I.first));
+              }
             }
           }
         }

@@ -553,10 +553,23 @@ ConstAtom *Constraints::getAssignment(uint32_t V) {
   return environment[CurrVar];
 }
 
+ConstAtom *Constraints::getAssignment(Atom *A) {
+  if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
+    return environment[VA];
+  }
+  assert(dyn_cast<ConstAtom>(A) != nullptr &&
+      "This is not a VarAtom or ConstAtom");
+  return dyn_cast<ConstAtom>(A);
+}
+
 bool Constraints::isWild(uint32_t V) {
   auto CurrVar = getVar(V);
   assert(CurrVar != nullptr && "Queried uncreated constraint variable.");
   return dyn_cast<WildAtom>(environment[CurrVar]) != nullptr;
+}
+
+bool Constraints::isWild(Atom *A) {
+  return dyn_cast<WildAtom>(getAssignment(A)) != nullptr;
 }
 
 Eq *Constraints::createEq(Atom *Lhs, Atom *Rhs) {

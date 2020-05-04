@@ -77,14 +77,13 @@ public:
                                    std::string OpStr);
 
 private:
-  // Get the constraint key of the top level pointer of provided declaration.
-  ConstraintKey getTopLevelConstraintVar(Decl *D);
 
   // Check if the provided bounds kind is valid for a field.
   bool isValidBoundKindForField(BoundsKind BoundsKind);
 
-  // Map that contains the bounds information.
-  std::map<ConstraintKey, std::set<BOUNDSINFOTYPE>> BoundsInfo;
+  // Map that contains the bounds information of pointers w.r.t
+  // their source loc.
+  std::map<PersistentSourceLoc, std::set<BOUNDSINFOTYPE>> BoundsInfo;
   ProgramInfo &Info;
 };
 

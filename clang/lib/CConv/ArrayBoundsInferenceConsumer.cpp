@@ -501,20 +501,7 @@ void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
     const Type *Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     const FunctionProtoType *FT = Ty->getAs<FunctionProtoType>();
     if (FT != nullptr) {
-      if (FT->getNumParams() == 1) {
-        ParmVarDecl *PVD = FD->getParamDecl(0);
-        auto &CS = I.getConstraints();
-        std::set<ConstraintVariable *> defsCVar = I.getVariable(PVD, C, true);
-        for (auto constraintVar : defsCVar)
-          if (PVConstraint *PV = dyn_cast<PVConstraint>(constraintVar)) {
-            auto &Cvars = PV->getCvars();
-            if (Cvars.size() > 0) {
-              // We should constraint only the outer most constraint variable.
-              auto CVar = *(Cvars.begin());
-              CS.getOrCreateVar(CVar)->setNtArrayIfArray();
-            }
-          }
-      } else if (FD->getNameInfo().getAsString() == std::string("main") &&
+      if (FD->getNameInfo().getAsString() == std::string("main") &&
                  FT->getNumParams() == 2) {
         // If the function is `main` then we know second argument is _Array_ptr.
         ParmVarDecl *Argv = FD->getParamDecl(1);
@@ -526,11 +513,7 @@ void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
             auto &Cvars = PV->getCvars();
             llvm::errs() << Cvars.size() << "\n";
             if (Cvars.size() == 2) {
-              std::vector<ConstraintKey> NCvars(Cvars.begin(), Cvars.end());
-              auto OuterCVar = CS.getOrCreateVar(NCvars[0]);
-              auto InnerCVar = CS.getOrCreateVar(NCvars[1]);
-              OuterCVar->setShouldBeArr();
-              InnerCVar->setShouldBeNtArr();
+              // TODO: Make outer variable Array and inner ntarray
             }
           }
         }

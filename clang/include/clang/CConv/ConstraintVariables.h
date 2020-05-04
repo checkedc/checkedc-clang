@@ -38,6 +38,8 @@ class ProgramInfo;
 // Holds integers representing constraint variables, with semantics as
 // defined in the text above
 typedef std::set<ConstraintKey> CVars;
+// Holds Atoms, one for each of the pointer (*) declared in the program.
+typedef std::vector<Atom*> CAtoms;
 
 // Base class for ConstraintVariables. A ConstraintVariable can either be a
 // PointerVariableConstraint or a FunctionVariableConstraint. The difference
@@ -153,32 +155,32 @@ public:
       StaticQualification
   };
 private:
-  CVars vars;
+  CAtoms vars;
   FunctionVariableConstraint *FV;
-  std::map<ConstraintKey, Qualification> QualMap;
+  std::map<uint32_t, Qualification> QualMap;
   enum OriginalArrType {
       O_Pointer,
       O_SizedArray,
       O_UnSizedArray
   };
-  // Map from constraint variable to original type and size.
+  // Map from pointer idx to original type and size.
   // If the original variable U was:
   //  * A pointer, then U -> (a,b) , a = O_Pointer, b has no meaning.
   //  * A sized array, then U -> (a,b) , a = O_SizedArray, b is static size.
   //  * An unsized array, then U -(a,b) , a = O_UnSizedArray, b has no meaning.
-  std::map<ConstraintKey,std::pair<OriginalArrType,uint64_t>> arrSizes;
+  std::map<uint32_t ,std::pair<OriginalArrType,uint64_t>> arrSizes;
   // If for all U in arrSizes, any U -> (a,b) where a = O_SizedArray or
   // O_UnSizedArray, arrPresent is true.
   bool ArrPresent;
   // Is there an itype associated with this constraint? If there is, how was it
   // originally stored in the program?
   std::string ItypeStr;
-  // Get the qualifier string (e.g., const, etc) for the provided constraint
-  // var (targetCvar) into the provided string stream (ss).
-  void getQualString(ConstraintKey TargetCVar, std::ostringstream &Ss);
+  // Get the qualifier string (e.g., const, etc) for the provided
+  // pointer type into the provided string stream (ss).
+  void getQualString(uint32_t TypeIdx, std::ostringstream &Ss);
   // This function tries to emit an array size for the variable.
   // and returns true if the variable is an array and a size is emitted.
-  bool emitArraySize(std::ostringstream &Pss, ConstraintKey V, bool &EmitName,
+  bool emitArraySize(std::ostringstream &Pss, uint32_t TypeIdx, bool &EmitName,
                      bool &EmittedCheckedAnnotation, bool Nt);
   // Flag to indicate that this constraint is a part of function prototype
   // e.g., Parameters or Return.
@@ -187,9 +189,12 @@ private:
   // this set contains the constraint variable of
   // the values used as arguments.
   std::set<ConstraintVariable *> argumentConstraints;
+  // Get solution for the atom of a pointer.
+  const ConstAtom* getPtrSolution(const Atom *A,
+                                  Constraints::EnvironmentMap &E) const;
 public:
   // Constructor for when we know a CVars and a type string.
-  PointerVariableConstraint(CVars V, std::string T, std::string Name,
+  PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
                             FunctionVariableConstraint *F, bool isArr,
                             bool isItype, std::string is) :
           ConstraintVariable(PointerVariable, T, Name)
@@ -217,7 +222,7 @@ public:
                             Constraints &CS,
                             const clang::ASTContext &C, bool PartOfFunc = false);
 
-  const CVars &getCvars() const { return vars; }
+  const CAtoms &getCvars() const { return vars; }
 
   static bool classof(const ConstraintVariable *S) {
     return S->getKind() == PointerVariable;

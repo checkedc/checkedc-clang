@@ -13,11 +13,11 @@
 // Map that stored the newly detected itype parameters and
 // returns that are detected in this iteration.
 static Constraints::EnvironmentMap IterationItypeMap;
-// Map that contains the constraint variables of parameters
+// Map that contains the constraint atoms of parameters
 // and its return for all functions (including their declarations
 // and definitions). This map is used to determine new detection of itypes.
 static std::map<std::string,
-                std::map<VarAtom *, ConstAtom *>>
+                std::map<Atom*, ConstAtom*>>
     ParamsReturnSavedValues;
 
 // This method saves the constraint vars of parameters and return of all
@@ -37,10 +37,8 @@ updateFunctionConstraintVars(std::string FuncKey,
           assert(dyn_cast<PVConstraint>(PVar) && "Expected a pointer "
                                                      "variable constraint.");
           PVConstraint *PvConst = dyn_cast<PVConstraint>(PVar);
-          for (auto ConsVar : PvConst->getCvars()) {
-            VarAtom *CurrVarAtom = CS.getVar(ConsVar);
-            // Default value is null.
-            ParamsReturnSavedValues[FuncKey][CurrVarAtom] = nullptr;
+          for (auto A : PvConst->getCvars()) {
+            ParamsReturnSavedValues[FuncKey][A] = nullptr;
           }
         }
       }
@@ -49,10 +47,8 @@ updateFunctionConstraintVars(std::string FuncKey,
         assert(dyn_cast<PVConstraint>(ReturnVar) && "Expected a pointer "
                                                     "variable constraint.");
         PVConstraint *RetVarCons = dyn_cast<PVConstraint>(ReturnVar);
-        for (auto ConsVar : RetVarCons->getCvars()) {
-          VarAtom *CurrVarAtom = CS.getVar(ConsVar);
-          // The default value is null.
-          ParamsReturnSavedValues[FuncKey][CurrVarAtom] = nullptr;
+        for (auto A : RetVarCons->getCvars()) {
+          ParamsReturnSavedValues[FuncKey][A] = nullptr;
         }
       }
     }
@@ -70,9 +66,11 @@ bool identifyModifiedFunctions(Constraints &CS,
     for (auto &CurrVar : FuncVals.second) {
       // Check if the value of the constraint variable changed?
       // then we consider the corresponding function as modified.
-      if (EnvMap[CurrVar.first] != CurrVar.second) {
-        CurrVar.second = EnvMap[CurrVar.first];
-        ModFuncs.insert(DefKey);
+      if (VarAtom *VA = dyn_cast<VarAtom>(CurrVar.first)) {
+        if (EnvMap[VA] != CurrVar.second) {
+          CurrVar.second = EnvMap[VA];
+          ModFuncs.insert(DefKey);
+        }
       }
     }
   }
@@ -156,12 +154,13 @@ static bool updateDeclWithDefnType(ConstraintVariable *Pdecl,
   assert(ItypeAtom != nullptr && "Unable to find assignment for definition "
                                  "constraint variable.");
 
-  VarAtom *CK = CS.getVar(DeclTopCVar);
-  if (ItypeMap.find(CK) == ItypeMap.end() || ItypeMap[CK] != ItypeAtom) {
-    // Update the type of the declaration constraint variable.
-    ItypeMap[CK] = ItypeAtom;
-    IterationItypeMap[CK] = ItypeAtom;
-    Changed = true;
+  if (VarAtom *VA = dyn_cast<VarAtom>(DeclTopCVar)) {
+    if (ItypeMap.find(VA) == ItypeMap.end() || ItypeMap[VA] != ItypeAtom) {
+      // Update the type of the declaration constraint variable.
+      ItypeMap[VA] = ItypeAtom;
+      IterationItypeMap[VA] = ItypeAtom;
+      Changed = true;
+    }
   }
 
   return Changed;

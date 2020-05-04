@@ -680,9 +680,11 @@ public:
   NTArrAtom *getNTArr() const;
   WildAtom *getWild() const;
   ConstAtom *getAssignment(uint32_t V);
+  ConstAtom *getAssignment(Atom *A);
 
   // Check if the provided constraint variable is WILD.
   bool isWild(uint32_t V);
+  bool isWild(Atom *A);
 
   // Reset all constraint variables to Ptrs.
   void resetConstraints();
