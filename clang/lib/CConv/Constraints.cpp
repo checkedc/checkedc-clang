@@ -141,13 +141,6 @@ bool Constraints::addConstraint(Constraint *C) {
       if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
         vLHS->Constraints.insert(C);
     }
-    else if (Not *N = dyn_cast<Not>(C)) {
-      if (Eq *E = dyn_cast<Eq>(N->getBody())) {
-        if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
-          vLHS->Constraints.insert(C);
-
-      }
-    }
     else if (Implies *I = dyn_cast<Implies>(C)) {
       if (Eq *E = dyn_cast<Eq>(I->getPremise())) {
         if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
@@ -184,16 +177,10 @@ bool Constraints::removeReasonBasedConstraint(Constraint *C) {
 // Checks to see if the constraint is of a form that we expect.
 // The expected forms are the following:
 // EQ : (q_i = A) | (q_i = q_k) for A constant or
-// NOT : NOT(q_i = A) for A constant or
 // IMPLIES : (q_i = A) => (q_k = B) for A,B constant
 bool Constraints::check(Constraint *C) {
 
-  if (Not *N = dyn_cast<Not>(C)) {
-    if (Eq *E = dyn_cast<Eq>(N->getBody()))
-      if (!isa<VarAtom>(E->getLHS()) || isa<VarAtom>(E->getRHS()))
-        return false;
-  }
-  else if (Implies *I = dyn_cast<Implies>(C)) {
+  if (Implies *I = dyn_cast<Implies>(C)) {
     if (Eq *P = dyn_cast<Eq>(I->getPremise())) {
       if (!isa<VarAtom>(P->getLHS()) || isa<VarAtom>(P->getRHS()))
         return false;
@@ -201,7 +188,6 @@ bool Constraints::check(Constraint *C) {
     else {
       return false;
     }
-
     if (Eq *CO = dyn_cast<Eq>(I->getConclusion())) {
       if (!isa<VarAtom>(CO->getLHS()) || isa<VarAtom>(CO->getRHS()))
         return false;
@@ -211,10 +197,11 @@ bool Constraints::check(Constraint *C) {
     }
   }
   else if (Eq *E = dyn_cast<Eq>(C)) {
-
     if (!isa<VarAtom>(E->getLHS()))
       return false;
   }
+  else
+    return false; // Not Eq or Implies; what is it?!
 
   return true;
 }
@@ -292,26 +279,6 @@ Constraints::propImp(Implies *Imp, T *A, ConstraintSet &R, ConstAtom *V) {
   return ChangedEnv;
 }
 
-// This method checks if the template
-// const atom can be assigned to the provided (src)
-// variable.
-template <typename T>
-bool Constraints::canAssignConst(VarAtom *Src) {
-
-  for (const auto &C : Src->Constraints) {
-    // Check if there is a non-equality constraint
-    // of the provided type.
-    if (Not *N = dyn_cast<Not>(C)) {
-      if (Eq *E = dyn_cast<Eq>(N->getBody())) {
-        if (dyn_cast<T>(E->getRHS())) {
-          return false;
-        }
-      }
-    }
-  }
-  return true;
-}
-
 // Takes one iteration to solve the system of constraints. Each step 
 // involves the propagation of quantifiers and the potential firing of
 // implications. Accepts a single parameter, _env_, that is a map of 
@@ -355,25 +322,7 @@ bool Constraints::step_solve(EnvironmentMap &Env) {
       // Re-read the assignment as the propagating might have
       // changed this and the constraints will get removed.
       ConstAtom *Val = VI->second;
-      // Propagate the Neg constraint.
-      if (Not *N = dyn_cast<Not>(C)) {
-        if (Eq *E = dyn_cast<Eq>(N->getBody())) {
-          // If this is Not ( q == Ptr )
-          if (isa<PtrAtom>(E->getRHS())) {
-            if (!AllTypes && *Val < *getWild()) {
-              // This pointer cannot be Ptr.
-              // And allTypes is disabled, only choice is to make it WILD.
-              VI->second = getWild();
-              ChangedEnv = true;
-              // Check if we can make it an Arr?
-            } else if (*Val < *getArr() && canAssignConst<ArrAtom>(Var)) {
-              // Yes? make it Arr.
-              VI->second = getArr();
-              ChangedEnv = true;
-            }
-          }
-        }
-      } else if (Eq *E = dyn_cast<Eq>(C)) {
+      if (Eq *E = dyn_cast<Eq>(C)) {
         ChangedEnv |= propEq<NTArrAtom>(Env, E, getNTArr(),
                                                 RemCons, VI);
         ChangedEnv |= propEq<ArrAtom>(Env, E, getArr(),
@@ -589,10 +538,6 @@ Eq *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
       PL = nullptr;
   }
   return new Eq(Lhs, Rhs, Rsn, PL);
-}
-
-Not *Constraints::createNot(Constraint *Body) {
-  return new Not(Body);
 }
 
 Implies *Constraints::createImplies(Constraint *Premise,

@@ -789,6 +789,7 @@ private:
 
   // Constraint all the provided vars to be
   // not equal to the provided type i.e., ~(V = type).
+  /*
   void constrainVarsNotEq(std::set<ConstraintVariable *> &Vars,
                           ConstAtom *CAtom) {
     Constraints &CS = Info.getConstraints();
@@ -801,6 +802,20 @@ private:
         }
       }
   }
+*/
+
+   void constrainVarsNotEqPtr(std::set<ConstraintVariable *> &Vars) {
+        Constraints &CS = Info.getConstraints();
+        for (const auto &I : Vars)
+            if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
+                if (!PVC->getCvars().empty()) {
+                    if (VarAtom *VA = dyn_cast<VarAtom>(*PVC->getCvars().begin())) {
+                        CS.addConstraint(CS.createEq(VA, CS.getArr()));
+                        // Saying that something is not PTR is the same as saying it's at least ARR
+                    }
+                }
+            }
+    }
 
   // Constraint all the provided vars to be
   // equal to the provided type i.e., (V = type).
@@ -817,7 +832,7 @@ private:
       }
   }
 
-  // Apply ~(V = Ptr) to the
+  // Apply V = Arr, i.e., one level above Ptr in the lattice, to the
   // first 'level' constraint variable associated with
   // 'E' for in-body variables.
   void constrainInBodyExprNotPtr(Expr *E) {
@@ -825,8 +840,7 @@ private:
     // with in the body context.
     std::set<ConstraintVariable *> Var =
       Info.getVariable(E, Context, true);
-    Constraints &CS = Info.getConstraints();
-    constrainVarsNotEq(Var, CS.getPtr());
+    constrainVarsNotEqPtr(Var);
   }
 
   // Constraint helpers.

@@ -8,7 +8,6 @@
 //
 // This implements a simple constraint solver for expressions of the form:
 //  a = b
-//  not a
 //  a implies b
 //
 // The Checked C converter tool performs type inference to identify locations
@@ -369,13 +368,11 @@ public:
 
 // Represents constraints of the form:
 //  - a = b
-//  - not a
 //  - a => b
 class Constraint {
 public:
   enum ConstraintKind {
     C_Eq,
-    C_Not,
     C_Imp
   };
 private:
@@ -477,7 +474,7 @@ public:
       else
         return *lhs < *E->lhs;
     }
-    else 
+    else
       return C_Eq < K;
   }
 
@@ -488,67 +485,6 @@ public:
 private:
   Atom *lhs;
   Atom *rhs;
-};
-
-// not a
-class Not : public Constraint {
-public:
-  Not(Constraint *b)
-    : Constraint(C_Not), body(b) {}
-
-  static bool classof(const Constraint *C) {
-    return C->getKind() == C_Not;
-  }
-
-  void print(llvm::raw_ostream &O) const {
-    O << "~(";
-    body->print(O);
-    O << ")";
-  }
-
-  void dump(void) const {
-    print(llvm::errs());
-  }
-
-  void dump_json(llvm::raw_ostream &O) const {
-    O << "{\"Not\":";
-    body->dump_json(O);
-    O << "}";
-  }
-
-  bool operator==(const Constraint &Other) const {
-    if (const Not *N = llvm::dyn_cast<Not>(&Other))
-      return *body == *N->body;
-    else
-      return false;
-  }
-
-  bool operator!=(const Constraint &Other) const {
-    return !(*this == Other);
-  }
-
-  bool operator<(const Constraint &Other) const {
-    ConstraintKind K = Other.getKind();
-    if (K == C_Not) {
-      const Not *N = llvm::dyn_cast<Not>(&Other);
-      assert(N != nullptr);
-
-      return *body < *N->body;
-    }
-    else 
-      return C_Not < K;
-  }
-
-  Constraint *getBody() const {
-    return body;
-  }
-
-  bool containsConstraint(VarAtom *ToFind) {
-    return body->containsConstraint(ToFind);
-  }
-
-private:
-  Constraint *body;
 };
 
 // a => b
@@ -670,7 +606,6 @@ public:
   Eq *createEq(Atom *Lhs, Atom *Rhs);
   Eq *createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn);
   Eq *createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL);
-  Not *createNot(Constraint *Body);
   Implies *createImplies(Constraint *Premise, Constraint *Conclusion);
 
   VarAtom *getOrCreateVar(uint32_t V);
