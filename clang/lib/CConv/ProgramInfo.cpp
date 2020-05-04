@@ -192,12 +192,7 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
 
       varC += FoundVars.size();
       for (const auto &N : FoundVars) {
-        VarAtom *V = CS.getVar(N);
-        assert(V != nullptr);
-        auto K = Env.find(V);
-        assert(K != Env.end());
-
-        ConstAtom *CA = K->second;
+        ConstAtom *CA = CS.getAssignment(N);
         switch (CA->getKind()) {
           case Atom::A_Arr:
             aC += 1;
