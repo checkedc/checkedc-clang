@@ -90,11 +90,7 @@ public:
 class VarAtom : public Atom {
   friend class Constraints;
 public:
-  VarAtom(uint32_t D) : Atom(A_Var), Loc(D) {
-    IfArrThenNtArray = false;
-    ShouldBeArr = false;
-    ShouldBeNtArr = false;
-  }
+  VarAtom(uint32_t D) : Atom(A_Var), Loc(D) {}
 
   static bool classof(const Atom *S) {
     return S->getKind() == A_Var;
@@ -185,29 +181,8 @@ public:
     ImpossibleVals.insert(ImpossibleConst->getKind());
   }
 
-  void setNtArrayIfArray() { IfArrThenNtArray = true; }
-
-  void setShouldBeArr() { ShouldBeArr = true; }
-
-
-  void setShouldBeNtArr() { ShouldBeNtArr = true; }
-
-  bool getShouldBeArr() { return ShouldBeArr; }
-
-
-  bool getShouldBeNtArr() { return ShouldBeNtArr; }
-
-  bool couldBeNtArr(ConstAtom *cVal) {
-    return IfArrThenNtArray && cVal->getKind() == A_Arr;
-  }
-
 private:
   std::set<ConstAtom::AtomKind> ImpossibleVals;
-  // Flag that indicates that if this atom is an array then
-  // should be tried to promote to NtArr.
-  bool IfArrThenNtArray;
-  bool ShouldBeArr;
-  bool ShouldBeNtArr;
   uint32_t  Loc;
   // These are the constraints erased during constraint solving.
   std::set<Constraint *, PComp<Constraint *>> ErasedConstraints;

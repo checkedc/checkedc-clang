@@ -378,19 +378,6 @@ bool Constraints::step_solve(void) {
       }
     }
 
-    // NTArray adjustment.
-    if (Var->couldBeNtArr(VI->second)) {
-      ChangedEnv |= addConstraint(createGeq(Var, getNTArr()));
-    }
-
-    if (Var->getShouldBeArr()) {
-      ChangedEnv |= addConstraint(createGeq(Var, getArr()));
-    }
-
-    if (Var->getShouldBeNtArr()) {
-      ChangedEnv |= addConstraint(createGeq(Var, getNTArr()));
-    }
-
     for (const auto &RC : RemCons)
       Var->eraseConstraint(RC);
 
@@ -420,25 +407,7 @@ int Constraints::solve_alt(void) {
     bool ChangedEnv = true;
     bool NotFixedPoint = true;
     int n = 0;
-
-    // NT/ARR adjustments first [Should go away -- generate these constraints originally]
-    EnvironmentMap::iterator VI = environment.begin();
-    while (VI != environment.end()) {
-        VarAtom *Var = VI->first;
-
-        if (Var->couldBeNtArr(VI->second)) {
-            addConstraint(createGeq(Var, getNTArr()));
-        }
-
-        if (Var->getShouldBeArr()) {
-            addConstraint(createGeq(Var, getArr()));
-        }
-
-        if (Var->getShouldBeNtArr()) {
-            addConstraint(createGeq(Var, getNTArr()));
-        }
-        ++VI;
-    }
+    EnvironmentMap::iterator VI;
 
     // Proper solving
     while (ChangedEnv) {
