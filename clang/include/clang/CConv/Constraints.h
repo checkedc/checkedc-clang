@@ -628,12 +628,8 @@ public:
   // The environment maps from Vars to Consts (one of Ptr, Arr, Wild).
   typedef std::map<VarAtom *, ConstAtom *, PComp<VarAtom *>> EnvironmentMap;
 
-  typedef Bimap<std::string, std::string> StringToStringBiMap;
-
   // Map from a unique key of a function to its constraint variables.
   typedef std::map<std::string, std::set<ConstraintVariable *>> FuncKeyToConsMap;
-
-  typedef std::map<std::string, std::set<ConstraintVariable *>> NameToConsMap;
 
   bool removeConstraint(Constraint *C);
   bool addConstraint(Constraint *c);
