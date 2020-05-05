@@ -125,7 +125,7 @@ void basic_realloc(int count) {
 
     free(ptr);
 }
-//CHECK: int *ptr = (int*) calloc(n, sizeof(int));
+//CHECK: int *ptr = (int*) malloc(n1 * sizeof(int));
 
 struct student
 {
@@ -182,7 +182,7 @@ struct student * new_student() {
 }
 //CHECK: _Ptr<struct student> new_student(void) {
 //CHECK-NEXT: char name[] = "Bilbo Baggins";
-//CHECK: struct student *new_s = malloc(sizeof(struct student));
+//CHECK: _Ptr<struct student> new_s =  malloc(sizeof(struct student));
 
 int main() {
 	basic1();
