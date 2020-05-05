@@ -657,7 +657,6 @@ public:
   // are returned in the first position.
   // TODO: this functionality is not implemented yet.
   std::pair<ConstraintSet, bool> solve(unsigned &NumOfIter);
-  int solve_alt(void);
   void dump() const;
   void print(llvm::raw_ostream &) const;
   void dump_json(llvm::raw_ostream &) const;
@@ -709,7 +708,8 @@ private:
   // Map of function unique key to it definition FVConstraintVariable.
   FuncKeyToConsMap FuncDefnConstraints;
 
-  bool step_solve(void);
+  bool step_solve_old(void);
+  int solve_new(void);
   bool check(Constraint *C);
 
   bool assignConstToVar(EnvironmentMap::iterator &SrcVar, ConstAtom *C);

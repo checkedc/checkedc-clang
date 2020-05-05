@@ -23,8 +23,8 @@ static cl::OptionCategory SolverCategory("solver options");
 static cl::opt<bool> DebugSolver("debug-solver",
   cl::desc("Dump intermediate solver state"),
   cl::init(false), cl::cat(SolverCategory));
-static cl::opt<bool> UseNewSolver("new-solver",
-                                 cl::desc("Use new solver"),
+static cl::opt<bool> UseOldSolver("old-solver",
+                                 cl::desc("Use legacy solver (deprecated)"),
                                  cl::init(false), cl::cat(SolverCategory));
 
 unsigned
@@ -326,7 +326,7 @@ Constraints::propImp(Implies *Imp, T *A, ConstraintSet &R, ConstAtom *V) {
 //
 // Returns true if the step didn't change any bindings of variables in
 // the environment. 
-bool Constraints::step_solve(void) {
+bool Constraints::step_solve_old(void) {
   bool ChangedEnv = false;
 
   EnvironmentMap::iterator VI = environment.begin();
@@ -387,7 +387,7 @@ bool Constraints::step_solve(void) {
   return (ChangedEnv == false);
 }
 
-// Alternative solving algorithm.
+// Solving algorithm.
 //
 //Given ptr < arr < ntarr < wild
 //
@@ -403,7 +403,7 @@ bool Constraints::step_solve(void) {
 //    NOTE: This easily generalizes to k >= k’, since we just modify LHS based on RHS, rather than both ways
 //  For all k >= q ==> k’ >= q’ constraints, if the lhs fires, replace with the rhs and delete the constraint
 
-int Constraints::solve_alt(void) {
+int Constraints::solve_new(void) {
     bool ChangedEnv = true;
     bool NotFixedPoint = true;
     int n = 0;
@@ -514,7 +514,7 @@ std::pair<Constraints::ConstraintSet, bool>
   // bound of k*n for k lattice levels and n variables. This will require 
   // some dependency tracking, we will do that later.
 
-  if (!UseNewSolver) {
+  if (UseOldSolver) {
       while (Fixed == false) {
 
           if (DebugSolver) {
@@ -522,7 +522,7 @@ std::pair<Constraints::ConstraintSet, bool>
               dump();
           }
 
-          Fixed = step_solve();
+          Fixed = step_solve_old();
 
           if (DebugSolver) {
               errs() << "constraints post step\n";
@@ -533,7 +533,7 @@ std::pair<Constraints::ConstraintSet, bool>
       }
   }
   else { /* New Solver */
-      solve_alt();
+      NumOfIter = solve_new();
   }
 
   return std::pair<Constraints::ConstraintSet, bool>(Conflicts, true);
