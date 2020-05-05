@@ -1516,6 +1516,7 @@ ProgramInfo::applyFunctionSubtyping(std::set<ConstraintVariable *>
       }
     }
   }
+  return Ret;
 }
 
 bool ProgramInfo::handleFunctionSubtyping() {
