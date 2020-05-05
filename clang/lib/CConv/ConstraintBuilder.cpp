@@ -844,7 +844,6 @@ private:
       std::set<ConstraintVariable *> ParameterEC =
         Info.getVariable(A, Context, true);
 
-      Constraints &CS = Info.getConstraints();
       // Assign WILD to each of the constraint variables.
       FunctionDecl *FD = E->getDirectCallee();
       std::string Rsn = "Argument to function " + (FD != nullptr ? FD->getName().str() : "pointer call");

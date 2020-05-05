@@ -153,6 +153,9 @@ bool Constraints::addConstraint(Constraint *C) {
     else if (Geq *E = dyn_cast<Geq>(C)) {
       if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
         vLHS->Constraints.insert(C);
+      else if (VarAtom *vRHS = dyn_cast<VarAtom>(E->getRHS())) {
+        vRHS->Constraints.insert(C);
+      }
     }
     else if (Implies *I = dyn_cast<Implies>(C)) {
       if (Geq *E = dyn_cast<Geq>(I->getPremise())) {
@@ -225,8 +228,7 @@ bool Constraints::check(Constraint *C) {
       return false;
   }
   else if (Geq *GE = dyn_cast<Geq>(C)) {
-      if (!isa<VarAtom>(GE->getLHS()))
-          return false;
+      // all good!
   }
   else
     return false; // Not Eq, Geq, or Implies; what is it?!
@@ -399,10 +401,10 @@ bool Constraints::step_solve_old(void) {
 //    NOTE: This easily generalizes to k >= k’, since we just modify LHS based on RHS, rather than both ways
 //  For all k >= q ==> k’ >= q’ constraints, if the lhs fires, replace with the rhs and delete the constraint
 
-unsigned Constraints::solve_new(void) {
+Constraint *Constraints::solve_new(unsigned &n) {
     bool ChangedEnv = true;
     bool NotFixedPoint = true;
-    unsigned n = 0;
+    n = 0;
     EnvironmentMap::iterator VI;
 
     // Proper solving
@@ -435,7 +437,7 @@ unsigned Constraints::solve_new(void) {
             VI++;
         }
 
-        // Step 2. Propagate any Eq(v,v) or Geq(v,v) constraints
+        // Step 2. Propagate any Eq(v,v) or Geq(v,v) or Geq(c,v) constraints
         //   Go until a fixed point reached -- warning, is quadratic (want graph)
         NotFixedPoint = true;
         while (NotFixedPoint) {
@@ -443,36 +445,46 @@ unsigned Constraints::solve_new(void) {
             VI = environment.begin();
             while (VI != environment.end()) {
                 VarAtom *Var = VI->first;
-                VarAtom *lhs, *RHSVar;
-                EnvironmentMap::iterator CurValLHS, CurValRHS;
-                int isEq;
                 for (const auto &C : Var->Constraints) {
-                    isEq = 0;
+                    VarAtom *lhs, *rhs;
+                    ConstAtom *c = nullptr;
+                    EnvironmentMap::iterator CurValLHS, CurValRHS;
+                    int isEq = 0;
                     if (Eq *E = dyn_cast<Eq>(C)) {
                         isEq = 1; // EQ
                         lhs = dyn_cast<VarAtom>(E->getLHS());
-                        CurValLHS = environment.find(lhs);
-                        assert(CurValLHS != environment.end());
-                        RHSVar = dyn_cast<VarAtom>(E->getRHS());
-                        CurValRHS = environment.find(RHSVar);
-                        assert(CurValRHS != environment.end());
+                        rhs = dyn_cast<VarAtom>(E->getRHS());
+                        assert(lhs != nullptr);
                     } else if (Geq *E = dyn_cast<Geq>(C)) {
-                        isEq = 2; //GEQ
+                        isEq = 2; // GEQ
                         lhs = dyn_cast<VarAtom>(E->getLHS());
+                        rhs = dyn_cast<VarAtom>(E->getRHS());
+                        if (lhs == nullptr) c = dyn_cast<ConstAtom>(E->getLHS());
+                    } else {
+                        continue;
+                    }
+                    assert(rhs != nullptr); // Should not have ConstAtoms on rhs, after step 1
+                    CurValRHS = environment.find(rhs);
+                    assert(CurValRHS != environment.end());
+
+                    if (c != nullptr) { // Geq(c,v) -- check that the inequality holds
+                        if (*c < *(CurValRHS->second)) {
+                            return C; // failed on this constraint, so we return that
+                        }
+                        // else it's OK
+                    }
+                    else {
                         CurValLHS = environment.find(lhs);
                         assert(CurValLHS != environment.end());
-                        RHSVar = dyn_cast<VarAtom>(E->getRHS());
-                        CurValRHS = environment.find(RHSVar);
-                        assert(CurValRHS != environment.end());
-                    }
-                    if (isEq) { // have LHS >= RHS
-                        if (*(CurValLHS->second) < *(CurValRHS->second)) {
-                            NotFixedPoint |= assignConstToVar(CurValLHS, CurValRHS->second);
+                        if (isEq) { // have Geq(v,v) or Eq(v,v)
+                            if (*(CurValLHS->second) < *(CurValRHS->second)) {
+                                NotFixedPoint |= assignConstToVar(CurValLHS, CurValRHS->second);
+                            }
                         }
-                    }
-                    if (isEq == 1) { // have LHS == RHS, so check the other direction too
-                        if (*(CurValRHS->second) < *(CurValLHS->second)) {
-                            NotFixedPoint |= assignConstToVar(CurValRHS, CurValLHS->second);;
+                        if (isEq == 1) { // have Eq(v,v), so check the other direction too
+                            if (*(CurValRHS->second) < *(CurValLHS->second)) {
+                                NotFixedPoint |= assignConstToVar(CurValRHS, CurValLHS->second);;
+                            }
                         }
                     }
                 }
@@ -516,7 +528,7 @@ unsigned Constraints::solve_new(void) {
 
     }
 
-    return n;
+    return nullptr;
 }
 
 std::pair<Constraints::ConstraintSet, bool>
@@ -555,7 +567,8 @@ std::pair<Constraints::ConstraintSet, bool>
       }
   }
   else { /* New Solver */
-      NumOfIter = solve_new();
+      Constraint *C = solve_new(NumOfIter);
+      assert(C == nullptr); // eventually this could happen, so we have to report the error
   }
 
   return std::pair<Constraints::ConstraintSet, bool>(Conflicts, true);
@@ -690,7 +703,6 @@ bool Constraints::isWild(Atom *A) {
 }
 
 Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs) {
-    assert(dyn_cast<VarAtom>(Lhs) != nullptr && "Bogus form for Geq constraint");
     return new Geq(Lhs, Rhs);
 }
 
@@ -701,7 +713,6 @@ Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs) {
 }
 
 Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn) {
-    assert(dyn_cast<VarAtom>(Lhs) != nullptr && "Bogus form for Geq constraint");
     return new Geq(Lhs, Rhs, Rsn);
 }
 
@@ -713,7 +724,6 @@ Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn) {
 
 Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
                                   PersistentSourceLoc *PL) {
-  assert(dyn_cast<VarAtom>(Lhs) != nullptr && "Bogus form for Eq constraint");
     if (PL != nullptr && PL->valid()) {
         // Make this invalid, if the source location is not absolute path
         // this is to avoid crashes in clangd.

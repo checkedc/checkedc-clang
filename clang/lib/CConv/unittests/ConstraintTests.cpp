@@ -80,6 +80,11 @@ TEST(BasicConstraintTestGeq, solve) {
     EXPECT_TRUE(CS.addConstraint(CS.createImplies(CS.createGeq(CS.getOrCreateVar(2), CS.getArr()),
                                                   CS.createGeq(CS.getOrCreateVar(3), CS.getWild()))));
 
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getWild(),CS.getVar(0))));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getArr(),CS.getVar(1))));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getNTArr(),CS.getVar(2))));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getWild(),CS.getVar(3))));
+
     CS.solve(numI);
     Constraints::EnvironmentMap env = CS.getVariables();
 
