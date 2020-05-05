@@ -21,6 +21,8 @@
 
 using namespace clang;
 
+typedef std::tuple<std::string, std::string, bool> ItypeModFuncsKType;
+
 // This method resets the constraint graph by removing
 // equality edges involving itype variables.
 unsigned long resetWithitypeConstraints(Constraints &CS);
@@ -28,14 +30,14 @@ unsigned long resetWithitypeConstraints(Constraints &CS);
 // Identify the functions which have the constraint variables of parameters
 // or return changed from previous iteration.
 bool identifyModifiedFunctions(Constraints &CS,
-                               std::set<std::string> &ModFuncs);
+                               std::set<ItypeModFuncsKType> &ModFuncs);
 
 // This method detects and updates the newly detected
 // (in the previous iteration) itype parameters and return values for all the
 // provided set of functions (modifiedFunctions). Note that, these are the
 // detections made by the tool, i.e., not the ones provided by user.
 unsigned long detectAndUpdateITypeVars(ProgramInfo &Info,
-                                       std::set<std::string> &ModFuncs);
+                                       std::set<ItypeModFuncsKType> &ModFuncs);
 
 // Set up a map of constraint variables.
 // So that we know if a function constraint variables are modified.

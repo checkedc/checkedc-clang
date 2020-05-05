@@ -667,10 +667,6 @@ public:
   // a client wants to examine the environment is untenable.
   ConstraintSet &getConstraints() { return constraints; }
   EnvironmentMap &getVariables() { return environment; }
-
-  FuncKeyToConsMap &getFuncDeclVarMap() { return FuncDeclConstraints; }
-  FuncKeyToConsMap &getFuncDefnVarMap() { return FuncDefnConstraints; }
-  StringToStringBiMap &getFuncDefnDeclMap() { return FuncDefnDeclKeyMap; }
   
   EnvironmentMap &getitypeVarMap() { return itypeConstraintVars; }
 
@@ -729,11 +725,6 @@ private:
   // function parameters or returns.
   EnvironmentMap itypeConstraintVars;
 
-  // Map of function unique key to it declaration FVConstraintVariable.
-  FuncKeyToConsMap FuncDeclConstraints;
-  // Map of function unique key to it definition FVConstraintVariable.
-  FuncKeyToConsMap FuncDefnConstraints;
-
   bool step_solve(void);
   bool check(Constraint *C);
 
@@ -764,9 +755,6 @@ private:
   NTArrAtom *PrebuiltNTArr;
   WildAtom *PrebuiltWild;
 
-  // Bi-directional map that contains the mapping between the unique keys of
-  // function definition to its declaration.
-  StringToStringBiMap FuncDefnDeclKeyMap;
 };
 
 typedef uint32_t ConstraintKey;

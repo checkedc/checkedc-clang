@@ -556,27 +556,32 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   else
     VisitedSet.insert(FuncName);
 
-  FVConstraint *Defnc =
-      getHighestT<FVConstraint>(
-          Info.getFuncDefnConstraints(Definition, Context),
-          Info);
+  std::set<ConstraintVariable *> TmpVars;
+  auto &DefFVars = *(Info.getFuncDefnConstraints(Definition, Context));
+  TmpVars.insert(DefFVars.begin(), DefFVars.end());
+
+  FVConstraint *Defnc = getHighestT<FVConstraint>(TmpVars, Info);
 
   FVConstraint *Declc = nullptr;
-  std::set<ConstraintVariable *> *FuncDeclKeys =
-      Info.getFuncDeclConstraintSet(
-          Info.getUniqueDeclKey(Definition, Context));
+  // Get corresponding declaration keys
+  std::set<FVConstraint *> *FuncDeclKeys =
+      Info.getFuncDeclConstraints(Definition, Context);
+
   // Get constraint variables for the declaration and the definition.
   // Those constraints should be function constraints.
   if (FuncDeclKeys != nullptr) {
-    // If there is no declaration?
-    // Get the on demand function variable constraint.
-    Declc = getHighestT<FVConstraint>(*FuncDeclKeys, Info);
+    TmpVars.clear();
+    TmpVars.insert(FuncDeclKeys->begin(), FuncDeclKeys->end());
+    Declc = getHighestT<FVConstraint>(TmpVars, Info);
   } else {
+    auto &TmpFVars =
+        Info.getOnDemandFuncDeclarationConstraint(Definition, Context);
+    TmpVars.clear();
+    TmpVars.insert(TmpFVars.begin(), TmpFVars.end());
+
     // No declaration constraints found. So, create on demand
     // declaration constraints.
-    Declc =
-        getHighestT<FVConstraint>(
-            Info.getVariableOnDemand(Definition, Context, false), Info);
+    Declc = getHighestT<FVConstraint>(TmpVars, Info);
   }
 
   assert(Declc != nullptr);
@@ -1214,7 +1219,11 @@ public:
       PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CE, *Context);
       if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
         // Get the constraint variable for the function.
-        std::set<ConstraintVariable *> &V = Info.getFuncDefnConstraints(FD, Context);
+        std::set<FVConstraint *> *V = Info.getFuncDefnConstraints(FD, Context);
+        // Function has no definition i.e., external function.
+        if (V == nullptr) {
+          V = Info.getFuncDeclConstraints(FD, Context);
+        }
         // TODO Deubgging lines
         // llvm::errs() << "Decl for: " << FD->getNameAsString() << "\nVars:";
         // for (auto &CV : V) {
@@ -1226,20 +1235,9 @@ public:
         auto Fname = FD->getNameAsString();
         auto PInfo = Info.get_MF()[Fname];
 
-        if (V.size() > 0) {
+        if (V->size() > 0) {
           // Get the FV constraint for the Callee.
-          FVConstraint *FV = nullptr;
-          for (const auto &C : V) {
-            if (PVConstraint * PVC = dyn_cast<PVConstraint>(C)) {
-              if (FVConstraint * F = PVC->getFV()) {
-                FV = F;
-                break;
-              }
-            } else if (FVConstraint * FVC = dyn_cast<FVConstraint>(C)) {
-              FV = FVC;
-              break;
-            }
-          }
+          FVConstraint *FV = *(V->begin());
           // Now we need to check the type of the arguments and corresponding
           // parameters to see, if any explicit casting is needed.
           if (FV) {

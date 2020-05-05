@@ -170,7 +170,7 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
   unsigned long IterNum = 1;
   unsigned long EdgesRemoved = 0;
   unsigned long NumItypeVars = 0;
-  std::set<std::string> ModFunctions;
+  std::set<ItypeModFuncsKType> ModFunctions;
   if (Verbose) {
     errs() << "Trying to capture Constraint Variables for all functions\n";
   }
