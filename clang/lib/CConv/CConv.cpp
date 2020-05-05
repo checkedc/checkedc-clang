@@ -164,14 +164,13 @@ std::pair<Constraints::ConstraintSet, bool>
   return Ret;
 }
 
-void performIterativeItypeRefinement(ProgramInfo &Info,
+bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
                                      std::set<std::string> &SourceFiles) {
+  bool Fixed = false;
   unsigned long IterNum = 1;
   unsigned long EdgesRemoved = 0;
   unsigned long NumItypeVars = 0;
-  std::set<std::string> ModFunctions;
-  Constraints &CS = Info.getConstraints();
-
+  std::set<ItypeModFuncsKType> ModFunctions;
   if (Verbose) {
     errs() << "Trying to capture Constraint Variables for all functions\n";
   }
@@ -179,12 +178,13 @@ void performIterativeItypeRefinement(ProgramInfo &Info,
   performConstraintSetup(Info);
 
   // Sanity check.
-  assert(CS.checkInitialEnvSanity() && "Invalid initial environment. ");
+  assert(CS.checkInitialEnvSanity() && "Invalid initial environment. "
+                                       "We expect all pointers to be "
+                                       "initialized with Ptr to begin with.");
 
   dumpConstraintOutputJson(INITIAL_OUTPUT_SUFFIX, Info);
 
-  do {
-
+  while (!Fixed) {
     clock_t StartTime = clock();
     if (Verbose) {
       errs() << "****Iteration " << IterNum << " starts.****\n";
@@ -239,19 +239,21 @@ void performIterativeItypeRefinement(ProgramInfo &Info,
              getTimeSpentInSeconds(StartTime) << "\n";
     }
 
+    // If we removed any edges, that means we did not reach fix point.
+    // In other words, we reach fixed point when no edges are removed from
+    // the constraint graph.
+    Fixed = !(EdgesRemoved > 0);
     if (Verbose) {
       errs() << "****Iteration " << IterNum << " ends****\n";
     }
     IterNum++;
-    // If we removed any edges, that means we did not reach fix point.
-    // In other words, we reach fixed point when no edges are removed from
-    // the constraint graph.
-  } while (EdgesRemoved > 0);
-
+  }
   if (Verbose) {
     errs() << "Fixed point reached after " << (IterNum - 1) <<
            " iterations.\n";
   }
+
+  return Fixed;
 }
 
 CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
@@ -354,9 +356,14 @@ bool CConvInterface::SolveConstraints() {
   if (Verbose)
     outs() << "Solving constraints\n";
 
-  // perform constraint solving by iteratively refining based on itypes.
-  performIterativeItypeRefinement(GlobalProgramInfo,FilePaths);
+  Constraints &CS = GlobalProgramInfo.getConstraints();
 
+  // perform constraint solving by iteratively refining based on itypes.
+  bool Fixed = performIterativeItypeRefinement(CS,
+                                               GlobalProgramInfo,
+                                               FilePaths);
+
+  assert(Fixed);
   if (Verbose)
     outs() << "Constraints solved\n";
 
@@ -460,8 +467,7 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   CS.resetConstraints();
 
   // Solve the constraints.
-  //assert (CS == GlobalProgramInfo.getConstraints());
-  performIterativeItypeRefinement(GlobalProgramInfo, FilePaths);
+  performIterativeItypeRefinement(CS, GlobalProgramInfo, FilePaths);
 
   // Compute new disjoint set.
   GlobalProgramInfo.computePointerDisjointSet();
@@ -522,8 +528,7 @@ bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
   CS.resetConstraints();
 
   // Solve the constraint.
-  //assert(CS == GlobalProgramInfo.getConstraints());
-  performIterativeItypeRefinement(GlobalProgramInfo, FilePaths);
+  performIterativeItypeRefinement(CS, GlobalProgramInfo, FilePaths);
 
   // Recompute the WILD pointer disjoint sets.
   GlobalProgramInfo.computePointerDisjointSet();

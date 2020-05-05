@@ -31,6 +31,12 @@ class ProgramInfo;
 class ProgramInfo {
 public:
   typedef std::pair<std::string, FVConstraint *> GlobFuncConstraintType;
+  typedef std::map<std::string, std::map<std::string, std::set<FVConstraint *>>>
+      StaticFunctionMapType;
+
+  typedef std::map<std::string, std::set<FVConstraint *>>
+      ExternalFunctionMapType;
+
   ProgramInfo();
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
@@ -131,11 +137,14 @@ public:
   // that do not have corresponding declaration.
   // For all functions that do not have corresponding declaration,
   // We create an on demand FunctionVariableConstraint.
-  std::set<ConstraintVariable *>&
+  std::set<FVConstraint *>&
   getOnDemandFuncDeclarationConstraint(FunctionDecl *D, ASTContext *C);
 
-  std::set<ConstraintVariable *>&
+  std::set<FVConstraint *> *
   getFuncDefnConstraints(FunctionDecl *D, ASTContext *C);
+
+  std::set<FVConstraint *> *
+  getFuncDeclConstraints(FunctionDecl *D, ASTContext *C);
 
   // Get a unique key for a given function declaration node.
   std::string getUniqueFuncKey(FunctionDecl *D, ASTContext *C);
@@ -143,13 +152,18 @@ public:
   // Get a unique string representing the declaration object.
   std::string getUniqueDeclKey(Decl *D, ASTContext *C);
 
-  // Given the unique key for the function definition, get the pointer to
-  // the constraint set of the declaration (if exists) else null.
-  std::set<ConstraintVariable *> *
-    getFuncDeclConstraintSet(std::string FuncDefKey);
+  // Get the constraint set for external (i.e., non-static function)
+  std::set<FVConstraint *> *
+    getExtFuncDeclConstraintSet(std::string FuncName);
 
-  std::map<std::string, std::set<ConstraintVariable *>>&
-  getOnDemandFuncDeclConstraintMap();
+  std::set<FVConstraint *> *
+    getExtFuncDefnConstraintSet(std::string FuncName);
+
+  std::set<FVConstraint *> *
+  getStaticFuncDeclConstraintSet(std::string FuncName, std::string FileName);
+
+  std::set<FVConstraint *> *
+  getStaticFuncDefnConstraintSet(std::string FuncName, std::string FileName);
 
   // Handle assigning constraints based on function subtyping.
   bool handleFunctionSubtyping();
@@ -173,17 +187,22 @@ public:
 
   // Check if the given function is an extern function.
   bool isAnExternFunction(const std::string &FName);
-private:
-  // Insert the provided constraint variables for the given function into
-  // a global function map.
-  void insertIntoGlobalFunctions(FunctionDecl *FD,
-                                 std::set<GlobFuncConstraintType> &ToAdd);
-  void insertIntoGlobalFunctions(FunctionDecl *FD, ASTContext *C,
-                                 FVConstraint *ToAdd);
 
-  // Create an association of definition and declartion.
-  void performDefnDeclarationAssociation(FunctionDecl *FD,
-                                         ASTContext *C);
+  ExternalFunctionMapType &getExternFuncDefFVMap() {
+    return ExternalFunctionDefnFVCons;
+  }
+
+  StaticFunctionMapType &getStaticFuncDefFVMap() {
+    return StaticFunctionDefnFVCons;
+  }
+
+private:
+
+  // Apply function subtyping between given function definition and
+  // declaration constraints.
+  bool applyFunctionSubtyping(std::set<ConstraintVariable *> &DefCVars,
+                              std::set<ConstraintVariable *> &DeclCVars);
+
   // Apply function sub-typing relation from srcCVar to dstCVar.
   bool applySubtypingRelation(ConstraintVariable *SrcCVar,
                               ConstraintVariable *DstCVar);
@@ -194,14 +213,22 @@ private:
   // constrained. 
   bool isExternOkay(std::string Ext);
 
-  // Map that contains function name and corresponding
-  // set of function variable constraints.
-  // We only create on demand variables for non-declared functions.
-  // we store the constraints based on function name
-  // as the information needs to be stored across multiple
-  // instances of the program AST
-  std::map<std::string, std::set<ConstraintVariable *>>
-      OnDemandFuncDeclConstraint;
+  // Insert the given FVConstraint* set into the provided Map.
+  // Returns true if successful else false.
+  bool insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
+                                     const std::string &FuncName,
+                                     std::set<FVConstraint *> &ToIns);
+
+  // Inserts the given FVConstraint* set into the provided static map.
+  // Returns true if successful else false.
+  bool insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
+                                   const std::string &FuncName,
+                                   const std::string &FileName,
+                                   std::set<FVConstraint *> &ToIns);
+
+  void
+  insertNewFVConstraints(FunctionDecl *FD, std::set<FVConstraint *> &FVcons,
+                        ASTContext *C);
 
   // Next available integer to assign to a variable.
   uint32_t freeKey;
@@ -216,12 +243,31 @@ private:
   // Is the ProgramInfo persisted? Only tested in asserts. Starts at true.
   bool persisted;
   // Global symbol information used for mapping
+
   // Map of global functions for whom we don't have a body, the keys are 
   // names of external functions, the value is whether the body has been
   // seen before.
   std::map<std::string, bool> ExternFunctions;
-  std::map<std::string, std::set<GlobFuncConstraintType>>
-      GlobalFunctionSymbols;
+
+  // This map contains FVConstraint* objects for non-static
+  // function declarations. For each non-static function, we will have an
+  // entry in this map, which represents the FVConstraint for the declaration
+  // of the corresponding function.
+  // FunctionName -> [FVConstraint*].
+  ExternalFunctionMapType ExternalFunctionDeclFVCons;
+
+  // Similar to the external function map, this is for internal functions i.e.,
+  // static function.
+  // FunctionName -> {FileName -> [FVConstraint*]}
+  StaticFunctionMapType StaticFunctionDeclFVCons;
+
+  // This map is for non-static function definitions.
+  ExternalFunctionMapType ExternalFunctionDefnFVCons;
+
+  // This map is for static function definitions.
+  // FunctionName -> {FileName -> [FVConstraint*]}
+  StaticFunctionMapType StaticFunctionDefnFVCons;
+
   std::map<std::string, std::set<PVConstraint *>> GlobalVariableSymbols;
   ParameterMap MF;
   // Object that contains all the bounds information of various

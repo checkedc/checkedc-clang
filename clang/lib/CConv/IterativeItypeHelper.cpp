@@ -16,7 +16,7 @@ static Constraints::EnvironmentMap IterationItypeMap;
 // Map that contains the constraint atoms of parameters
 // and its return for all functions (including their declarations
 // and definitions). This map is used to determine new detection of itypes.
-static std::map<std::string,
+static std::map<ItypeModFuncsKType,
                 std::map<Atom*, ConstAtom*>>
     ParamsReturnSavedValues;
 
@@ -25,9 +25,11 @@ static std::map<std::string,
 // These are used to later check if anything has changed, in which case the
 // corresponding function will be considered as modified.
 static void
-updateFunctionConstraintVars(std::string FuncKey,
+updateFunctionConstraintVars(std::string FuncName, std::string FileName,
+                             bool IsStatic,
                              Constraints &CS,
-                             std::set<ConstraintVariable *> &FVConstVars) {
+                             std::set<FVConstraint *> &FVConstVars) {
+  auto FuncKey = std::make_tuple(FuncName, FileName, IsStatic);
   for (auto TopVar : FVConstVars) {
     // If this is a function constraint?
     if (FVConstraint *FvCons = dyn_cast<FVConstraint>(TopVar)) {
@@ -55,14 +57,15 @@ updateFunctionConstraintVars(std::string FuncKey,
   }
 }
 
-bool identifyModifiedFunctions(Constraints &CS,
-                               std::set<std::string> &ModFuncs) {
+bool
+identifyModifiedFunctions(Constraints &CS,
+                               std::set<ItypeModFuncsKType> &ModFuncs) {
   ModFuncs.clear();
   // Get the current values.
   Constraints::EnvironmentMap &EnvMap = CS.getVariables();
   // Check to see if they differ from previous values.
   for (auto &FuncVals : ParamsReturnSavedValues) {
-    std::string DefKey = FuncVals.first;
+    auto DefKey = FuncVals.first;
     for (auto &CurrVar : FuncVals.second) {
       // Check if the value of the constraint variable changed?
       // then we consider the corresponding function as modified.
@@ -167,21 +170,41 @@ static bool updateDeclWithDefnType(ConstraintVariable *Pdecl,
 }
 
 unsigned long detectAndUpdateITypeVars(ProgramInfo &Info,
-                                       std::set<std::string> &ModFuncs) {
+                                       std::set<ItypeModFuncsKType> &ModFuncs) {
   Constraints &CS = Info.getConstraints();
   unsigned long NumITypeVars = 0;
   // Clear the current iteration itype vars.
   IterationItypeMap.clear();
   for (auto FuncDefKey : ModFuncs) {
-    FVConstraint *CDefn =
-        getHighestT<FVConstraint>(CS.getFuncDefnVarMap()[FuncDefKey], Info);
 
-    auto DeclConstraintsPtr = Info.getFuncDeclConstraintSet(FuncDefKey);
-    assert(DeclConstraintsPtr != nullptr && "This cannot be nullptr, "
-                                            "if it was null, we would never "
-                                            "have inserted this info into "
-                                            "modified functions.");
-    FVConstraint *CDecl = getHighestT<FVConstraint>(*DeclConstraintsPtr, Info);
+    std::set<FVConstraint *> *FuncDefFVars = nullptr;
+    std::set<FVConstraint *> *FuncDeclFVars = nullptr;
+
+    bool IsStatic = std::get<2>(FuncDefKey);
+    std::string FuncName = std::get<0>(FuncDefKey);
+    std::string FileName = std::get<1>(FuncDefKey);
+
+    if (IsStatic) {
+      FuncDefFVars = Info.getStaticFuncDefnConstraintSet(FuncName, FileName);
+      FuncDeclFVars = Info.getStaticFuncDeclConstraintSet(FuncName, FileName);
+    } else {
+      FuncDefFVars = Info.getExtFuncDefnConstraintSet(FuncName);
+      FuncDeclFVars = Info.getExtFuncDeclConstraintSet(FuncName);
+    }
+
+    assert(FuncDeclFVars != nullptr &&
+           FuncDefFVars != nullptr && "This cannot be nullptr, "
+                                      "if it was null, we would never "
+                                      "have inserted this info into "
+                                      "modified functions.");
+    std::set<ConstraintVariable *> TmpCVars;
+    TmpCVars.insert(FuncDefFVars->begin(), FuncDefFVars->end());
+
+    FVConstraint *CDefn =
+        getHighestT<FVConstraint>(TmpCVars, Info);
+    TmpCVars.clear();
+    TmpCVars.insert(FuncDeclFVars->begin(), FuncDeclFVars->end());
+    FVConstraint *CDecl = getHighestT<FVConstraint>(TmpCVars, Info);
 
     assert(CDecl != nullptr);
     assert(CDefn != nullptr);
@@ -230,21 +253,31 @@ unsigned long detectAndUpdateITypeVars(ProgramInfo &Info,
 
 bool performConstraintSetup(ProgramInfo &Info) {
   bool Ret = false;
-  Constraints &CS = Info.getConstraints();
-  for (auto &FDef : CS.getFuncDefnVarMap()) {
-    // Get the key for the function definition.
-    auto DefKey = FDef.first;
-    std::set<ConstraintVariable *> &DefCVars = FDef.second;
-
-    std::set<ConstraintVariable *> *DeclCVarsPtr =
-        Info.getFuncDeclConstraintSet(DefKey);
-
-    if (DeclCVarsPtr != nullptr) {
+  // First, handle external functions.
+  for (auto &FDef : Info.getExternFuncDefFVMap()) {
+    std::string FuncName = FDef.first;
+    if (Info.getExtFuncDeclConstraintSet(FuncName) != nullptr) {
       // Okay, we have constraint variables for declaration.
       // There could be a possibility of itypes.
       // Save the var atoms.
-      updateFunctionConstraintVars(DefKey, CS, DefCVars);
+      updateFunctionConstraintVars(FuncName, "", false,
+                                   Info.getConstraints(),
+                                   FDef.second);
       Ret = true;
+    }
+  }
+  // Next, do the same for static functions.
+  for (auto &StFDef : Info.getStaticFuncDefFVMap()) {
+    std::string FuncName = StFDef.first;
+    for (auto &StFInfo : StFDef.second) {
+      std::string FileName = StFInfo.first;
+      if (Info.getStaticFuncDeclConstraintSet(FuncName,
+                                              FileName) != nullptr) {
+        updateFunctionConstraintVars(FuncName, FileName, true,
+                                     Info.getConstraints(),
+                                     StFInfo.second);
+        Ret = true;
+      }
     }
   }
   return Ret;
