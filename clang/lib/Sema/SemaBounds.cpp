@@ -624,7 +624,7 @@ namespace {
   // If no original value is provided and E uses V, ReplaceVariableReferences
   // returns nullptr.
   Expr *ReplaceVariableReferences(Sema &SemaRef, Expr *E, DeclRefExpr *V,
-                                Expr *OV, CheckedScopeSpecifier CSS) {
+                                  Expr *OV, CheckedScopeSpecifier CSS) {
     // Don't transform e if it does not use the value of v.
     if (!VariableOccurrenceCount(SemaRef, V, E))
       return E;
@@ -642,9 +642,9 @@ namespace {
 }
 
 namespace {
-  // BoundsContextTy denotes a map of a variable or parameter declaration
-  // to the variable or parameter's current known bounds.
-  using BoundsContextTy = llvm::DenseMap<DeclaratorDecl *, BoundsExpr *>;
+  // BoundsContextTy denotes a map of a variable declaration to the bounds
+  // that are currently known to be valid for the variable.
+  using BoundsContextTy = llvm::DenseMap<const VarDecl *, BoundsExpr *>;
 
   // EqualExprTy denotes a set of expressions that produce the same value
   // as an expression e.
@@ -659,8 +659,17 @@ namespace {
   // and are updated while checking individual expressions.
   class CheckingState {
     public:
-      // UC is a map of variables or parameters to their current known bounds.
-      BoundsContextTy UC;
+      // ObservedBounds maps variables to their current known bounds as
+      // inferred by bounds checking.  These bounds are updated after
+      // assignments to variables.
+      //
+      // The bounds in the ObservedBounds context should always be normalized
+      // to range bounds if possible.  This allows updates to variables that
+      // are implicitly used in bounds declarations to update the observed
+      // bounds.  For example, an assignment to the variable p where p has
+      // declared bounds count(i) should update the bounds of p, which
+      // normalize to bounds(p, p + i).
+      BoundsContextTy ObservedBounds;
 
       // UEQ stores sets of expressions that are equivalent to each other
       // after checking an expression e.
@@ -683,12 +692,21 @@ namespace {
         SemaRef(SemaRef),
         BoundsContextRef(Context) {}
 
-      bool VisitDeclaratorDecl(DeclaratorDecl *D) {
+      // If a variable declaration has declared bounds, modify BoundsContextRef
+      // to map the variable declaration to the normalized declared bounds.
+      // 
+      // Returns true if visiting the variable declaration did not terminate
+      // early.  Visiting variable declarations in DeclaredBoundsHelper should
+      // never terminate early.
+      bool VisitVarDecl(const VarDecl *D) {
         if (!D)
           return true;
-        BoundsExpr *Bounds = D->getBoundsExpr();
-        if (Bounds)
-          BoundsContextRef[D] = Bounds;
+        if (D->isInvalidDecl())
+          return true;
+        // The bounds expressions in the bounds context should be normalized
+        // to range bounds.
+        if (const BoundsExpr *Bounds = D->getBoundsExpr())
+          BoundsContextRef[D] = SemaRef.ExpandBoundsToRange(D, Bounds);
         return true;
       }
   };
@@ -801,8 +819,8 @@ namespace {
       OS << "\nStatement S:\n";
       S->dump(OS);
 
-      OS << "Bounds context after checking S:\n";
-      DumpBoundsContext(OS, State.UC);
+      OS << "Observed bounds context after checking S:\n";
+      DumpBoundsContext(OS, State.ObservedBounds);
 
       OS << "Sets of equivalent expressions after checking S:\n";
       if (State.UEQ.size() == 0)
@@ -820,19 +838,19 @@ namespace {
       DumpEqualExpr(OS, State.G);
     }
 
-    void DumpBoundsContext(raw_ostream &OS, BoundsContextTy UC) {
-      if (UC.empty())
+    void DumpBoundsContext(raw_ostream &OS, BoundsContextTy &Context) {
+      if (Context.empty())
         OS << "{ }\n";
       else {
         // The keys in an llvm::DenseMap are unordered.  Create a set of
         // variable declarations in the context ordered first by name,
         // then by location in order to guarantee a deterministic output
         // so that printing the bounds context can be tested.
-        std::vector<DeclaratorDecl *> OrderedDecls;
-        for (auto Pair : UC)
+        std::vector<const VarDecl *> OrderedDecls;
+        for (auto Pair : Context)
           OrderedDecls.push_back(Pair.first);
         llvm::sort(OrderedDecls.begin(), OrderedDecls.end(),
-             [] (DeclaratorDecl *A, DeclaratorDecl *B) {
+             [] (const VarDecl *A, const VarDecl *B) {
                if (A->getNameAsString() == B->getNameAsString())
                  return A->getLocation() < B->getLocation();
                else
@@ -841,13 +859,14 @@ namespace {
 
         OS << "{\n";
         for (auto I = OrderedDecls.begin(); I != OrderedDecls.end(); ++I) {
-          DeclaratorDecl *Variable = *I;
-          if (!UC[Variable])
+          const VarDecl *Variable = *I;
+          auto It = Context.find(Variable);
+          if (It == Context.end())
             continue;
           OS << "Variable:\n";
           Variable->dump(OS);
           OS << "Bounds:\n";
-          UC[Variable]->dump(OS);
+          It->second->dump(OS);
         }
         OS << "}\n";
       }
@@ -2201,15 +2220,16 @@ namespace {
      llvm::outs() << "Traversing CFG:\n";
 #endif
 
-     // Map each function parameter to its declared bounds (if any) before
-     // checking the body of the function.  The context formed by the declared
-     // parameter bounds is the initial context for checking the function body.
+     // Map each function parameter to its declared bounds (if any),
+     // normalized to range bounds, before checking the body of the function.
+     // The context formed by the declared parameter bounds is the initial
+     // observed bounds context for checking the function body.
      CheckingState ParamsState;
      for (auto I = FD->param_begin(); I != FD->param_end(); ++I) {
        ParmVarDecl *Param = *I;
        BoundsExpr *Bounds = Param->getBoundsExpr();
        if (Bounds)
-         ParamsState.UC[Param] = Bounds;
+         ParamsState.ObservedBounds[Param] = ExpandToRange(Param, Bounds);
      }
 
      // Store a checking state for each CFG block in order to track
@@ -2274,20 +2294,34 @@ namespace {
             S->dump(llvm::outs());
             llvm::outs().flush();
 #endif
-            // Incorporate any bounds declared in S into the initial bounds
-            // context before checking S.  TODO: save this context in a
-            // declared context DC.
-            GetDeclaredBounds(this->S, BlockState.UC, S);
+            // Modify the ObservedBounds context to include any variables with
+            // bounds that are declared in S.  Before checking S, the observed
+            // bounds for each variable v that is in scope are the widened
+            // bounds for v (if any), or the declared bounds for v (if any).
+            GetDeclaredBounds(this->S, BlockState.ObservedBounds, S);
+            // TODO: update BlockState.ObservedBounds to reset any widened
+            // bounds that are killed by S to the declared variable bounds.
+            BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
+            BlockState.G.clear();
 
             // If any bounds are killed by statement S, reset them to their
             // declared bounds.
             ResetKilledBounds(KilledBounds, BlockState.UC, S);
 
             Check(S, CSS, BlockState);
-            // TODO: validate the updated context BlockState.UC against
-            // the declared context DC.
+
             if (DumpState)
               DumpCheckingState(llvm::outs(), S, BlockState);
+
+            // TODO: for each variable v in ObservedBounds, check that the
+            // observed bounds of v imply the declared bounds of v.
+
+            // The observed bounds that were updated after checking S should
+            // only be used to check that the updated observed bounds imply
+            // the declared variable bounds.  After checking the observed and
+            // declared bounds, the observed bounds for each variable should
+            // be reset to their observed bounds from before checking S.
+            BlockState.ObservedBounds = InitialObservedBounds;
          }
        }
        if (Block->getBlockID() != Cfg->getEntry().getBlockID())
@@ -2970,9 +3004,9 @@ namespace {
         if (E->getType()->isCheckedPointerPtrType())
           ResultBounds = CreateTypeBasedBounds(E, E->getType(), false, false);
         else
-          ResultBounds = RValueCastBounds(CK, SubExprTargetBounds,
+          ResultBounds = RValueCastBounds(E, SubExprTargetBounds,
                                           SubExprLValueBounds,
-                                          SubExprBounds);
+                                          SubExprBounds, State);
       }
 
       CheckDisallowedFunctionPtrCasts(E);
@@ -3333,10 +3367,7 @@ namespace {
       BoundsExpr *B = nullptr;
       InteropTypeExpr *IT = nullptr;
       if (VD) {
-        if (State.UC.count(VD))
-          B = State.UC[VD];
-        else
-          B = VD->getBoundsExpr();
+        B = VD->getBoundsExpr();
         IT = VD->getInteropTypeExpr();
       }
 
@@ -4064,47 +4095,63 @@ namespace {
       return Inverse(X, F1, E_X);
     }
 
-    // GetIncomingBlockState returns the checking state that is true at
-    // the beginning of the block by taking the intersection of the UEQ
-    // sets that were true after each of the block's predecessors.
+    // GetIncomingBlockState returns the checking state that is true at the
+    // beginning of the block by taking the intersection of the observed
+    // bounds contexts and UEQ sets of equivalent expressions that were true
+    // after each of the block's predecessors.
+    //
+    // Taking the intersection of the observed bounds contexts of the block's
+    // predecessors ensures that, before checking a statement S in the block,
+    // the block's observed bounds context contains only variables with bounds
+    // that are in scope at S.  At the beginning of the block, each variable in
+    // scope is mapped to its normalized declared bounds.
     CheckingState GetIncomingBlockState(const CFGBlock *Block,
                                         llvm::DenseMap<unsigned int, CheckingState> BlockStates) {
       CheckingState BlockState;
       bool IntersectionEmpty = true;
       for (const CFGBlock *PredBlock : Block->preds()) {
-        // Prevent null or non-traversed (e.g. unreachable) blocks from
-        // causing the incoming UC for a block to be empty.
+        // Prevent null or non-traversed (e.g. unreachable) blocks from causing
+        // the incoming bounds context and UEQ set for a block to be empty.
         if (!PredBlock)
           continue;
         if (BlockStates.find(PredBlock->getBlockID()) == BlockStates.end())
           continue;
         CheckingState PredState = BlockStates[PredBlock->getBlockID()];
         if (IntersectionEmpty) {
-          BlockState.UC = PredState.UC;
+          BlockState.ObservedBounds = PredState.ObservedBounds;
           BlockState.UEQ = PredState.UEQ;
           IntersectionEmpty = false;
         }
         else {
-          BlockState.UC = IntersectUC(PredState.UC, BlockState.UC);
+          BlockState.ObservedBounds =
+            IntersectBoundsContexts(PredState.ObservedBounds,
+                                    BlockState.ObservedBounds);
           BlockState.UEQ = IntersectUEQ(PredState.UEQ, BlockState.UEQ);
         }
       }
       return BlockState;
     }
 
-    // IntersectUC returns a bounds context resulting from taking the
-    // intersection of the contexts UC1 and UC2.
-    BoundsContextTy IntersectUC(BoundsContextTy UC1, BoundsContextTy UC2) {
-      BoundsContextTy IntersectedUC;
-      for (auto Pair : UC1) {
-        if (!Pair.second || !UC2[Pair.first])
+    // IntersectBoundsContexts returns a bounds context resulting from taking
+    // the intersection of the contexts Context1 and Context2.
+    //
+    // For each variable declaration v that is in both Context1 and Contex2,
+    // the intersected context maps v to its normalized declared bounds.
+    // Context1 or Context2 may map v to widened bounds, but those bounds
+    // should not persist across CFG blocks.  The observed bounds for each
+    // in-scope variable should be reset to its normalized declared bounds
+    // at the beginning of a block, before widening the bounds in the block.
+    BoundsContextTy IntersectBoundsContexts(BoundsContextTy Context1,
+                                            BoundsContextTy Context2) {
+      BoundsContextTy IntersectedContext;
+      for (auto Pair : Context1) {
+        const VarDecl *D = Pair.first;
+        if (!Pair.second || !Context2.count(D))
           continue;
-        if (Pair.second->isUnknown() || UC2[Pair.first]->isUnknown())
-          IntersectedUC[Pair.first] = CreateBoundsUnknown();
-        else if (EqualValue(S.Context, Pair.second, UC2[Pair.first], nullptr))
-          IntersectedUC[Pair.first] = Pair.second;
+        if (const BoundsExpr *B = D->getBoundsExpr())
+          IntersectedContext[D] = S.ExpandBoundsToRange(D, B);
       }
-      return IntersectedUC;
+      return IntersectedContext;
     }
 
     // IntersectUEQ returns the intersection of two sets of sets of equivalent
@@ -4639,10 +4686,12 @@ namespace {
     }
 
     // Compute the bounds of a cast operation that produces an rvalue.
-    BoundsExpr *RValueCastBounds(CastKind CK, BoundsExpr *TargetBounds,
+    BoundsExpr *RValueCastBounds(CastExpr *E,
+                                 BoundsExpr *TargetBounds,
                                  BoundsExpr *LValueBounds,
-                                 BoundsExpr *RValueBounds) {
-      switch (CK) {
+                                 BoundsExpr *RValueBounds,
+                                 CheckingState State) {
+      switch (E->getCastKind()) {
         case CastKind::CK_BitCast:
         case CastKind::CK_NoOp:
         case CastKind::CK_NullToPointer:
@@ -4653,8 +4702,21 @@ namespace {
         case CastKind::CK_IntegralToBoolean:
         case CastKind::CK_BooleanToSignedIntegral:
           return RValueBounds;
-        case CastKind::CK_LValueToRValue:
+        case CastKind::CK_LValueToRValue: {
+          // For an rvalue cast of a variable v, if v has observed bounds,
+          // the rvalue bounds of the value of v should be the observed bounds.
+          // This also accounts for any variables that have widened bounds.
+          if (DeclRefExpr *V = GetRValueVariable(E)) {
+            if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
+              if (BoundsExpr *B = State.ObservedBounds[D])
+                return B;
+            }
+          }
+          // If an lvalue to rvalue cast e is not the value of a variable
+          // with observed bounds, the rvalue bounds of e default to the
+          // given target bounds.
           return TargetBounds;
+        }
         case CastKind::CK_ArrayToPointerDecay:
           return LValueBounds;
         case CastKind::CK_DynamicPtrBounds:
