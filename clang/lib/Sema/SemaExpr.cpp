@@ -8479,11 +8479,10 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
   LHSType = Context.getCanonicalType(LHSType).getUnqualifiedType();
   RHSType = Context.getCanonicalType(RHSType).getUnqualifiedType();
 
-  // If the LHS is a checked nt array type and the RHS is an unchecked
-  // nt array type with a bounds-safe interface, use the bounds-safe
-  // interface of the RHS to check the types.
-  if ((LHSType->isNtCheckedArrayType() ||
-        LHSType->isCheckedPointerNtArrayType()) &&
+  // If the LHS has type nt_array_ptr<T> and the RHS is an unchecked pointer
+  // or array with bounds-safe interface type nt_array_ptr<U>, use the RHS
+  // bounds-safe interface type nt_array_ptr<U> to check the types.
+  if (LHSType->isCheckedPointerNtArrayType() &&
       (RHSType->isUncheckedPointerType() ||
         RHSType->isUncheckedArrayType())) {
     QualType RHSInteropType = GetCheckedCRValueInteropType(RHS);
