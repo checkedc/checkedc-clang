@@ -273,6 +273,51 @@ public:
     return Info.getVariable(RHS, C, true);
   }
 
+  bool handleFuncCall(CallExpr *CA, QualType LhsType,
+                      std::set<ConstraintVariable *> V) {
+    bool RulesFired = false;
+    // get the declaration constraints of the callee.
+    std::set<ConstraintVariable *> RHSConstraints =
+        Info.getVariable(CA, Context);
+    // Is this a call to malloc? Can we coerce the callee
+    // to a NamedDecl?
+    FunctionDecl *CalleeDecl =
+        dyn_cast<FunctionDecl>(CA->getCalleeDecl());
+    if (CalleeDecl && isFunctionAllocator(CalleeDecl->getName())) {
+      // This is an allocator, should we treat it as safe?
+      if (!ConsiderAllocUnsafe) {
+        RulesFired = true;
+      } else {
+        // It's a call to allocator.
+        // What about the parameter to the call?
+        if (CA->getNumArgs() > 0) {
+          UnaryExprOrTypeTraitExpr *arg =
+              dyn_cast<UnaryExprOrTypeTraitExpr>(CA->getArg(0));
+          if (arg && arg->isArgumentType()) {
+            // Check that the argument is a sizeof.
+            if (arg->getKind() == UETT_SizeOf) {
+              QualType ArgTy = arg->getArgumentType();
+              // argTy should be made a pointer, then compared for
+              // equality to lhsType and rhsTy.
+              QualType ArgPTy = Context->getPointerType(ArgTy);
+
+              if (Info.checkStructuralEquality(V, RHSConstraints,
+                                               ArgPTy, LhsType)) {
+                RulesFired = true;
+                // At present, I don't think we need to add an
+                // implication based constraint since this rule
+                // only fires if there is a cast from a call to malloc.
+                // Since malloc is an external, there's no point in
+                // adding constraints to it.
+              }
+            }
+          }
+        }
+      }
+    }
+    return RulesFired;
+  }
+
   // Adds constraints for the case where an expression RHS is being assigned
   // to a variable V. There are a few different cases:
   //  1. Straight-up assignment, i.e. int * a = b; with no casting. In this
@@ -298,7 +343,7 @@ public:
   // assigning to. V represents constraints on a pointer variable. RHS is 
   // an expression which might produce constraint variables, or, it might 
   // be some expression like NULL, an integer constant or a cast.
-  void constrainLocalAssign( std::set<ConstraintVariable *> V,
+  void constrainLocalAssign(std::set<ConstraintVariable *> V,
                         QualType LhsType,
                         Expr *RHS) {
     if (!RHS || V.size() == 0)
@@ -326,8 +371,8 @@ public:
       if (Calle->hasInteropTypeExpr()) {
         ItypeHandled = handleITypeAssignment(V, Calle->getInteropTypeExpr());
       }
-      // If this is not an itype.
-      if (!ItypeHandled) {
+      // If this is not an itype and not a safe function call.
+      if (!ItypeHandled && !handleFuncCall(CE, LhsType, V)) {
         // Get the constraint variable corresponding
         // to the declaration.
         RHSConstraints = Info.getVariable(RHS, Context, false);
@@ -379,46 +424,7 @@ public:
           // the type passed to malloc is equal to both lhsType and rhsTy.
           // If it is, we can do something less conservative.
           if (CallExpr *CA = dyn_cast<CallExpr>(SE)) {
-            // get the declaration constraints of the callee.
-            RHSConstraints = Info.getVariable(SE, Context);
-            // Is this a call to malloc? Can we coerce the callee
-            // to a NamedDecl?
-            FunctionDecl *CalleeDecl =
-              dyn_cast<FunctionDecl>(CA->getCalleeDecl());
-            if (CalleeDecl && isFunctionAllocator(CalleeDecl->getName())) {
-              // This is an allocator, should we treat it as safe?
-              if (!ConsiderAllocUnsafe) {
-                RulesFired = true;
-              } else {
-                // It's a call to allocator.
-                // What about the parameter to the call?
-                if (CA->getNumArgs() > 0) {
-                  UnaryExprOrTypeTraitExpr *arg =
-                    dyn_cast<UnaryExprOrTypeTraitExpr>(CA->getArg(0));
-                  if (arg && arg->isArgumentType()) {
-                    // Check that the argument is a sizeof.
-                    if (arg->getKind() == UETT_SizeOf) {
-                      QualType ArgTy = arg->getArgumentType();
-                      // argTy should be made a pointer, then compared for
-                      // equality to lhsType and rhsTy.
-                      QualType ArgPTy = Context->getPointerType(ArgTy);
-
-                      if (Info.checkStructuralEquality(V, RHSConstraints,
-                                                       ArgPTy, LhsType) &&
-                          Info.checkStructuralEquality(V, RHSConstraints,
-                                                       ArgPTy, RhsTy)) {
-                        RulesFired = true;
-                        // At present, I don't think we need to add an
-                        // implication based constraint since this rule
-                        // only fires if there is a cast from a call to malloc.
-                        // Since malloc is an external, there's no point in
-                        // adding constraints to it.
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            RulesFired = handleFuncCall(CA, LhsType, V);
           }
         }
 

@@ -1235,7 +1235,7 @@ public:
         auto Fname = FD->getNameAsString();
         auto PInfo = Info.get_MF()[Fname];
 
-        if (V->size() > 0) {
+        if (V != nullptr && V->size() > 0) {
           // Get the FV constraint for the Callee.
           FVConstraint *FV = *(V->begin());
           // Now we need to check the type of the arguments and corresponding

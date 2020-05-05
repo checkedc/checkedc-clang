@@ -1142,13 +1142,7 @@ std::set<FVConstraint *> *getFuncFVConstraints(FunctionDecl *FD,
 
   if (FunFVars == nullptr) {
     // Try to get declaration constraints.
-    if (FD->isGlobal()) {
-      FunFVars = I.getExtFuncDeclConstraintSet(FuncName);
-    } else {
-      auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
-      std::string FileName = Psl.getFileName();
-      FunFVars = I.getStaticFuncDeclConstraintSet(FuncName, FileName);
-    }
+    FunFVars = &(I.getOnDemandFuncDeclarationConstraint(FD, C));
   }
 
   return FunFVars;
