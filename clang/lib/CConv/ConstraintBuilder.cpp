@@ -189,7 +189,7 @@ public:
 
 
   // Introduce a variable into the environment.
-  bool MyVisitVarDecl(VarDecl *D,  DeclStmt *S) {
+  bool MyVisitVarDecl(VarDecl *D) {
     if (D->isLocalVarDecl()) {
       FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
       SourceRange SR = D->getSourceRange();
@@ -197,7 +197,7 @@ public:
       if (SR.isValid() && FL.isValid() && !FL.isInSystemHeader() &&
         (D->getType()->isPointerType() || D->getType()->isArrayType())) {
         // Add the variable with in the function body context.
-        Info.addVariable(D, S, Context);
+        Info.addVariable(D, Context);
 
         specialCaseVarIntros(D, Info, Context);
         // If this is a static array declaration.
@@ -495,13 +495,13 @@ public:
 
   bool VisitDeclStmt(DeclStmt *S) {
     // Introduce variables as needed.
-    if (S->isSingleDecl()) {
-      if (VarDecl *VD = dyn_cast<VarDecl>(S->getSingleDecl()))
-        MyVisitVarDecl(VD, S);
-    } else
+//    if (S->isSingleDecl()) {
+//      if (VarDecl *VD = dyn_cast<VarDecl>(S->getSingleDecl()))
+//        MyVisitVarDecl(VD);
+//    } else
       for (const auto &D : S->decls())
         if (VarDecl *VD = dyn_cast<VarDecl>(D))
-          MyVisitVarDecl(VD, S);
+          MyVisitVarDecl(VD);
 
     // Build rules based on initializers.
     for (const auto &D : S->decls()) {
@@ -960,8 +960,7 @@ public:
     
     if (G->hasGlobalStorage())
       if (G->getType()->isPointerType() || G->getType()->isArrayType()) {
-        Info.addVariable(G, nullptr, Context);
-
+        Info.addVariable(G, Context);
         Info.seeGlobalDecl(G, Context);
       }
 
@@ -973,7 +972,7 @@ public:
 
     if (FL.isValid()) {
 
-      Info.addVariable(D, nullptr, Context);
+      Info.addVariable(D, Context);
       Info.seeFunctionDecl(D, Context);
       bool HasBody = false;
 
@@ -997,7 +996,7 @@ public:
           for (unsigned i = 0; i < FT->getNumParams(); i++) {
             if (i < D->getNumParams()) {
               ParmVarDecl *PVD = D->getParamDecl(i);
-              Info.addVariable(PVD, nullptr, Context);
+              Info.addVariable(PVD, Context);
               specialCaseVarIntros(PVD, Info, Context, HasBody);
             }
           }
@@ -1026,7 +1025,7 @@ public:
 
           for (const auto &D : Definition->fields())
             if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
-              Info.addVariable(D, NULL, Context);
+              Info.addVariable(D, Context);
               specialCaseVarIntros(D, Info, Context);
             }
         }

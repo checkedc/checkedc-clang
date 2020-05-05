@@ -698,7 +698,7 @@ ProgramInfo::insertNewFVConstraints(FunctionDecl *FD,
 
 // For each pointer type in the declaration of D, add a variable to the
 // constraint system for that pointer type.
-bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
+bool ProgramInfo::addVariable(DeclaratorDecl *D, ASTContext *C) {
   assert(persisted == false);
   PersistentSourceLoc PLoc = 
     PersistentSourceLoc::mkPSL(D, *C);
