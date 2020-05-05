@@ -39,7 +39,7 @@ void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C,
       if (const PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
         for (const auto &J : PVC->getCvars()) {
           if (VarAtom *VA = dyn_cast<VarAtom>(J)) {
-            CS.addConstraint(CS.createEq(VA, CS.getWild(), Rsn, &PL));
+            CS.addConstraint(CS.createGeq(VA, CS.getWild(), Rsn, &PL));
           }
         }
       }
@@ -60,10 +60,10 @@ void createAtomEq(Atom *A1, Atom *A2, Constraints &CS) {
     CS.addConstraint(CS.createEq(VA1, VA2));
   } else if (VA1 != nullptr) {
     assert(CA2 != nullptr);
-    CS.addConstraint(CS.createEq(VA1, CA2));
+    CS.addConstraint(CS.createGeq(VA1, CA2));
   } else if (VA2 != nullptr) {
     assert(CA1 != nullptr);
-    CS.addConstraint(CS.createEq(VA2, CA1));
+    CS.addConstraint(CS.createGeq(VA2, CA1));
   }
 }
 
@@ -216,7 +216,7 @@ public:
             if (const clang::ArrayType *AT =
                     dyn_cast<clang::ArrayType>(TypePtr)) {
               if (VarAtom *VA = dyn_cast<VarAtom>(ConsKey)) {
-                CS.addConstraint(CS.createEq(VA, CS.getArr()));
+                CS.addConstraint(CS.createGeq(VA, CS.getArr()));
               }
               TypePtr = AT->getElementType().getTypePtr();
               continue;
@@ -397,7 +397,7 @@ public:
             for (const auto &J : PVC->getCvars()) {
               std::string Rsn = "Casting to pointer from constant.";
               if (VarAtom *VA = dyn_cast<VarAtom>(J)) {
-                CS.addConstraint(CS.createEq(VA, CS.getWild(), Rsn, &PL));
+                CS.addConstraint(CS.createGeq(VA, CS.getWild(), Rsn, &PL));
               }
             }
         }
@@ -446,7 +446,7 @@ public:
               if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
                 for (const auto &B : PVC->getCvars()) {
                   if (VarAtom *VA = dyn_cast<VarAtom>(B)) {
-                    CS.addConstraint(CS.createEq(VA, CS.getWild(),
+                    CS.addConstraint(CS.createGeq(VA, CS.getWild(),
                                     CToDiffType, &PL));
                   }
                 }
@@ -456,7 +456,7 @@ public:
               if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
                 for (const auto &B : PVC->getCvars()) {
                   if (VarAtom *VA = dyn_cast<VarAtom>(B)) {
-                    CS.addConstraint(CS.createEq(VA, CS.getWild(),
+                    CS.addConstraint(CS.createGeq(VA, CS.getWild(),
                                                  CFDifType, &PL));
                   }
                 }
@@ -495,10 +495,6 @@ public:
 
   bool VisitDeclStmt(DeclStmt *S) {
     // Introduce variables as needed.
-//    if (S->isSingleDecl()) {
-//      if (VarDecl *VD = dyn_cast<VarDecl>(S->getSingleDecl()))
-//        MyVisitVarDecl(VD);
-//    } else
       for (const auto &D : S->decls())
         if (VarDecl *VD = dyn_cast<VarDecl>(D))
           MyVisitVarDecl(VD);
@@ -521,7 +517,7 @@ public:
   bool VisitCStyleCastExpr(CStyleCastExpr *C) {
     // If we're casting from something with a constraint variable to something
     // that isn't a pointer type, we should constrain up. 
-    auto W = Info.getVariable(C->getSubExpr(), Context, true); 
+    auto /* std::set<ConstraintVariable *> */ W = Info.getVariable(C->getSubExpr(), Context, true);
 
     if (W.size() > 0) {
       // Get the source and destination types. 
@@ -793,30 +789,14 @@ private:
     return Handled || !EnablePropThruIType;
   }
 
-  // Constraint all the provided vars to be
-  // not equal to the provided type i.e., ~(V = type).
-  /*
-  void constrainVarsNotEq(std::set<ConstraintVariable *> &Vars,
-                          ConstAtom *CAtom) {
-    Constraints &CS = Info.getConstraints();
-    for (const auto &I : Vars)
-      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-        if (!PVC->getCvars().empty()) {
-          if (VarAtom *VA = dyn_cast<VarAtom>(*PVC->getCvars().begin())) {
-            CS.addConstraint(CS.createNot(CS.createEq(VA, CAtom)));
-          }
-        }
-      }
-  }
-*/
-
+  // Constraint all the provided vars to not be PTR type
    void constrainVarsNotEqPtr(std::set<ConstraintVariable *> &Vars) {
         Constraints &CS = Info.getConstraints();
         for (const auto &I : Vars)
             if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
                 if (!PVC->getCvars().empty()) {
                     if (VarAtom *VA = dyn_cast<VarAtom>(*PVC->getCvars().begin())) {
-                        CS.addConstraint(CS.createEq(VA, CS.getArr()));
+                        CS.addConstraint(CS.createGeq(VA, CS.getArr()));
                         // Saying that something is not PTR is the same as saying it's at least ARR
                     }
                 }
@@ -824,15 +804,15 @@ private:
     }
 
   // Constraint all the provided vars to be
-  // equal to the provided type i.e., (V = type).
-  void constrainVarsEq(std::set<ConstraintVariable *> &Vars,
+  // equal to the provided type i.e., (V >= type).
+  void constrainVarsGeq(std::set<ConstraintVariable *> &Vars,
                        ConstAtom *CAtom) {
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Vars)
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
         if (!PVC->getCvars().empty()) {
           if (VarAtom *VA = dyn_cast<VarAtom>(*PVC->getCvars().begin())) {
-            CS.addConstraint(CS.createEq(VA, CAtom));
+            CS.addConstraint(CS.createGeq(VA, CAtom));
           }
         }
       }
@@ -853,13 +833,13 @@ private:
   void constraintInBodyVariable(Expr *e, ConstAtom *CAtom) {
     std::set<ConstraintVariable *> Var =
       Info.getVariable(e, Context, true);
-    constrainVarsEq(Var, CAtom);
+    constrainVarsGeq(Var, CAtom);
   }
 
   void constraintInBodyVariable(Decl *d, ConstAtom *CAtom) {
     std::set<ConstraintVariable *> Var =
       Info.getVariable(d, Context, true);
-    constrainVarsEq(Var, CAtom);
+    constrainVarsGeq(Var, CAtom);
   }
 
   // Assign the provided type (target)
@@ -894,17 +874,10 @@ private:
         Info.getVariable(A, Context, true);
 
       Constraints &CS = Info.getConstraints();
-      // Assign WILD to each of the constraint
-      // variables.
+      // Assign WILD to each of the constraint variables.
       FunctionDecl *FD = E->getDirectCallee();
-      std::string Rsn;
-      if (FD != nullptr) {
-        Rsn = "Argument to function:" + FD->getName().str();
-        assignType(ParameterEC, CS.getWild(), Rsn, &psl);
-      } else {
-        Rsn = "Argument to function pointer call:" + FD->getName().str();
-        assignType(ParameterEC, CS.getWild(), Rsn, &psl);
-      }
+      std::string Rsn = "Argument to function " + (FD != nullptr ? FD->getName().str() : "pointer call");
+      assignType(ParameterEC, CS.getWild(),Rsn, &psl);
     }
   }
 
