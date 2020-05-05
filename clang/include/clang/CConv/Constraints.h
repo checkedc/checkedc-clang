@@ -388,13 +388,13 @@ class Eq : public Constraint {
   friend class VarAtom;
 public:
 
-  Eq(Atom *Lhs, Atom *Rhs)
+  Eq(VarAtom *Lhs, VarAtom *Rhs)
     : Constraint(C_Eq), lhs(Lhs), rhs(Rhs) {}
 
-  Eq(Atom *Lhs, Atom *Rhs, std::string &Rsn)
+  Eq(VarAtom *Lhs, VarAtom *Rhs, std::string &Rsn)
       : Constraint(C_Eq, Rsn), lhs(Lhs), rhs(Rhs) {}
 
-  Eq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL)
+  Eq(VarAtom *Lhs, VarAtom *Rhs, std::string &Rsn, PersistentSourceLoc *PL)
       : Constraint(C_Eq, Rsn, PL), lhs(Lhs), rhs(Rhs) {}
 
   static bool classof(const Constraint *C) {
@@ -423,9 +423,9 @@ public:
     O << "}}";
   }
 
-  Atom *getLHS(void) const { return lhs; }
-  Atom *getRHS(void) const { return rhs; }
-  void setRHS(Atom *NewAt) { rhs = NewAt; }
+  VarAtom *getLHS(void) const { return lhs; }
+  VarAtom *getRHS(void) const { return rhs; }
+  void setRHS(VarAtom *NewAt) { rhs = NewAt; }
 
   bool operator==(const Constraint &Other) const {
     if (const Eq *E = llvm::dyn_cast<Eq>(&Other))
@@ -460,8 +460,8 @@ public:
   }
 
 private:
-  Atom *lhs;
-  Atom *rhs;
+  VarAtom *lhs;
+  VarAtom *rhs;
 };
 
 // a >= b

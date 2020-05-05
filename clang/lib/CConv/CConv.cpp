@@ -438,7 +438,7 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
 
   // Delete the constraint that make the provided targetPtr WILD.
   VarAtom *VA = CS.getOrCreateVar(targetPtr);
-  Eq newE(VA, CS.getWild());
+  Geq newE(VA, CS.getWild());
   Constraint *originalConstraint = *CS.getConstraints().find(&newE);
   CS.removeConstraint(originalConstraint);
   VA->getAllConstraints().erase(originalConstraint);
@@ -502,7 +502,7 @@ bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
 
   // Delete ALL the constraints that have the same given reason.
   VarAtom *VA = CS.getOrCreateVar(PtrKey);
-  Eq NewE(VA, CS.getWild());
+  Geq NewE(VA, CS.getWild());
   Constraint *OriginalConstraint = *CS.getConstraints().find(&NewE);
   InvalidateAllConstraintsWithReason(OriginalConstraint);
 

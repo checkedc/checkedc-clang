@@ -707,9 +707,12 @@ Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs) {
 }
 
 Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs) {
-  if (dyn_cast<VarAtom>(Lhs) != nullptr && dyn_cast<VarAtom>(Rhs) != nullptr)
-    return new Eq(Lhs, Rhs);
-  return Constraints::createGeq(Lhs, Rhs);
+  VarAtom *VAlhs = dyn_cast<VarAtom>(Lhs);
+  VarAtom *VArhs = dyn_cast<VarAtom>(Rhs);
+  if (VAlhs != nullptr && VArhs != nullptr)
+    return new Eq(VAlhs, VArhs);
+  else
+    return Constraints::createGeq(Lhs, Rhs);
 }
 
 Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn) {
@@ -717,8 +720,10 @@ Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn) {
 }
 
 Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn) {
-  if (dyn_cast<VarAtom>(Lhs) != nullptr && dyn_cast<VarAtom>(Rhs) != nullptr)
-    return new Eq(Lhs, Rhs, Rsn);
+  VarAtom *VAlhs = dyn_cast<VarAtom>(Lhs);
+  VarAtom *VArhs = dyn_cast<VarAtom>(Rhs);
+  if (VAlhs != nullptr && VArhs != nullptr)
+    return new Eq(VAlhs, VArhs, Rsn);
   return Constraints::createGeq(Lhs,Rhs,Rsn);
 }
 
@@ -735,16 +740,19 @@ Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
 
 Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
                           PersistentSourceLoc *PL) {
-  if (dyn_cast<VarAtom>(Lhs) != nullptr && dyn_cast<VarAtom>(Rhs) != nullptr) {
+  VarAtom *VAlhs = dyn_cast<VarAtom>(Lhs);
+  VarAtom *VArhs = dyn_cast<VarAtom>(Rhs);
+  if (VAlhs != nullptr && VArhs != nullptr) {
       if (PL != nullptr && PL->valid()) {
           // Make this invalid, if the source location is not absolute path
           // this is to avoid crashes in clangd.
           if (PL->getFileName().c_str()[0] != '/')
               PL = nullptr;
       }
-      return new Eq(Lhs, Rhs, Rsn, PL);
+      return new Eq(VAlhs, VArhs, Rsn, PL);
   }
-  return Constraints::createGeq(Lhs,Rhs,Rsn,PL);
+  else
+    return Constraints::createGeq(Lhs,Rhs,Rsn,PL);
 }
 
 Implies *Constraints::createImplies(Constraint *Premise,
