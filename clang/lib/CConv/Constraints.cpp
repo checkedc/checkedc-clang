@@ -12,10 +12,8 @@
 #include <set>
 #include "llvm/Support/CommandLine.h"
 
-#include "clang/CConv/Constraints.h"
-#include "clang/CConv/PersistentSourceLoc.h"
-#include "clang/CConv/Utils.h"
 #include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/Constraints.h"
 
 using namespace llvm;
 
@@ -403,10 +401,10 @@ bool Constraints::step_solve_old(void) {
 //    NOTE: This easily generalizes to k >= k’, since we just modify LHS based on RHS, rather than both ways
 //  For all k >= q ==> k’ >= q’ constraints, if the lhs fires, replace with the rhs and delete the constraint
 
-int Constraints::solve_new(void) {
+unsigned Constraints::solve_new(void) {
     bool ChangedEnv = true;
     bool NotFixedPoint = true;
-    int n = 0;
+    unsigned n = 0;
     EnvironmentMap::iterator VI;
 
     // Proper solving

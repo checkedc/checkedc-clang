@@ -105,6 +105,6 @@ bool isTypeHasVoid(clang::QualType QT);
 
 // Find the longest common subsequence.
 unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
-                                  unsigned Str1Len, unsigned Str2Len);
+                                  unsigned long Str1Len, unsigned long Str2Len);
 
 #endif

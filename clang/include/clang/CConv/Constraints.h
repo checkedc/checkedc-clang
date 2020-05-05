@@ -701,7 +701,7 @@ private:
   FuncKeyToConsMap FuncDefnConstraints;
 
   bool step_solve_old(void);
-  int solve_new(void);
+  unsigned solve_new(void);
   bool check(Constraint *C);
 
   bool assignConstToVar(EnvironmentMap::iterator &SrcVar, ConstAtom *C);

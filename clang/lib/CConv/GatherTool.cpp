@@ -10,7 +10,6 @@
 
 #include "clang/AST/RecursiveASTVisitor.h"
 
-#include "clang/AST/Type.h"
 #include "clang/CConv/GatherTool.h"
 
 using namespace llvm;

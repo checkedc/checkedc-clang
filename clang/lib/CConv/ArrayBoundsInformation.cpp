@@ -9,8 +9,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/CConv/ArrayBoundsInformation.h"
-#include "clang/CConv/ProgramInfo.h"
-#include "clang/CConv/Utils.h"
 
 bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *ArrFd,
                                                   FieldDecl *LenFD) {

@@ -9,11 +9,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/CConv/ProgramInfo.h"
-#include "clang/CConv/MappingVisitor.h"
-#include "clang/CConv/ConstraintBuilder.h"
 #include "clang/CConv/CCGlobalOptions.h"
-#include "llvm/ADT/StringSwitch.h"
-#include "clang/Lex/Lexer.h"
+#include "clang/CConv/ConstraintBuilder.h"
+#include "clang/CConv/MappingVisitor.h"
 #include <sstream>
 
 using namespace clang;
@@ -355,10 +353,10 @@ bool ProgramInfo::isExplicitCastSafe(clang::QualType DstType,
     return SrcTypePtr == DstTypePtr;
 
   // Check if both types are compatible.
-  unsigned BothNotChar = SrcTypePtr->isCharType() ^ DstTypePtr->isCharType();
-  unsigned BothNotInt =
+  bool BothNotChar = SrcTypePtr->isCharType() ^ DstTypePtr->isCharType();
+  bool BothNotInt =
       SrcTypePtr->isIntegerType() ^ DstTypePtr->isIntegerType();
-  unsigned BothNotFloat =
+  bool BothNotFloat =
       SrcTypePtr->isFloatingType() ^ DstTypePtr->isFloatingType();
 
 

@@ -11,14 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/CConv/ArrayBoundsInferenceConsumer.h"
-#include "clang/CConv/ArrayBoundsInformation.h"
-#include "clang/CConv/Constraints.h"
-#include "clang/CConv/Utils.h"
-
-#include "clang/AST/RecursiveASTVisitor.h"
 
 #include <sstream>
-#include <algorithm>
 
 static std::set<std::string> LengthVarNamesPrefixes = {"len", "count",
                                                                "size", "num",
@@ -136,9 +130,9 @@ static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C) {
 
 // Map that contains association of allocator functions and indexes of
 // parameters that correspond to the size of the object being assigned.
-static std::map<std::string, std::set<int>> AllocatorSizeAssoc = {
-                                            {"malloc", {0}},
-                                            {"calloc", {0, 1}}};
+static std::map<std::string, std::set<unsigned>> AllocatorSizeAssoc = {
+                                                {"malloc", {0}},
+                                                {"calloc", {0, 1}}};
 
 
 // Get the name of the function called by this call expression.

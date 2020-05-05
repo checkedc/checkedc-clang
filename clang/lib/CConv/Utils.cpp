@@ -261,7 +261,7 @@ bool canWrite(const std::string &FilePath) {
 }
 
 unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
-                                  unsigned Str1Len, unsigned Str2Len) {
+                                  unsigned long Str1Len, unsigned long Str2Len) {
   if (Str1Len == 0 || Str2Len == 0)
     return 0;
   if (Str1[Str1Len - 1] == Str2[Str2Len - 1])
