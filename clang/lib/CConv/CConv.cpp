@@ -12,22 +12,10 @@
 
 #include "clang/CConv/CConv.h"
 #include "clang/CConv/ConstraintBuilder.h"
-#include "clang/CConv/Constraints.h"
-#include "clang/CConv/GatherTool.h"
 #include "clang/CConv/IterativeItypeHelper.h"
-#include "clang/CConv/MappingVisitor.h"
-#include "clang/CConv/ProgramInfo.h"
 #include "clang/CConv/RewriteUtils.h"
 
-#include "clang/Frontend/CompilerInstance.h"
-#include "clang/Frontend/FrontendAction.h"
-#include "clang/Rewrite/Core/Rewriter.h"
-#include "clang/Tooling/CommonOptionsParser.h"
-#include "clang/Tooling/Tooling.h"
 #include "llvm/Support/TargetSelect.h"
-
-#include <algorithm>
-
 
 using namespace clang::driver;
 using namespace clang::tooling;
@@ -135,7 +123,7 @@ void dumpConstraintOutputJson(const std::string &PostfixStr,
 
 std::pair<Constraints::ConstraintSet, bool>
     solveConstraintsWithFunctionSubTyping(ProgramInfo &Info,
-                                      unsigned IterID) {
+                                      unsigned long IterID) {
   // Solve the constrains by handling function sub-typing.
   Constraints &CS = Info.getConstraints();
   unsigned NumIter = 0;

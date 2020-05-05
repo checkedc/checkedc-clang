@@ -9,17 +9,13 @@
 // classes of RewriteUtils.h
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Support/raw_ostream.h"
-#include "clang/AST/RecursiveASTVisitor.h"
-#include <algorithm>
-#include <map>
-#include <sstream>
-#include "clang/AST/Type.h"
 #include "clang/CConv/RewriteUtils.h"
-#include "clang/CConv/MappingVisitor.h"
-#include "clang/CConv/Utils.h"
-#include "clang/CConv/CCGlobalOptions.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/CConv/ArrayBoundsInferenceConsumer.h"
+#include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/MappingVisitor.h"
+#include "llvm/Support/raw_ostream.h"
+#include <sstream>
 
 using namespace llvm;
 using namespace clang;
