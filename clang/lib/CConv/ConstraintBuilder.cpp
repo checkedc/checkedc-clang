@@ -566,7 +566,7 @@ public:
       for (const auto &A : E->arguments()) {
         // Get constraint variables for the argument
         // from with in the context of the caller body.
-        std::set<ConstraintVariable *> ArgumentConstraints =
+        std::set<ConstraintVariable *> ArgumentConstraintVars =
           Info.getVariable(A, Context, true);
 
         if (i < FD->getNumParams()) {
@@ -574,31 +574,30 @@ public:
           auto *PD = FD->getParamDecl(i);
           if (PD->hasInteropTypeExpr()) {
             // Try handling interop parameters.
-            Handled = handleITypeAssignment(ArgumentConstraints,
+            Handled = handleITypeAssignment(ArgumentConstraintVars,
                                             PD->getInteropTypeExpr());
           }
           if (!Handled) {
             // Here, we need to get the constraints of the
             // parameter from the callee's declaration.
-            std::set<ConstraintVariable *> ParameterConstraints =
+            std::set<ConstraintVariable *> ParameterConstraintVars =
               Info.getVariable(PD, Context, false);
             // Add constraint that the arguments are equal to the
             // parameters.
             //assert(!ParameterConstraints.empty() &&
             // "Unable to get parameter constraints");
             // the constrains could be empty for builtin functions.
-            constrainLocalAssign(ParameterConstraints, PD->getType(), A);
+            constrainLocalAssign(ParameterConstraintVars, PD->getType(), A);
           }
         } else {
           // This is the case of an argument passed to a function
           // with varargs.
           // Constrain this parameter to be wild.
           if (HandleVARARGS) {
-            Constraints &CS = Info.getConstraints();
             PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
             std::string Rsn = "Passing argument to a function "
                               "accepting var args.";
-            assignType(ArgumentConstraints, CS.getWild(), Rsn, &PL);
+              constrainVarsToWild(ArgumentConstraintVars,Rsn, &PL);
           } else {
             if (Verbose) {
               std::string FuncName = FD->getName();
@@ -657,27 +656,25 @@ public:
     return true;
   }
 
-  // These are the expressions, that will
-  // add the constraint ~(V = Ptr) and ~(V = NTArr)
-  // i.e., the variable is not a pointer or nt array.
+  // Pointer arithmetic ==> Must have at least an array
 
   bool VisitUnaryPreInc(UnaryOperator *O) {
-    constrainInBodyExprNotPtr(O->getSubExpr());
+    constraintInBodyVariable(O->getSubExpr(),Info.getConstraints().getArr());
     return true;
   }
 
   bool VisitUnaryPostInc(UnaryOperator *O) {
-    constrainInBodyExprNotPtr(O->getSubExpr());
+    constraintInBodyVariable(O->getSubExpr(),Info.getConstraints().getArr());
     return true;
   }
 
   bool VisitUnaryPreDec(UnaryOperator *O) {
-    constrainInBodyExprNotPtr(O->getSubExpr());
+    constraintInBodyVariable(O->getSubExpr(),Info.getConstraints().getArr());
     return true;
   }
 
   bool VisitUnaryPostDec(UnaryOperator *O) {
-    constrainInBodyExprNotPtr(O->getSubExpr());
+    constraintInBodyVariable(O->getSubExpr(),Info.getConstraints().getArr());
     return true;
   }
 
@@ -789,20 +786,6 @@ private:
     return Handled || !EnablePropThruIType;
   }
 
-  // Constraint all the provided vars to not be PTR type
-   void constrainVarsNotEqPtr(std::set<ConstraintVariable *> &Vars) {
-        Constraints &CS = Info.getConstraints();
-        for (const auto &I : Vars)
-            if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-                if (!PVC->getCvars().empty()) {
-                    if (VarAtom *VA = dyn_cast<VarAtom>(*PVC->getCvars().begin())) {
-                        CS.addConstraint(CS.createGeq(VA, CS.getArr()));
-                        // Saying that something is not PTR is the same as saying it's at least ARR
-                    }
-                }
-            }
-    }
-
   // Constraint all the provided vars to be
   // equal to the provided type i.e., (V >= type).
   void constrainVarsGeq(std::set<ConstraintVariable *> &Vars,
@@ -816,17 +799,6 @@ private:
           }
         }
       }
-  }
-
-  // Apply V = Arr, i.e., one level above Ptr in the lattice, to the
-  // first 'level' constraint variable associated with
-  // 'E' for in-body variables.
-  void constrainInBodyExprNotPtr(Expr *E) {
-    // Get the constrain variables
-    // with in the body context.
-    std::set<ConstraintVariable *> Var =
-      Info.getVariable(E, Context, true);
-    constrainVarsNotEqPtr(Var);
   }
 
   // Constraint helpers.
@@ -844,22 +816,21 @@ private:
 
   // Assign the provided type (target)
   // to all the constraint variables (CVars).
-  void assignType(std::set<ConstraintVariable *> &CVars,
-                  ConstAtom *CAtom) {
+  void constrainVarsToWild(std::set<ConstraintVariable *> &CVars) {
     Constraints &CS = Info.getConstraints();
     for (const auto &C : CVars) {
-      C->constrainTo(CS, CAtom);
+      C->constrainTo(CS, CS.getWild());
     }
   }
 
   // Assign the provided type (target)
   // to all the constraint variables (CVars).
-  void assignType(std::set<ConstraintVariable *> &CVars,
-                  ConstAtom *target, std::string &Rsn,
-                  PersistentSourceLoc *PL = nullptr) {
+  void constrainVarsToWild(std::set<ConstraintVariable *> &CVars,
+                           std::string &Rsn,
+                           PersistentSourceLoc *PL = nullptr) {
     Constraints &CS = Info.getConstraints();
     for (const auto &C : CVars) {
-      C->constrainTo(CS, target, Rsn, PL);
+      C->constrainTo(CS, CS.getWild(), Rsn, PL);
     }
   }
 
@@ -877,13 +848,14 @@ private:
       // Assign WILD to each of the constraint variables.
       FunctionDecl *FD = E->getDirectCallee();
       std::string Rsn = "Argument to function " + (FD != nullptr ? FD->getName().str() : "pointer call");
-      assignType(ParameterEC, CS.getWild(),Rsn, &psl);
+        constrainVarsToWild(ParameterEC, Rsn, &psl);
     }
   }
 
   void arithBinop(BinaryOperator *O) {
-    constrainInBodyExprNotPtr(O->getLHS());
-    constrainInBodyExprNotPtr(O->getRHS());
+      ConstAtom *ARR = Info.getConstraints().getArr();
+      constraintInBodyVariable(O->getLHS(),ARR);
+      constraintInBodyVariable(O->getRHS(),ARR);
   }
 
   ConstAtom *getCheckedPointerConstraint(CheckedPointerKind PtrKind) {
