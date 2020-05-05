@@ -512,7 +512,7 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
       // change the array-to-pointer decay cast in checked scopes to make the
       // target type completely checked.
       if (IsCheckedScope() && Ty->isOrContainsUncheckedType()) {
-        QualType InteropType = GetCheckedCInteropType(E->IgnoreParenCasts());
+        QualType InteropType = GetCheckedCLValueInteropType(E->IgnoreParenCasts());
         if (!InteropType.isNull()) {
           Ty = RewriteBoundsSafeInterfaceTypes(InteropType);
           isBoundsSafeInterfaceCast = true;
@@ -9111,8 +9111,9 @@ struct OriginalOperand {
 /// Get the bounds-safe interface type for the left-hand side of an assignment,
 /// if the left-hand side has a bounds-safe interface. Return a null QualType
 /// otherwise.  For the left-hand sides of assignments, only global variables,
-/// parameters, and members of structures/unions have bounds-safe interfaces.
-QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
+/// parameters, members of structures/unions, pointer dereferences, and array
+/// subscripts have bounds-safe interfaces.
+QualType Sema::GetCheckedCLValueInteropType(ExprResult LHS) {
   bool IsParam = false;
   DeclaratorDecl *D = nullptr;
   if (!LHS.isInvalid()) {
@@ -9127,7 +9128,7 @@ QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
         IsParam = isa<ParmVarDecl>(Var);
       }
     }
-    // If `e` has bounds-safe interface type with referent type T, then
+    // If `e` has a bounds-safe interface type that is a pointer to T, then
     // `*e` has bounds-safe interface type T.
     else if (UnaryOperator *Unary = dyn_cast<UnaryOperator>(LHSExpr)) { 
       if (Unary->getOpcode() == UnaryOperatorKind::UO_Deref) {
@@ -9136,9 +9137,9 @@ QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
           return QualType(T->getPointeeOrArrayElementType(), 0);
       }
     }
-    // If `e1` has bounds-safe interface type with referent type T and `e2`
-    // is an integer, then `e1[e2]` and `e2[e1`] have bounds-safe interface
-    // type T.
+    // If `e1` has a bounds-safe interface type that is a pointer to T and
+    // `e2` is an integer, then `e1[e2]` and `e2[e1]` have bounds-safe
+    // interface type T.
     else if (ArraySubscriptExpr *Array = dyn_cast<ArraySubscriptExpr>(LHSExpr)) {
       QualType T = GetCheckedCRValueInteropType(Array->getBase());
       if (!T.isNull())
@@ -9166,7 +9167,7 @@ QualType Sema::GetCheckedCRValueInteropType(ExprResult RHS) {
     // has bounds-safe interface type T.
     if (CastExpr *Cast = dyn_cast<CastExpr>(RHSExpr)) {
       if (Cast->getCastKind() == CastKind::CK_LValueToRValue)
-        return GetCheckedCInteropType(Cast->getSubExpr());
+        return GetCheckedCLValueInteropType(Cast->getSubExpr());
     }
     // If `p` is a pointer with bounds-safe interface type T and `i` is an
     // integer, then `p +/- i` and `i +/- p` have bounds-safe interface type T.
@@ -12233,7 +12234,7 @@ QualType Sema::CheckAssignmentOperands(Expr *LHSExpr, ExprResult &RHS,
     QualType LHSTy(LHSType);
     QualType LHSInteropType;
     if (getLangOpts().CheckedC && LHSTy->isUncheckedPointerType())
-      LHSInteropType = GetCheckedCInteropType(LHSExpr);
+      LHSInteropType = GetCheckedCLValueInteropType(LHSExpr);
     ConvTy = CheckSingleAssignmentConstraints(LHSTy, RHS, /*Diagnose=*/true,
                                               /*DiagnoseCFAudited=*/false,
                                               /*ConvertRHS=*/true,

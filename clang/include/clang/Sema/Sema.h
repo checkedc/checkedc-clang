@@ -10563,7 +10563,7 @@ public:
 
   /// \brief Get the bounds-safe interface type for LHS.
   /// Returns a null QualType if there isn't one.
-  QualType GetCheckedCInteropType(ExprResult LHS);
+  QualType GetCheckedCLValueInteropType(ExprResult LHS);
 
   /// \brief Get the bounds-safe interface type for RHS.
   /// Returns a null QualType if there isn't one.
