@@ -666,6 +666,36 @@ ProgramInfo::insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
   return RetVal;
 }
 
+void
+ProgramInfo::insertNewFVConstraints(FunctionDecl *FD,
+                                   std::set<FVConstraint *> &FVcons,
+                                   ASTContext *C) {
+  std::string FuncName = FD->getNameAsString();
+  if (FD->isGlobal()) {
+    // external method.
+    if (FD->isThisDeclarationADefinition() && FD->hasBody()) {
+      // Function definition.
+      insertIntoExternalFunctionMap(ExternalFunctionDefnFVCons,
+                                    FuncName, FVcons);
+    } else {
+      insertIntoExternalFunctionMap(ExternalFunctionDeclFVCons,
+                                    FuncName, FVcons);
+    }
+  } else {
+    // static method
+    auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
+    std::string FuncFileName = Psl.getFileName();
+    if (FD->isThisDeclarationADefinition() && FD->hasBody()) {
+      // Function definition.
+      insertIntoStaticFunctionMap(StaticFunctionDefnFVCons, FuncName,
+                                  FuncFileName, FVcons);
+    } else {
+      insertIntoStaticFunctionMap(StaticFunctionDeclFVCons, FuncName,
+                                  FuncFileName, FVcons);
+    }
+  }
+}
+
 // For each pointer type in the declaration of D, add a variable to the
 // constraint system for that pointer type.
 bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
@@ -730,29 +760,7 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
     // FV Constraints to insert.
     std::set<FVConstraint *> NewFVars;
     NewFVars.insert(F);
-    if (UD->isGlobal()) {
-      // external method.
-      if (UD->isThisDeclarationADefinition() && UD->hasBody()) {
-        // Function definition.
-        insertIntoExternalFunctionMap(ExternalFunctionDefnFVCons,
-                                      FuncName, NewFVars);
-      } else {
-        insertIntoExternalFunctionMap(ExternalFunctionDeclFVCons,
-                                      FuncName, NewFVars);
-      }
-    } else {
-      // static method
-      auto Psl = PersistentSourceLoc::mkPSL(UD, *C);
-      std::string FuncFileName = Psl.getFileName();
-      if (UD->isThisDeclarationADefinition() && UD->hasBody()) {
-        // Function definition.
-        insertIntoStaticFunctionMap(StaticFunctionDefnFVCons, FuncName,
-                                    FuncFileName, NewFVars);
-      } else {
-        insertIntoStaticFunctionMap(StaticFunctionDeclFVCons, FuncName,
-                                    FuncFileName, NewFVars);
-      }
-    }
+    insertNewFVConstraints(UD, NewFVars, C);
   }
 
   if (P != nullptr && !hasConstraintType<PVConstraint>(S)) {
@@ -1186,9 +1194,11 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C,
       VariableMap::iterator I =
           Variables.find(PersistentSourceLoc::mkPSL(FD, *C));
       assert (I == Variables.end() && "Never seen declaration.");
-      // Create function constraints.
-      addVariable(FD, nullptr, C);
-      seeFunctionDecl(FD, C);
+
+      FVConstraint *NewFV = new FVConstraint(FD, freeKey, CS, *C);
+      std::set<FVConstraint *> TmpFV;
+      TmpFV.insert(NewFV);
+      insertNewFVConstraints(FD, TmpFV, C);
       FunFVars = getFuncFVConstraints(FD, *this, C, InFuncCtx);
     }
 

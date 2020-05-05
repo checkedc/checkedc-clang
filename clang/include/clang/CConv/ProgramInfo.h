@@ -226,6 +226,10 @@ private:
                                    const std::string &FileName,
                                    std::set<FVConstraint *> &ToIns);
 
+  void
+  insertNewFVConstraints(FunctionDecl *FD, std::set<FVConstraint *> &FVcons,
+                        ASTContext *C);
+
   // Next available integer to assign to a variable.
   uint32_t freeKey;
 
