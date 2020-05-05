@@ -227,7 +227,7 @@ bool Constraints::check(Constraint *C) {
       return false;
   }
   else if (Geq *GE = dyn_cast<Geq>(C)) {
-      if (!isa<VarAtom>(GE->getLHS()) || isa<VarAtom>(GE->getRHS()))
+      if (!isa<VarAtom>(GE->getLHS()))
           return false;
   }
   else
@@ -387,9 +387,7 @@ bool Constraints::step_solve_old(void) {
   return (ChangedEnv == false);
 }
 
-// Solving algorithm.
-//
-//Given ptr < arr < ntarr < wild
+// Solving algorithm. Produces the least solution according to ptr < arr < ntarr < wild.
 //
 //Constraints have form
 //
@@ -414,7 +412,7 @@ int Constraints::solve_new(void) {
         ChangedEnv = false;
         n++;
 
-        // Step 1. Propagate any Geq constraints
+        // Step 1. Propagate any Geq(v,c) constraints, which can be summarily deleted
         VI = environment.begin();
         while (VI != environment.end()) {
             VarAtom *Var = VI->first;
@@ -423,6 +421,7 @@ int Constraints::solve_new(void) {
                 if (Geq *GE = dyn_cast<Geq>(C)) {
                     VarAtom *VA = dyn_cast<VarAtom>(GE->getLHS());
                     ConstAtom *CA = dyn_cast<ConstAtom>(GE->getRHS());
+                    if (CA == nullptr) continue;
 
                     EnvironmentMap::iterator CurVal = environment.find(VA);
                     assert(CurVal != environment.end()); // The var on the RHS should be in the env.
@@ -438,20 +437,45 @@ int Constraints::solve_new(void) {
             VI++;
         }
 
-
-        // Step 2. Propagate any Eq constraints until a fixed point -- warning, is quadratic (want graph)
+        // Step 2. Propagate any Eq(v,v) or Geq(v,v) constraints
+        //   Go until a fixed point reached -- warning, is quadratic (want graph)
         NotFixedPoint = true;
         while (NotFixedPoint) {
             NotFixedPoint = false;
             VI = environment.begin();
             while (VI != environment.end()) {
                 VarAtom *Var = VI->first;
+                VarAtom *lhs, *RHSVar;
+                EnvironmentMap::iterator CurValLHS, CurValRHS;
+                int isEq;
                 for (const auto &C : Var->Constraints) {
+                    isEq = 0;
                     if (Eq *E = dyn_cast<Eq>(C)) {
-                        VarAtom *lhs = dyn_cast<VarAtom>(E->getLHS());
-                        EnvironmentMap::iterator CurValLHS = environment.find(lhs);
+                        isEq = 1; // EQ
+                        lhs = dyn_cast<VarAtom>(E->getLHS());
+                        CurValLHS = environment.find(lhs);
                         assert(CurValLHS != environment.end());
-                        NotFixedPoint |= propEq(environment, E, CurValLHS);
+                        RHSVar = dyn_cast<VarAtom>(E->getRHS());
+                        CurValRHS = environment.find(RHSVar);
+                        assert(CurValRHS != environment.end());
+                    } else if (Geq *E = dyn_cast<Geq>(C)) {
+                        isEq = 2; //GEQ
+                        lhs = dyn_cast<VarAtom>(E->getLHS());
+                        CurValLHS = environment.find(lhs);
+                        assert(CurValLHS != environment.end());
+                        RHSVar = dyn_cast<VarAtom>(E->getRHS());
+                        CurValRHS = environment.find(RHSVar);
+                        assert(CurValRHS != environment.end());
+                    }
+                    if (isEq) { // have LHS >= RHS
+                        if (*(CurValLHS->second) < *(CurValRHS->second)) {
+                            NotFixedPoint |= assignConstToVar(CurValLHS, CurValRHS->second);
+                        }
+                    }
+                    if (isEq == 1) { // have LHS == RHS, so check the other direction too
+                        if (*(CurValRHS->second) < *(CurValLHS->second)) {
+                            NotFixedPoint |= assignConstToVar(CurValRHS, CurValLHS->second);;
+                        }
                     }
                 }
                 VI++;
