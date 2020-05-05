@@ -1113,32 +1113,56 @@ ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C,
   return getVariableOnDemand(D, C, InFuncCtx);
 }
 
+std::set<FVConstraint *> *getFuncFVConstraints(FunctionDecl *FD,
+                                               ProgramInfo &I,
+                                               ASTContext *C,
+                                               bool Defn) {
+  std::string FuncName = FD->getNameAsString();
+  std::set<FVConstraint *> *FunFVars = nullptr;
+
+  if (Defn) {
+    // External function definition.
+    if (FD->isGlobal()) {
+      FunFVars = I.getExtFuncDefnConstraintSet(FuncName);
+    } else {
+      auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
+      std::string FileName = Psl.getFileName();
+      FunFVars = I.getStaticFuncDefnConstraintSet(FuncName, FileName);
+    }
+
+  }
+
+  if (FunFVars == nullptr) {
+    // Try to get declaration constraints.
+    if (FD->isGlobal()) {
+      FunFVars = I.getExtFuncDeclConstraintSet(FuncName);
+    } else {
+      auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
+      std::string FileName = Psl.getFileName();
+      FunFVars = I.getStaticFuncDeclConstraintSet(FuncName, FileName);
+    }
+  }
+
+  return FunFVars;
+}
+
+
 // Given a decl, return the variables for the constraints of the Decl.
 std::set<ConstraintVariable *>
 ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C,
                                  bool InFuncCtx) {
   assert(persisted == false);
-  VariableMap::iterator I =
-      Variables.find(PersistentSourceLoc::mkPSL(D, *C));
-  if (I != Variables.end()) {
-    // If we are looking up a variable, and that variable is a parameter
-    // variable, or return value then we should see if we're looking this up
-    // in the context of a function or not.
-    // If we are not, then we should find a declaration.
-    ParmVarDecl *PD = nullptr;
-    FunctionDecl *FuncDef = nullptr;
-    FunctionDecl *FuncDecl = nullptr;
-    // Get the function declaration and definition.
-    if (D != nullptr && dyn_cast<FunctionDecl>(D)) {
-      FuncDecl = getDeclaration(dyn_cast<FunctionDecl>(D));
-      FuncDef = getDefinition(dyn_cast<FunctionDecl>(D));
-    }
+  // Does this declaration belongs to a function prototype?
+  if (dyn_cast<ParmVarDecl>(D) != nullptr ||
+      dyn_cast<FunctionDecl>(D) != nullptr) {
     int PIdx = -1;
-    if (PD = dyn_cast<ParmVarDecl>(D)) {
+    FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
+    // Is this a parameter? Get the paramter index.
+    if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
       // Okay, we got a request for a parameter.
       DeclContext *DC = PD->getParentFunctionOrMethod();
       assert(DC != nullptr);
-      FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
+      FD = dyn_cast<FunctionDecl>(DC);
       // Get the parameter index with in the function.
       for (unsigned i = 0; i < FD->getNumParams(); i++) {
         const ParmVarDecl *tmp = FD->getParamDecl(i);
@@ -1147,73 +1171,50 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C,
           break;
         }
       }
+    }
 
-      // Get declaration and definition.
-      FuncDecl = getDeclaration(FD);
-      FuncDef = getDefinition(FD);
-      
-      // If this is an external function and we are unable
-      // to find the body. Get the FD object from the parameter.
-      if (!FuncDef && !FuncDecl) {
-        FuncDecl = FD;
-      }
-      assert(PIdx >= 0 && "Got request for invalid parameter");
+    // Get corresponding FVConstraint vars.
+    std::set<FVConstraint *> *FunFVars = getFuncFVConstraints(FD, *this,
+                                                              C, InFuncCtx);
+
+    // This can happen when we have a call to function which is never
+    // explicitly declared. In which case, we need to create a FVConstraint
+    // for the FunctionDecl.
+    if (FunFVars == nullptr) {
+      // We are seeing a call to a function and its declaration
+      // was never visited.
+      VariableMap::iterator I =
+          Variables.find(PersistentSourceLoc::mkPSL(FD, *C));
+      assert (I == Variables.end() && "Never seen declaration.");
+      // Create function constraints.
+      addVariable(FD, nullptr, C);
+      seeFunctionDecl(FD, C);
+      FunFVars = getFuncFVConstraints(FD, *this, C, InFuncCtx);
     }
-    if (FuncDecl || FuncDef || PIdx != -1) {
-      // If we are asking for the constraint variable of a function
-      // and that function is an external function then use declaration.
-      if (dyn_cast<FunctionDecl>(D) && FuncDef == nullptr) {
-        FuncDef = FuncDecl;
+
+    assert (FunFVars != nullptr && "Unable to find function constraints.");
+
+    if (PIdx != -1) {
+      // This is a parameter, get all parameter constraints from FVConstraints.
+      std::set<ConstraintVariable *> ParameterCons;
+      ParameterCons.clear();
+      for (auto fv : *FunFVars) {
+        auto currParamConstraint = fv->getParamVar(PIdx);
+        ParameterCons.insert(currParamConstraint.begin(),
+                             currParamConstraint.end());
       }
-      // This means either we got a
-      // request for function return value or parameter.
-      if (InFuncCtx) {
-        assert(FuncDef != nullptr && "Requesting for in-context "
-                                            "constraints, but there is no "
-                                            "definition for this function");
-        // Return the constraint variable that belongs to the
-        // function definition.
-        return getVariable(D, C, FuncDef, PIdx);
-      } else {
-        if (FuncDecl == nullptr) {
-          // We need constraint variable
-          // with in the function declaration,
-          // but there is no declaration
-          // get on demand declaration.
-          std::set<FVConstraint *> &FvConstraints =
-              getOnDemandFuncDeclarationConstraint(FuncDef, C);
-          if (PIdx != -1) {
-            // This is a parameter.
-            std::set<ConstraintVariable *> ParameterCons;
-            ParameterCons.clear();
-            assert(FvConstraints.size() && "Unable to find on demand "
-                                           "fv constraints.");
-            // Get all parameters from all the FVConstraints.
-            for (auto fv : FvConstraints) {
-              auto currParamConstraint =
-                  (dyn_cast<FunctionVariableConstraint>(fv))->getParamVar(PIdx);
-              ParameterCons.insert(currParamConstraint.begin(),
-                                          currParamConstraint.end());
-            }
-            return ParameterCons;
-          }
-          std::set<ConstraintVariable*> TmpRet;
-          TmpRet.insert(FvConstraints.begin(), FvConstraints.end());
-          return TmpRet;
-        } else {
-          // Return the variable with in
-          // the function declaration.
-          return getVariable(D, C, FuncDecl, PIdx);
-        }
-      }
-      // We got a request for function return or parameter
-      // but we failed to handle the request.
-      assert(false && "Invalid state reached.");
+      return ParameterCons;
     }
-    // neither parameter or return value.
-    // just return the original constraint.
-    return I->second;
+
+    std::set<ConstraintVariable*> TmpRet;
+    TmpRet.insert(FunFVars->begin(), FunFVars->end());
+    return TmpRet;
   } else {
+    VariableMap::iterator I =
+        Variables.find(PersistentSourceLoc::mkPSL(D, *C));
+    if (I != Variables.end()) {
+      return I->second;
+    }
     return std::set<ConstraintVariable *>();
   }
 }
