@@ -48,8 +48,8 @@ char* basic3(int* data, int count) {
 		count--;
 	}
 }
-//CHECK: _Ptr<char> basic3(int *data, int count) {
-//CHECK: int* temp = malloc(8);
+//CHECK: _Ptr<char> basic3(_Ptr<int> data, int count) {
+//CHECK: _Ptr<int> temp =  malloc(8);
 
 void sum_numbers(int count) {
     int n, i, sum = 0;
