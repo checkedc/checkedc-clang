@@ -702,39 +702,20 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, ASTContext *astContext) {
   PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(D, *astContext);
   assert(PLoc.valid());
 
-  const Type *Ty = nullptr;
-  if (VarDecl *VD = dyn_cast<VarDecl>(D))
-    Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
-  else if (FieldDecl *FD = dyn_cast<FieldDecl>(D))
-    Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
-  else if (FunctionDecl *UD = dyn_cast<FunctionDecl>(D))
-    Ty = UD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
-  else
-    llvm_unreachable("unknown decl type");
-
   // We only add a PVConstraint or an FVConstraint if the set at
   // Variables[PLoc] does not contain one already. TODO: Explain why would this happen
   std::set<ConstraintVariable *> &S = Variables[PLoc];
 
-  // Decl is a pointer-type VarDecl - we will add a PVConstraint (even for FunPtrs)
-  if (Ty->isPointerType() || Ty->isArrayType()) {
-    // Create a pointer value for the type.
-    // TODO: Why create the constraint if we are not going to add it?
-    PVConstraint *P = new PVConstraint(D, freeKey, CS, *astContext);
-    if (!hasConstraintType<PVConstraint>(S)) {
-      S.insert(P);
-    }
-  }
-  // Only create a function type if the type is a base Function type. The case
-  // for creating function pointers is handled above, with a PVConstraint that
-  // contains a FVConstraint.
-  else if (Ty->isFunctionType()) {
-    // Create a function value for the type.
-    // TODO: Why create the constraint if we are not going to add it?
-    FVConstraint *F = new FVConstraint(D, freeKey, CS, *astContext);
+  // Function Decls have FVConstraints. Function pointers have PVConstraints;
+  // see below
+  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+    const Type *Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
+    assert(Ty->isFunctionType());
 
+    // Create a function value for the type.
     // process the function constraint only if it doesn't exist
     if (!hasConstraintType<FVConstraint>(S)) {
+      FVConstraint *F = new FVConstraint(D, freeKey, CS, *astContext);
       S.insert(F);
 
       // If this is a function. Save the created constraint.
@@ -746,17 +727,14 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, ASTContext *astContext) {
       // resolve function subtyping. where for each function
       // we need access to teh definition and declaration
       // constraint variables.
-      FunctionDecl *UD = dyn_cast<FunctionDecl>(D);
-      std::string FuncName = UD->getNameAsString();
+      std::string FuncName = FD->getNameAsString();
       // FV Constraints to insert.
       std::set<FVConstraint *> NewFVars;
       NewFVars.insert(F);
-      insertNewFVConstraints(UD, NewFVars, astContext);
+      insertNewFVConstraints(FD, NewFVars, astContext);
 
       // Add mappings from the parameters PLoc to the constraint variables for
       // the parameters.
-      FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
-      assert(FD != nullptr);
       // We just created this, so they should be equal.
       assert(FD->getNumParams() == F->numParams());
       for (unsigned i = 0; i < FD->getNumParams(); i++) {
@@ -768,8 +746,24 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, ASTContext *astContext) {
         }
       }
     }
+  } else {
+    const Type *Ty = nullptr;
+    if (VarDecl *VD = dyn_cast<VarDecl>(D))
+      Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
+    else if (FieldDecl *FD = dyn_cast<FieldDecl>(D))
+      Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
+    else
+      llvm_unreachable("unknown decl type");
+
+    // We will add a PVConstraint even for FunPtrs
+    if (Ty->isPointerType() || Ty->isArrayType()) {
+      // Create a pointer value for the type.
+      if (!hasConstraintType<PVConstraint>(S)) {
+        PVConstraint *P = new PVConstraint(D, freeKey, CS, *astContext);
+        S.insert(P);
+      }
+    }
   }
-  // else a record decl; do nothing
 
   // The Rewriter won't let us re-write things that are in macros. So, we 
   // should check to see if what we just added was defined within a macro.
