@@ -28,6 +28,18 @@ if(NOT DEFINED LLVM_VERSION_SUFFIX)
   set(LLVM_VERSION_SUFFIX svn)
 endif()
 
+# Check for existence of boost library
+set(Boost_USE_STATIC_LIBS OFF)
+set(Boost_USE_MULTITHREADED ON)
+set(Boost_USE_STATIC_RUNTIME OFF)
+find_package(Boost 1.50 REQUIRED COMPONENTS graph)
+if(Boost_FOUND)
+  message(STATUS "Boost version: ${Boost_VERSION}")
+  set(LLVM_BOOST_FOUND "${Boost_FOUND}")
+else()
+  message(STATUS "Boost Libraries not found.")
+endif()
+
 if (NOT PACKAGE_VERSION)
   set(PACKAGE_VERSION
     "${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}${LLVM_VERSION_SUFFIX}")
