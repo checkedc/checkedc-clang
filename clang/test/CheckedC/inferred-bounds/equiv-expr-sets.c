@@ -1,8 +1,8 @@
 // Tests for updating equivalent expression information during bounds inference and checking.
-// This file tests updating the set UEQ of sets of equivalent expressions after checking
+// This file tests updating the set EquivExprs of sets of equivalent expressions after checking
 // initializations and assignments during bounds analysis.
 // Updating this set of sets also updates the set G of expressions that produce the same value
-// as a given expression. Since the set G is usually included in the set UEQ, this file typically
+// as a given expression. Since the set G is usually included in the set EquivExprs, this file typically
 // does not explicitly test the contents of G (G is tested in equiv-exprs.c).
 //
 // RUN: %clang_cc1 -Wno-unused-value -fdump-checking-state %s | FileCheck %s
@@ -17,7 +17,7 @@ extern array_ptr<int> g1(array_ptr<int> arr : count(1)) : count(1);
 
 // VarDecl: initializer
 void vardecl1(void) {
-  // Updated UEQ: { { 0, i } }
+  // Updated EquivExprs: { { 0, i } }
   int i = 0;
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
@@ -36,7 +36,7 @@ void vardecl1(void) {
 // BinaryOperator: assignments to variables where the variable
 // does not appear on the right-hand side
 void binary1(int i, nt_array_ptr<char> c) {
-  // Updated UEQ: { }
+  // Updated EquivExprs: { }
   c = "abc";
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -47,7 +47,7 @@ void binary1(int i, nt_array_ptr<char> c) {
   // CHECK: Sets of equivalent expressions after checking S:
   // CHECK-NEXT: { }
 
-  // Updated UEQ: { { 1, i } }
+  // Updated EquivExprs: { { 1, i } }
   i = 1;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -66,7 +66,7 @@ void binary1(int i, nt_array_ptr<char> c) {
 // BinaryOperator: assignments to variables where the variable
 // appears on the right-hand side
 void binary2(unsigned i) {
-  // Updated UEQ: { }, Updated G: { i }
+  // Updated EquivExprs: { }, Updated G: { i }
   i = i + 2;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -84,7 +84,7 @@ void binary2(unsigned i) {
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT: }
 
-  // Updated UEQ: { }, Updated G: { i }
+  // Updated EquivExprs: { }, Updated G: { i }
   i += 2;
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '+='
@@ -103,7 +103,7 @@ void binary2(unsigned i) {
 // BinaryOperator: non-compound assignments to non-variables
 // (non-modifying and modifying expressions)
 void binary3(int arr[1], int i) {
-  // Updated UEQ: { }, Updated G: { }
+  // Updated EquivExprs: { }, Updated G: { }
   *arr = 3;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -116,7 +116,7 @@ void binary3(int arr[1], int i) {
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 
-  // Updated UEQ: { }, Updated G: { }
+  // Updated EquivExprs: { }, Updated G: { }
   arr[i++] = 3;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -135,7 +135,7 @@ void binary3(int arr[1], int i) {
 // BinaryOperator: compound assignments to non-variables
 // (non-modifying and modifying expressions)
 void binary4(int arr[1], int i) {
-  // Updated UEQ: { }, Updated G: { }
+  // Updated EquivExprs: { }, Updated G: { }
   arr[0] *= 4;
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
@@ -149,7 +149,7 @@ void binary4(int arr[1], int i) {
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 
-  // Updated UEQ: { }, Updated G: { }
+  // Updated EquivExprs: { }, Updated G: { }
   arr[--i] += 4;
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '+='
@@ -167,7 +167,7 @@ void binary4(int arr[1], int i) {
 
 // UnaryOperator: pre-increment operator on a variable (unsigned integer arithmetic)
 void unary1(unsigned x) {
-  // Updated UEQ: { }, Updated G: { x }
+  // Updated EquivExprs: { }, Updated G: { x }
   ++x;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
@@ -183,7 +183,7 @@ void unary1(unsigned x) {
 
 // UnaryOperator: pre-decrement operator on a variable (checked pointer arithmetic)
 void unary2(array_ptr<int> arr) {
-  // Updated UEQ: { }, Updated G: { arr }
+  // Updated EquivExprs: { }, Updated G: { arr }
   --arr;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '--'
@@ -199,7 +199,7 @@ void unary2(array_ptr<int> arr) {
 
 // UnaryOperator: post-increment operator on a variable (unsigned integer arithmetic)
 void unary3(unsigned x) {
-  // Updated UEQ: { }, Updated G: { x - 1 }
+  // Updated EquivExprs: { }, Updated G: { x - 1 }
   x++;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '++'
@@ -217,7 +217,7 @@ void unary3(unsigned x) {
 
 // UnaryOperator: post-decrement operator on a variable (checked pointer arithmetic)
 void unary4(array_ptr<int> arr) {
-  // Updated UEQ: { }, Updated G: { arr + 1 }
+  // Updated EquivExprs: { }, Updated G: { arr + 1 }
   arr--;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '--'
@@ -235,7 +235,7 @@ void unary4(array_ptr<int> arr) {
 
 // UnaryOperator: pre-increment operator on a variable (float arithmetic)
 void unary5(float f) {
-  // Updated UEQ: { }, Updated G: { }
+  // Updated EquivExprs: { }, Updated G: { }
   ++f;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
@@ -248,7 +248,7 @@ void unary5(float f) {
 
 // UnaryOperator: post-decrement operator on a non-variable
 void unary6(int *p) {
-  // Updated UEQ: { }, Updated G: { (*p) + 1 }
+  // Updated EquivExprs: { }, Updated G: { (*p) + 1 }
   (*p)--;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '--'
@@ -276,7 +276,7 @@ void unary6(int *p) {
 
 // Assign one value to each variable.
 void multiple_assign1(int x, int y, int z, int w) {
-  // Updated UEQ: { { 1, x }, { 2, y } }
+  // Updated EquivExprs: { { 1, x }, { 2, y } }
   x = 1, y = 2;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} ','
@@ -300,7 +300,7 @@ void multiple_assign1(int x, int y, int z, int w) {
   // CHECK-NEXT: }
   // CHECK-NEXT: }
 
-  // Updated UEQ: { { 1, x }, { 2, y }, { 3, w, z } }
+  // Updated EquivExprs: { { 1, x }, { 2, y }, { 3, w, z } }
   z = (w = 3);
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -333,7 +333,7 @@ void multiple_assign1(int x, int y, int z, int w) {
 
 // Overwrite variable values.
 void multiple_assign2(int x, int y) {
-  // Updated UEQ: { { 1, x } }
+  // Updated EquivExprs: { { 1, x } }
   x = 1;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -348,7 +348,7 @@ void multiple_assign2(int x, int y) {
   // CHECK-NEXT: }
   // CHECK-NEXT: }
 
-  // Updated UEQ: { { 1, x, y } }
+  // Updated EquivExprs: { { 1, x, y } }
   y = x;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -366,7 +366,7 @@ void multiple_assign2(int x, int y) {
   // CHECK-NEXT: }
   // CHECK-NEXT: }
 
-  // Updated UEQ: { { 1, y }, { 2, x } }
+  // Updated EquivExprs: { { 1, y }, { 2, x } }
   x = 2;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -393,7 +393,7 @@ void multiple_assign2(int x, int y) {
 
 // UnaryOperator: '+' inverse
 void original_value1(int x, int i) {
-  // Updated UEQ: { { i, x } }, Updated G: { i, x }
+  // Updated EquivExprs: { { i, x } }, Updated G: { i, x }
   x = i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -418,7 +418,7 @@ void original_value1(int x, int i) {
   // CHECK-NEXT: }
 
   // Original value of i in +i: +i
-  // Updated UEQ: { { +i, x } }, Updated G: { i }
+  // Updated EquivExprs: { { +i, x } }, Updated G: { i }
   i = +i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -445,7 +445,7 @@ void original_value1(int x, int i) {
 
 // UnaryOperator: '-' inverse
 void original_value2(int x, int i) {
-  // Updated UEQ: { { i, x } }
+  // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -463,7 +463,7 @@ void original_value2(int x, int i) {
   // CHECK-NEXT: }
 
   // Original value of i in -i: -i
-  // Updated UEQ: { { -i, x } }, Updated G: { i }
+  // Updated EquivExprs: { { -i, x } }, Updated G: { i }
   i = -i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -490,7 +490,7 @@ void original_value2(int x, int i) {
 
 // UnaryOperator: '~' inverse
 void original_value3(int x, int i) {
-  // Updated UEQ: { { i, x } }
+  // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -508,7 +508,7 @@ void original_value3(int x, int i) {
   // CHECK-NEXT: }
 
   // Original value of i in ~i: ~i
-  // Updated UEQ: { { ~i, x } }, Updated G: { i }
+  // Updated EquivExprs: { { ~i, x } }, Updated G: { i }
   i = ~i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -535,7 +535,7 @@ void original_value3(int x, int i) {
 
 // BinaryOperator: '^' inverse
 void original_value4(int x, int i) {
-  // Updated UEQ: { { i, x } }
+  // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -553,7 +553,7 @@ void original_value4(int x, int i) {
   // CHECK-NEXT: }
 
   // Original value of i in 2 ^ i: i ^ 2
-  // Updated UEQ: { { i ^ 2, x } }, Updated G: { i }
+  // Updated EquivExprs: { { i ^ 2, x } }, Updated G: { i }
   i = 2 ^ i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -582,7 +582,7 @@ void original_value4(int x, int i) {
 
 // BinaryOperator: '-' inverse
 void original_value5(unsigned i, unsigned x) {
-  // Updated UEQ: { { x, i } }
+  // Updated EquivExprs: { { x, i } }
   i = x;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -600,7 +600,7 @@ void original_value5(unsigned i, unsigned x) {
   // CHECK-NEXT: }
 
   // Original value of i in i - x: i + x
-  // Updated UEQ: { { x, i + x } }, Updated G: { i }
+  // Updated EquivExprs: { { x, i + x } }, Updated G: { i }
   // Note: since i == x before this assignment, i is equivalent
   // to 0 after this assignment, so recording equality between x and i + x
   // is mathematically equivalent to recording equality between x and x.
@@ -634,7 +634,7 @@ void original_value5(unsigned i, unsigned x) {
 
 // Combined UnaryOperator and BinaryOperator inverse
 void original_value6(unsigned x, unsigned i) {
-  // Updated UEQ: { { i, x } }
+  // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -652,7 +652,7 @@ void original_value6(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 
   // Original value of i in -(i + 2): -i - 2
-  // Updated UEQ: { { -i - 2, x } }, Updated G: { i }
+  // Updated EquivExprs: { { -i - 2, x } }, Updated G: { i }
   i = -(i + 2);
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -686,7 +686,7 @@ void original_value6(unsigned x, unsigned i) {
 
 // Combined BinaryOperator and UnaryOperator inverse
 void original_value7(unsigned x, unsigned i) {
-  // Updated UEQ: { { i, x } }
+  // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -704,7 +704,7 @@ void original_value7(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 
   // Original value of i in ~i + 3: ~(i - 3)
-  // Updated UEQ: { { ~(i - 3), x } }, Updated G: { i }
+  // Updated EquivExprs: { { ~(i - 3), x } }, Updated G: { i }
   i = ~i + 3;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -737,7 +737,7 @@ void original_value7(unsigned x, unsigned i) {
 
 // UnaryOperator: pre-increment and post-increment inverses
 void original_value8(unsigned x, unsigned i) {
-  // Updated UEQ: { { i, x } }
+  // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -755,7 +755,7 @@ void original_value8(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 
   // Original value of i in i + 1: i - 1
-  // Updated UEQ: { { i - 1, x } }, Updated G: { i }
+  // Updated EquivExprs: { { i - 1, x } }, Updated G: { i }
   ++i;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
@@ -778,7 +778,7 @@ void original_value8(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 
   // Original value of i in i + 1: i - 1
-  // Updated UEQ: { { i - 1 - 1, x } }, Updated G: { i - 1 }
+  // Updated EquivExprs: { { i - 1 - 1, x } }, Updated G: { i - 1 }
   i++;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '++'
@@ -807,7 +807,7 @@ void original_value8(unsigned x, unsigned i) {
 
 // UnaryOperator: pre-decrement and post-decrement inverses
 void original_value9(unsigned x, unsigned i) {
-  // Updated UEQ: { { i, x } }
+  // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -825,7 +825,7 @@ void original_value9(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 
   // Original value of i in i - 1: i + 1
-  // Updated UEQ: { { i + 1, x } }, Updated G: { i }
+  // Updated EquivExprs: { { i + 1, x } }, Updated G: { i }
   --i;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '--'
@@ -848,7 +848,7 @@ void original_value9(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 
   // Original value of i in i - 1: i + 1
-  // Updated UEQ: { { i + 1 + 1, x } }, Updated G: { i + 1 }
+  // Updated EquivExprs: { { i + 1 + 1, x } }, Updated G: { i + 1 }
   i--;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '--'
@@ -877,7 +877,7 @@ void original_value9(unsigned x, unsigned i) {
 
 // UnaryOperator: pre-increment with no inverse
 void original_value10(int x, int i) {
-  // Updated UEQ: { { i, x } }
+  // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -895,7 +895,7 @@ void original_value10(int x, int i) {
   // CHECK-NEXT: }
 
   // Original value of i in i + 1: x
-  // Updated UEQ: { { x + 1, i } }, Updated G: { i }
+  // Updated EquivExprs: { { x + 1, i } }, Updated G: { i }
   ++i;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
@@ -920,7 +920,7 @@ void original_value10(int x, int i) {
 
 // UnaryOperator: post-increment with no inverse
 void original_value11(int x, int i) {
-  // Updated UEQ: { { i, x } }
+  // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -938,7 +938,7 @@ void original_value11(int x, int i) {
   // CHECK-NEXT: }
 
   // Original value of i in i + 1: x
-  // Updated UEQ: { { x + 1, i } }, Updated G: { i - 1 }
+  // Updated EquivExprs: { { x + 1, i } }, Updated G: { i - 1 }
   i++;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '++'
@@ -965,7 +965,7 @@ void original_value11(int x, int i) {
 
 // UnaryOperator: pre-decrement with no inverse
 void original_value12(int x, int i) {
-  // Updated UEQ: { { i, x } }
+  // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -983,7 +983,7 @@ void original_value12(int x, int i) {
   // CHECK-NEXT: }
 
   // Original value of i in i - 1: x
-  // Updated UEQ: { { x - 1, i } }, Updated G: { i }
+  // Updated EquivExprs: { { x - 1, i } }, Updated G: { i }
   --i;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '--'
@@ -1008,7 +1008,7 @@ void original_value12(int x, int i) {
 
 // UnaryOperator: post-decrement with no inverse
 void original_value13(int x, int i) {
-  // Updated UEQ: { { i, x } }
+  // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1026,7 +1026,7 @@ void original_value13(int x, int i) {
   // CHECK-NEXT: }
 
   // Original value of i in i - 1: x
-  // Updated UEQ: { { x - 1, i } }, Updated G: { i + 1 }
+  // Updated EquivExprs: { { x - 1, i } }, Updated G: { i + 1 }
   i--;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '--'
@@ -1053,7 +1053,7 @@ void original_value13(int x, int i) {
 
 // No inverse
 void original_value14(unsigned x, unsigned i, unsigned *p, unsigned arr[1]) {
-  // Updated UEQ: { { i * 1, x } }, Updated G: { i * 1, x }
+  // Updated EquivExprs: { { i * 1, x } }, Updated G: { i * 1, x }
   x = i * 1;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1086,7 +1086,7 @@ void original_value14(unsigned x, unsigned i, unsigned *p, unsigned arr[1]) {
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT: }
 
-  // Updated UEQ: { }, Updated G: { i }
+  // Updated EquivExprs: { }, Updated G: { i }
   i = i + i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1104,7 +1104,7 @@ void original_value14(unsigned x, unsigned i, unsigned *p, unsigned arr[1]) {
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT: }
 
-  // Updated UEQ: { }, Updated G: { i }
+  // Updated EquivExprs: { }, Updated G: { i }
   i = 2 * i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1122,7 +1122,7 @@ void original_value14(unsigned x, unsigned i, unsigned *p, unsigned arr[1]) {
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT: }
 
-  // Updated UEQ: { }, Update G: { i }
+  // Updated EquivExprs: { }, Update G: { i }
   i += *p;
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '+='
@@ -1139,7 +1139,7 @@ void original_value14(unsigned x, unsigned i, unsigned *p, unsigned arr[1]) {
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT: }
 
-  // Updated UEQ: { }, Updated G: { i }
+  // Updated EquivExprs: { }, Updated G: { i }
   i -= arr[0];
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '-='
@@ -1160,7 +1160,7 @@ void original_value14(unsigned x, unsigned i, unsigned *p, unsigned arr[1]) {
 
 // Original value from equivalence with another variable
 void original_value15(int x, int y) {
-  // Updated UEQ: { { y, x } }
+  // Updated EquivExprs: { { y, x } }
   x = y;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1178,7 +1178,7 @@ void original_value15(int x, int y) {
   // CHECK-NEXT: }
 
   // Original value of x in x * 2: y
-  // Updated UEQ: { { y * 2, x } }, Updated G: { y * 2, x }
+  // Updated EquivExprs: { { y * 2, x } }, Updated G: { y * 2, x }
   x *= 2;
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
@@ -1209,7 +1209,7 @@ void original_value15(int x, int y) {
 // The left-hand side variable is the original value
 void original_value16(int x) {
   // Original value of x in x: x
-  // Updated UEQ: { }
+  // Updated EquivExprs: { }
   x = x;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1220,7 +1220,7 @@ void original_value16(int x) {
   // CHECK-NEXT: { }
 
   // Original value of x in (int)x: x
-  // Updated UEQ: { }
+  // Updated EquivExprs: { }
   x = (int)x;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1234,7 +1234,7 @@ void original_value16(int x) {
 
 // CallExpr: using the left-hand side of an assignment as a call argument
 void original_value17(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) {
-  // Updated UEQ: { { b, a } }
+  // Updated EquivExprs: { { b, a } }
   a = b;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1252,7 +1252,7 @@ void original_value17(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) 
   // CHECK-NEXT: }
 
   // Original value of a in g1(a): b
-  // Updated UEQ: { { g1(a), a } }
+  // Updated EquivExprs: { { g1(a), a } }
   // Note that a is not replaced with b in g1(a)
   a = g1(a);
   // CHECK: Statement S:
@@ -1280,7 +1280,7 @@ void original_value17(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) 
 
 // If statement: assignment that affects equality sets
 void control_flow1(int flag, int i, int j) {
-  // Updated UEQ: { { i, len } }
+  // Updated EquivExprs: { { i, len } }
   int len = i;
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
@@ -1298,9 +1298,9 @@ void control_flow1(int flag, int i, int j) {
   // CHECK-NEXT: }
 
   if (flag) {
-    // Current UEQ: { { i, len } }
+    // Current EquivExprs: { { i, len } }
     // Original value of len in j: i
-    // Updated UEQ: { { j, len } }
+    // Updated EquivExprs: { { j, len } }
     len = j;
     // CHECK: Statement S:
     // CHECK:      BinaryOperator {{.*}} '='
@@ -1318,9 +1318,9 @@ void control_flow1(int flag, int i, int j) {
     // CHECK-NEXT: }
   }
 
-  // Current UEQ: { }
+  // Current EquivExprs: { }
   // Original value of len in len * 2: null
-  // Updated UEQ: { }
+  // Updated EquivExprs: { }
   len *= 2;
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
@@ -1332,7 +1332,7 @@ void control_flow1(int flag, int i, int j) {
 
 // If statement: assignment that does not affect equality sets
 void control_flow2(int flag, int i, int j) {
-  // Updated UEQ: { { i, len } }
+  // Updated EquivExprs: { { i, len } }
   int len = i;
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
@@ -1350,8 +1350,8 @@ void control_flow2(int flag, int i, int j) {
   // CHECK-NEXT: }
 
   if (flag) {
-    // Current UEQ: { { i, len } }
-    // Updated UEQ: { { i, len }, { 42, j } }
+    // Current EquivExprs: { { i, len } }
+    // Updated EquivExprs: { { i, len }, { 42, j } }
     j = 42;
     // CHECK: Statement S:
     // CHECK:      BinaryOperator {{.*}} '='
@@ -1373,9 +1373,9 @@ void control_flow2(int flag, int i, int j) {
     // CHECK-NEXT: }
   }
 
-  // Current UEQ: { { i, len } }
+  // Current EquivExprs: { { i, len } }
   // Original value of len in len * 2: i
-  // Updated UEQ: { { i * 2, len } }
+  // Updated EquivExprs: { { i * 2, len } }
   len *= 2;
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
@@ -1396,7 +1396,7 @@ void control_flow2(int flag, int i, int j) {
 
 // If/else statements: different assignments
 void control_flow3(int flag, int i, int j, int k) {
-  // Updated UEQ: { { i, len } }
+  // Updated EquivExprs: { { i, len } }
   int len = i;
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
@@ -1418,9 +1418,9 @@ void control_flow3(int flag, int i, int j, int k) {
   // as the statements appear in code.
 
   if (flag) {
-    // Current UEQ: { { i, len } }
+    // Current EquivExprs: { { i, len } }
     // Original value for len in j: i
-    // Updated UEQ: { { j, len } }
+    // Updated EquivExprs: { { j, len } }
     len = j;
     // Expected output of len = k from the "else" block
     // CHECK: Statement S:
@@ -1438,9 +1438,9 @@ void control_flow3(int flag, int i, int j, int k) {
     // CHECK-NEXT: }
     // CHECK-NEXT: }
   } else {
-    // Current UEQ: { { i, len } }
+    // Current EquivExprs: { { i, len } }
     // Original value for len in k: i
-    // Updated UEQ: { { k, len } }
+    // Updated EquivExprs: { { k, len } }
     len = k;
     // Expected output of len = j from the "if" block
     // CHECK: Statement S:
@@ -1459,9 +1459,9 @@ void control_flow3(int flag, int i, int j, int k) {
     // CHECK-NEXT: }
   }
 
-  // Current UEQ: { }
+  // Current EquivExprs: { }
   // Original value of len in 2 * len: null
-  // Updated UEQ: { }
+  // Updated EquivExprs: { }
   len *= 2;
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
@@ -1473,7 +1473,7 @@ void control_flow3(int flag, int i, int j, int k) {
 
 // If/else statements: more complicated intersection of equality sets
 void control_flow4(int flag, int x, int y, int z, int w) {
-  // Updated UEQ: { { 0, len } }
+  // Updated EquivExprs: { { 0, len } }
   int len = 0;
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
@@ -1493,8 +1493,8 @@ void control_flow4(int flag, int x, int y, int z, int w) {
   // as the statements appear in code.
 
   if (flag) {
-    // Current UEQ: { { 0, len } }
-    // Updated UEQ: { { 0, len }, { 2, y } }
+    // Current EquivExprs: { { 0, len } }
+    // Updated EquivExprs: { { 0, len }, { 2, y } }
     y = 2;
     // Expected output of x = 3 from the "else" block
     // CHECK: Statement S:
@@ -1515,7 +1515,7 @@ void control_flow4(int flag, int x, int y, int z, int w) {
     // CHECK-NEXT: }
     // CHECK-NEXT: }
 
-    // Updated UEQ: { { 0, len }, { 2, y, x } }
+    // Updated EquivExprs: { { 0, len }, { 2, y, x } }
     x = y;
     // Expected output of y = x from the "else" block
     // CHECK: Statement S:
@@ -1538,7 +1538,7 @@ void control_flow4(int flag, int x, int y, int z, int w) {
     // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
     // CHECK-NEXT: }
 
-    // Updated UEQ: { { 0, len }, { 2, y, x }, { w, z } }
+    // Updated EquivExprs: { { 0, len }, { 2, y, x }, { w, z } }
     z = w;
     // Expected output of w = z from the "else" block
     // CHECK: Statement S:
@@ -1568,8 +1568,8 @@ void control_flow4(int flag, int x, int y, int z, int w) {
     // CHECK-NEXT: }
     // CHECK-NEXT: }
   } else {
-    // Current UEQ: { { 0, len } }
-    // Updated UEQ: { { 0, len }, { 3, x } }
+    // Current EquivExprs: { { 0, len } }
+    // Updated EquivExprs: { { 0, len }, { 3, x } }
     x = 3;
     // Expected output of y = 2 from the "if" block
     // CHECK: Statement S:
@@ -1590,7 +1590,7 @@ void control_flow4(int flag, int x, int y, int z, int w) {
     // CHECK-NEXT: }
     // CHECK-NEXT: }
 
-    // Updated UEQ: { { 0, len }, { 3, x, y } }
+    // Updated EquivExprs: { { 0, len }, { 3, x, y } }
     y = x;
     // Expected output of x = y from the "if" block
     // CHECK: Statement S:
@@ -1613,7 +1613,7 @@ void control_flow4(int flag, int x, int y, int z, int w) {
     // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
     // CHECK-NEXT: }
 
-    // Updated UEQ: { { 0, len }, { 3, x, y }, { z, w } }
+    // Updated EquivExprs: { { 0, len }, { 3, x, y }, { z, w } }
     w = z;
     // Expected output of z = w from the "if" block
     // CHECK: Statement S:
@@ -1644,9 +1644,9 @@ void control_flow4(int flag, int x, int y, int z, int w) {
     // CHECK-NEXT: }
   }
 
-  // Current UEQ: { { 0, len }, { y, x }, { w, z } }
+  // Current EquivExprs: { { 0, len }, { y, x }, { w, z } }
   // Original value of len in len * 2: null
-  // Updated UEQ: { { y, x }, { w, z } }
+  // Updated EquivExprs: { { y, x }, { w, z } }
   len *= 2;
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
@@ -1671,7 +1671,7 @@ void control_flow4(int flag, int x, int y, int z, int w) {
 
 // If/else statements: unreachable else
 void control_flow5(int flag, int i, int j) {
-  // Updated UEQ: { { 0, len } }
+  // Updated EquivExprs: { { 0, len } }
   int len = 0;
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
@@ -1687,8 +1687,8 @@ void control_flow5(int flag, int i, int j) {
   // CHECK-NEXT: }
 
   if (1) {
-    // Current UEQ: { { 0, len } }
-    // Updated UEQ: { { i, len } }
+    // Current EquivExprs: { { 0, len } }
+    // Updated EquivExprs: { { i, len } }
     len = i;
     // CHECK: Statement S:
     // CHECK:      BinaryOperator {{.*}} '='
@@ -1709,9 +1709,9 @@ void control_flow5(int flag, int i, int j) {
     len = j;
   }
 
-  // Current UEQ: { { i, len } }
+  // Current EquivExprs: { { i, len } }
   // Original value of len in len * 2: i
-  // Updated UEQ: { { i * 2, len } }
+  // Updated EquivExprs: { { i * 2, len } }
   len *= 2;
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='

@@ -672,9 +672,11 @@ namespace {
       // normalize to bounds(p, p + i).
       BoundsContextTy ObservedBounds;
 
-      // UEQ stores sets of expressions that are equivalent to each other
-      // after checking an expression e.
-      EquivExprSets UEQ;
+      // EquivExprs stores sets of expressions that are equivalent to each
+      // other after checking an expression e.  If two expressions e1 and
+      // e2 are in the same set in EquivExprs, e1 and e2 produce the same
+      // value.
+      EquivExprSets EquivExprs;
 
       // G is a set of expressions that produce the same value as an
       // expression e once checking of e is complete.
@@ -824,11 +826,11 @@ namespace {
       DumpBoundsContext(OS, State.ObservedBounds);
 
       OS << "Sets of equivalent expressions after checking S:\n";
-      if (State.UEQ.size() == 0)
+      if (State.EquivExprs.size() == 0)
         OS << "{ }\n";
       else {
         OS << "{\n";
-        for (auto OuterList = State.UEQ.begin(); OuterList != State.UEQ.end(); ++OuterList) {
+        for (auto OuterList = State.EquivExprs.begin(); OuterList != State.EquivExprs.end(); ++OuterList) {
           auto ExprList = *OuterList;
           DumpEqualExpr(OS, ExprList);
         }
@@ -2482,7 +2484,8 @@ namespace {
       for (auto I = Begin; I != End; ++I) {
         Stmt *Child = *I;
         if (!Child) continue;
-        // Accumulate the UEQ from checking each child into the UEQ for S.
+        // Accumulate the EquivExprs from checking each child into the
+        // EquivExprs for S.
         Check(Child, CSS, State);
 
         // Store the set Gi for each subexpression Si.
@@ -2629,7 +2632,7 @@ namespace {
         }
       }
 
-      // Update State.UEQ and State.G.
+      // Update State.EquivExprs and State.G.
       if (E->isAssignmentOp()) {
         Expr *Target =
              CreateImplicitCast(LHS->getType(), CK_LValueToRValue, LHS);
@@ -2645,15 +2648,17 @@ namespace {
           UpdateG(Src, SubExprGs, State.G);
         }
 
-        // Update UEQ and G for assignments to `e1` where `e1` is a variable.
+        // Update EquivExprs and G for assignments to `e1` where `e1` is a
+        // variable.
         if (DeclRefExpr *V = GetLValueVariable(LHS)) {
           bool OriginalValueUsesV = false;
-          Expr *OriginalValue = GetOriginalValue(V, Src, State.UEQ,
+          Expr *OriginalValue = GetOriginalValue(V, Src, State.EquivExprs,
                                                  OriginalValueUsesV);
           UpdateAfterAssignment(V, Target, OriginalValue, OriginalValueUsesV,
                                 CSS, State, State);
         }
-        // Update UEQ and G for assignments where `e1` is not a variable.
+        // Update EquivExprs and G for assignments where `e1` is not a
+        // variable.
         else {
           // G is empty for assignments to a non-variable.  This conservative
           // approach avoids recording false equality facts for assignments
@@ -2663,8 +2668,8 @@ namespace {
       } else if (BinaryOperator::isLogicalOp(Op)) {
         // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
       } else if (Op == BinaryOperatorKind::BO_Comma) {
-        // Do nothing for comma operators `e1, e2`. State already contains
-        // the correct UEQ and G sets as a result of checking `e1` and `e2`.
+        // Do nothing for comma operators `e1, e2`. State already contains the
+        // correct EquivExprs and G sets as a result of checking `e1` and `e2`.
       } else {
         // For all other binary operators `e1 @ e2`, use the G sets for
         // `e1` and `e2` stored in SubExprGs to update State.G for `e1 @ e2`.
@@ -2900,8 +2905,8 @@ namespace {
             State.G = { E };
         }
         else {
-          // If e appears in some set F in State.UEQ, State.G = F.
-          State.G = GetEqualExprSetContainingExpr(E, State.UEQ);
+          // If e appears in some set F in State.EquivExprs, State.G = F.
+          State.G = GetEqualExprSetContainingExpr(E, State.EquivExprs);
           if (State.G.size() == 0) {
             // Otherwise, if e is nonmodifying and does not read memory
             // via a pointer, State.G = { e }.  Otherwise, State.G is empty.
@@ -3034,16 +3039,16 @@ namespace {
       if (Op == UnaryOperatorKind::UO_Deref)
         return CreateBoundsInferenceError();
 
-      // Update UEQ and G for inc/dec operators `++e1`, `e1++`, `--e1`, `e1--`.
-      // At this point, State contains UEQ and G for `e1`.
+      // Update EquivExprs and G for inc/dec operators `++e1`, `e1++`, `--e1`,
+      // `e1--`. At this point, State contains EquivExprs and G for `e1`.
       if (UnaryOperator::isIncrementDecrementOp(Op)) {
         // Create the target of the implied assignment `e1 = e1 +/- 1`.
         Expr *Target = CreateImplicitCast(SubExpr->getType(),
                                             CK_LValueToRValue, SubExpr);
 
         // Only use the RHS `e1 +/1 ` of the implied assignment to update
-        // UEQ and G if the integer constant 1 can be created, which is
-        // only true if `e1` has integer type or integer pointer type.
+        // EquivExprs and G if the integer constant 1 can be created, which
+        // is only true if `e1` has integer type or integer pointer type.
         IntegerLiteral *One = CreateIntegerLiteral(1, SubExpr->getType());
         Expr *RHS = nullptr;
         if (One) {
@@ -3053,15 +3058,16 @@ namespace {
           RHS = ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One, RHSOp);
         }
 
-        // Update UEQ for inc/dec operators where `e1` is a variable.  Any
-        // expressions in UEQ that use the value of `e1` need to be adjusted
-        // using the original value of `e1`, since `e1` has been updated.
+        // Update EquivExprs for inc/dec operators where `e1` is a variable.
+        // Any expressions in EquivExprs that use the value of `e1` need to be
+        // adjusted using the original value of `e1`, since `e1` has been
+        // updated.
         if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
           // Update G to be the set of expressions that produce the same
           // value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateG(E, State.G, State.G, RHS);
           bool OriginalValueUsesV = false;
-          Expr *OriginalValue = GetOriginalValue(V, RHS, State.UEQ,
+          Expr *OriginalValue = GetOriginalValue(V, RHS, State.EquivExprs,
                                                  OriginalValueUsesV);
           UpdateAfterAssignment(V, Target, OriginalValue, OriginalValueUsesV,
                                 CSS, State, State);
@@ -3668,15 +3674,15 @@ namespace {
     //
     // OriginalValue is the original value (if any) for V before the assignment.
     // If OriginalValue is non-null, it is substituted for any uses of the
-    // value of V in the expressions in UEQ and G.
-    // If OriginalValue is null, any expressions in UEQ and G that use the
-    // value of V are removed from UEQ and G.
+    // value of V in the expressions in EquivExprs and G.
+    // If OriginalValue is null, any expressions in EquivExprs and G that use
+    // the value of V are removed from EquivExprs and G.
     //
     // OriginalValueUsesV is true if the original value (if any) uses the
-    // value of V.  It is used to prevent the UEQ and G sets from recording
-    // equality between two mathematically equivalent expressions, which can
-    // occur for assignments where the variable appears on the right-hand side,
-    // e.g. i = i + 2.
+    // value of V.  It is used to prevent the EquivExprs and G sets from
+    // recording equality between two mathematically equivalent expressions,
+    // which can occur for assignments where the variable appears on the
+    // right-hand side, e.g. i = i + 2.
     //
     // PrevState is the checking state that was true before the assignment.
     void UpdateAfterAssignment(DeclRefExpr *V, Expr *Target,
@@ -3684,19 +3690,19 @@ namespace {
                                CheckedScopeSpecifier CSS,
                                const CheckingState PrevState,
                                CheckingState &State) {
-      // Adjust UEQ to account for any uses of V in PrevState.UEQ.
-      State.UEQ.clear();
-      for (auto I = PrevState.UEQ.begin(); I != PrevState.UEQ.end(); ++I) {
+      // Adjust EquivExprs to account for any uses of V in PrevState.EquivExprs.
+      State.EquivExprs.clear();
+      for (auto I = PrevState.EquivExprs.begin(); I != PrevState.EquivExprs.end(); ++I) {
         EqualExprTy ExprList;
         for (auto InnerList = (*I).begin(); InnerList != (*I).end(); ++InnerList) {
           Expr *E = *InnerList;
           Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OriginalValue, CSS);
-          // Don't add duplicate expressions to any set in UEQ.
+          // Don't add duplicate expressions to any set in EquivExprs.
           if (AdjustedE && !EqualExprsContainsExpr(ExprList, AdjustedE))
             ExprList.push_back(AdjustedE);
         }
         if (ExprList.size() > 1)
-          State.UEQ.push_back(ExprList);
+          State.EquivExprs.push_back(ExprList);
       }
 
       // Adjust G to account for any uses of V in PrevState.G.
@@ -3704,8 +3710,9 @@ namespace {
       // use the value of V should be removed from G.  For example, in the
       // assignment i = i + 2, where the original value is i - 2, the
       // expression i + 2 in G should be removed rather than replaced with
-      // (i - 2) + 2.  Otherwise, G would contain (i - 2) + 2 and i, and UEQ
-      // would record equality between (i - 2) + 2 and i, which is a tautology.
+      // (i - 2) + 2.  Otherwise, G would contain (i - 2) + 2 and i, and
+      // EquivExprs would record equality between (i - 2) + 2 and i, which
+      // is a tautology.
       State.G.clear();
       Expr *OriginalGVal = OriginalValueUsesV ? nullptr : OriginalValue;
       for (auto I = PrevState.G.begin(); I != PrevState.G.end(); ++I) {
@@ -3716,12 +3723,13 @@ namespace {
           State.G.push_back(AdjustedE);
       }
 
-      // Add the target to a set in UEQ: if G is nonempty and there is some set
-      // F in UEQ that is a superset of G, add the target to F.  This prevents
-      // the elements of F from appearing in multiple sets in UEQ.  The target
-      // of an lvalue should appear in no more than one set in UEQ.
+      // Add the target to a set in EquivExprs: if G is nonempty and there is
+      // some set F in EquivExprs that is a superset of G, add the target to F.
+      // This prevents the elements of F from appearing in multiple sets in
+      // EquivExprs.  The target of an lvalue should appear in no more than
+      // one set in EquivExprs.
       if (State.G.size() > 0) {
-        for (auto I = State.UEQ.begin(); I != State.UEQ.end(); ++I) {
+        for (auto I = State.EquivExprs.begin(); I != State.EquivExprs.end(); ++I) {
           if (IsEqualExprsSubset(State.G, *I)) {
             I->push_back(Target);
             return;
@@ -3729,12 +3737,12 @@ namespace {
         }
       }
 
-      // If G is not a subset of some set in UEQ, add the target to G
-      // and add G (if it is not a singleton set) to UEQ.
+      // If G is not a subset of some set in EquivExprs, add the target to G
+      // and add G (if it is not a singleton set) to EquivExprs.
       if (!EqualExprsContainsExpr(State.G, Target))
         State.G.push_back(Target);
       if (State.G.size() > 1)
-        State.UEQ.push_back(State.G);
+        State.EquivExprs.push_back(State.G);
     }
 
     // UpdateG updates the set G of expressions that produce
@@ -3829,13 +3837,13 @@ namespace {
     // GetOriginalValue returns the original value (if it exists) of the
     // expression Src with respect to the variable V in an assignment V = Src.
     //
-    // The out parameter OVUsesV will be set to true if the original value
-    // uses the value of the variable V.  This prevents callers from having
-    // to compute the variable occurrence count of V in the original value,
-    // since GetOriginalValue computes this count while trying to construct
-    // the inverse expression of the source with respect to V.
+    // The out parameter OriginalValueUsesV will be set to true if the original
+    // value uses the value of the variable V.  This prevents callers from
+    // having to compute the variable occurrence count of V in the original
+    // value, since GetOriginalValue computes this count while trying to
+    // construct the inverse expression of the source with respect to V.
     Expr *GetOriginalValue(DeclRefExpr *V, Expr *Src, const EquivExprSets EQ,
-                           bool &OVUsesV) {
+                           bool &OriginalValueUsesV) {
       // Check if Src has an inverse expression with respect to v.
       Expr *IV = nullptr;
       if (IsInvertible(V, Src))
@@ -3843,14 +3851,14 @@ namespace {
       if (IV) {
         // If Src has an inverse with respect to v, then the original
         // value (the inverse) must use the value of v.
-        OVUsesV = true;
+        OriginalValueUsesV = true;
         return IV;
       }
 
       // If Src does not have an inverse with respect to v, then the original
       // value is either some variable w != v in EQ, or it is null.  In either
       // case, the original value cannot use the value of v.
-      OVUsesV = false;
+      OriginalValueUsesV = false;
       
       // Check EQ for a variable w != v that produces the same value as v.
       EqualExprTy F = GetEqualExprSetContainingVariable(V, EQ);
@@ -4017,7 +4025,7 @@ namespace {
 
     // GetIncomingBlockState returns the checking state that is true at the
     // beginning of the block by taking the intersection of the observed
-    // bounds contexts and UEQ sets of equivalent expressions that were true
+    // bounds contexts and sets of equivalent expressions that were true
     // after each of the block's predecessors.
     //
     // Taking the intersection of the observed bounds contexts of the block's
@@ -4031,7 +4039,7 @@ namespace {
       bool IntersectionEmpty = true;
       for (const CFGBlock *PredBlock : Block->preds()) {
         // Prevent null or non-traversed (e.g. unreachable) blocks from causing
-        // the incoming bounds context and UEQ set for a block to be empty.
+        // the incoming bounds context and EquivExprs set for a block to be empty.
         if (!PredBlock)
           continue;
         if (BlockStates.find(PredBlock->getBlockID()) == BlockStates.end())
@@ -4039,14 +4047,15 @@ namespace {
         CheckingState PredState = BlockStates[PredBlock->getBlockID()];
         if (IntersectionEmpty) {
           BlockState.ObservedBounds = PredState.ObservedBounds;
-          BlockState.UEQ = PredState.UEQ;
+          BlockState.EquivExprs = PredState.EquivExprs;
           IntersectionEmpty = false;
         }
         else {
           BlockState.ObservedBounds =
             IntersectBoundsContexts(PredState.ObservedBounds,
                                     BlockState.ObservedBounds);
-          BlockState.UEQ = IntersectUEQ(PredState.UEQ, BlockState.UEQ);
+          BlockState.EquivExprs = IntersectEquivExprs(PredState.EquivExprs,
+                                                      BlockState.EquivExprs);
         }
       }
       return BlockState;
@@ -4074,21 +4083,22 @@ namespace {
       return IntersectedContext;
     }
 
-    // IntersectUEQ returns the intersection of two sets of sets of equivalent
-    // expressions, where each set in UEQ1 is intersected with each set in
-    // UEQ2 to produce an element of the result.
-    EquivExprSets IntersectUEQ(const EquivExprSets UEQ1, const EquivExprSets UEQ2) {
-      EquivExprSets IntersectedUEQ;
-      for (auto I1 = UEQ1.begin(); I1 != UEQ1.end(); ++I1) {
+    // IntersectEquivExprs returns the intersection of two sets of sets of
+    // equivalent expressions, where each set in EQ1 is intersected with
+    // each set in EQ2 to produce an element of the result.
+    EquivExprSets IntersectEquivExprs(const EquivExprSets EQ1,
+                                      const EquivExprSets EQ2) {
+      EquivExprSets IntersectedEQ;
+      for (auto I1 = EQ1.begin(); I1 != EQ1.end(); ++I1) {
         EqualExprTy G1 = *I1;
-        for (auto I2 = UEQ2.begin(); I2 != UEQ2.end(); ++I2) {
+        for (auto I2 = EQ2.begin(); I2 != EQ2.end(); ++I2) {
           EqualExprTy G2 = *I2;
           EqualExprTy IntersectedG = IntersectG(G1, G2);
           if (IntersectedG.size() > 1)
-            IntersectedUEQ.push_back(IntersectedG);
+            IntersectedEQ.push_back(IntersectedG);
         }
       }
-      return IntersectedUEQ;
+      return IntersectedEQ;
     }
 
     // IntersectG returns the intersection of two sets of equivalent expressions.
@@ -4185,8 +4195,8 @@ namespace {
     }
 
     // CreatesNewObject returns true if the expression e creates a new object.
-    // Expressions that create new objects should not be added to the UEQ or G
-    // sets of equivalent expressions in the checking state.
+    // Expressions that create new objects should not be added to the
+    // EquivExprs or G sets of equivalent expressions in the checking state.
     bool CreatesNewObject(Expr *E) {
       switch (E->getStmtClass()) {
         case Expr::InitListExprClass:
