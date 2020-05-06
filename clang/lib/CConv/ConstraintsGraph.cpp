@@ -10,10 +10,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/CConv/ConstraintsGraph.h"
+#include <iostream>
+#include <boost/graph/graphviz.hpp>
 
 // This has to be included to avoid linking errors with boost libraries.
 #define BOOST_NO_EXCEPTIONS
 #include <boost/throw_exception.hpp>
+#include <llvm/Support/raw_ostream.h>
 void boost::throw_exception(std::exception const & e) {
 //do nothing
 }
@@ -45,7 +48,7 @@ void ConstraintsGraph::addConstraint(Eq *C, Constraints &CS) {
   auto V2 = addVertex(VA2);
   // Add edges in both the directions.
   add_edge(V1, V2, CG);
-  add_edge(V2, V2, CG);
+  add_edge(V2, V1, CG);
 }
 
 void ConstraintsGraph::addConstraint(Geq *C, Constraints &CS) {
@@ -65,13 +68,7 @@ void ConstraintsGraph::addConstraint(Geq *C, Constraints &CS) {
 }
 
 void ConstraintsGraph::dumpCGDot() {
-
-  // TODO: Finish this.
-  /*
-   * write_graphviz(std::cout, CG, [&] (std::ostream &out, unsigned v) {
-    out << "[label=\"" << *(CG[v].A) << "\"]";
-  });
-   */
+   write_graphviz(std::cout, CG);
 }
 
 bool ConstraintsGraph::getSuccessors(Atom *CA, std::set<Atom*> &Suc) {
