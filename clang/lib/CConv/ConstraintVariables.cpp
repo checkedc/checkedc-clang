@@ -139,10 +139,10 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
         arrSizes[TypeIdx] = std::pair<OriginalArrType,uint64_t>(
                 O_SizedArray,CAT->getSize().getZExtValue());
         if (AllTypes) {
-	  // This is a statically declared array. Make it a Checked Array.
+          // This is a statically declared array. Make it a Checked Array.
           vars.push_back(CS.getArr());
           VarCreated = true;
-	}
+        }
       } else {
         arrSizes[TypeIdx] = std::pair<OriginalArrType,uint64_t>(
                 O_UnSizedArray,0);
@@ -302,8 +302,10 @@ bool PVConstraint::isEq(const ConstraintVariable &Other,
 
 void PointerVariableConstraint::print(raw_ostream &O) const {
   O << "{ ";
-  for (const auto &I : vars)
-    O << "q_" << I << " ";
+  for (const auto &I : vars) {
+    I->print(O);
+    O << " ";
+  }
   O << " }";
 
   if (FV) {

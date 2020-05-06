@@ -47,6 +47,7 @@ void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C,
   }
 }
 
+// FIXME: Adjust this to be directional, rather than to look at the types of the Atoms
 void createAtomEq(Atom *A1, Atom *A2, Constraints &CS) {
   VarAtom *VA1, *VA2;
   ConstAtom *CA1, *CA2;

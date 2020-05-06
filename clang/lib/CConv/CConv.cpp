@@ -342,6 +342,10 @@ bool CConvInterface::SolveConstraints() {
   if (Verbose)
     outs() << "Solving constraints\n";
 
+  if (DumpIntermediate) {
+    GlobalProgramInfo.dump();
+  }
+
   // perform constraint solving by iteratively refining based on itypes.
   performIterativeItypeRefinement(GlobalProgramInfo,FilePaths);
 
