@@ -939,11 +939,11 @@ ProgramInfo::getVariableHelper( Expr                            *E,
       llvm_unreachable("TODO");
     }
   } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
-    // Explore the three exprs individually.
     std::set<ConstraintVariable *> T;
     std::set<ConstraintVariable *> R;
-    T = getVariableHelper(CO->getCond(), V, C, Ifc);
-    R.insert(T.begin(), T.end());
+    // The condition is not what's returned by the expression, so do not include its var
+    //T = getVariableHelper(CO->getCond(), V, C, Ifc);
+    //R.insert(T.begin(), T.end());
     T = getVariableHelper(CO->getLHS(), V, C, Ifc);
     R.insert(T.begin(), T.end());
     T = getVariableHelper(CO->getRHS(), V, C, Ifc);
