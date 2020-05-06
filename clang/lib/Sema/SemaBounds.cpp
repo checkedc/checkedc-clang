@@ -2142,68 +2142,53 @@ namespace {
       }
    }
 
-   void ResetKilledBounds(StmtDeclSetTy &KilledBounds,
-                          BoundsContextTy &BoundsCtx,
-                          Stmt *S) {
+   void ResetKilledBounds(StmtDeclSetTy &KilledBounds, Stmt *S,
+                          BoundsContextTy &ObservedBounds) {
      auto I = KilledBounds.find(S);
      if (I == KilledBounds.end())
        return;
 
-     for (const VarDecl *V : I->second) {
-       VarDecl *VD = const_cast<VarDecl *>(V);
-       BoundsExpr *Bounds = VD->getBoundsExpr();
-       assert(Bounds && "Invalid bounds");
-
-       if (isa<CountBoundsExpr>(Bounds))
-         Bounds = ExpandToRange(VD, Bounds);
-       BoundsCtx[VD] = Bounds;
-     }
+     // KilledBounds stores a mapping of statements to all variables whose
+     // bounds are killed by each statement. Here are remove the bounds of all
+     // such variables from ObservedBounds whose bounds are killed by the
+     // statement S. After removal, the bounds of these variables would default
+     // to the user declared bounds in DeclaredBounds.
+     for (const VarDecl *V : I->second)
+       ObservedBounds.erase(V);
    }
 
-   void UpdateBoundsInContext(BoundsMapTy &WidenedBounds,
-                              BoundsContextTy &BoundsCtx) {
+   void UpdateCtxWithWidenedBounds(BoundsMapTy &WidenedBounds,
+                                   BoundsContextTy &ObservedBounds) {
+     // WidenedBounds contains the mapping from _Nt_array_ptr to the offset by
+     // which its declared bounds should be widened. In this function we apply
+     // the offset to the declared bounds of the _Nt_array_ptr and update its
+     // bounds in ObservedBounds.
+
      for (const auto item : WidenedBounds) {
-       VarDecl *V = const_cast<VarDecl *>(item.first);
+       const VarDecl *V = item.first;
        unsigned Offset = item.second;
 
-       BoundsExpr *Bounds = V->getBoundsExpr();
-       if (!Bounds)
-         continue;
+       // We normalize the declared bounds to RangBoundsExpr here so that we
+       // can easily apply the offset to the upper bound.
+       BoundsExpr *Bounds = S.ExpandBoundsToRange(V, V->getBoundsExpr());
+       if (RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(Bounds)) {
+         const llvm::APInt
+           APIntOff(Context.getTargetInfo().getPointerWidth(0), Offset);
+         IntegerLiteral *WidenedOffset = CreateIntegerLiteral(APIntOff);
 
-       // If the declared bounds are CountBoundsExpr, normalize them to
-       // RangeBoundsExpr.
-       if (isa<CountBoundsExpr>(Bounds)) {
-         if (!V->getType()->isArrayType())
-           Bounds = ExpandToRange(V, Bounds);
-         else {
-           ExprResult ER = S.BuildDeclRefExpr(V, V->getType(),
-                                              clang::ExprValueKind::VK_LValue,
-                                              SourceLocation());
-           if (ER.isInvalid())
-             continue;
-           Expr *Base = ER.get();
-           Bounds = ArrayExprBounds(Base);
-         }
+         Expr *Lower = RBE->getLowerExpr();
+         Expr *Upper = RBE->getUpperExpr();
+
+         // WidenedUpperBound = UpperBound + WidenedOffset.
+         Expr *WidenedUpper = ExprCreatorUtil::CreateBinaryOperator(
+                                S, Upper, WidenedOffset,
+                                BinaryOperatorKind::BO_Add);
+
+         RangeBoundsExpr *R =
+           new (Context) RangeBoundsExpr(Lower, WidenedUpper,
+                                         SourceLocation(), SourceLocation());
+         ObservedBounds[V] = R;
        }
-
-       RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(Bounds);
-       assert(RBE && "Invalid bounds");
-
-       const llvm::APInt
-         APIntOff(Context.getTargetInfo().getPointerWidth(0), Offset);
-       IntegerLiteral *WidenedOffset = CreateIntegerLiteral(APIntOff);
-
-       Expr *Lower = RBE->getLowerExpr();
-       Expr *Upper = RBE->getUpperExpr();
-
-       // NewUpperBound = UpperBound + WidenedOffset.
-       Expr *NewUpper = ExprCreatorUtil::CreateBinaryOperator(
-                        S, Upper, WidenedOffset, BinaryOperatorKind::BO_Add);
-
-       RangeBoundsExpr *R =
-         new (Context) RangeBoundsExpr(Lower, NewUpper,
-                                       SourceLocation(), SourceLocation());
-       BoundsCtx[V] = R;
      }
    }
 
@@ -2261,9 +2246,8 @@ namespace {
        // Also get the bounds killed (if any) by each statement in the current
        // block.
        StmtDeclSetTy KilledBounds = BA.GetKilledBounds(Block);
-       // Update the bounds in context (BlockState.UC) using the bounds
-       // widening info calculated above.
-       UpdateBoundsInContext(WidenedBounds, BlockState.UC);
+       // Update the Observed bounds with the widened bounds calculated above.
+       UpdateCtxWithWidenedBounds(WidenedBounds, BlockState.ObservedBounds);
 
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
@@ -2304,9 +2288,9 @@ namespace {
             BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
             BlockState.G.clear();
 
-            // If any bounds are killed by statement S, reset them to their
-            // declared bounds.
-            ResetKilledBounds(KilledBounds, BlockState.UC, S);
+            // If any bounds are killed by statement S, remove their bounds
+            // from the ObservedBounds.
+            ResetKilledBounds(KilledBounds, S, BlockState.ObservedBounds);
 
             Check(S, CSS, BlockState);
 
