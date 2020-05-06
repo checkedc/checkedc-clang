@@ -62,7 +62,7 @@ public:
 
   // For each pointer type in the declaration of D, add a variable to the 
   // constraint system for that pointer type. 
-  bool addVariable(clang::DeclaratorDecl *D, clang::ASTContext *C);
+  bool addVariable(clang::DeclaratorDecl *D, clang::ASTContext *astContext);
 
   bool getDeclStmtForDecl(clang::Decl *D, clang::DeclStmt *&St);
 
