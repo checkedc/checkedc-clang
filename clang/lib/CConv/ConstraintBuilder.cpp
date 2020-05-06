@@ -125,6 +125,8 @@ void constrainEq(ConstraintVariable *LHS,
         // Element-wise constrain PCLHS and PCRHS to be equal
         CAtoms CLHS = PCLHS->getCvars();
         CAtoms CRHS = PCRHS->getCvars();
+        // FIXME: Should check that the constraint set sizes on both sides are the same
+        //  handling of & is now done via getVariable, so sizes line up
         // We equate the constraints in a left-justified manner.
         // This to handle cases like: e.g., p = &q;
         // Here, we need to equate the inside constraint variables

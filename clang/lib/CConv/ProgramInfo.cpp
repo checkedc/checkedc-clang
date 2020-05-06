@@ -841,24 +841,35 @@ ProgramInfo::getVariableHelper( Expr                            *E,
       getVariableHelper(UO->getSubExpr(), V, C, Ifc);
    
     std::set<ConstraintVariable *> tmp;
-    if (UO->getOpcode() == UO_Deref) {
+    if (UO->getOpcode() == UO_Deref || UO->getOpcode() == UO_AddrOf) {
       for (const auto &CV : T) {
         if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
-          // Subtract one from this constraint. If that generates an empty 
-          // constraint, then, don't add it 
           CAtoms C = PVC->getCvars();
-          if (C.size() > 0) {
-            C.erase(C.begin());
+          if (UO->getOpcode() == UO_Deref) {
+            // Subtract one from this constraint. If that generates an empty
+            // constraint, then, don't add it
             if (C.size() > 0) {
+              C.erase(C.begin());
+              if (C.size() > 0) {
+                bool a = PVC->getArrPresent();
+                FVConstraint *b = PVC->getFV();
+                bool c = PVC->getItypePresent();
+                std::string d = PVC->getItype();
+                tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(),
+                                            b, a, c, d));
+              }
+            }
+          } else { // AddrOf
+              C.insert(C.begin(), CS.getPtr());
+              // FIXME: revisit the following -- probably wrong.
               bool a = PVC->getArrPresent();
               FVConstraint *b = PVC->getFV();
               bool c = PVC->getItypePresent();
               std::string d = PVC->getItype();
               tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(),
                                           b, a, c, d));
-            }
           }
-        } else {
+        } else if (!(UO->getOpcode() == UO_AddrOf)) { // no-op for FPs
           llvm_unreachable("Shouldn't dereference a function pointer!");
         }
       }
