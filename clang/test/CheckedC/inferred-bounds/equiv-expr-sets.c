@@ -1,9 +1,9 @@
 // Tests for updating equivalent expression information during bounds inference and checking.
 // This file tests updating the set EquivExprs of sets of equivalent expressions after checking
 // initializations and assignments during bounds analysis.
-// Updating this set of sets also updates the set G of expressions that produce the same value
-// as a given expression. Since the set G is usually included in the set EquivExprs, this file typically
-// does not explicitly test the contents of G (G is tested in equiv-exprs.c).
+// Updating this set of sets also updates the set SameValue of expressions that produce the same value
+// as a given expression. Since the set SameValue is usually included in the set EquivExprs, this file typically
+// does not explicitly test the contents of SameValue (SameValue is tested in equiv-exprs.c).
 //
 // RUN: %clang_cc1 -Wno-unused-value -fdump-checking-state %s | FileCheck %s
 
@@ -66,7 +66,7 @@ void binary1(int i, nt_array_ptr<char> c) {
 // BinaryOperator: assignments to variables where the variable
 // appears on the right-hand side
 void binary2(unsigned i) {
-  // Updated EquivExprs: { }, Updated G: { i }
+  // Updated EquivExprs: { }, Updated SameValue: { i }
   i = i + 2;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -84,7 +84,7 @@ void binary2(unsigned i) {
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT: }
 
-  // Updated EquivExprs: { }, Updated G: { i }
+  // Updated EquivExprs: { }, Updated SameValue: { i }
   i += 2;
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '+='
@@ -103,7 +103,7 @@ void binary2(unsigned i) {
 // BinaryOperator: non-compound assignments to non-variables
 // (non-modifying and modifying expressions)
 void binary3(int arr[1], int i) {
-  // Updated EquivExprs: { }, Updated G: { }
+  // Updated EquivExprs: { }, Updated SameValue: { }
   *arr = 3;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -116,7 +116,7 @@ void binary3(int arr[1], int i) {
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 
-  // Updated EquivExprs: { }, Updated G: { }
+  // Updated EquivExprs: { }, Updated SameValue: { }
   arr[i++] = 3;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -135,7 +135,7 @@ void binary3(int arr[1], int i) {
 // BinaryOperator: compound assignments to non-variables
 // (non-modifying and modifying expressions)
 void binary4(int arr[1], int i) {
-  // Updated EquivExprs: { }, Updated G: { }
+  // Updated EquivExprs: { }, Updated SameValue: { }
   arr[0] *= 4;
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
@@ -149,7 +149,7 @@ void binary4(int arr[1], int i) {
   // CHECK-NEXT: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 
-  // Updated EquivExprs: { }, Updated G: { }
+  // Updated EquivExprs: { }, Updated SameValue: { }
   arr[--i] += 4;
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '+='
@@ -167,7 +167,7 @@ void binary4(int arr[1], int i) {
 
 // UnaryOperator: pre-increment operator on a variable (unsigned integer arithmetic)
 void unary1(unsigned x) {
-  // Updated EquivExprs: { }, Updated G: { x }
+  // Updated EquivExprs: { }, Updated SameValue: { x }
   ++x;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
@@ -183,7 +183,7 @@ void unary1(unsigned x) {
 
 // UnaryOperator: pre-decrement operator on a variable (checked pointer arithmetic)
 void unary2(array_ptr<int> arr) {
-  // Updated EquivExprs: { }, Updated G: { arr }
+  // Updated EquivExprs: { }, Updated SameValue: { arr }
   --arr;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '--'
@@ -199,7 +199,7 @@ void unary2(array_ptr<int> arr) {
 
 // UnaryOperator: post-increment operator on a variable (unsigned integer arithmetic)
 void unary3(unsigned x) {
-  // Updated EquivExprs: { }, Updated G: { x - 1 }
+  // Updated EquivExprs: { }, Updated SameValue: { x - 1 }
   x++;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '++'
@@ -217,7 +217,7 @@ void unary3(unsigned x) {
 
 // UnaryOperator: post-decrement operator on a variable (checked pointer arithmetic)
 void unary4(array_ptr<int> arr) {
-  // Updated EquivExprs: { }, Updated G: { arr + 1 }
+  // Updated EquivExprs: { }, Updated SameValue: { arr + 1 }
   arr--;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '--'
@@ -235,7 +235,7 @@ void unary4(array_ptr<int> arr) {
 
 // UnaryOperator: pre-increment operator on a variable (float arithmetic)
 void unary5(float f) {
-  // Updated EquivExprs: { }, Updated G: { }
+  // Updated EquivExprs: { }, Updated SameValue: { }
   ++f;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
@@ -248,7 +248,7 @@ void unary5(float f) {
 
 // UnaryOperator: post-decrement operator on a non-variable
 void unary6(int *p) {
-  // Updated EquivExprs: { }, Updated G: { (*p) + 1 }
+  // Updated EquivExprs: { }, Updated SameValue: { (*p) + 1 }
   (*p)--;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '--'
@@ -393,7 +393,7 @@ void multiple_assign2(int x, int y) {
 
 // UnaryOperator: '+' inverse
 void original_value1(int x, int i) {
-  // Updated EquivExprs: { { i, x } }, Updated G: { i, x }
+  // Updated EquivExprs: { { i, x } }, Updated SameValue: { i, x }
   x = i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -418,7 +418,7 @@ void original_value1(int x, int i) {
   // CHECK-NEXT: }
 
   // Original value of i in +i: +i
-  // Updated EquivExprs: { { +i, x } }, Updated G: { i }
+  // Updated EquivExprs: { { +i, x } }, Updated SameValue: { i }
   i = +i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -463,7 +463,7 @@ void original_value2(int x, int i) {
   // CHECK-NEXT: }
 
   // Original value of i in -i: -i
-  // Updated EquivExprs: { { -i, x } }, Updated G: { i }
+  // Updated EquivExprs: { { -i, x } }, Updated SameValue: { i }
   i = -i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -508,7 +508,7 @@ void original_value3(int x, int i) {
   // CHECK-NEXT: }
 
   // Original value of i in ~i: ~i
-  // Updated EquivExprs: { { ~i, x } }, Updated G: { i }
+  // Updated EquivExprs: { { ~i, x } }, Updated SameValue: { i }
   i = ~i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -553,7 +553,7 @@ void original_value4(int x, int i) {
   // CHECK-NEXT: }
 
   // Original value of i in 2 ^ i: i ^ 2
-  // Updated EquivExprs: { { i ^ 2, x } }, Updated G: { i }
+  // Updated EquivExprs: { { i ^ 2, x } }, Updated SameValue: { i }
   i = 2 ^ i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -600,7 +600,7 @@ void original_value5(unsigned i, unsigned x) {
   // CHECK-NEXT: }
 
   // Original value of i in i - x: i + x
-  // Updated EquivExprs: { { x, i + x } }, Updated G: { i }
+  // Updated EquivExprs: { { x, i + x } }, Updated SameValue: { i }
   // Note: since i == x before this assignment, i is equivalent
   // to 0 after this assignment, so recording equality between x and i + x
   // is mathematically equivalent to recording equality between x and x.
@@ -652,7 +652,7 @@ void original_value6(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 
   // Original value of i in -(i + 2): -i - 2
-  // Updated EquivExprs: { { -i - 2, x } }, Updated G: { i }
+  // Updated EquivExprs: { { -i - 2, x } }, Updated SameValue: { i }
   i = -(i + 2);
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -704,7 +704,7 @@ void original_value7(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 
   // Original value of i in ~i + 3: ~(i - 3)
-  // Updated EquivExprs: { { ~(i - 3), x } }, Updated G: { i }
+  // Updated EquivExprs: { { ~(i - 3), x } }, Updated SameValue: { i }
   i = ~i + 3;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -755,7 +755,7 @@ void original_value8(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 
   // Original value of i in i + 1: i - 1
-  // Updated EquivExprs: { { i - 1, x } }, Updated G: { i }
+  // Updated EquivExprs: { { i - 1, x } }, Updated SameValue: { i }
   ++i;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
@@ -778,7 +778,7 @@ void original_value8(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 
   // Original value of i in i + 1: i - 1
-  // Updated EquivExprs: { { i - 1 - 1, x } }, Updated G: { i - 1 }
+  // Updated EquivExprs: { { i - 1 - 1, x } }, Updated SameValue: { i - 1 }
   i++;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '++'
@@ -825,7 +825,7 @@ void original_value9(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 
   // Original value of i in i - 1: i + 1
-  // Updated EquivExprs: { { i + 1, x } }, Updated G: { i }
+  // Updated EquivExprs: { { i + 1, x } }, Updated SameValue: { i }
   --i;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '--'
@@ -848,7 +848,7 @@ void original_value9(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 
   // Original value of i in i - 1: i + 1
-  // Updated EquivExprs: { { i + 1 + 1, x } }, Updated G: { i + 1 }
+  // Updated EquivExprs: { { i + 1 + 1, x } }, Updated SameValue: { i + 1 }
   i--;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '--'
@@ -895,7 +895,7 @@ void original_value10(int x, int i) {
   // CHECK-NEXT: }
 
   // Original value of i in i + 1: x
-  // Updated EquivExprs: { { x + 1, i } }, Updated G: { i }
+  // Updated EquivExprs: { { x + 1, i } }, Updated SameValue: { i }
   ++i;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
@@ -938,7 +938,7 @@ void original_value11(int x, int i) {
   // CHECK-NEXT: }
 
   // Original value of i in i + 1: x
-  // Updated EquivExprs: { { x + 1, i } }, Updated G: { i - 1 }
+  // Updated EquivExprs: { { x + 1, i } }, Updated SameValue: { i - 1 }
   i++;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '++'
@@ -983,7 +983,7 @@ void original_value12(int x, int i) {
   // CHECK-NEXT: }
 
   // Original value of i in i - 1: x
-  // Updated EquivExprs: { { x - 1, i } }, Updated G: { i }
+  // Updated EquivExprs: { { x - 1, i } }, Updated SameValue: { i }
   --i;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '--'
@@ -1026,7 +1026,7 @@ void original_value13(int x, int i) {
   // CHECK-NEXT: }
 
   // Original value of i in i - 1: x
-  // Updated EquivExprs: { { x - 1, i } }, Updated G: { i + 1 }
+  // Updated EquivExprs: { { x - 1, i } }, Updated SameValue: { i + 1 }
   i--;
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '--'
@@ -1053,7 +1053,7 @@ void original_value13(int x, int i) {
 
 // No inverse
 void original_value14(unsigned x, unsigned i, unsigned *p, unsigned arr[1]) {
-  // Updated EquivExprs: { { i * 1, x } }, Updated G: { i * 1, x }
+  // Updated EquivExprs: { { i * 1, x } }, Updated SameValue: { i * 1, x }
   x = i * 1;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1086,7 +1086,7 @@ void original_value14(unsigned x, unsigned i, unsigned *p, unsigned arr[1]) {
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT: }
 
-  // Updated EquivExprs: { }, Updated G: { i }
+  // Updated EquivExprs: { }, Updated SameValue: { i }
   i = i + i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1104,7 +1104,7 @@ void original_value14(unsigned x, unsigned i, unsigned *p, unsigned arr[1]) {
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT: }
 
-  // Updated EquivExprs: { }, Updated G: { i }
+  // Updated EquivExprs: { }, Updated SameValue: { i }
   i = 2 * i;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1122,7 +1122,7 @@ void original_value14(unsigned x, unsigned i, unsigned *p, unsigned arr[1]) {
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT: }
 
-  // Updated EquivExprs: { }, Update G: { i }
+  // Updated EquivExprs: { }, Updated SameValue: { i }
   i += *p;
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '+='
@@ -1139,7 +1139,7 @@ void original_value14(unsigned x, unsigned i, unsigned *p, unsigned arr[1]) {
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
   // CHECK-NEXT: }
 
-  // Updated EquivExprs: { }, Updated G: { i }
+  // Updated EquivExprs: { }, Updated SameValue: { i }
   i -= arr[0];
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '-='
@@ -1178,7 +1178,7 @@ void original_value15(int x, int y) {
   // CHECK-NEXT: }
 
   // Original value of x in x * 2: y
-  // Updated EquivExprs: { { y * 2, x } }, Updated G: { y * 2, x }
+  // Updated EquivExprs: { { y * 2, x } }, Updated SameValue: { y * 2, x }
   x *= 2;
   // CHECK: Statement S:
   // CHECK-NEXT: CompoundAssignOperator {{.*}} '*='
