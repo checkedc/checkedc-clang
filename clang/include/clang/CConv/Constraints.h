@@ -684,7 +684,7 @@ public:
   // provided reason.
   bool removeAllConstraintsOnReason(std::string &Reason,
                                     ConstraintSet &RemovedCons);
-  Constraint *graph_based_solve(unsigned &Niter);
+  bool graph_based_solve(unsigned &Niter);
 private:
   ConstraintSet constraints;
   std::map<std::string, ConstraintSet> constraintsByReason;

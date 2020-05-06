@@ -11,13 +11,38 @@
 
 #include "clang/CConv/ConstraintsGraph.h"
 
+// This has to be included to avoid linking errors with boost libraries.
+#define BOOST_NO_EXCEPTIONS
+#include <boost/throw_exception.hpp>
+void boost::throw_exception(std::exception const & e) {
+//do nothing
+}
+
+ConstraintsGraph::vertex_t ConstraintsGraph::addVertex(Atom *A) {
+  // Save all the const atoms.
+  if (ConstAtom *CA = clang::dyn_cast<ConstAtom>(A)) {
+    AllConstAtoms.insert(CA);
+  }
+
+  // If we haven't seen the Atom? Insert into the graph.
+  if (AtomToVDMap.find(A) == AtomToVDMap.end()) {
+    auto Vidx = add_vertex(A, CG);
+    AtomToVDMap[A] = Vidx;
+  }
+  return AtomToVDMap[A];
+}
+
+std::set<ConstAtom*> &ConstraintsGraph::getAllConstAtoms() {
+  return AllConstAtoms;
+}
+
 void ConstraintsGraph::addConstraint(Eq *C, Constraints &CS) {
   // This is to make sure we always use same VarAtom* for a
   // vertex.
   VarAtom *VA1 = CS.getOrCreateVar(C->getLHS()->getLoc());
   VarAtom *VA2 = CS.getOrCreateVar(C->getRHS()->getLoc());
-  auto V1 = add_vertex(VA1, CG);
-  auto V2 = add_vertex(VA2, CG);
+  auto V1 = addVertex(VA1);
+  auto V2 = addVertex(VA2);
   // Add edges in both the directions.
   add_edge(V1, V2, CG);
   add_edge(V2, V2, CG);
@@ -34,7 +59,31 @@ void ConstraintsGraph::addConstraint(Geq *C, Constraints &CS) {
   }
   // Here, LHS >= RHS
   // So, edge from RHS -> LHS
-  auto V1 = add_vertex(A1, CG);
-  auto V2 = add_vertex(A2, CG);
+  auto V1 = addVertex(A1);
+  auto V2 = addVertex(A2);
   add_edge(V2, V1, CG);
+}
+
+void ConstraintsGraph::dumpCGDot() {
+
+  // TODO: Finish this.
+  /*
+   * write_graphviz(std::cout, CG, [&] (std::ostream &out, unsigned v) {
+    out << "[label=\"" << *(CG[v].A) << "\"]";
+  });
+   */
+}
+
+bool ConstraintsGraph::getSuccessors(Atom *CA, std::set<Atom*> &Suc) {
+  // Get the vertex descriptor.
+  auto Vidx = addVertex(CA);
+  Suc.clear();
+  typename graph_traits <DirectedGraphType>::out_edge_iterator ei, ei_end;
+  for (boost::tie(ei, ei_end) = out_edges(Vidx, CG); ei != ei_end; ++ei) {
+    auto source = boost::source ( *ei, CG );
+    auto target = boost::target ( *ei, CG );
+    assert(CG[source] == CA && "Source has to be the given node.");
+    Suc.insert(CG[target]);
+  }
+  return !Suc.empty();
 }

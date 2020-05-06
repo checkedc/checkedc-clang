@@ -149,7 +149,6 @@ std::pair<Constraints::ConstraintSet, bool>
     }
     LocalIter++;
   }
-  CS.graph_based_solve(NumIter);
   return Ret;
 }
 

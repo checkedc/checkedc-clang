@@ -16,7 +16,6 @@
 #include "clang/CConv/Constraints.h"
 #include "clang/CConv/ConstraintsGraph.h"
 #include <iostream>
-#include <boost/graph/graphviz.hpp>
 
 using namespace llvm;
 
@@ -537,12 +536,31 @@ Constraint *Constraints::solve_new(unsigned &Niter) {
     return nullptr;
 }
 
-Constraint *Constraints::graph_based_solve(unsigned &Niter) {
+// Make a graph G:
+//- with nodes for each variable k and each qualifier constant q.
+//- with edges Q --> Q’ for each constraint Q <: Q’
+// Note: Constraints (q <: k ⇒ q’ <: k’) are not supported, but we shouldn’t
+// actually need them. So make your algorithm die if it comes across them.
+//
+// For each non-constant node k in G,
+//- set sol(k) = q_\bot (the least element, i.e., Ptr)
+//
+// For each constant node q_i, starting with the highest and working down,
+//- set worklist W = { q_i }
+//- while W nonempty
+//-- let Q = take(W)
+//-- For all edges (Q --> k) in G
+//--- if sol(k) <> (sol(k) JOIN Q) then
+//---- set sol(k) := (sol(k) JOIN Q)
+//---- for all edges (k --> q) in G, confirm that sol(k) <: q; else fail
+//---- add k to W
+
+bool Constraints::graph_based_solve(unsigned &Niter) {
   ConstraintsGraph CurrCG;
+  // Setup the Constraint Graph.
   auto VI = environment.begin();
   while (VI != environment.end()) {
     VarAtom *Var = VI->first;
-    ConstraintSet RemCons;
     for (const auto &C : Var->Constraints) {
       if (Eq *E = dyn_cast<Eq>(C)) {
         CurrCG.addConstraint(E, *this);
@@ -551,10 +569,62 @@ Constraint *Constraints::graph_based_solve(unsigned &Niter) {
         CurrCG.addConstraint(G, *this);
       }
     }
+    VI++;
   }
-  // Represent graph in DOT format and send to cout
-  boost::write_graphviz(std::cout, CurrCG.CG);
-  return nullptr;
+  // Solving
+
+  // Initialize work list with ConstAtoms.
+  std::vector<Atom*> WorkList;
+  auto &InitC = CurrCG.getAllConstAtoms();
+  WorkList.insert(WorkList.begin(), InitC.begin(), InitC.end());
+
+  while (!WorkList.empty()) {
+    auto CurrAtom = *(WorkList.begin());
+    // Remove the first element.
+    WorkList.erase(WorkList.begin());
+
+    // Get the solution of the CurrAtom.
+    ConstAtom *CurrSol = getAssignment(CurrAtom);
+
+    std::set<Atom*> Successors;
+    // get successors
+    CurrCG.getSuccessors(CurrAtom, Successors);
+    for (auto SucA : Successors) {
+      bool Changed = false;
+      if (VarAtom *K = dyn_cast<VarAtom>(SucA)) {
+        ConstAtom *SucSol = getAssignment(K);
+        // --- if sol(k) <> (sol(k) JOIN Q) then
+        if (*SucSol < *CurrSol) {
+          VI = environment.find(K);
+          // ---- set sol(k) := (sol(k) JOIN Q)
+          Changed = assignConstToVar(VI, CurrSol);
+        }
+        if (Changed) {
+          // get the latest assignment.
+          SucSol = getAssignment(K);
+          // ---- for all edges (k --> q) in G, confirm
+          std::set<Atom*> KSuccessors;
+          CurrCG.getSuccessors(K, KSuccessors);
+          for (auto KChild : KSuccessors) {
+            ConstAtom *KCSol = getAssignment(KChild);
+            // that sol(k) <: q; else fail
+            if (!(*SucSol < *KCSol)) {
+              // failure case.
+              errs() << "Invalid graph formed on Vertex:";
+              K->print(errs());
+              return false;
+
+            }
+          }
+          // ---- add k to W
+          WorkList.push_back(K);
+        }
+      }
+    }
+    Niter++;
+  }
+
+  return true;
 }
 
 std::pair<Constraints::ConstraintSet, bool>

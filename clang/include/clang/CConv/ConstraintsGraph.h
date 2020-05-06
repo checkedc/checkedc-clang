@@ -22,12 +22,32 @@ using namespace std;
 
 class ConstraintsGraph {
 public:
-  typedef adjacency_list<vecS, vecS, directedS, Atom*> DirectedGraphType;
+  typedef adjacency_list<setS, vecS, directedS, Atom*> DirectedGraphType;
+  typedef boost::graph_traits<DirectedGraphType>::vertex_descriptor vertex_t;
+  typedef std::map<Atom*, vertex_t> VertexMapType;
+
+  ConstraintsGraph() {
+    AllConstAtoms.clear();
+    AtomToVDMap.clear();
+  }
+
+  // We support only these two constraints now.
   void addConstraint(Eq *C, Constraints &CS);
   void addConstraint(Geq *C, Constraints &CS);
 
-  DirectedGraphType CG;
+  // Get all ConstAtoms, basically the points
+  // from where the constraint solving should begin.
+  std::set<ConstAtom*> &getAllConstAtoms();
+
+  // Get all the sucessors of the given node.
+  bool getSuccessors(Atom *CA, std::set<Atom*> &Suc);
+
+  void dumpCGDot();
 private:
+  std::set<ConstAtom*> AllConstAtoms;
+  VertexMapType AtomToVDMap;
+  vertex_t addVertex(Atom *A);
+  DirectedGraphType CG;
 };
 
 #endif // _CONSTRAINTSGRAPH_H
