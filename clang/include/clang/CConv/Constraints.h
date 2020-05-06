@@ -684,7 +684,7 @@ public:
   // provided reason.
   bool removeAllConstraintsOnReason(std::string &Reason,
                                     ConstraintSet &RemovedCons);
-
+  Constraint *graph_based_solve(unsigned &Niter);
 private:
   ConstraintSet constraints;
   std::map<std::string, ConstraintSet> constraintsByReason;
@@ -701,7 +701,8 @@ private:
   FuncKeyToConsMap FuncDefnConstraints;
 
   bool step_solve_old(void);
-  Constraint *solve_new(unsigned &niter);
+  Constraint *solve_new(unsigned &Niter);
+
   bool check(Constraint *C);
 
   bool assignConstToVar(EnvironmentMap::iterator &SrcVar, ConstAtom *C);

@@ -14,6 +14,9 @@
 
 #include "clang/CConv/CCGlobalOptions.h"
 #include "clang/CConv/Constraints.h"
+#include "clang/CConv/ConstraintsGraph.h"
+#include <iostream>
+#include <boost/graph/graphviz.hpp>
 
 using namespace llvm;
 
@@ -397,22 +400,25 @@ bool Constraints::step_solve_old(void) {
 //
 //Til fixpoint
 //  For all k >= q constraints, set sol(k) = q. Remove these constraints
-//  For all k = k’ constraints, propagate solutions. [This will be quadratic without a graph-based approach]
-//    NOTE: This easily generalizes to k >= k’, since we just modify LHS based on RHS, rather than both ways
-//  For all k >= q ==> k’ >= q’ constraints, if the lhs fires, replace with the rhs and delete the constraint
+//  For all k = k’ constraints, propagate solutions. [This will be quadratic
+//  without a graph-based approach]
+//  NOTE: This easily generalizes to k >= k’, since we just modify LHS based
+//  on RHS, rather than both ways. For all k >= q ==> k’ >= q’ constraints,
+//  if the lhs fires, replace with the rhs and delete the constraint
 
-Constraint *Constraints::solve_new(unsigned &n) {
+Constraint *Constraints::solve_new(unsigned &Niter) {
     bool ChangedEnv = true;
     bool NotFixedPoint = true;
-    n = 0;
+    Niter = 0;
     EnvironmentMap::iterator VI;
 
     // Proper solving
     while (ChangedEnv) {
         ChangedEnv = false;
-        n++;
+        Niter++;
 
-        // Step 1. Propagate any Geq(v,c) constraints, which can be summarily deleted
+        // Step 1. Propagate any Geq(v,c) constraints, which can be summarily
+        // deleted
         VI = environment.begin();
         while (VI != environment.end()) {
             VarAtom *Var = VI->first;
@@ -522,13 +528,33 @@ Constraint *Constraints::solve_new(unsigned &n) {
         }
 
         if (DebugSolver) {
-            errs() << "constraints after iter #" << n << "\n";
+            errs() << "constraints after iter #" << Niter << "\n";
             dump();
         }
 
     }
 
     return nullptr;
+}
+
+Constraint *Constraints::graph_based_solve(unsigned &Niter) {
+  ConstraintsGraph CurrCG;
+  auto VI = environment.begin();
+  while (VI != environment.end()) {
+    VarAtom *Var = VI->first;
+    ConstraintSet RemCons;
+    for (const auto &C : Var->Constraints) {
+      if (Eq *E = dyn_cast<Eq>(C)) {
+        CurrCG.addConstraint(E, *this);
+      }
+      if (Geq *G = dyn_cast<Geq>(C)) {
+        CurrCG.addConstraint(G, *this);
+      }
+    }
+  }
+  // Represent graph in DOT format and send to cout
+  boost::write_graphviz(std::cout, CurrCG.CG);
+  return nullptr;
 }
 
 std::pair<Constraints::ConstraintSet, bool>
