@@ -302,8 +302,10 @@ bool PVConstraint::isEq(const ConstraintVariable &Other,
 
 void PointerVariableConstraint::print(raw_ostream &O) const {
   O << "{ ";
-  for (const auto &I : vars)
-    O << "q_" << I << " ";
+  for (const auto &I : vars) {
+    I->print(O);
+    O << " ";
+  }
   O << " }";
 
   if (FV) {
