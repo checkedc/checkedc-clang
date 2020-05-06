@@ -578,10 +578,10 @@ namespace {
       Expr *OriginalValue;
 
     public:
-      ReplaceVariableHelper(Sema &SemaRef, DeclRefExpr *V, Expr *OV) :
+      ReplaceVariableHelper(Sema &SemaRef, DeclRefExpr *V, Expr *OriginalValue) :
         BaseTransform(SemaRef),
         Variable(V),
-        OriginalValue(OV) { }
+        OriginalValue(OriginalValue) { }
 
       ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
         Lexicographic Lex(SemaRef.Context, nullptr);
@@ -619,12 +619,13 @@ namespace {
       }
   };
 
-  // If an original value OV is provided, ReplaceVariableReferences returns
-  // an expression that replaces all uses of the variable V in E with OV.
-  // If no original value is provided and E uses V, ReplaceVariableReferences
-  // returns nullptr.
+  // If an original value is provided, ReplaceVariableReferences returns
+  // an expression that replaces all uses of the variable V in E with the
+  // original value.  If no original value is provided and E uses V,
+  // ReplaceVariableReferences returns nullptr.
   Expr *ReplaceVariableReferences(Sema &SemaRef, Expr *E, DeclRefExpr *V,
-                                  Expr *OV, CheckedScopeSpecifier CSS) {
+                                  Expr *OriginalValue,
+                                  CheckedScopeSpecifier CSS) {
     // Don't transform e if it does not use the value of v.
     if (!VariableOccurrenceCount(SemaRef, V, E))
       return E;
@@ -633,7 +634,7 @@ namespace {
     Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
 
     Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics
-    ExprResult R = ReplaceVariableHelper(SemaRef, V, OV).TransformExpr(E);
+    ExprResult R = ReplaceVariableHelper(SemaRef, V, OriginalValue).TransformExpr(E);
     if (R.isInvalid())
       return nullptr;
     else
@@ -2646,9 +2647,11 @@ namespace {
 
         // Update UEQ and G for assignments to `e1` where `e1` is a variable.
         if (DeclRefExpr *V = GetLValueVariable(LHS)) {
-          bool OVUsesV = false;
-          Expr *OV = GetOriginalValue(V, Src, State.UEQ, OVUsesV);
-          UpdateAfterAssignment(V, Target, OV, OVUsesV, CSS, State, State);
+          bool OriginalValueUsesV = false;
+          Expr *OriginalValue = GetOriginalValue(V, Src, State.UEQ,
+                                                 OriginalValueUsesV);
+          UpdateAfterAssignment(V, Target, OriginalValue, OriginalValueUsesV,
+                                CSS, State, State);
         }
         // Update UEQ and G for assignments where `e1` is not a variable.
         else {
@@ -3057,9 +3060,11 @@ namespace {
           // Update G to be the set of expressions that produce the same
           // value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateG(E, State.G, State.G, RHS);
-          bool OVUsesV = false;
-          Expr *OV = GetOriginalValue(V, RHS, State.UEQ, OVUsesV);
-          UpdateAfterAssignment(V, Target, OV, OVUsesV, CSS, State, State);
+          bool OriginalValueUsesV = false;
+          Expr *OriginalValue = GetOriginalValue(V, RHS, State.UEQ,
+                                                 OriginalValueUsesV);
+          UpdateAfterAssignment(V, Target, OriginalValue, OriginalValueUsesV,
+                                CSS, State, State);
         }
 
         // Update the set G of expressions that produce the same value as `e`.
@@ -3154,10 +3159,10 @@ namespace {
           TargetTy = D->getType();
         }
         Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
-        Expr *OV = nullptr;
-        bool OVUsesV = false;
-        UpdateAfterAssignment(TargetDeclRef, TargetExpr, OV, OVUsesV,
-                              CSS, State, State);
+        Expr *OriginalValue = nullptr;
+        bool OriginalValueUsesV = false;
+        UpdateAfterAssignment(TargetDeclRef, TargetExpr, OriginalValue,
+                              OriginalValueUsesV, CSS, State, State);
       }
 
       if (D->isInvalidDecl())
@@ -3661,21 +3666,21 @@ namespace {
     // Target is the target expression of the assignment (that accounts for
     // any necessary casts of V).
     //
-    // OV is the original value (if any) for V before the assignment.
-    // If OV is non-null, it is substituted for any uses of the value of V
-    // in the expressions in UEQ and G.
-    // If OV is null, any expressions in UEQ and G that use the value of V
-    // are removed from UEQ and G.
+    // OriginalValue is the original value (if any) for V before the assignment.
+    // If OriginalValue is non-null, it is substituted for any uses of the
+    // value of V in the expressions in UEQ and G.
+    // If OriginalValue is null, any expressions in UEQ and G that use the
+    // value of V are removed from UEQ and G.
     //
-    // OVUsesV is true if the original value (if any) uses the value of V.
-    // It is used to prevent the UEQ and G sets from recording equality
-    // between two mathematically equivalent expressions, which can occur
-    // for assignments where the variable appears on the right-hand side,
+    // OriginalValueUsesV is true if the original value (if any) uses the
+    // value of V.  It is used to prevent the UEQ and G sets from recording
+    // equality between two mathematically equivalent expressions, which can
+    // occur for assignments where the variable appears on the right-hand side,
     // e.g. i = i + 2.
     //
     // PrevState is the checking state that was true before the assignment.
     void UpdateAfterAssignment(DeclRefExpr *V, Expr *Target,
-                               Expr *OV, bool OVUsesV,
+                               Expr *OriginalValue, bool OriginalValueUsesV,
                                CheckedScopeSpecifier CSS,
                                const CheckingState PrevState,
                                CheckingState &State) {
@@ -3685,7 +3690,7 @@ namespace {
         EqualExprTy ExprList;
         for (auto InnerList = (*I).begin(); InnerList != (*I).end(); ++InnerList) {
           Expr *E = *InnerList;
-          Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OV, CSS);
+          Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OriginalValue, CSS);
           // Don't add duplicate expressions to any set in UEQ.
           if (AdjustedE && !EqualExprsContainsExpr(ExprList, AdjustedE))
             ExprList.push_back(AdjustedE);
@@ -3702,7 +3707,7 @@ namespace {
       // (i - 2) + 2.  Otherwise, G would contain (i - 2) + 2 and i, and UEQ
       // would record equality between (i - 2) + 2 and i, which is a tautology.
       State.G.clear();
-      Expr *OriginalGVal = OVUsesV ? nullptr : OV;
+      Expr *OriginalGVal = OriginalValueUsesV ? nullptr : OriginalValue;
       for (auto I = PrevState.G.begin(); I != PrevState.G.end(); ++I) {
         Expr *E = *I;
         Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OriginalGVal, CSS);
