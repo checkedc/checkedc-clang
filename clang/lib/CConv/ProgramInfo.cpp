@@ -489,26 +489,10 @@ bool ProgramInfo::link() {
           std::string Rsn = "Return value of an external function:" + FuncName;
           U->constrainTo(CS, CS.getWild(), Rsn, true);
         }
-
         std::string rsn = "Inner pointer of a parameter to external function.";
         for (unsigned i = 0; i < G->numParams(); i++)
-          for (const auto &PVar : G->getParamVar(i)) {
-            if (PVConstraint *PVC = dyn_cast<PVConstraint>(PVar)) {
-              // Remove the first constraint var and make all the internal
-              // constraint vars WILD. For more details, refer Section 5.3 of
-              // http://www.cs.umd.edu/~mwh/papers/checkedc-incr.pdf
-              CAtoms C = PVC->getCvars();
-              if (!C.empty())
-                C.erase(C.begin());
-              for (auto cVar : C) {
-                if (VarAtom *VA = dyn_cast<VarAtom>(cVar)) {
-                  CS.addConstraint(CS.createEq(VA, CS.getWild(), rsn));
-                }
-              }
-            } else {
-              PVar->constrainTo(CS, CS.getWild(), rsn,true);
-            }
-          }
+          for (const auto &PVar : G->getParamVar(i))
+            PVar->constrainTo(CS, CS.getWild(), rsn,true);
       }
     }
   }
