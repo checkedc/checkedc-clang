@@ -36,6 +36,7 @@ if (LLVM_BOOST_FOUND)
           ${Boost_LIBRARIES}
         )
         add_subdirectory(unittests)
+	target_include_directories(obj.CConv PUBLIC ${Boost_INCLUDE_DIRS})
     endif()
 endif()
 
