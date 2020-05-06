@@ -608,7 +608,7 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
           for (auto *KChild : KSuccessors) {
             ConstAtom *KCSol = getAssignment(KChild);
             // that sol(k) <: q; else fail
-            if (!(*SucSol < *KCSol)) {
+            if (!(*SucSol < *KCSol) && *SucSol != *KCSol) {
               // failure case.
               errs() << "Invalid graph formed on Vertex:";
               K->print(errs());
