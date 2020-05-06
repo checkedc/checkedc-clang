@@ -579,7 +579,7 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
   WorkList.insert(WorkList.begin(), InitC.begin(), InitC.end());
 
   while (!WorkList.empty()) {
-    auto CurrAtom = *(WorkList.begin());
+    auto *CurrAtom = *(WorkList.begin());
     // Remove the first element.
     WorkList.erase(WorkList.begin());
 
@@ -589,7 +589,7 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
     std::set<Atom*> Successors;
     // get successors
     CurrCG.getSuccessors(CurrAtom, Successors);
-    for (auto SucA : Successors) {
+    for (auto *SucA : Successors) {
       bool Changed = false;
       if (VarAtom *K = dyn_cast<VarAtom>(SucA)) {
         ConstAtom *SucSol = getAssignment(K);
@@ -605,7 +605,7 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
           // ---- for all edges (k --> q) in G, confirm
           std::set<Atom*> KSuccessors;
           CurrCG.getSuccessors(K, KSuccessors);
-          for (auto KChild : KSuccessors) {
+          for (auto *KChild : KSuccessors) {
             ConstAtom *KCSol = getAssignment(KChild);
             // that sol(k) <: q; else fail
             if (!(*SucSol < *KCSol)) {
