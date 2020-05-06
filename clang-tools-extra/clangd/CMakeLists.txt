@@ -249,7 +249,6 @@ if(LLVM_BOOST_FOUND)
         )
 
   target_compile_definitions(obj.cconvClangDaemon PRIVATE INTERACTIVECCCONV=1)
-  target_link_libraries(obj.cconvClangDaemon ${Boost_GRAPH_LIBRARY})
 endif()
 
 add_subdirectory(refactor/tweaks)
