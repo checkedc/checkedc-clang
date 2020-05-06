@@ -588,7 +588,7 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
 
     std::set<Atom*> Successors;
     // get successors
-    CurrCG.getSuccessors(CurrAtom, Successors);
+    CurrCG.getSuccessors<VarAtom>(CurrAtom, Successors);
     for (auto *SucA : Successors) {
       bool Changed = false;
       if (VarAtom *K = dyn_cast<VarAtom>(SucA)) {
@@ -604,13 +604,15 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
           SucSol = getAssignment(K);
           // ---- for all edges (k --> q) in G, confirm
           std::set<Atom*> KSuccessors;
-          CurrCG.getSuccessors(K, KSuccessors);
+          CurrCG.getSuccessors<ConstAtom>(K, KSuccessors);
           for (auto *KChild : KSuccessors) {
             ConstAtom *KCSol = getAssignment(KChild);
             // that sol(k) <: q; else fail
             if (!(*SucSol < *KCSol) && *SucSol != *KCSol) {
               // failure case.
               errs() << "Invalid graph formed on Vertex:";
+              SucSol->print(errs());
+              KCSol->print(errs());
               K->print(errs());
               return false;
 
@@ -663,8 +665,9 @@ std::pair<Constraints::ConstraintSet, bool>
       }
   }
   else { /* New Solver */
-      Constraint *C = solve_new(NumOfIter);
-      assert(C == nullptr); // eventually this could happen, so we have to report the error
+      //Constraint *C = solve_new(NumOfIter);
+      //assert(C == nullptr); // eventually this could happen, so we have to report the error
+      graph_based_solve(NumOfIter);
   }
 
   return std::pair<Constraints::ConstraintSet, bool>(Conflicts, true);

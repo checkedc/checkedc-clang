@@ -63,6 +63,12 @@ public:
   virtual void print(llvm::raw_ostream &) const = 0;
   virtual void dump(void) const = 0;
   virtual void dump_json(llvm::raw_ostream &) const = 0;
+  std::string getStr() {
+    std::string Buf;
+    llvm::raw_string_ostream TmpS(Buf);
+    print(TmpS);
+    return TmpS.str();
+  }
   virtual bool operator==(const Atom &) const = 0;
   virtual bool operator!=(const Atom &) const = 0;
   virtual bool operator<(const Atom &) const = 0;

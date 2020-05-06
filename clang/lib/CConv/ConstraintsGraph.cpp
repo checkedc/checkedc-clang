@@ -68,19 +68,7 @@ void ConstraintsGraph::addConstraint(Geq *C, Constraints &CS) {
 }
 
 void ConstraintsGraph::dumpCGDot() {
-   write_graphviz(std::cout, CG);
-}
-
-bool ConstraintsGraph::getSuccessors(Atom *CA, std::set<Atom*> &Suc) {
-  // Get the vertex descriptor.
-  auto Vidx = addVertex(CA);
-  Suc.clear();
-  typename graph_traits <DirectedGraphType>::out_edge_iterator ei, ei_end;
-  for (boost::tie(ei, ei_end) = out_edges(Vidx, CG); ei != ei_end; ++ei) {
-    auto source = boost::source ( *ei, CG );
-    auto target = boost::target ( *ei, CG );
-    assert(CG[source] == CA && "Source has to be the given node.");
-    Suc.insert(CG[target]);
-  }
-  return !Suc.empty();
+   write_graphviz(std::cout, CG, [&] (std::ostream &out, unsigned v) {
+     out << "[label=\"" << CG[v]->getStr() << "\"]";
+   });
 }
