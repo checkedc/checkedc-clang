@@ -14,6 +14,8 @@
 
 #include "clang/CConv/CCGlobalOptions.h"
 #include "clang/CConv/Constraints.h"
+#include "clang/CConv/ConstraintsGraph.h"
+#include <iostream>
 
 using namespace llvm;
 
@@ -397,22 +399,25 @@ bool Constraints::step_solve_old(void) {
 //
 //Til fixpoint
 //  For all k >= q constraints, set sol(k) = q. Remove these constraints
-//  For all k = k’ constraints, propagate solutions. [This will be quadratic without a graph-based approach]
-//    NOTE: This easily generalizes to k >= k’, since we just modify LHS based on RHS, rather than both ways
-//  For all k >= q ==> k’ >= q’ constraints, if the lhs fires, replace with the rhs and delete the constraint
+//  For all k = k’ constraints, propagate solutions. [This will be quadratic
+//  without a graph-based approach]
+//  NOTE: This easily generalizes to k >= k’, since we just modify LHS based
+//  on RHS, rather than both ways. For all k >= q ==> k’ >= q’ constraints,
+//  if the lhs fires, replace with the rhs and delete the constraint
 
-Constraint *Constraints::solve_new(unsigned &n) {
+Constraint *Constraints::solve_new(unsigned &Niter) {
     bool ChangedEnv = true;
     bool NotFixedPoint = true;
-    n = 0;
+    Niter = 0;
     EnvironmentMap::iterator VI;
 
     // Proper solving
     while (ChangedEnv) {
         ChangedEnv = false;
-        n++;
+        Niter++;
 
-        // Step 1. Propagate any Geq(v,c) constraints, which can be summarily deleted
+        // Step 1. Propagate any Geq(v,c) constraints, which can be summarily
+        // deleted
         VI = environment.begin();
         while (VI != environment.end()) {
             VarAtom *Var = VI->first;
@@ -522,13 +527,106 @@ Constraint *Constraints::solve_new(unsigned &n) {
         }
 
         if (DebugSolver) {
-            errs() << "constraints after iter #" << n << "\n";
+            errs() << "constraints after iter #" << Niter << "\n";
             dump();
         }
 
     }
 
     return nullptr;
+}
+
+// Make a graph G:
+//- with nodes for each variable k and each qualifier constant q.
+//- with edges Q --> Q’ for each constraint Q <: Q’
+// Note: Constraints (q <: k ⇒ q’ <: k’) are not supported, but we shouldn’t
+// actually need them. So make your algorithm die if it comes across them.
+//
+// For each non-constant node k in G,
+//- set sol(k) = q_\bot (the least element, i.e., Ptr)
+//
+// For each constant node q_i, starting with the highest and working down,
+//- set worklist W = { q_i }
+//- while W nonempty
+//-- let Q = take(W)
+//-- For all edges (Q --> k) in G
+//--- if sol(k) <> (sol(k) JOIN Q) then
+//---- set sol(k) := (sol(k) JOIN Q)
+//---- for all edges (k --> q) in G, confirm that sol(k) <: q; else fail
+//---- add k to W
+
+bool Constraints::graph_based_solve(unsigned &Niter) {
+  ConstraintsGraph CurrCG;
+  // Setup the Constraint Graph.
+  auto VI = environment.begin();
+  while (VI != environment.end()) {
+    VarAtom *Var = VI->first;
+    for (const auto &C : Var->Constraints) {
+      if (Eq *E = dyn_cast<Eq>(C)) {
+        CurrCG.addConstraint(E, *this);
+      }
+      if (Geq *G = dyn_cast<Geq>(C)) {
+        CurrCG.addConstraint(G, *this);
+      }
+    }
+    VI++;
+  }
+  // Solving
+
+  // Initialize work list with ConstAtoms.
+  std::vector<Atom*> WorkList;
+  auto &InitC = CurrCG.getAllConstAtoms();
+  WorkList.insert(WorkList.begin(), InitC.begin(), InitC.end());
+
+  while (!WorkList.empty()) {
+    auto *CurrAtom = *(WorkList.begin());
+    // Remove the first element.
+    WorkList.erase(WorkList.begin());
+
+    // Get the solution of the CurrAtom.
+    ConstAtom *CurrSol = getAssignment(CurrAtom);
+
+    std::set<Atom*> Successors;
+    // get successors
+    CurrCG.getSuccessors<VarAtom>(CurrAtom, Successors);
+    for (auto *SucA : Successors) {
+      bool Changed = false;
+      if (VarAtom *K = dyn_cast<VarAtom>(SucA)) {
+        ConstAtom *SucSol = getAssignment(K);
+        // --- if sol(k) <> (sol(k) JOIN Q) then
+        if (*SucSol < *CurrSol) {
+          VI = environment.find(K);
+          // ---- set sol(k) := (sol(k) JOIN Q)
+          Changed = assignConstToVar(VI, CurrSol);
+        }
+        if (Changed) {
+          // get the latest assignment.
+          SucSol = getAssignment(K);
+          // ---- for all edges (k --> q) in G, confirm
+          std::set<Atom*> KSuccessors;
+          CurrCG.getSuccessors<ConstAtom>(K, KSuccessors);
+          for (auto *KChild : KSuccessors) {
+            ConstAtom *KCSol = getAssignment(KChild);
+            // that sol(k) <: q; else fail
+            if (!(*SucSol < *KCSol) && *SucSol != *KCSol) {
+              // failure case.
+              errs() << "Invalid graph formed on Vertex:";
+              SucSol->print(errs());
+              KCSol->print(errs());
+              K->print(errs());
+              return false;
+
+            }
+          }
+          // ---- add k to W
+          WorkList.push_back(K);
+        }
+      }
+    }
+    Niter++;
+  }
+
+  return true;
 }
 
 std::pair<Constraints::ConstraintSet, bool>
@@ -567,8 +665,9 @@ std::pair<Constraints::ConstraintSet, bool>
       }
   }
   else { /* New Solver */
-      Constraint *C = solve_new(NumOfIter);
-      assert(C == nullptr); // eventually this could happen, so we have to report the error
+      //Constraint *C = solve_new(NumOfIter);
+      //assert(C == nullptr); // eventually this could happen, so we have to report the error
+      graph_based_solve(NumOfIter);
   }
 
   return std::pair<Constraints::ConstraintSet, bool>(Conflicts, true);
