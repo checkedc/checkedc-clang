@@ -557,6 +557,7 @@ Constraint *Constraints::solve_new(unsigned &Niter) {
 
 bool Constraints::graph_based_solve(unsigned &Niter) {
   ConstraintsGraph CurrCG;
+  std::set<Implies *> SavedImplies;
   // Setup the Constraint Graph.
   auto VI = environment.begin();
   while (VI != environment.end()) {
@@ -568,6 +569,10 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
       if (Geq *G = dyn_cast<Geq>(C)) {
         CurrCG.addConstraint(G, *this);
       }
+      // Save the implies to solve them later.
+      if (Implies *Imp = dyn_cast<Implies>(C)) {
+        SavedImplies.insert(Imp);
+      }
     }
     VI++;
   }
@@ -575,61 +580,95 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
   // CurrCG.dumpCGDot();
 
   // Initialize work list with ConstAtoms.
-  std::vector<Atom*> WorkList;
-  auto &InitC = CurrCG.getAllConstAtoms();
-  WorkList.insert(WorkList.begin(), InitC.begin(), InitC.end());
+  std::vector<Atom *> WorkList;
+  std::set<Implies *> FiredImplies;
+  do {
+    WorkList.clear();
+    auto &InitC = CurrCG.getAllConstAtoms();
+    WorkList.insert(WorkList.begin(), InitC.begin(), InitC.end());
 
-  while (!WorkList.empty()) {
-    auto *CurrAtom = *(WorkList.begin());
-    // Remove the first element.
-    WorkList.erase(WorkList.begin());
+    while (!WorkList.empty()) {
+      auto *CurrAtom = *(WorkList.begin());
+      // Remove the first element.
+      WorkList.erase(WorkList.begin());
 
-    // Get the solution of the CurrAtom.
-    ConstAtom *CurrSol = getAssignment(CurrAtom);
+      // Get the solution of the CurrAtom.
+      ConstAtom *CurrSol = getAssignment(CurrAtom);
 
-    std::set<Atom*> Successors;
-    // get successors
-    CurrCG.getSuccessors<VarAtom>(CurrAtom, Successors);
-    for (auto *SucA : Successors) {
-      bool Changed = false;
-      /*llvm::errs() << "Sucessor:" << SucA->getStr()
-                   << " of " << CurrAtom->getStr() << "\n";*/
-      if (VarAtom *K = dyn_cast<VarAtom>(SucA)) {
-        ConstAtom *SucSol = getAssignment(K);
-        // --- if sol(k) <> (sol(k) JOIN Q) then
-        if (*SucSol < *CurrSol) {
-          /*llvm::errs() << "Trying to assign:" << CurrSol->getStr()
-                       << " to " << K->getStr() << "\n";*/
-          VI = environment.find(K);
-          // ---- set sol(k) := (sol(k) JOIN Q)
-          Changed = assignConstToVar(VI, CurrSol);
-        }
-        if (Changed) {
-          // get the latest assignment.
-          SucSol = getAssignment(K);
-          // ---- for all edges (k --> q) in G, confirm
-          std::set<Atom*> KSuccessors;
-          CurrCG.getSuccessors<ConstAtom>(K, KSuccessors);
-          for (auto *KChild : KSuccessors) {
-            ConstAtom *KCSol = getAssignment(KChild);
-            // that sol(k) <: q; else fail
-            if (!(*SucSol < *KCSol) && *SucSol != *KCSol) {
-              // failure case.
-              errs() << "Invalid graph formed on Vertex:";
-              SucSol->print(errs());
-              KCSol->print(errs());
-              K->print(errs());
-              return false;
-
-            }
+      std::set<Atom *> Successors;
+      // get successors
+      CurrCG.getSuccessors<VarAtom>(CurrAtom, Successors);
+      for (auto *SucA : Successors) {
+        bool Changed = false;
+        /*llvm::errs() << "Sucessor:" << SucA->getStr()
+                     << " of " << CurrAtom->getStr() << "\n";*/
+        if (VarAtom *K = dyn_cast<VarAtom>(SucA)) {
+          ConstAtom *SucSol = getAssignment(K);
+          // --- if sol(k) <> (sol(k) JOIN Q) then
+          if (*SucSol < *CurrSol) {
+            VI = environment.find(K);
+            // ---- set sol(k) := (sol(k) JOIN Q)
+            Changed = assignConstToVar(VI, CurrSol);
+            /*if (Changed) {
+              llvm::errs() << "Trying to assign:" << CurrSol->getStr() << " to "
+                           << K->getStr() << "\n";
+            }*/
           }
-          // ---- add k to W
-          WorkList.push_back(K);
+          if (Changed) {
+            // get the latest assignment.
+            SucSol = getAssignment(K);
+            // ---- for all edges (k --> q) in G, confirm
+            std::set<Atom *> KSuccessors;
+            CurrCG.getSuccessors<ConstAtom>(K, KSuccessors);
+            for (auto *KChild : KSuccessors) {
+              ConstAtom *KCSol = getAssignment(KChild);
+              // that sol(k) <: q; else fail
+              if (!(*SucSol < *KCSol) && *SucSol != *KCSol) {
+                // failure case.
+                errs() << "Invalid graph formed on Vertex:";
+                SucSol->print(errs());
+                KCSol->print(errs());
+                K->print(errs());
+                return false;
+              }
+            }
+            // ---- add k to W
+            WorkList.push_back(K);
+          }
         }
       }
     }
     Niter++;
-  }
+    FiredImplies.clear();
+
+    // If there are some implications that we saved? Propagate them.
+    if (!SavedImplies.empty()) {
+      // Check if Premise holds? If yes then fire the conclusion.
+      for (auto *Imp : SavedImplies) {
+        Geq *Pre = dyn_cast<Geq>(Imp->getPremise());
+        Geq *Con = dyn_cast<Geq>(Imp->getConclusion());
+
+        assert(Pre != nullptr && Con != nullptr &&
+               "Pre and Con cannot be nullptr");
+        ConstAtom *Cca = getAssignment(Pre->getRHS());
+        ConstAtom *Cva = getAssignment(Pre->getLHS());
+        // Premise is true, so fire the conclusion.
+        if (*Cca < *Cva || *Cca == *Cva) {
+          /*llvm::errs() << "Firing Conclusion:";
+          Con->print(llvm::errs());
+          llvm::errs() << "\n";*/
+          CurrCG.addConstraint(Con, *this);
+          // Keep track of fired constraints, so that we can delete them.
+          FiredImplies.insert(Imp);
+        }
+      }
+      // Erase all the fired implies.
+      for (auto *ToDel : FiredImplies) {
+        SavedImplies.erase(ToDel);
+      }
+    }
+    // Lets repeat if there are some fired constraints.
+  } while (!FiredImplies.empty());
 
   return true;
 }

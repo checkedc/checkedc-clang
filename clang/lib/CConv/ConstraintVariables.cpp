@@ -233,6 +233,31 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   if (QTy.isConstQualified()) {
     BaseType = "const " + BaseType;
   }
+
+  // Here lets add implication that if outer pointer is WILD
+  // then make the inner pointers WILD too.
+  if (vars.size() > 1) {
+    bool UsedPrGeq = false;
+    for (auto VI=vars.begin(), VE=vars.end(); VI != VE; VI++) {
+      if (VarAtom *VIVar = dyn_cast<VarAtom>(*VI)) {
+        // Premise.
+        Geq *PrGeq = new Geq(VIVar, CS.getWild());
+        UsedPrGeq = false;
+        for (auto VJ = (VI + 1); VJ != VE; VJ++) {
+          if (VarAtom *VJVar = dyn_cast<VarAtom>(*VJ)) {
+            // Conclusion.
+            Geq *CoGeq = new Geq(VJVar, CS.getWild());
+            CS.addConstraint(CS.createImplies(PrGeq, CoGeq));
+            UsedPrGeq = true;
+          }
+        }
+        // Delete unused constraint.
+        if (!UsedPrGeq) {
+          delete (PrGeq);
+        }
+      }
+    }
+  }
 }
 
 bool PVConstraint::liftedOnCVars(const ConstraintVariable &O,
