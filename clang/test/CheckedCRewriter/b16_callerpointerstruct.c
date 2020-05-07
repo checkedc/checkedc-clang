@@ -21,7 +21,7 @@ struct p *sus(struct p *x, struct p *y) {
   struct p *z = malloc(sizeof(struct p));
   return z;
 }
-//CHECK: struct p *sus(_Ptr<struct p> x, _Ptr<struct p> y) : itype(_Ptr<struct p>) {
+//CHECK: _Ptr<struct p> sus(_Ptr<struct p> x, _Ptr<struct p> y) {
 
 struct p *foo() {
   int ex1 = 2, ex2 = 3;
