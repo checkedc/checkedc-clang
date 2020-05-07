@@ -4701,22 +4701,8 @@ namespace {
           // given target bounds.
           return TargetBounds;
         }
-        case CastKind::CK_ArrayToPointerDecay: {
-          // For an array to pointer cast of a variable v, if v has observed
-          // bounds, the rvalue bounds of the value of v should be the observed
-          // bounds. This also accounts for variables with array type that have
-          // widened bounds.
-          if (DeclRefExpr *V = GetRValueVariable(E)) {
-            if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
-              if (BoundsExpr *B = State.ObservedBounds[D])
-                return B;
-            }
-          }
-          // If an array to pointer cast e is not the value of a variable
-          // with observed bounds, the rvalue bounds of e default to the
-          // given lvalue bounds.
+        case CastKind::CK_ArrayToPointerDecay:
           return LValueBounds;
-        }
         case CastKind::CK_DynamicPtrBounds:
         case CastKind::CK_AssumePtrBounds:
           llvm_unreachable("unexpected rvalue bounds cast");
