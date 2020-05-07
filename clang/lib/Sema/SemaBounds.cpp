@@ -4688,11 +4688,12 @@ namespace {
         case CastKind::CK_LValueToRValue: {
           // For an rvalue cast of a variable v, if v has observed bounds,
           // the rvalue bounds of the value of v should be the observed bounds.
-          // This also accounts for any variables that have widened bounds.
+          // This also accounts for variables that have widened bounds.
           if (DeclRefExpr *V = GetRValueVariable(E)) {
             if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
-              if (BoundsExpr *B = State.ObservedBounds[D])
-                return B;
+              auto It = State.ObservedBounds.find(D);
+              if (It != State.ObservedBounds.end())
+                return It->second;
             }
           }
           // If an lvalue to rvalue cast e is not the value of a variable
@@ -4700,8 +4701,23 @@ namespace {
           // given target bounds.
           return TargetBounds;
         }
-        case CastKind::CK_ArrayToPointerDecay:
+        case CastKind::CK_ArrayToPointerDecay: {
+          // For an array to pointer cast of a variable v, if v has observed
+          // bounds, the rvalue bounds of the value of v should be the observed
+          // bounds. This also accounts for variables with array type that have
+          // widened bounds.
+          if (DeclRefExpr *V = GetRValueVariable(E)) {
+            if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
+              auto It = State.ObservedBounds.find(D);
+              if (It != State.ObservedBounds.end())
+                return It->second;
+            }
+          }
+          // If an array to pointer cast e is not the value of a variable
+          // with observed bounds, the rvalue bounds of e default to the
+          // given lvalue bounds.
           return LValueBounds;
+        }
         case CastKind::CK_DynamicPtrBounds:
         case CastKind::CK_AssumePtrBounds:
           llvm_unreachable("unexpected rvalue bounds cast");
