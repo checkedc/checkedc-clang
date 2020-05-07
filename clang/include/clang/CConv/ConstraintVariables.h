@@ -92,15 +92,15 @@ public:
   virtual void dump_json(llvm::raw_ostream &O) const = 0;
 
   // Constrain everything 'within' this ConstraintVariable to be equal to C.
-  // Set checkSkip to true if you would like constrainTo to consider the
+  // Set checkSkip to true if you would like constrainToWild to consider the
   // ConstrainedVars when applying constraints. This should be set when
   // applying constraints due to external symbols, during linking.
-  virtual void constrainTo(Constraints &CS, ConstAtom *C,
-                           bool CheckSkip=false) = 0;
-  virtual void constrainTo(Constraints &CS, ConstAtom *C, std::string &Rsn,
-                           bool CheckSkip=false) = 0;
-  virtual void constrainTo(Constraints &CS, ConstAtom *C, std::string &Rsn,
-                           PersistentSourceLoc *PL, bool CheckSkip=false) = 0;
+  virtual void constrainToWild(Constraints &CS, bool CheckSkip = false) = 0;
+  virtual void constrainToWild(Constraints &CS, std::string &Rsn,
+                               bool CheckSkip = false) = 0;
+  virtual void constrainToWild(Constraints &CS, std::string &Rsn,
+                               PersistentSourceLoc *PL,
+                               bool CheckSkip = false) = 0;
 
   // Returns true if any of the constraint variables 'within' this instance
   // have a binding in E other than top. E should be the EnvironmentMap that
@@ -236,11 +236,11 @@ public:
   void print(llvm::raw_ostream &O) const ;
   void dump() const { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const;
-  void constrainTo(Constraints &CS, ConstAtom *C, bool CheckSkip =false);
-  void constrainTo(Constraints &CS, ConstAtom *C, std::string &Rsn,
-                   bool CheckSkip =false);
-  void constrainTo(Constraints &CS, ConstAtom *C, std::string &Rsn,
-                   PersistentSourceLoc *PL, bool CheckSkip =false);
+  void constrainToWild(Constraints &CS, bool CheckSkip = false);
+  void constrainToWild(Constraints &CS, std::string &Rsn,
+                       bool CheckSkip = false);
+  void constrainToWild(Constraints &CS, std::string &Rsn,
+                       PersistentSourceLoc *PL, bool CheckSkip = false);
   void constrainOuterTo(Constraints &CS, ConstAtom *C);
   bool anyChanges(Constraints::EnvironmentMap &E);
   bool hasWild(Constraints::EnvironmentMap &E);
@@ -320,11 +320,11 @@ public:
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const;
-  void constrainTo(Constraints &CS, ConstAtom *C, bool CheckSkip =false);
-  void constrainTo(Constraints &CS, ConstAtom *C, std::string &Rsn,
-                   bool CheckSkip =false);
-  void constrainTo(Constraints &CS, ConstAtom *C, std::string &Rsn,
-                   PersistentSourceLoc *PL, bool CheckSkip =false);
+  void constrainToWild(Constraints &CS, bool CheckSkip = false);
+  void constrainToWild(Constraints &CS, std::string &Rsn,
+                       bool CheckSkip = false);
+  void constrainToWild(Constraints &CS, std::string &Rsn,
+                       PersistentSourceLoc *PL, bool CheckSkip = false);
   bool anyChanges(Constraints::EnvironmentMap &E);
   bool hasWild(Constraints::EnvironmentMap &E);
   bool hasArr(Constraints::EnvironmentMap &E);

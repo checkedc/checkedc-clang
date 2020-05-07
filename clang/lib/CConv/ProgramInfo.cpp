@@ -453,8 +453,8 @@ bool ProgramInfo::link() {
               if (P1->hasProtoType() && P2->hasProtoType()) {
                 // Nope, we have no choice. Constrain everything to wild.
                 std::string rsn = "Return value of function:" + P1->getName();
-                P1->constrainTo(CS, CS.getWild(), rsn, true);
-                P2->constrainTo(CS, CS.getWild(), rsn, true);
+                P1->constrainToWild(CS, rsn, true);
+                P2->constrainToWild(CS, rsn, true);
               }
             }
           }
@@ -488,12 +488,12 @@ bool ProgramInfo::link() {
         auto G = GIterator;
         for (const auto &U : G->getReturnVars()) {
           std::string Rsn = "Return value of an external function:" + FuncName;
-          U->constrainTo(CS, CS.getWild(), Rsn, true);
+          U->constrainToWild(CS, Rsn, true);
         }
         std::string rsn = "Inner pointer of a parameter to external function.";
         for (unsigned i = 0; i < G->numParams(); i++)
           for (const auto &PVar : G->getParamVar(i))
-            PVar->constrainTo(CS, CS.getWild(), rsn,true);
+            PVar->constrainToWild(CS, rsn, true);
       }
     }
   }
@@ -758,7 +758,7 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, ASTContext *astContext) {
   std::string Rsn = "Pointer in Macro declaration.";
   if (!Rewriter::isRewritable(D->getLocation())) 
     for (const auto &C : S)
-      C->constrainTo(CS, CS.getWild(), Rsn);
+      C->constrainToWild(CS, Rsn, false);
 
   return true;
 }
@@ -1381,9 +1381,9 @@ ProgramInfo::applyFunctionSubtyping(std::set<ConstraintVariable *>
         // Make everything WILD.
         std::string Rsn = "Function Returning WILD within the body.";
 
-        DefRetPvCons->constrainTo(CS, CS.getWild(), Rsn);
+        DefRetPvCons->constrainToWild(CS, Rsn, false);
 
-        DeclRetPvCons->constrainTo(CS, CS.getWild(), Rsn);
+        DeclRetPvCons->constrainToWild(CS, Rsn, false);
 
         Ret = true;
       } else if (CS.isWild(HeadDeclCVar)) {
