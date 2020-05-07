@@ -608,8 +608,8 @@ public:
     return C->getKind() == C_Imp;
   }
 
-  Constraint *getPremise() const { return premise; }
-  Constraint *getConclusion() const { return conclusion; }
+  Constraint *getPremise() { return premise; }
+  Constraint *getConclusion() { return conclusion; }
 
   void print(llvm::raw_ostream &O) const {
     premise->print(O);
