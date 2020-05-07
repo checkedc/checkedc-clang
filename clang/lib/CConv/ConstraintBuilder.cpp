@@ -43,122 +43,6 @@ void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C,
   }
 }
 
-/*void constrainConsVar(std::set<ConstraintVariable*> &RHS,
-  std::set<ConstraintVariable*> &LHS, ProgramInfo &Info);*/
-// Given two ConstraintVariables, do the right thing to assign 
-// constraints. 
-// If they are both PVConstraint, then do an element-wise constraint
-// generation.
-// If they are both FVConstraint, then do a return-value and parameter
-// by parameter constraint generation.
-// If they are of an unequal parameter type, constrain everything in both
-// to wild.
-void constrainConsVar(ConstraintVariable *LHS,
-                      ConstraintVariable *RHS, ProgramInfo &Info,
-                      Stmt *S,  ASTContext *C,
-                      ConsGenFuncType ConsGen,
-                      bool FuncCall) {
-  PersistentSourceLoc PL;
-  if (S != nullptr && C != nullptr)
-    PL = PersistentSourceLoc::mkPSL(S, *C);
-  ConstraintVariable *CRHS = RHS;
-  ConstraintVariable *CLHS = LHS;
-  Constraints &CS = Info.getConstraints();
-
-  if (CRHS->getKind() == CLHS->getKind()) {
-    if (FVConstraint *FCLHS = dyn_cast<FVConstraint>(CLHS)) {
-      if (FVConstraint *FCRHS = dyn_cast<FVConstraint>(CRHS)) {
-        // Element-wise constrain the return value of FCLHS and 
-        // FCRHS to be equal. Then, again element-wise, constrain 
-        // the parameters of FCLHS and FCRHS to be equal.
-        constrainConsVar(FCLHS->getReturnVars(), FCRHS->getReturnVars(), Info,
-                         S, C, ConsGen);
-
-        // Constrain the parameters to be equal.
-        if (FCLHS->numParams() == FCRHS->numParams()) {
-          for (unsigned i = 0; i < FCLHS->numParams(); i++) {
-            std::set<ConstraintVariable *> &V1 =
-              FCLHS->getParamVar(i);
-            std::set<ConstraintVariable *> &V2 =
-              FCRHS->getParamVar(i);
-            constrainConsVar(V1, V2, Info, S, C, ConsGen);
-          }
-        } else {
-          // Constrain both to be top.
-          std::string Rsn = "Assigning from:" + FCRHS->getName() +
-                            " to " + FCLHS->getName();
-          CRHS->constrainToWild(CS, Rsn, &PL, false);
-          CLHS->constrainToWild(CS, Rsn, &PL, false);
-        }
-      } else {
-        llvm_unreachable("impossible");
-      }
-    }
-    else if (PVConstraint *PCLHS = dyn_cast<PVConstraint>(CLHS)) {
-      if (PVConstraint *PCRHS = dyn_cast<PVConstraint>(CRHS)) {
-        std::string Rsn = "";
-        // This is to handle function subtyping. Try to add LHS and RHS
-        // to each others argument constraints.
-        PCLHS->addArgumentConstraint(PCRHS);
-        PCRHS->addArgumentConstraint(PCLHS);
-        // Element-wise constrain PCLHS and PCRHS to be equal
-        CAtoms CLHS = PCLHS->getCvars();
-        CAtoms CRHS = PCRHS->getCvars();
-        // FIXME: Should check that the constraint set sizes on both sides are the same
-        //  handling of & is now done via getVariable, so sizes line up
-        // We equate the constraints in a left-justified manner.
-        // This to handle cases like: e.g., p = &q;
-        // Here, we need to equate the inside constraint variables
-        CAtoms::reverse_iterator I = CLHS.rbegin();
-        CAtoms::reverse_iterator J = CRHS.rbegin();
-        while (I != CLHS.rend() && J != CRHS.rend()) {
-          ConsGen(CS, *I, *J, Rsn, nullptr);
-          ++I;
-          ++J;
-        }
-      } else
-        llvm_unreachable("impossible");
-    } else
-      llvm_unreachable("unknown kind");
-  }
-  else {
-    // Assigning from a function variable to a pointer variable?
-    PVConstraint *PCLHS = dyn_cast<PVConstraint>(CLHS);
-    FVConstraint *FCRHS = dyn_cast<FVConstraint>(CRHS);
-    if (PCLHS && FCRHS) {
-      if (FVConstraint *FCLHS = PCLHS->getFV()) {
-        constrainConsVar(FCLHS, FCRHS, Info, S, C, ConsGen, FuncCall);
-      } else {
-        if (FuncCall) {
-            for (auto &J : FCRHS->getReturnVars())
-              constrainConsVar(PCLHS, J, Info, S, C, ConsGen, FuncCall);
-        } else {
-          std::string Rsn = "Function:" + FCRHS->getName() +
-                            " assigned to non-function pointer.";
-          CLHS->constrainToWild(CS, Rsn, &PL, false);
-          CRHS->constrainToWild(CS, Rsn, &PL, false);
-        }
-      }
-    } else {
-      // Constrain everything in both to wild.
-      std::string Rsn = "Assignment to functions from variables";
-      CLHS->constrainToWild(CS, Rsn, &PL, false);
-      CRHS->constrainToWild(CS, Rsn, &PL, false);
-    }
-  }
-}
-
-// Given an RHS and a LHS, constrain them to be equal. 
-void constrainConsVar(std::set<ConstraintVariable *> &RHS,
-                      std::set<ConstraintVariable *> &LHS, ProgramInfo &Info,
-                      Stmt *S, ASTContext *C,
-                      ConsGenFuncType ConsGen,
-                      bool FuncCall) {
-  for (const auto &I : RHS)
-    for (const auto &J : LHS)
-      constrainConsVar(I, J, Info, S, C, ConsGen, FuncCall);
-}
-
 // This class visits functions and adds constraints to the
 // Constraints instance assigned to it.
 // Each VisitXXX method is responsible either for looking inside statements
@@ -329,7 +213,7 @@ public:
   void constrainLocalAssign(std::set<ConstraintVariable *> V,
                             QualType LhsType,
                             Expr *RHS,
-                            ConsGenFuncType ConsGen=EqConsGenerator) {
+                            ConsAction CA=Same_to_Same) {
     if (!RHS || V.size() == 0)
       return;
 
@@ -339,6 +223,7 @@ public:
     Constraints &CS = Info.getConstraints();
     RHS = getNormalizedExpr(RHS);
     CallExpr *CE = dyn_cast<CallExpr>(RHS);
+    PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(RHS, *Context);
     // If this is a call expression to a function.
     if (CE != nullptr && CE->getDirectCallee() != nullptr) {
       // case 5
@@ -356,13 +241,13 @@ public:
         // to the declaration.
         RHSConstraints = Info.getVariable(RHS, Context, false);
         if (RHSConstraints.size() > 0) {
-          constrainConsVar(V, RHSConstraints, Info, RHS, Context,
-                           GEqConsGenerator,
-                           true);
+          constrainConsVar(V, RHSConstraints, CS, &PL,
+                           Safe_to_Wild,true);
         }
       }
     } else {
       RHS = RHS->IgnoreParens();
+      PL = PersistentSourceLoc::mkPSL(RHS, *Context);
 
       // Cases 2
       if (isNULLExpression(RHS, *Context)) {
@@ -372,7 +257,6 @@ public:
                                              Expr::NPC_ValueDependentIsNotNull)) {
         // Case 2, Special handling. If this is an assignment of non-zero
         // integer constraint, then make the pointer WILD.
-        PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(RHS, *Context);
         std::string Rsn = "Casting to pointer from constant.";
         for (const auto &U : V) {
           if (PVConstraint *PVC = dyn_cast<PVConstraint>(U))
@@ -408,8 +292,6 @@ public:
         // If none of the above rules for cast behavior fired, then
         // we need to fall back to doing something conservative.
         if (!RulesFired) {
-          PersistentSourceLoc PL =
-              PersistentSourceLoc::mkPSL(RHS, *Context);
           // Is the explicit cast safe?
           if (!ExternalCastSafe ||
               !Info.isExplicitCastSafe(LhsType, SE->getType())) {
@@ -433,11 +315,9 @@ public:
             RHSConstraints = getRHSConsVariables(RHS, LhsType, Context);
             if (dyn_cast<CallExpr>(SE) != nullptr) {
               // If this is a function call..create Geq constraints.
-              constrainConsVar(V, RHSConstraints, Info, RHS,
-                               Context, GEqConsGenerator, true);
+              constrainConsVar(V, RHSConstraints, CS, &PL, Safe_to_Wild, true);
             } else {
-              constrainConsVar(V, RHSConstraints, Info, RHS,
-                               Context, ConsGen);
+              constrainConsVar(V, RHSConstraints, CS, &PL, CA);
             }
           }
         }
@@ -449,7 +329,7 @@ public:
           // Case 1.
           // There are constraint variables for the RHS, so, use those over
           // anything else we could infer.
-          constrainConsVar(V, RHSConstraints, Info, RHS, Context, ConsGen);
+          constrainConsVar(V, RHSConstraints, CS, &PL, CA);
         }
       }
     }
@@ -555,7 +435,7 @@ public:
           // "Unable to get parameter constraints");
           // the constrains could be empty for builtin functions.
           constrainLocalAssign(ParameterConstraintVars, PD->getType(),
-                               A, GEqConsGenerator);
+                               A, Safe_to_Wild);
         } else {
           // This is the case of an argument passed to a function
           // with varargs.
@@ -660,6 +540,7 @@ private:
 
   bool handleFunctionPointerCall(CallExpr *E) {
     Decl *D = E->getCalleeDecl();
+    Constraints &CS = Info.getConstraints();
     if (D) {
       PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
       if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
@@ -690,12 +571,11 @@ private:
                 if (i < FV->numParams()) {
                   std::set<ConstraintVariable *> ParameterDC =
                     FV->getParamVar(i);
-                  constrainConsVar(ArgumentConstraints, ParameterDC, Info, E,
-                                   Context, EqConsGenerator);
+                  constrainConsVar(ArgumentConstraints, ParameterDC, CS, &PL,
+                                   Same_to_Same);
                 } else {
                   // Constrain argument to wild since we can't match it
                   // to a parameter from the type.
-                  Constraints &CS = Info.getConstraints();
                   for (const auto &V : ArgumentConstraints) {
                     std::string argWILD = "Argument to VarArg Function:"+
                                           FV->getName();
@@ -710,7 +590,6 @@ private:
               // everything.
               // What we do is, constraint all arguments to wild.
               constraintAllArgumentsToWild(E);
-              Constraints &CS = Info.getConstraints();
               // Also constraint parameter with-in the body to WILD.
               std::string rsn = "Function pointer to/from non-function "
                                 "pointer cast.";

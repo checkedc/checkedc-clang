@@ -21,7 +21,7 @@ struct np *sus(struct p x, struct p y) {
   z->x = 2;
   return z;
 }
-//CHECK: struct np *sus(struct p x, struct p y) : itype(_Ptr<struct np>) {
+//CHECK: _Ptr<struct np> sus(struct p x, struct p y) {
 
 struct np *foo() {
   struct p x, y;

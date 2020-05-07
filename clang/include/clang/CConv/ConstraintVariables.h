@@ -356,4 +356,23 @@ public:
 
 typedef FunctionVariableConstraint FVConstraint;
 
+enum ConsAction {
+  Safe_to_Wild,
+  Wild_to_Safe,
+  Same_to_Same
+};
+
+void constrainConsVar(std::set<ConstraintVariable *> &RHS,
+                      std::set<ConstraintVariable *> &LHS,
+                      Constraints &CS,
+                      PersistentSourceLoc *PL,
+                      ConsAction = Same_to_Same,
+                      bool FuncCall = false);
+void constrainConsVar(ConstraintVariable *LHS,
+                      ConstraintVariable *RHS,
+                      Constraints &CS,
+                      PersistentSourceLoc *PL,
+                      ConsAction = Same_to_Same,
+                      bool FuncCall = false);
+
 #endif //_CONSTRAINTVARIABLES_H

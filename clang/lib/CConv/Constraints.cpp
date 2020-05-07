@@ -933,32 +933,3 @@ Constraints::~Constraints() {
   delete PrebuiltNTArr;
   delete PrebuiltWild;
 }
-
-// FIXME: Adjust this to be directional, rather than to look at
-//  the types of the Atoms
-void createAtomEq(Constraints &CS, Atom *L,
-                  Atom *R,
-                  std::string &Rsn,
-                  PersistentSourceLoc *PSL, bool IsEq) {
-  VarAtom *VA1, *VA2;
-  ConstAtom *CA1, *CA2;
-
-  VA1 = clang::dyn_cast<VarAtom>(L);
-  VA2 = clang::dyn_cast<VarAtom>(R);
-  CA1 = clang::dyn_cast<ConstAtom>(L);
-  CA2 = clang::dyn_cast<ConstAtom>(R);
-
-  if (VA1 != nullptr && VA2 != nullptr) {
-    if (IsEq) {
-      CS.addConstraint(CS.createEq(VA1, VA2, Rsn, PSL));
-    } else {
-      CS.addConstraint(CS.createGeq(VA1, VA2, Rsn, PSL));
-    }
-  } else if (VA1 != nullptr) {
-    assert(CA2 != nullptr);
-    CS.addConstraint(CS.createGeq(VA1, CA2, Rsn, PSL));
-  } else if (VA2 != nullptr) {
-    assert(CA1 != nullptr);
-    CS.addConstraint(CS.createGeq(VA2, CA1, Rsn, PSL));
-  }
-}
