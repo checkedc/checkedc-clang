@@ -815,7 +815,7 @@ void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *C,
   assert(C == CS.getWild()); // This call doesn't make sense otherwise
   for (const auto &V : vars) {
     if (VarAtom *VA = dyn_cast<VarAtom>(V))
-      CS.addConstraint(CS.createEq(VA, C));
+      CS.addConstraint(CS.createGeq(VA, C, true));
   }
 
   if (FV)
@@ -829,7 +829,7 @@ void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *C,
   assert(C == CS.getWild()); // This call doesn't make sense otherwise
   for (const auto &V : vars) {
     if (VarAtom *VA = dyn_cast<VarAtom>(V))
-      CS.addConstraint(CS.createEq(VA, C, Rsn, PL));
+      CS.addConstraint(CS.createGeq(VA, C, Rsn, PL, true));
   }
 
   if (FV)
@@ -841,7 +841,7 @@ void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *C,
   assert(C == CS.getWild()); // This call doesn't make sense otherwise
   for (const auto &V : vars) {
     if (VarAtom *VA = dyn_cast<VarAtom>(V))
-      CS.addConstraint(CS.createEq(VA, C, Rsn));
+      CS.addConstraint(CS.createGeq(VA, C, Rsn, true));
   }
 
   if (FV)
@@ -851,10 +851,12 @@ void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *C,
 // FIXME: Should do some checking here, eventually to make sure
 // checked types are respected
 void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C) {
+  assert(C == CS.getPtr() || C == CS.getArr() || C == CS.getArr());
+
   if (vars.size() > 0) {
     Atom *A = *vars.begin();
     if (VarAtom *VA = dyn_cast<VarAtom>(A))
-      CS.addConstraint(CS.createEq(VA, C));
+      CS.addConstraint(CS.createGeq(VA, C, false));
   }
 }
 

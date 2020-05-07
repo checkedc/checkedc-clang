@@ -50,6 +50,7 @@ public:
     A_Arr,
     A_NTArr,
     A_Wild,
+    A_Safe,
     A_Const
   };
 private:
@@ -347,6 +348,41 @@ public:
   }
 };
 
+// This refers to the constant PTR.
+class SafeAtom : public ConstAtom {
+public:
+  SafeAtom() : ConstAtom(A_Safe) {}
+
+  static bool classof(const Atom *S) {
+    return S->getKind() == A_Safe;
+  }
+
+  void print(llvm::raw_ostream &O) const {
+    O << "SAFE";
+  }
+
+  void dump(void) const {
+    print(llvm::errs());
+  }
+
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "\"SAFE\"";
+  }
+
+  bool operator==(const Atom &Other) const {
+    return llvm::isa <SafeAtom>(&Other);
+  }
+
+  bool operator!=(const Atom &Other) const {
+    return !(*this == Other);
+  }
+
+  bool operator<(const Atom &Other) const {
+    return *this != Other;
+  }
+};
+
+
 // Represents constraints of the form:
 //  - a = b
 //  - a >= b
@@ -475,14 +511,14 @@ class Geq : public Constraint {
     friend class VarAtom;
 public:
 
-    Geq(Atom *Lhs, Atom *Rhs)
-            : Constraint(C_Geq), lhs(Lhs), rhs(Rhs) {}
+    Geq(Atom *Lhs, Atom *Rhs, bool isCC = true)
+            : Constraint(C_Geq), lhs(Lhs), rhs(Rhs), isCheckedConstraint(isCC) {}
 
-    Geq(Atom *Lhs, Atom *Rhs, std::string &Rsn)
-            : Constraint(C_Geq, Rsn), lhs(Lhs), rhs(Rhs) {}
+    Geq(Atom *Lhs, Atom *Rhs, std::string &Rsn, bool isCC = true)
+            : Constraint(C_Geq, Rsn), lhs(Lhs), rhs(Rhs), isCheckedConstraint(isCC) {}
 
-    Geq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL)
-            : Constraint(C_Geq, Rsn, PL), lhs(Lhs), rhs(Rhs) {}
+    Geq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL, bool isCC = true)
+            : Constraint(C_Geq, Rsn, PL), lhs(Lhs), rhs(Rhs), isCheckedConstraint(isCC) {}
 
     static bool classof(const Constraint *C) {
         return C->getKind() == C_Geq;
@@ -490,7 +526,8 @@ public:
 
     void print(llvm::raw_ostream &O) const {
         lhs->print(O);
-        O << " >= ";
+        std::string kind = isCheckedConstraint ? " (C)>= " : " (P)>= ";
+        O << kind;
         rhs->print(O);
         O << ", Reason:" << REASON;
     }
@@ -504,6 +541,8 @@ public:
         lhs->dump_json(O);
         O << ", \"Atom2\":";
         rhs->dump_json(O);
+        O << ", \"isChecked\":";
+        O << (isCheckedConstraint ? "true" : "false");
         O << ", \"Reason\":";
         llvm::json::Value reasonVal(REASON);
         O << reasonVal;
@@ -513,10 +552,12 @@ public:
     Atom *getLHS(void) const { return lhs; }
     Atom *getRHS(void) const { return rhs; }
     void setRHS(Atom *NewAt) { rhs = NewAt; }
+    bool constraintIsChecked(void) const { return isCheckedConstraint; }
 
     bool operator==(const Constraint &Other) const {
         if (const Geq *E = llvm::dyn_cast<Geq>(&Other))
-            return *lhs == *E->lhs && *rhs == *E->rhs;
+            return *lhs == *E->lhs && *rhs == *E->rhs
+                 && isCheckedConstraint == E->isCheckedConstraint;
         else
             return false;
     }
@@ -530,13 +571,17 @@ public:
         if (K == C_Geq) {
             const Geq *E = llvm::dyn_cast<Geq>(&Other);
             assert(E != nullptr);
-
-            if (*lhs == *E->lhs && *rhs == *E->rhs)
-                return false;
-            else if (*lhs == *E->lhs && *rhs != *E->rhs)
+            if (*lhs == *E->lhs) {
+              if (*rhs == *E->rhs) {
+                if (isCheckedConstraint == E->isCheckedConstraint)
+                  return false;
+                else
+                  return isCheckedConstraint < E->isCheckedConstraint;
+              } else
                 return *rhs < *E->rhs;
+            }
             else
-                return *lhs < *E->lhs;
+              return *lhs < *E->lhs;
         }
         else
             return C_Geq < K;
@@ -547,8 +592,9 @@ public:
     }
 
 private:
-    Atom *lhs;
-    Atom *rhs;
+  Atom *lhs;
+  Atom *rhs;
+  bool isCheckedConstraint;
 };
 
 // a => b
@@ -662,9 +708,9 @@ public:
   Constraint *createEq(Atom *Lhs, Atom *Rhs);
   Constraint *createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn);
   Constraint *createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL);
-  Geq *createGeq(Atom *Lhs, Atom *Rhs);
-  Geq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn);
-  Geq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL);
+  Geq *createGeq(Atom *Lhs, Atom *Rhs, bool isCheckedConstraint = true);
+  Geq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, bool isCheckedConstraint = true);
+  Geq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL, bool isCheckedConstraint = true);
   Implies *createImplies(Constraint *Premise, Constraint *Conclusion);
 
   VarAtom *getOrCreateVar(uint32_t V);

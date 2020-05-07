@@ -801,8 +801,8 @@ bool Constraints::isWild(Atom *A) {
   return dyn_cast<WildAtom>(getAssignment(A)) != nullptr;
 }
 
-Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs) {
-    return new Geq(Lhs, Rhs);
+Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, bool isCheckedConstraint) {
+    return new Geq(Lhs, Rhs, isCheckedConstraint);
 }
 
 Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs) {
@@ -814,8 +814,8 @@ Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs) {
     return Constraints::createGeq(Lhs, Rhs);
 }
 
-Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn) {
-    return new Geq(Lhs, Rhs, Rsn);
+Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, bool isCheckedConstraint) {
+    return new Geq(Lhs, Rhs, Rsn, isCheckedConstraint);
 }
 
 Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn) {
@@ -827,14 +827,14 @@ Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn) {
 }
 
 Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
-                                  PersistentSourceLoc *PL) {
+                                  PersistentSourceLoc *PL, bool isCheckedConstraint) {
     if (PL != nullptr && PL->valid()) {
         // Make this invalid, if the source location is not absolute path
         // this is to avoid crashes in clangd.
         if (PL->getFileName().c_str()[0] != '/')
             PL = nullptr;
     }
-    return new Geq(Lhs, Rhs, Rsn, PL);
+    return new Geq(Lhs, Rhs, Rsn, PL, isCheckedConstraint);
 }
 
 Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn,

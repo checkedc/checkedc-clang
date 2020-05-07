@@ -268,6 +268,7 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
           case Atom::A_Wild:
             wC += 1;
             break;
+          case Atom::A_Safe:
           case Atom::A_Var:
           case Atom::A_Const:
             llvm_unreachable("bad constant in environment map");
