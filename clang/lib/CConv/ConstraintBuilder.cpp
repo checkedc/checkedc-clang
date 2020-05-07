@@ -360,7 +360,8 @@ public:
         // to the declaration.
         RHSConstraints = Info.getVariable(RHS, Context, false);
         if (RHSConstraints.size() > 0) {
-          constrainConsVar(V, RHSConstraints, Info, RHS, Context, ConsGen,
+          constrainConsVar(V, RHSConstraints, Info, RHS, Context,
+                           GEqConsGenerator,
                            true);
         }
       }
@@ -564,7 +565,8 @@ public:
           // assert(!ParameterConstraints.empty() &&
           // "Unable to get parameter constraints");
           // the constrains could be empty for builtin functions.
-          constrainLocalAssign(ParameterConstraintVars, PD->getType(), A);
+          constrainLocalAssign(ParameterConstraintVars, PD->getType(),
+                               A, GEqConsGenerator);
         } else {
           // This is the case of an argument passed to a function
           // with varargs.

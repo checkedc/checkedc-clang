@@ -136,7 +136,7 @@ std::pair<Constraints::ConstraintSet, bool>
         "_" + std::to_string(LocalIter);
     dumpConstraintOutputJson(FileName, Info);
     Ret = CS.solve(NumIter);
-    if (NumIter > 1) {
+    /*if (NumIter > 1) {
       // This means we have made some changes to the environment
       // see if the function subtype handling causes any changes?
       Fixed = !Info.handleFunctionSubtyping();
@@ -147,7 +147,7 @@ std::pair<Constraints::ConstraintSet, bool>
     else {
       // We reached a fixed point.
       Fixed = true;
-    }
+    }*/
     LocalIter++;
   }
   return Ret;
@@ -329,6 +329,9 @@ bool CConvInterface::BuildInitialConstraints() {
     errs() << "Linking failed!\n";
     return false;
   }
+
+  // We need to add constraints to inside and outside VarAtoms.
+  GlobalProgramInfo.addFunctionDefDeclConstraints();
 
   ConstraintsBuilt = true;
 
