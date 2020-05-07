@@ -1504,7 +1504,7 @@ ProgramInfo::applyFunctionDefnDeclsConstraints(std::set<FVConstraint *>
       // DelFV is outside, DeFV is inside.
       // Rule for returns : outside <: inside for returns.
       constrainConsVar(DelFV->getReturnVars(), DeFV->getReturnVars(), CS,
-                       nullptr, GEqConsGenerator);
+                       nullptr, Safe_to_Wild);
 
       assert (DeFV->numParams() == DelFV->numParams() &&
              "Definition and Declaration should have same "
@@ -1512,7 +1512,7 @@ ProgramInfo::applyFunctionDefnDeclsConstraints(std::set<FVConstraint *>
       for (unsigned i=0; i<DeFV->numParams(); i++) {
         //Rule for parameters: inside <: outside for parameters.
         constrainConsVar(DelFV->getParamVar(i), DeFV->getParamVar(i), CS,
-                         nullptr, GEqConsGenerator);
+                         nullptr, Safe_to_Wild);
       }
     }
   }

@@ -213,7 +213,7 @@ public:
   void constrainLocalAssign(std::set<ConstraintVariable *> V,
                             QualType LhsType,
                             Expr *RHS,
-                            ConsGenFuncType ConsGen=EqConsGenerator) {
+                            ConsAction CA=Same_to_Same) {
     if (!RHS || V.size() == 0)
       return;
 
@@ -242,8 +242,7 @@ public:
         RHSConstraints = Info.getVariable(RHS, Context, false);
         if (RHSConstraints.size() > 0) {
           constrainConsVar(V, RHSConstraints, CS, &PL,
-                           GEqConsGenerator,
-                           true);
+                           Safe_to_Wild,true);
         }
       }
     } else {
@@ -316,11 +315,9 @@ public:
             RHSConstraints = getRHSConsVariables(RHS, LhsType, Context);
             if (dyn_cast<CallExpr>(SE) != nullptr) {
               // If this is a function call..create Geq constraints.
-              constrainConsVar(V, RHSConstraints, CS, &PL,
-                               GEqConsGenerator, true);
+              constrainConsVar(V, RHSConstraints, CS, &PL, Safe_to_Wild, true);
             } else {
-              constrainConsVar(V, RHSConstraints, CS, &PL,
-                               ConsGen);
+              constrainConsVar(V, RHSConstraints, CS, &PL, CA);
             }
           }
         }
@@ -332,7 +329,7 @@ public:
           // Case 1.
           // There are constraint variables for the RHS, so, use those over
           // anything else we could infer.
-          constrainConsVar(V, RHSConstraints, CS, &PL, ConsGen);
+          constrainConsVar(V, RHSConstraints, CS, &PL, CA);
         }
       }
     }
@@ -438,7 +435,7 @@ public:
           // "Unable to get parameter constraints");
           // the constrains could be empty for builtin functions.
           constrainLocalAssign(ParameterConstraintVars, PD->getType(),
-                               A, GEqConsGenerator);
+                               A, Safe_to_Wild);
         } else {
           // This is the case of an argument passed to a function
           // with varargs.
@@ -575,7 +572,7 @@ private:
                   std::set<ConstraintVariable *> ParameterDC =
                     FV->getParamVar(i);
                   constrainConsVar(ArgumentConstraints, ParameterDC, CS, &PL,
-                                   EqConsGenerator);
+                                   Same_to_Same);
                 } else {
                   // Constrain argument to wild since we can't match it
                   // to a parameter from the type.

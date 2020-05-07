@@ -788,39 +788,4 @@ private:
 
 typedef uint32_t ConstraintKey;
 
-
-using ConsGenFuncType = llvm::function_ref<void (Constraints &, Atom *,
-                                                 Atom *,
-                                                 std::string &,
-                                                 PersistentSourceLoc *)>;
-
-// FIXME: Adjust this to be directional, rather than to look at
-//  the types of the Atoms
-void createAtomEq(Constraints &CS, Atom *L,
-                  Atom *R,
-                  std::string &Rsn,
-                  PersistentSourceLoc *PSL, bool IsEq);
-
-auto EqConsGenerator = [](Constraints &CS, Atom *L,
-                          Atom *R,
-                          std::string &Rsn,
-                          PersistentSourceLoc *PSL) -> void {
-  std::string RealRsn = Rsn;
-  if (RealRsn.empty()) {
-    RealRsn = "NoReasonProvided";
-  }
-  createAtomEq(CS, L, R, RealRsn, PSL, true);
-};
-
-auto GEqConsGenerator = [](Constraints &CS, Atom *L,
-                           Atom *R,
-                           std::string &Rsn,
-                           PersistentSourceLoc *PSL) -> void {
-  std::string RealRsn = Rsn;
-  if (RealRsn.empty()) {
-    RealRsn = "NoReasonProvided";
-  }
-  createAtomEq(CS, L, R, RealRsn, PSL, false);
-};
-
 #endif

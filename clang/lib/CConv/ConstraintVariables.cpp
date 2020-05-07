@@ -1030,6 +1030,35 @@ FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E,
   return Ret;
 }
 
+// FIXME: Adjust this to be directional, rather than to look at
+//  the types of the Atoms
+void createAtomEq(Constraints &CS, Atom *L,
+                  Atom *R,
+                  std::string &Rsn,
+                  PersistentSourceLoc *PSL, bool IsEq) {
+  VarAtom *VA1, *VA2;
+  ConstAtom *CA1, *CA2;
+
+  VA1 = clang::dyn_cast<VarAtom>(L);
+  VA2 = clang::dyn_cast<VarAtom>(R);
+  CA1 = clang::dyn_cast<ConstAtom>(L);
+  CA2 = clang::dyn_cast<ConstAtom>(R);
+
+  if (VA1 != nullptr && VA2 != nullptr) {
+    if (IsEq) {
+      CS.addConstraint(CS.createEq(VA1, VA2, Rsn, PSL));
+    } else {
+      CS.addConstraint(CS.createGeq(VA1, VA2, Rsn, PSL));
+    }
+  } else if (VA1 != nullptr) {
+    assert(CA2 != nullptr);
+    CS.addConstraint(CS.createGeq(VA1, CA2, Rsn, PSL));
+  } else if (VA2 != nullptr) {
+    assert(CA1 != nullptr);
+    CS.addConstraint(CS.createGeq(VA2, CA1, Rsn, PSL));
+  }
+}
+
 /*void constrainConsVar(std::set<ConstraintVariable*> &RHS,
   std::set<ConstraintVariable*> &LHS, ProgramInfo &Info);*/
 // Given two ConstraintVariables, do the right thing to assign
@@ -1044,7 +1073,7 @@ void constrainConsVar(ConstraintVariable *CLHS,
                       ConstraintVariable *CRHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
-                      ConsGenFuncType ConsGen,
+                      ConsAction CA,
                       bool FuncCall) {
 
   if (CRHS->getKind() == CLHS->getKind()) {
@@ -1054,7 +1083,7 @@ void constrainConsVar(ConstraintVariable *CLHS,
         // FCRHS to be equal. Then, again element-wise, constrain
         // the parameters of FCLHS and FCRHS to be equal.
         constrainConsVar(FCLHS->getReturnVars(), FCRHS->getReturnVars(), CS,
-                         PL, ConsGen);
+                         PL, CA);
 
         // Constrain the parameters to be equal.
         if (FCLHS->numParams() == FCRHS->numParams()) {
@@ -1063,7 +1092,7 @@ void constrainConsVar(ConstraintVariable *CLHS,
                 FCLHS->getParamVar(i);
             std::set<ConstraintVariable *> &V2 =
                 FCRHS->getParamVar(i);
-            constrainConsVar(V1, V2, CS, PL, ConsGen);
+            constrainConsVar(V1, V2, CS, PL, CA);
           }
         } else {
           // Constrain both to be top.
@@ -1094,7 +1123,15 @@ void constrainConsVar(ConstraintVariable *CLHS,
         CAtoms::reverse_iterator I = CLHS.rbegin();
         CAtoms::reverse_iterator J = CRHS.rbegin();
         while (I != CLHS.rend() && J != CRHS.rend()) {
-          ConsGen(CS, *I, *J, Rsn, nullptr);
+          switch (CA) {
+          case Same_to_Same:
+            createAtomEq(CS, *I, *J, Rsn, PL, true);
+            break;
+          case Safe_to_Wild:
+          case Wild_to_Safe:
+            createAtomEq(CS, *I, *J, Rsn, PL, false);
+            break;
+          }
           ++I;
           ++J;
         }
@@ -1109,11 +1146,11 @@ void constrainConsVar(ConstraintVariable *CLHS,
     FVConstraint *FCRHS = dyn_cast<FVConstraint>(CRHS);
     if (PCLHS && FCRHS) {
       if (FVConstraint *FCLHS = PCLHS->getFV()) {
-        constrainConsVar(FCLHS, FCRHS, CS, PL, ConsGen, FuncCall);
+        constrainConsVar(FCLHS, FCRHS, CS, PL, CA, FuncCall);
       } else {
         if (FuncCall) {
           for (auto &J : FCRHS->getReturnVars())
-            constrainConsVar(PCLHS, J, CS, PL, ConsGen, FuncCall);
+            constrainConsVar(PCLHS, J, CS, PL, CA, FuncCall);
         } else {
           std::string Rsn = "Function:" + FCRHS->getName() +
                             " assigned to non-function pointer.";
@@ -1135,10 +1172,10 @@ void constrainConsVar(std::set<ConstraintVariable *> &RHS,
                       std::set<ConstraintVariable *> &LHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
-                      ConsGenFuncType ConsGen,
+                      ConsAction CA,
                       bool FuncCall) {
   for (const auto &I : RHS)
     for (const auto &J : LHS)
-      constrainConsVar(I, J, CS, PL, ConsGen, FuncCall);
+      constrainConsVar(I, J, CS, PL, CA, FuncCall);
 }
 

@@ -356,20 +356,23 @@ public:
 
 typedef FunctionVariableConstraint FVConstraint;
 
-// Here, ConsGen is a function pointer that given 2 atoms generates
-// corresponding constraint with it. This allows callers to specialize the
-// way (i.e., either Eq or Geq) they want to generate constraints.
+enum ConsAction {
+  Safe_to_Wild,
+  Wild_to_Safe,
+  Same_to_Same
+};
+
 void constrainConsVar(std::set<ConstraintVariable *> &RHS,
                       std::set<ConstraintVariable *> &LHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
-                      ConsGenFuncType ConsGen = EqConsGenerator,
+                      ConsAction = Same_to_Same,
                       bool FuncCall = false);
 void constrainConsVar(ConstraintVariable *LHS,
                       ConstraintVariable *RHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
-                      ConsGenFuncType ConsGen = EqConsGenerator,
+                      ConsAction = Same_to_Same,
                       bool FuncCall = false);
 
 #endif //_CONSTRAINTVARIABLES_H
