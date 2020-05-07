@@ -2284,8 +2284,8 @@ namespace {
             // bounds for v (if any), or the declared bounds for v (if any).
             GetDeclaredBounds(this->S, BlockState.ObservedBounds, S);
 
-            // If any bounds are killed by statement S, remove their bounds
-            // from the ObservedBounds.
+            // If any bounds are killed by statement S, reset their bounds
+            // to their declared bounds.
             ResetKilledBounds(KilledBounds, S, BlockState.ObservedBounds);
 
             BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
