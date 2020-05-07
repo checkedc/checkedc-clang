@@ -67,8 +67,11 @@ void ConstraintsGraph::addConstraint(Geq *C, Constraints &CS) {
   add_edge(V2, V1, CG);
 }
 
-void ConstraintsGraph::dumpCGDot() {
-   write_graphviz(std::cout, CG, [&] (std::ostream &out, unsigned v) {
+void ConstraintsGraph::dumpCGDot(const std::string& GraphDotFile) {
+   std::ofstream DotFile;
+   DotFile.open(GraphDotFile);
+   write_graphviz(DotFile, CG, [&] (std::ostream &out, unsigned v) {
      out << "[label=\"" << CG[v]->getStr() << "\"]";
    });
+   DotFile.close();
 }

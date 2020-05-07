@@ -56,9 +56,9 @@ public:
     }
     return !Suc.empty();
   }
-
   // Dump the graph to stdout in a dot format.
-  void dumpCGDot();
+  void dumpCGDot(const std::string& GraphDotFile);
+
 private:
   std::set<ConstAtom*> AllConstAtoms;
   VertexMapType AtomToVDMap;
