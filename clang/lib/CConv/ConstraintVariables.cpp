@@ -627,9 +627,9 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   for ( const auto &V : returnVars) {
     if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
       if (PVC->getFV())
-        PVC->constrainTo(CS, CS.getWild(), Rsn);
+        PVC->constrainToWild(CS, Rsn, false);
     } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(V)) {
-      FVC->constrainTo(CS, CS.getWild(), Rsn);
+      FVC->constrainToWild(CS, Rsn, false);
     }
   }
 }
@@ -702,40 +702,37 @@ bool FVConstraint::isEq(const ConstraintVariable &Other,
   });
 }
 
-void FunctionVariableConstraint::constrainTo(Constraints &CS, ConstAtom *C,
-                                             bool CheckSkip) {
-  assert(C == CS.getWild()); // This call doesn't make sense otherwise
+void FunctionVariableConstraint::constrainToWild(Constraints &CS,
+                                                 bool CheckSkip) {
   for (const auto &V : returnVars)
-    V->constrainTo(CS, C, CheckSkip);
+    V->constrainToWild(CS, CheckSkip);
 
   for (const auto &V : paramVars)
     for (const auto &U : V)
-      U->constrainTo(CS, C, CheckSkip);
+      U->constrainToWild(CS, CheckSkip);
 }
 
-
-void FunctionVariableConstraint::constrainTo(Constraints &CS, ConstAtom *C,
-                                             std::string &Rsn, bool CheckSkip) {
-  assert(C == CS.getWild()); // This call doesn't make sense otherwise
+void FunctionVariableConstraint::constrainToWild(Constraints &CS,
+                                                 std::string &Rsn,
+                                                 bool CheckSkip) {
   for (const auto &V : returnVars)
-    V->constrainTo(CS, C, Rsn, CheckSkip);
+    V->constrainToWild(CS, Rsn, CheckSkip);
 
   for (const auto &V : paramVars)
     for (const auto &U : V)
-      U->constrainTo(CS, C, Rsn, CheckSkip);
+      U->constrainToWild(CS, Rsn, CheckSkip);
 }
 
-void FunctionVariableConstraint::constrainTo(Constraints &CS, ConstAtom *C,
-                                             std::string &Rsn,
-                                             PersistentSourceLoc *PL,
-                                             bool CheckSkip) {
-  assert(C == CS.getWild()); // This call doesn't make sense otherwise
+void FunctionVariableConstraint::constrainToWild(Constraints &CS,
+                                                 std::string &Rsn,
+                                                 PersistentSourceLoc *PL,
+                                                 bool CheckSkip) {
   for (const auto &V : returnVars)
-    V->constrainTo(CS, C, Rsn, PL, CheckSkip);
+    V->constrainToWild(CS, Rsn, PL, CheckSkip);
 
   for (const auto &V : paramVars)
     for (const auto &U : V)
-      U->constrainTo(CS, C, Rsn, PL, CheckSkip);
+      U->constrainToWild(CS, Rsn, PL, CheckSkip);
 }
 
 bool FunctionVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
@@ -810,42 +807,43 @@ bool PointerVariableConstraint::canConstraintCKey(Constraints &CS,
   return Add;
 }
 
-void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *C,
-                                            bool CheckSkip) {
-  assert(C == CS.getWild()); // This call doesn't make sense otherwise
+void PointerVariableConstraint::constrainToWild(Constraints &CS,
+                                                bool CheckSkip) {
+  ConstAtom *WA = CS.getWild();
   for (const auto &V : vars) {
     if (VarAtom *VA = dyn_cast<VarAtom>(V))
-      CS.addConstraint(CS.createGeq(VA, C, true));
+      CS.addConstraint(CS.createGeq(VA, WA, true));
   }
 
   if (FV)
-    FV->constrainTo(CS, C, CheckSkip);
+    FV->constrainToWild(CS, CheckSkip);
 }
 
-void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *C,
-                                            std::string &Rsn,
-                                            PersistentSourceLoc *PL,
-                                            bool CheckSkip) {
-  assert(C == CS.getWild()); // This call doesn't make sense otherwise
+void PointerVariableConstraint::constrainToWild(Constraints &CS,
+                                                std::string &Rsn,
+                                                PersistentSourceLoc *PL,
+                                                bool CheckSkip) {
+  ConstAtom *WA = CS.getWild();
   for (const auto &V : vars) {
     if (VarAtom *VA = dyn_cast<VarAtom>(V))
-      CS.addConstraint(CS.createGeq(VA, C, Rsn, PL, true));
+      CS.addConstraint(CS.createGeq(VA, WA, Rsn, PL, true));
   }
 
   if (FV)
-    FV->constrainTo(CS, C, Rsn, PL, CheckSkip);
+    FV->constrainToWild(CS, Rsn, PL, CheckSkip);
 }
 
-void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *C,
-                                            std::string &Rsn, bool CheckSkip) {
-  assert(C == CS.getWild()); // This call doesn't make sense otherwise
+void PointerVariableConstraint::constrainToWild(Constraints &CS,
+                                                std::string &Rsn,
+                                                bool CheckSkip) {
+  ConstAtom *WA = CS.getWild();
   for (const auto &V : vars) {
     if (VarAtom *VA = dyn_cast<VarAtom>(V))
-      CS.addConstraint(CS.createGeq(VA, C, Rsn, true));
+      CS.addConstraint(CS.createGeq(VA, WA, Rsn, true));
   }
 
   if (FV)
-    FV->constrainTo(CS, C, Rsn, CheckSkip);
+    FV->constrainToWild(CS, Rsn, CheckSkip);
 }
 
 // FIXME: Should do some checking here, eventually to make sure

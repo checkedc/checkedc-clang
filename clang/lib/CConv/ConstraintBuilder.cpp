@@ -37,7 +37,7 @@ void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C,
       Rsn = "Variable type is va_list.";
     for (const auto &I : Info.getVariable(D, C, FuncCtx)) {
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-	PVC->constrainTo(CS, CS.getWild(), Rsn, &PL);
+        PVC->constrainToWild(CS, Rsn, &PL, false);
       }
     }
   }
@@ -87,8 +87,8 @@ void constrainConsVar(ConstraintVariable *LHS,
           // Constrain both to be top.
           std::string Rsn = "Assigning from:" + FCRHS->getName() +
                             " to " + FCLHS->getName();
-          CRHS->constrainTo(CS, CS.getWild(), Rsn, &PL);
-          CLHS->constrainTo(CS, CS.getWild(), Rsn, &PL);
+          CRHS->constrainToWild(CS, Rsn, &PL, false);
+          CLHS->constrainToWild(CS, Rsn, &PL, false);
         }
       } else {
         llvm_unreachable("impossible");
@@ -135,15 +135,15 @@ void constrainConsVar(ConstraintVariable *LHS,
         } else {
           std::string Rsn = "Function:" + FCRHS->getName() +
                             " assigned to non-function pointer.";
-          CLHS->constrainTo(CS, CS.getWild(), Rsn, &PL);
-          CRHS->constrainTo(CS, CS.getWild(), Rsn, &PL);
+          CLHS->constrainToWild(CS, Rsn, &PL, false);
+          CRHS->constrainToWild(CS, Rsn, &PL, false);
         }
       }
     } else {
       // Constrain everything in both to wild.
       std::string Rsn = "Assignment to functions from variables";
-      CLHS->constrainTo(CS, CS.getWild(), Rsn, &PL);
-      CRHS->constrainTo(CS, CS.getWild(), Rsn, &PL);
+      CLHS->constrainToWild(CS, Rsn, &PL, false);
+      CRHS->constrainToWild(CS, Rsn, &PL, false);
     }
   }
 }
@@ -376,7 +376,7 @@ public:
         std::string Rsn = "Casting to pointer from constant.";
         for (const auto &U : V) {
           if (PVConstraint *PVC = dyn_cast<PVConstraint>(U))
-	    PVC->constrainTo(CS, CS.getWild(), Rsn, &PL);
+            PVC->constrainToWild(CS, Rsn, &PL, false);
         }
       } else if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(RHS)) {
         // Case 4.
@@ -420,13 +420,13 @@ public:
             // from it. We want to constrain that side to wild as well.
             RHSConstraints = Info.getVariable(SE, Context, true);
             for (const auto &A : RHSConstraints) {
-              if (PVConstraint *PVC = dyn_cast<PVConstraint>(A)) 
-		PVC->constrainTo(CS, CS.getWild(), CToDiffType, &PL);
+              if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
+                PVC->constrainToWild(CS, CToDiffType, &PL, false);
             }
 
             for (const auto &A : V) {
               if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
-		PVC->constrainTo(CS, CS.getWild(), CFDifType, &PL);
+                PVC->constrainToWild(CS, CFDifType, &PL, false);
             }
           } else {
             // The cast is safe and it is not a special function.
@@ -505,7 +505,7 @@ public:
       // If these aren't compatible, constrain the source to wild. 
       if (!Info.checkStructuralEquality(Dest, Source))
         for (auto &C : W)
-          C->constrainTo(CS, CS.getWild(), Rsn, &PL);
+          C->constrainToWild(CS, Rsn, &PL, false);
     }
 
     return true;
@@ -699,7 +699,7 @@ private:
                   for (const auto &V : ArgumentConstraints) {
                     std::string argWILD = "Argument to VarArg Function:"+
                                           FV->getName();
-                    V->constrainTo(CS, CS.getWild(), argWILD, &PL);
+                    V->constrainToWild(CS, argWILD, &PL, false);
                   }
                 }
                 i++;
@@ -714,7 +714,7 @@ private:
               // Also constraint parameter with-in the body to WILD.
               std::string rsn = "Function pointer to/from non-function "
                                 "pointer cast.";
-              C->constrainTo(CS, CS.getWild(), rsn, &PL);
+              C->constrainToWild(CS, rsn, &PL, false);
             }
           }
         } else {
@@ -777,7 +777,7 @@ private:
   void constrainVarsToWild(std::set<ConstraintVariable *> &CVars) {
     Constraints &CS = Info.getConstraints();
     for (const auto &C : CVars) {
-      C->constrainTo(CS, CS.getWild());
+      C->constrainToWild(CS, false);
     }
   }
 
@@ -788,7 +788,7 @@ private:
                            PersistentSourceLoc *PL = nullptr) {
     Constraints &CS = Info.getConstraints();
     for (const auto &C : CVars) {
-      C->constrainTo(CS, CS.getWild(), Rsn, PL);
+      C->constrainToWild(CS, Rsn, PL, false);
     }
   }
 
