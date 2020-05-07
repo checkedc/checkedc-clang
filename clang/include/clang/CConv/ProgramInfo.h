@@ -23,7 +23,6 @@
 #include "ArrayBoundsInformation.h"
 #include "CConvInteractiveData.h"
 #include "GatherTypes.h"
-#include "GatherTool.h"
 
 
 class ProgramInfo;
@@ -167,6 +166,8 @@ public:
   // Handle assigning constraints based on function subtyping.
   bool handleFunctionSubtyping();
 
+  bool addFunctionDefDeclConstraints();
+
   ArrayBoundsInformation &getArrayBoundsInformation() {
     return *ArrBoundsInfo;
   }
@@ -201,6 +202,10 @@ private:
   // declaration constraints.
   bool applyFunctionSubtyping(std::set<ConstraintVariable *> &DefCVars,
                               std::set<ConstraintVariable *> &DeclCVars);
+
+  bool
+  applyFunctionDefnDeclsConstraints(std::set<FVConstraint *> &DefCVars,
+                                    std::set<FVConstraint *> &DeclCVars);
 
   // Apply function sub-typing relation from srcCVar to dstCVar.
   bool applySubtypingRelation(ConstraintVariable *SrcCVar,

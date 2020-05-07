@@ -572,6 +572,7 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
     VI++;
   }
   // Solving
+  // CurrCG.dumpCGDot();
 
   // Initialize work list with ConstAtoms.
   std::vector<Atom*> WorkList;
@@ -591,10 +592,14 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
     CurrCG.getSuccessors<VarAtom>(CurrAtom, Successors);
     for (auto *SucA : Successors) {
       bool Changed = false;
+      /*llvm::errs() << "Sucessor:" << SucA->getStr()
+                   << " of " << CurrAtom->getStr() << "\n";*/
       if (VarAtom *K = dyn_cast<VarAtom>(SucA)) {
         ConstAtom *SucSol = getAssignment(K);
         // --- if sol(k) <> (sol(k) JOIN Q) then
         if (*SucSol < *CurrSol) {
+          /*llvm::errs() << "Trying to assign:" << CurrSol->getStr()
+                       << " to " << K->getStr() << "\n";*/
           VI = environment.find(K);
           // ---- set sol(k) := (sol(k) JOIN Q)
           Changed = assignConstToVar(VI, CurrSol);
@@ -888,4 +893,33 @@ Constraints::~Constraints() {
   delete PrebuiltArr;
   delete PrebuiltNTArr;
   delete PrebuiltWild;
+}
+
+// FIXME: Adjust this to be directional, rather than to look at
+//  the types of the Atoms
+void createAtomEq(Constraints &CS, Atom *L,
+                  Atom *R,
+                  std::string &Rsn,
+                  PersistentSourceLoc *PSL, bool IsEq) {
+  VarAtom *VA1, *VA2;
+  ConstAtom *CA1, *CA2;
+
+  VA1 = clang::dyn_cast<VarAtom>(L);
+  VA2 = clang::dyn_cast<VarAtom>(R);
+  CA1 = clang::dyn_cast<ConstAtom>(L);
+  CA2 = clang::dyn_cast<ConstAtom>(R);
+
+  if (VA1 != nullptr && VA2 != nullptr) {
+    if (IsEq) {
+      CS.addConstraint(CS.createEq(VA1, VA2, Rsn, PSL));
+    } else {
+      CS.addConstraint(CS.createGeq(VA1, VA2, Rsn, PSL));
+    }
+  } else if (VA1 != nullptr) {
+    assert(CA2 != nullptr);
+    CS.addConstraint(CS.createGeq(VA1, CA2, Rsn, PSL));
+  } else if (VA2 != nullptr) {
+    assert(CA1 != nullptr);
+    CS.addConstraint(CS.createGeq(VA2, CA1, Rsn, PSL));
+  }
 }

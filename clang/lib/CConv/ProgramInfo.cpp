@@ -388,7 +388,7 @@ bool ProgramInfo::link() {
       ++J;
 
       while (J != C.end()) {
-        constrainEq(*I, *J, *this, nullptr, nullptr);
+        constrainConsVar(*I, *J, *this, nullptr, nullptr);
         ++I;
         ++J;
       }
@@ -407,7 +407,7 @@ bool ProgramInfo::link() {
       if (Verbose)
         llvm::errs() << "Global variables:" << V.first << "\n";
       while (J != C.end()) {
-        constrainEq(*I, *J, *this, nullptr, nullptr);
+        constrainConsVar(*I, *J, *this, nullptr, nullptr);
         ++I;
         ++J;
       }
@@ -436,15 +436,15 @@ bool ProgramInfo::link() {
           }
           // Constrain the return values to be equal.
           if (!P1->hasBody() && !P2->hasBody()) {
-            constrainEq(P1->getReturnVars(), P2->getReturnVars(), *this,
-                        nullptr, nullptr);
+            constrainConsVar(P1->getReturnVars(), P2->getReturnVars(), *this,
+                             nullptr, nullptr);
 
             // Constrain the parameters to be equal, if the parameter arity is
             // the same. If it is not the same, constrain both to be wild.
             if (P1->numParams() == P2->numParams()) {
               for (unsigned i = 0; i < P1->numParams(); i++) {
-                constrainEq(P1->getParamVar(i), P2->getParamVar(i), *this,
-                            nullptr, nullptr);
+                constrainConsVar(P1->getParamVar(i), P2->getParamVar(i), *this,
+                                 nullptr, nullptr);
               }
 
             } else {
@@ -1492,6 +1492,32 @@ ProgramInfo::applyFunctionSubtyping(std::set<ConstraintVariable *>
   return Ret;
 }
 
+bool
+ProgramInfo::applyFunctionDefnDeclsConstraints(std::set<FVConstraint *>
+                                                   &DefCVars,
+                                               std::set<FVConstraint *>
+                                                   &DeclCVars) {
+  // We always set inside <: outside for parameters and
+  // outside <: inside for returns
+  for (auto *DeFV : DefCVars) {
+    for (auto *DelFV : DeclCVars) {
+      // DelFV is outside, DeFV is inside.
+      // Rule for returns : outside <: inside for returns.
+      constrainConsVar(DelFV->getReturnVars(), DeFV->getReturnVars(), *this,
+                       nullptr, nullptr, GEqConsGenerator);
+
+      assert (DeFV->numParams() == DelFV->numParams() &&
+             "Definition and Declaration should have same "
+             "number of paramters.");
+      for (unsigned i=0; i<DeFV->numParams(); i++) {
+        //Rule for parameters: inside <: outside for parameters.
+        constrainConsVar(DelFV->getParamVar(i), DeFV->getParamVar(i), *this,
+                         nullptr, nullptr, GEqConsGenerator);
+      }
+    }
+  }
+}
+
 bool ProgramInfo::handleFunctionSubtyping() {
   bool Ret = false;
   // Apply subtyping for external functions.
@@ -1532,6 +1558,39 @@ bool ProgramInfo::handleFunctionSubtyping() {
         std::set<ConstraintVariable *> DeclVars;
         DeclVars.insert(DeclFVs.begin(), DeclFVs.end());
         Ret = applyFunctionSubtyping(DefVars, DeclVars) || Ret;
+      }
+    }
+  }
+
+  return Ret;
+}
+
+bool ProgramInfo::addFunctionDefDeclConstraints() {
+  bool Ret = true;
+  for (auto &CurrFDef : ExternalFunctionDefnFVCons) {
+    auto FuncName = CurrFDef.first;
+    std::set<FVConstraint *> &DefFVCvars = CurrFDef.second;
+
+    // It has declaration?
+    if (ExternalFunctionDeclFVCons.find(FuncName) !=
+        ExternalFunctionDeclFVCons.end()) {
+      applyFunctionDefnDeclsConstraints(DefFVCvars,
+                                        ExternalFunctionDeclFVCons[FuncName]);
+    }
+
+  }
+  for (auto &StFDef : StaticFunctionDefnFVCons) {
+    auto FuncName = StFDef.first;
+    for (auto &StI : StFDef.second) {
+      auto FileName = StI.first;
+      std::set<FVConstraint *> &DefFVCvars = StI.second;
+      if (StaticFunctionDeclFVCons.find(FuncName) !=
+          StaticFunctionDeclFVCons.end() &&
+          StaticFunctionDeclFVCons[FuncName].find(FileName) !=
+              StaticFunctionDeclFVCons[FuncName].end()) {
+        auto &DeclFVs = StaticFunctionDeclFVCons[FuncName][FileName];
+        applyFunctionDefnDeclsConstraints(DefFVCvars,
+                                          DeclFVs);
       }
     }
   }

@@ -14,16 +14,21 @@
 
 #include "ProgramInfo.h"
 
-void constrainEq(std::set<ConstraintVariable *> &RHS,
-                 std::set<ConstraintVariable *> &LHS, ProgramInfo &Info,
-                 Stmt *S,
-                 ASTContext *C,
-                 bool FuncCall = false);
-void constrainEq( ConstraintVariable *LHS, 
-                  ConstraintVariable *RHS, ProgramInfo &Info,
-                  Stmt *S,
-                  ASTContext *C,
-                  bool FuncCall = false);
+// Here, ConsGen is a function pointer that given 2 atoms generates
+// corresponding constraint with it. This allows callers to specialize the
+// way (i.e., either Eq or Geq) they want to generate constraints.
+void constrainConsVar(std::set<ConstraintVariable *> &RHS,
+                      std::set<ConstraintVariable *> &LHS, ProgramInfo &Info,
+                      Stmt *S,
+                      ASTContext *C,
+                      ConsGenFuncType ConsGen = EqConsGenerator,
+                      bool FuncCall = false);
+void constrainConsVar(ConstraintVariable *LHS,
+                      ConstraintVariable *RHS, ProgramInfo &Info,
+                      Stmt *S,
+                      ASTContext *C,
+                      ConsGenFuncType ConsGen = EqConsGenerator,
+                      bool FuncCall = false);
 
 class ConstraintBuilderConsumer : public clang::ASTConsumer {
 public:
