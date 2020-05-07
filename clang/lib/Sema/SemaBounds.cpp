@@ -4689,7 +4689,7 @@ namespace {
         case CastKind::CK_LValueToRValue: {
           // For an rvalue cast of a variable v, if v has observed bounds,
           // the rvalue bounds of the value of v should be the observed bounds.
-          // This also accounts for variables that have widened bounds.
+          // This also accounts for any variables that have widened bounds.
           if (DeclRefExpr *V = GetRValueVariable(E)) {
             if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
               if (BoundsExpr *B = State.ObservedBounds[D])
