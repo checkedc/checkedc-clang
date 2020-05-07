@@ -94,14 +94,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     // External variables can also have itype.
     // Check if the provided declaration is an external
     // variable.
-    if (!dyn_cast<ParmVarDecl>(D) && !dyn_cast<FunctionDecl>(D)) {
-      QualType InteropType = C.getInteropTypeAndAdjust(ITE, false);
-      // TODO: handle array_ptr types.
-      if (InteropType->isCheckedPointerPtrType()) {
-        QTy = InteropType;
-        Ty = QTy.getTypePtr();
-      }
-    }
+    QualType InteropType = ITE->getTypeAsWritten();
+    QTy = InteropType;
+    Ty = QTy.getTypePtr();
 
     SourceRange R = ITE->getSourceRange();
     if (R.isValid()) {
@@ -128,6 +123,25 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       VarCreated = true;
       break;
     }
+
+    if (Ty->isDeclaredCheckedPointerType()) {
+      ConstAtom *CAtom = nullptr;
+      if (Ty->isDeclaredCheckedPointerNtArrayType()) {
+        // This is an NT array type.
+        CAtom = CS.getNTArr();
+      } else if (Ty->isDeclaredCheckedPointerArrayType()) {
+        // This is an array type.
+        CAtom = CS.getArr();
+      } else if (Ty->isDeclaredCheckedPointerPtrType()) {
+        // This is a regular checked pointer.
+        CAtom = CS.getPtr();
+      }
+      VarCreated = true;
+      assert(CAtom != nullptr && "Unable to find the type "
+                                 "of the checked pointer.");
+      vars.push_back(CAtom);
+    }
+
     if (Ty->isArrayType() || Ty->isIncompleteArrayType()) {
       ArrPresent = true;
       // If it's an array, then we need both a constraint variable
@@ -138,7 +152,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
         arrSizes[TypeIdx] = std::pair<OriginalArrType,uint64_t>(
                 O_SizedArray,CAT->getSize().getZExtValue());
-        if (AllTypes) {
+        if (AllTypes && !VarCreated) {
           // This is a statically declared array. Make it a Checked Array.
           vars.push_back(CS.getArr());
           VarCreated = true;
@@ -162,24 +176,6 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
         llvm_unreachable("unknown array type");
       }
     } else {
-
-      if (Ty->isDeclaredCheckedPointerType()) {
-        ConstAtom *CAtom = nullptr;
-        if (Ty->isDeclaredCheckedPointerNtArrayType()) {
-          // This is an NT array type.
-          CAtom = CS.getNTArr();
-        } else if (Ty->isDeclaredCheckedPointerArrayType()) {
-          // This is an array type.
-          CAtom = CS.getArr();
-        } else if (Ty->isDeclaredCheckedPointerPtrType()) {
-          // This is a regular checked pointer.
-          CAtom = CS.getPtr();
-        }
-        VarCreated = true;
-        assert(CAtom != nullptr && "Unable to find the type "
-                                   "of the checked pointer.");
-        vars.push_back(CAtom);
-      }
 
       // Save here if QTy is qualified or not into a map that
       // indexes K to the qualification of QTy, if any.

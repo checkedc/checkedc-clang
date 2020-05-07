@@ -369,13 +369,8 @@ public:
       if (getDeclaration(Calle) != nullptr) {
         Calle = getDeclaration(Calle);
       }
-      bool ItypeHandled = false;
-      // If this function return an itype?
-      if (Calle->hasInteropTypeExpr()) {
-        ItypeHandled = handleITypeAssignment(V, Calle->getInteropTypeExpr());
-      }
-      // If this is not an itype and not a safe function call.
-      if (!ItypeHandled && !handleFuncCall(CE, LhsType, V)) {
+      // If this is not a safe function call.
+      if (!handleFuncCall(CE, LhsType, V)) {
         // Get the constraint variable corresponding
         // to the declaration.
         RHSConstraints = Info.getVariable(RHS, Context, false);
@@ -573,25 +568,17 @@ public:
           Info.getVariable(A, Context, true);
 
         if (i < FD->getNumParams()) {
-          bool Handled = false;
           auto *PD = FD->getParamDecl(i);
-          if (PD->hasInteropTypeExpr()) {
-            // Try handling interop parameters.
-            Handled = handleITypeAssignment(ArgumentConstraintVars,
-                                            PD->getInteropTypeExpr());
-          }
-          if (!Handled) {
-            // Here, we need to get the constraints of the
-            // parameter from the callee's declaration.
-            std::set<ConstraintVariable *> ParameterConstraintVars =
+          // Here, we need to get the constraints of the
+          // parameter from the callee's declaration.
+          std::set<ConstraintVariable *> ParameterConstraintVars =
               Info.getVariable(PD, Context, false);
-            // Add constraint that the arguments are equal to the
-            // parameters.
-            //assert(!ParameterConstraints.empty() &&
-            // "Unable to get parameter constraints");
-            // the constrains could be empty for builtin functions.
-            constrainLocalAssign(ParameterConstraintVars, PD->getType(), A);
-          }
+          // Add constraint that the arguments are equal to the
+          // parameters.
+          // assert(!ParameterConstraints.empty() &&
+          // "Unable to get parameter constraints");
+          // the constrains could be empty for builtin functions.
+          constrainLocalAssign(ParameterConstraintVars, PD->getType(), A);
         } else {
           // This is the case of an argument passed to a function
           // with varargs.
