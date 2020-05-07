@@ -47,28 +47,7 @@ void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C,
   }
 }
 
-// FIXME: Adjust this to be directional, rather than to look at the types of the Atoms
-void createAtomEq(Atom *A1, Atom *A2, Constraints &CS) {
-  VarAtom *VA1, *VA2;
-  ConstAtom *CA1, *CA2;
-
-  VA1 = dyn_cast<VarAtom>(A1);
-  VA2 = dyn_cast<VarAtom>(A2);
-  CA1 = dyn_cast<ConstAtom>(A1);
-  CA2 = dyn_cast<ConstAtom>(A2);
-
-  if (VA1 != nullptr && VA2 != nullptr) {
-    CS.addConstraint(CS.createEq(VA1, VA2));
-  } else if (VA1 != nullptr) {
-    assert(CA2 != nullptr);
-    CS.addConstraint(CS.createGeq(VA1, CA2));
-  } else if (VA2 != nullptr) {
-    assert(CA1 != nullptr);
-    CS.addConstraint(CS.createGeq(VA2, CA1));
-  }
-}
-
-/*void constrainEq(std::set<ConstraintVariable*> &RHS,
+/*void constrainConsVar(std::set<ConstraintVariable*> &RHS,
   std::set<ConstraintVariable*> &LHS, ProgramInfo &Info);*/
 // Given two ConstraintVariables, do the right thing to assign 
 // constraints. 
@@ -78,9 +57,11 @@ void createAtomEq(Atom *A1, Atom *A2, Constraints &CS) {
 // by parameter constraint generation.
 // If they are of an unequal parameter type, constrain everything in both
 // to wild.
-void constrainEq(ConstraintVariable *LHS,
-                 ConstraintVariable *RHS, ProgramInfo &Info,
-                 Stmt *S,  ASTContext *C, bool FuncCall) {
+void constrainConsVar(ConstraintVariable *LHS,
+                      ConstraintVariable *RHS, ProgramInfo &Info,
+                      Stmt *S,  ASTContext *C,
+                      ConsGenFuncType ConsGen,
+                      bool FuncCall) {
   PersistentSourceLoc PL;
   if (S != nullptr && C != nullptr)
     PL = PersistentSourceLoc::mkPSL(S, *C);
@@ -94,8 +75,8 @@ void constrainEq(ConstraintVariable *LHS,
         // Element-wise constrain the return value of FCLHS and 
         // FCRHS to be equal. Then, again element-wise, constrain 
         // the parameters of FCLHS and FCRHS to be equal.
-        constrainEq(FCLHS->getReturnVars(), FCRHS->getReturnVars(),
-                    Info, S, C);
+        constrainConsVar(FCLHS->getReturnVars(), FCRHS->getReturnVars(), Info,
+                         S, C, ConsGen);
 
         // Constrain the parameters to be equal.
         if (FCLHS->numParams() == FCRHS->numParams()) {
@@ -104,7 +85,7 @@ void constrainEq(ConstraintVariable *LHS,
               FCLHS->getParamVar(i);
             std::set<ConstraintVariable *> &V2 =
               FCRHS->getParamVar(i);
-            constrainEq(V1, V2, Info, S, C);
+            constrainConsVar(V1, V2, Info, S, C, ConsGen);
           }
         } else {
           // Constrain both to be top.
@@ -119,6 +100,7 @@ void constrainEq(ConstraintVariable *LHS,
     }
     else if (PVConstraint *PCLHS = dyn_cast<PVConstraint>(CLHS)) {
       if (PVConstraint *PCRHS = dyn_cast<PVConstraint>(CRHS)) {
+        std::string Rsn = "";
         // This is to handle function subtyping. Try to add LHS and RHS
         // to each others argument constraints.
         PCLHS->addArgumentConstraint(PCRHS);
@@ -134,7 +116,7 @@ void constrainEq(ConstraintVariable *LHS,
         CAtoms::reverse_iterator I = CLHS.rbegin();
         CAtoms::reverse_iterator J = CRHS.rbegin();
         while (I != CLHS.rend() && J != CRHS.rend()) {
-          createAtomEq(*I, *J, CS);
+          ConsGen(CS, *I, *J, Rsn, nullptr);
           ++I;
           ++J;
         }
@@ -149,11 +131,11 @@ void constrainEq(ConstraintVariable *LHS,
     FVConstraint *FCRHS = dyn_cast<FVConstraint>(CRHS);
     if (PCLHS && FCRHS) {
       if (FVConstraint *FCLHS = PCLHS->getFV()) {
-        constrainEq(FCLHS, FCRHS, Info, S, C, FuncCall);
+        constrainConsVar(FCLHS, FCRHS, Info, S, C, ConsGen, FuncCall);
       } else {
         if (FuncCall) {
             for (auto &J : FCRHS->getReturnVars())
-              constrainEq(PCLHS, J, Info, S, C, FuncCall);
+              constrainConsVar(PCLHS, J, Info, S, C, ConsGen, FuncCall);
         } else {
           std::string Rsn = "Function:" + FCRHS->getName() +
                             " assigned to non-function pointer.";
@@ -171,12 +153,14 @@ void constrainEq(ConstraintVariable *LHS,
 }
 
 // Given an RHS and a LHS, constrain them to be equal. 
-void constrainEq(std::set<ConstraintVariable *> &RHS,
-                 std::set<ConstraintVariable *> &LHS, ProgramInfo &Info,
-                 Stmt *S, ASTContext *C, bool FuncCall) {
+void constrainConsVar(std::set<ConstraintVariable *> &RHS,
+                      std::set<ConstraintVariable *> &LHS, ProgramInfo &Info,
+                      Stmt *S, ASTContext *C,
+                      ConsGenFuncType ConsGen,
+                      bool FuncCall) {
   for (const auto &I : RHS)
     for (const auto &J : LHS)
-      constrainEq(I, J, Info, S, C, FuncCall);
+      constrainConsVar(I, J, Info, S, C, ConsGen, FuncCall);
 }
 
 // This class visits functions and adds constraints to the
@@ -347,8 +331,9 @@ public:
   // an expression which might produce constraint variables, or, it might 
   // be some expression like NULL, an integer constant or a cast.
   void constrainLocalAssign(std::set<ConstraintVariable *> V,
-                        QualType LhsType,
-                        Expr *RHS) {
+                            QualType LhsType,
+                            Expr *RHS,
+                            ConsGenFuncType ConsGen=EqConsGenerator) {
     if (!RHS || V.size() == 0)
       return;
 
@@ -375,7 +360,8 @@ public:
         // to the declaration.
         RHSConstraints = Info.getVariable(RHS, Context, false);
         if (RHSConstraints.size() > 0) {
-          constrainEq(V, RHSConstraints, Info, RHS, Context, true);
+          constrainConsVar(V, RHSConstraints, Info, RHS, Context, ConsGen,
+                           true);
         }
       }
     } else {
@@ -462,7 +448,7 @@ public:
           } else {
             // The cast is safe and it is not a special function.
             RHSConstraints = getRHSConsVariables(RHS, LhsType, Context);
-            constrainEq(V, RHSConstraints, Info, RHS, Context);
+            constrainConsVar(V, RHSConstraints, Info, RHS, Context, ConsGen);
           }
         }
       } else {
@@ -473,7 +459,7 @@ public:
           // Case 1.
           // There are constraint variables for the RHS, so, use those over
           // anything else we could infer.
-          constrainEq(V, RHSConstraints, Info, RHS, Context);
+          constrainConsVar(V, RHSConstraints, Info, RHS, Context, ConsGen);
         }
       }
     }
@@ -713,8 +699,8 @@ private:
                 if (i < FV->numParams()) {
                   std::set<ConstraintVariable *> ParameterDC =
                     FV->getParamVar(i);
-                  constrainEq(ArgumentConstraints, ParameterDC,
-                              Info, E, Context);
+                  constrainConsVar(ArgumentConstraints, ParameterDC, Info, E,
+                                   Context, EqConsGenerator);
                 } else {
                   // Constrain argument to wild since we can't match it
                   // to a parameter from the type.

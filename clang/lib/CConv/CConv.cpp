@@ -12,6 +12,7 @@
 
 #include "clang/CConv/CConv.h"
 #include "clang/CConv/ConstraintBuilder.h"
+#include "clang/CConv/GatherTool.h"
 #include "clang/CConv/IterativeItypeHelper.h"
 #include "clang/CConv/RewriteUtils.h"
 

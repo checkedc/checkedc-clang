@@ -23,7 +23,6 @@
 #include "ArrayBoundsInformation.h"
 #include "CConvInteractiveData.h"
 #include "GatherTypes.h"
-#include "GatherTool.h"
 
 
 class ProgramInfo;
