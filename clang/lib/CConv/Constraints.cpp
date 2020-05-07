@@ -577,7 +577,8 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
     VI++;
   }
   // Solving
-  // CurrCG.dumpCGDot();
+  if (DebugSolver)
+    CurrCG.dumpCGDot("constraints_graph.dot");
 
   // Initialize work list with ConstAtoms.
   std::vector<Atom *> WorkList;
@@ -610,7 +611,7 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
             // ---- set sol(k) := (sol(k) JOIN Q)
             Changed = assignConstToVar(VI, CurrSol);
             /*if (Changed) {
-              llvm::errs() << "Trying to assign:" << CurrSol->getStr() << " to "
+              llvm::s()err << "Trying to assign:" << CurrSol->getStr() << " to "
                            << K->getStr() << "\n";
             }*/
           }

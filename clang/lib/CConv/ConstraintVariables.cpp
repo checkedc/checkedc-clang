@@ -1055,32 +1055,56 @@ FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E,
   return Ret;
 }
 
-// FIXME: Adjust this to be directional, rather than to look at
-//  the types of the Atoms
-void createAtomEq(Constraints &CS, Atom *L,
-                  Atom *R,
+static ConsAction neg(ConsAction CA) {
+  switch (CA) {
+  case Safe_to_Wild: return Wild_to_Safe;
+  case Wild_to_Safe: return Safe_to_Wild;
+  case Same_to_Same: return Same_to_Same;
+  }
+}
+
+void createAtomEq(Constraints &CS, Atom *L, Atom *R,
                   std::string &Rsn,
-                  PersistentSourceLoc *PSL, bool IsEq) {
-  VarAtom *VA1, *VA2;
-  ConstAtom *CA1, *CA2;
+                  PersistentSourceLoc *PSL, ConsAction CAct) {
+  VarAtom *VAL, *VAR;
+  ConstAtom *CAL, *CAR;
 
-  VA1 = clang::dyn_cast<VarAtom>(L);
-  VA2 = clang::dyn_cast<VarAtom>(R);
-  CA1 = clang::dyn_cast<ConstAtom>(L);
-  CA2 = clang::dyn_cast<ConstAtom>(R);
+  VAL = clang::dyn_cast<VarAtom>(L);
+  VAR = clang::dyn_cast<VarAtom>(R);
+  CAL = clang::dyn_cast<ConstAtom>(L);
+  CAR = clang::dyn_cast<ConstAtom>(R);
 
-  if (VA1 != nullptr && VA2 != nullptr) {
-    if (IsEq) {
-      CS.addConstraint(CS.createEq(VA1, VA2, Rsn, PSL));
-    } else {
-      CS.addConstraint(CS.createGeq(VA1, VA2, Rsn, PSL));
+  // Check constant atom relationships hold
+  if (CAR != nullptr && CAL != nullptr) {
+    switch (CAct) {
+    case Same_to_Same:
+      assert(*CAR == *CAL && "Invalid: RHS ConstAtom != LHS ConstAtom");
+      break;
+    case Safe_to_Wild:
+      assert(!(*CAL < *CAR) && "LHS ConstAtom < RHS ConstAtom");
+      break;
+    case Wild_to_Safe:
+      assert(!(*CAR < *CAL) && "RHS ConstAtom < LHS ConstAtom");
+      break;
     }
-  } else if (VA1 != nullptr) {
-    assert(CA2 != nullptr);
-    CS.addConstraint(CS.createGeq(VA1, CA2, Rsn, PSL));
-  } else if (VA2 != nullptr) {
-    assert(CA1 != nullptr);
-    CS.addConstraint(CS.createGeq(VA2, CA1, Rsn, PSL));
+  // Generate appropriate constraints
+  } else {
+    switch (CAct) {
+    case Same_to_Same:
+      if (VAL != nullptr && VAR != nullptr)
+        CS.addConstraint(CS.createEq(VAL, VAR, Rsn, PSL));
+      else {
+        CS.addConstraint(CS.createGeq(L, R, Rsn, PSL));
+        CS.addConstraint(CS.createGeq(R, L, Rsn, PSL));
+      }
+      break;
+    case Safe_to_Wild:
+      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL));
+      break;
+    case Wild_to_Safe:
+      CS.addConstraint(CS.createGeq(R, L, Rsn, PSL));
+      break;
+    }
   }
 }
 
@@ -1100,23 +1124,22 @@ void constrainConsVar(ConstraintVariable *CLHS,
                       PersistentSourceLoc *PL,
                       ConsAction CA) {
 
+
   if (CRHS->getKind() == CLHS->getKind()) {
     if (FVConstraint *FCLHS = dyn_cast<FVConstraint>(CLHS)) {
       if (FVConstraint *FCRHS = dyn_cast<FVConstraint>(CRHS)) {
-        // Element-wise constrain the return value of FCLHS and
-        // FCRHS to be equal. Then, again element-wise, constrain
-        // the parameters of FCLHS and FCRHS to be equal.
-        constrainConsVar(FCLHS->getReturnVars(), FCRHS->getReturnVars(), CS,
-                         PL, CA);
+        // Constrain the return values covariantly.
+        constrainConsVar(FCLHS->getReturnVars(), FCRHS->getReturnVars(),
+                         CS, PL, CA);
 
-        // Constrain the parameters to be equal.
+        // Constrain the parameters contravariantly
         if (FCLHS->numParams() == FCRHS->numParams()) {
           for (unsigned i = 0; i < FCLHS->numParams(); i++) {
-            std::set<ConstraintVariable *> &V1 =
+            std::set<ConstraintVariable *> &LHSV =
                 FCLHS->getParamVar(i);
-            std::set<ConstraintVariable *> &V2 =
+            std::set<ConstraintVariable *> &RHSV =
                 FCRHS->getParamVar(i);
-            constrainConsVar(V1, V2, CS, PL, CA);
+            constrainConsVar(RHSV, LHSV, CS, PL, neg(CA));
           }
         } else {
           // Constrain both to be top.
@@ -1139,25 +1162,25 @@ void constrainConsVar(ConstraintVariable *CLHS,
         // Element-wise constrain PCLHS and PCRHS to be equal
         CAtoms CLHS = PCLHS->getCvars();
         CAtoms CRHS = PCRHS->getCvars();
-        // FIXME: Should check that the constraint set sizes on both sides are the same
-        //  handling of & is now done via getVariable, so sizes line up
-        // We equate the constraints in a left-justified manner.
-        // This to handle cases like: e.g., p = &q;
-        // Here, we need to equate the inside constraint variables
-        CAtoms::reverse_iterator I = CLHS.rbegin();
-        CAtoms::reverse_iterator J = CRHS.rbegin();
-        while (I != CLHS.rend() && J != CRHS.rend()) {
-          switch (CA) {
-          case Same_to_Same:
-            createAtomEq(CS, *I, *J, Rsn, PL, true);
-            break;
-          case Safe_to_Wild:
-          case Wild_to_Safe:
-            createAtomEq(CS, *I, *J, Rsn, PL, false);
-            break;
+        if (CLHS.size() == CRHS.size()) {
+          int n = 0;
+          // Get outermost pointer first, using current ConsAction
+          CAtoms::iterator I = CLHS.begin();
+          CAtoms::iterator J = CRHS.begin();
+          // Now constrain the inner ones as equal
+          while (I != CLHS.end()) {
+            if (n == 0) createAtomEq(CS, *I, *J, Rsn, PL, CA);
+            else createAtomEq(CS, *I, *J, Rsn, PL, Same_to_Same);
+            ++I;
+            ++J;
+            n++;
           }
-          ++I;
-          ++J;
+        } else {
+          // Constrain both to be top.
+          std::string Rsn = "Assigning from:" + PCRHS->getName() +
+                            " to " + PCLHS->getName();
+          PCLHS->constrainToWild(CS, Rsn, PL, false);
+          PCRHS->constrainToWild(CS, Rsn, PL, false);
         }
       } else
         llvm_unreachable("impossible");
