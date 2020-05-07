@@ -2142,19 +2142,19 @@ namespace {
       }
    }
 
-   void ResetKilledBounds(StmtDeclSetTy &KilledBounds, Stmt *S,
+   void ResetKilledBounds(StmtDeclSetTy &KilledBounds, Stmt *St,
                           BoundsContextTy &ObservedBounds) {
-     auto I = KilledBounds.find(S);
+     auto I = KilledBounds.find(St);
      if (I == KilledBounds.end())
        return;
 
      // KilledBounds stores a mapping of statements to all variables whose
-     // bounds are killed by each statement. Here are remove the bounds of all
-     // such variables from ObservedBounds whose bounds are killed by the
-     // statement S. After removal, the bounds of these variables would default
-     // to the user declared bounds in DeclaredBounds.
-     for (const VarDecl *V : I->second)
-       ObservedBounds.erase(V);
+     // bounds are killed by each statement. Here we reset the bounds of all
+     // variables killed by the statement S to the declared bounds.
+     for (const VarDecl *V : I->second) {
+       if (const BoundsExpr *Bounds = V->getBoundsExpr())
+         ObservedBounds[V] = S.ExpandBoundsToRange(V, Bounds);
+     }
    }
 
    void UpdateCtxWithWidenedBounds(BoundsMapTy &WidenedBounds,
@@ -2283,14 +2283,13 @@ namespace {
             // bounds for each variable v that is in scope are the widened
             // bounds for v (if any), or the declared bounds for v (if any).
             GetDeclaredBounds(this->S, BlockState.ObservedBounds, S);
-            // TODO: update BlockState.ObservedBounds to reset any widened
-            // bounds that are killed by S to the declared variable bounds.
-            BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
-            BlockState.G.clear();
 
             // If any bounds are killed by statement S, remove their bounds
             // from the ObservedBounds.
             ResetKilledBounds(KilledBounds, S, BlockState.ObservedBounds);
+
+            BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
+            BlockState.G.clear();
 
             Check(S, CSS, BlockState);
 
