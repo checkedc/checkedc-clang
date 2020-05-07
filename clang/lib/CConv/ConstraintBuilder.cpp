@@ -744,12 +744,7 @@ private:
       // top level constraint var.
       for (auto ConsVar :Vars) {
         if (PVConstraint *PV = dyn_cast<PVConstraint>(ConsVar))
-          if (!PV->getCvars().empty()) {
-            if (VarAtom *VA = dyn_cast<VarAtom>(*PV->getCvars().begin())) {
-              CS.addConstraint(
-                  CS.createEq(VA, getCheckedPointerConstraint(PtrKind)));
-            }
-          }
+          PV->constrainOuterTo(CS,getCheckedPointerConstraint(PtrKind));
       }
     }
     // Is this handled or propagation through itype
@@ -765,11 +760,7 @@ private:
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Vars)
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-        if (!PVC->getCvars().empty()) {
-          if (VarAtom *VA = dyn_cast<VarAtom>(*PVC->getCvars().begin())) {
-            CS.addConstraint(CS.createGeq(VA, CAtom));
-          }
-        }
+        PVC->constrainOuterTo(CS, CAtom);
       }
   }
 

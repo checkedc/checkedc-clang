@@ -241,6 +241,7 @@ public:
                    bool CheckSkip =false);
   void constrainTo(Constraints &CS, ConstAtom *C, std::string &Rsn,
                    PersistentSourceLoc *PL, bool CheckSkip =false);
+  void constrainOuterTo(Constraints &CS, ConstAtom *C);
   bool anyChanges(Constraints::EnvironmentMap &E);
   bool hasWild(Constraints::EnvironmentMap &E);
   bool hasArr(Constraints::EnvironmentMap &E);
