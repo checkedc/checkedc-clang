@@ -148,6 +148,7 @@ std::pair<Constraints::ConstraintSet, bool>
       // We reached a fixed point.
       Fixed = true;
     }*/
+    Fixed = true;
     LocalIter++;
   }
   return Ret;

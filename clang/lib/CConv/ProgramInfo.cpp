@@ -1502,7 +1502,7 @@ ProgramInfo::applyFunctionDefnDeclsConstraints(std::set<FVConstraint *>
     for (auto *DelFV : DeclCVars) {
       // DelFV is outside, DeFV is inside.
       // Rule for returns : outside <: inside for returns.
-      constrainConsVar(DeFV->getReturnVars(), DelFV->getReturnVars(), *this,
+      constrainConsVar(DelFV->getReturnVars(), DeFV->getReturnVars(), *this,
                        nullptr, nullptr, GEqConsGenerator);
 
       assert (DeFV->numParams() == DelFV->numParams() &&

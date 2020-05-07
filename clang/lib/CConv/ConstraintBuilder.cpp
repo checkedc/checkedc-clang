@@ -449,7 +449,14 @@ public:
           } else {
             // The cast is safe and it is not a special function.
             RHSConstraints = getRHSConsVariables(RHS, LhsType, Context);
-            constrainConsVar(V, RHSConstraints, Info, RHS, Context, ConsGen);
+            if (dyn_cast<CallExpr>(SE) != nullptr) {
+              // If this is a function call..create Geq constraints.
+              constrainConsVar(V, RHSConstraints, Info, RHS,
+                               Context, GEqConsGenerator, true);
+            } else {
+              constrainConsVar(V, RHSConstraints, Info, RHS,
+                               Context, ConsGen);
+            }
           }
         }
       } else {

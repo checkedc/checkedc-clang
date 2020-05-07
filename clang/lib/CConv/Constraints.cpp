@@ -572,6 +572,7 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
     VI++;
   }
   // Solving
+  // CurrCG.dumpCGDot();
 
   // Initialize work list with ConstAtoms.
   std::vector<Atom*> WorkList;
@@ -591,10 +592,14 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
     CurrCG.getSuccessors<VarAtom>(CurrAtom, Successors);
     for (auto *SucA : Successors) {
       bool Changed = false;
+      /*llvm::errs() << "Sucessor:" << SucA->getStr()
+                   << " of " << CurrAtom->getStr() << "\n";*/
       if (VarAtom *K = dyn_cast<VarAtom>(SucA)) {
         ConstAtom *SucSol = getAssignment(K);
         // --- if sol(k) <> (sol(k) JOIN Q) then
         if (*SucSol < *CurrSol) {
+          /*llvm::errs() << "Trying to assign:" << CurrSol->getStr()
+                       << " to " << K->getStr() << "\n";*/
           VI = environment.find(K);
           // ---- set sol(k) := (sol(k) JOIN Q)
           Changed = assignConstToVar(VI, CurrSol);
