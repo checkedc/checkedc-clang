@@ -3678,6 +3678,12 @@ namespace {
                                CheckedScopeSpecifier CSS,
                                const CheckingState PrevState,
                                CheckingState &State) {
+      // Adjust ObservedBounds to account for any uses of V in the bounds
+      // in PrevState.ObservedBounds.
+      for (auto Pair : State.ObservedBounds)
+        State.ObservedBounds[Pair.first] =
+          ReplaceVariableInBounds(Pair.second, V, OV, CSS);
+
       // Adjust UEQ to account for any uses of V in PrevState.UEQ.
       State.UEQ.clear();
       for (auto I = PrevState.UEQ.begin(); I != PrevState.UEQ.end(); ++I) {
@@ -3744,6 +3750,24 @@ namespace {
         State.G.push_back(Target);
       if (State.G.size() > 1)
         State.UEQ.push_back(State.G);
+    }
+
+    // If Bounds uses the value of v and an original value is provided,
+    // ReplaceVariableInBounds will return a bounds expression where the uses
+    // of v are replaced with the original value.
+    // If Bounds uses the value of v and no original value is provided,
+    // ReplaceVariableInBounds will return bounds(unknown).
+    BoundsExpr *ReplaceVariableInBounds(BoundsExpr *Bounds, DeclRefExpr *V,
+                                        Expr *OriginalValue,
+                                        CheckedScopeSpecifier CSS) {
+      Expr *Replaced = ReplaceVariableReferences(S, Bounds, V,
+                                                 OriginalValue, CSS);
+      if (!Replaced)
+        return CreateBoundsUnknown();
+      else if (BoundsExpr *AdjustedBounds = dyn_cast<BoundsExpr>(Replaced))
+        return AdjustedBounds;
+      else
+        return CreateBoundsUnknown();
     }
 
     // UpdateG updates the set G of expressions that produce
