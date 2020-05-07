@@ -480,6 +480,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E,
 
         getQualString(TypeIdx, Ss);
         break;
+      case Atom::A_Safe:
       case Atom::A_Const:
       case Atom::A_Var:
         llvm_unreachable("impossible");
@@ -1028,3 +1029,116 @@ FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E,
 
   return Ret;
 }
+
+/*void constrainConsVar(std::set<ConstraintVariable*> &RHS,
+  std::set<ConstraintVariable*> &LHS, ProgramInfo &Info);*/
+// Given two ConstraintVariables, do the right thing to assign
+// constraints.
+// If they are both PVConstraint, then do an element-wise constraint
+// generation.
+// If they are both FVConstraint, then do a return-value and parameter
+// by parameter constraint generation.
+// If they are of an unequal parameter type, constrain everything in both
+// to wild.
+void constrainConsVar(ConstraintVariable *CLHS,
+                      ConstraintVariable *CRHS,
+                      Constraints &CS,
+                      PersistentSourceLoc *PL,
+                      ConsGenFuncType ConsGen,
+                      bool FuncCall) {
+
+  if (CRHS->getKind() == CLHS->getKind()) {
+    if (FVConstraint *FCLHS = dyn_cast<FVConstraint>(CLHS)) {
+      if (FVConstraint *FCRHS = dyn_cast<FVConstraint>(CRHS)) {
+        // Element-wise constrain the return value of FCLHS and
+        // FCRHS to be equal. Then, again element-wise, constrain
+        // the parameters of FCLHS and FCRHS to be equal.
+        constrainConsVar(FCLHS->getReturnVars(), FCRHS->getReturnVars(), CS,
+                         PL, ConsGen);
+
+        // Constrain the parameters to be equal.
+        if (FCLHS->numParams() == FCRHS->numParams()) {
+          for (unsigned i = 0; i < FCLHS->numParams(); i++) {
+            std::set<ConstraintVariable *> &V1 =
+                FCLHS->getParamVar(i);
+            std::set<ConstraintVariable *> &V2 =
+                FCRHS->getParamVar(i);
+            constrainConsVar(V1, V2, CS, PL, ConsGen);
+          }
+        } else {
+          // Constrain both to be top.
+          std::string Rsn = "Assigning from:" + FCRHS->getName() +
+                            " to " + FCLHS->getName();
+          CRHS->constrainToWild(CS, Rsn, PL, false);
+          CLHS->constrainToWild(CS, Rsn, PL, false);
+        }
+      } else {
+        llvm_unreachable("impossible");
+      }
+    }
+    else if (PVConstraint *PCLHS = dyn_cast<PVConstraint>(CLHS)) {
+      if (PVConstraint *PCRHS = dyn_cast<PVConstraint>(CRHS)) {
+        std::string Rsn = "";
+        // This is to handle function subtyping. Try to add LHS and RHS
+        // to each others argument constraints.
+        PCLHS->addArgumentConstraint(PCRHS);
+        PCRHS->addArgumentConstraint(PCLHS);
+        // Element-wise constrain PCLHS and PCRHS to be equal
+        CAtoms CLHS = PCLHS->getCvars();
+        CAtoms CRHS = PCRHS->getCvars();
+        // FIXME: Should check that the constraint set sizes on both sides are the same
+        //  handling of & is now done via getVariable, so sizes line up
+        // We equate the constraints in a left-justified manner.
+        // This to handle cases like: e.g., p = &q;
+        // Here, we need to equate the inside constraint variables
+        CAtoms::reverse_iterator I = CLHS.rbegin();
+        CAtoms::reverse_iterator J = CRHS.rbegin();
+        while (I != CLHS.rend() && J != CRHS.rend()) {
+          ConsGen(CS, *I, *J, Rsn, nullptr);
+          ++I;
+          ++J;
+        }
+      } else
+        llvm_unreachable("impossible");
+    } else
+      llvm_unreachable("unknown kind");
+  }
+  else {
+    // Assigning from a function variable to a pointer variable?
+    PVConstraint *PCLHS = dyn_cast<PVConstraint>(CLHS);
+    FVConstraint *FCRHS = dyn_cast<FVConstraint>(CRHS);
+    if (PCLHS && FCRHS) {
+      if (FVConstraint *FCLHS = PCLHS->getFV()) {
+        constrainConsVar(FCLHS, FCRHS, CS, PL, ConsGen, FuncCall);
+      } else {
+        if (FuncCall) {
+          for (auto &J : FCRHS->getReturnVars())
+            constrainConsVar(PCLHS, J, CS, PL, ConsGen, FuncCall);
+        } else {
+          std::string Rsn = "Function:" + FCRHS->getName() +
+                            " assigned to non-function pointer.";
+          CLHS->constrainToWild(CS, Rsn, PL, false);
+          CRHS->constrainToWild(CS, Rsn, PL, false);
+        }
+      }
+    } else {
+      // Constrain everything in both to wild.
+      std::string Rsn = "Assignment to functions from variables";
+      CLHS->constrainToWild(CS, Rsn, PL, false);
+      CRHS->constrainToWild(CS, Rsn, PL, false);
+    }
+  }
+}
+
+// Given an RHS and a LHS, constrain them to be equal.
+void constrainConsVar(std::set<ConstraintVariable *> &RHS,
+                      std::set<ConstraintVariable *> &LHS,
+                      Constraints &CS,
+                      PersistentSourceLoc *PL,
+                      ConsGenFuncType ConsGen,
+                      bool FuncCall) {
+  for (const auto &I : RHS)
+    for (const auto &J : LHS)
+      constrainConsVar(I, J, CS, PL, ConsGen, FuncCall);
+}
+

@@ -388,7 +388,7 @@ bool ProgramInfo::link() {
       ++J;
 
       while (J != C.end()) {
-        constrainConsVar(*I, *J, *this, nullptr, nullptr);
+        constrainConsVar(*I, *J, CS, nullptr);
         ++I;
         ++J;
       }
@@ -407,7 +407,7 @@ bool ProgramInfo::link() {
       if (Verbose)
         llvm::errs() << "Global variables:" << V.first << "\n";
       while (J != C.end()) {
-        constrainConsVar(*I, *J, *this, nullptr, nullptr);
+        constrainConsVar(*I, *J, CS, nullptr);
         ++I;
         ++J;
       }
@@ -436,15 +436,15 @@ bool ProgramInfo::link() {
           }
           // Constrain the return values to be equal.
           if (!P1->hasBody() && !P2->hasBody()) {
-            constrainConsVar(P1->getReturnVars(), P2->getReturnVars(), *this,
-                             nullptr, nullptr);
+            constrainConsVar(P1->getReturnVars(), P2->getReturnVars(), CS,
+                             nullptr);
 
             // Constrain the parameters to be equal, if the parameter arity is
             // the same. If it is not the same, constrain both to be wild.
             if (P1->numParams() == P2->numParams()) {
               for (unsigned i = 0; i < P1->numParams(); i++) {
-                constrainConsVar(P1->getParamVar(i), P2->getParamVar(i), *this,
-                                 nullptr, nullptr);
+                constrainConsVar(P1->getParamVar(i), P2->getParamVar(i), CS,
+                                 nullptr);
               }
 
             } else {
@@ -1503,16 +1503,16 @@ ProgramInfo::applyFunctionDefnDeclsConstraints(std::set<FVConstraint *>
     for (auto *DelFV : DeclCVars) {
       // DelFV is outside, DeFV is inside.
       // Rule for returns : outside <: inside for returns.
-      constrainConsVar(DelFV->getReturnVars(), DeFV->getReturnVars(), *this,
-                       nullptr, nullptr, GEqConsGenerator);
+      constrainConsVar(DelFV->getReturnVars(), DeFV->getReturnVars(), CS,
+                       nullptr, GEqConsGenerator);
 
       assert (DeFV->numParams() == DelFV->numParams() &&
              "Definition and Declaration should have same "
              "number of paramters.");
       for (unsigned i=0; i<DeFV->numParams(); i++) {
         //Rule for parameters: inside <: outside for parameters.
-        constrainConsVar(DelFV->getParamVar(i), DeFV->getParamVar(i), *this,
-                         nullptr, nullptr, GEqConsGenerator);
+        constrainConsVar(DelFV->getParamVar(i), DeFV->getParamVar(i), CS,
+                         nullptr, GEqConsGenerator);
       }
     }
   }
