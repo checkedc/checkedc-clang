@@ -242,7 +242,7 @@ public:
         RHSConstraints = Info.getVariable(RHS, Context, false);
         if (RHSConstraints.size() > 0) {
           constrainConsVar(V, RHSConstraints, CS, &PL,
-                           Safe_to_Wild,true);
+                           Safe_to_Wild);
         }
       }
     } else {
@@ -315,7 +315,7 @@ public:
             RHSConstraints = getRHSConsVariables(RHS, LhsType, Context);
             if (dyn_cast<CallExpr>(SE) != nullptr) {
               // If this is a function call..create Geq constraints.
-              constrainConsVar(V, RHSConstraints, CS, &PL, Safe_to_Wild, true);
+              constrainConsVar(V, RHSConstraints, CS, &PL, Safe_to_Wild);
             } else {
               constrainConsVar(V, RHSConstraints, CS, &PL, CA);
             }

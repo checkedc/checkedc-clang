@@ -1073,8 +1073,7 @@ void constrainConsVar(ConstraintVariable *CLHS,
                       ConstraintVariable *CRHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
-                      ConsAction CA,
-                      bool FuncCall) {
+                      ConsAction CA) {
 
   if (CRHS->getKind() == CLHS->getKind()) {
     if (FVConstraint *FCLHS = dyn_cast<FVConstraint>(CLHS)) {
@@ -1146,17 +1145,12 @@ void constrainConsVar(ConstraintVariable *CLHS,
     FVConstraint *FCRHS = dyn_cast<FVConstraint>(CRHS);
     if (PCLHS && FCRHS) {
       if (FVConstraint *FCLHS = PCLHS->getFV()) {
-        constrainConsVar(FCLHS, FCRHS, CS, PL, CA, FuncCall);
+        constrainConsVar(FCLHS, FCRHS, CS, PL, CA);
       } else {
-        if (FuncCall) {
-          for (auto &J : FCRHS->getReturnVars())
-            constrainConsVar(PCLHS, J, CS, PL, CA, FuncCall);
-        } else {
           std::string Rsn = "Function:" + FCRHS->getName() +
                             " assigned to non-function pointer.";
           CLHS->constrainToWild(CS, Rsn, PL, false);
           CRHS->constrainToWild(CS, Rsn, PL, false);
-        }
       }
     } else {
       // Constrain everything in both to wild.
@@ -1172,10 +1166,9 @@ void constrainConsVar(std::set<ConstraintVariable *> &RHS,
                       std::set<ConstraintVariable *> &LHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
-                      ConsAction CA,
-                      bool FuncCall) {
+                      ConsAction CA) {
   for (const auto &I : RHS)
     for (const auto &J : LHS)
-      constrainConsVar(I, J, CS, PL, CA, FuncCall);
+      constrainConsVar(I, J, CS, PL, CA);
 }
 
