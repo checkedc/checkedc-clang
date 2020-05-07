@@ -36,12 +36,8 @@ void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C,
     if (!D->getType()->isVoidType())
       Rsn = "Variable type is va_list.";
     for (const auto &I : Info.getVariable(D, C, FuncCtx)) {
-      if (const PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-        for (const auto &J : PVC->getCvars()) {
-          if (VarAtom *VA = dyn_cast<VarAtom>(J)) {
-            CS.addConstraint(CS.createGeq(VA, CS.getWild(), Rsn, &PL));
-          }
-        }
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
+	PVC->constrainTo(CS, CS.getWild(), Rsn, &PL);
       }
     }
   }
@@ -387,17 +383,13 @@ public:
       } else if (RHS->isIntegerConstantExpr(*Context) &&
                 !RHS->isNullPointerConstant(*Context,
                                              Expr::NPC_ValueDependentIsNotNull)) {
-        PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(RHS, *Context);
         // Case 2, Special handling. If this is an assignment of non-zero
         // integer constraint, then make the pointer WILD.
+        PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(RHS, *Context);
+        std::string Rsn = "Casting to pointer from constant.";
         for (const auto &U : V) {
           if (PVConstraint *PVC = dyn_cast<PVConstraint>(U))
-            for (const auto &J : PVC->getCvars()) {
-              std::string Rsn = "Casting to pointer from constant.";
-              if (VarAtom *VA = dyn_cast<VarAtom>(J)) {
-                CS.addConstraint(CS.createGeq(VA, CS.getWild(), Rsn, &PL));
-              }
-            }
+	    PVC->constrainTo(CS, CS.getWild(), Rsn, &PL);
         }
       } else if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(RHS)) {
         // Case 4.
@@ -441,23 +433,13 @@ public:
             // from it. We want to constrain that side to wild as well.
             RHSConstraints = Info.getVariable(SE, Context, true);
             for (const auto &A : RHSConstraints) {
-              if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
-                for (const auto &B : PVC->getCvars()) {
-                  if (VarAtom *VA = dyn_cast<VarAtom>(B)) {
-                    CS.addConstraint(CS.createGeq(VA, CS.getWild(),
-                                    CToDiffType, &PL));
-                  }
-                }
+              if (PVConstraint *PVC = dyn_cast<PVConstraint>(A)) 
+		PVC->constrainTo(CS, CS.getWild(), CToDiffType, &PL);
             }
 
             for (const auto &A : V) {
               if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
-                for (const auto &B : PVC->getCvars()) {
-                  if (VarAtom *VA = dyn_cast<VarAtom>(B)) {
-                    CS.addConstraint(CS.createGeq(VA, CS.getWild(),
-                                                 CFDifType, &PL));
-                  }
-                }
+		PVC->constrainTo(CS, CS.getWild(), CFDifType, &PL);
             }
           } else {
             // The cast is safe and it is not a special function.
@@ -587,7 +569,7 @@ public:
             PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
             std::string Rsn = "Passing argument to a function "
                               "accepting var args.";
-              constrainVarsToWild(ArgumentConstraintVars,Rsn, &PL);
+              constrainVarsToWild(ArgumentConstraintVars, Rsn, &PL);
           } else {
             if (Verbose) {
               std::string FuncName = FD->getName();
