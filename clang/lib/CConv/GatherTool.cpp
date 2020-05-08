@@ -39,7 +39,7 @@ public:
           if (AnExternFunction && !IsWild) {
             if (PVConstraint *PV = dyn_cast<PVConstraint>(Cv)) {
               for (auto cKey : PV->getCvars()) {
-                if (VarAtom *VA = dyn_cast<VarAtom>(cKey)) {
+                if (dyn_cast<VarAtom>(cKey) != nullptr) {
                   IsWild = true;
                   break;
                 }

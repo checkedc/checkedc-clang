@@ -229,7 +229,7 @@ bool Constraints::check(Constraint *C) {
     if (!isa<VarAtom>(E->getLHS()) || !isa<VarAtom>(E->getRHS()))
       return false;
   }
-  else if (Geq *GE = dyn_cast<Geq>(C)) {
+  else if (dyn_cast<Geq>(C) != nullptr) {
       // all good!
   }
   else

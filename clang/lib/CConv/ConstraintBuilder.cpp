@@ -100,7 +100,6 @@ public:
 
   std::set<ConstraintVariable *>
   getRHSConsVariables(Expr *RHS, QualType LhsType, ASTContext *C) {
-    Expr *E = RHS;
     if (LhsType->isFunctionPointerType()) {
       // We are assigning to a function pointer.
       std::set<ConstraintVariable *> RHSCSet = Info.getVariable(RHS, C, false);

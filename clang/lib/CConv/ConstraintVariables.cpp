@@ -1096,6 +1096,8 @@ static ConsAction neg(ConsAction CA) {
   case Wild_to_Safe: return Safe_to_Wild;
   case Same_to_Same: return Same_to_Same;
   }
+  assert(false && "Invalid ConsAction");
+  return Same_to_Same;
 }
 
 void createAtomEq(Constraints &CS, Atom *L, Atom *R,
