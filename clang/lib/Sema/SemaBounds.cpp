@@ -598,7 +598,7 @@ namespace {
       // does not preserve implicit casts.
       ExprResult TransformImplicitCastExpr(ImplicitCastExpr *E) {
         // Replace V with OV (if applicable) in the subexpression of E.
-        ExprResult ChildResult = BaseTransform::TransformImplicitCastExpr(E);
+        ExprResult ChildResult = TransformExpr(E->getSubExpr());
         if (ChildResult.isInvalid())
           return ChildResult;
 
@@ -2647,7 +2647,7 @@ namespace {
         // Update UEQ and G for assignments to `e1` where `e1` is a variable.
         if (DeclRefExpr *V = GetLValueVariable(LHS)) {
           bool OVUsesV = false;
-          Expr *OV = GetOriginalValue(V, Src, State.UEQ, OVUsesV);
+          Expr *OV = GetOriginalValue(V, Target, Src, State.UEQ, OVUsesV);
           UpdateAfterAssignment(V, Target, OV, OVUsesV, CSS, State, State);
         }
         // Update UEQ and G for assignments where `e1` is not a variable.
@@ -3058,7 +3058,7 @@ namespace {
           // value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateG(E, State.G, State.G, RHS);
           bool OVUsesV = false;
-          Expr *OV = GetOriginalValue(V, RHS, State.UEQ, OVUsesV);
+          Expr *OV = GetOriginalValue(V, Target, RHS, State.UEQ, OVUsesV);
           UpdateAfterAssignment(V, Target, OV, OVUsesV, CSS, State, State);
         }
 
@@ -3154,10 +3154,9 @@ namespace {
           TargetTy = D->getType();
         }
         Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
-        Expr *OV = nullptr;
-        bool OVUsesV = false;
-        UpdateAfterAssignment(TargetDeclRef, TargetExpr, OV, OVUsesV,
-                              CSS, State, State);
+        
+        // Record equality between the target and initializer.
+        RecordEqualityWithTarget(TargetExpr, State);
       }
 
       if (D->isInvalidDecl())
@@ -3711,21 +3710,36 @@ namespace {
           State.G.push_back(AdjustedE);
       }
 
-      // Add the target to a set in UEQ: if G is nonempty and there is some set
-      // F in UEQ that is a superset of G, add the target to F.  This prevents
-      // the elements of F from appearing in multiple sets in UEQ.  The target
-      // of an lvalue should appear in no more than one set in UEQ.
+      RecordEqualityWithTarget(Target, State);
+    }
+
+    // RecordEqualityWithTarget updates the checking state to record equality
+    // between the target expression of an assignment and the source of the
+    // assignment.
+    //
+    // State.G is assumed to contain expressions that produce the same value
+    // as the source of the assignment.
+    void RecordEqualityWithTarget(Expr *Target, CheckingState &State) {
+      // If UEQ contains a set F of expressions that produce the same value
+      // as the source, add the target to F.  This prevents UEQ from growing
+      // too large and containing redundant equality information.  For example,
+      // for the assignments x = 1; y = x; where the target is y, G = { 1, x },
+      // and UEQ contains F = { 1, x }, UEQ should contain { 1, x, y } rather
+      // than { 1, x } and { 1, x, y }.
       if (State.G.size() > 0) {
         for (auto I = State.UEQ.begin(); I != State.UEQ.end(); ++I) {
           if (IsEqualExprsSubset(State.G, *I)) {
             I->push_back(Target);
+            // Add the target to G if G does not already contain the target.
+            if (!EqualExprsContainsExpr(State.G, Target))
+              State.G.push_back(Target);
             return;
           }
         }
       }
 
-      // If G is not a subset of some set in UEQ, add the target to G
-      // and add G (if it is not a singleton set) to UEQ.
+      // Avoid adding sets with duplicate expressions such as { e, e }
+      // and singleton sets such as { e } to UEQ.
       if (!EqualExprsContainsExpr(State.G, Target))
         State.G.push_back(Target);
       if (State.G.size() > 1)
@@ -3824,13 +3838,16 @@ namespace {
     // GetOriginalValue returns the original value (if it exists) of the
     // expression Src with respect to the variable V in an assignment V = Src.
     //
+    // Target is the target expression of the assignment (that accounts for
+    // any necessary casts of V).
+    //
     // The out parameter OVUsesV will be set to true if the original value
     // uses the value of the variable V.  This prevents callers from having
     // to compute the variable occurrence count of V in the original value,
     // since GetOriginalValue computes this count while trying to construct
     // the inverse expression of the source with respect to V.
-    Expr *GetOriginalValue(DeclRefExpr *V, Expr *Src, const EquivExprSets EQ,
-                           bool &OVUsesV) {
+    Expr *GetOriginalValue(DeclRefExpr *V, Expr *Target, Expr *Src,
+                           const EquivExprSets EQ, bool &OVUsesV) {
       // Check if Src has an inverse expression with respect to v.
       Expr *IV = nullptr;
       if (IsInvertible(V, Src))
@@ -3848,11 +3865,29 @@ namespace {
       OVUsesV = false;
       
       // Check EQ for a variable w != v that produces the same value as v.
-      EqualExprTy F = GetEqualExprSetContainingVariable(V, EQ);
+      Expr *ValuePreservingV = nullptr;
+      EqualExprTy F = GetEqualExprSetContainingExpr(Target, EQ, ValuePreservingV);
       for (auto I = F.begin(); I != F.end(); ++I) {
-        DeclRefExpr *W = GetRValueVariable(*I);
-        if (W != nullptr && !EqualValue(S.Context, V, W, nullptr))
-          return W;
+        // Account for value-preserving operations on w when searching for
+        // a variable w in F. For example, if F contains (T)LValueToRValue(w),
+        // where w is a variable != v and (T) is a value-preserving cast, the
+        // original value should be (T)LValueToRValue(w).
+        Lexicographic Lex(S.Context, nullptr);
+        Expr *E = Lex.IgnoreValuePreservingOperations(S.Context, *I);
+        DeclRefExpr *W = GetRValueVariable(E);
+        if (W != nullptr && !EqualValue(S.Context, V, W, nullptr)) {
+          // Expression equality in UEQ does not account for types, so
+          // expressions in the same set in UEQ may not have the same type.
+          // The original value of Src with respect to v must have a type
+          // compatible with the type of v (accounting for value-preserving
+          // operations on v). For example, if F contains (T1)LValueToRValue(v)
+          // and LValueToRValue(w), where v and w have type T2, (T1) is a value-
+          // preserving cast, and T1 and T2 are not compatible types, the
+          // original value should be LValueToRValue(w).
+          if (S.Context.typesAreCompatible(ValuePreservingV->getType(),
+                                            (*I)->getType()))
+            return *I;
+        }
       }
 
       return nullptr;
@@ -4097,34 +4132,37 @@ namespace {
       return IntersectedG;
     }
 
-    // If E appears in a set F in EQ, GetEqualExprSetContainingExpr
+    // GetEqualExprSetContainingExpr returns the set F in EQ that contains e
+    // if such a set F exists, or an empty set otherwise.
+    //
+    // If there is a set F in EQ that contains an expression e1 such that
+    // e1 is canonically equivalent to e, ValuePreservingE is set to e1.
+    // e1 may include value-preserving operations.  For example, if a set F
+    // in EQ contains (T)e, where (T) is a value-preserving cast,
+    // ValuePreservingE will be set to (T)e.
+    EqualExprTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ,
+                                              Expr *&ValuePreservingE) {
+      ValuePreservingE = nullptr;
+      for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
+        EqualExprTy F = *OuterList;
+        for (auto InnerList = F.begin(); InnerList != F.end(); ++InnerList) {
+          Expr *E1 = *InnerList;
+          if (EqualValue(S.Context, E, E1, nullptr)) {
+            ValuePreservingE = E1;
+            return F;
+          }
+        }
+      }
+      return { };
+    }
+
+    // If e appears in a set F in EQ, GetEqualExprSetContainingExpr
     // returns F.  Otherwise, it returns an empty set.
     EqualExprTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ) {
       for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
         EqualExprTy F = *OuterList;
         if (EqualExprsContainsExpr(F, E))
           return F;
-      }
-      return { };
-    }
-
-    // If a set F in EQ contains an expression that is an rvalue cast of
-    // the variable V, GetEqualExprSetContainingVariable returns F.
-    // Otherwise, it returns an empty set.
-    //
-    // This is a specialized version of GetEqualExprSetContainingExpr
-    // for variables.  It prevents the need to allocate a cast expression
-    // containing the variable v (which would be needed to call
-    // GetEqualExprSetContainingExpr).
-    EqualExprTy GetEqualExprSetContainingVariable(DeclRefExpr *V,
-                                                  EquivExprSets EQ) {
-      for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
-        EqualExprTy F = *OuterList;
-        for (auto InnerList = F.begin(); InnerList != F.end(); ++InnerList) {
-          Expr *E1 = *InnerList;
-          if (IsRValueCastOfVariable(E1, V))
-            return F;
-        }
       }
       return { };
     }
@@ -4154,9 +4192,15 @@ namespace {
       return dyn_cast<DeclRefExpr>(E->IgnoreParens());
     }
 
-    // If E is an rvalue cast (ignoring value-preserving operations) of a
-    // variable V, GetRValueVariable returns V. Otherwise, it returns nullptr.
+    // If E is a possibly parenthesized rvalue cast of a variable V,
+    // GetRValueVariable returns V. Otherwise, it returns nullptr.
+    //
+    // V may have value-preserving operations applied to it.  For example,
+    // if E is (LValueToRValue(LValueBitCast(V))), where V is a variable,
+    // GetRValueVariable will return V.
     DeclRefExpr *GetRValueVariable(Expr *E) {
+      if (!E)
+        return nullptr;
       if (CastExpr *CE = dyn_cast<CastExpr>(E->IgnoreParens())) {
         CastKind CK = CE->getCastKind();
         if (CK == CastKind::CK_LValueToRValue ||
