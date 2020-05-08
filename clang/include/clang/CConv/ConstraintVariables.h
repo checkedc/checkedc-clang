@@ -148,16 +148,16 @@ enum ConsAction {
   Same_to_Same
 };
 
-void constrainConsVar(std::set<ConstraintVariable *> &RHS,
+void constrainConsVarGeq(std::set<ConstraintVariable *> &RHS,
                       std::set<ConstraintVariable *> &LHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
-                      ConsAction = Same_to_Same);
-void constrainConsVar(ConstraintVariable *LHS,
+                      ConsAction CA = Same_to_Same);
+void constrainConsVarGeq(ConstraintVariable *LHS,
                       ConstraintVariable *RHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
-                      ConsAction = Same_to_Same);
+                      ConsAction CA = Same_to_Same);
 
 class PointerVariableConstraint;
 class FunctionVariableConstraint;

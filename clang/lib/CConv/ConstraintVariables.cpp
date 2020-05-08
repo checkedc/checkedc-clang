@@ -505,7 +505,6 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
 
         getQualString(TypeIdx, Ss);
         break;
-      case Atom::A_Safe:
       case Atom::A_Const:
       case Atom::A_Var:
         llvm_unreachable("impossible");
@@ -839,8 +838,8 @@ void FunctionVariableConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
     TmpDefn.insert(DefnCons->begin(), DefnCons->end());
 
     // Equate declaration and definition constraint.
-    constrainConsVar(TmpDecl, TmpDefn,
-                     Info.getConstraints(), nullptr, Same_to_Same);
+    constrainConsVarGeq(TmpDecl, TmpDefn, Info.getConstraints(), nullptr,
+                        Same_to_Same);
   }
 
 
@@ -1101,13 +1100,16 @@ static ConsAction neg(ConsAction CA) {
   return Same_to_Same;
 }
 
-void createAtomEq(Constraints &CS, Atom *L, Atom *R,
+void createAtomGeq(Constraints &CS, Atom *L, Atom *R,
                   std::string &Rsn,
                   PersistentSourceLoc *PSL, ConsAction CAct) {
   ConstAtom *CAL, *CAR;
+  VarAtom *VAL, *VAR;
 
   CAL = clang::dyn_cast<ConstAtom>(L);
   CAR = clang::dyn_cast<ConstAtom>(R);
+  VAL = clang::dyn_cast<VarAtom>(L);
+  VAR = clang::dyn_cast<VarAtom>(R);
 
   // Check constant atom relationships hold
   if (CAR != nullptr && CAL != nullptr) {
@@ -1122,25 +1124,56 @@ void createAtomEq(Constraints &CS, Atom *L, Atom *R,
       assert(!(*CAR < *CAL) && "RHS ConstAtom < LHS ConstAtom");
       break;
     }
-  // Generate appropriate constraints
-  } else {
+  // Generate both checked/unchecked and pointer-type constraints for variables
+  } else if (VAL != nullptr && VAR != nullptr) {
     switch (CAct) {
     case Same_to_Same:
-      /* Eventually: Only do equality for kinds, not ptyps */
-      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL));
-      CS.addConstraint(CS.createGeq(R, L, Rsn, PSL));
+      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true)); // Equality for checked
+      CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
+      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, false)); // Not for ptyp
       break;
     case Safe_to_Wild:
-      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL));
+      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
+      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, false));
       break;
     case Wild_to_Safe:
-      CS.addConstraint(CS.createGeq(R, L, Rsn, PSL));
+      CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true)); // note reversal!
+      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, false));
       break;
+    }
+  } else {
+    ConstAtom *Wild = CS.getWild();
+    if (CAL == Wild || CAR == Wild) { // This should be a checked/unchecked constraint
+      switch (CAct) {
+      case Same_to_Same:
+	CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
+	CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
+	break;
+      case Safe_to_Wild:
+	CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
+	break;
+      case Wild_to_Safe:
+	CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true)); // note reversal!
+	break;
+      }
+    } else { // This should be a pointer-type constraint
+      switch (CAct) {
+      case Same_to_Same:
+	CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, false));
+	CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, false));
+	break;
+      case Safe_to_Wild:
+	CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, false));
+	break;
+      case Wild_to_Safe:
+	CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, false));
+	break;
+      }
     }
   }
 }
 
-/*void constrainConsVar(std::set<ConstraintVariable*> &RHS,
+/*void constrainConsVarGeq(std::set<ConstraintVariable*> &RHS,
   std::set<ConstraintVariable*> &LHS, ProgramInfo &Info);*/
 // Given two ConstraintVariables, do the right thing to assign
 // constraints.
@@ -1150,19 +1183,18 @@ void createAtomEq(Constraints &CS, Atom *L, Atom *R,
 // by parameter constraint generation.
 // If they are of an unequal parameter type, constrain everything in both
 // to wild.
-void constrainConsVar(ConstraintVariable *CLHS,
-                      ConstraintVariable *CRHS,
+void constrainConsVarGeq(ConstraintVariable *LHS,
+                      ConstraintVariable *RHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
                       ConsAction CA) {
 
-
-  if (CRHS->getKind() == CLHS->getKind()) {
-    if (FVConstraint *FCLHS = dyn_cast<FVConstraint>(CLHS)) {
-      if (FVConstraint *FCRHS = dyn_cast<FVConstraint>(CRHS)) {
+  if (RHS->getKind() == LHS->getKind()) {
+    if (FVConstraint *FCLHS = dyn_cast<FVConstraint>(LHS)) {
+      if (FVConstraint *FCRHS = dyn_cast<FVConstraint>(RHS)) {
         // Constrain the return values covariantly.
-        constrainConsVar(FCLHS->getReturnVars(), FCRHS->getReturnVars(),
-                         CS, PL, CA);
+        constrainConsVarGeq(FCLHS->getReturnVars(), FCRHS->getReturnVars(), CS,
+                            PL, CA);
 
         // Constrain the parameters contravariantly
         if (FCLHS->numParams() == FCRHS->numParams()) {
@@ -1171,21 +1203,21 @@ void constrainConsVar(ConstraintVariable *CLHS,
                 FCLHS->getParamVar(i);
             std::set<ConstraintVariable *> &RHSV =
                 FCRHS->getParamVar(i);
-            constrainConsVar(RHSV, LHSV, CS, PL, neg(CA));
+            constrainConsVarGeq(RHSV, LHSV, CS, PL, neg(CA));
           }
         } else {
           // Constrain both to be top.
           std::string Rsn = "Assigning from:" + FCRHS->getName() +
                             " to " + FCLHS->getName();
-          CRHS->constrainToWild(CS, Rsn, PL, false);
-          CLHS->constrainToWild(CS, Rsn, PL, false);
+          RHS->constrainToWild(CS, Rsn, PL, false);
+          LHS->constrainToWild(CS, Rsn, PL, false);
         }
       } else {
         llvm_unreachable("impossible");
       }
     }
-    else if (PVConstraint *PCLHS = dyn_cast<PVConstraint>(CLHS)) {
-      if (PVConstraint *PCRHS = dyn_cast<PVConstraint>(CRHS)) {
+    else if (PVConstraint *PCLHS = dyn_cast<PVConstraint>(LHS)) {
+      if (PVConstraint *PCRHS = dyn_cast<PVConstraint>(RHS)) {
         std::string Rsn = "";
         // This is to handle function subtyping. Try to add LHS and RHS
         // to each others argument constraints.
@@ -1196,13 +1228,16 @@ void constrainConsVar(ConstraintVariable *CLHS,
         CAtoms CRHS = PCRHS->getCvars();
         if (CLHS.size() == CRHS.size()) {
           int n = 0;
-          // Get outermost pointer first, using current ConsAction
           CAtoms::iterator I = CLHS.begin();
           CAtoms::iterator J = CRHS.begin();
-          // Now constrain the inner ones as equal
           while (I != CLHS.end()) {
-            if (n == 0) createAtomEq(CS, *I, *J, Rsn, PL, CA);
-            else createAtomEq(CS, *I, *J, Rsn, PL, Same_to_Same);
+	    // Get outermost pointer first, using current ConsAction
+            if (n == 0) createAtomGeq(CS, *I, *J, Rsn, PL, CA);
+            else {
+	      // Now constrain the inner ones as equal
+	      createAtomGeq(CS, *J, *I, Rsn, PL, CA);
+	      createAtomGeq(CS, *I, *J, Rsn, PL, CA);
+	    }
             ++I;
             ++J;
             n++;
@@ -1221,34 +1256,34 @@ void constrainConsVar(ConstraintVariable *CLHS,
   }
   else {
     // Assigning from a function variable to a pointer variable?
-    PVConstraint *PCLHS = dyn_cast<PVConstraint>(CLHS);
-    FVConstraint *FCRHS = dyn_cast<FVConstraint>(CRHS);
+    PVConstraint *PCLHS = dyn_cast<PVConstraint>(LHS);
+    FVConstraint *FCRHS = dyn_cast<FVConstraint>(RHS);
     if (PCLHS && FCRHS) {
       if (FVConstraint *FCLHS = PCLHS->getFV()) {
-        constrainConsVar(FCLHS, FCRHS, CS, PL, CA);
+        constrainConsVarGeq(FCLHS, FCRHS, CS, PL, CA);
       } else {
           std::string Rsn = "Function:" + FCRHS->getName() +
                             " assigned to non-function pointer.";
-          CLHS->constrainToWild(CS, Rsn, PL, false);
-          CRHS->constrainToWild(CS, Rsn, PL, false);
+          LHS->constrainToWild(CS, Rsn, PL, false);
+          RHS->constrainToWild(CS, Rsn, PL, false);
       }
     } else {
       // Constrain everything in both to wild.
       std::string Rsn = "Assignment to functions from variables";
-      CLHS->constrainToWild(CS, Rsn, PL, false);
-      CRHS->constrainToWild(CS, Rsn, PL, false);
+      LHS->constrainToWild(CS, Rsn, PL, false);
+      RHS->constrainToWild(CS, Rsn, PL, false);
     }
   }
 }
 
 // Given an RHS and a LHS, constrain them to be equal.
-void constrainConsVar(std::set<ConstraintVariable *> &RHS,
+void constrainConsVarGeq(std::set<ConstraintVariable *> &RHS,
                       std::set<ConstraintVariable *> &LHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
                       ConsAction CA) {
   for (const auto &I : RHS)
     for (const auto &J : LHS)
-      constrainConsVar(I, J, CS, PL, CA);
+      constrainConsVarGeq(I, J, CS, PL, CA);
 }
 

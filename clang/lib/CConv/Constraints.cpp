@@ -113,15 +113,16 @@ bool Constraints::removeConstraint(Constraint *C) {
 // control what constraints we can add to our system.
 void Constraints::editConstraintHook(Constraint *C) {
   if (!AllTypes) {
-    // If this is an equality constraint, check if we are adding
-    // only Ptr or WILD constraints? if not? make it WILD.
+    // Invalidate any pointer-type constraints
     if (Geq *E = dyn_cast<Geq>(C)) {
-      if (ConstAtom *RConst = dyn_cast<ConstAtom>(E->getRHS())) {
-        if (!(isa<PtrAtom>(RConst) || isa<WildAtom>(RConst))) {
-          // Can we assign WILD to the left side var?.
-          VarAtom *LHSA = dyn_cast<VarAtom>(E->getLHS());
-          if (!LHSA || LHSA->canAssign(getWild()))
-            E->setRHS(getWild());
+      if (!E->constraintIsChecked()) {
+        VarAtom *LHSA = dyn_cast<VarAtom>(E->getLHS());
+        VarAtom *RHSA = dyn_cast<VarAtom>(E->getRHS());
+        if (LHSA != nullptr && RHSA != nullptr) {
+          return;
+        }
+        if (LHSA) {
+          E->setCheckedEq(getWild());
         }
       }
     }
@@ -232,6 +233,8 @@ static bool do_solve(ConstraintsGraph &CG,
   // Initialize work list with ConstAtoms.
   std::vector<Atom *> WorkList;
   std::set<Implies *> FiredImplies;
+  assert(doingChecked);
+
   do {
     WorkList.clear();
     auto &InitC = CG.getAllConstAtoms();
@@ -325,20 +328,19 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
   ConstraintsGraph PtrTypCG;
   std::set<Implies *> SavedImplies;
   ConstraintsEnv &safe_env = environment; // make an alias ?
-  ConstraintsEnv ptr_env = environment; // make a copy
 
   environment.checkAssignment(getPtr());
 
   // Setup the Checked Constraint Graph.
   for (const auto &C : constraints) {
     if (Geq *G = dyn_cast<Geq>(C)) {
-      // if (G->constraintIsChecked())
-      ChkCG.addConstraint(G, *this);
-      // else
-      //   PtrTypCG.addConstraint(G, *this);
+      if (G->constraintIsChecked())
+	ChkCG.addConstraint(G, *this);
     }
     // Save the implies to solve them later.
     else if (Implies *Imp = dyn_cast<Implies>(C)) {
+      assert(Imp->getConclusion()->constraintIsChecked() &&
+             Imp->getPremise()->constraintIsChecked());
       SavedImplies.insert(Imp);
     }
     else

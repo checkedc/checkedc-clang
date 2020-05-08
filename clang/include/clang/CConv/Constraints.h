@@ -50,7 +50,6 @@ public:
     A_Arr,
     A_NTArr,
     A_Wild,
-    A_Safe,
     A_Const
   };
 private:
@@ -198,17 +197,22 @@ private:
   std::set<Constraint *, PComp<Constraint *>> Constraints;
 };
 
-// This refers to the constant PTR.
-class PtrAtom : public ConstAtom {
+/* ConstAtom ordering is:
+    NTARR < ARR < PTR < WILD 
+   and all ConstAtoms < VarAtoms
+*/
+
+// This refers to the constant NTARR.
+class NTArrAtom : public ConstAtom {
 public:
-  PtrAtom() : ConstAtom(A_Ptr) {}
+  NTArrAtom() : ConstAtom(A_NTArr) {}
 
   static bool classof(const Atom *S) {
-    return S->getKind() == A_Ptr;
+    return S->getKind() == A_NTArr;
   }
 
   void print(llvm::raw_ostream &O) const {
-    O << "PTR";
+    O << "NTARR";
   }
 
   void dump(void) const {
@@ -216,11 +220,11 @@ public:
   }
 
   void dump_json(llvm::raw_ostream &O) const {
-    O << "\"PTR\"";
+    O << "\"NTARR\"";
   }
 
   bool operator==(const Atom &Other) const {
-    return llvm::isa <PtrAtom>(&Other);
+    return llvm::isa<NTArrAtom>(&Other);
   }
 
   bool operator!=(const Atom &Other) const {
@@ -228,7 +232,10 @@ public:
   }
 
   bool operator<(const Atom &Other) const {
-    return *this != Other;
+    if (*this == Other)
+      return false;
+    else
+      return true;
   }
 };
 
@@ -262,24 +269,24 @@ public:
   }
 
   bool operator<(const Atom &Other) const {
-    if (llvm::isa<PtrAtom>(&Other) || *this == Other)
+    if (llvm::isa<NTArrAtom>(&Other) || *this == Other)
       return false;
     else
       return true;
   }
 };
 
-// This refers to the constant NTARR.
-class NTArrAtom : public ConstAtom {
+// This refers to the constant PTR.
+class PtrAtom : public ConstAtom {
 public:
-  NTArrAtom() : ConstAtom(A_NTArr) {}
+  PtrAtom() : ConstAtom(A_Ptr) {}
 
   static bool classof(const Atom *S) {
-    return S->getKind() == A_NTArr;
+    return S->getKind() == A_Ptr;
   }
 
   void print(llvm::raw_ostream &O) const {
-    O << "NTARR";
+    O << "PTR";
   }
 
   void dump(void) const {
@@ -287,11 +294,11 @@ public:
   }
 
   void dump_json(llvm::raw_ostream &O) const {
-    O << "\"NTARR\"";
+    O << "\"PTR\"";
   }
 
   bool operator==(const Atom &Other) const {
-    return llvm::isa<NTArrAtom>(&Other);
+    return llvm::isa <PtrAtom>(&Other);
   }
 
   bool operator!=(const Atom &Other) const {
@@ -299,8 +306,8 @@ public:
   }
 
   bool operator<(const Atom &Other) const {
-    if (llvm::isa<PtrAtom>(&Other) || llvm::isa<ArrAtom>(&Other) ||
-        *this == Other)
+    if (llvm::isa<ArrAtom>(&Other) || llvm::isa<NTArrAtom>(&Other) ||
+	    *this == Other)
       return false;
     else
       return true;
@@ -345,40 +352,6 @@ public:
       return false;
     else
       return true;
-  }
-};
-
-// This refers to the constant PTR.
-class SafeAtom : public ConstAtom {
-public:
-  SafeAtom() : ConstAtom(A_Safe) {}
-
-  static bool classof(const Atom *S) {
-    return S->getKind() == A_Safe;
-  }
-
-  void print(llvm::raw_ostream &O) const {
-    O << "SAFE";
-  }
-
-  void dump(void) const {
-    print(llvm::errs());
-  }
-
-  void dump_json(llvm::raw_ostream &O) const {
-    O << "\"SAFE\"";
-  }
-
-  bool operator==(const Atom &Other) const {
-    return llvm::isa <SafeAtom>(&Other);
-  }
-
-  bool operator!=(const Atom &Other) const {
-    return !(*this == Other);
-  }
-
-  bool operator<(const Atom &Other) const {
-    return *this != Other;
   }
 };
 
@@ -471,6 +444,10 @@ public:
     Atom *getLHS(void) const { return lhs; }
     Atom *getRHS(void) const { return rhs; }
     void setRHS(Atom *NewAt) { rhs = NewAt; }
+    void setCheckedEq(ConstAtom *C) {
+      setRHS(C);
+      isCheckedConstraint = true;
+    }
     bool constraintIsChecked(void) const { return isCheckedConstraint; }
 
     bool operator==(const Constraint &Other) const {

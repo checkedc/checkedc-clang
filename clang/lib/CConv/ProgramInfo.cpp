@@ -268,7 +268,6 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
           case Atom::A_Wild:
             wC += 1;
             break;
-          case Atom::A_Safe:
           case Atom::A_Var:
           case Atom::A_Const:
             llvm_unreachable("bad constant in environment map");
@@ -388,7 +387,7 @@ bool ProgramInfo::link() {
       ++J;
 
       while (J != C.end()) {
-        constrainConsVar(*I, *J, CS, nullptr);
+        constrainConsVarGeq(*I, *J, CS, nullptr);
         ++I;
         ++J;
       }
@@ -407,7 +406,7 @@ bool ProgramInfo::link() {
       if (Verbose)
         llvm::errs() << "Global variables:" << V.first << "\n";
       while (J != C.end()) {
-        constrainConsVar(*I, *J, CS, nullptr);
+        constrainConsVarGeq(*I, *J, CS, nullptr);
         ++I;
         ++J;
       }
@@ -436,15 +435,15 @@ bool ProgramInfo::link() {
           }
           // Constrain the return values to be equal.
           if (!P1->hasBody() && !P2->hasBody()) {
-            constrainConsVar(P1->getReturnVars(), P2->getReturnVars(), CS,
-                             nullptr);
+            constrainConsVarGeq(P1->getReturnVars(), P2->getReturnVars(), CS,
+                                nullptr);
 
             // Constrain the parameters to be equal, if the parameter arity is
             // the same. If it is not the same, constrain both to be wild.
             if (P1->numParams() == P2->numParams()) {
               for (unsigned i = 0; i < P1->numParams(); i++) {
-                constrainConsVar(P1->getParamVar(i), P2->getParamVar(i), CS,
-                                 nullptr);
+                constrainConsVarGeq(P1->getParamVar(i), P2->getParamVar(i), CS,
+                                    nullptr);
               }
 
             } else {
@@ -1503,16 +1502,16 @@ ProgramInfo::applyFunctionDefnDeclsConstraints(std::set<FVConstraint *>
     for (auto *DelFV : DeclCVars) {
       // DelFV is outside, DeFV is inside.
       // Rule for returns : outside <: inside for returns.
-      constrainConsVar(DelFV->getReturnVars(), DeFV->getReturnVars(), CS,
-                       nullptr, Safe_to_Wild);
+      constrainConsVarGeq(DelFV->getReturnVars(), DeFV->getReturnVars(), CS,
+                          nullptr, Safe_to_Wild);
 
       assert (DeFV->numParams() == DelFV->numParams() &&
              "Definition and Declaration should have same "
              "number of paramters.");
       for (unsigned i=0; i<DeFV->numParams(); i++) {
         //Rule for parameters: inside <: outside for parameters.
-        constrainConsVar(DelFV->getParamVar(i), DeFV->getParamVar(i), CS,
-                         nullptr, Safe_to_Wild);
+        constrainConsVarGeq(DelFV->getParamVar(i), DeFV->getParamVar(i), CS,
+                            nullptr, Safe_to_Wild);
       }
     }
   }

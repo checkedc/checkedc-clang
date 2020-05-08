@@ -215,8 +215,9 @@ public:
         // to the declaration.
         RHSConstraints = Info.getVariable(RHS, Context, false);
         if (RHSConstraints.size() > 0) {
-          constrainConsVar(V, RHSConstraints, CS, &PL,
-                           Safe_to_Wild); // FIXME: Check this; should look at CA
+          constrainConsVarGeq(
+              V, RHSConstraints, CS, &PL,
+              Safe_to_Wild); // FIXME: Check this; should look at CA
         }
       }
     } else {
@@ -289,9 +290,12 @@ public:
             RHSConstraints = getRHSConsVariables(RHS, LhsType, Context);
             if (dyn_cast<CallExpr>(SE) != nullptr) {
               // If this is a function call..create Geq constraints.
-              constrainConsVar(V, RHSConstraints, CS, &PL, Safe_to_Wild);// FIXME: Check this; should look at CA
+              constrainConsVarGeq(
+                  V, RHSConstraints, CS, &PL,
+                  Safe_to_Wild);// FIXME: Check this; should look at CA
             } else {
-              constrainConsVar(V, RHSConstraints, CS, &PL, CA);// FIXME: Check this; should look at CA
+              constrainConsVarGeq(V, RHSConstraints, CS, &PL,
+                                  CA);// FIXME: Check this; should look at CA
             }
           }
         }
@@ -303,7 +307,8 @@ public:
           // Case 1.
           // There are constraint variables for the RHS, so, use those over
           // anything else we could infer.
-          constrainConsVar(V, RHSConstraints, CS, &PL, CA);// FIXME: Check this; should look at CA
+          constrainConsVarGeq(V, RHSConstraints, CS, &PL,
+                              CA);// FIXME: Check this; should look at CA
         }
       }
     }
@@ -545,8 +550,8 @@ private:
                 if (i < FV->numParams()) {
                   std::set<ConstraintVariable *> ParameterDC =
                     FV->getParamVar(i);
-                  constrainConsVar(ArgumentConstraints, ParameterDC, CS, &PL,
-                                   Same_to_Same);// Why same to same ?
+                  constrainConsVarGeq(ArgumentConstraints, ParameterDC, CS, &PL,
+                                      Same_to_Same);// Why same to same ?
                 } else {
                   // Constrain argument to wild since we can't match it
                   // to a parameter from the type.
