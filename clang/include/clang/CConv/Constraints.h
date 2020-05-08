@@ -667,6 +667,26 @@ private:
   Geq *conclusion;
 };
 
+typedef std::map<VarAtom *, ConstAtom *, PComp<VarAtom *>> EnvironmentMap;
+
+class ConstraintsEnv {
+
+public:
+  EnvironmentMap &getVariables() { return environment; }
+  void dump() const;
+  void print(llvm::raw_ostream &) const;
+  void dump_json(llvm::raw_ostream &) const;
+  VarAtom *getOrCreateVar(uint32_t V, ConstAtom *initC);
+  VarAtom *getVar(uint32_t V) const;
+  ConstAtom *getAssignment(uint32_t V);
+  ConstAtom *getAssignment(Atom *A);
+  bool assign(VarAtom *V, ConstAtom *C);
+  void resetSolution(ConstAtom *initC);
+
+private:
+  EnvironmentMap environment;
+};
+
 class ConstraintVariable;
 
 class Constraints {
@@ -677,8 +697,6 @@ public:
   Constraints(const Constraints &O) = delete;
 
   typedef std::set<Constraint *, PComp<Constraint *>> ConstraintSet;
-  // The environment maps from Vars to Consts (one of Ptr, Arr, Wild).
-  typedef std::map<VarAtom *, ConstAtom *, PComp<VarAtom *>> EnvironmentMap;
 
   // Map from a unique key of a function to its constraint variables.
   typedef std::map<std::string, std::set<ConstraintVariable *>> FuncKeyToConsMap;
@@ -689,7 +707,7 @@ public:
   // 10-100-100000 constraints and variables, and copying them each time
   // a client wants to examine the environment is untenable.
   ConstraintSet &getConstraints() { return constraints; }
-  EnvironmentMap &getVariables() { return environment; }
+  EnvironmentMap &getVariables() { return environment.getVariables(); }
   
   EnvironmentMap &getitypeVarMap() { return itypeConstraintVars; }
 
@@ -740,7 +758,7 @@ public:
 private:
   ConstraintSet constraints;
   std::map<std::string, ConstraintSet> constraintsByReason;
-  EnvironmentMap environment;
+  ConstraintsEnv environment;
   // Map of constraint variables, which are identified
   // as itype pointers
   // These should be the constraint variables of only
@@ -763,9 +781,8 @@ private:
   propEq(EnvironmentMap &E, Eq *Dyn, EnvironmentMap::iterator &CurValLHS);
 
   template <typename T>
-  bool
-  propGeq(EnvironmentMap &E, Geq *Dyn, T *A, ConstraintSet &R,
-          EnvironmentMap::iterator &CurValLHS);
+  bool propGeq(Geq *Dyn, T *A, ConstraintSet &R,
+               EnvironmentMap::iterator &CurValLHS);
 
   template <typename T>
   bool

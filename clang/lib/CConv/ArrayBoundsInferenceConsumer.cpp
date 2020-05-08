@@ -97,7 +97,7 @@ static bool hasLengthKeyword(std::string VarName) {
 
 // Check if the provided constraint variable is an array and it needs bounds.
 static bool needArrayBounds(ConstraintVariable *CV,
-                            Constraints::EnvironmentMap &E) {
+                            EnvironmentMap &E) {
   if (CV->hasArr(E)) {
     PVConstraint *PV = dyn_cast<PVConstraint>(CV);
     if (PV && PV->getArrPresent())
@@ -108,7 +108,7 @@ static bool needArrayBounds(ConstraintVariable *CV,
 }
 
 static bool needNTArrayBounds(ConstraintVariable *CV,
-                              Constraints::EnvironmentMap &E) {
+                              EnvironmentMap &E) {
   if (CV->hasNtArr(E)) {
     PVConstraint *PV = dyn_cast<PVConstraint>(CV);
     if (PV && PV->getArrPresent())

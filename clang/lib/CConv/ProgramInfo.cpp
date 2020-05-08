@@ -228,7 +228,7 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
     O << "Sound handling of var args functions:" << HandleVARARGS << "\n";
   }
   std::map<std::string, std::tuple<int, int, int, int, int>> FilesToVars;
-  Constraints::EnvironmentMap Env = CS.getVariables();
+  EnvironmentMap Env = CS.getVariables();
   unsigned int totC, totP, totNt, totA, totWi;
   totC = totP = totNt = totA = totWi = 0;
 

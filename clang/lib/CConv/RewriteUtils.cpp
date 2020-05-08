@@ -494,7 +494,7 @@ std::set<unsigned int> TypeRewritingVisitor::getParamsForExtern(std::string E) {
 bool TypeRewritingVisitor::anyTop(std::set<ConstraintVariable *> C) {
   bool TopFound = false;
   Constraints &CS = Info.getConstraints();
-  Constraints::EnvironmentMap &env = CS.getVariables();
+  EnvironmentMap &env = CS.getVariables();
   for (ConstraintVariable *c : C) {
     if (PointerVariableConstraint *pvc = dyn_cast<PointerVariableConstraint>(c)) {
       TopFound = pvc->hasWild(env);

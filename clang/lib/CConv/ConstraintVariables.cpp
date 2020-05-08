@@ -36,7 +36,7 @@ std::string ConstraintVariable::getRewritableOriginalTy() {
 ConstraintVariable *
 ConstraintVariable::getHighestNonWildConstraint(std::set<ConstraintVariable *>
                                                 &ToCheck,
-                                                Constraints::EnvironmentMap &E,
+                                                EnvironmentMap &E,
                                                 ProgramInfo &I) {
   ConstraintVariable *HighestConVar = nullptr;
   for (auto CurrCons : ToCheck) {
@@ -405,7 +405,7 @@ bool PointerVariableConstraint::emitArraySize(std::ostringstream &Pss,
 // variables and potentially nested function pointer declaration. Produces a
 // string that can be replaced in the source code.
 std::string
-PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E,
+PointerVariableConstraint::mkString(EnvironmentMap &E,
                                     bool EmitName,
                                     bool ForItype) {
   std::ostringstream Ss;
@@ -766,7 +766,7 @@ void FunctionVariableConstraint::constrainToWild(Constraints &CS,
       U->constrainToWild(CS, Rsn, PL, CheckSkip);
 }
 
-bool FunctionVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
+bool FunctionVariableConstraint::anyChanges(EnvironmentMap &E) {
   bool f = false;
 
   for (const auto &C : returnVars)
@@ -775,7 +775,7 @@ bool FunctionVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
   return f;
 }
 
-bool FunctionVariableConstraint::hasWild(Constraints::EnvironmentMap &E)
+bool FunctionVariableConstraint::hasWild(EnvironmentMap &E)
 {
   for (const auto &C : returnVars)
     if (C->hasWild(E))
@@ -784,7 +784,7 @@ bool FunctionVariableConstraint::hasWild(Constraints::EnvironmentMap &E)
   return false;
 }
 
-bool FunctionVariableConstraint::hasArr(Constraints::EnvironmentMap &E)
+bool FunctionVariableConstraint::hasArr(EnvironmentMap &E)
 {
   for (const auto &C : returnVars)
     if (C->hasArr(E))
@@ -793,7 +793,7 @@ bool FunctionVariableConstraint::hasArr(Constraints::EnvironmentMap &E)
   return false;
 }
 
-bool FunctionVariableConstraint::hasNtArr(Constraints::EnvironmentMap &E)
+bool FunctionVariableConstraint::hasNtArr(EnvironmentMap &E)
 {
   for (const auto &C : returnVars)
     if (C->hasNtArr(E))
@@ -803,7 +803,7 @@ bool FunctionVariableConstraint::hasNtArr(Constraints::EnvironmentMap &E)
 }
 
 ConstAtom*
-FunctionVariableConstraint::getHighestType(Constraints::EnvironmentMap &E) {
+FunctionVariableConstraint::getHighestType(EnvironmentMap &E) {
   ConstAtom *Ret = nullptr;
   for (const auto &C : returnVars) {
     ConstAtom *CS = C->getHighestType(E);
@@ -920,7 +920,7 @@ void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C) 
   }
 }
 
-bool PointerVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
+bool PointerVariableConstraint::anyChanges(EnvironmentMap &E) {
   bool Ret = false;
 
   // Are there any non-WILD pointers?
@@ -938,7 +938,7 @@ bool PointerVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
 
 const ConstAtom*
 PointerVariableConstraint::getPtrSolution(const Atom *A,
-                                          Constraints::EnvironmentMap &E) const{
+                                          EnvironmentMap &E) const{
   const ConstAtom *CS = nullptr;
   if (const ConstAtom *CA = dyn_cast<ConstAtom>(A)) {
     CS = CA;
@@ -951,7 +951,7 @@ PointerVariableConstraint::getPtrSolution(const Atom *A,
   return CS;
 }
 
-bool PointerVariableConstraint::hasWild(Constraints::EnvironmentMap &E)
+bool PointerVariableConstraint::hasWild(EnvironmentMap &E)
 {
   for (const auto &C : vars) {
     const ConstAtom *CS = getPtrSolution(C, E);
@@ -965,7 +965,7 @@ bool PointerVariableConstraint::hasWild(Constraints::EnvironmentMap &E)
   return false;
 }
 
-bool PointerVariableConstraint::hasArr(Constraints::EnvironmentMap &E)
+bool PointerVariableConstraint::hasArr(EnvironmentMap &E)
 {
   for (const auto &C : vars) {
     const ConstAtom *CS = getPtrSolution(C, E);
@@ -979,7 +979,7 @@ bool PointerVariableConstraint::hasArr(Constraints::EnvironmentMap &E)
   return false;
 }
 
-bool PointerVariableConstraint::hasNtArr(Constraints::EnvironmentMap &E)
+bool PointerVariableConstraint::hasNtArr(EnvironmentMap &E)
 {
   for (const auto &C : vars) {
     const ConstAtom *CS = getPtrSolution(C, E);
@@ -994,7 +994,7 @@ bool PointerVariableConstraint::hasNtArr(Constraints::EnvironmentMap &E)
 }
 
 ConstAtom*
-PointerVariableConstraint::getHighestType(Constraints::EnvironmentMap &E) {
+PointerVariableConstraint::getHighestType(EnvironmentMap &E) {
   ConstAtom *Ret = nullptr;
   for (const auto &C : vars) {
     const ConstAtom *CS = getPtrSolution(C, E);
@@ -1054,7 +1054,7 @@ void FunctionVariableConstraint::dump_json(raw_ostream &O) const {
 }
 
 std::string
-FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E,
+FunctionVariableConstraint::mkString(EnvironmentMap &E,
                                      bool EmitName, bool ForItype) {
   std::string Ret = "";
   // TODO punting on what to do here. The right thing to do is to figure out

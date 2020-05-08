@@ -58,7 +58,7 @@ public:
   // variable that is not WILD and sits highest in the type lattice.
   static ConstraintVariable *
   getHighestNonWildConstraint(std::set<ConstraintVariable *> &ToCheck,
-                              Constraints::EnvironmentMap &E,
+                              EnvironmentMap &E,
                               ProgramInfo &I);
 
 private:
@@ -83,7 +83,7 @@ public:
   // the name of the variable, false for just the type.
   // The 'forIType' parameter is true when the generated string is expected
   // to be used inside an itype
-  virtual std::string mkString(Constraints::EnvironmentMap &E,
+  virtual std::string mkString(EnvironmentMap &E,
                                bool emitName=true, bool forItype=false) = 0;
 
   // Debug printing of the constraint variable.
@@ -106,12 +106,12 @@ public:
   // have a binding in E other than top. E should be the EnvironmentMap that
   // results from running unification on the set of constraints and the
   // environment.
-  virtual bool anyChanges(Constraints::EnvironmentMap &E) = 0;
-  virtual bool hasWild(Constraints::EnvironmentMap &E) = 0;
-  virtual bool hasArr(Constraints::EnvironmentMap &E) = 0;
-  virtual bool hasNtArr(Constraints::EnvironmentMap &E) = 0;
+  virtual bool anyChanges(EnvironmentMap &E) = 0;
+  virtual bool hasWild(EnvironmentMap &E) = 0;
+  virtual bool hasArr(EnvironmentMap &E) = 0;
+  virtual bool hasNtArr(EnvironmentMap &E) = 0;
   // Get the highest type assigned to the cvars of this constraint variable.
-  virtual ConstAtom *getHighestType(Constraints::EnvironmentMap &E) = 0;
+  virtual ConstAtom *getHighestType(EnvironmentMap &E) = 0;
 
   std::string getTy() { return BaseType; }
   std::string getOriginalTy() { return OriginalType; }
@@ -208,7 +208,7 @@ private:
   std::set<ConstraintVariable *> argumentConstraints;
   // Get solution for the atom of a pointer.
   const ConstAtom* getPtrSolution(const Atom *A,
-                                  Constraints::EnvironmentMap &E) const;
+                                  EnvironmentMap &E) const;
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
@@ -245,7 +245,7 @@ public:
     return S->getKind() == PointerVariable;
   }
 
-  std::string mkString(Constraints::EnvironmentMap &E, bool EmitName =true,
+  std::string mkString(EnvironmentMap &E, bool EmitName =true,
                        bool ForItype =false);
 
   FunctionVariableConstraint *getFV() { return FV; }
@@ -259,12 +259,12 @@ public:
   void constrainToWild(Constraints &CS, std::string &Rsn,
                        PersistentSourceLoc *PL, bool CheckSkip = false);
   void constrainOuterTo(Constraints &CS, ConstAtom *C);
-  bool anyChanges(Constraints::EnvironmentMap &E);
-  bool hasWild(Constraints::EnvironmentMap &E);
-  bool hasArr(Constraints::EnvironmentMap &E);
-  bool hasNtArr(Constraints::EnvironmentMap &E);
+  bool anyChanges(EnvironmentMap &E);
+  bool hasWild(EnvironmentMap &E);
+  bool hasArr(EnvironmentMap &E);
+  bool hasNtArr(EnvironmentMap &E);
   // Get the highest type assigned to the cvars of this constraint variable.
-  ConstAtom *getHighestType(Constraints::EnvironmentMap &E);
+  ConstAtom *getHighestType(EnvironmentMap &E);
 
   bool isPartOfFunctionPrototype() const  { return partOFFuncPrototype; }
   // Add the provided constraint variable as an argument constraint.
@@ -336,7 +336,7 @@ public:
     return paramVars.at(i);
   }
 
-  std::string mkString(Constraints::EnvironmentMap &E, bool EmitName =true,
+  std::string mkString(EnvironmentMap &E, bool EmitName =true,
                        bool ForItype =false);
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
@@ -346,11 +346,11 @@ public:
                        bool CheckSkip = false);
   void constrainToWild(Constraints &CS, std::string &Rsn,
                        PersistentSourceLoc *PL, bool CheckSkip = false);
-  bool anyChanges(Constraints::EnvironmentMap &E);
-  bool hasWild(Constraints::EnvironmentMap &E);
-  bool hasArr(Constraints::EnvironmentMap &E);
-  bool hasNtArr(Constraints::EnvironmentMap &E);
-  ConstAtom *getHighestType(Constraints::EnvironmentMap &E);
+  bool anyChanges(EnvironmentMap &E);
+  bool hasWild(EnvironmentMap &E);
+  bool hasArr(EnvironmentMap &E);
+  bool hasNtArr(EnvironmentMap &E);
+  ConstAtom *getHighestType(EnvironmentMap &E);
   void equateInsideOutsideVars(ProgramInfo &P);
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;

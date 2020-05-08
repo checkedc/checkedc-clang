@@ -12,7 +12,7 @@
 
 // Map that stored the newly detected itype parameters and
 // returns that are detected in this iteration.
-static Constraints::EnvironmentMap IterationItypeMap;
+static EnvironmentMap IterationItypeMap;
 // Map that contains the constraint atoms of parameters
 // and its return for all functions (including their declarations
 // and definitions). This map is used to determine new detection of itypes.
@@ -62,7 +62,7 @@ identifyModifiedFunctions(Constraints &CS,
                                std::set<ItypeModFuncsKType> &ModFuncs) {
   ModFuncs.clear();
   // Get the current values.
-  Constraints::EnvironmentMap &EnvMap = CS.getVariables();
+  EnvironmentMap &EnvMap = CS.getVariables();
   // Check to see if they differ from previous values.
   for (auto &FuncVals : ParamsReturnSavedValues) {
     auto DefKey = FuncVals.first;
@@ -81,12 +81,12 @@ identifyModifiedFunctions(Constraints &CS,
 }
 
 unsigned long resetWithitypeConstraints(Constraints &CS) {
-  Constraints::EnvironmentMap DeclConstraints;
+  EnvironmentMap DeclConstraints;
   DeclConstraints.clear();
-  Constraints::EnvironmentMap &EnvMap = CS.getVariables();
+  EnvironmentMap &EnvMap = CS.getVariables();
   unsigned long Removed = 0;
 
-  Constraints::EnvironmentMap ToRemoveVAtoms;
+  EnvironmentMap ToRemoveVAtoms;
 
   // Restore the erased constraints.
   // Now, try to remove constraints that
@@ -141,7 +141,7 @@ static bool updateDeclWithDefnType(ConstraintVariable *Pdecl,
   bool Changed = false;
   // Get the itype map where we store the pointer type of
   // the declaration constraint variables.
-  Constraints::EnvironmentMap &ItypeMap = CS.getitypeVarMap();
+  EnvironmentMap &ItypeMap = CS.getitypeVarMap();
   PVConstraint *PVDeclCons = dyn_cast<PVConstraint>(Pdecl);
   PVConstraint *PVDefnCons = dyn_cast<PVConstraint>(Pdefn);
 

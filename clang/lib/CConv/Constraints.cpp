@@ -28,7 +28,7 @@ static cl::opt<bool> UseOldSolver("old-solver",
                                  cl::init(false), cl::cat(SolverCategory));
 
 unsigned
-VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &VAtoms,
+VarAtom::replaceEqConstraints(EnvironmentMap &VAtoms,
                               class Constraints &CS) {
   unsigned NumRemConstraints = 0;
   std::set<Constraint *, PComp<Constraint *>> ConstraintsToRem;
@@ -277,9 +277,8 @@ Constraints::propEq(EnvironmentMap &E, Eq *Dyn, EnvironmentMap::iterator &CurVal
 //
 // Return true if propEq modified the binding of (q_i:C).
 template <typename T>
-bool
-Constraints::propGeq(EnvironmentMap &E, Geq *Dyn, T *A, ConstraintSet &R,
-                    EnvironmentMap::iterator &CurValLHS) {
+bool Constraints::propGeq(Geq *Dyn, T *A, ConstraintSet &R,
+                          EnvironmentMap::iterator &CurValLHS) {
     bool ChangedEnv = false;
 
     if (isa<T>(Dyn->getRHS())) {
@@ -317,9 +316,10 @@ Constraints::propImp(Implies *Imp, T *A, ConstraintSet &R, ConstAtom *V) {
 bool Constraints::step_solve_old(void) {
   bool ChangedEnv = false;
 
-  EnvironmentMap::iterator VI = environment.begin();
+  EnvironmentMap &env = environment.getVariables();
+  EnvironmentMap::iterator VI = env.begin();
   // Step 1. Propagate any WILD constraint as far as we can.
-  while (VI != environment.end()) {
+  while (VI != env.end()) {
     // Iterate over the environment, VI is a pair of a variable q_i and 
     // the constant (one of Ptr, Arr, Wild) that the variable is bound to.
     VarAtom *Var = VI->first;
@@ -328,10 +328,9 @@ bool Constraints::step_solve_old(void) {
     ConstraintSet rmConstraints;
     for (const auto &C : Var->Constraints) 
       if (Eq *E = dyn_cast<Eq>(C))
-        ChangedEnv |= propEq(environment, E, VI);
+        ChangedEnv |= propEq(env, E, VI);
       else if (Geq *E = dyn_cast<Geq>(C))
-          ChangedEnv |= propGeq<WildAtom>(environment, E, getWild(),
-                  rmConstraints, VI);
+          ChangedEnv |= propGeq<WildAtom>(E, getWild(), rmConstraints, VI);
       else if (Implies *Imp = dyn_cast<Implies>(C))
         ChangedEnv |= propImp<WildAtom>(Imp, getWild(),rmConstraints, Val);
 
@@ -341,9 +340,9 @@ bool Constraints::step_solve_old(void) {
     ++VI;
   }
 
-  VI = environment.begin();
+  VI = env.begin();
   // Step 2. Propagate any ARR constraints.
-  while (VI != environment.end()) {
+  while (VI != env.end()) {
     VarAtom *Var = VI->first;
 
     ConstraintSet RemCons;
@@ -352,12 +351,10 @@ bool Constraints::step_solve_old(void) {
       // changed this and the constraints will get removed.
       ConstAtom *Val = VI->second;
       if (Geq *E = dyn_cast<Geq>(C)) {
-          ChangedEnv |= propGeq < NTArrAtom > (environment, E, getNTArr(),
-                  RemCons, VI);
-          ChangedEnv |= propGeq < ArrAtom > (environment, E, getArr(),
-                  RemCons, VI);
+          ChangedEnv |= propGeq<NTArrAtom>(E, getNTArr(), RemCons, VI);
+          ChangedEnv |= propGeq<ArrAtom>(E, getArr(), RemCons, VI);
       } else if (Eq *E = dyn_cast<Eq>(C)) {
-          ChangedEnv |= propEq(environment, E, VI);
+          ChangedEnv |= propEq(env, E, VI);
       } else if (Implies *Imp = dyn_cast<Implies>(C)) {
         ChangedEnv |= propImp<NTArrAtom>(Imp, getNTArr(),
                                                  RemCons, Val);
@@ -392,6 +389,7 @@ Constraint *Constraints::solve_new(unsigned &Niter) {
     bool NotFixedPoint = true;
     Niter = 0;
     EnvironmentMap::iterator VI;
+    EnvironmentMap &env = environment.getVariables();
 
     // Proper solving
     while (ChangedEnv) {
@@ -400,8 +398,8 @@ Constraint *Constraints::solve_new(unsigned &Niter) {
 
         // Step 1. Propagate any Geq(v,c) constraints, which can be summarily
         // deleted
-        VI = environment.begin();
-        while (VI != environment.end()) {
+        VI = env.begin();
+        while (VI != env.end()) {
             VarAtom *Var = VI->first;
             ConstraintSet RemCons;
             for (const auto &C : Var->Constraints) {
@@ -410,8 +408,8 @@ Constraint *Constraints::solve_new(unsigned &Niter) {
                     ConstAtom *CA = dyn_cast<ConstAtom>(GE->getRHS());
                     if (CA == nullptr) continue;
 
-                    EnvironmentMap::iterator CurVal = environment.find(VA);
-                    assert(CurVal != environment.end()); // The var on the RHS should be in the env.
+                    EnvironmentMap::iterator CurVal = env.find(VA);
+                    assert(CurVal != env.end()); // The var on the RHS should be in the env.
 
                     if (*(CurVal->second) < *CA) {
                         ChangedEnv |= assignConstToVar(CurVal, CA);
@@ -429,8 +427,8 @@ Constraint *Constraints::solve_new(unsigned &Niter) {
         NotFixedPoint = true;
         while (NotFixedPoint) {
             NotFixedPoint = false;
-            VI = environment.begin();
-            while (VI != environment.end()) {
+            VI = env.begin();
+            while (VI != env.end()) {
                 VarAtom *Var = VI->first;
                 for (const auto &C : Var->Constraints) {
                     VarAtom *lhs, *rhs;
@@ -451,8 +449,8 @@ Constraint *Constraints::solve_new(unsigned &Niter) {
                         continue;
                     }
                     assert(rhs != nullptr); // Should not have ConstAtoms on rhs, after step 1
-                    CurValRHS = environment.find(rhs);
-                    assert(CurValRHS != environment.end());
+                    CurValRHS = env.find(rhs);
+                    assert(CurValRHS != env.end());
 
                     if (c != nullptr) { // Geq(c,v) -- check that the inequality holds
                         if (*c < *(CurValRHS->second)) {
@@ -461,8 +459,8 @@ Constraint *Constraints::solve_new(unsigned &Niter) {
                         // else it's OK
                     }
                     else {
-                        CurValLHS = environment.find(lhs);
-                        assert(CurValLHS != environment.end());
+                        CurValLHS = env.find(lhs);
+                        assert(CurValLHS != env.end());
                         if (isEq) { // have Geq(v,v) or Eq(v,v)
                             if (*(CurValLHS->second) < *(CurValRHS->second)) {
                                 NotFixedPoint |= assignConstToVar(CurValLHS, CurValRHS->second);
@@ -481,8 +479,8 @@ Constraint *Constraints::solve_new(unsigned &Niter) {
         }
 
         // Step 3. Propagate implications
-        VI = environment.begin();
-        while (VI != environment.end()) {
+        VI = env.begin();
+        while (VI != env.end()) {
             VarAtom *Var = VI->first;
             ConstraintSet RemCons;
             for (const auto &C : Var->Constraints) {
@@ -491,8 +489,8 @@ Constraint *Constraints::solve_new(unsigned &Niter) {
                     VarAtom *lhs = dyn_cast<VarAtom>(premise->getLHS());
                     ConstAtom *rhs = dyn_cast<ConstAtom>(premise->getRHS());
                     assert(lhs != nullptr && rhs != nullptr);
-                    EnvironmentMap::iterator CurValLHS = environment.find(lhs);
-                    assert(CurValLHS != environment.end());
+                    EnvironmentMap::iterator CurValLHS = env.find(lhs);
+                    assert(CurValLHS != env.end());
 
                     if (*(CurValLHS->second) == *rhs || *rhs < *(CurValLHS->second)) {
                         Constraint *Con = Imp->getConclusion();
@@ -540,29 +538,28 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
   ConstraintsGraph ChkCG;
   //ConstraintsGraph PtrTypCG;
   std::set<Implies *> SavedImplies;
-  // FIXME: Don't use VarAtoms' constraints; instead get them directly from Info.getConstraints();
+  ConstraintsEnv &env = environment;
+
   // Setup the Constraint Graph.
-  auto VI = environment.begin();
-  while (VI != environment.end()) {
-    VarAtom *Var = VI->first;
-    for (const auto &C : Var->Constraints) {
-      if (Eq *E = dyn_cast<Eq>(C)) {
-        ChkCG.addConstraint(E, *this);
-        //PtrTypCG.addConstraint(E, *this);
-      }
-      if (Geq *G = dyn_cast<Geq>(C)) {
-       // if (G->constraintIsChecked())
-          ChkCG.addConstraint(G, *this);
-       // else
-       //   PtrTypCG.addConstraint(G, *this);
-      }
-      // Save the implies to solve them later.
-      if (Implies *Imp = dyn_cast<Implies>(C)) {
-        SavedImplies.insert(Imp);
-      }
+  for (const auto &C : constraints) {
+    if (Eq *E = dyn_cast<Eq>(C)) {
+      ChkCG.addConstraint(E, *this);
+      //PtrTypCG.addConstraint(E, *this);
     }
-    VI++;
+    else if (Geq *G = dyn_cast<Geq>(C)) {
+      // if (G->constraintIsChecked())
+      ChkCG.addConstraint(G, *this);
+      // else
+      //   PtrTypCG.addConstraint(G, *this);
+    }
+    // Save the implies to solve them later.
+    else if (Implies *Imp = dyn_cast<Implies>(C)) {
+      SavedImplies.insert(Imp);
+    }
+    else
+      llvm_unreachable("Bogus constraint type");
   }
+
   // Solving
   if (DebugSolver)
     ChkCG.dumpCGDot("constraints_graph.dot");
@@ -581,7 +578,7 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
       WorkList.erase(WorkList.begin());
 
       // Get the solution of the CurrAtom.
-      ConstAtom *CurrSol = getAssignment(CurrAtom);
+      ConstAtom *CurrSol = env.getAssignment(CurrAtom);
 
       std::set<Atom *> Successors;
       // get successors
@@ -591,12 +588,11 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
         /*llvm::errs() << "Sucessor:" << SucA->getStr()
                      << " of " << CurrAtom->getStr() << "\n";*/
         if (VarAtom *K = dyn_cast<VarAtom>(SucA)) {
-          ConstAtom *SucSol = getAssignment(K);
+          ConstAtom *SucSol = env.getAssignment(K);
           // --- if sol(k) <> (sol(k) JOIN Q) then
           if (*SucSol < *CurrSol) {
-            VI = environment.find(K);
             // ---- set sol(k) := (sol(k) JOIN Q)
-            Changed = assignConstToVar(VI, CurrSol);
+            Changed = env.assign(K,CurrSol);
             /*if (Changed) {
               llvm::s()err << "Trying to assign:" << CurrSol->getStr() << " to "
                            << K->getStr() << "\n";
@@ -604,12 +600,12 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
           }
           if (Changed) {
             // get the latest assignment.
-            SucSol = getAssignment(K);
+            SucSol = env.getAssignment(K);
             // ---- for all edges (k --> q) in G, confirm
             std::set<Atom *> KSuccessors;
             ChkCG.getSuccessors<ConstAtom>(K, KSuccessors);
             for (auto *KChild : KSuccessors) {
-              ConstAtom *KCSol = getAssignment(KChild);
+              ConstAtom *KCSol = env.getAssignment(KChild);
               // that sol(k) <: q; else fail
               if (!(*SucSol < *KCSol) && *SucSol != *KCSol) {
                 // failure case.
@@ -635,8 +631,8 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
       for (auto *Imp : SavedImplies) {
         Geq *Pre = Imp->getPremise();
         Geq *Con = Imp->getConclusion();
-        ConstAtom *Cca = getAssignment(Pre->getRHS());
-        ConstAtom *Cva = getAssignment(Pre->getLHS());
+        ConstAtom *Cca = env.getAssignment(Pre->getRHS());
+        ConstAtom *Cva = env.getAssignment(Pre->getLHS());
         // Premise is true, so fire the conclusion.
         if (*Cca < *Cva || *Cca == *Cva) {
           /*llvm::errs() << "Firing Conclusion:";
@@ -709,14 +705,7 @@ void Constraints::print(raw_ostream &O) const {
     C->print(O);
     O << "\n";
   }
-
-  O << "ENVIRONMENT: \n";
-  for (const auto &V : environment) {
-    V.first->print(O);
-    O << " = ";
-    V.second->print(O);
-    O << "\n";
-  }
+  environment.print(O);
 }
 
 void Constraints::dump(void) const {
@@ -735,22 +724,7 @@ void Constraints::dump_json(llvm::raw_ostream &O) const {
   }
   O << "],\n";
 
-  addComma = false;
-
-  O << "\"Environment\":[";
-  for (const auto &V : environment) {
-    if (addComma) {
-      O << ",\n";
-    }
-    O << "{\"var\":";
-    V.first->dump_json(O);
-    O << ", \"value:\":";
-    V.second->dump_json(O);
-    O << "}";
-    addComma = true;
-  }
-  O << "]}";
-
+  environment.dump_json(O);
 }
 
 bool
@@ -771,26 +745,11 @@ Constraints::removeAllConstraintsOnReason(std::string &Reason,
 }
 
 VarAtom *Constraints::getOrCreateVar(uint32_t V) {
-  VarAtom Tv(V);
-  EnvironmentMap::iterator I = environment.find(&Tv);
-
-  if (I != environment.end())
-    return I->first;
-  else {
-    VarAtom *V = new VarAtom(Tv);
-    environment[V] = getPtr();
-    return V;
-  }
+  return environment.getOrCreateVar(V,getPtr());
 }
 
 VarAtom *Constraints::getVar(uint32_t V) const {
-  VarAtom Tv(V);
-  EnvironmentMap::const_iterator I = environment.find(&Tv);
-
-  if (I != environment.end())
-    return I->first;
-  else
-    return nullptr;
+  return environment.getVar(V);
 }
 
 PtrAtom *Constraints::getPtr() const {
@@ -807,28 +766,19 @@ WildAtom *Constraints::getWild() const {
 }
 
 ConstAtom *Constraints::getAssignment(uint32_t V) {
-  auto CurrVar = getVar(V);
-  assert(CurrVar != nullptr && "Queried uncreated constraint variable.");
-  return environment[CurrVar];
+  return environment.getAssignment(V);
 }
 
 ConstAtom *Constraints::getAssignment(Atom *A) {
-  if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
-    return environment[VA];
-  }
-  assert(dyn_cast<ConstAtom>(A) != nullptr &&
-      "This is not a VarAtom or ConstAtom");
-  return dyn_cast<ConstAtom>(A);
+  return environment.getAssignment(A);
 }
 
 bool Constraints::isWild(uint32_t V) {
-  auto CurrVar = getVar(V);
-  assert(CurrVar != nullptr && "Queried uncreated constraint variable.");
-  return dyn_cast<WildAtom>(environment[CurrVar]) != nullptr;
+  return dyn_cast<WildAtom>(environment.getAssignment(V)) != nullptr;
 }
 
 bool Constraints::isWild(Atom *A) {
-  return dyn_cast<WildAtom>(getAssignment(A)) != nullptr;
+  return dyn_cast<WildAtom>(environment.getAssignment(A)) != nullptr;
 }
 
 Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, bool isCheckedConstraint) {
@@ -891,14 +841,12 @@ Implies *Constraints::createImplies(Geq *Premise,
 
 void Constraints::resetConstraints() {
   // Update all constraints to pointers.
-  for (auto &CurrE : environment) {
-    CurrE.second = getPtr();
-  }
+  environment.resetSolution(getPtr());
 }
 
 bool Constraints::checkInitialEnvSanity() {
   // All variables should be Ptrs.
-  for (const auto &EnvVar : environment) {
+  for (const auto &EnvVar : environment.getVariables()) {
     if (EnvVar.second != getPtr()) {
       return false;
     }
@@ -918,4 +866,90 @@ Constraints::~Constraints() {
   delete PrebuiltArr;
   delete PrebuiltNTArr;
   delete PrebuiltWild;
+}
+
+/* ConstraintsEnv methods */
+
+void ConstraintsEnv::dump(void) const {
+  print(errs());
+}
+
+void ConstraintsEnv::print(raw_ostream &O) const {
+  O << "ENVIRONMENT: \n";
+  for (const auto &V : environment) {
+    V.first->print(O);
+    O << " = ";
+    V.second->print(O);
+    O << "\n";
+  }
+}
+
+void ConstraintsEnv::dump_json(llvm::raw_ostream &O) const {
+  bool addComma = false;
+  O << "\"Environment\":[";
+  for (const auto &V : environment) {
+    if (addComma) {
+      O << ",\n";
+    }
+    O << "{\"var\":";
+    V.first->dump_json(O);
+    O << ", \"value:\":";
+    V.second->dump_json(O);
+    O << "}";
+    addComma = true;
+  }
+  O << "]}";
+}
+
+VarAtom *ConstraintsEnv::getOrCreateVar(uint32_t V, ConstAtom *initC) {
+  VarAtom Tv(V);
+  EnvironmentMap::iterator I = environment.find(&Tv);
+
+  if (I != environment.end())
+    return I->first;
+  else {
+    VarAtom *V = new VarAtom(Tv);
+    environment[V] = initC;
+    return V;
+  }
+}
+
+VarAtom *ConstraintsEnv::getVar(uint32_t V) const {
+  VarAtom Tv(V);
+  EnvironmentMap::const_iterator I = environment.find(&Tv);
+
+  if (I != environment.end())
+    return I->first;
+  else
+    return nullptr;
+}
+
+ConstAtom *ConstraintsEnv::getAssignment(uint32_t V) {
+  auto CurrVar = getVar(V);
+  assert(CurrVar != nullptr && "Queried uncreated constraint variable.");
+  return environment[CurrVar];
+}
+
+ConstAtom *ConstraintsEnv::getAssignment(Atom *A) {
+  if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
+    return environment[VA];
+  }
+  assert(dyn_cast<ConstAtom>(A) != nullptr &&
+         "This is not a VarAtom or ConstAtom");
+  return dyn_cast<ConstAtom>(A);
+}
+
+bool ConstraintsEnv::assign(VarAtom *V, ConstAtom *C) {
+  auto VI = environment.find(V);
+  if (VI->first->canAssign(C)) {
+    VI->second = C;
+    return true;
+  }
+  return false;
+}
+
+void ConstraintsEnv::resetSolution(ConstAtom *initC) {
+  for (auto &CurrE : environment) {
+    CurrE.second = initC;
+  }
 }
