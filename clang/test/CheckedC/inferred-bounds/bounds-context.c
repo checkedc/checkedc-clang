@@ -1,10 +1,14 @@
-// Tests for updating equivalent expression information during bounds inference and checking.
+// Tests for updating observed bounds during bounds inference and checking.
 // This file tests updating the context mapping variables to their bounds
 // after checking expressions during bounds analysis.
 //
 // RUN: %clang_cc1 -Wno-unused-value -fdump-checking-state %s | FileCheck %s
 
 #include <stdchecked.h>
+
+extern array_ptr<int> getArr(void) : count(4);
+extern array_ptr<int> getArray(array_ptr<int> arr : count(len), int len, int size) : count(size);
+extern array_ptr<int> getArrayWithRange(array_ptr<int> arr) : bounds(arr, arr + 1);
 
 ////////////////////////////////////////////////
 // No assignments to variables used in bounds //
@@ -13,14 +17,15 @@
 // Parameter and local variables with declared count bounds
 void declared1(array_ptr<int> arr : count(len), int len, int size) {
   // Observed bounds context: { a => bounds(a, a + 5), arr => bounds(arr, arr + len) }
-  array_ptr<int> a : count(5) = 0;
+  int a checked[] : count(5) = (int checked[]){ 0 };
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
   // CHECK-NEXT:   VarDecl {{.*}} a
   // CHECK-NEXT:     CountBoundsExpr
   // CHECK-NEXT:       IntegerLiteral {{.*}} 5
-  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <NullToPointer>
-  // CHECK-NEXT:       IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:       InitListExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 0
   // CHECK-NEXT: Observed bounds context after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: Variable:
@@ -29,10 +34,10 @@ void declared1(array_ptr<int> arr : count(len), int len, int size) {
   // CHECK-NEXT:     IntegerLiteral {{.*}} 5
   // CHECK: Bounds:
   // CHECK-NEXT: RangeBoundsExpr
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT:   BinaryOperator {{.*}} '+'
-  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT:     IntegerLiteral {{.*}} 5
   // CHECK-NEXT: Variable:
@@ -52,15 +57,16 @@ void declared1(array_ptr<int> arr : count(len), int len, int size) {
   // CHECK-NEXT: }
 
   // Observed bounds context: { a => bounds(a, a + 5), arr => bounds(arr, arr + len), b => bounds(b, b + size) }
-  array_ptr<int> b : count(size) = 0;
+  int b checked[] : count(size) = (int checked[]){ 0 };
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
   // CHECK-NEXT:   VarDecl {{.*}} b
   // CHECK-NEXT:     CountBoundsExpr
   // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'size'
-  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <NullToPointer>
-  // CHECK-NEXT:       IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:       InitListExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 0
   // CHECK-NEXT: Observed bounds context after checking S:
   // CHECK-NEXT: {
   // CHECK: Variable:
@@ -69,10 +75,10 @@ void declared1(array_ptr<int> arr : count(len), int len, int size) {
   // CHECK-NEXT:     IntegerLiteral {{.*}} 5
   // CHECK: Bounds:
   // CHECK-NEXT: RangeBoundsExpr
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT:   BinaryOperator {{.*}} '+'
-  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT:     IntegerLiteral {{.*}} 5
   // CHECK-NEXT: Variable:
@@ -96,10 +102,10 @@ void declared1(array_ptr<int> arr : count(len), int len, int size) {
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'size'
   // CHECK: Bounds:
   // CHECK-NEXT: RangeBoundsExpr
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'b'
   // CHECK-NEXT:   BinaryOperator {{.*}} '+'
-  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'size'
@@ -109,14 +115,15 @@ void declared1(array_ptr<int> arr : count(len), int len, int size) {
 // If statement, redeclared variable
 void declared2(int flag, int x, int y) {
   // Observed bounds context: { a => bounds(a, a + x) }
-  array_ptr<int> a : count(x) = 0;
+  int a checked[] : count(x) = (int checked[]){ 0 };
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
   // CHECK-NEXT:   VarDecl {{.*}} a
   // CHECK-NEXT:     CountBoundsExpr
   // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'x'
-  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <NullToPointer>
+  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:       InitListExpr {{.*}} 'int _Checked[1]'
   // CHECK-NEXT:         IntegerLiteral {{.*}} 0
   // CHECK-NEXT: Observed bounds context after checking S:
   // CHECK-NEXT: {
@@ -127,10 +134,10 @@ void declared2(int flag, int x, int y) {
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
   // CHECK: Bounds:
   // CHECK-NEXT: RangeBoundsExpr
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT:   BinaryOperator {{.*}} '+'
-  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
@@ -138,14 +145,15 @@ void declared2(int flag, int x, int y) {
 
   if (flag) {
     // Observed bounds context: { a => bounds(a, a + x), a => bounds(a, a + y) }
-    array_ptr<int> a : count(y) = 0;
+    int a checked[] : count(y) = (int checked[]){ 0 };
     // CHECK: Statement S:
     // CHECK:      DeclStmt
     // CHECK-NEXT:   VarDecl {{.*}} a
     // CHECK-NEXT:     CountBoundsExpr
     // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:         DeclRefExpr {{.*}} 'y'
-    // CHECK-NEXT:       ImplicitCastExpr {{.*}} <NullToPointer>
+    // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int _Checked[1]'
+    // CHECK-NEXT:       InitListExpr {{.*}} 'int _Checked[1]'
     // CHECK-NEXT:         IntegerLiteral {{.*}} 0
     // CHECK-NEXT: Observed bounds context after checking S:
     // CHECK-NEXT: {
@@ -156,10 +164,10 @@ void declared2(int flag, int x, int y) {
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
     // CHECK: Bounds:
     // CHECK-NEXT: RangeBoundsExpr
-    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
     // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
     // CHECK-NEXT:   BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
     // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
@@ -170,24 +178,25 @@ void declared2(int flag, int x, int y) {
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'y'
     // CHECK: Bounds:
     // CHECK-NEXT: RangeBoundsExpr
-    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
     // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
     // CHECK-NEXT:   BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
     // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'y'
     // CHECK-NEXT: }
 
     // Observed bounds context: { a => bounds(a, a + x), a => bounds(a, a + y), b => bounds(b, b + y) }
-    array_ptr<int> b : count(y) = 0;
+    int b checked[] : count(y) = (int checked []){ 0 };
     // CHECK: Statement S:
     // CHECK:      DeclStmt
     // CHECK-NEXT:   VarDecl {{.*}} b
     // CHECK-NEXT:     CountBoundsExpr
     // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:         DeclRefExpr {{.*}} 'y'
-    // CHECK-NEXT:       ImplicitCastExpr {{.*}} <NullToPointer>
+    // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int _Checked[1]'
+    // CHECK-NEXT:       InitListExpr {{.*}} 'int _Checked[1]'
     // CHECK-NEXT:         IntegerLiteral {{.*}} 0
     // CHECK-NEXT: Observed bounds context after checking S:
     // CHECK-NEXT: {
@@ -198,10 +207,10 @@ void declared2(int flag, int x, int y) {
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
     // CHECK: Bounds:
     // CHECK-NEXT: RangeBoundsExpr
-    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
     // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
     // CHECK-NEXT:   BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
     // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
@@ -212,10 +221,10 @@ void declared2(int flag, int x, int y) {
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'y'
     // CHECK: Bounds:
     // CHECK-NEXT: RangeBoundsExpr
-    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
     // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
     // CHECK-NEXT:   BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
     // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'y'
@@ -226,10 +235,10 @@ void declared2(int flag, int x, int y) {
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'y'
     // CHECK: Bounds:
     // CHECK-NEXT: RangeBoundsExpr
-    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
     // CHECK-NEXT:     DeclRefExpr {{.*}} 'b'
     // CHECK-NEXT:   BinaryOperator {{.*}} '+'
-    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
     // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:       DeclRefExpr {{.*}} 'y'
@@ -237,15 +246,16 @@ void declared2(int flag, int x, int y) {
   }
 
   // Observed bounds context: { a => bounds(a, a + x), c => bounds(c, c + x) }
-  array_ptr<int> c : count(x) = a;
+  int c checked[] : count(x) = (int checked []){ 0 };
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
   // CHECK-NEXT:   VarDecl {{.*}} c
   // CHECK-NEXT:     CountBoundsExpr
   // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'x'
-  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:       InitListExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 0
   // CHECK-NEXT: Observed bounds context after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: Variable:
@@ -255,10 +265,10 @@ void declared2(int flag, int x, int y) {
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
   // CHECK: Bounds:
   // CHECK-NEXT: RangeBoundsExpr
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT:   BinaryOperator {{.*}} '+'
-  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
@@ -269,10 +279,10 @@ void declared2(int flag, int x, int y) {
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
   // CHECK: Bounds:
   // CHECK-NEXT: RangeBoundsExpr
-  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:     DeclRefExpr {{.*}} 'c'
   // CHECK-NEXT:   BinaryOperator {{.*}} '+'
-  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'c'
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
@@ -517,5 +527,389 @@ void assign6(array_ptr<int> a : count(len), int len) {
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'len'
   // CHECK-NEXT: Bounds:
   // CHECK-NEXT: NullaryBoundsExpr {{.*}} Unknown
+  // CHECK-NEXT: }
+}
+
+////////////////////////////////////////////////////////////////////
+// Setting the observed bounds of a variable to the source bounds //
+////////////////////////////////////////////////////////////////////
+
+// Scalar-typed variable declarations (array_ptr, nt_array_ptr) set the observed bounds to the initializer bounds
+void source_bounds1(array_ptr<int> a: count(1)) {
+  // Initializer bounds for a: bounds(a, a + 1)
+  // Observed bounds context: { a => bounds(a, a + 1), arr => bounds(a, a + 1) }
+  array_ptr<int> arr : count(0) = a;
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclStmt
+  // CHECK-NEXT:   VarDecl {{.*}} arr
+  // CHECK-NEXT:     CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: VarDecl {{.*}} arr
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: }
+
+  // Initializer bounds for "abc": bounds(temp("abc"), temp("abc") + 3)
+  // Observed bounds context: { a => bounds(a, a + 1), arr => bounds(arr, arr + 0), buf => bounds(temp("abc"), temp("abc") + 3) }
+  nt_array_ptr<char> buf : count(2) = "abc";
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclStmt
+  // CHECK-NEXT:   VarDecl {{.*}} buf
+  // CHECK-NEXT:     CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 2
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:       CHKCBindTemporaryExpr {{.*}} 'char [4]'
+  // CHECK-NEXT:         StringLiteral {{.*}} "abc"
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: VarDecl {{.*}} arr
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: VarDecl {{.*}} buf
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 2
+  // CHECK: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:     BoundsValueExpr {{.*}} 'char [4]'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:       BoundsValueExpr {{.*}} 'char [4]'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
+  // CHECK-NEXT: }
+
+  // Initializer bounds for getArr(): bounds(temp(getArr()), temp(getArr()) + 4)
+  // Observed bounds context: { a => bounds(a, a + 1), arr => bounds(arr, arr + 0), buf => bounds(buf, buf + 2), c => bounds(temp(getArr()), temp(getArr()) + 4) }
+  array_ptr<int> c : count(3) = getArr();
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclStmt
+  // CHECK-NEXT:   VarDecl {{.*}} c
+  // CHECK-NEXT:     CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 3
+  // CHECK-NEXT:     CHKCBindTemporaryExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:       CallExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'getArr'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: VarDecl {{.*}} arr
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: VarDecl {{.*}} buf
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 2
+  // CHECK: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'buf'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'buf'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: VarDecl {{.*}} c
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
+  // CHECK: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BoundsValueExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BoundsValueExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 4
+  // CHECK-NEXT: }
+}
+
+// Non-scalar-typed variable declarations (e.g. arrays) do not set the observed bounds to the initializer bounds
+void source_bounds2(void) {
+  // Initializer bounds for (int checked[]){ 0, 1, 2 }: bounds(unknown)
+  // Observed bounds context: { arr => bounds(arr, arr + 1) }
+  int arr checked[] : count(1) = (int checked[]){ 0, 1, 2 };
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclStmt
+  // CHECK-NEXT:   VarDecl {{.*}} arr
+  // CHECK-NEXT:     CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int _Checked[3]'
+  // CHECK-NEXT:       InitListExpr {{.*}} 'int _Checked[3]'
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: VarDecl {{.*}} arr
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: }
+
+  // Initializer bounds for "abcde": bounds(unknown)
+  // Observed bounds context: { arr => bounds(arr, arr + 1), buf => bounds(buf, buf + 0) }
+  char buf nt_checked[] : count(0) = "abcde";
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclStmt
+  // CHECK-NEXT:   VarDecl {{.*}} buf
+  // CHECK-NEXT:     CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:     StringLiteral {{.*}} "abcde"
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: VarDecl {{.*}} arr
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: VarDecl {{.*}} buf
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'buf'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'buf'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: }
+}
+
+// Assignments to variables set the observed bounds to the source bounds
+// where the LHS variable does not appear on the RHS of the assignment
+void source_bounds3(array_ptr<int> small : count(0), array_ptr<int> large : count(1)) {
+  // Source bounds for large: bounds(large, large + 1)
+  // Observed bounds context: { large => bounds(large, large + 1), small => bounds(large, large + 1) }
+  small = large;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'small'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'large'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} large
+  // CHECK-NEXT:  CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:    IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'large'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'large'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} small
+  // CHECK-NEXT:  CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:    IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'large'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'large'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: }
+
+  // Source bounds for NullToPointer(0): bounds(any)
+  large = 0;
+  // Observed bounds context: { large = bounds(any), small => bounds(small, small + 0) }
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'large'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <NullToPointer>
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} large
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: NullaryBoundsExpr {{.*}} Any
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} small
+  // CHECK-NEXT:  CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:    IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'small'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'small'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: }
+}
+
+// Assignments to variables set the observed bounds to the source bounds
+// where the LHS variable appears on the RHS of the assignment as part of a temporary binding
+void source_bounds4(array_ptr<int> arr : count(1)) {
+  // Source bounds: bounds(temp(arr), temp(arr) + 2)
+  // Observed bounds context: { arr => bounds(temp(arr), temp(arr) + 2) }
+  arr = _Dynamic_bounds_cast<array_ptr<int>>(arr, count(2));
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:   BoundsCastExpr {{.*}} <DynamicPtrBounds>
+  // CHECK:          CHKCBindTemporaryExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:     CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} arr
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   CStyleCastExpr {{.*}} '_Array_ptr<int>' <BitCast>
+  // CHECK-NEXT:     BoundsValueExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     CStyleCastExpr {{.*}} '_Array_ptr<int>' <BitCast>
+  // CHECK-NEXT:       BoundsValueExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: }
+
+  // Source bounds: bounds(temp(arr), temp(arr) + 3)
+  // Observed bounds context: { arr => bounds(temp(arr), temp(arr) + 3) }
+  arr = _Assume_bounds_cast<array_ptr<int>>(arr, count(3));
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:   BoundsCastExpr {{.*}} <AssumePtrBounds>
+  // CHECK:          CHKCBindTemporaryExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:     CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 3
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} arr
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   CStyleCastExpr {{.*}} '_Array_ptr<int>' <BitCast>
+  // CHECK-NEXT:     BoundsValueExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     CStyleCastExpr {{.*}} '_Array_ptr<int>' <BitCast>
+  // CHECK-NEXT:       BoundsValueExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
+  // CHECK-NEXT: }
+
+  // Source bounds: bounds(temp(getArray(arr, 1, 4)), temp(getArray(arr, 1, 4)) + 4)
+  arr = getArray(arr, 1, 4);
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:     CallExpr
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'getArray'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'arr'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 4
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} arr
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BoundsValueExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BoundsValueExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 4
   // CHECK-NEXT: }
 }

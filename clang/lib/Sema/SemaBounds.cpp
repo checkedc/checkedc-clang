@@ -2648,7 +2648,8 @@ namespace {
         if (DeclRefExpr *V = GetLValueVariable(LHS)) {
           bool OVUsesV = false;
           Expr *OV = GetOriginalValue(V, Target, Src, State.UEQ, OVUsesV);
-          UpdateAfterAssignment(V, Target, OV, OVUsesV, CSS, State, State);
+          UpdateAfterAssignment(V, Target, OV, OVUsesV, ResultBounds, CSS,
+                                State, State);
         }
         // Update UEQ and G for assignments where `e1` is not a variable.
         else {
@@ -3059,7 +3060,8 @@ namespace {
           UpdateG(E, State.G, State.G, RHS);
           bool OVUsesV = false;
           Expr *OV = GetOriginalValue(V, Target, RHS, State.UEQ, OVUsesV);
-          UpdateAfterAssignment(V, Target, OV, OVUsesV, CSS, State, State);
+          UpdateAfterAssignment(V, Target, OV, OVUsesV, SubExprTargetBounds,
+                                CSS, State, State);
         }
 
         // Update the set G of expressions that produce the same value as `e`.
@@ -3178,13 +3180,15 @@ namespace {
       // TODO: for array types, check that any declared bounds at the point
       // of initialization are true based on the array size.
 
-      // If there is a scalar initializer, check that the initializer meets the bounds
-      // requirements for the variable.  For non-scalar types (arrays, structs, and
-      // unions), the amount of storage allocated depends on the type, so we don't
-      // to check the initializer bounds.
+      // If there is a scalar initializer, record the initializer bounds as the
+      // observed bounds for the variable and check that the initializer meets
+      // the bounds requirements for the variable.  For non-scalar types
+      // arrays, structs, and unions), the amount of storage allocated depends
+      // on the type, so we don't need to check the initializer bounds.
       if (Init && D->getType()->isScalarType()) {
         assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
         InitBounds = S.CheckNonModifyingBounds(InitBounds, Init);
+        State.ObservedBounds[D] = InitBounds;
         if (InitBounds->isUnknown()) {
           // TODO: need some place to record the initializer bounds
           S.Diag(Init->getBeginLoc(), diag::err_expected_bounds_for_initializer)
@@ -3662,9 +3666,10 @@ namespace {
     //
     // OV is the original value (if any) for V before the assignment.
     // If OV is non-null, it is substituted for any uses of the value of V
-    // in the expressions in UEQ and G.
-    // If OV is null, any expressions in UEQ and G that use the value of V
-    // are removed from UEQ and G.
+    // in the bounds in ObservedBounds and the expressions in UEQ and G.
+    // If OV is null, any bounds in ObservedBounds that use the value of V
+    // are set to bounds(unknown), and any expressions in UEQ and G that use
+    // the value of V are removed from UEQ and G.
     //
     // OVUsesV is true if the original value (if any) uses the value of V.
     // It is used to prevent the UEQ and G sets from recording equality
@@ -3674,15 +3679,30 @@ namespace {
     //
     // PrevState is the checking state that was true before the assignment.
     void UpdateAfterAssignment(DeclRefExpr *V, Expr *Target,
-                               Expr *OV, bool OVUsesV,
+                               Expr *OV, bool OVUsesV, BoundsExpr *SrcBounds,
                                CheckedScopeSpecifier CSS,
                                const CheckingState PrevState,
                                CheckingState &State) {
-      // Adjust ObservedBounds to account for any uses of V in the bounds
-      // in PrevState.ObservedBounds.
+      // Determine whether V has declared bounds.
+      VarDecl *VariableDecl;
+      BoundsExpr *DeclaredBounds;
+      if (VariableDecl = dyn_cast_or_null<VarDecl>(V->getDecl()))
+        DeclaredBounds = VariableDecl->getBoundsExpr();
+
+      // If V has declared bounds, set ObservedBounds[V] to SrcBounds.
+      if (DeclaredBounds)
+        State.ObservedBounds[VariableDecl] = SrcBounds;
+
+      // Adjust ObservedBounds to account for any uses of V in the bounds.
       for (auto Pair : State.ObservedBounds)
         State.ObservedBounds[Pair.first] =
           ReplaceVariableInBounds(Pair.second, V, OV, CSS);
+
+      // Adjust SrcBounds to account for any uses of V and, if V has declared
+      // bounds, record the updated observed bounds for V.
+      SrcBounds = ReplaceVariableInBounds(SrcBounds, V, OV, CSS);
+      if (DeclaredBounds)
+        State.ObservedBounds[VariableDecl] = SrcBounds;
 
       // Adjust UEQ to account for any uses of V in PrevState.UEQ.
       State.UEQ.clear();
