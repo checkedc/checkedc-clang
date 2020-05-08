@@ -120,7 +120,7 @@ unsigned long resetWithitypeConstraints(Constraints &CS) {
     }
 
     // Reset all constraints to Ptrs.
-    CS.resetConstraints();
+    CS.resetEnvironment();
 
     // Restore the precomputed constraints for declarations.
     for (auto &ITypeVar : DeclConstraints) {

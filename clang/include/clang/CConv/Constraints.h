@@ -737,15 +737,13 @@ public:
   ArrAtom *getArr() const;
   NTArrAtom *getNTArr() const;
   WildAtom *getWild() const;
-  ConstAtom *getAssignment(uint32_t V);
   ConstAtom *getAssignment(Atom *A);
 
   // Check if the provided constraint variable is WILD.
-  bool isWild(uint32_t V);
   bool isWild(Atom *A);
 
   // Reset all constraint variables to Ptrs.
-  void resetConstraints();
+  void resetEnvironment();
 
   // Check the sanity of environment map before solving the constraints.
   bool checkInitialEnvSanity();
@@ -770,23 +768,7 @@ private:
   // Map of function unique key to it definition FVConstraintVariable.
   FuncKeyToConsMap FuncDefnConstraints;
 
-  bool step_solve_old(void);
-  Constraint *solve_new(unsigned &Niter);
-
   bool check(Constraint *C);
-
-  bool assignConstToVar(EnvironmentMap::iterator &SrcVar, ConstAtom *C);
-
-  bool
-  propEq(EnvironmentMap &E, Eq *Dyn, EnvironmentMap::iterator &CurValLHS);
-
-  template <typename T>
-  bool propGeq(Geq *Dyn, T *A, ConstraintSet &R,
-               EnvironmentMap::iterator &CurValLHS);
-
-  template <typename T>
-  bool
-  propImp(Implies *, T*, ConstraintSet &, ConstAtom *);
 
   // Managing constraints based on the underlying reason.
   // add constraint to the map.
