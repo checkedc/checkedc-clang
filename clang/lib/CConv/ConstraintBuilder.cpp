@@ -102,40 +102,15 @@ public:
   getRHSConsVariables(Expr *RHS, QualType LhsType, ASTContext *C) {
     Expr *E = RHS;
     if (LhsType->isFunctionPointerType()) {
-      // We are assigning to a function pointer. Lets first get the
-      // function definition.
-      Decl *D = nullptr;
-      while (D == nullptr && E != nullptr) {
-        if (DeclRefExpr *DRE =
-                dyn_cast<DeclRefExpr>(E)) {
-          D = DRE->getDecl();
-        } else if (UnaryOperator *UO =
-                       dyn_cast<UnaryOperator>(E)) {
-          E = UO->getSubExpr();
-        } else if (ImplicitCastExpr *IE =
-                       dyn_cast<ImplicitCastExpr>(E)) {
-          E = IE->getSubExpr();
-        } else if (ExplicitCastExpr *ECE =
-                       dyn_cast<ExplicitCastExpr>(E)) {
-          E = ECE->getSubExpr();
-        } else {
-          if (!dyn_cast<IntegerLiteral>(E)) {
-            dbgs() << "Unable to handle function pointer assignment from:";
-            E->dump();
-          }
-          break;
+      // We are assigning to a function pointer.
+      std::set<ConstraintVariable *> RHSCSet = Info.getVariable(RHS, C, false);
+      // Here, we should equate the constraints of inside and outside.
+      for (auto *ConsVar : RHSCSet) {
+        if (FVConstraint *FV = dyn_cast<FVConstraint>(ConsVar)) {
+          FV->equateInsideOutsideVars(Info);
         }
       }
-      // If we found the function declaration?
-      // Lets try to get the constraint variable within the function context.
-      if (D != nullptr && isa<FunctionDecl>(D)) {
-        // TODO: What should we do for function pointers?
-        // Should we equate definition constraints or declaration
-        // declaration constraints?
-        // We need resolution for this:
-        // https://github.com/plum-umd/checkedc-clang/issues/50
-        return Info.getVariableOnDemand(D, C, false);
-      }
+      return RHSCSet;
     }
     return Info.getVariable(RHS, C, true);
   }

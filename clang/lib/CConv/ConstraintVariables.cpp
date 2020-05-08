@@ -579,6 +579,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   QualType RT;
   Hasproto = false;
   Hasbody = false;
+  FileName = "";
 
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     // FunctionDecl::hasBody will return true if *any* declaration in the
@@ -589,6 +590,10 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     const FunctionDecl *OFd = nullptr;
     if (FD->hasBody(OFd) && OFd == FD)
       Hasbody = true;
+    IsStatic = !(FD->isGlobal());
+    ASTContext *TmpCtx = const_cast<ASTContext*>(&Ctx);
+    auto PSL = PersistentSourceLoc::mkPSL(D, *TmpCtx);
+    FileName = PSL.getFileName();
   }
 
   if (Ty->isFunctionPointerType()) {
@@ -808,6 +813,36 @@ FunctionVariableConstraint::getHighestType(Constraints::EnvironmentMap &E) {
     }
   }
   return Ret;
+}
+
+void FunctionVariableConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
+  std::set<FVConstraint *> *DeclCons = nullptr;
+  std::set<FVConstraint *> *DefnCons = nullptr;
+
+  // Get appropriate constraints based on whether the function is static or not.
+  if (IsStatic) {
+    DeclCons = Info.getStaticFuncDeclConstraintSet(name, FileName);
+    DefnCons = Info.getStaticFuncDefnConstraintSet(name, FileName);
+  } else {
+    DeclCons = Info.getExtFuncDeclConstraintSet(name);
+    DefnCons = Info.getExtFuncDefnConstraintSet(name);
+  }
+
+  // Only when we have both declaration and definition constraints.
+  // Then equate them.
+  if (DefnCons != nullptr && DeclCons != nullptr) {
+    std::set<ConstraintVariable *> TmpDecl, TmpDefn;
+    TmpDecl.clear();
+    TmpDefn.clear();
+
+    TmpDecl.insert(DeclCons->begin(), DeclCons->end());
+    TmpDefn.insert(DefnCons->begin(), DefnCons->end());
+
+    // Equate declaration and definition constraint.
+    constrainConsVar(TmpDecl, TmpDefn, Info.getConstraints(), nullptr);
+  }
+
+
 }
 
 bool PointerVariableConstraint::canConstraintCKey(Constraints &CS,

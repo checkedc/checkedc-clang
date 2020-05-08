@@ -142,6 +142,23 @@ public:
 
 };
 
+enum ConsAction {
+  Safe_to_Wild,
+  Wild_to_Safe,
+  Same_to_Same
+};
+
+void constrainConsVar(std::set<ConstraintVariable *> &RHS,
+                      std::set<ConstraintVariable *> &LHS,
+                      Constraints &CS,
+                      PersistentSourceLoc *PL,
+                      ConsAction = Same_to_Same);
+void constrainConsVar(ConstraintVariable *LHS,
+                      ConstraintVariable *RHS,
+                      Constraints &CS,
+                      PersistentSourceLoc *PL,
+                      ConsAction = Same_to_Same);
+
 class PointerVariableConstraint;
 class FunctionVariableConstraint;
 
@@ -282,12 +299,16 @@ private:
   std::vector<std::set<ConstraintVariable *>> paramVars;
   // Name of the function or function variable. Used by mkString.
   std::string name;
+  // File name in which this declaration is found.
+  std::string FileName;
   bool Hasproto;
   bool Hasbody;
+  bool IsStatic;
 public:
   FunctionVariableConstraint() :
-          ConstraintVariable(FunctionVariable, "", ""),name(""), Hasproto(false),
-        Hasbody(false) { }
+          ConstraintVariable(FunctionVariable, "", ""),name(""),
+                                 FileName(""), Hasproto(false),
+        Hasbody(false), IsStatic(false) { }
 
   FunctionVariableConstraint(clang::DeclaratorDecl *D, ConstraintKey &K,
                              Constraints &CS, const clang::ASTContext &C);
@@ -330,6 +351,7 @@ public:
   bool hasArr(Constraints::EnvironmentMap &E);
   bool hasNtArr(Constraints::EnvironmentMap &E);
   ConstAtom *getHighestType(Constraints::EnvironmentMap &E);
+  void equateInsideOutsideVars(ProgramInfo &P);
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
@@ -355,22 +377,5 @@ public:
 };
 
 typedef FunctionVariableConstraint FVConstraint;
-
-enum ConsAction {
-  Safe_to_Wild,
-  Wild_to_Safe,
-  Same_to_Same
-};
-
-void constrainConsVar(std::set<ConstraintVariable *> &RHS,
-                      std::set<ConstraintVariable *> &LHS,
-                      Constraints &CS,
-                      PersistentSourceLoc *PL,
-                      ConsAction = Same_to_Same);
-void constrainConsVar(ConstraintVariable *LHS,
-                      ConstraintVariable *RHS,
-                      Constraints &CS,
-                      PersistentSourceLoc *PL,
-                      ConsAction = Same_to_Same);
 
 #endif //_CONSTRAINTVARIABLES_H
