@@ -8,7 +8,6 @@ if (LLVM_BOOST_FOUND)
         message(ERROR "Linking Boost requires enabling rtti. Please use -DLLVM_ENABLE_RTTI=ON in cmake.")
     else()
         # This is to populate the boost link libraries.
-        find_package(Boost 1.50 REQUIRED COMPONENTS graph)
         add_clang_library(CConv
           ArrayBoundsInferenceConsumer.cpp
           ArrayBoundsInformation.cpp
