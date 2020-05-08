@@ -39,18 +39,6 @@ std::set<ConstAtom*> &ConstraintsGraph::getAllConstAtoms() {
   return AllConstAtoms;
 }
 
-void ConstraintsGraph::addConstraint(Eq *C, Constraints &CS) {
-  // This is to make sure we always use same VarAtom* for a
-  // vertex.
-  VarAtom *VA1 = CS.getOrCreateVar(C->getLHS()->getLoc());
-  VarAtom *VA2 = CS.getOrCreateVar(C->getRHS()->getLoc());
-  auto V1 = addVertex(VA1);
-  auto V2 = addVertex(VA2);
-  // Add edges in both the directions.
-  add_edge(V1, V2, CG);
-  add_edge(V2, V1, CG);
-}
-
 void ConstraintsGraph::addConstraint(Geq *C, Constraints &CS) {
   Atom *A1 = C->getLHS();
   if (VarAtom *VA1 = clang::dyn_cast<VarAtom>(A1)) {

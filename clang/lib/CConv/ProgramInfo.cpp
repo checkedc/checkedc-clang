@@ -1299,7 +1299,7 @@ bool ProgramInfo::applySubtypingRelation(ConstraintVariable *SrcCVar,
 
     if (*OutputMostDstVal < *OuterMostSrcVal) {
       if (VarAtom *VA = dyn_cast<VarAtom>(*DstCVars.begin())) {
-        CS.addConstraint(CS.createEq(VA, OuterMostSrcVal));
+        CS.addConstraint(CS.createGeq(VA, OuterMostSrcVal));
       }
       Ret = true;
     }
@@ -1324,7 +1324,7 @@ bool ProgramInfo::applySubtypingRelation(ConstraintVariable *SrcCVar,
           // Get the lowest constraint variable to change.
           Atom *Change = *SVal < *DVal ? *SB : *DB;
           if (VarAtom *VA = dyn_cast<VarAtom>(Change)) {
-            CS.addConstraint(CS.createEq(VA, FinalVal));
+            CS.addConstraint(CS.createGeq(VA, FinalVal));
           }
           Ret = true;
         }
@@ -1608,7 +1608,7 @@ bool ProgramInfo::computePointerDisjointSet() {
   auto &CurrLeaders = ConstraintDisjointSet.Leaders;
   auto &CurrGroups = ConstraintDisjointSet.Groups;
   for (auto currC : CS.getConstraints()) {
-    if (Eq *EC = dyn_cast<Eq>(currC)) {
+    if (Geq *EC = dyn_cast<Geq>(currC)) {
       VarAtom *VLhs = dyn_cast<VarAtom>(EC->getLHS());
       if (dyn_cast<WildAtom>(EC->getRHS())) {
         WildPtrsReason[VLhs->getLoc()].WildPtrReason = EC->getReason();

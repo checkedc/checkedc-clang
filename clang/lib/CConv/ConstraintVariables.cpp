@@ -226,7 +226,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     // Variable arguments.
     for (const auto &V : vars)
       if (VarAtom *VA = dyn_cast<VarAtom>(V))
-        CS.addConstraint(CS.createEq(VA, CS.getWild(), Rsn));
+        CS.addConstraint(CS.createGeq(VA, CS.getWild(), Rsn));
   }
 
   // Add qualifiers.
@@ -1104,11 +1104,8 @@ static ConsAction neg(ConsAction CA) {
 void createAtomEq(Constraints &CS, Atom *L, Atom *R,
                   std::string &Rsn,
                   PersistentSourceLoc *PSL, ConsAction CAct) {
-  VarAtom *VAL, *VAR;
   ConstAtom *CAL, *CAR;
 
-  VAL = clang::dyn_cast<VarAtom>(L);
-  VAR = clang::dyn_cast<VarAtom>(R);
   CAL = clang::dyn_cast<ConstAtom>(L);
   CAR = clang::dyn_cast<ConstAtom>(R);
 
@@ -1129,12 +1126,9 @@ void createAtomEq(Constraints &CS, Atom *L, Atom *R,
   } else {
     switch (CAct) {
     case Same_to_Same:
-      if (VAL != nullptr && VAR != nullptr)
-        CS.addConstraint(CS.createEq(VAL, VAR, Rsn, PSL));
-      else {
-        CS.addConstraint(CS.createGeq(L, R, Rsn, PSL));
-        CS.addConstraint(CS.createGeq(R, L, Rsn, PSL));
-      }
+      /* Eventually: Only do equality for kinds, not ptyps */
+      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL));
+      CS.addConstraint(CS.createGeq(R, L, Rsn, PSL));
       break;
     case Safe_to_Wild:
       CS.addConstraint(CS.createGeq(L, R, Rsn, PSL));

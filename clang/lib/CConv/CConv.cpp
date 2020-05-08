@@ -357,7 +357,7 @@ bool CConvInterface::SolveConstraints() {
   if (Verbose)
     outs() << "Constraints solved\n";
 
-  GlobalProgramInfo.computePointerDisjointSet();
+  //GlobalProgramInfo.computePointerDisjointSet();
   if (DumpIntermediate) {
     dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, GlobalProgramInfo);
   }
@@ -486,8 +486,8 @@ void CConvInterface::InvalidateAllConstraintsWithReason(
 
   // Free up memory by deleting all the removed constraints.
   for (auto *toDelCons : ToRemoveConstraints) {
-    assert(dyn_cast<Eq>(toDelCons) && "We can only delete Eq constraints.");
-    Eq*TCons = dyn_cast<Eq>(toDelCons);
+    assert(dyn_cast<Geq>(toDelCons) && "We can only delete Geq constraints.");
+    Geq*TCons = dyn_cast<Geq>(toDelCons);
     auto *Vatom = dyn_cast<VarAtom>(TCons->getLHS());
     assert(Vatom != nullptr && "Equality constraint with out VarAtom as LHS");
     VarAtom *VS = CS.getOrCreateVar(Vatom->getLoc());

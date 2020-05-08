@@ -32,7 +32,6 @@ public:
   }
 
   // We support only these two constraints now.
-  void addConstraint(Eq *C, Constraints &CS);
   void addConstraint(Geq *C, Constraints &CS);
 
   // Get all ConstAtoms, basically the points

@@ -40,7 +40,7 @@ VarAtom::replaceEqConstraints(EnvironmentMap &VAtoms,
       VarAtom *DVatom = VatomP.first;
       // Check if the constraint contains
       // the provided constraint variable.
-      if (CC->containsConstraint(DVatom) && (dyn_cast<Eq>(CC) || dyn_cast<Geq>(CC))) {
+      if (CC->containsConstraint(DVatom) && dyn_cast<Geq>(CC)) {
         NumRemConstraints++;
         // We will modify this constraint remove it
         // from the local and global sets.
@@ -56,10 +56,7 @@ VarAtom::replaceEqConstraints(EnvironmentMap &VAtoms,
           Atom *RHS = nullptr;
 
           // This has to be an (G)equality constraint.
-          if (Eq *EqCons = dyn_cast<Eq>(CC)) {
-              LHS = EqCons->getLHS();
-              RHS = EqCons->getRHS();
-          } else if (Geq *GeqCons = dyn_cast<Geq>(CC)) {
+          if (Geq *GeqCons = dyn_cast<Geq>(CC)) {
               LHS = GeqCons->getLHS();
               RHS = GeqCons->getRHS();
           }
@@ -69,11 +66,11 @@ VarAtom::replaceEqConstraints(EnvironmentMap &VAtoms,
             if (dyn_cast<VarAtom>(RHS)) {
               // Create a constraint var2 = const.
               VarAtom *VA = dyn_cast<VarAtom>(RHS);
-              NewC = CS.createEq(VA, CCons);
+              NewC = CS.createGeq(VA, CCons);
             } else {
               // Else, create a constraint var1 = const.
               VarAtom *VA = dyn_cast<VarAtom>(LHS);
-              NewC = CS.createEq(VA, CCons);
+              NewC = CS.createGeq(VA, CCons);
             }
           }
           // If we have created a new equality constraint.
@@ -145,11 +142,7 @@ bool Constraints::addConstraint(Constraint *C) {
     addReasonBasedConstraint(C);
 
     // Update the variables that depend on this constraint.
-    if (Eq *E = dyn_cast<Eq>(C)) {
-      if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
-        vLHS->Constraints.insert(C);
-    }
-    else if (Geq *E = dyn_cast<Geq>(C)) {
+    if (Geq *E = dyn_cast<Geq>(C)) {
       if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
         vLHS->Constraints.insert(C);
       else if (VarAtom *vRHS = dyn_cast<VarAtom>(E->getRHS())) {
@@ -171,11 +164,7 @@ bool Constraints::addConstraint(Constraint *C) {
 
 bool Constraints::addReasonBasedConstraint(Constraint *C) {
   // Only insert if this is an Eq constraint and has a valid reason.
-  if (Eq *E = dyn_cast<Eq>(C)) {
-    if (E->getReason() != DEFAULT_REASON && !E->getReason().empty())
-      return this->constraintsByReason[E->getReason()].insert(E).second;
-  }
-  else if (Geq *E = dyn_cast<Geq>(C)) {
+  if (Geq *E = dyn_cast<Geq>(C)) {
       if (E->getReason() != DEFAULT_REASON && !E->getReason().empty())
           return this->constraintsByReason[E->getReason()].insert(E).second;
   }
@@ -183,13 +172,7 @@ bool Constraints::addReasonBasedConstraint(Constraint *C) {
 }
 
 bool Constraints::removeReasonBasedConstraint(Constraint *C) {
-  if (Eq *E = dyn_cast<Eq>(C)) {
-    // Remove if the constraint is present.
-    if (this->constraintsByReason.find(E->getReason()) !=
-        this->constraintsByReason.end())
-      return this->constraintsByReason[E->getReason()].erase(E) > 0;
-  }
-  else if (Geq *E = dyn_cast<Geq>(C)) {
+  if (Geq *E = dyn_cast<Geq>(C)) {
       // Remove if the constraint is present.
       if (this->constraintsByReason.find(E->getReason()) !=
           this->constraintsByReason.end())
@@ -210,10 +193,6 @@ bool Constraints::check(Constraint *C) {
     Geq *CO = I->getConclusion();
     if (!isa<VarAtom>(P->getLHS()) || isa<VarAtom>(P->getRHS()) ||
         !isa<VarAtom>(CO->getLHS()) || isa<VarAtom>(CO->getRHS()))
-      return false;
-  }
-  else if (Eq *E = dyn_cast<Eq>(C)) {
-    if (!isa<VarAtom>(E->getLHS()) || !isa<VarAtom>(E->getRHS()))
       return false;
   }
   else if (dyn_cast<Geq>(C) != nullptr) {
@@ -352,11 +331,7 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
 
   // Setup the Checked Constraint Graph.
   for (const auto &C : constraints) {
-    if (Eq *E = dyn_cast<Eq>(C)) {
-      ChkCG.addConstraint(E, *this);
-      //PtrTypCG.addConstraint(E, *this);
-    }
-    else if (Geq *G = dyn_cast<Geq>(C)) {
+    if (Geq *G = dyn_cast<Geq>(C)) {
       // if (G->constraintIsChecked())
       ChkCG.addConstraint(G, *this);
       // else
@@ -472,25 +447,8 @@ Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, bool isCheckedConstraint) {
     return new Geq(Lhs, Rhs, isCheckedConstraint);
 }
 
-Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs) {
-  VarAtom *VAlhs = dyn_cast<VarAtom>(Lhs);
-  VarAtom *VArhs = dyn_cast<VarAtom>(Rhs);
-  if (VAlhs != nullptr && VArhs != nullptr)
-    return new Eq(VAlhs, VArhs);
-  else
-    return Constraints::createGeq(Lhs, Rhs);
-}
-
 Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, bool isCheckedConstraint) {
     return new Geq(Lhs, Rhs, Rsn, isCheckedConstraint);
-}
-
-Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn) {
-  VarAtom *VAlhs = dyn_cast<VarAtom>(Lhs);
-  VarAtom *VArhs = dyn_cast<VarAtom>(Rhs);
-  if (VAlhs != nullptr && VArhs != nullptr)
-    return new Eq(VAlhs, VArhs, Rsn);
-  return Constraints::createGeq(Lhs,Rhs,Rsn);
 }
 
 Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
@@ -502,23 +460,6 @@ Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
             PL = nullptr;
     }
     return new Geq(Lhs, Rhs, Rsn, PL, isCheckedConstraint);
-}
-
-Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
-                          PersistentSourceLoc *PL) {
-  VarAtom *VAlhs = dyn_cast<VarAtom>(Lhs);
-  VarAtom *VArhs = dyn_cast<VarAtom>(Rhs);
-  if (VAlhs != nullptr && VArhs != nullptr) {
-      if (PL != nullptr && PL->valid()) {
-          // Make this invalid, if the source location is not absolute path
-          // this is to avoid crashes in clangd.
-          if (PL->getFileName().c_str()[0] != '/')
-              PL = nullptr;
-      }
-      return new Eq(VAlhs, VArhs, Rsn, PL);
-  }
-  else
-    return Constraints::createGeq(Lhs,Rhs,Rsn,PL);
 }
 
 Implies *Constraints::createImplies(Geq *Premise,

@@ -425,87 +425,6 @@ public:
   virtual bool containsConstraint(VarAtom *toFind) = 0;
 };
 
-// a = b
-class Eq : public Constraint {
-  friend class VarAtom;
-public:
-
-  Eq(VarAtom *Lhs, VarAtom *Rhs)
-    : Constraint(C_Eq), lhs(Lhs), rhs(Rhs) {}
-
-  Eq(VarAtom *Lhs, VarAtom *Rhs, std::string &Rsn)
-      : Constraint(C_Eq, Rsn), lhs(Lhs), rhs(Rhs) {}
-
-  Eq(VarAtom *Lhs, VarAtom *Rhs, std::string &Rsn, PersistentSourceLoc *PL)
-      : Constraint(C_Eq, Rsn, PL), lhs(Lhs), rhs(Rhs) {}
-
-  static bool classof(const Constraint *C) {
-    return C->getKind() == C_Eq;
-  }
-
-  void print(llvm::raw_ostream &O) const {
-    lhs->print(O);
-    O << " == ";
-    rhs->print(O);
-    O << ", Reason:" << REASON;
-  }
-
-  void dump(void) const {
-    print(llvm::errs());
-  }
-
-  void dump_json(llvm::raw_ostream &O) const {
-    O << "{\"Eq\":{\"Atom1\":";
-    lhs->dump_json(O);
-    O << ", \"Atom2\":";
-    rhs->dump_json(O);
-    O << ", \"Reason\":";
-    llvm::json::Value reasonVal(REASON);
-    O << reasonVal;
-    O << "}}";
-  }
-
-  VarAtom *getLHS(void) const { return lhs; }
-  VarAtom *getRHS(void) const { return rhs; }
-  void setRHS(VarAtom *NewAt) { rhs = NewAt; }
-
-  bool operator==(const Constraint &Other) const {
-    if (const Eq *E = llvm::dyn_cast<Eq>(&Other))
-      return *lhs == *E->lhs && *rhs == *E->rhs;
-    else
-      return false;
-  }
-
-  bool operator!=(const Constraint &Other) const {
-    return !(*this == Other);
-  }
-
-  bool operator<(const Constraint &Other) const {
-    ConstraintKind K = Other.getKind();
-    if (K == C_Eq) {
-      const Eq *E = llvm::dyn_cast<Eq>(&Other);
-      assert(E != nullptr);
-
-      if (*lhs == *E->lhs && *rhs == *E->rhs)
-        return false;
-      else if (*lhs == *E->lhs && *rhs != *E->rhs)
-        return *rhs < *E->rhs;
-      else
-        return *lhs < *E->lhs;
-    }
-    else
-      return C_Eq < K;
-  }
-
-  bool containsConstraint(VarAtom *ToFind) {
-    return lhs->containsConstraint(ToFind) || rhs->containsConstraint(ToFind);
-  }
-
-private:
-  VarAtom *lhs;
-  VarAtom *rhs;
-};
-
 // a >= b
 class Geq : public Constraint {
     friend class VarAtom;
@@ -728,9 +647,6 @@ public:
   void print(llvm::raw_ostream &) const;
   void dump_json(llvm::raw_ostream &) const;
 
-  Constraint *createEq(Atom *Lhs, Atom *Rhs);
-  Constraint *createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn);
-  Constraint *createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL);
   Geq *createGeq(Atom *Lhs, Atom *Rhs, bool isCheckedConstraint = true);
   Geq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, bool isCheckedConstraint = true);
   Geq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL, bool isCheckedConstraint = true);

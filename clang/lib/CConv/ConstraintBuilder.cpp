@@ -83,7 +83,7 @@ public:
             if (const clang::ArrayType *AT =
                     dyn_cast<clang::ArrayType>(TypePtr)) {
               if (VarAtom *VA = dyn_cast<VarAtom>(ConsKey)) {
-                CS.addConstraint(CS.createGeq(VA, CS.getArr()));
+                CS.addConstraint(CS.createGeq(VA, CS.getArr(), true));
               }
               TypePtr = AT->getElementType().getTypePtr();
               continue;
@@ -216,7 +216,7 @@ public:
         RHSConstraints = Info.getVariable(RHS, Context, false);
         if (RHSConstraints.size() > 0) {
           constrainConsVar(V, RHSConstraints, CS, &PL,
-                           Safe_to_Wild);
+                           Safe_to_Wild); // FIXME: Check this; should look at CA
         }
       }
     } else {
@@ -258,8 +258,8 @@ public:
           // value being cast from on the RHS is a call to malloc, and if
           // the type passed to malloc is equal to both lhsType and rhsTy.
           // If it is, we can do something less conservative.
-          if (CallExpr *CA = dyn_cast<CallExpr>(SE)) {
-            RulesFired = handleFuncCall(CA, LhsType, V);
+          if (CallExpr *CE = dyn_cast<CallExpr>(SE)) {
+            RulesFired = handleFuncCall(CE, LhsType, V);
           }
         }
 
@@ -289,9 +289,9 @@ public:
             RHSConstraints = getRHSConsVariables(RHS, LhsType, Context);
             if (dyn_cast<CallExpr>(SE) != nullptr) {
               // If this is a function call..create Geq constraints.
-              constrainConsVar(V, RHSConstraints, CS, &PL, Safe_to_Wild);
+              constrainConsVar(V, RHSConstraints, CS, &PL, Safe_to_Wild);// FIXME: Check this; should look at CA
             } else {
-              constrainConsVar(V, RHSConstraints, CS, &PL, CA);
+              constrainConsVar(V, RHSConstraints, CS, &PL, CA);// FIXME: Check this; should look at CA
             }
           }
         }
@@ -303,7 +303,7 @@ public:
           // Case 1.
           // There are constraint variables for the RHS, so, use those over
           // anything else we could infer.
-          constrainConsVar(V, RHSConstraints, CS, &PL, CA);
+          constrainConsVar(V, RHSConstraints, CS, &PL, CA);// FIXME: Check this; should look at CA
         }
       }
     }
@@ -546,7 +546,7 @@ private:
                   std::set<ConstraintVariable *> ParameterDC =
                     FV->getParamVar(i);
                   constrainConsVar(ArgumentConstraints, ParameterDC, CS, &PL,
-                                   Same_to_Same);
+                                   Same_to_Same);// Why same to same ?
                 } else {
                   // Constrain argument to wild since we can't match it
                   // to a parameter from the type.
