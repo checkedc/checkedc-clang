@@ -601,15 +601,15 @@ private:
 class Implies : public Constraint {
 public:
 
-  Implies(Constraint *Premise, Constraint *Conclusion)
+  Implies(Geq *Premise, Geq *Conclusion)
     : Constraint(C_Imp), premise(Premise), conclusion(Conclusion) {}
 
   static bool classof(const Constraint *C) {
     return C->getKind() == C_Imp;
   }
 
-  Constraint *getPremise() { return premise; }
-  Constraint *getConclusion() { return conclusion; }
+  Geq *getPremise() { return premise; }
+  Geq *getConclusion() { return conclusion; }
 
   void print(llvm::raw_ostream &O) const {
     premise->print(O);
@@ -663,8 +663,8 @@ public:
   }
 
 private:
-  Constraint *premise;
-  Constraint *conclusion;
+  Geq *premise;
+  Geq *conclusion;
 };
 
 class ConstraintVariable;
@@ -711,7 +711,7 @@ public:
   Geq *createGeq(Atom *Lhs, Atom *Rhs, bool isCheckedConstraint = true);
   Geq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, bool isCheckedConstraint = true);
   Geq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL, bool isCheckedConstraint = true);
-  Implies *createImplies(Constraint *Premise, Constraint *Conclusion);
+  Implies *createImplies(Geq *Premise, Geq *Conclusion);
 
   VarAtom *getOrCreateVar(uint32_t V);
   VarAtom *getVar(uint32_t V) const;

@@ -160,10 +160,9 @@ bool Constraints::addConstraint(Constraint *C) {
       }
     }
     else if (Implies *I = dyn_cast<Implies>(C)) {
-      if (Geq *E = dyn_cast<Geq>(I->getPremise())) {
-        if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
-          vLHS->Constraints.insert(C);
-      }
+      Geq *E = I->getPremise();
+      if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
+        vLHS->Constraints.insert(C);
     }
     else
       llvm_unreachable("unsupported constraint");
@@ -210,20 +209,11 @@ bool Constraints::removeReasonBasedConstraint(Constraint *C) {
 bool Constraints::check(Constraint *C) {
 
   if (Implies *I = dyn_cast<Implies>(C)) {
-    if (Geq *P = dyn_cast<Geq>(I->getPremise())) {
-      if (!isa<VarAtom>(P->getLHS()) || isa<VarAtom>(P->getRHS()))
-        return false;
-    }
-    else {
+    Geq *P = I->getPremise();
+    Geq *CO = I->getConclusion();
+    if (!isa<VarAtom>(P->getLHS()) || isa<VarAtom>(P->getRHS()) ||
+        !isa<VarAtom>(CO->getLHS()) || isa<VarAtom>(CO->getRHS()))
       return false;
-    }
-    if (Geq *CO = dyn_cast<Geq>(I->getConclusion())) {
-      if (!isa<VarAtom>(CO->getLHS()) || isa<VarAtom>(CO->getRHS()))
-        return false;
-    }
-    else {
-      return false;
-    }
   }
   else if (Eq *E = dyn_cast<Eq>(C)) {
     if (!isa<VarAtom>(E->getLHS()) || !isa<VarAtom>(E->getRHS()))
@@ -308,18 +298,14 @@ Constraints::propGeq(EnvironmentMap &E, Geq *Dyn, T *A, ConstraintSet &R,
 template <typename T>
 bool
 Constraints::propImp(Implies *Imp, T *A, ConstraintSet &R, ConstAtom *V) {
-  Constraint *Con = nullptr;
-  bool ChangedEnv = false;
-
-  if (Geq *DynP = dyn_cast<Geq>(Imp->getPremise()))
-    if (isa<T>(DynP->getRHS()) && *V == *A) {
-      Con = Imp->getConclusion();
-      R.insert(Imp);
-      addConstraint(Con);
-      ChangedEnv = true;
-    }
-
-  return ChangedEnv;
+  Geq *P = Imp->getPremise();
+  if (isa<T>(P->getRHS()) && *V == *A) {
+    Constraint *Con = Imp->getConclusion();
+    R.insert(Imp);
+    addConstraint(Con);
+    return true;
+  }
+  return false;
 }
 
 // Takes one iteration to solve the system of constraints. Each step 
@@ -386,7 +372,7 @@ bool Constraints::step_solve_old(void) {
     ++VI;
   }
 
-  return (ChangedEnv == false);
+  return !ChangedEnv;
 }
 
 // Solving algorithm. Produces the least solution according to ptr < arr < ntarr < wild.
@@ -399,11 +385,7 @@ bool Constraints::step_solve_old(void) {
 //
 //Til fixpoint
 //  For all k >= q constraints, set sol(k) = q. Remove these constraints
-//  For all k = k’ constraints, propagate solutions. [This will be quadratic
-//  without a graph-based approach]
-//  NOTE: This easily generalizes to k >= k’, since we just modify LHS based
-//  on RHS, rather than both ways. For all k >= q ==> k’ >= q’ constraints,
-//  if the lhs fires, replace with the rhs and delete the constraint
+//  For all k = k’ constraints, propagate solutions.
 
 Constraint *Constraints::solve_new(unsigned &Niter) {
     bool ChangedEnv = true;
@@ -505,8 +487,7 @@ Constraint *Constraints::solve_new(unsigned &Niter) {
             ConstraintSet RemCons;
             for (const auto &C : Var->Constraints) {
                 if (Implies *Imp = dyn_cast<Implies>(C)) {
-                    Geq *premise = dyn_cast<Geq>(Imp->getPremise());
-                    assert(premise != nullptr);
+                    Geq *premise = Imp->getPremise();
                     VarAtom *lhs = dyn_cast<VarAtom>(premise->getLHS());
                     ConstAtom *rhs = dyn_cast<ConstAtom>(premise->getRHS());
                     assert(lhs != nullptr && rhs != nullptr);
@@ -556,18 +537,24 @@ Constraint *Constraints::solve_new(unsigned &Niter) {
 //---- add k to W
 
 bool Constraints::graph_based_solve(unsigned &Niter) {
-  ConstraintsGraph CurrCG;
+  ConstraintsGraph ChkCG;
+  //ConstraintsGraph PtrTypCG;
   std::set<Implies *> SavedImplies;
+  // FIXME: Don't use VarAtoms' constraints; instead get them directly from Info.getConstraints();
   // Setup the Constraint Graph.
   auto VI = environment.begin();
   while (VI != environment.end()) {
     VarAtom *Var = VI->first;
     for (const auto &C : Var->Constraints) {
       if (Eq *E = dyn_cast<Eq>(C)) {
-        CurrCG.addConstraint(E, *this);
+        ChkCG.addConstraint(E, *this);
+        //PtrTypCG.addConstraint(E, *this);
       }
       if (Geq *G = dyn_cast<Geq>(C)) {
-        CurrCG.addConstraint(G, *this);
+       // if (G->constraintIsChecked())
+          ChkCG.addConstraint(G, *this);
+       // else
+       //   PtrTypCG.addConstraint(G, *this);
       }
       // Save the implies to solve them later.
       if (Implies *Imp = dyn_cast<Implies>(C)) {
@@ -578,14 +565,14 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
   }
   // Solving
   if (DebugSolver)
-    CurrCG.dumpCGDot("constraints_graph.dot");
+    ChkCG.dumpCGDot("constraints_graph.dot");
 
   // Initialize work list with ConstAtoms.
   std::vector<Atom *> WorkList;
   std::set<Implies *> FiredImplies;
   do {
     WorkList.clear();
-    auto &InitC = CurrCG.getAllConstAtoms();
+    auto &InitC = ChkCG.getAllConstAtoms();
     WorkList.insert(WorkList.begin(), InitC.begin(), InitC.end());
 
     while (!WorkList.empty()) {
@@ -598,7 +585,7 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
 
       std::set<Atom *> Successors;
       // get successors
-      CurrCG.getSuccessors<VarAtom>(CurrAtom, Successors);
+      ChkCG.getSuccessors<VarAtom>(CurrAtom, Successors);
       for (auto *SucA : Successors) {
         bool Changed = false;
         /*llvm::errs() << "Sucessor:" << SucA->getStr()
@@ -620,7 +607,7 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
             SucSol = getAssignment(K);
             // ---- for all edges (k --> q) in G, confirm
             std::set<Atom *> KSuccessors;
-            CurrCG.getSuccessors<ConstAtom>(K, KSuccessors);
+            ChkCG.getSuccessors<ConstAtom>(K, KSuccessors);
             for (auto *KChild : KSuccessors) {
               ConstAtom *KCSol = getAssignment(KChild);
               // that sol(k) <: q; else fail
@@ -646,11 +633,8 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
     if (!SavedImplies.empty()) {
       // Check if Premise holds? If yes then fire the conclusion.
       for (auto *Imp : SavedImplies) {
-        Geq *Pre = dyn_cast<Geq>(Imp->getPremise());
-        Geq *Con = dyn_cast<Geq>(Imp->getConclusion());
-
-        assert(Pre != nullptr && Con != nullptr &&
-               "Pre and Con cannot be nullptr");
+        Geq *Pre = Imp->getPremise();
+        Geq *Con = Imp->getConclusion();
         ConstAtom *Cca = getAssignment(Pre->getRHS());
         ConstAtom *Cva = getAssignment(Pre->getLHS());
         // Premise is true, so fire the conclusion.
@@ -658,7 +642,8 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
           /*llvm::errs() << "Firing Conclusion:";
           Con->print(llvm::errs());
           llvm::errs() << "\n";*/
-          CurrCG.addConstraint(Con, *this);
+          // FIXME: Can be smarter by adding only the Con's LHS VarAtom to the worklist
+          ChkCG.addConstraint(Con, *this);
           // Keep track of fired constraints, so that we can delete them.
           FiredImplies.insert(Imp);
         }
@@ -899,8 +884,8 @@ Constraint *Constraints::createEq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
     return Constraints::createGeq(Lhs,Rhs,Rsn,PL);
 }
 
-Implies *Constraints::createImplies(Constraint *Premise,
-                                    Constraint *Conclusion) {
+Implies *Constraints::createImplies(Geq *Premise,
+                                    Geq *Conclusion) {
   return new Implies(Premise, Conclusion);
 }
 

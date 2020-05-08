@@ -839,7 +839,8 @@ void FunctionVariableConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
     TmpDefn.insert(DefnCons->begin(), DefnCons->end());
 
     // Equate declaration and definition constraint.
-    constrainConsVar(TmpDecl, TmpDefn, Info.getConstraints(), nullptr);
+    constrainConsVar(TmpDecl, TmpDefn,
+                     Info.getConstraints(), nullptr, Same_to_Same);
   }
 
 
