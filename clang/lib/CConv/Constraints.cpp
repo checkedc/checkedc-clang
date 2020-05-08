@@ -244,42 +244,18 @@ bool Constraints::check(Constraint *C) {
 //---- for all edges (k --> q) in G, confirm that sol(k) <: q; else fail
 //---- add k to W
 
-bool Constraints::graph_based_solve(unsigned &Niter) {
-  ConstraintsGraph ChkCG;
-  //ConstraintsGraph PtrTypCG;
-  std::set<Implies *> SavedImplies;
-  ConstraintsEnv &env = environment;
-
-  // Setup the Constraint Graph.
-  for (const auto &C : constraints) {
-    if (Eq *E = dyn_cast<Eq>(C)) {
-      ChkCG.addConstraint(E, *this);
-      //PtrTypCG.addConstraint(E, *this);
-    }
-    else if (Geq *G = dyn_cast<Geq>(C)) {
-      // if (G->constraintIsChecked())
-      ChkCG.addConstraint(G, *this);
-      // else
-      //   PtrTypCG.addConstraint(G, *this);
-    }
-    // Save the implies to solve them later.
-    else if (Implies *Imp = dyn_cast<Implies>(C)) {
-      SavedImplies.insert(Imp);
-    }
-    else
-      llvm_unreachable("Bogus constraint type");
-  }
-
-  // Solving
-  if (DebugSolver)
-    ChkCG.dumpCGDot("constraints_graph.dot");
+static bool do_solve(ConstraintsGraph &CG,
+                     std::set<Implies *> SavedImplies,
+                     ConstraintsEnv & env,
+                     Constraints *CS, bool doingChecked,
+                     unsigned &Niter) {
 
   // Initialize work list with ConstAtoms.
   std::vector<Atom *> WorkList;
   std::set<Implies *> FiredImplies;
   do {
     WorkList.clear();
-    auto &InitC = ChkCG.getAllConstAtoms();
+    auto &InitC = CG.getAllConstAtoms();
     WorkList.insert(WorkList.begin(), InitC.begin(), InitC.end());
 
     while (!WorkList.empty()) {
@@ -292,10 +268,10 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
 
       std::set<Atom *> Successors;
       // get successors
-      ChkCG.getSuccessors<VarAtom>(CurrAtom, Successors);
+      CG.getSuccessors<VarAtom>(CurrAtom, Successors);
       for (auto *SucA : Successors) {
         bool Changed = false;
-        /*llvm::errs() << "Sucessor:" << SucA->getStr()
+        /*llvm::errs() << "Successor:" << SucA->getStr()
                      << " of " << CurrAtom->getStr() << "\n";*/
         if (VarAtom *K = dyn_cast<VarAtom>(SucA)) {
           ConstAtom *SucSol = env.getAssignment(K);
@@ -313,7 +289,7 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
             SucSol = env.getAssignment(K);
             // ---- for all edges (k --> q) in G, confirm
             std::set<Atom *> KSuccessors;
-            ChkCG.getSuccessors<ConstAtom>(K, KSuccessors);
+            CG.getSuccessors<ConstAtom>(K, KSuccessors);
             for (auto *KChild : KSuccessors) {
               ConstAtom *KCSol = env.getAssignment(KChild);
               // that sol(k) <: q; else fail
@@ -349,7 +325,7 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
           Con->print(llvm::errs());
           llvm::errs() << "\n";*/
           // FIXME: Can be smarter by adding only the Con's LHS VarAtom to the worklist
-          ChkCG.addConstraint(Con, *this);
+          CG.addConstraint(Con, *CS);
           // Keep track of fired constraints, so that we can delete them.
           FiredImplies.insert(Imp);
         }
@@ -363,6 +339,38 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
   } while (!FiredImplies.empty());
 
   return true;
+}
+
+bool Constraints::graph_based_solve(unsigned &Niter) {
+  ConstraintsGraph ChkCG;
+  //ConstraintsGraph PtrTypCG;
+  std::set<Implies *> SavedImplies;
+  ConstraintsEnv &env = environment;
+
+  // Setup the Checked Constraint Graph.
+  for (const auto &C : constraints) {
+    if (Eq *E = dyn_cast<Eq>(C)) {
+      ChkCG.addConstraint(E, *this);
+      //PtrTypCG.addConstraint(E, *this);
+    }
+    else if (Geq *G = dyn_cast<Geq>(C)) {
+      // if (G->constraintIsChecked())
+      ChkCG.addConstraint(G, *this);
+      // else
+      //   PtrTypCG.addConstraint(G, *this);
+    }
+    // Save the implies to solve them later.
+    else if (Implies *Imp = dyn_cast<Implies>(C)) {
+      SavedImplies.insert(Imp);
+    }
+    else
+      llvm_unreachable("Bogus constraint type");
+  }
+  if (DebugSolver)
+    ChkCG.dumpCGDot("constraints_graph.dot");
+
+  // Solve it
+  return do_solve(ChkCG, SavedImplies, env, this, true, Niter);
 }
 
 std::pair<Constraints::ConstraintSet, bool>

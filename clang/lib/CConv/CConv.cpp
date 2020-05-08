@@ -420,7 +420,7 @@ bool CConvInterface::WriteAllConvertedFilesToDisk() {
 
 void CConvInterface::ResetAllPointerConstraints() {
   // Restore all the deleted constraints.
-  Constraints::EnvironmentMap &EnvMap =
+  EnvironmentMap &EnvMap =
       GlobalProgramInfo.getConstraints().getVariables();
   for (auto &CV : EnvMap) {
     CV.first->resetErasedConstraints();
@@ -454,7 +454,7 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   delete(originalConstraint);
 
   // Reset the constraint system.
-  CS.resetConstraints();
+  CS.resetEnvironment();
 
   // Solve the constraints.
   //assert (CS == GlobalProgramInfo.getConstraints());
@@ -516,7 +516,7 @@ bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
   InvalidateAllConstraintsWithReason(OriginalConstraint);
 
   // Reset constraint solver.
-  CS.resetConstraints();
+  CS.resetEnvironment();
 
   // Solve the constraint.
   //assert(CS == GlobalProgramInfo.getConstraints());
