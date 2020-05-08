@@ -1516,6 +1516,8 @@ ProgramInfo::applyFunctionDefnDeclsConstraints(std::set<FVConstraint *>
       }
     }
   }
+
+  return true;
 }
 
 bool ProgramInfo::handleFunctionSubtyping() {
