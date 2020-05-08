@@ -672,6 +672,10 @@ typedef std::map<VarAtom *, ConstAtom *, PComp<VarAtom *>> EnvironmentMap;
 class ConstraintsEnv {
 
 public:
+ // ConstraintsEnv(const ConstraintsEnv &CE) {
+ //   environment = CE.environment;
+ // }
+
   EnvironmentMap &getVariables() { return environment; }
   void dump() const;
   void print(llvm::raw_ostream &) const;
@@ -682,6 +686,7 @@ public:
   ConstAtom *getAssignment(Atom *A);
   bool assign(VarAtom *V, ConstAtom *C);
   void resetSolution(ConstAtom *initC);
+  bool checkAssignment(ConstAtom *C);
 
 private:
   EnvironmentMap environment;

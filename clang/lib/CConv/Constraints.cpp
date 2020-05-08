@@ -343,9 +343,12 @@ static bool do_solve(ConstraintsGraph &CG,
 
 bool Constraints::graph_based_solve(unsigned &Niter) {
   ConstraintsGraph ChkCG;
-  //ConstraintsGraph PtrTypCG;
+  ConstraintsGraph PtrTypCG;
   std::set<Implies *> SavedImplies;
-  ConstraintsEnv &env = environment;
+  ConstraintsEnv &safe_env = environment; // make an alias ?
+  ConstraintsEnv ptr_env = environment; // make a copy
+
+  environment.checkAssignment(getPtr());
 
   // Setup the Checked Constraint Graph.
   for (const auto &C : constraints) {
@@ -370,7 +373,9 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
     ChkCG.dumpCGDot("constraints_graph.dot");
 
   // Solve it
-  return do_solve(ChkCG, SavedImplies, env, this, true, Niter);
+  bool res = do_solve(ChkCG, SavedImplies, safe_env, this, true, Niter);
+  //assert(ptr_env.checkAssignment(getPtr()));
+  return res;
 }
 
 std::pair<Constraints::ConstraintSet, bool>
@@ -528,12 +533,7 @@ void Constraints::resetEnvironment() {
 
 bool Constraints::checkInitialEnvSanity() {
   // All variables should be Ptrs.
-  for (const auto &EnvVar : environment.getVariables()) {
-    if (EnvVar.second != getPtr()) {
-      return false;
-    }
-  }
-  return true;
+  return environment.checkAssignment(getPtr());
 }
 
 Constraints::Constraints() {
@@ -619,6 +619,15 @@ ConstAtom *ConstraintsEnv::getAssignment(Atom *A) {
   assert(dyn_cast<ConstAtom>(A) != nullptr &&
          "This is not a VarAtom or ConstAtom");
   return dyn_cast<ConstAtom>(A);
+}
+
+bool ConstraintsEnv::checkAssignment(ConstAtom *C) {
+  for (const auto &EnvVar : environment) {
+    if (EnvVar.second != C) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool ConstraintsEnv::assign(VarAtom *V, ConstAtom *C) {
