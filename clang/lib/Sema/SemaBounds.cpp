@@ -3851,7 +3851,7 @@ namespace {
       // Check if Src has an inverse expression with respect to v.
       Expr *IV = nullptr;
       if (IsInvertible(V, Src))
-        IV = Inverse(V, V, Src);
+        IV = Inverse(V, Target, Src);
       if (IV) {
         // If Src has an inverse with respect to v, then the original
         // value (the inverse) must use the value of v.
@@ -3908,8 +3908,9 @@ namespace {
           return IsUnaryOperatorInvertible(X, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
           return IsBinaryOperatorInvertible(X, cast<BinaryOperator>(E));
-        // TODO: determine whether a cast expression is invertible (is a
-        // bit-preserving or widening cast).
+        case Expr::ImplicitCastExprClass:
+        case Expr::CStyleCastExprClass:
+          return IsCastExprInvertible(X, cast<CastExpr>(E));
         default:
           return false;
       }
@@ -3972,6 +3973,42 @@ namespace {
       return true;
     }
 
+    // Returns true if a cast expression is invertible with respect to x.
+    // A cast expression (T1)e1 is invertible if T1 is a bit-preserving
+    // or widening cast and e1 is invertible.
+    bool IsCastExprInvertible(DeclRefExpr *X, CastExpr *E) {
+      QualType T1 = E->getType();
+      QualType T2 = E->getSubExpr()->getType();
+      uint64_t Size1 = S.Context.getTypeSize(T1);
+      uint64_t Size2 = S.Context.getTypeSize(T2);
+
+      // If T1 is a smaller type than T2, then (T1)e1 is a narrowing cast.
+      if (Size1 < Size2)
+        return false;
+
+      switch (E->getCastKind()) {
+        // Bit-preserving casts
+        case CastKind::CK_BitCast:
+        case CastKind::CK_LValueBitCast:
+        case CastKind::CK_NoOp:
+        case CastKind::CK_ArrayToPointerDecay:
+        case CastKind::CK_FunctionToPointerDecay:
+        case CastKind::CK_NullToPointer:
+        // Widening casts
+        case CastKind::CK_BooleanToSignedIntegral:
+        case CastKind::CK_IntegralToFloating:
+          return IsInvertible(X, E->getSubExpr());
+        // Potentially non-narrowing casts, depending on type sizes
+        case CastKind::CK_IntegralToPointer:
+        case CastKind::CK_PointerToIntegral:
+        case CastKind::CK_IntegralCast:
+          return Size1 >= Size2 && IsInvertible(X, E->getSubExpr());
+        // All other casts are considered narrowing
+        default:
+          return false;
+      }
+    }
+
     // Inverse repeatedly applies mathematical rules to the expression e to
     // get the inverse of e with respect to the variable x and expression f.
     // If rules cannot be applied to e, Inverse returns nullptr.
@@ -3988,7 +4025,9 @@ namespace {
           return UnaryOperatorInverse(X, F, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
           return BinaryOperatorInverse(X, F, cast<BinaryOperator>(E));
-        // TODO: get the inverse of a cast expression.
+        case Expr::CStyleCastExprClass:
+        case Expr::ImplicitCastExprClass:
+          return CastExprInverse(X, F, cast<CastExpr>(E));
         default:
           return nullptr;
       }
@@ -4043,6 +4082,23 @@ namespace {
       }
 
       return Inverse(X, F1, E_X);
+    }
+
+    // Returns the inverse of a cast expression.  If e1 has type T2,
+    // Inverse(f, (T1)e1) = Inverse((T2)f, e1) (assuming that (T1) is
+    // not a narrowing cast).
+    Expr *CastExprInverse(DeclRefExpr *X, Expr *F, CastExpr *E) {
+      QualType T1 = E->getType();
+      QualType T2 = E->getSubExpr()->getType();
+      Expr *F1 = nullptr;
+      if (isa<ImplicitCastExpr>(E))
+        F1 = CreateImplicitCast(T2, E->getCastKind(), F);
+      else if (isa<CStyleCastExpr>(E))
+        F1 = CreateExplicitCast(T2, E->getCastKind(), F,
+                                E->isBoundsSafeInterface());
+      if (!F1)
+        return nullptr;
+      return Inverse(X, F1, E->getSubExpr());
     }
 
     // GetIncomingBlockState returns the checking state that is true at the
