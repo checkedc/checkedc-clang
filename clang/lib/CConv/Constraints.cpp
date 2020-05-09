@@ -262,37 +262,14 @@ static bool do_solve(ConstraintsGraph &CG,
               (!doingChecked && *CurrSol < *SucSol)) {
             // ---- set sol(k) := (sol(k) JOIN/MEET Q)
             Changed = env.assign(K,CurrSol);
+            if (Changed)
+              WorkList.push_back(K);
             /*if (Changed) {
               llvm::s()err << "Trying to assign:" << CurrSol->getStr() << " to "
                            << K->getStr() << "\n";
             }*/
           }
-          if (Changed) {
-            // get the latest assignment.
-            SucSol = env.getAssignment(K);
-            // ---- for all edges (k --> q) in G, confirm
-            std::set<Atom *> KSuccessors;
-            CG.getSuccessors<ConstAtom>(K, KSuccessors);
-            for (auto *KChild : KSuccessors) {
-              if (ConstAtom *KCSol = dyn_cast<ConstAtom>(KChild))
-                // that sol(k) <: q (checked)
-                //   or q <: sol(k) (nonchecked); else fail
-                if ((doingChecked &&
-                     !(*SucSol < *KCSol) && *SucSol != *KCSol) ||
-                    (!doingChecked &&
-                     !(*KCSol < *SucSol) && *SucSol != *KCSol)) {
-                  // failure case.
-                  errs() << "Unsolvable constraints:";
-                  SucSol->print(errs());
-                  KCSol->print(errs());
-                  K->print(errs());
-                  return false;
-                }
-            }
-            // ---- add k to W
-            WorkList.push_back(K);
-          }
-        }
+        } // ignore ConstAtoms for now; will confirm solution below
       }
     }
     Niter++;
@@ -311,7 +288,6 @@ static bool do_solve(ConstraintsGraph &CG,
           /*llvm::errs() << "Firing Conclusion:";
           Con->print(llvm::errs());
           llvm::errs() << "\n";*/
-          // FIXME: Can be smarter by adding only the Con's LHS VarAtom to the worklist
           CG.addConstraint(Con, *CS);
           // Keep track of fired constraints, so that we can delete them.
           FiredImplies.insert(Imp);
@@ -325,9 +301,40 @@ static bool do_solve(ConstraintsGraph &CG,
     // Lets repeat if there are some fired constraints.
   } while (!FiredImplies.empty());
 
-  // FIXME: Need to find all edges sol_k(Q) <: K in checked,
-  //   and S <: sol_s(Q) in non-checked (where K, S are constants)
-  //   and confirm solution is OK
+  /* FIXME: Check Upper/lower bounds hold */
+  /* For each VarAtom v s.t. env[v] = sol.
+   *   For each edge v --> c, where c is a const,
+   *     if checked, confirm !(c > sol) (i.e., sol <= c)
+   *     if nonchecked, confirm !(sol < c) (i.e., c <= sol)
+   *     FIXME: I have a fear that the latter check could spuriously
+   *       fail due to the WildBot trick. May require rethinking
+   *       the relationship between Chk and Ptyp constraints
+   */
+/* OLD CODE
+    // get the latest assignment.
+    SucSol = env.getAssignment(K);
+    // ---- for all edges (k --> q) in G, confirm
+    std::set<Atom *> KSuccessors;
+    CG.getSuccessors<ConstAtom>(K, KSuccessors);
+    for (auto *KChild : KSuccessors) {
+      if (ConstAtom *KCSol = dyn_cast<ConstAtom>(KChild))
+        // that sol(k) <: q (checked)
+        //   or q <: sol(k) (nonchecked); else fail
+        if ((doingChecked &&
+             !(*SucSol < *KCSol) && *SucSol != *KCSol) ||
+            (!doingChecked &&
+             !(*KCSol < *SucSol) && *SucSol != *KCSol)) {
+          // failure case.
+          errs() << "Unsolvable constraints:";
+          SucSol->print(errs());
+          KCSol->print(errs());
+          K->print(errs());
+          return false;
+        }
+    }
+  }
+   */
+
   return true;
 }
 
