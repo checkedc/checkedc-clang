@@ -434,9 +434,15 @@ int main(int argc, char *argv[]) {
     OS << clang::getClangToolFullVersion("clangd") << "\n";
   });
 
+
 #ifdef INTERACTIVECCCONV
+  const char **TmpArgv = (const char **)calloc(argc + 2, sizeof(char*));
+  TmpArgv[0] = argv[0];
+  TmpArgv[1] = "-extra-arg-before=-fignore-checkedc-pointers";
+  memcpy(TmpArgv+2, argv+1, sizeof(char*) * (argc-1));
+  argc++;
   tooling::CommonOptionsParser OptionsParser(argc,
-                                             (const char**)(argv),
+                                             (const char**)(TmpArgv),
                                              ConvertCategory);
   LogLevel = Logger::Debug;
   // Setup options.
