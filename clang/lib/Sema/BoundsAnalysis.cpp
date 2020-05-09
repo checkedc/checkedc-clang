@@ -37,6 +37,10 @@ void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
     // iterate WorkList.
     WorkList.append(EB);
     BlockMap[B] = EB;
+
+    // Mark the In set for the Entry block as "empty". The Out set for the
+    // Entry block would be marked as "empty" in ComputeOutSets.
+    EB->IsInSetEmpty = B == &Cfg->getEntry();
   }
 
   // At this time, BlockMap only contains reachable blocks. We iterate through
@@ -83,13 +87,48 @@ void BoundsAnalysis::InitInOutSets() {
   }
 }
 
+bool BoundsAnalysis::CheckIsSwitchCaseNull(ElevatedCFGBlock *EB) {
+  if (const auto *CS = dyn_cast_or_null<CaseStmt>(EB->Block->getLabel())) {
+
+    // We mimic how clang (in SemaStmt.cpp) gets the value of a switch case. It
+    // invokes EvaluateKnownConstInt and we do the same here. SemaStmt has
+    // already extended/truncated the case value to fit the integer range and
+    // EvaluateKnownConstInt gives us that value.
+    llvm::APSInt LHSVal = CS->getLHS()->EvaluateKnownConstInt(Ctx);
+    llvm::APSInt LHSZero (LHSVal.getBitWidth(), LHSVal.isUnsigned());
+    if (llvm::APSInt::compareValues(LHSVal, LHSZero) == 0)
+      return true;
+
+    // Check if the case statement is of the form "case LHS ... RHS" (a GNU
+    // extension).
+    if (CS->caseStmtIsGNURange()) {
+      llvm::APSInt RHSVal = CS->getRHS()->EvaluateKnownConstInt(Ctx);
+      llvm::APSInt RHSZero (RHSVal.getBitWidth(), RHSVal.isUnsigned());
+      if (llvm::APSInt::compareValues(RHSVal, RHSZero) == 0)
+        return true;
+
+      // Check if 0 if contained within the range [LHS, RHS].
+      return (LHSVal <= LHSZero && RHSZero <= RHSVal) ||
+             (LHSVal >= LHSZero && RHSZero >= RHSVal);
+    }
+    return false;
+  }
+  return true;
+}
+
 void BoundsAnalysis::ComputeGenSets() {
   // If there is an edge B1->B2 and the edge condition is of the form
   // "if (*(p + i))" then Gen[B1] = {B2, p:i} .
 
+  // Here, EB is B2.
   for (const auto item : BlockMap) {
     ElevatedCFGBlock *EB = item.second;
 
+    // Check if this is a switch case and whether the case label is non-null.
+    // We can only widen the bounds for a non-null case label.
+    bool IsSwitchCaseNull = CheckIsSwitchCaseNull(EB);
+
+    // Iterate through all preds of EB.
     for (const CFGBlock *pred : EB->Block->preds()) {
       if (SkipBlock(pred))
         continue;
@@ -103,10 +142,39 @@ void BoundsAnalysis::ComputeGenSets() {
       // Here we have the edges (B1->B2) and (B1->B3). We can add "p:i" only
       // on the true edge. Which means we will add the following entry to
       // Gen[B1]: {B2, p:i}
-      if (!pred->succ_empty() && *pred->succs().begin() == EB->Block)
-        // Get the edge condition and fill the Gen set.
-        if (Expr *E = GetTerminatorCondition(pred))
+
+      // Check if EB is on a true edge of pred. The false edge (including the
+      // default case for a switch) is always the last edge in the list of
+      // edges. So we check that EB is not on the last edge for pred.
+
+      // TODO: Allow bounds widening for the default case of a switch-case.
+      // If we establish that another label in a switch statement tests for 0,
+      // then the default case will handle non-zero case, and the bounds can be
+      // widened there. The following github issue tracks this:
+      // https://github.com/microsoft/checkedc-clang/issues/818.
+
+      if (pred->succ_size() && EB->Block != *(pred->succs().end() - 1)) {
+	// Get the edge condition and fill the Gen set.
+	if (Expr *E = GetTerminatorCondition(pred)) {
+
+          // Check if the pred ends in a switch statement.
+          if (isa<SwitchStmt>(pred->getTerminatorStmt())) {
+            // We can widen the bounds only if the current block has a non-null
+            // case statement.
+            if (IsSwitchCaseNull)
+              continue;
+
+	    // If the switch expression is integral, strip off the
+	    // IntegralCast.
+	    if (auto *CE = dyn_cast<CastExpr>(E)) {
+              if (CE->getCastKind() == CastKind::CK_IntegralCast)
+                E = CE->getSubExpr();
+            }
+          }
+
           FillGenSet(E, BlockMap[pred], EB);
+        }
+      }
     }
   }
 }
@@ -643,6 +711,10 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
 
     EB->Out[succ] = Union(Diff, EB->Gen[succ]);
 
+    // The Out set on an edge is marked "empty" if the In set is marked "empty"
+    // and the Gen set on that edge is empty.
+    EB->IsOutSetEmpty[succ] = EB->IsInSetEmpty && !EB->Gen[succ].size();
+
     if (Differ(OldOut, EB->Out[succ]))
       WorkList.append(BlockMap[succ]);
   }
@@ -666,6 +738,8 @@ Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
       return const_cast<Expr *>(WhileS->getCond());
     if (const auto *ForS = dyn_cast<ForStmt>(S))
       return const_cast<Expr *>(ForS->getCond());
+    if (const auto *SwitchS = dyn_cast<SwitchStmt>(S))
+      return const_cast<Expr *>(SwitchS->getCond());
   }
   return nullptr;
 }
