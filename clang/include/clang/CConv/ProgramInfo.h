@@ -163,9 +163,6 @@ public:
   std::set<FVConstraint *> *
   getStaticFuncDefnConstraintSet(std::string FuncName, std::string FileName);
 
-  // Handle assigning constraints based on function subtyping.
-  bool handleFunctionSubtyping();
-
   bool addFunctionDefDeclConstraints();
 
   ArrayBoundsInformation &getArrayBoundsInformation() {
@@ -198,18 +195,10 @@ public:
 
 private:
 
-  // Apply function subtyping between given function definition and
-  // declaration constraints.
-  bool applyFunctionSubtyping(std::set<ConstraintVariable *> &DefCVars,
-                              std::set<ConstraintVariable *> &DeclCVars);
-
   bool
   applyFunctionDefnDeclsConstraints(std::set<FVConstraint *> &DefCVars,
                                     std::set<FVConstraint *> &DeclCVars);
 
-  // Apply function sub-typing relation from srcCVar to dstCVar.
-  bool applySubtypingRelation(ConstraintVariable *SrcCVar,
-                              ConstraintVariable *DstCVar);
   // Check if the given set has the corresponding constraint variable type.
   template <typename T>
   bool hasConstraintType(std::set<ConstraintVariable *> &S);
