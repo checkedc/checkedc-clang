@@ -1,4 +1,4 @@
-//                     The LLVM Compiler Infrastructure
+//=--RewriteUtils.h-----------------------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,6 +8,7 @@
 // This class contains functions and classes that deal with
 // rewriting the source file after converting to CheckedC format.
 //===----------------------------------------------------------------------===//
+
 #ifndef _REWRITEUTILS_H
 #define _REWRITEUTILS_H
 
@@ -28,7 +29,7 @@ struct DAndReplace
     Stmt        *Statement;   // The Stmt, if it exists.
     std::string Replacement;  // The string to replace the declaration with.
     bool        fullDecl;     // If the declaration is a function, true if
-    // replace the entire declaration or just the
+    // Replace the entire declaration or just the
     // return declaration.
     DAndReplace() : Declaration(nullptr),
                     Statement(nullptr),
@@ -77,22 +78,22 @@ struct DComp
     SourceManager &SM;
     DComp(SourceManager &S) : SM(S) { }
 
-    SourceRange getWholeSR(SourceRange orig, DAndReplace dr) const;
+    SourceRange getWholeSR(SourceRange Orig, DAndReplace Dr) const;
 
-    bool operator()(const DAndReplace lhs, const DAndReplace rhs) const;
+    bool operator()(const DAndReplace Lhs, const DAndReplace Rhs) const;
 };
 
 typedef std::set<DAndReplace, DComp> RSet;
 
-void rewrite(ParmVarDecl *PV, Rewriter &R, std::string sRewrite);
+void rewrite(ParmVarDecl *PV, Rewriter &R, std::string SRewrite);
 
 void rewrite( VarDecl               *VD,
               Rewriter              &R,
-              std::string           sRewrite,
+              std::string SRewrite,
               Stmt                  *WhereStmt,
               RSet                  &skip,
               const DAndReplace     &N,
-              RSet                  &toRewrite,
+              RSet                  &ToRewrite,
               ASTContext            &A);
 
 // Visit each Decl in toRewrite and apply the appropriate pointer type
@@ -104,12 +105,25 @@ void rewrite( VarDecl               *VD,
 // we should skip because we already applied them, for example, as part
 // of turning a single line declaration into a multi-line declaration.
 void rewrite( Rewriter              &R,
-              RSet                  &toRewrite,
-              RSet                  &skip,
+              RSet                  &ToRewrite,
+              RSet                  &Skip,
               SourceManager         &S,
               ASTContext            &A,
               std::set<FileID>      &Files);
 
+// Class that handles rewriting bounds information for all the
+// detected array variables.
+class ArrayBoundsRewriter {
+public:
+  ArrayBoundsRewriter(ASTContext *C, ProgramInfo &I): Context(C), Info(I) {}
+  // Compute the possible bounds for all the array variables.
+  void computeArrayBounds();
+  // Get the string representation of the bounds for the given variable.
+  std::string getBoundsString(Decl *D, bool Isitype = false);
+private:
+  ASTContext *Context;
+  ProgramInfo &Info;
+};
 
 // Class for visiting declarations during re-writing to find locations to
 // insert casts. Right now, it looks specifically for 'free'.
@@ -117,41 +131,48 @@ class CastPlacementVisitor : public RecursiveASTVisitor<CastPlacementVisitor> {
 public:
   explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I,
                                 RSet &DR, std::set<std::string> &V,
-                                std::map<std::string, std::string> &newFuncSig)
-          : Context(C), Info(I), rewriteThese(DR), VisitedSet(V), ModifiedFuncSignatures(newFuncSig) {}
+                                std::map<std::string, std::string> &newFuncSig,
+                                ArrayBoundsRewriter &ArrRewriter)
+          : Context(C), Info(I), rewriteThese(DR), VisitedSet(V),
+            ModifiedFuncSignatures(newFuncSig), ABRewriter(ArrRewriter) {}
 
   bool VisitCallExpr(CallExpr *);
   bool VisitFunctionDecl(FunctionDecl *);
-  bool isFunctionVisited(std::string funcName);
+  bool isFunctionVisited(std::string FName);
 private:
   std::set<unsigned int> getParamsForExtern(std::string);
-  // get existing itype string from constraint variables. It tries to get
-  // the string from declaration, however, if there is no declaration of the
-  // function, it will try to get it from the definition.
-  std::string getExistingIType(ConstraintVariable *decl, ConstraintVariable *defn,
-                               FunctionDecl *funcDecl);
-  bool anyTop(std::set<ConstraintVariable*>);
+  // Get existing itype string from constraint variables.
+  // If tries to get the string from declaration, however,
+  // if there is no declaration of the function,
+  // it will try to get it from the definition.
+  std::string getExistingIType(ConstraintVariable *Declc,
+                               ConstraintVariable *Defc,
+                               FunctionDecl *FuncDecl);
+  bool anyTop(std::set<ConstraintVariable *>);
   ASTContext            *Context;
   ProgramInfo           &Info;
   RSet                  &rewriteThese;
   std::set<std::string> &VisitedSet;
   std::map<std::string, std::string> &ModifiedFuncSignatures;
+  ArrayBoundsRewriter   &ABRewriter;
 };
 
 
 class RewriteConsumer : public ASTConsumer {
 public:
   explicit RewriteConsumer(ProgramInfo &I,
-                           std::set<std::string> &F, ASTContext *Context, std::string &OPostfix, std::string &bDir) :
-                           Info(I), InOutFiles(F), OutputPostfix(OPostfix), BaseDir(bDir) {}
+                           std::set<std::string> &F, ASTContext *Context,
+                           std::string &OPostfix, std::string &bDir) :
+                           Info(I), InOutFiles(F), OutputPostfix(OPostfix),
+                           BaseDir(bDir) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context);
 
 private:
-  // functions to handle modified signatures and ensuring that
-  // we always use the latest signature.
-  static std::string getModifiedFuncSignature(std::string funcName);
-  static bool hasModifiedSignature(std::string funcName);
+  // Functions to handle modified signatures and ensuring that we always use
+  // the latest signature.
+  static std::string getModifiedFuncSignature(std::string FuncName);
+  static bool hasModifiedSignature(std::string FuncName);
   ProgramInfo &Info;
   std::set<std::string> &InOutFiles;
   static std::map<std::string, std::string> ModifiedFuncSignatures;

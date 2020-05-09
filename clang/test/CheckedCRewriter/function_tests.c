@@ -3,8 +3,6 @@
 // Checks properties of functions.
 //
 // RUN: checked-c-convert -handle-varargs %s -- | FileCheck -match-full-lines %s
-// RUN: checked-c-convert -handle-varargs %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
-// expected-no-diagnostics
 
 // Have something so that we always get some output.
 void a0(void) {
@@ -24,7 +22,7 @@ void a1(void) {
   mut(b);
 }
 //CHECK: int a = 0;
-//CHECK-NEXT: int *b = &a;
+//CHECK-NEXT: _Ptr<int> b = &a;
 
 // Test function pointer assignment and constraint propagation. 
 
@@ -51,7 +49,7 @@ void xyzzy_driver(void) {
 void bad_mut(int *a, int b, int c) {
   *(a+b) = c;
 }
-//CHECK: void bad_mut(int *a, int b, int c) {
+//CHECK: void bad_mut(_Array_ptr<int> a: count(b), int b, int c) {
 //CHECK-NEXT: *(a+b) = c;
 
 void bad_mut_driver(void) {
@@ -61,9 +59,9 @@ void bad_mut_driver(void) {
   bad_mut_ptr(b, 2, 0);
 }
 //CHECK: void bad_mut_driver(void) {
-//CHECK-NEXT: _Ptr<void (int* , int , int )> bad_mut_ptr = &bad_mut;
+//CHECK-NEXT: _Ptr<void (_Array_ptr<int> , int , int )> bad_mut_ptr = &bad_mut;
 //CHECK-NEXT: int a = 0;
-//CHECK-NEXT: int *b = &a;
+//CHECK-NEXT: _Array_ptr<int> b = &a;
 //CHECK-NEXT: bad_mut_ptr(b, 2, 0);
 
 // Test function-like macros.
@@ -98,7 +96,7 @@ void varargxyzzy_driver(void) {
   varargxyzzy(1, b);
 }
 //CHECK: void varargxyzzy_driver(void) {
-//CHECK-NEXT: char a[10];
+//CHECK-NEXT: char a _Checked[10];
 //CHECK-NEXT: char *b = &a[0];
 //CHECK-NEXT: _Ptr<char> c = &a[0];
 //CHECK-NEXT: *c = 0;
@@ -166,7 +164,7 @@ int *ok_mut_clone(int *a, int b) {
   *a = b;
   return a;
 }
-//CHECK: int *ok_mut_clone(int *a : itype(_Ptr<int>), int b) : itype(_Ptr<int>) {
+//CHECK: int *ok_mut_clone(int *a : itype(_Ptr<int> ) , int b) : itype(_Ptr<int> )  {
 
 ok_mut_t get_mut_2(void) {
   return &ok_mut_clone;
@@ -204,7 +202,7 @@ void f_test(void) {
   return;
 } 
 //CHECK: void f_test(void) {
-//CHECK-NEXT: _Ptr<_Ptr<int> (_Ptr<int> )> arr[3] =  { 0 };
+//CHECK-NEXT: _Ptr<_Ptr<int> (_Ptr<int> )> arr _Checked[3] =  { 0 };
 
 // Arrays of function pointers.
 void f_test2(int i, int *(*arr[])(int *)) {

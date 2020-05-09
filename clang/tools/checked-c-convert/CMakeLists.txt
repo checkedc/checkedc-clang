@@ -5,14 +5,16 @@ set( LLVM_LINK_COMPONENTS
   )
 
 add_clang_executable(checked-c-convert
-  CheckedCConvert.cpp
-  ProgramInfo.cpp
-  MappingVisitor.cpp
-  ConstraintBuilder.cpp
-  PersistentSourceLoc.cpp
-  Constraints.cpp
-  ConstraintVariables.cpp
   ArrayBoundsInferenceConsumer.cpp
+  ArrayBoundsInformation.cpp
+  CheckedCConvert.cpp
+  ConstraintBuilder.cpp
+  ConstraintVariables.cpp
+  Constraints.cpp
+  IterativeItypeHelper.cpp
+  MappingVisitor.cpp
+  ProgramInfo.cpp
+  PersistentSourceLoc.cpp
   RewriteUtils.cpp
   Utils.cpp
   )
