@@ -1511,7 +1511,7 @@ ProgramInfo::applyFunctionDefnDeclsConstraints(std::set<FVConstraint *>
       for (unsigned i=0; i<DeFV->numParams(); i++) {
         //Rule for parameters: inside <: outside for parameters.
         constrainConsVarGeq(DelFV->getParamVar(i), DeFV->getParamVar(i), CS,
-                            nullptr, Safe_to_Wild);
+                            nullptr, Wild_to_Safe);
       }
     }
   }

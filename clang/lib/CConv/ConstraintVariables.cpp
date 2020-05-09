@@ -837,8 +837,11 @@ void FunctionVariableConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
     TmpDecl.insert(DeclCons->begin(), DeclCons->end());
     TmpDefn.insert(DefnCons->begin(), DefnCons->end());
 
-    // Equate declaration and definition constraint.
+    // Equate declaration and definition constraint
+    //   (Need to call twice to unify at all levels)
     constrainConsVarGeq(TmpDecl, TmpDefn, Info.getConstraints(), nullptr,
+                        Same_to_Same);
+    constrainConsVarGeq(TmpDefn, TmpDecl, Info.getConstraints(), nullptr,
                         Same_to_Same);
   }
 
@@ -1096,8 +1099,6 @@ static ConsAction neg(ConsAction CA) {
   case Wild_to_Safe: return Safe_to_Wild;
   case Same_to_Same: return Same_to_Same;
   }
-  assert(false && "Invalid ConsAction");
-  return Same_to_Same;
 }
 
 void createAtomGeq(Constraints &CS, Atom *L, Atom *R,

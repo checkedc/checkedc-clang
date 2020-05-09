@@ -124,6 +124,8 @@ public:
     // to a NamedDecl?
     FunctionDecl *CalleeDecl =
         dyn_cast<FunctionDecl>(CA->getCalleeDecl());
+    // FIXME: Right now we don't look at what malloc is doing
+    // but I don't think this works in the new regime.
     if (CalleeDecl && isFunctionAllocator(CalleeDecl->getName())) {
       // This is an allocator, should we treat it as safe?
       if (!ConsiderAllocUnsafe) {
@@ -187,7 +189,7 @@ public:
   void constrainLocalAssign(std::set<ConstraintVariable *> V,
                             QualType LhsType,
                             Expr *RHS,
-                            ConsAction CA=Same_to_Same) {
+                            ConsAction CAction) {
     if (!RHS || V.size() == 0)
       return;
 
@@ -217,7 +219,7 @@ public:
         if (RHSConstraints.size() > 0) {
           constrainConsVarGeq(
               V, RHSConstraints, CS, &PL,
-              Safe_to_Wild); // FIXME: Check this; should look at CA
+              CAction);
         }
       }
     } else {
@@ -291,11 +293,9 @@ public:
             if (dyn_cast<CallExpr>(SE) != nullptr) {
               // If this is a function call..create Geq constraints.
               constrainConsVarGeq(
-                  V, RHSConstraints, CS, &PL,
-                  Safe_to_Wild);// FIXME: Check this; should look at CA
+                  V, RHSConstraints, CS, &PL, CAction);
             } else {
-              constrainConsVarGeq(V, RHSConstraints, CS, &PL,
-                                  CA);// FIXME: Check this; should look at CA
+              constrainConsVarGeq(V, RHSConstraints, CS, &PL, CAction);
             }
           }
         }
@@ -307,8 +307,7 @@ public:
           // Case 1.
           // There are constraint variables for the RHS, so, use those over
           // anything else we could infer.
-          constrainConsVarGeq(V, RHSConstraints, CS, &PL,
-                              CA);// FIXME: Check this; should look at CA
+          constrainConsVarGeq(V, RHSConstraints, CS, &PL, CAction);
         }
       }
     }
@@ -317,13 +316,13 @@ public:
   void constrainLocalAssign(Expr *LHS, Expr *RHS) {
     // Get the in-context local constraints.
     std::set<ConstraintVariable *> V = Info.getVariable(LHS, Context, true);
-    constrainLocalAssign(V, LHS->getType(), RHS);
+    constrainLocalAssign(V, LHS->getType(), RHS, Safe_to_Wild);
   }
 
   void constrainLocalAssign(DeclaratorDecl *D, Expr *RHS) {
     // Get the in-context local constraints.
     std::set<ConstraintVariable *> V = Info.getVariable(D, Context, true);
-    constrainLocalAssign(V, D->getType(), RHS);
+    constrainLocalAssign(V, D->getType(), RHS, Safe_to_Wild);
   }
 
   bool VisitDeclStmt(DeclStmt *S) {
@@ -414,7 +413,7 @@ public:
           // "Unable to get parameter constraints");
           // the constrains could be empty for builtin functions.
           constrainLocalAssign(ParameterConstraintVars, PD->getType(),
-                               A, Safe_to_Wild);
+                               A, Wild_to_Safe);
         } else {
           // This is the case of an argument passed to a function
           // with varargs.
@@ -476,7 +475,7 @@ public:
     
     for (const auto &F : Fun) {
       if (FVConstraint *FV = dyn_cast<FVConstraint>(F)) {
-    	constrainLocalAssign(FV->getReturnVars(), Typ, RetExpr);
+    	constrainLocalAssign(FV->getReturnVars(), Typ, RetExpr, Same_to_Same);
       }
     }
     return true;
@@ -550,8 +549,8 @@ private:
                 if (i < FV->numParams()) {
                   std::set<ConstraintVariable *> ParameterDC =
                     FV->getParamVar(i);
-                  constrainConsVarGeq(ArgumentConstraints, ParameterDC, CS, &PL,
-                                      Same_to_Same);// Why same to same ?
+                  constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
+                                      Wild_to_Safe);// Why same to same ?
                 } else {
                   // Constrain argument to wild since we can't match it
                   // to a parameter from the type.
@@ -584,27 +583,28 @@ private:
     return true;
   }
 
-  // Handle the assignment of constraint variables to an itype expression.
-  bool handleITypeAssignment(std::set<ConstraintVariable *> &Vars,
-                             InteropTypeExpr *expr) {
-    bool Handled = false;
-    CheckedPointerKind PtrKind = getCheckedPointerKind(expr);
-    // Currently we only handle NT arrays.
-    if (PtrKind == CheckedPointerKind::NtArray) {
-      Handled = true;
-      Constraints &CS = Info.getConstraints();
-      // Assign the corresponding checked type only to the
-      // top level constraint var.
-      for (auto ConsVar :Vars) {
-        if (PVConstraint *PV = dyn_cast<PVConstraint>(ConsVar))
-          PV->constrainOuterTo(CS,getCheckedPointerConstraint(PtrKind));
-      }
-    }
-    // Is this handled or propagation through itype
-    // has been disabled. In which case, all itypes
-    // values will be handled.
-    return Handled || !EnablePropThruIType;
-  }
+//  // Handle the assignment of constraint variables to an itype expression.
+//  bool handleITypeAssignment(std::set<ConstraintVariable *> &Vars,
+//                             InteropTypeExpr *expr) {
+//    bool Handled = false;
+//    CheckedPointerKind PtrKind = getCheckedPointerKind(expr);
+//    // Currently we only handle NT arrays.
+//    // FIXME: I think we shoudl be able to handle all types now
+//    if (PtrKind == CheckedPointerKind::NtArray) {
+//      Handled = true;
+//      Constraints &CS = Info.getConstraints();
+//      // Assign the corresponding checked type only to the
+//      // top level constraint var.
+//      for (auto ConsVar :Vars) {
+//        if (PVConstraint *PV = dyn_cast<PVConstraint>(ConsVar))
+//          PV->constrainOuterTo(CS,getCheckedPointerConstraint(PtrKind));
+//      }
+//    }
+//    // Is this handled or propagation through itype
+//    // has been disabled. In which case, all itypes
+//    // values will be handled.
+//    return Handled || !EnablePropThruIType;
+//  }
 
   // Constraint all the provided vars to be
   // equal to the provided type i.e., (V >= type).
@@ -673,21 +673,21 @@ private:
       constraintInBodyVariable(O->getRHS(),ARR);
   }
 
-  ConstAtom *getCheckedPointerConstraint(CheckedPointerKind PtrKind) {
-    Constraints &CS = Info.getConstraints();
-    switch(PtrKind) {
-      case CheckedPointerKind::NtArray:
-        return CS.getNTArr();
-      case CheckedPointerKind::Array:
-        return CS.getArr();
-      case CheckedPointerKind::Ptr:
-        return CS.getPtr();
-      case CheckedPointerKind::Unchecked:
-        llvm_unreachable("Unchecked type inside an itype. "
-                         "This should be impossible.");
-    }
-    assert(false && "Invalid Pointer kind.");
-  }
+//  ConstAtom *getCheckedPointerConstraint(CheckedPointerKind PtrKind) {
+//    Constraints &CS = Info.getConstraints();
+//    switch(PtrKind) {
+//      case CheckedPointerKind::NtArray:
+//        return CS.getNTArr();
+//      case CheckedPointerKind::Array:
+//        return CS.getArr();
+//      case CheckedPointerKind::Ptr:
+//        return CS.getPtr();
+//      case CheckedPointerKind::Unchecked:
+//        llvm_unreachable("Unchecked type inside an itype. "
+//                         "This should be impossible.");
+//    }
+//    assert(false && "Invalid Pointer kind.");
+//  }
 
   Expr *getNormalizedExpr(Expr *CE) {
     if (dyn_cast<ImplicitCastExpr>(CE)) {

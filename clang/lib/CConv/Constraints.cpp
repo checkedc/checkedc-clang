@@ -225,7 +225,7 @@ bool Constraints::check(Constraint *C) {
 //---- add k to W
 
 static bool do_solve(ConstraintsGraph &CG,
-                     std::set<Implies *> SavedImplies,
+                     std::set<Implies *> &SavedImplies,
                      ConstraintsEnv & env,
                      Constraints *CS, bool doingChecked,
                      unsigned &Niter) {
@@ -233,7 +233,9 @@ static bool do_solve(ConstraintsGraph &CG,
   // Initialize work list with ConstAtoms.
   std::vector<Atom *> WorkList;
   std::set<Implies *> FiredImplies;
-  assert(doingChecked);
+
+  // FIXME: Drop this
+  if (!doingChecked) return true; // Later: This should compute *greatest* solution
 
   do {
     WorkList.clear();
@@ -258,6 +260,7 @@ static bool do_solve(ConstraintsGraph &CG,
         if (VarAtom *K = dyn_cast<VarAtom>(SucA)) {
           ConstAtom *SucSol = env.getAssignment(K);
           // --- if sol(k) <> (sol(k) JOIN Q) then
+          //   FIXME: Change to compute the MEET (greatest lower bound) rather than JOIN
           if (*SucSol < *CurrSol) {
             // ---- set sol(k) := (sol(k) JOIN Q)
             Changed = env.assign(K,CurrSol);
@@ -327,7 +330,8 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
   ConstraintsGraph ChkCG;
   ConstraintsGraph PtrTypCG;
   std::set<Implies *> SavedImplies;
-  ConstraintsEnv &safe_env = environment; // make an alias ?
+  std::set<Implies *> Empty;
+  ConstraintsEnv &env = environment;
 
   environment.checkAssignment(getPtr());
 
@@ -336,6 +340,9 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
     if (Geq *G = dyn_cast<Geq>(C)) {
       if (G->constraintIsChecked())
 	ChkCG.addConstraint(G, *this);
+      else
+        // FIXME: make it so that edge is in reverse order
+        PtrTypCG.addConstraint(G, *this);
     }
     // Save the implies to solve them later.
     else if (Implies *Imp = dyn_cast<Implies>(C)) {
@@ -349,9 +356,17 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
   if (DebugSolver)
     ChkCG.dumpCGDot("constraints_graph.dot");
 
-  // Solve it
-  bool res = do_solve(ChkCG, SavedImplies, safe_env, this, true, Niter);
-  //assert(ptr_env.checkAssignment(getPtr()));
+  // Solve Checked/unchecked cosntraints first
+  bool res = do_solve(ChkCG, SavedImplies, env, this, true, Niter);
+
+  // FIXME: If we aren't doing -alltypes, don't with this
+  // now solve PtrType constraints
+  if (res) {
+    // FIXME: Go through env, and for every VarAtom X whose solution is Wild,
+    //   add an edge X <-- WILD to PtyTypeCG
+    res = do_solve(PtrTypCG, Empty, env, this, false, Niter);
+  }
+
   return res;
 }
 
