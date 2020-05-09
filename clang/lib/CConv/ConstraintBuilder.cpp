@@ -83,7 +83,8 @@ public:
             if (const clang::ArrayType *AT =
                     dyn_cast<clang::ArrayType>(TypePtr)) {
               if (VarAtom *VA = dyn_cast<VarAtom>(ConsKey)) {
-                CS.addConstraint(CS.createGeq(VA, CS.getArr(), true));
+                // FIXME: We shouldn't be adding constraints directly. Use constrainOuter
+                CS.addConstraint(CS.createGeq(CS.getArr(), VA, false));
               }
               TypePtr = AT->getElementType().getTypePtr();
               continue;

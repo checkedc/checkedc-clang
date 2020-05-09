@@ -918,7 +918,10 @@ void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C) 
   if (vars.size() > 0) {
     Atom *A = *vars.begin();
     if (VarAtom *VA = dyn_cast<VarAtom>(A))
-      CS.addConstraint(CS.createGeq(VA, C, false));
+      CS.addConstraint(CS.createGeq(C, VA, false));
+    else if (ConstAtom *CA = dyn_cast<ConstAtom>(A)) {
+      assert (!(*C < *CA));
+    }
   }
 }
 
