@@ -288,15 +288,9 @@ public:
                 PVC->constrainToWild(CS, CFDifType, &PL, false);
             }
           } else {
-            // The cast is safe and it is not a special function.
-            RHSConstraints = getRHSConsVariables(RHS, LhsType, Context);
-            if (dyn_cast<CallExpr>(SE) != nullptr) {
-              // If this is a function call..create Geq constraints.
-              constrainConsVarGeq(
-                  V, RHSConstraints, CS, &PL, CAction);
-            } else {
-              constrainConsVarGeq(V, RHSConstraints, CS, &PL, CAction);
-            }
+            // Remove external cast and recursively process
+            // the child expression.
+            constrainLocalAssign(V, LhsType, SE, CAction);
           }
         }
       } else {
