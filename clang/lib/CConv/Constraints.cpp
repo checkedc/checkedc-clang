@@ -121,8 +121,8 @@ void Constraints::editConstraintHook(Constraint *C) {
         if (LHSA != nullptr && RHSA != nullptr) {
           return;
         }
-        if (LHSA) {
-          E->setCheckedEq(getWild());
+        if (RHSA) {
+          E->setChecked(getWild());
         }
       }
     }
@@ -234,8 +234,6 @@ static bool do_solve(ConstraintsGraph &CG,
   std::vector<Atom *> WorkList;
   std::set<Implies *> FiredImplies;
 
-  if (!doingChecked) return true; // FIXME: Enable
-
   do {
     WorkList.clear();
     auto &InitC = CG.getAllConstAtoms();
@@ -258,11 +256,11 @@ static bool do_solve(ConstraintsGraph &CG,
                      << " of " << CurrAtom->getStr() << "\n";*/
         if (VarAtom *K = dyn_cast<VarAtom>(SucA)) {
           ConstAtom *SucSol = env.getAssignment(K);
-          // --- if sol(k) <> (sol(k) JOIN Q) then
-          //   FIXME: Change to compute the MEET (greatest lower bound) rather than JOIN
+          // checked? --- if sol(k) <> (sol(k) JOIN Q) then
+          //   else   --- if sol(k) <> (sol(k) MEET Q) then
           if ((doingChecked && *SucSol < *CurrSol) ||
               (!doingChecked && *CurrSol < *SucSol)) {
-            // ---- set sol(k) := (sol(k) JOIN Q)
+            // ---- set sol(k) := (sol(k) JOIN/MEET Q)
             Changed = env.assign(K,CurrSol);
             /*if (Changed) {
               llvm::s()err << "Trying to assign:" << CurrSol->getStr() << " to "
@@ -277,8 +275,8 @@ static bool do_solve(ConstraintsGraph &CG,
             CG.getSuccessors<ConstAtom>(K, KSuccessors);
             for (auto *KChild : KSuccessors) {
               if (ConstAtom *KCSol = dyn_cast<ConstAtom>(KChild))
-                // that sol(k) <: q (checked) or q <: sol(k) (nonchecked); else
-                // fail
+                // that sol(k) <: q (checked)
+                //   or q <: sol(k) (nonchecked); else fail
                 if ((doingChecked &&
                      !(*SucSol < *KCSol) && *SucSol != *KCSol) ||
                     (!doingChecked &&
@@ -327,6 +325,9 @@ static bool do_solve(ConstraintsGraph &CG,
     // Lets repeat if there are some fired constraints.
   } while (!FiredImplies.empty());
 
+  // FIXME: Need to find all edges sol_k(Q) <: K in checked,
+  //   and S <: sol_s(Q) in non-checked (where K, S are constants)
+  //   and confirm solution is OK
   return true;
 }
 
@@ -357,24 +358,20 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
       llvm_unreachable("Bogus constraint type");
   }
   if (DebugSolver)
-    ChkCG.dumpCGDot("constraints_graph.dot");
+    ChkCG.dumpCGDot("checked_constraints_graph.dot");
 
   // Solve Checked/unchecked cosntraints first
   bool res = do_solve(ChkCG, SavedImplies, env, this, true, Niter);
+  SavedImplies.clear();
 
   // now solve PtrType constraints
-  if (res) {
-    // Go through env, and for every VarAtom X whose solution is Wild,
-    //   add an edge X <-- WILD to PtyTypeCG
-    EnvironmentMap &sol = env.getVariables();
-    EnvironmentMap::iterator VI = sol.begin();
-    // Step 1. Propagate any WILD constraint as far as we can.
-    while (VI != sol.end()) {
-      PtrTypCG.addEdge(getWild(),VI->first,false);
-      VI++;
-    }
-    SavedImplies.clear();
+  if (res && AllTypes) {
+    if (DebugSolver)
+      PtrTypCG.dumpCGDot("ptyp_constraints_graph.dot");
+
+    env.swapSolution(getWild(), getWildBot());
     res = do_solve(PtrTypCG, Empty, env, this, false, Niter);
+    env.swapSolution(getWildBot(), getWild());
   }
 
   return res;
@@ -392,6 +389,11 @@ std::pair<Constraints::ConstraintSet, bool>
   }
 
   ok = graph_based_solve(NumOfIter);
+
+  if (DebugSolver) {
+    errs() << "solution, when done solving\n";
+    environment.dump();
+  }
 
   return std::pair<Constraints::ConstraintSet, bool>(Conflicts, ok);
 }
@@ -461,6 +463,9 @@ NTArrAtom *Constraints::getNTArr() const {
 WildAtom *Constraints::getWild() const {
   return PrebuiltWild;
 }
+WildBotAtom *Constraints::getWildBot() const {
+  return PrebuiltWildBot;
+}
 
 ConstAtom *Constraints::getAssignment(Atom *A) {
   return environment.getAssignment(A);
@@ -509,6 +514,7 @@ Constraints::Constraints() {
   PrebuiltArr = new ArrAtom();
   PrebuiltNTArr = new NTArrAtom();
   PrebuiltWild = new WildAtom();
+  PrebuiltWildBot = new WildBotAtom();
 }
 
 Constraints::~Constraints() {
@@ -516,6 +522,7 @@ Constraints::~Constraints() {
   delete PrebuiltArr;
   delete PrebuiltNTArr;
   delete PrebuiltWild;
+  delete PrebuiltWildBot;
 }
 
 /* ConstraintsEnv methods */
@@ -610,5 +617,12 @@ bool ConstraintsEnv::assign(VarAtom *V, ConstAtom *C) {
 void ConstraintsEnv::resetSolution(ConstAtom *initC) {
   for (auto &CurrE : environment) {
     CurrE.second = initC;
+  }
+}
+
+void ConstraintsEnv::swapSolution(ConstAtom *old, ConstAtom *repl) {
+  for (auto &CurrE : environment) {
+    if (CurrE.second == old)
+      CurrE.second = repl;
   }
 }
