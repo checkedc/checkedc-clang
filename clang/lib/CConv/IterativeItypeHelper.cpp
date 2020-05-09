@@ -103,7 +103,8 @@ unsigned long resetWithitypeConstraints(Constraints &CS) {
 
   // Now try to remove the constraints.
   for (auto &CurrE : EnvMap) {
-    CurrE.first->resetErasedConstraints();
+    // MWH: Don't know what this was doing!?
+    //CurrE.first->resetErasedConstraints();
     Removed += CurrE.first->replaceEqConstraints(ToRemoveVAtoms, CS);
   }
 

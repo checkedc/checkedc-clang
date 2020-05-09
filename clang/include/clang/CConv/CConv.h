@@ -94,7 +94,6 @@ public:
 private:
   // Are constraints already built?
   bool ConstraintsBuilt;
-  void ResetAllPointerConstraints();
   void InvalidateAllConstraintsWithReason(Constraint *ConstraintToRemove);
 
 };

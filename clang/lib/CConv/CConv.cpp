@@ -418,15 +418,6 @@ bool CConvInterface::WriteAllConvertedFilesToDisk() {
   return true;
 }
 
-void CConvInterface::ResetAllPointerConstraints() {
-  // Restore all the deleted constraints.
-  EnvironmentMap &EnvMap =
-      GlobalProgramInfo.getConstraints().getVariables();
-  for (auto &CV : EnvMap) {
-    CV.first->resetErasedConstraints();
-  }
-}
-
 DisjointSet &CConvInterface::GetWILDPtrsInfo() {
   return GlobalProgramInfo.getPointerConstraintDisjointSet();
 }
@@ -443,7 +434,8 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   CVars OldWildPtrs = PtrDisjointSet.AllWildPtrs;
 
   // Reset all the pointer constraints.
-  ResetAllPointerConstraints();
+  // ResetAllPointerConstraints(); MWH: Only reset "erased" constraints
+  //   but these no longer used in new solving algorithm
 
   // Delete the constraint that make the provided targetPtr WILD.
   VarAtom *VA = CS.getOrCreateVar(targetPtr);
@@ -507,7 +499,9 @@ bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
 
   CVars OldWildPtrs = PtrDisjointSet.AllWildPtrs;
 
-  ResetAllPointerConstraints();
+  // MWH: Only reset "erased" constraints
+  //   but these no longer used in new solving algorithm
+  // ResetAllPointerConstraints();
 
   // Delete ALL the constraints that have the same given reason.
   VarAtom *VA = CS.getOrCreateVar(PtrKey);

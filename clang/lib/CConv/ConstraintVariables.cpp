@@ -848,29 +848,6 @@ void FunctionVariableConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
 
 }
 
-bool PointerVariableConstraint::canConstraintCKey(Constraints &CS,
-                                                  ConstraintKey Ck,
-                                                  ConstAtom *CA,
-                                                  bool CheckSkip) {
-  // Check and see if we've already constrained this variable. This is currently
-  // only done when the bounds-safe interface has refined a type for an external
-  // function, and we don't want the linking phase to un-refine it by introducing
-  // a conflicting constraint.
-  bool Add = true;
-  // This will ensure that we do not make an itype constraint
-  // variable to be WILD (which should be impossible)!!.
-  if (CheckSkip || dyn_cast<WildAtom>(CA)) {
-    if (ConstrainedVars.find(Ck) != ConstrainedVars.end())
-      Add = false;
-  }
-  // See, if we can constrain the current constraint var to the provided
-  // ConstAtom.
-  if (!CS.getOrCreateVar(Ck)->canAssign(CA))
-    Add = false;
-
-  return Add;
-}
-
 void PointerVariableConstraint::constrainToWild(Constraints &CS,
                                                 bool CheckSkip) {
   ConstAtom *WA = CS.getWild();

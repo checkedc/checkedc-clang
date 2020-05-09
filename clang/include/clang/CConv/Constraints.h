@@ -137,32 +137,11 @@ public:
     return Loc;
   }
 
-  void eraseConstraint(Constraint *Todel) {
-    // Remove the constraint.
-    Constraints.erase(Todel);
-    // Add the constraint into another set so that
-    // we can restore in future.
-    ErasedConstraints.insert(Todel);
-  }
-
   // Replace the equality constraints that contains the provided
   // constraint variable with the constant atom.
   unsigned replaceEqConstraints(std::map<VarAtom *, ConstAtom *,
                                 PComp<VarAtom *>> &VAtoms,
                                 class Constraints &CS);
-
-  // Restore the erased constraints into the regular constraints.
-  bool resetErasedConstraints() {
-    bool Added = false;
-    // Insert the erased constraints into the original
-    // constraints.
-    for(auto C : ErasedConstraints) {
-      Added = Constraints.insert(C).second || Added;
-    }
-    // Remove all the erased constraints.
-    ErasedConstraints.clear();
-    return Added;
-  }
 
   bool containsConstraint(VarAtom *ToFind) {
     // This is a VarAtom and contains is same as equality.
@@ -174,26 +153,9 @@ public:
     return Constraints;
   }
 
-  // Check if we can assign the provided const atom to this VarAtom
-  // this is to implement a Band Pass filter mechanism.
-  // i.e., this VarAtom cannot be assigned or involved in propagating
-  // some ConstAtom.
-  // For example: a static array i.e., int arr[10] can never be WILD.
-  bool inline canAssign(ConstAtom *ToAssign) {
-    return ImpossibleVals.find(ToAssign->getKind()) == ImpossibleVals.end();
-  }
-
-  // Set the provided constant atom as being impossible for this VarAtom.
-  void setConstImpossible(ConstAtom *ImpossibleConst) {
-    ImpossibleVals.insert(ImpossibleConst->getKind());
-  }
-
 private:
-  std::set<ConstAtom::AtomKind> ImpossibleVals;
   uint32_t  Loc;
-  // These are the constraints erased during constraint solving.
-  std::set<Constraint *, PComp<Constraint *>> ErasedConstraints;
-  // The constraint expressions where this variable is mentioned on the 
+  // The constraint expressions where this variable is mentioned on the
   // LHS of an equality.
   std::set<Constraint *, PComp<Constraint *>> Constraints;
 };

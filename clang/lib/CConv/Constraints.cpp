@@ -614,11 +614,8 @@ bool ConstraintsEnv::checkAssignment(ConstAtom *C) {
 
 bool ConstraintsEnv::assign(VarAtom *V, ConstAtom *C) {
   auto VI = environment.find(V);
-  if (VI->first->canAssign(C)) {
-    VI->second = C;
-    return true;
-  }
-  return false;
+  VI->second = C;
+  return true;
 }
 
 void ConstraintsEnv::resetSolution(ConstAtom *initC) {

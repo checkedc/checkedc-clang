@@ -281,9 +281,6 @@ public:
                      llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;
 
   virtual ~PointerVariableConstraint() {};
-
-  bool canConstraintCKey(Constraints &CS, ConstraintKey Ck, ConstAtom *CA,
-                         bool CheckSkip);
 };
 
 typedef PointerVariableConstraint PVConstraint;
