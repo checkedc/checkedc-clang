@@ -25,3 +25,20 @@ void g() {
 // CHECK:  int y _Checked[5];
 // CHECK:  _Ptr<_Array_ptr<int>> p =  &x;
 // CHECK:  _Ptr<_Array_ptr<int>> r =  0;
+
+void foo(void) {
+  int x;
+  int *y = &x;
+  int **z = &y;
+
+  int *p = &x;
+  int **q = &p;
+  q = (int **)5;
+
+  int *p2 = &x;
+  p2 = (int *)5;
+  int **q2 = &p2;
+}
+// CHECK:  _Ptr<int> y =  &x;
+// CHECK:  _Ptr<_Ptr<int>> z =  &y;
+// CHECK:  _Ptr<int*> q2 =  &p2;
