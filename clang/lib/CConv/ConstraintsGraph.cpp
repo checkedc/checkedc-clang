@@ -39,6 +39,15 @@ std::set<ConstAtom*> &ConstraintsGraph::getAllConstAtoms() {
   return AllConstAtoms;
 }
 
+void ConstraintsGraph::addEdge(Atom *A1, Atom *A2, bool isBackward) {
+  auto V1 = addVertex(A1);
+  auto V2 = addVertex(A2);
+  if (isBackward)
+    add_edge(V2, V1, CG);
+  else
+    add_edge(V1, V2, CG);
+}
+
 void ConstraintsGraph::addConstraint(Geq *C, Constraints &CS) {
   Atom *A1 = C->getLHS();
   if (VarAtom *VA1 = clang::dyn_cast<VarAtom>(A1)) {
@@ -48,11 +57,8 @@ void ConstraintsGraph::addConstraint(Geq *C, Constraints &CS) {
   if (VarAtom *VA2 = clang::dyn_cast<VarAtom>(A2)) {
     A2 = CS.getOrCreateVar(VA2->getLoc());
   }
-  // Here, LHS >= RHS
-  // So, edge from RHS -> LHS
-  auto V1 = addVertex(A1);
-  auto V2 = addVertex(A2);
-  add_edge(V2, V1, CG);
+  // Here, LHS >= RHS, so edge is RHS -> LHS if checked; LHS -> RHS otherwise
+  addEdge(A1,A2,C->constraintIsChecked());
 }
 
 void ConstraintsGraph::dumpCGDot(const std::string& GraphDotFile) {

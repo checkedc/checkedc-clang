@@ -602,7 +602,7 @@ private:
 
   // Constraint all the provided vars to be
   // equal to the provided type i.e., (V >= type).
-  void constrainVarsGeq(std::set<ConstraintVariable *> &Vars,
+  void constrainVarsTo(std::set<ConstraintVariable *> &Vars,
                        ConstAtom *CAtom) {
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Vars)
@@ -615,13 +615,13 @@ private:
   void constraintInBodyVariable(Expr *e, ConstAtom *CAtom) {
     std::set<ConstraintVariable *> Var =
       Info.getVariable(e, Context, true);
-    constrainVarsGeq(Var, CAtom);
+    constrainVarsTo(Var, CAtom);
   }
 
   void constraintInBodyVariable(Decl *d, ConstAtom *CAtom) {
     std::set<ConstraintVariable *> Var =
       Info.getVariable(d, Context, true);
-    constrainVarsGeq(Var, CAtom);
+    constrainVarsTo(Var, CAtom);
   }
 
   // Assign the provided type (target)

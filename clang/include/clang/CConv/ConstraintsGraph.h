@@ -31,7 +31,7 @@ public:
     AtomToVDMap.clear();
   }
 
-  // We support only these two constraints now.
+  void addEdge(Atom *V1, Atom *V2, bool isBackward);
   void addConstraint(Geq *C, Constraints &CS);
 
   // Get all ConstAtoms, basically the points

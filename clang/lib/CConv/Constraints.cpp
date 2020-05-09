@@ -234,8 +234,7 @@ static bool do_solve(ConstraintsGraph &CG,
   std::vector<Atom *> WorkList;
   std::set<Implies *> FiredImplies;
 
-  // FIXME: Drop this
-  if (!doingChecked) return true; // Later: This should compute *greatest* solution
+  if (!doingChecked) return true; // FIXME: Enable
 
   do {
     WorkList.clear();
@@ -261,7 +260,8 @@ static bool do_solve(ConstraintsGraph &CG,
           ConstAtom *SucSol = env.getAssignment(K);
           // --- if sol(k) <> (sol(k) JOIN Q) then
           //   FIXME: Change to compute the MEET (greatest lower bound) rather than JOIN
-          if (*SucSol < *CurrSol) {
+          if ((doingChecked && *SucSol < *CurrSol) ||
+              (!doingChecked && *CurrSol < *SucSol)) {
             // ---- set sol(k) := (sol(k) JOIN Q)
             Changed = env.assign(K,CurrSol);
             /*if (Changed) {
@@ -276,16 +276,20 @@ static bool do_solve(ConstraintsGraph &CG,
             std::set<Atom *> KSuccessors;
             CG.getSuccessors<ConstAtom>(K, KSuccessors);
             for (auto *KChild : KSuccessors) {
-              ConstAtom *KCSol = env.getAssignment(KChild);
-              // that sol(k) <: q; else fail
-              if (!(*SucSol < *KCSol) && *SucSol != *KCSol) {
-                // failure case.
-                errs() << "Invalid graph formed on Vertex:";
-                SucSol->print(errs());
-                KCSol->print(errs());
-                K->print(errs());
-                return false;
-              }
+              if (ConstAtom *KCSol = dyn_cast<ConstAtom>(KChild))
+                // that sol(k) <: q (checked) or q <: sol(k) (nonchecked); else
+                // fail
+                if ((doingChecked &&
+                     !(*SucSol < *KCSol) && *SucSol != *KCSol) ||
+                    (!doingChecked &&
+                     !(*KCSol < *SucSol) && *SucSol != *KCSol)) {
+                  // failure case.
+                  errs() << "Unsolvable constraints:";
+                  SucSol->print(errs());
+                  KCSol->print(errs());
+                  K->print(errs());
+                  return false;
+                }
             }
             // ---- add k to W
             WorkList.push_back(K);
@@ -341,7 +345,6 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
       if (G->constraintIsChecked())
 	ChkCG.addConstraint(G, *this);
       else
-        // FIXME: make it so that edge is in reverse order
         PtrTypCG.addConstraint(G, *this);
     }
     // Save the implies to solve them later.
@@ -359,11 +362,18 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
   // Solve Checked/unchecked cosntraints first
   bool res = do_solve(ChkCG, SavedImplies, env, this, true, Niter);
 
-  // FIXME: If we aren't doing -alltypes, don't with this
   // now solve PtrType constraints
   if (res) {
-    // FIXME: Go through env, and for every VarAtom X whose solution is Wild,
+    // Go through env, and for every VarAtom X whose solution is Wild,
     //   add an edge X <-- WILD to PtyTypeCG
+    EnvironmentMap &sol = env.getVariables();
+    EnvironmentMap::iterator VI = sol.begin();
+    // Step 1. Propagate any WILD constraint as far as we can.
+    while (VI != sol.end()) {
+      PtrTypCG.addEdge(getWild(),VI->first,false);
+      VI++;
+    }
+    SavedImplies.clear();
     res = do_solve(PtrTypCG, Empty, env, this, false, Niter);
   }
 
