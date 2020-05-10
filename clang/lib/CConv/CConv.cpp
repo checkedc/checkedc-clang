@@ -255,7 +255,6 @@ bool CConvInterface::SolveConstraints() {
     GlobalProgramInfo.dump();
   }
 
-  // perform constraint solving by iteratively refining based on itypes.
   runSolver(GlobalProgramInfo, FilePaths);
 
   if (Verbose)
