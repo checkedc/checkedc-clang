@@ -1079,6 +1079,9 @@ static ConsAction neg(ConsAction CA) {
   case Wild_to_Safe: return Safe_to_Wild;
   case Same_to_Same: return Same_to_Same;
   }
+  // Silencing the compiler.
+  assert(false && "Can never reach here.");
+  return Same_to_Same;
 }
 
 void createAtomGeq(Constraints &CS, Atom *L, Atom *R,

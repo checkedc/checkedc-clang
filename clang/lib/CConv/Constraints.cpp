@@ -121,7 +121,8 @@ void Constraints::editConstraintHook(Constraint *C) {
         if (LHSA != nullptr && RHSA != nullptr) {
           return;
         }
-        if (RHSA) {
+        // Make this checked only if the const atom is other than Ptr.
+        if (RHSA && !dyn_cast<PtrAtom>(E->getLHS())) {
           E->setChecked(getWild());
         }
       }
@@ -345,6 +346,9 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
   std::set<Implies *> Empty;
   ConstraintsEnv &env = environment;
 
+  // Duplicate the environment to be used for Ptr constraint solving.
+  ConstraintsEnv PtrEnv(env);
+
   environment.checkAssignment(getPtr());
 
   // Setup the Checked Constraint Graph.
@@ -376,9 +380,12 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
     if (DebugSolver)
       PtrTypCG.dumpCGDot("ptyp_constraints_graph.dot");
 
-    env.swapSolution(getWild(), getWildBot());
-    res = do_solve(PtrTypCG, Empty, env, this, false, Niter);
-    env.swapSolution(getWildBot(), getWild());
+    // env.swapSolution(getWild(), getWildBot());
+    res = do_solve(PtrTypCG, Empty, PtrEnv, this, false, Niter);
+    // Merge the Kind solution with the pointer solution.
+    env.mergeCheckedPtrs(PtrEnv);
+    // env.swapSolution(getWildBot(), getWild());
+
   }
 
   return res;
@@ -628,5 +635,19 @@ void ConstraintsEnv::swapSolution(ConstAtom *old, ConstAtom *repl) {
   for (auto &CurrE : environment) {
     if (CurrE.second == old)
       CurrE.second = repl;
+  }
+}
+
+void ConstraintsEnv::mergeCheckedPtrs(ConstraintsEnv &CheckedPtrsEnv) {
+  for (auto &Elem : environment) {
+    ConstAtom *CAssign = getAssignment(Elem.first);
+    // If this is a checked Kind?
+    // Get the Corresponding checked pointer type.
+    if (dyn_cast<WildAtom>(CAssign) == nullptr) {
+      ConstAtom *OAssign = CheckedPtrsEnv.getAssignment(Elem.first);
+      assert(dyn_cast<WildAtom>(OAssign) == nullptr &&
+          "Expected a checked pointer type.");
+      assign(Elem.first, OAssign);
+    }
   }
 }

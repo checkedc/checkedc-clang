@@ -217,10 +217,11 @@ public:
         // Get the constraint variable corresponding
         // to the declaration.
         RHSConstraints = Info.getVariable(RHS, Context, false);
+        // This is call-expression. We should use c2u for returns.
         if (RHSConstraints.size() > 0) {
           constrainConsVarGeq(
               V, RHSConstraints, CS, &PL,
-              CAction);
+              Safe_to_Wild);
         }
       }
     } else {
@@ -311,13 +312,13 @@ public:
   void constrainLocalAssign(Expr *LHS, Expr *RHS) {
     // Get the in-context local constraints.
     std::set<ConstraintVariable *> V = Info.getVariable(LHS, Context, true);
-    constrainLocalAssign(V, LHS->getType(), RHS, Safe_to_Wild);
+    constrainLocalAssign(V, LHS->getType(), RHS, Same_to_Same);
   }
 
   void constrainLocalAssign(DeclaratorDecl *D, Expr *RHS) {
     // Get the in-context local constraints.
     std::set<ConstraintVariable *> V = Info.getVariable(D, Context, true);
-    constrainLocalAssign(V, D->getType(), RHS, Safe_to_Wild);
+    constrainLocalAssign(V, D->getType(), RHS, Same_to_Same);
   }
 
   bool VisitDeclStmt(DeclStmt *S) {
