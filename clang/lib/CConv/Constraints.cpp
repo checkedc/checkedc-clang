@@ -229,7 +229,7 @@ static bool do_solve(ConstraintsGraph &CG,
                      std::set<Implies *> &SavedImplies,
                      ConstraintsEnv & env,
                      Constraints *CS, bool doingChecked,
-                     unsigned &Niter) {
+                     unsigned &Niter, Constraints::ConstraintSet &Conflicts) {
 
   // Initialize work list with ConstAtoms.
   std::vector<Atom *> WorkList;
@@ -241,30 +241,30 @@ static bool do_solve(ConstraintsGraph &CG,
     WorkList.insert(WorkList.begin(), InitC.begin(), InitC.end());
 
     while (!WorkList.empty()) {
-      auto *CurrAtom = *(WorkList.begin());
-      // Remove the first element.
+      auto *Curr = *(WorkList.begin());
+      // Remove the first element, get its solution
       WorkList.erase(WorkList.begin());
+      ConstAtom *CurrSol = env.getAssignment(Curr);
 
-      // Get the solution of the CurrAtom.
-      ConstAtom *CurrSol = env.getAssignment(CurrAtom);
-
+      // get its successors
       std::set<Atom *> Successors;
-      // get successors
-      CG.getSuccessors<VarAtom>(CurrAtom, Successors);
+      CG.getSuccessors<VarAtom>(Curr, Successors);
+      // update each successor's solution
       for (auto *SucA : Successors) {
         bool Changed = false;
         /*llvm::errs() << "Successor:" << SucA->getStr()
-                     << " of " << CurrAtom->getStr() << "\n";*/
-        if (VarAtom *K = dyn_cast<VarAtom>(SucA)) {
-          ConstAtom *SucSol = env.getAssignment(K);
-          // checked? --- if sol(k) <> (sol(k) JOIN Q) then
-          //   else   --- if sol(k) <> (sol(k) MEET Q) then
+                     << " of " << Curr->getStr() << "\n";*/
+        if (VarAtom *Suc = dyn_cast<VarAtom>(SucA)) {
+          ConstAtom *SucSol = env.getAssignment(Suc);
+          // update solution if doing so would change it
+          // checked? --- if sol(Suc) <> (sol(Suc) JOIN Cur)
+          //   else   --- if sol(Suc) <> (sol(Suc) MEET Cur)
           if ((doingChecked && *SucSol < *CurrSol) ||
               (!doingChecked && *CurrSol < *SucSol)) {
             // ---- set sol(k) := (sol(k) JOIN/MEET Q)
-            Changed = env.assign(K,CurrSol);
-            if (Changed)
-              WorkList.push_back(K);
+            Changed = env.assign(Suc,CurrSol);
+            assert (Changed);
+            WorkList.push_back(Suc);
             /*if (Changed) {
               llvm::s()err << "Trying to assign:" << CurrSol->getStr() << " to "
                            << K->getStr() << "\n";
@@ -278,7 +278,7 @@ static bool do_solve(ConstraintsGraph &CG,
 
     // If there are some implications that we saved? Propagate them.
     if (!SavedImplies.empty()) {
-      // Check if Premise holds? If yes then fire the conclusion.
+      // Check if Premise holds. If yes then fire the conclusion.
       for (auto *Imp : SavedImplies) {
         Geq *Pre = Imp->getPremise();
         Geq *Con = Imp->getConclusion();
@@ -302,8 +302,9 @@ static bool do_solve(ConstraintsGraph &CG,
     // Lets repeat if there are some fired constraints.
   } while (!FiredImplies.empty());
 
-  // Check Upper/lower bounds hold
+  // Check Upper/lower bounds hold; collect failures in conflicts set
   std::set<Atom *> Predecessors;
+  bool ok = true;
   for (ConstAtom *Cbound : CG.getAllConstAtoms()) {
     if (CG.getPredecessors(Cbound, Predecessors)) {
       for (Atom *A : Predecessors) {
@@ -312,21 +313,31 @@ static bool do_solve(ConstraintsGraph &CG,
         ConstAtom *Csol = env.getAssignment(VA);
         if ((doingChecked && *Cbound < *Csol) ||
             (!doingChecked && *Csol < *Cbound)) {
+          ok = false;
+          // Failed. Make a constraint to represent it
+          std::string str;
+          llvm::raw_string_ostream os(str);
+          os << "Bad solution: "; Csol->print(os);
+          os.flush();
+          Geq *failedConstraint = doingChecked ?
+              new Geq(VA, Cbound, str, doingChecked) :
+              new Geq(Cbound, VA, str, doingChecked);
+          Conflicts.insert(failedConstraint);
           // failure case.
           errs() << "Unsolvable constraints:";
           VA->print(errs());
           Csol->print(errs());
           Cbound->print(errs());
-          return false;
         }
       }
     }
   }
 
-  return true;
+  return ok;
 }
 
-bool Constraints::graph_based_solve(unsigned &Niter) {
+bool Constraints::graph_based_solve(unsigned &Niter,
+                                    ConstraintSet &Conflicts) {
   ConstraintsGraph ChkCG;
   ConstraintsGraph PtrTypCG;
   std::set<Implies *> SavedImplies;
@@ -359,8 +370,9 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
   if (DebugSolver)
     ChkCG.dumpCGDot("checked_constraints_graph.dot");
 
-  // Solve Checked/unchecked cosntraints first
-  bool res = do_solve(ChkCG, SavedImplies, env, this, true, Niter);
+  // Solve Checked/unchecked constraints first
+  bool res = do_solve(ChkCG, SavedImplies, env,
+                      this, true, Niter, Conflicts);
   SavedImplies.clear();
 
   // now solve PtrType constraints
@@ -368,7 +380,8 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
     if (DebugSolver)
       PtrTypCG.dumpCGDot("ptyp_constraints_graph.dot");
 
-    res = do_solve(PtrTypCG, Empty, PtrEnv, this, false, Niter);
+    res = do_solve(PtrTypCG, Empty, PtrEnv,
+                   this, false, Niter, Conflicts);
     env.mergePtrTypesEnv(PtrEnv);
   }
 
@@ -377,16 +390,16 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
 
 std::pair<Constraints::ConstraintSet, bool>
     Constraints::solve(unsigned &NumOfIter) {
-  bool ok = false;
-  Constraints::ConstraintSet Conflicts;
 
+  Constraints::ConstraintSet Conflicts;
   NumOfIter = 0;
+
   if (DebugSolver) {
     errs() << "constraints beginning solve\n";
     dump();
   }
 
-  ok = graph_based_solve(NumOfIter);
+  bool ok = graph_based_solve(NumOfIter, Conflicts);
 
   if (DebugSolver) {
     errs() << "solution, when done solving\n";

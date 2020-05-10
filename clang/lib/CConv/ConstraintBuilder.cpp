@@ -327,7 +327,6 @@ public:
     // Build rules based on initializers.
     for (const auto &D : S->decls()) {
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-        std::set<uint32_t> V;
         Expr *InitE = VD->getInit();
         constrainLocalAssign(VD, InitE);
       }
@@ -664,6 +663,10 @@ public:
       if (G->getType()->isPointerType() || G->getType()->isArrayType()) {
         Info.addVariable(G, Context);
         Info.seeGlobalDecl(G, Context);
+        // TODO
+        //  Expr *InitE = G->getInit();
+        // if (InitE)
+        //   constrainLocalAssign(); // Need to pull out this method
       }
 
     return true;
