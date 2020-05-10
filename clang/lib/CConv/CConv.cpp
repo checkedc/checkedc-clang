@@ -31,33 +31,19 @@ using namespace llvm;
 #define AFTER_SUBTYPING_SUFFIX "_after_subtyping_"
 
 bool DumpIntermediate;
-
 bool Verbose;
-
 bool SeperateMultipleFuncDecls;
-
 std::string OutputPostfix;
-
 std::string ConstraintOutputJson;
-
 bool DumpStats;
-
 bool HandleVARARGS;
-
 bool EnablePropThruIType;
-
 bool ConsiderAllocUnsafe;
-
 bool AllTypes;
-
 std::string BaseDir;
-
 bool AddCheckedRegions;
-
 std::set<std::string> FilePaths;
-
 static CompilationDatabase *CurrCompDB = nullptr;
-
 static tooling::CommandLineArguments SourceFiles;
 
 template <typename T, typename V>
@@ -219,30 +205,23 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
                                const std::vector<std::string> &SourceFileList,
                                CompilationDatabase *CompDB) {
 
+  DumpIntermediate = CCopt.DumpIntermediate;
+  Verbose = CCopt.Verbose;
+  SeperateMultipleFuncDecls = CCopt.SeperateMultipleFuncDecls;
+  OutputPostfix = CCopt.OutputPostfix;
+  ConstraintOutputJson = CCopt.ConstraintOutputJson;
+  DumpStats = CCopt.DumpStats;
+  HandleVARARGS = CCopt.HandleVARARGS;
+  EnablePropThruIType = CCopt.EnablePropThruIType;
+  ConsiderAllocUnsafe = CCopt.ConsiderAllocUnsafe;
+  BaseDir = CCopt.BaseDir;
+  AllTypes = CCopt.EnableAllTypes;
+  AddCheckedRegions = CCopt.AddCheckedRegions;
+
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();
   llvm::InitializeAllAsmPrinters();
   llvm::InitializeAllAsmParsers();
-
-  DumpIntermediate = CCopt.DumpIntermediate;
-
-  Verbose = CCopt.Verbose;
-
-  SeperateMultipleFuncDecls = CCopt.SeperateMultipleFuncDecls;
-
-  OutputPostfix = CCopt.OutputPostfix;
-
-  ConstraintOutputJson = CCopt.ConstraintOutputJson;
-
-  DumpStats = CCopt.DumpStats;
-
-  HandleVARARGS = CCopt.HandleVARARGS;
-
-  EnablePropThruIType = CCopt.EnablePropThruIType;
-
-  ConsiderAllocUnsafe = CCopt.ConsiderAllocUnsafe;
-
-  BaseDir = CCopt.BaseDir;
 
   ConstraintsBuilt = false;
 
@@ -250,9 +229,6 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
   std::string TmpPath = BaseDir;
   getAbsoluteFilePath(BaseDir, TmpPath);
   BaseDir = TmpPath;
-
-  AllTypes = CCopt.EnableAllTypes;
-  AddCheckedRegions = CCopt.AddCheckedRegions;
 
   if (BaseDir.empty()) {
     SmallString<256>  cp;
@@ -278,7 +254,6 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
     errs() << "If rewriting more than one , can't output to stdout\n";
     assert(false && "Rewriting more than one files requires OutputPostfix");
   }
-
 }
 
 bool CConvInterface::BuildInitialConstraints() {
