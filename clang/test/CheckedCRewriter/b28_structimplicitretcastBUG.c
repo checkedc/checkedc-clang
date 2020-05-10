@@ -15,6 +15,7 @@ struct r {
   struct r *next;
 };
 
+#define NULL (void*)0
 struct r *sus(struct r x, struct r y) {
   x.next += 1;
   struct r *z = malloc(sizeof(struct r));
@@ -30,7 +31,7 @@ struct r *foo() {
   y.data = 1;
   x.next = &y;
   y.next = &x;
-  struct r z = (struct r *) sus(x, y);
+  struct r *z = (struct r *) sus(x, y);
   return z;
 }
 //CHECK: _Ptr<struct r> foo(void) {
@@ -42,6 +43,6 @@ struct np *bar() {
   x.next = &y;
   y.next = &x;
   struct r *z = sus(x, y);
-  return z;
+  return 0;
 }
 //CHECK: _Ptr<struct np> bar(void) {
