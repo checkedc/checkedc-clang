@@ -122,38 +122,6 @@ void dumpConstraintOutputJson(const std::string &PostfixStr,
   }
 }
 
-std::pair<Constraints::ConstraintSet, bool>
-    solveConstraintsWithFunctionSubTyping(ProgramInfo &Info,
-                                      unsigned long IterID) {
-  // Solve the constrains by handling function sub-typing.
-  Constraints &CS = Info.getConstraints();
-  unsigned NumIter = 0;
-  std::pair<Constraints::ConstraintSet, bool> Ret;
-  bool Fixed = false;
-  unsigned LocalIter = 1;
-  while (!Fixed) {
-    auto FileName = BEFORE_SOLVING_SUFFIX + std::to_string(IterID) +
-        "_" + std::to_string(LocalIter);
-    dumpConstraintOutputJson(FileName, Info);
-    Ret = CS.solve(NumIter);
-    /*if (NumIter > 1) {
-      // This means we have made some changes to the environment
-      // see if the function subtype handling causes any changes?
-      Fixed = !Info.handleFunctionSubtyping();
-      FileName = AFTER_SUBTYPING_SUFFIX + std::to_string(IterID) +
-          "_" + std::to_string(LocalIter);
-      dumpConstraintOutputJson(FileName, Info);
-    }
-    else {
-      // We reached a fixed point.
-      Fixed = true;
-    }*/
-    Fixed = true;
-    LocalIter++;
-  }
-  return Ret;
-}
-
 void performIterativeItypeRefinement(ProgramInfo &Info,
                                      std::set<std::string> &SourceFiles) {
   unsigned long IterNum = 1;
@@ -181,8 +149,11 @@ void performIterativeItypeRefinement(ProgramInfo &Info,
       errs() << "Iterative Itype refinement, Round:" << IterNum << "\n";
     }
 
-    std::pair<Constraints::ConstraintSet, bool> R =
-        solveConstraintsWithFunctionSubTyping(Info, IterNum);
+    auto FileName = BEFORE_SOLVING_SUFFIX + std::to_string(IterNum);
+    dumpConstraintOutputJson(FileName, Info);
+
+    unsigned NumIter = 0;
+    std::pair<Constraints::ConstraintSet, bool> R = CS.solve(NumIter);
 
     if (Verbose) {
       errs() << "Iteration:" << IterNum

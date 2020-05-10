@@ -15,7 +15,6 @@
 
 #include "llvm/Support/CommandLine.h"
 
-
 extern bool Verbose;
 extern bool DumpIntermediate;
 extern bool HandleVARARGS;

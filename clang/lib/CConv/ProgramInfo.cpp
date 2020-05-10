@@ -1273,20 +1273,35 @@ ProgramInfo::applyFunctionDefnDeclsConstraints(std::set<FVConstraint *>
                                                    &DeclCVars) {
   // We always set inside <: outside for parameters and
   // outside <: inside for returns
+  bool unifyDefDecl = false;
   for (auto *DeFV : DefCVars) {
     for (auto *DelFV : DeclCVars) {
       // DelFV is outside, DeFV is inside.
-      // Rule for returns : inside <: outside for returns.
-      constrainConsVarGeq(DelFV->getReturnVars(), DeFV->getReturnVars(), CS,
-                          nullptr, Safe_to_Wild);
+      if (unifyDefDecl) {
+        constrainConsVarGeq(DelFV->getReturnVars(), DeFV->getReturnVars(), CS,
+                            nullptr, Safe_to_Wild);
+        constrainConsVarGeq(DeFV->getReturnVars(), DelFV->getReturnVars(), CS,
+                            nullptr, Same_to_Same);
+      } else {
+        // Rule for returns : inside <: outside for returns.
+        constrainConsVarGeq(DelFV->getReturnVars(), DeFV->getReturnVars(), CS,
+                            nullptr, Safe_to_Wild);
+      }
 
       assert (DeFV->numParams() == DelFV->numParams() &&
              "Definition and Declaration should have same "
              "number of parameters.");
       for (unsigned i=0; i<DeFV->numParams(); i++) {
-        //Rule for parameters: outside <: inside for parameters.
-        constrainConsVarGeq(DeFV->getParamVar(i), DelFV->getParamVar(i), CS,
-                            nullptr, Wild_to_Safe);
+        if (unifyDefDecl) {
+          constrainConsVarGeq(DeFV->getParamVar(i), DelFV->getParamVar(i), CS,
+                              nullptr, Same_to_Same);
+          constrainConsVarGeq(DelFV->getParamVar(i), DeFV->getParamVar(i), CS,
+                              nullptr, Same_to_Same);
+        } else {
+          // Rule for parameters: outside <: inside for parameters.
+          constrainConsVarGeq(DeFV->getParamVar(i), DelFV->getParamVar(i), CS,
+                              nullptr, Wild_to_Safe);
+        }
       }
     }
   }
@@ -1296,6 +1311,7 @@ ProgramInfo::applyFunctionDefnDeclsConstraints(std::set<FVConstraint *>
 
 bool ProgramInfo::addFunctionDefDeclConstraints() {
   bool Ret = true;
+
   for (auto &CurrFDef : ExternalFunctionDefnFVCons) {
     auto FuncName = CurrFDef.first;
     std::set<FVConstraint *> &DefFVCvars = CurrFDef.second;
