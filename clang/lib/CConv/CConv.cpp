@@ -14,6 +14,7 @@
 #include "clang/CConv/ConstraintBuilder.h"
 #include "clang/CConv/GatherTool.h"
 #include "clang/CConv/RewriteUtils.h"
+#include "clang/Tooling/ArgumentsAdjusters.h"
 
 #include "llvm/Support/TargetSelect.h"
 
@@ -54,6 +55,8 @@ std::string BaseDir;
 bool AddCheckedRegions;
 
 std::set<std::string> FilePaths;
+
+static ClangTool *GlobalCTool = nullptr;
 
 static CompilationDatabase *CurrCompDB = nullptr;
 
@@ -103,6 +106,30 @@ newFrontendActionFactoryA(ProgramInfo &I) {
 
   return std::unique_ptr<FrontendActionFactory>(
       new ArgFrontendActionFactory(I));
+}
+
+ArgumentsAdjuster getIgnoreCheckedPointerAdjuster() {
+  return [](const CommandLineArguments &Args, StringRef /*unused*/) {
+    CommandLineArguments AdjustedArgs;
+    bool HasAdjuster = false;
+    for (size_t i = 0, e = Args.size(); i < e; ++i) {
+      StringRef Arg = Args[i];
+      AdjustedArgs.push_back(Args[i]);
+      if (Arg == "-fignore-checkedc-pointers")
+        HasAdjuster = true;
+    }
+    if (!HasAdjuster)
+      AdjustedArgs.push_back("-fignore-checkedc-pointers");
+    return AdjustedArgs;
+  };
+}
+
+static ClangTool &getGlobalClangTool() {
+  if (GlobalCTool == nullptr) {
+    GlobalCTool = new ClangTool(*CurrCompDB, SourceFiles);
+    GlobalCTool->appendArgumentsAdjuster(getIgnoreCheckedPointerAdjuster());
+  }
+  return *GlobalCTool;
 }
 
 void dumpConstraintOutputJson(const std::string &PostfixStr,
@@ -215,7 +242,7 @@ bool CConvInterface::BuildInitialConstraints() {
 
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
 
-  ClangTool Tool(*CurrCompDB, SourceFiles);
+  ClangTool &Tool = getGlobalClangTool();
 
   // 1. Gather constraints.
   std::unique_ptr<ToolAction> ConstraintTool = newFrontendActionFactoryA<
@@ -264,7 +291,7 @@ bool CConvInterface::SolveConstraints() {
   }
 
   // 3. Gather pre-rewrite data.
-  ClangTool Tool(*CurrCompDB, SourceFiles);
+  ClangTool &Tool = getGlobalClangTool();
   std::unique_ptr<ToolAction> GatherTool =
       newFrontendActionFactoryA
           <RewriteAction<ArgGatherer, ProgramInfo>>(GlobalProgramInfo);
@@ -283,7 +310,9 @@ bool CConvInterface::WriteConvertedFileToDisk(const std::string &FilePath) {
     std::vector<std::string> SourceFiles;
     SourceFiles.clear();
     SourceFiles.push_back(FilePath);
+    // Don't use global tool. Create a new tool for give single file.
     ClangTool Tool(*CurrCompDB, SourceFiles);
+    Tool.appendArgumentsAdjuster(getIgnoreCheckedPointerAdjuster());
     std::unique_ptr<ToolAction> RewriteTool =
         newFrontendActionFactoryA<RewriteAction<RewriteConsumer,
     ProgramInfo>>(GlobalProgramInfo);
@@ -299,7 +328,7 @@ bool CConvInterface::WriteConvertedFileToDisk(const std::string &FilePath) {
 bool CConvInterface::WriteAllConvertedFilesToDisk() {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
   unsigned NumOfRewrites = GlobalProgramInfo.MultipleRewrites ? 2 : 1;
-  ClangTool Tool(*CurrCompDB, SourceFiles);
+  ClangTool &Tool = getGlobalClangTool();
   while (NumOfRewrites > 0) {
     // 4. Re-write based on constraints.
     std::unique_ptr<ToolAction> RewriteTool =

@@ -102,15 +102,8 @@ int main(int argc, const char **argv) {
   InitializeAllAsmPrinters();
   InitializeAllAsmParsers();
 
-  // Adjust argv to always enable fignore-checked-pointers flag.
-  const char **TmpArgv = (const char **)calloc(argc + 2, sizeof(char*));
-  TmpArgv[0] = argv[0];
-  TmpArgv[1] = "-extra-arg-before=-fignore-checkedc-pointers";
-  memcpy(TmpArgv+2, argv+1, sizeof(char*) * (argc-1));
-  argc++;
-
   CommonOptionsParser OptionsParser(argc,
-                                    (const char**)(TmpArgv),
+                                    (const char**)(argv),
                                     ConvertCategory);
   // Setup options.
   struct CConvertOptions CcOptions;
