@@ -6,7 +6,7 @@ int *foo(int *x) {
   take(x);
   return x;
 }
-// CHECK: _Ptr<int> foo(_Nt_array_ptr<int> x) {
+// CHECK: _Ptr<int> foo(int *x : itype(_Nt_array_ptr<int>)) {
 void bar() {
   int *x = 0;
   foo(x);
