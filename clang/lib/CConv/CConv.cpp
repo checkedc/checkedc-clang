@@ -13,7 +13,6 @@
 #include "clang/CConv/CConv.h"
 #include "clang/CConv/ConstraintBuilder.h"
 #include "clang/CConv/GatherTool.h"
-#include "clang/CConv/IterativeItypeHelper.h"
 #include "clang/CConv/RewriteUtils.h"
 
 #include "llvm/Support/TargetSelect.h"
@@ -108,96 +107,27 @@ void dumpConstraintOutputJson(const std::string &PostfixStr,
   }
 }
 
-void performIterativeItypeRefinement(ProgramInfo &Info,
-                                     std::set<std::string> &SourceFiles) {
-  unsigned long IterNum = 1;
-  unsigned long EdgesRemoved = 0;
-  unsigned long NumItypeVars = 0;
-  std::set<ItypeModFuncsKType> ModFunctions;
+void runSolver(ProgramInfo &Info,
+               std::set<std::string> &SourceFiles) {
   Constraints &CS = Info.getConstraints();
 
   if (Verbose) {
     errs() << "Trying to capture Constraint Variables for all functions\n";
   }
-  // First capture itype parameters and return values for all functions.
-  performConstraintSetup(Info);
 
   // Sanity check.
   assert(CS.checkInitialEnvSanity() && "Invalid initial environment. ");
 
   dumpConstraintOutputJson(INITIAL_OUTPUT_SUFFIX, Info);
 
-  do {
-
-    clock_t StartTime = clock();
-    if (Verbose) {
-      errs() << "****Iteration " << IterNum << " starts.****\n";
-      errs() << "Iterative Itype refinement, Round:" << IterNum << "\n";
-    }
-
-    auto FileName = BEFORE_SOLVING_SUFFIX + std::to_string(IterNum);
-    dumpConstraintOutputJson(FileName, Info);
-
-    unsigned NumIter = 0;
-    std::pair<Constraints::ConstraintSet, bool> R = CS.solve(NumIter);
-
-    if (Verbose) {
-      errs() << "Iteration:" << IterNum
-             << ", Constraint solve time:" <<
-             getTimeSpentInSeconds(StartTime) << "\n";
-    }
-
-    if (R.second) {
-      if (Verbose) {
-        errs() << "Constraints solved for iteration:" << IterNum << "\n";
-      }
-    }
-
-    if (DumpStats) {
-      Info.print_stats(SourceFiles, llvm::errs(), true);
-    }
-
-    // Get all the functions whose constraints have been modified.
-    identifyModifiedFunctions(CS, ModFunctions);
-
-    StartTime = clock();
-    // Detect and update new found itype vars.
-    NumItypeVars = detectAndUpdateITypeVars(Info, ModFunctions);
-
-    if (Verbose) {
-      errs() << "Iteration:" << IterNum
-             <<
-             ", Number of detected itype vars:" << NumItypeVars
-             <<
-             ", detection time:" << getTimeSpentInSeconds(StartTime) << "\n";
-    }
-
-    StartTime = clock();
-    // Update the constraint graph by removing edges from/to iype parameters
-    // and returns.
-    EdgesRemoved = resetWithitypeConstraints(CS);
-
-    if (Verbose) {
-      errs() << "Iteration:" << IterNum
-             << ", Number of edges removed:" << EdgesRemoved << "\n";
-
-      errs() << "Iteration:" << IterNum
-             << ", Refinement Time:" <<
-             getTimeSpentInSeconds(StartTime) << "\n";
-    }
-
-    if (Verbose) {
-      errs() << "****Iteration " << IterNum << " ends****\n";
-    }
-    IterNum++;
-    // If we removed any edges, that means we did not reach fix point.
-    // In other words, we reach fixed point when no edges are removed from
-    // the constraint graph.
-  } while (EdgesRemoved > 0);
-
+  unsigned NumIter = 0;
+  clock_t StartTime = clock();
+  std::pair<Constraints::ConstraintSet, bool> R = CS.solve(NumIter);
   if (Verbose) {
-    errs() << "Fixed point reached after " << (IterNum - 1) <<
-           " iterations.\n";
+    errs() << "Solver time:" << getTimeSpentInSeconds(StartTime) << "\n";
+  }
+  if (DumpStats) {
+    Info.print_stats(SourceFiles, llvm::errs(), true);
   }
 }
 
@@ -298,7 +228,7 @@ bool CConvInterface::SolveConstraints() {
   }
 
   // perform constraint solving by iteratively refining based on itypes.
-  performIterativeItypeRefinement(GlobalProgramInfo,FilePaths);
+  runSolver(GlobalProgramInfo, FilePaths);
 
   if (Verbose)
     outs() << "Constraints solved\n";
@@ -396,7 +326,7 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
 
   // Solve the constraints.
   //assert (CS == GlobalProgramInfo.getConstraints());
-  performIterativeItypeRefinement(GlobalProgramInfo, FilePaths);
+  runSolver(GlobalProgramInfo, FilePaths);
 
   // Compute new disjoint set.
   GlobalProgramInfo.computePointerDisjointSet();
@@ -460,7 +390,7 @@ bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
 
   // Solve the constraint.
   //assert(CS == GlobalProgramInfo.getConstraints());
-  performIterativeItypeRefinement(GlobalProgramInfo, FilePaths);
+  runSolver(GlobalProgramInfo, FilePaths);
 
   // Recompute the WILD pointer disjoint sets.
   GlobalProgramInfo.computePointerDisjointSet();
