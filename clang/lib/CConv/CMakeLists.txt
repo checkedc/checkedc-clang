@@ -18,7 +18,6 @@ if (LLVM_BOOST_FOUND)
           ConstraintVariables.cpp
           Constraints.cpp
           GatherTool.cpp
-          IterativeItypeHelper.cpp
           MappingVisitor.cpp
           PersistentSourceLoc.cpp
           ProgramInfo.cpp
