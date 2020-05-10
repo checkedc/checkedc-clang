@@ -7,21 +7,32 @@ int *sus(int *x, int*y) {
   *x = 2;
   return z;
 }
-//CHECK: _Ptr<int> sus(int *x, _Ptr<int> y) {
+//CHECK: int *sus(int *x, _Ptr<int> y) : itype(_Ptr<int>) {
+//CHECK:   _Ptr<int> z =  malloc(sizeof(int));
 
 int* foo() {
-  int sx = 3, sy = 4, *x = &sx, *y = &sy;
+  int sx = 3;
+  int sy = 4;
+  int *x = &sx; 
+  int *y = &sy;
   int *z = sus(x, y);
   *z = *z + 1;
   return z;
 }
 //CHECK: _Ptr<int> foo(void) {
+//CHECK: int *x = &sx;
+//CHECK: _Ptr<int> y = &sy;
+//CHECK: _Ptr<int> z =  sus(x, y);
 
 int* bar() {
-  int sx = 3, sy = 4, *x = &sx, *y = &sy;
+  int sx = 3;
+  int sy = 4;
+  int *x = &sx; 
+  int *y = &sy;
   int *z = sus(x, y);
   z += 2;
   *z = -17;
   return z;
 }
 //CHECK: int* bar() {
+//CHECK: _Ptr<int> y = &sy;
