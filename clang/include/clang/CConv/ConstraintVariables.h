@@ -260,6 +260,7 @@ public:
                        PersistentSourceLoc *PL, bool CheckSkip = false);
   void constrainOuterTo(Constraints &CS, ConstAtom *C);
   bool anyChanges(EnvironmentMap &E);
+  bool anyArgumentIsWild(EnvironmentMap &E);
   bool hasWild(EnvironmentMap &E);
   bool hasArr(EnvironmentMap &E);
   bool hasNtArr(EnvironmentMap &E);

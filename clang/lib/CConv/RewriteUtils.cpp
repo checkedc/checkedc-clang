@@ -601,11 +601,11 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         auto HeadDefnCVar = *(Defn->getCvars().begin());
         auto HeadDeclCVar = *(Decl->getCvars().begin());
         // If this holds, then we want to insert a bounds safe interface.
-        bool Constrained = !CS.isWild(HeadDefnCVar);
+        bool Constrained = Defn->anyChanges(CS.getVariables());
         // Definition is more precise than declaration.
         // Section 5.3:
         // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-        if (Constrained && CS.isWild(HeadDeclCVar)) {
+        if (Constrained && Decl->anyArgumentIsWild(CS.getVariables())) {
           // If definition is more precise
           // than declaration emit an itype.
           std::string PtypeS =
@@ -653,7 +653,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       auto HeadDefnCVar = *(Defn->getCvars().begin());
       auto HeadDeclCVar = *(Decl->getCvars().begin());
       // Insert a bounds safe interface for the return.
-      bool anyConstrained = !CS.isWild(HeadDefnCVar);
+      bool anyConstrained = Defn->anyChanges(CS.getVariables());
       if (anyConstrained) {
         ReturnHandled = true;
         DidAny = true;
@@ -662,7 +662,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         // Definition is more precise than declaration.
         // Section 5.3:
         // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-        if (CS.isWild(HeadDeclCVar)) {
+        if (Decl->anyArgumentIsWild(CS.getVariables())) {
           Ctype =
               Defn->mkString(Info.getConstraints().getVariables(), true, true);
           ReturnVar = Defn->getRewritableOriginalTy();

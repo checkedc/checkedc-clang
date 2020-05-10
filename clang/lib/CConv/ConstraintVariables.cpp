@@ -890,7 +890,7 @@ void PointerVariableConstraint::constrainToWild(Constraints &CS,
 // FIXME: Should do some checking here, eventually to make sure
 // checked types are respected
 void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C) {
-  assert(C == CS.getPtr() || C == CS.getArr() || C == CS.getArr());
+  assert(C == CS.getPtr() || C == CS.getArr() || C == CS.getNTArr());
 
   if (vars.size() > 0) {
     Atom *A = *vars.begin();
@@ -900,6 +900,15 @@ void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C) 
       assert (!(*C < *CA));
     }
   }
+}
+
+bool PointerVariableConstraint::anyArgumentIsWild(EnvironmentMap &E) {
+  for (auto *ArgVal : argumentConstraints) {
+    if (!(ArgVal->anyChanges(E))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool PointerVariableConstraint::anyChanges(EnvironmentMap &E) {
