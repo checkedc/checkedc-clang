@@ -598,8 +598,6 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
       if (ProgramInfo::isAValidPVConstraint(Decl) &&
           ProgramInfo::isAValidPVConstraint(Defn)) {
-        auto HeadDefnCVar = *(Defn->getCvars().begin());
-        auto HeadDeclCVar = *(Decl->getCvars().begin());
         // If this holds, then we want to insert a bounds safe interface.
         bool Constrained = Defn->anyChanges(CS.getVariables());
         // Definition is more precise than declaration.
@@ -650,8 +648,6 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
     if (ProgramInfo::isAValidPVConstraint(Decl) &&
         ProgramInfo::isAValidPVConstraint(Defn)) {
-      auto HeadDefnCVar = *(Defn->getCvars().begin());
-      auto HeadDeclCVar = *(Decl->getCvars().begin());
       // Insert a bounds safe interface for the return.
       bool anyConstrained = Defn->anyChanges(CS.getVariables());
       if (anyConstrained) {
