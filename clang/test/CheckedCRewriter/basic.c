@@ -47,6 +47,7 @@ char* basic3(int* data, int count) {
 		data = malloc(8);
 		count--;
 	}
+	return NULL;
 }
 //CHECK: _Ptr<char> basic3(_Ptr<int> data, int count) {
 //CHECK: _Ptr<int> temp =  malloc(8);
@@ -178,7 +179,7 @@ struct student * new_student() {
 		strcpy(new_s->name, name);
 		new_s->roll = 3;
 		new_s->perc = 4.3f;
-
+		return NULL;
 }
 //CHECK: _Ptr<struct student> new_student(void) {
 //CHECK-NEXT: char name[] = "Bilbo Baggins";
