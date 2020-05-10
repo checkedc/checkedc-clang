@@ -167,6 +167,7 @@ private:
 */
 
 // This refers to the constant WILDBOT. It is only used during solving.
+// CURRENTLY UNUSED
 class WildBotAtom : public ConstAtom {
 public:
   WildBotAtom() : ConstAtom(A_WildBot) {}
@@ -586,9 +587,8 @@ public:
   ConstAtom *getAssignment(uint32_t V);
   ConstAtom *getAssignment(Atom *A);
   bool assign(VarAtom *V, ConstAtom *C);
-  void mergeCheckedPtrs(ConstraintsEnv &);
+  void mergePtrTypesEnv(ConstraintsEnv &);
   void resetSolution(ConstAtom *initC);
-  void swapSolution(ConstAtom *old, ConstAtom *repl);
   bool checkAssignment(ConstAtom *C);
 
 private:

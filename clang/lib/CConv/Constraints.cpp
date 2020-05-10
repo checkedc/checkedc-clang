@@ -302,39 +302,26 @@ static bool do_solve(ConstraintsGraph &CG,
     // Lets repeat if there are some fired constraints.
   } while (!FiredImplies.empty());
 
-  /* FIXME: Check Upper/lower bounds hold */
-  /* For each VarAtom v s.t. env[v] = sol.
-   *   For each edge v --> c, where c is a const,
-   *     if checked, confirm !(c > sol) (i.e., sol <= c)
-   *     if nonchecked, confirm !(sol < c) (i.e., c <= sol)
-   *     FIXME: I have a fear that the latter check could spuriously
-   *       fail due to the WildBot trick. May require rethinking
-   *       the relationship between Chk and Ptyp constraints
-   */
-/* OLD CODE
-    // get the latest assignment.
-    SucSol = env.getAssignment(K);
-    // ---- for all edges (k --> q) in G, confirm
-    std::set<Atom *> KSuccessors;
-    CG.getSuccessors<ConstAtom>(K, KSuccessors);
-    for (auto *KChild : KSuccessors) {
-      if (ConstAtom *KCSol = dyn_cast<ConstAtom>(KChild))
-        // that sol(k) <: q (checked)
-        //   or q <: sol(k) (nonchecked); else fail
-        if ((doingChecked &&
-             !(*SucSol < *KCSol) && *SucSol != *KCSol) ||
-            (!doingChecked &&
-             !(*KCSol < *SucSol) && *SucSol != *KCSol)) {
+  // Check Upper/lower bounds hold
+  std::set<Atom *> Predecessors;
+  for (ConstAtom *Cbound : CG.getAllConstAtoms()) {
+    if (CG.getPredecessors(Cbound, Predecessors)) {
+      for (Atom *A : Predecessors) {
+        VarAtom *VA = dyn_cast<VarAtom>(A);
+        assert (VA != nullptr && "bogus vertex");
+        ConstAtom *Csol = env.getAssignment(VA);
+        if ((doingChecked && *Cbound < *Csol) ||
+            (!doingChecked && *Csol < *Cbound)) {
           // failure case.
           errs() << "Unsolvable constraints:";
-          SucSol->print(errs());
-          KCSol->print(errs());
-          K->print(errs());
+          VA->print(errs());
+          Csol->print(errs());
+          Cbound->print(errs());
           return false;
         }
+      }
     }
   }
-   */
 
   return true;
 }
@@ -346,10 +333,11 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
   std::set<Implies *> Empty;
   ConstraintsEnv &env = environment;
 
+  // Checked well-formedness
+  environment.checkAssignment(getPtr());
+
   // Duplicate the environment to be used for Ptr constraint solving.
   ConstraintsEnv PtrEnv(env);
-
-  environment.checkAssignment(getPtr());
 
   // Setup the Checked Constraint Graph.
   for (const auto &C : constraints) {
@@ -380,12 +368,8 @@ bool Constraints::graph_based_solve(unsigned &Niter) {
     if (DebugSolver)
       PtrTypCG.dumpCGDot("ptyp_constraints_graph.dot");
 
-    // env.swapSolution(getWild(), getWildBot());
     res = do_solve(PtrTypCG, Empty, PtrEnv, this, false, Niter);
-    // Merge the Kind solution with the pointer solution.
-    env.mergeCheckedPtrs(PtrEnv);
-    // env.swapSolution(getWildBot(), getWild());
-
+    env.mergePtrTypesEnv(PtrEnv);
   }
 
   return res;
@@ -631,14 +615,7 @@ void ConstraintsEnv::resetSolution(ConstAtom *initC) {
   }
 }
 
-void ConstraintsEnv::swapSolution(ConstAtom *old, ConstAtom *repl) {
-  for (auto &CurrE : environment) {
-    if (CurrE.second == old)
-      CurrE.second = repl;
-  }
-}
-
-void ConstraintsEnv::mergeCheckedPtrs(ConstraintsEnv &CheckedPtrsEnv) {
+void ConstraintsEnv::mergePtrTypesEnv(ConstraintsEnv &CheckedPtrsEnv) {
   for (auto &Elem : environment) {
     ConstAtom *CAssign = getAssignment(Elem.first);
     // If this is a checked Kind?

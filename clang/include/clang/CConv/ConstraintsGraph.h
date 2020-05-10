@@ -22,7 +22,7 @@ using namespace std;
 
 class ConstraintsGraph {
 public:
-  typedef adjacency_list<setS, vecS, directedS, Atom*> DirectedGraphType;
+  typedef adjacency_list<setS, vecS, bidirectionalS, Atom*> DirectedGraphType;
   typedef boost::graph_traits<DirectedGraphType>::vertex_descriptor vertex_t;
   typedef std::map<Atom*, vertex_t> VertexMapType;
 
@@ -40,21 +40,36 @@ public:
 
   // Get all successors of a given Atom which are of particular type.
   template <typename ConstraintType>
-  bool getSuccessors(Atom *CA, std::set<Atom*> &Suc) {
+  bool getSuccessors(Atom *A, std::set<Atom*> &Suc) {
     // Get the vertex descriptor.
-    auto Vidx = addVertex(CA);
+    auto Vidx = addVertex(A);
     Suc.clear();
     typename graph_traits <DirectedGraphType>::out_edge_iterator ei, ei_end;
     for (boost::tie(ei, ei_end) = out_edges(Vidx, CG); ei != ei_end; ++ei) {
       auto source = boost::source ( *ei, CG );
       auto target = boost::target ( *ei, CG );
-      assert(CG[source] == CA && "Source has to be the given node.");
+      assert(CG[source] == A && "Source has to be the given node.");
       if (clang::dyn_cast<ConstraintType>(CG[target])) {
         Suc.insert(CG[target]);
       }
     }
     return !Suc.empty();
   }
+
+  bool getPredecessors(Atom *A, std::set<Atom*> &Pred) {
+    // Get the vertex descriptor.
+    auto Vidx = addVertex(A);
+    Pred.clear();
+    typename graph_traits <DirectedGraphType>::in_edge_iterator ei, ei_end;
+    for (boost::tie(ei, ei_end) = in_edges(Vidx, CG); ei != ei_end; ++ei) {
+      auto source = boost::source ( *ei, CG );
+      auto target = boost::target ( *ei, CG );
+      assert(CG[target] == A && "Target has to be the given node.");
+      Pred.insert(CG[source]);
+    }
+    return !Pred.empty();
+  }
+
   // Dump the graph to stdout in a dot format.
   void dumpCGDot(const std::string& GraphDotFile);
 
