@@ -19,8 +19,6 @@ using namespace clang;
 // Special-case handling for decl introductions. For the moment this covers:
 //  * void-typed variables
 //  * va_list-typed variables
-// TODO: Github issue #61: improve handling of types for
-// variable arguments.
 static
 void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C,
                          bool FuncCtx = false) {
@@ -194,14 +192,14 @@ public:
     if (!RHS || V.size() == 0)
       return;
 
+    Constraints &CS = Info.getConstraints();
     std::set<ConstraintVariable *> RHSConstraints;
     RHSConstraints.clear();
-
-    Constraints &CS = Info.getConstraints();
     RHS = getNormalizedExpr(RHS);
-    CallExpr *CE = dyn_cast<CallExpr>(RHS);
     PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(RHS, *Context);
+
     // If this is a call expression to a function.
+    CallExpr *CE = dyn_cast<CallExpr>(RHS);
     if (CE != nullptr && CE->getDirectCallee() != nullptr) {
       // case 5
       // If this is a call expression?
@@ -276,7 +274,7 @@ public:
               !Info.isExplicitCastSafe(LhsType, SE->getType())) {
             std::string CToDiffType = "Casted To Different Type.";
             std::string CFDifType = "Casted From Different Type.";
-            // Constrain everything in both to top.
+            // Constrain everything in both to Wild.
             // Remove the casts from RHS and try again to get a variable
             // from it. We want to constrain that side to wild as well.
             RHSConstraints = Info.getVariable(SE, Context, true);
@@ -300,7 +298,6 @@ public:
         // expression from RHS side.
         RHSConstraints = getRHSConsVariables(RHS, LhsType, Context);
         if (RHSConstraints.size() > 0) {
-          // Case 1.
           // There are constraint variables for the RHS, so, use those over
           // anything else we could infer.
           constrainConsVarGeq(V, RHSConstraints, CS, &PL, CAction);
@@ -345,7 +342,8 @@ public:
   bool VisitCStyleCastExpr(CStyleCastExpr *C) {
     // If we're casting from something with a constraint variable to something
     // that isn't a pointer type, we should constrain up. 
-    auto /* std::set<ConstraintVariable *> */ W = Info.getVariable(C->getSubExpr(), Context, true);
+    std::set<ConstraintVariable *W =
+        Info.getVariable(C->getSubExpr(), Context, true);
 
     if (W.size() > 0) {
       // Get the source and destination types. 
@@ -383,9 +381,7 @@ public:
       return true;
 
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-      // Get the function declaration,
-      // if exists, this is needed to check
-      // for itype.
+      // Get the function declaration, if exists
       if (getDeclaration(FD) != nullptr) {
         FD = getDeclaration(FD);
       }
@@ -405,9 +401,6 @@ public:
               Info.getVariable(PD, Context, false);
           // Add constraint that the arguments are equal to the
           // parameters.
-          // assert(!ParameterConstraints.empty() &&
-          // "Unable to get parameter constraints");
-          // the constrains could be empty for builtin functions.
           constrainLocalAssign(ParameterConstraintVars, PD->getType(),
                                A, Wild_to_Safe);
         } else {
@@ -449,26 +442,18 @@ public:
   }
 
   bool VisitReturnStmt(ReturnStmt *S) {
-    // Here, we should constrain the return type
-    // of the function body with the type of the
-    // return expression.
-
     // Get function variable constraint of the body
     // We need to call getVariableOnDemand to avoid auto-correct.
     std::set<ConstraintVariable *> Fun =
       Info.getVariableOnDemand(Function, Context, true);
-    // Get the constraint of the return variable
-    // (again with in the context of the body)
-    //std::set<ConstraintVariable*> Var =
-    //  Info.getVariable(S->getRetValue(), Context, true);
 
     // Constrain the value returned (if present) against the return value
     // of the function.
     Expr *RetExpr = S->getRetValue();
-    QualType Typ;
-    Typ = Function->getReturnType();
-    //OR?: if (RetExpr) QualType Typ = RetExpr->getType();
-    
+    QualType Typ = Function->getReturnType();
+
+    // Constrain the return type of the function
+    // to the type of the return expression.
     for (const auto &F : Fun) {
       if (FVConstraint *FV = dyn_cast<FVConstraint>(F)) {
     	constrainLocalAssign(FV->getReturnVars(), Typ, RetExpr, Same_to_Same);
@@ -511,7 +496,6 @@ public:
 
 private:
 
-
   bool handleFunctionPointerCall(CallExpr *E) {
     Decl *D = E->getCalleeDecl();
     Constraints &CS = Info.getConstraints();
@@ -545,8 +529,8 @@ private:
                 if (i < FV->numParams()) {
                   std::set<ConstraintVariable *> ParameterDC =
                     FV->getParamVar(i);
-                  constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
-                                      Wild_to_Safe);// Why same to same ?
+                  constrainConsVarGeq(ParameterDC, ArgumentConstraints,
+                                      CS, &PL, Wild_to_Safe);
                 } else {
                   // Constrain argument to wild since we can't match it
                   // to a parameter from the type.
@@ -578,29 +562,6 @@ private:
     }
     return true;
   }
-
-//  // Handle the assignment of constraint variables to an itype expression.
-//  bool handleITypeAssignment(std::set<ConstraintVariable *> &Vars,
-//                             InteropTypeExpr *expr) {
-//    bool Handled = false;
-//    CheckedPointerKind PtrKind = getCheckedPointerKind(expr);
-//    // Currently we only handle NT arrays.
-//    // FIXME: I think we shoudl be able to handle all types now
-//    if (PtrKind == CheckedPointerKind::NtArray) {
-//      Handled = true;
-//      Constraints &CS = Info.getConstraints();
-//      // Assign the corresponding checked type only to the
-//      // top level constraint var.
-//      for (auto ConsVar :Vars) {
-//        if (PVConstraint *PV = dyn_cast<PVConstraint>(ConsVar))
-//          PV->constrainOuterTo(CS,getCheckedPointerConstraint(PtrKind));
-//      }
-//    }
-//    // Is this handled or propagation through itype
-//    // has been disabled. In which case, all itypes
-//    // values will be handled.
-//    return Handled || !EnablePropThruIType;
-//  }
 
   // Constraint all the provided vars to be
   // equal to the provided type i.e., (V >= type).
@@ -658,7 +619,8 @@ private:
 
       // Assign WILD to each of the constraint variables.
       FunctionDecl *FD = E->getDirectCallee();
-      std::string Rsn = "Argument to function " + (FD != nullptr ? FD->getName().str() : "pointer call");
+      std::string Rsn = "Argument to function " +
+                        (FD != nullptr ? FD->getName().str() : "pointer call");
         constrainVarsToWild(ParameterEC, Rsn, &psl);
     }
   }
@@ -668,22 +630,6 @@ private:
       constraintInBodyVariable(O->getLHS(),ARR);
       constraintInBodyVariable(O->getRHS(),ARR);
   }
-
-//  ConstAtom *getCheckedPointerConstraint(CheckedPointerKind PtrKind) {
-//    Constraints &CS = Info.getConstraints();
-//    switch(PtrKind) {
-//      case CheckedPointerKind::NtArray:
-//        return CS.getNTArr();
-//      case CheckedPointerKind::Array:
-//        return CS.getArr();
-//      case CheckedPointerKind::Ptr:
-//        return CS.getPtr();
-//      case CheckedPointerKind::Unchecked:
-//        llvm_unreachable("Unchecked type inside an itype. "
-//                         "This should be impossible.");
-//    }
-//    assert(false && "Invalid Pointer kind.");
-//  }
 
   Expr *getNormalizedExpr(Expr *CE) {
     if (dyn_cast<ImplicitCastExpr>(CE)) {
