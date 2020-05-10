@@ -123,7 +123,6 @@ void dumpConstraintOutputJson(const std::string &PostfixStr,
 
 void runSolver(ProgramInfo &Info,
                std::set<std::string> &SourceFiles) {
-  std::set<ItypeModFuncsKType> ModFunctions;
   Constraints &CS = Info.getConstraints();
 
   if (Verbose) {
