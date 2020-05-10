@@ -342,7 +342,7 @@ public:
   bool VisitCStyleCastExpr(CStyleCastExpr *C) {
     // If we're casting from something with a constraint variable to something
     // that isn't a pointer type, we should constrain up. 
-    std::set<ConstraintVariable *W =
+    std::set<ConstraintVariable *> W =
         Info.getVariable(C->getSubExpr(), Context, true);
 
     if (W.size() > 0) {
