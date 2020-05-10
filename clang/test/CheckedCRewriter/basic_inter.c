@@ -38,7 +38,6 @@ int main() {
   int *bp1 = 0;
   int *cp1 = 0;
 
-
   ap1 = ap = &a;
   // we will make this pointer wild.
   bp1 = bp = (int*)0xcafeba;
@@ -53,6 +52,4 @@ int main() {
   return 0;
 }
 //CHECK: _Ptr<int> ap =  0;
-//CHECK-NEXT: _Ptr<int> ap1 =  0;
-
-
+//CHECK: _Ptr<int> ap1 =  0;

@@ -17,8 +17,8 @@ static int* funcdecl(int *ptr, int *iptr, int *wild) {
   wild = (int*)0xdeadbeef;
   return &funcdecvar;
 }
-//CHECK: static _Ptr<int> funcdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int>), int *wild);
-//CHECK-NEXT: static _Ptr<int> funcdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int>), int *wild) {
+//CHECK: static int *funcdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int>), int *wild) : itype(_Ptr<int>);
+//CHECK-NEXT: static int *funcdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int>), int *wild) : itype(_Ptr<int>) {
 
 // ptr is a regular _Ptr
 // iptr will be itype
@@ -30,8 +30,7 @@ static int* func(int *ptr, int *iptr, int *wild) {
   wild = (int*)0xdeadbeef;
   return &funcvar;
 }
-
-//CHECK: static _Ptr<int> func(_Ptr<int> ptr, int *iptr : itype(_Ptr<int>), int *wild) {
+//CHECK: static int *func(_Ptr<int> ptr, int *iptr : itype(_Ptr<int>), int *wild) : itype(_Ptr<int>) {
 
 int main() {
   int a, b, c;
@@ -48,20 +47,19 @@ int main() {
   bp1 = bp = (int*)0xcafeba;
   cp = &c;
   cp1 = &c;
-  // although, we are passing cp
+  // we are passing cp
   // to a parameter that will be
-  // treated as WILD in func, cp
-  // is Ptr within main
+  // treated as WILD in func, so it
+  // must also be, in main
   bp = func(ap, bp, cp);
   bp1 = funcdecl(ap1, bp1, cp1);
   return 0;
 }
-
 //CHECK: int main() {
 //CHECK-NEXT: int a, b, c;
 //CHECK-NEXT: _Ptr<int> ap =  0;
 //CHECK-NEXT: int *bp = 0;
-//CHECK-NEXT: _Ptr<int> cp =  0;
+//CHECK-NEXT: int *cp =  0;
 //CHECK-NEXT: _Ptr<int> ap1 =  0;
 //CHECK-NEXT: int *bp1 = 0;
-//CHECK-NEXT: _Ptr<int> cp1 =  0;
+//CHECK-NEXT: int *cp1 =  0;

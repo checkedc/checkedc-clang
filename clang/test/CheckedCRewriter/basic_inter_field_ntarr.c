@@ -22,6 +22,7 @@ foo obj1 = {};
 int* func(int *ptr, char *ntptr) {
   obj1.ptr = ptr;
   obj1.ntptr = strstr(ntptr, "world");
+  strstr(obj1.ntptr, "world");
   return ptr;
 }
 //CHECK: _Ptr<int> func(_Ptr<int> ptr, _Nt_array_ptr<char> ntptr) {
