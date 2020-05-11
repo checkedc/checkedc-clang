@@ -1114,7 +1114,7 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
       assert(*CAR == *CAL && "Invalid: RHS ConstAtom != LHS ConstAtom");
     } else {
       if (CAL != Wild && CAR != Wild) { // pType atom, disregard CAct
-        assert(!(*CAR < *CAL) && "RHS ConstAtom < LHS ConstAtom");
+        assert(!(*CAL < *CAR) && "Invalid: LHS ConstAtom < RHS ConstAtom");
       } else { // checked atom (Wild/Ptr); respect CAct
         switch (CAct) {
         case Same_to_Same:
