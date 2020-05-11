@@ -217,9 +217,7 @@ public:
         RHSConstraints = Info.getVariable(RHS, Context, false);
         // This is call-expression. We should use c2u for returns.
         if (RHSConstraints.size() > 0) {
-          constrainConsVarGeq(
-              V, RHSConstraints, CS, &PL,
-              Safe_to_Wild);
+          constrainConsVarGeq(V, RHSConstraints, CS, &PL, Safe_to_Wild, false);
         }
       }
     } else {
@@ -300,7 +298,7 @@ public:
         if (RHSConstraints.size() > 0) {
           // There are constraint variables for the RHS, so, use those over
           // anything else we could infer.
-          constrainConsVarGeq(V, RHSConstraints, CS, &PL, CAction);
+          constrainConsVarGeq(V, RHSConstraints, CS, &PL, CAction, false);
         }
       }
     }
@@ -528,8 +526,8 @@ private:
                 if (i < FV->numParams()) {
                   std::set<ConstraintVariable *> ParameterDC =
                     FV->getParamVar(i);
-                  constrainConsVarGeq(ParameterDC, ArgumentConstraints,
-                                      CS, &PL, Wild_to_Safe);
+                  constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
+                                      Wild_to_Safe, false);
                 } else {
                   // Constrain argument to wild since we can't match it
                   // to a parameter from the type.

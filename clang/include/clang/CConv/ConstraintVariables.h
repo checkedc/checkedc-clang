@@ -152,12 +152,14 @@ void constrainConsVarGeq(std::set<ConstraintVariable *> &RHS,
                       std::set<ConstraintVariable *> &LHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
-                      ConsAction CA = Same_to_Same);
+                      ConsAction CA,
+                      bool doEqType);
 void constrainConsVarGeq(ConstraintVariable *LHS,
                       ConstraintVariable *RHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
-                      ConsAction CA = Same_to_Same);
+                      ConsAction CA,
+                      bool doEqType);
 
 class PointerVariableConstraint;
 class FunctionVariableConstraint;
