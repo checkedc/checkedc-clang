@@ -223,6 +223,19 @@ Expr *removeAuxillaryCasts(Expr *E) {
   return E;
 }
 
+Expr *getNormalizedExpr(Expr *CE) {
+  if (dyn_cast<ImplicitCastExpr>(CE)) {
+    CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
+  }
+  if (dyn_cast<CHKCBindTemporaryExpr>(CE)) {
+    CE = (dyn_cast<CHKCBindTemporaryExpr>(CE))->getSubExpr();
+  }
+  if (dyn_cast<ImplicitCastExpr>(CE)) {
+    CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
+  }
+  return CE;
+}
+
 
 bool isTypeHasVoid(clang::QualType QT) {
   const clang::Type *CurrType = QT.getTypePtrOrNull();

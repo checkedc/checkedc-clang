@@ -16,92 +16,40 @@
 using namespace llvm;
 using namespace clang;
 
-// Special-case handling for decl introductions. For the moment this covers:
-//  * void-typed variables
-//  * va_list-typed variables
-static
-void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C,
-                         bool FuncCtx = false) {
-  // Constrain everything that is void to wild.
-  Constraints &CS = Info.getConstraints();
+// Class that handles building constraints from various AST artifacts.
+class ConstraintBuilder {
 
-  // Special-case for va_list, constrain to wild.
-  if (isVarArgType(D->getType().getAsString()) ||
-      hasVoidType(D)) {
-    // set the reason for making this variable WILD.
-    std::string Rsn = "Variable type void.";
-    PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(D, *C);
-    if (!D->getType()->isVoidType())
-      Rsn = "Variable type is va_list.";
-    for (const auto &I : Info.getVariable(D, C, FuncCtx)) {
-      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-        PVC->constrainToWild(CS, Rsn, &PL, false);
-      }
-    }
-  }
-}
-
-// This class visits functions and adds constraints to the
-// Constraints instance assigned to it.
-// Each VisitXXX method is responsible either for looking inside statements
-// to find constraints
-// The results of this class are returned via the ProgramInfo
-// parameter to the user.
-class FunctionVisitor : public RecursiveASTVisitor<FunctionVisitor> {
 public:
-  explicit FunctionVisitor(ASTContext *C, ProgramInfo &I, FunctionDecl *FD)
-      : Context(C), Info(I), Function(FD) {}
+  ConstraintBuilder(ProgramInfo &I, ASTContext *C) : Info(I), Context(C) { }
 
+  // Special-case handling for decl introductions. For the moment this covers:
+  //  * void-typed variables
+  //  * va_list-typed variables
+  void specialCaseVarIntros(ValueDecl *D, bool FuncCtx = false) {
+    // Constrain everything that is void to wild.
+    Constraints &CS = Info.getConstraints();
 
-  // Introduce a variable into the environment.
-  bool MyVisitVarDecl(VarDecl *D) {
-    if (D->isLocalVarDecl()) {
-      FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
-      SourceRange SR = D->getSourceRange();
-
-      if (SR.isValid() && FL.isValid() && !FL.isInSystemHeader() &&
-        (D->getType()->isPointerType() || D->getType()->isArrayType())) {
-        // Add the variable with in the function body context.
-        Info.addVariable(D, Context);
-
-        specialCaseVarIntros(D, Info, Context);
-        // If this is a static array declaration.
-        // Make this an array.
-        if (D->getType()->isArrayType()) {
-          // Try to see if this is a multi-dimensional array?
-          // If yes, assign ARR constraint to all the inside vars.
-          const clang::Type *TypePtr = D->getType().getTypePtr();
-          Constraints &CS = Info.getConstraints();
-          std::set<ConstraintVariable *> Var = Info.getVariable(D, Context, true);
-          assert(Var.size() == 1 && "Invalid number of ConstraintVariables.");
-          auto *PvConstr = dyn_cast<PVConstraint>(*(Var.begin()));
-          assert(PvConstr != nullptr && "Constraint variable cannot be nullptr");
-          const CAtoms &PtrCVars = PvConstr->getCvars();
-          for (Atom *ConsKey : PtrCVars) {
-            if (const clang::ArrayType *AT =
-                    dyn_cast<clang::ArrayType>(TypePtr)) {
-              if (VarAtom *VA = dyn_cast<VarAtom>(ConsKey)) {
-                // FIXME: We shouldn't be adding constraints directly. Use constrainOuter
-                CS.addConstraint(CS.createGeq(CS.getArr(), VA, false));
-              }
-              TypePtr = AT->getElementType().getTypePtr();
-              continue;
-            }
-            break;
-          }
-
+    // Special-case for va_list, constrain to wild.
+    if (isVarArgType(D->getType().getAsString()) ||
+        hasVoidType(D)) {
+      // set the reason for making this variable WILD.
+      std::string Rsn = "Variable type void.";
+      PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(D, *Context);
+      if (!D->getType()->isVoidType())
+        Rsn = "Variable type is va_list.";
+      for (const auto &I : Info.getVariable(D, Context, FuncCtx)) {
+        if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
+          PVC->constrainToWild(CS, Rsn, &PL, false);
         }
       }
     }
-
-    return true;
   }
 
   std::set<ConstraintVariable *>
-  getRHSConsVariables(Expr *RHS, QualType LhsType, ASTContext *C) {
+  getRHSConsVariables(Expr *RHS, QualType LhsType) {
     if (LhsType->isFunctionPointerType()) {
       // We are assigning to a function pointer.
-      std::set<ConstraintVariable *> RHSCSet = Info.getVariable(RHS, C, false);
+      std::set<ConstraintVariable *> RHSCSet = Info.getVariable(RHS, Context, false);
       // Here, we should equate the constraints of inside and outside.
       for (auto *ConsVar : RHSCSet) {
         if (FVConstraint *FV = dyn_cast<FVConstraint>(ConsVar)) {
@@ -110,7 +58,7 @@ public:
       }
       return RHSCSet;
     }
-    return Info.getVariable(RHS, C, true);
+    return Info.getVariable(RHS, Context, true);
   }
 
   bool handleFuncCall(CallExpr *CA, QualType LhsType,
@@ -182,13 +130,12 @@ public:
   // for each pair of q_i to q_j \forall j in variables_on_rhs.
   //
   // V is the set of constraint variables on the left hand side that we are
-  // assigning to. V represents constraints on a pointer variable. RHS is 
-  // an expression which might produce constraint variables, or, it might 
+  // assigning to. V represents constraints on a pointer variable. RHS is
+  // an expression which might produce constraint variables, or, it might
   // be some expression like NULL, an integer constant or a cast.
   void constrainLocalAssign(std::set<ConstraintVariable *> V,
                             QualType LhsType,
-                            Expr *RHS,
-                            ConsAction CAction) {
+                            Expr *RHS, ConsAction CAction) {
     if (!RHS || V.size() == 0)
       return;
 
@@ -230,8 +177,8 @@ public:
       if (isNULLExpression(RHS, *Context)) {
         // Do Nothing.
       } else if (RHS->isIntegerConstantExpr(*Context) &&
-                !RHS->isNullPointerConstant(*Context,
-                                             Expr::NPC_ValueDependentIsNotNull)) {
+          !RHS->isNullPointerConstant(*Context,
+                                      Expr::NPC_ValueDependentIsNotNull)) {
         // Case 2, Special handling. If this is an assignment of non-zero
         // integer constraint, then make the pointer WILD.
         std::string Rsn = "Casting to pointer from constant.";
@@ -296,7 +243,7 @@ public:
       } else {
         // Get the constraint variables of the
         // expression from RHS side.
-        RHSConstraints = getRHSConsVariables(RHS, LhsType, Context);
+        RHSConstraints = getRHSConsVariables(RHS, LhsType);
         if (RHSConstraints.size() > 0) {
           // There are constraint variables for the RHS, so, use those over
           // anything else we could infer.
@@ -318,6 +265,67 @@ public:
     constrainLocalAssign(V, D->getType(), RHS, Same_to_Same);
   }
 
+private:
+  ProgramInfo &Info;
+  ASTContext *Context;
+};
+
+// This class visits functions and adds constraints to the
+// Constraints instance assigned to it.
+// Each VisitXXX method is responsible either for looking inside statements
+// to find constraints
+// The results of this class are returned via the ProgramInfo
+// parameter to the user.
+class FunctionVisitor : public RecursiveASTVisitor<FunctionVisitor> {
+public:
+  explicit FunctionVisitor(ASTContext *C, ProgramInfo &I, FunctionDecl *FD)
+      : Context(C), Info(I), Function(FD), CB(Info, Context) {}
+
+
+  // Introduce a variable into the environment.
+  bool MyVisitVarDecl(VarDecl *D) {
+    if (D->isLocalVarDecl()) {
+      FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
+      SourceRange SR = D->getSourceRange();
+
+      if (SR.isValid() && FL.isValid() && !FL.isInSystemHeader() &&
+        (D->getType()->isPointerType() || D->getType()->isArrayType())) {
+        // Add the variable with in the function body context.
+        Info.addVariable(D, Context);
+
+        CB.specialCaseVarIntros(D);
+        // If this is a static array declaration.
+        // Make this an array.
+        if (D->getType()->isArrayType()) {
+          // Try to see if this is a multi-dimensional array?
+          // If yes, assign ARR constraint to all the inside vars.
+          const clang::Type *TypePtr = D->getType().getTypePtr();
+          Constraints &CS = Info.getConstraints();
+          std::set<ConstraintVariable *> Var = Info.getVariable(D, Context, true);
+          assert(Var.size() == 1 && "Invalid number of ConstraintVariables.");
+          auto *PvConstr = dyn_cast<PVConstraint>(*(Var.begin()));
+          assert(PvConstr != nullptr && "Constraint variable cannot be nullptr");
+          const CAtoms &PtrCVars = PvConstr->getCvars();
+          for (Atom *ConsKey : PtrCVars) {
+            if (const clang::ArrayType *AT =
+                    dyn_cast<clang::ArrayType>(TypePtr)) {
+              if (VarAtom *VA = dyn_cast<VarAtom>(ConsKey)) {
+                // FIXME: We shouldn't be adding constraints directly. Use constrainOuter
+                CS.addConstraint(CS.createGeq(CS.getArr(), VA, false));
+              }
+              TypePtr = AT->getElementType().getTypePtr();
+              continue;
+            }
+            break;
+          }
+
+        }
+      }
+    }
+
+    return true;
+  }
+
   bool VisitDeclStmt(DeclStmt *S) {
     // Introduce variables as needed.
       for (const auto &D : S->decls())
@@ -328,7 +336,7 @@ public:
     for (const auto &D : S->decls()) {
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         Expr *InitE = VD->getInit();
-        constrainLocalAssign(VD, InitE);
+        CB.constrainLocalAssign(VD, InitE);
       }
     }
 
@@ -370,7 +378,7 @@ public:
   bool VisitBinAssign(BinaryOperator *O) {
     Expr *LHS = O->getLHS();
     Expr *RHS = O->getRHS();
-    constrainLocalAssign(LHS, RHS);
+    CB.constrainLocalAssign(LHS, RHS);
     return true;
   }
 
@@ -400,8 +408,8 @@ public:
               Info.getVariable(PD, Context, false);
           // Add constraint that the arguments are equal to the
           // parameters.
-          constrainLocalAssign(ParameterConstraintVars, PD->getType(),
-                               A, Wild_to_Safe);
+          CB.constrainLocalAssign(ParameterConstraintVars, PD->getType(),
+                                  A, Wild_to_Safe);
         } else {
           // This is the case of an argument passed to a function
           // with varargs.
@@ -455,7 +463,7 @@ public:
     // to the type of the return expression.
     for (const auto &F : Fun) {
       if (FVConstraint *FV = dyn_cast<FVConstraint>(F)) {
-    	constrainLocalAssign(FV->getReturnVars(), Typ, RetExpr, Same_to_Same);
+        CB.constrainLocalAssign(FV->getReturnVars(), Typ, RetExpr, Same_to_Same);
       }
     }
     return true;
@@ -630,22 +638,10 @@ private:
       constraintInBodyVariable(O->getRHS(),ARR);
   }
 
-  Expr *getNormalizedExpr(Expr *CE) {
-    if (dyn_cast<ImplicitCastExpr>(CE)) {
-      CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
-    }
-    if (dyn_cast<CHKCBindTemporaryExpr>(CE)) {
-      CE = (dyn_cast<CHKCBindTemporaryExpr>(CE))->getSubExpr();
-    }
-    if (dyn_cast<ImplicitCastExpr>(CE)) {
-      CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
-    }
-    return CE;
-  }
-
   ASTContext *Context;
   ProgramInfo &Info;
   FunctionDecl *Function;
+  ConstraintBuilder CB;
 };
 
 // This class visits a global declaration and either
@@ -655,7 +651,7 @@ private:
 class GlobalVisitor : public RecursiveASTVisitor<GlobalVisitor> {
 public:
   explicit GlobalVisitor(ASTContext *Context, ProgramInfo &I)
-      : Context(Context), Info(I) {}
+      : Context(Context), Info(I), CB(Info, Context) {}
 
   bool VisitVarDecl(VarDecl *G) {
     
@@ -663,10 +659,10 @@ public:
       if (G->getType()->isPointerType() || G->getType()->isArrayType()) {
         Info.addVariable(G, Context);
         Info.seeGlobalDecl(G, Context);
-        // TODO
-        //  Expr *InitE = G->getInit();
-        // if (InitE)
-        //   constrainLocalAssign(); // Need to pull out this method
+
+        if (G->hasInit()) {
+          CB.constrainLocalAssign(G, G->getInit());
+        }
       }
 
     return true;
@@ -702,7 +698,7 @@ public:
             if (i < D->getNumParams()) {
               ParmVarDecl *PVD = D->getParamDecl(i);
               Info.addVariable(PVD, Context);
-              specialCaseVarIntros(PVD, Info, Context, HasBody);
+              CB.specialCaseVarIntros(PVD, HasBody);
             }
           }
         }
@@ -731,7 +727,7 @@ public:
           for (const auto &D : Definition->fields())
             if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
               Info.addVariable(D, Context);
-              specialCaseVarIntros(D, Info, Context);
+              CB.specialCaseVarIntros(D);
             }
         }
       }
@@ -743,6 +739,7 @@ public:
 private:
   ASTContext *Context;
   ProgramInfo &Info;
+  ConstraintBuilder CB;
 };
 
 void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
