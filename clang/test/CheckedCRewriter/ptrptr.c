@@ -9,7 +9,6 @@ void f() {
   p = (int *)5;
 }
 // CHECK: int x _Checked[5];
-// CHECK: _Array_ptr<int> pa =  x;
 
 void g() {
   int *x = malloc(sizeof(int));
