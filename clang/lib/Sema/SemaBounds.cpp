@@ -2269,7 +2269,7 @@ namespace {
     //
     // State is an out parameter that holds the result of Check.
     BoundsExpr *Check(Stmt *S, CheckedScopeSpecifier CSS, CheckingState &State) {
-      if (!S)
+      if (!S || this->S.getLangOpts().IgnoreCheckedPtr)
         return CreateBoundsEmpty();
 
       if (Expr *E = dyn_cast<Expr>(S)) {
