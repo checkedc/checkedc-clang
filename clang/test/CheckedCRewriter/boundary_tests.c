@@ -18,7 +18,8 @@ void mut(int *a, int b) {
 //CHECK: void  mut(int *a : itype(_Ptr<int>), int b) {
 
 void bad_ctx(void) {
-  mut((int*)0x8001000, 1);
+  int *x = (int*)0x8001000;
+  mut(x, 1);
 }
 
 void good_ctx(void) {
