@@ -474,9 +474,6 @@ NTArrAtom *Constraints::getNTArr() const {
 WildAtom *Constraints::getWild() const {
   return PrebuiltWild;
 }
-WildBotAtom *Constraints::getWildBot() const {
-  return PrebuiltWildBot;
-}
 
 ConstAtom *Constraints::getAssignment(Atom *A) {
   return environment.getAssignment(A);
@@ -525,7 +522,6 @@ Constraints::Constraints() {
   PrebuiltArr = new ArrAtom();
   PrebuiltNTArr = new NTArrAtom();
   PrebuiltWild = new WildAtom();
-  PrebuiltWildBot = new WildBotAtom();
 }
 
 Constraints::~Constraints() {
@@ -533,7 +529,6 @@ Constraints::~Constraints() {
   delete PrebuiltArr;
   delete PrebuiltNTArr;
   delete PrebuiltWild;
-  delete PrebuiltWildBot;
 }
 
 /* ConstraintsEnv methods */

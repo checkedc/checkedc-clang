@@ -50,7 +50,6 @@ public:
     A_Arr,
     A_NTArr,
     A_Wild,
-    A_WildBot,
     A_Const
   };
 private:
@@ -161,51 +160,9 @@ private:
 };
 
 /* ConstAtom ordering is:
-    WILDBOT < NTARR < ARR < PTR < WILD
+    NTARR < ARR < PTR < WILD
    and all ConstAtoms < VarAtoms
-    Note that WILDBOT only used during solving; should never appear in constraints
 */
-
-// This refers to the constant WILDBOT. It is only used during solving.
-// CURRENTLY UNUSED
-class WildBotAtom : public ConstAtom {
-public:
-  WildBotAtom() : ConstAtom(A_WildBot) {}
-
-  static bool classof(const Atom *S) {
-    return S->getKind() == A_WildBot;
-  }
-
-  void print(llvm::raw_ostream &O) const {
-    O << "WILD+";
-  }
-
-  void dump(void) const {
-    print(llvm::errs());
-  }
-
-  void dump_json(llvm::raw_ostream &O) const {
-    O << "\"WILD+\"";
-  }
-
-  bool operator==(const Atom &Other) const {
-    if (llvm::isa<WildBotAtom>(&Other))
-      return true;
-    else
-      return false;
-  }
-
-  bool operator!=(const Atom &Other) const {
-    return !(*this == Other);
-  }
-
-  bool operator<(const Atom &Other) const {
-    if (*this == Other)
-      return false;
-    else
-      return true;
-  }
-};
 
 // This refers to the constant NTARR.
 class NTArrAtom : public ConstAtom {
@@ -237,7 +194,7 @@ public:
   }
 
   bool operator<(const Atom &Other) const {
-    if (llvm::isa<WildBotAtom>(&Other) || *this == Other)
+    if (*this == Other)
       return false;
     else
       return true;
@@ -274,7 +231,7 @@ public:
   }
 
   bool operator<(const Atom &Other) const {
-    if (llvm::isa<WildBotAtom>(&Other) || llvm::isa<NTArrAtom>(&Other) || *this == Other)
+    if (llvm::isa<NTArrAtom>(&Other) || *this == Other)
       return false;
     else
       return true;
@@ -311,8 +268,7 @@ public:
   }
 
   bool operator<(const Atom &Other) const {
-    if (llvm::isa<WildBotAtom>(&Other) ||
-        llvm::isa<ArrAtom>(&Other) || llvm::isa<NTArrAtom>(&Other) ||
+    if (llvm::isa<ArrAtom>(&Other) || llvm::isa<NTArrAtom>(&Other) ||
 	    *this == Other)
       return false;
     else
@@ -353,7 +309,7 @@ public:
   }
 
   bool operator<(const Atom &Other) const {
-    if (llvm::isa<WildBotAtom>(&Other) || llvm::isa<ArrAtom>(&Other) ||
+    if (llvm::isa<ArrAtom>(&Other) ||
         llvm::isa<NTArrAtom>(&Other) || llvm::isa<PtrAtom>(&Other) ||
             *this == Other)
       return false;
@@ -675,8 +631,6 @@ private:
 
   bool check(Constraint *C);
 
-  WildBotAtom *getWildBot() const;
-
   // Managing constraints based on the underlying reason.
   // add constraint to the map.
   bool addReasonBasedConstraint(Constraint *C);
@@ -689,8 +643,6 @@ private:
   ArrAtom *PrebuiltArr;
   NTArrAtom *PrebuiltNTArr;
   WildAtom *PrebuiltWild;
-  WildBotAtom *PrebuiltWildBot;
-
 };
 
 typedef uint32_t ConstraintKey;
