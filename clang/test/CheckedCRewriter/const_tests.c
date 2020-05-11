@@ -19,7 +19,7 @@ void cst2(int * const a) {
 void cst3(const int *a, int i) {
   int c = *(a+i);
 }
-//CHECK: void cst3(const int *a, int i) {
+//CHECK: void cst3(_Array_ptr<const int> a: count(i), int i) {
 //CHECK-NEXT: int c = *(a+i);
 
 void cst4(const int *b) {

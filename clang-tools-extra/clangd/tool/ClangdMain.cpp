@@ -32,6 +32,9 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#ifdef INTERACTIVECCCONV
+#include "cconvert/CConvInteractive.h"
+#endif
 
 namespace clang {
 namespace clangd {
@@ -276,6 +279,78 @@ static llvm::cl::list<std::string> TweakList(
         "Specify a list of Tweaks to enable (only for clangd developers)."),
     llvm::cl::Hidden, llvm::cl::CommaSeparated);
 
+#ifdef INTERACTIVECCCONV
+static llvm::cl::OptionCategory CConvCategory("cconv", "This is "
+                                                       "an interactive version "
+                                                       "of checked c convert "
+                                                       "tool.");
+
+llvm::cl::opt<bool> DumpIntermediate( "dump-intermediate",
+                                      llvm::cl::desc("Dump intermediate "
+                                                    "information"),
+                                      llvm::cl::init(false),
+                                     llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<bool> Verbose("verbose",
+                            llvm::cl::desc("Print verbose information"),
+                            llvm::cl::init(false),
+                            llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<bool> MergeMultipleFuncDecls("mergefds",
+                                           llvm::cl::desc("Merge multiple "
+                                                          "declarations of "
+                                                          "functions."),
+                                           llvm::cl::init(false),
+                                           llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<std::string>
+    OutputPostfix("output-postfix",
+                  llvm::cl::desc("Postfix to add to the names of "
+                                 "rewritten files, if "
+                                 "not supplied writes to STDOUT"),
+                  llvm::cl::init("-"), llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<std::string>
+    ConstraintOutputJson("constraint-output",
+                         llvm::cl::desc("Path to the file where all the "
+                                        "analysis information will be dumped "
+                                        "as json"),
+                         llvm::cl::init("constraint_output.json"),
+                         llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<bool> DumpStats( "dump-stats",
+                               llvm::cl::desc("Dump statistics"),
+                               llvm::cl::init(false),
+                              llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<bool> HandleVARARGS( "handle-varargs",
+                                   llvm::cl::desc("Enable handling of "
+                                                 "varargs in a sound manner"),
+                                   llvm::cl::init(false),
+                                  llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<bool> EnablePropThruIType( "enable-itypeprop",
+                                         llvm::cl::desc("Enable propagation "
+                                                       "of constraints through "
+                                                       "ityped parameters/returns."),
+                                         llvm::cl::init(false),
+                                        llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<bool> ConsiderAllocUnsafe( "alloc-unsafe",
+                                         llvm::cl::desc("Consider the "
+                                                       "allocators "
+                                                       "(i.e., malloc/calloc) "
+                                                       "as unsafe."),
+                                         llvm::cl::init(false),
+                                        llvm::cl::cat(CConvCategory));
+
+llvm::cl::opt<std::string> BaseDir("base-dir",
+                                   llvm::cl::desc("Base directory for the "
+                                                  "code we're translating"),
+                                   llvm::cl::init(""),
+                                   llvm::cl::cat(CConvCategory));
+#endif
+
 namespace {
 
 /// \brief Supports a test URI scheme with relaxed constraints for lit tests.
@@ -342,6 +417,33 @@ int main(int argc, char *argv[]) {
   llvm::cl::SetVersionPrinter([](llvm::raw_ostream &OS) {
     OS << clang::getClangToolFullVersion("clangd") << "\n";
   });
+
+#ifdef INTERACTIVECCCONV
+  tooling::CommonOptionsParser OptionsParser(argc,
+                                             (const char**)(argv),
+                                             CConvCategory);
+  LogLevel = Logger::Debug;
+  // Setup options.
+  struct CConvertOptions ccOptions;
+  CConvInterface cconvInterface;
+  ccOptions.BaseDir = BaseDir.getValue();
+  ccOptions.ConsiderAllocUnsafe = ConsiderAllocUnsafe;
+  ccOptions.EnablePropThruIType = EnablePropThruIType;
+  ccOptions.HandleVARARGS = HandleVARARGS;
+  ccOptions.DumpStats = DumpStats;
+  ccOptions.OutputPostfix = OutputPostfix.getValue();
+  ccOptions.Verbose = Verbose;
+  ccOptions.DumpIntermediate = DumpIntermediate;
+  ccOptions.ConstraintOutputJson = ConstraintOutputJson.getValue();
+  ccOptions.SeperateMultipleFuncDecls = MergeMultipleFuncDecls;
+  // Initialize CConvInterface.
+  if (cconvInterface.InitializeCConvert(OptionsParser, ccOptions)) {
+    log("Initialized CConvert successfully\n");
+  } else {
+    log("Failed to initialize CConvert successfully\n");
+    return 1;
+  }
+#else
   llvm::cl::ParseCommandLineOptions(
       argc, argv,
       "clangd is a language server that provides IDE-like features to editors. "
@@ -350,6 +452,8 @@ int main(int argc, char *argv[]) {
       "For more information, see:"
       "\n\thttps://clang.llvm.org/extra/clangd.html"
       "\n\thttps://microsoft.github.io/language-server-protocol/");
+#endif
+
   if (Test) {
     Sync = true;
     InputStyle = JSONStreamStyle::Delimited;
@@ -544,7 +648,12 @@ int main(int argc, char *argv[]) {
   ClangdLSPServer LSPServer(
       *TransportLayer, FSProvider, CCOpts, CompileCommandsDirPath,
       /*UseDirBasedCDB=*/CompileArgsFrom == FilesystemCompileArgs,
+#ifdef INTERACTIVECCCONV
+      // Pass the cconvInterface object.
+      OffsetEncodingFromFlag, Opts, cconvInterface);
+#else
       OffsetEncodingFromFlag, Opts);
+#endif
   llvm::set_thread_name("clangd.main");
   return LSPServer.run() ? 0
                          : static_cast<int>(ErrorResultCode::NoShutdownRequest);

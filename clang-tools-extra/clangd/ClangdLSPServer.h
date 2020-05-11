@@ -17,6 +17,9 @@
 #include "Path.h"
 #include "Protocol.h"
 #include "Transport.h"
+#ifdef INTERACTIVECCCONV
+#include "cconvert/CConvInteractive.h"
+#endif
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/Optional.h"
 #include <memory>
@@ -31,7 +34,11 @@ class SymbolIndex;
 /// MessageHandler binds the implemented LSP methods (e.g. onInitialize) to
 /// corresponding JSON-RPC methods ("initialize").
 /// The server also supports $/cancelRequest (MessageHandler provides this).
+#ifdef INTERACTIVECCCONV
+class ClangdLSPServer : private DiagnosticsConsumer, public CConvLSPCallBack {
+#else
 class ClangdLSPServer : private DiagnosticsConsumer {
+#endif
 public:
   /// If \p CompileCommandsDir has a value, compile_commands.json will be
   /// loaded only from \p CompileCommandsDir. Otherwise, clangd will look
@@ -42,7 +49,11 @@ public:
                   const clangd::CodeCompleteOptions &CCOpts,
                   llvm::Optional<Path> CompileCommandsDir, bool UseDirBasedCDB,
                   llvm::Optional<OffsetEncoding> ForcedOffsetEncoding,
+#ifdef INTERACTIVECCCONV
+                  const ClangdServer::Options &Opts, CConvInterface &Cinter);
+#else
                   const ClangdServer::Options &Opts);
+#endif
   ~ClangdLSPServer();
 
   /// Run LSP server loop, communicating with the Transport provided in the
@@ -50,6 +61,11 @@ public:
   ///
   /// \return Whether we shut down cleanly with a 'shutdown' -> 'exit' sequence.
   bool run();
+
+#ifdef INTERACTIVECCCONV
+  void ccConvResultsReady(std::string FileName, bool ClearDiags = false) override;
+  void sendCConvMessage(std::string msg) override;
+#endif
 
 private:
   // Implement DiagnosticsConsumer.
@@ -79,6 +95,12 @@ private:
   void onDocumentSymbol(const DocumentSymbolParams &,
                         Callback<llvm::json::Value>);
   void onCodeAction(const CodeActionParams &, Callback<llvm::json::Value>);
+#ifdef INTERACTIVECCCONV
+  // code lens : used to check cconv support
+  void onCodeLens(const CodeLensParams &, Callback<llvm::json::Value>);
+  void onCodeLensResolve(const CodeLens &Params,
+                         Callback<llvm::json::Value> Reply);
+#endif
   void onCompletion(const CompletionParams &, Callback<CompletionList>);
   void onSignatureHelp(const TextDocumentPositionParams &,
                        Callback<SignatureHelp>);
@@ -180,6 +202,9 @@ private:
   ClangdServer::Options ClangdServerOpts;
   llvm::Optional<ClangdServer> Server;
   llvm::Optional<OffsetEncoding> NegotiatedOffsetEncoding;
+#ifdef INTERACTIVECCCONV
+  CConvInterface &CCInterface;
+#endif
 };
 } // namespace clangd
 } // namespace clang

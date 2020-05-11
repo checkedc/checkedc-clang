@@ -3,8 +3,6 @@
 // Checks very simple inference properties for local variables.
 //
 // RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
-// RUN: checked-c-convert %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
-// expected-no-diagnostics
 
 void f1(void) {
     int b = 0;
@@ -41,7 +39,7 @@ void upd(BarRec *P, int a) {
 void canthelp(int *a, int b, int c) {
   *(a + b) = c;
 }
-//CHECK: void canthelp(int *a, int b, int c) {
+//CHECK: void canthelp(_Array_ptr<int> a: count(b), int b, int c) {
 //CHECK-NEXT:  *(a + b) = c;
 //CHECK-NEXT: }
 
@@ -50,8 +48,8 @@ void partialhelp(int *a, int b, int c) {
   *d = 0;
   *(a + b) = c;
 }
-//CHECK: void partialhelp(int *a, int b, int c) {
-//CHECK-NEXT: int *d = a;
+//CHECK: void partialhelp(_Array_ptr<int> a: count(b), int b, int c) {
+//CHECK-NEXT: _Array_ptr<int> d = a;
 //CHECK-NEXT: *d = 0;
 //CHECK-NEXT:  *(a + b) = c;
 //CHECK-NEXT: }
@@ -121,14 +119,14 @@ int baz(int *a, int b, int c) {
 int arrcheck(int *a, int b) {
   return a[b];
 }
-//CHECK: int arrcheck(int *a, int b) {
+//CHECK: int arrcheck(_Array_ptr<int> a: count(b), int b) {
 //CHECK-NEXT: return a[b];
 //CHECK-NEXT: }
 
 int badcall(int *a, int b) {
   return arrcheck(a, b);
 }
-//CHECK: int badcall(int *a, int b) {
+//CHECK: int badcall(_Array_ptr<int> a: count(b), int b) {
 //CHECK-NEXT: return arrcheck(a, b); 
 //CHECK-NEXT: }
 
@@ -139,7 +137,7 @@ void pullit(char *base, char *out, int *index) {
 
   return;
 }
-//CHECK: void pullit(char *base, _Ptr<char> out, _Ptr<int> index) {
+//CHECK: void pullit(_Array_ptr<char> base, _Ptr<char> out, _Ptr<int> index) {
 
 void driver() {
   char buf[10] = { 0 };
@@ -199,7 +197,7 @@ void adsfse(void) {
 }
 //CHECK: void adsfse(void) {
 //CHECK-NEXT: int a = 0;
-//CHECK-NEXT: int *b = &a;
+//CHECK-NEXT: _Array_ptr<int> b = &a;
 
 void dknbhd(void) {
   int a = 0;
@@ -216,9 +214,9 @@ void dknbhd(void) {
 }
 //CHECK: void dknbhd(void) {
 //CHECK-NEXT: int a = 0;
-//CHECK-NEXT: int *b = &a;
-//CHECK-NEXT: int **c = &b;
-//CHECK-NEXT: int *d = *c;
+//CHECK-NEXT: _Array_ptr<int> b = &a;
+//CHECK-NEXT: _Array_ptr<_Array_ptr<int>> c = &b;
+//CHECK-NEXT: _Array_ptr<int> d = *c;
 
 extern void dfefwefrw(int **);
 
@@ -252,5 +250,5 @@ void ptrarr(void) {
   return;
 }
 //CHECK: void ptrarr(void) { 
-//CHECK-NEXT: _Ptr<int> vals[4] =  { 0 };
+//CHECK-NEXT: _Ptr<int> vals _Checked[4] =  { 0 };
 
