@@ -2153,6 +2153,17 @@ namespace {
      // variables killed by the statement S to the declared bounds.
      for (const VarDecl *V : I->second) {
        if (const BoundsExpr *Bounds = V->getBoundsExpr())
+
+         // TODO: Throughout clang in general (and inside dataflow analysis in
+         // particular) we repeatedly invoke ExpandBoundsToRange in order to
+         // canonicalize the bounds of a variable to RangeBoundsExpr. Sometimes
+         // we do this multiple times for the same variable. This is very
+         // inefficient because ExpandBoundsToRange can allocate AST data
+         // structures that are permanently allocated and increase the memory
+         // usage of the compiler. The solution is to canonicalize the bounds
+         // once and attach it to the VarDecl. See issue
+         // https://github.com/microsoft/checkedc-clang/issues/830.
+
          ObservedBounds[V] = S.ExpandBoundsToRange(V, Bounds);
      }
    }
@@ -2170,6 +2181,17 @@ namespace {
 
        // We normalize the declared bounds to RangBoundsExpr here so that we
        // can easily apply the offset to the upper bound.
+
+       // TODO: Throughout clang in general (and inside dataflow analysis in
+       // particular) we repeatedly invoke ExpandBoundsToRange in order to
+       // canonicalize the bounds of a variable to RangeBoundsExpr. Sometimes
+       // we do this multiple times for the same variable. This is very
+       // inefficient because ExpandBoundsToRange can allocate AST data
+       // structures that are permanently allocated and increase the memory
+       // usage of the compiler. The solution is to canonicalize the bounds
+       // once and attach it to the VarDecl. See issue
+       // https://github.com/microsoft/checkedc-clang/issues/830.
+
        BoundsExpr *Bounds = S.ExpandBoundsToRange(V, V->getBoundsExpr());
        if (RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(Bounds)) {
          const llvm::APInt
