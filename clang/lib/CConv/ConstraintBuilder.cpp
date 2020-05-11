@@ -138,7 +138,7 @@ public:
                             Expr *RHS, ConsAction CAction) {
     if (!RHS || V.size() == 0)
       return;
-
+    RHS = RHS->IgnoreParens();
     Constraints &CS = Info.getConstraints();
     std::set<ConstraintVariable *> RHSConstraints;
     RHSConstraints.clear();
@@ -168,7 +168,6 @@ public:
         }
       }
     } else {
-      RHS = RHS->IgnoreParens();
       PL = PersistentSourceLoc::mkPSL(RHS, *Context);
 
       // Cases 2
