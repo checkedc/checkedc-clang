@@ -874,7 +874,7 @@ void f28() {
 
   switch (*p) {
   case 1:
-    switch (*(p + 1)) {  // expected-error {{out-of-bounds memory access}}
+    switch (*(p + 1)) {
       case 2: break;
     }
 // CHECK:  [B8]
@@ -917,17 +917,17 @@ void f29() {
 // CHECK:   case 'a':
 // CHECK: upper_bound(p) = 1
 
-    if (*(p + 1)) {           // expected-error {{out-of-bounds memory access}}
+    if (*(p + 1)) {
       i = 0;
 // CHECK:    1: i = 0
 // CHECK: upper_bound(p) = 2
 
-      for (;*(p + 2);) {      // expected-error {{out-of-bounds memory access}}
+      for (;*(p + 2);) {
         i = 1;
 // CHECK:    1: i = 1
 // CHECK: upper_bound(p) = 3
 
-        while (*(p + 3)) {    // expected-error {{out-of-bounds memory access}}
+        while (*(p + 3)) {
           i = 2;
 // CHECK:    1: i = 2
 // CHECK: upper_bound(p) = 4
