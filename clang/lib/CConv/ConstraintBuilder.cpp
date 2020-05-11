@@ -464,7 +464,7 @@ public:
       if (FVConstraint *FV = dyn_cast<FVConstraint>(F)) {
         // This is to ensure that the return type of the function is same
         // as the type of return expression.
-        CB.constrainLocalAssign(FV->getReturnVars(), Typ, RetExpr, Same_to_Same, true);
+        CB.constrainLocalAssign(FV->getReturnVars(), Typ, RetExpr, Same_to_Same, false);
       }
     }
     return true;
