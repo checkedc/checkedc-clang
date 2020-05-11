@@ -389,7 +389,7 @@ option(LLVM_ENABLE_WERROR "Fail and stop if a warning is triggered." OFF)
 
 # Check for existence of boost library
 set(Boost_USE_STATIC_LIBS OFF)
-set(Boost_USE_MULTITHREADED OFF)
+set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
 set(Boost_NO_BOOST_CMAKE ON)
 find_package(Boost 1.50 REQUIRED COMPONENTS graph)

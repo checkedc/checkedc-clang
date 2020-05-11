@@ -94,6 +94,9 @@ clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD,
 // Remove auxillary casts from the provided expression.
 clang::Expr *removeAuxillaryCasts(clang::Expr *SrcExpr);
 
+// Get normalized expression by removing clang syntactic sugar
+clang::Expr *getNormalizedExpr(clang::Expr *CE);
+
 // Check if the provided file path belongs to the input project
 // and can be rewritten.
 bool canWrite(const std::string &FilePath);
