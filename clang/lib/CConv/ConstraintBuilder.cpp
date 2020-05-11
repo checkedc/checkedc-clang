@@ -135,7 +135,8 @@ public:
   // be some expression like NULL, an integer constant or a cast.
   void constrainLocalAssign(std::set<ConstraintVariable *> V,
                             QualType LhsType,
-                            Expr *RHS, ConsAction CAction) {
+                            Expr *RHS, ConsAction CAction,
+                            bool DoEqType = false) {
     if (!RHS || V.size() == 0)
       return;
 
@@ -164,7 +165,7 @@ public:
         RHSConstraints = Info.getVariable(RHS, Context, false);
         // This is call-expression. We should use c2u for returns.
         if (RHSConstraints.size() > 0) {
-          constrainConsVarGeq(V, RHSConstraints, CS, &PL, Safe_to_Wild, false);
+          constrainConsVarGeq(V, RHSConstraints, CS, &PL, Safe_to_Wild, DoEqType);
         }
       }
     } else {
@@ -245,7 +246,7 @@ public:
         if (RHSConstraints.size() > 0) {
           // There are constraint variables for the RHS, so, use those over
           // anything else we could infer.
-          constrainConsVarGeq(V, RHSConstraints, CS, &PL, CAction, false);
+          constrainConsVarGeq(V, RHSConstraints, CS, &PL, CAction, DoEqType);
         }
       }
     }
@@ -461,7 +462,9 @@ public:
     // to the type of the return expression.
     for (const auto &F : Fun) {
       if (FVConstraint *FV = dyn_cast<FVConstraint>(F)) {
-        CB.constrainLocalAssign(FV->getReturnVars(), Typ, RetExpr, Same_to_Same);
+        // This is to ensure that the return type of the function is same
+        // as the type of return expression.
+        CB.constrainLocalAssign(FV->getReturnVars(), Typ, RetExpr, Same_to_Same, true);
       }
     }
     return true;
