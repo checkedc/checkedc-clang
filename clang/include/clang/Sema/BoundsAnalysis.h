@@ -203,7 +203,7 @@ namespace clang {
     // @param[in] B is the current CFGBlock.
     // return A mapping of Stmts to variables whose bounds are killed by the
     // Stmt.
-    StmtDeclSetTy GetKillSet(const clang::CFGBlock *B);
+    StmtDeclSetTy GetKilledBounds(const clang::CFGBlock *B);
 
   private:
     // Compute Gen set for each edge in the CFG. If there is an edge B1->B2 and

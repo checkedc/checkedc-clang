@@ -720,13 +720,21 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
   }
 }
 
-StmtDeclSetTy BoundsAnalysis::GetKillSet(const CFGBlock *B) {
-  ElevatedCFGBlock *EB = BlockMap[B];
+StmtDeclSetTy BoundsAnalysis::GetKilledBounds(const CFGBlock *B) {
+  auto I = BlockMap.find(B);
+  if (I == BlockMap.end())
+    return StmtDeclSetTy();
+
+  ElevatedCFGBlock *EB = I->second;
   return EB->Kill;
 }
 
 BoundsMapTy BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
-  ElevatedCFGBlock *EB = BlockMap[B];
+  auto I = BlockMap.find(B);
+  if (I == BlockMap.end())
+    return BoundsMapTy();
+
+  ElevatedCFGBlock *EB = I->second;
   return EB->In;
 }
 
