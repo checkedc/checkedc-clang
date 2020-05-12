@@ -7,6 +7,7 @@ import subprocess
 
 import lit.formats
 import lit.util
+from lit.llvm import llvm_config
 
 # Configuration file for the 'lit' test runner.
 
@@ -55,6 +56,7 @@ config.test_source_root = os.path.dirname(__file__)
 
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = os.path.join(config.clang_tools_binary_dir, 'test')
+llvm_config.use_clang()
 
 # Clear some environment variables that might affect Clang.
 #
