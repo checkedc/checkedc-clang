@@ -1,4 +1,4 @@
-//                     The LLVM Compiler Infrastructure
+//=--ArrayBoundsInferenceConsumer.h-------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,41 +16,52 @@
 
 #include "ProgramInfo.h"
 
+class LocalVarABVisitor;
 
-class LocalVarABVisitor: public clang::RecursiveASTVisitor<LocalVarABVisitor> {
+// This class handles determining bounds of global array variables.
+// i.e., function parameters, structure fields and global variables.
+class GlobalABVisitor: public clang::RecursiveASTVisitor<GlobalABVisitor> {
 public:
-  explicit LocalVarABVisitor(ASTContext *C, ProgramInfo &I)
-          : Context(C), Info(I) {}
+  explicit GlobalABVisitor(ASTContext *C, ProgramInfo &I)
+          : Context(C), Info(I), ParamInfo(nullptr) {}
 
-  // handles assignment expression.
-  bool VisitBinAssign(BinaryOperator *O);
+  bool VisitRecordDecl(RecordDecl *RD);
 
+  bool VisitFunctionDecl(FunctionDecl *FD);
 
-  bool VisitDeclStmt(DeclStmt *S);
+  void SetParamHeuristicInfo(LocalVarABVisitor *LAB);
+
 private:
-  // check if the provided expression is a call
-  // to known memory allocators.
-  // if yes, return true along with the argument used as size
-  // assigned to the second paramter i.e., sizeArgument
-  bool isAllocatorCall(Expr *currExpr, Expr **sizeArgument);
-
-  // check if expression is a simple local variable
-  // i.e., ptr = .
-  // if yes, return the referenced local variable as the return
-  // value of the argument.
-  bool isExpressionSimpleLocalVar(Expr *toCheck, Decl **targetDecl);
-
-
-  Expr *removeAuxiliaryCasts(Expr *srcExpr);
-
-  // print variables that should have been detected as arrays but not.
-  void dumpNotArrayIdentifiedVariable(Decl *LHS, Expr *RHS, raw_ostream &O);
-
+  bool IsPotentialLengthVar(ParmVarDecl *PVD);
+  LocalVarABVisitor *ParamInfo;
   ASTContext *Context;
   ProgramInfo &Info;
-  static std::set<std::string> AllocatorFunctionNames;
+};
+
+// This class handles determining bounds of function-local array variables.
+class LocalVarABVisitor : public clang::RecursiveASTVisitor<LocalVarABVisitor> {
+
+public:
+  explicit LocalVarABVisitor(ASTContext *C, ProgramInfo &I)
+  : Context(C), Info(I) {}
+
+  bool VisitBinAssign(BinaryOperator *O);
+  bool VisitDeclStmt(DeclStmt *S);
+  bool VisitSwitchStmt(SwitchStmt *S);
+  bool VisitIfStmt(IfStmt *IFS);
+  bool isNonLengthParameter(ParmVarDecl *PVD);
+
+private:
+  void addUsedParmVarDecl(Expr *CE);
+  std::set<ParmVarDecl *> NonLengthParameters;
+  ASTContext *Context;
+  ProgramInfo &Info;
 };
 
 void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I);
+
+// Add constraints based on heuristics to the parameters of the
+// provided function.
+void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD);
 
 #endif //_ARRAYBOUNDSINFERENCECONSUMER_H

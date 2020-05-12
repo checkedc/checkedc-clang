@@ -36,6 +36,8 @@ endif()
 
 add_clang_library(clangDaemon
   AST.cpp
+  CConvertCommands.cpp
+  CConvertDiagnostics.cpp
   Cancellation.cpp
   ClangdLSPServer.cpp
   ClangdServer.cpp
@@ -138,11 +140,121 @@ add_clang_library(clangDaemon
   ${CLANGD_ATOMIC_LIB}
   )
 
+
+add_clang_library(cconvClangDaemon
+  AST.cpp
+  CConvertCommands.cpp
+  CConvertDiagnostics.cpp
+  Cancellation.cpp
+  ClangdLSPServer.cpp
+  ClangdServer.cpp
+  ClangdUnit.cpp
+  CodeComplete.cpp
+  CodeCompletionStrings.cpp
+  Compiler.cpp
+  Context.cpp
+  Diagnostics.cpp
+  DraftStore.cpp
+  ExpectedTypes.cpp
+  FindSymbols.cpp
+  FileDistance.cpp
+  Format.cpp
+  FS.cpp
+  FSProvider.cpp
+  FormattedString.cpp
+  FuzzyMatch.cpp
+  GlobalCompilationDatabase.cpp
+  Headers.cpp
+  IncludeFixer.cpp
+  JSONTransport.cpp
+  Logger.cpp
+  Protocol.cpp
+  Quality.cpp
+  RIFF.cpp
+  Selection.cpp
+  SemanticHighlighting.cpp
+  SourceCode.cpp
+  QueryDriverDatabase.cpp
+  Threading.cpp
+  Trace.cpp
+  TUScheduler.cpp
+  URI.cpp
+  XRefs.cpp
+
+  index/Background.cpp
+  index/BackgroundIndexStorage.cpp
+  index/BackgroundQueue.cpp
+  index/BackgroundRebuild.cpp
+  index/CanonicalIncludes.cpp
+  index/FileIndex.cpp
+  index/Index.cpp
+  index/IndexAction.cpp
+  index/MemIndex.cpp
+  index/Merge.cpp
+  index/Ref.cpp
+  index/Relation.cpp
+  index/Serialization.cpp
+  index/Symbol.cpp
+  index/SymbolCollector.cpp
+  index/SymbolID.cpp
+  index/SymbolLocation.cpp
+  index/SymbolOrigin.cpp
+  index/YAMLSerialization.cpp
+
+  index/dex/Dex.cpp
+  index/dex/Iterator.cpp
+  index/dex/PostingList.cpp
+  index/dex/Trigram.cpp
+
+  refactor/Rename.cpp
+  refactor/Tweak.cpp
+
+  LINK_LIBS
+  clangAST
+  clangASTMatchers
+  clangBasic
+  clangDriver
+  clangFormat
+  clangFrontend
+  clangIndex
+  clangLex
+  clangSema
+  clangSerialization
+  clangTidy
+  clangTidyAndroidModule
+  clangTidyAbseilModule
+  clangTidyBoostModule
+  clangTidyBugproneModule
+  clangTidyCERTModule
+  clangTidyCppCoreGuidelinesModule
+  clangTidyFuchsiaModule
+  clangTidyGoogleModule
+  clangTidyHICPPModule
+  clangTidyLLVMModule
+  clangTidyMiscModule
+  clangTidyModernizeModule
+  clangTidyObjCModule
+  clangTidyPerformanceModule
+  clangTidyPortabilityModule
+  clangTidyReadabilityModule
+  clangTidyZirconModule
+  clangTooling
+  clangToolingCore
+  clangToolingInclusions
+  clangToolingRefactoring
+  clangToolingSyntax
+  ${LLVM_PTHREAD_LIB}
+  ${CLANGD_ATOMIC_LIB}
+        )
+
+target_compile_definitions(obj.cconvClangDaemon PRIVATE INTERACTIVECCCONV=1)
+
 add_subdirectory(refactor/tweaks)
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
   # FIXME: Make fuzzer not use linux-specific APIs, build it everywhere.
   add_subdirectory(fuzzer)
 endif()
+add_subdirectory(cconvert)
 add_subdirectory(tool)
 add_subdirectory(indexer)
 add_subdirectory(index/dex/dexp)

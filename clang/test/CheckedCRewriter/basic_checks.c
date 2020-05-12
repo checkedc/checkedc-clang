@@ -4,14 +4,12 @@
 // return value stuff.
 //
 // RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
-// RUN: checked-c-convert %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
-// expected-no-diagnostics
 //
 
 typedef unsigned short wchar_t;
 
 void typd_driver(void) {
-  wchar_t buf[10];
+  wchar_t buf [10];
   wchar_t *a = &buf[0];
   wchar_t *b = &buf[0];
 
@@ -20,9 +18,9 @@ void typd_driver(void) {
   *(b+4) = 0;
 }
 //CHECK: void typd_driver(void) {
-//CHECK-NEXT: wchar_t buf[10];
+//CHECK-NEXT: wchar_t buf _Checked[10];
 //CHECK-NEXT: _Ptr<wchar_t> a = &buf[0];
-//CHECK-NEXT: wchar_t *b = &buf[0];
+//CHECK-NEXT: _Array_ptr<wchar_t> b = &buf[0];
 
 typedef struct _A {
   int a;

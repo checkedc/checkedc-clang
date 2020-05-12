@@ -2,10 +2,11 @@
 //
 // Tests rewriting of Nt_array_ptrs within structure fields
 
-// RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
+// RUN: CConvertStandalone -alltypes %s -- | FileCheck -match-full-lines %s
 //
 
-#include <string_checked.h>
+char *strstr(const char *s1 : itype(_Nt_array_ptr<const char>),
+             const char *s2 : itype(_Nt_array_ptr<const char>)) : itype(_Nt_array_ptr<char>);
 // This tests the propagation of constraints
 // within the fields of structure.
 typedef struct {

@@ -153,8 +153,8 @@ void Sema::CompleteTypeAppFields(RecordDecl *Incomplete) {
 
     // Substitute in the bounds-safe interface type (itype).
     if (auto IType = Field->getInteropTypeExpr()) {
-      auto InstType = SubstituteTypeArgs(IType->getType(), Incomplete->typeArgs());
-      InteropTypeExpr *NewIType = new (Context) InteropTypeExpr(InstType, SourceLocation(), SourceLocation(), IType->getTypeInfoAsWritten());
+      auto InteropInstType = SubstituteTypeArgs(IType->getType(), Incomplete->typeArgs());
+      InteropTypeExpr *NewIType = new (Context) InteropTypeExpr(InteropInstType, SourceLocation(), SourceLocation(), IType->getTypeInfoAsWritten());
       NewField->setInteropTypeExpr(Context, NewIType);
     }
     // TODO: substitute type arguments in bounds expressions as well.
