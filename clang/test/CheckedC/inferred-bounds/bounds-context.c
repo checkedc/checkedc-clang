@@ -295,8 +295,9 @@ void declared2(int flag, int x, int y) {
 
 // Assignment to a variable used in its own bounds
 void assign1(array_ptr<int> arr : count(1)) {
+  // Observed bounds context before assignment: { arr => bounds(arr, arr + 1) }
   // Original value of arr: arr - 2
-  // Observed bounds context: { arr => bounds(arr - 2, (arr - 2) + 1) }
+  // Observed bounds context after assignment:  { arr => bounds(arr - 2, (arr - 2) + 1) }
   arr = arr + 2;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -328,8 +329,9 @@ void assign1(array_ptr<int> arr : count(1)) {
 
 // Assignment to a variable used in other variables' bounds
 void assign2(array_ptr<int> a : count(len - 1), char b nt_checked[0] : count(len), unsigned len) {
+  // Observed bounds context before assignment: { a => bounds(a, a + len - 1), b => bounds(b, b + len) }
   // Original value of len: len + 3
-  // Observed bounds context: { a => bounds(a, a + ((len + 3) - 1)), b => bounds(b, b + (len + 3)) }
+  // Observed bounds context after assignment : { a => bounds(a, a + ((len + 3) - 1)), b => bounds(b, b + (len + 3)) }
   len = len - 3;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -386,7 +388,8 @@ void assign2(array_ptr<int> a : count(len - 1), char b nt_checked[0] : count(len
 
 // Assignment to a variable doesn't affect bounds that don't use the variable
 void assign3(array_ptr<int> a : bounds(unknown), nt_array_ptr<char> b : count(1), int len) {
-  // Observed bounds context: { a => bounds(unknown), b => bounds(b, b + 1) }
+  // Observed bounds context before assignment: { a => bounds(unknown), b => bounds(b, b + 1) }
+  // Observed bounds context after assignment:  { a => bounds(unknown), b => bounds(b, b + 1) }
   len = 0;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -416,8 +419,9 @@ void assign3(array_ptr<int> a : bounds(unknown), nt_array_ptr<char> b : count(1)
 
 // Multiple assignments to variables used in bounds
 void assign4(array_ptr<int> a : count(len), unsigned len) {
+  // Observed bounds context before assignment: { a => bounds(a, a + len) }
   // Original value of a: a - 1, original value of len: len + 1
-  // Observed bounds context: { a => bounds(a - 1, (a - 1) + (len + 1)) }
+  // Observed bounds context after assignment:  { a => bounds(a - 1, (a - 1) + (len + 1)) }
   ++a, len--;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} ','
@@ -451,7 +455,8 @@ void assign4(array_ptr<int> a : count(len), unsigned len) {
 
 // Original value of variable used in bounds is another variable
 void assign5(array_ptr<int> a : count(len), int len, int size) {
-  // Observed bounds context: { a => bounds(a, a + len) }
+  // Observed bounds context before assignment: { a => bounds(a, a + len) }
+  // Observed bounds context after assignment:  { a => bounds(a, a + len) }
   size = len;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -476,8 +481,9 @@ void assign5(array_ptr<int> a : count(len), int len, int size) {
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'len'
   // CHECK-NEXT: }
 
+  // Observed bounds context before assignment: { a => bounds(a, a + len) }
   // Original value of len: size
-  // Observed bounds context: { a => bounds(a, a + size) }
+  // Observed bounds context after assignment:  { a => bounds(a, a + size) }
   len = len * 2;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -508,8 +514,9 @@ void assign5(array_ptr<int> a : count(len), int len, int size) {
 // Assignment to a variable with no original value sets the observed bounds
 // that use the variable to unknown
 void assign6(array_ptr<int> a : count(len), int len) {
+  // Observed bounds context before assignment: { a => bounds(a, a + len) }
   // Original value of len: null
-  // Observed bounds context: { a => bounds(unknown) }
+  // Observed bounds context after assignment:  { a => bounds(unknown) }
   len = len * 2;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -530,14 +537,128 @@ void assign6(array_ptr<int> a : count(len), int len) {
   // CHECK-NEXT: }
 }
 
+// Assignment to a variable that is used in the bounds of the RHS of the assignment
+void assign7(array_ptr<int> a : bounds(a, a + 1), array_ptr<int> b : bounds(a, a + 1), array_ptr<int> c : bounds(a, a + 1)) {
+  // Observed bounds context before assignemnt: { a => bounds(a, a + 1), b => bounds(a, a + 1), c => bounds(a + 1) }
+  // Original value of a: null
+  // Observed bounds context after assignment:  { a => bounds(unknown), b => bounds(unknown), c => bounds(unknown) }
+  a = b;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT:   RangeBoundsExpr
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: NullaryBoundsExpr {{.*}} Unknown
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} b
+  // CHECK-NEXT:   RangeBoundsExpr
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: NullaryBoundsExpr {{.*}} Unknown
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} c
+  // CHECK-NEXT:   RangeBoundsExpr
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: NullaryBoundsExpr {{.*}} Unknown
+  // CHECK-NEXT: }
+
+  // Observed bounds context before assignemnt: { a => bounds(a, a + 1), b => bounds(a, a + 1), c => bounds(a, a + 1) }
+  // Original value of a: b
+  // Observed bounds context after assignment:  { a => bounds(b, b + 1), b => bounds(b, b + 1), c => bounds(b, b + 1) }
+  a = c;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'c'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT:   RangeBoundsExpr
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} b
+  // CHECK-NEXT:   RangeBoundsExpr
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} c
+  // CHECK-NEXT:   RangeBoundsExpr
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: }
+}
+
 ////////////////////////////////////////////////////////////////////
 // Setting the observed bounds of a variable to the source bounds //
 ////////////////////////////////////////////////////////////////////
 
 // Scalar-typed variable declarations (array_ptr, nt_array_ptr) set the observed bounds to the initializer bounds
 void source_bounds1(array_ptr<int> a: count(1)) {
+  // Observed bounds context before declaration: { a => bounds(a, a + 1), arr => bounds(arr, arr + 0) }
   // Initializer bounds for a: bounds(a, a + 1)
-  // Observed bounds context: { a => bounds(a, a + 1), arr => bounds(a, a + 1) }
+  // Observed bounds context after declaration:  { a => bounds(a, a + 1), arr => bounds(a, a + 1) }
   array_ptr<int> arr : count(0) = a;
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
@@ -574,8 +695,9 @@ void source_bounds1(array_ptr<int> a: count(1)) {
   // CHECK-NEXT:     IntegerLiteral {{.*}} 1
   // CHECK-NEXT: }
 
+  // Observed bounds context before declaration: { a => bounds(a, a + 1), arr => bounds(arr, arr + 0), buf => bounds(buf, buf + 2) }
   // Initializer bounds for "abc": bounds(temp("abc"), temp("abc") + 3)
-  // Observed bounds context: { a => bounds(a, a + 1), arr => bounds(arr, arr + 0), buf => bounds(temp("abc"), temp("abc") + 3) }
+  // Observed bounds context after declaration:  { a => bounds(a, a + 1), arr => bounds(arr, arr + 0), buf => bounds(temp("abc"), temp("abc") + 3) }
   nt_array_ptr<char> buf : count(2) = "abc";
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
@@ -625,8 +747,9 @@ void source_bounds1(array_ptr<int> a: count(1)) {
   // CHECK-NEXT:     IntegerLiteral {{.*}} 3
   // CHECK-NEXT: }
 
+  // Observed bounds context before declaration: { a => bounds(a, a + 1), arr => bounds(arr, arr + 0), buf => bounds(buf, buf + 2) }
   // Initializer bounds for getArr(): bounds(temp(getArr()), temp(getArr()) + 4)
-  // Observed bounds context: { a => bounds(a, a + 1), arr => bounds(arr, arr + 0), buf => bounds(buf, buf + 2), c => bounds(temp(getArr()), temp(getArr()) + 4) }
+  // Observed bounds context after declaration:  { a => bounds(a, a + 1), arr => bounds(arr, arr + 0), buf => bounds(buf, buf + 2), c => bounds(temp(getArr()), temp(getArr()) + 4) }
   array_ptr<int> c : count(3) = getArr();
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
@@ -690,8 +813,9 @@ void source_bounds1(array_ptr<int> a: count(1)) {
 
 // Non-scalar-typed variable declarations (e.g. arrays) do not set the observed bounds to the initializer bounds
 void source_bounds2(void) {
+  // Observed bounds context before declaration: { arr => bounds(arr, arr + 1) }
   // Initializer bounds for (int checked[]){ 0, 1, 2 }: bounds(unknown)
-  // Observed bounds context: { arr => bounds(arr, arr + 1) }
+  // Observed bounds context after declaration:  { arr => bounds(arr, arr + 1) }
   int arr checked[] : count(1) = (int checked[]){ 0, 1, 2 };
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
@@ -719,8 +843,9 @@ void source_bounds2(void) {
   // CHECK-NEXT:     IntegerLiteral {{.*}} 1
   // CHECK-NEXT: }
 
+  // Observed bounds context before declaration: { arr => bounds(arr, arr + 1), buf => bounds(buf, buf + 0) }
   // Initializer bounds for "abcde": bounds(unknown)
-  // Observed bounds context: { arr => bounds(arr, arr + 1), buf => bounds(buf, buf + 0) }
+  // Observed bounds context after declaration:  { arr => bounds(arr, arr + 1), buf => bounds(buf, buf + 0) }
   char buf nt_checked[] : count(0) = "abcde";
   // CHECK: Statement S:
   // CHECK-NEXT: DeclStmt
@@ -760,8 +885,9 @@ void source_bounds2(void) {
 // Assignments to variables set the observed bounds to the source bounds
 // where the LHS variable does not appear on the RHS of the assignment
 void source_bounds3(array_ptr<int> small : count(0), array_ptr<int> large : count(1)) {
+  // Observed bounds context before assignment: { large => bounds(large, large + 1), small => bounds(small, small + 0) }
   // Source bounds for large: bounds(large, large + 1)
-  // Observed bounds context: { large => bounds(large, large + 1), small => bounds(large, large + 1) }
+  // Observed bounds context after assignment:  { large => bounds(large, large + 1), small => bounds(large, large + 1) }
   small = large;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -796,9 +922,10 @@ void source_bounds3(array_ptr<int> small : count(0), array_ptr<int> large : coun
   // CHECK-NEXT:     IntegerLiteral {{.*}} 1
   // CHECK-NEXT: }
 
+  // Observed bounds context before assignment: { large => bounds(large, large + 1), small => bounds(small, small + 0) }
   // Source bounds for NullToPointer(0): bounds(any)
+  // Observed bounds context after assignment:  { large = bounds(any), small => bounds(small, small + 0) }
   large = 0;
-  // Observed bounds context: { large = bounds(any), small => bounds(small, small + 0) }
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'large'
@@ -830,8 +957,9 @@ void source_bounds3(array_ptr<int> small : count(0), array_ptr<int> large : coun
 // Assignments to variables set the observed bounds to the source bounds
 // where the LHS variable appears on the RHS of the assignment as part of a temporary binding
 void source_bounds4(array_ptr<int> arr : count(1)) {
-  // Source bounds: bounds(temp(arr), temp(arr) + 2)
-  // Observed bounds context: { arr => bounds(temp(arr), temp(arr) + 2) }
+  // Observed bounds context before assignment: { arr => bounds(arr, arr + 1) }
+  // Source bounds for the dynamic bounds cast: bounds(temp(arr), temp(arr) + 2)
+  // Observed bounds context after assignment:  { arr => bounds(temp(arr), temp(arr) + 2) }
   arr = _Dynamic_bounds_cast<array_ptr<int>>(arr, count(2));
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -858,8 +986,9 @@ void source_bounds4(array_ptr<int> arr : count(1)) {
   // CHECK-NEXT:     IntegerLiteral {{.*}} 2
   // CHECK-NEXT: }
 
-  // Source bounds: bounds(temp(arr), temp(arr) + 3)
-  // Observed bounds context: { arr => bounds(temp(arr), temp(arr) + 3) }
+  // Observed bounds context before assignment: { arr => bounds(arr, arr + 1) }
+  // Source bounds for the assume bounds cast: bounds(temp(arr), temp(arr) + 3)
+  // Observed bounds context after assignment:  { arr => bounds(temp(arr), temp(arr) + 3) }
   arr = _Assume_bounds_cast<array_ptr<int>>(arr, count(3));
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -886,7 +1015,9 @@ void source_bounds4(array_ptr<int> arr : count(1)) {
   // CHECK-NEXT:     IntegerLiteral {{.*}} 3
   // CHECK-NEXT: }
 
-  // Source bounds: bounds(temp(getArray(arr, 1, 4)), temp(getArray(arr, 1, 4)) + 4)
+  // Observed bounds context before assignment: { arr => bounds(arr, arr + 1) }
+  // Source bounds for the call: bounds(temp(getArray(arr, 1, 4)), temp(getArray(arr, 1, 4)) + 4)
+  // Observed bounds context after assignment:  { arr => bounds(temp(getArray(arr, 1, 4)), temp(getArray(arr, 1, 4)) + 4) }
   arr = getArray(arr, 1, 4);
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
