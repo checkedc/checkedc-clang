@@ -23,6 +23,7 @@ struct node
 //Some declarations
 
 struct node* createNode(int v);
+//CHECK: struct node *createNode(int v) : itype(_Ptr<struct node>);
 
 struct Graph
 
@@ -65,10 +66,11 @@ void push(struct Stack*, int);
 
 int pop(struct Stack*);
 
-//CHECK: void addEdge(struct Graph *graph : itype(_Ptr<struct Graph>), int src, int dest);
+//CHECK: _Ptr<struct Graph> createGraph(int vertices);
+//CHECK: void addEdge(_Ptr<struct Graph> graph, int src, int dest);
 //CHECK: void printGraph(_Ptr<struct Graph> graph);
 //CHECK: void topologicalSortHelper(int vertex, _Ptr<struct Graph> graph, _Ptr<struct Stack> stack);
-//CHECK: void topologicalSort(struct Graph *graph : itype(_Ptr<struct Graph>));
+//CHECK: void topologicalSort(_Ptr<struct Graph> graph);
 //CHECK: _Ptr<struct Stack> createStack(void);
 //CHECK: void push(_Ptr<struct Stack> stack, int element);
 //CHECK: int pop(_Ptr<struct Stack> stack);
@@ -136,8 +138,8 @@ int main()
     return 0;
 
 }
-//CHECK: struct Graph* graph = createGraph(vertices);
-//CHECK: struct Graph* graph2 = createGraph(4);
+//CHECK: _Ptr<struct Graph> graph =  createGraph(vertices);
+//CHECK: _Ptr<struct Graph> graph2 =  createGraph(4);
 
 
 void topologicalSortHelper(int vertex, struct Graph* graph, struct Stack* stack)
@@ -208,7 +210,7 @@ void topologicalSort(struct Graph* graph)
 
 }
 
-//CHECK: void topologicalSort(struct Graph *graph : itype(_Ptr<struct Graph>))
+//CHECK: void topologicalSort(_Ptr<struct Graph> graph)
 //CHECK: _Ptr<struct Stack> stack = createStack();
 
 
@@ -227,7 +229,8 @@ struct node* createNode(int v)
     return newNode;
 
 }
-//CHECK: struct node* newNode = malloc(sizeof(struct node));
+//CHECK: struct node *createNode(int v) : itype(_Ptr<struct node>)
+//CHECK: _Ptr<struct node> newNode =  malloc(sizeof(struct node));
 
 //Allocate memory for the entire graph structure
 
@@ -258,7 +261,7 @@ struct Graph* createGraph(int vertices)
     return graph;
 
 }
-//CHECK: struct Graph * createGraph(int vertices)
+//CHECK: _Ptr<struct Graph> createGraph(int vertices)
 
 //Creates a unidirectional graph
 
@@ -275,7 +278,7 @@ void addEdge(struct Graph* graph, int src, int dest)
     graph->adjLists[src] = newNode;
 
 }
-//CHECK: void addEdge(struct Graph *graph : itype(_Ptr<struct Graph>), int src, int dest)
+//CHECK: void addEdge(_Ptr<struct Graph> graph, int src, int dest)
 
 //Utility function to see state of graph at a given time
 
@@ -322,7 +325,7 @@ struct Stack* createStack()
 
 }
 //CHECK: _Ptr<struct Stack> createStack(void)
-//CHECK: struct Stack* stack=malloc(sizeof(struct Stack));
+//CHECK: _Ptr<struct Stack> stack = malloc(sizeof(struct Stack));
 
 //Pushes element into stack
 

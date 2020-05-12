@@ -27,5 +27,5 @@ int main() {
 
 //CHECK: int main() {
 //CHECK-NEXT: _Nt_array_ptr<char> a =  0;
-//CHECK-NEXT: _Nt_array_ptr<char> c =  0;
+//CHECK-NEXT: _Ptr<char> c =  0;
 //CHECK-NEXT: int *d = 0;

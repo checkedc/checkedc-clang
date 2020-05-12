@@ -128,8 +128,8 @@ int arrcheck(int *a, int b) {
 int badcall(int *a, int b) {
   return arrcheck(a, b);
 }
-//CHECK: int badcall(_Ptr<int> a, int b) {
-//CHECK-NEXT: return arrcheck(((int *)a), b); 
+//CHECK: int badcall(int *a, int b) {
+//CHECK-NEXT: return arrcheck(a, b); 
 //CHECK-NEXT: }
 
 void pullit(char *base, char *out, int *index) {
@@ -252,5 +252,5 @@ void ptrarr(void) {
   return;
 }
 //CHECK: void ptrarr(void) { 
-//CHECK-NEXT: _Ptr<int> vals[4] =  { 0 };
+//CHECK-NEXT: int *vals[4] = { 0 };
 
