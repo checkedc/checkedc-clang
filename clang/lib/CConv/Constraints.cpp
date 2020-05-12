@@ -228,7 +228,7 @@ bool Constraints::check(Constraint *C) {
 static bool do_solve(ConstraintsGraph &CG,
                      std::set<Implies *> &SavedImplies,
                      ConstraintsEnv & env,
-                     Constraints *CS, bool doingChecked,
+                     Constraints *CS, bool doLeastSolution,
                      unsigned &Niter, Constraints::ConstraintSet &Conflicts) {
 
   // Initialize work list with ConstAtoms.
@@ -246,25 +246,25 @@ static bool do_solve(ConstraintsGraph &CG,
       WorkList.erase(WorkList.begin());
       ConstAtom *CurrSol = env.getAssignment(Curr);
 
-      // get its successors
-      std::set<Atom *> Successors;
-      CG.getSuccessors<VarAtom>(Curr, Successors);
+      // get its neighbors
+      std::set<Atom *> Neighbors;
+      CG.getNeighbors<VarAtom>(Curr, Neighbors, doLeastSolution);
       // update each successor's solution
-      for (auto *SucA : Successors) {
+      for (auto *NeighborA : Neighbors) {
         bool Changed = false;
-        /*llvm::errs() << "Successor:" << SucA->getStr()
+        /*llvm::errs() << "Neighbor:" << NeighborA->getStr()
                      << " of " << Curr->getStr() << "\n";*/
-        if (VarAtom *Suc = dyn_cast<VarAtom>(SucA)) {
-          ConstAtom *SucSol = env.getAssignment(Suc);
+        if (VarAtom *Neighbor = dyn_cast<VarAtom>(NeighborA)) {
+          ConstAtom *NghSol = env.getAssignment(Neighbor);
           // update solution if doing so would change it
-          // checked? --- if sol(Suc) <> (sol(Suc) JOIN Cur)
-          //   else   --- if sol(Suc) <> (sol(Suc) MEET Cur)
-          if ((doingChecked && *SucSol < *CurrSol) ||
-              (!doingChecked && *CurrSol < *SucSol)) {
+          // checked? --- if sol(Neighbor) <> (sol(Neighbor) JOIN Cur)
+          //   else   --- if sol(Neighbor) <> (sol(Neighbor) MEET Cur)
+          if ((doLeastSolution && *NghSol < *CurrSol) ||
+              (!doLeastSolution && *CurrSol < *NghSol)) {
             // ---- set sol(k) := (sol(k) JOIN/MEET Q)
-            Changed = env.assign(Suc,CurrSol);
+            Changed = env.assign(Neighbor,CurrSol);
             assert (Changed);
-            WorkList.push_back(Suc);
+            WorkList.push_back(Neighbor);
             /*if (Changed) {
               llvm::s()err << "Trying to assign:" << CurrSol->getStr() << " to "
                            << K->getStr() << "\n";
@@ -303,25 +303,26 @@ static bool do_solve(ConstraintsGraph &CG,
   } while (!FiredImplies.empty());
 
   // Check Upper/lower bounds hold; collect failures in conflicts set
-  std::set<Atom *> Predecessors;
+  std::set<Atom *> Neighbors;
   bool ok = true;
   for (ConstAtom *Cbound : CG.getAllConstAtoms()) {
-    if (CG.getPredecessors(Cbound, Predecessors)) {
-      for (Atom *A : Predecessors) {
+    if (CG.getNeighbors<VarAtom>(Cbound, Neighbors, !doLeastSolution)) {
+      for (Atom *A : Neighbors) {
         VarAtom *VA = dyn_cast<VarAtom>(A);
         assert (VA != nullptr && "bogus vertex");
         ConstAtom *Csol = env.getAssignment(VA);
-        if ((doingChecked && *Cbound < *Csol) ||
-            (!doingChecked && *Csol < *Cbound)) {
+        if ((doLeastSolution && *Cbound < *Csol) ||
+            (!doLeastSolution && *Csol < *Cbound)) {
           ok = false;
           // Failed. Make a constraint to represent it
           std::string str;
           llvm::raw_string_ostream os(str);
           os << "Bad solution: "; Csol->print(os);
           os.flush();
-          Geq *failedConstraint = doingChecked ?
-              new Geq(VA, Cbound, str, doingChecked) :
-              new Geq(Cbound, VA, str, doingChecked);
+          Geq *failedConstraint =
+              doLeastSolution ?
+              new Geq(VA, Cbound, str, doLeastSolution) :
+              new Geq(Cbound, VA, str, doLeastSolution);
           Conflicts.insert(failedConstraint);
           // failure case.
           errs() << "Unsolvable constraints:";
@@ -380,6 +381,13 @@ bool Constraints::graph_based_solve(unsigned &Niter,
     if (DebugSolver)
       PtrTypCG.dumpCGDot("ptyp_constraints_graph.dot");
 
+    // TODO: This generates the greatest solution. *Also* generate a least one:
+    //   - Duplicate PtrEnv into PtrEnvLeast, but set the initial solution to
+    //     NTArrAtom of PtrAtom. Call do_solve on PtrEnvLeast with
+    //     doLeastSolution = true
+    //   - Merge the least and greatest solutions together so that function
+    //     returns are the least, and parameters are the greatest. Doing this
+    //     requires knowing which VarAtoms are in which position.
     res = do_solve(PtrTypCG, Empty, PtrEnv,
                    this, false, Niter, Conflicts);
     env.mergePtrTypesEnv(PtrEnv);

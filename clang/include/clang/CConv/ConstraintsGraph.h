@@ -40,34 +40,32 @@ public:
 
   // Get all successors of a given Atom which are of particular type.
   template <typename ConstraintType>
-  bool getSuccessors(Atom *A, std::set<Atom*> &Suc) {
+  bool getNeighbors(Atom *A, std::set<Atom*> &Atoms, bool Succs) {
     // Get the vertex descriptor.
     auto Vidx = addVertex(A);
-    Suc.clear();
-    typename graph_traits <DirectedGraphType>::out_edge_iterator ei, ei_end;
-    for (boost::tie(ei, ei_end) = out_edges(Vidx, CG); ei != ei_end; ++ei) {
-      auto source = boost::source ( *ei, CG );
-      auto target = boost::target ( *ei, CG );
-      assert(CG[source] == A && "Source has to be the given node.");
-      if (clang::dyn_cast<ConstraintType>(CG[target])) {
-        Suc.insert(CG[target]);
+    Atoms.clear();
+    if (Succs) {
+      typename graph_traits<DirectedGraphType>::out_edge_iterator ei, ei_end;
+      for (boost::tie(ei, ei_end) = out_edges(Vidx, CG); ei != ei_end; ++ei) {
+        auto source = boost::source(*ei, CG);
+        auto target = boost::target(*ei, CG);
+        assert(CG[source] == A && "Source has to be the given node.");
+        if (clang::dyn_cast<ConstraintType>(CG[target])) {
+          Atoms.insert(CG[target]);
+        }
+      }
+    } else {
+      typename graph_traits <DirectedGraphType>::in_edge_iterator ei, ei_end;
+      for (boost::tie(ei, ei_end) = in_edges(Vidx, CG); ei != ei_end; ++ei) {
+        auto source = boost::source ( *ei, CG );
+        auto target = boost::target ( *ei, CG );
+        assert(CG[target] == A && "Target has to be the given node.");
+        if (clang::dyn_cast<ConstraintType>(CG[source])) {
+          Atoms.insert(CG[source]);
+        }
       }
     }
-    return !Suc.empty();
-  }
-
-  bool getPredecessors(Atom *A, std::set<Atom*> &Pred) {
-    // Get the vertex descriptor.
-    auto Vidx = addVertex(A);
-    Pred.clear();
-    typename graph_traits <DirectedGraphType>::in_edge_iterator ei, ei_end;
-    for (boost::tie(ei, ei_end) = in_edges(Vidx, CG); ei != ei_end; ++ei) {
-      auto source = boost::source ( *ei, CG );
-      auto target = boost::target ( *ei, CG );
-      assert(CG[target] == A && "Target has to be the given node.");
-      Pred.insert(CG[source]);
-    }
-    return !Pred.empty();
+    return !Atoms.empty();
   }
 
   // Dump the graph to stdout in a dot format.
