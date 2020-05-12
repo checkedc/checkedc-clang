@@ -3829,6 +3829,8 @@ namespace {
 
       // If Val introduces a temporary to hold the value produced by e,
       // add the value of the temporary to G.
+      // TODO: checkedc-clang issue #832: adding uses of temporaries here
+      // can result in false equivalence being recorded between expressions.
       if (CHKCBindTemporaryExpr *Temp = GetTempBinding(Val))
         G.push_back(CreateTemporaryUse(Temp));
     }

@@ -1846,6 +1846,7 @@ void original_value26(array_ptr<int> a : count(1), array_ptr<int> val) {
 
   // Original value of a: (array_ptr<int>)(array_ptr<const int>)a - 1
   // Updated UEQ: { { (array_ptr<int>)(array_ptr<const int>)a - 1 + 1, val }, { value(temp(a + 1)), a } }
+  // TODO: checkedc-clang issue #832: equality between value(temp(a + 1)) and a should not be recorded
   a = _Dynamic_bounds_cast<array_ptr<const int>>(a + 1, count(1));
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
