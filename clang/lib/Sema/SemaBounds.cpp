@@ -2142,6 +2142,78 @@ namespace {
       }
    }
 
+   void ResetKilledBounds(StmtDeclSetTy &KilledBounds, Stmt *St,
+                          BoundsContextTy &ObservedBounds) {
+     auto I = KilledBounds.find(St);
+     if (I == KilledBounds.end())
+       return;
+
+     // KilledBounds stores a mapping of statements to all variables whose
+     // bounds are killed by each statement. Here we reset the bounds of all
+     // variables killed by the statement S to the declared bounds.
+     for (const VarDecl *V : I->second) {
+       if (const BoundsExpr *Bounds = V->getBoundsExpr())
+
+         // TODO: Throughout clang in general (and inside dataflow analysis in
+         // particular) we repeatedly invoke ExpandBoundsToRange in order to
+         // canonicalize the bounds of a variable to RangeBoundsExpr. Sometimes
+         // we do this multiple times for the same variable. This is very
+         // inefficient because ExpandBoundsToRange can allocate AST data
+         // structures that are permanently allocated and increase the memory
+         // usage of the compiler. The solution is to canonicalize the bounds
+         // once and attach it to the VarDecl. See issue
+         // https://github.com/microsoft/checkedc-clang/issues/830.
+
+         ObservedBounds[V] = S.ExpandBoundsToRange(V, Bounds);
+     }
+   }
+
+   void UpdateCtxWithWidenedBounds(BoundsMapTy &WidenedBounds,
+                                   BoundsContextTy &ObservedBounds) {
+     // WidenedBounds contains the mapping from _Nt_array_ptr to the offset by
+     // which its declared bounds should be widened. In this function we apply
+     // the offset to the declared bounds of the _Nt_array_ptr and update its
+     // bounds in ObservedBounds.
+
+     for (const auto item : WidenedBounds) {
+       const VarDecl *V = item.first;
+       unsigned Offset = item.second;
+
+       // We normalize the declared bounds to RangBoundsExpr here so that we
+       // can easily apply the offset to the upper bound.
+
+       // TODO: Throughout clang in general (and inside dataflow analysis in
+       // particular) we repeatedly invoke ExpandBoundsToRange in order to
+       // canonicalize the bounds of a variable to RangeBoundsExpr. Sometimes
+       // we do this multiple times for the same variable. This is very
+       // inefficient because ExpandBoundsToRange can allocate AST data
+       // structures that are permanently allocated and increase the memory
+       // usage of the compiler. The solution is to canonicalize the bounds
+       // once and attach it to the VarDecl. See issue
+       // https://github.com/microsoft/checkedc-clang/issues/830.
+
+       BoundsExpr *Bounds = S.ExpandBoundsToRange(V, V->getBoundsExpr());
+       if (RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(Bounds)) {
+         const llvm::APInt
+           APIntOff(Context.getTargetInfo().getPointerWidth(0), Offset);
+         IntegerLiteral *WidenedOffset = CreateIntegerLiteral(APIntOff);
+
+         Expr *Lower = RBE->getLowerExpr();
+         Expr *Upper = RBE->getUpperExpr();
+
+         // WidenedUpperBound = UpperBound + WidenedOffset.
+         Expr *WidenedUpper = ExprCreatorUtil::CreateBinaryOperator(
+                                S, Upper, WidenedOffset,
+                                BinaryOperatorKind::BO_Add);
+
+         RangeBoundsExpr *R =
+           new (Context) RangeBoundsExpr(Lower, WidenedUpper,
+                                         SourceLocation(), SourceLocation());
+         ObservedBounds[V] = R;
+       }
+     }
+   }
+
    // Walk the CFG, traversing basic blocks in reverse post-oder.
    // For each element of a block, check bounds declarations.  Skip
    // CFG elements that are subexpressions of other CFG elements.
@@ -2177,13 +2249,28 @@ namespace {
      StmtSet MemoryCheckedStmts;
      StmtSet BoundsCheckedStmts;
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
+
+     // Run the bounds widening analysis on this function.
+     BoundsAnalysis BA = getBoundsAnalyzer();
+     BA.WidenBounds(FD);
+     if (S.getLangOpts().DumpWidenedBounds)
+       BA.DumpWidenedBounds(FD);
+
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
      ResetFacts();
      for (const CFGBlock *Block : POView) {
        AFA.GetFacts(Facts);
        CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
-       // TODO: update BlockState.ObservedBounds to reflect the widened bounds
-       // for the block.
+
+       // Get the widened bounds for the current block as computed by the
+       // bounds widening analysis invoked by WidenBounds above.
+       BoundsMapTy WidenedBounds = BA.GetWidenedBounds(Block);
+       // Also get the bounds killed (if any) by each statement in the current
+       // block.
+       StmtDeclSetTy KilledBounds = BA.GetKilledBounds(Block);
+       // Update the Observed bounds with the widened bounds calculated above.
+       UpdateCtxWithWidenedBounds(WidenedBounds, BlockState.ObservedBounds);
+
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
            CFGStmt CS = Elem.castAs<CFGStmt>();
@@ -2218,8 +2305,11 @@ namespace {
             // bounds for each variable v that is in scope are the widened
             // bounds for v (if any), or the declared bounds for v (if any).
             GetDeclaredBounds(this->S, BlockState.ObservedBounds, S);
-            // TODO: update BlockState.ObservedBounds to reset any widened
-            // bounds that are killed by S to the declared variable bounds.
+
+            // If any bounds are killed by statement S, reset their bounds
+            // to their declared bounds.
+            ResetKilledBounds(KilledBounds, S, BlockState.ObservedBounds);
+
             BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
             BlockState.G.clear();
 
@@ -5213,13 +5303,6 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     // based analysis.  The CSS parameter is ignored because the checked
     // scope information is obtained from Body, which is a compound statement.
     Checker.Check(Body, CheckedScopeSpecifier::CSS_Unchecked);
-  }
-
-  if (Cfg != nullptr) {
-    BoundsAnalysis BA = Checker.getBoundsAnalyzer();
-    BA.WidenBounds(FD);
-    if (getLangOpts().DumpWidenedBounds)
-      BA.DumpWidenedBounds(FD);
   }
 
 #if TRACE_CFG
