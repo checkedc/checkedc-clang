@@ -705,6 +705,13 @@ struct CodeActionParams {
 };
 bool fromJSON(const llvm::json::Value &, CodeActionParams &);
 
+struct CodeLensParams {
+  /// The document in which the command was invoked.
+  TextDocumentIdentifier textDocument;
+};
+
+bool fromJSON(const llvm::json::Value &, CodeLensParams &);
+
 struct WorkspaceEdit {
   /// Holds changes to existing resources.
   llvm::Optional<std::map<std::string, std::vector<TextEdit>>> changes;
@@ -714,6 +721,16 @@ struct WorkspaceEdit {
 };
 bool fromJSON(const llvm::json::Value &, WorkspaceEdit &);
 llvm::json::Value toJSON(const WorkspaceEdit &WE);
+
+#ifdef INTERACTIVECCCONV
+/// Data corresponding to the manual fix
+struct CConvertManualFix {
+  int ptrID;
+};
+
+bool fromJSON(const llvm::json::Value &, CConvertManualFix &);
+llvm::json::Value toJSON(const CConvertManualFix &WE);
+#endif
 
 /// Arguments for the 'applyTweak' command. The server sends these commands as a
 /// response to the textDocument/codeAction request. The client can later send a
@@ -743,12 +760,21 @@ struct ExecuteCommandParams {
   const static llvm::StringLiteral CLANGD_APPLY_FIX_COMMAND;
   // Command to apply the code action. Uses TweakArgs as argument.
   const static llvm::StringLiteral CLANGD_APPLY_TWEAK;
+#ifdef INTERACTIVECCCONV
+  // Command to apply the change for this pointer only
+  const static llvm::StringLiteral CCONV_APPLY_ONLY_FOR_THIS;
+  // Command to apply the change for all pointers with same reason
+  const static llvm::StringLiteral CCONV_APPLY_FOR_ALL;
+#endif
 
   /// The command identifier, e.g. CLANGD_APPLY_FIX_COMMAND
   std::string command;
 
   // Arguments
   llvm::Optional<WorkspaceEdit> workspaceEdit;
+#ifdef INTERACTIVECCCONV
+  llvm::Optional<CConvertManualFix> ccConvertManualFix;
+#endif
   llvm::Optional<TweakArgs> tweakArgs;
 };
 bool fromJSON(const llvm::json::Value &, ExecuteCommandParams &);
@@ -785,6 +811,34 @@ struct CodeAction {
   llvm::Optional<Command> command;
 };
 llvm::json::Value toJSON(const CodeAction &);
+
+#ifdef INTERACTIVECCCONV
+//
+// A code lens represents a command that should be shown along with
+// source text, like the number of references, a way to run tests, etc.
+//
+//  A code lens is _unresolved_ when no command is associated to it. For performance
+//  reasons the creation of a code lens and resolving should be done in two stages.
+//
+struct CodeLens {
+  /// The range in which this code lens is valid, should only span a single line.
+  Range range;
+
+  /**
+   * The command this code lens represents.
+  */
+  llvm::Optional<Command> command;
+
+  /**
+   * A data entry field that is preserved on a code lens item between
+   * a code lens and a code lens resolve request.
+   */
+  //data?: any
+};
+
+llvm::json::Value toJSON(const CodeLens &);
+bool fromJSON(const llvm::json::Value &, CodeLens &);
+#endif
 
 /// Represents programming constructs like variables, classes, interfaces etc.
 /// that appear in a document. Document symbols can be hierarchical and they

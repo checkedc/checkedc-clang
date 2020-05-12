@@ -598,7 +598,7 @@ namespace {
       // does not preserve implicit casts.
       ExprResult TransformImplicitCastExpr(ImplicitCastExpr *E) {
         // Replace V with OV (if applicable) in the subexpression of E.
-        ExprResult ChildResult = BaseTransform::TransformImplicitCastExpr(E);
+        ExprResult ChildResult = TransformExpr(E->getSubExpr());
         if (ChildResult.isInvalid())
           return ChildResult;
 
@@ -2145,6 +2145,78 @@ namespace {
       }
    }
 
+   void ResetKilledBounds(StmtDeclSetTy &KilledBounds, Stmt *St,
+                          BoundsContextTy &ObservedBounds) {
+     auto I = KilledBounds.find(St);
+     if (I == KilledBounds.end())
+       return;
+
+     // KilledBounds stores a mapping of statements to all variables whose
+     // bounds are killed by each statement. Here we reset the bounds of all
+     // variables killed by the statement S to the declared bounds.
+     for (const VarDecl *V : I->second) {
+       if (const BoundsExpr *Bounds = V->getBoundsExpr())
+
+         // TODO: Throughout clang in general (and inside dataflow analysis in
+         // particular) we repeatedly invoke ExpandBoundsToRange in order to
+         // canonicalize the bounds of a variable to RangeBoundsExpr. Sometimes
+         // we do this multiple times for the same variable. This is very
+         // inefficient because ExpandBoundsToRange can allocate AST data
+         // structures that are permanently allocated and increase the memory
+         // usage of the compiler. The solution is to canonicalize the bounds
+         // once and attach it to the VarDecl. See issue
+         // https://github.com/microsoft/checkedc-clang/issues/830.
+
+         ObservedBounds[V] = S.ExpandBoundsToRange(V, Bounds);
+     }
+   }
+
+   void UpdateCtxWithWidenedBounds(BoundsMapTy &WidenedBounds,
+                                   BoundsContextTy &ObservedBounds) {
+     // WidenedBounds contains the mapping from _Nt_array_ptr to the offset by
+     // which its declared bounds should be widened. In this function we apply
+     // the offset to the declared bounds of the _Nt_array_ptr and update its
+     // bounds in ObservedBounds.
+
+     for (const auto item : WidenedBounds) {
+       const VarDecl *V = item.first;
+       unsigned Offset = item.second;
+
+       // We normalize the declared bounds to RangBoundsExpr here so that we
+       // can easily apply the offset to the upper bound.
+
+       // TODO: Throughout clang in general (and inside dataflow analysis in
+       // particular) we repeatedly invoke ExpandBoundsToRange in order to
+       // canonicalize the bounds of a variable to RangeBoundsExpr. Sometimes
+       // we do this multiple times for the same variable. This is very
+       // inefficient because ExpandBoundsToRange can allocate AST data
+       // structures that are permanently allocated and increase the memory
+       // usage of the compiler. The solution is to canonicalize the bounds
+       // once and attach it to the VarDecl. See issue
+       // https://github.com/microsoft/checkedc-clang/issues/830.
+
+       BoundsExpr *Bounds = S.ExpandBoundsToRange(V, V->getBoundsExpr());
+       if (RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(Bounds)) {
+         const llvm::APInt
+           APIntOff(Context.getTargetInfo().getPointerWidth(0), Offset);
+         IntegerLiteral *WidenedOffset = CreateIntegerLiteral(APIntOff);
+
+         Expr *Lower = RBE->getLowerExpr();
+         Expr *Upper = RBE->getUpperExpr();
+
+         // WidenedUpperBound = UpperBound + WidenedOffset.
+         Expr *WidenedUpper = ExprCreatorUtil::CreateBinaryOperator(
+                                S, Upper, WidenedOffset,
+                                BinaryOperatorKind::BO_Add);
+
+         RangeBoundsExpr *R =
+           new (Context) RangeBoundsExpr(Lower, WidenedUpper,
+                                         SourceLocation(), SourceLocation());
+         ObservedBounds[V] = R;
+       }
+     }
+   }
+
    // Walk the CFG, traversing basic blocks in reverse post-oder.
    // For each element of a block, check bounds declarations.  Skip
    // CFG elements that are subexpressions of other CFG elements.
@@ -2180,13 +2252,28 @@ namespace {
      StmtSet MemoryCheckedStmts;
      StmtSet BoundsCheckedStmts;
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
+
+     // Run the bounds widening analysis on this function.
+     BoundsAnalysis BA = getBoundsAnalyzer();
+     BA.WidenBounds(FD);
+     if (S.getLangOpts().DumpWidenedBounds)
+       BA.DumpWidenedBounds(FD);
+
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
      ResetFacts();
      for (const CFGBlock *Block : POView) {
        AFA.GetFacts(Facts);
        CheckingState BlockState = GetIncomingBlockState(Block, BlockStates);
-       // TODO: update BlockState.ObservedBounds to reflect the widened bounds
-       // for the block.
+
+       // Get the widened bounds for the current block as computed by the
+       // bounds widening analysis invoked by WidenBounds above.
+       BoundsMapTy WidenedBounds = BA.GetWidenedBounds(Block);
+       // Also get the bounds killed (if any) by each statement in the current
+       // block.
+       StmtDeclSetTy KilledBounds = BA.GetKilledBounds(Block);
+       // Update the Observed bounds with the widened bounds calculated above.
+       UpdateCtxWithWidenedBounds(WidenedBounds, BlockState.ObservedBounds);
+
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
            CFGStmt CS = Elem.castAs<CFGStmt>();
@@ -2221,8 +2308,11 @@ namespace {
             // bounds for each variable v that is in scope are the widened
             // bounds for v (if any), or the declared bounds for v (if any).
             GetDeclaredBounds(this->S, BlockState.ObservedBounds, S);
-            // TODO: update BlockState.ObservedBounds to reset any widened
-            // bounds that are killed by S to the declared variable bounds.
+
+            // If any bounds are killed by statement S, reset their bounds
+            // to their declared bounds.
+            ResetKilledBounds(KilledBounds, S, BlockState.ObservedBounds);
+
             BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
             BlockState.SameValue.clear();
 
@@ -2653,7 +2743,8 @@ namespace {
         // is a variable.
         if (DeclRefExpr *V = GetLValueVariable(LHS)) {
           bool OriginalValueUsesV = false;
-          Expr *OriginalValue = GetOriginalValue(V, Src, State.EquivExprs,
+          Expr *OriginalValue = GetOriginalValue(V, Target, Src,
+                                                 State.EquivExprs,
                                                  OriginalValueUsesV);
           UpdateAfterAssignment(V, Target, OriginalValue, OriginalValueUsesV,
                                 CSS, State, State);
@@ -3073,7 +3164,8 @@ namespace {
           // same value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateSameValue(E, State.SameValue, State.SameValue, RHS);
           bool OriginalValueUsesV = false;
-          Expr *OriginalValue = GetOriginalValue(V, RHS, State.EquivExprs,
+          Expr *OriginalValue = GetOriginalValue(V, Target, RHS,
+                                                 State.EquivExprs,
                                                  OriginalValueUsesV);
           UpdateAfterAssignment(V, Target, OriginalValue, OriginalValueUsesV,
                                 CSS, State, State);
@@ -3172,10 +3264,9 @@ namespace {
           TargetTy = D->getType();
         }
         Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
-        Expr *OriginalValue = nullptr;
-        bool OriginalValueUsesV = false;
-        UpdateAfterAssignment(TargetDeclRef, TargetExpr, OriginalValue,
-                              OriginalValueUsesV, CSS, State, State);
+
+        // Record equality between the target and initializer.
+        RecordEqualityWithTarget(TargetExpr, State);
       }
 
       if (D->isInvalidDecl())
@@ -3731,23 +3822,37 @@ namespace {
           State.SameValue.push_back(AdjustedE);
       }
 
-      // Add the target to a set in EquivExprs: if SameValue is nonempty and
-      // there is some set F in EquivExprs that is a superset of SameValue,
-      // add the target to F.  This prevents the elements of F from appearing
-      // in multiple sets in EquivExprs.  The target of an lvalue should appear
-      // in no more than one set in EquivExprs.
+      RecordEqualityWithTarget(Target, State);
+    }
+
+    // RecordEqualityWithTarget updates the checking state to record equality
+    // between the target expression of an assignment and the source of the
+    // assignment.
+    //
+    // State.SameValue is assumed to contain expressions that produce the same
+    // value as the source of the assignment.
+    void RecordEqualityWithTarget(Expr *Target, CheckingState &State) {
+      // If EquivExprs contains a set F of expressions that produce the same
+      // value as the source, add the target to F.  This prevents EquivExprs
+      // from growing too large and containing redundant equality information.
+      // For example, for the assignments x = 1; y = x; where the target is y,
+      // SameValue = { 1, x }, and EquivExprs contains F = { 1, x }, EquivExprs
+      // should contain { 1, x, y } rather than { 1, x } and { 1, x, y }.
       if (State.SameValue.size() > 0) {
         for (auto I = State.EquivExprs.begin(); I != State.EquivExprs.end(); ++I) {
           if (IsEqualExprsSubset(State.SameValue, *I)) {
             I->push_back(Target);
+            // Add the target to SameValue if SameValue does not already
+            // contain the target.
+            if (!EqualExprsContainsExpr(State.SameValue, Target))
+              State.SameValue.push_back(Target);
             return;
           }
         }
       }
 
-      // If SameValue is not a subset of some set in EquivExprs, add the
-      // target to SameValue and add SameValue (if it is not a singleton set)
-      // to EquivExprs.
+      // Avoid adding sets with duplicate expressions such as { e, e }
+      // and singleton sets such as { e } to EquivExprs.
       if (!EqualExprsContainsExpr(State.SameValue, Target))
         State.SameValue.push_back(Target);
       if (State.SameValue.size() > 1)
@@ -3847,17 +3952,20 @@ namespace {
     // GetOriginalValue returns the original value (if it exists) of the
     // expression Src with respect to the variable V in an assignment V = Src.
     //
+    // Target is the target expression of the assignment (that accounts for
+    // any necessary casts of V).
+    //
     // The out parameter OriginalValueUsesV will be set to true if the original
     // value uses the value of the variable V.  This prevents callers from
     // having to compute the variable occurrence count of V in the original
     // value, since GetOriginalValue computes this count while trying to
     // construct the inverse expression of the source with respect to V.
-    Expr *GetOriginalValue(DeclRefExpr *V, Expr *Src, const EquivExprSets EQ,
-                           bool &OriginalValueUsesV) {
+    Expr *GetOriginalValue(DeclRefExpr *V, Expr *Target, Expr *Src,
+                           const EquivExprSets EQ, bool &OriginalValueUsesV) {
       // Check if Src has an inverse expression with respect to v.
       Expr *IV = nullptr;
       if (IsInvertible(V, Src))
-        IV = Inverse(V, V, Src);
+        IV = Inverse(V, Target, Src);
       if (IV) {
         // If Src has an inverse with respect to v, then the original
         // value (the inverse) must use the value of v.
@@ -3871,11 +3979,29 @@ namespace {
       OriginalValueUsesV = false;
       
       // Check EQ for a variable w != v that produces the same value as v.
-      EqualExprTy F = GetEqualExprSetContainingVariable(V, EQ);
+      Expr *ValuePreservingV = nullptr;
+      EqualExprTy F = GetEqualExprSetContainingExpr(Target, EQ, ValuePreservingV);
       for (auto I = F.begin(); I != F.end(); ++I) {
-        DeclRefExpr *W = GetRValueVariable(*I);
-        if (W != nullptr && !EqualValue(S.Context, V, W, nullptr))
-          return W;
+        // Account for value-preserving operations on w when searching for
+        // a variable w in F. For example, if F contains (T)LValueToRValue(w),
+        // where w is a variable != v and (T) is a value-preserving cast, the
+        // original value should be (T)LValueToRValue(w).
+        Lexicographic Lex(S.Context, nullptr);
+        Expr *E = Lex.IgnoreValuePreservingOperations(S.Context, *I);
+        DeclRefExpr *W = GetRValueVariable(E);
+        if (W != nullptr && !EqualValue(S.Context, V, W, nullptr)) {
+          // Expression equality in EquivExprs does not account for types, so
+          // expressions in the same set in EquivExprs may not have the same
+          // type. The original value of Src with respect to v must have a type
+          // compatible with the type of v (accounting for value-preserving
+          // operations on v). For example, if F contains (T1)LValueToRValue(v)
+          // and LValueToRValue(w), where v and w have type T2, (T1) is a value-
+          // preserving cast, and T1 and T2 are not compatible types, the
+          // original value should be LValueToRValue(w).
+          if (S.Context.typesAreCompatible(ValuePreservingV->getType(),
+                                            (*I)->getType()))
+            return *I;
+        }
       }
 
       return nullptr;
@@ -3896,8 +4022,9 @@ namespace {
           return IsUnaryOperatorInvertible(X, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
           return IsBinaryOperatorInvertible(X, cast<BinaryOperator>(E));
-        // TODO: determine whether a cast expression is invertible (is a
-        // bit-preserving or widening cast).
+        case Expr::ImplicitCastExprClass:
+        case Expr::CStyleCastExprClass:
+          return IsCastExprInvertible(X, cast<CastExpr>(E));
         default:
           return false;
       }
@@ -3960,6 +4087,42 @@ namespace {
       return true;
     }
 
+    // Returns true if a cast expression is invertible with respect to x.
+    // A cast expression (T1)e1 is invertible if T1 is a bit-preserving
+    // or widening cast and e1 is invertible.
+    bool IsCastExprInvertible(DeclRefExpr *X, CastExpr *E) {
+      QualType T1 = E->getType();
+      QualType T2 = E->getSubExpr()->getType();
+      uint64_t Size1 = S.Context.getTypeSize(T1);
+      uint64_t Size2 = S.Context.getTypeSize(T2);
+
+      // If T1 is a smaller type than T2, then (T1)e1 is a narrowing cast.
+      if (Size1 < Size2)
+        return false;
+
+      switch (E->getCastKind()) {
+        // Bit-preserving casts
+        case CastKind::CK_BitCast:
+        case CastKind::CK_LValueBitCast:
+        case CastKind::CK_NoOp:
+        case CastKind::CK_ArrayToPointerDecay:
+        case CastKind::CK_FunctionToPointerDecay:
+        case CastKind::CK_NullToPointer:
+        // Widening casts
+        case CastKind::CK_BooleanToSignedIntegral:
+        case CastKind::CK_IntegralToFloating:
+          return IsInvertible(X, E->getSubExpr());
+        // Potentially non-narrowing casts, depending on type sizes
+        case CastKind::CK_IntegralToPointer:
+        case CastKind::CK_PointerToIntegral:
+        case CastKind::CK_IntegralCast:
+          return Size1 >= Size2 && IsInvertible(X, E->getSubExpr());
+        // All other casts are considered narrowing
+        default:
+          return false;
+      }
+    }
+
     // Inverse repeatedly applies mathematical rules to the expression e to
     // get the inverse of e with respect to the variable x and expression f.
     // If rules cannot be applied to e, Inverse returns nullptr.
@@ -3976,7 +4139,9 @@ namespace {
           return UnaryOperatorInverse(X, F, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
           return BinaryOperatorInverse(X, F, cast<BinaryOperator>(E));
-        // TODO: get the inverse of a cast expression.
+        case Expr::CStyleCastExprClass:
+        case Expr::ImplicitCastExprClass:
+          return CastExprInverse(X, F, cast<CastExpr>(E));
         default:
           return nullptr;
       }
@@ -4031,6 +4196,23 @@ namespace {
       }
 
       return Inverse(X, F1, E_X);
+    }
+
+    // Returns the inverse of a cast expression.  If e1 has type T2,
+    // Inverse(f, (T1)e1) = Inverse((T2)f, e1) (assuming that (T1) is
+    // not a narrowing cast).
+    Expr *CastExprInverse(DeclRefExpr *X, Expr *F, CastExpr *E) {
+      QualType T1 = E->getType();
+      QualType T2 = E->getSubExpr()->getType();
+      Expr *F1 = nullptr;
+      if (isa<ImplicitCastExpr>(E))
+        F1 = CreateImplicitCast(T2, E->getCastKind(), F);
+      else if (isa<CStyleCastExpr>(E))
+        F1 = CreateExplicitCast(T2, E->getCastKind(), F,
+                                E->isBoundsSafeInterface());
+      if (!F1)
+        return nullptr;
+      return Inverse(X, F1, E->getSubExpr());
     }
 
     // GetIncomingBlockState returns the checking state that is true at the
@@ -4123,34 +4305,37 @@ namespace {
       return IntersectedSet;
     }
 
-    // If E appears in a set F in EQ, GetEqualExprSetContainingExpr
+    // GetEqualExprSetContainingExpr returns the set F in EQ that contains e
+    // if such a set F exists, or an empty set otherwise.
+    //
+    // If there is a set F in EQ that contains an expression e1 such that
+    // e1 is canonically equivalent to e, ValuePreservingE is set to e1.
+    // e1 may include value-preserving operations.  For example, if a set F
+    // in EQ contains (T)e, where (T) is a value-preserving cast,
+    // ValuePreservingE will be set to (T)e.
+    EqualExprTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ,
+                                              Expr *&ValuePreservingE) {
+      ValuePreservingE = nullptr;
+      for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
+        EqualExprTy F = *OuterList;
+        for (auto InnerList = F.begin(); InnerList != F.end(); ++InnerList) {
+          Expr *E1 = *InnerList;
+          if (EqualValue(S.Context, E, E1, nullptr)) {
+            ValuePreservingE = E1;
+            return F;
+          }
+        }
+      }
+      return { };
+    }
+
+    // If e appears in a set F in EQ, GetEqualExprSetContainingExpr
     // returns F.  Otherwise, it returns an empty set.
     EqualExprTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ) {
       for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
         EqualExprTy F = *OuterList;
         if (EqualExprsContainsExpr(F, E))
           return F;
-      }
-      return { };
-    }
-
-    // If a set F in EQ contains an expression that is an rvalue cast of
-    // the variable V, GetEqualExprSetContainingVariable returns F.
-    // Otherwise, it returns an empty set.
-    //
-    // This is a specialized version of GetEqualExprSetContainingExpr
-    // for variables.  It prevents the need to allocate a cast expression
-    // containing the variable v (which would be needed to call
-    // GetEqualExprSetContainingExpr).
-    EqualExprTy GetEqualExprSetContainingVariable(DeclRefExpr *V,
-                                                  EquivExprSets EQ) {
-      for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
-        EqualExprTy F = *OuterList;
-        for (auto InnerList = F.begin(); InnerList != F.end(); ++InnerList) {
-          Expr *E1 = *InnerList;
-          if (IsRValueCastOfVariable(E1, V))
-            return F;
-        }
       }
       return { };
     }
@@ -4181,9 +4366,15 @@ namespace {
       return dyn_cast<DeclRefExpr>(E->IgnoreParens());
     }
 
-    // If E is an rvalue cast (ignoring value-preserving operations) of a
-    // variable V, GetRValueVariable returns V. Otherwise, it returns nullptr.
+    // If E is a possibly parenthesized rvalue cast of a variable V,
+    // GetRValueVariable returns V. Otherwise, it returns nullptr.
+    //
+    // V may have value-preserving operations applied to it.  For example,
+    // if E is (LValueToRValue(LValueBitCast(V))), where V is a variable,
+    // GetRValueVariable will return V.
     DeclRefExpr *GetRValueVariable(Expr *E) {
+      if (!E)
+        return nullptr;
       if (CastExpr *CE = dyn_cast<CastExpr>(E->IgnoreParens())) {
         CastKind CK = CE->getCastKind();
         if (CK == CastKind::CK_LValueToRValue ||
@@ -4648,11 +4839,12 @@ namespace {
         case CastKind::CK_LValueToRValue: {
           // For an rvalue cast of a variable v, if v has observed bounds,
           // the rvalue bounds of the value of v should be the observed bounds.
-          // This also accounts for any variables that have widened bounds.
+          // This also accounts for variables that have widened bounds.
           if (DeclRefExpr *V = GetRValueVariable(E)) {
             if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
-              if (BoundsExpr *B = State.ObservedBounds[D])
-                return B;
+              auto It = State.ObservedBounds.find(D);
+              if (It != State.ObservedBounds.end())
+                return It->second;
             }
           }
           // If an lvalue to rvalue cast e is not the value of a variable
@@ -4660,8 +4852,23 @@ namespace {
           // given target bounds.
           return TargetBounds;
         }
-        case CastKind::CK_ArrayToPointerDecay:
+        case CastKind::CK_ArrayToPointerDecay: {
+          // For an array to pointer cast of a variable v, if v has observed
+          // bounds, the rvalue bounds of the value of v should be the observed
+          // bounds. This also accounts for variables with array type that have
+          // widened bounds.
+          if (DeclRefExpr *V = GetRValueVariable(E)) {
+            if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
+              auto It = State.ObservedBounds.find(D);
+              if (It != State.ObservedBounds.end())
+                return It->second;
+            }
+          }
+          // If an array to pointer cast e is not the value of a variable
+          // with observed bounds, the rvalue bounds of e default to the
+          // given lvalue bounds.
           return LValueBounds;
+        }
         case CastKind::CK_DynamicPtrBounds:
         case CastKind::CK_AssumePtrBounds:
           llvm_unreachable("unexpected rvalue bounds cast");
@@ -5101,13 +5308,6 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     // based analysis.  The CSS parameter is ignored because the checked
     // scope information is obtained from Body, which is a compound statement.
     Checker.Check(Body, CheckedScopeSpecifier::CSS_Unchecked);
-  }
-
-  if (Cfg != nullptr) {
-    BoundsAnalysis BA = Checker.getBoundsAnalyzer();
-    BA.WidenBounds(FD);
-    if (getLangOpts().DumpWidenedBounds)
-      BA.DumpWidenedBounds(FD);
   }
 
 #if TRACE_CFG
