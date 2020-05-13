@@ -4376,10 +4376,16 @@ namespace {
       return false;
     }
 
-    // If E is a (possibly parenthesized) lvalue variable V,
+    // If E is a possibly parenthesized lvalue variable V,
     // GetLValueVariable returns V. Otherwise, it returns nullptr.
+    //
+    // V may have value-preserving operations applied to it.  For example,
+    // if E is ((T)V), where (T) is a value-preserving cast and V is a
+    // variable, GetLValueVariable will return V.
     DeclRefExpr *GetLValueVariable(Expr *E) {
-      return dyn_cast<DeclRefExpr>(E->IgnoreParens());
+      Lexicographic Lex(S.Context, nullptr);
+      E = Lex.IgnoreValuePreservingOperations(S.Context, E);
+      return dyn_cast<DeclRefExpr>(E);
     }
 
     // If E is a possibly parenthesized rvalue cast of a variable V,
