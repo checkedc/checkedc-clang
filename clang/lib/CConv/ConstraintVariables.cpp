@@ -51,6 +51,31 @@ ConstraintVariable::getHighestNonWildConstraint(std::set<ConstraintVariable *>
   return HighestConVar;
 }
 
+PointerVariableConstraint::
+    PointerVariableConstraint(PointerVariableConstraint *Ot, ConstraintKey &K,
+                              Constraints &CS) :
+    ConstraintVariable(ConstraintVariable::PointerVariable,
+                       Ot->BaseType, Ot->Name),
+    FV(nullptr), partOFFuncPrototype(Ot->partOFFuncPrototype) {
+  this->arrSizes = Ot->arrSizes;
+  this->ArrPresent = Ot->ArrPresent;
+  // Make copy of the vars only for VarAtoms.
+  for (auto *CV : Ot->vars) {
+    if (ConstAtom *CA = dyn_cast<ConstAtom>(CV)) {
+      this->vars.push_back(CA);
+    }
+    if (VarAtom *VA = dyn_cast<VarAtom>(CV)) {
+      this->vars.push_back(CS.getOrCreateVar(K));
+      K++;
+    }
+  }
+  if (Ot->FV != nullptr) {
+    this->FV = dyn_cast<FVConstraint>(Ot->FV->getCopy(K, CS));
+  }
+  this->Parent = Ot;
+  // We need not initialize other members.
+}
+
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
                                                      ConstraintKey &K,
                                                      Constraints &CS,
@@ -67,7 +92,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
                                                      bool PartOfFunc) :
         ConstraintVariable(ConstraintVariable::PointerVariable,
                            tyToStr(QT.getTypePtr()),N), FV(nullptr),
-        partOFFuncPrototype(PartOfFunc)
+        partOFFuncPrototype(PartOfFunc), Parent(nullptr)
 {
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
@@ -544,13 +569,43 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
 }
 
 bool PVConstraint::addArgumentConstraint(ConstraintVariable *DstCons) {
-  if (isPartOfFunctionPrototype())
-    return argumentConstraints.insert(DstCons).second;
-
-  return false;
+  if (this->Parent == nullptr) {
+    if (isPartOfFunctionPrototype())
+      return argumentConstraints.insert(DstCons).second;
+    return false;
+  }
+  return this->Parent->addArgumentConstraint(DstCons);
 }
+
 std::set<ConstraintVariable *> &PVConstraint::getArgumentConstraints() {
   return argumentConstraints;
+}
+
+FunctionVariableConstraint::
+    FunctionVariableConstraint(FunctionVariableConstraint *Ot, ConstraintKey &K,
+                               Constraints &CS) :
+    ConstraintVariable(ConstraintVariable::FunctionVariable,
+                       Ot->BaseType,
+                       Ot->getName()) {
+  this->IsStatic = Ot->IsStatic;
+  this->FileName = Ot->FileName;
+  this->Hasbody = Ot->Hasbody;
+  this->Hasproto = Ot->Hasproto;
+  this->name = Ot->name;
+  // Copy Return CVs.
+  for (auto *Rt : Ot->getReturnVars()) {
+    this->returnVars.insert(Rt->getCopy(K, CS));
+  }
+  // Make copy of ParameterCVs too.
+  for (auto &Pset : Ot->paramVars) {
+    std::set<ConstraintVariable *> ParmCVs;
+    ParmCVs.clear();
+    for (auto *ParmPV : Pset) {
+      ParmCVs.insert(ParmPV->getCopy(K, CS));
+    }
+    this->paramVars.push_back(ParmCVs);
+  }
+  this->Parent = Ot;
 }
 
 // This describes a function, either a function pointer or a function
@@ -573,7 +628,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
                                                        const ASTContext &Ctx) :
         ConstraintVariable(ConstraintVariable::FunctionVariable,
                            tyToStr(Ty), N),
-        name(N)
+        name(N), Parent(nullptr)
 {
   QualType RT;
   Hasproto = false;
@@ -801,6 +856,11 @@ bool FunctionVariableConstraint::hasNtArr(EnvironmentMap &E)
   return false;
 }
 
+ConstraintVariable *FunctionVariableConstraint::getCopy(ConstraintKey &K,
+                                                        Constraints &CS) {
+  return new FVConstraint(this, K, CS);
+}
+
 ConstAtom*
 FunctionVariableConstraint::getHighestType(EnvironmentMap &E) {
   ConstAtom *Ret = nullptr;
@@ -925,6 +985,11 @@ bool PointerVariableConstraint::anyChanges(EnvironmentMap &E) {
     Ret |= FV->anyChanges(E);
 
   return Ret;
+}
+
+ConstraintVariable *PointerVariableConstraint::getCopy(ConstraintKey &K,
+                                                       Constraints &CS) {
+  return new PointerVariableConstraint(this, K, CS);
 }
 
 const ConstAtom*

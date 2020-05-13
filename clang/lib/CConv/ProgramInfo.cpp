@@ -23,6 +23,7 @@ ProgramInfo::ProgramInfo() :
   ExternalFunctionDefnFVCons.clear();
   StaticFunctionDeclFVCons.clear();
   StaticFunctionDefnFVCons.clear();
+  RValueCons.clear();
   MultipleRewrites = false;
 }
 
@@ -873,6 +874,7 @@ ProgramInfo::getVariableHelper( Expr                            *E,
     // Call expression should always get out-of context
     // constraint variable.
     Ifc = false;
+    std::set<ConstraintVariable *> TR;
     // Here, we need to look up the target of the call and return the
     // constraints for the return value of that function.
     Decl *D = CE->getCalleeDecl();
@@ -882,36 +884,30 @@ ProgramInfo::getVariableHelper( Expr                            *E,
       Expr *CalledExpr = CE->getCallee();
       std::set<ConstraintVariable *> tmp = getVariableHelper(CalledExpr,
                                                              V, C, Ifc);
-      std::set<ConstraintVariable *> T;
 
       for (ConstraintVariable *C : tmp) {
         if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
-          T.insert(FV->getReturnVars().begin(), FV->getReturnVars().end());
+          TR.insert(FV->getReturnVars().begin(), FV->getReturnVars().end());
         } else if (PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
           if (FVConstraint *FV = PV->getFV()) {
-            T.insert(FV->getReturnVars().begin(), FV->getReturnVars().end());
+            TR.insert(FV->getReturnVars().begin(), FV->getReturnVars().end());
           }
         }
       }
-
-      return T;
-    }
-    assert(D != nullptr);
-    // D could be a FunctionDecl, or a VarDecl, or a FieldDecl. 
-    // Really it could be any DeclaratorDecl. 
-    if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
+    } else if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
+      // D could be a FunctionDecl, or a VarDecl, or a FieldDecl.
+      // Really it could be any DeclaratorDecl.
       std::set<ConstraintVariable *> CS = getVariable(FD, C, Ifc);
-      std::set<ConstraintVariable *> TR;
       FVConstraint *FVC = nullptr;
       for (const auto &J : CS) {
         if (FVConstraint *tmp = dyn_cast<FVConstraint>(J))
           // The constraint we retrieved is a function constraint already.
-          // This happens if what is being called is a reference to a 
+          // This happens if what is being called is a reference to a
           // function declaration, but it isn't all that can happen.
           FVC = tmp;
         else if (PVConstraint *tmp = dyn_cast<PVConstraint>(J))
           if (FVConstraint *tmp2 = tmp->getFV())
-            // Or, we could have a PVConstraint to a function pointer. 
+            // Or, we could have a PVConstraint to a function pointer.
             // In that case, the function pointer value will work just
             // as well.
             FVC = tmp2;
@@ -920,19 +916,29 @@ ProgramInfo::getVariableHelper( Expr                            *E,
       if (FVC) {
         TR.insert(FVC->getReturnVars().begin(), FVC->getReturnVars().end());
       } else {
-        // Our options are slim. For some reason, we have failed to find a 
+        // Our options are slim. For some reason, we have failed to find a
         // FVConstraint for the Decl that we are calling. This can't be good
         // so we should constrain everything in the caller to top. We can
         // fake this by returning a nullary-ish FVConstraint and that will
         // make the logic above us freak out and over-constrain everything.
-        TR.insert(new FVConstraint()); 
+        TR.insert(new FVConstraint());
       }
-
-      return TR;
     } else {
       // If it ISN'T, though... what to do? How could this happen?
       llvm_unreachable("TODO");
     }
+
+    // This is R-Value, we need to make a copy of the resulting
+    // ConstraintVariables.
+    std::set<ConstraintVariable *> TmpCVs;
+    for (ConstraintVariable *CV : TR) {
+      ConstraintVariable *NewCV = CV->getCopy(freeKey, CS);
+      // Store the temporary constraint vars.
+      RValueCons.insert(NewCV);
+      constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false);
+      TmpCVs.insert(NewCV);
+    }
+    return TmpCVs;
   } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
     std::set<ConstraintVariable *> T;
     std::set<ConstraintVariable *> R;

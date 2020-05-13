@@ -120,6 +120,8 @@ public:
   std::string getRewritableOriginalTy();
   std::string getName() const { return Name; }
 
+  virtual ConstraintVariable *getCopy(ConstraintKey &K, Constraints &CS) = 0;
+
   virtual ~ConstraintVariable() {};
 
   // Constraint atoms may be either constants or variables. The constants are
@@ -211,6 +213,10 @@ private:
   // Get solution for the atom of a pointer.
   const ConstAtom* getPtrSolution(const Atom *A,
                                   EnvironmentMap &E) const;
+
+  PointerVariableConstraint(PointerVariableConstraint *Ot,
+                            ConstraintKey &K, Constraints &CS);
+  PointerVariableConstraint *Parent;
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
@@ -219,7 +225,7 @@ public:
           ConstraintVariable(PointerVariable, T, Name)
           ,vars(V),FV(F),
         ArrPresent(isArr), ItypeStr(is),
-           partOFFuncPrototype(false) {}
+           partOFFuncPrototype(false), Parent(nullptr) {}
 
   bool getArrPresent() { return ArrPresent; }
 
@@ -279,6 +285,8 @@ public:
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEmpty(void) const { return vars.size() == 0; }
 
+  ConstraintVariable *getCopy(ConstraintKey &K, Constraints &CS);
+
   bool liftedOnCVars(const ConstraintVariable &O,
                      ProgramInfo &Info,
                      llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;
@@ -292,6 +300,8 @@ typedef PointerVariableConstraint PVConstraint;
 // when a re-write of a function pointer is needed.
 class FunctionVariableConstraint : public ConstraintVariable {
 private:
+  FunctionVariableConstraint(FunctionVariableConstraint *Ot,
+                             ConstraintKey &K, Constraints &CS);
   // N constraints on the return value of the function.
   std::set<ConstraintVariable *> returnVars;
   // A vector of K sets of N constraints on the parameter values, for
@@ -304,11 +314,12 @@ private:
   bool Hasproto;
   bool Hasbody;
   bool IsStatic;
+  FunctionVariableConstraint *Parent;
 public:
   FunctionVariableConstraint() :
           ConstraintVariable(FunctionVariable, "", ""),name(""),
                                  FileName(""), Hasproto(false),
-        Hasbody(false), IsStatic(false) { }
+        Hasbody(false), IsStatic(false), Parent(nullptr) { }
 
   FunctionVariableConstraint(clang::DeclaratorDecl *D, ConstraintKey &K,
                              Constraints &CS, const clang::ASTContext &C);
@@ -352,6 +363,8 @@ public:
   bool hasNtArr(EnvironmentMap &E);
   ConstAtom *getHighestType(EnvironmentMap &E);
   void equateInsideOutsideVars(ProgramInfo &P);
+
+  ConstraintVariable *getCopy(ConstraintKey &K, Constraints &CS);
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;

@@ -268,6 +268,9 @@ private:
   ArrayBoundsInformation *ArrBoundsInfo;
   // Disjoint sets for constraints.
   DisjointSet ConstraintDisjointSet;
+  // These are temporary R-Value Constraints, that will be created to handle
+  // R-Value expressions, such as constants and Function Calls.
+  std::set<ConstraintVariable *> RValueCons;
 };
 
 #endif
