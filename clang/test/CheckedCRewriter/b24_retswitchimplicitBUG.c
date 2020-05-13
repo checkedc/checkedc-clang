@@ -22,4 +22,4 @@ int* bar() {
   int *z = sus(x, y);
   return z;
 }
-//CHECK: _Ptr<int> bar(void) {
+//CHECK: int* bar() {

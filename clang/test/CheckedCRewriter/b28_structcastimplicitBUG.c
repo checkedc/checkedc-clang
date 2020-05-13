@@ -1,5 +1,7 @@
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
 
+#define NULL ((void*)0)
+
 struct np {
   int x;
   int y;
@@ -22,7 +24,7 @@ struct r *sus(struct r x, struct r y) {
   z->next = NULL;
   return z;
 }
-//CHECK: _Ptr<struct r> sus(struct r x, struct r y) {
+//CHECK: struct r *sus(struct r x, struct r y) : itype(_Ptr<struct r>) {
 
 struct r *foo() {
   struct r x, y;
@@ -30,7 +32,7 @@ struct r *foo() {
   y.data = 1;
   x.next = &y;
   y.next = &x;
-  struct r z = (struct r *) sus(x, y);
+  struct r *z = (struct r *) sus(x, y);
   return z;
 }
 //CHECK: _Ptr<struct r> foo(void) {
@@ -44,5 +46,4 @@ struct np *bar() {
   struct np *z = sus(x, y);
   return z;
 }
-//CHECK: _Ptr<struct np> bar(void) {
-//CHECK: _Ptr<struct np> z =  sus(x, y);
+//CHECK: struct np *bar() {
