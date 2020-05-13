@@ -16,7 +16,7 @@ struct r {
 };
 
 struct r *sus(struct r *, struct r *);
-//CHECK: _Ptr<struct r> sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>));
+//CHECK: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct r>);
 
 struct r *foo() {
   struct r *x, *y;
@@ -38,8 +38,7 @@ struct np *bar() {
   struct np *z = sus(x, y);
   return z;
 }
-//CHECK: _Ptr<struct np> bar(void) {
-//CHECK: _Ptr<struct np> z =  sus(x, y);
+//CHECK: struct np *bar() {
 
 struct r *sus(struct r *x, struct r *y) {
   x->next += 1;
@@ -48,4 +47,4 @@ struct r *sus(struct r *x, struct r *y) {
   z->next = 0;
   return z;
 }
-//CHECK: _Ptr<struct r> sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) {
+//CHECK: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct r>) {

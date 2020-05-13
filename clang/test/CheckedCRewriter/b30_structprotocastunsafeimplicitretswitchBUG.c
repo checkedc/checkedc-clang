@@ -38,7 +38,7 @@ struct r *bar() {
   struct r *z = sus(x, y);
   return z;
 }
-//CHECK: _Ptr<struct r> bar(void) {
+//CHECK: struct r *bar() {
 
 struct np *sus(struct r *x, struct r *y) {
   x->next += 1;
