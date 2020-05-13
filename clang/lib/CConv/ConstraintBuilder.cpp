@@ -108,6 +108,23 @@ public:
     return RulesFired;
   }
 
+  void constraintAllCVarsToWild(std::set<ConstraintVariable*> &CSet,
+                                std::string rsn,
+                                Expr *AtExpr = nullptr) {
+    PersistentSourceLoc Psl;
+    PersistentSourceLoc *PslP = nullptr;
+    if (AtExpr != nullptr) {
+      Psl = PersistentSourceLoc::mkPSL(AtExpr, *Context);
+      PslP = &Psl;
+    }
+
+    for (const auto &A : CSet) {
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
+        PVC->constrainToWild(Info.getConstraints(), rsn, PslP, false);
+    }
+
+  }
+
   // Adds constraints for the case where an expression RHS is being assigned
   // to a variable V. There are a few different cases:
   //  1. Straight-up assignment, i.e. int * a = b; with no casting. In this
@@ -133,8 +150,7 @@ public:
   // assigning to. V represents constraints on a pointer variable. RHS is
   // an expression which might produce constraint variables, or, it might
   // be some expression like NULL, an integer constant or a cast.
-  void constrainLocalAssign(std::set<ConstraintVariable *> V,
-                            QualType LhsType,
+  void constrainLocalAssign(std::set<ConstraintVariable *> V, QualType LhsType,
                             Expr *RHS, ConsAction CAction) {
     if (!RHS || V.size() == 0)
       return;
@@ -144,108 +160,72 @@ public:
     RHSConstraints.clear();
     RHS = getNormalizedExpr(RHS);
     PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(RHS, *Context);
-
     // If this is a call expression to a function.
     CallExpr *CE = dyn_cast<CallExpr>(RHS);
     if (CE != nullptr && CE->getDirectCallee() != nullptr) {
       // case 5
       // If this is a call expression?
-      // Is this functions return type an itype
-      FunctionDecl *Calle = CE->getDirectCallee();
-      // Get the function declaration and look for
-      // itype in the return.
-      if (getDeclaration(Calle) != nullptr) {
-        Calle = getDeclaration(Calle);
-      }
-      // If this is not a safe function call.
+      // Check if the return type of the function is same as
+      // the type to which it is assigned.
       if (!handleFuncCall(CE, LhsType, V)) {
-        // Get the constraint variable corresponding
-        // to the declaration.
-        RHSConstraints = Info.getVariable(RHS, Context, false);
-        // This is call-expression. We should use c2u for returns.
-        if (RHSConstraints.size() > 0) {
-          constrainConsVarGeq(V, RHSConstraints, CS, &PL, Safe_to_Wild, false);
+        if (!Info.isExplicitCastSafe(LhsType, RHS->getType())) {
+          // If return type is incompatible? Make the function constraints WILD.
+          constraintAllCVarsToWild(V, "Assigning From a Different Type.", RHS);
+          RHSConstraints = Info.getVariable(RHS, Context, false);
+          constraintAllCVarsToWild(RHSConstraints,
+                                   "Assigning To Different Type.", RHS);
+        } else {
+          // If this is not a safe function call.
+          // Get the constraint variable corresponding
+          // to the declaration.
+          RHSConstraints = Info.getVariable(RHS, Context, false);
+          // This is call-expression. We should use c2u for returns.
+          if (RHSConstraints.size() > 0) {
+            constrainConsVarGeq(V, RHSConstraints, CS, &PL, Safe_to_Wild,
+                                false);
+          }
         }
+      }
+    } else if (isNULLExpression(RHS, *Context)) {
+      // Do Nothing.
+    } else if (RHS->isIntegerConstantExpr(*Context) &&
+               !RHS->isNullPointerConstant(*Context,
+                                           Expr::NPC_ValueDependentIsNotNull)) {
+      // Case 2, Special handling. If this is an assignment of non-zero
+      // integer constraint, then make the pointer WILD.
+      std::string Rsn = "Casting to pointer from constant.";
+      for (const auto &U : V) {
+        if (PVConstraint *PVC = dyn_cast<PVConstraint>(U))
+          PVC->constrainToWild(CS, Rsn, &PL, false);
+      }
+    } else if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(RHS)) {
+      // Case 4.
+      Expr *SE = C->getSubExpr();
+      // Remove any binding of a Checked C temporary variable.
+      if (CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(SE))
+        SE = Temp->getSubExpr();
+      RHSConstraints = Info.getVariable(SE, Context);
+      QualType RhsTy = RHS->getType();
+      // Example: int *p = (char *)(...);
+      // We make both p and the expression inside (...) as WILD.
+      if (!Info.isExplicitCastSafe(LhsType, RhsTy)) {
+        constraintAllCVarsToWild(V, "Wrong Cast.", RHS);
+        RHSConstraints = Info.getVariable(SE, Context, false);
+        constraintAllCVarsToWild(RHSConstraints,
+                                 "Casted to a different pointer type.", RHS);
+      } else {
+        // Cast is fine, recursively call constrainLocalAssign
+        // for the subexpression.
+        constrainLocalAssign(V, LhsType, SE, CAction);
       }
     } else {
-      PL = PersistentSourceLoc::mkPSL(RHS, *Context);
-
-      // Cases 2
-      if (isNULLExpression(RHS, *Context)) {
-        // Do Nothing.
-      } else if (RHS->isIntegerConstantExpr(*Context) &&
-          !RHS->isNullPointerConstant(*Context,
-                                      Expr::NPC_ValueDependentIsNotNull)) {
-        // Case 2, Special handling. If this is an assignment of non-zero
-        // integer constraint, then make the pointer WILD.
-        std::string Rsn = "Casting to pointer from constant.";
-        for (const auto &U : V) {
-          if (PVConstraint *PVC = dyn_cast<PVConstraint>(U))
-            PVC->constrainToWild(CS, Rsn, &PL, false);
-        }
-      } else if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(RHS)) {
-        // Case 4.
-        Expr *SE = C->getSubExpr();
-        // Remove any binding of a Checked C temporary variable.
-        if (CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(SE))
-          SE = Temp->getSubExpr();
-        RHSConstraints = Info.getVariable(SE, Context);
-        QualType RhsTy = RHS->getType();
-        bool ExternalCastSafe = false;
-        bool RulesFired = false;
-        if (Info.checkStructuralEquality(V, RHSConstraints, LhsType, RhsTy)) {
-          ExternalCastSafe = true;
-          // This has become a little stickier to think about.
-          // What do you do here if we determine that two things with
-          // very different arity are structurally equal? Is that even
-          // possible?
-
-          // We apply a few rules here to determine if there are any
-          // finer-grained constraints we can add. One of them is if the
-          // value being cast from on the RHS is a call to malloc, and if
-          // the type passed to malloc is equal to both lhsType and rhsTy.
-          // If it is, we can do something less conservative.
-          if (CallExpr *CE = dyn_cast<CallExpr>(SE)) {
-            RulesFired = handleFuncCall(CE, LhsType, V);
-          }
-        }
-
-        // If none of the above rules for cast behavior fired, then
-        // we need to fall back to doing something conservative.
-        if (!RulesFired) {
-          // Is the explicit cast safe?
-          if (!ExternalCastSafe ||
-              !Info.isExplicitCastSafe(LhsType, SE->getType())) {
-            std::string CToDiffType = "Casted To Different Type.";
-            std::string CFDifType = "Casted From Different Type.";
-            // Constrain everything in both to Wild.
-            // Remove the casts from RHS and try again to get a variable
-            // from it. We want to constrain that side to wild as well.
-            RHSConstraints = Info.getVariable(SE, Context, true);
-            for (const auto &A : RHSConstraints) {
-              if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
-                PVC->constrainToWild(CS, CToDiffType, &PL, false);
-            }
-
-            for (const auto &A : V) {
-              if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
-                PVC->constrainToWild(CS, CFDifType, &PL, false);
-            }
-          } else {
-            // Remove external cast and recursively process
-            // the child expression.
-            constrainLocalAssign(V, LhsType, SE, CAction);
-          }
-        }
-      } else {
-        // Get the constraint variables of the
-        // expression from RHS side.
-        RHSConstraints = getRHSConsVariables(RHS, LhsType);
-        if (RHSConstraints.size() > 0) {
-          // There are constraint variables for the RHS, so, use those over
-          // anything else we could infer.
-          constrainConsVarGeq(V, RHSConstraints, CS, &PL, CAction, false);
-        }
+      // Get the constraint variables of the
+      // expression from RHS side.
+      RHSConstraints = getRHSConsVariables(RHS, LhsType);
+      if (RHSConstraints.size() > 0) {
+        // There are constraint variables for the RHS, so, use those over
+        // anything else we could infer.
+        constrainConsVarGeq(V, RHSConstraints, CS, &PL, CAction, false);
       }
     }
   }
@@ -359,7 +339,7 @@ public:
       PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(C, *Context);
 
       // If these aren't compatible, constrain the source to wild. 
-      if (!Info.checkStructuralEquality(Dest, Source))
+      if (!Info.isExplicitCastSafe(Dest, Source))
         for (auto &C : W)
           C->constrainToWild(CS, Rsn, &PL, false);
     }
