@@ -3762,7 +3762,8 @@ namespace {
     // Methods to update sets of equivalent expressions.
 
     // UpdateAfterAssignment updates the checking state after a variable V
-    // is assigned to, based on the state before the assignment.
+    // is assigned to, based on the state before the assignment.  It also
+    // returns updated bounds for the source of the assignment.
     //
     // Target is the target expression of the assignment (that accounts for
     // any necessary casts of V).
@@ -3780,12 +3781,15 @@ namespace {
     // for assignments where the variable appears on the right-hand side,
     // e.g. i = i + 2.
     //
+    // SrcBounds are the original bounds for the source of the assignment.
+    //
     // PrevState is the checking state that was true before the assignment.
-    void UpdateAfterAssignment(DeclRefExpr *V, Expr *Target,
-                               Expr *OV, bool OVUsesV, BoundsExpr *SrcBounds,
-                               CheckedScopeSpecifier CSS,
-                               const CheckingState PrevState,
-                               CheckingState &State) {
+    BoundsExpr *UpdateAfterAssignment(DeclRefExpr *V, Expr *Target,
+                                      Expr *OV, bool OVUsesV,
+                                      BoundsExpr *SrcBounds,
+                                      CheckedScopeSpecifier CSS,
+                                      const CheckingState PrevState,
+                                      CheckingState &State) {
       // Determine whether V has declared bounds.
       VarDecl *VariableDecl;
       BoundsExpr *DeclaredBounds;
@@ -3840,6 +3844,7 @@ namespace {
       }
 
       RecordEqualityWithTarget(Target, State);
+      return SrcBounds;
     }
 
     // RecordEqualityWithTarget updates the checking state to record equality
