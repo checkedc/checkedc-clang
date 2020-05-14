@@ -462,11 +462,15 @@ Constraints::removeAllConstraintsOnReason(std::string &Reason,
   return Removed;
 }
 
-VarAtom *Constraints::getOrCreateVar(uint32_t V) {
+VarAtom *Constraints::getOrCreateVar(ConstraintKey V) {
   return environment.getOrCreateVar(V,getPtr());
 }
 
-VarAtom *Constraints::getVar(uint32_t V) const {
+VarAtom *Constraints::getFreshVar() {
+  return environment.getFreshVar(getPtr());
+}
+
+VarAtom *Constraints::getVar(ConstraintKey V) const {
   return environment.getVar(V);
 }
 
@@ -572,7 +576,13 @@ void ConstraintsEnv::dump_json(llvm::raw_ostream &O) const {
   O << "]}";
 }
 
-VarAtom *ConstraintsEnv::getOrCreateVar(uint32_t V, ConstAtom *initC) {
+VarAtom *ConstraintsEnv::getFreshVar(ConstAtom *initC) {
+  VarAtom *NewVA = getOrCreateVar(consFreeKey, initC);
+  consFreeKey++;
+  return NewVA;
+}
+
+VarAtom *ConstraintsEnv::getOrCreateVar(ConstraintKey V, ConstAtom *initC) {
   VarAtom Tv(V);
   EnvironmentMap::iterator I = environment.find(&Tv);
 
@@ -585,7 +595,7 @@ VarAtom *ConstraintsEnv::getOrCreateVar(uint32_t V, ConstAtom *initC) {
   }
 }
 
-VarAtom *ConstraintsEnv::getVar(uint32_t V) const {
+VarAtom *ConstraintsEnv::getVar(ConstraintKey V) const {
   VarAtom Tv(V);
   EnvironmentMap::const_iterator I = environment.find(&Tv);
 

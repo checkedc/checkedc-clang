@@ -120,7 +120,7 @@ public:
   std::string getRewritableOriginalTy();
   std::string getName() const { return Name; }
 
-  virtual ConstraintVariable *getCopy(ConstraintKey &K, Constraints &CS) = 0;
+  virtual ConstraintVariable *getCopy(Constraints &CS) = 0;
 
   virtual ~ConstraintVariable() {};
 
@@ -215,7 +215,7 @@ private:
                                   EnvironmentMap &E) const;
 
   PointerVariableConstraint(PointerVariableConstraint *Ot,
-                            ConstraintKey &K, Constraints &CS);
+                            Constraints &CS);
   PointerVariableConstraint *Parent;
 public:
   // Constructor for when we know a CVars and a type string.
@@ -237,12 +237,12 @@ public:
   // Constructor for when we have a Decl. K is the current free
   // constraint variable index. We don't need to explicitly pass
   // the name because it's available in 'D'.
-  PointerVariableConstraint(clang::DeclaratorDecl *D, ConstraintKey &K,
+  PointerVariableConstraint(clang::DeclaratorDecl *D,
                             Constraints &CS, const clang::ASTContext &C);
 
   // Constructor for when we only have a Type. Needs a string name
   // N for the name of the variable that this represents.
-  PointerVariableConstraint(const clang::QualType &QT, ConstraintKey &K,
+  PointerVariableConstraint(const clang::QualType &QT,
                             clang::DeclaratorDecl *D, std::string N,
                             Constraints &CS,
                             const clang::ASTContext &C, bool PartOfFunc = false);
@@ -285,7 +285,7 @@ public:
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEmpty(void) const { return vars.size() == 0; }
 
-  ConstraintVariable *getCopy(ConstraintKey &K, Constraints &CS);
+  ConstraintVariable *getCopy(Constraints &CS);
 
   bool liftedOnCVars(const ConstraintVariable &O,
                      ProgramInfo &Info,
@@ -301,7 +301,7 @@ typedef PointerVariableConstraint PVConstraint;
 class FunctionVariableConstraint : public ConstraintVariable {
 private:
   FunctionVariableConstraint(FunctionVariableConstraint *Ot,
-                             ConstraintKey &K, Constraints &CS);
+                             Constraints &CS);
   // N constraints on the return value of the function.
   std::set<ConstraintVariable *> returnVars;
   // A vector of K sets of N constraints on the parameter values, for
@@ -321,9 +321,9 @@ public:
                                  FileName(""), Hasproto(false),
         Hasbody(false), IsStatic(false), Parent(nullptr) { }
 
-  FunctionVariableConstraint(clang::DeclaratorDecl *D, ConstraintKey &K,
+  FunctionVariableConstraint(clang::DeclaratorDecl *D,
                              Constraints &CS, const clang::ASTContext &C);
-  FunctionVariableConstraint(const clang::Type *Ty, ConstraintKey &K,
+  FunctionVariableConstraint(const clang::Type *Ty,
                              clang::DeclaratorDecl *D, std::string N,
                              Constraints &CS, const clang::ASTContext &C);
 
@@ -364,7 +364,7 @@ public:
   ConstAtom *getHighestType(EnvironmentMap &E);
   void equateInsideOutsideVars(ProgramInfo &P);
 
-  ConstraintVariable *getCopy(ConstraintKey &K, Constraints &CS);
+  ConstraintVariable *getCopy(Constraints &CS);
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;

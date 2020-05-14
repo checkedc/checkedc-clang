@@ -17,7 +17,7 @@
 using namespace clang;
 
 ProgramInfo::ProgramInfo() :
-  freeKey(0), persisted(true) {
+  persisted(true) {
   ArrBoundsInfo = new ArrayBoundsInformation(*this);
   ExternalFunctionDeclFVCons.clear();
   ExternalFunctionDefnFVCons.clear();
@@ -700,7 +700,7 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, ASTContext *astContext) {
     // Create a function value for the type.
     // process the function constraint only if it doesn't exist
     if (!hasConstraintType<FVConstraint>(S)) {
-      FVConstraint *F = new FVConstraint(D, freeKey, CS, *astContext);
+      FVConstraint *F = new FVConstraint(D, CS, *astContext);
       S.insert(F);
 
       // If this is a function. Save the created constraint.
@@ -744,7 +744,7 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, ASTContext *astContext) {
     if (Ty->isPointerType() || Ty->isArrayType()) {
       // Create a pointer value for the type.
       if (!hasConstraintType<PVConstraint>(S)) {
-        PVConstraint *P = new PVConstraint(D, freeKey, CS, *astContext);
+        PVConstraint *P = new PVConstraint(D, CS, *astContext);
         S.insert(P);
       }
     }
@@ -845,14 +845,24 @@ ProgramInfo::getVariableHelper( Expr                            *E,
               }
             }
           } else { // AddrOf
-              C.insert(C.begin(), CS.getPtr());
-              // FIXME: revisit the following -- probably wrong.
-              bool a = PVC->getArrPresent();
-              FVConstraint *b = PVC->getFV();
-              bool c = PVC->getItypePresent();
-              std::string d = PVC->getItype();
-              tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(),
-                                          b, a, c, d));
+            Atom *NewA = CS.getPtr();
+            // This is for & operand.
+            // Here, we need to make sure that &(unchecked ptr) should be
+            // unchecked too.
+            // Lets add an implication.
+            if (!C.empty()) {
+              NewA = CS.getFreshVar();
+              auto *Prem = CS.createGeq(*(C.begin()), CS.getWild());
+              auto *Conc = CS.createGeq(NewA, CS.getWild());
+              CS.addConstraint(CS.createImplies(Prem, Conc));
+            }
+            C.insert(C.begin(), NewA);
+            bool a = PVC->getArrPresent();
+            FVConstraint *b = PVC->getFV();
+            bool c = PVC->getItypePresent();
+            std::string d = PVC->getItype();
+            tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(),
+                                           b, a, c, d));
           }
         } else if (!(UO->getOpcode() == UO_AddrOf)) { // no-op for FPs
           llvm_unreachable("Shouldn't dereference a function pointer!");
@@ -932,7 +942,7 @@ ProgramInfo::getVariableHelper( Expr                            *E,
     // ConstraintVariables.
     std::set<ConstraintVariable *> TmpCVs;
     for (ConstraintVariable *CV : TR) {
-      ConstraintVariable *NewCV = CV->getCopy(freeKey, CS);
+      ConstraintVariable *NewCV = CV->getCopy(CS);
       // Store the temporary constraint vars.
       RValueCons.insert(NewCV);
       constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false);
@@ -1004,7 +1014,7 @@ ProgramInfo::getOnDemandFuncDeclarationConstraint(FunctionDecl *D,
     if (ExternalFunctionDeclFVCons.find(FuncName) ==
         ExternalFunctionDeclFVCons.end()) {
       // Create an on demand FVConstraint.
-      FVConstraint *F = new FVConstraint(D, freeKey, CS, *C);
+      FVConstraint *F = new FVConstraint(D, CS, *C);
       // Set has body is false, as this is for function declaration.
       F->setHasBody(false);
       ExternalFunctionDeclFVCons[FuncName].insert(F);
@@ -1019,7 +1029,7 @@ ProgramInfo::getOnDemandFuncDeclarationConstraint(FunctionDecl *D,
         StaticFunctionDeclFVCons.end() ||
         StaticFunctionDeclFVCons[FuncName].find(FileName) ==
         StaticFunctionDeclFVCons[FuncName].end()) {
-      FVConstraint *F = new FVConstraint(D, freeKey, CS, *C);
+      FVConstraint *F = new FVConstraint(D, CS, *C);
       // Set has body is false, as this is for function declaration.
       F->setHasBody(false);
       StaticFunctionDeclFVCons[FuncName][FileName].insert(F);
@@ -1167,7 +1177,7 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C,
           Variables.find(PersistentSourceLoc::mkPSL(FD, *C));
       assert (I == Variables.end() && "Never seen declaration.");
 
-      FVConstraint *NewFV = new FVConstraint(FD, freeKey, CS, *C);
+      FVConstraint *NewFV = new FVConstraint(FD, CS, *C);
       std::set<FVConstraint *> TmpFV;
       TmpFV.insert(NewFV);
       insertNewFVConstraints(FD, TmpFV, C);

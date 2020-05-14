@@ -223,9 +223,6 @@ private:
   insertNewFVConstraints(FunctionDecl *FD, std::set<FVConstraint *> &FVcons,
                         ASTContext *C);
 
-  // Next available integer to assign to a variable.
-  uint32_t freeKey;
-
   // List of all constraint variables, indexed by their location in the source.
   // This information persists across invocations of the constraint analysis
   // from compilation unit to compilation unit.

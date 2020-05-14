@@ -52,7 +52,7 @@ ConstraintVariable::getHighestNonWildConstraint(std::set<ConstraintVariable *>
 }
 
 PointerVariableConstraint::
-    PointerVariableConstraint(PointerVariableConstraint *Ot, ConstraintKey &K,
+    PointerVariableConstraint(PointerVariableConstraint *Ot,
                               Constraints &CS) :
     ConstraintVariable(ConstraintVariable::PointerVariable,
                        Ot->BaseType, Ot->Name),
@@ -65,26 +65,23 @@ PointerVariableConstraint::
       this->vars.push_back(CA);
     }
     if (VarAtom *VA = dyn_cast<VarAtom>(CV)) {
-      this->vars.push_back(CS.getOrCreateVar(K));
-      K++;
+      this->vars.push_back(CS.getFreshVar());
     }
   }
   if (Ot->FV != nullptr) {
-    this->FV = dyn_cast<FVConstraint>(Ot->FV->getCopy(K, CS));
+    this->FV = dyn_cast<FVConstraint>(Ot->FV->getCopy(CS));
   }
   this->Parent = Ot;
   // We need not initialize other members.
 }
 
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
-                                                     ConstraintKey &K,
                                                      Constraints &CS,
                                                      const ASTContext &C) :
-        PointerVariableConstraint(D->getType(), K, D, D->getName(),
+        PointerVariableConstraint(D->getType(), D, D->getName(),
                                   CS, C) { }
 
 PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
-                                                     ConstraintKey &K,
                                                      DeclaratorDecl *D,
                                                      std::string N,
                                                      Constraints &CS,
@@ -219,9 +216,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
     // This type is not a constant atom. We need to create a VarAtom for this.
     if (!VarCreated) {
-      assert(CS.getVar(K) == nullptr);
-      vars.push_back(CS.getOrCreateVar(K));
-      K++;
+      vars.push_back(CS.getFreshVar());
     }
     TypeIdx++;
   }
@@ -238,7 +233,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     //    tn fname = ...,
     // where tn is the typedef'ed type name.
     // There is possibly something more elegant to do in the code here.
-    FV = new FVConstraint(Ty, K, D, (IsTypedef ? "" : N), CS, C);
+    FV = new FVConstraint(Ty, D, (IsTypedef ? "" : N), CS, C);
 
   BaseType = tyToStr(Ty);
 
@@ -582,7 +577,7 @@ std::set<ConstraintVariable *> &PVConstraint::getArgumentConstraints() {
 }
 
 FunctionVariableConstraint::
-    FunctionVariableConstraint(FunctionVariableConstraint *Ot, ConstraintKey &K,
+    FunctionVariableConstraint(FunctionVariableConstraint *Ot,
                                Constraints &CS) :
     ConstraintVariable(ConstraintVariable::FunctionVariable,
                        Ot->BaseType,
@@ -594,14 +589,14 @@ FunctionVariableConstraint::
   this->name = Ot->name;
   // Copy Return CVs.
   for (auto *Rt : Ot->getReturnVars()) {
-    this->returnVars.insert(Rt->getCopy(K, CS));
+    this->returnVars.insert(Rt->getCopy(CS));
   }
   // Make copy of ParameterCVs too.
   for (auto &Pset : Ot->paramVars) {
     std::set<ConstraintVariable *> ParmCVs;
     ParmCVs.clear();
     for (auto *ParmPV : Pset) {
-      ParmCVs.insert(ParmPV->getCopy(K, CS));
+      ParmCVs.insert(ParmPV->getCopy(CS));
     }
     this->paramVars.push_back(ParmCVs);
   }
@@ -612,16 +607,14 @@ FunctionVariableConstraint::
 // declaration itself. Either require constraint variables for any pointer
 // types that are either return values or paraemeters for the function.
 FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
-                                                       ConstraintKey &K,
                                                        Constraints &CS,
                                                        const ASTContext &C) :
-        FunctionVariableConstraint(D->getType().getTypePtr(), K, D,
+        FunctionVariableConstraint(D->getType().getTypePtr(), D,
                                    (D->getDeclName().isIdentifier() ?
                                         D->getName() : ""), CS, C)
 { }
 
 FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
-                                                       ConstraintKey &K,
                                                        DeclaratorDecl *D,
                                                        std::string N,
                                                        Constraints &CS,
@@ -684,7 +677,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
       }
 
       std::set<ConstraintVariable *> C;
-      C.insert(new PVConstraint(QT, K, TmpD, PName, CS, Ctx, true));
+      C.insert(new PVConstraint(QT, TmpD, PName, CS, Ctx, true));
       paramVars.push_back(C);
     }
 
@@ -707,7 +700,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   // as a type, then we will need the types for all the parameters and the
   // return values.
 
-  returnVars.insert(new PVConstraint(RT, K, D, "", CS, Ctx, true));
+  returnVars.insert(new PVConstraint(RT, D, "", CS, Ctx, true));
   std::string Rsn = "Function pointer return value.";
   for ( const auto &V : returnVars) {
     if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
@@ -856,9 +849,8 @@ bool FunctionVariableConstraint::hasNtArr(EnvironmentMap &E)
   return false;
 }
 
-ConstraintVariable *FunctionVariableConstraint::getCopy(ConstraintKey &K,
-                                                        Constraints &CS) {
-  return new FVConstraint(this, K, CS);
+ConstraintVariable *FunctionVariableConstraint::getCopy(Constraints &CS) {
+  return new FVConstraint(this, CS);
 }
 
 ConstAtom*
@@ -987,9 +979,8 @@ bool PointerVariableConstraint::anyChanges(EnvironmentMap &E) {
   return Ret;
 }
 
-ConstraintVariable *PointerVariableConstraint::getCopy(ConstraintKey &K,
-                                                       Constraints &CS) {
-  return new PointerVariableConstraint(this, K, CS);
+ConstraintVariable *PointerVariableConstraint::getCopy(Constraints &CS) {
+  return new PointerVariableConstraint(this, CS);
 }
 
 const ConstAtom*

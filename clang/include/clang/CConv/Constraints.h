@@ -529,18 +529,22 @@ private:
 
 typedef std::map<VarAtom *, ConstAtom *, PComp<VarAtom *>> EnvironmentMap;
 
+typedef uint32_t ConstraintKey;
+
 class ConstraintsEnv {
 
 public:
-  ConstraintsEnv() { environment.clear(); }
-  ConstraintsEnv(ConstraintsEnv &Other) : environment(Other.environment) { }
+  ConstraintsEnv() : consFreeKey(0) { environment.clear(); }
+  ConstraintsEnv(ConstraintsEnv &Other) : environment(Other.environment),
+                                          consFreeKey(Other.consFreeKey) { }
   EnvironmentMap &getVariables() { return environment; }
   void dump() const;
   void print(llvm::raw_ostream &) const;
   void dump_json(llvm::raw_ostream &) const;
-  VarAtom *getOrCreateVar(uint32_t V, ConstAtom *initC);
-  VarAtom *getVar(uint32_t V) const;
-  ConstAtom *getAssignment(uint32_t V);
+  VarAtom *getFreshVar(ConstAtom *initC);
+  VarAtom *getOrCreateVar(ConstraintKey V, ConstAtom *initC);
+  VarAtom *getVar(ConstraintKey V) const;
+  ConstAtom *getAssignment(ConstraintKey V);
   ConstAtom *getAssignment(Atom *A);
   bool assign(VarAtom *V, ConstAtom *C);
   void mergePtrTypesEnv(ConstraintsEnv &);
@@ -549,6 +553,8 @@ public:
 
 private:
   EnvironmentMap environment;
+  // Next available integer to assign to a variable.
+  uint32_t consFreeKey;
 };
 
 class ConstraintVariable;
@@ -592,8 +598,9 @@ public:
   Geq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL, bool isCheckedConstraint = true);
   Implies *createImplies(Geq *Premise, Geq *Conclusion);
 
-  VarAtom *getOrCreateVar(uint32_t V);
-  VarAtom *getVar(uint32_t V) const;
+  VarAtom *getFreshVar();
+  VarAtom *getOrCreateVar(ConstraintKey V);
+  VarAtom *getVar(ConstraintKey V) const;
   PtrAtom *getPtr() const;
   ArrAtom *getArr() const;
   NTArrAtom *getNTArr() const;
@@ -645,6 +652,5 @@ private:
   WildAtom *PrebuiltWild;
 };
 
-typedef uint32_t ConstraintKey;
 
 #endif
