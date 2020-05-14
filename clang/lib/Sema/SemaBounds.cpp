@@ -1816,11 +1816,17 @@ namespace {
     void CheckBoundsDeclAtAssignment(SourceLocation ExprLoc, Expr *Target,
                                      BoundsExpr *DeclaredBounds, Expr *Src,
                                      BoundsExpr *SrcBounds,
+                                     EquivExprSets EquivExprs,
                                      CheckedScopeSpecifier CSS) {
       // Record expression equality implied by assignment.
-      SmallVector<SmallVector <Expr *, 4>, 4> EquivExprs;
-      SmallVector<Expr *, 4> EqualExpr;
-
+      // EquivExprs may not already contain equality implied by assignment.
+      // For example, EquivExprs will not contain equality implied by
+      // assignments to non-variables, e.g. *p = e, a[i] = e, s.f = e.
+      // EquivExprs also will not contain equality implied by assignment
+      // for certain kinds of source expressions.  For example, EquivExprs
+      // will not contain equality implied by the assignments v = *e, v = a[i],
+      // or v = s->f, since the sets of expressions that produce the same value
+      // as *e, a[i], and s->f are empty.
       if (S.CheckIsNonModifying(Target, Sema::NonModifyingContext::NMC_Unknown,
                                 Sema::NonModifyingMessage::NMM_None)) {
          CHKCBindTemporaryExpr *Temp = GetTempBinding(Src);
@@ -1829,6 +1835,7 @@ namespace {
            S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
                                  Sema::NonModifyingMessage::NMM_None);
          if (Temp || SrcIsNonModifying) {
+           SmallVector<Expr *, 4> EqualExpr;
            Expr *TargetExpr =
              CreateImplicitCast(Target->getType(), CK_LValueToRValue, Target);
            EqualExpr.push_back(TargetExpr);
@@ -1895,10 +1902,15 @@ namespace {
     void CheckBoundsDeclAtInitializer(SourceLocation ExprLoc, VarDecl *D,
                                       BoundsExpr *DeclaredBounds, Expr *Src,
                                       BoundsExpr *SrcBounds,
+                                      EquivExprSets EquivExprs,
                                       CheckedScopeSpecifier CSS) {
       // Record expression equality implied by initialization.
-      SmallVector<SmallVector <Expr *, 4>, 4> EquivExprs;
-      SmallVector<Expr *, 4> EqualExpr;
+      // EquivExprs may not already contain equality implied by initialization
+      // for certain kinds of initializer expressions.  For example, EquivExprs
+      // will not contain equality implied by the initializations v = *e,
+      // v = a[i], or v = s->f, since the sets of expressions that produce the
+      // same value as *e, a[i], and s->f are empty.
+      
       // Record equivalence between expressions implied by initializion.
       // If D declares a variable V, and
       // 1. Src binds a temporary variable T, record equivalence
@@ -1922,6 +1934,7 @@ namespace {
           Kind = CK_LValueToRValue;
           TargetTy = D->getType();
         }
+        SmallVector<Expr *, 4> EqualExpr;
         Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
         EqualExpr.push_back(TargetExpr);
         if (Temp)
@@ -2789,7 +2802,7 @@ namespace {
             }
 
             CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
-                                        RHS, RightBounds, CSS);
+                                        RHS, RightBounds, State.UEQ, CSS);
           }
         }
 
@@ -3287,7 +3300,7 @@ namespace {
         } else {
           BoundsExpr *NormalizedDeclaredBounds = ExpandToRange(D, DeclaredBounds);
           CheckBoundsDeclAtInitializer(D->getLocation(), D, NormalizedDeclaredBounds,
-            Init, InitBounds, CSS);
+            Init, InitBounds, State.UEQ, CSS);
         }
         if (DumpBounds)
           DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);

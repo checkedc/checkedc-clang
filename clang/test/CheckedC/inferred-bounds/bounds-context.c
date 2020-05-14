@@ -1546,3 +1546,161 @@ void multiple_assign3(array_ptr<int> a : count(len), int len) {
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'len'
   // CHECK-NEXT: }
 }
+
+/////////////////////////////////////////
+// Nested assignments and declarations //
+/////////////////////////////////////////
+
+// Bounds checking accounts for equality information from nested assignments to variables, recorded in State.UEQ
+void nested_assign1(nt_array_ptr<int> a : count(1), nt_array_ptr<const int> b : count(2), nt_array_ptr<volatile int> c : count(3)) {
+  // Observed bounds context after all assignments: { a => bounds(c, c + 3), b => bounds(c, c + 3), c => bounds(c, c + 3) }
+  a = (b = c); // expected-warning {{assigning to '_Nt_array_ptr<const int>' from '_Nt_array_ptr<volatile int>' discards qualifiers}} \
+               // expected-warning {{assigning to '_Nt_array_ptr<int>' from '_Nt_array_ptr<const int>' discards qualifiers}}
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} '_Nt_array_ptr<int>' <NoOp>
+  // CHECK-NEXT:     ParenExpr
+  // CHECK-NEXT:       BinaryOperator {{.*}} '='
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} '_Nt_array_ptr<const int>' <NoOp
+  // CHECK-NEXT:           ImplicitCastExpr {{.*}} '_Nt_array_ptr<volatile int>' <LValueToRValue>
+  // CHECK-NEXT:             DeclRefExpr {{.*}} 'c'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'c'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'c'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} b
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'c'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'c'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} c
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'c'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'c'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
+  // CHECK-NEXT: }
+}
+
+// Pointer deferences are not included in nested assignment information in State.UEQ
+void nested_assign2(nt_array_ptr<int> a : count(0), nt_array_ptr<int> b : count(0), ptr<nt_array_ptr<int>> p) {
+  // Equality between b and *p is temporarily recorded in order to check the assignment b = *p.
+  // Equality between b and *p is not recorded in State.UEQ, so it is not recorded when checking
+  // the assignment a = (b = *p).
+  // Observed bounds context after all assignments: { a => bounds(*p, *p + 0), b => bounds(*p, *p + 0) }
+  a = (b = *p); // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
+                // expected-note {{(expanded) declared bounds are 'bounds(a, a + 0)'}} \
+                // expected-note {{(expanded) inferred bounds are 'bounds(*p, *p + 0)'}}
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     BinaryOperator {{.*}} '='
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         UnaryOperator {{.*}} '*'
+  // CHECK-NEXT:           ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:             DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     UnaryOperator {{.*}} '*'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       UnaryOperator {{.*}} '*'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} b
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     UnaryOperator {{.*}} '*'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       UnaryOperator {{.*}} '*'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: }
+}
+
+// Bounds checking accounts for equality information from nested initializer and variable assignment, recorded in State.UEQ
+void nested_assign3(array_ptr<int> b : count(2)) {
+  // Observed bounds context before checking initializer and assignment: { a => bounds(a, a + 3), b => bounds(b, b + 2) }
+  // Observed bounds context after checking initializer and assignment:  { a => bounds(temp(getArr()), temp(getArr()) + 4), b => bounds(temp(getArr()), temp(getArr()) + 4) }
+  array_ptr<int> a : count(3) = (b = getArr());
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclStmt
+  // CHECK-NEXT:   VarDecl {{.*}} a
+  // CHECK-NEXT:     CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 3
+  // CHECK-NEXT:     ParenExpr
+  // CHECK-NEXT:       BinaryOperator {{.*}} '='
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:         CHKCBindTemporaryExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:           CallExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:             ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
+  // CHECK-NEXT:               DeclRefExpr {{.*}} 'getArr'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: VarDecl {{.*}} a
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
+  // CHECK: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BoundsValueExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BoundsValueExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 4
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} b
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BoundsValueExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BoundsValueExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 4
+  // CHECK-NEXT: }
+}
