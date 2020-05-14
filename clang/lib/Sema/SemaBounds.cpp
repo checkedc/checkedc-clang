@@ -2731,7 +2731,8 @@ namespace {
         }
       }
 
-      // Update State.UEQ and State.G.
+      // Update the checking state.  The result bounds may also be updated
+      // for assignments to a variable.
       if (E->isAssignmentOp()) {
         Expr *Target =
              CreateImplicitCast(LHS->getType(), CK_LValueToRValue, LHS);
@@ -2747,7 +2748,8 @@ namespace {
           UpdateG(Src, SubExprGs, State.G);
         }
 
-        // Update UEQ and G for assignments to `e1` where `e1` is a variable.
+        // Update the checking state and result bounds for assignments to `e1`
+        // where `e1` is a variable.
         if (DeclRefExpr *V = GetLValueVariable(LHS)) {
           bool OVUsesV = false;
           Expr *OV = GetOriginalValue(V, Target, Src, State.UEQ, OVUsesV);
@@ -3135,16 +3137,21 @@ namespace {
       if (Op == UnaryOperatorKind::UO_Deref)
         return CreateBoundsInferenceError();
 
-      // Update UEQ and G for inc/dec operators `++e1`, `e1++`, `--e1`, `e1--`.
+      // Check inc/dec operators `++e1`, `e1++`, `--e1`, `e1--`.
       // At this point, State contains UEQ and G for `e1`.
       if (UnaryOperator::isIncrementDecrementOp(Op)) {
+        // `++e1`, `e1++`, `--e1`, `e1--` all have bounds of `e1`.
+        // `e1` is an lvalue, so its bounds are its lvalue target bounds.
+        // These bounds may be updated if `e1` is a variable.
+        BoundsExpr *IncDecResultBounds = SubExprTargetBounds;
+
         // Create the target of the implied assignment `e1 = e1 +/- 1`.
         Expr *Target = CreateImplicitCast(SubExpr->getType(),
                                             CK_LValueToRValue, SubExpr);
 
         // Only use the RHS `e1 +/1 ` of the implied assignment to update
-        // UEQ and G if the integer constant 1 can be created, which is
-        // only true if `e1` has integer type or integer pointer type.
+        // the checking state if the integer constant 1 can be created, which
+        // is only true if `e1` has integer type or integer pointer type.
         IntegerLiteral *One = CreateIntegerLiteral(1, SubExpr->getType());
         Expr *RHS = nullptr;
         if (One) {
@@ -3154,17 +3161,17 @@ namespace {
           RHS = ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One, RHSOp);
         }
 
-        // Update UEQ for inc/dec operators where `e1` is a variable.  Any
-        // expressions in UEQ that use the value of `e1` need to be adjusted
-        // using the original value of `e1`, since `e1` has been updated.
+        // Update the checking state and result bounds for inc/dec operators
+        // where `e1` is a variable.
         if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
           // Update G to be the set of expressions that produce the same
           // value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateG(E, State.G, State.G, RHS);
           bool OVUsesV = false;
           Expr *OV = GetOriginalValue(V, Target, RHS, State.UEQ, OVUsesV);
-          UpdateAfterAssignment(V, Target, OV, OVUsesV, SubExprTargetBounds,
-                                CSS, State, State);
+          IncDecResultBounds = UpdateAfterAssignment(V, Target, OV, OVUsesV,
+                                                     IncDecResultBounds, CSS,
+                                                     State, State);
         }
 
         // Update the set G of expressions that produce the same value as `e`.
@@ -3192,6 +3199,8 @@ namespace {
           // could not be constructed (e.g. floating point expressions).
           State.G.clear();
         }
+
+        return IncDecResultBounds;
       }
 
       // `&e` has the bounds of `e`.
@@ -3205,11 +3214,6 @@ namespace {
 
         return SubExprLValueBounds;
       }
-
-      // `++e`, `e++`, `--e`, `e--` all have bounds of `e`.
-      // `e` is an lvalue, so its bounds are its lvalue target bounds.
-      if (UnaryOperator::isIncrementDecrementOp(Op))
-        return SubExprTargetBounds;
 
       // Update State.G for `!e`, `+e`, `-e`, and `~e`
       // using the current State.G for `e`.
