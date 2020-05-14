@@ -1708,3 +1708,182 @@ void nested_assign3(array_ptr<int> b : count(2)) {
   // CHECK-NEXT:     IntegerLiteral {{.*}} 4
   // CHECK-NEXT: }
 }
+
+/////////////////////////////////////////////////
+// Updating the result bounds of an assignment //
+/////////////////////////////////////////////////
+
+// Updated result bounds of a nested assignment with a binary operator
+void update_result_bounds1(array_ptr<int> a : bounds(b, b + 1), array_ptr<int> b : count(1)) {
+  // Observed bounds context before assignments: { a => bounds(b, b + 1), b => bounds(b, b + 1) }
+  // Bounds of b = b + 1: bounds(b - 1, (b - 1) + 1)
+  // Observed bounds context after assignments: { a => bounds(b - 1, (b - 1 + 1)), b => bounds(b - 1, (b - 1) + 1) }
+  a = (b = b + 1); // expected-warning {{cannot prove declared bounds for b are valid after assignment}} \
+                   // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
+                   // expected-note 2 {{(expanded) declared bounds are 'bounds(b, b + 1)'}} \
+                   // expected-note 2 {{(expanded) inferred bounds are 'bounds(b - 1, b - 1 + 1)'}}
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     BinaryOperator {{.*}} '='
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:       BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT:   RangeBoundsExpr
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} b
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: }
+}
+
+// Updated result bounds of a nested assignment with a compound operator
+void update_result_bounds2(array_ptr<int> a : bounds(b, b + 1), array_ptr<int> b : count(1)) {
+  // Observed bounds context before assignments: { a => bounds(b, b + 1), b => bounds(b, b + 1) }
+  // Bounds of b += 1: bounds(b - 1, (b - 1) + 1)
+  // Observed bounds context after assignments: { a => bounds(b - 1, (b - 1 + 1)), b => bounds(b - 1, (b - 1) + 1) }
+  a = (b += 1); // expected-warning {{cannot prove declared bounds for b are valid after assignment}} \
+                // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
+                // expected-note 2 {{(expanded) declared bounds are 'bounds(b, b + 1)'}} \
+                // expected-note 2 {{(expanded) inferred bounds are 'bounds(b - 1, b - 1 + 1)'}}
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     CompoundAssignOperator {{.*}} '+='
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT:   RangeBoundsExpr
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} b
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: }
+}
+
+// Updated result bounds of a nested assignment with a post-increment operator
+void update_result_bounds3(array_ptr<int> a : bounds(b, b + 1), array_ptr<int> b : count(1)) {
+  // Observed bounds context before assignments: { a => bounds(b, b + 1), b => bounds(b, b + 1) }
+  // Bounds of b++: bounds(b - 1, (b - 1) + 1)
+  // Observed bounds context after assignments: { a => bounds(b - 1, (b - 1 + 1)), b => bounds(b - 1, (b - 1) + 1) }
+  // TODO: b++ should result in a warning 'cannot prove declared bounds for b are valid after assignment'
+  a = b++; // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
+           // expected-note {{(expanded) declared bounds are 'bounds(b, b + 1)'}} \
+           // expected-note {{(expanded) inferred bounds are 'bounds(b - 1, b - 1 + 1)'}}
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   UnaryOperator {{.*}} postfix '++'
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT:   RangeBoundsExpr
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} b
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: }
+}
