@@ -392,10 +392,9 @@ public:
           // with varargs.
           // Constrain this parameter to be wild.
           if (HandleVARARGS) {
-            PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
-            std::string Rsn = "Passing argument to a function "
-                              "accepting var args.";
-              constrainVarsToWild(ArgumentConstraintVars, Rsn, &PL);
+            CB.constraintAllCVarsToWild(ArgumentConstraintVars,
+                                        "Passing argument to a function "
+                                        "accepting var args.", E);
           } else {
             if (Verbose) {
               std::string FuncName = FD->getName();
@@ -573,26 +572,6 @@ private:
     constrainVarsTo(Var, CAtom);
   }
 
-  // Assign the provided type (target)
-  // to all the constraint variables (CVars).
-  void constrainVarsToWild(std::set<ConstraintVariable *> &CVars) {
-    Constraints &CS = Info.getConstraints();
-    for (const auto &C : CVars) {
-      C->constrainToWild(CS, false);
-    }
-  }
-
-  // Assign the provided type (target)
-  // to all the constraint variables (CVars).
-  void constrainVarsToWild(std::set<ConstraintVariable *> &CVars,
-                           std::string &Rsn,
-                           PersistentSourceLoc *PL = nullptr) {
-    Constraints &CS = Info.getConstraints();
-    for (const auto &C : CVars) {
-      C->constrainToWild(CS, Rsn, PL, false);
-    }
-  }
-
   // Constraint all the argument of the provided
   // call expression to be WILD.
   void constraintAllArgumentsToWild(CallExpr *E) {
@@ -607,7 +586,7 @@ private:
       FunctionDecl *FD = E->getDirectCallee();
       std::string Rsn = "Argument to function " +
                         (FD != nullptr ? FD->getName().str() : "pointer call");
-        constrainVarsToWild(ParameterEC, Rsn, &psl);
+      CB.constraintAllCVarsToWild(ParameterEC, Rsn, E);
     }
   }
 
