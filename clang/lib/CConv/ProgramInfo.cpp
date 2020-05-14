@@ -1167,23 +1167,6 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C,
     std::set<FVConstraint *> *FunFVars = getFuncFVConstraints(FD, *this,
                                                               C, InFuncCtx);
 
-    // This can happen when we have a call to function which is never
-    // explicitly declared. In which case, we need to create a FVConstraint
-    // for the FunctionDecl.
-    if (FunFVars == nullptr) {
-      // We are seeing a call to a function and its declaration
-      // was never visited.
-      VariableMap::iterator I =
-          Variables.find(PersistentSourceLoc::mkPSL(FD, *C));
-      assert (I == Variables.end() && "Never seen declaration.");
-
-      FVConstraint *NewFV = new FVConstraint(FD, CS, *C);
-      std::set<FVConstraint *> TmpFV;
-      TmpFV.insert(NewFV);
-      insertNewFVConstraints(FD, TmpFV, C);
-      FunFVars = getFuncFVConstraints(FD, *this, C, InFuncCtx);
-    }
-
     assert (FunFVars != nullptr && "Unable to find function constraints.");
 
     if (PIdx != -1) {
@@ -1291,14 +1274,14 @@ ProgramInfo::applyFunctionDefnDeclsConstraints(std::set<FVConstraint *>
   for (auto *DeFV : DefCVars) {
     for (auto *DelFV : DeclCVars) {
       constrainConsVarGeq(DelFV->getReturnVars(), DeFV->getReturnVars(), CS,
-                          nullptr, Same_to_Same, true);
+                          nullptr, Safe_to_Wild, false);
 
       assert (DeFV->numParams() == DelFV->numParams() &&
              "Definition and Declaration should have same "
              "number of parameters.");
       for (unsigned i=0; i<DeFV->numParams(); i++) {
         constrainConsVarGeq(DeFV->getParamVar(i), DelFV->getParamVar(i), CS,
-                            nullptr, Same_to_Same, true);
+                            nullptr, Wild_to_Safe, false);
       }
     }
   }

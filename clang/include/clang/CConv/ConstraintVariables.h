@@ -150,8 +150,8 @@ enum ConsAction {
   Same_to_Same
 };
 
-void constrainConsVarGeq(std::set<ConstraintVariable *> &RHS,
-                      std::set<ConstraintVariable *> &LHS,
+void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
+                      std::set<ConstraintVariable *> &RHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
                       ConsAction CA,
@@ -175,6 +175,8 @@ public:
       ConstQualification,
       StaticQualification
   };
+
+  static PointerVariableConstraint *getWildPVConstraint(Constraints &CS);
 private:
   CAtoms vars;
   FunctionVariableConstraint *FV;
@@ -217,6 +219,10 @@ private:
   PointerVariableConstraint(PointerVariableConstraint *Ot,
                             Constraints &CS);
   PointerVariableConstraint *Parent;
+
+  // This is a global constraint that has a single WildAtom. This is expected to
+  // be used in cases where a PVConstraint is expected but doesn't exist.
+  static PointerVariableConstraint *GlobalWildPV;
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,

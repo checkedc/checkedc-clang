@@ -210,7 +210,7 @@ public:
       // We make both p and the expression inside (...) as WILD.
       if (!Info.isExplicitCastSafe(LhsType, RhsTy)) {
         constraintAllCVarsToWild(V, "Wrong Cast.", RHS);
-        RHSConstraints = Info.getVariable(SE, Context, false);
+        RHSConstraints = Info.getVariable(SE, Context, true);
         constraintAllCVarsToWild(RHSConstraints,
                                  "Casted to a different pointer type.", RHS);
       } else {

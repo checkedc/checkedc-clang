@@ -51,6 +51,20 @@ ConstraintVariable::getHighestNonWildConstraint(std::set<ConstraintVariable *>
   return HighestConVar;
 }
 
+PointerVariableConstraint *PointerVariableConstraint::GlobalWildPV = nullptr;
+
+PointerVariableConstraint *
+PointerVariableConstraint::getWildPVConstraint(Constraints &CS) {
+  if (GlobalWildPV == nullptr) {
+    // Is this the first time? Then create PVConstraint.
+    CAtoms NewVA;
+    NewVA.push_back(CS.getWild());
+    GlobalWildPV =
+        new PVConstraint(NewVA, "unsigned", "var", nullptr, false, false, "");
+  }
+  return GlobalWildPV;
+}
+
 PointerVariableConstraint::
     PointerVariableConstraint(PointerVariableConstraint *Ot,
                               Constraints &CS) :
@@ -1339,14 +1353,20 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
 }
 
 // Given an RHS and a LHS, constrain them to be equal.
-void constrainConsVarGeq(std::set<ConstraintVariable *> &RHS,
-                      std::set<ConstraintVariable *> &LHS,
+void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
+                      std::set<ConstraintVariable *> &RHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
                       ConsAction CA,
                       bool doEqType) {
-  for (const auto &I : RHS)
-    for (const auto &J : LHS)
+  std::set<ConstraintVariable *> TmpRHS = RHS;
+  if (LHS.empty() ^ RHS.empty()) {
+    // One of the constraints is empty?
+    // Then create a dummy WILD constraint.
+    TmpRHS.insert(PointerVariableConstraint::getWildPVConstraint(CS));
+  }
+  for (const auto &I : LHS)
+    for (const auto &J : TmpRHS)
       constrainConsVarGeq(I, J, CS, PL, CA, doEqType);
 }
 
