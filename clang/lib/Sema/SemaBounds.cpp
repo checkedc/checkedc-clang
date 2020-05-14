@@ -2751,8 +2751,8 @@ namespace {
         if (DeclRefExpr *V = GetLValueVariable(LHS)) {
           bool OVUsesV = false;
           Expr *OV = GetOriginalValue(V, Target, Src, State.UEQ, OVUsesV);
-          UpdateAfterAssignment(V, Target, OV, OVUsesV, ResultBounds, CSS,
-                                State, State);
+          ResultBounds = UpdateAfterAssignment(V, Target, OV, OVUsesV,
+                                               ResultBounds, CSS, State, State);
         }
         // Update UEQ and G for assignments where `e1` is not a variable.
         else {

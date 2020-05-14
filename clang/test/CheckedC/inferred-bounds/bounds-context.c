@@ -298,7 +298,9 @@ void assign1(array_ptr<int> arr : count(1)) {
   // Observed bounds context before assignment: { arr => bounds(arr, arr + 1) }
   // Original value of arr: arr - 2
   // Observed bounds context after assignment:  { arr => bounds(arr - 2, (arr - 2) + 1) }
-  arr = arr + 2;
+  arr = arr + 2; // expected-warning {{cannot prove declared bounds for arr are valid after assignment}} \
+                 // expected-note {{(expanded) declared bounds are 'bounds(arr, arr + 1)'}} \
+                 // expected-note {{(expanded) inferred bounds are 'bounds(arr - 2, arr - 2 + 1)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr'
@@ -542,7 +544,7 @@ void assign7(array_ptr<int> a : bounds(a, a + 1), array_ptr<int> b : bounds(a, a
   // Observed bounds context before assignemnt: { a => bounds(a, a + 1), b => bounds(a, a + 1), c => bounds(a + 1) }
   // Original value of a: null
   // Observed bounds context after assignment:  { a => bounds(unknown), b => bounds(unknown), c => bounds(unknown) }
-  a = b;
+  a = b; // expected-error {{expression has unknown bounds}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
@@ -588,7 +590,9 @@ void assign7(array_ptr<int> a : bounds(a, a + 1), array_ptr<int> b : bounds(a, a
   // Observed bounds context before assignemnt: { a => bounds(a, a + 1), b => bounds(a, a + 1), c => bounds(a, a + 1) }
   // Original value of a: b
   // Observed bounds context after assignment:  { a => bounds(b, b + 1), b => bounds(b, b + 1), c => bounds(b, b + 1) }
-  a = c;
+  a = c; // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
+         // expected-note {{(expanded) declared bounds are 'bounds(a, a + 1)'}} \
+         // expected-note {{(expanded) inferred bounds are 'bounds(b, b + 1)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
@@ -1441,7 +1445,7 @@ void multiple_assign2(array_ptr<int> a : count(len), array_ptr<int> b : bounds(a
 
   // Observed bounds of b at memory access *b: bounds(unknown)
   // Observed bounds context after statement: { a => bounds(unknown), b => bounds(unknown), c => bounds(c, c + 2) }
-  a = b, *b; // expected-error {{expression has unknown bounds}}
+  a = b, *b; // expected-error 2 {{expression has unknown bounds}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} ','
   // CHECK-NEXT:   BinaryOperator {{.*}} '='
