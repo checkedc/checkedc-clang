@@ -578,10 +578,10 @@ namespace {
       Expr *OriginalValue;
 
     public:
-      ReplaceVariableHelper(Sema &SemaRef, DeclRefExpr *V, Expr *OV) :
+      ReplaceVariableHelper(Sema &SemaRef, DeclRefExpr *V, Expr *OriginalValue) :
         BaseTransform(SemaRef),
         Variable(V),
-        OriginalValue(OV) { }
+        OriginalValue(OriginalValue) { }
 
       ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
         Lexicographic Lex(SemaRef.Context, nullptr);
@@ -619,12 +619,13 @@ namespace {
       }
   };
 
-  // If an original value OV is provided, ReplaceVariableReferences returns
-  // an expression that replaces all uses of the variable V in E with OV.
-  // If no original value is provided and E uses V, ReplaceVariableReferences
-  // returns nullptr.
+  // If an original value is provided, ReplaceVariableReferences returns
+  // an expression that replaces all uses of the variable V in E with the
+  // original value.  If no original value is provided and E uses V,
+  // ReplaceVariableReferences returns nullptr.
   Expr *ReplaceVariableReferences(Sema &SemaRef, Expr *E, DeclRefExpr *V,
-                                  Expr *OV, CheckedScopeSpecifier CSS) {
+                                  Expr *OriginalValue,
+                                  CheckedScopeSpecifier CSS) {
     // Don't transform e if it does not use the value of v.
     if (!VariableOccurrenceCount(SemaRef, V, E))
       return E;
@@ -633,7 +634,7 @@ namespace {
     Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
 
     Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics
-    ExprResult R = ReplaceVariableHelper(SemaRef, V, OV).TransformExpr(E);
+    ExprResult R = ReplaceVariableHelper(SemaRef, V, OriginalValue).TransformExpr(E);
     if (R.isInvalid())
       return nullptr;
     else
@@ -663,6 +664,8 @@ namespace {
       // inferred by bounds checking.  These bounds are updated after
       // assignments to variables.
       //
+      // ObservedBounds is named UC in the Checked C spec.
+      //
       // The bounds in the ObservedBounds context should always be normalized
       // to range bounds if possible.  This allows updates to variables that
       // are implicitly used in bounds declarations to update the observed
@@ -671,13 +674,19 @@ namespace {
       // normalize to bounds(p, p + i).
       BoundsContextTy ObservedBounds;
 
-      // UEQ stores sets of expressions that are equivalent to each other
-      // after checking an expression e.
-      EquivExprSets UEQ;
+      // EquivExprs stores sets of expressions that are equivalent to each
+      // other after checking an expression e.  If two expressions e1 and
+      // e2 are in the same set in EquivExprs, e1 and e2 produce the same
+      // value.
+      //
+      // EquivExprs is named UEQ in the Checked C spec.
+      EquivExprSets EquivExprs;
 
-      // G is a set of expressions that produce the same value as an
+      // SameValue is a set of expressions that produce the same value as an
       // expression e once checking of e is complete.
-      EqualExprTy G;
+      //
+      // SameValue is named G in the Checked C spec.
+      EqualExprTy SameValue;
   };
 }
 
@@ -823,19 +832,19 @@ namespace {
       DumpBoundsContext(OS, State.ObservedBounds);
 
       OS << "Sets of equivalent expressions after checking S:\n";
-      if (State.UEQ.size() == 0)
+      if (State.EquivExprs.size() == 0)
         OS << "{ }\n";
       else {
         OS << "{\n";
-        for (auto OuterList = State.UEQ.begin(); OuterList != State.UEQ.end(); ++OuterList) {
+        for (auto OuterList = State.EquivExprs.begin(); OuterList != State.EquivExprs.end(); ++OuterList) {
           auto ExprList = *OuterList;
-          DumpEqualExpr(OS, ExprList);
+          DumpExprsSet(OS, ExprList);
         }
         OS << "}\n";
       }
 
       OS << "Expressions that produce the same value as S:\n";
-      DumpEqualExpr(OS, State.G);
+      DumpExprsSet(OS, State.SameValue);
     }
 
     void DumpBoundsContext(raw_ostream &OS, BoundsContextTy &Context) {
@@ -872,12 +881,12 @@ namespace {
       }
     }
 
-    void DumpEqualExpr(raw_ostream &OS, EqualExprTy G) {
-      if (G.size() == 0)
+    void DumpExprsSet(raw_ostream &OS, EqualExprTy Exprs) {
+      if (Exprs.size() == 0)
         OS << "{ }\n";
       else {
         OS << "{\n";
-        for (auto I = G.begin(); I != G.end(); ++I) {
+        for (auto I = Exprs.begin(); I != Exprs.end(); ++I) {
           Expr *E = *I;
           E->dump(OS);
         }
@@ -2360,7 +2369,7 @@ namespace {
             ResetKilledBounds(KilledBounds, S, BlockState.ObservedBounds);
 
             BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
-            BlockState.G.clear();
+            BlockState.SameValue.clear();
 
             Check(S, CSS, BlockState);
 
@@ -2614,24 +2623,25 @@ namespace {
     // bounds.
     void CheckChildren(Stmt *S, CheckedScopeSpecifier CSS,
                        CheckingState &State) {
-      ExprEqualMapTy SubExprGs;
+      ExprEqualMapTy SubExprSameValueSets;
       auto Begin = S->child_begin(), End = S->child_end();
 
       for (auto I = Begin; I != End; ++I) {
         Stmt *Child = *I;
         if (!Child) continue;
-        // Accumulate the UEQ from checking each child into the UEQ for S.
+        // Accumulate the EquivExprs from checking each child into the
+        // EquivExprs for S.
         Check(Child, CSS, State);
 
-        // Store the set Gi for each subexpression Si.
+        // Store the set SameValue_i for each subexpression S_i.
         if (Expr *SubExpr = dyn_cast<Expr>(Child))
-          SubExprGs[SubExpr] = State.G;
+          SubExprSameValueSets[SubExpr] = State.SameValue;
       }
 
-      // Use the stored sets Gi for each subexpression Si
-      // to update the set G for the expression S.
+      // Use the stored sets SameValue_i for each subexpression S_i
+      // to update the set SameValue for the expression S.
       if (Expr *E = dyn_cast<Expr>(S))
-        UpdateG(E, SubExprGs, State.G);
+        UpdateSameValue(E, SubExprSameValueSets, State.SameValue);
     }
 
     // Traverse a top-level variable declaration.  If there is an
@@ -2667,19 +2677,19 @@ namespace {
                                     CheckingState &State) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
-      ExprEqualMapTy SubExprGs;
+      ExprEqualMapTy SubExprSameValueSets;
 
-      // Infer the lvalue or rvalue bounds of the LHS, saving the set G 
-      // of expressions that produce the same value as the LHS.
+      // Infer the lvalue or rvalue bounds of the LHS, saving the set
+      // SameValue of expressions that produce the same value as the LHS.
       BoundsExpr *LHSTargetBounds, *LHSLValueBounds, *LHSBounds;
       InferBounds(LHS, CSS, LHSTargetBounds,
                   LHSLValueBounds, LHSBounds, State);
-      SubExprGs[LHS] = State.G;
+      SubExprSameValueSets[LHS] = State.SameValue;
 
-      // Infer the rvalue bounds of the RHS, saving the set G
+      // Infer the rvalue bounds of the RHS, saving the set SameValue
       // of expressions that produce the same value as the RHS.
       BoundsExpr *RHSBounds = Check(RHS, CSS, State);
-      SubExprGs[RHS] = State.G;
+      SubExprSameValueSets[RHS] = State.SameValue;
 
       BinaryOperatorKind Op = E->getOpcode();
 
@@ -2779,35 +2789,42 @@ namespace {
           // Create the RHS of the implied assignment `e1 = e1 @ e2`.
           Src = ExprCreatorUtil::CreateBinaryOperator(S, Target, RHS, Op);
 
-          // Update State.G to be the set of expressions that produce the same
-          // value as the source `e1 @ e2` of the assignment `e1 = e1 @ e2`.
-          UpdateG(Src, SubExprGs, State.G);
+          // Update State.SameValue to be the set of expressions that produce
+          // the same value as the source `e1 @ e2` of the assignment
+          // `e1 = e1 @ e2`.
+          UpdateSameValue(Src, SubExprSameValueSets, State.SameValue);
         }
 
         // Update the checking state and result bounds for assignments to `e1`
         // where `e1` is a variable.
         if (DeclRefExpr *V = GetLValueVariable(LHS)) {
-          bool OVUsesV = false;
-          Expr *OV = GetOriginalValue(V, Target, Src, State.UEQ, OVUsesV);
-          ResultBounds = UpdateAfterAssignment(V, Target, OV, OVUsesV,
-                                               ResultBounds, CSS, State, State);
+          bool OriginalValueUsesV = false;
+          Expr *OriginalValue = GetOriginalValue(V, Target, Src,
+                                                 State.EquivExprs,
+                                                 OriginalValueUsesV);
+          ResultBounds = UpdateAfterAssignment(V, Target, OriginalValue,
+                                               OriginalValueUsesV, ResultBounds,
+                                               CSS, State, State);
         }
-        // Update UEQ and G for assignments where `e1` is not a variable.
+        // Update EquivExprs and SameValue for assignments where `e1` is not
+        // a variable.
         else {
-          // G is empty for assignments to a non-variable.  This conservative
-          // approach avoids recording false equality facts for assignments
-          // where the LHS appears on the RHS, e.g. *p = *p + 1.
-          State.G.clear();
+          // SameValue is empty for assignments to a non-variable.  This
+          // conservative approach avoids recording false equality facts for
+          // assignments where the LHS appears on the RHS, e.g. *p = *p + 1.
+          State.SameValue.clear();
         }
       } else if (BinaryOperator::isLogicalOp(Op)) {
         // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
       } else if (Op == BinaryOperatorKind::BO_Comma) {
-        // Do nothing for comma operators `e1, e2`. State already contains
-        // the correct UEQ and G sets as a result of checking `e1` and `e2`.
+        // Do nothing for comma operators `e1, e2`. State already contains the
+        // the correct EquivExprs and SameValue sets as a result of checking
+        // `e1` and `e2`.
       } else {
-        // For all other binary operators `e1 @ e2`, use the G sets for
-        // `e1` and `e2` stored in SubExprGs to update State.G for `e1 @ e2`.
-        UpdateG(E, SubExprGs, State.G);
+        // For all other binary operators `e1 @ e2`, use the SameValue sets for
+        // `e1` and `e2` stored in SubExprSameValueSets to update
+        // State.SameValue for `e1 @ e2`.
+        UpdateSameValue(E, SubExprSameValueSets, State.SameValue);
       }
 
       if (E->isAssignmentOp()) {
@@ -2840,7 +2857,7 @@ namespace {
             }
 
             CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
-                                        RHS, RightBounds, State.UEQ, CSS);
+                                        RHS, RightBounds, State.EquivExprs, CSS);
           }
         }
 
@@ -2993,8 +3010,8 @@ namespace {
         Check(Arg, CSS, State);
       }
 
-      // State.G is empty for call expressions.
-      State.G.clear();
+      // State.SameValue is empty for call expressions.
+      State.SameValue.clear();
 
       return ResultBounds;
     }
@@ -3026,33 +3043,35 @@ namespace {
 
       IncludeNullTerminator = PreviousIncludeNullTerminator;
 
-      // Update the set State.G of expressions that produce the
+      // Update the set State.SameValue of expressions that produce the
       // same value as e.
       if (CK == CastKind::CK_ArrayToPointerDecay) {
-        // State.G = { e } for lvalues with array type.
+        // State.SameValue = { e } for lvalues with array type.
         if (!CreatesNewObject(E) && CheckIsNonModifying(E))
-          State.G = { E };
+          State.SameValue = { E };
       } else if (CK == CastKind::CK_LValueToRValue) {
         if (E->getType()->isArrayType()) {
-          // State.G = { e } for lvalues with array type.
+          // State.Same = { e } for lvalues with array type.
           if (!CreatesNewObject(E) && CheckIsNonModifying(E))
-            State.G = { E };
+            State.SameValue = { E };
         }
         else {
-          // If e appears in some set F in State.UEQ, State.G = F.
-          State.G = GetEqualExprSetContainingExpr(E, State.UEQ);
-          if (State.G.size() == 0) {
-            // Otherwise, if e is nonmodifying and does not read memory
-            // via a pointer, State.G = { e }.  Otherwise, State.G is empty.
+          // If e appears in some set F in State.EquivExprs,
+          // State.SameValue = F.
+          State.SameValue = GetEqualExprSetContainingExpr(E, State.EquivExprs);
+          if (State.SameValue.size() == 0) {
+            // Otherwise, if e is nonmodifying and does not read memory via a
+            // pointer, State.SameValue = { e }.  Otherwise, State.SameValue
+            // is empty.
             if (CheckIsNonModifying(E) && !ReadsMemoryViaPointer(E) &&
                 !CreatesNewObject(E))
-              State.G.push_back(E);
+              State.SameValue.push_back(E);
           }
         }
       } else
-        // Use the default rules to update State.G for e using
-        // the current State.G for the subexpression e1.
-        UpdateG(E, State.G, State.G);
+        // Use the default rules to update State.SameValue for e using
+        // the current State.SameValue for the subexpression e1.
+        UpdateSameValue(E, State.SameValue, State.SameValue);
 
       // Casts to _Ptr narrow the bounds.  If the cast to
       // _Ptr is invalid, that will be diagnosed separately.
@@ -3174,7 +3193,7 @@ namespace {
         return CreateBoundsInferenceError();
 
       // Check inc/dec operators `++e1`, `e1++`, `--e1`, `e1--`.
-      // At this point, State contains UEQ and G for `e1`.
+      // At this point, State contains EquivExprs and SameValue for `e1`.
       if (UnaryOperator::isIncrementDecrementOp(Op)) {
         // `++e1`, `e1++`, `--e1`, `e1--` all have bounds of `e1`.
         // `e1` is an lvalue, so its bounds are its lvalue target bounds.
@@ -3200,12 +3219,15 @@ namespace {
         // Update the checking state and result bounds for inc/dec operators
         // where `e1` is a variable.
         if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
-          // Update G to be the set of expressions that produce the same
-          // value as the RHS `e1 +/- 1` (if the RHS could be created).
-          UpdateG(E, State.G, State.G, RHS);
-          bool OVUsesV = false;
-          Expr *OV = GetOriginalValue(V, Target, RHS, State.UEQ, OVUsesV);
-          IncDecResultBounds = UpdateAfterAssignment(V, Target, OV, OVUsesV,
+          // Update SameValue to be the set of expressions that produce the
+          // same value as the RHS `e1 +/- 1` (if the RHS could be created).
+          UpdateSameValue(E, State.SameValue, State.SameValue, RHS);
+          bool OriginalValueUsesV = false;
+          Expr *OriginalValue = GetOriginalValue(V, Target, RHS,
+                                                State.EquivExprs,
+                                                OriginalValueUsesV);
+          IncDecResultBounds = UpdateAfterAssignment(V, Target, OriginalValue,
+                                                     OriginalValueUsesV,
                                                      IncDecResultBounds, CSS,
                                                      State, State);
 
@@ -3228,18 +3250,19 @@ namespace {
               }
 
               CheckBoundsDeclAtIncrementDecrement(E, SubExprTargetBounds,
-                                                  SrcBounds, State.UEQ, CSS);
+                SrcBounds, State.EquivExprs, CSS);
             }
           }
         }
 
-        // Update the set G of expressions that produce the same value as `e`.
+        // Update the set SameValue of expressions that produce the same
+        // value as `e`.
         if (One) {
           // For integer or pointer-typed expressions, create the expression
           // Val that is equivalent to `e` in the program state after the
           // increment/decrement expression `e` has executed.
-          // (The call to UpdateG will only add Val to G if Val is a
-          // non-modifying expression).
+          // (The call to UpdateSameValue will only add Val to SameValue if
+          // Val is a non-modifying expression).
 
           // `++e1` and `--e1` produce the same value as the rvalue cast of
           // `e1` after executing `++e1` or `--e1`.
@@ -3252,11 +3275,11 @@ namespace {
           else if (Op == UnaryOperatorKind::UO_PostDec)
             Val = ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One,
                                     BinaryOperatorKind::BO_Add);
-          UpdateG(E, State.G, State.G, Val);
+          UpdateSameValue(E, State.SameValue, State.SameValue, Val);
         } else {
-          // G is empty for expressions where the integer constant 1
+          // SameValue is empty for expressions where the integer constant 1
           // could not be constructed (e.g. floating point expressions).
-          State.G.clear();
+          State.SameValue.clear();
         }
 
         return IncDecResultBounds;
@@ -3264,7 +3287,7 @@ namespace {
 
       // `&e` has the bounds of `e`.
       // `e` is an lvalue, so its bounds are its lvalue bounds.
-      // State.G for `&e` remains the same as State.G for `e`.
+      // State.SameValue for `&e` remains the same as State.SameValue for `e`.
       if (Op == UnaryOperatorKind::UO_AddrOf) {
 
         // Functions have bounds corresponding to the empty range.
@@ -3274,9 +3297,9 @@ namespace {
         return SubExprLValueBounds;
       }
 
-      // Update State.G for `!e`, `+e`, `-e`, and `~e`
-      // using the current State.G for `e`.
-      UpdateG(E, State.G, State.G);
+      // Update State.SameValue for `!e`, `+e`, `-e`, and `~e`
+      // using the current State.SameValue for `e`.
+      UpdateSameValue(E, State.SameValue, State.SameValue);
 
       // `!e` has empty bounds.
       if (Op == UnaryOperatorKind::UO_LNot)
@@ -3301,8 +3324,8 @@ namespace {
       BoundsExpr *InitBounds = nullptr;
       // If there is an initializer, check it, and update the state to record
       // expression equality implied by initialization. After checking Init,
-      // State.G will contain non-modifying expressions that produce values
-      // equivalent to the value produced by Init.
+      // State.SameValue will contain non-modifying expressions that produce
+      // values equivalent to the value produced by Init.
       if (Init) {
         InitBounds = Check(Init, CSS, State);
 
@@ -3322,7 +3345,7 @@ namespace {
           TargetTy = D->getType();
         }
         Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
-        
+
         // Record equality between the target and initializer.
         RecordEqualityWithTarget(TargetExpr, State);
       }
@@ -3363,7 +3386,7 @@ namespace {
         } else {
           BoundsExpr *NormalizedDeclaredBounds = ExpandToRange(D, DeclaredBounds);
           CheckBoundsDeclAtInitializer(D->getLocation(), D, NormalizedDeclaredBounds,
-            Init, InitBounds, State.UEQ, CSS);
+            Init, InitBounds, State.EquivExprs, CSS);
         }
         if (DumpBounds)
           DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
@@ -3410,7 +3433,7 @@ namespace {
       else
         SubExprBounds = Check(Child, CSS, State);
 
-      UpdateG(E, State.G, State.G);
+      UpdateSameValue(E, State.SameValue, State.SameValue);
       return SubExprBounds;
     }
 
@@ -3445,7 +3468,7 @@ namespace {
                                  BoundsExpr *&OutTargetBounds,
                                  CheckingState &State) {
       CheckChildren(E, CSS, State);
-      State.G.clear();
+      State.SameValue.clear();
 
       VarDecl *VD = dyn_cast<VarDecl>(E->getDecl());
       BoundsExpr *B = nullptr;
@@ -3464,13 +3487,13 @@ namespace {
           return CreateBoundsInferenceError();
         }
 
-        // Update G for variables with array type.
+        // Update SameValue for variables with array type.
         const ConstantArrayType *CAT = Context.getAsConstantArrayType(E->getType());
         if (CAT) {
           if (E->getType()->isCheckedArrayType())
-            State.G.push_back(E);
+            State.SameValue.push_back(E);
           else if (VD->hasLocalStorage() || VD->hasExternalStorage())
-            State.G.push_back(E);
+            State.SameValue.push_back(E);
         }
 
         // Declared bounds override the bounds based on the array type.
@@ -3512,8 +3535,8 @@ namespace {
       }
 
       Expr *AddrOf = CreateAddressOfOperator(E);
-      // G is { &v } for variables v that do not have array type.
-      State.G.push_back(AddrOf);
+      // SameValue = { &v } for variables v that do not have array type.
+      State.SameValue.push_back(AddrOf);
       return CreateSingleElementBounds(AddrOf);
     }
 
@@ -3535,8 +3558,8 @@ namespace {
         else
           OutTargetBounds = CreateBoundsUnknown();
 
-        // G is empty for pointer dereferences.
-        State.G.clear();
+        // SameValue is empty for pointer dereferences.
+        State.SameValue.clear();
 
         // The lvalue bounds of *e are the rvalue bounds of e.
         return SubExprBounds;
@@ -3567,8 +3590,8 @@ namespace {
       BoundsExpr *Bounds = Check(E->getBase(), CSS, State);
       Check(E->getIdx(), CSS, State);
 
-      // G is empty for array subscript expressions.
-      State.G.clear();
+      // SameValue is empty for array subscript expressions.
+      State.SameValue.clear();
 
       return Bounds;
     }
@@ -3597,9 +3620,9 @@ namespace {
       InferBounds(Base, CSS, BaseTargetBounds,
                   BaseLValueBounds, BaseBounds, State);
 
-      // Clear State.G to avoid adding false equality information.
+      // Clear State.SameValue to avoid adding false equality information.
       // TODO: implement updating state for member expressions.
-      State.G.clear();
+      State.SameValue.clear();
 
       bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS,
                                                        BaseLValueBounds,
@@ -3831,24 +3854,28 @@ namespace {
     // Target is the target expression of the assignment (that accounts for
     // any necessary casts of V).
     //
-    // OV is the original value (if any) for V before the assignment.
-    // If OV is non-null, it is substituted for any uses of the value of V
-    // in the bounds in ObservedBounds and the expressions in UEQ and G.
-    // If OV is null, any bounds in ObservedBounds that use the value of V
-    // are set to bounds(unknown), and any expressions in UEQ and G that use
-    // the value of V are removed from UEQ and G.
+    // OriginalValue is the original value (if any) of V before the assignment.
+    // If OriginalValue is non-null, it is substituted for any uses of the
+    // value of V in the bounds in ObservedBounds and the expressions in
+    // EquivExprs and SameValue.
+    // If OriginalValue is null, any bounds in ObservedBounds that use the
+    // value of V are set to bounds(unknown), and any expressions in EquivExprs
+    // and SameValue that use the value of V are removed from EquivExprs and
+    // SameValue.
+    // OriginalValue is named OV in the Checked C spec.
     //
-    // OVUsesV is true if the original value (if any) uses the value of V.
-    // It is used to prevent the UEQ and G sets from recording equality
-    // between two mathematically equivalent expressions, which can occur
-    // for assignments where the variable appears on the right-hand side,
-    // e.g. i = i + 2.
+    // OriginalValueUsesV is true if the original value (if any) uses the
+    // value of V.  It is used to prevent the EquivExprs and SameValue sets
+    // from recording equality between two mathematically equivalent
+    // expressions, which can occur for assignments where the variable appears
+    // on the right-hand side, e.g. i = i + 2.
     //
     // SrcBounds are the original bounds for the source of the assignment.
     //
     // PrevState is the checking state that was true before the assignment.
     BoundsExpr *UpdateAfterAssignment(DeclRefExpr *V, Expr *Target,
-                                      Expr *OV, bool OVUsesV,
+                                      Expr *OriginalValue,
+                                      bool OriginalValueUsesV,
                                       BoundsExpr *SrcBounds,
                                       CheckedScopeSpecifier CSS,
                                       const CheckingState PrevState,
@@ -3866,44 +3893,46 @@ namespace {
       // Adjust ObservedBounds to account for any uses of V in the bounds.
       for (auto Pair : State.ObservedBounds)
         State.ObservedBounds[Pair.first] =
-          ReplaceVariableInBounds(Pair.second, V, OV, CSS);
+          ReplaceVariableInBounds(Pair.second, V, OriginalValue, CSS);
 
       // Adjust SrcBounds to account for any uses of V and, if V has declared
       // bounds, record the updated observed bounds for V.
-      SrcBounds = ReplaceVariableInBounds(SrcBounds, V, OV, CSS);
+      SrcBounds = ReplaceVariableInBounds(SrcBounds, V, OriginalValue, CSS);
       if (DeclaredBounds)
         State.ObservedBounds[VariableDecl] = SrcBounds;
 
-      // Adjust UEQ to account for any uses of V in PrevState.UEQ.
-      State.UEQ.clear();
-      for (auto I = PrevState.UEQ.begin(); I != PrevState.UEQ.end(); ++I) {
+      // Adjust EquivExprs to account for any uses of V in PrevState.EquivExprs.
+      State.EquivExprs.clear();
+      for (auto I = PrevState.EquivExprs.begin(); I != PrevState.EquivExprs.end(); ++I) {
         EqualExprTy ExprList;
         for (auto InnerList = (*I).begin(); InnerList != (*I).end(); ++InnerList) {
           Expr *E = *InnerList;
-          Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OV, CSS);
-          // Don't add duplicate expressions to any set in UEQ.
+          Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OriginalValue, CSS);
+          // Don't add duplicate expressions to any set in EquivExprs.
           if (AdjustedE && !EqualExprsContainsExpr(ExprList, AdjustedE))
             ExprList.push_back(AdjustedE);
         }
         if (ExprList.size() > 1)
-          State.UEQ.push_back(ExprList);
+          State.EquivExprs.push_back(ExprList);
       }
 
-      // Adjust G to account for any uses of V in PrevState.G.
+      // Adjust SameValue to account for any uses of V in PrevState.SameValue.
       // If the original value uses the value of V, then any expressions that
-      // use the value of V should be removed from G.  For example, in the
-      // assignment i = i + 2, where the original value is i - 2, the
-      // expression i + 2 in G should be removed rather than replaced with
-      // (i - 2) + 2.  Otherwise, G would contain (i - 2) + 2 and i, and UEQ
-      // would record equality between (i - 2) + 2 and i, which is a tautology.
-      State.G.clear();
-      Expr *OriginalGVal = OVUsesV ? nullptr : OV;
-      for (auto I = PrevState.G.begin(); I != PrevState.G.end(); ++I) {
+      // use the value of V should be removed from SameValue.  For example,
+      // in the assignment i = i + 2, where the original value is i - 2, the
+      // expression i + 2 in SameValue should be removed rather than replaced
+      // with (i - 2) + 2.  Otherwise, SameValue would contain (i - 2) + 2 and
+      // i, and EquivExprs would record equality between (i - 2) + 2 and i,
+      // which is a tautology.
+      State.SameValue.clear();
+      Expr *OriginalSameValueVal = OriginalValueUsesV ? nullptr : OriginalValue;
+      for (auto I = PrevState.SameValue.begin(); I != PrevState.SameValue.end(); ++I) {
         Expr *E = *I;
-        Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OriginalGVal, CSS);
-        // Don't add duplicate expressions to G.
-        if (AdjustedE && !EqualExprsContainsExpr(State.G, AdjustedE))
-          State.G.push_back(AdjustedE);
+        Expr *AdjustedE = ReplaceVariableReferences(S, E, V,
+                                                    OriginalSameValueVal, CSS);
+        // Don't add duplicate expressions to SameValue.
+        if (AdjustedE && !EqualExprsContainsExpr(State.SameValue, AdjustedE))
+          State.SameValue.push_back(AdjustedE);
       }
 
       RecordEqualityWithTarget(Target, State);
@@ -3914,33 +3943,34 @@ namespace {
     // between the target expression of an assignment and the source of the
     // assignment.
     //
-    // State.G is assumed to contain expressions that produce the same value
-    // as the source of the assignment.
+    // State.SameValue is assumed to contain expressions that produce the same
+    // value as the source of the assignment.
     void RecordEqualityWithTarget(Expr *Target, CheckingState &State) {
-      // If UEQ contains a set F of expressions that produce the same value
-      // as the source, add the target to F.  This prevents UEQ from growing
-      // too large and containing redundant equality information.  For example,
-      // for the assignments x = 1; y = x; where the target is y, G = { 1, x },
-      // and UEQ contains F = { 1, x }, UEQ should contain { 1, x, y } rather
-      // than { 1, x } and { 1, x, y }.
-      if (State.G.size() > 0) {
-        for (auto I = State.UEQ.begin(); I != State.UEQ.end(); ++I) {
-          if (IsEqualExprsSubset(State.G, *I)) {
+      // If EquivExprs contains a set F of expressions that produce the same
+      // value as the source, add the target to F.  This prevents EquivExprs
+      // from growing too large and containing redundant equality information.
+      // For example, for the assignments x = 1; y = x; where the target is y,
+      // SameValue = { 1, x }, and EquivExprs contains F = { 1, x }, EquivExprs
+      // should contain { 1, x, y } rather than { 1, x } and { 1, x, y }.
+      if (State.SameValue.size() > 0) {
+        for (auto I = State.EquivExprs.begin(); I != State.EquivExprs.end(); ++I) {
+          if (IsEqualExprsSubset(State.SameValue, *I)) {
             I->push_back(Target);
-            // Add the target to G if G does not already contain the target.
-            if (!EqualExprsContainsExpr(State.G, Target))
-              State.G.push_back(Target);
+            // Add the target to SameValue if SameValue does not already
+            // contain the target.
+            if (!EqualExprsContainsExpr(State.SameValue, Target))
+              State.SameValue.push_back(Target);
             return;
           }
         }
       }
 
       // Avoid adding sets with duplicate expressions such as { e, e }
-      // and singleton sets such as { e } to UEQ.
-      if (!EqualExprsContainsExpr(State.G, Target))
-        State.G.push_back(Target);
-      if (State.G.size() > 1)
-        State.UEQ.push_back(State.G);
+      // and singleton sets such as { e } to EquivExprs.
+      if (!EqualExprsContainsExpr(State.SameValue, Target))
+        State.SameValue.push_back(Target);
+      if (State.SameValue.size() > 1)
+        State.EquivExprs.push_back(State.SameValue);
     }
 
     // If Bounds uses the value of v and an original value is provided,
@@ -3961,74 +3991,75 @@ namespace {
         return CreateBoundsUnknown();
     }
 
-    // UpdateG updates the set G of expressions that produce
-    // the same value as e.
+    // UpdateSameValue updates the set SameValue of expressions that produce
+    // the same value as the value produced by the expression e.
     // e is an expression with exactly one subexpression.
     //
-    // SubExprG is the set of expressions that produce the same
+    // SubExprSameValue is the set of expressions that produce the same
     // value as the only subexpression of e.
     //
-    // Val is an optional expression that may be contained in the updated G.
-    // If Val is not provided, e is used instead.  If Val and e are null,
-    // G is not updated.
-    void UpdateG(Expr *E, const EqualExprTy SubExprG,
-                 EqualExprTy &G, Expr *Val = nullptr) {
+    // Val is an optional expression that may be contained in the updated
+    // SameValue set. If Val is not provided, e is used instead.  If Val
+    // and e are null, SameValue is not updated.
+    void UpdateSameValue(Expr *E, const EqualExprTy SubExprSameValue,
+                         EqualExprTy &SameValue, Expr *Val = nullptr) {
       Expr *SubExpr = dyn_cast<Expr>(*(E->child_begin()));
       assert(SubExpr);
-      ExprEqualMapTy SubExprGs;
-      SubExprGs[SubExpr] = SubExprG;
-      UpdateG(E, SubExprGs, G, Val);
+      ExprEqualMapTy SubExprSameValueSets;
+      SubExprSameValueSets[SubExpr] = SubExprSameValue;
+      UpdateSameValue(E, SubExprSameValueSets, SameValue, Val);
     }
 
-    // UpdateG updates the set G of expressions that produce
-    // the same value as e.
+    // UpdateSameValue updates the set SameValue of expressions that produce
+    // the same value as the value produced by the expression e.
     // e is an expression with n subexpressions, where n >= 0.
     //
-    // Some kinds of expressions (e.g. assignments) have
-    // their own rules for how to update the set G.
-    // UpdateG is used to update the set G for expressions
-    // that do not have their own defined rules for updating G.
+    // Some kinds of expressions (e.g. assignments) have their own rules
+    // for how to update the set SameValue.  UpdateSameValue is used to
+    // update the set SameValue for expressions that do not have their own
+    // own defined rules for updating SameValue.
     //
-    // SubExprGs stores, for each subexpression Si of e, a set Gi
-    // of expressions that produce the same value as Si.
+    // SubExprSameValueSets stores, for each subexpression S_i of e, a set
+    // SameValue_i of expressions that produce the same value as S_i.
     //
-    // Val is an optional expression that may be contained in the updated G.
-    // If Val is not provided, e is used instead.  If Val and e are null,
-    // G is not updated.
-    void UpdateG(Expr *E, ExprEqualMapTy SubExprGs,
-                 EqualExprTy &G, Expr *Val = nullptr) {
-      G.clear();
+    // Val is an optional expression that may be contained in the updated
+    // SameValue set. If Val is not provided, e is used instead.  If Val
+    // and e are null, SameValue is not updated.
+    void UpdateSameValue(Expr *E, ExprEqualMapTy SubExprSameValueSets,
+                         EqualExprTy &SameValue, Expr *Val = nullptr) {
+      SameValue.clear();
 
       if (!Val) Val = E;
       if (!Val)
         return;
 
-      // Expressions that create new objects should not be included in G.
+      // Expressions that create new objects should not be included
+      // in SameValue.
       if (CreatesNewObject(Val))
         return;
 
-      // If Val is a call expression, G does not contain Val.
+      // If Val is a call expression, SameValue does not contain Val.
       if (isa<CallExpr>(Val)) {
       }
 
-      // If Val is a non-modifying expression, G contains Val.
+      // If Val is a non-modifying expression, SameValue contains Val.
       else if (CheckIsNonModifying(Val))
-        G.push_back(Val);
+        SameValue.push_back(Val);
 
-      // If Val is a modifying expression, use the G_i sets of expressions
-      // that produce the same value as the subexpressions of e to try to
-      // construct a non-modifying expression ValPrime that produces the same
-      // value as Val.
+      // If Val is a modifying expression, use the SameValue_i sets of
+      // expressions that produce the same value as the subexpressions of e
+      // to try to construct a non-modifying expression ValPrime that produces
+      // the same value as Val.
       else {
         Expr *ValPrime = nullptr;
-        for (llvm::detail::DenseMapPair<Expr *, EqualExprTy> Pair : SubExprGs) {
+        for (llvm::detail::DenseMapPair<Expr *, EqualExprTy> Pair : SubExprSameValueSets) {
           Expr *SubExpr_i = Pair.first;
           // For any modifying subexpression SubExpr_i of e, try to set
-          // ValPrime to a nonmodifying expression from the set G_i of
-          // expressions that produce the same value as SubExpr_i.
+          // ValPrime to a nonmodifying expression from the set SameValue_i
+          // of expressions that produce the same value as SubExpr_i.
           if (!CheckIsNonModifying(SubExpr_i)) {
-            EqualExprTy G_i = Pair.second;
-            for (auto I = G_i.begin(); I != G_i.end(); ++I) {
+            EqualExprTy SameValue_i = Pair.second;
+            for (auto I = SameValue_i.begin(); I != SameValue_i.end(); ++I) {
               Expr *E_i = *I;
               if (CheckIsNonModifying(E_i)) {
                 ValPrime = E_i;
@@ -4039,13 +4070,15 @@ namespace {
         }
 
         if (ValPrime)
-          G.push_back(ValPrime);
+          SameValue.push_back(ValPrime);
       }
 
       // If Val introduces a temporary to hold the value produced by e,
-      // add the value of the temporary to G.
+      // add the value of the temporary to SameValue.
+      // TODO: checkedc-clang issue #832: adding uses of temporaries here
+      // can result in false equivalence being recorded between expressions.
       if (CHKCBindTemporaryExpr *Temp = GetTempBinding(Val))
-        G.push_back(CreateTemporaryUse(Temp));
+        SameValue.push_back(CreateTemporaryUse(Temp));
     }
 
     // Methods to get the original value of an expression.
@@ -4056,13 +4089,13 @@ namespace {
     // Target is the target expression of the assignment (that accounts for
     // any necessary casts of V).
     //
-    // The out parameter OVUsesV will be set to true if the original value
-    // uses the value of the variable V.  This prevents callers from having
-    // to compute the variable occurrence count of V in the original value,
-    // since GetOriginalValue computes this count while trying to construct
-    // the inverse expression of the source with respect to V.
+    // The out parameter OriginalValueUsesV will be set to true if the original
+    // value uses the value of the variable V.  This prevents callers from
+    // having to compute the variable occurrence count of V in the original
+    // value, since GetOriginalValue computes this count while trying to
+    // construct the inverse expression of the source with respect to V.
     Expr *GetOriginalValue(DeclRefExpr *V, Expr *Target, Expr *Src,
-                           const EquivExprSets EQ, bool &OVUsesV) {
+                           const EquivExprSets EQ, bool &OriginalValueUsesV) {
       // Check if Src has an inverse expression with respect to v.
       Expr *IV = nullptr;
       if (IsInvertible(V, Src))
@@ -4070,14 +4103,14 @@ namespace {
       if (IV) {
         // If Src has an inverse with respect to v, then the original
         // value (the inverse) must use the value of v.
-        OVUsesV = true;
+        OriginalValueUsesV = true;
         return IV;
       }
 
       // If Src does not have an inverse with respect to v, then the original
       // value is either some variable w != v in EQ, or it is null.  In either
       // case, the original value cannot use the value of v.
-      OVUsesV = false;
+      OriginalValueUsesV = false;
       
       // Check EQ for a variable w != v that produces the same value as v.
       Expr *ValuePreservingV = nullptr;
@@ -4091,9 +4124,9 @@ namespace {
         Expr *E = Lex.IgnoreValuePreservingOperations(S.Context, *I);
         DeclRefExpr *W = GetRValueVariable(E);
         if (W != nullptr && !EqualValue(S.Context, V, W, nullptr)) {
-          // Expression equality in UEQ does not account for types, so
-          // expressions in the same set in UEQ may not have the same type.
-          // The original value of Src with respect to v must have a type
+          // Expression equality in EquivExprs does not account for types, so
+          // expressions in the same set in EquivExprs may not have the same
+          // type. The original value of Src with respect to v must have a type
           // compatible with the type of v (accounting for value-preserving
           // operations on v). For example, if F contains (T1)LValueToRValue(v)
           // and LValueToRValue(w), where v and w have type T2, (T1) is a value-
@@ -4125,6 +4158,7 @@ namespace {
           return IsBinaryOperatorInvertible(X, cast<BinaryOperator>(E));
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
+        case Expr::BoundsCastExprClass:
           return IsCastExprInvertible(X, cast<CastExpr>(E));
         default:
           return false;
@@ -4213,12 +4247,20 @@ namespace {
         case CastKind::CK_BooleanToSignedIntegral:
         case CastKind::CK_IntegralToFloating:
           return IsInvertible(X, E->getSubExpr());
+        // Bounds casts may be invertible.
+        case CastKind::CK_DynamicPtrBounds:
+        case CastKind::CK_AssumePtrBounds: {
+          CHKCBindTemporaryExpr *Temp =
+            dyn_cast<CHKCBindTemporaryExpr>(E->getSubExpr());
+          assert(Temp);
+          return IsInvertible(X, Temp->getSubExpr());
+        }
         // Potentially non-narrowing casts, depending on type sizes
         case CastKind::CK_IntegralToPointer:
         case CastKind::CK_PointerToIntegral:
         case CastKind::CK_IntegralCast:
           return Size1 >= Size2 && IsInvertible(X, E->getSubExpr());
-        // All other casts are considered narrowing
+        // All other casts are considered narrowing.
         default:
           return false;
       }
@@ -4240,8 +4282,9 @@ namespace {
           return UnaryOperatorInverse(X, F, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
           return BinaryOperatorInverse(X, F, cast<BinaryOperator>(E));
-        case Expr::CStyleCastExprClass:
         case Expr::ImplicitCastExprClass:
+        case Expr::CStyleCastExprClass:
+        case Expr::BoundsCastExprClass:
           return CastExprInverse(X, F, cast<CastExpr>(E));
         default:
           return nullptr;
@@ -4303,22 +4346,33 @@ namespace {
     // Inverse(f, (T1)e1) = Inverse((T2)f, e1) (assuming that (T1) is
     // not a narrowing cast).
     Expr *CastExprInverse(DeclRefExpr *X, Expr *F, CastExpr *E) {
-      QualType T1 = E->getType();
       QualType T2 = E->getSubExpr()->getType();
-      Expr *F1 = nullptr;
-      if (isa<ImplicitCastExpr>(E))
-        F1 = CreateImplicitCast(T2, E->getCastKind(), F);
-      else if (isa<CStyleCastExpr>(E))
-        F1 = CreateExplicitCast(T2, E->getCastKind(), F,
-                                E->isBoundsSafeInterface());
-      if (!F1)
-        return nullptr;
-      return Inverse(X, F1, E->getSubExpr());
+      switch (E->getStmtClass()) {
+        case Expr::ImplicitCastExprClass: {
+          Expr *F1 = CreateImplicitCast(T2, E->getCastKind(), F);
+          return Inverse(X, F1, E->getSubExpr());
+        }
+        case Expr::CStyleCastExprClass: {
+          Expr *F1 = CreateExplicitCast(T2, E->getCastKind(), F,
+                                        E->isBoundsSafeInterface());
+          return Inverse(X, F1, E->getSubExpr());
+        }
+        case Expr::BoundsCastExprClass: {
+          CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(E->getSubExpr());
+          assert(Temp);
+          Expr *F1 = CreateExplicitCast(T2, CastKind::CK_BitCast, F,
+                                        E->isBoundsSafeInterface());
+          return Inverse(X, F1, Temp->getSubExpr());
+        }
+        default:
+          llvm_unreachable("unexpected cast kind");
+      }
+      return nullptr;
     }
 
     // GetIncomingBlockState returns the checking state that is true at the
     // beginning of the block by taking the intersection of the observed
-    // bounds contexts and UEQ sets of equivalent expressions that were true
+    // bounds contexts and sets of equivalent expressions that were true
     // after each of the block's predecessors.
     //
     // Taking the intersection of the observed bounds contexts of the block's
@@ -4332,7 +4386,7 @@ namespace {
       bool IntersectionEmpty = true;
       for (const CFGBlock *PredBlock : Block->preds()) {
         // Prevent null or non-traversed (e.g. unreachable) blocks from causing
-        // the incoming bounds context and UEQ set for a block to be empty.
+        // the incoming bounds context and EquivExprs set for a block to be empty.
         if (!PredBlock)
           continue;
         if (BlockStates.find(PredBlock->getBlockID()) == BlockStates.end())
@@ -4340,14 +4394,15 @@ namespace {
         CheckingState PredState = BlockStates[PredBlock->getBlockID()];
         if (IntersectionEmpty) {
           BlockState.ObservedBounds = PredState.ObservedBounds;
-          BlockState.UEQ = PredState.UEQ;
+          BlockState.EquivExprs = PredState.EquivExprs;
           IntersectionEmpty = false;
         }
         else {
           BlockState.ObservedBounds =
             IntersectBoundsContexts(PredState.ObservedBounds,
                                     BlockState.ObservedBounds);
-          BlockState.UEQ = IntersectUEQ(PredState.UEQ, BlockState.UEQ);
+          BlockState.EquivExprs = IntersectEquivExprs(PredState.EquivExprs,
+                                                      BlockState.EquivExprs);
         }
       }
       return BlockState;
@@ -4375,32 +4430,34 @@ namespace {
       return IntersectedContext;
     }
 
-    // IntersectUEQ returns the intersection of two sets of sets of equivalent
-    // expressions, where each set in UEQ1 is intersected with each set in
-    // UEQ2 to produce an element of the result.
-    EquivExprSets IntersectUEQ(const EquivExprSets UEQ1, const EquivExprSets UEQ2) {
-      EquivExprSets IntersectedUEQ;
-      for (auto I1 = UEQ1.begin(); I1 != UEQ1.end(); ++I1) {
-        EqualExprTy G1 = *I1;
-        for (auto I2 = UEQ2.begin(); I2 != UEQ2.end(); ++I2) {
-          EqualExprTy G2 = *I2;
-          EqualExprTy IntersectedG = IntersectG(G1, G2);
-          if (IntersectedG.size() > 1)
-            IntersectedUEQ.push_back(IntersectedG);
+    // IntersectEquivExprs returns the intersection of two sets of sets of
+    // equivalent expressions, where each set in EQ1 is intersected with
+    // each set in EQ2 to produce an element of the result.
+    EquivExprSets IntersectEquivExprs(const EquivExprSets EQ1,
+                                      const EquivExprSets EQ2) {
+      EquivExprSets IntersectedEQ;
+      for (auto I1 = EQ1.begin(); I1 != EQ1.end(); ++I1) {
+        EqualExprTy Set1 = *I1;
+        for (auto I2 = EQ2.begin(); I2 != EQ2.end(); ++I2) {
+          EqualExprTy Set2 = *I2;
+          EqualExprTy IntersectedExprSet = IntersectExprSets(Set1, Set2);
+          if (IntersectedExprSet.size() > 1)
+            IntersectedEQ.push_back(IntersectedExprSet);
         }
       }
-      return IntersectedUEQ;
+      return IntersectedEQ;
     }
 
-    // IntersectG returns the intersection of two sets of equivalent expressions.
-    EqualExprTy IntersectG(const EqualExprTy G1, const EqualExprTy G2) {
-      EqualExprTy IntersectedG;
-      for (auto I = G1.begin(); I != G1.end(); ++I) {
+    // IntersectExprSets returns the intersection of two sets of expressions.
+    EqualExprTy IntersectExprSets(const EqualExprTy Set1,
+                                       const EqualExprTy Set2) {
+      EqualExprTy IntersectedSet;
+      for (auto I = Set1.begin(); I != Set1.end(); ++I) {
         Expr *E1 = *I;
-        if (EqualExprsContainsExpr(G2, E1))
-          IntersectedG.push_back(E1);
+        if (EqualExprsContainsExpr(Set2, E1))
+          IntersectedSet.push_back(E1);
       }
-      return IntersectedG;
+      return IntersectedSet;
     }
 
     // GetEqualExprSetContainingExpr returns the set F in EQ that contains e
@@ -4438,19 +4495,20 @@ namespace {
       return { };
     }
 
-    // IsEqualExprsSubset returns true if G1 is a subset of G2.
-    bool IsEqualExprsSubset(const EqualExprTy G1, const EqualExprTy G2) {
-      for (auto I = G1.begin(); I != G1.end(); ++I) {
+    // IsEqualExprsSubset returns true if Exprs1 is a subset of Exprs2.
+    bool IsEqualExprsSubset(const EqualExprTy Exprs1,
+                            const EqualExprTy Exprs2) {
+      for (auto I = Exprs1.begin(); I != Exprs1.end(); ++I) {
         Expr *E = *I;
-        if (!EqualExprsContainsExpr(G2, E))
+        if (!EqualExprsContainsExpr(Exprs2, E))
           return false;
       }
       return true;
     }
 
-    // EqualExprsContainsExpr returns true if the set G contains E.
-    bool EqualExprsContainsExpr(const EqualExprTy G, Expr *E) {
-      for (auto I = G.begin(); I != G.end(); ++I) {
+    // EqualExprsContainsExpr returns true if the set Exprs contains E.
+    bool EqualExprsContainsExpr(const EqualExprTy Exprs, Expr *E) {
+      for (auto I = Exprs.begin(); I != Exprs.end(); ++I) {
         if (EqualValue(S.Context, E, *I, nullptr))
           return true;
       }
@@ -4501,8 +4559,9 @@ namespace {
     }
 
     // CreatesNewObject returns true if the expression e creates a new object.
-    // Expressions that create new objects should not be added to the UEQ or G
-    // sets of equivalent expressions in the checking state.
+    // Expressions that create new objects should not be added to the
+    // EquivExprs or SameValue sets of equivalent expressions in the checking
+    // state.
     bool CreatesNewObject(Expr *E) {
       switch (E->getStmtClass()) {
         case Expr::InitListExprClass:
