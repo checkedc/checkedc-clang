@@ -2798,12 +2798,7 @@ namespace {
         // Update the checking state and result bounds for assignments to `e1`
         // where `e1` is a variable.
         if (DeclRefExpr *V = GetLValueVariable(LHS)) {
-          bool OriginalValueUsesV = false;
-          Expr *OriginalValue = GetOriginalValue(V, Target, Src,
-                                                 State.EquivExprs,
-                                                 OriginalValueUsesV);
-          ResultBounds = UpdateAfterAssignment(V, Target, OriginalValue,
-                                               OriginalValueUsesV, ResultBounds,
+          ResultBounds = UpdateAfterAssignment(V, Target, Src, ResultBounds,
                                                CSS, State, State);
         }
         // Update EquivExprs and SameValue for assignments where `e1` is not
@@ -3222,14 +3217,9 @@ namespace {
           // Update SameValue to be the set of expressions that produce the
           // same value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateSameValue(E, State.SameValue, State.SameValue, RHS);
-          bool OriginalValueUsesV = false;
-          Expr *OriginalValue = GetOriginalValue(V, Target, RHS,
-                                                State.EquivExprs,
-                                                OriginalValueUsesV);
-          IncDecResultBounds = UpdateAfterAssignment(V, Target, OriginalValue,
-                                                     OriginalValueUsesV,
-                                                     IncDecResultBounds, CSS,
-                                                     State, State);
+          IncDecResultBounds = UpdateAfterAssignment(V, Target, RHS,
+                                                     IncDecResultBounds,
+                                                     CSS, State, State);
 
           // Check that the updated IncDecResultBounds imply the target bounds
           // for the variable `e1`.
@@ -3848,38 +3838,32 @@ namespace {
     // Methods to update the checking state.
 
     // UpdateAfterAssignment updates the checking state after a variable V
-    // is assigned to, based on the state before the assignment.  It also
-    // returns updated bounds for the source of the assignment.
+    // is updated in an assignment Target = Src, based on the state before
+    // the assignment.  It also returns updated bounds for Src.
     //
-    // Target is the target expression of the assignment (that accounts for
-    // any necessary casts of V).
-    //
-    // OriginalValue is the original value (if any) of V before the assignment.
-    // If OriginalValue is non-null, it is substituted for any uses of the
-    // value of V in the bounds in ObservedBounds and the expressions in
+    // If V has an original value, the original value is substituted for
+    // any uses of the value of V in the bounds in ObservedBounds and the
+    // expressions in EquivExprs and SameValue.
+    // If V does not have an original value, any bounds in ObservedBounds
+    // that use the value of V are set to bounds(unknown), and any expressions
+    // in EquivExprs and SameValue that use the value of V are removed from
     // EquivExprs and SameValue.
-    // If OriginalValue is null, any bounds in ObservedBounds that use the
-    // value of V are set to bounds(unknown), and any expressions in EquivExprs
-    // and SameValue that use the value of V are removed from EquivExprs and
-    // SameValue.
-    // OriginalValue is named OV in the Checked C spec.
-    //
-    // OriginalValueUsesV is true if the original value (if any) uses the
-    // value of V.  It is used to prevent the EquivExprs and SameValue sets
-    // from recording equality between two mathematically equivalent
-    // expressions, which can occur for assignments where the variable appears
-    // on the right-hand side, e.g. i = i + 2.
     //
     // SrcBounds are the original bounds for the source of the assignment.
     //
     // PrevState is the checking state that was true before the assignment.
-    BoundsExpr *UpdateAfterAssignment(DeclRefExpr *V, Expr *Target,
-                                      Expr *OriginalValue,
-                                      bool OriginalValueUsesV,
+    BoundsExpr *UpdateAfterAssignment(DeclRefExpr *V, Expr *Target, Expr *Src,
                                       BoundsExpr *SrcBounds,
                                       CheckedScopeSpecifier CSS,
                                       const CheckingState PrevState,
                                       CheckingState &State) {
+      // Get the original value (if any) of V before the assignment, and
+      // determine whether the original value uses the value of V.
+      // OriginalValue is named OV in the Checked C spec.
+      bool OriginalValueUsesV = false;
+      Expr *OriginalValue = GetOriginalValue(V, Target, Src,
+                              PrevState.EquivExprs, OriginalValueUsesV);
+
       // Determine whether V has declared bounds.
       VarDecl *VariableDecl;
       BoundsExpr *DeclaredBounds;
