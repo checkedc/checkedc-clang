@@ -1721,9 +1721,170 @@ void original_value23(double d, double val) {
   // CHECK-NEXT: { }
 }
 
+// Bounds cast expression inverse where the type is the same as the LHS variable type
+void original_value24(array_ptr<int> a : count(1), array_ptr<int> val) {
+  // Updated UEQ: { { a + 1, val } }
+  val = a + 1;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'val'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'val'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+
+  // Original value of a: (array_ptr<int>)a
+  // Updated UEQ: { { (array_ptr<int>)a + 1, val } }
+  a = _Dynamic_bounds_cast<array_ptr<int>>(a, count(1));
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   BoundsCastExpr {{.*}} '_Array_ptr<int>' <DynamicPtrBounds>
+  // CHECK:          CHKCBindTemporaryExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   CStyleCastExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'val'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }  
+}
+
+// Bounds cast expression inverse including a type cast
+void original_value25(array_ptr<int> a : count(1), array_ptr<int> val) {
+  // Updated UEQ: { { a + 1, val } }
+  val = a + 1;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'val'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'val'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+
+  // Original value of a: (array_ptr<int>)(array_ptr<const int>)a
+  // Updated UEQ: { { (array_ptr<int>)(array_ptr<const int>)a + 1, val } }
+  a = _Assume_bounds_cast<array_ptr<const int>>(a, count(1));
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} '_Array_ptr<int>' <NoOp>
+  // CHECK-NEXT:     BoundsCastExpr {{.*}} '_Array_ptr<const int>' <AssumePtrBounds>
+  // CHECK:            CHKCBindTemporaryExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:       CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 1
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   CStyleCastExpr {{.*}} '_Array_ptr<int>' <BitCast>
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} '_Array_ptr<const int>' <NoOp>
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'val'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }  
+}
+
+// Combined bounds cast and binary inverse
+void original_value26(array_ptr<int> a : count(1), array_ptr<int> val) {
+  // Updated UEQ: { { a + 1, val } }
+  val = a + 1;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'val'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'val'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+
+  // Original value of a: (array_ptr<int>)(array_ptr<const int>)a - 1
+  // Updated UEQ: { { (array_ptr<int>)(array_ptr<const int>)a - 1 + 1, val }, { value(temp(a + 1)), a } }
+  // TODO: checkedc-clang issue #832: equality between value(temp(a + 1)) and a should not be recorded
+  a = _Dynamic_bounds_cast<array_ptr<const int>>(a + 1, count(1));
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} '_Array_ptr<int>' <NoOp>
+  // CHECK-NEXT:     BoundsCastExpr {{.*}} '_Array_ptr<const int>' <DynamicPtrBounds>
+  // CHECK:            CHKCBindTemporaryExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT:         BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:           ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:             DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:           IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:       CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 1
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     CStyleCastExpr {{.*}} '_Array_ptr<int>' <BitCast>
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} '_Array_ptr<const int>' <NoOp>
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'val'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BoundsValueExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }  
+}
+
 // CallExpr: using the left-hand side of an assignment as a call argument
-void original_value24(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) {
-  // Updated EquivExprs: { { b, a } }
+void original_value27(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) {
+  // Updated UEQ: { { b, a } }
   a = b;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1766,7 +1927,7 @@ void original_value24(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) 
 // The original value is type-compatible with the variable,
 // even when expressions in the same set are not type compatible
 // (resulting from assignments to NullToPointer casts)
-void original_value25(int *p,
+void original_value28(int *p,
                       array_ptr<int> val, array_ptr<int> arr,
                       array_ptr<int> a, array_ptr<int> b,
                       array_ptr<char> c, nt_array_ptr<int> n) {

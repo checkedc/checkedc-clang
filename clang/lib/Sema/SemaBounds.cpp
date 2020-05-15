@@ -3950,6 +3950,8 @@ namespace {
 
       // If Val introduces a temporary to hold the value produced by e,
       // add the value of the temporary to SameValue.
+      // TODO: checkedc-clang issue #832: adding uses of temporaries here
+      // can result in false equivalence being recorded between expressions.
       if (CHKCBindTemporaryExpr *Temp = GetTempBinding(Val))
         SameValue.push_back(CreateTemporaryUse(Temp));
     }
@@ -4031,6 +4033,7 @@ namespace {
           return IsBinaryOperatorInvertible(X, cast<BinaryOperator>(E));
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
+        case Expr::BoundsCastExprClass:
           return IsCastExprInvertible(X, cast<CastExpr>(E));
         default:
           return false;
@@ -4119,12 +4122,20 @@ namespace {
         case CastKind::CK_BooleanToSignedIntegral:
         case CastKind::CK_IntegralToFloating:
           return IsInvertible(X, E->getSubExpr());
+        // Bounds casts may be invertible.
+        case CastKind::CK_DynamicPtrBounds:
+        case CastKind::CK_AssumePtrBounds: {
+          CHKCBindTemporaryExpr *Temp =
+            dyn_cast<CHKCBindTemporaryExpr>(E->getSubExpr());
+          assert(Temp);
+          return IsInvertible(X, Temp->getSubExpr());
+        }
         // Potentially non-narrowing casts, depending on type sizes
         case CastKind::CK_IntegralToPointer:
         case CastKind::CK_PointerToIntegral:
         case CastKind::CK_IntegralCast:
           return Size1 >= Size2 && IsInvertible(X, E->getSubExpr());
-        // All other casts are considered narrowing
+        // All other casts are considered narrowing.
         default:
           return false;
       }
@@ -4146,8 +4157,9 @@ namespace {
           return UnaryOperatorInverse(X, F, cast<UnaryOperator>(E));
         case Expr::BinaryOperatorClass:
           return BinaryOperatorInverse(X, F, cast<BinaryOperator>(E));
-        case Expr::CStyleCastExprClass:
         case Expr::ImplicitCastExprClass:
+        case Expr::CStyleCastExprClass:
+        case Expr::BoundsCastExprClass:
           return CastExprInverse(X, F, cast<CastExpr>(E));
         default:
           return nullptr;
@@ -4209,17 +4221,28 @@ namespace {
     // Inverse(f, (T1)e1) = Inverse((T2)f, e1) (assuming that (T1) is
     // not a narrowing cast).
     Expr *CastExprInverse(DeclRefExpr *X, Expr *F, CastExpr *E) {
-      QualType T1 = E->getType();
       QualType T2 = E->getSubExpr()->getType();
-      Expr *F1 = nullptr;
-      if (isa<ImplicitCastExpr>(E))
-        F1 = CreateImplicitCast(T2, E->getCastKind(), F);
-      else if (isa<CStyleCastExpr>(E))
-        F1 = CreateExplicitCast(T2, E->getCastKind(), F,
-                                E->isBoundsSafeInterface());
-      if (!F1)
-        return nullptr;
-      return Inverse(X, F1, E->getSubExpr());
+      switch (E->getStmtClass()) {
+        case Expr::ImplicitCastExprClass: {
+          Expr *F1 = CreateImplicitCast(T2, E->getCastKind(), F);
+          return Inverse(X, F1, E->getSubExpr());
+        }
+        case Expr::CStyleCastExprClass: {
+          Expr *F1 = CreateExplicitCast(T2, E->getCastKind(), F,
+                                        E->isBoundsSafeInterface());
+          return Inverse(X, F1, E->getSubExpr());
+        }
+        case Expr::BoundsCastExprClass: {
+          CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(E->getSubExpr());
+          assert(Temp);
+          Expr *F1 = CreateExplicitCast(T2, CastKind::CK_BitCast, F,
+                                        E->isBoundsSafeInterface());
+          return Inverse(X, F1, Temp->getSubExpr());
+        }
+        default:
+          llvm_unreachable("unexpected cast kind");
+      }
+      return nullptr;
     }
 
     // GetIncomingBlockState returns the checking state that is true at the
