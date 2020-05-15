@@ -424,7 +424,9 @@ void assign4(array_ptr<int> a : count(len), unsigned len) {
   // Observed bounds context before assignment: { a => bounds(a, a + len) }
   // Original value of a: a - 1, original value of len: len + 1
   // Observed bounds context after assignment:  { a => bounds(a - 1, (a - 1) + (len + 1)) }
-  ++a, len--;
+  ++a, len--; // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
+              // expected-note {{(expanded) declared bounds are 'bounds(a, a + len)'}} \
+              // expected-note {{(expanded) inferred bounds are 'bounds(a - 1, a - 1 + len)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} ','
   // CHECK-NEXT:   UnaryOperator {{.*}} prefix '++'
@@ -1058,7 +1060,9 @@ void multiple_assign1(array_ptr<int> a : count(len), array_ptr<int> b : count(le
   // Target bounds of a at assignment a = b: bounds(a, a + len)
   // Observed bounds of b at assignment a = b: bounds(b, b + len)
   // Observed bounds context after assignments: { a => bounds(b, b + len), b => bounds(b, b + len) }
-  a++, a = b;
+  a++, a = b; // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
+              // expected-note {{(expanded) declared bounds are 'bounds(a, a + len)'}} \
+              // expected-note {{(expanded) inferred bounds are 'bounds(a - 1, a - 1 + len)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} ','
   // CHECK-NEXT:   UnaryOperator {{.*}} postfix '++'
@@ -1102,7 +1106,10 @@ void multiple_assign1(array_ptr<int> a : count(len), array_ptr<int> b : count(le
   // Target bounds of b at assignment b = a: bounds(b, b + len)
   // Observed bounds of a at assignment b = a: bounds(a - 1, a - 1 + len)
   // Observed bounds context after assignments: { a => bounds(a - 1, a - 1 + len), b => bounds(a - 1, a - 1 + len) }
-  a++, b = a; // expected-warning {{cannot prove declared bounds for b are valid after assignment}} \
+  a++, b = a; // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
+              // expected-note {{(expanded) declared bounds are 'bounds(a, a + len)'}} \
+              // expected-note {{(expanded) inferred bounds are 'bounds(a - 1, a - 1 + len)'}} \
+              // expected-warning {{cannot prove declared bounds for b are valid after assignment}} \
               // expected-note {{(expanded) declared bounds are 'bounds(b, b + len)'}} \
               // expected-note {{(expanded) inferred bounds are 'bounds(a - 1, a - 1 + len)'}}
   // CHECK: Statement S:
@@ -1156,9 +1163,9 @@ void multiple_assign1(array_ptr<int> a : count(len), array_ptr<int> b : count(le
   // Target bounds of a at assignment a = a: bounds(a, a + len)
   // Observed bounds of a at assignment a = a: bounds(a + 1, a + 1 + len)
   // Observed bounds context after assignments: { a => bounds(a + 1, a + 1 + len), b => bounds(b, b + len) }
-  a--, a = a; // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
-              // expected-note {{(expanded) declared bounds are 'bounds(a, a + len)'}} \
-              // expected-note {{(expanded) inferred bounds are 'bounds(a + 1, a + 1 + len)'}}
+  a--, a = a; // expected-warning 2 {{cannot prove declared bounds for a are valid after assignment}} \
+              // expected-note 2 {{(expanded) declared bounds are 'bounds(a, a + len)'}} \
+              // expected-note 2 {{(expanded) inferred bounds are 'bounds(a + 1, a + 1 + len)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} ','
   // CHECK-NEXT:   UnaryOperator {{.*}} postfix '--'
@@ -1317,7 +1324,9 @@ void multiple_assign2(array_ptr<int> a : count(len), array_ptr<int> b : bounds(a
 
   // Observed bounds of c at memory access c[2]: bounds(c - 1, (c - 1) + 2)
   // Observed bounds context after statement: { a => bounds(a, a + len), b => bounds(b, b + len), c => bounds(c - 1, (c - 1) + 2) }
-  c++, c[2];
+  c++, c[2]; // expected-warning {{cannot prove declared bounds for c are valid after assignment}} \
+             // expected-note {{(expanded) declared bounds are 'bounds(c, c + 2)'}} \
+             // expected-note {{(expanded) inferred bounds are 'bounds(c - 1, c - 1 + 2)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} ','
   // CHECK-NEXT:   UnaryOperator {{.*}} postfix '++'
@@ -1837,8 +1846,10 @@ void update_result_bounds3(array_ptr<int> a : bounds(b, b + 1), array_ptr<int> b
   // Observed bounds context before assignments: { a => bounds(b, b + 1), b => bounds(b, b + 1) }
   // Bounds of b++: bounds(b - 1, (b - 1) + 1)
   // Observed bounds context after assignments: { a => bounds(b - 1, (b - 1 + 1)), b => bounds(b - 1, (b - 1) + 1) }
-  // TODO: b++ should result in a warning 'cannot prove declared bounds for b are valid after assignment'
-  a = b++; // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
+  a = b++; // expected-warning {{cannot prove declared bounds for b are valid after assignment}} \
+           // expected-note {{(expanded) declared bounds are 'bounds(b, b + 1)'}} \
+           // expected-note {{(expanded) inferred bounds are 'bounds(b - 1, b - 1 + 1)'}} \
+           // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
            // expected-note {{(expanded) declared bounds are 'bounds(b, b + 1)'}} \
            // expected-note {{(expanded) inferred bounds are 'bounds(b - 1, b - 1 + 1)'}}
   // CHECK: Statement S:
@@ -1886,4 +1897,188 @@ void update_result_bounds3(array_ptr<int> a : bounds(b, b + 1), array_ptr<int> b
   // CHECK-NEXT:       IntegerLiteral {{.*}} 1
   // CHECK-NEXT:     IntegerLiteral {{.*}} 1
   // CHECK-NEXT: }
+}
+
+///////////////////////////////////////////////////////////////////////////
+// Checking the updated source bounds of an increment/decrement operator //
+///////////////////////////////////////////////////////////////////////////
+
+// Pre-increment operator: bounds warning
+void inc_dec_bounds1(nt_array_ptr<char> a) {
+  // Observed bounds context before increment: { a => bounds(a, a + 0) }
+  // Observed bounds context after increment:  { a => bounds(a - 1, (a - 1) + 0) }
+  ++a; // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
+       // expected-note {{(expanded) declared bounds are 'bounds(a, a + 0)'}} \
+       // expected-note {{(expanded) inferred bounds are 'bounds(a - 1i8, a - 1i8 + 0)'}}
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: }
+}
+
+// Post-increment operator: bounds error
+void inc_dec_bounds2(nt_array_ptr<int> a : bounds(a, a)) {
+  // Observed bounds context before increment: { a => bounds(a, a) }
+  // Observed bounds context after increment:  { a => bounds(a - 1, a - 1) }
+  a++; // expected-error {{declared bounds for a are invalid after assignment}} \
+       // expected-note {{(expanded) declared bounds are 'bounds(a, a)'}} \
+       // expected-note {{(expanded) inferred bounds are 'bounds(a - 1, a - 1)'}} \
+       // expected-note {{source bounds are an empty range}} \
+       // expected-note {{destination upper bound is above source upper bound}}
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} postfix '++'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT:   RangeBoundsExpr
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: }
+}
+
+// Pre-decrement operator: bounds warning
+void inc_dec_bounds3(array_ptr<float> a : count(2)) {
+  // Observed bounds context before decrement: { a => bounds(a, a + 2) }
+  // Observed bounds context after decrement:  { a => bounds(a + 1, (a + 1) + 2) }
+  --a; // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
+       // expected-note {{(expanded) declared bounds are 'bounds(a, a + 2)'}} \
+       // expected-note {{(expanded) inferred bounds are 'bounds(a + 1, a + 1 + 2)'}}
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} prefix '--'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: }
+}
+
+// Post-decrement operator: bounds error
+void inc_dec_bounds4(array_ptr<int> a : bounds(a, a)) {
+  // Observed bounds context before decrement: { a => bounds(a, a) }
+  // Observed bounds context after decrement:  { a => bounds(a + 1, (a + 1)) }
+  a--; // expected-error {{declared bounds for a are invalid after assignment}} \
+       // expected-note {{(expanded) declared bounds are 'bounds(a, a)'}} \
+       // expected-note {{(expanded) inferred bounds are 'bounds(a + 1, a + 1)'}} \
+       // expected-note {{source bounds are an empty range}} \
+       // expected-note {{destination lower bound is below source lower bound}}
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} postfix '--'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT:   RangeBoundsExpr {{.*}}
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: }
+}
+
+struct S {
+  nt_array_ptr<int> f : count(1);
+};
+
+// Increment/decrement operators on non-variables or variables without declared bounds
+// do not result in bounds checking-related warnings or errors
+void inc_dec_bounds5(nt_array_ptr<int> *p, struct S s, array_ptr<int> a) {
+  // Observed bounds context before increment: { }
+  // Observed bounds context after increment:  { }
+  ++*p;
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
+  // CHECK-NEXT:   UnaryOperator {{.*}} '*'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: { }
+
+  // Observed bounds context before increment: { }
+  // Observed bounds context after increment:  { }
+  p[0]++;
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} postfix '++'
+  // CHECK-NEXT:   ArraySubscriptExpr {{.*}} '_Nt_array_ptr<int>'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: { }
+
+  // Observed bounds context before increment: { }
+  // Observed bounds context after increment:  { }
+  --s.f;
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} prefix '--'
+  // CHECK-NEXT:   MemberExpr {{.*}} .f
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: { }
+  
+  // Observed bounds context before increment: { }
+  // Observed bounds context after increment:  { }
+  a--;
+  // CHECK: Statement S:
+  // CHECK-NEXT: UnaryOperator {{.*}} postfix '--'
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: { }
 }

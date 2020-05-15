@@ -13,7 +13,7 @@ void f1() {
   {}
 
   if (*p) {
-    p++;
+    p++; // expected-error {{declared bounds for p are invalid after assignment}}
     if (*(p + 1)) // expected-error {{out-of-bounds memory access}}
     {}
   }
