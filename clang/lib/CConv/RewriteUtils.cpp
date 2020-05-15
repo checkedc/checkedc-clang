@@ -1231,7 +1231,6 @@ public:
         if (V != nullptr && V->size() > 0) {
           // Get the FV constraint for the Callee.
           FVConstraint *FV = *(V->begin());
-          std::set<ConstraintVariable *> TmpCons;
           // Now we need to check the type of the arguments and corresponding
           // parameters to see, if any explicit casting is needed.
           if (FV) {
@@ -1240,7 +1239,7 @@ public:
               if (i < FD->getNumParams()) {
 
                 std::set<ConstraintVariable *> ArgumentConstraints =
-                    CR.getVariable(A, TmpCons, A->getType(), true);
+                    CR.getExprConstraintVars(A, A->getType(), true);
                 std::set<ConstraintVariable *> &ParameterConstraints =
                     FV->getParamVar(i);
                 bool CastInserted = false;

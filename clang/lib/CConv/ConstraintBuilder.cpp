@@ -96,8 +96,7 @@ public:
   bool VisitCStyleCastExpr(CStyleCastExpr *C) {
     // If we're casting from something with a constraint variable to something
     // that isn't a pointer type, we should constrain up.
-    std::set<ConstraintVariable *> TmpCons;
-    CB.getVariable(C, TmpCons, C->getSubExpr()->getType(), true);
+    CB.getExprConstraintVars(C, C->getSubExpr()->getType(), true);
 
     return true;
   }
@@ -126,13 +125,11 @@ public:
       }
       // Call of a function directly.
       unsigned i = 0;
-      std::set<ConstraintVariable *> RValueCons;
       for (const auto &A : E->arguments()) {
-        RValueCons.clear();
         // Get constraint variables for the argument
         // from with in the context of the caller body.
         std::set<ConstraintVariable *> ArgumentConstraintVars =
-          CB.getVariable(A, RValueCons, A->getType(), true, true);
+          CB.getExprConstraintVars(A, A->getType(), true, true);
 
         if (i < FD->getNumParams()) {
           auto *PD = FD->getParamDecl(i);
@@ -195,11 +192,8 @@ public:
     // of the function.
     Expr *RetExpr = S->getRetValue();
     QualType Typ = Function->getReturnType();
-    std::set<ConstraintVariable *> RvalCons;
-    RvalCons.clear();
 
-    std::set<ConstraintVariable *> RconsVar = CB.getVariable(RetExpr,
-                                                             RvalCons,
+    std::set<ConstraintVariable *> RconsVar = CB.getExprConstraintVars(RetExpr,
                                                              Function->getReturnType(),
                                                              true,
                                                              true);
@@ -276,12 +270,10 @@ private:
               // Constrain arguments to be of the same type
               // as the corresponding parameters.
               unsigned i = 0;
-              std::set<ConstraintVariable *> TmpCons;
               for (const auto &A : E->arguments()) {
-                TmpCons.clear();
                 std::set<ConstraintVariable *> ArgumentConstraints =
-                  CB.getVariable(A, TmpCons, A->getType(),
-                                   true, true);
+                  CB.getExprConstraintVars(A, A->getType(),
+                                             true, true);
 
                 if (i < FV->numParams()) {
                   std::set<ConstraintVariable *> ParameterDC =
@@ -333,9 +325,8 @@ private:
 
   // Constraint helpers.
   void constraintInBodyVariable(Expr *e, ConstAtom *CAtom) {
-    std::set<ConstraintVariable *> TmpCons;
     std::set<ConstraintVariable *> Var =
-      CB.getVariable(e, TmpCons, e->getType(), true);
+      CB.getExprConstraintVars(e, e->getType(), true);
     constrainVarsTo(Var, CAtom);
   }
 
@@ -349,13 +340,11 @@ private:
   // call expression to be WILD.
   void constraintAllArgumentsToWild(CallExpr *E) {
     PersistentSourceLoc psl = PersistentSourceLoc::mkPSL(E, *Context);
-    std::set<ConstraintVariable *> TmpCons;
     for (const auto &A : E->arguments()) {
-      TmpCons.clear();
       // Get constraint from within the function body
       // of the caller.
       std::set<ConstraintVariable *> ParameterEC =
-        CB.getVariable(A, TmpCons, A->getType(), true);
+        CB.getExprConstraintVars(A, A->getType(), true);
 
       // Assign WILD to each of the constraint variables.
       FunctionDecl *FD = E->getDirectCallee();

@@ -15,6 +15,8 @@
 using namespace llvm;
 using namespace clang;
 
+std::set<ConstraintVariable *> ConstraintResolver::GlobalRValueCons;
+
 // Special-case handling for decl introductions. For the moment this covers:
 //  * void-typed variables
 //  * va_list-typed variables
@@ -94,13 +96,15 @@ void ConstraintResolver::constraintAllCVarsToWild(
 }
 
 std::set<ConstraintVariable *>
-ConstraintResolver::getVariable(Expr *E,
-                               std::set<ConstraintVariable *> &RvalCons,
-                               QualType LhsType, bool Ifc, bool NonEmptyCons) {
+ConstraintResolver::getExprConstraintVars(Expr *E,
+                                          QualType LhsType, bool Ifc,
+                                          bool NonEmptyCons) {
   std::set<ConstraintVariable *> TmpCons;
+  std::set<ConstraintVariable *> RvalCons;
+
   bool IsAssigned;
   std::set<ConstraintVariable *> ExprCons =
-      getVariableHelper(TmpCons, E, RvalCons, LhsType, IsAssigned, Ifc);
+      getExprConstraintVars(TmpCons, E, RvalCons, LhsType, IsAssigned, Ifc);
 
   if (ExprCons.empty() && NonEmptyCons && !IsAssigned) {
     ExprCons = RvalCons;
@@ -124,7 +128,7 @@ ConstraintResolver::getVariable(Expr *E,
 // currentVariable field of V is that constraint variable. Returns false if
 // a constraint variable cannot be found.
 // ifc mirrors the inFunctionContext boolean parameter to getVariable.
-std::set<ConstraintVariable *> ConstraintResolver::getVariableHelper(
+std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
     std::set<ConstraintVariable *> &LHSConstraints, Expr *E,
     std::set<ConstraintVariable *> &RvalCons, QualType LhsType,
     bool &IsAssigned, bool Ifc) {
@@ -139,9 +143,9 @@ std::set<ConstraintVariable *> ConstraintResolver::getVariableHelper(
       return Info.getVariable(ME->getMemberDecl(), Context, Ifc);
     } else if (BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
       bool LHSAssigned = false, RHSAssigned = false;
-      std::set<ConstraintVariable *> T1 = getVariableHelper(
+      std::set<ConstraintVariable *> T1 = getExprConstraintVars(
           LHSConstraints, BO->getLHS(), RvalCons, LhsType, LHSAssigned, Ifc);
-      std::set<ConstraintVariable *> T2 = getVariableHelper(
+      std::set<ConstraintVariable *> T2 = getExprConstraintVars(
           LHSConstraints, BO->getRHS(), RvalCons, LhsType, RHSAssigned, Ifc);
       if (T1.empty() && !LHSAssigned && T2.empty() && !RHSAssigned) {
         T1 = RvalCons;
@@ -154,7 +158,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getVariableHelper(
     } else if (ArraySubscriptExpr *AE = dyn_cast<ArraySubscriptExpr>(E)) {
       // In an array subscript, we want to do something sort of similar to
       // taking the address or doing a dereference.
-      std::set<ConstraintVariable *> T = getVariableHelper(
+      std::set<ConstraintVariable *> T = getExprConstraintVars(
           LHSConstraints, AE->getBase(), RvalCons, LhsType, TmpAssign, Ifc);
       std::set<ConstraintVariable *> tmp;
       for (const auto &CV : T) {
@@ -179,7 +183,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getVariableHelper(
       T.swap(tmp);
       return T;
     } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
-      std::set<ConstraintVariable *> T = getVariableHelper(
+      std::set<ConstraintVariable *> T = getExprConstraintVars(
           LHSConstraints, UO->getSubExpr(), RvalCons, LhsType, TmpAssign, Ifc);
 
       std::set<ConstraintVariable *> tmp;
@@ -230,11 +234,11 @@ std::set<ConstraintVariable *> ConstraintResolver::getVariableHelper(
 
       return T;
     } else if (ImplicitCastExpr *IE = dyn_cast<ImplicitCastExpr>(E)) {
-      return getVariableHelper(LHSConstraints, IE->getSubExpr(), RvalCons,
+      return getExprConstraintVars(LHSConstraints, IE->getSubExpr(), RvalCons,
                                LhsType, IsAssigned, Ifc);
     } else if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(E)) {
       Expr *TmpE = removeAuxillaryCasts(ECE->getSubExpr());
-      std::set<ConstraintVariable *> TmpCons = getVariableHelper(
+      std::set<ConstraintVariable *> TmpCons = getExprConstraintVars(
           LHSConstraints, TmpE, RvalCons, LhsType, IsAssigned, Ifc);
       // Is cast compatible with LHS type?
       if (!Info.isExplicitCastSafe(LhsType, ECE->getType())) {
@@ -244,11 +248,11 @@ std::set<ConstraintVariable *> ConstraintResolver::getVariableHelper(
       }
       return TmpCons;
     } else if (ParenExpr *PE = dyn_cast<ParenExpr>(E)) {
-      return getVariableHelper(LHSConstraints, PE->getSubExpr(), RvalCons,
+      return getExprConstraintVars(LHSConstraints, PE->getSubExpr(), RvalCons,
                                LhsType, IsAssigned, Ifc);
     } else if (CHKCBindTemporaryExpr *CBE =
                    dyn_cast<CHKCBindTemporaryExpr>(E)) {
-      return getVariableHelper(LHSConstraints, CBE->getSubExpr(), RvalCons,
+      return getExprConstraintVars(LHSConstraints, CBE->getSubExpr(), RvalCons,
                                LhsType, IsAssigned, Ifc);
     } else if (CallExpr *CE = dyn_cast<CallExpr>(E)) {
       if (!handleFuncCall(CE, LhsType)) {
@@ -263,7 +267,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getVariableHelper(
           // There are a few reasons that we couldn't get a decl. For example,
           // the call could be done through an array subscript.
           Expr *CalledExpr = CE->getCallee();
-          std::set<ConstraintVariable *> tmp = getVariableHelper(
+          std::set<ConstraintVariable *> tmp = getExprConstraintVars(
               LHSConstraints, CalledExpr, RvalCons, LhsType, IsAssigned, Ifc);
 
           for (ConstraintVariable *C : tmp) {
@@ -350,14 +354,14 @@ std::set<ConstraintVariable *> ConstraintResolver::getVariableHelper(
       // The condition is not what's returned by the expression, so do not
       // include its var T = getVariableHelper(CO->getCond(), V, C, Ifc);
       // R.insert(T.begin(), T.end());
-      T = getVariableHelper(LHSConstraints, CO->getLHS(), RvalCons, LhsType,
+      T = getExprConstraintVars(LHSConstraints, CO->getLHS(), RvalCons, LhsType,
                             TAssign, Ifc);
       if (T.empty() && !TAssign) {
         R.insert(RvalCons.begin(), RvalCons.end());
       } else {
         R.insert(T.begin(), T.end());
       }
-      T = getVariableHelper(LHSConstraints, CO->getRHS(), RvalCons, LhsType,
+      T = getExprConstraintVars(LHSConstraints, CO->getRHS(), RvalCons, LhsType,
                             RAssign, Ifc);
       if (T.empty() && !RAssign) {
         R.insert(RvalCons.begin(), RvalCons.end());
@@ -400,19 +404,21 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
                                              ConsAction CAction) {
   PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(TSt, *Context);
   // Get the in-context local constraints.
-  std::set<ConstraintVariable *> TmpValueCons;
   std::set<ConstraintVariable *> L =
-      getVariable(LHS, TmpValueCons, LHS->getType(), true);
+      getExprConstraintVars(LHS, LHS->getType(), true);
+  std::set<ConstraintVariable *> TmpValueCons;
   TmpValueCons.clear();
   bool IsAssigned = false;
   std::set<ConstraintVariable *> R =
-      getVariableHelper(L, RHS, TmpValueCons, LHS->getType(), IsAssigned, true);
+      getExprConstraintVars(L, RHS, TmpValueCons, LHS->getType(),
+                            IsAssigned, true);
   // If this is not assigned? Get RVale Cons
   if (!IsAssigned) {
     if (R.empty()) {
       R = TmpValueCons;
     }
-    constrainConsVarGeq(L, R, Info.getConstraints(), &PL, CAction, false);
+    constrainConsVarGeq(L, R, Info.getConstraints(), &PL,
+                        CAction, false);
   }
 }
 
@@ -429,7 +435,8 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
   // Get the in-context local constraints.
   std::set<ConstraintVariable *> V = Info.getVariable(D, Context, true);
   auto RHSCons =
-      getVariableHelper(V, RHS, TmpValueCons, D->getType(), IsAssigned, true);
+      getExprConstraintVars(V, RHS, TmpValueCons, D->getType(),
+                            IsAssigned, true);
 
   if (!V.empty() && RHSCons.empty() && !IsAssigned) {
     RHSCons.insert(TmpValueCons.begin(), TmpValueCons.end());

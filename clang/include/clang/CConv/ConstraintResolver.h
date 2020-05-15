@@ -37,9 +37,8 @@ public:
                                 std::string rsn,
                                 Expr *AtExpr = nullptr);
 
-  std::set<ConstraintVariable *>  getVariable(
+  std::set<ConstraintVariable *>  getExprConstraintVars(
       Expr                            *E,
-      std::set<ConstraintVariable *> &RvalCons,
       QualType                   LhsType,
       bool                            Ifc,
       bool             NonEmptyCons = false);
@@ -60,7 +59,7 @@ public:
   // currentVariable field of V is that constraint variable. Returns false if
   // a constraint variable cannot be found.
   // ifc mirrors the inFunctionContext boolean parameter to getVariable.
-  std::set<ConstraintVariable *>  getVariableHelper(
+  std::set<ConstraintVariable *>  getExprConstraintVars(
       std::set<ConstraintVariable *> &LHSConstraints,
       Expr                            *E,
       std::set<ConstraintVariable *> &RvalCons,
@@ -78,7 +77,7 @@ private:
   ASTContext *Context;
   // These are temporary R-Value Constraints, that will be created to handle
   // R-Value expressions, such as constants and Function Calls.
-  std::set<ConstraintVariable *> GlobalRValueCons;
+  static std::set<ConstraintVariable *> GlobalRValueCons;
 
   std::set<ConstraintVariable *> getWildPVConstraint();
 };
