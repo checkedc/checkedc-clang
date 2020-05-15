@@ -1,7 +1,7 @@
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
 
 int *sus(int *, int *);
-//CHECK: _Ptr<int> sus(int *x, _Ptr<int> y);
+//CHECK: int *sus(int *x, _Ptr<int> y) : itype(_Ptr<int>);
 
 int* foo() {
   int sx = 3, sy = 4, *x = &sx, *y = &sy;
@@ -16,7 +16,7 @@ char* bar() {
   char *z = (sus(x, y));
   return z;
 }
-//CHECK: _Ptr<char> bar(void) {
+//CHECK: char* bar() {
 
 int *sus(int *x, int*y) {
   int *z = malloc(sizeof(int));
@@ -25,4 +25,4 @@ int *sus(int *x, int*y) {
   *x = 2;
   return z;
 }
-//CHECK: _Ptr<int> sus(int *x, _Ptr<int> y) {
+//CHECK: int *sus(int *x, _Ptr<int> y) : itype(_Ptr<int>) {
