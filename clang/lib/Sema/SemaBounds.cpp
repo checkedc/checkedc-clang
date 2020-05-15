@@ -4091,7 +4091,7 @@ namespace {
         case CastKind::CK_BooleanToSignedIntegral:
         case CastKind::CK_IntegralToFloating:
           return IsInvertible(X, E->getSubExpr());
-        // Bounds casts may be invertible
+        // Bounds casts may be invertible.
         case CastKind::CK_DynamicPtrBounds:
         case CastKind::CK_AssumePtrBounds: {
           CHKCBindTemporaryExpr *Temp =
@@ -4104,7 +4104,7 @@ namespace {
         case CastKind::CK_PointerToIntegral:
         case CastKind::CK_IntegralCast:
           return Size1 >= Size2 && IsInvertible(X, E->getSubExpr());
-        // All other casts are considered narrowing
+        // All other casts are considered narrowing.
         default:
           return false;
       }
