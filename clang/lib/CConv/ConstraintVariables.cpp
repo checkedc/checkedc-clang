@@ -1359,14 +1359,8 @@ void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
                       PersistentSourceLoc *PL,
                       ConsAction CA,
                       bool doEqType) {
-  std::set<ConstraintVariable *> TmpRHS = RHS;
-  if (LHS.empty() ^ RHS.empty()) {
-    // One of the constraints is empty?
-    // Then create a dummy WILD constraint.
-    TmpRHS.insert(PointerVariableConstraint::getWildPVConstraint(CS));
-  }
   for (const auto &I : LHS)
-    for (const auto &J : TmpRHS)
+    for (const auto &J : RHS)
       constrainConsVarGeq(I, J, CS, PL, CA, doEqType);
 }
 
