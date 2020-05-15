@@ -3865,9 +3865,9 @@ namespace {
                               PrevState.EquivExprs, OriginalValueUsesV);
 
       // Determine whether V has declared bounds.
-      VarDecl *VariableDecl;
+      VarDecl *VariableDecl = dyn_cast_or_null<VarDecl>(V->getDecl());
       BoundsExpr *DeclaredBounds;
-      if (VariableDecl = dyn_cast_or_null<VarDecl>(V->getDecl()))
+      if (VariableDecl)
         DeclaredBounds = VariableDecl->getBoundsExpr();
 
       // If V has declared bounds, set ObservedBounds[V] to SrcBounds.
