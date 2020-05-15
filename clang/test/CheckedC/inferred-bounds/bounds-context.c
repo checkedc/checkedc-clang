@@ -9,6 +9,7 @@
 extern array_ptr<int> getArr(void) : count(4);
 extern array_ptr<int> getArray(array_ptr<int> arr : count(len), int len, int size) : count(size);
 extern array_ptr<int> getArrayWithRange(array_ptr<int> arr) : bounds(arr, arr + 1);
+extern void testArgBounds(array_ptr<int> a : count(len), int len);
 
 ////////////////////////////////////////////////
 // No assignments to variables used in bounds //
@@ -1564,7 +1565,7 @@ void multiple_assign3(array_ptr<int> a : count(len), int len) {
 // Nested assignments and declarations //
 /////////////////////////////////////////
 
-// Bounds checking accounts for equality information from nested assignments to variables, recorded in State.UEQ
+// Bounds checking accounts for equality information from nested assignments to variables, recorded in State.EquivExprs
 void nested_assign1(nt_array_ptr<int> a : count(1), nt_array_ptr<const int> b : count(2), nt_array_ptr<volatile int> c : count(3)) {
   // Observed bounds context after all assignments: { a => bounds(c, c + 3), b => bounds(c, c + 3), c => bounds(c, c + 3) }
   a = (b = c); // expected-warning {{assigning to '_Nt_array_ptr<const int>' from '_Nt_array_ptr<volatile int>' discards qualifiers}} \
@@ -1620,10 +1621,10 @@ void nested_assign1(nt_array_ptr<int> a : count(1), nt_array_ptr<const int> b : 
   // CHECK-NEXT: }
 }
 
-// Pointer deferences are not included in nested assignment information in State.UEQ
+// Pointer deferences are not included in nested assignment information in State.EquivExprs
 void nested_assign2(nt_array_ptr<int> a : count(0), nt_array_ptr<int> b : count(0), ptr<nt_array_ptr<int>> p) {
   // Equality between b and *p is temporarily recorded in order to check the assignment b = *p.
-  // Equality between b and *p is not recorded in State.UEQ, so it is not recorded when checking
+  // Equality between b and *p is not recorded in State.EquivExprs, so it is not recorded when checking
   // the assignment a = (b = *p).
   // Observed bounds context after all assignments: { a => bounds(*p, *p + 0), b => bounds(*p, *p + 0) }
   a = (b = *p); // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
@@ -1676,7 +1677,8 @@ void nested_assign2(nt_array_ptr<int> a : count(0), nt_array_ptr<int> b : count(
   // CHECK-NEXT: }
 }
 
-// Bounds checking accounts for equality information from nested initializer and variable assignment, recorded in State.UEQ
+// Bounds checking accounts for equality information from nested initializer and
+// variable assignment, recorded in State.EquivExprs
 void nested_assign3(array_ptr<int> b : count(2)) {
   // Observed bounds context before checking initializer and assignment: { a => bounds(a, a + 3), b => bounds(b, b + 2) }
   // Observed bounds context after checking initializer and assignment:  { a => bounds(temp(getArr()), temp(getArr()) + 4), b => bounds(temp(getArr()), temp(getArr()) + 4) }
@@ -1715,6 +1717,55 @@ void nested_assign3(array_ptr<int> b : count(2)) {
   // CHECK-NEXT:   BinaryOperator {{.*}} '+'
   // CHECK-NEXT:     BoundsValueExpr {{.*}} '_Array_ptr<int>'
   // CHECK-NEXT:     IntegerLiteral {{.*}} 4
+  // CHECK-NEXT: }
+}
+
+// Bounds checking accounts for equality information in State.EquivExprs
+// when checking call argument bounds
+void nested_assign4(array_ptr<int> a : count(2), array_ptr<int> b : count(3)) {
+  // Observed bounds context before statement: { a => bounds(a, a + 2), b => bounds(b, b + 3) }
+  // Expected bounds of a at call: bounds(a, a + 3)
+  // Observed bounds of a at call: bounds(b, b + 3)
+  // Observed bounds context after statement:  { a => bounds(b, b + 3), b => bounds(b, b + 3) }
+  a = b, testArgBounds(a, 3);
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} ','
+  // CHECK-NEXT:   BinaryOperator {{.*}} '='
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:   CallExpr {{.*}} 'void'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'testArgBounds'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} b
+  // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
+  // CHECK-NEXT: Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 3
   // CHECK-NEXT: }
 }
 

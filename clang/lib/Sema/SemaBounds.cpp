@@ -1921,11 +1921,11 @@ namespace {
                                   BoundsExpr *ExpectedArgBounds, Expr *Arg,
                                   BoundsExpr *ArgBounds,
                                   CheckedScopeSpecifier CSS,
-                                  SmallVector<SmallVector <Expr *, 4>, 4> *EquivExprs) {
+                                  EquivExprSets EquivExprs) {
       SourceLocation ArgLoc = Arg->getBeginLoc();
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(ExpectedArgBounds,
-                                                   ArgBounds, Cause, EquivExprs);
+                                                   ArgBounds, Cause, &EquivExprs);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_argument_bounds_invalid :
@@ -2995,11 +2995,11 @@ namespace {
           DumpCallArgumentBounds(llvm::outs(), FuncProtoTy->getParamAnnots(i).getBoundsExpr(), Arg, SubstParamBounds, ArgBounds);
         }
 
-        CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, CSS, nullptr);
+        CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, CSS, State.EquivExprs);
       }
 
-      // Check any arguments that are beyond
-      // the number of function parameters.
+      // Check any arguments that are beyond the number of function
+      // parameters.
       for (unsigned i = Count; i < NumArgs; i++) {
         Expr *Arg = E->getArg(i);
         Check(Arg, CSS, State);
