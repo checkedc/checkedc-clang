@@ -9,6 +9,7 @@
 // classes of RewriteUtils.h
 //===----------------------------------------------------------------------===//
 
+#include "clang/CConv/ConstraintResolver.h"
 #include "clang/CConv/RewriteUtils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/CConv/ArrayBoundsInferenceConsumer.h"
@@ -1203,7 +1204,7 @@ class CastPlacementVisitor :
 public:
   explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I,
                                 Rewriter &R)
-      : Context(C), Info(I), Writer(R) {}
+      : Context(C), Info(I), Writer(R), CR(Info, Context) {}
 
   bool VisitCallExpr(CallExpr *CE) {
     Decl *D = CE->getCalleeDecl();
@@ -1230,14 +1231,16 @@ public:
         if (V != nullptr && V->size() > 0) {
           // Get the FV constraint for the Callee.
           FVConstraint *FV = *(V->begin());
+          std::set<ConstraintVariable *> TmpCons;
           // Now we need to check the type of the arguments and corresponding
           // parameters to see, if any explicit casting is needed.
           if (FV) {
             unsigned i = 0;
             for (const auto &A : CE->arguments()) {
               if (i < FD->getNumParams()) {
+
                 std::set<ConstraintVariable *> ArgumentConstraints =
-                    Info.getVariable(A, Context, true);
+                    CR.getVariable(A, TmpCons, A->getType(), true);
                 std::set<ConstraintVariable *> &ParameterConstraints =
                     FV->getParamVar(i);
                 bool CastInserted = false;
@@ -1299,6 +1302,7 @@ private:
   ASTContext            *Context;
   ProgramInfo           &Info;
   Rewriter              &Writer;
+  ConstraintResolver    CR;
 
 };
 

@@ -15,6 +15,7 @@ if (LLVM_BOOST_FOUND)
           CConvInteractiveData.cpp
           ConstraintBuilder.cpp
           ConstraintsGraph.cpp
+          ConstraintResolver.cpp
           ConstraintVariables.cpp
           Constraints.cpp
           GatherTool.cpp

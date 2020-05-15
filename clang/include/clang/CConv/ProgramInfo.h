@@ -89,35 +89,6 @@ public:
   void seeFunctionDecl(clang::FunctionDecl *, clang::ASTContext *);
   void seeGlobalDecl(clang::VarDecl *, clang::ASTContext *);
 
-  // This is a bit of a hack. What we need to do is traverse the AST in a 
-  // bottom-up manner, and, for a given expression, decide which,
-  // if any, constraint variable(s) are involved in that expression. However, 
-  // in the current version of clang (3.8.1), bottom-up traversal is not 
-  // supported. So instead, we do a manual top-down traversal, considering
-  // the different cases and their meaning on the value of the constraint
-  // variable involved. This is probably incomplete, but, we're going to 
-  // go with it for now. 
-  //
-  // V is (currentVariable, baseVariable, limitVariable)
-  // E is an expression to recursively traverse.
-  //
-  // Returns true if E resolves to a constraint variable q_i and the 
-  // currentVariable field of V is that constraint variable. Returns false if 
-  // a constraint variable cannot be found.
-  std::set<ConstraintVariable *> 
-  getVariableHelper(clang::Expr *E,std::set<ConstraintVariable *>V,
-    clang::ASTContext *C, bool Ifc);
-
-  // Given some expression E, what is the top-most constraint variable that
-  // E refers to? 
-  // inFunctionContext controls whether or not this operation is within
-  // a function context. If set to true, we find Declarations associated with 
-  // the function Definition (if present). If set to false, we skip the 
-  // Declaration associated with the Definition and find the first 
-  // non-Declaration Definition.
-  std::set<ConstraintVariable *>
-    getVariable(clang::Expr *E, clang::ASTContext *C,
-              bool InFuncCtx = false);
   std::set<ConstraintVariable *>
     getVariableOnDemand(clang::Decl *D, clang::ASTContext *C,
                       bool InFuncCtx = false);
@@ -265,9 +236,6 @@ private:
   ArrayBoundsInformation *ArrBoundsInfo;
   // Disjoint sets for constraints.
   DisjointSet ConstraintDisjointSet;
-  // These are temporary R-Value Constraints, that will be created to handle
-  // R-Value expressions, such as constants and Function Calls.
-  std::set<ConstraintVariable *> RValueCons;
 };
 
 #endif
