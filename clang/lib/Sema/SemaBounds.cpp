@@ -3151,7 +3151,7 @@ namespace {
 
         // Only use the RHS `e1 +/1 ` of the implied assignment to update
         // the checking state if the integer constant 1 can be created, which
-        // is only true if `e1` has integer type or integer pointer type.
+        // is only true if `e1` has integer or pointer type.
         IntegerLiteral *One = CreateIntegerLiteral(1, SubExpr->getType());
         Expr *RHS = nullptr;
         if (One) {
@@ -4655,11 +4655,20 @@ namespace {
     // CreateIntegerLiteral returns an integer literal with Ty type.
     // If Ty denotes a pointer to an integer type (char *, ptr<int>, etc.),
     // CreateIntegerLiteral returns an integer literal with Ty's pointee type.
+    // If Ty denotes a pointer to a non-integer type (float *, ptr<double>,
+    // etc.), CreateIntegerLiteral returns an integer literal with a target-
+    // dependent bit width.
     // Otherwise, it returns nullptr.
     IntegerLiteral *CreateIntegerLiteral(int Value, QualType Ty) {
       QualType AdjustedType = Ty;
-      if (Ty->isPointerType())
+      if (Ty->isPointerType()) {
         AdjustedType = Ty->getPointeeType();
+        if (!AdjustedType->isIntegerType()) {
+          const llvm::APInt
+            ResultVal(Context.getTargetInfo().getPointerWidth(0), Value);
+          return CreateIntegerLiteral(ResultVal);
+        }
+      }
       if (!AdjustedType->isIntegerType())
         return nullptr;
 
@@ -4668,7 +4677,7 @@ namespace {
       if (BitSize != IntWidth)
         return nullptr;
 
-      llvm::APInt ResultVal(BitSize, Value);
+      const llvm::APInt ResultVal(BitSize, Value);
       return IntegerLiteral::Create(Context, ResultVal, AdjustedType,
                                     SourceLocation());
     }

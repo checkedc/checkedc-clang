@@ -818,7 +818,7 @@ void original_value7(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator: pre-increment and post-increment inverses
+// UnaryOperator: pre-increment and post-increment inverses (unsigned integer arithmetic)
 void original_value8(unsigned x, unsigned i) {
   // Updated UEQ: { { i, x } }
   x = i;
@@ -888,8 +888,8 @@ void original_value8(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator: pre-decrement and post-decrement inverses
-void original_value9(unsigned x, unsigned i) {
+// UnaryOperator: pre-decrement and post-decrement inverses (checked pointer arithmetic)
+void original_value9(array_ptr<float> x, array_ptr<float> i) {
   // Updated UEQ: { { i, x } }
   x = i;
   // CHECK: Statement S:
@@ -958,7 +958,7 @@ void original_value9(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator: pre-increment with no inverse
+// UnaryOperator: pre-increment with no inverse (signed integer arithmetic)
 void original_value10(int x, int i) {
   // Updated UEQ: { { i, x } }
   x = i;
@@ -1001,8 +1001,8 @@ void original_value10(int x, int i) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator: post-increment with no inverse
-void original_value11(int x, int i) {
+// UnaryOperator: post-increment with no inverse (unchecked pointer arithmetic)
+void original_value11(unsigned *x, unsigned *i) {
   // Updated UEQ: { { i, x } }
   x = i;
   // CHECK: Statement S:
@@ -1046,8 +1046,8 @@ void original_value11(int x, int i) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator: pre-decrement with no inverse
-void original_value12(int x, int i) {
+// UnaryOperator: pre-decrement with no inverse (unchecked pointer arithmetic)
+void original_value12(float *x, float *i) {
   // Updated UEQ: { { i, x } }
   x = i;
   // CHECK: Statement S:
@@ -1089,8 +1089,8 @@ void original_value12(int x, int i) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator: post-decrement with no inverse
-void original_value13(int x, int i) {
+// UnaryOperator: post-decrement with no inverse (unchecked pointer arithmetic)
+void original_value13(array_ptr<int> *x, array_ptr<int> *i) {
   // Updated UEQ: { { i, x } }
   x = i;
   // CHECK: Statement S:
