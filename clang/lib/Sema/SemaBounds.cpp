@@ -664,6 +664,8 @@ namespace {
       // inferred by bounds checking.  These bounds are updated after
       // assignments to variables.
       //
+      // ObservedBounds is named UC in the Checked C spec.
+      //
       // The bounds in the ObservedBounds context should always be normalized
       // to range bounds if possible.  This allows updates to variables that
       // are implicitly used in bounds declarations to update the observed
@@ -676,10 +678,14 @@ namespace {
       // other after checking an expression e.  If two expressions e1 and
       // e2 are in the same set in EquivExprs, e1 and e2 produce the same
       // value.
+      //
+      // EquivExprs is named UEQ in the Checked C spec.
       EquivExprSets EquivExprs;
 
       // SameValue is a set of expressions that produce the same value as an
       // expression e once checking of e is complete.
+      //
+      // SameValue is named G in the Checked C spec.
       EqualExprTy SameValue;
   };
 }
@@ -3775,6 +3781,7 @@ namespace {
     // value of V in the expressions in EquivExprs and SameValue.
     // If OriginalValue is null, any expressions in EquivExprs and SameValue
     // that use the value of V are removed from EquivExprs and SameValue.
+    // OriginalValue is named OV in the Checked C spec.
     //
     // OriginalValueUsesV is true if the original value (if any) uses the
     // value of V.  It is used to prevent the EquivExprs and SameValue sets
