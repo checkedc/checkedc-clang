@@ -37,6 +37,9 @@ public:
                                 std::string rsn,
                                 Expr *AtExpr = nullptr);
 
+  // This function gets the constraint variables for the given expression.
+  // The flag NonEmptyCons is used to indicate that this expression is used as
+  // an Rvalue.
   std::set<ConstraintVariable *>  getExprConstraintVars(
       Expr                            *E,
       QualType                   LhsType,
@@ -67,8 +70,12 @@ public:
       bool                    &IsAssigned,
       bool                            Ifc);
 
-  void constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS, ConsAction CAction);
+  // Handle assignment of RHS expression to LHS expression using the
+  // given action.
+  void constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
+                            ConsAction CAction);
 
+  // Handle the assignment of RHS to the given declaration.
   void constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D, Expr *RHS,
                             ConsAction CAction = Same_to_Same);
 
