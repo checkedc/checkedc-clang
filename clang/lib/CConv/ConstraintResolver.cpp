@@ -426,7 +426,7 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
 void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
                                               Expr *RHS,
                                              ConsAction CAction) {
-  bool IsAssigned;
+  bool IsAssigned = false;
   std::set<ConstraintVariable *> TmpValueCons;
   PersistentSourceLoc PL, *PLPtr = nullptr;
   if (TSt != nullptr) {
