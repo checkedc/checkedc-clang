@@ -73,6 +73,7 @@ PointerVariableConstraint::
     FV(nullptr), partOFFuncPrototype(Ot->partOFFuncPrototype) {
   this->arrSizes = Ot->arrSizes;
   this->ArrPresent = Ot->ArrPresent;
+  this->HasDefDeclEquated = Ot->HasDefDeclEquated;
   // Make copy of the vars only for VarAtoms.
   for (auto *CV : Ot->vars) {
     if (ConstAtom *CA = dyn_cast<ConstAtom>(CV)) {
@@ -577,13 +578,20 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
   return FinalDec;
 }
 
-bool PVConstraint::addArgumentConstraint(ConstraintVariable *DstCons) {
+bool PVConstraint::addArgumentConstraint(ConstraintVariable *DstCons,
+                                         ProgramInfo &Info) {
   if (this->Parent == nullptr) {
-    if (isPartOfFunctionPrototype())
-      return argumentConstraints.insert(DstCons).second;
-    return false;
+    bool RetVal = false;
+    if (isPartOfFunctionPrototype()) {
+      RetVal = argumentConstraints.insert(DstCons).second;
+      if (RetVal && this->HasDefDeclEquated) {
+        constrainConsVarGeq(DstCons, this, Info.getConstraints(),
+                            nullptr,Same_to_Same, true, &Info);
+      }
+    }
+    return RetVal;
   }
-  return this->Parent->addArgumentConstraint(DstCons);
+  return this->Parent->addArgumentConstraint(DstCons, Info);
 }
 
 std::set<ConstraintVariable *> &PVConstraint::getArgumentConstraints() {
@@ -603,6 +611,7 @@ FunctionVariableConstraint::
   this->name = Ot->name;
   this->HasDefDeclEquated = Ot->HasDefDeclEquated;
   this->IsFunctionPtr = Ot->IsFunctionPtr;
+  this->HasDefDeclEquated = Ot->HasDefDeclEquated;
   // Copy Return CVs.
   for (auto *Rt : Ot->getReturnVars()) {
     this->returnVars.insert(Rt->getCopy(CS));
@@ -885,44 +894,85 @@ FunctionVariableConstraint::getHighestType(EnvironmentMap &E) {
   return Ret;
 }
 
+void PVConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
+  if (HasDefDeclEquated) {
+    return;
+  }
+  HasDefDeclEquated = true;
+  for (auto *ArgCons : this->argumentConstraints) {
+    constrainConsVarGeq(this, ArgCons, Info.getConstraints(), nullptr,
+                        Same_to_Same, true, &Info);
+  }
+
+  if (this->FV != nullptr) {
+    this->FV->equateInsideOutsideVars(Info);
+  }
+}
+
+void
+FunctionVariableConstraint::equateFVConstraintVars(
+    std::set<ConstraintVariable *> &Cset, ProgramInfo &Info) {
+  for (auto *TmpCons : Cset) {
+    if (FVConstraint *FVCons = dyn_cast<FVConstraint>(TmpCons)) {
+      for (auto &PConSet : FVCons->paramVars) {
+        for (auto *PCon : PConSet) {
+          PCon->equateInsideOutsideVars(Info);
+        }
+      }
+      for (auto *RCon : FVCons->returnVars) {
+        RCon->equateInsideOutsideVars(Info);
+      }
+    }
+  }
+}
+
 void FunctionVariableConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
   std::set<FVConstraint *> *DeclCons = nullptr;
   std::set<FVConstraint *> *DefnCons = nullptr;
 
-  // Is this a function pointer or constraints already equated.
-  if (IsFunctionPtr || HasDefDeclEquated) {
+  if (HasDefDeclEquated) {
     return;
   }
+
   HasDefDeclEquated = true;
+  std::set<ConstraintVariable *> TmpCSet;
+  TmpCSet.insert(this);
 
-  // Get appropriate constraints based on whether the function is static or not.
-  if (IsStatic) {
-    DeclCons = Info.getStaticFuncDeclConstraintSet(name, FileName);
-    DefnCons = Info.getStaticFuncDefnConstraintSet(name, FileName);
-  } else {
-    DeclCons = Info.getExtFuncDeclConstraintSet(name);
-    DefnCons = Info.getExtFuncDefnConstraintSet(name);
+  // Equate arguments and parameters vars.
+  this->equateFVConstraintVars(TmpCSet, Info);
+
+  // Is this not a function pointer?
+  if (!IsFunctionPtr) {
+    // Get appropriate constraints based on whether the function is static or not.
+    if (IsStatic) {
+      DeclCons = Info.getStaticFuncDeclConstraintSet(name, FileName);
+      DefnCons = Info.getStaticFuncDefnConstraintSet(name, FileName);
+    } else {
+      DeclCons = Info.getExtFuncDeclConstraintSet(name);
+      DefnCons = Info.getExtFuncDefnConstraintSet(name);
+    }
+
+    // Only when we have both declaration and definition constraints.
+    // Then equate them.
+    if (DefnCons != nullptr && DeclCons != nullptr) {
+      std::set<ConstraintVariable *> TmpDecl, TmpDefn;
+      TmpDecl.clear();
+      TmpDefn.clear();
+
+      TmpDecl.insert(DeclCons->begin(), DeclCons->end());
+      TmpDefn.insert(DefnCons->begin(), DefnCons->end());
+      // Equate declaration and definition constraint
+      //   (Need to call twice to unify at all levels)
+      constrainConsVarGeq(TmpDecl, TmpDefn, Info.getConstraints(), nullptr,
+                          Same_to_Same, true, &Info);
+      constrainConsVarGeq(TmpDefn, TmpDecl, Info.getConstraints(), nullptr,
+                          Same_to_Same, true, &Info);
+
+      // Equate arguments and parameters vars.
+      this->equateFVConstraintVars(TmpDecl, Info);
+      this->equateFVConstraintVars(TmpDefn, Info);
+    }
   }
-
-  // Only when we have both declaration and definition constraints.
-  // Then equate them.
-  if (DefnCons != nullptr && DeclCons != nullptr) {
-    std::set<ConstraintVariable *> TmpDecl, TmpDefn;
-    TmpDecl.clear();
-    TmpDefn.clear();
-
-    TmpDecl.insert(DeclCons->begin(), DeclCons->end());
-    TmpDefn.insert(DefnCons->begin(), DefnCons->end());
-
-    // Equate declaration and definition constraint
-    //   (Need to call twice to unify at all levels)
-    constrainConsVarGeq(TmpDecl, TmpDefn, Info.getConstraints(), nullptr,
-                        Same_to_Same, false, &Info);
-    constrainConsVarGeq(TmpDefn, TmpDecl, Info.getConstraints(), nullptr,
-                        Same_to_Same, false, &Info);
-  }
-
-
 }
 
 void PointerVariableConstraint::constrainToWild(Constraints &CS,
@@ -1332,8 +1382,8 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
         std::string Rsn = "";
         // This is to handle function subtyping. Try to add LHS and RHS
         // to each others argument constraints.
-        PCLHS->addArgumentConstraint(PCRHS);
-        PCRHS->addArgumentConstraint(PCLHS);
+        PCLHS->addArgumentConstraint(PCRHS, *I);
+        PCRHS->addArgumentConstraint(PCLHS, *I);
         // Element-wise constrain PCLHS and PCRHS to be equal
         CAtoms CLHS = PCLHS->getCvars();
         CAtoms CRHS = PCRHS->getCvars();
