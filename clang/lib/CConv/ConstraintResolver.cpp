@@ -323,7 +323,8 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
           // Store the temporary constraint vars into a global set
           // for future memory management.
           GlobalRValueCons.insert(NewCV);
-          constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false);
+          constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild,
+                              false, &Info);
           TmpCVs.insert(NewCV);
         }
 
@@ -337,7 +338,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
         if (!LHSConstraints.empty()) {
           auto PL = PersistentSourceLoc::mkPSL(CE, *Context);
           constrainConsVarGeq(LHSConstraints, TmpCVs, CS, &PL, Safe_to_Wild,
-                              false);
+                              false, &Info);
           // We assigned the constraints to the LHS.
           // We do not need to propagate the constraints.
           IsAssigned = true;
@@ -418,7 +419,7 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
       R = TmpValueCons;
     }
     constrainConsVarGeq(L, R, Info.getConstraints(), &PL,
-                        CAction, false);
+                        CAction, false, &Info);
   }
 }
 
@@ -442,7 +443,7 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
     RHSCons.insert(TmpValueCons.begin(), TmpValueCons.end());
   }
   constrainConsVarGeq(V, RHSCons, Info.getConstraints(),
-                      PLPtr, CAction, false);
+                      PLPtr, CAction, false, &Info);
 }
 
 std::set<ConstraintVariable *> ConstraintResolver::getWildPVConstraint() {

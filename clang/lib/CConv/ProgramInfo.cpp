@@ -387,7 +387,7 @@ bool ProgramInfo::link() {
       ++J;
 
       while (J != C.end()) {
-        constrainConsVarGeq(*I, *J, CS, nullptr, Same_to_Same, true);
+        constrainConsVarGeq(*I, *J, CS, nullptr, Same_to_Same, true, this);
         ++I;
         ++J;
       }
@@ -406,7 +406,7 @@ bool ProgramInfo::link() {
       if (Verbose)
         llvm::errs() << "Global variables:" << V.first << "\n";
       while (J != C.end()) {
-        constrainConsVarGeq(*I, *J, CS, nullptr, Same_to_Same, true);
+        constrainConsVarGeq(*I, *J, CS, nullptr, Same_to_Same, true, this);
         ++I;
         ++J;
       }
@@ -436,14 +436,14 @@ bool ProgramInfo::link() {
           // Constrain the return values to be equal.
           if (!P1->hasBody() && !P2->hasBody()) {
             constrainConsVarGeq(P1->getReturnVars(), P2->getReturnVars(), CS,
-                                nullptr, Same_to_Same, true);
+                                nullptr, Same_to_Same, true, this);
 
             // Constrain the parameters to be equal, if the parameter arity is
             // the same. If it is not the same, constrain both to be wild.
             if (P1->numParams() == P2->numParams()) {
               for (unsigned i = 0; i < P1->numParams(); i++) {
                 constrainConsVarGeq(P1->getParamVar(i), P2->getParamVar(i), CS,
-                                    nullptr, Same_to_Same, true);
+                                    nullptr, Same_to_Same, true, this);
               }
 
             } else {
@@ -1039,14 +1039,14 @@ ProgramInfo::applyFunctionDefnDeclsConstraints(std::set<FVConstraint *>
   for (auto *DeFV : DefCVars) {
     for (auto *DelFV : DeclCVars) {
       constrainConsVarGeq(DelFV->getReturnVars(), DeFV->getReturnVars(), CS,
-                          nullptr, Safe_to_Wild, false);
+                          nullptr, Safe_to_Wild, false, this);
 
       assert (DeFV->numParams() == DelFV->numParams() &&
              "Definition and Declaration should have same "
              "number of parameters.");
       for (unsigned i=0; i<DeFV->numParams(); i++) {
         constrainConsVarGeq(DeFV->getParamVar(i), DelFV->getParamVar(i), CS,
-                            nullptr, Wild_to_Safe, false);
+                            nullptr, Wild_to_Safe, false, this);
       }
     }
   }

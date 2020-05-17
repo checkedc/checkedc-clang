@@ -155,13 +155,15 @@ void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
                       ConsAction CA,
-                      bool doEqType);
+                      bool doEqType,
+                      ProgramInfo *Info);
 void constrainConsVarGeq(ConstraintVariable *LHS,
                       ConstraintVariable *RHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
                       ConsAction CA,
-                      bool doEqType);
+                      bool doEqType,
+                      ProgramInfo *I);
 
 class PointerVariableConstraint;
 class FunctionVariableConstraint;
@@ -321,11 +323,18 @@ private:
   bool Hasbody;
   bool IsStatic;
   FunctionVariableConstraint *Parent;
+  // A flag to indicate that we already equated definition and declaration
+  // constraints for this FV. This is needed to avoid infinite recursive calls.
+  bool HasDefDeclEquated;
+  // Flag to indicate whether this is a function pointer or not.
+  bool IsFunctionPtr;
 public:
   FunctionVariableConstraint() :
           ConstraintVariable(FunctionVariable, "", ""),name(""),
                                  FileName(""), Hasproto(false),
-        Hasbody(false), IsStatic(false), Parent(nullptr) { }
+        Hasbody(false), IsStatic(false), Parent(nullptr),
+                                 HasDefDeclEquated(false),
+                                 IsFunctionPtr(false) { }
 
   FunctionVariableConstraint(clang::DeclaratorDecl *D,
                              Constraints &CS, const clang::ASTContext &C);

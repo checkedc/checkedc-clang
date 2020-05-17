@@ -601,6 +601,8 @@ FunctionVariableConstraint::
   this->Hasbody = Ot->Hasbody;
   this->Hasproto = Ot->Hasproto;
   this->name = Ot->name;
+  this->HasDefDeclEquated = Ot->HasDefDeclEquated;
+  this->IsFunctionPtr = Ot->IsFunctionPtr;
   // Copy Return CVs.
   for (auto *Rt : Ot->getReturnVars()) {
     this->returnVars.insert(Rt->getCopy(CS));
@@ -641,6 +643,8 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   Hasproto = false;
   Hasbody = false;
   FileName = "";
+  HasDefDeclEquated = false;
+  IsFunctionPtr = true;
 
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     // FunctionDecl::hasBody will return true if *any* declaration in the
@@ -655,6 +659,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     ASTContext *TmpCtx = const_cast<ASTContext*>(&Ctx);
     auto PSL = PersistentSourceLoc::mkPSL(D, *TmpCtx);
     FileName = PSL.getFileName();
+    IsFunctionPtr = false;
   }
 
   if (Ty->isFunctionPointerType()) {
@@ -884,6 +889,12 @@ void FunctionVariableConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
   std::set<FVConstraint *> *DeclCons = nullptr;
   std::set<FVConstraint *> *DefnCons = nullptr;
 
+  // Is this a function pointer or constraints already equated.
+  if (IsFunctionPtr || HasDefDeclEquated) {
+    return;
+  }
+  HasDefDeclEquated = true;
+
   // Get appropriate constraints based on whether the function is static or not.
   if (IsStatic) {
     DeclCons = Info.getStaticFuncDeclConstraintSet(name, FileName);
@@ -906,9 +917,9 @@ void FunctionVariableConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
     // Equate declaration and definition constraint
     //   (Need to call twice to unify at all levels)
     constrainConsVarGeq(TmpDecl, TmpDefn, Info.getConstraints(), nullptr,
-                        Same_to_Same, false);
+                        Same_to_Same, false, &Info);
     constrainConsVarGeq(TmpDefn, TmpDecl, Info.getConstraints(), nullptr,
-                        Same_to_Same, false);
+                        Same_to_Same, false, &Info);
   }
 
 
@@ -1264,14 +1275,37 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
                       ConsAction CA,
-                      bool doEqType) {
+                      bool doEqType,
+                      ProgramInfo *I) {
+
+  // If one of the constraint is NULL, make the other constraint WILD.
+  // This can happen when a non-function pointer gets assigned to
+  // a function pointer.
+  if (LHS == nullptr || RHS == nullptr) {
+    std::string Rsn = "Assignment a non-function pointer "
+                      "to a function pointer";
+    if (LHS != nullptr) {
+      LHS->constrainToWild(CS, Rsn, PL, false);
+    }
+    if (RHS != nullptr) {
+      RHS->constrainToWild(CS, Rsn, PL, false);
+    }
+    return;
+  }
 
   if (RHS->getKind() == LHS->getKind()) {
     if (FVConstraint *FCLHS = dyn_cast<FVConstraint>(LHS)) {
       if (FVConstraint *FCRHS = dyn_cast<FVConstraint>(RHS)) {
+
+        // This is an assignment between function pointer and
+        // function pointer or a function.
+        // Equate the definition and declaration.
+        FCLHS->equateInsideOutsideVars(*I);
+        FCRHS->equateInsideOutsideVars(*I);
+
         // Constrain the return values covariantly.
         constrainConsVarGeq(FCLHS->getReturnVars(), FCRHS->getReturnVars(), CS,
-                            PL, CA, doEqType);
+                            PL, Same_to_Same, true, I);
 
         // Constrain the parameters contravariantly
         if (FCLHS->numParams() == FCRHS->numParams()) {
@@ -1280,7 +1314,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
                 FCLHS->getParamVar(i);
             std::set<ConstraintVariable *> &RHSV =
                 FCRHS->getParamVar(i);
-            constrainConsVarGeq(RHSV, LHSV, CS, PL, neg(CA), doEqType);
+            constrainConsVarGeq(RHSV, LHSV, CS, PL, Same_to_Same, doEqType, I);
           }
         } else {
           // Constrain both to be top.
@@ -1325,6 +1359,9 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
           PCLHS->constrainToWild(CS, Rsn, PL, false);
           PCRHS->constrainToWild(CS, Rsn, PL, false);
         }
+        // Equate the corresponding FunctionContraint.
+        constrainConsVarGeq(PCLHS->getFV(), PCRHS->getFV(), CS, PL,
+                            CA, doEqType, I);
       } else
         llvm_unreachable("impossible");
     } else
@@ -1336,7 +1373,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
     FVConstraint *FCRHS = dyn_cast<FVConstraint>(RHS);
     if (PCLHS && FCRHS) {
       if (FVConstraint *FCLHS = PCLHS->getFV()) {
-        constrainConsVarGeq(FCLHS, FCRHS, CS, PL, CA, doEqType);
+        constrainConsVarGeq(FCLHS, FCRHS, CS, PL, CA, doEqType, I);
       } else {
           std::string Rsn = "Function:" + FCRHS->getName() +
                             " assigned to non-function pointer.";
@@ -1358,9 +1395,12 @@ void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
                       ConsAction CA,
-                      bool doEqType) {
-  for (const auto &I : LHS)
-    for (const auto &J : RHS)
-      constrainConsVarGeq(I, J, CS, PL, CA, doEqType);
+                      bool doEqType,
+                      ProgramInfo *Info) {
+  for (const auto &I : LHS) {
+    for (const auto &J : RHS) {
+      constrainConsVarGeq(I, J, CS, PL, CA, doEqType, Info);
+    }
+  }
 }
 
