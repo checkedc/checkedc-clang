@@ -18,30 +18,41 @@
 # vim swap files
 .*.sw?
 .sw?
+#OS X specific files.
+.DS_store
+
+# Nested build directory
+/build
+# Visual Studio nested build directory
+/llvm/out
 
 #==============================================================================#
 # Explicit files to ignore (only matches one).
 #==============================================================================#
+# Various tag programs
+/tags
+/TAGS
+/GPATH
+/GRTAGS
+/GSYMS
+/GTAGS
+.gitusers
+autom4te.cache
 cscope.files
 cscope.out
-/tags
+autoconf/aclocal.m4
+autoconf/autom4te.cache
+/compile_commands.json
+# Visual Studio built-in CMake configuration
+/CMakeSettings.json
+# CLion project configuration
+/.idea
 
 #==============================================================================#
 # Directories to ignore (do not add trailing '/'s, they skip symlinks).
 #==============================================================================#
-# Clang extra user tools, which is tracked independently (clang-tools-extra).
-tools/extra
-# Sphinx build products
-docs/_build
-docs/analyzer/_build
-# debug info testsuite
-test/debuginfo-tests
-
 # VS2017 and VSCode config files.
 .vscode
 .vs
-
-# Pycharm IDE files.
-.idea/
-.cmake-build-debug/
-
+# clangd index
+.clangd
