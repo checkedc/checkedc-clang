@@ -73,10 +73,12 @@ protected:
   // so that later on we do not introduce a spurious constraint
   // making those variables WILD.
   std::set<ConstraintKey> ConstrainedVars;
-
+  // A flag to indicate that we already equated definition and declaration
+  // constraints for this FV. This is needed to avoid infinite recursive calls.
+  bool HasDefDeclEquated;
 public:
   ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) :
-          Kind(K),BaseType(T),Name(N) {}
+          Kind(K),BaseType(T),Name(N), HasDefDeclEquated(false) {}
 
   // Create a "for-rewriting" representation of this ConstraintVariable.
   // The 'emitName' parameter is true when the generated string should include
@@ -112,6 +114,7 @@ public:
   virtual bool hasNtArr(EnvironmentMap &E) = 0;
   // Get the highest type assigned to the cvars of this constraint variable.
   virtual ConstAtom *getHighestType(EnvironmentMap &E) = 0;
+  virtual void equateInsideOutsideVars(ProgramInfo &I) = 0;
 
   std::string getTy() { return BaseType; }
   std::string getOriginalTy() { return OriginalType; }
@@ -283,9 +286,11 @@ public:
   // Get the highest type assigned to the cvars of this constraint variable.
   ConstAtom *getHighestType(EnvironmentMap &E);
 
+  void equateInsideOutsideVars(ProgramInfo &I);
+
   bool isPartOfFunctionPrototype() const  { return partOFFuncPrototype; }
   // Add the provided constraint variable as an argument constraint.
-  bool addArgumentConstraint(ConstraintVariable *DstCons);
+  bool addArgumentConstraint(ConstraintVariable *DstCons, ProgramInfo &Info);
   // Get the set of constraint variables corresponding to the arguments.
   std::set<ConstraintVariable *> &getArgumentConstraints();
 
@@ -323,17 +328,16 @@ private:
   bool Hasbody;
   bool IsStatic;
   FunctionVariableConstraint *Parent;
-  // A flag to indicate that we already equated definition and declaration
-  // constraints for this FV. This is needed to avoid infinite recursive calls.
-  bool HasDefDeclEquated;
   // Flag to indicate whether this is a function pointer or not.
   bool IsFunctionPtr;
+
+  void equateFVConstraintVars(std::set<ConstraintVariable *> &Cset,
+                              ProgramInfo &Info);
 public:
   FunctionVariableConstraint() :
           ConstraintVariable(FunctionVariable, "", ""),name(""),
                                  FileName(""), Hasproto(false),
         Hasbody(false), IsStatic(false), Parent(nullptr),
-                                 HasDefDeclEquated(false),
                                  IsFunctionPtr(false) { }
 
   FunctionVariableConstraint(clang::DeclaratorDecl *D,
@@ -377,6 +381,7 @@ public:
   bool hasArr(EnvironmentMap &E);
   bool hasNtArr(EnvironmentMap &E);
   ConstAtom *getHighestType(EnvironmentMap &E);
+
   void equateInsideOutsideVars(ProgramInfo &P);
 
   ConstraintVariable *getCopy(Constraints &CS);

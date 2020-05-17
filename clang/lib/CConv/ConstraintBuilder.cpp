@@ -117,53 +117,21 @@ public:
     Decl *D = E->getCalleeDecl();
     if (!D)
       return true;
-    PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
+    std::set<ConstraintVariable *> FVCons;
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       // Get the function declaration, if exists
       if (getDeclaration(FD) != nullptr) {
         FD = getDeclaration(FD);
       }
-      // Call of a function directly.
-      unsigned i = 0;
-      for (const auto &A : E->arguments()) {
-        // Get constraint variables for the argument
-        // from with in the context of the caller body.
-        std::set<ConstraintVariable *> ArgumentConstraintVars =
-          CB.getExprConstraintVars(A, A->getType(), true, true);
+      FVCons = Info.getVariable(FD, Context, false);
 
-        if (i < FD->getNumParams()) {
-          auto *PD = FD->getParamDecl(i);
-          // Here, we need to get the constraints of the
-          // parameter from the callee's declaration.
-          std::set<ConstraintVariable *> ParameterConstraintVars =
-              Info.getVariable(PD, Context, false);
-          // Add constraint that the arguments are equal to the
-          // parameters.
-          constrainConsVarGeq(ParameterConstraintVars,
-                              ArgumentConstraintVars,
-                              Info.getConstraints(), &PL, Wild_to_Safe,
-                              false, &Info);
-        } else {
-          // This is the case of an argument passed to a function
-          // with varargs.
-          // Constrain this parameter to be wild.
-          if (HandleVARARGS) {
-            CB.constraintAllCVarsToWild(ArgumentConstraintVars,
-                                        "Passing argument to a function "
-                                        "accepting var args.", E);
-          } else {
-            if (Verbose) {
-              std::string FuncName = FD->getName();
-              errs() << "Ignoring function as it contains varargs:" << FuncName
-                     << "\n";
-            }
-          }
-        }
-
-        i++;
-      }
-    } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
-      handleFunctionPointerCall(E);
+      handleFunctionCall(E, FVCons);
+    } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {
+      // This could be a function pointer,
+      // get the declaration of the function pointer variable
+      // with in the caller context.
+      FVCons = Info.getVariable(DD, Context, true);
+      handleFunctionCall(E, FVCons);
     } else {
       // Constrain all arguments to wild.
       constraintAllArgumentsToWild(E);
@@ -245,70 +213,56 @@ public:
 
 private:
 
-  bool handleFunctionPointerCall(CallExpr *E) {
-    Decl *D = E->getCalleeDecl();
-    Constraints &CS = Info.getConstraints();
-    if (D) {
-      PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
-      if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
-        // This could be a function pointer,
-        // get the declaration of the function pointer variable
-        // with in the caller context.
-        std::set<ConstraintVariable *> V =
-            Info.getVariable(DD, Context, true);
-        if (V.size() > 0) {
-          for (const auto &C : V) {
-            FVConstraint *FV = nullptr;
-            if (PVConstraint *PVC = dyn_cast<PVConstraint>(C)) {
-              if (FVConstraint *F = PVC->getFV()) {
-                FV = F;
-              }
-            } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(C)) {
-              FV = FVC;
-            }
+  bool handleFunctionCall(CallExpr *E,
+                          std::set<ConstraintVariable *> &FuncCVars) {
+    PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
+    auto &CS = Info.getConstraints();
+    if (!FuncCVars.empty()) {
+      // Constrain arguments to be of the same type
+      // as the corresponding parameters.
+      unsigned i = 0;
+      for (const auto &A : E->arguments()) {
+        std::set<ConstraintVariable *> ArgumentConstraints =
+            CB.getExprConstraintVars(A, A->getType(),
+                                     true, true);
+        for (auto *TmpC : FuncCVars) {
+          if (PVConstraint *PVC = dyn_cast<PVConstraint>(TmpC)) {
+            TmpC = PVC->getFV();
+            assert(TmpC != nullptr &&
+                   "Function pointer with null FVConstraint.");
+          }
+          if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
 
-            if (FV) {
-              // Constrain arguments to be of the same type
-              // as the corresponding parameters.
-              unsigned i = 0;
-              for (const auto &A : E->arguments()) {
-                std::set<ConstraintVariable *> ArgumentConstraints =
-                  CB.getExprConstraintVars(A, A->getType(),
-                                             true, true);
-
-                if (i < FV->numParams()) {
-                  std::set<ConstraintVariable *> ParameterDC =
-                    FV->getParamVar(i);
-                  constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
-                                      Wild_to_Safe, false, &Info);
-                } else {
-                  // Constrain argument to wild since we can't match it
-                  // to a parameter from the type.
-                  for (const auto &V : ArgumentConstraints) {
-                    std::string argWILD = "Argument to VarArg Function:"+
-                                          FV->getName();
-                    V->constrainToWild(CS, argWILD, &PL, false);
-                  }
-                }
-                i++;
-              }
+            if (i < TargetFV->numParams()) {
+              std::set<ConstraintVariable *> ParameterDC =
+                  TargetFV->getParamVar(i);
+              constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
+                                  Wild_to_Safe, false, &Info);
             } else {
-              // This can happen when someone does something really wacky, like
-              // cast a char* to a function pointer, then call it. Constrain
-              // everything.
-              // What we do is, constraint all arguments to wild.
-              constraintAllArgumentsToWild(E);
-              // Also constraint parameter with-in the body to WILD.
-              std::string rsn = "Function pointer to/from non-function "
-                                "pointer cast.";
-              C->constrainToWild(CS, rsn, &PL, false);
+              // This is the case of an argument passed to a function
+              // with varargs.
+              // Constrain this parameter to be wild.
+              if (HandleVARARGS) {
+                CB.constraintAllCVarsToWild(ArgumentConstraints,
+                                            "Passing argument to a function "
+                                            "accepting var args.",
+                                            E);
+              } else {
+                if (Verbose) {
+                  std::string FuncName = TargetFV->getName();
+                  errs() << "Ignoring function as it contains varargs:"
+                         << FuncName << "\n";
+                }
+              }
             }
           }
-        } else {
-          // Constrain all arguments to wild.
-          constraintAllArgumentsToWild(E);
         }
+        i++;
       }
+    }  else {
+      // Constraints for the function call are empty.
+      // Constrain all arguments of the function call to wild.
+      constraintAllArgumentsToWild(E);
     }
     return true;
   }
@@ -351,6 +305,7 @@ private:
       FunctionDecl *FD = E->getDirectCallee();
       std::string Rsn = "Argument to function " +
                         (FD != nullptr ? FD->getName().str() : "pointer call");
+      Rsn += " with out Constraint vars.";
       CB.constraintAllCVarsToWild(ParameterEC, Rsn, E);
     }
   }
