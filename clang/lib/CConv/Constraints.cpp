@@ -24,76 +24,6 @@ static cl::opt<bool> DebugSolver("debug-solver",
   cl::desc("Dump intermediate solver state"),
   cl::init(false), cl::cat(SolverCategory));
 
-unsigned
-VarAtom::replaceEqConstraints(EnvironmentMap &VAtoms,
-                              class Constraints &CS) {
-  unsigned NumRemConstraints = 0;
-  std::set<Constraint *, PComp<Constraint *>> ConstraintsToRem;
-  ConstraintsToRem.clear();
-  std::set<Constraint *, PComp<Constraint *>> OldConstraints;
-  OldConstraints.clear();
-  OldConstraints.insert(Constraints.begin(), Constraints.end());
-
-  for (auto CC : OldConstraints) {
-    for (auto &VatomP : VAtoms) {
-      ConstAtom *CCons = VatomP.second;
-      VarAtom *DVatom = VatomP.first;
-      // Check if the constraint contains
-      // the provided constraint variable.
-      if (CC->containsConstraint(DVatom) && dyn_cast<Geq>(CC)) {
-        NumRemConstraints++;
-        // We will modify this constraint remove it
-        // from the local and global sets.
-        CS.removeConstraint(CC);
-        Constraints.erase(CC);
-
-        // Mark this constraint to be deleted.
-        ConstraintsToRem.insert(CC);
-
-        if (CCons != nullptr) {
-          Constraint *NewC = nullptr;
-          Atom *LHS = nullptr;
-          Atom *RHS = nullptr;
-
-          // This has to be an (G)equality constraint.
-          if (Geq *GeqCons = dyn_cast<Geq>(CC)) {
-              LHS = GeqCons->getLHS();
-              RHS = GeqCons->getRHS();
-          }
-
-          if (*LHS == *(DVatom)) {
-            // If this is of the form var1 = var2.
-            if (dyn_cast<VarAtom>(RHS)) {
-              // Create a constraint var2 = const.
-              VarAtom *VA = dyn_cast<VarAtom>(RHS);
-              NewC = CS.createGeq(VA, CCons);
-            } else {
-              // Else, create a constraint var1 = const.
-              VarAtom *VA = dyn_cast<VarAtom>(LHS);
-              NewC = CS.createGeq(VA, CCons);
-            }
-          }
-          // If we have created a new equality constraint.
-          if (NewC) {
-            // Add the constraint.
-            if (!CS.addConstraint(NewC)) {
-              // If this is already added?
-              // delete it.
-              delete(NewC);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  for (auto ToDel : ConstraintsToRem) {
-    delete(ToDel);
-  }
-
-  return NumRemConstraints;
-}
-
 Constraint::Constraint(ConstraintKind K, std::string &Rsn,
                        PersistentSourceLoc *PL): Constraint(K, Rsn) {
   if (PL != nullptr && PL->valid()) {
@@ -102,6 +32,26 @@ Constraint::Constraint(ConstraintKind K, std::string &Rsn,
     ColStart = PL->getColNo();
   }
 }
+
+auto GetCheckedSolution =
+    [](std::pair<ConstAtom *, ConstAtom *> &Sol) -> ConstAtom* {
+  return Sol.first;
+};
+
+auto GetPtrSolution =
+    [](std::pair<ConstAtom *, ConstAtom *> &Sol) -> ConstAtom* {
+  return Sol.second;
+};
+
+auto SetCheckedSolution =
+    [](std::pair<ConstAtom *, ConstAtom *> &Sol, ConstAtom *SA) -> void {
+  Sol.first = SA;
+};
+
+auto SetPtrSolution =
+    [](std::pair<ConstAtom *, ConstAtom *> &Sol, ConstAtom *SA) -> void {
+  Sol.second = SA;
+};
 
 // Remove the constraint from the global constraint set.
 bool Constraints::removeConstraint(Constraint *C) {
@@ -229,7 +179,9 @@ static bool do_solve(ConstraintsGraph &CG,
                      std::set<Implies *> &SavedImplies,
                      ConstraintsEnv & env,
                      Constraints *CS, bool doLeastSolution,
-                     unsigned &Niter, Constraints::ConstraintSet &Conflicts) {
+                     unsigned &Niter, Constraints::ConstraintSet &Conflicts,
+                     SolutionGetter SolGet,
+                     SolutionSetter SolSet) {
 
   // Initialize work list with ConstAtoms.
   std::vector<Atom *> WorkList;
@@ -244,7 +196,7 @@ static bool do_solve(ConstraintsGraph &CG,
       auto *Curr = *(WorkList.begin());
       // Remove the first element, get its solution
       WorkList.erase(WorkList.begin());
-      ConstAtom *CurrSol = env.getAssignment(Curr);
+      ConstAtom *CurrSol = env.getAssignment(Curr, SolGet);
 
       // get its neighbors
       std::set<Atom *> Neighbors;
@@ -255,14 +207,14 @@ static bool do_solve(ConstraintsGraph &CG,
         /*llvm::errs() << "Neighbor:" << NeighborA->getStr()
                      << " of " << Curr->getStr() << "\n";*/
         if (VarAtom *Neighbor = dyn_cast<VarAtom>(NeighborA)) {
-          ConstAtom *NghSol = env.getAssignment(Neighbor);
+          ConstAtom *NghSol = env.getAssignment(Neighbor, SolGet);
           // update solution if doing so would change it
           // checked? --- if sol(Neighbor) <> (sol(Neighbor) JOIN Cur)
           //   else   --- if sol(Neighbor) <> (sol(Neighbor) MEET Cur)
           if ((doLeastSolution && *NghSol < *CurrSol) ||
               (!doLeastSolution && *CurrSol < *NghSol)) {
             // ---- set sol(k) := (sol(k) JOIN/MEET Q)
-            Changed = env.assign(Neighbor,CurrSol);
+            Changed = env.assign(Neighbor, CurrSol, SolSet);
             assert (Changed);
             WorkList.push_back(Neighbor);
             /*if (Changed) {
@@ -282,8 +234,8 @@ static bool do_solve(ConstraintsGraph &CG,
       for (auto *Imp : SavedImplies) {
         Geq *Pre = Imp->getPremise();
         Geq *Con = Imp->getConclusion();
-        ConstAtom *Cca = env.getAssignment(Pre->getRHS());
-        ConstAtom *Cva = env.getAssignment(Pre->getLHS());
+        ConstAtom *Cca = env.getAssignment(Pre->getRHS(), SolGet);
+        ConstAtom *Cva = env.getAssignment(Pre->getLHS(), SolGet);
         // Premise is true, so fire the conclusion.
         if (*Cca < *Cva || *Cca == *Cva) {
           /*llvm::errs() << "Firing Conclusion:";
@@ -310,7 +262,7 @@ static bool do_solve(ConstraintsGraph &CG,
       for (Atom *A : Neighbors) {
         VarAtom *VA = dyn_cast<VarAtom>(A);
         assert (VA != nullptr && "bogus vertex");
-        ConstAtom *Csol = env.getAssignment(VA);
+        ConstAtom *Csol = env.getAssignment(VA, SolGet);
         if ((doLeastSolution && *Cbound < *Csol) ||
             (!doLeastSolution && *Csol < *Cbound)) {
           ok = false;
@@ -348,9 +300,6 @@ bool Constraints::graph_based_solve(unsigned &Niter,
   // Checked well-formedness
   environment.checkAssignment(getPtr());
 
-  // Duplicate the environment to be used for Ptr constraint solving.
-  ConstraintsEnv PtrEnv(env);
-
   // Setup the Checked Constraint Graph.
   for (const auto &C : constraints) {
     if (Geq *G = dyn_cast<Geq>(C)) {
@@ -373,7 +322,9 @@ bool Constraints::graph_based_solve(unsigned &Niter,
 
   // Solve Checked/unchecked constraints first
   bool res = do_solve(ChkCG, SavedImplies, env,
-                      this, true, Niter, Conflicts);
+                      this, true, Niter, Conflicts,
+                      GetCheckedSolution,
+                      SetCheckedSolution);
   SavedImplies.clear();
 
   // now solve PtrType constraints
@@ -388,9 +339,11 @@ bool Constraints::graph_based_solve(unsigned &Niter,
     //   - Merge the least and greatest solutions together so that function
     //     returns are the least, and parameters are the greatest. Doing this
     //     requires knowing which VarAtoms are in which position.
-    res = do_solve(PtrTypCG, Empty, PtrEnv,
-                   this, false, Niter, Conflicts);
-    env.mergePtrTypesEnv(PtrEnv);
+    res = do_solve(PtrTypCG, Empty, env,
+                   this, false, Niter, Conflicts,
+                   GetPtrSolution,
+                   SetPtrSolution);
+    env.mergePtrTypes();
   }
 
   return res;
@@ -463,11 +416,15 @@ Constraints::removeAllConstraintsOnReason(std::string &Reason,
 }
 
 VarAtom *Constraints::getOrCreateVar(ConstraintKey V) {
-  return environment.getOrCreateVar(V,getPtr());
+  return environment.getOrCreateVar(V, getDefaultSolution());
+}
+
+VarSolTy Constraints::getDefaultSolution() {
+  return std::make_pair(getPtr(), getPtr());
 }
 
 VarAtom *Constraints::getFreshVar() {
-  return environment.getFreshVar(getPtr());
+  return environment.getFreshVar(getDefaultSolution());
 }
 
 VarAtom *Constraints::getVar(ConstraintKey V) const {
@@ -488,23 +445,20 @@ WildAtom *Constraints::getWild() const {
 }
 
 ConstAtom *Constraints::getAssignment(Atom *A) {
-  return environment.getAssignment(A);
-}
-
-bool Constraints::isWild(Atom *A) {
-  return dyn_cast<WildAtom>(environment.getAssignment(A)) != nullptr;
+  return environment.getAssignment(A, GetCheckedSolution);
 }
 
 Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, bool isCheckedConstraint) {
     return new Geq(Lhs, Rhs, isCheckedConstraint);
 }
 
-Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, bool isCheckedConstraint) {
+Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
+                            bool isCheckedConstraint) {
     return new Geq(Lhs, Rhs, Rsn, isCheckedConstraint);
 }
 
 Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
-                                  PersistentSourceLoc *PL, bool isCheckedConstraint) {
+                            PersistentSourceLoc *PL, bool isCheckedConstraint) {
     if (PL != nullptr && PL->valid()) {
         // Make this invalid, if the source location is not absolute path
         // this is to avoid crashes in clangd.
@@ -521,7 +475,7 @@ Implies *Constraints::createImplies(Geq *Premise,
 
 void Constraints::resetEnvironment() {
   // Update all constraints to pointers.
-  environment.resetSolution(getPtr());
+  environment.resetSolution(getDefaultSolution());
 }
 
 bool Constraints::checkInitialEnvSanity() {
@@ -553,8 +507,12 @@ void ConstraintsEnv::print(raw_ostream &O) const {
   O << "ENVIRONMENT: \n";
   for (const auto &V : environment) {
     V.first->print(O);
-    O << " = ";
-    V.second->print(O);
+    O << " = [";
+    O << "Checked=";
+    V.second.first->print(O);
+    O << ", PtrType=";
+    V.second.second->print(O);
+    O << "]";
     O << "\n";
   }
 }
@@ -568,21 +526,23 @@ void ConstraintsEnv::dump_json(llvm::raw_ostream &O) const {
     }
     O << "{\"var\":";
     V.first->dump_json(O);
-    O << ", \"value:\":";
-    V.second->dump_json(O);
-    O << "}";
+    O << ", \"value:\":{\"checked\":";
+    V.second.first->dump_json(O);
+    O << ", \"PtrType\":";
+    V.second.second->dump_json(O);
+    O << "}}";
     addComma = true;
   }
   O << "]}";
 }
 
-VarAtom *ConstraintsEnv::getFreshVar(ConstAtom *initC) {
-  VarAtom *NewVA = getOrCreateVar(consFreeKey, initC);
+VarAtom *ConstraintsEnv::getFreshVar(VarSolTy InitC) {
+  VarAtom *NewVA = getOrCreateVar(consFreeKey, InitC);
   consFreeKey++;
   return NewVA;
 }
 
-VarAtom *ConstraintsEnv::getOrCreateVar(ConstraintKey V, ConstAtom *initC) {
+VarAtom *ConstraintsEnv::getOrCreateVar(ConstraintKey V, VarSolTy InitC) {
   VarAtom Tv(V);
   EnvironmentMap::iterator I = environment.find(&Tv);
 
@@ -590,7 +550,7 @@ VarAtom *ConstraintsEnv::getOrCreateVar(ConstraintKey V, ConstAtom *initC) {
     return I->first;
   else {
     VarAtom *V = new VarAtom(Tv);
-    environment[V] = initC;
+    environment[V] = InitC;
     return V;
   }
 }
@@ -605,15 +565,10 @@ VarAtom *ConstraintsEnv::getVar(ConstraintKey V) const {
     return nullptr;
 }
 
-ConstAtom *ConstraintsEnv::getAssignment(uint32_t V) {
-  auto CurrVar = getVar(V);
-  assert(CurrVar != nullptr && "Queried uncreated constraint variable.");
-  return environment[CurrVar];
-}
 
-ConstAtom *ConstraintsEnv::getAssignment(Atom *A) {
+ConstAtom *ConstraintsEnv::getAssignment(Atom *A, SolutionGetter SolGet) {
   if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
-    return environment[VA];
+    return SolGet(environment[VA]);
   }
   assert(dyn_cast<ConstAtom>(A) != nullptr &&
          "This is not a VarAtom or ConstAtom");
@@ -622,35 +577,38 @@ ConstAtom *ConstraintsEnv::getAssignment(Atom *A) {
 
 bool ConstraintsEnv::checkAssignment(ConstAtom *C) {
   for (const auto &EnvVar : environment) {
-    if (EnvVar.second != C) {
+    if (EnvVar.second.first != C || EnvVar.second.second != C) {
       return false;
     }
   }
   return true;
 }
 
-bool ConstraintsEnv::assign(VarAtom *V, ConstAtom *C) {
+bool ConstraintsEnv::assign(VarAtom *V, ConstAtom *C, SolutionSetter SolSet) {
   auto VI = environment.find(V);
-  VI->second = C;
+  SolSet(VI->second, C);
   return true;
 }
 
-void ConstraintsEnv::resetSolution(ConstAtom *initC) {
+void ConstraintsEnv::resetSolution(VarSolTy InitC) {
   for (auto &CurrE : environment) {
-    CurrE.second = initC;
+    CurrE.second = InitC;
   }
 }
 
-void ConstraintsEnv::mergePtrTypesEnv(ConstraintsEnv &CheckedPtrsEnv) {
+void ConstraintsEnv::mergePtrTypes() {
   for (auto &Elem : environment) {
-    ConstAtom *CAssign = getAssignment(Elem.first);
+    ConstAtom *CAssign = getAssignment(Elem.first, GetCheckedSolution);
     // If this is a checked Kind?
     // Get the Corresponding checked pointer type.
     if (dyn_cast<WildAtom>(CAssign) == nullptr) {
-      ConstAtom *OAssign = CheckedPtrsEnv.getAssignment(Elem.first);
+      ConstAtom *OAssign = getAssignment(Elem.first, GetPtrSolution);
       assert(dyn_cast<WildAtom>(OAssign) == nullptr &&
           "Expected a checked pointer type.");
-      assign(Elem.first, OAssign);
+      assign(Elem.first, OAssign, SetCheckedSolution);
+    } else {
+      // Set the pointer solution to WILD
+      assign(Elem.first, CAssign, SetPtrSolution);
     }
   }
 }

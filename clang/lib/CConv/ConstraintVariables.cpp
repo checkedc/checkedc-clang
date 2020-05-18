@@ -460,7 +460,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
       VarAtom *VA = dyn_cast<VarAtom>(V);
       assert(VA != nullptr && "Constraint variable can "
                               "be either constant or VarAtom.");
-      C = E[VA];
+      C = E[VA].first;
     }
     assert(C != nullptr);
 
@@ -1067,7 +1067,7 @@ PointerVariableConstraint::getPtrSolution(const Atom *A,
   } else if (const VarAtom *VA = dyn_cast<VarAtom>(A)) {
     // If this is a VarAtom?, we need ot fetch from solution
     // i.e., environment.
-    CS = E[const_cast<VarAtom*>(VA)];
+    CS = E[const_cast<VarAtom*>(VA)].first;
   }
   assert(CS != nullptr && "Atom should be either const or var");
   return CS;

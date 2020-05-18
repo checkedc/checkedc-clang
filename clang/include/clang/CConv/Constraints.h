@@ -136,12 +136,6 @@ public:
     return Loc;
   }
 
-  // Replace the equality constraints that contains the provided
-  // constraint variable with the constant atom.
-  unsigned replaceEqConstraints(std::map<VarAtom *, ConstAtom *,
-                                PComp<VarAtom *>> &VAtoms,
-                                class Constraints &CS);
-
   bool containsConstraint(VarAtom *ToFind) {
     // This is a VarAtom and contains is same as equality.
     return (*this == *ToFind);
@@ -527,9 +521,15 @@ private:
   Geq *conclusion;
 };
 
-typedef std::map<VarAtom *, ConstAtom *, PComp<VarAtom *>> EnvironmentMap;
+// This is the solution, the first item is Checked Solution and the second
+// is Ptr solution.
+typedef std::pair<ConstAtom *, ConstAtom *> VarSolTy;
+typedef std::map<VarAtom *, VarSolTy, PComp<VarAtom *>> EnvironmentMap;
 
 typedef uint32_t ConstraintKey;
+
+using SolutionGetter = llvm::function_ref<ConstAtom *(VarSolTy &)>;
+using SolutionSetter = llvm::function_ref<void (VarSolTy &, ConstAtom*)>;
 
 class ConstraintsEnv {
 
@@ -541,14 +541,13 @@ public:
   void dump() const;
   void print(llvm::raw_ostream &) const;
   void dump_json(llvm::raw_ostream &) const;
-  VarAtom *getFreshVar(ConstAtom *initC);
-  VarAtom *getOrCreateVar(ConstraintKey V, ConstAtom *initC);
+  VarAtom *getFreshVar(VarSolTy InitC);
+  VarAtom *getOrCreateVar(ConstraintKey V, VarSolTy InitC);
   VarAtom *getVar(ConstraintKey V) const;
-  ConstAtom *getAssignment(ConstraintKey V);
-  ConstAtom *getAssignment(Atom *A);
-  bool assign(VarAtom *V, ConstAtom *C);
-  void mergePtrTypesEnv(ConstraintsEnv &);
-  void resetSolution(ConstAtom *initC);
+  ConstAtom *getAssignment(Atom *A, SolutionGetter SolGet);
+  bool assign(VarAtom *V, ConstAtom *C, SolutionSetter SolSet);
+  void mergePtrTypes();
+  void resetSolution(VarSolTy InitC);
   bool checkAssignment(ConstAtom *C);
 
 private:
@@ -607,9 +606,6 @@ public:
   WildAtom *getWild() const;
   ConstAtom *getAssignment(Atom *A);
 
-  // Check if the provided constraint variable is WILD.
-  bool isWild(Atom *A);
-
   // Reset all constraint variables to Ptrs.
   void resetEnvironment();
 
@@ -643,6 +639,8 @@ private:
   bool addReasonBasedConstraint(Constraint *C);
   // Remove constraint from the map.
   bool removeReasonBasedConstraint(Constraint *C);
+
+  VarSolTy getDefaultSolution();
 
   // These atoms can be singletons, so we'll store them in the 
   // Constraints class.
