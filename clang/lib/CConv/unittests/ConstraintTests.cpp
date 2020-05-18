@@ -4,9 +4,9 @@
 bool AllTypes = true;
 TEST(BasicConstraintTest, insert) {
   Constraints CS;
-  VarAtom *q_0 = CS.getOrCreateVar(0);
-  VarAtom *q_1 = CS.getOrCreateVar(1);
-  VarAtom *q_2 = CS.getOrCreateVar(2);
+  VarAtom *q_0 = CS.getOrCreateVar(0, "q");
+  VarAtom *q_1 = CS.getOrCreateVar(1, "q");
+  VarAtom *q_2 = CS.getOrCreateVar(2, "q");
 
   Constraints::ConstraintSet csInsert;
   csInsert.insert(CS.createGeq(q_0, CS.getWild()));
@@ -34,9 +34,9 @@ TEST(BasicConstraintTest, ordering) {
   PtrAtom *P = CS.getPtr();
   ArrAtom *A = CS.getArr();
   WildAtom *W = CS.getWild();
-  VarAtom *q_0 = CS.getOrCreateVar(0);
-  VarAtom *q_1 = CS.getOrCreateVar(1);
-  VarAtom *q_2 = CS.getOrCreateVar(2);
+  VarAtom *q_0 = CS.getOrCreateVar(0, "q");
+  VarAtom *q_1 = CS.getOrCreateVar(1, "q");
+  VarAtom *q_2 = CS.getOrCreateVar(2, "q");
   Constraint *C1 = CS.createGeq(q_0, CS.getWild());
   Constraint *C2 = CS.createGeq(q_1, CS.getWild());
   Constraint *C4 = CS.createGeq(q_1, CS.getArr());
@@ -68,19 +68,19 @@ TEST(BasicConstraintTestGeq, solve) {
     Constraints CS;
     unsigned numI;
 
-    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0), CS.getWild())));
-    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(1), CS.getArr())));
-    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(2), CS.getNTArr())));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0, "q"), CS.getWild())));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(1, "q"), CS.getArr())));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(2, "q"), CS.getNTArr())));
 
-    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(2), CS.getOrCreateVar(1))));
-    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(3), CS.getOrCreateVar(2))));
-    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(1), CS.getOrCreateVar(2))));
-    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(2), CS.getOrCreateVar(3))));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(2, "q"), CS.getOrCreateVar(1, "q"))));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(3, "q"), CS.getOrCreateVar(2, "q"))));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(1, "q"), CS.getOrCreateVar(2, "q"))));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(2, "q"), CS.getOrCreateVar(3, "q"))));
 
-    EXPECT_TRUE(CS.addConstraint(CS.createImplies(CS.createGeq(CS.getOrCreateVar(2), CS.getWild()),
-                                                  CS.createGeq(CS.getOrCreateVar(1), CS.getWild()))));
-    EXPECT_TRUE(CS.addConstraint(CS.createImplies(CS.createGeq(CS.getOrCreateVar(2), CS.getArr()),
-                                                  CS.createGeq(CS.getOrCreateVar(3), CS.getWild()))));
+    EXPECT_TRUE(CS.addConstraint(CS.createImplies(CS.createGeq(CS.getOrCreateVar(2, "q"), CS.getWild()),
+                                                  CS.createGeq(CS.getOrCreateVar(1, "q"), CS.getWild()))));
+    EXPECT_TRUE(CS.addConstraint(CS.createImplies(CS.createGeq(CS.getOrCreateVar(2, "q"), CS.getArr()),
+                                                  CS.createGeq(CS.getOrCreateVar(3, "q"), CS.getWild()))));
 
     EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getWild(),CS.getVar(0))));
     EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getArr(),CS.getVar(1))));
@@ -100,21 +100,21 @@ TEST(BasicConstraintTest, solve) {
     Constraints CS;
     unsigned numI;
 
-    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0), CS.getWild())));
-    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(2), CS.getArr())));
-    EXPECT_TRUE(CS.addConstraint(CS.createImplies(CS.createGeq(CS.getOrCreateVar(0), CS.getWild()),
-                                                  CS.createGeq(CS.getOrCreateVar(1), CS.getWild()))));
-    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(3), CS.getOrCreateVar(2))));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0, "q"), CS.getWild())));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(2, "q"), CS.getArr())));
+    EXPECT_TRUE(CS.addConstraint(CS.createImplies(CS.createGeq(CS.getOrCreateVar(0, "q"), CS.getWild()),
+                                                  CS.createGeq(CS.getOrCreateVar(1, "q"), CS.getWild()))));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(3, "q"), CS.getOrCreateVar(2, "q"))));
 
-    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(4), CS.getOrCreateVar(5))));
-    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(5), CS.getOrCreateVar(4))));
-    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(4), CS.getWild())));
-    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(5), CS.getOrCreateVar(5))));
-    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(6), CS.getOrCreateVar(6))));
-    EXPECT_TRUE(CS.addConstraint(CS.createImplies(CS.createGeq(CS.getOrCreateVar(3), CS.getArr()),
-                                                  CS.createGeq(CS.getOrCreateVar(7), CS.getArr()))));
-    EXPECT_TRUE(CS.addConstraint(CS.createImplies(CS.createGeq(CS.getOrCreateVar(3), CS.getWild()),
-                                                  CS.createGeq(CS.getOrCreateVar(8), CS.getWild()))));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(4, "q"), CS.getOrCreateVar(5, "q"))));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(5, "q"), CS.getOrCreateVar(4, "q"))));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(4, "q"), CS.getWild())));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(5, "q"), CS.getOrCreateVar(5, "q"))));
+    EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(6, "q"), CS.getOrCreateVar(6, "q"))));
+    EXPECT_TRUE(CS.addConstraint(CS.createImplies(CS.createGeq(CS.getOrCreateVar(3, "q"), CS.getArr()),
+                                                  CS.createGeq(CS.getOrCreateVar(7, "q"), CS.getArr()))));
+    EXPECT_TRUE(CS.addConstraint(CS.createImplies(CS.createGeq(CS.getOrCreateVar(3, "q"), CS.getWild()),
+                                                  CS.createGeq(CS.getOrCreateVar(8, "q"), CS.getWild()))));
 
 //  EXPECT_TRUE(CS.solve(numI).second);
     CS.solve(numI);
@@ -142,9 +142,9 @@ TEST(BasicConstraintTest, equality) {
   // q_0 = WILD
   // q_1 = WILD
 
-  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0), CS.getWild())));
-  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(1), CS.getPtr())));
-  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0), CS.getOrCreateVar(1))));
+  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0, "q"), CS.getWild())));
+  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(1, "q"), CS.getPtr())));
+  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0, "q"), CS.getOrCreateVar(1, "q"))));
 
   CS.solve(numI);
   //EXPECT_TRUE(CS.solve(numI).second);
@@ -163,10 +163,10 @@ TEST(Conflicts, test1) {
   // q_1 = WILD
   // q_0 = q_1
 
-  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0), CS.getPtr())));
-  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0), CS.getArr())));
-  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(1), CS.getWild())));
-  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0), CS.getOrCreateVar(1))));
+  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0, "q"), CS.getPtr())));
+  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0, "q"), CS.getArr())));
+  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(1, "q"), CS.getWild())));
+  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0, "q"), CS.getOrCreateVar(1, "q"))));
 
   //EXPECT_TRUE(CS.solve(numI).second);
   CS.solve(numI);
@@ -182,7 +182,7 @@ TEST(BasicNTArrayTest, NTArrayTests) {
   // should derive
   // q_0 = NTArr
 
-  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0), CS.getNTArr())));
+  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0, "q"), CS.getNTArr())));
 
   //EXPECT_TRUE(CS.solve(numI).second);
   CS.solve(numI);
@@ -210,8 +210,8 @@ TEST(NTArrayAndArrayTest, NTArrayTests) {
   // should derive
   // q_0 = NTARR
 
-  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0), CS.getNTArr())));
-  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0), CS.getArr())));
+  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0, "q"), CS.getNTArr())));
+  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0, "q"), CS.getArr())));
 
   //EXPECT_TRUE(CS.solve(numI).second);
   CS.solve(numI);
@@ -242,10 +242,10 @@ TEST(NTArrayAndArrayConflictTest, NTArrayTests) {
   // q_0 = NTArr
 
   // set 1
-  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0), CS.getArr())));
-  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0), CS.getNTArr())));
+  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0, "q"), CS.getArr())));
+  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0, "q"), CS.getNTArr())));
   // set 2
-  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0), CS.getPtr())));
+  EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0, "q"), CS.getPtr())));
 
 
     //EXPECT_TRUE(CS.solve(numI).second);

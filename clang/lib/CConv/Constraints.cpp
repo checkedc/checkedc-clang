@@ -310,13 +310,6 @@ bool Constraints::graph_based_solve(unsigned &Niter,
     if (DebugSolver)
       PtrTypCG.dumpCGDot("ptyp_constraints_graph.dot");
 
-    // TODO: This generates the greatest solution. *Also* generate a least one:
-    //   - Duplicate PtrEnv into PtrEnvLeast, but set the initial solution to
-    //     NTArrAtom of PtrAtom. Call do_solve on PtrEnvLeast with
-    //     doLeastSolution = true
-    //   - Merge the least and greatest solutions together so that function
-    //     returns are the least, and parameters are the greatest. Doing this
-    //     requires knowing which VarAtoms are in which position.
     res = do_solve(PtrTypCG, Empty, env,
                    this, false, Niter, Conflicts,
                    false);
@@ -392,16 +385,16 @@ Constraints::removeAllConstraintsOnReason(std::string &Reason,
   return Removed;
 }
 
-VarAtom *Constraints::getOrCreateVar(ConstraintKey V) {
-  return environment.getOrCreateVar(V, getDefaultSolution());
+VarAtom *Constraints::getOrCreateVar(ConstraintKey V, std::string Name) {
+  return environment.getOrCreateVar(V, getDefaultSolution(), Name);
 }
 
 VarSolTy Constraints::getDefaultSolution() {
   return std::make_pair(getPtr(), getPtr());
 }
 
-VarAtom *Constraints::getFreshVar() {
-  return environment.getFreshVar(getDefaultSolution());
+VarAtom *Constraints::getFreshVar(std::string Name) {
+  return environment.getFreshVar(getDefaultSolution(), Name);
 }
 
 VarAtom *Constraints::getVar(ConstraintKey V) const {
@@ -513,14 +506,15 @@ void ConstraintsEnv::dump_json(llvm::raw_ostream &O) const {
   O << "]}";
 }
 
-VarAtom *ConstraintsEnv::getFreshVar(VarSolTy InitC) {
-  VarAtom *NewVA = getOrCreateVar(consFreeKey, InitC);
+VarAtom *ConstraintsEnv::getFreshVar(VarSolTy InitC, std::string Name) {
+  VarAtom *NewVA = getOrCreateVar(consFreeKey, InitC, Name);
   consFreeKey++;
   return NewVA;
 }
 
-VarAtom *ConstraintsEnv::getOrCreateVar(ConstraintKey V, VarSolTy InitC) {
-  VarAtom Tv(V);
+VarAtom *ConstraintsEnv::getOrCreateVar(ConstraintKey V, VarSolTy InitC,
+                                        std::string Name) {
+  VarAtom Tv(V,Name);
   EnvironmentMap::iterator I = environment.find(&Tv);
 
   if (I != environment.end())
