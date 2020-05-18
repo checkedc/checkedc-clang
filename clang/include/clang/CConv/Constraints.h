@@ -96,14 +96,15 @@ public:
 class VarAtom : public Atom {
   friend class Constraints;
 public:
-  VarAtom(uint32_t D) : Atom(A_Var), Loc(D) {}
+  VarAtom(uint32_t D) : Atom(A_Var), Loc(D), Name("q") {}
+  VarAtom(uint32_t D, std::string N) : Atom(A_Var), Loc(D), Name(N) {}
 
   static bool classof(const Atom *S) {
     return S->getKind() == A_Var;
   }
 
   void print(llvm::raw_ostream &O) const {
-    O << "q_" << Loc;
+    O << Name << "_" << Loc;
   }
 
   void dump(void) const {
@@ -111,7 +112,7 @@ public:
   }
 
   void dump_json(llvm::raw_ostream &O) const {
-    O << "\"q_" << Loc << "\"";
+    O << "\"" << Name << "_" << Loc << "\"";
   }
 
   bool operator==(const Atom &Other) const {
@@ -135,6 +136,9 @@ public:
   uint32_t getLoc() const {
     return Loc;
   }
+  std::string getName() const {
+    return Name;
+  }
 
   bool containsConstraint(VarAtom *ToFind) {
     // This is a VarAtom and contains is same as equality.
@@ -147,7 +151,8 @@ public:
   }
 
 private:
-  uint32_t  Loc;
+  uint32_t Loc;
+  std::string Name;
   // The constraint expressions where this variable is mentioned on the
   // LHS of an equality.
   std::set<Constraint *, PComp<Constraint *>> Constraints;
@@ -316,7 +321,7 @@ public:
 // Represents constraints of the form:
 //  - a = b
 //  - a >= b
-//  - a => b
+//  - a ==> b
 class Constraint {
 public:
   enum ConstraintKind {
@@ -451,7 +456,7 @@ private:
   bool isCheckedConstraint;
 };
 
-// a => b
+// a ==> b
 class Implies : public Constraint {
 public:
 
@@ -467,7 +472,7 @@ public:
 
   void print(llvm::raw_ostream &O) const {
     premise->print(O);
-    O << " => ";
+    O << " ==> ";
     conclusion->print(O);
   }
 
@@ -541,8 +546,8 @@ public:
   void dump() const;
   void print(llvm::raw_ostream &) const;
   void dump_json(llvm::raw_ostream &) const;
-  VarAtom *getFreshVar(VarSolTy InitC);
-  VarAtom *getOrCreateVar(ConstraintKey V, VarSolTy InitC);
+  VarAtom *getFreshVar(VarSolTy InitC, std::string Name);
+  VarAtom *getOrCreateVar(ConstraintKey V, VarSolTy InitC, std::string Name);
   VarAtom *getVar(ConstraintKey V) const;
   ConstAtom *getAssignment(Atom *A, SolutionGetter SolGet);
   bool assign(VarAtom *V, ConstAtom *C, SolutionSetter SolSet);
@@ -597,8 +602,8 @@ public:
   Geq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL, bool isCheckedConstraint = true);
   Implies *createImplies(Geq *Premise, Geq *Conclusion);
 
-  VarAtom *getFreshVar();
-  VarAtom *getOrCreateVar(ConstraintKey V);
+  VarAtom *getFreshVar(std::string Name);
+  VarAtom *getOrCreateVar(ConstraintKey V, std::string Name);
   VarAtom *getVar(ConstraintKey V) const;
   PtrAtom *getPtr() const;
   ArrAtom *getArr() const;

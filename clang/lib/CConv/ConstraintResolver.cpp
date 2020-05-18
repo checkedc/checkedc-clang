@@ -212,7 +212,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
               // unchecked too.
               // Lets add an implication.
               if (!C.empty()) {
-                NewA = CS.getFreshVar();
+                NewA = CS.getFreshVar("&q");
                 auto *Prem = CS.createGeq(*(C.begin()), CS.getWild());
                 auto *Conc = CS.createGeq(NewA, CS.getWild());
                 CS.addConstraint(CS.createImplies(Prem, Conc));

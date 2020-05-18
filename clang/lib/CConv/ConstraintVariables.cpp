@@ -80,7 +80,7 @@ PointerVariableConstraint::
       this->vars.push_back(CA);
     }
     if (VarAtom *VA = dyn_cast<VarAtom>(CV)) {
-      this->vars.push_back(CS.getFreshVar());
+      this->vars.push_back(CS.getFreshVar(VA->getName()));
     }
   }
   if (Ot->FV != nullptr) {
@@ -231,7 +231,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
     // This type is not a constant atom. We need to create a VarAtom for this.
     if (!VarCreated) {
-      vars.push_back(CS.getFreshVar());
+      vars.push_back(CS.getFreshVar("q"));
     }
     TypeIdx++;
   }
