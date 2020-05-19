@@ -533,15 +533,10 @@ typedef std::map<VarAtom *, VarSolTy, PComp<VarAtom *>> EnvironmentMap;
 
 typedef uint32_t ConstraintKey;
 
-using SolutionGetter = llvm::function_ref<ConstAtom *(VarSolTy &)>;
-using SolutionSetter = llvm::function_ref<void (VarSolTy &, ConstAtom*)>;
-
 class ConstraintsEnv {
 
 public:
   ConstraintsEnv() : consFreeKey(0) { environment.clear(); }
-  ConstraintsEnv(ConstraintsEnv &Other) : environment(Other.environment),
-                                          consFreeKey(Other.consFreeKey) { }
   EnvironmentMap &getVariables() { return environment; }
   void dump() const;
   void print(llvm::raw_ostream &) const;
@@ -549,8 +544,8 @@ public:
   VarAtom *getFreshVar(VarSolTy InitC, std::string Name);
   VarAtom *getOrCreateVar(ConstraintKey V, VarSolTy InitC, std::string Name);
   VarAtom *getVar(ConstraintKey V) const;
-  ConstAtom *getAssignment(Atom *A, SolutionGetter SolGet);
-  bool assign(VarAtom *V, ConstAtom *C, SolutionSetter SolSet);
+  ConstAtom *getAssignment(Atom *A, bool IsChecked);
+  bool assign(VarAtom *V, ConstAtom *C, bool IsChecked);
   void mergePtrTypes();
   void resetSolution(VarSolTy InitC);
   bool checkAssignment(ConstAtom *C);
