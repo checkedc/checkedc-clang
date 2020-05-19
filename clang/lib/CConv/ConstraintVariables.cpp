@@ -101,10 +101,10 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
                                                      std::string N,
                                                      Constraints &CS,
                                                      const ASTContext &C,
-                                                     bool PartOfFunc) :
+                                                     std::string *inFunc) :
         ConstraintVariable(ConstraintVariable::PointerVariable,
                            tyToStr(QT.getTypePtr()),N), FV(nullptr),
-        partOFFuncPrototype(PartOfFunc), Parent(nullptr)
+        partOFFuncPrototype(inFunc != nullptr), Parent(nullptr)
 {
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
@@ -148,6 +148,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
   bool VarCreated = false;
   uint32_t TypeIdx = 0;
+  std::string Npre = inFunc ? ((*inFunc)+":") : "";
   while (Ty->isPointerType() || Ty->isArrayType()) {
     VarCreated = false;
     // Is this a VarArg type?
@@ -231,9 +232,10 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
     // This type is not a constant atom. We need to create a VarAtom for this.
     if (!VarCreated) {
-      vars.push_back(CS.getFreshVar("q"));
+      vars.push_back(CS.getFreshVar(Npre+N));
     }
     TypeIdx++;
+    Npre = Npre + "*";
   }
 
   // If, after boiling off the pointer-ness from this type, we hit a
@@ -569,7 +571,8 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
 
   std::string FinalDec;
   if (EmittedName == false) {
-    Ss << getName();
+    if (getName() != RETVAR)
+      Ss << getName();
     FinalDec = Ss.str();
   } else {
     FinalDec = Ss.str() + Pss.str();
@@ -705,7 +708,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
       }
 
       std::set<ConstraintVariable *> C;
-      C.insert(new PVConstraint(QT, TmpD, PName, CS, Ctx, true));
+      C.insert(new PVConstraint(QT, TmpD, PName, CS, Ctx, &N));
       paramVars.push_back(C);
     }
 
@@ -728,7 +731,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   // as a type, then we will need the types for all the parameters and the
   // return values.
 
-  returnVars.insert(new PVConstraint(RT, D, "", CS, Ctx, true));
+  returnVars.insert(new PVConstraint(RT, D, RETVAR, CS, Ctx, &N));
   std::string Rsn = "Function pointer return value.";
   for ( const auto &V : returnVars) {
     if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
