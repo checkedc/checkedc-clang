@@ -1027,7 +1027,10 @@ void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C) 
     if (VarAtom *VA = dyn_cast<VarAtom>(A))
       CS.addConstraint(CS.createGeq(C, VA, false));
     else if (ConstAtom *CA = dyn_cast<ConstAtom>(A)) {
-      assert (!(*C < *CA));
+      if (*C < *CA) {
+        llvm::errs() << "Warning: " << C->getStr() << " not less than " << CA->getStr() <<"\n";
+        assert(CA == CS.getWild()); // definitely bogus if not
+      }
     }
   }
 }

@@ -64,7 +64,10 @@ void Constraints::editConstraintHook(Constraint *C) {
 // present (by syntactic equality) return false. 
 bool Constraints::addConstraint(Constraint *C) {
   // Validate the constraint to be added.
-  assert(check(C));
+  if (!check(C)) {
+    C->dump();
+    assert(false);
+  }
 
   editConstraintHook(C);
 
