@@ -166,7 +166,7 @@ static bool isAllocatorCall(Expr *E) {
 }
 
 static bool isStringLiteral(Expr *E) {
-  return dyn_cast<StringLiteral>(removeAuxillaryCasts(E));
+  return isa<StringLiteral>(removeAuxillaryCasts(E));
 }
 
 static ArrayBoundsInformation::BOUNDSINFOTYPE
