@@ -42,18 +42,18 @@ public:
 
   // Helper methods for adding bounds information to various
   // declaration objects.
-  bool addBoundsInformation(FieldDecl *ArrFd, FieldDecl *LenFD);
-  bool addBoundsInformation(FieldDecl *ArrFd, Expr *E);
-  bool addBoundsInformation(FieldDecl *ArrFd, BOUNDSINFOTYPE Binfo);
+  bool addBoundsInformation(FieldDecl *ArrFD, FieldDecl *LenFD);
+  bool addBoundsInformation(FieldDecl *ArrFD, Expr *E);
+  bool addBoundsInformation(FieldDecl *ArrFD, BOUNDSINFOTYPE Binfo);
 
   // For function parameters.
-  bool addBoundsInformation(ParmVarDecl *ArrFd, ParmVarDecl *LenFd);
-  bool addBoundsInformation(ParmVarDecl *ArrFd, BOUNDSINFOTYPE Binfo);
+  bool addBoundsInformation(ParmVarDecl *ArrFD, ParmVarDecl *LenFD);
+  bool addBoundsInformation(ParmVarDecl *ArrFD, BOUNDSINFOTYPE Binfo);
 
   // For local variables.
-  bool addBoundsInformation(VarDecl *ArrFd, VarDecl *LenFd);
-  bool addBoundsInformation(VarDecl *ArrFd, Expr *E);
-  bool addBoundsInformation(VarDecl *ArrFd, BOUNDSINFOTYPE Binfo);
+  bool addBoundsInformation(VarDecl *ArrFD, VarDecl *LenFD);
+  bool addBoundsInformation(VarDecl *ArrFD, Expr *E);
+  bool addBoundsInformation(VarDecl *ArrFD, BOUNDSINFOTYPE Binfo);
 
   // Remove all the bounds information for the provided declaration.
   bool removeBoundsInformation(Decl *D);

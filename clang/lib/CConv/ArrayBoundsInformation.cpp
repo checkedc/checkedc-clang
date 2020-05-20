@@ -26,59 +26,59 @@ ConstraintKey ArrayBoundsInformation::getTopLevelConstraintVar(Decl *D) {
   assert (false && "Invalid declaration variable requested.");
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *ArrFd,
+bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *ArrFD,
                                                   FieldDecl *LenFD) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFd);
+  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFD);
   std::string BString = LenFD->getNameAsString();
   auto BPair = std::make_pair(BoundsKind::LocalFieldBound, BString);
   return BoundsInfo[ArrCKey].insert(BPair).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *ArrFd,
+bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *ArrFD,
                                                   Expr *E) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFd);
-  auto BInfo = getExprBoundsInfo(ArrFd, E);
+  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFD);
+  auto BInfo = getExprBoundsInfo(ArrFD, E);
   if (BInfo.first != ArrayBoundsInformation::BoundsKind::InvalidKind)
     return BoundsInfo[ArrCKey].insert(BInfo).second;
   return false;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *ArrFd,
+bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *ArrFD,
                                                   BOUNDSINFOTYPE Binfo) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFd);
+  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFD);
   return BoundsInfo[ArrCKey].insert(Binfo).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(ParmVarDecl *ArrFd,
-                                                  ParmVarDecl *LenFd) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFd);
-  std::string BString = LenFd->getNameAsString();
+bool ArrayBoundsInformation::addBoundsInformation(ParmVarDecl *ArrFD,
+                                                  ParmVarDecl *LenFD) {
+  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFD);
+  std::string BString = LenFD->getNameAsString();
   auto BPair = std::make_pair(BoundsKind::LocalParamBound, BString);
   return BoundsInfo[ArrCKey].insert(BPair).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(ParmVarDecl *ArrFd,
+bool ArrayBoundsInformation::addBoundsInformation(ParmVarDecl *ArrFD,
                                                   BOUNDSINFOTYPE Binfo) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFd);
+  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFD);
   return BoundsInfo[ArrCKey].insert(Binfo).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(VarDecl *arrFD,
-                                                  VarDecl *lenFD) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(arrFD);
-  std::string BString = lenFD->getNameAsString();
+bool ArrayBoundsInformation::addBoundsInformation(VarDecl *ArrFD,
+                                                  VarDecl *LenFD) {
+  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFD);
+  std::string BString = LenFD->getNameAsString();
   auto BPair = std::make_pair(BoundsKind::LocalVarBound, BString);
   return BoundsInfo[ArrCKey].insert(BPair).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(VarDecl *ArrFd,
+bool ArrayBoundsInformation::addBoundsInformation(VarDecl *ArrFD,
                                                   BOUNDSINFOTYPE Binfo) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFd);
+  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFD);
   return BoundsInfo[ArrCKey].insert(Binfo).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(VarDecl *ArrFd, Expr *E) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFd);
+bool ArrayBoundsInformation::addBoundsInformation(VarDecl *ArrFD, Expr *E) {
+  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFD);
   auto Binfo = getExprBoundsInfo(nullptr, E);
   if (Binfo.first != ArrayBoundsInformation::BoundsKind::InvalidKind)
     return BoundsInfo[ArrCKey].insert(Binfo).second;

@@ -259,14 +259,51 @@ bool canWrite(const std::string &FilePath) {
   getAbsoluteFilePath(FilePath, fileAbsPath);
   return fileAbsPath.rfind(BaseDir, 0) == 0;
 }
+#define MAX_VAR_LEN 35
+
+static int
+lcsMemoization(std::string Str1, std::string Str2, int Str1Len,
+               int Str2Len, int Mem[][MAX_VAR_LEN]) {
+  // base case
+  if (Str1Len == 0 || Str2Len == 0)
+    return 0;
+
+  // if the same state has already been
+  // computed
+  if (Mem[Str1Len - 1][Str2Len - 1] != -1)
+    return Mem[Str1Len - 1][Str2Len - 1];
+
+  // if equal, then we store the value of the
+  // function call
+  if (Str1[Str1Len - 1] == Str2[Str2Len - 1]) {
+    // store it in arr to avoid further repetitive
+    // work in future function calls
+    Mem[Str1Len - 1][Str2Len - 1] =
+        1 + lcsMemoization(Str1, Str2, Str1Len - 1, Str2Len - 1, Mem);
+
+    return Mem[Str1Len - 1][Str2Len - 1];
+  } else {
+
+    // store it in arr to avoid further repetitive
+    // work in future function calls
+    Mem[Str1Len - 1][Str2Len - 1] =
+        std::max(lcsMemoization(Str1, Str2, Str1Len, Str2Len - 1, Mem),
+                 lcsMemoization(Str1, Str2, Str1Len - 1, Str2Len, Mem));
+
+    return Mem[Str1Len - 1][Str2Len - 1];
+  }
+}
 
 unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
                                   unsigned Str1Len, unsigned Str2Len) {
-  if (Str1Len == 0 || Str2Len == 0)
-    return 0;
-  if (Str1[Str1Len - 1] == Str2[Str2Len - 1])
-    return 1 + longestCommonSubsequence(Str1, Str2, Str1Len - 1, Str2Len - 1);
-  else
-    return std::max(longestCommonSubsequence(Str1, Str2, Str1Len, Str2Len - 1),
-                    longestCommonSubsequence(Str1, Str2, Str1Len - 1, Str2Len));
+  int Mem[MAX_VAR_LEN][MAX_VAR_LEN];
+
+  // assign -1 to all positions
+  memset(Mem, -1, sizeof(Mem));
+
+  // We expect the variable
+  assert(Str1Len < MAX_VAR_LEN &&
+         Str2Len < MAX_VAR_LEN && "Insufficient memory");
+
+  return lcsMemoization(Str1, Str2, Str1Len, Str2Len, Mem);
 }
