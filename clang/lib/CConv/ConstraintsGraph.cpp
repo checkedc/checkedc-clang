@@ -42,11 +42,11 @@ std::set<ConstAtom*> &ConstraintsGraph::getAllConstAtoms() {
 void ConstraintsGraph::addConstraint(Geq *C, Constraints &CS) {
   Atom *A1 = C->getLHS();
   if (VarAtom *VA1 = clang::dyn_cast<VarAtom>(A1)) {
-    A1 = CS.getOrCreateVar(VA1->getLoc());
+    assert(CS.getVar(VA1->getLoc()) == VA1);
   }
   Atom *A2 = C->getRHS();
   if (VarAtom *VA2 = clang::dyn_cast<VarAtom>(A2)) {
-    A2 = CS.getOrCreateVar(VA2->getLoc());
+    assert(CS.getVar(VA2->getLoc()) == VA2);
   }
   auto V1 = addVertex(A1);
   auto V2 = addVertex(A2);

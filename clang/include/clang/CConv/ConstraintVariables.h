@@ -256,7 +256,7 @@ public:
   PointerVariableConstraint(const clang::QualType &QT,
                             clang::DeclaratorDecl *D, std::string N,
                             Constraints &CS,
-                            const clang::ASTContext &C, bool PartOfFunc = false);
+                            const clang::ASTContext &C, std::string* inFunc = nullptr);
 
   const CAtoms &getCvars() const { return vars; }
 
@@ -308,6 +308,8 @@ public:
 };
 
 typedef PointerVariableConstraint PVConstraint;
+// Name for function return, for debugging
+#define RETVAR "$ret"
 
 // Constraints on a function type. Also contains a 'name' parameter for
 // when a re-write of a function pointer is needed.

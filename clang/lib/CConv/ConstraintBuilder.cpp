@@ -349,6 +349,9 @@ public:
   bool VisitFunctionDecl(FunctionDecl *D) {
     FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
 
+    if (Verbose)
+      errs() << "Analyzing function " << D->getName() << "\n";
+
     if (FL.isValid()) {
 
       Info.addVariable(D, Context);
@@ -382,6 +385,9 @@ public:
         }
       }
     }
+
+    if (Verbose)
+      errs() << "Done analyzing function\n";
 
     return true;
   }

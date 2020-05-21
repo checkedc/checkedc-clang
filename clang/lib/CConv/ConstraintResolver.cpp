@@ -212,10 +212,15 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
               // unchecked too.
               // Lets add an implication.
               if (!C.empty()) {
-                NewA = CS.getFreshVar();
-                auto *Prem = CS.createGeq(*(C.begin()), CS.getWild());
-                auto *Conc = CS.createGeq(NewA, CS.getWild());
-                CS.addConstraint(CS.createImplies(Prem, Conc));
+                Atom *A = *C.begin();
+                if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
+                  NewA = CS.getFreshVar("&q", VarAtom::V_Other);
+                  auto *Prem = CS.createGeq(VA, CS.getWild());
+                  auto *Conc = CS.createGeq(NewA, CS.getWild());
+                  CS.addConstraint(CS.createImplies(Prem, Conc));
+                } else if (ConstAtom *C = dyn_cast<WildAtom>(A)) {
+                  NewA = CS.getWild();
+                } // else stick with PTR
               }
               C.insert(C.begin(), NewA);
               bool a = PVC->getArrPresent();

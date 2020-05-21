@@ -4,8 +4,20 @@
 
 #include <stdlib.h>
 
-#include "linkedlist.h"
-
+typedef struct node Node;
+typedef struct list List;
+List * makelist();
+void add(int data, List * list);
+void delete(int data, List * list);
+void display(List * list);
+void reverse(List * list);
+void destroy(List * list);
+//CHECK: _Ptr<List> makelist(void);
+//CHECK-NEXT: void add(int data, _Ptr<List> list);
+//CHECK-NEXT: void delete(int data, _Ptr<List> list);
+//CHECK-NEXT: void display(_Ptr<List> list);
+//CHECK-NEXT: void reverse(_Ptr<List> list);
+//CHECK-NEXT: void destroy(List *list);
 
 
 struct node {
@@ -27,7 +39,7 @@ struct list {
 
 
 Node * createnode(int data);
-//CHECK: Node * createnode(int data);
+//CHECK: Node *createnode(int data) : itype(_Ptr<Node>);
 
 
 
@@ -48,7 +60,8 @@ Node * createnode(int data){
   return newNode;
 
 }
-//CHECK: Node * newNode = malloc(sizeof(Node));
+//CHECK: Node *createnode(int data) : itype(_Ptr<Node>){
+//CHECK: _Ptr<Node> newNode =  malloc(sizeof(Node));
 
 
 
@@ -67,8 +80,8 @@ List * makelist(){
   return list;
 
 }
-//CHECK: List * makelist(){
-//CHECK: List * list = malloc(sizeof(List));
+//CHECK: _Ptr<List> makelist(void){
+//CHECK: _Ptr<List> list =  malloc(sizeof(List));
 
 
 

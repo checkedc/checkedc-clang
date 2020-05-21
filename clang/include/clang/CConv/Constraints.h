@@ -72,8 +72,6 @@ public:
   virtual bool operator==(const Atom &) const = 0;
   virtual bool operator!=(const Atom &) const = 0;
   virtual bool operator<(const Atom &) const = 0;
-  // Check if this atom contains the provided atom.
-  virtual bool containsConstraint(VarAtom *) = 0;
 };
 
 class ConstAtom : public Atom {
@@ -85,25 +83,36 @@ public:
     // Something is a class of ConstAtom if it ISN'T a Var.
     return A->getKind() != A_Var;
   }
-
-  virtual bool containsConstraint(VarAtom *) {
-    // Constant atom can never contain a VarAtom.
-    return false;
-  }
 };
 
 // This refers to a location that we are trying to solve for.
 class VarAtom : public Atom {
   friend class Constraints;
 public:
-  VarAtom(uint32_t D) : Atom(A_Var), Loc(D) {}
+  enum VarKind {
+    V_Param,
+    V_Return,
+    V_Other
+  };
+
+  VarAtom(uint32_t D) : Atom(A_Var), Loc(D), Name("q"), KindV(V_Other) {}
+  VarAtom(uint32_t D, std::string N) : Atom(A_Var), Loc(D), Name(N), KindV(V_Other) {}
+  VarAtom(uint32_t D, std::string N, VarKind V) : Atom(A_Var), Loc(D), Name(N), KindV(V) {}
 
   static bool classof(const Atom *S) {
     return S->getKind() == A_Var;
   }
 
+  static std::string VarKindToStr(VarKind V) {
+    switch (V) {
+    case V_Param: return ">>";
+    case V_Return: return "<<";
+    case V_Other: return "";
+    }
+  }
+
   void print(llvm::raw_ostream &O) const {
-    O << "q_" << Loc;
+    O << VarKindToStr(KindV) << Name << "_" << Loc;
   }
 
   void dump(void) const {
@@ -111,7 +120,7 @@ public:
   }
 
   void dump_json(llvm::raw_ostream &O) const {
-    O << "\"q_" << Loc << "\"";
+    O << "\"" << VarKindToStr(KindV) << Name << "_" << Loc << "\"";
   }
 
   bool operator==(const Atom &Other) const {
@@ -135,16 +144,11 @@ public:
   uint32_t getLoc() const {
     return Loc;
   }
-
-  // Replace the equality constraints that contains the provided
-  // constraint variable with the constant atom.
-  unsigned replaceEqConstraints(std::map<VarAtom *, ConstAtom *,
-                                PComp<VarAtom *>> &VAtoms,
-                                class Constraints &CS);
-
-  bool containsConstraint(VarAtom *ToFind) {
-    // This is a VarAtom and contains is same as equality.
-    return (*this == *ToFind);
+  std::string getName() const {
+    return Name;
+  }
+  VarKind getVarKind() const {
+    return KindV;
   }
 
   // Returns the constraints associated with this atom.
@@ -153,7 +157,9 @@ public:
   }
 
 private:
-  uint32_t  Loc;
+  uint32_t Loc;
+  std::string Name;
+  const VarKind KindV;
   // The constraint expressions where this variable is mentioned on the
   // LHS of an equality.
   std::set<Constraint *, PComp<Constraint *>> Constraints;
@@ -193,12 +199,7 @@ public:
     return !(*this == Other);
   }
 
-  bool operator<(const Atom &Other) const {
-    if (*this == Other)
-      return false;
-    else
-      return true;
-  }
+  bool operator<(const Atom &Other) const { return !(*this == Other); }
 };
 
 // This refers to the constant ARR.
@@ -231,10 +232,7 @@ public:
   }
 
   bool operator<(const Atom &Other) const {
-    if (llvm::isa<NTArrAtom>(&Other) || *this == Other)
-      return false;
-    else
-      return true;
+    return !(llvm::isa<NTArrAtom>(&Other) || *this == Other);
   }
 };
 
@@ -268,11 +266,8 @@ public:
   }
 
   bool operator<(const Atom &Other) const {
-    if (llvm::isa<ArrAtom>(&Other) || llvm::isa<NTArrAtom>(&Other) ||
-	    *this == Other)
-      return false;
-    else
-      return true;
+    return !(llvm::isa<ArrAtom>(&Other) || llvm::isa<NTArrAtom>(&Other) ||
+             *this == Other);
   }
 };
 
@@ -298,10 +293,7 @@ public:
   }
 
   bool operator==(const Atom &Other) const {
-    if (llvm::isa<WildAtom>(&Other))
-      return true;
-    else
-      return false;
+    return llvm::isa<WildAtom>(&Other);
   }
 
   bool operator!=(const Atom &Other) const {
@@ -309,12 +301,8 @@ public:
   }
 
   bool operator<(const Atom &Other) const {
-    if (llvm::isa<ArrAtom>(&Other) ||
-        llvm::isa<NTArrAtom>(&Other) || llvm::isa<PtrAtom>(&Other) ||
-            *this == Other)
-      return false;
-    else
-      return true;
+    return !(llvm::isa<ArrAtom>(&Other) || llvm::isa<NTArrAtom>(&Other) ||
+             llvm::isa<PtrAtom>(&Other) || *this == Other);
   }
 };
 
@@ -322,7 +310,7 @@ public:
 // Represents constraints of the form:
 //  - a = b
 //  - a >= b
-//  - a => b
+//  - a ==> b
 class Constraint {
 public:
   enum ConstraintKind {
@@ -356,9 +344,6 @@ public:
   virtual std::string getReason() {
     return REASON;
   }
-  // Check if the provided constraint contains the
-  // provided VarAtom.
-  virtual bool containsConstraint(VarAtom *toFind) = 0;
 };
 
 // a >= b
@@ -406,6 +391,7 @@ public:
 
     Atom *getLHS(void) const { return lhs; }
     Atom *getRHS(void) const { return rhs; }
+
     void setChecked(ConstAtom *C) {
       assert(!isCheckedConstraint && llvm::isa<ConstAtom>(lhs));
       lhs = rhs; // reverse direction for checked constraint
@@ -447,17 +433,13 @@ public:
             return C_Geq < K;
     }
 
-    bool containsConstraint(VarAtom *ToFind) {
-        return lhs->containsConstraint(ToFind) || rhs->containsConstraint(ToFind);
-    }
-
 private:
   Atom *lhs;
   Atom *rhs;
   bool isCheckedConstraint;
 };
 
-// a => b
+// a ==> b
 class Implies : public Constraint {
 public:
 
@@ -473,7 +455,7 @@ public:
 
   void print(llvm::raw_ostream &O) const {
     premise->print(O);
-    O << " => ";
+    O << " ==> ";
     conclusion->print(O);
   }
 
@@ -517,17 +499,15 @@ public:
       return C_Imp < K;
   }
 
-  bool containsConstraint(VarAtom *ToFind) {
-    return premise->containsConstraint(ToFind) ||
-           conclusion->containsConstraint(ToFind);
-  }
-
 private:
   Geq *premise;
   Geq *conclusion;
 };
 
-typedef std::map<VarAtom *, ConstAtom *, PComp<VarAtom *>> EnvironmentMap;
+// This is the solution, the first item is Checked Solution and the second
+// is Ptr solution.
+typedef std::pair<ConstAtom *, ConstAtom *> VarSolTy;
+typedef std::map<VarAtom *, VarSolTy, PComp<VarAtom *>> EnvironmentMap;
 
 typedef uint32_t ConstraintKey;
 
@@ -535,20 +515,18 @@ class ConstraintsEnv {
 
 public:
   ConstraintsEnv() : consFreeKey(0) { environment.clear(); }
-  ConstraintsEnv(ConstraintsEnv &Other) : environment(Other.environment),
-                                          consFreeKey(Other.consFreeKey) { }
   EnvironmentMap &getVariables() { return environment; }
   void dump() const;
   void print(llvm::raw_ostream &) const;
   void dump_json(llvm::raw_ostream &) const;
-  VarAtom *getFreshVar(ConstAtom *initC);
-  VarAtom *getOrCreateVar(ConstraintKey V, ConstAtom *initC);
+  VarAtom *getFreshVar(VarSolTy InitC, std::string Name, VarAtom::VarKind VK);
+  VarAtom *getOrCreateVar(ConstraintKey V, VarSolTy InitC, std::string Name,
+                          VarAtom::VarKind VK);
   VarAtom *getVar(ConstraintKey V) const;
-  ConstAtom *getAssignment(ConstraintKey V);
-  ConstAtom *getAssignment(Atom *A);
-  bool assign(VarAtom *V, ConstAtom *C);
-  void mergePtrTypesEnv(ConstraintsEnv &);
-  void resetSolution(ConstAtom *initC);
+  ConstAtom *getAssignment(Atom *A, bool IsChecked);
+  bool assign(VarAtom *V, ConstAtom *C, bool IsChecked);
+  void mergePtrTypes();
+  void resetSolution(VarSolTy InitC);
   bool checkAssignment(ConstAtom *C);
 
 private:
@@ -598,17 +576,15 @@ public:
   Geq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL, bool isCheckedConstraint = true);
   Implies *createImplies(Geq *Premise, Geq *Conclusion);
 
-  VarAtom *getFreshVar();
-  VarAtom *getOrCreateVar(ConstraintKey V);
+  VarAtom *getFreshVar(std::string Name, VarAtom::VarKind VK);
+  VarAtom *getOrCreateVar(ConstraintKey V, std::string Name,
+                          VarAtom::VarKind VK);
   VarAtom *getVar(ConstraintKey V) const;
   PtrAtom *getPtr() const;
   ArrAtom *getArr() const;
   NTArrAtom *getNTArr() const;
   WildAtom *getWild() const;
   ConstAtom *getAssignment(Atom *A);
-
-  // Check if the provided constraint variable is WILD.
-  bool isWild(Atom *A);
 
   // Reset all constraint variables to Ptrs.
   void resetEnvironment();
@@ -644,6 +620,8 @@ private:
   // Remove constraint from the map.
   bool removeReasonBasedConstraint(Constraint *C);
 
+  VarSolTy getDefaultSolution();
+
   // These atoms can be singletons, so we'll store them in the 
   // Constraints class.
   PtrAtom *PrebuiltPtr;
@@ -651,6 +629,5 @@ private:
   NTArrAtom *PrebuiltNTArr;
   WildAtom *PrebuiltWild;
 };
-
 
 #endif

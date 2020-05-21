@@ -80,7 +80,7 @@ PointerVariableConstraint::
       this->vars.push_back(CA);
     }
     if (VarAtom *VA = dyn_cast<VarAtom>(CV)) {
-      this->vars.push_back(CS.getFreshVar());
+      this->vars.push_back(CS.getFreshVar(VA->getName(), VA->getVarKind()));
     }
   }
   if (Ot->FV != nullptr) {
@@ -101,10 +101,10 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
                                                      std::string N,
                                                      Constraints &CS,
                                                      const ASTContext &C,
-                                                     bool PartOfFunc) :
+                                                     std::string *inFunc) :
         ConstraintVariable(ConstraintVariable::PointerVariable,
                            tyToStr(QT.getTypePtr()),N), FV(nullptr),
-        partOFFuncPrototype(PartOfFunc), Parent(nullptr)
+        partOFFuncPrototype(inFunc != nullptr), Parent(nullptr)
 {
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
@@ -157,6 +157,10 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
   bool VarCreated = false;
   uint32_t TypeIdx = 0;
+  std::string Npre = inFunc ? ((*inFunc)+":") : "";
+  VarAtom::VarKind VK =
+      inFunc ? (N == RETVAR ? VarAtom::V_Return : VarAtom::V_Param)
+             : VarAtom::V_Other;
   while (Ty->isPointerType() || Ty->isArrayType()) {
     VarCreated = false;
     // Is this a VarArg type?
@@ -240,9 +244,11 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
     // This type is not a constant atom. We need to create a VarAtom for this.
     if (!VarCreated) {
-      vars.push_back(CS.getFreshVar());
+      vars.push_back(CS.getFreshVar(Npre + N, VK));
     }
     TypeIdx++;
+    Npre = Npre + "*";
+    VK = VarAtom::V_Other; // only the outermost pointer considered a param
   }
 
   // If, after boiling off the pointer-ness from this type, we hit a
@@ -469,7 +475,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
       VarAtom *VA = dyn_cast<VarAtom>(V);
       assert(VA != nullptr && "Constraint variable can "
                               "be either constant or VarAtom.");
-      C = E[VA];
+      C = E[VA].first;
     }
     assert(C != nullptr);
 
@@ -578,7 +584,8 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
 
   std::string FinalDec;
   if (EmittedName == false) {
-    Ss << getName();
+    if (getName() != RETVAR)
+      Ss << getName();
     FinalDec = Ss.str();
   } else {
     FinalDec = Ss.str() + Pss.str();
@@ -714,7 +721,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
       }
 
       std::set<ConstraintVariable *> C;
-      C.insert(new PVConstraint(QT, TmpD, PName, CS, Ctx, true));
+      C.insert(new PVConstraint(QT, TmpD, PName, CS, Ctx, &N));
       paramVars.push_back(C);
     }
 
@@ -737,7 +744,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   // as a type, then we will need the types for all the parameters and the
   // return values.
 
-  returnVars.insert(new PVConstraint(RT, D, "", CS, Ctx, true));
+  returnVars.insert(new PVConstraint(RT, D, RETVAR, CS, Ctx, &N));
   std::string Rsn = "Function pointer return value.";
   for ( const auto &V : returnVars) {
     if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
@@ -1033,7 +1040,10 @@ void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C) 
     if (VarAtom *VA = dyn_cast<VarAtom>(A))
       CS.addConstraint(CS.createGeq(C, VA, false));
     else if (ConstAtom *CA = dyn_cast<ConstAtom>(A)) {
-      assert (!(*C < *CA));
+      if (*C < *CA) {
+        llvm::errs() << "Warning: " << C->getStr() << " not less than " << CA->getStr() <<"\n";
+        assert(CA == CS.getWild()); // definitely bogus if not
+      }
     }
   }
 }
@@ -1076,7 +1086,7 @@ PointerVariableConstraint::getPtrSolution(const Atom *A,
   } else if (const VarAtom *VA = dyn_cast<VarAtom>(A)) {
     // If this is a VarAtom?, we need ot fetch from solution
     // i.e., environment.
-    CS = E[const_cast<VarAtom*>(VA)];
+    CS = E[const_cast<VarAtom*>(VA)].first;
   }
   assert(CS != nullptr && "Atom should be either const or var");
   return CS;

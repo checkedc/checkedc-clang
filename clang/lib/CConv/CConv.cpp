@@ -343,7 +343,7 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   //   but these no longer used in new solving algorithm
 
   // Delete the constraint that make the provided targetPtr WILD.
-  VarAtom *VA = CS.getOrCreateVar(targetPtr);
+  VarAtom *VA = CS.getOrCreateVar(targetPtr, "q", VarAtom::V_Other);
   Geq newE(VA, CS.getWild());
   Constraint *originalConstraint = *CS.getConstraints().find(&newE);
   CS.removeConstraint(originalConstraint);
@@ -387,7 +387,7 @@ void CConvInterface::InvalidateAllConstraintsWithReason(
     Geq*TCons = dyn_cast<Geq>(toDelCons);
     auto *Vatom = dyn_cast<VarAtom>(TCons->getLHS());
     assert(Vatom != nullptr && "Equality constraint with out VarAtom as LHS");
-    VarAtom *VS = CS.getOrCreateVar(Vatom->getLoc());
+    VarAtom *VS = CS.getOrCreateVar(Vatom->getLoc(), "q", VarAtom::V_Other);
     VS->getAllConstraints().erase(TCons);
     delete (toDelCons);
   }
@@ -409,7 +409,7 @@ bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
   // ResetAllPointerConstraints();
 
   // Delete ALL the constraints that have the same given reason.
-  VarAtom *VA = CS.getOrCreateVar(PtrKey);
+  VarAtom *VA = CS.getOrCreateVar(PtrKey, "q", VarAtom::V_Other);
   Geq NewE(VA, CS.getWild());
   Constraint *OriginalConstraint = *CS.getConstraints().find(&NewE);
   InvalidateAllConstraintsWithReason(OriginalConstraint);
