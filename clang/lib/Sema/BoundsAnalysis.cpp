@@ -125,7 +125,10 @@ void BoundsAnalysis::ComputeGenSets() {
     ElevatedCFGBlock *EB = item.second;
 
     // Check if this is a switch case and whether the case label is non-null.
-    // We can only widen the bounds for a non-null case label.
+    // In a switch, we can only widen the bounds in the following cases:
+    // 1. Inside a case with a non-null case label.
+    // 2. Inside the default case, only if there is another case with a null
+    // case label.
     bool IsSwitchCaseNull = CheckIsSwitchCaseNull(EB);
 
     // Iterate through all preds of EB.
@@ -154,7 +157,7 @@ void BoundsAnalysis::ComputeGenSets() {
       if (EB->Block == FalseOrDefaultBlock)
         continue;
 
-      // Get the edge condition and fill the Gen set.
+      // Get the edge condition.
       Expr *E = GetTerminatorCondition(pred);
       if (!E)
         continue;
@@ -162,19 +165,23 @@ void BoundsAnalysis::ComputeGenSets() {
       // Check if the pred ends in a switch statement.
       const Stmt *TerminatorStmt = pred->getTerminatorStmt();
       if (TerminatorStmt && isa<SwitchStmt>(TerminatorStmt)) {
-        // If the switch expression is integral, strip off the
-        // IntegralCast.
+
+        // According to C11 standard section 6.8.4.2, the controlling
+        // expression of a switch shall have integer type.
+        // If we have switch(*p) where p is _Nt_array_ptr<char> then it casted
+        // to integer type and an IntegralCast is generated. Here we strip off
+        // the IntegralCast.
         if (auto *CE = dyn_cast<CastExpr>(E)) {
           if (CE->getCastKind() == CastKind::CK_IntegralCast)
             E = CE->getSubExpr();
         }
 
-        // We can widen the bounds only if the current block has a non-null
-        // case statement.
+        // If the current block has a non-null case label, we cannot widen the
+        // bounds inside that case.
         if (IsSwitchCaseNull) {
-          // If we establish that another label in a switch statement tests for
-          // 0, then the default case will handle non-zero case, and the bounds
-          // can be widened there.
+          // If we are here it means there is a case label that tests for null.
+          // This means that the default case is the non-null case. Hence, we
+          // can widen the bounds inside the default case.
           if (FalseOrDefaultBlock && FalseOrDefaultBlock->getLabel() &&
               isa<DefaultStmt>(FalseOrDefaultBlock->getLabel()))
             FillGenSet(E, BlockMap[pred], BlockMap[FalseOrDefaultBlock]);
