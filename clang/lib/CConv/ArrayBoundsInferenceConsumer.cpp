@@ -119,7 +119,7 @@ static bool needNTArrayBounds(ConstraintVariable *CV,
 }
 
 static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C) {
-  std::set<ConstraintVariable *> ConsVar = Info.getVariable(D, C);
+  std::set<ConstraintVariable *> ConsVar = Info.getVariable(D, C, true);
   for (auto CurrCVar : ConsVar) {
     if (needArrayBounds(CurrCVar, Info.getConstraints().getVariables()))
       return true;

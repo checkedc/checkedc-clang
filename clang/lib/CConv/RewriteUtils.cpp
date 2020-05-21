@@ -655,7 +655,6 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         ReturnHandled = true;
         DidAny = true;
         std::string Ctype = "";
-        DidAny = true;
         // Definition is more precise than declaration.
         // Section 5.3:
         // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
@@ -671,7 +670,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           // all the uses of the function converts the return value
           // into a more precise type.
           // Do not change the type
-          ReturnVar = Decl->mkString(Info.getConstraints().getVariables());
+          ReturnVar = Defn->mkString(Info.getConstraints().getVariables());
           EndStuff = getExistingIType(Decl, Defn, Declaration);
         }
       }
