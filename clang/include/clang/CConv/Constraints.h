@@ -514,25 +514,28 @@ typedef uint32_t ConstraintKey;
 class ConstraintsEnv {
 
 public:
-  ConstraintsEnv() : consFreeKey(0) { environment.clear(); }
+  ConstraintsEnv() : consFreeKey(0), useChecked(true) { environment.clear(); }
   EnvironmentMap &getVariables() { return environment; }
   void dump() const;
   void print(llvm::raw_ostream &) const;
   void dump_json(llvm::raw_ostream &) const;
+  /* constraint variable generation */
   VarAtom *getFreshVar(VarSolTy InitC, std::string Name, VarAtom::VarKind VK);
   VarAtom *getOrCreateVar(ConstraintKey V, VarSolTy InitC, std::string Name,
                           VarAtom::VarKind VK);
   VarAtom *getVar(ConstraintKey V) const;
-  ConstAtom *getAssignment(Atom *A, bool IsChecked);
-  bool assign(VarAtom *V, ConstAtom *C, bool IsChecked);
+  /* solving */
+  ConstAtom *getAssignment(Atom *A);
+  bool assign(VarAtom *V, ConstAtom *C);
+  void doCheckedSolve(bool doC) { useChecked = doC; }
   void mergePtrTypes();
   void resetSolution(VarSolTy InitC);
-  bool checkAssignment(ConstAtom *C);
+  bool checkAssignment(VarSolTy C);
 
 private:
-  EnvironmentMap environment;
-  // Next available integer to assign to a variable.
-  uint32_t consFreeKey;
+  EnvironmentMap environment; // Solution map: Var --> Sol
+  uint32_t consFreeKey; // Next available integer to assign to a Var
+  bool useChecked; // Which solution map to use -- checked (vs. ptyp)
 };
 
 class ConstraintVariable;
@@ -622,7 +625,7 @@ private:
 
   VarSolTy getDefaultSolution();
 
-  // These atoms can be singletons, so we'll store them in the 
+  // These atoms can be singletons, so we'll store them in the
   // Constraints class.
   PtrAtom *PrebuiltPtr;
   ArrAtom *PrebuiltArr;
