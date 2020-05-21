@@ -168,9 +168,9 @@ void BoundsAnalysis::ComputeGenSets() {
 
         // According to C11 standard section 6.8.4.2, the controlling
         // expression of a switch shall have integer type.
-        // If we have switch(*p) where p is _Nt_array_ptr<char> then it casted
-        // to integer type and an IntegralCast is generated. Here we strip off
-        // the IntegralCast.
+        // If we have switch(*p) where p is _Nt_array_ptr<char> then it is
+        // casted to integer type and an IntegralCast is generated. Here we
+        // strip off the IntegralCast.
         if (auto *CE = dyn_cast<CastExpr>(E)) {
           if (CE->getCastKind() == CastKind::CK_IntegralCast)
             E = CE->getSubExpr();
