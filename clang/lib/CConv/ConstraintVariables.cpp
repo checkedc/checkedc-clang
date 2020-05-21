@@ -80,7 +80,7 @@ PointerVariableConstraint::
       this->vars.push_back(CA);
     }
     if (VarAtom *VA = dyn_cast<VarAtom>(CV)) {
-      this->vars.push_back(CS.getFreshVar(VA->getName()));
+      this->vars.push_back(CS.getFreshVar(VA->getName(), VA->getVarKind()));
     }
   }
   if (Ot->FV != nullptr) {
@@ -149,6 +149,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   bool VarCreated = false;
   uint32_t TypeIdx = 0;
   std::string Npre = inFunc ? ((*inFunc)+":") : "";
+  VarAtom::VarKind VK =
+      inFunc ? (N == RETVAR ? VarAtom::V_Return : VarAtom::V_Param)
+             : VarAtom::V_Other;
   while (Ty->isPointerType() || Ty->isArrayType()) {
     VarCreated = false;
     // Is this a VarArg type?
@@ -232,10 +235,11 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
     // This type is not a constant atom. We need to create a VarAtom for this.
     if (!VarCreated) {
-      vars.push_back(CS.getFreshVar(Npre+N));
+      vars.push_back(CS.getFreshVar(Npre + N, VK));
     }
     TypeIdx++;
     Npre = Npre + "*";
+    VK = VarAtom::V_Other; // only the outermost pointer considered a param
   }
 
   // If, after boiling off the pointer-ness from this type, we hit a

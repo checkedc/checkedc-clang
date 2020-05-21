@@ -214,7 +214,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
               if (!C.empty()) {
                 Atom *A = *C.begin();
                 if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
-                  NewA = CS.getFreshVar("&q");
+                  NewA = CS.getFreshVar("&q", VarAtom::V_Other);
                   auto *Prem = CS.createGeq(VA, CS.getWild());
                   auto *Conc = CS.createGeq(NewA, CS.getWild());
                   CS.addConstraint(CS.createImplies(Prem, Conc));

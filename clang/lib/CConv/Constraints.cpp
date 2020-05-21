@@ -388,16 +388,17 @@ Constraints::removeAllConstraintsOnReason(std::string &Reason,
   return Removed;
 }
 
-VarAtom *Constraints::getOrCreateVar(ConstraintKey V, std::string Name) {
-  return environment.getOrCreateVar(V, getDefaultSolution(), Name);
+VarAtom *Constraints::getOrCreateVar(ConstraintKey V, std::string Name,
+                                     VarAtom::VarKind VK) {
+  return environment.getOrCreateVar(V, getDefaultSolution(), Name, VK);
 }
 
 VarSolTy Constraints::getDefaultSolution() {
   return std::make_pair(getPtr(), getPtr());
 }
 
-VarAtom *Constraints::getFreshVar(std::string Name) {
-  return environment.getFreshVar(getDefaultSolution(), Name);
+VarAtom *Constraints::getFreshVar(std::string Name, VarAtom::VarKind VK) {
+  return environment.getFreshVar(getDefaultSolution(), Name, VK);
 }
 
 VarAtom *Constraints::getVar(ConstraintKey V) const {
@@ -509,15 +510,16 @@ void ConstraintsEnv::dump_json(llvm::raw_ostream &O) const {
   O << "]}";
 }
 
-VarAtom *ConstraintsEnv::getFreshVar(VarSolTy InitC, std::string Name) {
-  VarAtom *NewVA = getOrCreateVar(consFreeKey, InitC, Name);
+VarAtom *ConstraintsEnv::getFreshVar(VarSolTy InitC, std::string Name,
+                                     VarAtom::VarKind VK) {
+  VarAtom *NewVA = getOrCreateVar(consFreeKey, InitC, Name, VK);
   consFreeKey++;
   return NewVA;
 }
 
 VarAtom *ConstraintsEnv::getOrCreateVar(ConstraintKey V, VarSolTy InitC,
-                                        std::string Name) {
-  VarAtom Tv(V,Name);
+                                        std::string Name, VarAtom::VarKind VK) {
+  VarAtom Tv(V,Name,VK);
   EnvironmentMap::iterator I = environment.find(&Tv);
 
   if (I != environment.end())
