@@ -150,8 +150,8 @@ void BoundsAnalysis::ComputeGenSets() {
       if (pred->succ_size() == 0)
         continue;
 
-      const CFGBlock *FalseDefaultBlock = *(pred->succs().end() - 1);
-      if (EB->Block == FalseDefaultBlock)
+      const CFGBlock *FalseOrDefaultBlock = *(pred->succs().end() - 1);
+      if (EB->Block == FalseOrDefaultBlock)
         continue;
 
       // Get the edge condition and fill the Gen set.
@@ -175,9 +175,9 @@ void BoundsAnalysis::ComputeGenSets() {
           // If we establish that another label in a switch statement tests for
           // 0, then the default case will handle non-zero case, and the bounds
           // can be widened there.
-          if (FalseDefaultBlock && FalseDefaultBlock->getLabel() &&
-              isa<DefaultStmt>(FalseDefaultBlock->getLabel()))
-            FillGenSet(E, BlockMap[pred], BlockMap[FalseDefaultBlock]);
+          if (FalseOrDefaultBlock && FalseOrDefaultBlock->getLabel() &&
+              isa<DefaultStmt>(FalseOrDefaultBlock->getLabel()))
+            FillGenSet(E, BlockMap[pred], BlockMap[FalseOrDefaultBlock]);
 
           continue;
         }
