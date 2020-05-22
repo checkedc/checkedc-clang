@@ -46,6 +46,8 @@ struct CConvertOptions {
 
   bool EnableAllTypes;
 
+  bool NewSolver;
+
   bool AddCheckedRegions;
 };
 

@@ -83,6 +83,11 @@ static cl::opt<bool> OptAllTypes("alltypes",
                               cl::init(false),
                               cl::cat(ConvertCategory));
 
+static cl::opt<bool> OptNewSolver("new-solver",
+                                 cl::desc("Use more sophisticated constraint solver for ptyps"),
+                                 cl::init(false),
+                                 cl::cat(ConvertCategory));
+
 static cl::opt<bool> OptAddCheckedRegions("addcr", cl::desc("Add Checked "
                                                          "Regions"),
                                        cl::init(false),
@@ -119,6 +124,7 @@ int main(int argc, const char **argv) {
   CcOptions.SeperateMultipleFuncDecls = OptSeperateMultipleFuncDecls;
   CcOptions.AddCheckedRegions = OptAddCheckedRegions;
   CcOptions.EnableAllTypes = OptAllTypes;
+  CcOptions.NewSolver = OptNewSolver;
 
   // Create CConv Interface.
   CConvInterface CCInterface(CcOptions,

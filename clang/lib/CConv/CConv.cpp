@@ -40,6 +40,7 @@ bool HandleVARARGS;
 bool EnablePropThruIType;
 bool ConsiderAllocUnsafe;
 bool AllTypes;
+bool NewSolver;
 std::string BaseDir;
 bool AddCheckedRegions;
 std::set<std::string> FilePaths;
@@ -174,6 +175,7 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
   ConsiderAllocUnsafe = CCopt.ConsiderAllocUnsafe;
   BaseDir = CCopt.BaseDir;
   AllTypes = CCopt.EnableAllTypes;
+  NewSolver = CCopt.NewSolver;
   AddCheckedRegions = CCopt.AddCheckedRegions;
 
   llvm::InitializeAllTargets();

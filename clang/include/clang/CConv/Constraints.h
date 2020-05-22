@@ -511,6 +511,8 @@ typedef std::map<VarAtom *, VarSolTy, PComp<VarAtom *>> EnvironmentMap;
 
 typedef uint32_t ConstraintKey;
 
+using VarAtomPred = llvm::function_ref<bool (VarAtom *)>;
+
 class ConstraintsEnv {
 
 public:
@@ -529,7 +531,8 @@ public:
   bool assign(VarAtom *V, ConstAtom *C);
   void doCheckedSolve(bool doC) { useChecked = doC; }
   void mergePtrTypes();
-  void resetSolution(VarSolTy InitC);
+  std::set<VarAtom *> resetSolution(VarAtomPred Pred, ConstAtom *CA);
+  void resetFullSolution(VarSolTy InitC);
   bool checkAssignment(VarSolTy C);
 
 private:
@@ -564,11 +567,6 @@ public:
 
   void editConstraintHook(Constraint *C);
 
-  // Solve the system of constraints. Return true in the second position if
-  // the system is solved. If the system is solved, the first position is 
-  // an empty. If the system could not be solved, the constraints in conflict
-  // are returned in the first position.
-  // TODO: this functionality is not implemented yet.
   std::pair<ConstraintSet, bool> solve(unsigned &NumOfIter);
   void dump() const;
   void print(llvm::raw_ostream &) const;
@@ -589,10 +587,7 @@ public:
   WildAtom *getWild() const;
   ConstAtom *getAssignment(Atom *A);
 
-  // Reset all constraint variables to Ptrs.
   void resetEnvironment();
-
-  // Check the sanity of environment map before solving the constraints.
   bool checkInitialEnvSanity();
 
   // Remove all constraints that were generated because of the

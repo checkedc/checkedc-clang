@@ -162,14 +162,18 @@ static bool do_solve(ConstraintsGraph &CG,
                      std::set<Implies *> &SavedImplies,
                      ConstraintsEnv & env,
                      Constraints *CS, bool doLeastSolution,
+                     std::set<VarAtom *> *InitVs,
                      unsigned &Niter, Constraints::ConstraintSet &Conflicts) {
 
-  // Initialize work list with ConstAtoms.
   std::vector<Atom *> WorkList;
   std::set<Implies *> FiredImplies;
 
+  // Initialize with seeded VarAtom set (pre-solved)
+  if (InitVs != nullptr)
+    WorkList.insert(WorkList.begin(), InitVs->begin(), InitVs->end());
+
   do {
-    WorkList.clear();
+    // Initialize work list with ConstAtoms.
     auto &InitC = CG.getAllConstAtoms();
     WorkList.insert(WorkList.begin(), InitC.begin(), InitC.end());
 
@@ -270,6 +274,18 @@ static bool do_solve(ConstraintsGraph &CG,
   return ok;
 }
 
+auto isNonParam =
+    [](VarAtom *VA) -> bool {
+      VarAtom::VarKind VK = VA->getVarKind();
+      return VK != VarAtom::V_Param;
+    };
+
+auto isNonParamReturn =
+    [](VarAtom *VA) -> bool {
+      VarAtom::VarKind VK = VA->getVarKind();
+      return VK != VarAtom::V_Param && VK != VarAtom::V_Return;
+    };
+
 bool Constraints::graph_based_solve(unsigned &Niter,
                                     ConstraintSet &Conflicts) {
   ConstraintsGraph ChkCG;
@@ -304,24 +320,44 @@ bool Constraints::graph_based_solve(unsigned &Niter,
   // Solve Checked/unchecked constraints first
   env.doCheckedSolve(true);
   bool res = do_solve(ChkCG, SavedImplies, env,
-                      this, true, Niter, Conflicts);
+                      this, true, nullptr, Niter, Conflicts);
   SavedImplies.clear();
 
   // now solve PtrType constraints
   if (res && AllTypes) {
+    env.doCheckedSolve(false);
     if (DebugSolver)
       PtrTypCG.dumpCGDot("ptyp_constraints_graph.dot");
 
-    env.doCheckedSolve(false);
+    // Step 1: Greatest solution
     res = do_solve(PtrTypCG, Empty, env,
-//XXX!!                   this, true, Niter, Conflicts);
-                   this, false, Niter, Conflicts);
+                   this, false, nullptr, Niter, Conflicts);
+
+    // Step 2: Reset all solutions but for function params, and compute the least
+    if (res && NewSolver) {
+      std::set<VarAtom *> rest = env.resetSolution(isNonParam, getNTArr());
+      res = do_solve(PtrTypCG, Empty, env,
+                     this, true, &rest, Niter, Conflicts);
+
+      // Step 3: Reset local variable solutions, compute greatest
+      if (res) {
+        rest.clear();
+        rest = env.resetSolution(isNonParamReturn, getPtr());
+        res = do_solve(PtrTypCG, Empty, env,
+                       this, false, &rest, Niter, Conflicts);
+      }
+    }
+    // Final Step: Merge ptyp solution with checked solution
     env.mergePtrTypes();
   }
 
   return res;
 }
 
+// Solve the system of constraints. Return true in the second position if
+// the system is solved. If the system is solved, the first position is
+// an empty. If the system could not be solved, the constraints in conflict
+// are returned in the first position.
 std::pair<Constraints::ConstraintSet, bool>
     Constraints::solve(unsigned &NumOfIter) {
 
@@ -394,7 +430,6 @@ VarAtom *Constraints::getOrCreateVar(ConstraintKey V, std::string Name,
 }
 
 VarSolTy Constraints::getDefaultSolution() {
-//XXX!!  return std::make_pair(getPtr(), getNTArr());
   return std::make_pair(getPtr(), getPtr());
 }
 
@@ -450,8 +485,7 @@ Implies *Constraints::createImplies(Geq *Premise,
 }
 
 void Constraints::resetEnvironment() {
-  // Update all constraints to pointers.
-  environment.resetSolution(getDefaultSolution());
+  environment.resetFullSolution(getDefaultSolution());
 }
 
 bool Constraints::checkInitialEnvSanity() {
@@ -575,16 +609,35 @@ bool ConstraintsEnv::assign(VarAtom *V, ConstAtom *C) {
   return true;
 }
 
-void ConstraintsEnv::resetSolution(VarSolTy InitC) {
+// Reset solution of all VarAtoms that satisfy the given predicate
+//  to be the given ConstAtom
+std::set<VarAtom *> ConstraintsEnv::resetSolution(VarAtomPred Pred, ConstAtom *C) {
+  std::set<VarAtom *> Unchanged;
+  for (auto &CurrE : environment) {
+    VarAtom *VA = CurrE.first;
+    if (Pred(VA)) {
+      if (useChecked) {
+        CurrE.second.first = C;
+      } else {
+        CurrE.second.second = C;
+      }
+    } else {
+      Unchanged.insert(VA);
+    }
+  }
+  return Unchanged;
+}
+
+void ConstraintsEnv::resetFullSolution(VarSolTy InitC) {
   for (auto &CurrE : environment) {
     CurrE.second = InitC;
   }
 }
 
+// Copy solutions from the ptyp map into the checked one
+//   if the checked solution is non-WILD
 void ConstraintsEnv::mergePtrTypes() {
   useChecked = true;
-  // Copy solutions from the ptyp map into the checked one
-  //   if the checked solution is non-WILD
   for (auto &Elem : environment) {
     VarAtom *VA = dyn_cast<VarAtom>(Elem.first);
     ConstAtom *CAssign = Elem.second.first;
