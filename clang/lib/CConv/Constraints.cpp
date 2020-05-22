@@ -159,7 +159,7 @@ bool Constraints::check(Constraint *C) {
 //---- add k to W
 
 static bool do_solve(ConstraintsGraph &CG,
-                     std::set<Implies *> &SavedImplies,
+                     std::set<Implies *> SavedImplies,
                      ConstraintsEnv & env,
                      Constraints *CS, bool doLeastSolution,
                      std::set<VarAtom *> *InitVs,
@@ -262,10 +262,13 @@ static bool do_solve(ConstraintsGraph &CG,
               new Geq(Cbound, VA, str, doLeastSolution);
           Conflicts.insert(failedConstraint);
           // failure case.
-          errs() << "Unsolvable constraints:";
+          errs() << "Unsolvable constraints: ";
           VA->print(errs());
+          errs() << "=";
           Csol->print(errs());
+          errs() << (doLeastSolution? "<" : ">");
           Cbound->print(errs());
+          errs() << " var will be made WILD\n";
         }
       }
     }
@@ -321,7 +324,6 @@ bool Constraints::graph_based_solve(unsigned &Niter,
   env.doCheckedSolve(true);
   bool res = do_solve(ChkCG, SavedImplies, env,
                       this, true, nullptr, Niter, Conflicts);
-  SavedImplies.clear();
 
   // now solve PtrType constraints
   if (res && AllTypes) {
@@ -346,6 +348,26 @@ bool Constraints::graph_based_solve(unsigned &Niter,
         res = do_solve(PtrTypCG, Empty, env,
                        this, false, &rest, Niter, Conflicts);
       }
+    }
+    // If PtrType solving (partly) failed, make the affected VarAtoms wild
+    if (!res) {
+      std::set<VarAtom *> rest;
+      env.doCheckedSolve(true);
+      for (const auto &C : Conflicts) {
+        if (Geq *geq = dyn_cast<Geq>(C)) {
+          VarAtom *VA = dyn_cast<VarAtom>(geq->getLHS());
+          if (!VA)
+            VA = dyn_cast<VarAtom>(geq->getRHS());
+          assert(VA != nullptr);
+          env.assign(VA, getWild());
+          rest.insert(VA);
+        }
+      }
+      Conflicts.clear();
+      /* FIXME: Should we propagate the old res? */
+      res = do_solve(ChkCG, SavedImplies, env,
+                  this, true, &rest, Niter, Conflicts);
+
     }
     // Final Step: Merge ptyp solution with checked solution
     env.mergePtrTypes();
