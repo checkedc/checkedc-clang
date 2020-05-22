@@ -71,12 +71,6 @@ static cl::opt<bool> OptEnablePropThruIType("enable-itypeprop",
                                          cl::init(false),
                                          cl::cat(ConvertCategory));
 
-static cl::opt<bool>
-    OptConsiderAllocUnsafe("alloc-unsafe",
-                        cl::desc("Consider the allocators "
-                                 "(i.e., malloc/calloc) as unsafe."),
-                        cl::init(false),
-                        cl::cat(ConvertCategory));
 static cl::opt<bool> OptAllTypes("alltypes",
                               cl::desc("Consider all Checked C types for "
                                        "conversion"),
@@ -113,7 +107,6 @@ int main(int argc, const char **argv) {
   // Setup options.
   struct CConvertOptions CcOptions;
   CcOptions.BaseDir = OptBaseDir.getValue();
-  CcOptions.ConsiderAllocUnsafe = OptConsiderAllocUnsafe;
   CcOptions.EnablePropThruIType = OptEnablePropThruIType;
   CcOptions.HandleVARARGS = OptHandleVARARGS;
   CcOptions.DumpStats = OptDumpStats;

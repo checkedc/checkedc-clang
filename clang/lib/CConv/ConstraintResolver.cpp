@@ -39,47 +39,6 @@ void ConstraintResolver::specialCaseVarIntros(ValueDecl *D, bool FuncCtx) {
   }
 }
 
-bool ConstraintResolver::handleFuncCall(CallExpr *CA, QualType LhsType) {
-  bool RulesFired = false;
-  // Is this a call to malloc? Can we coerce the callee
-  // to a NamedDecl?
-  FunctionDecl *CalleeDecl = dyn_cast<FunctionDecl>(CA->getCalleeDecl());
-  // FIXME: Right now we don't look at what malloc is doing
-  // but I don't think this works in the new regime.
-  if (CalleeDecl && isFunctionAllocator(CalleeDecl->getName())) {
-    // This is an allocator, should we treat it as safe?
-    if (!ConsiderAllocUnsafe) {
-      RulesFired = true;
-    } else {
-      // It's a call to allocator.
-      // What about the parameter to the call?
-      if (CA->getNumArgs() > 0) {
-        UnaryExprOrTypeTraitExpr *arg =
-            dyn_cast<UnaryExprOrTypeTraitExpr>(CA->getArg(0));
-        if (arg && arg->isArgumentType()) {
-          // Check that the argument is a sizeof.
-          if (arg->getKind() == UETT_SizeOf) {
-            QualType ArgTy = arg->getArgumentType();
-            // argTy should be made a pointer, then compared for
-            // equality to lhsType and rhsTy.
-            QualType ArgPTy = Context->getPointerType(ArgTy);
-
-            if (Info.isExplicitCastSafe(ArgPTy, LhsType)) {
-              RulesFired = true;
-              // At present, I don't think we need to add an
-              // implication based constraint since this rule
-              // only fires if there is a cast from a call to malloc.
-              // Since malloc is an external, there's no point in
-              // adding constraints to it.
-            }
-          }
-        }
-      }
-    }
-  }
-  return RulesFired;
-}
-
 void ConstraintResolver::constraintAllCVarsToWild(
     std::set<ConstraintVariable *> &CSet, std::string rsn, Expr *AtExpr) {
   PersistentSourceLoc Psl;
@@ -255,34 +214,50 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       return getExprConstraintVars(LHSConstraints, CBE->getSubExpr(), RvalCons,
                                LhsType, IsAssigned, Ifc);
     } else if (CallExpr *CE = dyn_cast<CallExpr>(E)) {
-      if (!handleFuncCall(CE, LhsType)) {
-        // Call expression should always get out-of context
-        // constraint variable.
-        Ifc = false;
-        std::set<ConstraintVariable *> TR;
-        // Here, we need to look up the target of the call and return the
-        // constraints for the return value of that function.
-        Decl *D = CE->getCalleeDecl();
-        if (D == nullptr) {
-          // There are a few reasons that we couldn't get a decl. For example,
-          // the call could be done through an array subscript.
-          Expr *CalledExpr = CE->getCallee();
-          std::set<ConstraintVariable *> tmp = getExprConstraintVars(
-              LHSConstraints, CalledExpr, RvalCons, LhsType, IsAssigned, Ifc);
+      // Call expression should always get out-of context constraint variable.
+      Ifc = false;
+      std::set<ConstraintVariable *> TR;
+      // Here, we need to look up the target of the call and return the
+      // constraints for the return value of that function.
+      QualType ExprType = E->getType();
+      Decl *D = CE->getCalleeDecl();
+      if (D == nullptr) {
+        // There are a few reasons that we couldn't get a decl. For example,
+        // the call could be done through an array subscript.
+        Expr *CalledExpr = CE->getCallee();
+        std::set<ConstraintVariable *> tmp = getExprConstraintVars(
+            LHSConstraints, CalledExpr, RvalCons, LhsType, IsAssigned, Ifc);
 
-          for (ConstraintVariable *C : tmp) {
-            if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
+        for (ConstraintVariable *C : tmp) {
+          if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
+            TR.insert(FV->getReturnVars().begin(), FV->getReturnVars().end());
+          } else if (PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
+            if (FVConstraint *FV = PV->getFV()) {
               TR.insert(FV->getReturnVars().begin(), FV->getReturnVars().end());
-            } else if (PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
-              if (FVConstraint *FV = PV->getFV()) {
-                TR.insert(FV->getReturnVars().begin(),
-                          FV->getReturnVars().end());
-              }
             }
           }
-        } else if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
-          // D could be a FunctionDecl, or a VarDecl, or a FieldDecl.
-          // Really it could be any DeclaratorDecl.
+        }
+      } else if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
+        // D could be a FunctionDecl, or a VarDecl, or a FieldDecl.
+        // Really it could be any DeclaratorDecl.
+        if (isFunctionAllocator(FD->getName())) {
+          bool didInsert = false;
+          if (CE->getNumArgs() > 0) {
+            // Looking for malloc(sizeof(...))
+            UnaryExprOrTypeTraitExpr *arg =
+                dyn_cast<UnaryExprOrTypeTraitExpr>(CE->getArg(0));
+            if (arg && arg->getKind() == UETT_SizeOf) {
+              QualType ArgTy = arg->getTypeOfArgument();
+              ExprType = Context->getPointerType(ArgTy);
+              TR.insert(new PVConstraint(ExprType, nullptr, FD->getName(), CS,
+                                         *Context)); // memory leak?
+              didInsert = true;
+            }
+            // TODO: Handle more cases, e.g., sizeof(X)*N, or constants
+          }
+          if (!didInsert)
+            TR.insert(PVConstraint::getWildPVConstraint(Info.getConstraints()));
+        } else { // normal function call
           std::set<ConstraintVariable *> CS =
               Info.getVariable(FD, Context, Ifc);
           FVConstraint *FVC = nullptr;
@@ -310,44 +285,41 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
             // make the logic above us freak out and over-constrain everything.
             TR.insert(new FVConstraint());
           }
-        } else {
-          // If it ISN'T, though... what to do? How could this happen?
-          llvm_unreachable("TODO");
         }
-
-        // This is R-Value, we need to make a copy of the resulting
-        // ConstraintVariables.
-        std::set<ConstraintVariable *> TmpCVs;
-        for (ConstraintVariable *CV : TR) {
-          ConstraintVariable *NewCV = CV->getCopy(CS);
-          // Store the temporary constraint vars into a global set
-          // for future memory management.
-          GlobalRValueCons.insert(NewCV);
-          constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild,
-                              false, &Info);
-          TmpCVs.insert(NewCV);
-        }
-
-        if (!Info.isExplicitCastSafe(LhsType, E->getType())) {
-          constraintAllCVarsToWild(TmpCVs, "Assigning to a different type.", E);
-          constraintAllCVarsToWild(LHSConstraints,
-                                   "Assigned from a different type.", E);
-        }
-
-        // If LHS constraints are not empty? Assign to LHS.
-        if (!LHSConstraints.empty()) {
-          auto PL = PersistentSourceLoc::mkPSL(CE, *Context);
-          constrainConsVarGeq(LHSConstraints, TmpCVs, CS, &PL, Safe_to_Wild,
-                              false, &Info);
-          // We assigned the constraints to the LHS.
-          // We do not need to propagate the constraints.
-          IsAssigned = true;
-          TmpCVs.clear();
-        }
-        return TmpCVs;
       } else {
-        return std::set<ConstraintVariable *>();
+        // If it ISN'T, though... what to do? How could this happen?
+        llvm_unreachable("TODO");
       }
+
+      // This is R-Value, we need to make a copy of the resulting
+      // ConstraintVariables.
+      std::set<ConstraintVariable *> TmpCVs;
+      for (ConstraintVariable *CV : TR) {
+        ConstraintVariable *NewCV = CV->getCopy(CS);
+        // Store the temporary constraint vars into a global set
+        // for future memory management.
+        GlobalRValueCons.insert(NewCV);
+        constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false, &Info);
+        TmpCVs.insert(NewCV);
+      }
+
+      if (!Info.isExplicitCastSafe(LhsType, ExprType)) {
+        constraintAllCVarsToWild(TmpCVs, "Assigning to a different type.", E);
+        constraintAllCVarsToWild(LHSConstraints,
+                                 "Assigned from a different type.", E);
+      }
+
+      // If LHS constraints are not empty? Assign to LHS.
+      if (!LHSConstraints.empty()) {
+        auto PL = PersistentSourceLoc::mkPSL(CE, *Context);
+        constrainConsVarGeq(LHSConstraints, TmpCVs, CS, &PL, Safe_to_Wild,
+                            false, &Info);
+        // We assigned the constraints to the LHS.
+        // We do not need to propagate the constraints.
+        IsAssigned = true;
+        TmpCVs.clear();
+      }
+      return TmpCVs;
     } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
       std::set<ConstraintVariable *> T;
       std::set<ConstraintVariable *> R;

@@ -172,7 +172,6 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
   DumpStats = CCopt.DumpStats;
   HandleVARARGS = CCopt.HandleVARARGS;
   EnablePropThruIType = CCopt.EnablePropThruIType;
-  ConsiderAllocUnsafe = CCopt.ConsiderAllocUnsafe;
   BaseDir = CCopt.BaseDir;
   AllTypes = CCopt.EnableAllTypes;
   NewSolver = CCopt.NewSolver;

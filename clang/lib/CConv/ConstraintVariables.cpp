@@ -140,30 +140,32 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
   ArrPresent = false;
 
-  if (InteropTypeExpr *ITE = D->getInteropTypeExpr()) {
-    // External variables can also have itype.
-    // Check if the provided declaration is an external
-    // variable.
-    // For functions, check to see that if we are analyzing
-    // function return types.
-    bool AnalyzeITypeExpr = (D->getType() == QT);
-    if (!AnalyzeITypeExpr && Ty->isFunctionProtoType()) {
-      const FunctionProtoType *FPT = dyn_cast<FunctionProtoType>(Ty);
-      AnalyzeITypeExpr = (FPT->getReturnType() == QT);
-    }
-    if (AnalyzeITypeExpr) {
-      QualType InteropType = ITE->getTypeAsWritten();
-      QTy = InteropType;
-      Ty = QTy.getTypePtr();
+  if (D != nullptr) {
+    if (InteropTypeExpr *ITE = D->getInteropTypeExpr()) {
+      // External variables can also have itype.
+      // Check if the provided declaration is an external
+      // variable.
+      // For functions, check to see that if we are analyzing
+      // function return types.
+      bool AnalyzeITypeExpr = (D->getType() == QT);
+      if (!AnalyzeITypeExpr && Ty->isFunctionProtoType()) {
+        const FunctionProtoType *FPT = dyn_cast<FunctionProtoType>(Ty);
+        AnalyzeITypeExpr = (FPT->getReturnType() == QT);
+      }
+      if (AnalyzeITypeExpr) {
+        QualType InteropType = ITE->getTypeAsWritten();
+        QTy = InteropType;
+        Ty = QTy.getTypePtr();
 
-      SourceRange R = ITE->getSourceRange();
-      if (R.isValid()) {
-        auto &SM = C.getSourceManager();
-        auto LO = C.getLangOpts();
-        llvm::StringRef Srctxt =
-            Lexer::getSourceText(CharSourceRange::getTokenRange(R), SM, LO);
-        ItypeStr = Srctxt.str();
-        assert(ItypeStr.size() > 0);
+        SourceRange R = ITE->getSourceRange();
+        if (R.isValid()) {
+          auto &SM = C.getSourceManager();
+          auto LO = C.getLangOpts();
+          llvm::StringRef Srctxt =
+              Lexer::getSourceText(CharSourceRange::getTokenRange(R), SM, LO);
+          ItypeStr = Srctxt.str();
+          assert(ItypeStr.size() > 0);
+        }
       }
     }
   }

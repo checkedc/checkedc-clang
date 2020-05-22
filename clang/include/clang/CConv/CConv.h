@@ -40,8 +40,6 @@ struct CConvertOptions {
 
   bool EnablePropThruIType;
 
-  bool ConsiderAllocUnsafe;
-
   std::string BaseDir;
 
   bool EnableAllTypes;

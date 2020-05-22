@@ -43,14 +43,14 @@ char* basic2(int temp) {
 
 char* basic3(int* data, int count) {
 	while (count > 1) {
-		int* temp = malloc(8);
-		data = malloc(8);
+		int* temp = malloc(sizeof(int));
+		data = malloc(sizeof(int));
 		count--;
 	}
 	return NULL;
 }
 //CHECK: _Ptr<char> basic3(_Ptr<int> data, int count) {
-//CHECK: _Ptr<int> temp =  malloc(8);
+//CHECK: _Ptr<int> temp =  malloc(sizeof(int));
 
 void sum_numbers(int count) {
     int n, i, sum = 0;

@@ -31,8 +31,6 @@ public:
   //  * va_list-typed variables
   void specialCaseVarIntros(ValueDecl *D, bool FuncCtx = false);
 
-  bool handleFuncCall(CallExpr *CA, QualType LhsType);
-
   void constraintAllCVarsToWild(std::set<ConstraintVariable*> &CSet,
                                 std::string rsn,
                                 Expr *AtExpr = nullptr);
