@@ -3843,12 +3843,14 @@ namespace {
       // value as the source, add the target to F.  This prevents EquivExprs
       // from growing too large and containing redundant equality information.
       // For example, for the assignments x = 1; y = x; where the target is y,
-      // SameValue = { 1, x }, and EquivExprs contains F = { 1, x }, EquivExprs
+      // SameValue = { x }, and EquivExprs contains F = { 1, x }, EquivExprs
       // should contain { 1, x, y } rather than { 1, x } and { 1, x, y }.
       if (State.SameValue.size() > 0) {
-        for (auto I = State.EquivExprs.begin(); I != State.EquivExprs.end(); ++I) {
-          if (IsEqualExprsSubset(State.SameValue, *I)) {
-            I->push_back(Target);
+        for (auto F = State.EquivExprs.begin(); F != State.EquivExprs.end(); ++F) {
+          if (IsEqualExprsSubset(State.SameValue, *F)) {
+            if (!EqualExprsContainsExpr(*F, Target))
+              F->push_back(Target);
+
             // Add the target to SameValue if SameValue does not already
             // contain the target.
             if (!EqualExprsContainsExpr(State.SameValue, Target))
