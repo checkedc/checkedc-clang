@@ -85,7 +85,7 @@ static cl::opt<bool> OptAllTypes("alltypes",
 
 static cl::opt<bool> OptNewSolver("new-solver",
                                  cl::desc("Use more sophisticated constraint solver for ptyps"),
-                                 cl::init(false),
+                                 cl::init(true),
                                  cl::cat(ConvertCategory));
 
 static cl::opt<bool> OptAddCheckedRegions("addcr", cl::desc("Add Checked "
