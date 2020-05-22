@@ -52,6 +52,7 @@ ConstraintVariable::getHighestNonWildConstraint(std::set<ConstraintVariable *>
 }
 
 PointerVariableConstraint *PointerVariableConstraint::GlobalWildPV = nullptr;
+PointerVariableConstraint *PointerVariableConstraint::GlobalPtrPV = nullptr;
 
 PointerVariableConstraint *
 PointerVariableConstraint::getWildPVConstraint(Constraints &CS) {
@@ -60,9 +61,21 @@ PointerVariableConstraint::getWildPVConstraint(Constraints &CS) {
     CAtoms NewVA;
     NewVA.push_back(CS.getWild());
     GlobalWildPV =
-        new PVConstraint(NewVA, "unsigned", "var", nullptr, false, false, "");
+        new PVConstraint(NewVA, "unsigned", "wildvar", nullptr, false, false, "");
   }
   return GlobalWildPV;
+}
+
+PointerVariableConstraint *
+PointerVariableConstraint::getPtrPVConstraint(Constraints &CS) {
+  if (GlobalPtrPV == nullptr) {
+    // Is this the first time? Then create PVConstraint.
+    CAtoms NewVA;
+    NewVA.push_back(CS.getPtr());
+    GlobalPtrPV =
+        new PVConstraint(NewVA, "unsigned", "ptrvar", nullptr, false, false, "");
+  }
+  return GlobalPtrPV;
 }
 
 PointerVariableConstraint::

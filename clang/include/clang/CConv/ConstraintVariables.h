@@ -182,6 +182,7 @@ public:
   };
 
   static PointerVariableConstraint *getWildPVConstraint(Constraints &CS);
+  static PointerVariableConstraint *getPtrPVConstraint(Constraints &CS);
 private:
   CAtoms vars;
   FunctionVariableConstraint *FV;
@@ -225,9 +226,10 @@ private:
                             Constraints &CS);
   PointerVariableConstraint *Parent;
 
-  // This is a global constraint that has a single WildAtom. This is expected to
+  // A global constraint that has a single ConstAtom. This is expected to
   // be used in cases where a PVConstraint is expected but doesn't exist.
   static PointerVariableConstraint *GlobalWildPV;
+  static PointerVariableConstraint *GlobalPtrPV;
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,

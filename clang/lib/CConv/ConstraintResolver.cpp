@@ -194,7 +194,11 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       if (UO->getOpcode() == UO_Deref)
         tmp = handleDeref(T);
       else if (UO->getOpcode() == UO_AddrOf) {
-        for (const auto &CV : T) {
+        if (T.empty()) { // doing &x where x is a non-pointer
+          tmp.insert(PVConstraint::getPtrPVConstraint(Info.getConstraints()));
+        } else {
+          assert(T.size() == 1 && "AddrOf only for lvals; shouldn't have multiple PVconstraints");
+          auto &CV = *T.begin();
           if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
             // Subtract one from this constraint. If that generates an empty
             // constraint, then, don't add it
