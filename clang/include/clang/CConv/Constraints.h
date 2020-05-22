@@ -567,7 +567,7 @@ public:
 
   void editConstraintHook(Constraint *C);
 
-  std::pair<ConstraintSet, bool> solve(unsigned &NumOfIter);
+  std::pair<Constraints::ConstraintSet, bool> solve();
   void dump() const;
   void print(llvm::raw_ostream &) const;
   void dump_json(llvm::raw_ostream &) const;
@@ -594,7 +594,6 @@ public:
   // provided reason.
   bool removeAllConstraintsOnReason(std::string &Reason,
                                     ConstraintSet &RemovedCons);
-  bool graph_based_solve(unsigned &Niter, ConstraintSet &Conflicts);
 private:
   ConstraintSet constraints;
   std::map<std::string, ConstraintSet> constraintsByReason;
@@ -619,6 +618,7 @@ private:
   bool removeReasonBasedConstraint(Constraint *C);
 
   VarSolTy getDefaultSolution();
+  bool graph_based_solve(ConstraintSet &Conflicts);
 
   // These atoms can be singletons, so we'll store them in the
   // Constraints class.

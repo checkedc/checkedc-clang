@@ -151,7 +151,7 @@ void runSolver(ProgramInfo &Info,
 
   unsigned NumIter = 0;
   clock_t StartTime = clock();
-  std::pair<Constraints::ConstraintSet, bool> R = CS.solve(NumIter);
+  std::pair<Constraints::ConstraintSet, bool> R = CS.solve();
   if (Verbose) {
     errs() << "Solver time:" << getTimeSpentInSeconds(StartTime) << "\n";
   }

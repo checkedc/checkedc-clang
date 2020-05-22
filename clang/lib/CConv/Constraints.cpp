@@ -163,7 +163,7 @@ static bool do_solve(ConstraintsGraph &CG,
                      ConstraintsEnv & env,
                      Constraints *CS, bool doLeastSolution,
                      std::set<VarAtom *> *InitVs,
-                     unsigned &Niter, Constraints::ConstraintSet &Conflicts) {
+                     Constraints::ConstraintSet &Conflicts) {
 
   std::vector<Atom *> WorkList;
   std::set<Implies *> FiredImplies;
@@ -210,7 +210,6 @@ static bool do_solve(ConstraintsGraph &CG,
         } // ignore ConstAtoms for now; will confirm solution below
       }
     }
-    Niter++;
     FiredImplies.clear();
 
     // If there are some implications that we saved? Propagate them.
@@ -289,8 +288,7 @@ auto isNonParamReturn =
       return VK != VarAtom::V_Param && VK != VarAtom::V_Return;
     };
 
-bool Constraints::graph_based_solve(unsigned &Niter,
-                                    ConstraintSet &Conflicts) {
+bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
   ConstraintsGraph ChkCG;
   ConstraintsGraph PtrTypCG;
   std::set<Implies *> SavedImplies;
@@ -322,8 +320,7 @@ bool Constraints::graph_based_solve(unsigned &Niter,
 
   // Solve Checked/unchecked constraints first
   env.doCheckedSolve(true);
-  bool res = do_solve(ChkCG, SavedImplies, env,
-                      this, true, nullptr, Niter, Conflicts);
+  bool res = do_solve(ChkCG, SavedImplies, env, this, true, nullptr, Conflicts);
 
   // now solve PtrType constraints
   if (res && AllTypes) {
@@ -332,21 +329,20 @@ bool Constraints::graph_based_solve(unsigned &Niter,
       PtrTypCG.dumpCGDot("ptyp_constraints_graph.dot");
 
     // Step 1: Greatest solution
-    res = do_solve(PtrTypCG, Empty, env,
-                   this, false, nullptr, Niter, Conflicts);
+    res =
+        do_solve(PtrTypCG, Empty, env, this, false, nullptr, Conflicts);
 
     // Step 2: Reset all solutions but for function params, and compute the least
     if (res && NewSolver) {
       std::set<VarAtom *> rest = env.resetSolution(isNonParam, getNTArr());
-      res = do_solve(PtrTypCG, Empty, env,
-                     this, true, &rest, Niter, Conflicts);
+      res = do_solve(PtrTypCG, Empty, env, this, true, &rest, Conflicts);
 
       // Step 3: Reset local variable solutions, compute greatest
       if (res) {
         rest.clear();
         rest = env.resetSolution(isNonParamReturn, getPtr());
-        res = do_solve(PtrTypCG, Empty, env,
-                       this, false, &rest, Niter, Conflicts);
+        res = do_solve(PtrTypCG, Empty, env, this, false, &rest,
+                       Conflicts);
       }
     }
     // If PtrType solving (partly) failed, make the affected VarAtoms wild
@@ -365,8 +361,8 @@ bool Constraints::graph_based_solve(unsigned &Niter,
       }
       Conflicts.clear();
       /* FIXME: Should we propagate the old res? */
-      res = do_solve(ChkCG, SavedImplies, env,
-                  this, true, &rest, Niter, Conflicts);
+      res = do_solve(ChkCG, SavedImplies, env, this, true, &rest,
+                     Conflicts);
 
     }
     // Final Step: Merge ptyp solution with checked solution
@@ -380,18 +376,15 @@ bool Constraints::graph_based_solve(unsigned &Niter,
 // the system is solved. If the system is solved, the first position is
 // an empty. If the system could not be solved, the constraints in conflict
 // are returned in the first position.
-std::pair<Constraints::ConstraintSet, bool>
-    Constraints::solve(unsigned &NumOfIter) {
+std::pair<Constraints::ConstraintSet, bool> Constraints::solve() {
 
   Constraints::ConstraintSet Conflicts;
-  NumOfIter = 0;
 
   if (DebugSolver) {
     errs() << "constraints beginning solve\n";
     dump();
   }
-
-  bool ok = graph_based_solve(NumOfIter, Conflicts);
+  bool ok = graph_based_solve(Conflicts);
 
   if (DebugSolver) {
     errs() << "solution, when done solving\n";

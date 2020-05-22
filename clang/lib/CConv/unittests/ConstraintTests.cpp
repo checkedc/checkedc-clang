@@ -66,7 +66,6 @@ TEST(BasicConstraintTest, ordering) {
 
 TEST(BasicConstraintTestGeq, solve) {
     Constraints CS;
-    unsigned numI;
 
     EXPECT_TRUE(CS.addConstraint(CS.createGeq(
         CS.getOrCreateVar(0, "q", VarAtom::V_Other), CS.getWild())));
@@ -94,7 +93,7 @@ TEST(BasicConstraintTestGeq, solve) {
     EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getNTArr(),CS.getVar(2))));
     EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getWild(),CS.getVar(3))));
 
-    CS.solve(numI);
+    CS.solve();
     Constraints::EnvironmentMap env = CS.getVariables();
 
     EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getWild());
@@ -105,7 +104,6 @@ TEST(BasicConstraintTestGeq, solve) {
 
 TEST(BasicConstraintTest, solve) {
     Constraints CS;
-    unsigned numI;
 
     EXPECT_TRUE(CS.addConstraint(CS.createGeq(
         CS.getOrCreateVar(0, "q", VarAtom::V_Other), CS.getWild())));
@@ -132,7 +130,7 @@ TEST(BasicConstraintTest, solve) {
                                                   CS.createGeq(CS.getOrCreateVar(8, "q", VarAtom::V_Other), CS.getWild()))));
 
 //  EXPECT_TRUE(CS.solve(numI).second);
-    CS.solve(numI);
+    CS.solve();
     Constraints::EnvironmentMap env = CS.getVariables();
 
     EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getWild());
@@ -147,7 +145,6 @@ TEST(BasicConstraintTest, solve) {
 }
 TEST(BasicConstraintTest, equality) {
   Constraints CS;
-  unsigned numI;
 
   // q_0 = WILD
   // q_1 = PTR
@@ -161,7 +158,7 @@ TEST(BasicConstraintTest, equality) {
   EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(1, "q", VarAtom::V_Other), CS.getPtr())));
   EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0, "q", VarAtom::V_Other), CS.getOrCreateVar(1, "q", VarAtom::V_Other))));
 
-  CS.solve(numI);
+  CS.solve();
   //EXPECT_TRUE(CS.solve(numI).second);
   Constraints::EnvironmentMap env = CS.getVariables();
 
@@ -171,7 +168,6 @@ TEST(BasicConstraintTest, equality) {
 
 TEST(Conflicts, test1) {
   Constraints CS;
-  unsigned numI;
 
   // q_0 = PTR
   // q_0 = ARR
@@ -184,14 +180,13 @@ TEST(Conflicts, test1) {
   EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0, "q", VarAtom::V_Other), CS.getOrCreateVar(1, "q", VarAtom::V_Other))));
 
   //EXPECT_TRUE(CS.solve(numI).second);
-  CS.solve(numI);
+  CS.solve();
   Constraints::EnvironmentMap env = CS.getVariables();
   EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getWild());
 }
 
 TEST(BasicNTArrayTest, NTArrayTests) {
   Constraints CS;
-  unsigned numI;
   // q_0 = NTArr
 
   // should derive
@@ -201,7 +196,7 @@ TEST(BasicNTArrayTest, NTArrayTests) {
       CS.getOrCreateVar(0, "q", VarAtom::V_Other), CS.getNTArr())));
 
   //EXPECT_TRUE(CS.solve(numI).second);
-  CS.solve(numI);
+  CS.solve();
   Constraints::EnvironmentMap env = CS.getVariables();
 
   EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getNTArr());
@@ -217,7 +212,6 @@ TEST(NTArrayAndArrayTest, NTArrayTests) {
    * str[j] = 'a';
    */
   Constraints CS;
-  unsigned numI;
   // set 1
   // q_0 == NTARR
   // set 2
@@ -231,7 +225,7 @@ TEST(NTArrayAndArrayTest, NTArrayTests) {
   EXPECT_TRUE(CS.addConstraint(CS.createGeq(CS.getOrCreateVar(0, "q", VarAtom::V_Other), CS.getArr())));
 
   //EXPECT_TRUE(CS.solve(numI).second);
-  CS.solve(numI);
+  CS.solve();
   Constraints::EnvironmentMap env = CS.getVariables();
 
   EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getNTArr());
@@ -248,7 +242,6 @@ TEST(NTArrayAndArrayConflictTest, NTArrayTests) {
    * data += 1;
    */
   Constraints CS;
-  unsigned numI;
   // set 1
   // q_0 == ARR
   // q_0 == NTArr
@@ -267,7 +260,7 @@ TEST(NTArrayAndArrayConflictTest, NTArrayTests) {
 
 
     //EXPECT_TRUE(CS.solve(numI).second);
-    CS.solve(numI);
+  CS.solve();
   Constraints::EnvironmentMap env = CS.getVariables();
 
   EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getNTArr());
