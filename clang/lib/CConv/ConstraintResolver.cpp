@@ -112,7 +112,30 @@ ConstraintResolver::getExprConstraintVars(Expr *E,
   return ExprCons;
 }
 
-// This is a bit of a hack. What we need to do is traverse the AST in a
+static std::set<ConstraintVariable *> handleDeref(std::set<ConstraintVariable *> T) {
+  std::set<ConstraintVariable *> tmp;
+  for (const auto &CV : T) {
+    if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
+      // Subtract one from this constraint. If that generates an empty
+      // constraint, then, don't add it
+      CAtoms C = PVC->getCvars();
+      if (C.size() > 0) {
+        C.erase(C.begin());
+        if (C.size() > 0) {
+          bool a = PVC->getArrPresent();
+          bool c = PVC->getItypePresent();
+          std::string d = PVC->getItype();
+          FVConstraint *b = PVC->getFV();
+          tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a,
+                                      c, d));
+        }
+      }
+    }
+  }
+  return tmp;
+}
+
+// We traverse the AST in a
 // bottom-up manner, and, for a given expression, decide which singular,
 // if any, constraint variable is involved in that expression. However,
 // in the current version of clang (3.8.1), bottom-up traversal is not
@@ -160,26 +183,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       // taking the address or doing a dereference.
       std::set<ConstraintVariable *> T = getExprConstraintVars(
           LHSConstraints, AE->getBase(), RvalCons, LhsType, TmpAssign, Ifc);
-      std::set<ConstraintVariable *> tmp;
-      for (const auto &CV : T) {
-        if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
-          // Subtract one from this constraint. If that generates an empty
-          // constraint, then, don't add it
-          CAtoms C = PVC->getCvars();
-          if (C.size() > 0) {
-            C.erase(C.begin());
-            if (C.size() > 0) {
-              bool a = PVC->getArrPresent();
-              bool c = PVC->getItypePresent();
-              std::string d = PVC->getItype();
-              FVConstraint *b = PVC->getFV();
-              tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a,
-                                          c, d));
-            }
-          }
-        }
-      }
-
+      std::set<ConstraintVariable *> tmp = handleDeref(T);
       T.swap(tmp);
       return T;
     } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
@@ -187,56 +191,43 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
           LHSConstraints, UO->getSubExpr(), RvalCons, LhsType, TmpAssign, Ifc);
 
       std::set<ConstraintVariable *> tmp;
-      if (UO->getOpcode() == UO_Deref || UO->getOpcode() == UO_AddrOf) {
+      if (UO->getOpcode() == UO_Deref)
+        tmp = handleDeref(T);
+      else if (UO->getOpcode() == UO_AddrOf) {
         for (const auto &CV : T) {
           if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
+            // Subtract one from this constraint. If that generates an empty
+            // constraint, then, don't add it
             CAtoms C = PVC->getCvars();
-            if (UO->getOpcode() == UO_Deref) {
-              // Subtract one from this constraint. If that generates an empty
-              // constraint, then, don't add it
-              if (C.size() > 0) {
-                C.erase(C.begin());
-                if (C.size() > 0) {
-                  bool a = PVC->getArrPresent();
-                  FVConstraint *b = PVC->getFV();
-                  bool c = PVC->getItypePresent();
-                  std::string d = PVC->getItype();
-                  tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(),
-                                              b, a, c, d));
-                }
-              }
-            } else { // AddrOf
-              Atom *NewA = CS.getPtr();
-              // This is for & operand.
-              // Here, we need to make sure that &(unchecked ptr) should be
-              // unchecked too.
-              // Lets add an implication.
-              if (!C.empty()) {
-                Atom *A = *C.begin();
-                if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
-                  NewA = CS.getFreshVar("&q", VarAtom::V_Other);
-                  auto *Prem = CS.createGeq(VA, CS.getWild());
-                  auto *Conc = CS.createGeq(NewA, CS.getWild());
-                  CS.addConstraint(CS.createImplies(Prem, Conc));
-                } else if (ConstAtom *C = dyn_cast<WildAtom>(A)) {
-                  NewA = CS.getWild();
-                } // else stick with PTR
-              }
-              C.insert(C.begin(), NewA);
-              bool a = PVC->getArrPresent();
-              FVConstraint *b = PVC->getFV();
-              bool c = PVC->getItypePresent();
-              std::string d = PVC->getItype();
-              tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a,
-                                          c, d));
+            Atom *NewA = CS.getPtr();
+            // This is for & operand.
+            // Here, we need to make sure that &(unchecked ptr) should be
+            // unchecked too.
+            // Lets add an implication.
+            if (!C.empty()) {
+              Atom *A = *C.begin();
+              if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
+                NewA = CS.getFreshVar("&q", VarAtom::V_Other);
+                auto *Prem = CS.createGeq(VA, CS.getWild());
+                auto *Conc = CS.createGeq(NewA, CS.getWild());
+                CS.addConstraint(CS.createImplies(Prem, Conc));
+              } else if (ConstAtom *C = dyn_cast<WildAtom>(A)) {
+                NewA = CS.getWild();
+              } // else stick with PTR
             }
+            C.insert(C.begin(), NewA);
+            bool a = PVC->getArrPresent();
+            FVConstraint *b = PVC->getFV();
+            bool c = PVC->getItypePresent();
+            std::string d = PVC->getItype();
+            tmp.insert(
+                new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a, c, d));
           } else if (!(UO->getOpcode() == UO_AddrOf)) { // no-op for FPs
             llvm_unreachable("Shouldn't dereference a function pointer!");
           }
         }
-        T.swap(tmp);
       }
-
+      T.swap(tmp);
       return T;
     } else if (ImplicitCastExpr *IE = dyn_cast<ImplicitCastExpr>(E)) {
       return getExprConstraintVars(LHSConstraints, IE->getSubExpr(), RvalCons,
