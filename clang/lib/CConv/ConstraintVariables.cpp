@@ -148,9 +148,16 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       // For functions, check to see that if we are analyzing
       // function return types.
       bool AnalyzeITypeExpr = (D->getType() == QT);
-      if (!AnalyzeITypeExpr && Ty->isFunctionProtoType()) {
-        const FunctionProtoType *FPT = dyn_cast<FunctionProtoType>(Ty);
-        AnalyzeITypeExpr = (FPT->getReturnType() == QT);
+      if (!AnalyzeITypeExpr) {
+        const Type *OrigType = Ty;
+        if (isa<FunctionDecl>(D)) {
+          FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
+          OrigType = FD->getType().getTypePtr();
+        }
+        if (!AnalyzeITypeExpr && OrigType->isFunctionProtoType()) {
+          const FunctionProtoType *FPT = dyn_cast<FunctionProtoType>(OrigType);
+          AnalyzeITypeExpr = (FPT->getReturnType() == QT);
+        }
       }
       if (AnalyzeITypeExpr) {
         QualType InteropType = ITE->getTypeAsWritten();
