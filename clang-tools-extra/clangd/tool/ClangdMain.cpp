@@ -341,12 +341,14 @@ static llvm::cl::opt<bool>
                         llvm::cl::init(false),
                         llvm::cl::cat(ConvertCategory));
 
-static llvm::cl::opt<bool>
-    ConsiderAllocUnsafe("alloc-unsafe",
-                        llvm::cl::desc("Consider the allocators "
-                                       "(i.e., malloc/calloc) as unsafe."),
-                        llvm::cl::init(false),
-                        llvm::cl::cat(ConvertCategory));
+
+static llvm::cl::opt<bool> OptNewSolver("new-solver",
+                                  llvm::cl::desc("Use more sophisticated "
+                                                       "constraint solver "
+                                                       "for ptyps"),
+                                  llvm::cl::init(true),
+                                  llvm::cl::cat(ConvertCategory));
+
 static llvm::cl::opt<bool>
     AllTypes("alltypes",
              llvm::cl::desc("Consider all Checked C types for "
@@ -443,7 +445,6 @@ int main(int argc, char *argv[]) {
   // Setup options.
   struct CConvertOptions CcOptions;
   CcOptions.BaseDir = BaseDir.getValue();
-  CcOptions.ConsiderAllocUnsafe = ConsiderAllocUnsafe;
   CcOptions.EnablePropThruIType = EnablePropThruIType;
   CcOptions.HandleVARARGS = HandleVARARGS;
   CcOptions.DumpStats = DumpStats;
@@ -454,6 +455,7 @@ int main(int argc, char *argv[]) {
   CcOptions.SeperateMultipleFuncDecls = SeperateMultipleFuncDecls;
   CcOptions.AddCheckedRegions = AddCheckedRegions;
   CcOptions.EnableAllTypes = AllTypes;
+  CcOptions.NewSolver = OptNewSolver;
 
   CConvInterface CCInterface(CcOptions,
                              OptionsParser.getSourcePathList(),
