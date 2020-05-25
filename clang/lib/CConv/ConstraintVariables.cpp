@@ -768,9 +768,9 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   for ( const auto &V : returnVars) {
     if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
       if (PVC->getFV())
-        PVC->constrainToWild(CS, Rsn, false);
+        PVC->constrainToWild(CS, Rsn);
     } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(V)) {
-      FVC->constrainToWild(CS, Rsn, false);
+      FVC->constrainToWild(CS, Rsn);
     }
   }
 }
@@ -843,37 +843,34 @@ bool FVConstraint::isEq(const ConstraintVariable &Other,
   });
 }
 
-void FunctionVariableConstraint::constrainToWild(Constraints &CS,
-                                                 bool CheckSkip) {
+void FunctionVariableConstraint::constrainToWild(Constraints &CS) {
   for (const auto &V : returnVars)
-    V->constrainToWild(CS, CheckSkip);
+    V->constrainToWild(CS);
 
   for (const auto &V : paramVars)
     for (const auto &U : V)
-      U->constrainToWild(CS, CheckSkip);
+      U->constrainToWild(CS);
+}
+
+void FunctionVariableConstraint::constrainToWild(Constraints &CS,
+                                                 std::string &Rsn) {
+  for (const auto &V : returnVars)
+    V->constrainToWild(CS, Rsn);
+
+  for (const auto &V : paramVars)
+    for (const auto &U : V)
+      U->constrainToWild(CS, Rsn);
 }
 
 void FunctionVariableConstraint::constrainToWild(Constraints &CS,
                                                  std::string &Rsn,
-                                                 bool CheckSkip) {
+                                                 PersistentSourceLoc *PL) {
   for (const auto &V : returnVars)
-    V->constrainToWild(CS, Rsn, CheckSkip);
+    V->constrainToWild(CS, Rsn, PL);
 
   for (const auto &V : paramVars)
     for (const auto &U : V)
-      U->constrainToWild(CS, Rsn, CheckSkip);
-}
-
-void FunctionVariableConstraint::constrainToWild(Constraints &CS,
-                                                 std::string &Rsn,
-                                                 PersistentSourceLoc *PL,
-                                                 bool CheckSkip) {
-  for (const auto &V : returnVars)
-    V->constrainToWild(CS, Rsn, PL, CheckSkip);
-
-  for (const auto &V : paramVars)
-    for (const auto &U : V)
-      U->constrainToWild(CS, Rsn, PL, CheckSkip);
+      U->constrainToWild(CS, Rsn, PL);
 }
 
 bool FunctionVariableConstraint::anyChanges(EnvironmentMap &E) {
@@ -1007,8 +1004,7 @@ void FunctionVariableConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
   }
 }
 
-void PointerVariableConstraint::constrainToWild(Constraints &CS,
-                                                bool CheckSkip) {
+void PointerVariableConstraint::constrainToWild(Constraints &CS) {
   ConstAtom *WA = CS.getWild();
   for (const auto &V : vars) {
     if (VarAtom *VA = dyn_cast<VarAtom>(V))
@@ -1016,13 +1012,12 @@ void PointerVariableConstraint::constrainToWild(Constraints &CS,
   }
 
   if (FV)
-    FV->constrainToWild(CS, CheckSkip);
+    FV->constrainToWild(CS);
 }
 
 void PointerVariableConstraint::constrainToWild(Constraints &CS,
                                                 std::string &Rsn,
-                                                PersistentSourceLoc *PL,
-                                                bool CheckSkip) {
+                                                PersistentSourceLoc *PL) {
   ConstAtom *WA = CS.getWild();
   for (const auto &V : vars) {
     if (VarAtom *VA = dyn_cast<VarAtom>(V))
@@ -1030,12 +1025,11 @@ void PointerVariableConstraint::constrainToWild(Constraints &CS,
   }
 
   if (FV)
-    FV->constrainToWild(CS, Rsn, PL, CheckSkip);
+    FV->constrainToWild(CS, Rsn, PL);
 }
 
 void PointerVariableConstraint::constrainToWild(Constraints &CS,
-                                                std::string &Rsn,
-                                                bool CheckSkip) {
+                                                std::string &Rsn) {
   ConstAtom *WA = CS.getWild();
   for (const auto &V : vars) {
     if (VarAtom *VA = dyn_cast<VarAtom>(V))
@@ -1043,7 +1037,7 @@ void PointerVariableConstraint::constrainToWild(Constraints &CS,
   }
 
   if (FV)
-    FV->constrainToWild(CS, Rsn, CheckSkip);
+    FV->constrainToWild(CS, Rsn);
 }
 
 // FIXME: Should do some checking here, eventually to make sure
@@ -1369,10 +1363,10 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
   if (LHS == nullptr || RHS == nullptr) {
     std::string Rsn = "Assignment a non-pointer to a pointer";
     if (LHS != nullptr) {
-      LHS->constrainToWild(CS, Rsn, PL, false);
+      LHS->constrainToWild(CS, Rsn, PL);
     }
     if (RHS != nullptr) {
-      RHS->constrainToWild(CS, Rsn, PL, false);
+      RHS->constrainToWild(CS, Rsn, PL);
     }
     return;
   }
@@ -1405,8 +1399,8 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
           // Constrain both to be top.
           std::string Rsn = "Assigning from:" + FCRHS->getName() +
                             " to " + FCLHS->getName();
-          RHS->constrainToWild(CS, Rsn, PL, false);
-          LHS->constrainToWild(CS, Rsn, PL, false);
+          RHS->constrainToWild(CS, Rsn, PL);
+          LHS->constrainToWild(CS, Rsn, PL);
         }
       } else {
         llvm_unreachable("impossible");
@@ -1441,8 +1435,8 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
           // Constrain both to be top.
           std::string Rsn = "Assigning from:" + PCRHS->getName() +
                             " to " + PCLHS->getName();
-          PCLHS->constrainToWild(CS, Rsn, PL, false);
-          PCRHS->constrainToWild(CS, Rsn, PL, false);
+          PCLHS->constrainToWild(CS, Rsn, PL);
+          PCRHS->constrainToWild(CS, Rsn, PL);
         }
         // Equate the corresponding FunctionContraint.
         constrainConsVarGeq(PCLHS->getFV(), PCRHS->getFV(), CS, PL,
@@ -1462,14 +1456,14 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
       } else {
           std::string Rsn = "Function:" + FCRHS->getName() +
                             " assigned to non-function pointer.";
-          LHS->constrainToWild(CS, Rsn, PL, false);
-          RHS->constrainToWild(CS, Rsn, PL, false);
+          LHS->constrainToWild(CS, Rsn, PL);
+          RHS->constrainToWild(CS, Rsn, PL);
       }
     } else {
       // Constrain everything in both to wild.
       std::string Rsn = "Assignment to functions from variables";
-      LHS->constrainToWild(CS, Rsn, PL, false);
-      RHS->constrainToWild(CS, Rsn, PL, false);
+      LHS->constrainToWild(CS, Rsn, PL);
+      RHS->constrainToWild(CS, Rsn, PL);
     }
   }
 }

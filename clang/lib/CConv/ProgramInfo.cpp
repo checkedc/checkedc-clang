@@ -452,8 +452,8 @@ bool ProgramInfo::link() {
               if (P1->hasProtoType() && P2->hasProtoType()) {
                 // Nope, we have no choice. Constrain everything to wild.
                 std::string rsn = "Return value of function:" + P1->getName();
-                P1->constrainToWild(CS, rsn, true);
-                P2->constrainToWild(CS, rsn, true);
+                P1->constrainToWild(CS, rsn);
+                P2->constrainToWild(CS, rsn);
               }
             }
           }
@@ -487,12 +487,12 @@ bool ProgramInfo::link() {
         auto G = GIterator;
         for (const auto &U : G->getReturnVars()) {
           std::string Rsn = "Return value of an external function:" + FuncName;
-          U->constrainToWild(CS, Rsn, true);
+          U->constrainToWild(CS, Rsn);
         }
         std::string rsn = "Inner pointer of a parameter to external function.";
         for (unsigned i = 0; i < G->numParams(); i++)
           for (const auto &PVar : G->getParamVar(i))
-            PVar->constrainToWild(CS, rsn, true);
+            PVar->constrainToWild(CS, rsn);
       }
     }
   }
@@ -758,7 +758,7 @@ bool ProgramInfo::addVariable(clang::DeclaratorDecl *D,
   std::string Rsn = "Pointer in Macro declaration.";
   if (!Rewriter::isRewritable(D->getLocation())) 
     for (const auto &C : S)
-      C->constrainToWild(CS, Rsn, false);
+      C->constrainToWild(CS, Rsn);
 
   return true;
 }

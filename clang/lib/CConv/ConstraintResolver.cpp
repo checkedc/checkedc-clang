@@ -33,7 +33,7 @@ void ConstraintResolver::specialCaseVarIntros(ValueDecl *D, bool FuncCtx) {
       Rsn = "Variable type is va_list.";
     for (const auto &I : Info.getVariable(D, Context, FuncCtx)) {
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-        PVC->constrainToWild(CS, Rsn, &PL, false);
+        PVC->constrainToWild(CS, Rsn, &PL);
       }
     }
   }
@@ -50,7 +50,7 @@ void ConstraintResolver::constraintAllCVarsToWild(
 
   for (const auto &A : CSet) {
     if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
-      PVC->constrainToWild(Info.getConstraints(), rsn, PslP, false);
+      PVC->constrainToWild(Info.getConstraints(), rsn, PslP);
   }
 }
 
