@@ -74,24 +74,73 @@ ConstraintResolver::getExprConstraintVars(Expr *E,
 static std::set<ConstraintVariable *> handleDeref(std::set<ConstraintVariable *> T) {
   std::set<ConstraintVariable *> tmp;
   for (const auto &CV : T) {
-    if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
-      // Subtract one from this constraint. If that generates an empty
-      // constraint, then, don't add it
-      CAtoms C = PVC->getCvars();
+    PVConstraint *PVC = dyn_cast<PVConstraint>(CV);
+    assert (PVC != nullptr); // Shouldn't be dereferencing FPs
+    // Subtract one from this constraint. If that generates an empty
+    // constraint, then, don't add it
+    CAtoms C = PVC->getCvars();
+    if (C.size() > 0) {
+      C.erase(C.begin());
       if (C.size() > 0) {
-        C.erase(C.begin());
-        if (C.size() > 0) {
-          bool a = PVC->getArrPresent();
-          bool c = PVC->getItypePresent();
-          std::string d = PVC->getItype();
-          FVConstraint *b = PVC->getFV();
-          tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a,
-                                      c, d));
-        }
+        bool a = PVC->getArrPresent();
+        bool c = PVC->getItypePresent();
+        std::string d = PVC->getItype();
+        FVConstraint *b = PVC->getFV();
+        tmp.insert(
+            new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a, c, d));
       }
     }
   }
   return tmp;
+}
+
+// Update a PVConstraint with one additional level of indirection
+static PVConstraint *addAtom(PVConstraint *PVC, Atom *NewA, Constraints &CS) {
+  // Add a PTR to the Atom list
+  CAtoms C = PVC->getCvars();
+  if (!C.empty()) {
+    Atom *A = *C.begin();
+    if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
+      NewA = CS.getFreshVar("&"+(PVC->getName()), VarAtom::V_Other);
+      auto *Prem = CS.createGeq(VA, CS.getWild());
+      auto *Conc = CS.createGeq(NewA, CS.getWild());
+      CS.addConstraint(CS.createImplies(Prem, Conc));
+    } else if (ConstAtom *C = dyn_cast<WildAtom>(A)) {
+      NewA = CS.getWild();
+    } // else stick with what's given
+  }
+  C.insert(C.begin(), NewA);
+  bool a = PVC->getArrPresent();
+  FVConstraint *b = PVC->getFV();
+  bool c = PVC->getItypePresent();
+  std::string d = PVC->getItype();
+  return new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a, c, d);
+}
+
+// Processes E from malloc(E) to discern the pointer type this will be
+static Atom *analyzeAllocExpr(Expr *E, Constraints &CS, QualType &ArgTy) {
+  Atom *ret = CS.getPtr();
+  BinaryOperator *B = dyn_cast<BinaryOperator>(E);
+  std::set<Expr *> Exprs;
+
+  // Looking for X*Y -- could be an array
+  if (B && B->isMultiplicativeOp()) {
+    ret = CS.getArr();
+    Exprs.insert(B->getLHS());
+    Exprs.insert(B->getRHS());
+  }
+  else
+    Exprs.insert(E);
+
+  // Look for sizeof(X); return Arr or Ptr if found
+  for (Expr *Ex: Exprs) {
+    UnaryExprOrTypeTraitExpr *arg = dyn_cast<UnaryExprOrTypeTraitExpr>(Ex);
+    if (arg && arg->getKind() == UETT_SizeOf) {
+      ArgTy = arg->getTypeOfArgument();
+      return ret;
+    }
+  }
+  return nullptr;
 }
 
 // We traverse the AST in a
@@ -159,35 +208,8 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
           assert(T.size() == 1 && "AddrOf only for lvals; shouldn't have multiple PVconstraints");
           auto &CV = *T.begin();
           if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
-            // Subtract one from this constraint. If that generates an empty
-            // constraint, then, don't add it
-            CAtoms C = PVC->getCvars();
-            Atom *NewA = CS.getPtr();
-            // This is for & operand.
-            // Here, we need to make sure that &(unchecked ptr) should be
-            // unchecked too.
-            // Lets add an implication.
-            if (!C.empty()) {
-              Atom *A = *C.begin();
-              if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
-                NewA = CS.getFreshVar("&q", VarAtom::V_Other);
-                auto *Prem = CS.createGeq(VA, CS.getWild());
-                auto *Conc = CS.createGeq(NewA, CS.getWild());
-                CS.addConstraint(CS.createImplies(Prem, Conc));
-              } else if (ConstAtom *C = dyn_cast<WildAtom>(A)) {
-                NewA = CS.getWild();
-              } // else stick with PTR
-            }
-            C.insert(C.begin(), NewA);
-            bool a = PVC->getArrPresent();
-            FVConstraint *b = PVC->getFV();
-            bool c = PVC->getItypePresent();
-            std::string d = PVC->getItype();
-            tmp.insert(
-                new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a, c, d));
-          } else if (!(UO->getOpcode() == UO_AddrOf)) { // no-op for FPs
-            llvm_unreachable("Shouldn't dereference a function pointer!");
-          }
+            tmp.insert(addAtom(PVC, CS.getPtr(), CS));
+          } // no-op for FPs
         }
       }
       T.swap(tmp);
@@ -242,18 +264,19 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
         // Really it could be any DeclaratorDecl.
         if (isFunctionAllocator(FD->getName())) {
           bool didInsert = false;
+          // FIXME: Should be treating malloc, realloc, calloc differently
           if (CE->getNumArgs() > 0) {
-            // Looking for malloc(sizeof(...))
-            UnaryExprOrTypeTraitExpr *arg =
-                dyn_cast<UnaryExprOrTypeTraitExpr>(CE->getArg(0));
-            if (arg && arg->getKind() == UETT_SizeOf) {
-              QualType ArgTy = arg->getTypeOfArgument();
-              ExprType = Context->getPointerType(ArgTy);
-              TR.insert(new PVConstraint(ExprType, nullptr, FD->getName(), CS,
-                                         *Context)); // memory leak?
+            QualType ArgTy;
+            Atom *A = analyzeAllocExpr(CE->getArg(0), CS, ArgTy);
+            if (A) {
+              std::string N = FD->getName(); N = "&"+N;
+              PVConstraint *PVC =  // FIXME: memory leak? delete this PVC?
+                  new PVConstraint(ArgTy, nullptr, N, CS,*Context);
+              PVConstraint *PVCaddr = addAtom(PVC, A,CS);
+              TR.insert(PVCaddr);
               didInsert = true;
+              ExprType = Context->getPointerType(ArgTy);
             }
-            // TODO: Handle more cases, e.g., sizeof(X)*N, or constants
           }
           if (!didInsert)
             TR.insert(PVConstraint::getWildPVConstraint(Info.getConstraints()));

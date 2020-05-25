@@ -236,13 +236,13 @@ public:
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
                             FunctionVariableConstraint *F, bool isArr,
                             bool isItype, std::string is) :
-          ConstraintVariable(PointerVariable, "" /*not used*/, Name)
-          ,vars(V),FV(F),BaseType(T),
+          ConstraintVariable(PointerVariable, "" /*not used*/, Name),
+          BaseType(T),vars(V),FV(F),
         ArrPresent(isArr), ItypeStr(is),
            partOFFuncPrototype(false), Parent(nullptr) {}
 
-  bool getArrPresent() { return ArrPresent; }
   std::string getTy() { return BaseType; }
+  bool getArrPresent() { return ArrPresent; }
 
   // Is an itype present for this constraint? If yes,
   // what is the text of that itype?

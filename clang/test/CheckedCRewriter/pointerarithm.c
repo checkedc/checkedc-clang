@@ -1,13 +1,14 @@
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
 
 int *sus(int *x, int*y) {
-  int *z = malloc(sizeof(int));
+  int *z = malloc(sizeof(int)*2);
   *z = 1;
   x++;
   *x = 2;
   return z;
 }
 //CHECK: _Array_ptr<int> sus(int *x : itype(_Array_ptr<int>), _Ptr<int> y) {
+//CHECK-NEXT:  _Array_ptr<int> z: count((sizeof(int) * 2)) =  malloc(sizeof(int)*2);
 
 int* foo() {
   int sx = 3, sy = 4, *x = &sx, *y = &sy;

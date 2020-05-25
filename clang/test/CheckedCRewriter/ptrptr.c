@@ -11,7 +11,7 @@ void f() {
 // CHECK: int x _Checked[5];
 
 void g() {
-  int *x = malloc(sizeof(int));
+  int *x = malloc(sizeof(int)*1);
   int y[5];
   int **p = &x;
   int **r = 0;
@@ -20,7 +20,7 @@ void g() {
   r = p;
   **r = 1;
 }
-// CHECK:  _Array_ptr<int> x: count(sizeof(int)) =  malloc(sizeof(int));
+// CHECK:  _Array_ptr<int> x: count((sizeof(int) * 1)) =  malloc(sizeof(int)*1);
 // CHECK:  int y _Checked[5];
 // CHECK:  _Ptr<_Array_ptr<int>> p =  &x;
 // CHECK:  _Ptr<_Array_ptr<int>> r =  0;
