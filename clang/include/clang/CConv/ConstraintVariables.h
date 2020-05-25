@@ -166,7 +166,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
                       PersistentSourceLoc *PL,
                       ConsAction CA,
                       bool doEqType,
-                      ProgramInfo *I);
+                      ProgramInfo *Info);
 
 class PointerVariableConstraint;
 class FunctionVariableConstraint;

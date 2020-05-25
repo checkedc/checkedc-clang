@@ -997,9 +997,6 @@ void FunctionVariableConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
       TmpDecl.insert(DeclCons->begin(), DeclCons->end());
       TmpDefn.insert(DefnCons->begin(), DefnCons->end());
       // Equate declaration and definition constraint
-      //   (Need to call twice to unify at all levels)
-      constrainConsVarGeq(TmpDecl, TmpDefn, Info.getConstraints(), nullptr,
-                          Same_to_Same, true, &Info);
       constrainConsVarGeq(TmpDefn, TmpDecl, Info.getConstraints(), nullptr,
                           Same_to_Same, true, &Info);
 
@@ -1364,14 +1361,13 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
                       PersistentSourceLoc *PL,
                       ConsAction CA,
                       bool doEqType,
-                      ProgramInfo *I) {
+                      ProgramInfo *Info) {
 
   // If one of the constraint is NULL, make the other constraint WILD.
   // This can happen when a non-function pointer gets assigned to
   // a function pointer.
   if (LHS == nullptr || RHS == nullptr) {
-    std::string Rsn = "Assignment a non-function pointer "
-                      "to a function pointer";
+    std::string Rsn = "Assignment a non-pointer to a pointer";
     if (LHS != nullptr) {
       LHS->constrainToWild(CS, Rsn, PL, false);
     }
@@ -1388,12 +1384,12 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
         // This is an assignment between function pointer and
         // function pointer or a function.
         // Equate the definition and declaration.
-        FCLHS->equateInsideOutsideVars(*I);
-        FCRHS->equateInsideOutsideVars(*I);
+        FCLHS->equateInsideOutsideVars(*Info);
+        FCRHS->equateInsideOutsideVars(*Info);
 
         // Constrain the return values covariantly.
         constrainConsVarGeq(FCLHS->getReturnVars(), FCRHS->getReturnVars(), CS,
-                            PL, Same_to_Same, true, I);
+                            PL, Same_to_Same, doEqType, Info);
 
         // Constrain the parameters contravariantly
         if (FCLHS->numParams() == FCRHS->numParams()) {
@@ -1402,7 +1398,8 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
                 FCLHS->getParamVar(i);
             std::set<ConstraintVariable *> &RHSV =
                 FCRHS->getParamVar(i);
-            constrainConsVarGeq(RHSV, LHSV, CS, PL, Same_to_Same, doEqType, I);
+            constrainConsVarGeq(RHSV, LHSV, CS, PL, Same_to_Same, doEqType,
+                                Info);
           }
         } else {
           // Constrain both to be top.
@@ -1420,8 +1417,8 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
         std::string Rsn = "";
         // This is to handle function subtyping. Try to add LHS and RHS
         // to each others argument constraints.
-        PCLHS->addArgumentConstraint(PCRHS, *I);
-        PCRHS->addArgumentConstraint(PCLHS, *I);
+        PCLHS->addArgumentConstraint(PCRHS, *Info);
+        PCRHS->addArgumentConstraint(PCLHS, *Info);
         // Element-wise constrain PCLHS and PCRHS to be equal
         CAtoms CLHS = PCLHS->getCvars();
         CAtoms CRHS = PCRHS->getCvars();
@@ -1449,7 +1446,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
         }
         // Equate the corresponding FunctionContraint.
         constrainConsVarGeq(PCLHS->getFV(), PCRHS->getFV(), CS, PL,
-                            CA, doEqType, I);
+                            CA, doEqType, Info);
       } else
         llvm_unreachable("impossible");
     } else
@@ -1461,7 +1458,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
     FVConstraint *FCRHS = dyn_cast<FVConstraint>(RHS);
     if (PCLHS && FCRHS) {
       if (FVConstraint *FCLHS = PCLHS->getFV()) {
-        constrainConsVarGeq(FCLHS, FCRHS, CS, PL, CA, doEqType, I);
+        constrainConsVarGeq(FCLHS, FCRHS, CS, PL, CA, doEqType, Info);
       } else {
           std::string Rsn = "Function:" + FCRHS->getName() +
                             " assigned to non-function pointer.";

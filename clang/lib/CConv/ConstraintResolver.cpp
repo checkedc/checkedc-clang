@@ -96,10 +96,11 @@ static std::set<ConstraintVariable *> handleDeref(std::set<ConstraintVariable *>
 
 // Update a PVConstraint with one additional level of indirection
 static PVConstraint *addAtom(PVConstraint *PVC, Atom *NewA, Constraints &CS) {
-  // Add a PTR to the Atom list
   CAtoms C = PVC->getCvars();
   if (!C.empty()) {
     Atom *A = *C.begin();
+    // If PVC is already a pointer, add implication forcing outermost
+    //   one to be wild if this added one is
     if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
       NewA = CS.getFreshVar("&"+(PVC->getName()), VarAtom::V_Other);
       auto *Prem = CS.createGeq(VA, CS.getWild());
