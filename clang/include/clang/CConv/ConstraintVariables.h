@@ -326,8 +326,6 @@ private:
   // A vector of K sets of N constraints on the parameter values, for
   // K parameters accepted by the function.
   std::vector<std::set<ConstraintVariable *>> paramVars;
-  // Name of the function or function variable. Used by mkString.
-  std::string name;
   // File name in which this declaration is found.
   std::string FileName;
   bool Hasproto;
@@ -341,7 +339,7 @@ private:
                               ProgramInfo &Info);
 public:
   FunctionVariableConstraint() :
-          ConstraintVariable(FunctionVariable, "", ""),name(""),
+          ConstraintVariable(FunctionVariable, "", ""),
                                  FileName(""), Hasproto(false),
         Hasbody(false), IsStatic(false), Parent(nullptr),
                                  IsFunctionPtr(false) { }
@@ -356,7 +354,6 @@ public:
   getReturnVars() { return returnVars; }
 
   size_t numParams() { return paramVars.size(); }
-  std::string getName() { return name; }
 
   bool hasProtoType() { return Hasproto; }
   bool hasBody() { return Hasbody; }

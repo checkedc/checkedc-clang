@@ -645,7 +645,6 @@ FunctionVariableConstraint::
   this->FileName = Ot->FileName;
   this->Hasbody = Ot->Hasbody;
   this->Hasproto = Ot->Hasproto;
-  this->name = Ot->name;
   this->HasDefDeclEquated = Ot->HasDefDeclEquated;
   this->IsFunctionPtr = Ot->IsFunctionPtr;
   this->HasDefDeclEquated = Ot->HasDefDeclEquated;
@@ -682,8 +681,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
                                                        Constraints &CS,
                                                        const ASTContext &Ctx) :
         ConstraintVariable(ConstraintVariable::FunctionVariable,
-                           tyToStr(Ty), N),
-        name(N), Parent(nullptr)
+                           tyToStr(Ty), N), Parent(nullptr)
 {
   QualType RT;
   Hasproto = false;
@@ -982,11 +980,11 @@ void FunctionVariableConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
   if (!IsFunctionPtr) {
     // Get appropriate constraints based on whether the function is static or not.
     if (IsStatic) {
-      DeclCons = Info.getStaticFuncDeclConstraintSet(name, FileName);
-      DefnCons = Info.getStaticFuncDefnConstraintSet(name, FileName);
+      DeclCons = Info.getStaticFuncDeclConstraintSet(Name, FileName);
+      DefnCons = Info.getStaticFuncDefnConstraintSet(Name, FileName);
     } else {
-      DeclCons = Info.getExtFuncDeclConstraintSet(name);
-      DefnCons = Info.getExtFuncDefnConstraintSet(name);
+      DeclCons = Info.getExtFuncDeclConstraintSet(Name);
+      DefnCons = Info.getExtFuncDefnConstraintSet(Name);
     }
 
     // Only when we have both declaration and definition constraints.
@@ -1172,7 +1170,7 @@ void FunctionVariableConstraint::print(raw_ostream &O) const {
   for (const auto &I : returnVars)
     I->print(O);
   O << " )";
-  O << " " << name << " ";
+  O << " " << Name << " ";
   for (const auto &I : paramVars) {
     O << "( ";
     for (const auto &J : I)
@@ -1190,7 +1188,7 @@ void FunctionVariableConstraint::dump_json(raw_ostream &O) const {
     }
     I->dump_json(O);
   }
-  O << "], \"name\":\"" << name << "\", ";
+  O << "], \"name\":\"" << Name << "\", ";
   O << "\"Parameters\":[";
   AddComma = false;
   for (const auto &I : paramVars) {
