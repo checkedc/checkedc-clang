@@ -121,7 +121,6 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 {
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
-  OriginalType = tyToStr(Ty);
   // If the type is a decayed type, then maybe this is the result of
   // decaying an array to a pointer. If the original type is some
   // kind of array type, we want to use that instead.
@@ -640,7 +639,7 @@ FunctionVariableConstraint::
     FunctionVariableConstraint(FunctionVariableConstraint *Ot,
                                Constraints &CS) :
     ConstraintVariable(ConstraintVariable::FunctionVariable,
-                       Ot->BaseType,
+                       Ot->OriginalType,
                        Ot->getName()) {
   this->IsStatic = Ot->IsStatic;
   this->FileName = Ot->FileName;

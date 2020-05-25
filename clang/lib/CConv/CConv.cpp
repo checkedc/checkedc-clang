@@ -149,8 +149,8 @@ void runSolver(ProgramInfo &Info,
 
   dumpConstraintOutputJson(INITIAL_OUTPUT_SUFFIX, Info);
 
-  unsigned NumIter = 0;
   clock_t StartTime = clock();
+  // FIXME: We should be seeing whether the constraints could be solved
   std::pair<Constraints::ConstraintSet, bool> R = CS.solve();
   if (Verbose) {
     errs() << "Solver time:" << getTimeSpentInSeconds(StartTime) << "\n";

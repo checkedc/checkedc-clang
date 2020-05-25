@@ -64,7 +64,6 @@ public:
 private:
   ConstraintVariableKind Kind;
 protected:
-  std::string BaseType;
   std::string OriginalType;
   // Underlying name of the C variable this ConstraintVariable represents.
   std::string Name;
@@ -76,10 +75,12 @@ protected:
   // A flag to indicate that we already equated definition and declaration
   // constraints for this FV. This is needed to avoid infinite recursive calls.
   bool HasDefDeclEquated;
-public:
-  ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) :
-          Kind(K),BaseType(T),Name(N), HasDefDeclEquated(false) {}
 
+  // Only subclasses should call this
+  ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) :
+      Kind(K),OriginalType(T),Name(N), HasDefDeclEquated(false) {}
+
+public:
   // Create a "for-rewriting" representation of this ConstraintVariable.
   // The 'emitName' parameter is true when the generated string should include
   // the name of the variable, false for just the type.
@@ -116,7 +117,6 @@ public:
   virtual ConstAtom *getHighestType(EnvironmentMap &E) = 0;
   virtual void equateInsideOutsideVars(ProgramInfo &I) = 0;
 
-  std::string getTy() { return BaseType; }
   std::string getOriginalTy() { return OriginalType; }
   // Get the original type string that can be directly
   // used for rewriting.
@@ -184,6 +184,7 @@ public:
   static PointerVariableConstraint *getWildPVConstraint(Constraints &CS);
   static PointerVariableConstraint *getPtrPVConstraint(Constraints &CS);
 private:
+  std::string BaseType;
   CAtoms vars;
   FunctionVariableConstraint *FV;
   std::map<uint32_t, Qualification> QualMap;
@@ -235,12 +236,13 @@ public:
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
                             FunctionVariableConstraint *F, bool isArr,
                             bool isItype, std::string is) :
-          ConstraintVariable(PointerVariable, T, Name)
-          ,vars(V),FV(F),
+          ConstraintVariable(PointerVariable, "" /*not used*/, Name)
+          ,vars(V),FV(F),BaseType(T),
         ArrPresent(isArr), ItypeStr(is),
            partOFFuncPrototype(false), Parent(nullptr) {}
 
   bool getArrPresent() { return ArrPresent; }
+  std::string getTy() { return BaseType; }
 
   // Is an itype present for this constraint? If yes,
   // what is the text of that itype?
