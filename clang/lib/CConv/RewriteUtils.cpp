@@ -11,6 +11,7 @@
 
 #include "clang/CConv/ConstraintResolver.h"
 #include "clang/CConv/RewriteUtils.h"
+#include "clang/CConv/Utils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/CConv/ArrayBoundsInferenceConsumer.h"
 #include "clang/CConv/CCGlobalOptions.h"
@@ -553,11 +554,11 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   else
     VisitedSet.insert(FuncName);
 
-  std::set<ConstraintVariable *> TmpVars;
   auto &DefFVars = *(Info.getFuncDefnConstraints(Definition, Context));
-  TmpVars.insert(DefFVars.begin(), DefFVars.end());
-
-  FVConstraint *Defnc = getHighestT<FVConstraint>(TmpVars, Info);
+  FVConstraint *Defnc = getOnly(DefFVars);
+  //std::set<ConstraintVariable *> TmpVars;
+  //TmpVars.insert(DefFVars.begin(), DefFVars.end());
+  //FVConstraint *Defnc = getHighestT<FVConstraint>(TmpVars, Info);
 
   FVConstraint *Declc = nullptr;
   // Get corresponding declaration keys
@@ -567,18 +568,19 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   // Get constraint variables for the declaration and the definition.
   // Those constraints should be function constraints.
   if (FuncDeclKeys != nullptr) {
-    TmpVars.clear();
-    TmpVars.insert(FuncDeclKeys->begin(), FuncDeclKeys->end());
-    Declc = getHighestT<FVConstraint>(TmpVars, Info);
+    Declc = getOnly(*FuncDeclKeys);
+//    TmpVars.clear();
+//    TmpVars.insert(FuncDeclKeys->begin(), FuncDeclKeys->end());
+//    Declc = getHighestT<FVConstraint>(TmpVars, Info);
   } else {
-    auto &TmpFVars =
-        Info.getOnDemandFuncDeclarationConstraint(Definition, Context);
-    TmpVars.clear();
-    TmpVars.insert(TmpFVars.begin(), TmpFVars.end());
-
     // No declaration constraints found. So, create on demand
     // declaration constraints.
-    Declc = getHighestT<FVConstraint>(TmpVars, Info);
+    auto &TmpFVars =
+        Info.getOnDemandFuncDeclarationConstraint(Definition, Context);
+    Declc = getOnly(TmpFVars);
+//    TmpVars.clear();
+//    TmpVars.insert(TmpFVars.begin(), TmpFVars.end());
+//    Declc = getHighestT<FVConstraint>(TmpVars, Info);
   }
 
   assert(Declc != nullptr);
@@ -591,8 +593,10 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     std::vector<std::string> ParmStrs;
     // Compare parameters.
     for (unsigned i = 0; i < Declc->numParams(); ++i) {
-      auto Decl = getHighestT<PVConstraint>(Declc->getParamVar(i), Info);
-      auto Defn = getHighestT<PVConstraint>(Defnc->getParamVar(i), Info);
+//      auto Decl = getHighestT<PVConstraint>(Declc->getParamVar(i), Info);
+//      auto Defn = getHighestT<PVConstraint>(Defnc->getParamVar(i), Info);
+      auto Decl = dyn_cast<PVConstraint>(getOnly(Declc->getParamVar(i)));
+      auto Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getParamVar(i)));
       assert(Decl);
       assert(Defn);
       bool ParameterHandled = false;
@@ -641,8 +645,11 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     }
 
     // Compare returns.
-    auto Decl = getHighestT<PVConstraint>(Declc->getReturnVars(), Info);
-    auto Defn = getHighestT<PVConstraint>(Defnc->getReturnVars(), Info);
+//    auto Decl = getHighestT<PVConstraint>(Declc->getReturnVars(), Info);
+//    auto Defn = getHighestT<PVConstraint>(Defnc->getReturnVars(), Info);
+    auto Decl = dyn_cast<PVConstraint>(getOnly(Declc->getReturnVars()));
+    auto Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getReturnVars()));
+
     std::string ReturnVar = "";
     std::string EndStuff = "";
     bool ReturnHandled = false;
@@ -656,8 +663,6 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         DidAny = true;
         std::string Ctype = "";
         // Definition is more precise than declaration.
-        // Section 5.3:
-        // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
         if (Decl->anyArgumentIsWild(CS.getVariables())) {
           Ctype =
               Defn->mkString(Info.getConstraints().getVariables(), true, true);

@@ -33,23 +33,23 @@ std::string ConstraintVariable::getRewritableOriginalTy() {
   return OrigTyString;
 }
 
-ConstraintVariable *
-ConstraintVariable::getHighestNonWildConstraint(std::set<ConstraintVariable *>
-                                                &ToCheck,
-                                                EnvironmentMap &E,
-                                                ProgramInfo &I) {
-  ConstraintVariable *HighestConVar = nullptr;
-  for (auto CurrCons : ToCheck) {
-    // If the current constraint is not WILD.
-    if (!CurrCons->hasWild(E)) {
-      if (HighestConVar == nullptr)
-        HighestConVar = CurrCons;
-      else if (HighestConVar->isLt(*CurrCons, I))
-        HighestConVar = CurrCons;
-    }
-  }
-  return HighestConVar;
-}
+//ConstraintVariable *
+//ConstraintVariable::getHighestNonWildConstraint(std::set<ConstraintVariable *>
+//                                                &ToCheck,
+//                                                EnvironmentMap &E,
+//                                                ProgramInfo &I) {
+//  ConstraintVariable *HighestConVar = nullptr;
+//  for (auto CurrCons : ToCheck) {
+//    // If the current constraint is not WILD.
+//    if (!CurrCons->hasWild(E)) {
+//      if (HighestConVar == nullptr)
+//        HighestConVar = CurrCons;
+//      else if (HighestConVar->isLt(*CurrCons, I))
+//        HighestConVar = CurrCons;
+//    }
+//  }
+//  return HighestConVar;
+//}
 
 PointerVariableConstraint *PointerVariableConstraint::GlobalWildPV = nullptr;
 PointerVariableConstraint *PointerVariableConstraint::GlobalPtrPV = nullptr;
@@ -331,66 +331,66 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   }
 }
 
-bool PVConstraint::liftedOnCVars(const ConstraintVariable &O,
-                                 ProgramInfo &Info,
-                                 llvm::function_ref<bool (ConstAtom *,
-                                                         ConstAtom *)> Op) const
-{
-  // If these aren't both PVConstraints, incomparable.
-  if (!isa<PVConstraint>(O))
-    return false;
-
-  const PVConstraint *P = cast<PVConstraint>(&O);
-  const CAtoms &OC = P->getCvars();
-
-  // If they don't have the same number of cvars, incomparable.
-  if (OC.size() != getCvars().size())
-    return false;
-
-  auto I = getCvars().begin();
-  auto J = OC.begin();
-  Constraints &CS = Info.getConstraints();
-  auto &Env = CS.getVariables();
-
-  while (I != getCvars().end() && J != OC.end()) {
-    // Look up the valuation for I and J.
-    ConstAtom *CI = const_cast<ConstAtom*>(getPtrSolution(*I, Env));
-    ConstAtom *CJ = const_cast<ConstAtom*>(getPtrSolution(*J, Env));
-
-    if (!Op(CI, CJ))
-      return false;
-
-    ++I;
-    ++J;
-  }
-
-  return true;
-}
-
-bool PVConstraint::isLt(const ConstraintVariable &Other,
-                        ProgramInfo &Info) const
-{
-  if (isEmpty() || Other.isEmpty())
-    return false;
-
-  return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
-      return *A < *B;
-  });
-}
-
-bool PVConstraint::isEq(const ConstraintVariable &Other,
-                        ProgramInfo &Info) const
-{
-  if (isEmpty() && Other.isEmpty())
-    return true;
-
-  if (isEmpty() || Other.isEmpty())
-    return false;
-
-  return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
-      return *A == *B;
-  });
-}
+//bool PVConstraint::liftedOnCVars(const ConstraintVariable &O,
+//                                 ProgramInfo &Info,
+//                                 llvm::function_ref<bool (ConstAtom *,
+//                                                         ConstAtom *)> Op) const
+//{
+//  // If these aren't both PVConstraints, incomparable.
+//  if (!isa<PVConstraint>(O))
+//    return false;
+//
+//  const PVConstraint *P = cast<PVConstraint>(&O);
+//  const CAtoms &OC = P->getCvars();
+//
+//  // If they don't have the same number of cvars, incomparable.
+//  if (OC.size() != getCvars().size())
+//    return false;
+//
+//  auto I = getCvars().begin();
+//  auto J = OC.begin();
+//  Constraints &CS = Info.getConstraints();
+//  auto &Env = CS.getVariables();
+//
+//  while (I != getCvars().end() && J != OC.end()) {
+//    // Look up the valuation for I and J.
+//    ConstAtom *CI = const_cast<ConstAtom*>(getPtrSolution(*I, Env));
+//    ConstAtom *CJ = const_cast<ConstAtom*>(getPtrSolution(*J, Env));
+//
+//    if (!Op(CI, CJ))
+//      return false;
+//
+//    ++I;
+//    ++J;
+//  }
+//
+//  return true;
+//}
+//
+//bool PVConstraint::isLt(const ConstraintVariable &Other,
+//                        ProgramInfo &Info) const
+//{
+//  if (isEmpty() || Other.isEmpty())
+//    return false;
+//
+//  return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
+//      return *A < *B;
+//  });
+//}
+//
+//bool PVConstraint::isEq(const ConstraintVariable &Other,
+//                        ProgramInfo &Info) const
+//{
+//  if (isEmpty() && Other.isEmpty())
+//    return true;
+//
+//  if (isEmpty() || Other.isEmpty())
+//    return false;
+//
+//  return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
+//      return *A == *B;
+//  });
+//}
 
 void PointerVariableConstraint::print(raw_ostream &O) const {
   O << "{ ";
@@ -775,73 +775,73 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   }
 }
 
-bool FVConstraint::liftedOnCVars(const ConstraintVariable &Other,
-                                 ProgramInfo &Info,
-                                 llvm::function_ref<bool (ConstAtom *,
-                                                         ConstAtom *)> Op) const
-{
-  if (!isa<FVConstraint>(Other))
-    return false;
-
-  const FVConstraint *F = cast<FVConstraint>(&Other);
-
-  if (paramVars.size() != F->paramVars.size()) {
-    if (paramVars.size() < F->paramVars.size()) {
-      return true;
-    } else {
-      return false;
-    }
-  }
-
-  // Consider the return variables.
-  ConstraintVariable *U = getHighest(returnVars, Info);
-  ConstraintVariable *V = getHighest(F->returnVars, Info);
-
-  if (!U->liftedOnCVars(*V, Info, Op))
-    return false;
-
-  // Consider the parameters.
-  auto I = paramVars.begin();
-  auto J = F->paramVars.begin();
-
-  while ((I != paramVars.end()) && (J != F->paramVars.end())) {
-    U = getHighest(*I, Info);
-    V = getHighest(*J, Info);
-
-    if (!U->liftedOnCVars(*V, Info, Op))
-      return false;
-
-    ++I;
-    ++J;
-  }
-
-  return true;
-}
-
-bool FVConstraint::isLt(const ConstraintVariable &Other,
-                        ProgramInfo &Info) const
-{
-  if (isEmpty() || Other.isEmpty())
-    return false;
-
-  return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
-      return *A < *B;
-  });
-}
-
-bool FVConstraint::isEq(const ConstraintVariable &Other,
-                        ProgramInfo &Info) const
-{
-  if (isEmpty() && Other.isEmpty())
-    return true;
-
-  if (isEmpty() || Other.isEmpty())
-    return false;
-
-  return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
-      return *A == *B;
-  });
-}
+//bool FVConstraint::liftedOnCVars(const ConstraintVariable &Other,
+//                                 ProgramInfo &Info,
+//                                 llvm::function_ref<bool (ConstAtom *,
+//                                                         ConstAtom *)> Op) const
+//{
+//  if (!isa<FVConstraint>(Other))
+//    return false;
+//
+//  const FVConstraint *F = cast<FVConstraint>(&Other);
+//
+//  if (paramVars.size() != F->paramVars.size()) {
+//    if (paramVars.size() < F->paramVars.size()) {
+//      return true;
+//    } else {
+//      return false;
+//    }
+//  }
+//
+//  // Consider the return variables.
+//  ConstraintVariable *U = getHighest(returnVars, Info);
+//  ConstraintVariable *V = getHighest(F->returnVars, Info);
+//
+//  if (!U->liftedOnCVars(*V, Info, Op))
+//    return false;
+//
+//  // Consider the parameters.
+//  auto I = paramVars.begin();
+//  auto J = F->paramVars.begin();
+//
+//  while ((I != paramVars.end()) && (J != F->paramVars.end())) {
+//    U = getHighest(*I, Info);
+//    V = getHighest(*J, Info);
+//
+//    if (!U->liftedOnCVars(*V, Info, Op))
+//      return false;
+//
+//    ++I;
+//    ++J;
+//  }
+//
+//  return true;
+//}
+//
+//bool FVConstraint::isLt(const ConstraintVariable &Other,
+//                        ProgramInfo &Info) const
+//{
+//  if (isEmpty() || Other.isEmpty())
+//    return false;
+//
+//  return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
+//      return *A < *B;
+//  });
+//}
+//
+//bool FVConstraint::isEq(const ConstraintVariable &Other,
+//                        ProgramInfo &Info) const
+//{
+//  if (isEmpty() && Other.isEmpty())
+//    return true;
+//
+//  if (isEmpty() || Other.isEmpty())
+//    return false;
+//
+//  return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
+//      return *A == *B;
+//  });
+//}
 
 void FunctionVariableConstraint::constrainToWild(Constraints &CS) {
   for (const auto &V : returnVars)
@@ -913,18 +913,18 @@ ConstraintVariable *FunctionVariableConstraint::getCopy(Constraints &CS) {
   return new FVConstraint(this, CS);
 }
 
-ConstAtom*
-FunctionVariableConstraint::getHighestType(EnvironmentMap &E) {
-  ConstAtom *Ret = nullptr;
-  for (const auto &C : returnVars) {
-    ConstAtom *CS = C->getHighestType(E);
-    assert(CS != nullptr);
-    if (Ret == nullptr || ((*Ret) < *CS)) {
-      Ret = CS;
-    }
-  }
-  return Ret;
-}
+//ConstAtom*
+//FunctionVariableConstraint::getHighestType(EnvironmentMap &E) {
+//  ConstAtom *Ret = nullptr;
+//  for (const auto &C : returnVars) {
+//    ConstAtom *CS = C->getHighestType(E);
+//    assert(CS != nullptr);
+//    if (Ret == nullptr || ((*Ret) < *CS)) {
+//      Ret = CS;
+//    }
+//  }
+//  return Ret;
+//}
 
 void PVConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
   if (HasDefDeclEquated) {
@@ -1144,17 +1144,17 @@ bool PointerVariableConstraint::hasNtArr(EnvironmentMap &E)
   return false;
 }
 
-ConstAtom*
-PointerVariableConstraint::getHighestType(EnvironmentMap &E) {
-  ConstAtom *Ret = nullptr;
-  for (const auto &C : vars) {
-    const ConstAtom *CS = getPtrSolution(C, E);
-    if (Ret == nullptr || ((*Ret) < *CS)) {
-      Ret = const_cast<ConstAtom*>(CS);
-    }
-  }
-  return Ret;
-}
+//ConstAtom*
+//PointerVariableConstraint::getHighestType(EnvironmentMap &E) {
+//  ConstAtom *Ret = nullptr;
+//  for (const auto &C : vars) {
+//    const ConstAtom *CS = getPtrSolution(C, E);
+//    if (Ret == nullptr || ((*Ret) < *CS)) {
+//      Ret = const_cast<ConstAtom*>(CS);
+//    }
+//  }
+//  return Ret;
+//}
 
 void FunctionVariableConstraint::print(raw_ostream &O) const {
   O << "( ";

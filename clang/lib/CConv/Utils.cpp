@@ -28,24 +28,24 @@ const clang::Type *getNextTy(const clang::Type *Ty) {
     return Ty;
 }
 
-ConstraintVariable *getHighest(std::set<ConstraintVariable *> Vs,
-                               ProgramInfo &Info) {
-  if (Vs.size() == 0)
-    return nullptr;
-
-  ConstraintVariable *V = nullptr;
-
-  for (auto &P : Vs) {
-    if (V) {
-      if (V->isLt(*P, Info))
-        V = P;
-    } else {
-      V = P;
-    }
-  }
-
-  return V;
-}
+//ConstraintVariable *getHighest(std::set<ConstraintVariable *> Vs,
+//                               ProgramInfo &Info) {
+//  if (Vs.size() == 0)
+//    return nullptr;
+//
+//  ConstraintVariable *V = nullptr;
+//
+//  for (auto &P : Vs) {
+//    if (V) {
+//      if (V->isLt(*P, Info))
+//        V = P;
+//    } else {
+//      V = P;
+//    }
+//  }
+//
+//  return V;
+//}
 
 
 // Walk the list of declarations and find a declaration that is NOT

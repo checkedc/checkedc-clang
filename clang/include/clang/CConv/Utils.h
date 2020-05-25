@@ -35,21 +35,28 @@ typedef std::map<clang::Decl *, clang::DeclStmt *> VariableDecltoStmtMap;
 
 extern std::set<std::string> FilePaths;
 
+template <typename T>
+T getOnly(std::set<T> &singletonSet) {
+  assert(singletonSet.size() == 1);
+  return (*singletonSet.begin());
+}
+
+
 const clang::Type *getNextTy(const clang::Type *Ty);
 
-ConstraintVariable *getHighest(std::set<ConstraintVariable *> Vs,
-                               ProgramInfo &Info);
+//ConstraintVariable *getHighest(std::set<ConstraintVariable *> Vs,
+//                               ProgramInfo &Info);
 
-template <typename ConstraintType>
-ConstraintType *getHighestT(std::set<ConstraintVariable *> Vs,
-                            ProgramInfo &Info) {
-  auto retVal = getHighest(Vs, Info);
-
-  if (retVal != nullptr)
-    return llvm::dyn_cast<ConstraintType>(retVal);
-
-  return nullptr;
-}
+//template <typename ConstraintType>
+//ConstraintType *getHighestT(std::set<ConstraintVariable *> Vs,
+//                            ProgramInfo &Info) {
+//  auto retVal = getHighest(Vs, Info);
+//
+//  if (retVal != nullptr)
+//    return llvm::dyn_cast<ConstraintType>(retVal);
+//
+//  return nullptr;
+//}
 
 clang::FunctionDecl *getDeclaration(clang::FunctionDecl *FD);
 

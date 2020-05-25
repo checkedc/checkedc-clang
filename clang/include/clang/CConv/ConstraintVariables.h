@@ -109,7 +109,7 @@ public:
   virtual bool hasArr(EnvironmentMap &E) = 0;
   virtual bool hasNtArr(EnvironmentMap &E) = 0;
   // Get the highest type assigned to the cvars of this constraint variable.
-  virtual ConstAtom *getHighestType(EnvironmentMap &E) = 0;
+  //virtual ConstAtom *getHighestType(EnvironmentMap &E) = 0;
   virtual void equateInsideOutsideVars(ProgramInfo &I) = 0;
 
   std::string getOriginalTy() { return OriginalType; }
@@ -127,18 +127,18 @@ public:
   // a specific valuation. That valuation is stored in the ProgramInfo data
   // structure, so these functions (isLt, isEq) compare two ConstraintVariables
   // with a specific assignment to the variables in mind.
-  virtual bool isLt(const ConstraintVariable &Other, ProgramInfo &I) const = 0;
-  virtual bool isEq(const ConstraintVariable &Other, ProgramInfo &I) const = 0;
+//  virtual bool isLt(const ConstraintVariable &Other, ProgramInfo &I) const = 0;
+//  virtual bool isEq(const ConstraintVariable &Other, ProgramInfo &I) const = 0;
   // Sometimes, constraint variables can be produced that are empty. This
   // tests for the existence of those constraint variables.
   virtual bool isEmpty(void) const = 0;
 
-  // A helper function for isLt and isEq where the last parameter is a lambda
-  // for the specific comparison operation to perform.
-  virtual bool liftedOnCVars(const ConstraintVariable &O,
-                             ProgramInfo &Info,
-                             llvm::function_ref<bool (ConstAtom *,
-                                                     ConstAtom *)>) const = 0;
+//  // A helper function for isLt and isEq where the last parameter is a lambda
+//  // for the specific comparison operation to perform.
+//  virtual bool liftedOnCVars(const ConstraintVariable &O,
+//                             ProgramInfo &Info,
+//                             llvm::function_ref<bool (ConstAtom *,
+//                                                     ConstAtom *)>) const = 0;
 
 };
 
@@ -282,7 +282,7 @@ public:
   bool hasArr(EnvironmentMap &E);
   bool hasNtArr(EnvironmentMap &E);
   // Get the highest type assigned to the cvars of this constraint variable.
-  ConstAtom *getHighestType(EnvironmentMap &E);
+  // ConstAtom *getHighestType(EnvironmentMap &E);
 
   void equateInsideOutsideVars(ProgramInfo &I);
 
@@ -292,15 +292,15 @@ public:
   // Get the set of constraint variables corresponding to the arguments.
   std::set<ConstraintVariable *> &getArgumentConstraints();
 
-  bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
-  bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
+//  bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
+//  bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEmpty(void) const { return vars.size() == 0; }
 
   ConstraintVariable *getCopy(Constraints &CS);
 
-  bool liftedOnCVars(const ConstraintVariable &O,
-                     ProgramInfo &Info,
-                     llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;
+//  bool liftedOnCVars(const ConstraintVariable &O,
+//                     ProgramInfo &Info,
+//                     llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;
 
   virtual ~PointerVariableConstraint() {};
 };
@@ -376,14 +376,14 @@ public:
   bool hasWild(EnvironmentMap &E);
   bool hasArr(EnvironmentMap &E);
   bool hasNtArr(EnvironmentMap &E);
-  ConstAtom *getHighestType(EnvironmentMap &E);
+  //ConstAtom *getHighestType(EnvironmentMap &E);
 
   void equateInsideOutsideVars(ProgramInfo &P);
 
   ConstraintVariable *getCopy(Constraints &CS);
 
-  bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
-  bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
+//  bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
+//  bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
   // An FVConstraint is empty if every constraint associated is empty.
   bool isEmpty(void) const {
 
@@ -398,9 +398,9 @@ public:
     return true;
   }
 
-  bool liftedOnCVars(const ConstraintVariable &O,
-                     ProgramInfo &Info,
-                     llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;
+//  bool liftedOnCVars(const ConstraintVariable &O,
+//                     ProgramInfo &Info,
+//                     llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;
 
   virtual ~FunctionVariableConstraint() {};
 };

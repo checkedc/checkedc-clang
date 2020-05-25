@@ -839,7 +839,7 @@ ProgramInfo::getFuncDefnConstraints(FunctionDecl *D, ASTContext *C) {
 
   std::string FuncName = D->getNameAsString();
   if (D->isGlobal()) {
-    // Is this an external function?
+    // Is this a global (externally visible) function?
     if (ExternalFunctionDefnFVCons.find(FuncName) !=
            ExternalFunctionDefnFVCons.end()) {
       return &ExternalFunctionDefnFVCons[FuncName];
