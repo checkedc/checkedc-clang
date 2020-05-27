@@ -23,7 +23,7 @@ class LocalVarABVisitor;
 class GlobalABVisitor: public clang::RecursiveASTVisitor<GlobalABVisitor> {
 public:
   explicit GlobalABVisitor(ASTContext *C, ProgramInfo &I)
-          : Context(C), Info(I), ParamInfo(nullptr) {}
+          : ParamInfo(nullptr), Context(C), Info(I) {}
 
   bool VisitRecordDecl(RecordDecl *RD);
 

@@ -15,8 +15,6 @@
 using namespace llvm;
 using namespace clang;
 
-std::set<ConstraintVariable *> ConstraintResolver::GlobalRValueCons;
-
 // Special-case handling for decl introductions. For the moment this covers:
 //  * void-typed variables
 //  * va_list-typed variables
@@ -37,6 +35,14 @@ void ConstraintResolver::specialCaseVarIntros(ValueDecl *D, bool FuncCtx) {
       }
     }
   }
+}
+
+ConstraintResolver::~ConstraintResolver() {
+  // Release all the temporary Constraints.
+  for (auto *CV : TempConstraintVars) {
+    delete(CV);
+  }
+  TempConstraintVars.clear();
 }
 
 void ConstraintResolver::constraintAllCVarsToWild(
@@ -71,7 +77,8 @@ ConstraintResolver::getExprConstraintVars(Expr *E,
   return ExprCons;
 }
 
-static std::set<ConstraintVariable *> handleDeref(std::set<ConstraintVariable *> T) {
+std::set<ConstraintVariable *>
+    ConstraintResolver::handleDeref(std::set<ConstraintVariable *> T) {
   std::set<ConstraintVariable *> tmp;
   for (const auto &CV : T) {
     PVConstraint *PVC = dyn_cast<PVConstraint>(CV);
@@ -86,8 +93,10 @@ static std::set<ConstraintVariable *> handleDeref(std::set<ConstraintVariable *>
         bool c = PVC->getItypePresent();
         std::string d = PVC->getItype();
         FVConstraint *b = PVC->getFV();
-        tmp.insert(
-            new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a, c, d));
+        PVConstraint *TmpPV = new PVConstraint(C, PVC->getTy(), PVC->getName(),
+                                               b, a, c, d);
+        TempConstraintVars.insert(TmpPV);
+        tmp.insert(TmpPV);
       }
     }
   }
@@ -95,7 +104,8 @@ static std::set<ConstraintVariable *> handleDeref(std::set<ConstraintVariable *>
 }
 
 // Update a PVConstraint with one additional level of indirection
-static PVConstraint *addAtom(PVConstraint *PVC, Atom *NewA, Constraints &CS) {
+PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC,
+                                          Atom *NewA, Constraints &CS) {
   CAtoms C = PVC->getCvars();
   if (!C.empty()) {
     Atom *A = *C.begin();
@@ -115,7 +125,10 @@ static PVConstraint *addAtom(PVConstraint *PVC, Atom *NewA, Constraints &CS) {
   FVConstraint *b = PVC->getFV();
   bool c = PVC->getItypePresent();
   std::string d = PVC->getItype();
-  return new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a, c, d);
+  PVConstraint *TmpPV = new PVConstraint(C, PVC->getTy(), PVC->getName(),
+                                         b, a, c, d);
+  TempConstraintVars.insert(TmpPV);
+  return TmpPV;
 }
 
 // Processes E from malloc(E) to discern the pointer type this will be
@@ -142,6 +155,19 @@ static Atom *analyzeAllocExpr(Expr *E, Constraints &CS, QualType &ArgTy) {
     }
   }
   return nullptr;
+}
+ConstraintVariable *
+ConstraintResolver::getTemporaryConstraintVariable(clang::Expr *E,
+                                                   ConstraintVariable *CV) {
+  auto ExpKey = std::make_pair(E, CV);
+  if (ExprTmpConstraints.find(ExpKey) == ExprTmpConstraints.end()) {
+    // Make a copy and store the copy of the underlying constraint
+    // into TempConstraintVars to handle memory management.
+    auto *CVarPtr = CV->getCopy(Info.getConstraints());
+    TempConstraintVars.insert(CVarPtr);
+    ExprTmpConstraints[ExpKey] = CVarPtr;
+  }
+  return ExprTmpConstraints[ExpKey];
 }
 
 // We traverse the AST in a
@@ -271,8 +297,9 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
             Atom *A = analyzeAllocExpr(CE->getArg(0), CS, ArgTy);
             if (A) {
               std::string N = FD->getName(); N = "&"+N;
-              PVConstraint *PVC =  // FIXME: memory leak? delete this PVC?
+              PVConstraint *PVC =
                   new PVConstraint(ArgTy, nullptr, N, CS,*Context);
+              TempConstraintVars.insert(PVC);
               PVConstraint *PVCaddr = addAtom(PVC, A,CS);
               TR.insert(PVCaddr);
               didInsert = true;
@@ -307,7 +334,9 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
             // so we should constrain everything in the caller to top. We can
             // fake this by returning a nullary-ish FVConstraint and that will
             // make the logic above us freak out and over-constrain everything.
-            TR.insert(new FVConstraint());
+            auto *TmpFV = new FVConstraint();
+            TempConstraintVars.insert(TmpFV);
+            TR.insert(TmpFV);
           }
         }
       } else {
@@ -319,10 +348,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       // ConstraintVariables.
       std::set<ConstraintVariable *> TmpCVs;
       for (ConstraintVariable *CV : TR) {
-        ConstraintVariable *NewCV = CV->getCopy(CS);
-        // Store the temporary constraint vars into a global set
-        // for future memory management.
-        GlobalRValueCons.insert(NewCV);
+        ConstraintVariable *NewCV = getTemporaryConstraintVariable(CE, CV);
         constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false, &Info);
         TmpCVs.insert(NewCV);
       }
@@ -376,6 +402,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       V.push_back(CS.getNTArr());
       ConstraintVariable *newC = new PointerVariableConstraint(
           V, "const char*", exr->getBytes(), nullptr, false, false, "");
+      TempConstraintVars.insert(newC);
       T.insert(newC);
       return T;
 

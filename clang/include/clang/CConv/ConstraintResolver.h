@@ -23,8 +23,11 @@ class ConstraintResolver {
 
 public:
   ConstraintResolver(ProgramInfo &I, ASTContext *C) : Info(I), Context(C) {
-    GlobalRValueCons.clear();
+    TempConstraintVars.clear();
+    ExprTmpConstraints.clear();
   }
+
+  virtual ~ConstraintResolver();
 
   // Special-case handling for decl introductions. For the moment this covers:
   //  * void-typed variables
@@ -80,9 +83,22 @@ public:
 private:
   ProgramInfo &Info;
   ASTContext *Context;
-  // These are temporary R-Value Constraints, that will be created to handle
-  // R-Value expressions, such as constants and Function Calls.
-  static std::set<ConstraintVariable *> GlobalRValueCons;
+  // These are temporary constraints, that will be created to handle various
+  // expressions
+  std::set<ConstraintVariable *> TempConstraintVars;
+  // Map that stores temporary constraint variable copies created for the
+  // corresponding expression and constraint variable
+  std::map<std::pair<clang::Expr *, ConstraintVariable *>,
+           ConstraintVariable *> ExprTmpConstraints;
+
+  ConstraintVariable *getTemporaryConstraintVariable(clang::Expr *E,
+                                                     ConstraintVariable *CV);
+
+  std::set<ConstraintVariable *> handleDeref(std::set<ConstraintVariable *> T);
+
+  // Update a PVConstraint with one additional level of indirection
+  PVConstraint *addAtom(PVConstraint *PVC, Atom *NewA, Constraints &CS);
+
 
   std::set<ConstraintVariable *> getWildPVConstraint();
 };
