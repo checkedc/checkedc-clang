@@ -3934,12 +3934,14 @@ namespace {
       // value as the source, add the target to F.  This prevents EquivExprs
       // from growing too large and containing redundant equality information.
       // For example, for the assignments x = 1; y = x; where the target is y,
-      // SameValue = { 1, x }, and EquivExprs contains F = { 1, x }, EquivExprs
+      // SameValue = { x }, and EquivExprs contains F = { 1, x }, EquivExprs
       // should contain { 1, x, y } rather than { 1, x } and { 1, x, y }.
       if (State.SameValue.size() > 0) {
-        for (auto I = State.EquivExprs.begin(); I != State.EquivExprs.end(); ++I) {
-          if (IsEqualExprsSubset(State.SameValue, *I)) {
-            I->push_back(Target);
+        for (auto F = State.EquivExprs.begin(); F != State.EquivExprs.end(); ++F) {
+          if (IsEqualExprsSubset(State.SameValue, *F)) {
+            if (!EqualExprsContainsExpr(*F, Target))
+              F->push_back(Target);
+
             // Add the target to SameValue if SameValue does not already
             // contain the target.
             if (!EqualExprsContainsExpr(State.SameValue, Target))
@@ -4151,13 +4153,35 @@ namespace {
 
     // Returns true if a unary operator is invertible with respect to x.
     bool IsUnaryOperatorInvertible(DeclRefExpr *X, UnaryOperator *E) {
+      Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
-      if (Op != UnaryOperatorKind::UO_Not &&
-          Op != UnaryOperatorKind::UO_Minus &&
-          Op != UnaryOperatorKind::UO_Plus)
-        return false;
 
-      return IsInvertible(X, E->getSubExpr());
+      // &*e1 is invertible with respect to x if e1 is invertible with
+      // respect to x.
+      if (Op == UnaryOperatorKind::UO_AddrOf) {
+        if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
+          if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
+            return IsInvertible(X, UnarySubExpr->getSubExpr());
+        }
+      }
+
+      // *&e1 is invertible with respect to x if e1 is invertible with
+      // respect to x.
+      if (Op == UnaryOperatorKind::UO_Deref) {
+        if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
+          if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_AddrOf)
+            return IsInvertible(X, UnarySubExpr->getSubExpr());
+        }
+      }
+
+      // ~e1, -e1, and +e1 are invertible with respect to x if e1 is
+      // invertible with respect to x.
+      if (Op == UnaryOperatorKind::UO_Not ||
+          Op == UnaryOperatorKind::UO_Minus ||
+          Op == UnaryOperatorKind::UO_Plus)
+        return IsInvertible(X, SubExpr);
+
+      return false;
     }
 
     // Returns true if a binary operator is invertible with respect to x.
@@ -4277,11 +4301,30 @@ namespace {
       return nullptr;
     }
 
-    // Returns the inverse of a unary operator using the following rule:
-    // Inverse(f, @e1) = Inverse(@f, e1) where @ can be ~, -, or +.
+    // Returns the inverse of a unary operator.
     Expr *UnaryOperatorInverse(DeclRefExpr *X, Expr *F, UnaryOperator *E) {
-      Expr *SubExpr = E->getSubExpr();
+      Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
+      
+      // Inverse(f, &*e1) = Inverse(f, e1)
+      if (Op == UnaryOperatorKind::UO_AddrOf) {
+        if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
+          if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
+            return Inverse(X, F, UnarySubExpr->getSubExpr());
+        }
+      }
+
+      // Inverse(f, *&e1) = Inverse(f, e1)
+      if (Op == UnaryOperatorKind::UO_Deref) {
+        if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
+          if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_AddrOf)
+            return Inverse(X, F, UnarySubExpr->getSubExpr());
+        }
+      }
+
+      // Inverse(f, ~e1) = Inverse(~f, e1)
+      // Inverse(f, -e1) = Inverse(-f, e1)
+      // Inverse(f, +e1) = Inverse(+f, e1)
       Expr *Child = ExprCreatorUtil::EnsureRValue(S, F);
       Expr *F1 = new (S.Context) UnaryOperator(Child, Op, E->getType(),
                                                E->getValueKind(),
