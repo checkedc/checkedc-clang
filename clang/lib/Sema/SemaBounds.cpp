@@ -4047,13 +4047,20 @@ namespace {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
 
-      // &*e1 is invertible with respect to x if e1 is invertible with
-      // respect to x.
       if (Op == UnaryOperatorKind::UO_AddrOf) {
+        // &*e1 is invertible with respect to x if e1 is invertible with
+        // respect to x.
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
             return IsInvertible(X, UnarySubExpr->getSubExpr());
         }
+        // &e1[e2] is invertible with respect to x if e1 + e2 is invertible
+        // with respect to x.
+        else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr))
+          return IsInvertible(X, ExprCreatorUtil::CreateBinaryOperator(S,
+                                   ArraySubExpr->getBase(),
+                                   ArraySubExpr->getIdx(),
+                                   BinaryOperatorKind::BO_Add));
       }
 
       // *&e1 is invertible with respect to x if e1 is invertible with
@@ -4197,12 +4204,18 @@ namespace {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
       
-      // Inverse(f, &*e1) = Inverse(f, e1)
       if (Op == UnaryOperatorKind::UO_AddrOf) {
+        // Inverse(f, &*e1) = Inverse(f, e1)
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
             return Inverse(X, F, UnarySubExpr->getSubExpr());
         }
+        // Inverse(f, &e1[e2]) = Inverse(f, e1 + e2)
+        else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr))
+          return Inverse(X, F, ExprCreatorUtil::CreateBinaryOperator(S,
+                                 ArraySubExpr->getBase(),
+                                 ArraySubExpr->getIdx(),
+                                 BinaryOperatorKind::BO_Add));
       }
 
       // Inverse(f, *&e1) = Inverse(f, e1)
