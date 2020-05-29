@@ -504,31 +504,6 @@ bool ProgramInfo::isAnExternFunction(const std::string &FName) {
   return !ExternFunctions[FName];
 }
 
-void ProgramInfo::seeGlobalDecl(clang::VarDecl *G, ASTContext *C) {
-  std::string VarName = G->getName();
-
-  // Add this to the map of global symbols.
-  std::set<PVConstraint *> ToAdd;
-  // Get the constraint variable directly.
-  std::set<ConstraintVariable *> K;
-  VariableMap::iterator I = Variables.find(PersistentSourceLoc::mkPSL(G, *C));
-  if (I != Variables.end()) {
-    K = I->second;
-  }
-  for (const auto &J : K)
-    if (PVConstraint *FJ = dyn_cast<PVConstraint>(J))
-      ToAdd.insert(FJ);
-
-  assert(ToAdd.size() > 0);
-
-  if (GlobalVariableSymbols.find(VarName) != GlobalVariableSymbols.end()) {
-    GlobalVariableSymbols[VarName].insert(ToAdd.begin(), ToAdd.end());
-  } else {
-    GlobalVariableSymbols[VarName] = ToAdd;
-  }
-
-}
-
 // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with
 // AST data structures that correspond do the data stored in PDMap and
 // ReversePDMap.
@@ -630,6 +605,22 @@ ProgramInfo::insertNewFVConstraints(FunctionDecl *FD,
   }
 }
 
+void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context, bool FuncCtx) {
+  // Special-case for va_list, constrain to wild.
+  if (isVarArgType(D->getType().getAsString()) || hasVoidType(D)) {
+    // set the reason for making this variable WILD.
+    std::string Rsn = "Variable type void.";
+    PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(D, *Context);
+    if (!D->getType()->isVoidType())
+      Rsn = "Variable type is va_list.";
+    for (const auto &I : getVariable(D, Context, FuncCtx)) {
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
+        PVC->constrainToWild(CS, Rsn, &PL);
+      }
+    }
+  }
+}
+
 // For each pointer type in the declaration of D, add a variable to the
 // constraint system for that pointer type.
 bool ProgramInfo::addVariable(clang::DeclaratorDecl *D,
@@ -681,20 +672,27 @@ bool ProgramInfo::addVariable(clang::DeclaratorDecl *D,
           PersistentSourceLoc PSL =
               PersistentSourceLoc::mkPSL(PVD, *astContext);
           Variables[PSL].insert(S.begin(), S.end());
+          specialCaseVarIntros(PVD, astContext,
+                               FD->hasBody()
+                                   && FD->isThisDeclarationADefinition());
         }
       }
       if (FD->isGlobal() && !ExternFunctions[FuncName]) {
-//        llvm::errs() << "addVar: setting externfun to "
-//                     << (FD->isThisDeclarationADefinition() && FD->hasBody())
-//                     << "\n";
         ExternFunctions[FuncName] =
           FD->isThisDeclarationADefinition() && FD->hasBody();
       }
     }
   } else {
     const Type *Ty = nullptr;
-    if (VarDecl *VD = dyn_cast<VarDecl>(D))
+    std::set<PVConstraint *> *gvars = nullptr;
+    if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
+      // FIXME: I have a feeling this won't work for static global vars
+      if (VD->hasGlobalStorage()) {
+        std::string VarName = VD->getName();
+        gvars = &GlobalVariableSymbols[VarName];
+      }
+    }
     else if (FieldDecl *FD = dyn_cast<FieldDecl>(D))
       Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     else
@@ -706,6 +704,8 @@ bool ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       if (!hasConstraintType<PVConstraint>(S)) {
         PVConstraint *P = new PVConstraint(D, CS, *astContext);
         S.insert(P);
+        if (gvars) gvars->insert(P);
+        specialCaseVarIntros(D, astContext, false);
       }
     }
   }

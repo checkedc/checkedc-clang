@@ -28,11 +28,6 @@ public:
 
   virtual ~ConstraintResolver();
 
-  // Special-case handling for decl introductions. For the moment this covers:
-  //  * void-typed variables
-  //  * va_list-typed variables
-  void specialCaseVarIntros(ValueDecl *D, bool FuncCtx = false);
-
   void constraintAllCVarsToWild(std::set<ConstraintVariable*> &CSet,
                                 std::string rsn,
                                 Expr *AtExpr = nullptr);

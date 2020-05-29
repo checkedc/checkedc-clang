@@ -65,6 +65,11 @@ public:
 
   bool getDeclStmtForDecl(clang::Decl *D, clang::DeclStmt *&St);
 
+  // Special-case handling for decl introductions. For the moment this covers:
+  //  * void-typed variables
+  //  * va_list-typed variables
+  void specialCaseVarIntros(ValueDecl *D, ASTContext *Context, bool FuncCtx);
+
   // Checks the structural type equality of two constrained locations. This is 
   // needed if you are casting from U to V. If this returns true, then it's 
   // safe to add an implication that if U is wild, then V is wild. However,
@@ -83,10 +88,6 @@ public:
   // Links information about global symbols together and adds 
   // constraints where appropriate.
   bool link();
-
-  // These functions make the linker aware of function and global variables
-  // declared in the program. 
-  void seeGlobalDecl(clang::VarDecl *, clang::ASTContext *);
 
   std::set<ConstraintVariable *>
     getVariableOnDemand(clang::Decl *D, clang::ASTContext *C,

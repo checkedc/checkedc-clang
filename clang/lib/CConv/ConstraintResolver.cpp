@@ -17,28 +17,6 @@ using namespace clang;
 
 std::set<ConstraintVariable *> ConstraintResolver::TempConstraintVars;
 
-// Special-case handling for decl introductions. For the moment this covers:
-//  * void-typed variables
-//  * va_list-typed variables
-void ConstraintResolver::specialCaseVarIntros(ValueDecl *D, bool FuncCtx) {
-  // Constrain everything that is void to wild.
-  Constraints &CS = Info.getConstraints();
-
-  // Special-case for va_list, constrain to wild.
-  if (isVarArgType(D->getType().getAsString()) || hasVoidType(D)) {
-    // set the reason for making this variable WILD.
-    std::string Rsn = "Variable type void.";
-    PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(D, *Context);
-    if (!D->getType()->isVoidType())
-      Rsn = "Variable type is va_list.";
-    for (const auto &I : Info.getVariable(D, Context, FuncCtx)) {
-      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-        PVC->constrainToWild(CS, Rsn, &PL);
-      }
-    }
-  }
-}
-
 ConstraintResolver::~ConstraintResolver() {
   // No need to free the memory. The memory should be relased explicitly
   // by calling releaseTempConsVars

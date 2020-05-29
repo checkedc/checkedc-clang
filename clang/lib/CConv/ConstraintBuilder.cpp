@@ -40,7 +40,6 @@ public:
         // Add the variable with in the function body context.
         Info.addVariable(D, Context);
 
-        CB.specialCaseVarIntros(D);
         // If this is a static array declaration.
         // Make this an array.
         if (D->getType()->isArrayType()) {
@@ -332,16 +331,14 @@ public:
       : Context(Context), Info(I), CB(Info, Context) {}
 
   bool VisitVarDecl(VarDecl *G) {
-    
-    if (G->hasGlobalStorage())
-      if (G->getType()->isPointerType() || G->getType()->isArrayType()) {
-        Info.addVariable(G, Context);
-        Info.seeGlobalDecl(G, Context);
 
-        if (G->hasInit()) {
-          CB.constrainLocalAssign(nullptr, G, G->getInit());
-        }
+    if (G->hasGlobalStorage() &&
+        (G->getType()->isPointerType() || G->getType()->isArrayType())) {
+      Info.addVariable(G, Context);
+      if (G->hasInit()) {
+        CB.constrainLocalAssign(nullptr, G, G->getInit());
       }
+    }
 
     return true;
   }
@@ -352,36 +349,13 @@ public:
     if (Verbose)
       errs() << "Analyzing function " << D->getName() << "\n";
 
-    if (FL.isValid()) {
-
+    if (FL.isValid()) { // TODO: When would this ever be false?
       Info.addVariable(D, Context);
-      bool HasBody = false;
-
       if (D->hasBody() && D->isThisDeclarationADefinition()) {
-        HasBody = true;
         Stmt *Body = D->getBody();
         FunctionVisitor FV = FunctionVisitor(Context, Info, D);
-
-        // Visit the body of the function and build up information.
         FV.TraverseStmt(Body);
-        // Add constraints based on heuristics.
         AddArrayHeuristics(Context, Info, D);
-      }
-
-      // Iterate through all parameter declarations and insert constraints
-      // based on types.
-      if (D->getType().getTypePtrOrNull() != nullptr) {
-        const FunctionProtoType *FT =
-            D->getType().getTypePtr()->getAs<FunctionProtoType>();
-        if (FT != nullptr) {
-          for (unsigned i = 0; i < FT->getNumParams(); i++) {
-            if (i < D->getNumParams()) {
-              ParmVarDecl *PVD = D->getParamDecl(i);
-              Info.addVariable(PVD, Context);
-              CB.specialCaseVarIntros(PVD, HasBody);
-            }
-          }
-        }
       }
     }
 
@@ -410,7 +384,6 @@ public:
           for (const auto &D : Definition->fields())
             if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
               Info.addVariable(D, Context);
-              CB.specialCaseVarIntros(D);
             }
         }
       }
