@@ -86,7 +86,6 @@ public:
 
   // These functions make the linker aware of function and global variables
   // declared in the program. 
-  void seeFunctionDecl(clang::FunctionDecl *, clang::ASTContext *);
   void seeGlobalDecl(clang::VarDecl *, clang::ASTContext *);
 
   std::set<ConstraintVariable *>

@@ -355,7 +355,6 @@ public:
     if (FL.isValid()) {
 
       Info.addVariable(D, Context);
-      Info.seeFunctionDecl(D, Context);
       bool HasBody = false;
 
       if (D->hasBody() && D->isThisDeclarationADefinition()) {

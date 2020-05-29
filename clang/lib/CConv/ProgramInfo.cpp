@@ -504,54 +504,6 @@ bool ProgramInfo::isAnExternFunction(const std::string &FName) {
   return !ExternFunctions[FName];
 }
 
-void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
-  if (!F->isGlobal())
-    return;
-
-  // Track if we've seen a body for this function or not.
-  std::string Fname = F->getNameAsString();
-  if (!ExternFunctions[Fname])
-    ExternFunctions[Fname] = (F->isThisDeclarationADefinition() && F->hasBody());
-
-  // Look up the constraint variables for the return type and parameter 
-  // declarations of this function, if any.
-  /*
-  std::set<uint32_t> returnVars;
-  std::vector<std::set<uint32_t> > parameterVars(F->getNumParams());
-  PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(F, *C);
-  int i = 0;
-
-  std::set<ConstraintVariable*> FV = getVariable(F, C);
-  assert(FV.size() == 1);
-  const ConstraintVariable *PFV = (*(FV.begin()));
-  assert(PFV != nullptr);
-  const FVConstraint *FVC = dyn_cast<FVConstraint>(PFV);
-  assert(FVC != nullptr);
-
-  //returnVars = FVC->getReturnVars();
-  //unsigned i = 0;
-  //for (unsigned i = 0; i < FVC->numParams(); i++) {
-  //  parameterVars.push_back(FVC->getParamVar(i));
-  //}
-
-  assert(PLoc.valid());
-  GlobalFunctionSymbol *GF = 
-    new GlobalFunctionSymbol(fn, PLoc, parameterVars, returnVars);
-
-  // Add this to the map of global symbols. 
-  std::map<std::string, std::set<GlobalSymbol*> >::iterator it = 
-    GlobalFunctionSymbols.find(fn);
-  
-  if (it == GlobalFunctionSymbols.end()) {
-    std::set<GlobalSymbol*> N;
-    N.insert(GF);
-    GlobalFunctionSymbols.insert(std::pair<std::string, std::set<GlobalSymbol*> >
-      (fn, N));
-  } else {
-    (*it).second.insert(GF);
-  }*/
-}
-
 void ProgramInfo::seeGlobalDecl(clang::VarDecl *G, ASTContext *C) {
   std::string VarName = G->getName();
 
@@ -726,9 +678,17 @@ bool ProgramInfo::addVariable(clang::DeclaratorDecl *D,
         ParmVarDecl *PVD = FD->getParamDecl(i);
         std::set<ConstraintVariable *> S = F->getParamVar(i);
         if (S.size()) {
-          PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *astContext);
+          PersistentSourceLoc PSL =
+              PersistentSourceLoc::mkPSL(PVD, *astContext);
           Variables[PSL].insert(S.begin(), S.end());
         }
+      }
+      if (FD->isGlobal() && !ExternFunctions[FuncName]) {
+//        llvm::errs() << "addVar: setting externfun to "
+//                     << (FD->isThisDeclarationADefinition() && FD->hasBody())
+//                     << "\n";
+        ExternFunctions[FuncName] =
+          FD->isThisDeclarationADefinition() && FD->hasBody();
       }
     }
   } else {
