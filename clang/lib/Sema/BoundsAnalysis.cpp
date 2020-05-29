@@ -124,7 +124,7 @@ void BoundsAnalysis::ComputeGenSets() {
   for (const auto item : BlockMap) {
     ElevatedCFGBlock *EB = item.second;
 
-    // Check if this is a switch case and whether the case label is non-null.
+    // Check if this is a switch case and whether the case label is null.
     // In a switch, we can only widen the bounds in the following cases:
     // 1. Inside a case with a non-null case label.
     // 2. Inside the default case, only if there is another case with a null
@@ -176,12 +176,12 @@ void BoundsAnalysis::ComputeGenSets() {
             E = CE->getSubExpr();
         }
 
-        // If the current block has a non-null case label, we cannot widen the
+        // If the current block has a null case label, we cannot widen the
         // bounds inside that case.
         if (IsSwitchCaseNull) {
-          // If we are here it means there is a case label that tests for null.
-          // This means that the default case is the non-null case. Hence, we
-          // can widen the bounds inside the default case.
+          // If we are here it means that the current case label is null.
+          // This means that the default case would represent the non-null
+          // case. Hence, we can widen the bounds inside the default case.
           if (FalseOrDefaultBlock && FalseOrDefaultBlock->getLabel() &&
               isa<DefaultStmt>(FalseOrDefaultBlock->getLabel()))
             FillGenSet(E, BlockMap[pred], BlockMap[FalseOrDefaultBlock]);
