@@ -586,9 +586,12 @@ ProgramInfo::insertNewFVConstraints(FunctionDecl *FD,
       // Function definition.
       insertIntoExternalFunctionMap(ExternalFunctionDefnFVCons,
                                     FuncName, FVcons);
+      ExternFunctions[FuncName] = true;
     } else {
       insertIntoExternalFunctionMap(ExternalFunctionDeclFVCons,
                                     FuncName, FVcons);
+      if (!ExternFunctions[FuncName])
+        ExternFunctions[FuncName] = false;
     }
   } else {
     // static method
@@ -646,25 +649,12 @@ bool ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       FVConstraint *F = new FVConstraint(D, CS, *astContext);
       S.insert(F);
 
-      // If this is a function. Save the created constraint.
-      // this needed for resolving function subtypes later.
-      // we create a unique key for the declaration and definition
-      // of a function.
-      // We save the mapping between these unique keys.
-      // This is needed so that later when we have to
-      // resolve function subtyping. where for each function
-      // we need access to teh definition and declaration
-      // constraint variables.
-      std::string FuncName = FD->getNameAsString();
-      // FV Constraints to insert.
       std::set<FVConstraint *> NewFVars;
       NewFVars.insert(F);
       insertNewFVConstraints(FD, NewFVars, astContext);
 
       // Add mappings from the parameters PLoc to the constraint variables for
       // the parameters.
-      // We just created this, so they should be equal.
-      assert(FD->getNumParams() == F->numParams());
       for (unsigned i = 0; i < FD->getNumParams(); i++) {
         ParmVarDecl *PVD = FD->getParamDecl(i);
         std::set<ConstraintVariable *> S = F->getParamVar(i);
@@ -676,10 +666,6 @@ bool ProgramInfo::addVariable(clang::DeclaratorDecl *D,
                                FD->hasBody()
                                    && FD->isThisDeclarationADefinition());
         }
-      }
-      if (FD->isGlobal() && !ExternFunctions[FuncName]) {
-        ExternFunctions[FuncName] =
-          FD->isThisDeclarationADefinition() && FD->hasBody();
       }
     }
   } else {

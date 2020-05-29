@@ -211,14 +211,11 @@ private:
   std::map<std::string, bool> ExternFunctions;
 
   // This map contains FVConstraint* objects for non-static
-  // function declarations. For each non-static function, we will have an
-  // entry in this map, which represents the FVConstraint for the declaration
-  // of the corresponding function.
+  // function declarations.
   // FunctionName -> [FVConstraint*].
   ExternalFunctionMapType ExternalFunctionDeclFVCons;
 
-  // Similar to the external function map, this is for internal functions i.e.,
-  // static function.
+  // Similar to the external function map, this is for static functions
   // FunctionName -> {FileName -> [FVConstraint*]}
   StaticFunctionMapType StaticFunctionDeclFVCons;
 
