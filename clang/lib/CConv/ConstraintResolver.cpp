@@ -15,6 +15,8 @@
 using namespace llvm;
 using namespace clang;
 
+std::set<ConstraintVariable *> ConstraintResolver::TempConstraintVars;
+
 // Special-case handling for decl introductions. For the moment this covers:
 //  * void-typed variables
 //  * va_list-typed variables
@@ -38,11 +40,9 @@ void ConstraintResolver::specialCaseVarIntros(ValueDecl *D, bool FuncCtx) {
 }
 
 ConstraintResolver::~ConstraintResolver() {
-  // Release all the temporary Constraints.
-  for (auto *CV : TempConstraintVars) {
-    delete(CV);
-  }
-  TempConstraintVars.clear();
+  // No need to free the memory. The memory should be relased explicitly
+  // by calling releaseTempConsVars
+  ExprTmpConstraints.clear();
 }
 
 void ConstraintResolver::constraintAllCVarsToWild(

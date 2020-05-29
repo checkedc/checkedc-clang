@@ -23,7 +23,6 @@ class ConstraintResolver {
 
 public:
   ConstraintResolver(ProgramInfo &I, ASTContext *C) : Info(I), Context(C) {
-    TempConstraintVars.clear();
     ExprTmpConstraints.clear();
   }
 
@@ -85,7 +84,7 @@ private:
   ASTContext *Context;
   // These are temporary constraints, that will be created to handle various
   // expressions
-  std::set<ConstraintVariable *> TempConstraintVars;
+  static std::set<ConstraintVariable *> TempConstraintVars;
   // Map that stores temporary constraint variable copies created for the
   // corresponding expression and constraint variable
   std::map<std::pair<clang::Expr *, ConstraintVariable *>,
