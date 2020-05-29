@@ -354,8 +354,8 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 //
 //  while (I != getCvars().end() && J != OC.end()) {
 //    // Look up the valuation for I and J.
-//    ConstAtom *CI = const_cast<ConstAtom*>(getPtrSolution(*I, Env));
-//    ConstAtom *CJ = const_cast<ConstAtom*>(getPtrSolution(*J, Env));
+//    ConstAtom *CI = const_cast<ConstAtom*>(getSolution(*I, Env));
+//    ConstAtom *CJ = const_cast<ConstAtom*>(getSolution(*J, Env));
 //
 //    if (!Op(CI, CJ))
 //      return false;
@@ -1072,7 +1072,7 @@ bool PointerVariableConstraint::anyChanges(EnvironmentMap &E) {
 
   // Are there any non-WILD pointers?
   for (const auto &C : vars) {
-    const ConstAtom *CS = getPtrSolution(C, E);
+    const ConstAtom *CS = getSolution(C, E);
     assert(CS != nullptr && "Atom should be either const or var");
     Ret |= !(isa<WildAtom>(CS));
   }
@@ -1088,8 +1088,8 @@ ConstraintVariable *PointerVariableConstraint::getCopy(Constraints &CS) {
 }
 
 const ConstAtom*
-PointerVariableConstraint::getPtrSolution(const Atom *A,
-                                          EnvironmentMap &E) const{
+PointerVariableConstraint::getSolution(const Atom *A,
+                                       EnvironmentMap &E) const{
   const ConstAtom *CS = nullptr;
   if (const ConstAtom *CA = dyn_cast<ConstAtom>(A)) {
     CS = CA;
@@ -1105,7 +1105,7 @@ PointerVariableConstraint::getPtrSolution(const Atom *A,
 bool PointerVariableConstraint::hasWild(EnvironmentMap &E)
 {
   for (const auto &C : vars) {
-    const ConstAtom *CS = getPtrSolution(C, E);
+    const ConstAtom *CS = getSolution(C, E);
     if (isa<WildAtom>(CS))
       return true;
   }
@@ -1119,7 +1119,7 @@ bool PointerVariableConstraint::hasWild(EnvironmentMap &E)
 bool PointerVariableConstraint::hasArr(EnvironmentMap &E)
 {
   for (const auto &C : vars) {
-    const ConstAtom *CS = getPtrSolution(C, E);
+    const ConstAtom *CS = getSolution(C, E);
     if (isa<ArrAtom>(CS))
       return true;
   }
@@ -1133,7 +1133,7 @@ bool PointerVariableConstraint::hasArr(EnvironmentMap &E)
 bool PointerVariableConstraint::hasNtArr(EnvironmentMap &E)
 {
   for (const auto &C : vars) {
-    const ConstAtom *CS = getPtrSolution(C, E);
+    const ConstAtom *CS = getSolution(C, E);
     if (isa<NTArrAtom>(CS))
       return true;
   }
@@ -1148,7 +1148,7 @@ bool PointerVariableConstraint::hasNtArr(EnvironmentMap &E)
 //PointerVariableConstraint::getHighestType(EnvironmentMap &E) {
 //  ConstAtom *Ret = nullptr;
 //  for (const auto &C : vars) {
-//    const ConstAtom *CS = getPtrSolution(C, E);
+//    const ConstAtom *CS = getSolution(C, E);
 //    if (Ret == nullptr || ((*Ret) < *CS)) {
 //      Ret = const_cast<ConstAtom*>(CS);
 //    }
