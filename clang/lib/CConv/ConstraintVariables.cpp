@@ -959,9 +959,6 @@ FunctionVariableConstraint::equateFVConstraintVars(
 }
 
 void FunctionVariableConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
-  std::set<FVConstraint *> *DeclCons = nullptr;
-  std::set<FVConstraint *> *DefnCons = nullptr;
-
   if (HasDefDeclEquated) {
     return;
   }
@@ -975,32 +972,37 @@ void FunctionVariableConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
 
   // Is this not a function pointer?
   if (!IsFunctionPtr) {
+    //std::set<FVConstraint *> *DeclCons = nullptr;
+    std::set<FVConstraint *> *DefnCons = nullptr;
+
     // Get appropriate constraints based on whether the function is static or not.
     if (IsStatic) {
-      DeclCons = Info.getStaticFuncDeclConstraintSet(Name, FileName);
+      //DeclCons = Info.getStaticFuncDeclConstraintSet(Name, FileName);
       DefnCons = Info.getStaticFuncDefnConstraintSet(Name, FileName);
     } else {
-      DeclCons = Info.getExtFuncDeclConstraintSet(Name);
+      //DeclCons = Info.getExtFuncDeclConstraintSet(Name);
       DefnCons = Info.getExtFuncDefnConstraintSet(Name);
     }
 
     // Only when we have both declaration and definition constraints.
     // Then equate them.
-    if (DefnCons != nullptr && DeclCons != nullptr) {
-      std::set<ConstraintVariable *> TmpDecl, TmpDefn;
-      TmpDecl.clear();
+//    if (DefnCons != nullptr && DeclCons != nullptr) {
+    assert(DefnCons != nullptr);
+//      std::set<ConstraintVariable *> TmpDecl, TmpDefn;
+      std::set<ConstraintVariable *> TmpDefn;
+//      TmpDecl.clear();
       TmpDefn.clear();
 
-      TmpDecl.insert(DeclCons->begin(), DeclCons->end());
+//      TmpDecl.insert(DeclCons->begin(), DeclCons->end());
       TmpDefn.insert(DefnCons->begin(), DefnCons->end());
       // Equate declaration and definition constraint
-      constrainConsVarGeq(TmpDefn, TmpDecl, Info.getConstraints(), nullptr,
-                          Same_to_Same, true, &Info);
+//      constrainConsVarGeq(TmpDefn, TmpDecl, Info.getConstraints(), nullptr,
+//                          Same_to_Same, true, &Info);
 
       // Equate arguments and parameters vars.
-      this->equateFVConstraintVars(TmpDecl, Info);
+//      this->equateFVConstraintVars(TmpDecl, Info);
       this->equateFVConstraintVars(TmpDefn, Info);
-    }
+//    }
   }
 }
 
@@ -1483,3 +1485,31 @@ void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
   }
 }
 
+void PointerVariableConstraint::replaceCvars(ConstraintVariable *FromCV) {
+  PVConstraint *From = dyn_cast<PVConstraint>(FromCV);
+  assert (From != nullptr);
+  CAtoms CFrom = From->getCvars();
+  assert (vars.size() == CFrom.size());
+  vars = CFrom; // FIXME: structural copy? By reference?
+}
+
+void FunctionVariableConstraint::replaceCvars(ConstraintVariable *FromCV) {
+  FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
+  assert (From != nullptr);
+  // copy returns
+  auto fromReturnVars = From->getReturnVars();
+  assert (fromReturnVars.size() == 1 && returnVars.size() == 1);
+  auto fromRetVar = *fromReturnVars.begin();
+  auto retVar = *returnVars.begin();
+  retVar->replaceCvars(fromRetVar);
+  // copy params
+  assert(From->numParams() == numParams());
+  for (unsigned i = 0; i < From->numParams(); i++) {
+    std::set<ConstraintVariable *> &FromP = From->getParamVar(i);
+    std::set<ConstraintVariable *> &P = getParamVar(i);
+    assert(FromP.size() == 1 && P.size() == 1);
+    auto FromVar = *FromP.begin();
+    auto Var = *P.begin();
+    Var->replaceCvars(FromVar);
+  }
+}

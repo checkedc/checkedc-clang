@@ -103,14 +103,14 @@ public:
   // that do not have corresponding declaration.
   // For all functions that do not have corresponding declaration,
   // We create an on demand FunctionVariableConstraint.
-  std::set<FVConstraint *>&
-  getOnDemandFuncDeclarationConstraint(FunctionDecl *D, ASTContext *C);
+//  std::set<FVConstraint *>&
+//  getOnDemandFuncDeclarationConstraint(FunctionDecl *D, ASTContext *C);
 
   std::set<FVConstraint *> *
   getFuncDefnConstraints(FunctionDecl *D, ASTContext *C);
 
-  std::set<FVConstraint *> *
-  getFuncDeclConstraints(FunctionDecl *D, ASTContext *C);
+//  std::set<FVConstraint *> *
+//  getFuncDeclConstraints(FunctionDecl *D, ASTContext *C);
 
   // Get a unique key for a given function declaration node.
   std::string getUniqueFuncKey(FunctionDecl *D, ASTContext *C);
@@ -125,13 +125,13 @@ public:
   std::set<FVConstraint *> *
     getExtFuncDefnConstraintSet(std::string FuncName);
 
-  std::set<FVConstraint *> *
-  getStaticFuncDeclConstraintSet(std::string FuncName, std::string FileName);
+//  std::set<FVConstraint *> *
+//  getStaticFuncDeclConstraintSet(std::string FuncName, std::string FileName);
 
   std::set<FVConstraint *> *
   getStaticFuncDefnConstraintSet(std::string FuncName, std::string FileName);
 
-  bool addFunctionDefDeclConstraints();
+//  bool addFunctionDefDeclConstraints();
 
   ArrayBoundsInformation &getArrayBoundsInformation() {
     return *ArrBoundsInfo;
@@ -163,13 +163,13 @@ public:
 
 private:
 
-  bool
-  applyFunctionDefnDeclsConstraints(std::set<FVConstraint *> &DefCVars,
-                                    std::set<FVConstraint *> &DeclCVars);
+//  bool
+//  applyFunctionDefnDeclsConstraints(std::set<FVConstraint *> &DefCVars,
+//                                    std::set<FVConstraint *> &DeclCVars);
 
   // Check if the given set has the corresponding constraint variable type.
-  template <typename T>
-  bool hasConstraintType(std::set<ConstraintVariable *> &S);
+//  template <typename T>
+//  bool hasConstraintType(std::set<ConstraintVariable *> &S);
   // Function to check if an external symbol is okay to leave 
   // constrained. 
   bool isExternOkay(std::string Ext);
@@ -178,14 +178,16 @@ private:
   // Returns true if successful else false.
   bool insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
                                      const std::string &FuncName,
-                                     std::set<FVConstraint *> &ToIns);
+                                     std::set<FVConstraint *> &ToIns,
+                                     bool isDef);
 
   // Inserts the given FVConstraint* set into the provided static map.
   // Returns true if successful else false.
   bool insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
                                    const std::string &FuncName,
                                    const std::string &FileName,
-                                   std::set<FVConstraint *> &ToIns);
+                                   std::set<FVConstraint *> &ToIns,
+                                   bool isDef);
 
   bool
   insertNewFVConstraints(FunctionDecl *FD, std::set<FVConstraint *> &FVcons,
@@ -213,11 +215,11 @@ private:
   // This map contains FVConstraint* objects for non-static
   // function declarations.
   // FunctionName -> [FVConstraint*].
-  ExternalFunctionMapType ExternalFunctionDeclFVCons;
+//  ExternalFunctionMapType ExternalFunctionDeclFVCons;
 
   // Similar to the external function map, this is for static functions
   // FunctionName -> {FileName -> [FVConstraint*]}
-  StaticFunctionMapType StaticFunctionDeclFVCons;
+//  StaticFunctionMapType StaticFunctionDeclFVCons;
 
   // This map is for non-static function definitions.
   ExternalFunctionMapType ExternalFunctionDefnFVCons;

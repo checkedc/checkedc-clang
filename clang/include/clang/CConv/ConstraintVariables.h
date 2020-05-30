@@ -111,6 +111,7 @@ public:
   // Get the highest type assigned to the cvars of this constraint variable.
   //virtual ConstAtom *getHighestType(EnvironmentMap &E) = 0;
   virtual void equateInsideOutsideVars(ProgramInfo &I) = 0;
+  virtual void replaceCvars(ConstraintVariable *) = 0;
 
   std::string getOriginalTy() { return OriginalType; }
   // Get the original type string that can be directly
@@ -215,8 +216,8 @@ private:
   // the values used as arguments.
   std::set<ConstraintVariable *> argumentConstraints;
   // Get solution for the atom of a pointer.
-  const ConstAtom*getSolution(const Atom *A,
-                                  EnvironmentMap &E) const;
+  const ConstAtom* getSolution(const Atom *A,
+                               EnvironmentMap &E) const;
 
   PointerVariableConstraint(PointerVariableConstraint *Ot,
                             Constraints &CS);
@@ -258,6 +259,7 @@ public:
                             const clang::ASTContext &C, std::string* inFunc = nullptr);
 
   const CAtoms &getCvars() const { return vars; }
+  void replaceCvars(ConstraintVariable *From);
 
   static bool classof(const ConstraintVariable *S) {
     return S->getKind() == PointerVariable;
@@ -356,6 +358,8 @@ public:
   static bool classof(const ConstraintVariable *S) {
     return S->getKind() == FunctionVariable;
   }
+
+  void replaceCvars(ConstraintVariable *From);
 
   std::set<ConstraintVariable *> &
   getParamVar(unsigned i) {
