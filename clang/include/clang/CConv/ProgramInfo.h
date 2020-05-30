@@ -61,7 +61,7 @@ public:
 
   // For each pointer type in the declaration of D, add a variable to the 
   // constraint system for that pointer type.
-  bool addVariable(clang::DeclaratorDecl *D, clang::ASTContext *astContext);
+  void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *astContext);
 
   bool getDeclStmtForDecl(clang::Decl *D, clang::DeclStmt *&St);
 
@@ -187,7 +187,7 @@ private:
                                    const std::string &FileName,
                                    std::set<FVConstraint *> &ToIns);
 
-  void
+  bool
   insertNewFVConstraints(FunctionDecl *FD, std::set<FVConstraint *> &FVcons,
                         ASTContext *C);
 

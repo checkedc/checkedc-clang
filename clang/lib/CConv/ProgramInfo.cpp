@@ -382,6 +382,7 @@ bool ProgramInfo::link() {
     std::set<ConstraintVariable *> C = V.second;
 
     if (C.size() > 1) {
+      assert(false); // should never get here
       std::set<ConstraintVariable *>::iterator I = C.begin();
       std::set<ConstraintVariable *>::iterator J = C.begin();
       ++J;
@@ -420,6 +421,7 @@ bool ProgramInfo::link() {
       std::set<FVConstraint *> &P = S.second;
 
       if (P.size() > 1) {
+        assert(false); // Should never get here
         std::set<FVConstraint *>::iterator I = P.begin();
         std::set<FVConstraint *>::iterator J = P.begin();
         ++J;
@@ -578,20 +580,21 @@ ProgramInfo::insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
   return RetVal;
 }
 
-void
+bool
 ProgramInfo::insertNewFVConstraints(FunctionDecl *FD,
                                    std::set<FVConstraint *> &FVcons,
                                    ASTContext *C) {
+  bool ret = false;
   std::string FuncName = FD->getNameAsString();
   if (FD->isGlobal()) {
     // external method.
     if (FD->isThisDeclarationADefinition() && FD->hasBody()) {
       // Function definition.
-      insertIntoExternalFunctionMap(ExternalFunctionDefnFVCons,
+      ret = insertIntoExternalFunctionMap(ExternalFunctionDefnFVCons,
                                     FuncName, FVcons);
       ExternFunctions[FuncName] = true;
     } else {
-      insertIntoExternalFunctionMap(ExternalFunctionDeclFVCons,
+      ret = insertIntoExternalFunctionMap(ExternalFunctionDeclFVCons,
                                     FuncName, FVcons);
       if (!ExternFunctions[FuncName])
         ExternFunctions[FuncName] = false;
@@ -602,13 +605,14 @@ ProgramInfo::insertNewFVConstraints(FunctionDecl *FD,
     std::string FuncFileName = Psl.getFileName();
     if (FD->isThisDeclarationADefinition() && FD->hasBody()) {
       // Function definition.
-      insertIntoStaticFunctionMap(StaticFunctionDefnFVCons, FuncName,
+      ret = insertIntoStaticFunctionMap(StaticFunctionDefnFVCons, FuncName,
                                   FuncFileName, FVcons);
     } else {
-      insertIntoStaticFunctionMap(StaticFunctionDeclFVCons, FuncName,
+      ret = insertIntoStaticFunctionMap(StaticFunctionDeclFVCons, FuncName,
                                   FuncFileName, FVcons);
     }
   }
+  return ret;
 }
 
 void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context, bool FromDefn) {
@@ -629,7 +633,7 @@ void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context, bool F
 
 // For each pointer type in the declaration of D, add a variable to the
 // constraint system for that pointer type.
-bool ProgramInfo::addVariable(clang::DeclaratorDecl *D,
+void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
                               clang::ASTContext *astContext) {
   assert(persisted == false);
 
@@ -639,65 +643,47 @@ bool ProgramInfo::addVariable(clang::DeclaratorDecl *D,
   // We only add a PVConstraint or an FVConstraint if the set at
   // Variables[PLoc] does not contain one already. TODO: Explain why would this happen
   std::set<ConstraintVariable *> &S = Variables[PLoc];
+  if (S.size()) return;
 
-  // Function Decls have FVConstraints. Function pointers have PVConstraints;
-  // see below
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-    const Type *Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
-    assert(Ty->isFunctionType());
-
-    // Create a function value for the type.
-    // process the function constraint only if it doesn't exist
-    if (!hasConstraintType<FVConstraint>(S)) {
-      FVConstraint *F = new FVConstraint(D, CS, *astContext);
-      S.insert(F);
-
-      std::set<FVConstraint *> NewFVars;
-      NewFVars.insert(F);
-      insertNewFVConstraints(FD, NewFVars, astContext);
-
-      // Add mappings from the parameters PLoc to the constraint variables for
-      // the parameters.
-      for (unsigned i = 0; i < FD->getNumParams(); i++) {
-        ParmVarDecl *PVD = FD->getParamDecl(i);
-        std::set<ConstraintVariable *> S = F->getParamVar(i);
-        if (S.size()) {
-          PersistentSourceLoc PSL =
-              PersistentSourceLoc::mkPSL(PVD, *astContext);
-          Variables[PSL].insert(S.begin(), S.end());
-          specialCaseVarIntros(PVD, astContext,
-                               FD->hasBody()
-                                   && FD->isThisDeclarationADefinition());
-        }
-      }
+    // Function Decls have FVConstraints.
+    FVConstraint *F = new FVConstraint(D, CS, *astContext);
+    std::set<FVConstraint *> NewFVars;
+    NewFVars.insert(F);
+    insertNewFVConstraints(FD, NewFVars, astContext);
+    // FIXME: The following code is unnecessary if the above returns false;
+    //  However, it would be better to not create F in the first place
+    S.insert(F);
+    // Add mappings from the parameters PLoc to the constraint variables for
+    // the parameters.
+    for (unsigned i = 0; i < FD->getNumParams(); i++) {
+      ParmVarDecl *PVD = FD->getParamDecl(i);
+      std::set<ConstraintVariable *> PS = F->getParamVar(i);
+      assert(PS.size());
+      PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *astContext);
+      Variables[PSL].insert(PS.begin(), PS.end());
+      specialCaseVarIntros(PVD, astContext,
+                           FD->hasBody() && FD->isThisDeclarationADefinition());
     }
-  } else {
-    const Type *Ty = nullptr;
-    std::set<PVConstraint *> *gvars = nullptr;
-    if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-      Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
-      // FIXME: I have a feeling this won't work for static global vars
-      if (VD->hasGlobalStorage()) {
-        std::string VarName = VD->getName();
-        gvars = &GlobalVariableSymbols[VarName];
-      }
-    }
-    else if (FieldDecl *FD = dyn_cast<FieldDecl>(D))
-      Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
-    else
-      llvm_unreachable("unknown decl type");
-
-    // We will add a PVConstraint even for FunPtrs
+  } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
+    const Type *Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     if (Ty->isPointerType() || Ty->isArrayType()) {
-      // Create a pointer value for the type.
-      if (!hasConstraintType<PVConstraint>(S)) {
-        PVConstraint *P = new PVConstraint(D, CS, *astContext);
-        S.insert(P);
-        if (gvars) gvars->insert(P);
-        specialCaseVarIntros(D, astContext, false);
-      }
+      PVConstraint *P = new PVConstraint(D, CS, *astContext);
+      S.insert(P);
+      std::string VarName = VD->getName();
+      if (VD->hasGlobalStorage())
+        GlobalVariableSymbols[VarName].insert(P);
+      specialCaseVarIntros(D, astContext, false);
     }
-  }
+  } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
+    const Type *Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
+    if (Ty->isPointerType() || Ty->isArrayType()) {
+      PVConstraint *P = new PVConstraint(D, CS, *astContext);
+      S.insert(P);
+      specialCaseVarIntros(D, astContext, false);
+    }
+  } else
+    llvm_unreachable("unknown decl type");
 
   // The Rewriter won't let us re-write things that are in macros. So, we 
   // should check to see if what we just added was defined within a macro.
@@ -709,7 +695,6 @@ bool ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     for (const auto &C : S)
       C->constrainToWild(CS, Rsn);
 
-  return true;
 }
 
 std::string ProgramInfo::getUniqueDeclKey(Decl *D, ASTContext *C) {
