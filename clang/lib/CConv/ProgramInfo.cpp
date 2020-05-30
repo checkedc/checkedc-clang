@@ -497,6 +497,9 @@ bool ProgramInfo::link() {
     }
   }
 
+  // Add constraints between inside and outside VarAtoms of def/decls.
+  addFunctionDefDeclConstraints();
+
   return true;
 }
 

@@ -236,9 +236,6 @@ bool CConvInterface::BuildInitialConstraints() {
     return false;
   }
 
-  // We need to add constraints to inside and outside VarAtoms.
-  GlobalProgramInfo.addFunctionDefDeclConstraints();
-
   ConstraintsBuilt = true;
 
   return true;
