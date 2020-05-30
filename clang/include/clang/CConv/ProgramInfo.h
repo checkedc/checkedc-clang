@@ -68,7 +68,7 @@ public:
   // Special-case handling for decl introductions. For the moment this covers:
   //  * void-typed variables
   //  * va_list-typed variables
-  void specialCaseVarIntros(ValueDecl *D, ASTContext *Context, bool FuncCtx);
+  void specialCaseVarIntros(ValueDecl *D, ASTContext *Context, bool FromDefn);
 
   // Checks the structural type equality of two constrained locations. This is 
   // needed if you are casting from U to V. If this returns true, then it's 
@@ -90,15 +90,12 @@ public:
   bool link();
 
   std::set<ConstraintVariable *>
-    getVariableOnDemand(clang::Decl *D, clang::ASTContext *C,
-                      bool InFuncCtx = false);
+    getVariableOnDemand(clang::Decl *D, clang::ASTContext *C, bool FromDefn);
   std::set<ConstraintVariable *>
-    getVariable(clang::Decl *D, clang::ASTContext *C,
-              bool InFuncCtx = false);
+    getVariable(clang::Decl *D, clang::ASTContext *C, bool FromDefn);
   // Get constraint variable for the provided function or its parameter.
-  std::set<ConstraintVariable *>
-    getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD,
-              int PIdx =-1);
+  // std::set<ConstraintVariable *>
+  //  getVariable(clang::ASTContext *C, FunctionDecl *FD, int PIdx); // use the functions above
 
   VariableMap &getVarMap();
 
@@ -194,6 +191,9 @@ private:
   insertNewFVConstraints(FunctionDecl *FD, std::set<FVConstraint *> &FVcons,
                         ASTContext *C);
 
+  std::set<FVConstraint *> *getFuncFVConstraints(FunctionDecl *FD,
+                                                 ASTContext *C, bool FromDefn);
+
   // List of all constraint variables, indexed by their location in the source.
   // This information persists across invocations of the constraint analysis
   // from compilation unit to compilation unit.
@@ -233,6 +233,7 @@ private:
   ArrayBoundsInformation *ArrBoundsInfo;
   // Disjoint sets for constraints.
   DisjointSet ConstraintDisjointSet;
+
 };
 
 #endif

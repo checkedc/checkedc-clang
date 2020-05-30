@@ -245,7 +245,7 @@ bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
         PotLenFields.insert(FldDecl);
 
       std::set<ConstraintVariable *> ConsVars =
-          Info.getVariable(FldDecl, Context);
+          Info.getVariable(FldDecl, Context, false);
       for (auto CurrCVar : ConsVars) {
         // Is this an array field?
         if (needArrayBounds(CurrCVar, E)) {
