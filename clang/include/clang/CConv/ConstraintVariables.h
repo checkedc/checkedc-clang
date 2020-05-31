@@ -220,7 +220,7 @@ private:
   // the values used as arguments.
   std::set<ConstraintVariable *> argumentConstraints;
   // Get solution for the atom of a pointer.
-  const ConstAtom* getSolution(const Atom *A,
+  const ConstAtom *getSolution(const Atom *A,
                                EnvironmentMap &E) const;
 
   PointerVariableConstraint(PointerVariableConstraint *Ot,

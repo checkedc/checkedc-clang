@@ -913,9 +913,8 @@ ConstraintVariable *PointerVariableConstraint::getCopy(Constraints &CS) {
   return new PointerVariableConstraint(this, CS);
 }
 
-const ConstAtom*
-PointerVariableConstraint::getSolution(const Atom *A,
-                                       EnvironmentMap &E) const{
+const ConstAtom *
+PointerVariableConstraint::getSolution(const Atom *A, EnvironmentMap &E) const {
   const ConstAtom *CS = nullptr;
   if (const ConstAtom *CA = dyn_cast<ConstAtom>(A)) {
     CS = CA;
@@ -1315,6 +1314,10 @@ void PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
   assert (vars.size() == CFrom.size());
   vars = CFrom; // FIXME: structural copy? By reference?
   argumentConstraints = From->getArgumentConstraints();
+  if (FV) {
+    assert(From->FV);
+    FV->brainTransplant(From->FV);
+  }
 }
 
 // Brain Transplant params and returns in [FromCV], recursively
