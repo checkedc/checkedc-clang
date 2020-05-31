@@ -1485,7 +1485,7 @@ void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
   }
 }
 
-void PointerVariableConstraint::replaceCvars(ConstraintVariable *FromCV) {
+void PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
   PVConstraint *From = dyn_cast<PVConstraint>(FromCV);
   assert (From != nullptr);
   CAtoms CFrom = From->getCvars();
@@ -1494,23 +1494,20 @@ void PointerVariableConstraint::replaceCvars(ConstraintVariable *FromCV) {
   argumentConstraints = From->getArgumentConstraints();
 }
 
-void FunctionVariableConstraint::replaceCvars(ConstraintVariable *FromCV) {
+void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert (From != nullptr);
   // copy returns
-  auto fromReturnVars = From->getReturnVars();
-  assert (fromReturnVars.size() == 1 && returnVars.size() == 1);
-  auto fromRetVar = *fromReturnVars.begin();
-  auto retVar = *returnVars.begin();
-  retVar->replaceCvars(fromRetVar);
+  auto fromRetVar = getOnly(From->getReturnVars());
+  auto retVar = getOnly(returnVars);
+  retVar->brainTransplant(fromRetVar);
   // copy params
   assert(From->numParams() == numParams());
   for (unsigned i = 0; i < From->numParams(); i++) {
     std::set<ConstraintVariable *> &FromP = From->getParamVar(i);
     std::set<ConstraintVariable *> &P = getParamVar(i);
-    assert(FromP.size() == 1 && P.size() == 1);
-    auto FromVar = *FromP.begin();
-    auto Var = *P.begin();
-    Var->replaceCvars(FromVar);
+    auto FromVar = getOnly(FromP);
+    auto Var = getOnly(P);
+    Var->brainTransplant(FromVar);
   }
 }

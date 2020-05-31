@@ -567,7 +567,7 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
       assert (oldS.size() == 1 && ToIns.size() == 1);
       auto newC = *ToIns.begin();
       auto oldC = *oldS.begin();
-      newC->replaceCvars(oldC);
+      newC->brainTransplant(oldC);
       Map[FuncName] = ToIns;
     }
   }
