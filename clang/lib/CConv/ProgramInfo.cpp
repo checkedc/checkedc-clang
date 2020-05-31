@@ -140,12 +140,8 @@ void ProgramInfo::print(raw_ostream &O) const {
 
   O << "External Function Definitions\n";
   dumpExtFuncMap(ExternalFunctionDefnFVCons, O);
-//  O << "External Function Declarations\n";
-//  dumpExtFuncMap(ExternalFunctionDeclFVCons, O);
   O << "Static Function Definitions\n";
   dumpStaticFuncMap(StaticFunctionDefnFVCons, O);
-//  O << "Static Function Declarations\n";
-//  dumpStaticFuncMap(StaticFunctionDeclFVCons, O);
 }
 
 void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
@@ -180,12 +176,8 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
   O << "]";
   O << ", \"ExternalFunctionDefinitions\":[";
   dumpExtFuncMapJson(ExternalFunctionDefnFVCons, O);
-//  O << "], \"ExternalFunctionDeclarations\":[";
-//  dumpExtFuncMapJson(ExternalFunctionDeclFVCons, O);
   O << "], \"StaticFunctionDefinitions\":[";
   dumpStaticFuncMapJson(StaticFunctionDefnFVCons, O);
-//  O << "], \"StaticFunctionDeclarations\":[";
-//  dumpStaticFuncMapJson(StaticFunctionDeclFVCons, O);
   O << "]}";
 }
 
@@ -375,6 +367,7 @@ bool ProgramInfo::link() {
   if (Verbose)
     llvm::errs() << "Linking!\n";
 
+// MWH: Should never happen: Variables set sizes == 1
   // Multiple Variables can be at the same PersistentSourceLoc. We should
   // constrain that everything that is at the same location is explicitly
   // equal.
@@ -414,6 +407,7 @@ bool ProgramInfo::link() {
     }
   }
 
+  // MWH: Should never happen: Def/decl set sizes == 1
 //  if (!SeperateMultipleFuncDecls) {
 //    int Gap = 0;
 //    for (auto &S : ExternalFunctionDeclFVCons) {
@@ -480,9 +474,6 @@ bool ProgramInfo::link() {
       // Some global symbols we don't need to constrain to wild, like 
       // malloc and free. Check those here and skip if we find them. 
       std::string FuncName = U.first;
-//      auto FuncDeclFVIterator =
-//          ExternalFunctionDeclFVCons.find(FuncName);
-//      assert(FuncDeclFVIterator != ExternalFunctionDeclFVCons.end());
       auto FuncDeclFVIterator =
           ExternalFunctionDefnFVCons.find(FuncName);
       assert(FuncDeclFVIterator != ExternalFunctionDefnFVCons.end());
@@ -501,9 +492,6 @@ bool ProgramInfo::link() {
       }
     }
   }
-
-  // Add constraints between inside and outside VarAtoms of def/decls.
-//  addFunctionDefDeclConstraints();
 
   return true;
 }
@@ -541,16 +529,6 @@ void ProgramInfo::exitCompilationUnit() {
   return;
 }
 
-//template <typename T>
-//bool ProgramInfo::hasConstraintType(std::set<ConstraintVariable *> &S) {
-//  for (const auto &I : S) {
-//    if (isa<T>(I)) {
-//      return true;
-//    }
-//  }
-//  return false;
-//}
-
 bool
 ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
                                            const std::string &FuncName,
@@ -564,11 +542,12 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
     // MultipleRewrites = true;
     if (isDef) {
       auto oldS = Map[FuncName];
-      assert (oldS.size() == 1 && ToIns.size() == 1);
-      auto newC = *ToIns.begin();
-      auto oldC = *oldS.begin();
+      auto newC = getOnly(ToIns);
+      auto oldC = getOnly(oldS);
+      // Retain CVars and argConstraints from old ConstraintVariable
       newC->brainTransplant(oldC);
       Map[FuncName] = ToIns;
+      RetVal = true;
     }
   }
   return RetVal;
@@ -587,12 +566,6 @@ ProgramInfo::insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
   } else {
     RetVal = insertIntoExternalFunctionMap(Map[FileName],FuncName,ToIns,isDef);
   }
-//  if (Map[FileName].find(FuncName) == Map[FileName].end()) {
-//    Map[FileName][FuncName] = ToIns;
-//    RetVal = true;
-//  } else {
-//    MultipleRewrites = true;
-//  }
   return RetVal;
 }
 
@@ -602,16 +575,14 @@ ProgramInfo::insertNewFVConstraints(FunctionDecl *FD,
                                    ASTContext *C) {
   bool ret = false;
   std::string FuncName = FD->getNameAsString();
+  bool isDef = FD->isThisDeclarationADefinition() && FD->hasBody();
   if (FD->isGlobal()) {
-    bool isDef = FD->isThisDeclarationADefinition() && FD->hasBody();
     // external method.
     ret = insertIntoExternalFunctionMap(ExternalFunctionDefnFVCons,
                                         FuncName, FVcons, isDef);
     if (isDef) {
       ExternFunctions[FuncName] = true;
     } else {
-//      ret = insertIntoExternalFunctionMap(ExternalFunctionDeclFVCons,
-//                                    FuncName, FVcons);
       if (!ExternFunctions[FuncName])
         ExternFunctions[FuncName] = false;
     }
@@ -619,15 +590,8 @@ ProgramInfo::insertNewFVConstraints(FunctionDecl *FD,
     // static method
     auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
     std::string FuncFileName = Psl.getFileName();
-    bool isDef = FD->isThisDeclarationADefinition() && FD->hasBody();
-//    if (FD->isThisDeclarationADefinition() && FD->hasBody()) {
-      // Function definition.
       ret = insertIntoStaticFunctionMap(StaticFunctionDefnFVCons, FuncName,
                                   FuncFileName, FVcons, isDef);
-  //  } else {
-  //    ret = insertIntoStaticFunctionMap(StaticFunctionDeclFVCons, FuncName,
-  //                                FuncFileName, FVcons);
-  //  }
   }
   return ret;
 }
@@ -667,20 +631,21 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     FVConstraint *F = new FVConstraint(D, CS, *astContext);
     std::set<FVConstraint *> NewFVars;
     NewFVars.insert(F);
-    insertNewFVConstraints(FD, NewFVars, astContext);
-    // FIXME: The following code is unnecessary if the above returns false;
-    //  However, it would be better to not create F in the first place
-    S.insert(F);
-    // Add mappings from the parameters PLoc to the constraint variables for
-    // the parameters.
-    for (unsigned i = 0; i < FD->getNumParams(); i++) {
-      ParmVarDecl *PVD = FD->getParamDecl(i);
-      std::set<ConstraintVariable *> PS = F->getParamVar(i);
-      assert(PS.size());
-      PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *astContext);
-      Variables[PSL].insert(PS.begin(), PS.end());
-      specialCaseVarIntros(PVD, astContext,
-                           FD->hasBody() && FD->isThisDeclarationADefinition());
+    bool retV = insertNewFVConstraints(FD, NewFVars, astContext);
+    retV = true; // TODO: Delete once confident this makes sense
+    if (retV) {
+      S.insert(F);
+      // Add mappings from the parameters PLoc to the constraint variables for
+      // the parameters.
+      for (unsigned i = 0; i < FD->getNumParams(); i++) {
+        ParmVarDecl *PVD = FD->getParamDecl(i);
+        std::set<ConstraintVariable *> PS = F->getParamVar(i);
+        assert(PS.size());
+        PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *astContext);
+        Variables[PSL].insert(PS.begin(), PS.end());
+        specialCaseVarIntros(PVD, astContext,
+                             FD->hasBody() && FD->isThisDeclarationADefinition());
+      }
     }
   } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
     const Type *Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
@@ -736,55 +701,6 @@ std::string ProgramInfo::getUniqueFuncKey(FunctionDecl *D,
   return getUniqueDeclKey(D, C);
 }
 
-//std::set<FVConstraint *>&
-//ProgramInfo::getOnDemandFuncDeclarationConstraint(FunctionDecl *D,
-//                                                  ASTContext *C) {
-//
-//  std::string FuncName = D->getNameAsString();
-//  if (D->isGlobal()) {
-//    // Is this an external function?
-//    if (ExternalFunctionDeclFVCons.find(FuncName) ==
-//        ExternalFunctionDeclFVCons.end()) {
-//      // Create an on demand FVConstraint.
-//      FVConstraint *F = new FVConstraint(D, CS, *C);
-//      // Set has body is false, as this is for function declaration.
-//      F->setHasBody(false);
-//      ExternalFunctionDeclFVCons[FuncName].insert(F);
-//    }
-//
-//    return ExternalFunctionDeclFVCons[FuncName];
-//  } else {
-//    // Static function.
-//    auto Psl = PersistentSourceLoc::mkPSL(D, *C);
-//    std::string FileName = Psl.getFileName();
-//    if (StaticFunctionDeclFVCons.find(FuncName) ==
-//        StaticFunctionDeclFVCons.end() ||
-//        StaticFunctionDeclFVCons[FuncName].find(FileName) ==
-//        StaticFunctionDeclFVCons[FuncName].end()) {
-//      FVConstraint *F = new FVConstraint(D, CS, *C);
-//      // Set has body is false, as this is for function declaration.
-//      F->setHasBody(false);
-//      StaticFunctionDeclFVCons[FuncName][FileName].insert(F);
-//    }
-//
-//    return StaticFunctionDeclFVCons[FuncName][FileName];
-//
-//  }
-//}
-
-//std::set<FVConstraint *> *
-//ProgramInfo::getFuncDeclConstraints(FunctionDecl *D, ASTContext *C) {
-//  std::string FuncName = D->getNameAsString();
-//  if (D->isGlobal()) {
-//    return getExtFuncDeclConstraintSet(FuncName);
-//  } else {
-//    // Static function.
-//    auto Psl = PersistentSourceLoc::mkPSL(D, *C);
-//    return getStaticFuncDeclConstraintSet(FuncName, Psl.getFileName());
-//  }
-//
-//}
-
 std::set<FVConstraint *> *
 ProgramInfo::getFuncDefnConstraints(FunctionDecl *D, ASTContext *C) {
 
@@ -809,25 +725,6 @@ ProgramInfo::getFuncDefnConstraints(FunctionDecl *D, ASTContext *C) {
   return nullptr;
 }
 
-//std::set<ConstraintVariable *>
-//ProgramInfo::getVariable(clang::ASTContext *C, FunctionDecl *FD,
-//                         int PIdx) {
-//  // If this is a parameter.
-//  clang::Decl *D;
-//  if (PIdx >= 0) {
-//    // Get the parameter index of the requested function declaration.
-//    D = FD->getParamDecl(PIdx);
-//  } else {
-//    // This is the return value of the function.
-//    D = FD;
-//  }
-//  VariableMap::iterator I =
-//      Variables.find(PersistentSourceLoc::mkPSL(D, *C));
-//  assert(I != Variables.end());
-//  return I->second;
-//
-//}
-
 std::set<ConstraintVariable *>
 ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C,
                          bool FromDefn) {
@@ -848,32 +745,22 @@ std::set<FVConstraint *> *ProgramInfo::getFuncFVConstraints(FunctionDecl *FD,
   std::string FuncName = FD->getNameAsString();
   std::set<FVConstraint *> *FunFVars = nullptr;
 
-//  if (FromDefn) {
-    // External function definition.
-    if (FD->isGlobal()) {
-      FunFVars = getExtFuncDefnConstraintSet(FuncName);
-      //
-      if (FunFVars == nullptr) {
-        // make one
-        FVConstraint *F = new FVConstraint(FD, CS, *C);
-        // Set has body is false, as this is for function declaration.
-        // FIXME: This is a hack
-        F->setHasBody(false);
-        ExternalFunctionDefnFVCons[FuncName].insert(F);
-        FunFVars = &ExternalFunctionDefnFVCons[FuncName];
-      }
-    } else {
-      auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
-      std::string FileName = Psl.getFileName();
-      FunFVars = getStaticFuncDefnConstraintSet(FuncName, FileName);
+  if (FD->isGlobal()) {
+    FunFVars = getExtFuncDefnConstraintSet(FuncName);
+    // FIXME: We are being asked to access a function never declared; best action?
+    if (FunFVars == nullptr) {
+      // make one
+      FVConstraint *F = new FVConstraint(FD, CS, *C);
+      assert(!F->hasBody());
+      //FIXME: breaks encapsulation. Not sure it's necessary
+      ExternalFunctionDefnFVCons[FuncName].insert(F);
+      FunFVars = &ExternalFunctionDefnFVCons[FuncName];
     }
-
-//  }
-
-//  if (FunFVars == nullptr) {
-//    // No prototype or def for this function
-//    FunFVars = &(getOnDemandFuncDeclarationConstraint(FD, C));
-//  }
+  } else {
+    auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
+    std::string FileName = Psl.getFileName();
+    FunFVars = getStaticFuncDefnConstraintSet(FuncName, FileName);
+  }
 
   return FunFVars;
 }
@@ -941,16 +828,6 @@ bool ProgramInfo::isAValidPVConstraint(ConstraintVariable *C) {
   return false;
 }
 
-
-//std::set<FVConstraint *> *
-//    ProgramInfo::getExtFuncDeclConstraintSet(std::string FuncName) {
-//  if (ExternalFunctionDeclFVCons.find(FuncName) !=
-//      ExternalFunctionDeclFVCons.end()) {
-//    return &(ExternalFunctionDeclFVCons[FuncName]);
-//  }
-//  return nullptr;
-//}
-
 std::set<FVConstraint *> *
     ProgramInfo::getExtFuncDefnConstraintSet(std::string FuncName) {
   if (ExternalFunctionDefnFVCons.find(FuncName) !=
@@ -971,77 +848,6 @@ ProgramInfo::getStaticFuncDefnConstraintSet(std::string FuncName,
   }
   return nullptr;
 }
-
-//std::set<FVConstraint *> *
-//ProgramInfo::getStaticFuncDeclConstraintSet(std::string FuncName,
-//                                            std::string FileName) {
-//  if (StaticFunctionDeclFVCons.find(FuncName) !=
-//      StaticFunctionDeclFVCons.end() &&
-//      StaticFunctionDeclFVCons[FuncName].find(FileName) !=
-//      StaticFunctionDeclFVCons[FuncName].end()) {
-//    return &(StaticFunctionDeclFVCons[FuncName][FileName]);
-//  }
-//  return nullptr;
-//}
-
-//bool
-//ProgramInfo::applyFunctionDefnDeclsConstraints(std::set<FVConstraint *>
-//                                                   &DefCVars,
-//                                               std::set<FVConstraint *>
-//                                                   &DeclCVars) {
-//  // We always set inside <: outside for parameters and
-//  // outside <: inside for returns
-//  for (auto *DeFV : DefCVars) {
-//    for (auto *DelFV : DeclCVars) {
-//      constrainConsVarGeq(DelFV->getReturnVars(), DeFV->getReturnVars(), CS,
-//                          nullptr, Safe_to_Wild, false, this);
-//
-//      assert (DeFV->numParams() == DelFV->numParams() &&
-//             "Definition and Declaration should have same "
-//             "number of parameters.");
-//      for (unsigned i=0; i<DeFV->numParams(); i++) {
-//        constrainConsVarGeq(DeFV->getParamVar(i), DelFV->getParamVar(i), CS,
-//                            nullptr, Wild_to_Safe, false, this);
-//      }
-//    }
-//  }
-//
-//  return true;
-//}
-
-//bool ProgramInfo::addFunctionDefDeclConstraints() {
-//  bool Ret = true;
-//
-//  for (auto &CurrFDef : ExternalFunctionDefnFVCons) {
-//    auto FuncName = CurrFDef.first;
-//    std::set<FVConstraint *> &DefFVCvars = CurrFDef.second;
-//
-//    // It has declaration?
-//    if (ExternalFunctionDeclFVCons.find(FuncName) !=
-//        ExternalFunctionDeclFVCons.end()) {
-//      applyFunctionDefnDeclsConstraints(DefFVCvars,
-//                                        ExternalFunctionDeclFVCons[FuncName]);
-//    }
-//
-//  }
-//  for (auto &StFDef : StaticFunctionDefnFVCons) {
-//    auto FuncName = StFDef.first;
-//    for (auto &StI : StFDef.second) {
-//      auto FileName = StI.first;
-//      std::set<FVConstraint *> &DefFVCvars = StI.second;
-//      if (StaticFunctionDeclFVCons.find(FuncName) !=
-//          StaticFunctionDeclFVCons.end() &&
-//          StaticFunctionDeclFVCons[FuncName].find(FileName) !=
-//              StaticFunctionDeclFVCons[FuncName].end()) {
-//        auto &DeclFVs = StaticFunctionDeclFVCons[FuncName][FileName];
-//        applyFunctionDefnDeclsConstraints(DefFVCvars,
-//                                          DeclFVs);
-//      }
-//    }
-//  }
-//
-//  return Ret;
-//}
 
 bool ProgramInfo::computePointerDisjointSet() {
   ConstraintDisjointSet.Clear();

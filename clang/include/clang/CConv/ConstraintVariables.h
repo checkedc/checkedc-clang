@@ -283,8 +283,6 @@ public:
   bool hasWild(EnvironmentMap &E);
   bool hasArr(EnvironmentMap &E);
   bool hasNtArr(EnvironmentMap &E);
-  // Get the highest type assigned to the cvars of this constraint variable.
-  // ConstAtom *getHighestType(EnvironmentMap &E);
 
   void equateInsideOutsideVars(ProgramInfo &I);
 
@@ -294,15 +292,9 @@ public:
   // Get the set of constraint variables corresponding to the arguments.
   std::set<ConstraintVariable *> &getArgumentConstraints();
 
-//  bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
-//  bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEmpty(void) const { return vars.size() == 0; }
 
   ConstraintVariable *getCopy(Constraints &CS);
-
-//  bool liftedOnCVars(const ConstraintVariable &O,
-//                     ProgramInfo &Info,
-//                     llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;
 
   virtual ~PointerVariableConstraint() {};
 };
@@ -380,14 +372,11 @@ public:
   bool hasWild(EnvironmentMap &E);
   bool hasArr(EnvironmentMap &E);
   bool hasNtArr(EnvironmentMap &E);
-  //ConstAtom *getHighestType(EnvironmentMap &E);
 
   void equateInsideOutsideVars(ProgramInfo &P);
 
   ConstraintVariable *getCopy(Constraints &CS);
 
-//  bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
-//  bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
   // An FVConstraint is empty if every constraint associated is empty.
   bool isEmpty(void) const {
 
@@ -401,10 +390,6 @@ public:
 
     return true;
   }
-
-//  bool liftedOnCVars(const ConstraintVariable &O,
-//                     ProgramInfo &Info,
-//                     llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;
 
   virtual ~FunctionVariableConstraint() {};
 };
