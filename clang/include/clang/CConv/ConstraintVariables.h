@@ -164,6 +164,10 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
                       bool doEqType,
                       ProgramInfo *Info);
 
+// True if [C] is a PVConstraint that contains at least one Atom (i.e.,
+//   it represents a C pointer)
+bool isAValidPVConstraint(ConstraintVariable *C);
+
 class PointerVariableConstraint;
 class FunctionVariableConstraint;
 

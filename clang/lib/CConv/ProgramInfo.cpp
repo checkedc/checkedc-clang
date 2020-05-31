@@ -20,9 +20,9 @@ ProgramInfo::ProgramInfo() :
   persisted(true) {
   ArrBoundsInfo = new ArrayBoundsInformation(*this);
 //  ExternalFunctionDeclFVCons.clear();
-  ExternalFunctionDefnFVCons.clear();
+  ExternalFunctionFVCons.clear();
 //  StaticFunctionDeclFVCons.clear();
-  StaticFunctionDefnFVCons.clear();
+  StaticFunctionFVCons.clear();
   MultipleRewrites = false;
 }
 
@@ -139,9 +139,9 @@ void ProgramInfo::print(raw_ostream &O) const {
   }
 
   O << "External Function Definitions\n";
-  dumpExtFuncMap(ExternalFunctionDefnFVCons, O);
+  dumpExtFuncMap(ExternalFunctionFVCons, O);
   O << "Static Function Definitions\n";
-  dumpStaticFuncMap(StaticFunctionDefnFVCons, O);
+  dumpStaticFuncMap(StaticFunctionFVCons, O);
 }
 
 void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
@@ -175,9 +175,9 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
   }
   O << "]";
   O << ", \"ExternalFunctionDefinitions\":[";
-  dumpExtFuncMapJson(ExternalFunctionDefnFVCons, O);
+  dumpExtFuncMapJson(ExternalFunctionFVCons, O);
   O << "], \"StaticFunctionDefinitions\":[";
-  dumpStaticFuncMapJson(StaticFunctionDefnFVCons, O);
+  dumpStaticFuncMapJson(StaticFunctionFVCons, O);
   O << "]}";
 }
 
@@ -415,9 +415,8 @@ bool ProgramInfo::link() {
       // Some global symbols we don't need to constrain to wild, like 
       // malloc and free. Check those here and skip if we find them. 
       std::string FuncName = U.first;
-      auto FuncDeclFVIterator =
-          ExternalFunctionDefnFVCons.find(FuncName);
-      assert(FuncDeclFVIterator != ExternalFunctionDefnFVCons.end());
+      auto FuncDeclFVIterator = ExternalFunctionFVCons.find(FuncName);
+      assert(FuncDeclFVIterator != ExternalFunctionFVCons.end());
       const std::set<FVConstraint *> &Gs = (*FuncDeclFVIterator).second;
 
       for (const auto GIterator : Gs) {
@@ -519,7 +518,7 @@ ProgramInfo::insertNewFVConstraints(FunctionDecl *FD,
   bool isDef = FD->isThisDeclarationADefinition() && FD->hasBody();
   if (FD->isGlobal()) {
     // external method.
-    ret = insertIntoExternalFunctionMap(ExternalFunctionDefnFVCons,
+    ret = insertIntoExternalFunctionMap(ExternalFunctionFVCons,
                                         FuncName, FVcons, isDef);
     if (isDef) {
       ExternFunctions[FuncName] = true;
@@ -531,13 +530,13 @@ ProgramInfo::insertNewFVConstraints(FunctionDecl *FD,
     // static method
     auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
     std::string FuncFileName = Psl.getFileName();
-      ret = insertIntoStaticFunctionMap(StaticFunctionDefnFVCons, FuncName,
+      ret = insertIntoStaticFunctionMap(StaticFunctionFVCons, FuncName,
                                   FuncFileName, FVcons, isDef);
   }
   return ret;
 }
 
-void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context, bool FromDefn) {
+void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context) {
   // Special-case for va_list, constrain to wild.
   if (isVarArgType(D->getType().getAsString()) || hasVoidType(D)) {
     // set the reason for making this variable WILD.
@@ -584,8 +583,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
         assert(PS.size());
         PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *astContext);
         Variables[PSL].insert(PS.begin(), PS.end());
-        specialCaseVarIntros(PVD, astContext,
-                             FD->hasBody() && FD->isThisDeclarationADefinition());
+        specialCaseVarIntros(PVD, astContext);
       }
     }
   } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
@@ -596,14 +594,14 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       std::string VarName = VD->getName();
       if (VD->hasGlobalStorage())
         GlobalVariableSymbols[VarName].insert(P);
-      specialCaseVarIntros(D, astContext, false);
+      specialCaseVarIntros(D, astContext);
     }
   } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
     const Type *Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     if (Ty->isPointerType() || Ty->isArrayType()) {
       PVConstraint *P = new PVConstraint(D, CS, *astContext);
       S.insert(P);
-      specialCaseVarIntros(D, astContext, false);
+      specialCaseVarIntros(D, astContext);
     }
   } else
     llvm_unreachable("unknown decl type");
@@ -620,47 +618,45 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
 
 }
 
-std::string ProgramInfo::getUniqueDeclKey(Decl *D, ASTContext *C) {
-  auto Psl = PersistentSourceLoc::mkPSL(D, *C);
-  std::string FileName = Psl.getFileName() + ":" +
-                         std::to_string(Psl.getLineNo());
-  std::string Dname = D->getDeclKindName();
-  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-    Dname = FD->getNameAsString();
-  }
-  std::string DeclKey = FileName + ":" + Dname;
-  return DeclKey;
-}
-
-std::string ProgramInfo::getUniqueFuncKey(FunctionDecl *D,
-                                          ASTContext *C) {
-  // Get unique key for a function: which is function name,
-  // file and line number.
-  if (FunctionDecl *FuncDef = getDefinition(D)) {
-    D = FuncDef;
-  }
-  return getUniqueDeclKey(D, C);
-}
+//std::string ProgramInfo::getUniqueDeclKey(Decl *D, ASTContext *C) {
+//  auto Psl = PersistentSourceLoc::mkPSL(D, *C);
+//  std::string FileName = Psl.getFileName() + ":" +
+//                         std::to_string(Psl.getLineNo());
+//  std::string Dname = D->getDeclKindName();
+//  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+//    Dname = FD->getNameAsString();
+//  }
+//  std::string DeclKey = FileName + ":" + Dname;
+//  return DeclKey;
+//}
+//
+//std::string ProgramInfo::getUniqueFuncKey(FunctionDecl *D,
+//                                          ASTContext *C) {
+//  // Get unique key for a function: which is function name,
+//  // file and line number.
+//  if (FunctionDecl *FuncDef = getDefinition(D)) {
+//    D = FuncDef;
+//  }
+//  return getUniqueDeclKey(D, C);
+//}
 
 std::set<FVConstraint *> *
-ProgramInfo::getFuncDefnConstraints(FunctionDecl *D, ASTContext *C) {
+ProgramInfo::getFuncConstraints(FunctionDecl *D, ASTContext *C) {
 
   std::string FuncName = D->getNameAsString();
   if (D->isGlobal()) {
     // Is this a global (externally visible) function?
-    if (ExternalFunctionDefnFVCons.find(FuncName) !=
-           ExternalFunctionDefnFVCons.end()) {
-      return &ExternalFunctionDefnFVCons[FuncName];
+    if (ExternalFunctionFVCons.find(FuncName) != ExternalFunctionFVCons.end()) {
+      return &ExternalFunctionFVCons[FuncName];
     }
   } else {
     // Static function.
     auto Psl = PersistentSourceLoc::mkPSL(D, *C);
     std::string FileName = Psl.getFileName();
-    if (StaticFunctionDefnFVCons.find(FileName) !=
-           StaticFunctionDefnFVCons.end() &&
-        StaticFunctionDefnFVCons[FileName].find(FuncName) !=
-           StaticFunctionDefnFVCons[FileName].end()) {
-      return &StaticFunctionDefnFVCons[FileName][FuncName];
+    if (StaticFunctionFVCons.find(FileName) != StaticFunctionFVCons.end() &&
+        StaticFunctionFVCons[FileName].find(FuncName) !=
+            StaticFunctionFVCons[FileName].end()) {
+      return &StaticFunctionFVCons[FileName][FuncName];
     }
   }
   return nullptr;
@@ -679,13 +675,13 @@ std::set<FVConstraint *> *ProgramInfo::getFuncFVConstraints(FunctionDecl *FD,
       FVConstraint *F = new FVConstraint(FD, CS, *C);
       assert(!F->hasBody());
       //FIXME: breaks encapsulation. Not sure it's necessary
-      ExternalFunctionDefnFVCons[FuncName].insert(F);
-      FunFVars = &ExternalFunctionDefnFVCons[FuncName];
+      ExternalFunctionFVCons[FuncName].insert(F);
+      FunFVars = &ExternalFunctionFVCons[FuncName];
     }
   } else {
     auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
     std::string FileName = Psl.getFileName();
-    FunFVars = getStaticFuncDefnConstraintSet(FuncName, FileName);
+    FunFVars = getStaticFuncConstraintSet(FuncName, FileName);
   }
 
   return FunFVars;
@@ -740,35 +736,21 @@ std::set<ConstraintVariable *> ProgramInfo::getVariable(clang::Decl *D,
   }
 }
 
-VariableMap &ProgramInfo::getVarMap() {
-  return Variables;
-}
-
-bool ProgramInfo::isAValidPVConstraint(ConstraintVariable *C) {
-  if (C != nullptr) {
-    if (PVConstraint *PV = dyn_cast<PVConstraint>(C))
-      return !PV->getCvars().empty();
-  }
-  return false;
-}
-
 std::set<FVConstraint *> *
     ProgramInfo::getExtFuncDefnConstraintSet(std::string FuncName) {
-  if (ExternalFunctionDefnFVCons.find(FuncName) !=
-      ExternalFunctionDefnFVCons.end()) {
-    return &(ExternalFunctionDefnFVCons[FuncName]);
+  if (ExternalFunctionFVCons.find(FuncName) != ExternalFunctionFVCons.end()) {
+    return &(ExternalFunctionFVCons[FuncName]);
   }
   return nullptr;
 }
 
 std::set<FVConstraint *> *
-ProgramInfo::getStaticFuncDefnConstraintSet(std::string FuncName,
+ProgramInfo::getStaticFuncConstraintSet(std::string FuncName,
                                             std::string FileName) {
-  if (StaticFunctionDefnFVCons.find(FileName) !=
-      StaticFunctionDefnFVCons.end() &&
-      StaticFunctionDefnFVCons[FileName].find(FuncName) !=
-          StaticFunctionDefnFVCons[FileName].end()) {
-    return &(StaticFunctionDefnFVCons[FileName][FuncName]);
+  if (StaticFunctionFVCons.find(FileName) != StaticFunctionFVCons.end() &&
+      StaticFunctionFVCons[FileName].find(FuncName) !=
+          StaticFunctionFVCons[FileName].end()) {
+    return &(StaticFunctionFVCons[FileName][FuncName]);
   }
   return nullptr;
 }

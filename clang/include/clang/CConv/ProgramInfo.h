@@ -29,7 +29,6 @@ class ProgramInfo;
 
 class ProgramInfo {
 public:
-  typedef std::pair<std::string, FVConstraint *> GlobFuncConstraintType;
   typedef std::map<std::string, std::map<std::string, std::set<FVConstraint *>>>
       StaticFunctionMapType;
 
@@ -44,12 +43,7 @@ public:
   void print_stats(std::set<std::string> &F, llvm::raw_ostream &O,
                    bool OnlySummary =false);
 
-  void merge_MF(ParameterMap &MF);
-  ParameterMap &get_MF();
-
-  Constraints &getConstraints() { return CS;  }
-
-  // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with 
+  // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with
   // AST data structures that correspond do the data stored in PDMap and 
   // ReversePDMap. 
   void enterCompilationUnit(clang::ASTContext &Context);
@@ -63,40 +57,31 @@ public:
   // constraint system for that pointer type.
   void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *astContext);
 
-  bool getDeclStmtForDecl(clang::Decl *D, clang::DeclStmt *&St);
-
-  // Special-case handling for decl introductions. For the moment this covers:
-  //  * void-typed variables
-  //  * va_list-typed variables
-  void specialCaseVarIntros(ValueDecl *D, ASTContext *Context, bool FromDefn);
-
-  // Called when we are done adding constraints and visiting ASTs.
-  // Links information about global symbols together and adds 
-  // constraints where appropriate.
-  bool link();
-
+  // Get constraint variable for the provided Decl
   std::set<ConstraintVariable *> getVariable(clang::Decl *D,
                                              clang::ASTContext *C);
-  // Get constraint variable for the provided function or its parameter.
   // std::set<ConstraintVariable *>
   //  getVariable(clang::ASTContext *C, FunctionDecl *FD, int PIdx); // use the functions above
 
-  VariableMap &getVarMap();
+  // Retrieve a function's constraints by decl, or by name; nullptr if not found
+  std::set<FVConstraint *> *getFuncConstraints(FunctionDecl *D, ASTContext *C);
+  std::set<FVConstraint *> *getExtFuncDefnConstraintSet(std::string FuncName);
+  std::set<FVConstraint *> *getStaticFuncConstraintSet(std::string FuncName, std::string FileName);
 
-  std::set<FVConstraint *> *
-  getFuncDefnConstraints(FunctionDecl *D, ASTContext *C);
+  // Check if the given function is an extern function.
+  bool isAnExternFunction(const std::string &FName);
 
-  // Get a unique key for a given function declaration node.
-  std::string getUniqueFuncKey(FunctionDecl *D, ASTContext *C);
+  // Called when we are done adding constraints and visiting ASTs.
+  // Links information about global symbols together and adds
+  // constraints where appropriate.
+  bool link();
 
-  // Get a unique string representing the declaration object.
-  std::string getUniqueDeclKey(Decl *D, ASTContext *C);
+  VariableMap &getVarMap() { return Variables; }
+  Constraints &getConstraints() { return CS;  }
 
-  std::set<FVConstraint *> *
-    getExtFuncDefnConstraintSet(std::string FuncName);
-
-  std::set<FVConstraint *> *
-  getStaticFuncDefnConstraintSet(std::string FuncName, std::string FileName);
+  // Parameter map is used for cast insertion, post-rewriting
+  void merge_MF(ParameterMap &MF);
+  ParameterMap &get_MF();
 
   ArrayBoundsInformation &getArrayBoundsInformation() {
     return *ArrBoundsInfo;
@@ -105,31 +90,49 @@ public:
   DisjointSet &getPointerConstraintDisjointSet() {
     return ConstraintDisjointSet;
   }
-
   bool computePointerDisjointSet();
-
-  // Check if the provided constraint variable is a valid pointer constraint.
-  static bool isAValidPVConstraint(ConstraintVariable *C);
 
   // Perform multiple rewrites because declarations are spread across multiple
   // files and need to be rewritten multiple times.
   bool MultipleRewrites;
 
-  // Check if the given function is an extern function.
-  bool isAnExternFunction(const std::string &FName);
-
   ExternalFunctionMapType &getExternFuncDefFVMap() {
-    return ExternalFunctionDefnFVCons;
+    return ExternalFunctionFVCons;
   }
 
   StaticFunctionMapType &getStaticFuncDefFVMap() {
-    return StaticFunctionDefnFVCons;
+    return StaticFunctionFVCons;
   }
 
 private:
+  // List of all constraint variables, indexed by their location in the source.
+  // This information persists across invocations of the constraint analysis
+  // from compilation unit to compilation unit.
+  VariableMap Variables;
+  // Constraint system.
+  Constraints CS;
+  // Is the ProgramInfo persisted? Only tested in asserts. Starts at true.
+  bool persisted;
+
+  // Map of global functions for whom we don't have a body, the keys are 
+  // names of external functions, the value is whether the body has been
+  // seen before.
+  std::map<std::string, bool> ExternFunctions;
+
+  // Maps for global/static functions, global variables
+  ExternalFunctionMapType ExternalFunctionFVCons;
+  StaticFunctionMapType StaticFunctionFVCons;
+  std::map<std::string, std::set<PVConstraint *>> GlobalVariableSymbols;
+
+  ParameterMap MF;
+  // Object that contains all the bounds information of various
+  // array variables.
+  ArrayBoundsInformation *ArrBoundsInfo;
+  // Disjoint sets for constraints.
+  DisjointSet ConstraintDisjointSet;
 
   // Function to check if an external symbol is okay to leave
-  // constrained. 
+  // constrained.
   bool isExternOkay(std::string Ext);
 
   // Insert the given FVConstraint* set into the provided Map.
@@ -147,44 +150,18 @@ private:
                                    std::set<FVConstraint *> &ToIns,
                                    bool isDef);
 
+
+  // Special-case handling for decl introductions. For the moment this covers:
+  //  * void-typed variables
+  //  * va_list-typed variables
+  void specialCaseVarIntros(ValueDecl *D, ASTContext *Context);
+
   bool
   insertNewFVConstraints(FunctionDecl *FD, std::set<FVConstraint *> &FVcons,
-                        ASTContext *C);
+                         ASTContext *C);
 
   std::set<FVConstraint *> *getFuncFVConstraints(FunctionDecl *FD,
                                                  ASTContext *C);
-
-  // List of all constraint variables, indexed by their location in the source.
-  // This information persists across invocations of the constraint analysis
-  // from compilation unit to compilation unit.
-  VariableMap Variables;
-
-  // Constraint system.
-  Constraints CS;
-  // Is the ProgramInfo persisted? Only tested in asserts. Starts at true.
-  bool persisted;
-  // Global symbol information used for mapping
-
-  // Map of global functions for whom we don't have a body, the keys are 
-  // names of external functions, the value is whether the body has been
-  // seen before.
-  std::map<std::string, bool> ExternFunctions;
-
-  // This map is for non-static function definitions.
-  ExternalFunctionMapType ExternalFunctionDefnFVCons;
-
-  // This map is for static function definitions.
-  // FunctionName -> {FileName -> [FVConstraint*]}
-  StaticFunctionMapType StaticFunctionDefnFVCons;
-
-  std::map<std::string, std::set<PVConstraint *>> GlobalVariableSymbols;
-  ParameterMap MF;
-  // Object that contains all the bounds information of various
-  // array variables.
-  ArrayBoundsInformation *ArrBoundsInfo;
-  // Disjoint sets for constraints.
-  DisjointSet ConstraintDisjointSet;
-
 };
 
 #endif

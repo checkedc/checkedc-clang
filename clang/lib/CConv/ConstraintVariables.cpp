@@ -816,7 +816,7 @@ void FunctionVariableConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
 
     // Get appropriate constraints based on whether the function is static or not.
     if (IsStatic) {
-      DefnCons = Info.getStaticFuncDefnConstraintSet(Name, FileName);
+      DefnCons = Info.getStaticFuncConstraintSet(Name, FileName);
     } else {
       DefnCons = Info.getExtFuncDefnConstraintSet(Name);
     }
@@ -1297,6 +1297,16 @@ void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
   }
 }
 
+// True if [C] is a PVConstraint that contains at least one Atom (i.e.,
+//   it represents a C pointer)
+bool isAValidPVConstraint(ConstraintVariable *C) {
+  if (C != nullptr) {
+    if (PVConstraint *PV = dyn_cast<PVConstraint>(C))
+      return !PV->getCvars().empty();
+  }
+  return false;
+}
+
 // Replace CVars and argumentConstraints with those in [FromCV]
 void PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
   PVConstraint *From = dyn_cast<PVConstraint>(FromCV);
@@ -1325,3 +1335,4 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
     Var->brainTransplant(FromVar);
   }
 }
+

@@ -545,7 +545,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   else
     VisitedSet.insert(FuncName);
 
-  auto &DefFVars = *(Info.getFuncDefnConstraints(Definition, Context));
+  auto &DefFVars = *(Info.getFuncConstraints(Definition, Context));
   FVConstraint *Defnc = getOnly(DefFVars);
   assert(Defnc != nullptr);
 
@@ -558,7 +558,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     assert(Defn);
     bool ParameterHandled = false;
 
-    if (ProgramInfo::isAValidPVConstraint(Defn)) {
+    if (isAValidPVConstraint(Defn)) {
       // If this holds, then we want to insert a bounds safe interface.
       bool Constrained = Defn->anyChanges(CS.getVariables());
       if (Constrained && Defn->anyArgumentIsWild(CS.getVariables())) {
@@ -604,7 +604,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   std::string EndStuff = "";
   bool ReturnHandled = false;
 
-  if (ProgramInfo::isAValidPVConstraint(Defn)) {
+  if (isAValidPVConstraint(Defn)) {
     // Insert a bounds safe interface for the return.
     bool anyConstrained = Defn->anyChanges(CS.getVariables());
     if (anyConstrained) {
@@ -1164,7 +1164,7 @@ public:
       PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CE, *Context);
       if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
         // Get the constraint variable for the function.
-        std::set<FVConstraint *> *V = Info.getFuncDefnConstraints(FD, Context);
+        std::set<FVConstraint *> *V = Info.getFuncConstraints(FD, Context);
         // Function has no definition i.e., external function.
         assert(V);
 //        if (V == nullptr) {
