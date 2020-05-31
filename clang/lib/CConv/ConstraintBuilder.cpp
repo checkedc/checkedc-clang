@@ -47,7 +47,7 @@ public:
           // If yes, assign ARR constraint to all the inside vars.
           const clang::Type *TypePtr = D->getType().getTypePtr();
           Constraints &CS = Info.getConstraints();
-          std::set<ConstraintVariable *> Var = Info.getVariable(D, Context, true);
+          std::set<ConstraintVariable *> Var = Info.getVariable(D, Context);
           assert(Var.size() == 1 && "Invalid number of ConstraintVariables.");
           auto *PvConstr = dyn_cast<PVConstraint>(*(Var.begin()));
           assert(PvConstr != nullptr && "Constraint variable cannot be nullptr");
@@ -95,7 +95,7 @@ public:
   bool VisitCStyleCastExpr(CStyleCastExpr *C) {
     // If we're casting from something with a constraint variable to something
     // that isn't a pointer type, we should constrain up.
-    CB.getExprConstraintVars(C, C->getSubExpr()->getType(), true);
+    CB.getExprConstraintVars(C, C->getSubExpr()->getType());
 
     return true;
   }
@@ -122,14 +122,14 @@ public:
       if (getDeclaration(FD) != nullptr) {
         FD = getDeclaration(FD);
       }
-      FVCons = Info.getVariable(FD, Context, false);
+      FVCons = Info.getVariable(FD, Context);
 
       handleFunctionCall(E, FVCons);
     } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {
       // This could be a function pointer,
       // get the declaration of the function pointer variable
       // with in the caller context.
-      FVCons = Info.getVariable(DD, Context, true);
+      FVCons = Info.getVariable(DD, Context);
       handleFunctionCall(E, FVCons);
     } else {
       // Constrain all arguments to wild.
@@ -149,21 +149,18 @@ public:
 
   bool VisitReturnStmt(ReturnStmt *S) {
     // Get function variable constraint of the body
-    // We need to call getVariableOnDemand to avoid auto-correct.
     PersistentSourceLoc PL =
         PersistentSourceLoc::mkPSL(S, *Context);
     std::set<ConstraintVariable *> Fun =
-      Info.getVariableOnDemand(Function, Context, true);
+        Info.getVariable(Function, Context);
 
     // Constrain the value returned (if present) against the return value
     // of the function.
     Expr *RetExpr = S->getRetValue();
     QualType Typ = Function->getReturnType();
 
-    std::set<ConstraintVariable *> RconsVar = CB.getExprConstraintVars(RetExpr,
-                                                             Function->getReturnType(),
-                                                             true,
-                                                             true);
+    std::set<ConstraintVariable *> RconsVar =
+        CB.getExprConstraintVars(RetExpr, Function->getReturnType(), true);
     // Constrain the return type of the function
     // to the type of the return expression.
     for (const auto &F : Fun) {
@@ -222,8 +219,7 @@ private:
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
         std::set<ConstraintVariable *> ArgumentConstraints =
-            CB.getExprConstraintVars(A, A->getType(),
-                                     true, true);
+            CB.getExprConstraintVars(A, A->getType(), true);
         for (auto *TmpC : FuncCVars) {
           if (PVConstraint *PVC = dyn_cast<PVConstraint>(TmpC)) {
             TmpC = PVC->getFV();
@@ -280,13 +276,12 @@ private:
   // Constraint helpers.
   void constraintInBodyVariable(Expr *e, ConstAtom *CAtom) {
     std::set<ConstraintVariable *> Var =
-      CB.getExprConstraintVars(e, e->getType(), true);
+        CB.getExprConstraintVars(e, e->getType());
     constrainVarsTo(Var, CAtom);
   }
 
   void constraintInBodyVariable(Decl *d, ConstAtom *CAtom) {
-    std::set<ConstraintVariable *> Var =
-      Info.getVariable(d, Context, true);
+    std::set<ConstraintVariable *> Var = Info.getVariable(d, Context);
     constrainVarsTo(Var, CAtom);
   }
 
@@ -298,7 +293,7 @@ private:
       // Get constraint from within the function body
       // of the caller.
       std::set<ConstraintVariable *> ParameterEC =
-        CB.getExprConstraintVars(A, A->getType(), true);
+          CB.getExprConstraintVars(A, A->getType());
 
       // Assign WILD to each of the constraint variables.
       FunctionDecl *FD = E->getDirectCallee();

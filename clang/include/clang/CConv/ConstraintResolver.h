@@ -35,11 +35,8 @@ public:
   // This function gets the constraint variables for the given expression.
   // The flag NonEmptyCons is used to indicate that this expression is used as
   // an Rvalue.
-  std::set<ConstraintVariable *>  getExprConstraintVars(
-      Expr                            *E,
-      QualType                   LhsType,
-      bool                            Ifc,
-      bool             NonEmptyCons = false);
+  std::set<ConstraintVariable *>
+  getExprConstraintVars(Expr *E, QualType LhsType, bool NonEmptyCons = false);
 
   // This is a bit of a hack. What we need to do is traverse the AST in a
   // bottom-up manner, and, for a given expression, decide which singular,
@@ -62,8 +59,7 @@ public:
       Expr                            *E,
       std::set<ConstraintVariable *> &RvalCons,
       QualType                   LhsType,
-      bool                    &IsAssigned,
-      bool                            Ifc);
+      bool                    &IsAssigned);
 
   // Handle assignment of RHS expression to LHS expression using the
   // given action.

@@ -33,24 +33,6 @@ std::string ConstraintVariable::getRewritableOriginalTy() {
   return OrigTyString;
 }
 
-//ConstraintVariable *
-//ConstraintVariable::getHighestNonWildConstraint(std::set<ConstraintVariable *>
-//                                                &ToCheck,
-//                                                EnvironmentMap &E,
-//                                                ProgramInfo &I) {
-//  ConstraintVariable *HighestConVar = nullptr;
-//  for (auto CurrCons : ToCheck) {
-//    // If the current constraint is not WILD.
-//    if (!CurrCons->hasWild(E)) {
-//      if (HighestConVar == nullptr)
-//        HighestConVar = CurrCons;
-//      else if (HighestConVar->isLt(*CurrCons, I))
-//        HighestConVar = CurrCons;
-//    }
-//  }
-//  return HighestConVar;
-//}
-
 PointerVariableConstraint *PointerVariableConstraint::GlobalWildPV = nullptr;
 PointerVariableConstraint *PointerVariableConstraint::GlobalPtrPV = nullptr;
 
@@ -330,67 +312,6 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     }
   }
 }
-
-//bool PVConstraint::liftedOnCVars(const ConstraintVariable &O,
-//                                 ProgramInfo &Info,
-//                                 llvm::function_ref<bool (ConstAtom *,
-//                                                         ConstAtom *)> Op) const
-//{
-//  // If these aren't both PVConstraints, incomparable.
-//  if (!isa<PVConstraint>(O))
-//    return false;
-//
-//  const PVConstraint *P = cast<PVConstraint>(&O);
-//  const CAtoms &OC = P->getCvars();
-//
-//  // If they don't have the same number of cvars, incomparable.
-//  if (OC.size() != getCvars().size())
-//    return false;
-//
-//  auto I = getCvars().begin();
-//  auto J = OC.begin();
-//  Constraints &CS = Info.getConstraints();
-//  auto &Env = CS.getVariables();
-//
-//  while (I != getCvars().end() && J != OC.end()) {
-//    // Look up the valuation for I and J.
-//    ConstAtom *CI = const_cast<ConstAtom*>(getSolution(*I, Env));
-//    ConstAtom *CJ = const_cast<ConstAtom*>(getSolution(*J, Env));
-//
-//    if (!Op(CI, CJ))
-//      return false;
-//
-//    ++I;
-//    ++J;
-//  }
-//
-//  return true;
-//}
-//
-//bool PVConstraint::isLt(const ConstraintVariable &Other,
-//                        ProgramInfo &Info) const
-//{
-//  if (isEmpty() || Other.isEmpty())
-//    return false;
-//
-//  return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
-//      return *A < *B;
-//  });
-//}
-//
-//bool PVConstraint::isEq(const ConstraintVariable &Other,
-//                        ProgramInfo &Info) const
-//{
-//  if (isEmpty() && Other.isEmpty())
-//    return true;
-//
-//  if (isEmpty() || Other.isEmpty())
-//    return false;
-//
-//  return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
-//      return *A == *B;
-//  });
-//}
 
 void PointerVariableConstraint::print(raw_ostream &O) const {
   O << "{ ";
@@ -775,74 +696,6 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   }
 }
 
-//bool FVConstraint::liftedOnCVars(const ConstraintVariable &Other,
-//                                 ProgramInfo &Info,
-//                                 llvm::function_ref<bool (ConstAtom *,
-//                                                         ConstAtom *)> Op) const
-//{
-//  if (!isa<FVConstraint>(Other))
-//    return false;
-//
-//  const FVConstraint *F = cast<FVConstraint>(&Other);
-//
-//  if (paramVars.size() != F->paramVars.size()) {
-//    if (paramVars.size() < F->paramVars.size()) {
-//      return true;
-//    } else {
-//      return false;
-//    }
-//  }
-//
-//  // Consider the return variables.
-//  ConstraintVariable *U = getHighest(returnVars, Info);
-//  ConstraintVariable *V = getHighest(F->returnVars, Info);
-//
-//  if (!U->liftedOnCVars(*V, Info, Op))
-//    return false;
-//
-//  // Consider the parameters.
-//  auto I = paramVars.begin();
-//  auto J = F->paramVars.begin();
-//
-//  while ((I != paramVars.end()) && (J != F->paramVars.end())) {
-//    U = getHighest(*I, Info);
-//    V = getHighest(*J, Info);
-//
-//    if (!U->liftedOnCVars(*V, Info, Op))
-//      return false;
-//
-//    ++I;
-//    ++J;
-//  }
-//
-//  return true;
-//}
-//
-//bool FVConstraint::isLt(const ConstraintVariable &Other,
-//                        ProgramInfo &Info) const
-//{
-//  if (isEmpty() || Other.isEmpty())
-//    return false;
-//
-//  return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
-//      return *A < *B;
-//  });
-//}
-//
-//bool FVConstraint::isEq(const ConstraintVariable &Other,
-//                        ProgramInfo &Info) const
-//{
-//  if (isEmpty() && Other.isEmpty())
-//    return true;
-//
-//  if (isEmpty() || Other.isEmpty())
-//    return false;
-//
-//  return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
-//      return *A == *B;
-//  });
-//}
-
 void FunctionVariableConstraint::constrainToWild(Constraints &CS) {
   for (const auto &V : returnVars)
     V->constrainToWild(CS);
@@ -913,19 +766,6 @@ ConstraintVariable *FunctionVariableConstraint::getCopy(Constraints &CS) {
   return new FVConstraint(this, CS);
 }
 
-//ConstAtom*
-//FunctionVariableConstraint::getHighestType(EnvironmentMap &E) {
-//  ConstAtom *Ret = nullptr;
-//  for (const auto &C : returnVars) {
-//    ConstAtom *CS = C->getHighestType(E);
-//    assert(CS != nullptr);
-//    if (Ret == nullptr || ((*Ret) < *CS)) {
-//      Ret = CS;
-//    }
-//  }
-//  return Ret;
-//}
-
 void PVConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
   if (HasDefDeclEquated) {
     return;
@@ -959,9 +799,6 @@ FunctionVariableConstraint::equateFVConstraintVars(
 }
 
 void FunctionVariableConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
-  std::set<FVConstraint *> *DeclCons = nullptr;
-  std::set<FVConstraint *> *DefnCons = nullptr;
-
   if (HasDefDeclEquated) {
     return;
   }
@@ -975,32 +812,21 @@ void FunctionVariableConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
 
   // Is this not a function pointer?
   if (!IsFunctionPtr) {
+    std::set<FVConstraint *> *DefnCons = nullptr;
+
     // Get appropriate constraints based on whether the function is static or not.
     if (IsStatic) {
-      DeclCons = Info.getStaticFuncDeclConstraintSet(Name, FileName);
-      DefnCons = Info.getStaticFuncDefnConstraintSet(Name, FileName);
+      DefnCons = Info.getStaticFuncConstraintSet(Name, FileName);
     } else {
-      DeclCons = Info.getExtFuncDeclConstraintSet(Name);
       DefnCons = Info.getExtFuncDefnConstraintSet(Name);
     }
+    assert(DefnCons != nullptr);
 
-    // Only when we have both declaration and definition constraints.
-    // Then equate them.
-    if (DefnCons != nullptr && DeclCons != nullptr) {
-      std::set<ConstraintVariable *> TmpDecl, TmpDefn;
-      TmpDecl.clear();
-      TmpDefn.clear();
-
-      TmpDecl.insert(DeclCons->begin(), DeclCons->end());
-      TmpDefn.insert(DefnCons->begin(), DefnCons->end());
-      // Equate declaration and definition constraint
-      constrainConsVarGeq(TmpDefn, TmpDecl, Info.getConstraints(), nullptr,
-                          Same_to_Same, true, &Info);
-
-      // Equate arguments and parameters vars.
-      this->equateFVConstraintVars(TmpDecl, Info);
-      this->equateFVConstraintVars(TmpDefn, Info);
-    }
+    // Equate arguments and parameters vars.
+    std::set<ConstraintVariable *> TmpDefn;
+    TmpDefn.clear();
+    TmpDefn.insert(DefnCons->begin(), DefnCons->end());
+    this->equateFVConstraintVars(TmpDefn, Info);
   }
 }
 
@@ -1087,9 +913,8 @@ ConstraintVariable *PointerVariableConstraint::getCopy(Constraints &CS) {
   return new PointerVariableConstraint(this, CS);
 }
 
-const ConstAtom*
-PointerVariableConstraint::getSolution(const Atom *A,
-                                       EnvironmentMap &E) const{
+const ConstAtom *
+PointerVariableConstraint::getSolution(const Atom *A, EnvironmentMap &E) const {
   const ConstAtom *CS = nullptr;
   if (const ConstAtom *CA = dyn_cast<ConstAtom>(A)) {
     CS = CA;
@@ -1143,18 +968,6 @@ bool PointerVariableConstraint::hasNtArr(EnvironmentMap &E)
 
   return false;
 }
-
-//ConstAtom*
-//PointerVariableConstraint::getHighestType(EnvironmentMap &E) {
-//  ConstAtom *Ret = nullptr;
-//  for (const auto &C : vars) {
-//    const ConstAtom *CS = getSolution(C, E);
-//    if (Ret == nullptr || ((*Ret) < *CS)) {
-//      Ret = const_cast<ConstAtom*>(CS);
-//    }
-//  }
-//  return Ret;
-//}
 
 void FunctionVariableConstraint::print(raw_ostream &O) const {
   O << "( ";
@@ -1480,6 +1293,49 @@ void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
     for (const auto &J : RHS) {
       constrainConsVarGeq(I, J, CS, PL, CA, doEqType, Info);
     }
+  }
+}
+
+// True if [C] is a PVConstraint that contains at least one Atom (i.e.,
+//   it represents a C pointer)
+bool isAValidPVConstraint(ConstraintVariable *C) {
+  if (C != nullptr) {
+    if (PVConstraint *PV = dyn_cast<PVConstraint>(C))
+      return !PV->getCvars().empty();
+  }
+  return false;
+}
+
+// Replace CVars and argumentConstraints with those in [FromCV]
+void PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
+  PVConstraint *From = dyn_cast<PVConstraint>(FromCV);
+  assert (From != nullptr);
+  CAtoms CFrom = From->getCvars();
+  assert (vars.size() == CFrom.size());
+  vars = CFrom; // FIXME: structural copy? By reference?
+  argumentConstraints = From->getArgumentConstraints();
+  if (FV) {
+    assert(From->FV);
+    FV->brainTransplant(From->FV);
+  }
+}
+
+// Brain Transplant params and returns in [FromCV], recursively
+void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
+  FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
+  assert (From != nullptr);
+  // transplant returns
+  auto fromRetVar = getOnly(From->getReturnVars());
+  auto retVar = getOnly(returnVars);
+  retVar->brainTransplant(fromRetVar);
+  // transplant params
+  assert(From->numParams() == numParams());
+  for (unsigned i = 0; i < From->numParams(); i++) {
+    std::set<ConstraintVariable *> &FromP = From->getParamVar(i);
+    std::set<ConstraintVariable *> &P = getParamVar(i);
+    auto FromVar = getOnly(FromP);
+    auto Var = getOnly(P);
+    Var->brainTransplant(FromVar);
   }
 }
 

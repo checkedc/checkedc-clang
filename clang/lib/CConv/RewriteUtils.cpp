@@ -505,14 +505,9 @@ bool TypeRewritingVisitor::anyTop(std::set<ConstraintVariable *> C) {
   return TopFound;
 }
 
-std::string TypeRewritingVisitor::getExistingIType(ConstraintVariable *DeclC,
-                                                   ConstraintVariable *Defc,
-                                                   FunctionDecl *FuncDecl) {
+std::string TypeRewritingVisitor::getExistingIType(ConstraintVariable *DeclC) {
   std::string Ret = "";
   ConstraintVariable *T = DeclC;
-  if (FuncDecl == nullptr) {
-    T = Defc;
-  }
   if (PVConstraint *PVC = dyn_cast<PVConstraint>(T)) {
     if (PVC->getItypePresent()) {
       Ret = " : " + PVC->getItype();
@@ -524,13 +519,11 @@ std::string TypeRewritingVisitor::getExistingIType(ConstraintVariable *DeclC,
 // This function checks how to re-write a function declaration.
 bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
-  // Get all of the constraint variables for the function.
-  // Check and see if we have a definition in scope. If we do, then:
+  // Get the constraint variable for the function.
   // For the return value and each of the parameters, do the following:
   //   1. Get a constraint variable representing the definition (def) and the
-  //      declaration (dec).
-  //   2. Check if def < dec, dec < def, or dec = def.
-  //   3. Only if def < dec, we insert a bounds-safe interface.
+  //      uses ("arguments").
+  //   2. If arguments could be wild but def is not, we insert a bounds-safe interface.
   // If we don't have a definition in scope, we can assert that all of
   // the constraint variables are equal.
   // Finally, we need to note that we've visited this particular function, and
@@ -540,10 +533,8 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
   auto &CS = Info.getConstraints();
 
-  // Do we have a definition for this declaration?
+  // Do we have a definition for this function?
   FunctionDecl *Definition = getDefinition(FD);
-  FunctionDecl *Declaration = getDeclaration(FD);
-
   if (Definition == nullptr)
     return true;
 
@@ -554,173 +545,130 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   else
     VisitedSet.insert(FuncName);
 
-  auto &DefFVars = *(Info.getFuncDefnConstraints(Definition, Context));
+  auto &DefFVars = *(Info.getFuncConstraints(Definition, Context));
   FVConstraint *Defnc = getOnly(DefFVars);
-  //std::set<ConstraintVariable *> TmpVars;
-  //TmpVars.insert(DefFVars.begin(), DefFVars.end());
-  //FVConstraint *Defnc = getHighestT<FVConstraint>(TmpVars, Info);
-
-  FVConstraint *Declc = nullptr;
-  // Get corresponding declaration keys
-  std::set<FVConstraint *> *FuncDeclKeys =
-      Info.getFuncDeclConstraints(Definition, Context);
-
-  // Get constraint variables for the declaration and the definition.
-  // Those constraints should be function constraints.
-  if (FuncDeclKeys != nullptr) {
-    Declc = getOnly(*FuncDeclKeys);
-//    TmpVars.clear();
-//    TmpVars.insert(FuncDeclKeys->begin(), FuncDeclKeys->end());
-//    Declc = getHighestT<FVConstraint>(TmpVars, Info);
-  } else {
-    // No declaration constraints found. So, create on demand
-    // declaration constraints.
-    auto &TmpFVars =
-        Info.getOnDemandFuncDeclarationConstraint(Definition, Context);
-    Declc = getOnly(TmpFVars);
-//    TmpVars.clear();
-//    TmpVars.insert(TmpFVars.begin(), TmpFVars.end());
-//    Declc = getHighestT<FVConstraint>(TmpVars, Info);
-  }
-
-  assert(Declc != nullptr);
   assert(Defnc != nullptr);
 
-  if (Declc->numParams() == Defnc->numParams()) {
-    // Track whether we did any work and need to make a substitution or not.
-    bool DidAny = Declc->numParams() > 0;
-    std::string s = "";
-    std::vector<std::string> ParmStrs;
-    // Compare parameters.
-    for (unsigned i = 0; i < Declc->numParams(); ++i) {
-//      auto Decl = getHighestT<PVConstraint>(Declc->getParamVar(i), Info);
-//      auto Defn = getHighestT<PVConstraint>(Defnc->getParamVar(i), Info);
-      auto Decl = dyn_cast<PVConstraint>(getOnly(Declc->getParamVar(i)));
-      auto Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getParamVar(i)));
-      assert(Decl);
-      assert(Defn);
-      bool ParameterHandled = false;
+  bool DidAny = Defnc->numParams() > 0;
+  std::string s = "";
+  std::vector<std::string> ParmStrs;
+  // Compare parameters.
+  for (unsigned i = 0; i < Defnc->numParams(); ++i) {
+    auto Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getParamVar(i)));
+    assert(Defn);
+    bool ParameterHandled = false;
 
-      if (ProgramInfo::isAValidPVConstraint(Decl) &&
-          ProgramInfo::isAValidPVConstraint(Defn)) {
-        // If this holds, then we want to insert a bounds safe interface.
-        bool Constrained = Defn->anyChanges(CS.getVariables());
-        // Definition is more precise than declaration.
-        // Section 5.3:
-        // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-        if (Constrained && Decl->anyArgumentIsWild(CS.getVariables())) {
-          // If definition is more precise
-          // than declaration emit an itype.
-          std::string PtypeS =
-              Defn->mkString(Info.getConstraints().getVariables(), false, true);
-          std::string bi = Defn->getRewritableOriginalTy() +
-                           Defn->getName() + " : itype(" +
-              PtypeS + ")" +
-              ABRewriter.getBoundsString(Definition->getParamDecl(i), true);
-          ParmStrs.push_back(bi);
-          ParameterHandled = true;
-        } else if (Constrained) {
-          // Both the declaration and definition are same
-          // and they are safer than what was originally declared.
-          // Here we should emit a checked type!
-          std::string PtypeS =
-              Defn->mkString(Info.getConstraints().getVariables());
+    if (isAValidPVConstraint(Defn)) {
+      // If this holds, then we want to insert a bounds safe interface.
+      bool Constrained = Defn->anyChanges(CS.getVariables());
+      if (Constrained && Defn->anyArgumentIsWild(CS.getVariables())) {
+        // If definition is more precise
+        // than declaration emit an itype.
+        std::string PtypeS =
+            Defn->mkString(Info.getConstraints().getVariables(), false, true);
+        std::string bi =
+            Defn->getRewritableOriginalTy() + Defn->getName() + " : itype(" +
+            PtypeS + ")" +
+            ABRewriter.getBoundsString(Definition->getParamDecl(i), true);
+        ParmStrs.push_back(bi);
+        ParameterHandled = true;
+      } else if (Constrained) {
+        // Both the declaration and definition are same
+        // and they are safer than what was originally declared.
+        // Here we should emit a checked type!
+        std::string PtypeS =
+            Defn->mkString(Info.getConstraints().getVariables());
 
-          // If there is no declaration?
-          // check the itype in definition.
-          PtypeS = PtypeS + getExistingIType(Decl, Defn, Declaration) +
-              ABRewriter.getBoundsString(Definition->getParamDecl(i));
+        // If there is no declaration?
+        // check the itype in definition.
+        PtypeS = PtypeS + getExistingIType(Defn) +
+                 ABRewriter.getBoundsString(Definition->getParamDecl(i));
 
-          ParmStrs.push_back(PtypeS);
-          ParameterHandled = true;
-        }
-      }
-      // If the parameter has no changes? Just dump the original declaration.
-      if (!ParameterHandled) {
-        std::string Scratch = "";
-        raw_string_ostream DeclText(Scratch);
-        Definition->getParamDecl(i)->print(DeclText);
-        ParmStrs.push_back(DeclText.str());
+        ParmStrs.push_back(PtypeS);
+        ParameterHandled = true;
       }
     }
+    // If the parameter has no changes? Just dump the original declaration.
+    if (!ParameterHandled) {
+      std::string Scratch = "";
+      raw_string_ostream DeclText(Scratch);
+      Definition->getParamDecl(i)->print(DeclText);
+      ParmStrs.push_back(DeclText.str());
+    }
+  }
 
-    // Compare returns.
-//    auto Decl = getHighestT<PVConstraint>(Declc->getReturnVars(), Info);
-//    auto Defn = getHighestT<PVConstraint>(Defnc->getReturnVars(), Info);
-    auto Decl = dyn_cast<PVConstraint>(getOnly(Declc->getReturnVars()));
-    auto Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getReturnVars()));
+  // Compare returns.
+  auto Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getReturnVars()));
 
-    std::string ReturnVar = "";
-    std::string EndStuff = "";
-    bool ReturnHandled = false;
+  std::string ReturnVar = "";
+  std::string EndStuff = "";
+  bool ReturnHandled = false;
 
-    if (ProgramInfo::isAValidPVConstraint(Decl) &&
-        ProgramInfo::isAValidPVConstraint(Defn)) {
-      // Insert a bounds safe interface for the return.
-      bool anyConstrained = Defn->anyChanges(CS.getVariables());
-      if (anyConstrained) {
-        ReturnHandled = true;
-        DidAny = true;
-        std::string Ctype = "";
-        // Definition is more precise than declaration.
-        if (Decl->anyArgumentIsWild(CS.getVariables())) {
-          Ctype =
-              Defn->mkString(Info.getConstraints().getVariables(), true, true);
-          ReturnVar = Defn->getRewritableOriginalTy();
-          EndStuff = " : itype(" + Ctype + ")";
-        } else {
-          // This means we were able to infer that return type
-          // is a checked type.
-          // However, the function returns a less precise type, whereas
-          // all the uses of the function converts the return value
-          // into a more precise type.
-          // Do not change the type
-          ReturnVar = Defn->mkString(Info.getConstraints().getVariables());
-          EndStuff = getExistingIType(Decl, Defn, Declaration);
-        }
+  if (isAValidPVConstraint(Defn)) {
+    // Insert a bounds safe interface for the return.
+    bool anyConstrained = Defn->anyChanges(CS.getVariables());
+    if (anyConstrained) {
+      ReturnHandled = true;
+      DidAny = true;
+      std::string Ctype = "";
+      // Definition is more precise than use.
+      if (Defn->anyArgumentIsWild(CS.getVariables())) {
+        Ctype =
+            Defn->mkString(Info.getConstraints().getVariables(), true, true);
+        ReturnVar = Defn->getRewritableOriginalTy();
+        EndStuff = " : itype(" + Ctype + ")";
+      } else {
+        // This means we were able to infer that return type
+        // is a checked type.
+        // However, the function returns a less precise type, whereas
+        // all the uses of the function converts the return value
+        // into a more precise type.
+        // Do not change the type
+        ReturnVar = Defn->mkString(Info.getConstraints().getVariables());
+        EndStuff = getExistingIType(Defn);
       }
     }
+  }
 
-    // This means inside the function, the return value is WILD
-    // so the return type is what was originally declared.
-    if (!ReturnHandled) {
-      // If we used to implement a bounds-safe interface, continue to do that.
-      ReturnVar = Decl->getOriginalTy() + " ";
-
-      EndStuff = getExistingIType(Decl, Defn, Declaration);
-      if (!EndStuff.empty()) {
-        DidAny = true;
-      }
+  // This means inside the function, the return value is WILD
+  // so the return type is what was originally declared.
+  if (!ReturnHandled) {
+    // If we used to implement a bounds-safe interface, continue to do that.
+    ReturnVar = Defn->getOriginalTy() + " ";
+    EndStuff = getExistingIType(Defn);
+    if (!EndStuff.empty()) {
+      DidAny = true;
     }
+  }
 
-    s = getStorageQualifierString(Definition) + ReturnVar + Declc->getName() + "(";
-    if (ParmStrs.size() > 0) {
-      std::ostringstream ss;
+  s = getStorageQualifierString(Definition) + ReturnVar + Defnc->getName() +
+      "(";
+  if (ParmStrs.size() > 0) {
+    std::ostringstream ss;
 
-      std::copy(ParmStrs.begin(), ParmStrs.end() - 1,
-                std::ostream_iterator<std::string>(ss, ", "));
-      ss << ParmStrs.back();
+    std::copy(ParmStrs.begin(), ParmStrs.end() - 1,
+              std::ostream_iterator<std::string>(ss, ", "));
+    ss << ParmStrs.back();
 
-      s = s + ss.str();
-      // Add varargs.
-      if (functionHasVarArgs(Definition)) {
-        s = s + ", ...";
-      }
-      s = s + ")";
-    } else {
-      s = s + "void)";
+    s = s + ss.str();
+    // Add varargs.
+    if (functionHasVarArgs(Definition)) {
+      s = s + ", ...";
     }
+    s = s + ")";
+  } else {
+    s = s + "void)";
+  }
 
-    if (EndStuff.size() > 0)
-      s = s + EndStuff;
+  if (EndStuff.size() > 0)
+    s = s + EndStuff;
 
-    if (DidAny) {
-      // Do all of the declarations.
-      for (const auto &RD : Definition->redecls())
-        rewriteThese.insert(DAndReplace(RD, s, true));
-      // Save the modified function signature.
-      ModifiedFuncSignatures[FuncName] = s;
-    }
+  if (DidAny) {
+    // Do all of the declarations.
+    for (const auto &RD : Definition->redecls())
+      rewriteThese.insert(DAndReplace(RD, s, true));
+    // Save the modified function signature.
+    ModifiedFuncSignatures[FuncName] = s;
   }
 
   return true;
@@ -1046,7 +994,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     bool VisitVarDecl(VarDecl *VD) {
       // Check if the variable is WILD.
       bool FoundWild = false;
-      std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context, false);
+      std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context);
       for (auto Cv : CVSet) {
         if (Cv->hasWild(Info.getConstraints().getVariables())) {
           FoundWild = true;
@@ -1067,7 +1015,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     bool VisitParmVarDecl(ParmVarDecl *PVD) {
       // Check if the variable is WILD.
       bool FoundWild = false;
-      std::set<ConstraintVariable *> CVSet = Info.getVariable(PVD, Context, false);
+      std::set<ConstraintVariable *> CVSet = Info.getVariable(PVD, Context);
       for (auto Cv : CVSet) {
 	llvm::errs() << "\nCheckedRegion:\n";
         Cv->dump();
@@ -1129,7 +1077,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
             auto Ftype = Fld->getType();
             Unsafe |= isUncheckedPtrAcc(Ftype, Seen);
             std::set<ConstraintVariable *> CVSet =
-                Info.getVariable(Fld, Context, false);
+                Info.getVariable(Fld, Context);
             for (auto Cv : CVSet) {
               Unsafe |= Cv->hasWild(Info.getConstraints().getVariables());
             }
@@ -1176,7 +1124,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       if (VD) {
         // Check if the variable is WILD.
         bool FoundWild = false;
-        std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context, false);
+        std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context);
         for (auto Cv : CVSet) {
           if (Cv->hasWild(Info.getConstraints().getVariables())) {
             FoundWild = true;
@@ -1216,11 +1164,12 @@ public:
       PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CE, *Context);
       if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
         // Get the constraint variable for the function.
-        std::set<FVConstraint *> *V = Info.getFuncDefnConstraints(FD, Context);
+        std::set<FVConstraint *> *V = Info.getFuncConstraints(FD, Context);
         // Function has no definition i.e., external function.
-        if (V == nullptr) {
-          V = Info.getFuncDeclConstraints(FD, Context);
-        }
+        assert(V);
+//        if (V == nullptr) {
+//          V = Info.getFuncDeclConstraints(FD, Context);
+//        }
         // TODO Deubgging lines
         // llvm::errs() << "Decl for: " << FD->getNameAsString() << "\nVars:";
         // for (auto &CV : V) {
@@ -1243,7 +1192,7 @@ public:
               if (i < FD->getNumParams()) {
 
                 std::set<ConstraintVariable *> ArgumentConstraints =
-                    CR.getExprConstraintVars(A, A->getType(), true);
+                    CR.getExprConstraintVars(A, A->getType());
                 std::set<ConstraintVariable *> &ParameterConstraints =
                     FV->getParamVar(i);
                 bool CastInserted = false;
@@ -1332,7 +1281,7 @@ public:
       for (const auto &D : Definition->fields()) {
         if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
           std::set<ConstraintVariable *> FieldConsVars =
-              I.getVariable(D, Context, false);
+              I.getVariable(D, Context);
           for (auto CV : FieldConsVars) {
             PVConstraint *PV = dyn_cast<PVConstraint>(CV);
             if (PV && PV->anyChanges(I.getConstraints().getVariables())) {

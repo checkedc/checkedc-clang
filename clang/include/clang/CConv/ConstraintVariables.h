@@ -111,6 +111,7 @@ public:
   // Get the highest type assigned to the cvars of this constraint variable.
   //virtual ConstAtom *getHighestType(EnvironmentMap &E) = 0;
   virtual void equateInsideOutsideVars(ProgramInfo &I) = 0;
+  virtual void brainTransplant(ConstraintVariable *) = 0;
 
   std::string getOriginalTy() { return OriginalType; }
   // Get the original type string that can be directly
@@ -162,6 +163,10 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
                       ConsAction CA,
                       bool doEqType,
                       ProgramInfo *Info);
+
+// True if [C] is a PVConstraint that contains at least one Atom (i.e.,
+//   it represents a C pointer)
+bool isAValidPVConstraint(ConstraintVariable *C);
 
 class PointerVariableConstraint;
 class FunctionVariableConstraint;
@@ -215,8 +220,8 @@ private:
   // the values used as arguments.
   std::set<ConstraintVariable *> argumentConstraints;
   // Get solution for the atom of a pointer.
-  const ConstAtom*getSolution(const Atom *A,
-                                  EnvironmentMap &E) const;
+  const ConstAtom *getSolution(const Atom *A,
+                               EnvironmentMap &E) const;
 
   PointerVariableConstraint(PointerVariableConstraint *Ot,
                             Constraints &CS);
@@ -258,6 +263,7 @@ public:
                             const clang::ASTContext &C, std::string* inFunc = nullptr);
 
   const CAtoms &getCvars() const { return vars; }
+  void brainTransplant(ConstraintVariable *From);
 
   static bool classof(const ConstraintVariable *S) {
     return S->getKind() == PointerVariable;
@@ -281,8 +287,6 @@ public:
   bool hasWild(EnvironmentMap &E);
   bool hasArr(EnvironmentMap &E);
   bool hasNtArr(EnvironmentMap &E);
-  // Get the highest type assigned to the cvars of this constraint variable.
-  // ConstAtom *getHighestType(EnvironmentMap &E);
 
   void equateInsideOutsideVars(ProgramInfo &I);
 
@@ -292,15 +296,9 @@ public:
   // Get the set of constraint variables corresponding to the arguments.
   std::set<ConstraintVariable *> &getArgumentConstraints();
 
-//  bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
-//  bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEmpty(void) const { return vars.size() == 0; }
 
   ConstraintVariable *getCopy(Constraints &CS);
-
-//  bool liftedOnCVars(const ConstraintVariable &O,
-//                     ProgramInfo &Info,
-//                     llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;
 
   virtual ~PointerVariableConstraint() {};
 };
@@ -357,6 +355,8 @@ public:
     return S->getKind() == FunctionVariable;
   }
 
+  void brainTransplant(ConstraintVariable *From);
+
   std::set<ConstraintVariable *> &
   getParamVar(unsigned i) {
     assert(i < paramVars.size());
@@ -376,14 +376,11 @@ public:
   bool hasWild(EnvironmentMap &E);
   bool hasArr(EnvironmentMap &E);
   bool hasNtArr(EnvironmentMap &E);
-  //ConstAtom *getHighestType(EnvironmentMap &E);
 
   void equateInsideOutsideVars(ProgramInfo &P);
 
   ConstraintVariable *getCopy(Constraints &CS);
 
-//  bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
-//  bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
   // An FVConstraint is empty if every constraint associated is empty.
   bool isEmpty(void) const {
 
@@ -397,10 +394,6 @@ public:
 
     return true;
   }
-
-//  bool liftedOnCVars(const ConstraintVariable &O,
-//                     ProgramInfo &Info,
-//                     llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;
 
   virtual ~FunctionVariableConstraint() {};
 };

@@ -31,7 +31,7 @@ public:
       for (auto &Param : FD->parameters()) {
         bool IsWild = false;
         //std::set<ConstraintVariable *> Cvs = Info.getVariable(Context, FD, Pi);
-        std::set<ConstraintVariable *> Cvs = Info.getVariable(Param, Context, false);
+        std::set<ConstraintVariable *> Cvs = Info.getVariable(Param, Context);
         for (auto Cv : Cvs) {
           IsWild |= Cv->hasWild(CS.getVariables());
           // If this an extern function, then check if there is

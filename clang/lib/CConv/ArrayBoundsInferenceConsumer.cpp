@@ -119,7 +119,7 @@ static bool needNTArrayBounds(ConstraintVariable *CV,
 }
 
 static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C) {
-  std::set<ConstraintVariable *> ConsVar = Info.getVariable(D, C, true);
+  std::set<ConstraintVariable *> ConsVar = Info.getVariable(D, C);
   for (auto CurrCVar : ConsVar) {
     if (needArrayBounds(CurrCVar, Info.getConstraints().getVariables()))
       return true;
@@ -245,7 +245,7 @@ bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
         PotLenFields.insert(FldDecl);
 
       std::set<ConstraintVariable *> ConsVars =
-          Info.getVariable(FldDecl, Context, false);
+          Info.getVariable(FldDecl, Context);
       for (auto CurrCVar : ConsVars) {
         // Is this an array field?
         if (needArrayBounds(CurrCVar, E)) {
@@ -302,7 +302,7 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         ParmVarDecl *PVD = FD->getParamDecl(i);
         auto &E = Info.getConstraints().getVariables();
         std::set<ConstraintVariable *> DefCVars =
-            Info.getVariable(PVD, Context, true);
+            Info.getVariable(PVD, Context);
         if (!DefCVars.empty()) {
           for (auto CurrCVar : DefCVars) {
             // Is this an array?
@@ -501,7 +501,7 @@ void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
         ParmVarDecl *Argv = FD->getParamDecl(1);
         assert(Argv != nullptr && "Argument cannot be nullptr");
         auto &CS = I.getConstraints();
-        std::set<ConstraintVariable *> DefCVars = I.getVariable(Argv, C, true);
+        std::set<ConstraintVariable *> DefCVars = I.getVariable(Argv, C);
         for (auto ConsVar : DefCVars) {
           if (PVConstraint *PV = dyn_cast<PVConstraint>(ConsVar)) {
             auto &Cvars = PV->getCvars();
