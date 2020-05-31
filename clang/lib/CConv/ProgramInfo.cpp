@@ -561,7 +561,7 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
     Map[FuncName] = ToIns;
     RetVal = true;
   } else {
-    MultipleRewrites = true;
+    // MultipleRewrites = true;
     if (isDef) {
       auto oldS = Map[FuncName];
       assert (oldS.size() == 1 && ToIns.size() == 1);
@@ -569,7 +569,6 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
       auto oldC = *oldS.begin();
       newC->replaceCvars(oldC);
       Map[FuncName] = ToIns;
-      //FIXME: put oldC in the throwaway set
     }
   }
   return RetVal;

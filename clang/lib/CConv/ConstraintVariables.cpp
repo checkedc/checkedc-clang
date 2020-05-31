@@ -1491,6 +1491,7 @@ void PointerVariableConstraint::replaceCvars(ConstraintVariable *FromCV) {
   CAtoms CFrom = From->getCvars();
   assert (vars.size() == CFrom.size());
   vars = CFrom; // FIXME: structural copy? By reference?
+  argumentConstraints = From->getArgumentConstraints();
 }
 
 void FunctionVariableConstraint::replaceCvars(ConstraintVariable *FromCV) {
