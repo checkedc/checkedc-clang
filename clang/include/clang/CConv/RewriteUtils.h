@@ -170,9 +170,7 @@ private:
   // if tries to get the string from declaration, however,
   // if there is no declaration of the function,
   // it will try to get it from the definition.
-  std::string getExistingIType(ConstraintVariable *DeclC,
-                               ConstraintVariable *Defc,
-                               FunctionDecl *FuncDecl);
+  std::string getExistingIType(ConstraintVariable *DeclC);
   bool anyTop(std::set<ConstraintVariable *>);
   ASTContext            *Context;
   ProgramInfo           &Info;
