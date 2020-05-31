@@ -47,7 +47,7 @@ public:
           // If yes, assign ARR constraint to all the inside vars.
           const clang::Type *TypePtr = D->getType().getTypePtr();
           Constraints &CS = Info.getConstraints();
-          std::set<ConstraintVariable *> Var = Info.getVariable(D, Context, true);
+          std::set<ConstraintVariable *> Var = Info.getVariable(D, Context);
           assert(Var.size() == 1 && "Invalid number of ConstraintVariables.");
           auto *PvConstr = dyn_cast<PVConstraint>(*(Var.begin()));
           assert(PvConstr != nullptr && "Constraint variable cannot be nullptr");
@@ -122,14 +122,14 @@ public:
       if (getDeclaration(FD) != nullptr) {
         FD = getDeclaration(FD);
       }
-      FVCons = Info.getVariable(FD, Context, false);
+      FVCons = Info.getVariable(FD, Context);
 
       handleFunctionCall(E, FVCons);
     } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {
       // This could be a function pointer,
       // get the declaration of the function pointer variable
       // with in the caller context.
-      FVCons = Info.getVariable(DD, Context, true);
+      FVCons = Info.getVariable(DD, Context);
       handleFunctionCall(E, FVCons);
     } else {
       // Constrain all arguments to wild.
@@ -149,11 +149,10 @@ public:
 
   bool VisitReturnStmt(ReturnStmt *S) {
     // Get function variable constraint of the body
-    // We need to call getVariableOnDemand to avoid auto-correct.
     PersistentSourceLoc PL =
         PersistentSourceLoc::mkPSL(S, *Context);
     std::set<ConstraintVariable *> Fun =
-      Info.getVariableOnDemand(Function, Context, true);
+        Info.getVariable(Function, Context);
 
     // Constrain the value returned (if present) against the return value
     // of the function.
@@ -285,8 +284,7 @@ private:
   }
 
   void constraintInBodyVariable(Decl *d, ConstAtom *CAtom) {
-    std::set<ConstraintVariable *> Var =
-      Info.getVariable(d, Context, true);
+    std::set<ConstraintVariable *> Var = Info.getVariable(d, Context);
     constrainVarsTo(Var, CAtom);
   }
 

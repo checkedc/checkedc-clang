@@ -994,7 +994,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     bool VisitVarDecl(VarDecl *VD) {
       // Check if the variable is WILD.
       bool FoundWild = false;
-      std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context, false);
+      std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context);
       for (auto Cv : CVSet) {
         if (Cv->hasWild(Info.getConstraints().getVariables())) {
           FoundWild = true;
@@ -1015,7 +1015,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     bool VisitParmVarDecl(ParmVarDecl *PVD) {
       // Check if the variable is WILD.
       bool FoundWild = false;
-      std::set<ConstraintVariable *> CVSet = Info.getVariable(PVD, Context, false);
+      std::set<ConstraintVariable *> CVSet = Info.getVariable(PVD, Context);
       for (auto Cv : CVSet) {
 	llvm::errs() << "\nCheckedRegion:\n";
         Cv->dump();
@@ -1077,7 +1077,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
             auto Ftype = Fld->getType();
             Unsafe |= isUncheckedPtrAcc(Ftype, Seen);
             std::set<ConstraintVariable *> CVSet =
-                Info.getVariable(Fld, Context, false);
+                Info.getVariable(Fld, Context);
             for (auto Cv : CVSet) {
               Unsafe |= Cv->hasWild(Info.getConstraints().getVariables());
             }
@@ -1124,7 +1124,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       if (VD) {
         // Check if the variable is WILD.
         bool FoundWild = false;
-        std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context, false);
+        std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context);
         for (auto Cv : CVSet) {
           if (Cv->hasWild(Info.getConstraints().getVariables())) {
             FoundWild = true;
@@ -1281,7 +1281,7 @@ public:
       for (const auto &D : Definition->fields()) {
         if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
           std::set<ConstraintVariable *> FieldConsVars =
-              I.getVariable(D, Context, false);
+              I.getVariable(D, Context);
           for (auto CV : FieldConsVars) {
             PVConstraint *PV = dyn_cast<PVConstraint>(CV);
             if (PV && PV->anyChanges(I.getConstraints().getVariables())) {

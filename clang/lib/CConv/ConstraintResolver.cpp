@@ -174,9 +174,9 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
     E = getNormalizedExpr(E);
     bool TmpAssign = false;
     if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
-      return Info.getVariable(DRE->getDecl(), Context, Ifc);
+      return Info.getVariable(DRE->getDecl(), Context);
     } else if (MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
-      return Info.getVariable(ME->getMemberDecl(), Context, Ifc);
+      return Info.getVariable(ME->getMemberDecl(), Context);
     } else if (BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
       bool LHSAssigned = false, RHSAssigned = false;
       std::set<ConstraintVariable *> T1 = getExprConstraintVars(
@@ -287,8 +287,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
           if (!didInsert)
             TR.insert(PVConstraint::getWildPVConstraint(Info.getConstraints()));
         } else { // normal function call
-          std::set<ConstraintVariable *> CS =
-              Info.getVariable(FD, Context, Ifc);
+          std::set<ConstraintVariable *> CS = Info.getVariable(FD, Context);
           FVConstraint *FVC = nullptr;
           for (const auto &J : CS) {
             if (FVConstraint *tmp = dyn_cast<FVConstraint>(J))
@@ -435,7 +434,7 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
    PLPtr = &PL;
   }
   // Get the in-context local constraints.
-  std::set<ConstraintVariable *> V = Info.getVariable(D, Context, true);
+  std::set<ConstraintVariable *> V = Info.getVariable(D, Context);
   auto RHSCons =
       getExprConstraintVars(V, RHS, TmpValueCons, D->getType(),
                             IsAssigned, true);

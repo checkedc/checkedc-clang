@@ -89,10 +89,8 @@ public:
   // constraints where appropriate.
   bool link();
 
-  std::set<ConstraintVariable *>
-    getVariableOnDemand(clang::Decl *D, clang::ASTContext *C, bool FromDefn);
-  std::set<ConstraintVariable *>
-    getVariable(clang::Decl *D, clang::ASTContext *C, bool FromDefn);
+  std::set<ConstraintVariable *> getVariable(clang::Decl *D,
+                                             clang::ASTContext *C);
   // Get constraint variable for the provided function or its parameter.
   // std::set<ConstraintVariable *>
   //  getVariable(clang::ASTContext *C, FunctionDecl *FD, int PIdx); // use the functions above
@@ -168,7 +166,7 @@ private:
                         ASTContext *C);
 
   std::set<FVConstraint *> *getFuncFVConstraints(FunctionDecl *FD,
-                                                 ASTContext *C, bool FromDefn);
+                                                 ASTContext *C);
 
   // List of all constraint variables, indexed by their location in the source.
   // This information persists across invocations of the constraint analysis

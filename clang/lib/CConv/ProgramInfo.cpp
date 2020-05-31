@@ -604,7 +604,7 @@ void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context, bool F
     PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(D, *Context);
     if (!D->getType()->isVoidType())
       Rsn = "Variable type is va_list.";
-    for (const auto &I : getVariable(D, Context, FromDefn)) {
+    for (const auto &I : getVariable(D, Context)) {
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
         PVC->constrainToWild(CS, Rsn, &PL);
       }
@@ -725,23 +725,8 @@ ProgramInfo::getFuncDefnConstraints(FunctionDecl *D, ASTContext *C) {
   return nullptr;
 }
 
-std::set<ConstraintVariable *>
-ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C,
-                         bool FromDefn) {
-  // Here, we auto-correct the inFunctionContext flag.
-  // If someone is asking for in context variable of a function
-  // always give the declaration context.
-
-  // If this a function declaration set in context to false.
-  if (dyn_cast<FunctionDecl>(D)) {
-    FromDefn = false;
-  }
-  return getVariableOnDemand(D, C, FromDefn);
-}
-
 std::set<FVConstraint *> *ProgramInfo::getFuncFVConstraints(FunctionDecl *FD,
-                                                            ASTContext *C,
-                                                            bool FromDefn) {
+                                                            ASTContext *C) {
   std::string FuncName = FD->getNameAsString();
   std::set<FVConstraint *> *FunFVars = nullptr;
 
@@ -765,11 +750,9 @@ std::set<FVConstraint *> *ProgramInfo::getFuncFVConstraints(FunctionDecl *FD,
   return FunFVars;
 }
 
-
 // Given a decl, return the variables for the constraints of the Decl.
-std::set<ConstraintVariable *>
-ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C,
-                                 bool FromDefn) {
+std::set<ConstraintVariable *> ProgramInfo::getVariable(clang::Decl *D,
+                                                        clang::ASTContext *C) {
   assert(persisted == false);
 
   if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
@@ -785,7 +768,7 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C,
       }
     }
     // Get corresponding FVConstraint vars.
-    std::set<FVConstraint *> *FunFVars = getFuncFVConstraints(FD, C, FromDefn);
+    std::set<FVConstraint *> *FunFVars = getFuncFVConstraints(FD, C);
     assert(FunFVars != nullptr && "Unable to find function constraints.");
     std::set<ConstraintVariable *> ParameterCons;
     ParameterCons.clear();
@@ -797,7 +780,7 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C,
     return ParameterCons;
 
   } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-    std::set<FVConstraint *> *FunFVars = getFuncFVConstraints(FD, C, FromDefn);
+    std::set<FVConstraint *> *FunFVars = getFuncFVConstraints(FD, C);
     if (FunFVars == nullptr) {
       llvm::errs() << "No fun constraints for " << FD->getName() << "?!\n";
     }
