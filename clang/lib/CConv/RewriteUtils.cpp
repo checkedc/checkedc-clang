@@ -1192,7 +1192,7 @@ public:
               if (i < FD->getNumParams()) {
 
                 std::set<ConstraintVariable *> ArgumentConstraints =
-                    CR.getExprConstraintVars(A, A->getType(), true);
+                    CR.getExprConstraintVars(A, A->getType());
                 std::set<ConstraintVariable *> &ParameterConstraints =
                     FV->getParamVar(i);
                 bool CastInserted = false;

@@ -95,7 +95,7 @@ public:
   bool VisitCStyleCastExpr(CStyleCastExpr *C) {
     // If we're casting from something with a constraint variable to something
     // that isn't a pointer type, we should constrain up.
-    CB.getExprConstraintVars(C, C->getSubExpr()->getType(), true);
+    CB.getExprConstraintVars(C, C->getSubExpr()->getType());
 
     return true;
   }
@@ -159,10 +159,8 @@ public:
     Expr *RetExpr = S->getRetValue();
     QualType Typ = Function->getReturnType();
 
-    std::set<ConstraintVariable *> RconsVar = CB.getExprConstraintVars(RetExpr,
-                                                             Function->getReturnType(),
-                                                             true,
-                                                             true);
+    std::set<ConstraintVariable *> RconsVar =
+        CB.getExprConstraintVars(RetExpr, Function->getReturnType(), true);
     // Constrain the return type of the function
     // to the type of the return expression.
     for (const auto &F : Fun) {
@@ -221,8 +219,7 @@ private:
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
         std::set<ConstraintVariable *> ArgumentConstraints =
-            CB.getExprConstraintVars(A, A->getType(),
-                                     true, true);
+            CB.getExprConstraintVars(A, A->getType(), true);
         for (auto *TmpC : FuncCVars) {
           if (PVConstraint *PVC = dyn_cast<PVConstraint>(TmpC)) {
             TmpC = PVC->getFV();
@@ -279,7 +276,7 @@ private:
   // Constraint helpers.
   void constraintInBodyVariable(Expr *e, ConstAtom *CAtom) {
     std::set<ConstraintVariable *> Var =
-      CB.getExprConstraintVars(e, e->getType(), true);
+        CB.getExprConstraintVars(e, e->getType());
     constrainVarsTo(Var, CAtom);
   }
 
@@ -296,7 +293,7 @@ private:
       // Get constraint from within the function body
       // of the caller.
       std::set<ConstraintVariable *> ParameterEC =
-        CB.getExprConstraintVars(A, A->getType(), true);
+          CB.getExprConstraintVars(A, A->getType());
 
       // Assign WILD to each of the constraint variables.
       FunctionDecl *FD = E->getDirectCallee();
