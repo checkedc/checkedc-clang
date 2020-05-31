@@ -482,8 +482,8 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
     // MultipleRewrites = true;
     if (isDef) {
       auto oldS = Map[FuncName];
-      auto newC = getOnly(ToIns);
-      auto oldC = getOnly(oldS);
+      auto *newC = getOnly(ToIns);
+      auto *oldC = getOnly(oldS);
       // Retain CVars and argConstraints from old ConstraintVariable
       newC->brainTransplant(oldC);
       Map[FuncName] = ToIns;
@@ -571,9 +571,8 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     FVConstraint *F = new FVConstraint(D, CS, *astContext);
     std::set<FVConstraint *> NewFVars;
     NewFVars.insert(F);
-    bool retV = insertNewFVConstraints(FD, NewFVars, astContext);
-    retV = true; // TODO: Delete once confident this makes sense
-    if (retV) {
+    /* Only retain the FVConstraint if we stored in the global map */
+    if (insertNewFVConstraints(FD, NewFVars, astContext)) {
       S.insert(F);
       // Add mappings from the parameters PLoc to the constraint variables for
       // the parameters.
@@ -585,7 +584,8 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
         Variables[PSL].insert(PS.begin(), PS.end());
         specialCaseVarIntros(PVD, astContext);
       }
-    }
+    } else { delete F; }
+
   } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
     const Type *Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     if (Ty->isPointerType() || Ty->isArrayType()) {
@@ -596,6 +596,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
         GlobalVariableSymbols[VarName].insert(P);
       specialCaseVarIntros(D, astContext);
     }
+
   } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
     const Type *Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     if (Ty->isPointerType() || Ty->isArrayType()) {
