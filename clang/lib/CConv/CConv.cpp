@@ -336,10 +336,6 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   // Get all the current WILD pointers.
   CVars OldWildPtrs = PtrDisjointSet.AllWildPtrs;
 
-  // Reset all the pointer constraints.
-  // ResetAllPointerConstraints(); MWH: Only reset "erased" constraints
-  //   but these no longer used in new solving algorithm
-
   // Delete the constraint that make the provided targetPtr WILD.
   VarAtom *VA = CS.getOrCreateVar(targetPtr, "q", VarAtom::V_Other);
   Geq newE(VA, CS.getWild());
@@ -402,10 +398,6 @@ bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
 
   CVars OldWildPtrs = PtrDisjointSet.AllWildPtrs;
 
-  // MWH: Only reset "erased" constraints
-  //   but these no longer used in new solving algorithm
-  // ResetAllPointerConstraints();
-
   // Delete ALL the constraints that have the same given reason.
   VarAtom *VA = CS.getOrCreateVar(PtrKey, "q", VarAtom::V_Other);
   Geq NewE(VA, CS.getWild());
@@ -415,8 +407,7 @@ bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
   // Reset constraint solver.
   CS.resetEnvironment();
 
-  // Solve the constraint.
-  //assert(CS == GlobalProgramInfo.getConstraints());
+  // Solve the constraints.
   runSolver(GlobalProgramInfo, FilePaths);
 
   // Recompute the WILD pointer disjoint sets.

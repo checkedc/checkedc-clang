@@ -227,7 +227,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       std::set<ConstraintVariable *> TmpCons = getExprConstraintVars(
           LHSConstraints, TmpE, RvalCons, LhsType, IsAssigned, Ifc);
       // Is cast compatible with LHS type?
-      if (!Info.isExplicitCastSafe(LhsType, ECE->getType())) {
+      if (!isExplicitCastSafe(LhsType, ECE->getType())) {
         constraintAllCVarsToWild(TmpCons, "Casted to a different type.", E);
         constraintAllCVarsToWild(LHSConstraints,
                                  "Casted From a different type.", E);
@@ -330,7 +330,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
         TmpCVs.insert(NewCV);
       }
 
-      if (!Info.isExplicitCastSafe(LhsType, ExprType)) {
+      if (!isExplicitCastSafe(LhsType, ExprType)) {
         constraintAllCVarsToWild(TmpCVs, "Assigning to a different type.", E);
         constraintAllCVarsToWild(LHSConstraints,
                                  "Assigned from a different type.", E);

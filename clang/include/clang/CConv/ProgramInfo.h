@@ -70,21 +70,7 @@ public:
   //  * va_list-typed variables
   void specialCaseVarIntros(ValueDecl *D, ASTContext *Context, bool FromDefn);
 
-  // Checks the structural type equality of two constrained locations. This is 
-  // needed if you are casting from U to V. If this returns true, then it's 
-  // safe to add an implication that if U is wild, then V is wild. However,
-  // if this returns false, then both U and V must be constrained to wild.
-  bool checkStructuralEquality( std::set<ConstraintVariable *> V,
-                                std::set<ConstraintVariable *> U,
-                                clang::QualType VTy,
-                                clang::QualType UTy);
-  bool checkStructuralEquality(clang::QualType, clang::QualType);
-
-  // Check if casting from srcType to dstType is fine.
-  bool isExplicitCastSafe(clang::QualType DstType,
-                          clang::QualType SrcType);
-
-  // Called when we are done adding constraints and visiting ASTs. 
+  // Called when we are done adding constraints and visiting ASTs.
   // Links information about global symbols together and adds 
   // constraints where appropriate.
   bool link();

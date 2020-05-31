@@ -296,65 +296,6 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
 
 }
 
-// Check the equality of VTy and UTy. There are some specific rules that
-// fire, and a general check is yet to be implemented. 
-bool ProgramInfo::checkStructuralEquality(std::set<ConstraintVariable *> V,
-                                          std::set<ConstraintVariable *> U,
-                                          QualType VTy,
-                                          QualType UTy) 
-{
-  // First specific rule: Are these types directly equal? 
-  if (VTy == UTy) {
-    return true;
-  } else {
-    // Further structural checking is TODO.
-    return false;
-  } 
-}
-
-bool ProgramInfo::checkStructuralEquality(QualType D, QualType S) {
-  if (D == S)
-    return true;
-
-  return D->isPointerType() == S->isPointerType();
-}
-
-bool ProgramInfo::isExplicitCastSafe(clang::QualType DstType,
-                                     clang::QualType SrcType) {
-
-  // Check if both types are same.
-  if (SrcType == DstType)
-    return true;
-
-  const clang::Type *SrcTypePtr = SrcType.getTypePtr();
-  const clang::Type *DstTypePtr = DstType.getTypePtr();
-
-  const clang::PointerType *SrcPtrTypePtr = dyn_cast<PointerType>(SrcTypePtr);
-  const clang::PointerType *DstPtrTypePtr = dyn_cast<PointerType>(DstTypePtr);
-
-  // Both are pointers? check their pointee
-  if (SrcPtrTypePtr && DstPtrTypePtr)
-    return isExplicitCastSafe(DstPtrTypePtr->getPointeeType(),
-                              SrcPtrTypePtr->getPointeeType());
-  // Only one of them is pointer?
-  if (SrcPtrTypePtr || DstPtrTypePtr)
-    return false;
-
-  // If both are not scalar types? Then the types must be exactly same.
-  if (!(SrcTypePtr->isScalarType() && DstTypePtr->isScalarType()))
-    return SrcTypePtr == DstTypePtr;
-
-  // Check if both types are compatible.
-  bool BothNotChar = SrcTypePtr->isCharType() ^ DstTypePtr->isCharType();
-  bool BothNotInt =
-      SrcTypePtr->isIntegerType() ^ DstTypePtr->isIntegerType();
-  bool BothNotFloat =
-      SrcTypePtr->isFloatingType() ^ DstTypePtr->isFloatingType();
-
-
-  return !(BothNotChar || BothNotInt || BothNotFloat);
-}
-
 bool ProgramInfo::isExternOkay(std::string Ext) {
   return llvm::StringSwitch<bool>(Ext)
     .Cases("malloc", "free", true)
