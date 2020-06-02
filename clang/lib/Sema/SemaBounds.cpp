@@ -5543,6 +5543,22 @@ void Sema::WarnDynamicCheckAlwaysFails(const Expr *Condition) {
   }
 }
 
+// If the VarDecl D has a byte_count or count bounds expression,
+// NormalizeBounds expands it to a range bounds expression.  The expanded
+// range bounds are attached to the VarDecl D to avoid recomputing the
+// normalized bounds for D.
+BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
+  // If D already has a normalized bounds expression, do not recompute it.
+  if (const BoundsExpr *NormalizedBounds = D->getNormalizedBounds()) 
+    return const_cast<BoundsExpr *>(NormalizedBounds);
+
+  // Normalize the bounds of D to a RangeBoundsExpr and attach the normalized
+  // bounds to D to avoid recomputing them.
+  BoundsExpr *Bounds = ExpandBoundsToRange(D, D->getBoundsExpr());
+  D->setNormalizedBounds(Bounds);
+  return Bounds;
+}
+
 // This is wrapper around CheckBoundsDeclaration::ExpandToRange. This provides
 // an easy way to invoke this function from outside the class. Given a
 // byte_count or count bounds expression for the VarDecl D, ExpandToRange will
