@@ -1,10 +1,12 @@
-// Tests for updating equivalent expression information during bounds inference and checking.
+// Tests for updating the observed bounds context during bounds inference and checking.
 // This file tests updating the context mapping variables to their bounds
 // after checking expressions during bounds analysis.
 //
 // RUN: %clang_cc1 -Wno-unused-value -fdump-checking-state %s | FileCheck %s
 
 #include <stdchecked.h>
+
+extern void testNtArray(nt_array_ptr<char> p : count(0), int i);
 
 // Parameter and local variables with declared count bounds
 void f1(array_ptr<int> arr : count(len), int len, int size) {
@@ -273,4 +275,182 @@ void f2(int flag, int x, int y) {
   // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
   // CHECK-NEXT: }
+}
+
+void f3(nt_array_ptr<int> p : count(i), int i, int other) {
+  if (*(p + i)) {
+    // Observed bounds context: { p => bounds(p, p + i) }
+    // CHECK: Statement S:
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   UnaryOperator {{.*}} '*'
+    // CHECK:          ParenExpr
+    // CHECK-NEXT:       BinaryOperator {{.*}} '+'
+    // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:           DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:           DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT: Observed bounds context after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: Variable:
+    // CHECK-NEXT: ParmVarDecl {{.*}} p
+    // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT: Bounds:
+    // CHECK-NEXT: RangeBoundsExpr
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT: }
+
+    // Bounds of p are currently widened by 1
+    // Observed bounds context: { p => bounds(p, (p + i) + 1) }
+    p;
+    // CHECK: Statement S:
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT: Observed bounds context after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: Variable:
+    // CHECK-NEXT: ParmVarDecl {{.*}} p
+    // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT: Bounds:
+    // CHECK-NEXT: RangeBoundsExpr
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+    // CHECK-NEXT:     BinaryOperator {{.*}} '+'
+    // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:         DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+    // CHECK-NEXT: }
+
+    // This statement kills the widened bounds of p since it modifies i
+    // Observed bounds context: { p => bounds(p, p + 1) }
+    i++, --other;
+    // CHECK: Statement S:
+    // CHECK-NEXT: BinaryOperator {{.*}} ','
+    // CHECK-NEXT:   UnaryOperator {{.*}} postfix '++'
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT:   UnaryOperator {{.*}} prefix '--'
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'other'
+    // CHECK-NEXT: Observed bounds context after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: Variable:
+    // CHECK-NEXT: ParmVarDecl {{.*}} p
+    // CHECK-NEXT:   CountBoundsExpr {{.*}} Element
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT: Bounds:
+    // CHECK-NEXT: RangeBoundsExpr
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:       DeclRefExpr {{.*}} 'i'
+    // CHECK-NEXT: }
+  }
+}
+
+void f4(nt_array_ptr<char> p : count(0), int other) {
+  if (*p) {
+    // Observed bounds context: { p => bounds(p, p + 0) }
+    // CHECK: Statement S:
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   UnaryOperator {{.*}} '*'
+    // CHECK:          ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
+    // CHECK:      Observed bounds context after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: Variable:
+    // CHECK-NEXT: ParmVarDecl {{.*}} p
+    // CHECK-NEXT: CountBoundsExpr {{.*}} Element
+    // CHECK-NEXT:   IntegerLiteral {{.*}} 0
+    // CHECK-NEXT: Bounds:
+    // CHECK-NEXT: RangeBoundsExpr
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+    // CHECK-NEXT: }
+
+    // Bounds of p are currently widened by 1
+    // Observed bounds context: { p => bounds(p, (p + 0) + 1) }
+    p[1];
+    // CHECK: Statement S:
+    // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:   ArraySubscriptExpr
+    // CHECK-NEXT:     Bounds Null-terminated read
+    // CHECK-NEXT:       RangeBoundsExpr
+    // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:           DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:         BinaryOperator {{.*}} '+'
+    // CHECK-NEXT:           BinaryOperator {{.*}} '+'
+    // CHECK-NEXT:             ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:               DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:             IntegerLiteral {{.*}} 0
+    // CHECK-NEXT:           IntegerLiteral {{.*}} 1
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+    // CHECK-NEXT: Observed bounds context after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: Variable:
+    // CHECK-NEXT: ParmVarDecl {{.*}} p
+    // CHECK-NEXT: CountBoundsExpr {{.*}} Element
+    // CHECK-NEXT:   IntegerLiteral {{.*}} 0
+    // CHECK-NEXT: Bounds:
+    // CHECK-NEXT: RangeBoundsExpr
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+    // CHECK-NEXT:     BinaryOperator {{.*}} '+'
+    // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:       IntegerLiteral {{.*}} 0
+    // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+    // CHECK-NEXT: }
+
+    // This statement kills the widened bounds of p since it modifies p
+    // Observed bounds context: { p = bounds(p, p) }
+    testNtArray(p = 0, other = 0);
+    // CHECK: Statement S:
+    // CHECK-NEXT: CallExpr {{.*}} 'void'
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <FunctionToPointerDecay>
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'testNtArray'
+    // CHECK-NEXT:   BinaryOperator {{.*}} '='
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <NullToPointer>
+    // CHECK-NEXT:       IntegerLiteral {{.*}} 0
+    // CHECK-NEXT:   BinaryOperator {{.*}} '='
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'other'
+    // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+    // CHECK-NEXT: Observed bounds context after checking S:
+    // CHECK-NEXT: {
+    // CHECK-NEXT: Variable:
+    // CHECK-NEXT: ParmVarDecl {{.*}} p
+    // CHECK-NEXT: CountBoundsExpr {{.*}} Element
+    // CHECK-NEXT:   IntegerLiteral {{.*}} 0
+    // CHECK-NEXT: Bounds:
+    // CHECK-NEXT: RangeBoundsExpr
+    // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:     DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+    // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+    // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
+    // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+    // CHECK-NEXT: }
+  }
 }
