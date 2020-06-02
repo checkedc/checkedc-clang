@@ -1671,10 +1671,208 @@ namespace {
       return ProofResult::Maybe;
     }
 
+    using ExprPairTy = std::pair<Expr *, Expr *>;
+    using ExprIntPairTy = std::pair<Expr *, unsigned>;
+    using ExprCountMapTy = llvm::DenseMap<const VarDecl *, ExprIntPairTy>;
+
+    Expr *IgnoreCasts(const Expr *E) {
+      return
+        Lexicographic(S.Context, nullptr)
+          .IgnoreValuePreservingOperations(S.Context, const_cast<Expr *>(E));
+    }
+
+    bool IsDeclOperand(Expr *E) {
+      if (auto *CE = dyn_cast<CastExpr>(E)) {
+        assert(CE->getSubExpr() && "invalid CastExpr expression");
+
+        if (CE->getCastKind() == CastKind::CK_LValueToRValue ||
+            CE->getCastKind() == CastKind::CK_ArrayToPointerDecay)
+          return isa<DeclRefExpr>(IgnoreCasts(CE->getSubExpr()));
+      }
+      return false;
+    }
+
+    DeclRefExpr *GetDeclOperand(const Expr *E) {
+      if (!E || !isa<CastExpr>(E))
+        return nullptr;
+      auto *CE = dyn_cast<CastExpr>(E);
+      assert(CE->getSubExpr() && "invalid CastExpr expression");
+
+      return dyn_cast<DeclRefExpr>(IgnoreCasts(CE->getSubExpr()));
+    }
+
+    void FillExprCounts(Expr *E, ExprCountMapTy &M, llvm::APSInt &C) {
+      if (!E)
+        return;
+
+      E = IgnoreCasts(E);
+
+      if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
+        FillExprCounts(BO->getLHS()->IgnoreParens(), M, C);
+        FillExprCounts(BO->getRHS()->IgnoreParens(), M, C);
+        return;
+      }
+
+      if (IsDeclOperand(E)) {
+        if (const DeclRefExpr *D = GetDeclOperand(E)) {
+          if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
+            auto It = M.find(V);
+            if (It == M.end())
+              M[V] = std::make_pair(E, 1);
+            else
+              M[V].second++;
+          }
+        }
+        return;
+      }
+
+      llvm::APSInt IntVal;
+      if (E->isIntegerConstantExpr(IntVal, S.Context)) {
+        bool Overflow;
+        C = C.sadd_ov(IntVal, Overflow);
+        assert(!Overflow);
+      }
+    }
+
+    bool CompareExprs(Expr *E1, Expr *E2) {
+      ExprCountMapTy M1, M2;
+      llvm::APSInt C1 (S.Context.getTypeSize(S.Context.IntTy), 0);
+      llvm::APSInt C2 (S.Context.getTypeSize(S.Context.IntTy), 0);
+
+      FillExprCounts(E1, M1, C1);
+      FillExprCounts(E2, M2, C2);
+
+      if (llvm::APSInt::compareValues(C1, C2) != 0)
+        return false;
+
+      if (M1.size() != M2.size())
+        return false;
+
+      for (auto item : M1) {
+        auto it = M2.find(item.first);
+        if (it == M2.end())
+          return false;
+        if (item.second.second != it->second.second)
+          return false;
+        M2.erase(it);
+      }
+
+      return M2.size() == 0;
+    }
+
+    void CompareExpr(Expr *E1) {
+      ExprCountMapTy M;
+      llvm::APSInt C (S.Context.getTypeSize(S.Context.IntTy), 0);
+      FillExprCounts(E1, M, C);
+
+      for (auto item : M) {
+        item.first->dump();
+        llvm::outs() << "Count: " << item.second.second << "\n -----\n";
+      }
+
+      llvm::outs() << "Constants: " << C << "\n";
+    }
+
+    ExprPairTy TrySplitIntoBaseOffset(Expr *E1) {
+      ExprCountMapTy M1, M2;
+      llvm::APSInt C1 (S.Context.getTypeSize(S.Context.IntTy), 0);
+      llvm::APSInt C2 (S.Context.getTypeSize(S.Context.IntTy), 0);
+
+      FillExprCounts(E1, M1, C1);
+
+      Expr *Base = nullptr;
+      Expr *Offset = nullptr;
+
+      for (auto item : M1) {
+        const VarDecl *V = item.first;
+        if (const BoundsExpr *Bounds = V->getBoundsExpr()) {
+          if (auto *RBE =
+                dyn_cast<RangeBoundsExpr>(S.ExpandBoundsToRange(V, Bounds))) {
+            Base = RBE->getUpperExpr();
+            FillExprCounts(Base, M2, C2);
+            break;
+          }
+        }
+      }
+
+      if (M1.size() == 0)
+        return std::make_pair(nullptr, nullptr);
+
+      for (auto It2 = M2.begin(), End2 = M2.end(); It2 != End2;) {
+        const VarDecl *V2 = It2->first;
+        unsigned count2 = It2->second.second;
+
+        auto It1 = M1.find(V2);
+        if (It1 == M1.end())
+          continue;
+
+        const VarDecl *V1 = It1->first;
+        unsigned count1 = It1->second.second;
+
+        if (count1 == count2) {
+          M1.erase(It1);
+          auto Next = std::next(It2);
+          M2.erase(It2);
+          It2 = Next;
+
+        } else if (count1 > count2) {
+          M1[V1].second = count1 - count2;
+          auto Next = std::next(It2);
+          M2.erase(It2);
+          It2 = Next;
+
+        } else {
+          M1.erase(It1);
+          M2[V2].second = count2 - count1;
+          ++It2;
+        }
+      }
+
+      for (auto item : M1) {
+        Expr *E = item.second.first;
+        unsigned count = item.second.second;
+
+        while (count--) {
+          Offset = !Offset ? E :
+                   ExprCreatorUtil::CreateBinaryOperator(
+                     S, Offset, E, BinaryOperatorKind::BO_Add);
+        }
+      }
+
+      if (llvm::APSInt::compareValues(C1, C2) > 0) {
+        bool Overflow;
+        C1 = C1.ssub_ov(C2, Overflow);
+        assert(!Overflow);
+
+        const llvm::APInt
+           APIntOff(S.Context.getTargetInfo().getPointerWidth(0),
+                    C1.getLimitedValue());
+        IntegerLiteral *ResOff = CreateIntegerLiteral(APIntOff);
+        Expr *OffExp = ImplicitCastExpr::Create(
+                         S.Context, S.Context.IntTy, CK_IntegralCast,
+                         ResOff, nullptr, VK_RValue);
+
+        Offset = !Offset ? OffExp :
+                 ExprCreatorUtil::CreateBinaryOperator(
+                   S, Offset, OffExp, BinaryOperatorKind::BO_Add);
+      }
+
+      return std::make_pair(Base, Offset);
+    }
+
     // Try to prove that PtrBase + Offset is within Bounds, where PtrBase has pointer type.
     // Offset is optional and may be a nullptr.
     ProofResult ProveMemoryAccessInRange(Expr *PtrBase, Expr *Offset, BoundsExpr *Bounds,
                                          BoundsCheckKind Kind, ProofFailure &Cause) {
+
+
+      CompareExpr(PtrBase);
+      ExprPairTy Res = TrySplitIntoBaseOffset(PtrBase);
+      llvm::outs() << "### BASE: \n";
+      Res.first->dump();
+      llvm::outs() << "### OFFSET: \n";
+      Res.second->dump();
+
 #ifdef TRACE_RANGE
       llvm::outs() << "Examining:\nPtrBase\n";
       PtrBase->dump(llvm::outs());
@@ -1713,6 +1911,7 @@ namespace {
       Expr *DummyOffset;
       // Currently, we do not try to prove whether the memory access is in range for non-constant ranges
       // TODO: generalize memory access range check to non-constants
+
       if (SplitIntoBaseAndOffset(PtrBase, AccessBase, AccessStartOffset, DummyOffset) != BaseRange::Kind::ConstantSized)
         return ProofResult::Maybe;
 
