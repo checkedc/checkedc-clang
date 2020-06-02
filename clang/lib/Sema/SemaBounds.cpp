@@ -712,10 +712,12 @@ namespace {
           return true;
         if (D->isInvalidDecl())
           return true;
+        if (!D->hasBoundsExpr())
+          return true;
         // The bounds expressions in the bounds context should be normalized
         // to range bounds.
-        if (const BoundsExpr *Bounds = D->getBoundsExpr())
-          BoundsContextRef[D] = SemaRef.ExpandBoundsToRange(D, Bounds);
+        if (BoundsExpr *Bounds = SemaRef.NormalizeBounds(D))
+          BoundsContextRef[D] = Bounds;
         return true;
       }
   };
@@ -2159,21 +2161,10 @@ namespace {
 
      // KilledBounds stores a mapping of statements to all variables whose
      // bounds are killed by each statement. Here we reset the bounds of all
-     // variables killed by the statement S to the declared bounds.
+     // variables killed by the statement S to the normalized declared bounds.
      for (const VarDecl *V : I->second) {
-       if (const BoundsExpr *Bounds = V->getBoundsExpr())
-
-         // TODO: Throughout clang in general (and inside dataflow analysis in
-         // particular) we repeatedly invoke ExpandBoundsToRange in order to
-         // canonicalize the bounds of a variable to RangeBoundsExpr. Sometimes
-         // we do this multiple times for the same variable. This is very
-         // inefficient because ExpandBoundsToRange can allocate AST data
-         // structures that are permanently allocated and increase the memory
-         // usage of the compiler. The solution is to canonicalize the bounds
-         // once and attach it to the VarDecl. See issue
-         // https://github.com/microsoft/checkedc-clang/issues/830.
-
-         ObservedBounds[V] = S.ExpandBoundsToRange(V, Bounds);
+       if (BoundsExpr *Bounds = S.NormalizeBounds(V))
+         ObservedBounds[V] = Bounds;
      }
    }
 
@@ -2190,18 +2181,7 @@ namespace {
 
        // We normalize the declared bounds to RangBoundsExpr here so that we
        // can easily apply the offset to the upper bound.
-
-       // TODO: Throughout clang in general (and inside dataflow analysis in
-       // particular) we repeatedly invoke ExpandBoundsToRange in order to
-       // canonicalize the bounds of a variable to RangeBoundsExpr. Sometimes
-       // we do this multiple times for the same variable. This is very
-       // inefficient because ExpandBoundsToRange can allocate AST data
-       // structures that are permanently allocated and increase the memory
-       // usage of the compiler. The solution is to canonicalize the bounds
-       // once and attach it to the VarDecl. See issue
-       // https://github.com/microsoft/checkedc-clang/issues/830.
-
-       BoundsExpr *Bounds = S.ExpandBoundsToRange(V, V->getBoundsExpr());
+       BoundsExpr *Bounds = S.NormalizeBounds(V);
        if (RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(Bounds)) {
          const llvm::APInt
            APIntOff(Context.getTargetInfo().getPointerWidth(0), Offset);
@@ -4342,8 +4322,8 @@ namespace {
         const VarDecl *D = Pair.first;
         if (!Pair.second || !Context2.count(D))
           continue;
-        if (const BoundsExpr *B = D->getBoundsExpr())
-          IntersectedContext[D] = S.ExpandBoundsToRange(D, B);
+        if (BoundsExpr *B = S.NormalizeBounds(D))
+          IntersectedContext[D] = B;
       }
       return IntersectedContext;
     }
