@@ -14,27 +14,42 @@ struct general {
     int data; 
     struct general *next;
 };
+//CHECK:     _Ptr<struct general> next;
+
 
 struct warr { 
     int data1[5];
     char name[];
 };
+//CHECK:     int data1 _Checked[5];
+//CHECK-NEXT:     _Ptr<char> name;
+
 
 struct fptrarr { 
     int *values; 
     char *name;
     int (*mapper)(int);
 };
+//CHECK:     _Ptr<int> values; 
+//CHECK-NEXT:     _Ptr<char> name;
+//CHECK-NEXT:     _Ptr<int (int )> mapper;
+
 
 struct fptr { 
     int *value; 
     int (*func)(int*);
 };  
+//CHECK:     _Ptr<int> value; 
+//CHECK-NEXT:     _Ptr<int (_Ptr<int> )> func;
+
 
 struct arrfptr { 
     int args[5]; 
     int (*funcs[5]) (int);
 };
+//CHECK:     int args _Checked[5]; 
+//CHECK-NEXT:     _Ptr<int (int )> funcs _Checked[5];
+
 
 int add1(int x) { 
     return x+1;
@@ -65,18 +80,8 @@ int *mul2(int *x) {
     *x *= 2; 
     return x;
 }
-//CHECK:     _Ptr<struct general> next;
 
-//CHECK:     int data1 _Checked[5];
-//CHECK:     _Ptr<char> name;
-
-//CHECK:     _Ptr<int> values; 
-
-//CHECK:     _Ptr<int (int )> mapper;
-
-//CHECK:     _Ptr<int (_Ptr<int> )> func;
-//CHECK:     int args _Checked[5]; 
-//CHECK:     _Ptr<int (int )> funcs _Checked[5];
+//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
 
 struct arrfptr * sus(struct arrfptr *, struct arrfptr *);
 //CHECK: struct arrfptr * sus(struct arrfptr *, struct arrfptr *);
@@ -93,6 +98,9 @@ struct arrfptr * foo() {
         
 return z; }
 //CHECK: struct arrfptr * foo() {
+//CHECK:         struct arrfptr * x = malloc(sizeof(struct arrfptr));
+//CHECK:         struct arrfptr * y =  malloc(sizeof(struct arrfptr));
+//CHECK:         struct arrfptr *z = sus(x, y); 
 
 struct arrfptr * bar() {
  
@@ -107,3 +115,6 @@ struct arrfptr * bar() {
 z += 2;
 return z; }
 //CHECK: struct arrfptr * bar() {
+//CHECK:         struct arrfptr * x = malloc(sizeof(struct arrfptr));
+//CHECK:         struct arrfptr * y =  malloc(sizeof(struct arrfptr));
+//CHECK:         struct arrfptr *z = sus(x, y); 

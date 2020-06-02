@@ -14,27 +14,42 @@ struct general {
     int data; 
     struct general *next;
 };
+//CHECK:     _Ptr<struct general> next;
+
 
 struct warr { 
     int data1[5];
     char name[];
 };
+//CHECK:     int data1 _Checked[5];
+//CHECK-NEXT:     _Ptr<char> name;
+
 
 struct fptrarr { 
     int *values; 
     char *name;
     int (*mapper)(int);
 };
+//CHECK:     _Ptr<int> values; 
+//CHECK-NEXT:     _Ptr<char> name;
+//CHECK-NEXT:     _Ptr<int (int )> mapper;
+
 
 struct fptr { 
     int *value; 
     int (*func)(int*);
 };  
+//CHECK:     _Ptr<int> value; 
+//CHECK-NEXT:     _Ptr<int (_Ptr<int> )> func;
+
 
 struct arrfptr { 
     int args[5]; 
     int (*funcs[5]) (int);
 };
+//CHECK:     int args _Checked[5]; 
+//CHECK-NEXT:     _Ptr<int (int )> funcs _Checked[5];
+
 
 int add1(int x) { 
     return x+1;
@@ -66,10 +81,11 @@ int *mul2(int *x) {
     return x;
 }
 
+//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+
 int * sus(int * x, int * y) {
 x = (int *) 5;
         int *z = calloc(5, sizeof(int)); 
         for(int i = 0, *p = z, fac = 1; i < 5; ++i, p++, fac *= i) 
         { *p = fac; }
 return z; }
-//CHECK: int * sus(int *x, int *y : itype(_Ptr<int>)) {

@@ -12,27 +12,42 @@ struct general {
     int data; 
     struct general *next;
 };
+//CHECK:     struct general *next;
+
 
 struct warr { 
     int data1[5];
     char name[];
 };
+//CHECK:     int data1 _Checked[5];
+//CHECK-NEXT:     _Ptr<char> name;
+
 
 struct fptrarr { 
     int *values; 
     char *name;
     int (*mapper)(int);
 };
+//CHECK:     _Ptr<int> values; 
+//CHECK-NEXT:     _Ptr<char> name;
+//CHECK-NEXT:     _Ptr<int (int )> mapper;
+
 
 struct fptr { 
     int *value; 
     int (*func)(int*);
 };  
+//CHECK:     _Ptr<int> value; 
+//CHECK-NEXT:     _Ptr<int (_Ptr<int> )> func;
+
 
 struct arrfptr { 
     int args[5]; 
     int (*funcs[5]) (int);
 };
+//CHECK:     int args _Checked[5]; 
+//CHECK-NEXT:     _Ptr<int (int )> funcs _Checked[5];
+
 
 int add1(int x) { 
     return x+1;
@@ -63,18 +78,8 @@ int *mul2(int *x) {
     *x *= 2; 
     return x;
 }
-//CHECK:     struct general *next;
 
-//CHECK:     int data1 _Checked[5];
-//CHECK:     _Ptr<char> name;
-
-//CHECK:     _Ptr<int> values; 
-
-//CHECK:     _Ptr<int (int )> mapper;
-
-//CHECK:     _Ptr<int (_Ptr<int> )> func;
-//CHECK:     int args _Checked[5]; 
-//CHECK:     _Ptr<int (int )> funcs _Checked[5];
+//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
 
 struct general ** sus(struct general *, struct general *);
 //CHECK: struct general ** sus(struct general *x, struct general *y);
@@ -92,6 +97,10 @@ struct general ** foo() {
         struct general ** z = sus(x, y);
 return z; }
 //CHECK: struct general ** foo() {
+//CHECK:         struct general * x = malloc(sizeof(struct general));
+//CHECK:         struct general * y = malloc(sizeof(struct general));
+//CHECK:         struct general *curr = y;
+//CHECK:         struct general ** z = sus(x, y);
 
 struct general ** bar() {
         struct general * x = malloc(sizeof(struct general));
@@ -106,6 +115,10 @@ struct general ** bar() {
         struct general ** z = sus(x, y);
 return z; }
 //CHECK: struct general ** bar() {
+//CHECK:         struct general * x = malloc(sizeof(struct general));
+//CHECK:         struct general * y = malloc(sizeof(struct general));
+//CHECK:         struct general *curr = y;
+//CHECK:         struct general ** z = sus(x, y);
 
 struct general ** sus(struct general * x, struct general * y) {
 x = (struct general *) 5; 
@@ -118,3 +131,5 @@ x = (struct general *) 5;
         
 return z; }
 //CHECK: struct general ** sus(struct general *x, struct general *y) {
+//CHECK:         struct general **z = calloc(5, sizeof(struct general *));
+//CHECK:         struct general *curr = y;

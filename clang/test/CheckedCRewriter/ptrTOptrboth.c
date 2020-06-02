@@ -12,27 +12,42 @@ struct general {
     int data; 
     struct general *next;
 };
+//CHECK:     _Ptr<struct general> next;
+
 
 struct warr { 
     int data1[5];
     char name[];
 };
+//CHECK:     int data1 _Checked[5];
+//CHECK-NEXT:     _Ptr<char> name;
+
 
 struct fptrarr { 
     int *values; 
     char *name;
     int (*mapper)(int);
 };
+//CHECK:     _Ptr<int> values; 
+//CHECK-NEXT:     _Ptr<char> name;
+//CHECK-NEXT:     _Ptr<int (int )> mapper;
+
 
 struct fptr { 
     int *value; 
     int (*func)(int*);
 };  
+//CHECK:     _Ptr<int> value; 
+//CHECK-NEXT:     _Ptr<int (_Ptr<int> )> func;
+
 
 struct arrfptr { 
     int args[5]; 
     int (*funcs[5]) (int);
 };
+//CHECK:     int args _Checked[5]; 
+//CHECK-NEXT:     _Ptr<int (int )> funcs _Checked[5];
+
 
 int add1(int x) { 
     return x+1;
@@ -63,18 +78,8 @@ int *mul2(int *x) {
     *x *= 2; 
     return x;
 }
-//CHECK:     _Ptr<struct general> next;
 
-//CHECK:     int data1 _Checked[5];
-//CHECK:     _Ptr<char> name;
-
-//CHECK:     _Ptr<int> values; 
-
-//CHECK:     _Ptr<int (int )> mapper;
-
-//CHECK:     _Ptr<int (_Ptr<int> )> func;
-//CHECK:     int args _Checked[5]; 
-//CHECK:     _Ptr<int (int )> funcs _Checked[5];
+//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
 
 char *** sus(char * * * x, char * * * y) {
 x = (char * * *) 5;
@@ -93,6 +98,10 @@ x = (char * * *) 5;
 z += 2;
 return z; }
 //CHECK: char *** sus(char ***x, char ***y : itype(_Ptr<char**>)) {
+//CHECK:         char *ch = malloc(sizeof(char)); 
+//CHECK:         char *** z = malloc(5*sizeof(char**)); 
+//CHECK:             z[i] = malloc(5*sizeof(char *)); 
+//CHECK:                 z[i][j] = malloc(2*sizeof(char)); 
 
 char *** foo() {
         char * * * x = malloc(sizeof(char * *));
@@ -100,6 +109,9 @@ char *** foo() {
         char *** z = sus(x, y);
 return z; }
 //CHECK: char *** foo() {
+//CHECK:         char * * * x = malloc(sizeof(char * *));
+//CHECK:         char * * * y = malloc(sizeof(char * *));
+//CHECK:         char *** z = sus(x, y);
 
 char *** bar() {
         char * * * x = malloc(sizeof(char * *));
@@ -108,3 +120,6 @@ char *** bar() {
 z += 2;
 return z; }
 //CHECK: char *** bar() {
+//CHECK:         char * * * x = malloc(sizeof(char * *));
+//CHECK:         char * * * y = malloc(sizeof(char * *));
+//CHECK:         char *** z = sus(x, y);

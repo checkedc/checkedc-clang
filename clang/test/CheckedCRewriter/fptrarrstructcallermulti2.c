@@ -14,27 +14,42 @@ struct general {
     int data; 
     struct general *next;
 };
+//CHECK:     _Ptr<struct general> next;
+
 
 struct warr { 
     int data1[5];
     char name[];
 };
+//CHECK:     int data1 _Checked[5];
+//CHECK-NEXT:     _Ptr<char> name;
+
 
 struct fptrarr { 
     int *values; 
     char *name;
     int (*mapper)(int);
 };
+//CHECK:     _Array_ptr<int> values; 
+//CHECK-NEXT:     char *name;
+//CHECK-NEXT:     _Ptr<int (int )> mapper;
+
 
 struct fptr { 
     int *value; 
     int (*func)(int*);
 };  
+//CHECK:     _Ptr<int> value; 
+//CHECK-NEXT:     _Ptr<int (_Ptr<int> )> func;
+
 
 struct arrfptr { 
     int args[5]; 
     int (*funcs[5]) (int);
 };
+//CHECK:     int args _Checked[5]; 
+//CHECK-NEXT:     _Ptr<int (int )> funcs _Checked[5];
+
 
 int add1(int x) { 
     return x+1;
@@ -66,6 +81,8 @@ int *mul2(int *x) {
     return x;
 }
 
+//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+
 struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
  
         x = (struct fptrarr *) 5; 
@@ -79,4 +96,3 @@ struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
         }
         
 return z; }
-//CHECK: struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y : itype(_Ptr<struct fptrarr>)) {

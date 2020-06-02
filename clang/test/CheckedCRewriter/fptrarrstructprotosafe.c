@@ -12,27 +12,42 @@ struct general {
     int data; 
     struct general *next;
 };
+//CHECK:     _Ptr<struct general> next;
+
 
 struct warr { 
     int data1[5];
     char name[];
 };
+//CHECK:     int data1 _Checked[5];
+//CHECK-NEXT:     _Ptr<char> name;
+
 
 struct fptrarr { 
     int *values; 
     char *name;
     int (*mapper)(int);
 };
+//CHECK:     int *values; 
+//CHECK-NEXT:     char *name;
+//CHECK-NEXT:     _Ptr<int (int )> mapper;
+
 
 struct fptr { 
     int *value; 
     int (*func)(int*);
 };  
+//CHECK:     _Ptr<int> value; 
+//CHECK-NEXT:     _Ptr<int (_Ptr<int> )> func;
+
 
 struct arrfptr { 
     int args[5]; 
     int (*funcs[5]) (int);
 };
+//CHECK:     int args _Checked[5]; 
+//CHECK-NEXT:     _Ptr<int (int )> funcs _Checked[5];
+
 
 int add1(int x) { 
     return x+1;
@@ -63,18 +78,8 @@ int *mul2(int *x) {
     *x *= 2; 
     return x;
 }
-//CHECK:     _Ptr<struct general> next;
 
-//CHECK:     int data1 _Checked[5];
-//CHECK:     _Ptr<char> name;
-
-//CHECK:     int *values; 
-
-//CHECK:     _Ptr<int (int )> mapper;
-
-//CHECK:     _Ptr<int (_Ptr<int> )> func;
-//CHECK:     int args _Checked[5]; 
-//CHECK:     _Ptr<int (int )> funcs _Checked[5];
+//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
 
 struct fptrarr * sus(struct fptrarr *, struct fptrarr *);
 //CHECK: struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y : itype(_Ptr<struct fptrarr>));
@@ -96,6 +101,10 @@ struct fptrarr * foo() {
         
 return z; }
 //CHECK: struct fptrarr * foo() {
+//CHECK:         struct fptrarr * x = malloc(sizeof(struct fptrarr));
+//CHECK:         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
+//CHECK:         int *yvals = calloc(5, sizeof(int)); 
+//CHECK:         struct fptrarr *z = sus(x, y);
 
 struct fptrarr * bar() {
  
@@ -114,6 +123,10 @@ struct fptrarr * bar() {
         
 return z; }
 //CHECK: struct fptrarr * bar() {
+//CHECK:         struct fptrarr * x = malloc(sizeof(struct fptrarr));
+//CHECK:         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
+//CHECK:         int *yvals = calloc(5, sizeof(int)); 
+//CHECK:         struct fptrarr *z = sus(x, y);
 
 struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
  
@@ -129,3 +142,5 @@ struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
         
 return z; }
 //CHECK: struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y : itype(_Ptr<struct fptrarr>)) {
+//CHECK:         struct fptrarr *z = malloc(sizeof(struct fptrarr)); 
+//CHECK:         z->name = strcpy(((char *)name), "Hello World");
