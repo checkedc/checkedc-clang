@@ -93,3 +93,6 @@ int ** sus(int *x, int *y) {
         } 
         
 return z; }
+//CHECK: int ** sus(int *x, int *y : itype(_Array_ptr<int>)) {
+//CHECK:         int **z = calloc(5, sizeof(int *)); 
+//CHECK:         _Ptr<int* (int *)> mul2ptr =  mul2;

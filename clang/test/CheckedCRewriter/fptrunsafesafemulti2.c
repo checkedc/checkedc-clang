@@ -93,3 +93,6 @@ int * sus(struct general *x, struct general *y) {
         } 
         
 return z; }
+//CHECK: int * sus(struct general *x, struct general *y) {
+//CHECK:         int *z = calloc(5, sizeof(int)); 
+//CHECK:         struct general *p = y;

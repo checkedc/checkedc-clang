@@ -616,7 +616,7 @@ def annot_gen(prefix, proto, suffix):
                 indefs = True
 
             # annotate the definition for sus
-            elif proto != "multi" and line.find("sus") != -1 and line.find("{") != -1: 
+            elif line.find("sus") != -1 and line.find("{") != -1: 
                 indefs = insus = infoo = inbar = False
                 insus = True
                 susc += "//CHECK: " + line

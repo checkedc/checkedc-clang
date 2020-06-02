@@ -97,3 +97,5 @@ struct arrfptr * sus(struct arrfptr *x, struct arrfptr *y) {
         z->funcs[4] = fact;
         
 return z; }
+//CHECK: struct arrfptr * sus(struct arrfptr *x, struct arrfptr *y : itype(_Ptr<struct arrfptr>)) {
+//CHECK:         struct arrfptr *z = malloc(sizeof(struct arrfptr)); 

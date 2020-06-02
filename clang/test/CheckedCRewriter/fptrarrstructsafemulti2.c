@@ -96,3 +96,6 @@ struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
         }
         
 return z; }
+//CHECK: struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y : itype(_Ptr<struct fptrarr>)) {
+//CHECK:         struct fptrarr *z = malloc(sizeof(struct fptrarr)); 
+//CHECK:         z->name = strcpy(((char *)name), "Hello World");

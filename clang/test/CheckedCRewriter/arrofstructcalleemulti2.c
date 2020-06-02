@@ -94,3 +94,6 @@ x = (struct general *) 5;
         
 z += 2;
 return z; }
+//CHECK: struct general ** sus(struct general *x, struct general *y) {
+//CHECK:         struct general **z = calloc(5, sizeof(struct general *));
+//CHECK:         struct general *curr = y;

@@ -90,3 +90,5 @@ x = (int *) 5;
         { *p = fac; }
 z += 2;
 return z; }
+//CHECK: int * sus(int *x, int *y : itype(_Ptr<int>)) {
+//CHECK:         int *z = calloc(5, sizeof(int)); 

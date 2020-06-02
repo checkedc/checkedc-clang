@@ -99,3 +99,8 @@ x = (char * * *) 5;
         
 z += 2;
 return z; }
+//CHECK: char *** sus(char ***x, char ***y : itype(_Ptr<char**>)) {
+//CHECK:         char *ch = malloc(sizeof(char)); 
+//CHECK:         char *** z = malloc(5*sizeof(char**)); 
+//CHECK:             z[i] = malloc(5*sizeof(char *)); 
+//CHECK:                 z[i][j] = malloc(2*sizeof(char)); 

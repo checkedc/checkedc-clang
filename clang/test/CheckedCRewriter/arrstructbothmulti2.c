@@ -93,3 +93,5 @@ x = (struct general *) 5;
         
 z += 2;
 return z; }
+//CHECK: int * sus(struct general *x, struct general *y : itype(_Ptr<struct general>)) {
+//CHECK:         int *z = calloc(5, sizeof(int)); 
