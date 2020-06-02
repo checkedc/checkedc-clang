@@ -835,13 +835,10 @@ T BoundsAnalysis::Difference(T &A, U &B) const {
     return A;
 
   auto Ret = A;
-  for (auto I = Ret.begin(), E = Ret.end(); I != E; ) {
-    const auto *V = I->first;
-    if (B.count(V)) {
-      auto Next = std::next(I);
-      Ret.erase(I);
-      I = Next;
-    } else ++I;
+  for (auto I : A) {
+    const auto *V = I.first;
+    if (B.count(V))
+      Ret.erase(V);
   }
   return Ret;
 }
