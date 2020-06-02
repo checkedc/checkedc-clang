@@ -96,6 +96,9 @@ namespace clang {
   // 2. any variable used in the bounds expr of V is assigned to in S.
   using StmtDeclSetTy = llvm::DenseMap<const Stmt *, DeclSetTy>;
 
+  // StmtSet denotes a set of Stmts.
+  typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
+
   class BoundsAnalysis {
   private:
     Sema &S;
@@ -184,7 +187,9 @@ namespace clang {
 
     // Run the dataflow analysis to widen bounds for ntptr's.
     // @param[in] FD is the current function.
-    void WidenBounds(FunctionDecl *FD);
+    // @param[in] NestedStmts is a set of top-level statements that are
+    // nested in another top-level statement.
+    void WidenBounds(FunctionDecl *FD, StmtSet NestedStmts);
 
     // Get the widened bounds for block B.
     // @param[in] B is the block for which the widened bounds are needed.
@@ -214,7 +219,9 @@ namespace clang {
     // Compute Kill set for each block in BlockMap. For a block B, if a
     // variable V is assigned to in B by Stmt S, then the pair S:V is added to
     // the Kill set for the block.
-    void ComputeKillSets();
+    // @param[in] NestedStmts is a set of top-level statements that are
+    // nested in another top-level statement.
+    void ComputeKillSets(StmtSet NestedStmts);
 
     // Compute In set for each block in BlockMap. In[B1] = n Out[B*->B1], where
     // B* are all preds of B1.

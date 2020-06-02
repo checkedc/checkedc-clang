@@ -16,7 +16,7 @@
 
 namespace clang {
 
-void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
+void BoundsAnalysis::WidenBounds(FunctionDecl *FD, StmtSet NestedStmts) {
   assert(Cfg && "expected CFG to exist");
 
   WorkListTy WorkList;
@@ -59,7 +59,7 @@ void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
 
   // Compute Gen and Kill sets.
   ComputeGenSets();
-  ComputeKillSets();
+  ComputeKillSets(NestedStmts);
 
   // Initialize the In and Out sets to Top.
   InitInOutSets();
@@ -595,9 +595,9 @@ void BoundsAnalysis::FillGenSet(Expr *E,
   }
 }
 
-void BoundsAnalysis::ComputeKillSets() {
+void BoundsAnalysis::ComputeKillSets(StmtSet NestedStmts) {
   // For a block B, a variable v is added to Kill[B][S] if v is assigned to in
-  // B by Stmt S.
+  // B by Stmt S or some child S1 of S.
 
   for (const auto item : BlockMap) {
     ElevatedCFGBlock *EB = item.second;
@@ -606,6 +606,10 @@ void BoundsAnalysis::ComputeKillSets() {
       if (Elem.getKind() == CFGElement::Statement) {
         const Stmt *S = Elem.castAs<CFGStmt>().getStmt();
         if (!S)
+          continue;
+        // Skip top-level statements that are nested in another
+        // top-level statement.
+        if (NestedStmts.find(S) != NestedStmts.end())
           continue;
         FillKillSet(EB, S, S);
       }
