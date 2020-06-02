@@ -314,10 +314,12 @@ namespace clang {
     // @param[in] FD is the current function.
     void CollectNtPtrsInScope(FunctionDecl *FD);
 
-    // If variable V is killed by Stmt S in Block B, add S:V pair to EB->Kill.
+    // If variable V is killed by Stmt S in Block B, add TopLevelStmt:V pair
+    // to EB->Kill, where TopLevelStmt is the top-level Stmt that contains S.
     // @param[in] EB is the ElevatedCFGBlock for the current block.
+    // @param[in] TopLevelStmt is the top-level Stmt in the block.
     // @param[in] S is the current Stmt in the block.
-    void FillKillSet(ElevatedCFGBlock *EB, const Stmt *S);
+    void FillKillSet(ElevatedCFGBlock *EB, const Stmt *TopLevelStmt, const Stmt *S);
 
     // Initialize the In and Out sets for all blocks, except the Entry block,
     // as Top.

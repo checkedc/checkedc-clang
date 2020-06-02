@@ -607,13 +607,15 @@ void BoundsAnalysis::ComputeKillSets() {
         const Stmt *S = Elem.castAs<CFGStmt>().getStmt();
         if (!S)
           continue;
-        FillKillSet(EB, S);
+        FillKillSet(EB, S, S);
       }
     }
   }
 }
 
-void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB, const Stmt *S) {
+void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB,
+                                 const Stmt *TopLevelStmt,
+                                 const Stmt *S) {
   if (!S)
     return;
 
@@ -635,7 +637,7 @@ void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB, const Stmt *S) {
         // If the variable being assigned to is an ntptr, add the Stmt:V pair
         // to the Kill set for the block.
         if (IsNtArrayType(V))
-          EB->Kill[S].insert(V);
+          EB->Kill[TopLevelStmt].insert(V);
 
         else {
           // Else look for the variable in BoundsVars.
@@ -655,7 +657,7 @@ void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB, const Stmt *S) {
             // If the variable exists in the bounds declaration for the ntptr,
             // then add the Stmt:ntptr pair to the Kill set for the block.
             if (Vars.count(V))
-              EB->Kill[S].insert(NtPtr);
+              EB->Kill[TopLevelStmt].insert(NtPtr);
           }
         }
       }
@@ -663,7 +665,7 @@ void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB, const Stmt *S) {
   }
 
   for (const Stmt *St : S->children())
-    FillKillSet(EB, St);
+    FillKillSet(EB, TopLevelStmt, St);
 }
 
 void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB) {
