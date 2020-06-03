@@ -1760,19 +1760,6 @@ namespace {
       return M2.size() == 0;
     }
 
-    void CompareExpr(Expr *E1) {
-      ExprCountMapTy M;
-      llvm::APSInt C (S.Context.getTypeSize(S.Context.IntTy), 0);
-      FillExprCounts(E1, M, C);
-
-      for (auto item : M) {
-        item.first->dump();
-        llvm::outs() << "Count: " << item.second.second << "\n -----\n";
-      }
-
-      llvm::outs() << "Constants: " << C << "\n";
-    }
-
     ExprPairTy TrySplitIntoBaseOffset(Expr *E1) {
       ExprCountMapTy M1, M2;
       llvm::APSInt C1 (S.Context.getTypeSize(S.Context.IntTy), 0);
@@ -1865,8 +1852,6 @@ namespace {
     ProofResult ProveMemoryAccessInRange(Expr *PtrBase, Expr *Offset, BoundsExpr *Bounds,
                                          BoundsCheckKind Kind, ProofFailure &Cause) {
 
-
-      CompareExpr(PtrBase);
       ExprPairTy Res = TrySplitIntoBaseOffset(PtrBase);
       llvm::outs() << "### BASE: \n";
       Res.first->dump();
