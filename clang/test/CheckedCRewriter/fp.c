@@ -7,3 +7,12 @@ void bar() {
 }
 // CHECK:   _Ptr<int (int *)> fp =  f;
 
+int mul_by_2(int x) { 
+    return x * 2;
+}
+
+int (*foo(void)) (int) {
+    return mul_by_2;
+} 
+// CHECK: int (*foo(void)) (int) {
+
