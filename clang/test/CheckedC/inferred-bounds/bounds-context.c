@@ -1955,7 +1955,7 @@ void inc_dec_bounds1(nt_array_ptr<char> a) {
   // Observed bounds context after increment:  { a => bounds(a - 1, (a - 1) + 0) }
   ++a; // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
        // expected-note {{(expanded) declared bounds are 'bounds(a, a + 0)'}} \
-       // expected-note {{(expanded) inferred bounds are 'bounds(a - 1i8, a - 1i8 + 0)'}}
+       // expected-note {{(expanded) inferred bounds are 'bounds(a - 1, a - 1 + 0)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'

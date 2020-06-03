@@ -4788,35 +4788,28 @@ namespace {
       return Lit;
     }
 
+    // If Ty is a pointer type, CreateIntegerLiteral returns an integer
+    // literal with a target-dependent bit width.
     // If Ty is an integer type (char, unsigned int, int, etc.),
     // CreateIntegerLiteral returns an integer literal with Ty type.
-    // If Ty denotes a pointer to an integer type (char *, ptr<int>, etc.),
-    // CreateIntegerLiteral returns an integer literal with Ty's pointee type.
-    // If Ty denotes a pointer to a non-integer type (float *, ptr<double>,
-    // etc.), CreateIntegerLiteral returns an integer literal with a target-
-    // dependent bit width.
     // Otherwise, it returns nullptr.
     IntegerLiteral *CreateIntegerLiteral(int Value, QualType Ty) {
-      QualType AdjustedType = Ty;
       if (Ty->isPointerType()) {
-        AdjustedType = Ty->getPointeeType();
-        if (!AdjustedType->isIntegerType()) {
-          const llvm::APInt
-            ResultVal(Context.getTargetInfo().getPointerWidth(0), Value);
-          return CreateIntegerLiteral(ResultVal);
-        }
+        const llvm::APInt
+          ResultVal(Context.getTargetInfo().getPointerWidth(0), Value);
+        return CreateIntegerLiteral(ResultVal);
       }
-      if (!AdjustedType->isIntegerType())
+
+      if (!Ty->isIntegerType())
         return nullptr;
 
-      unsigned BitSize = Context.getTypeSize(AdjustedType);
-      unsigned IntWidth = Context.getIntWidth(AdjustedType);
+      unsigned BitSize = Context.getTypeSize(Ty);
+      unsigned IntWidth = Context.getIntWidth(Ty);
       if (BitSize != IntWidth)
         return nullptr;
 
       const llvm::APInt ResultVal(BitSize, Value);
-      return IntegerLiteral::Create(Context, ResultVal, AdjustedType,
-                                    SourceLocation());
+      return IntegerLiteral::Create(Context, ResultVal, Ty, SourceLocation());
     }
 
     // Infer bounds for string literals.
