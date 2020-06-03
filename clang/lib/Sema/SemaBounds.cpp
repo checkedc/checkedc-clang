@@ -4541,9 +4541,9 @@ namespace {
     // If E is a possibly parenthesized lvalue variable V,
     // GetLValueVariable returns V. Otherwise, it returns nullptr.
     //
-    // V may have value-preserving operations applied to it.  For example,
-    // if E is ((T)V), where (T) is a value-preserving cast and V is a
-    // variable, GetLValueVariable will return V.
+    // V may have value-preserving operations applied to it, such as
+    // LValueBitCasts.  For example, if E is (LValueBitCast(V)), where V
+    // is a variable, GetLValueVariable will return V.
     DeclRefExpr *GetLValueVariable(Expr *E) {
       Lexicographic Lex(S.Context, nullptr);
       E = Lex.IgnoreValuePreservingOperations(S.Context, E);
@@ -4562,12 +4562,8 @@ namespace {
       if (CastExpr *CE = dyn_cast<CastExpr>(E->IgnoreParens())) {
         CastKind CK = CE->getCastKind();
         if (CK == CastKind::CK_LValueToRValue ||
-            CK == CastKind::CK_ArrayToPointerDecay) {
-          Lexicographic Lex(S.Context, nullptr);
-          Expr *SubExpr = const_cast<Expr *>(CE->getSubExpr());
-          Expr *E1 = Lex.IgnoreValuePreservingOperations(S.Context, SubExpr);
-          return dyn_cast<DeclRefExpr>(E1);
-        }
+            CK == CastKind::CK_ArrayToPointerDecay)
+          return GetLValueVariable(CE->getSubExpr());
       }
       return nullptr;
     }
