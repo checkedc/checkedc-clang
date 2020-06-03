@@ -1949,12 +1949,8 @@ namespace {
                                       BoundsExpr *SrcBounds,
                                       EquivExprSets EquivExprs,
                                       CheckedScopeSpecifier CSS) {
-      // Record expression equality implied by initialization.
-      // EquivExprs may not already contain equality implied by initialization
-      // for certain kinds of initializer expressions.  For example, EquivExprs
-      // will not contain equality implied by the initializations v = *e,
-      // v = a[i], or v = s->f, since the sets of expressions that produce the
-      // same value as *e, a[i], and s->f are empty.
+      // Record expression equality implied by initialization (see
+      // CheckBoundsDeclAtAssignment).
       
       // Record equivalence between expressions implied by initializion.
       // If D declares a variable V, and
