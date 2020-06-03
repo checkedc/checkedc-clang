@@ -115,20 +115,21 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   }
 
   bool IsTypedef = false;
-
   if (Ty->getAs<TypedefType>())
     IsTypedef = true;
 
   ArrPresent = false;
 
+  bool isDeclTy = false;
   if (D != nullptr) {
+    isDeclTy = D->getType() == QT; // If false, then QT may be D's return type
     if (InteropTypeExpr *ITE = D->getInteropTypeExpr()) {
       // External variables can also have itype.
       // Check if the provided declaration is an external
       // variable.
       // For functions, check to see that if we are analyzing
       // function return types.
-      bool AnalyzeITypeExpr = (D->getType() == QT);
+      bool AnalyzeITypeExpr = isDeclTy;
       if (!AnalyzeITypeExpr) {
         const Type *OrigType = Ty;
         if (isa<FunctionDecl>(D)) {
@@ -266,14 +267,15 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     //    tn fname = ...,
     // where tn is the typedef'ed type name.
     // There is possibly something more elegant to do in the code here.
-    FV = new FVConstraint(Ty, D, (IsTypedef ? "" : N), CS, C);
+    FV = new FVConstraint(Ty, isDeclTy ? D : nullptr,
+                          (IsTypedef ? "" : N), CS, C);
 
   BaseType = tyToStr(Ty);
 
   bool IsWild = isVarArgType(BaseType) || isTypeHasVoid(QT);
   if (IsWild) {
     std::string Rsn = "Default Var arg list type.";
-    if (hasVoidType(D))
+    if (D && hasVoidType(D))
       Rsn = "Default void* type";
     // TODO: Github issue #61: improve handling of types for
     // Variable arguments.
@@ -611,7 +613,9 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   HasDefDeclEquated = false;
   IsFunctionPtr = true;
 
-  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+  FunctionDecl *FD = nullptr;
+  if (D) FD = dyn_cast<FunctionDecl>(D);
+  if (FD) {
     // FunctionDecl::hasBody will return true if *any* declaration in the
     // declaration chain has a body, which is not what we want to record.
     // We want to record if *this* declaration has a body. To do that,
@@ -621,7 +625,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     if (FD->hasBody(OFd) && OFd == FD)
       Hasbody = true;
     IsStatic = !(FD->isGlobal());
-    ASTContext *TmpCtx = const_cast<ASTContext*>(&Ctx);
+    ASTContext *TmpCtx = const_cast<ASTContext *>(&Ctx);
     auto PSL = PersistentSourceLoc::mkPSL(D, *TmpCtx);
     FileName = PSL.getFileName();
     IsFunctionPtr = false;
@@ -633,7 +637,6 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   } else if (Ty->isFunctionProtoType()) {
     // Is this a function?
     const FunctionProtoType *FT = Ty->getAs<FunctionProtoType>();
-    FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
     assert(FT != nullptr);
     RT = FT->getReturnType();
 
@@ -651,17 +654,17 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
       }
 
       std::string PName = "";
-      DeclaratorDecl *TmpD = D;
+      DeclaratorDecl *ParmVD = nullptr;
       if (FD && i < FD->getNumParams()) {
         ParmVarDecl *PVD = FD->getParamDecl(i);
         if (PVD) {
-          TmpD = PVD;
+          ParmVD = PVD;
           PName = PVD->getName();
         }
       }
 
       std::set<ConstraintVariable *> C;
-      C.insert(new PVConstraint(QT, TmpD, PName, CS, Ctx, &N));
+      C.insert(new PVConstraint(QT, ParmVD, PName, CS, Ctx, &N));
       paramVars.push_back(C);
     }
 
