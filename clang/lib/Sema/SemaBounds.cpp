@@ -4057,11 +4057,15 @@ namespace {
         // &e1[e2] is invertible with respect to x if e1 + e2 is invertible
         // with respect to x.
         else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
-          BinaryOperator *Sum = ExprCreatorUtil::CreateBinaryOperator(S,
-                                  ArraySubExpr->getBase(),
-                                  ArraySubExpr->getIdx(),
-                                  BinaryOperatorKind::BO_Add);
-          return IsInvertible(X, Sum);
+          Expr *Base = ArraySubExpr->getBase();
+          Expr *Index = ArraySubExpr->getIdx();
+          BinaryOperator Sum(Base, Index, BinaryOperatorKind::BO_Add,
+                             Base->getType(),
+                             Base->getValueKind(),
+                             Base->getObjectKind(),
+                             SourceLocation(),
+                             FPOptions());
+          return IsInvertible(X, &Sum);
         }
       }
 
@@ -4214,11 +4218,15 @@ namespace {
         }
         // Inverse(f, &e1[e2]) = Inverse(f, e1 + e2)
         else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
-          BinaryOperator *Sum = ExprCreatorUtil::CreateBinaryOperator(S,
-                                  ArraySubExpr->getBase(),
-                                  ArraySubExpr->getIdx(),
-                                  BinaryOperatorKind::BO_Add);
-          return Inverse(X, F, Sum);
+          Expr *Base = ArraySubExpr->getBase();
+          Expr *Index = ArraySubExpr->getIdx();
+          BinaryOperator Sum(Base, Index, BinaryOperatorKind::BO_Add,
+                             Base->getType(),
+                             Base->getValueKind(),
+                             Base->getObjectKind(),
+                             SourceLocation(),
+                             FPOptions());
+          return Inverse(X, F, &Sum);
         }
       }
 
