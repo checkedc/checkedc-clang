@@ -1310,27 +1310,70 @@ bool isAValidPVConstraint(ConstraintVariable *C) {
 }
 
 // Replace CVars and argumentConstraints with those in [FromCV]
-void PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
+bool PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
+                                                ProgramInfo &Info,
+                                                bool MergeVatoms) {
   PVConstraint *From = dyn_cast<PVConstraint>(FromCV);
+  bool Merged = false;
   assert (From != nullptr);
   CAtoms CFrom = From->getCvars();
   assert (vars.size() == CFrom.size());
-  vars = CFrom; // FIXME: structural copy? By reference?
+  Constraints &CS = Info.getConstraints();
+  std::vector<Atom *> NewVatoms;
+  if (!MergeVatoms) {
+    Merged = true;
+    NewVatoms = CFrom; // FIXME: structural copy? By reference?
+  } else {
+    std::string Rsn = "Duplicate Declaration";
+    CAtoms::iterator I = vars.begin();
+    CAtoms::iterator J = CFrom.begin();
+    bool EquateCons = true;
+    while (I != vars.end()) {
+      Atom *IAt = *I;
+      Atom *JAt = *J;
+      ConstAtom *ICAt = dyn_cast<ConstAtom>(IAt);
+      ConstAtom *JCAt = dyn_cast<ConstAtom>(JAt);
+      EquateCons = true;
+      if (ICAt && JCAt) {
+        // Both are ConstAtoms, no need to equate them.
+        assert(ICAt == JCAt && "Should be same checked types");
+        EquateCons = false;
+        NewVatoms.push_back(IAt);
+      } else if (JCAt) {
+        NewVatoms.push_back(JAt);
+      } else {
+        NewVatoms.push_back(IAt);
+      }
+      if (EquateCons) {
+        // Equate the constraints.
+        createAtomGeq(CS, IAt, JAt, Rsn, nullptr,
+                      Same_to_Same, true);
+        Merged = true;
+      }
+      ++I;
+      ++J;
+    }
+  }
+  vars = NewVatoms;
   argumentConstraints = From->getArgumentConstraints();
   if (FV) {
     assert(From->FV);
-    FV->brainTransplant(From->FV);
+    Merged = FV->brainTransplant(From->FV, Info, MergeVatoms) || Merged;
   }
+  return Merged;
 }
 
 // Brain Transplant params and returns in [FromCV], recursively
-void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
+bool FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
+                                                 ProgramInfo &Info,
+                                                 bool MergeVatoms) {
+  bool Merged = false;
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert (From != nullptr);
   // transplant returns
   auto fromRetVar = getOnly(From->getReturnVars());
   auto retVar = getOnly(returnVars);
-  retVar->brainTransplant(fromRetVar);
+  Merged = retVar->brainTransplant(fromRetVar, Info, MergeVatoms) || Merged;
   // transplant params
   assert(From->numParams() == numParams());
   for (unsigned i = 0; i < From->numParams(); i++) {
@@ -1338,7 +1381,8 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
     std::set<ConstraintVariable *> &P = getParamVar(i);
     auto FromVar = getOnly(FromP);
     auto Var = getOnly(P);
-    Var->brainTransplant(FromVar);
+    Merged = Var->brainTransplant(FromVar, Info, MergeVatoms) || Merged;
   }
+  return Merged;
 }
 

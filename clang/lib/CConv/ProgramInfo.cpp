@@ -480,12 +480,13 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
     RetVal = true;
   } else {
     // MultipleRewrites = true;
-    if (isDef) {
-      auto oldS = Map[FuncName];
-      auto *newC = getOnly(ToIns);
-      auto *oldC = getOnly(oldS);
-      // Retain CVars and argConstraints from old ConstraintVariable
-      newC->brainTransplant(oldC);
+    auto oldS = Map[FuncName];
+    auto *newC = getOnly(ToIns);
+    auto *oldC = getOnly(oldS);
+
+    // Retain CVars and argConstraints from old ConstraintVariable
+    bool Merged = newC->brainTransplant(oldC, *this, !isDef);
+    if (Merged) {
       Map[FuncName] = ToIns;
       RetVal = true;
     }
