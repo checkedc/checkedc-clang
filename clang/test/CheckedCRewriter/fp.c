@@ -14,5 +14,5 @@ int mul_by_2(int x) {
 int (*foo(void)) (int) {
     return mul_by_2;
 } 
-// CHECK: int (*foo(void)) (int) {
+// CHECK: _Ptr<int (int )> foo(void) {
 

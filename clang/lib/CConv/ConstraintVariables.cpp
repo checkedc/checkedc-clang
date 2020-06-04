@@ -588,8 +588,9 @@ FunctionVariableConstraint::
 }
 
 // This describes a function, either a function pointer or a function
-// declaration itself. Either require constraint variables for any pointer
-// types that are either return values or paraemeters for the function.
+// declaration itself. Require constraint variables for each argument and
+// return, even those that aren't pointer types, since we may need to
+// re-emit the function signature as a type.
 FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
                                                        Constraints &CS,
                                                        const ASTContext &C) :
@@ -613,6 +614,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   HasDefDeclEquated = false;
   IsFunctionPtr = true;
 
+  // Metadata about function
   FunctionDecl *FD = nullptr;
   if (D) FD = dyn_cast<FunctionDecl>(D);
   if (FD) {
@@ -631,6 +633,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     IsFunctionPtr = false;
   }
 
+  // ConstraintVariables for the parameters
   if (Ty->isFunctionPointerType()) {
     // Is this a function pointer definition?
     llvm_unreachable("should not hit this case");
@@ -682,21 +685,9 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   } else {
     llvm_unreachable("don't know what to do");
   }
-  // This has to be a mapping for all parameter/return types, even those that
-  // aren't pointer types. If we need to re-emit the function signature
-  // as a type, then we will need the types for all the parameters and the
-  // return values.
 
+  // ConstraintVariable for the return
   returnVars.insert(new PVConstraint(RT, D, RETVAR, CS, Ctx, &N));
-  std::string Rsn = "Function pointer return value.";
-  for ( const auto &V : returnVars) {
-    if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
-      if (PVC->getFV())
-        PVC->constrainToWild(CS, Rsn);
-    } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(V)) {
-      FVC->constrainToWild(CS, Rsn);
-    }
-  }
 }
 
 void FunctionVariableConstraint::constrainToWild(Constraints &CS) {
