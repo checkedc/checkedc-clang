@@ -28,55 +28,20 @@ public:
   explicit FunctionVisitor(ASTContext *C, ProgramInfo &I, FunctionDecl *FD)
       : Context(C), Info(I), Function(FD), CB(Info, Context) {}
 
-
-  // Introduce a variable into the environment.
-  bool MyVisitVarDecl(VarDecl *D) {
-    if (D->isLocalVarDecl()) {
-      FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
-      SourceRange SR = D->getSourceRange();
-
-      if (SR.isValid() && FL.isValid() && !FL.isInSystemHeader() &&
-        (D->getType()->isPointerType() || D->getType()->isArrayType())) {
-        // Add the variable with in the function body context.
-        Info.addVariable(D, Context);
-
-        // If this is a static array declaration.
-        // Make this an array.
-        if (D->getType()->isArrayType()) {
-          // Try to see if this is a multi-dimensional array?
-          // If yes, assign ARR constraint to all the inside vars.
-          const clang::Type *TypePtr = D->getType().getTypePtr();
-          Constraints &CS = Info.getConstraints();
-          std::set<ConstraintVariable *> Var = Info.getVariable(D, Context);
-          assert(Var.size() == 1 && "Invalid number of ConstraintVariables.");
-          auto *PvConstr = dyn_cast<PVConstraint>(*(Var.begin()));
-          assert(PvConstr != nullptr && "Constraint variable cannot be nullptr");
-          const CAtoms &PtrCVars = PvConstr->getCvars();
-          for (Atom *ConsKey : PtrCVars) {
-            if (const clang::ArrayType *AT =
-                    dyn_cast<clang::ArrayType>(TypePtr)) {
-              if (VarAtom *VA = dyn_cast<VarAtom>(ConsKey)) {
-                // FIXME: We shouldn't be adding constraints directly. Use constrainOuter
-                CS.addConstraint(CS.createGeq(CS.getArr(), VA, false));
-              }
-              TypePtr = AT->getElementType().getTypePtr();
-              continue;
-            }
-            break;
-          }
-
-        }
-      }
-    }
-
-    return true;
-  }
-
   bool VisitDeclStmt(DeclStmt *S) {
     // Introduce variables as needed.
-      for (const auto &D : S->decls())
-        if (VarDecl *VD = dyn_cast<VarDecl>(D))
-          MyVisitVarDecl(VD);
+    for (const auto &D : S->decls())
+      if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
+        if (VD->isLocalVarDecl()) {
+          FullSourceLoc FL = Context->getFullLoc(VD->getBeginLoc());
+          SourceRange SR = VD->getSourceRange();
+          if (SR.isValid() && FL.isValid() && !FL.isInSystemHeader() &&
+              (VD->getType()->isPointerType() ||
+               VD->getType()->isArrayType())) {
+            Info.addVariable(VD, Context);
+          }
+        }
+      }
 
     // Build rules based on initializers.
     for (const auto &D : S->decls()) {

@@ -8,7 +8,7 @@ void f() {
   int *p = pa;
   p = (int *)5;
 }
-// CHECK: int x _Checked[5];
+// CHECK: int x[5];
 
 void g() {
   int *x = malloc(sizeof(int)*1);

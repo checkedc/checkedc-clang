@@ -160,17 +160,16 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   }
 
   bool VarCreated = false;
+  bool isArr = false;
   uint32_t TypeIdx = 0;
   std::string Npre = inFunc ? ((*inFunc)+":") : "";
   VarAtom::VarKind VK =
       inFunc ? (N == RETVAR ? VarAtom::V_Return : VarAtom::V_Param)
              : VarAtom::V_Other;
+
   while (Ty->isPointerType() || Ty->isArrayType()) {
-    VarCreated = false;
     // Is this a VarArg type?
     std::string TyName = tyToStr(Ty);
-    // TODO: Github issue #61: improve handling of types for
-    // // Variable arguments.
     if (isVarArgType(TyName)) {
       // Variable number of arguments. Make it WILD.
       vars.push_back(CS.getWild());
@@ -197,20 +196,12 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     }
 
     if (Ty->isArrayType() || Ty->isIncompleteArrayType()) {
-      ArrPresent = true;
-      // If it's an array, then we need both a constraint variable
-      // for each level of the array, and a constraint variable for
-      // values stored in the array.
+      ArrPresent = isArr = true;
 
       // See if there is a constant size to this array type at this position.
       if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
         arrSizes[TypeIdx] = std::pair<OriginalArrType,uint64_t>(
                 O_SizedArray,CAT->getSize().getZExtValue());
-        if (AllTypes && !VarCreated) {
-          // This is a statically declared array. Make it a Checked Array.
-          vars.push_back(CS.getArr());
-          VarCreated = true;
-        }
       } else {
         arrSizes[TypeIdx] = std::pair<OriginalArrType,uint64_t>(
                 O_UnSizedArray,0);
@@ -248,11 +239,18 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
     // This type is not a constant atom. We need to create a VarAtom for this.
     if (!VarCreated) {
-      vars.push_back(CS.getFreshVar(Npre + N, VK));
+      VarAtom *VA = CS.getFreshVar(Npre + N, VK);
+      vars.push_back(VA);
+      if (isArr)
+        CS.addConstraint(CS.createGeq(CS.getArr(), VA, false));
     }
+
+    // Prepare for next level of pointer
+    VarCreated = false;
+    isArr = false;
     TypeIdx++;
     Npre = Npre + "*";
-    VK = VarAtom::V_Other; // only the outermost pointer considered a param
+    VK = VarAtom::V_Other; // only the outermost pointer considered a param/return
   }
 
   // If, after boiling off the pointer-ness from this type, we hit a
