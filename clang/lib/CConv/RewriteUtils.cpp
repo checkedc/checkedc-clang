@@ -1225,7 +1225,46 @@ public:
   }
 
   bool VisitBinAssign(BinaryOperator *O) {
-    // TODO: Aron try to add cast to RHS expression..if applicable.
+    // This is an assignment statement.
+    // We want to add fancy cast.
+    if (O->getOpcode() == BO_Assign) {
+      Expr *LHS = O->getLHS();
+      Expr *RHS = O->getRHS();
+      auto &CS = Info.getConstraints();
+      std::set<ConstraintVariable *> LCons =
+          CR.getExprConstraintVars(LHS, LHS->getType());
+      ConstraintVariable *LCVariable = nullptr;
+      bool LHSChkType = false;
+      for (auto *LC : LCons) {
+        if (LC->anyChanges(CS.getVariables())) {
+          LCVariable = LC;
+          LHSChkType = true;
+          break;
+        }
+      }
+      if (LHSChkType) {
+        assert (LCVariable != nullptr && "Expected non-null");
+        // Now, check if RHS is either explicit cast or addr-of (&) expression
+        // in which case we insert fancy cast.
+        RHS = RHS->IgnoreParenImpCasts();
+        bool NeedFancyCast = false;
+        if (dyn_cast<ExplicitCastExpr>(RHS)) {
+          NeedFancyCast = true;
+        }
+        if (UnaryOperator *UO = dyn_cast<UnaryOperator>(RHS)) {
+          if (UO->getOpcode() == UO_AddrOf) {
+            NeedFancyCast = true;
+          }
+        }
+        if (NeedFancyCast) {
+          Writer.InsertTextBefore(
+              O->getRHS()->getBeginLoc(),
+              "_Assume_bounds_cast<" +
+                  LCVariable->mkString(CS.getVariables(), false) + ">(");
+          Writer.InsertTextAfterToken(O->getRHS()->getEndLoc(), ")");
+        }
+      }
+    }
     return true;
   }
 
