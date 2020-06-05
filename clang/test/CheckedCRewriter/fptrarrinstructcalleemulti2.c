@@ -22,7 +22,7 @@ struct warr {
     char name[];
 };
 //CHECK:     int data1 _Checked[5];
-//CHECK-NEXT:     _Ptr<char> name;
+//CHECK-NEXT:     char name[];
 
 
 struct fptrarr { 

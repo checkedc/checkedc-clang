@@ -20,7 +20,7 @@ struct warr {
     char name[];
 };
 //CHECK:     int data1 _Checked[5];
-//CHECK-NEXT:     _Ptr<char> name;
+//CHECK-NEXT:     char name[];
 
 
 struct fptrarr { 
@@ -144,4 +144,3 @@ struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
 return z; }
 //CHECK: struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y : itype(_Ptr<struct fptrarr>)) {
 //CHECK:         struct fptrarr *z = malloc(sizeof(struct fptrarr)); 
-//CHECK:         z->name = strcpy(((char *)name), "Hello World");
