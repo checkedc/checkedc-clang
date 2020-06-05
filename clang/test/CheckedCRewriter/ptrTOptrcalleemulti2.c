@@ -1,6 +1,21 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %s %S/ptrTOptrcalleemulti1.c
+// RUN: cconv-standalone -base-dir=%S -output-postfix=checked2 %s %S/ptrTOptrcalleemulti1.c
 //RUN: FileCheck -match-full-lines --input-file %S/ptrTOptrcalleemulti2.checked2.c %s
 //RUN: rm %S/ptrTOptrcalleemulti1.checked2.c %S/ptrTOptrcalleemulti2.checked2.c
+
+
+/*********************************************************************************/
+
+/*This file tests three functions: two callers bar and foo, and a callee sus*/
+/*In particular, this file tests: having a pointer to a pointer*/
+/*For robustness, this test is identical to ptrTOptrprotocallee.c and ptrTOptrcallee.c except in that
+the callee and callers are split amongst two files to see how
+the tool performs conversions*/
+/*In this test, foo and bar will treat their return values safely, but sus will
+not, through invalid pointer arithmetic, an unsafe cast, etc*/
+
+/*********************************************************************************/
+
+
 #define size_t int
 #define NULL 0
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
@@ -19,10 +34,10 @@ struct general {
 
 struct warr { 
     int data1[5];
-    char name[];
+    char *name;
 };
-//CHECK:     int data1 _Checked[5];
-//CHECK-NEXT:     char name[];
+//CHECK:     int data1[5];
+//CHECK-NEXT:     _Ptr<char> name;
 
 
 struct fptrarr { 
@@ -37,18 +52,18 @@ struct fptrarr {
 
 struct fptr { 
     int *value; 
-    int (*func)(int*);
+    int (*func)(int);
 };  
 //CHECK:     _Ptr<int> value; 
-//CHECK-NEXT:     _Ptr<int (_Ptr<int> )> func;
+//CHECK-NEXT:     _Ptr<int (int )> func;
 
 
 struct arrfptr { 
     int args[5]; 
     int (*funcs[5]) (int);
 };
-//CHECK:     int args _Checked[5]; 
-//CHECK-NEXT:     _Ptr<int (int )> funcs _Checked[5];
+//CHECK:     int args[5]; 
+//CHECK-NEXT:     int (*funcs[5]) (int);
 
 
 int add1(int x) { 
