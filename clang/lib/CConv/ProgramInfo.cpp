@@ -572,7 +572,9 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     std::set<FVConstraint *> NewFVars;
     NewFVars.insert(F);
     /* Only retain the FVConstraint if we stored in the global map */
-    if (insertNewFVConstraints(FD, NewFVars, astContext)) {
+    // TODO there is some bug here if we condition on this call
+    insertNewFVConstraints(FD, NewFVars, astContext);
+    if (true) {
       S.insert(F);
       // Add mappings from the parameters PLoc to the constraint variables for
       // the parameters.
@@ -584,7 +586,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
         Variables[PSL].insert(PS.begin(), PS.end());
         specialCaseVarIntros(PVD, astContext);
       }
-    } else { delete F; }
+    } 
 
   } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
     const Type *Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();

@@ -530,6 +530,9 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   // that we shouldn't make one of these visits again.
 
   auto FuncName = FD->getNameAsString();
+  auto isStatic = FD->isStatic();
+
+  
 
   auto &CS = Info.getConstraints();
 
@@ -668,7 +671,14 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     for (const auto &RD : Definition->redecls())
       rewriteThese.insert(DAndReplace(RD, s, true));
     // Save the modified function signature.
-    ModifiedFuncSignatures[FuncName] = s;
+    if(isStatic) { 
+  	auto psl = PersistentSourceLoc::mkPSL(FD, *Context);
+	auto fileName = psl.getFileName();
+  	auto qualifiedName = fileName + "::" + FuncName;
+    	ModifiedFuncSignatures[qualifiedName] = s;
+    } else {
+    	ModifiedFuncSignatures[FuncName] = s;
+    }
   }
 
   return true;
