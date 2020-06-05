@@ -1,4 +1,7 @@
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
+//RUN: cconv-standalone -output-postfix=checked %s
+//RUN: %clang -Wno-everything -c %S/arrinstructboth.checked.c
+//RUN: rm %S/arrinstructboth.checked.c
 
 
 /*********************************************************************************/

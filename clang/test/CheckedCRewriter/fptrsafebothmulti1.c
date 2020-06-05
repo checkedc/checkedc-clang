@@ -1,4 +1,5 @@
 // RUN: cconv-standalone -base-dir=%S -output-postfix=checked %s %S/fptrsafebothmulti2.c
+//RUN: %clang -c %S/fptrsafebothmulti1.checked.c %S/fptrsafebothmulti2.checked.c
 //RUN: FileCheck -match-full-lines --input-file %S/fptrsafebothmulti1.checked.c %s
 //RUN: rm %S/fptrsafebothmulti1.checked.c %S/fptrsafebothmulti2.checked.c
 

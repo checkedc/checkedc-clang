@@ -1,4 +1,5 @@
 // RUN: cconv-standalone -base-dir=%S -output-postfix=checked %s %S/arrofstructbothmulti2.c
+//RUN: %clang -c %S/arrofstructbothmulti1.checked.c %S/arrofstructbothmulti2.checked.c
 //RUN: FileCheck -match-full-lines --input-file %S/arrofstructbothmulti1.checked.c %s
 //RUN: rm %S/arrofstructbothmulti1.checked.c %S/arrofstructbothmulti2.checked.c
 

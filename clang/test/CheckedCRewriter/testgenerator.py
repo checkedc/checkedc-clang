@@ -738,11 +738,17 @@ def annot_gen(prefix, proto, suffix, flag):
         return
 
     run = "// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s"
-    if flag=="": run = "// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s"
+    if flag=="": 
+        run = "// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s"
+        run += "\n//RUN: cconv-standalone -output-postfix=checked %s" 
+        run += "\n//RUN: %clang -Wno-everything -c %S/{}".format(cname)
+        run += "\n//RUN: rm %S/{}".format(cname)
     run2 = ""
     if proto=="multi": 
         run = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %s %S/" + name2 
-        if flag=="": run = "// RUN: cconv-standalone -base-dir=%S -output-postfix=checked %s %S/" + name2
+        if flag=="": 
+            run = "// RUN: cconv-standalone -base-dir=%S -output-postfix=checked %s %S/" + name2 
+            run += "\n//RUN: %clang -c %S/{} %S/{}".format(cname, cname2)
         run += "\n//RUN: FileCheck -match-full-lines --input-file %S/{} %s".format(cname)
         run += "\n//RUN: rm %S/{} %S/{}".format(cname, cname2)
         cname21 = prefix + suffix + proto + flag + "1.checked2.c"
