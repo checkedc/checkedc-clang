@@ -483,12 +483,14 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
     auto oldS = Map[FuncName];
     auto *newC = getOnly(ToIns);
     auto *oldC = getOnly(oldS);
-
-    // Retain CVars and argConstraints from old ConstraintVariable
-    bool Merged = newC->brainTransplant(oldC, *this, !isDef);
-    if (Merged) {
+    if (isDef) {
+      newC->brainTransplant(oldC);
       Map[FuncName] = ToIns;
       RetVal = true;
+    } else if (!oldC->hasBody()) {
+      // if the current FV constraint is not a definition?
+      // then merge.
+      oldC->mergeDeclaration(newC);
     }
   }
   return RetVal;

@@ -646,13 +646,6 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     for (unsigned i = 0; i < FT->getNumParams(); i++) {
       QualType QT = FT->getParamType(i);
 
-      if (InteropTypeExpr *BA =  FT->getParamAnnots(i).getInteropTypeExpr()) {
-        QualType InteropType= Ctx.getInteropTypeAndAdjust(BA, true);
-        // TODO: handle array_ptr types.
-        if (InteropType->isCheckedPointerPtrType())
-          QT = InteropType;
-      }
-
       std::string PName = "";
       DeclaratorDecl *ParmVD = nullptr;
       if (FD && i < FD->getNumParams()) {
@@ -668,12 +661,6 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
       paramVars.push_back(C);
     }
 
-    if (InteropTypeExpr *BA = FT->getReturnAnnots().getInteropTypeExpr()) {
-      QualType InteropType = Ctx.getInteropTypeAndAdjust(BA, false);
-      // TODO: handle array_ptr types.
-      if (InteropType->isCheckedPointerPtrType())
-        RT = InteropType;
-    }
     Hasproto = true;
   } else if (Ty->isFunctionNoProtoType()) {
     const FunctionNoProtoType *FT = Ty->getAs<FunctionNoProtoType>();
@@ -1310,70 +1297,64 @@ bool isAValidPVConstraint(ConstraintVariable *C) {
 }
 
 // Replace CVars and argumentConstraints with those in [FromCV]
-bool PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
-                                                ProgramInfo &Info,
-                                                bool MergeVatoms) {
+void PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
   PVConstraint *From = dyn_cast<PVConstraint>(FromCV);
-  bool Merged = false;
   assert (From != nullptr);
   CAtoms CFrom = From->getCvars();
   assert (vars.size() == CFrom.size());
-  Constraints &CS = Info.getConstraints();
-  std::vector<Atom *> NewVatoms;
-  if (!MergeVatoms) {
-    Merged = true;
-    NewVatoms = CFrom; // FIXME: structural copy? By reference?
-  } else {
-    std::string Rsn = "Duplicate Declaration";
-    CAtoms::iterator I = vars.begin();
-    CAtoms::iterator J = CFrom.begin();
-    bool EquateCons = true;
-    while (I != vars.end()) {
-      Atom *IAt = *I;
-      Atom *JAt = *J;
-      ConstAtom *ICAt = dyn_cast<ConstAtom>(IAt);
-      ConstAtom *JCAt = dyn_cast<ConstAtom>(JAt);
-      EquateCons = true;
-      if (ICAt && JCAt) {
-        // Both are ConstAtoms, no need to equate them.
-        assert(ICAt == JCAt && "Should be same checked types");
-        EquateCons = false;
-        NewVatoms.push_back(IAt);
-      } else if (JCAt) {
-        NewVatoms.push_back(JAt);
-      } else {
-        NewVatoms.push_back(IAt);
-      }
-      if (EquateCons) {
-        // Equate the constraints.
-        createAtomGeq(CS, IAt, JAt, Rsn, nullptr,
-                      Same_to_Same, true);
-        Merged = true;
-      }
-      ++I;
-      ++J;
-    }
-  }
-  vars = NewVatoms;
+  vars = CFrom; // FIXME: structural copy? By reference?
   argumentConstraints = From->getArgumentConstraints();
   if (FV) {
     assert(From->FV);
-    Merged = FV->brainTransplant(From->FV, Info, MergeVatoms) || Merged;
+    FV->brainTransplant(From->FV);
   }
-  return Merged;
+}
+
+void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
+  PVConstraint *From = dyn_cast<PVConstraint>(FromCV);
+  std::vector<Atom *> NewVatoms;
+  CAtoms CFrom = From->getCvars();
+  CAtoms::iterator I = vars.begin();
+  CAtoms::iterator J = CFrom.begin();
+  bool EquateCons = true;
+  while (I != vars.end()) {
+    Atom *IAt = *I;
+    Atom *JAt = *J;
+    ConstAtom *ICAt = dyn_cast<ConstAtom>(IAt);
+    ConstAtom *JCAt = dyn_cast<ConstAtom>(JAt);
+    EquateCons = true;
+    if (JCAt && !ICAt) {
+      NewVatoms.push_back(JAt);
+    } else {
+      NewVatoms.push_back(IAt);
+    }
+    if (ICAt && JCAt) {
+      // Sanity
+      // Both are ConstAtoms, no need to equate them.
+      assert(ICAt == JCAt && "Should be same checked types");
+    }
+    ++I;
+    ++J;
+  }
+  assert (vars.size() == NewVatoms.size() && "Merging Failed");
+  vars = NewVatoms;
+  if (!From->ItypeStr.empty())
+    ItypeStr = From->ItypeStr;
+  argumentConstraints = From->getArgumentConstraints();
+  if (FV) {
+    assert(From->FV);
+    FV->mergeDeclaration(From->FV);
+  }
 }
 
 // Brain Transplant params and returns in [FromCV], recursively
-bool FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
-                                                 ProgramInfo &Info,
-                                                 bool MergeVatoms) {
-  bool Merged = false;
+void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert (From != nullptr);
   // transplant returns
   auto fromRetVar = getOnly(From->getReturnVars());
   auto retVar = getOnly(returnVars);
-  Merged = retVar->brainTransplant(fromRetVar, Info, MergeVatoms) || Merged;
+  retVar->brainTransplant(fromRetVar);
   // transplant params
   assert(From->numParams() == numParams());
   for (unsigned i = 0; i < From->numParams(); i++) {
@@ -1381,8 +1362,25 @@ bool FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
     std::set<ConstraintVariable *> &P = getParamVar(i);
     auto FromVar = getOnly(FromP);
     auto Var = getOnly(P);
-    Merged = Var->brainTransplant(FromVar, Info, MergeVatoms) || Merged;
+    Var->brainTransplant(FromVar);
   }
-  return Merged;
+}
+
+void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
+  FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
+  assert (From != nullptr);
+  // transplant returns
+  auto fromRetVar = getOnly(From->getReturnVars());
+  auto retVar = getOnly(returnVars);
+  retVar->mergeDeclaration(fromRetVar);
+  // transplant params
+  assert(From->numParams() == numParams());
+  for (unsigned i = 0; i < From->numParams(); i++) {
+    std::set<ConstraintVariable *> &FromP = From->getParamVar(i);
+    std::set<ConstraintVariable *> &P = getParamVar(i);
+    auto FromVar = getOnly(FromP);
+    auto Var = getOnly(P);
+    Var->mergeDeclaration(FromVar);
+  }
 }
 

@@ -111,8 +111,9 @@ public:
   // Get the highest type assigned to the cvars of this constraint variable.
   //virtual ConstAtom *getHighestType(EnvironmentMap &E) = 0;
   virtual void equateInsideOutsideVars(ProgramInfo &I) = 0;
-  virtual bool brainTransplant(ConstraintVariable *, ProgramInfo &Info,
-                               bool MergeVatoms = false) = 0;
+  virtual void brainTransplant(ConstraintVariable *) = 0;
+
+  virtual void mergeDeclaration(ConstraintVariable *) = 0;
 
   std::string getOriginalTy() { return OriginalType; }
   // Get the original type string that can be directly
@@ -264,8 +265,9 @@ public:
                             const clang::ASTContext &C, std::string* inFunc = nullptr);
 
   const CAtoms &getCvars() const { return vars; }
-  bool brainTransplant(ConstraintVariable *From, ProgramInfo &Info,
-                       bool MergeVatoms = false);
+  void brainTransplant(ConstraintVariable *From);
+
+  void mergeDeclaration(ConstraintVariable *From);
 
   static bool classof(const ConstraintVariable *S) {
     return S->getKind() == PointerVariable;
@@ -357,8 +359,8 @@ public:
     return S->getKind() == FunctionVariable;
   }
 
-  bool brainTransplant(ConstraintVariable *From, ProgramInfo &Info,
-                       bool MergeVatoms = false);
+  void brainTransplant(ConstraintVariable *From);
+  void mergeDeclaration(ConstraintVariable *FromCV);
 
   std::set<ConstraintVariable *> &
   getParamVar(unsigned i) {
