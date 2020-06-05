@@ -353,7 +353,7 @@ bool ProgramInfo::link() {
       // constrain everything about it
       if(!V.second) {
           std::string VarName = V.first;
-          std::string Rsn = "External global variable " + VarName;
+          std::string Rsn = "External global variable " + VarName + " has no definition";
           const std::set<PVConstraint *> &C = GlobalVariableSymbols[VarName];
           for(const auto &Var : C) {
               Var->constrainToWild(CS, Rsn);
