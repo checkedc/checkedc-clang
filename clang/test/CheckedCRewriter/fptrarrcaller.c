@@ -1,4 +1,20 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
+//RUN: cconv-standalone -output-postfix=checked %s
+//RUN: %clang -Wno-everything -c %S/fptrarrcaller.checked.c
+//RUN: rm %S/fptrarrcaller.checked.c
+
+
+/*********************************************************************************/
+
+/*This file tests three functions: two callers bar and foo, and a callee sus*/
+/*In particular, this file tests: using a function pointer and an array in
+tandem to do computations*/
+/*In this test, foo and sus will treat their return values safely, but bar will
+not, through invalid pointer arithmetic, an unsafe cast, etc.*/
+
+/*********************************************************************************/
+
+
 #define size_t int
 #define NULL 0
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
@@ -17,10 +33,10 @@ struct general {
 
 struct warr { 
     int data1[5];
-    char name[];
+    char *name;
 };
-//CHECK:     int data1 _Checked[5];
-//CHECK-NEXT:     char name[];
+//CHECK:     int data1[5];
+//CHECK-NEXT:     _Ptr<char> name;
 
 
 struct fptrarr { 
@@ -35,18 +51,18 @@ struct fptrarr {
 
 struct fptr { 
     int *value; 
-    int (*func)(int*);
+    int (*func)(int);
 };  
 //CHECK:     _Ptr<int> value; 
-//CHECK-NEXT:     _Ptr<int (_Ptr<int> )> func;
+//CHECK-NEXT:     _Ptr<int (int )> func;
 
 
 struct arrfptr { 
     int args[5]; 
     int (*funcs[5]) (int);
 };
-//CHECK:     int args _Checked[5]; 
-//CHECK-NEXT:     _Ptr<int (int )> funcs _Checked[5];
+//CHECK:     int args[5]; 
+//CHECK-NEXT:     int (*funcs[5]) (int);
 
 
 int add1(int x) { 
@@ -91,7 +107,7 @@ int ** sus(int *x, int *y) {
         } 
         
 return z; }
-//CHECK: int ** sus(int *x, int *y : itype(_Array_ptr<int>)) {
+//CHECK: int ** sus(int *x, int *y) {
 //CHECK:         int **z = calloc(5, sizeof(int *)); 
 //CHECK:         _Ptr<int* (int *)> mul2ptr =  mul2;
 

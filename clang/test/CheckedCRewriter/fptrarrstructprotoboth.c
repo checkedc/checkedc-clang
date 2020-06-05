@@ -1,4 +1,23 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
+//RUN: cconv-standalone -output-postfix=checked %s
+//RUN: %clang -Wno-everything -c %S/fptrarrstructprotoboth.checked.c
+//RUN: rm %S/fptrarrstructprotoboth.checked.c
+
+
+/*********************************************************************************/
+
+/*This file tests three functions: two callers bar and foo, and a callee sus*/
+/*In particular, this file tests: using a function pointer and an array as fields
+of a struct that interact with each other*/
+/*For robustness, this test is identical to fptrarrstructboth.c except in that
+a prototype for sus is available, and is called by foo and bar,
+while the definition for sus appears below them*/
+/*In this test, foo will treat its return value safely, but sus and bar will not,
+through invalid pointer arithmetic, an unsafe cast, etc.*/
+
+/*********************************************************************************/
+
+
 #define size_t int
 #define NULL 0
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
@@ -17,10 +36,10 @@ struct general {
 
 struct warr { 
     int data1[5];
-    char name[];
+    char *name;
 };
-//CHECK:     int data1 _Checked[5];
-//CHECK-NEXT:     char name[];
+//CHECK:     int data1[5];
+//CHECK-NEXT:     _Ptr<char> name;
 
 
 struct fptrarr { 
@@ -35,18 +54,18 @@ struct fptrarr {
 
 struct fptr { 
     int *value; 
-    int (*func)(int*);
+    int (*func)(int);
 };  
 //CHECK:     _Ptr<int> value; 
-//CHECK-NEXT:     _Ptr<int (_Ptr<int> )> func;
+//CHECK-NEXT:     _Ptr<int (int )> func;
 
 
 struct arrfptr { 
     int args[5]; 
     int (*funcs[5]) (int);
 };
-//CHECK:     int args _Checked[5]; 
-//CHECK-NEXT:     _Ptr<int (int )> funcs _Checked[5];
+//CHECK:     int args[5]; 
+//CHECK-NEXT:     int (*funcs[5]) (int);
 
 
 int add1(int x) { 

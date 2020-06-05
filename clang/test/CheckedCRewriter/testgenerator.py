@@ -1,9 +1,9 @@
 # Author: Shilpa Roy 
-# Last updated: May 9, 2020
+# Last updated: June 5, 2020
 
 import itertools as it
 import os
-
+import subprocess
 
 #### USERS PUT YOUR INFO HERE ##### 
 
@@ -12,7 +12,7 @@ path_to_monorepo = "~/checkedc-clang/"
 
 
 
-prefixes = ["arr", "arrstruct", "arrinstruct", "arrofstruct", "safefptrarg", "unsafefptrarg", "fptrsafe", "fptrunsafe", "fptrarr", "fptrarrstruct", "fptrinstruct", "fptrarrinstruct", "ptrTOptr"] 
+prefixes = ["arr", "arrstruct", "arrinstruct", "arrofstruct", "safefptrarg", "unsafefptrarg", "fptrsafe", "fptrunsafe", "fptrarr", "fptrarrstruct", "fptrinstruct", "fptrarrinstruct", "ptrTOptr"] #, "safefptrs", "unsafefptrs", "arrOFfptr"] 
 addendums = ["", "proto", "multi"] 
 
 # casts are a whole different ballgame so leaving out for now, 
@@ -20,11 +20,12 @@ addendums = ["", "proto", "multi"]
 # casts = ["", "expcastunsafe", "expcastsafe", "impcast"]
 
 suffixes = ["safe", "callee", "caller", "both"]
+flags = ["", "-alltypes"]
 
 # generate testnames by taking the cartesian product of the above
 testnames = [] 
-for e in it.product(prefixes, addendums, suffixes): 
-    testnames.append([e[0], e[1], e[2]]) 
+for e in it.product(prefixes, addendums, suffixes, flags): 
+    testnames.append([e[0], e[1], e[2], e[3]]) 
 
 
 ### FILE GENERATION ###
@@ -66,7 +67,7 @@ struct general {
 
 struct warr { 
     int data1[5];
-    char name[];
+    char *name;
 };
 
 struct fptrarr { 
@@ -77,7 +78,7 @@ struct fptrarr {
 
 struct fptr { 
     int *value; 
-    int (*func)(int*);
+    int (*func)(int);
 };  
 
 struct arrfptr { 
@@ -153,8 +154,6 @@ def method_gen(prefix, proto, suffix):
         susbody = """
         char name[20]; 
         struct warr *z = y;
-        z->name[1] = 'H';
-        struct warr *p = z;
         for(int i = 0; i < 5; i++) { 
             z->data1[i] = i; 
         }
@@ -465,20 +464,53 @@ def method_gen(prefix, proto, suffix):
 # this function will generate a C file using method_gen(), 
 # run the porting tool on that C file, and generate a new
 # C file that contains the annotations for llvm-lit
-def annot_gen(prefix, proto, suffix):  
+def annot_gen(prefix, proto, suffix, flag):  
+ 
+    # generate a descriptive comment that describes what the test will do: 
+    comm_general = "/*This file tests three functions: two callers bar and foo, and a callee sus*/\n" 
+    comm_prefix = "/*In particular, this file tests: "
+    if prefix=="arr": comm_prefix += "arrays through a for loop and pointer\narithmetic to assign into it*/" 
+    if prefix=="arrstruct": comm_prefix += "arrays and structs, specifically by using an array to\ntraverse through the values of a struct*/" 
+    if prefix=="arrinstruct": comm_prefix += "how the tool behaves when there is an array\nfield within a struct*/"
+    if prefix=="arrofstruct": comm_prefix += "how the tool behaves when there is an array\nof structs*/"
+    if prefix=="safefptrarg": comm_prefix += "passing a function pointer as an argument to a\nfunction safely (without unsafe casting)*/"
+    if prefix=="unsafefptrarg": comm_prefix += "passing a function pointer as an argument to a\nfunction unsafely (by casting it unsafely)*/"
+    if prefix=="safefptrs": comm_prefix += "passing function pointers in as arguments and\nreturning a function pointer safely*/" 
+    if prefix=="arrOFfptr": comm_prefix += "how the tool behaves when returning an array\nof function pointers*/"
+    if prefix=="unsafefptrs": comm_prefix += "passing fptrs in as arguments and returning a\nfptr unsafely (through unsafe casting*/"
+    if prefix=="fptrsafe": comm_prefix += "converting the callee into a function pointer\nand then using that pointer for computations*/"
+    if prefix=="fptrunsafe": comm_prefix += "converting the callee into a function pointer\nunsafely via cast and using that pointer for computations*/"
+    if prefix=="fptrarr": comm_prefix += "using a function pointer and an array in\ntandem to do computations*/"
+    if prefix=="fptrarrstruct": comm_prefix += "using a function pointer and an array as fields\nof a struct that interact with each other*/"
+    if prefix=="fptrinstruct": comm_prefix += "how the tool behaves when a function pointer\nis a field of a struct*/"
+    if prefix=="fptrarrinstruct": comm_prefix += "how the tool behaves when there is an array\nof function pointers in a struct*/"
+    if prefix=="ptrTOptr": comm_prefix += "having a pointer to a pointer*/"
+    comm_proto = "" 
+    if proto=="multi": comm_proto = "\n/*For robustness, this test is identical to {}.c and {}.c except in that\nthe callee and callers are split amongst two files to see how\nthe tool performs conversions*/".format(prefix+"proto"+suffix+flag, prefix+suffix+flag) 
+    elif proto=="proto": comm_proto = "\n/*For robustness, this test is identical to {}.c except in that\na prototype for sus is available, and is called by foo and bar,\nwhile the definition for sus appears below them*/".format(prefix+suffix+flag)
+    comm_suffix = ""
+    if suffix == "safe": comm_suffix = "\n/*In this test, foo, bar, and sus will all treat their return values safely*/"
+    elif suffix == "callee": comm_suffix = "\n/*In this test, foo and bar will treat their return values safely, but sus will\nnot, through invalid pointer arithmetic, an unsafe cast, etc*/"
+    elif suffix == "caller": comm_suffix = "\n/*In this test, foo and sus will treat their return values safely, but bar will\nnot, through invalid pointer arithmetic, an unsafe cast, etc.*/"
+    elif suffix == "both": comm_suffix = "\n/*In this test, foo will treat its return value safely, but sus and bar will not,\nthrough invalid pointer arithmetic, an unsafe cast, etc.*/"
+    comm_flag = "" 
+    if flag == "-alltypes": comm_flag = "\n/*This file was converted with the alltypes flag, which adds support for arrays\nand other data structures*/"
+    comm_dec = "\n\n/*********************************************************************************/\n\n" 
+
+    comment = ''.join(["\n", comm_dec, comm_general, comm_prefix, comm_proto, comm_suffix, comm_flag, comm_dec])
 
     # generate the body of the file
     [susproto, sus, foo, bar] = method_gen(prefix, proto, suffix) 
-    name = prefix + proto + suffix + ".c"
-    cname = prefix + proto + suffix + ".checked.c"  
+    name = prefix + proto + suffix + flag + ".c"
+    cname = prefix + proto + suffix + flag + ".checked.c"  
     name2 = name 
     cname2 = cname
 
     if proto=="multi": 
-        name = prefix + suffix + proto + "1.c" 
-        name2 = prefix + suffix + proto + "2.c"
-        cname = prefix + suffix + proto + "1.checked.c"
-        cname2 = prefix + suffix + proto + "2.checked.c"
+        name = prefix + suffix + proto + flag + "1.c" 
+        name2 = prefix + suffix + proto + flag + "2.c"
+        cname = prefix + suffix + proto + flag + "1.checked.c"
+        cname2 = prefix + suffix + proto + flag + "2.checked.c"
     
     if proto=="proto": test = header + definitions + susproto + foo + bar + sus
     elif proto=="multi": test = header + definitions + susproto + foo + bar
@@ -498,10 +530,12 @@ def annot_gen(prefix, proto, suffix):
     
     # run the porting tool on the file(s)
     if proto=="multi": 
-        os.system("{}build/bin/cconv-standalone -alltypes -output-postfix=checked {} {}".format(path_to_monorepo, name, name2))
+        if flag!="": os.system("{}build/bin/cconv-standalone -alltypes -output-postfix=checked {} {}".format(path_to_monorepo, name, name2))
+        else: os.system("{}build/bin/cconv-standalone -output-postfix=checked {} {}".format(path_to_monorepo, name, name2))
         os.system("rm {} {}".format(name, name2))
     else: 
-        os.system("{}build/bin/cconv-standalone -alltypes -output-postfix=checked {}".format(path_to_monorepo, name))
+        if flag!="": os.system("{}build/bin/cconv-standalone -alltypes -output-postfix=checked {}".format(path_to_monorepo, name))
+        else: os.system("{}build/bin/cconv-standalone -output-postfix=checked {}".format(path_to_monorepo, name))
         os.system("rm {}".format(name))
     
     # isolate the definitions (at the top of the file) into more bitesize chunks  
@@ -511,7 +545,25 @@ def annot_gen(prefix, proto, suffix):
     keywords = "int char struct double float".split(" ")
 
     # read the checked generated file for new types
-    file = open(cname, "r")
+    file = open(cname, "r") 
+    bug_generated = False
+    if proto != "multi" and flag == "": 
+        out = subprocess.Popen(['../../../build/bin/clang', '-c', cname], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) 
+        stdout, stderr = out.communicate()
+        stdout = str(stdout) 
+        if "error:" in stdout: 
+            bug_generated = True
+            name = prefix + proto + suffix + flag + "_BUG.c" 
+    elif flag == "": 
+        out = subprocess.Popen(['../../../build/bin/clang', '-c', cname, cname2], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) 
+        stdout, stderr = out.communicate()
+        stdout = str(stdout) 
+        if "error:" in stdout: 
+            bug_generated = True
+            name = prefix + suffix + proto + flag + "1_BUG.c"
+            name2 = prefix + suffix + proto + flag + "2_BUG.c"
+
+
     susprotoc = susc = fooc = barc = ""
 
     # these boolean variables indicate which method definition we are in, so we know where to add
@@ -609,6 +661,7 @@ def annot_gen(prefix, proto, suffix):
     
     if proto=="multi": 
         file2 = open(cname2, "r")
+
         for line in file2.readlines(): 
             # this indicates that we've reached the definitions
             if line.find("struct general {") != -1: 
@@ -679,25 +732,42 @@ def annot_gen(prefix, proto, suffix):
     os.system("rm {}".format(cname))
     if proto=="multi": os.system("rm {}".format(cname2))
 
+    if bug_generated: 
+        cname = prefix + suffix + proto + flag + "1_BUG.checked.c"
+        cname2 = prefix + suffix + proto + flag + "2_BUG.checked.c"
+        return
+
     run = "// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s"
+    if flag=="": 
+        run = "// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s"
+        run += "\n//RUN: cconv-standalone -output-postfix=checked %s" 
+        run += "\n//RUN: %clang -Wno-everything -c %S/{}".format(cname)
+        run += "\n//RUN: rm %S/{}".format(cname)
     run2 = ""
     if proto=="multi": 
         run = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %s %S/" + name2 
+        if flag=="": 
+            run = "// RUN: cconv-standalone -base-dir=%S -output-postfix=checked %s %S/" + name2 
+            run += "\n//RUN: %clang -c %S/{} %S/{}".format(cname, cname2)
         run += "\n//RUN: FileCheck -match-full-lines --input-file %S/{} %s".format(cname)
         run += "\n//RUN: rm %S/{} %S/{}".format(cname, cname2)
-        cname21 = prefix + suffix + proto + "1.checked2.c"
-        cname22 = prefix + suffix + proto + "2.checked2.c"
-        run2 = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %s %S/" + name 
+        cname21 = prefix + suffix + proto + flag + "1.checked2.c"
+        cname22 = prefix + suffix + proto + flag + "2.checked2.c" 
+        if bug_generated: 
+            cname21 = prefix + suffix + proto + flag + "1_BUG.checked2.c" 
+            cname22 = prefix + suffix + proto + flag + "2_BUG.checked2.c"
+        run2 = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %s %S/" + name
+        if flag=="": run2 = "// RUN: cconv-standalone -base-dir=%S -output-postfix=checked2 %s %S/" + name
         run2 += "\n//RUN: FileCheck -match-full-lines --input-file %S/{} %s".format(cname22) 
         run2 += "\n//RUN: rm %S/{} %S/{}".format(cname21, cname22)
 
     # generate the final file with all annotations
-    ctest = run + header + '\n\n'.join(new_defs) + sus + susc + foo + fooc + bar + barc
+    ctest = run + comment + header + '\n\n'.join(new_defs) + sus + susc + foo + fooc + bar + barc
     if proto == "proto": 
-        ctest = run + header + '\n\n'.join(new_defs) + susproto + susprotoc + foo + fooc + bar + barc + sus + susc
+        ctest = run + comment + header + '\n\n'.join(new_defs) + susproto + susprotoc + foo + fooc + bar + barc + sus + susc
     elif proto == "multi": 
-        ctest = run + header + '\n\n'.join(new_defs) + susproto + susprotoc + foo + fooc + bar + barc
-        ctest2 = run2 + header + '\n\n'.join(new_defs2) + sus + susc
+        ctest = run + comment + header + '\n\n'.join(new_defs) + susproto + susprotoc + foo + fooc + bar + barc
+        ctest2 = run2 + comment + header + '\n\n'.join(new_defs2) + sus + susc
     
     file = open(name, "w+") 
     file.write(ctest) 
@@ -710,6 +780,8 @@ def annot_gen(prefix, proto, suffix):
     return
 
 #arr, arrinstruct, arrofstruct
-if __name__ == "__main__":
+if __name__ == "__main__": 
+    os.system("rm *.checked*")
     for skeleton in testnames: 
-        annot_gen(skeleton[0], skeleton[1], skeleton[2])
+        annot_gen(skeleton[0], skeleton[1], skeleton[2], skeleton[3])
+    os.system("rm *.checked*")
