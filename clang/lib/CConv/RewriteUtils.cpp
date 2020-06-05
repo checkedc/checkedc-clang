@@ -17,6 +17,7 @@
 #include "clang/CConv/CCGlobalOptions.h"
 #include "clang/CConv/MappingVisitor.h"
 #include "llvm/Support/raw_ostream.h"
+#include "clang/Tooling/Refactoring/SourceCode.h"
 #include <sstream>
 
 using namespace llvm;
@@ -1204,8 +1205,7 @@ public:
                       // We expect the cast string to end with "(".
                       std::string CastString =
                           getCastString(ArgumentC, ParameterC, Dinfo);
-                      Writer.InsertTextBefore(A->getBeginLoc(), CastString);
-                      Writer.InsertTextAfterToken(A->getEndLoc(), ")");
+                      surroundByCast(CastString, A);
                       CastInserted = true;
                       break;
                     }
@@ -1257,11 +1257,9 @@ public:
           }
         }
         if (NeedFancyCast) {
-          Writer.InsertTextBefore(
-              O->getRHS()->getBeginLoc(),
-              "_Assume_bounds_cast<" +
-                  LCVariable->mkString(CS.getVariables(), false) + ">(");
-          Writer.InsertTextAfterToken(O->getRHS()->getEndLoc(), ")");
+          std::string CastStr = "_Assume_bounds_cast<" +
+              LCVariable->mkString(CS.getVariables(), false) + ">(";
+          surroundByCast(CastStr, O->getRHS());
         }
       }
     }
@@ -1289,6 +1287,23 @@ private:
     // The destination type should be a non-checked type.
     assert(!Dst->anyChanges(E) || Dinfo == WILD);
     return "((" + Dst->getRewritableOriginalTy() + ")";
+  }
+
+  void surroundByCast(std::string CastPrefix, Expr *E) {
+    if (Writer.InsertTextAfterToken(E->getEndLoc(), ")")) {
+      // This means we failed to insert the text at the end of the RHS.
+      // This can happen because of Macro expansion.
+      // We will see if this is a single expression statement?
+      // If yes, then we will use parent statement to add ")"
+      auto CRA = CharSourceRange::getTokenRange(E->getSourceRange());
+      auto NewCRA = clang::Lexer::makeFileCharRange(CRA,
+                                                    Context->getSourceManager(),
+                                                    Context->getLangOpts());
+      std::string SrcText = clang::tooling::getText(CRA, *Context);
+      Writer.ReplaceText(NewCRA, CastPrefix + SrcText + ")");
+    } else {
+      Writer.InsertTextBefore(E->getBeginLoc(), CastPrefix);
+    }
   }
   ASTContext            *Context;
   ProgramInfo           &Info;
