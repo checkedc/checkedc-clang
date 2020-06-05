@@ -118,6 +118,10 @@ private:
   // names of external functions, the value is whether the body has been
   // seen before.
   std::map<std::string, bool> ExternFunctions;
+  // Map of global extern variables that are not defined; the keys are
+  // names of the variables, and the value indicates whether a definition
+  // for it has been seen. 
+  std::map<std::string, bool> ExternGVars;
 
   // Maps for global/static functions, global variables
   ExternalFunctionMapType ExternalFunctionFVCons;
