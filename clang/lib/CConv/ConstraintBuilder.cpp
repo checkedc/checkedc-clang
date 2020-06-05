@@ -143,25 +143,23 @@ public:
     return true;
   }
 
-  // Pointer arithmetic ==> Must have at least an array
-
   bool VisitUnaryPreInc(UnaryOperator *O) {
-    constraintInBodyVariable(O->getSubExpr(),Info.getConstraints().getArr());
+    constraintPointerArithmetic(O->getSubExpr());
     return true;
   }
 
   bool VisitUnaryPostInc(UnaryOperator *O) {
-    constraintInBodyVariable(O->getSubExpr(),Info.getConstraints().getArr());
+    constraintPointerArithmetic(O->getSubExpr());
     return true;
   }
 
   bool VisitUnaryPreDec(UnaryOperator *O) {
-    constraintInBodyVariable(O->getSubExpr(),Info.getConstraints().getArr());
+    constraintPointerArithmetic(O->getSubExpr());
     return true;
   }
 
   bool VisitUnaryPostDec(UnaryOperator *O) {
-    constraintInBodyVariable(O->getSubExpr(),Info.getConstraints().getArr());
+    constraintPointerArithmetic(O->getSubExpr());
     return true;
   }
 
@@ -273,9 +271,22 @@ private:
   }
 
   void arithBinop(BinaryOperator *O) {
-      ConstAtom *ARR = Info.getConstraints().getArr();
-      constraintInBodyVariable(O->getLHS(),ARR);
-      constraintInBodyVariable(O->getRHS(),ARR);
+      constraintPointerArithmetic(O->getLHS());
+      constraintPointerArithmetic(O->getRHS());
+  }
+
+  // Pointer arithmetic constrains the expression to be at least ARR,
+  // unless it is on a function pointer. In this case the function pointer
+  // is WILD.
+  void constraintPointerArithmetic(Expr *E) {
+    if (E->getType()->isFunctionPointerType()) {
+      std::set<ConstraintVariable *> Var =
+          CB.getExprConstraintVars(E, E->getType());
+      std::string Rsn = "Pointer arithmetic performed on a function pointer.";
+      CB.constraintAllCVarsToWild(Var, Rsn, E);
+    } else {
+      constraintInBodyVariable(E, Info.getConstraints().getArr());
+    }
   }
 
   ASTContext *Context;
