@@ -228,8 +228,19 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       // Is cast compatible with LHS type?
       if (!isExplicitCastSafe(LhsType, ECE->getType())) {
         constraintAllCVarsToWild(LHSConstraints, "Casted From a different type.", E);
+      }
+      // Is cast internally safe?
+      /* FIXME: This causes some tests to fail. But without it, issue
+       * #81 persists. Need to think more carefully about how casts
+       * should be treated. */
+      /*
+      if (!isExplicitCastSafe(ECE->getType(),TmpE->getType())) {
+        // Return WILD ins R constraint
+        auto TmpCvs = getWildPVConstraint();
+        RvalCons.insert(TmpCvs.begin(), TmpCvs.end());
         //NB: Cast safety also checked in ConstraintBuilder::FunctionVisitor.VisitCStyleCastExpr
       }
+       */
       return TmpCons;
     } else if (ParenExpr *PE = dyn_cast<ParenExpr>(E)) {
       return getExprConstraintVars(LHSConstraints, PE->getSubExpr(), RvalCons,
