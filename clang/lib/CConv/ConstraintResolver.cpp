@@ -368,6 +368,14 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       }
       IsAssigned = TAssign && RAssign;
       return R;
+    } else if (InitListExpr *ILE = dyn_cast<InitListExpr>(E)) {
+      llvm::errs() << "TODO: array init expression:\n";
+      for (Expr *E: ILE->inits()) {
+        E->dump(llvm::errs());
+        // FIXME: FILL IN. Take inspiration from ConditionalOperator, above
+      }
+      return std::set<ConstraintVariable *>();
+
     } else if (clang::StringLiteral *exr = dyn_cast<clang::StringLiteral>(E)) {
       // If this is a string literal. i.e., "foo".
       // We create a new constraint variable and constraint it to an Nt_array.
@@ -393,6 +401,11 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       // Return empty
       return std::set<ConstraintVariable *>();
     } else {
+      if (Verbose) {
+        llvm::errs() << "WARNING! Initialization expression ignored: ";
+        E->dump(llvm::errs());
+        llvm::errs() << "\n";
+      }
       return std::set<ConstraintVariable *>();
     }
   }

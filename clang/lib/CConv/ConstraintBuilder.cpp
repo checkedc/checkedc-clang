@@ -33,6 +33,8 @@ public:
     for (const auto &D : S->decls())
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         if (VD->isLocalVarDecl()) {
+          /* FIXME: Are the following three lines really necessary?
+           * We don't seem to have these shorts of checks elsewhere. */
           FullSourceLoc FL = Context->getFullLoc(VD->getBeginLoc());
           SourceRange SR = VD->getSourceRange();
           if (SR.isValid() && FL.isValid() && !FL.isInSystemHeader() &&
