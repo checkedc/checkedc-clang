@@ -16,16 +16,16 @@ void dosomething(void) {
   *b = 1;
   return;
 }
+//CHECK: _Ptr<int> b =  &a;
 
 void foo(void) {
   int *a = (int *) malloc(sizeof(int));
   *a = 0;
-  free((void *)a);
+  free(a);
   return;
 }
 //CHECK: void foo(void) {
 //CHECK-NEXT: int *a = (int *) malloc(sizeof(int));
-//CHECK-NEXT: *a = 0;
 
 typedef struct _listelt {
   struct _listelt *next;
