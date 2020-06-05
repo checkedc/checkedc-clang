@@ -348,6 +348,18 @@ bool ProgramInfo::link() {
     }
   }
 
+  for (const auto &V : ExternGVars) {
+      // if a definition for this global variable has not been seen,
+      // constrain everything about it
+      if(!V.second) {
+          std::string VarName = V.first;
+          std::string Rsn = "External global variable " + VarName;
+          const std::set<PVConstraint *> &C = GlobalVariableSymbols[VarName];
+          for(const auto &Var : C) {
+              Var->constrainToWild(CS, Rsn);
+          }
+      }
+  }
   // MWH: Should never happen: Def/decl set sizes == 1
 //  if (!SeperateMultipleFuncDecls) {
 //    int Gap = 0;
@@ -594,8 +606,17 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       PVConstraint *P = new PVConstraint(D, CS, *astContext);
       S.insert(P);
       std::string VarName = VD->getName();
-      if (VD->hasGlobalStorage())
-        GlobalVariableSymbols[VarName].insert(P);
+      if (VD->hasGlobalStorage()) {
+          // if we see a definition for this global variable, indicate so in ExternGVars
+          if(VD->hasDefinition() || VD->hasDefinition(*astContext)) {
+              ExternGVars[VarName] = true;
+          }
+          // if we don't, check that we haven't seen one before before setting to false
+          else if(!ExternGVars[VarName]) {
+              ExternGVars[VarName] = false;
+          }
+          GlobalVariableSymbols[VarName].insert(P);
+      }
       specialCaseVarIntros(D, astContext);
     }
 
