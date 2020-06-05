@@ -285,8 +285,8 @@ bool hasVoidType(clang::ValueDecl *D) {
 //  return D->isPointerType() == S->isPointerType();
 //}
 
-bool isExplicitCastSafe(clang::QualType DstType,
-                        clang::QualType SrcType) {
+static bool CastCheck(clang::QualType DstType,
+                      clang::QualType SrcType) {
 
   // Check if both types are same.
   if (SrcType == DstType)
@@ -300,9 +300,9 @@ bool isExplicitCastSafe(clang::QualType DstType,
 
   // Both are pointers? check their pointee
   if (SrcPtrTypePtr && DstPtrTypePtr)
-    return isExplicitCastSafe(DstPtrTypePtr->getPointeeType(),
-                              SrcPtrTypePtr->getPointeeType());
-  // Only one of them is pointer?
+    return CastCheck(DstPtrTypePtr->getPointeeType(),
+                     SrcPtrTypePtr->getPointeeType());
+
   if (SrcPtrTypePtr || DstPtrTypePtr)
     return false;
 
@@ -318,6 +318,16 @@ bool isExplicitCastSafe(clang::QualType DstType,
       SrcTypePtr->isFloatingType() ^ DstTypePtr->isFloatingType();
 
   return !(BothNotChar || BothNotInt || BothNotFloat);
+}
+
+bool isExplicitCastSafe(clang::QualType DstType,
+                        clang::QualType SrcType) {
+  const clang::Type *DstTypePtr = DstType.getTypePtr();
+  const clang::PointerType *DstPtrTypePtr = dyn_cast<clang::PointerType>(DstTypePtr);
+  if (!DstPtrTypePtr) // Always safe to cast to a non-pointer
+    return true;
+  else
+    return CastCheck(DstType,SrcType);
 }
 
 bool canWrite(const std::string &FilePath) {

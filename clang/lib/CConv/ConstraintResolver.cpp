@@ -227,9 +227,8 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
           LHSConstraints, TmpE, RvalCons, LhsType, IsAssigned);
       // Is cast compatible with LHS type?
       if (!isExplicitCastSafe(LhsType, ECE->getType())) {
-        constraintAllCVarsToWild(TmpCons, "Casted to a different type.", E);
-        constraintAllCVarsToWild(LHSConstraints,
-                                 "Casted From a different type.", E);
+        constraintAllCVarsToWild(LHSConstraints, "Casted From a different type.", E);
+        //NB: Cast safety also checked in ConstraintBuilder::FunctionVisitor.VisitCStyleCastExpr
       }
       return TmpCons;
     } else if (ParenExpr *PE = dyn_cast<ParenExpr>(E)) {

@@ -60,10 +60,11 @@ public:
   // Gather constraints.
 
   bool VisitCStyleCastExpr(CStyleCastExpr *C) {
-    // If we're casting from something with a constraint variable to something
-    // that isn't a pointer type, we should constrain up.
-    CB.getExprConstraintVars(C, C->getSubExpr()->getType());
-
+    // Is cast compatible with LHS type?
+    if (!isExplicitCastSafe(C->getType(), C->getSubExpr()->getType())) {
+      auto CVs = CB.getExprConstraintVars(C, C->getType());
+      CB.constraintAllCVarsToWild(CVs, "Casted to a different type.", C);
+    }
     return true;
   }
 
