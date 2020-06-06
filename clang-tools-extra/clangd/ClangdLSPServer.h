@@ -18,7 +18,7 @@
 #include "Protocol.h"
 #include "Transport.h"
 #ifdef INTERACTIVECCCONV
-#include "cconvert/CConvInteractive.h"
+#include "clang/CConv/CConv.h"
 #endif
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/Optional.h"
@@ -64,7 +64,7 @@ public:
 
 #ifdef INTERACTIVECCCONV
   void ccConvResultsReady(std::string FileName, bool ClearDiags = false) override;
-  void sendCConvMessage(std::string msg) override;
+  void sendCConvMessage(std::string MsgStr) override;
 #endif
 
 private:
