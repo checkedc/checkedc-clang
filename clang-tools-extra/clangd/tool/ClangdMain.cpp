@@ -33,7 +33,7 @@
 #include <string>
 #include <thread>
 #ifdef INTERACTIVECCCONV
-#include "cconvert/CConvInteractive.h"
+#include "clang/CConv/CConv.h"
 #endif
 
 namespace clang {
@@ -280,75 +280,91 @@ static llvm::cl::list<std::string> TweakList(
     llvm::cl::Hidden, llvm::cl::CommaSeparated);
 
 #ifdef INTERACTIVECCCONV
-static llvm::cl::OptionCategory CConvCategory("cconv", "This is "
-                                                       "an interactive version "
-                                                       "of checked c convert "
-                                                       "tool.");
+static llvm::cl::OptionCategory ConvertCategory("cconv",
+                                                "This is "
+                                                "an interactive version "
+                                                "of checked c convert "
+                                                "tool.");
 
-llvm::cl::opt<bool> DumpIntermediate( "dump-intermediate",
-                                      llvm::cl::desc("Dump intermediate "
-                                                    "information"),
-                                      llvm::cl::init(false),
-                                     llvm::cl::cat(CConvCategory));
+static llvm::cl::opt<bool> DumpIntermediate("dump-intermediate",
+                                            llvm::cl::desc("Dump "
+                                                           "intermediate "
+                                                           "information"),
+                                            llvm::cl::init(false),
+                                            llvm::cl::cat(ConvertCategory));
 
-llvm::cl::opt<bool> Verbose("verbose",
-                            llvm::cl::desc("Print verbose information"),
-                            llvm::cl::init(false),
-                            llvm::cl::cat(CConvCategory));
+static llvm::cl::opt<bool> Verbose("verbose",
+                                   llvm::cl::desc("Print verbose "
+                                                  "information"),
+                                   llvm::cl::init(false),
+                                   llvm::cl::cat(ConvertCategory));
 
-llvm::cl::opt<bool> MergeMultipleFuncDecls("mergefds",
-                                           llvm::cl::desc("Merge multiple "
-                                                          "declarations of "
-                                                          "functions."),
-                                           llvm::cl::init(false),
-                                           llvm::cl::cat(CConvCategory));
+static llvm::cl::opt<bool>
+    SeperateMultipleFuncDecls("seperatefds",
+                              llvm::cl::desc("Do not merge multiple "
+                                             "declarations of functions."),
+                              llvm::cl::init(false),
+                              llvm::cl::cat(ConvertCategory));
 
-llvm::cl::opt<std::string>
+static llvm::cl::opt<std::string>
     OutputPostfix("output-postfix",
                   llvm::cl::desc("Postfix to add to the names of "
-                                 "rewritten files, if "
-                                 "not supplied writes to STDOUT"),
-                  llvm::cl::init("-"), llvm::cl::cat(CConvCategory));
+                                 "rewritten files, if not supplied writes to "
+                                 "STDOUT"),
+                  llvm::cl::init("-"), llvm::cl::cat(ConvertCategory));
 
-llvm::cl::opt<std::string>
-    ConstraintOutputJson("constraint-output",
-                         llvm::cl::desc("Path to the file where all the "
-                                        "analysis information will be dumped "
-                                        "as json"),
-                         llvm::cl::init("constraint_output.json"),
-                         llvm::cl::cat(CConvCategory));
+static llvm::cl::opt<std::string> ConstraintOutputJson(
+    "constraint-output",
+    llvm::cl::desc("Path to the file where all the analysis "
+                   "information will be dumped as json"),
+    llvm::cl::init("constraint_output.json"),
+    llvm::cl::cat(ConvertCategory));
 
-llvm::cl::opt<bool> DumpStats( "dump-stats",
-                               llvm::cl::desc("Dump statistics"),
-                               llvm::cl::init(false),
-                              llvm::cl::cat(CConvCategory));
+static llvm::cl::opt<bool> DumpStats("dump-stats",
+                                     llvm::cl::desc("Dump statistics"),
+                                     llvm::cl::init(false),
+                                     llvm::cl::cat(ConvertCategory));
 
-llvm::cl::opt<bool> HandleVARARGS( "handle-varargs",
-                                   llvm::cl::desc("Enable handling of "
-                                                 "varargs in a sound manner"),
-                                   llvm::cl::init(false),
-                                  llvm::cl::cat(CConvCategory));
+static llvm::cl::opt<bool>
+    HandleVARARGS("handle-varargs",
+                  llvm::cl::desc("Enable handling of varargs "
+                                 "in a "
+                                 "sound manner"),
+                  llvm::cl::init(false),
+                  llvm::cl::cat(ConvertCategory));
 
-llvm::cl::opt<bool> EnablePropThruIType( "enable-itypeprop",
-                                         llvm::cl::desc("Enable propagation "
-                                                       "of constraints through "
-                                                       "ityped parameters/returns."),
-                                         llvm::cl::init(false),
-                                        llvm::cl::cat(CConvCategory));
+static llvm::cl::opt<bool>
+    EnablePropThruIType("enable-itypeprop",
+                        llvm::cl::desc("Enable propagation of "
+                                       "constraints through ityped "
+                                       "parameters/returns."),
+                        llvm::cl::init(false),
+                        llvm::cl::cat(ConvertCategory));
 
-llvm::cl::opt<bool> ConsiderAllocUnsafe( "alloc-unsafe",
-                                         llvm::cl::desc("Consider the "
-                                                       "allocators "
-                                                       "(i.e., malloc/calloc) "
-                                                       "as unsafe."),
-                                         llvm::cl::init(false),
-                                        llvm::cl::cat(CConvCategory));
+static llvm::cl::opt<bool>
+    ConsiderAllocUnsafe("alloc-unsafe",
+                        llvm::cl::desc("Consider the allocators "
+                                       "(i.e., malloc/calloc) as unsafe."),
+                        llvm::cl::init(false),
+                        llvm::cl::cat(ConvertCategory));
+static llvm::cl::opt<bool>
+    AllTypes("alltypes",
+             llvm::cl::desc("Consider all Checked C types for "
+                            "conversion"),
+             llvm::cl::init(false), llvm::cl::cat(ConvertCategory));
 
-llvm::cl::opt<std::string> BaseDir("base-dir",
-                                   llvm::cl::desc("Base directory for the "
-                                                  "code we're translating"),
-                                   llvm::cl::init(""),
-                                   llvm::cl::cat(CConvCategory));
+static llvm::cl::opt<bool>
+    AddCheckedRegions("addcr",
+                      llvm::cl::desc("Add Checked "
+                                     "Regions"),
+                                     llvm::cl::init(false),
+                                     llvm::cl::cat(ConvertCategory));
+
+static llvm::cl::opt<std::string>
+    BaseDir("base-dir",
+            llvm::cl::desc("Base directory for the code we're "
+                           "translating"),
+            llvm::cl::init(""), llvm::cl::cat(ConvertCategory));
 #endif
 
 namespace {
@@ -421,28 +437,26 @@ int main(int argc, char *argv[]) {
 #ifdef INTERACTIVECCCONV
   tooling::CommonOptionsParser OptionsParser(argc,
                                              (const char**)(argv),
-                                             CConvCategory);
+                                             ConvertCategory);
   LogLevel = Logger::Debug;
   // Setup options.
-  struct CConvertOptions ccOptions;
-  CConvInterface cconvInterface;
-  ccOptions.BaseDir = BaseDir.getValue();
-  ccOptions.ConsiderAllocUnsafe = ConsiderAllocUnsafe;
-  ccOptions.EnablePropThruIType = EnablePropThruIType;
-  ccOptions.HandleVARARGS = HandleVARARGS;
-  ccOptions.DumpStats = DumpStats;
-  ccOptions.OutputPostfix = OutputPostfix.getValue();
-  ccOptions.Verbose = Verbose;
-  ccOptions.DumpIntermediate = DumpIntermediate;
-  ccOptions.ConstraintOutputJson = ConstraintOutputJson.getValue();
-  ccOptions.SeperateMultipleFuncDecls = MergeMultipleFuncDecls;
-  // Initialize CConvInterface.
-  if (cconvInterface.InitializeCConvert(OptionsParser, ccOptions)) {
-    log("Initialized CConvert successfully\n");
-  } else {
-    log("Failed to initialize CConvert successfully\n");
-    return 1;
-  }
+  struct CConvertOptions CcOptions;
+  CcOptions.BaseDir = BaseDir.getValue();
+  CcOptions.ConsiderAllocUnsafe = ConsiderAllocUnsafe;
+  CcOptions.EnablePropThruIType = EnablePropThruIType;
+  CcOptions.HandleVARARGS = HandleVARARGS;
+  CcOptions.DumpStats = DumpStats;
+  CcOptions.OutputPostfix = OutputPostfix.getValue();
+  CcOptions.Verbose = Verbose;
+  CcOptions.DumpIntermediate = DumpIntermediate;
+  CcOptions.ConstraintOutputJson = ConstraintOutputJson.getValue();
+  CcOptions.SeperateMultipleFuncDecls = SeperateMultipleFuncDecls;
+  CcOptions.AddCheckedRegions = AddCheckedRegions;
+  CcOptions.EnableAllTypes = AllTypes;
+
+  CConvInterface CCInterface(CcOptions,
+                             OptionsParser.getSourcePathList(),
+                             &(OptionsParser.getCompilations()));
 #else
   llvm::cl::ParseCommandLineOptions(
       argc, argv,
@@ -650,7 +664,7 @@ int main(int argc, char *argv[]) {
       /*UseDirBasedCDB=*/CompileArgsFrom == FilesystemCompileArgs,
 #ifdef INTERACTIVECCCONV
       // Pass the cconvInterface object.
-      OffsetEncodingFromFlag, Opts, cconvInterface);
+      OffsetEncodingFromFlag, Opts, CCInterface);
 #else
       OffsetEncodingFromFlag, Opts);
 #endif

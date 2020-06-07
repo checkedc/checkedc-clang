@@ -41,7 +41,7 @@ target_link_libraries(icconv
   clangBasic
   clangTidy
   cconvClangDaemon
-  CConvert
+  CConv
   clangFormat
   clangFrontend
   clangSema

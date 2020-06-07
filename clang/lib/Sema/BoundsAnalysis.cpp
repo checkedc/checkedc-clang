@@ -124,8 +124,11 @@ void BoundsAnalysis::ComputeGenSets() {
   for (const auto item : BlockMap) {
     ElevatedCFGBlock *EB = item.second;
 
-    // Check if this is a switch case and whether the case label is non-null.
-    // We can only widen the bounds for a non-null case label.
+    // Check if this is a switch case and whether the case label is null.
+    // In a switch, we can only widen the bounds in the following cases:
+    // 1. Inside a case with a non-null case label.
+    // 2. Inside the default case, only if there is another case with a null
+    // case label.
     bool IsSwitchCaseNull = CheckIsSwitchCaseNull(EB);
 
     // Iterate through all preds of EB.
@@ -147,34 +150,47 @@ void BoundsAnalysis::ComputeGenSets() {
       // default case for a switch) is always the last edge in the list of
       // edges. So we check that EB is not on the last edge for pred.
 
-      // TODO: Allow bounds widening for the default case of a switch-case.
-      // If we establish that another label in a switch statement tests for 0,
-      // then the default case will handle non-zero case, and the bounds can be
-      // widened there. The following github issue tracks this:
-      // https://github.com/microsoft/checkedc-clang/issues/818.
+      if (pred->succ_size() == 0)
+        continue;
 
-      if (pred->succ_size() && EB->Block != *(pred->succs().end() - 1)) {
-	// Get the edge condition and fill the Gen set.
-	if (Expr *E = GetTerminatorCondition(pred)) {
+      const CFGBlock *FalseOrDefaultBlock = *(pred->succs().end() - 1);
+      if (EB->Block == FalseOrDefaultBlock)
+        continue;
 
-          // Check if the pred ends in a switch statement.
-          if (isa<SwitchStmt>(pred->getTerminatorStmt())) {
-            // We can widen the bounds only if the current block has a non-null
-            // case statement.
-            if (IsSwitchCaseNull)
-              continue;
+      // Get the edge condition.
+      Expr *E = GetTerminatorCondition(pred);
+      if (!E)
+        continue;
 
-	    // If the switch expression is integral, strip off the
-	    // IntegralCast.
-	    if (auto *CE = dyn_cast<CastExpr>(E)) {
-              if (CE->getCastKind() == CastKind::CK_IntegralCast)
-                E = CE->getSubExpr();
-            }
-          }
+      // Check if the pred ends in a switch statement.
+      const Stmt *TerminatorStmt = pred->getTerminatorStmt();
+      if (TerminatorStmt && isa<SwitchStmt>(TerminatorStmt)) {
 
-          FillGenSet(E, BlockMap[pred], EB);
+        // According to C11 standard section 6.8.4.2, the controlling
+        // expression of a switch shall have integer type.
+        // If we have switch(*p) where p is _Nt_array_ptr<char> then it is
+        // casted to integer type and an IntegralCast is generated. Here we
+        // strip off the IntegralCast.
+        if (auto *CE = dyn_cast<CastExpr>(E)) {
+          if (CE->getCastKind() == CastKind::CK_IntegralCast)
+            E = CE->getSubExpr();
+        }
+
+        // If the current block has a null case label, we cannot widen the
+        // bounds inside that case.
+        if (IsSwitchCaseNull) {
+          // If we are here it means that the current case label is null.
+          // This means that the default case would represent the non-null
+          // case. Hence, we can widen the bounds inside the default case.
+          if (FalseOrDefaultBlock && FalseOrDefaultBlock->getLabel() &&
+              isa<DefaultStmt>(FalseOrDefaultBlock->getLabel()))
+            FillGenSet(E, BlockMap[pred], BlockMap[FalseOrDefaultBlock]);
+
+          continue;
         }
       }
+
+      FillGenSet(E, BlockMap[pred], EB);
     }
   }
 }
