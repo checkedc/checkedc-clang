@@ -1340,7 +1340,6 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
   vars = NewVatoms;
   if (!From->ItypeStr.empty())
     ItypeStr = From->ItypeStr;
-  argumentConstraints = From->getArgumentConstraints();
   if (FV) {
     assert(From->FV);
     FV->mergeDeclaration(From->FV);
