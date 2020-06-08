@@ -362,10 +362,20 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       return getAllSubExprConstraintVars(LHSConstraints, SubExprs, RvalCons,
                                          LhsType, IsAssigned);
     } else if (InitListExpr *ILE = dyn_cast<InitListExpr>(E)) {
-      std::vector<Expr *> SubExprs = ILE->inits().vec();
-      std::set<ConstraintVariable *> SubExprCons = getAllSubExprConstraintVars(
-          LHSConstraints, SubExprs, RvalCons, LhsType, IsAssigned);
-      return SubExprCons;
+      if (LhsType->isArrayType()) {
+        std::vector<Expr *> SubExprs = ILE->inits().vec();
+        std::set<ConstraintVariable *> SubExprCons =
+            getAllSubExprConstraintVars(LHSConstraints, SubExprs, RvalCons,
+                                        LhsType, IsAssigned);
+        return SubExprCons;
+      } else if (LhsType->isStructureType()) {
+        if (Verbose) {
+          llvm::errs() << "WARNING! Structure initialization expression ignored: ";
+          E->dump(llvm::errs());
+          llvm::errs() << "\n";
+        }
+        return std::set<ConstraintVariable *>();
+      }
     } else if (clang::StringLiteral *exr = dyn_cast<clang::StringLiteral>(E)) {
       // If this is a string literal. i.e., "foo".
       // We create a new constraint variable and constraint it to an Nt_array.
@@ -479,7 +489,8 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
   // dereferenced in order to generate the correct constraints. Not doing this
   // causes each element of the initializer to be constrained to the LHS (i.e.
   // an array).
-  bool derefLHS = (RHS != nullptr) && (dyn_cast<InitListExpr>(RHS) != nullptr);
+  bool derefLHS = D->getType()->isArrayType() && (RHS != nullptr) &&
+                  (dyn_cast<InitListExpr>(RHS) != nullptr);
   constrainConsVarGeq(V, RHSCons, Info.getConstraints(), PLPtr, CAction, false,
                       derefLHS, &Info);
 }
