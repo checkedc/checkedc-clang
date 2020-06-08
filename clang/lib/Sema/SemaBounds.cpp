@@ -2179,7 +2179,7 @@ namespace {
        const VarDecl *V = item.first;
        unsigned Offset = item.second;
 
-       // We normalize the declared bounds to RangBoundsExpr here so that we
+       // We normalize the declared bounds to RangeBoundsExpr here so that we
        // can easily apply the offset to the upper bound.
        BoundsExpr *Bounds = S.NormalizeBounds(V);
        if (RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(Bounds)) {
@@ -2223,9 +2223,10 @@ namespace {
      CheckingState ParamsState;
      for (auto I = FD->param_begin(); I != FD->param_end(); ++I) {
        ParmVarDecl *Param = *I;
-       BoundsExpr *Bounds = Param->getBoundsExpr();
-       if (Bounds)
-         ParamsState.ObservedBounds[Param] = ExpandToRange(Param, Bounds);
+       if (!Param->hasBoundsExpr())
+         continue;
+       if (BoundsExpr *Bounds = S.NormalizeBounds(Param))
+         ParamsState.ObservedBounds[Param] = Bounds;
      }
 
      // Store a checking state for each CFG block in order to track
@@ -5529,7 +5530,7 @@ void Sema::WarnDynamicCheckAlwaysFails(const Expr *Condition) {
 // normalized bounds for D.
 BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
   // If D already has a normalized bounds expression, do not recompute it.
-  if (const BoundsExpr *NormalizedBounds = D->getNormalizedBounds()) 
+  if (const BoundsExpr *NormalizedBounds = D->getNormalizedBounds())
     return const_cast<BoundsExpr *>(NormalizedBounds);
 
   // Normalize the bounds of D to a RangeBoundsExpr and attach the normalized
