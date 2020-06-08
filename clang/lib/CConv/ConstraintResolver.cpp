@@ -356,36 +356,16 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       }
       return TmpCVs;
     } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
-      std::set<ConstraintVariable *> T;
-      std::set<ConstraintVariable *> R;
-      bool TAssign = false, RAssign = false;
-      // The condition is not what's returned by the expression, so do not
-      // include its var T = getVariableHelper(CO->getCond(), V, C);
-      // R.insert(T.begin(), T.end());
-      T = getExprConstraintVars(LHSConstraints, CO->getLHS(), RvalCons, LhsType,
-                                TAssign);
-      if (T.empty() && !TAssign) {
-        R.insert(RvalCons.begin(), RvalCons.end());
-      } else {
-        R.insert(T.begin(), T.end());
-      }
-      T = getExprConstraintVars(LHSConstraints, CO->getRHS(), RvalCons, LhsType,
-                                RAssign);
-      if (T.empty() && !RAssign) {
-        R.insert(RvalCons.begin(), RvalCons.end());
-      } else {
-        R.insert(T.begin(), T.end());
-      }
-      IsAssigned = TAssign && RAssign;
-      return R;
+      std::vector<Expr *> SubExprs;
+      SubExprs.push_back(CO->getLHS());
+      SubExprs.push_back(CO->getRHS());
+      return getAllSubExprConstraintVars(LHSConstraints, SubExprs, RvalCons,
+                                         LhsType, IsAssigned);
     } else if (InitListExpr *ILE = dyn_cast<InitListExpr>(E)) {
-      llvm::errs() << "TODO: array init expression:\n";
-      for (Expr *E: ILE->inits()) {
-        E->dump(llvm::errs());
-        // FIXME: FILL IN. Take inspiration from ConditionalOperator, above
-      }
-      return std::set<ConstraintVariable *>();
-
+      std::vector<Expr *> SubExprs = ILE->inits().vec();
+      std::set<ConstraintVariable *> SubExprCons = getAllSubExprConstraintVars(
+          LHSConstraints, SubExprs, RvalCons, LhsType, IsAssigned);
+      return SubExprCons;
     } else if (clang::StringLiteral *exr = dyn_cast<clang::StringLiteral>(E)) {
       // If this is a string literal. i.e., "foo".
       // We create a new constraint variable and constraint it to an Nt_array.
@@ -420,6 +400,34 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
     }
   }
   return std::set<ConstraintVariable *>();
+}
+
+// Collect all constraint constraint variables for all expressions given in
+// Exprs into a single set.
+std::set<ConstraintVariable *> ConstraintResolver::getAllSubExprConstraintVars(
+    std::set<ConstraintVariable *> &LHSConstraints, std::vector<Expr *> &Exprs,
+    std::set<ConstraintVariable *> &RvalCons, QualType LhsType,
+    bool &IsAssigned) {
+
+  std::set<ConstraintVariable *> AggregateCons;
+  IsAssigned = true;
+  for (const auto &E : Exprs) {
+    std::set<ConstraintVariable *> ECons;
+    bool EAssign = false;
+
+    ECons = getExprConstraintVars(LHSConstraints, E, RvalCons, LhsType, EAssign);
+    IsAssigned = EAssign && IsAssigned;
+
+    if(ECons.empty() && !EAssign) {
+      // This might end up being done once for each expression. Not necessarily
+      // a problem since we're working with sets, but not ideal either.
+      AggregateCons.insert(RvalCons.begin(), RvalCons.end());
+    } else {
+      AggregateCons.insert(ECons.begin(), ECons.end());
+    }
+  }
+
+  return AggregateCons;
 }
 
 void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
@@ -466,8 +474,14 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
   if (!V.empty() && RHSCons.empty() && !IsAssigned) {
     RHSCons.insert(TmpValueCons.begin(), TmpValueCons.end());
   }
-  constrainConsVarGeq(V, RHSCons, Info.getConstraints(),
-                      PLPtr, CAction, false, &Info);
+
+  // When the RHS of the assignment is an array initializer, the LHS must be
+  // dereferenced in order to generate the correct constraints. Not doing this
+  // causes each element of the initializer to be constrained to the LHS (i.e.
+  // an array).
+  bool derefLHS = (RHS != nullptr) && (dyn_cast<InitListExpr>(RHS) != nullptr);
+  constrainConsVarGeq(V, RHSCons, Info.getConstraints(), PLPtr, CAction, false,
+                      derefLHS, &Info);
 }
 
 std::set<ConstraintVariable *> ConstraintResolver::getWildPVConstraint() {

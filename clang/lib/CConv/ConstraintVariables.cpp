@@ -1139,6 +1139,16 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
   }
 }
 
+void constrainConsVarGeq(ConstraintVariable *LHS,
+                         ConstraintVariable *RHS,
+                         Constraints &CS,
+                         PersistentSourceLoc *PL,
+                         ConsAction CA,
+                         bool doEqType,
+                         ProgramInfo *Info) {
+  constrainConsVarGeq(LHS, RHS, CS, PL, CA, doEqType, false, Info);
+}
+
 // Generate constraints according to CA |- RHS <: LHS.
 // If doEqType is true, then also do CA |- LHS <: RHS
 void constrainConsVarGeq(ConstraintVariable *LHS,
@@ -1147,6 +1157,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
                       PersistentSourceLoc *PL,
                       ConsAction CA,
                       bool doEqType,
+                      bool derefLHS,
                       ProgramInfo *Info) {
 
   // If one of the constraint is NULL, make the other constraint WILD.
@@ -1208,6 +1219,13 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
         // Element-wise constrain PCLHS and PCRHS to be equal
         CAtoms CLHS = PCLHS->getCvars();
         CAtoms CRHS = PCRHS->getCvars();
+
+        if (derefLHS) {
+          // "dereference" the LHS constraint variables by removing the first
+          // Cvar. This is needed for proper handling of array initializers.
+          CLHS.erase(CLHS.begin());
+        }
+
         if (CLHS.size() == CRHS.size()) {
           int n = 0;
           CAtoms::iterator I = CLHS.begin();
@@ -1260,6 +1278,16 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
   }
 }
 
+void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
+                         std::set<ConstraintVariable *> &RHS,
+                         Constraints &CS,
+                         PersistentSourceLoc *PL,
+                         ConsAction CA,
+                         bool doEqType,
+                         ProgramInfo *Info) {
+  constrainConsVarGeq(LHS, RHS, CS, PL, CA, doEqType, false, Info);
+}
+
 // Given an RHS and a LHS, constrain them to be equal.
 void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
                       std::set<ConstraintVariable *> &RHS,
@@ -1267,10 +1295,11 @@ void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
                       PersistentSourceLoc *PL,
                       ConsAction CA,
                       bool doEqType,
+                      bool derefLHS,
                       ProgramInfo *Info) {
   for (const auto &I : LHS) {
     for (const auto &J : RHS) {
-      constrainConsVarGeq(I, J, CS, PL, CA, doEqType, Info);
+      constrainConsVarGeq(I, J, CS, PL, CA, doEqType, derefLHS, Info);
     }
   }
 }

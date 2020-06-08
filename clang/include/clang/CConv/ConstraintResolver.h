@@ -91,6 +91,11 @@ private:
 
 
   std::set<ConstraintVariable *> getWildPVConstraint();
+
+  std::set<ConstraintVariable *> getAllSubExprConstraintVars(
+      std::set<ConstraintVariable *> &LHSConstraints, std::vector<Expr *> &Exprs,
+      std::set<ConstraintVariable *> &RvalCons, QualType LhsType,
+      bool &IsAssigned);
 };
 
 #endif // _CONSTRAINTRESOLVER_H
