@@ -438,6 +438,11 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
     if (R.empty()) {
       R = TmpValueCons;
     }
+    if (L.empty() && !R.empty()) {
+      std::string Rsn = "Assigning to external expressions.";
+      for (auto CR : R)
+        CR->constrainToWild(Info.getConstraints(), Rsn, &PL);
+    }
     constrainConsVarGeq(L, R, Info.getConstraints(), &PL,
                         CAction, false, &Info);
   }

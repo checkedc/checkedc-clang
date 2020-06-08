@@ -17,6 +17,7 @@
 #include "clang/CConv/CCGlobalOptions.h"
 #include "clang/CConv/MappingVisitor.h"
 #include "llvm/Support/raw_ostream.h"
+#include "clang/Tooling/Refactoring/SourceCode.h"
 #include <sstream>
 
 using namespace llvm;
@@ -1214,8 +1215,7 @@ public:
                       // We expect the cast string to end with "(".
                       std::string CastString =
                           getCastString(ArgumentC, ParameterC, Dinfo);
-                      Writer.InsertTextBefore(A->getBeginLoc(), CastString);
-                      Writer.InsertTextAfterToken(A->getEndLoc(), ")");
+                      surroundByCast(CastString, A);
                       CastInserted = true;
                       break;
                     }
@@ -1235,7 +1235,44 @@ public:
   }
 
   bool VisitBinAssign(BinaryOperator *O) {
-    // TODO: Aron try to add cast to RHS expression..if applicable.
+    // This is an assignment statement.
+    // We want to add fancy cast.
+    if (O->getOpcode() == BO_Assign) {
+      Expr *LHS = O->getLHS();
+      Expr *RHS = O->getRHS();
+      auto &CS = Info.getConstraints();
+      std::set<ConstraintVariable *> LCons =
+          CR.getExprConstraintVars(LHS, LHS->getType());
+      ConstraintVariable *LCVariable = nullptr;
+      bool LHSChkType = false;
+      for (auto *LC : LCons) {
+        if (LC->anyChanges(CS.getVariables())) {
+          LCVariable = LC;
+          LHSChkType = true;
+          break;
+        }
+      }
+      if (LHSChkType) {
+        assert (LCVariable != nullptr && "Expected non-null");
+        // Now, check if RHS is either explicit cast or addr-of (&) expression
+        // in which case we insert fancy cast.
+        RHS = RHS->IgnoreParenImpCasts();
+        bool NeedFancyCast = false;
+        if (dyn_cast<ExplicitCastExpr>(RHS)) {
+          NeedFancyCast = true;
+        }
+        if (UnaryOperator *UO = dyn_cast<UnaryOperator>(RHS)) {
+          if (UO->getOpcode() == UO_AddrOf) {
+            NeedFancyCast = true;
+          }
+        }
+        if (NeedFancyCast) {
+          std::string CastStr = "_Assume_bounds_cast<" +
+              LCVariable->mkString(CS.getVariables(), false) + ">(";
+          surroundByCast(CastStr, O->getRHS());
+        }
+      }
+    }
     return true;
   }
 
@@ -1260,6 +1297,23 @@ private:
     // The destination type should be a non-checked type.
     assert(!Dst->anyChanges(E) || Dinfo == WILD);
     return "((" + Dst->getRewritableOriginalTy() + ")";
+  }
+
+  void surroundByCast(std::string CastPrefix, Expr *E) {
+    if (Writer.InsertTextAfterToken(E->getEndLoc(), ")")) {
+      // This means we failed to insert the text at the end of the RHS.
+      // This can happen because of Macro expansion.
+      // We will see if this is a single expression statement?
+      // If yes, then we will use parent statement to add ")"
+      auto CRA = CharSourceRange::getTokenRange(E->getSourceRange());
+      auto NewCRA = clang::Lexer::makeFileCharRange(CRA,
+                                                    Context->getSourceManager(),
+                                                    Context->getLangOpts());
+      std::string SrcText = clang::tooling::getText(CRA, *Context);
+      Writer.ReplaceText(NewCRA, CastPrefix + SrcText + ")");
+    } else {
+      Writer.InsertTextBefore(E->getBeginLoc(), CastPrefix);
+    }
   }
   ASTContext            *Context;
   ProgramInfo           &Info;
