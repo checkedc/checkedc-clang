@@ -106,8 +106,8 @@ ArgumentsAdjuster getIgnoreCheckedPointerAdjuster() {
       if (Arg == "-fignore-checkedc-pointers")
         HasAdjuster = true;
     }
-    if (!HasAdjuster)
-      AdjustedArgs.push_back("-fignore-checkedc-pointers");
+    //if (!HasAdjuster)
+    //  AdjustedArgs.push_back("-fignore-checkedc-pointers");
     return AdjustedArgs;
   };
 }

@@ -113,6 +113,8 @@ public:
   virtual void equateInsideOutsideVars(ProgramInfo &I) = 0;
   virtual void brainTransplant(ConstraintVariable *) = 0;
 
+  virtual void mergeDeclaration(ConstraintVariable *) = 0;
+
   std::string getOriginalTy() { return OriginalType; }
   // Get the original type string that can be directly
   // used for rewriting.
@@ -265,6 +267,8 @@ public:
   const CAtoms &getCvars() const { return vars; }
   void brainTransplant(ConstraintVariable *From);
 
+  void mergeDeclaration(ConstraintVariable *From);
+
   static bool classof(const ConstraintVariable *S) {
     return S->getKind() == PointerVariable;
   }
@@ -356,6 +360,7 @@ public:
   }
 
   void brainTransplant(ConstraintVariable *From);
+  void mergeDeclaration(ConstraintVariable *FromCV);
 
   std::set<ConstraintVariable *> &
   getParamVar(unsigned i) {

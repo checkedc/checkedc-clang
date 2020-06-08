@@ -32,6 +32,7 @@ if (LLVM_BOOST_FOUND)
           clangRewriteFrontend
           clangStaticAnalyzerFrontend
           clangTooling
+          clangToolingRefactoring
           ${Boost_LIBRARIES}
         )
         add_subdirectory(unittests)

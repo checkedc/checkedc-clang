@@ -484,22 +484,25 @@ void ProgramInfo::exitCompilationUnit() {
 bool
 ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
                                            const std::string &FuncName,
-                                           std::set<FVConstraint *> &ToIns,
-                                           bool isDef) {
+                                           std::set<FVConstraint *> &ToIns) {
   bool RetVal = false;
   if (Map.find(FuncName) == Map.end()) {
     Map[FuncName] = ToIns;
     RetVal = true;
   } else {
     // MultipleRewrites = true;
+    auto oldS = Map[FuncName];
+    auto *newC = getOnly(ToIns);
+    auto *oldC = getOnly(oldS);
+    bool isDef = newC->hasBody();
     if (isDef) {
-      auto oldS = Map[FuncName];
-      auto *newC = getOnly(ToIns);
-      auto *oldC = getOnly(oldS);
-      // Retain CVars and argConstraints from old ConstraintVariable
       newC->brainTransplant(oldC);
       Map[FuncName] = ToIns;
       RetVal = true;
+    } else if (!oldC->hasBody()) {
+      // if the current FV constraint is not a definition?
+      // then merge.
+      oldC->mergeDeclaration(newC);
     }
   }
   return RetVal;
@@ -509,14 +512,13 @@ bool
 ProgramInfo::insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
                                          const std::string &FuncName,
                                          const std::string &FileName,
-                                         std::set<FVConstraint *> &ToIns,
-                                         bool isDef) {
+                                         std::set<FVConstraint *> &ToIns) {
   bool RetVal = false;
   if (Map.find(FileName) == Map.end()) {
     Map[FileName][FuncName] = ToIns;
     RetVal = true;
   } else {
-    RetVal = insertIntoExternalFunctionMap(Map[FileName],FuncName,ToIns,isDef);
+    RetVal = insertIntoExternalFunctionMap(Map[FileName],FuncName,ToIns);
   }
   return RetVal;
 }
@@ -527,11 +529,11 @@ ProgramInfo::insertNewFVConstraints(FunctionDecl *FD,
                                    ASTContext *C) {
   bool ret = false;
   std::string FuncName = FD->getNameAsString();
-  bool isDef = FD->isThisDeclarationADefinition() && FD->hasBody();
   if (FD->isGlobal()) {
     // external method.
     ret = insertIntoExternalFunctionMap(ExternalFunctionFVCons,
-                                        FuncName, FVcons, isDef);
+                                        FuncName, FVcons);
+    bool isDef = getOnly(FVcons)->hasBody();
     if (isDef) {
       ExternFunctions[FuncName] = true;
     } else {
@@ -543,7 +545,7 @@ ProgramInfo::insertNewFVConstraints(FunctionDecl *FD,
     auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
     std::string FuncFileName = Psl.getFileName();
       ret = insertIntoStaticFunctionMap(StaticFunctionFVCons, FuncName,
-                                  FuncFileName, FVcons, isDef);
+                                        FuncFileName, FVcons);
   }
   return ret;
 }

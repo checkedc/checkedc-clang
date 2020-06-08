@@ -128,7 +128,7 @@ public:
     QualType Typ = Function->getReturnType();
 
     std::set<ConstraintVariable *> RconsVar =
-        CB.getExprConstraintVars(RetExpr, Function->getReturnType(), true);
+        CB.getExprConstraintVars(RetExpr, Typ, true);
     // Constrain the return type of the function
     // to the type of the return expression.
     for (const auto &F : Fun) {
