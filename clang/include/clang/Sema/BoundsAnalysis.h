@@ -97,7 +97,7 @@ namespace clang {
   using StmtDeclSetTy = llvm::DenseMap<const Stmt *, DeclSetTy>;
 
   // StmtSet denotes a set of Stmts.
-  typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
+  using StmtSet = llvm::SmallPtrSet<const Stmt *, 16>;
 
   class BoundsAnalysis {
   private:
