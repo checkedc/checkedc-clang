@@ -554,6 +554,13 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   FVConstraint *Defnc = getOnly(DefFVars);
   assert(Defnc != nullptr);
 
+  // If this is an external function. The no need to rewrite this declaration.
+  // Because, we cannot and should not change the signature of
+  // external functions.
+  if (!Defnc->hasBody()) {
+    return true;
+  }
+
   bool DidAny = Defnc->numParams() > 0;
   std::string s = "";
   std::vector<std::string> ParmStrs;
