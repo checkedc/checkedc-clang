@@ -21,6 +21,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/PreorderAST.h"
 #include "clang/AST/Stmt.h"
 
 using namespace clang;
@@ -216,6 +217,15 @@ Lexicographic::CompareDecl(const NamedDecl *D1Arg, const NamedDecl *D2Arg) const
   }
   llvm_unreachable("unable to order declarations in same context");
   return Result::LessThan;
+}
+
+Result Lexicographic::CompareExprSemantic(const Expr *Arg1, const Expr *Arg2) {
+Arg1->dump();
+llvm::outs() << "--------------------------------------------\n";
+
+  PreorderAST PT1(Context, Arg1);
+
+  return CompareExpr(Arg1, Arg2);
 }
 
 Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
