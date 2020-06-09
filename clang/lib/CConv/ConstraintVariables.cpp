@@ -543,8 +543,8 @@ bool PVConstraint::addArgumentConstraint(ConstraintVariable *DstCons,
     if (isPartOfFunctionPrototype()) {
       RetVal = argumentConstraints.insert(DstCons).second;
       if (RetVal && this->HasDefDeclEquated) {
-        constrainConsVarGeq(DstCons, this, Info.getConstraints(),
-                            nullptr,Same_to_Same, true, &Info);
+        constrainConsVarGeq(DstCons, this, Info.getConstraints(), nullptr,
+                            Same_to_Same, true, false, &Info);
       }
     }
     return RetVal;
@@ -752,7 +752,7 @@ void PVConstraint::equateInsideOutsideVars(ProgramInfo &Info) {
   HasDefDeclEquated = true;
   for (auto *ArgCons : this->argumentConstraints) {
     constrainConsVarGeq(this, ArgCons, Info.getConstraints(), nullptr,
-                        Same_to_Same, true, &Info);
+                        Same_to_Same, true, false, &Info);
   }
 
   if (this->FV != nullptr) {
@@ -1139,16 +1139,6 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
   }
 }
 
-void constrainConsVarGeq(ConstraintVariable *LHS,
-                         ConstraintVariable *RHS,
-                         Constraints &CS,
-                         PersistentSourceLoc *PL,
-                         ConsAction CA,
-                         bool doEqType,
-                         ProgramInfo *Info) {
-  constrainConsVarGeq(LHS, RHS, CS, PL, CA, doEqType, false, Info);
-}
-
 // Generate constraints according to CA |- RHS <: LHS.
 // If doEqType is true, then also do CA |- LHS <: RHS
 void constrainConsVarGeq(ConstraintVariable *LHS,
@@ -1186,7 +1176,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
 
         // Constrain the return values covariantly.
         constrainConsVarGeq(FCLHS->getReturnVars(), FCRHS->getReturnVars(), CS,
-                            PL, Same_to_Same, doEqType, Info);
+                            PL, Same_to_Same, doEqType, false, Info);
 
         // Constrain the parameters contravariantly
         if (FCLHS->numParams() == FCRHS->numParams()) {
@@ -1196,7 +1186,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
             std::set<ConstraintVariable *> &RHSV =
                 FCRHS->getParamVar(i);
             constrainConsVarGeq(RHSV, LHSV, CS, PL, Same_to_Same, doEqType,
-                                Info);
+                                false, Info);
           }
         } else {
           // Constrain both to be top.
@@ -1249,8 +1239,8 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
           PCRHS->constrainToWild(CS, Rsn, PL);
         }
         // Equate the corresponding FunctionContraint.
-        constrainConsVarGeq(PCLHS->getFV(), PCRHS->getFV(), CS, PL,
-                            CA, doEqType, Info);
+        constrainConsVarGeq(PCLHS->getFV(), PCRHS->getFV(), CS, PL, CA,
+                            doEqType, false, Info);
       } else
         llvm_unreachable("impossible");
     } else
@@ -1262,7 +1252,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
     FVConstraint *FCRHS = dyn_cast<FVConstraint>(RHS);
     if (PCLHS && FCRHS) {
       if (FVConstraint *FCLHS = PCLHS->getFV()) {
-        constrainConsVarGeq(FCLHS, FCRHS, CS, PL, CA, doEqType, Info);
+        constrainConsVarGeq(FCLHS, FCRHS, CS, PL, CA, doEqType, false, Info);
       } else {
           std::string Rsn = "Function:" + FCRHS->getName() +
                             " assigned to non-function pointer.";
@@ -1276,16 +1266,6 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
       RHS->constrainToWild(CS, Rsn, PL);
     }
   }
-}
-
-void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
-                         std::set<ConstraintVariable *> &RHS,
-                         Constraints &CS,
-                         PersistentSourceLoc *PL,
-                         ConsAction CA,
-                         bool doEqType,
-                         ProgramInfo *Info) {
-  constrainConsVarGeq(LHS, RHS, CS, PL, CA, doEqType, false, Info);
 }
 
 // Given an RHS and a LHS, constrain them to be equal.

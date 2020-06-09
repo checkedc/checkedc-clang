@@ -152,13 +152,6 @@ enum ConsAction {
 };
 
 void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
-                      std::set<ConstraintVariable *> &RHS,
-                      Constraints &CS,
-                      PersistentSourceLoc *PL,
-                      ConsAction CA,
-                      bool doEqType,
-                      ProgramInfo *Info);
-void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
                          std::set<ConstraintVariable *> &RHS,
                          Constraints &CS,
                          PersistentSourceLoc *PL,
@@ -166,13 +159,6 @@ void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
                          bool doEqType,
                          bool derefLHS,
                          ProgramInfo *Info);
-void constrainConsVarGeq(ConstraintVariable *LHS,
-                      ConstraintVariable *RHS,
-                      Constraints &CS,
-                      PersistentSourceLoc *PL,
-                      ConsAction CA,
-                      bool doEqType,
-                      ProgramInfo *Info);
 void constrainConsVarGeq(ConstraintVariable *LHS,
                          ConstraintVariable *RHS,
                          Constraints &CS,
