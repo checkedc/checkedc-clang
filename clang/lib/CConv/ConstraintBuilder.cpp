@@ -136,7 +136,7 @@ public:
         // This is to ensure that the return type of the function is same
         // as the type of return expression.
         constrainConsVarGeq(FV->getReturnVars(), RconsVar,
-                            Info.getConstraints(), &PL, Same_to_Same,
+                            Info.getConstraints(), &PL, Same_to_Same, false,
                             false, &Info);
       }
     }
@@ -198,7 +198,7 @@ private:
               std::set<ConstraintVariable *> ParameterDC =
                   TargetFV->getParamVar(i);
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
-                                  Wild_to_Safe, false, &Info);
+                                  Wild_to_Safe, false, false, &Info);
             } else {
               // This is the case of an argument passed to a function
               // with varargs.
