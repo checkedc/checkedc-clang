@@ -2224,7 +2224,7 @@ namespace {
    }
 
    void ResetKilledBounds(StmtDeclSetTy &KilledBounds, Stmt *St,
-                          BoundsContextTy &ObservedBounds) {
+                          CheckingState &State) {
      auto I = KilledBounds.find(St);
      if (I == KilledBounds.end())
        return;
@@ -2245,12 +2245,15 @@ namespace {
          // once and attach it to the VarDecl. See issue
          // https://github.com/microsoft/checkedc-clang/issues/830.
 
-         ObservedBounds[V] = S.ExpandBoundsToRange(V, Bounds);
+         State.ObservedBounds[V] = S.ExpandBoundsToRange(V, Bounds);
+         auto It = State.WidenedVariables.find(V);
+         if (It != State.WidenedVariables.end())
+           State.WidenedVariables.erase(It);
      }
    }
 
    void UpdateCtxWithWidenedBounds(BoundsMapTy &WidenedBounds,
-                                   BoundsContextTy &ObservedBounds) {
+                                   CheckingState &State) {
      // WidenedBounds contains the mapping from _Nt_array_ptr to the offset by
      // which its declared bounds should be widened. In this function we apply
      // the offset to the declared bounds of the _Nt_array_ptr and update its
@@ -2290,7 +2293,8 @@ namespace {
          RangeBoundsExpr *R =
            new (Context) RangeBoundsExpr(Lower, WidenedUpper,
                                          SourceLocation(), SourceLocation());
-         ObservedBounds[V] = R;
+         State.ObservedBounds[V] = R;
+         State.WidenedVariables.insert(V);
        }
      }
    }
@@ -2350,7 +2354,8 @@ namespace {
        // block.
        StmtDeclSetTy KilledBounds = BA.GetKilledBounds(Block);
        // Update the Observed bounds with the widened bounds calculated above.
-       UpdateCtxWithWidenedBounds(WidenedBounds, BlockState.ObservedBounds);
+       BlockState.WidenedVariables.clear();
+       UpdateCtxWithWidenedBounds(WidenedBounds, BlockState);
 
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
@@ -2389,7 +2394,7 @@ namespace {
 
             // If any bounds are killed by statement S, reset their bounds
             // to their declared bounds.
-            ResetKilledBounds(KilledBounds, S, BlockState.ObservedBounds);
+            ResetKilledBounds(KilledBounds, S, BlockState);
 
             BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
             BlockState.SameValue.clear();
