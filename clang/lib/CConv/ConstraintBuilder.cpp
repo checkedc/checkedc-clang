@@ -92,9 +92,11 @@ public:
 
       // When multiple function variables are used in the same expression, they
       // must have the same type.
-      PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CalledExpr, *Context);
-      constrainConsVarGeq(FVCons, FVCons, Info.getConstraints(), &PL,
-                          Same_to_Same, false, false, &Info);
+      if(FVCons.size() > 1) {
+        PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CalledExpr, *Context);
+        constrainConsVarGeq(FVCons, FVCons, Info.getConstraints(), &PL,
+                            Same_to_Same, false, false, &Info);
+      }
 
       handleFunctionCall(E, FVCons);
     } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
