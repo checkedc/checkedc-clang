@@ -89,6 +89,13 @@ public:
       // can be obtained for this from getExprConstraintVars.
       Expr *CalledExpr = E->getCallee();
       FVCons = CB.getExprConstraintVars(CalledExpr, CalledExpr->getType());
+
+      // When multiple function variables are used in the same expression, they
+      // must have the same type.
+      PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CalledExpr, *Context);
+      constrainConsVarGeq(FVCons, FVCons, Info.getConstraints(), &PL,
+                          Same_to_Same, false, false, &Info);
+
       handleFunctionCall(E, FVCons);
     } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       // Get the function declaration, if exists
