@@ -172,6 +172,18 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
     E = E->IgnoreParenImpCasts();
     E = getNormalizedExpr(E);
     bool TmpAssign = false;
+    QualType TypE = E->getType();
+
+    // Non-pointer types are treated as WILD, other than NULL
+    if (TypE->isArithmeticType()) {
+      if (!isNULLExpression(E, *Context)) {
+        auto TmpCvs = getWildPVConstraint();
+        RvalCons.insert(TmpCvs.begin(), TmpCvs.end());
+      }
+      return std::set<ConstraintVariable *>();
+    }
+
+    // Now consider pointer types
     if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
       return Info.getVariable(DRE->getDecl(), Context);
     } else if (MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
@@ -289,7 +301,6 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       return getExprConstraintVars(LHSConstraints, IE->getSubExpr(), RvalCons,
                                    LhsType, IsAssigned);
     } else if (isNULLExpression(E, *Context)) {
-      // Do Nothing.
       return std::set<ConstraintVariable *>();
     } else if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(E)) {
       Expr *TmpE = removeAuxillaryCasts(ECE->getSubExpr());
@@ -306,7 +317,6 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
         RvalCons.insert(TmpCvs.begin(), TmpCvs.end());
         //NB: Cast safety also checked in ConstraintBuilder::FunctionVisitor.VisitCStyleCastExpr
       }
-
       return TmpCons;
     } else if (ParenExpr *PE = dyn_cast<ParenExpr>(E)) {
       return getExprConstraintVars(LHSConstraints, PE->getSubExpr(), RvalCons,
@@ -516,15 +526,10 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
   bool IsAssigned = false;
   std::set<ConstraintVariable *> R =
       getExprConstraintVars(L, RHS, TmpValueCons, LHS->getType(), IsAssigned);
-  // If this is not assigned? Get RVale Cons
+  // If this is not assigned? Get RValCons
   if (!IsAssigned) {
     if (R.empty()) {
       R = TmpValueCons;
-    }
-    if (L.empty() && !R.empty()) {
-      std::string Rsn = "Assigning to external expressions.";
-      for (auto CR : R)
-        CR->constrainToWild(Info.getConstraints(), Rsn, &PL);
     }
     constrainConsVarGeq(L, R, Info.getConstraints(), &PL, CAction, false, false,
                         &Info);
