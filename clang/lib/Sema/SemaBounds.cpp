@@ -687,6 +687,29 @@ namespace {
       //
       // SameValue is named G in the Checked C spec.
       EqualExprTy SameValue;
+
+      // LostVariables maps a variable declaration V whose observed bounds
+      // are unknown to a pair <B, W>, where the initial observed bounds B
+      // of V have been set to unknown due to an assignment to the variable W,
+      // where W had no original value.
+      //
+      // LostVariables is used to emit notes to provide more context to the
+      // user when diagnosing unknown bounds errors.
+      llvm::DenseMap<const VarDecl *, std::pair<BoundsExpr *, DeclRefExpr *>> LostVariables;
+
+      // UnknownSrcBounds maps a variable declaration V whose observed bounds
+      // are unknown to a set of expressions with unknown bounds that have
+      // been assigned to V.
+      //
+      // UnknownSrcBounds is used to emit notes to provide more context to the
+      // user when diagnosing unknown bounds errors.
+      llvm::DenseMap<const VarDecl *, SmallVector<Expr *, 4>> UnknownSrcBounds;
+
+      // WidenedVariables is a set of variables that currently have widened bounds.
+      //
+      // WidenedVariables is used to avoid spurious errors or warnings when
+      // validating the observed bounds context.
+      llvm::DenseSet<const VarDecl *> WidenedVariables;
   };
 }
 
