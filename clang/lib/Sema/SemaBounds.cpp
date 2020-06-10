@@ -710,6 +710,13 @@ namespace {
       // WidenedVariables is used to avoid spurious errors or warnings when
       // validating the observed bounds context.
       llvm::DenseSet<const VarDecl *> WidenedVariables;
+
+      // Resets the checking state after checking a top-level CFG statement.
+      void Reset() {
+        SameValue.clear();
+        LostVariables.clear();
+        UnknownSrcBounds.clear();
+      }
   };
 }
 
@@ -2397,7 +2404,7 @@ namespace {
             ResetKilledBounds(KilledBounds, S, BlockState);
 
             BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
-            BlockState.SameValue.clear();
+            BlockState.Reset();
 
             Check(S, CSS, BlockState);
 
