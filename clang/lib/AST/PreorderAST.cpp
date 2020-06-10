@@ -60,11 +60,40 @@ void PreorderAST::insert(Expr *E, ASTNode *CurrNode, ASTNode *Parent) {
   }
 }
 
-void PreorderAST::print(ASTNode *N) {
-  if (!N || !N->data || !N->data->getOperandSize())
+void PreorderAST::coalesce(ASTNode *N) {
+  if (!N || !hasData(N))
     return;
 
-  OS << "Operator: " << N->data->getOpcode() << "\n";
+  if (!isLeafNode(N)) {
+    coalesce(N->left);
+    coalesce(N->right);
+  }
+
+  ASTNode *Parent = N->parent;
+  if (Parent && Parent->data->getOpcode() == N->data->getOpcode()) {
+    for (Expr *E : N->data->getOperands())
+      Parent->data->addOperand(E);
+
+    if (N == Parent->left)
+      Parent->left = nullptr;
+    else
+      Parent->right = nullptr;
+
+    delete N;
+  }
+}
+
+void PreorderAST::print(ASTNode *N) {
+  if (!N || !hasData(N))
+    return;
+
+  OS << "Operator: "
+     << BinaryOperator::getOpcodeStr(N->data->getOpcode())
+     << "\n";
+  for (Expr *E : N->data->getOperands()) {
+    OS << "Operand: ";
+    E->dump(OS);
+  }
   print(N->left);
   print(N->right);
 }

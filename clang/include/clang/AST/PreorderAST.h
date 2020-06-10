@@ -22,22 +22,25 @@
 
 namespace clang {
   class Expr;
-  using Opcode = BinaryOperatorKind;
+  using Opcode = BinaryOperator::Opcode;
+  using Operands = SmallVector<Expr *, 4>;
+  using Constants = llvm::APSInt;
 
   class PreorderAST {
 
     class ASTData {
     private:
       Opcode opcode;
-      SmallVector<Expr *, 4> operands;
-      llvm::APSInt constants;
+      Operands operands;
+      Constants constants;
 
     public:
       ASTData(Opcode opc) : opcode(opc) {}
 
-      void addOperand(Expr *op) { operands.push_back(op); }
       Opcode getOpcode() { return opcode; }
-      size_t getOperandSize() { return operands.size(); }
+      size_t getNumOperands() { return operands.size(); }
+      void addOperand(Expr *op) { operands.push_back(op); }
+      Operands getOperands() { return operands; }
     };
 
     class ASTNode {
@@ -63,11 +66,21 @@ namespace clang {
 
       AST = new ASTNode();
       insert(const_cast<Expr *>(E), AST);
+      coalesce(AST);
       print(AST);
     }
 
     void insert(Expr *E, ASTNode *CurrNode, ASTNode *Parent = nullptr);
+    void coalesce(ASTNode *N);
     void print(ASTNode *N);
+
+    bool isLeafNode(ASTNode *N) {
+      return N && !N->left && !N->right;
+    }
+
+    bool hasData(ASTNode *N) {
+      return N && N->data && N->data->getNumOperands();
+    }
 
     bool IsDeclOperand(Expr *E);
     Expr *IgnoreCasts(const Expr *E);
