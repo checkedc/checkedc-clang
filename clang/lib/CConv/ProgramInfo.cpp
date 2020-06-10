@@ -17,7 +17,7 @@
 using namespace clang;
 
 ProgramInfo::ProgramInfo() :
-  persisted(true) {
+  persisted(true), InlineStructEncountered(false) {
   ArrBoundsInfo = new ArrayBoundsInformation(*this);
 //  ExternalFunctionDeclFVCons.clear();
   ExternalFunctionFVCons.clear();
@@ -360,6 +360,18 @@ bool ProgramInfo::link() {
           }
       }
   }
+
+    for (const auto &V : IsInlineStruct) {
+        // if a variable is part of an inline struct, constrain everything about it
+        if(V.second) {
+            std::string VarName = V.first;
+            std::string Rsn = "Variable " + VarName + " is part of an inline struct";
+            const std::set<PVConstraint *> &C = GlobalVariableSymbols[VarName];
+            for(const auto &Var : C) {
+                Var->constrainToWild(CS, Rsn);
+            }
+        }
+    }
   // MWH: Should never happen: Def/decl set sizes == 1
 //  if (!SeperateMultipleFuncDecls) {
 //    int Gap = 0;
@@ -609,6 +621,14 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       S.insert(P);
       std::string VarName = VD->getName();
       if (VD->hasGlobalStorage()) {
+          // if this VarDecl is actually an inline struct, indicate so in the
+          // IsInlineStruct map
+          if(InlineStructEncountered) {
+              IsInlineStruct[VarName] = true;
+          }
+          else {
+              IsInlineStruct[VarName] = false;
+          }
           // if we see a definition for this global variable, indicate so in ExternGVars
           if(VD->hasDefinition() || VD->hasDefinition(*astContext)) {
               ExternGVars[VarName] = true;

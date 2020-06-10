@@ -104,6 +104,9 @@ public:
     return StaticFunctionFVCons;
   }
 
+  //indicates whether the most current VarDecl is an inline struct
+  bool InlineStructEncountered;
+
 private:
   // List of all constraint variables, indexed by their location in the source.
   // This information persists across invocations of the constraint analysis
@@ -122,6 +125,11 @@ private:
   // names of the variables, and the value indicates whether a definition
   // for it has been seen. 
   std::map<std::string, bool> ExternGVars;
+  // Map of global variables that indicates whether they are part of an inline
+  // struct definition. The keys are the names of the variables, and the value
+  // indicates whether it is part of an inline struct definition, as determined
+  // by the flag InlineStructEncountered, whose value is mutated in ConstraintBuilder
+  std::map<std::string, bool> IsInlineStruct;
 
   // Maps for global/static functions, global variables
   ExternalFunctionMapType ExternalFunctionFVCons;
