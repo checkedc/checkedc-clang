@@ -2411,8 +2411,9 @@ namespace {
             if (DumpState)
               DumpCheckingState(llvm::outs(), S, BlockState);
 
-            // TODO: for each variable v in ObservedBounds, check that the
+            // For each variable v in ObservedBounds, check that the
             // observed bounds of v imply the declared bounds of v.
+            ValidateBoundsContext(S, BlockState, CSS);
 
             // The observed bounds that were updated after checking S should
             // only be used to check that the updated observed bounds imply
@@ -3868,6 +3869,111 @@ namespace {
         LValueBounds = CheckLValue(E, CSS, TargetBounds, State);
       else if (E->isRValue())
         RValueBounds = Check(E, CSS, State);
+    }
+
+    // Methods to validate observed and declared bounds.
+
+    // ValidateBoundsContext checks that, after checking a top-level CFG
+    // statement S, for each variable v in the checking state observed bounds
+    // context, the observed bounds of v imply the declared bounds of v.
+    void ValidateBoundsContext(Stmt *S, CheckingState State, CheckedScopeSpecifier CSS) {
+      for (auto Pair : State.ObservedBounds) {
+        VarDecl *V = const_cast<VarDecl *>(Pair.first);
+        BoundsExpr *ObservedBounds = Pair.second;
+        BoundsExpr *DeclaredBounds = V->getBoundsExpr();
+        if (!DeclaredBounds || DeclaredBounds->isUnknown())
+          continue;
+        DeclaredBounds = this->S.ExpandBoundsToRange(V, DeclaredBounds);
+        if (ObservedBounds->isUnknown())
+          DiagnoseUnknownObservedBounds(S, V, DeclaredBounds, State);
+        else
+          CheckObservedBounds(S, V, DeclaredBounds, ObservedBounds, State, CSS);
+      }
+    }
+
+    // DiagnoseUnknownObservedBounds emits an error message for a variable v
+    // whose observed bounds are unknown after checking the top-level CFG
+    // statement St.
+    //
+    // State contians information that is used to provide more context in
+    // the diagnostic messages.
+    void DiagnoseUnknownObservedBounds(Stmt *St, const VarDecl *V,
+                                       BoundsExpr *DeclaredBounds,
+                                       CheckingState State) {
+      S.Diag(St->getBeginLoc(), diag::err_unknown_inferred_bounds)
+        << V << St->getSourceRange();
+      S.Diag(V->getLocation(), diag::note_declared_bounds)
+        << DeclaredBounds << DeclaredBounds->getSourceRange();
+
+      // The observed bounds of v are unknown because the original observed
+      // bounds B of v used a variable w, and there was an assignment to w
+      // where w had no original value.
+      auto LostVarIt = State.LostVariables.find(V);
+      if (LostVarIt != State.LostVariables.end()) {
+        std::pair<BoundsExpr *, DeclRefExpr *> Lost = LostVarIt->second;
+        BoundsExpr *InitialObservedBounds = Lost.first;
+        DeclRefExpr *LostVar = Lost.second;
+        S.Diag(LostVar->getLocation(), diag::note_lost_variable)
+          << LostVar << InitialObservedBounds << V << LostVar->getSourceRange();
+      }
+
+      // The observed bounds of v are unknown because at least one expression
+      // e with unknown bounds was assigned to v.
+      auto BlameSrcIt = State.UnknownSrcBounds.find(V);
+      if (BlameSrcIt != State.UnknownSrcBounds.end()) {
+        SmallVector<Expr *, 4> UnknownSources = BlameSrcIt->second;
+        for (auto I = UnknownSources.begin(); I != UnknownSources.end(); ++I) {
+          Expr *Src = *I;
+          S.Diag(Src->getBeginLoc(), diag::note_unknown_source_bounds)
+            << Src << V << Src->getSourceRange();
+        }
+      }
+    }
+
+    // CheckObservedBounds checks that the observed bounds for a variable v
+    // imply that the declared bounds for v are provably true after checking
+    // the top-level CFG statement St.
+    void CheckObservedBounds(Stmt *St, const VarDecl *V,
+                             BoundsExpr *DeclaredBounds,
+                             BoundsExpr *ObservedBounds, CheckingState State,
+                             CheckedScopeSpecifier CSS) {
+      ProofFailure Cause;
+      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, ObservedBounds,
+                                                   Cause, &State.EquivExprs);
+      if (Result == ProofResult::True)
+        return;
+
+      // If v currently has widened bounds, then the proof failure was caused
+      // by not being able to prove the widened bounds of v imply the declared
+      // bounds of v.  Diagnostics should not be emitted in this case.
+      // Otherwise, statements that make no changes to v or any variables used
+      // in the bounds of v would cause diagnostics to be emitted.
+      auto WidenedBoundsIt = State.WidenedVariables.find(V);
+      if (WidenedBoundsIt != State.WidenedVariables.end())
+        return;
+
+      // For a declaration, the diagnostic message should start at the
+      // location of v rather than the beginning of St.  If the message
+      // starts at the beginning of a declaration T v = e, then extra
+      // diagnostics may be emitted for T.
+      SourceLocation Loc = St->getBeginLoc();
+      if (isa<DeclStmt>(St))
+        Loc = V->getLocation();
+
+      unsigned DiagId = (Result == ProofResult::False) ?
+        diag::error_bounds_declaration_invalid :
+        (CSS != CheckedScopeSpecifier::CSS_Unchecked?
+          diag::warn_checked_scope_bounds_declaration_invalid :
+          diag::warn_bounds_declaration_invalid);
+      S.Diag(Loc, DiagId)
+        << Sema::BoundsDeclarationCheck::BDC_Statement << V
+        << St->getSourceRange() << St->getSourceRange();
+      if (Result == ProofResult::False)
+        ExplainProofFailure(Loc, Cause, ProofStmtKind::BoundsDeclaration);
+      S.Diag(V->getLocation(), diag::note_declared_bounds)
+        << DeclaredBounds << DeclaredBounds->getSourceRange();
+      S.Diag(Loc, diag::note_expanded_inferred_bounds)
+        << ObservedBounds << ObservedBounds->getSourceRange();
     }
 
     // Methods to update the checking state.
