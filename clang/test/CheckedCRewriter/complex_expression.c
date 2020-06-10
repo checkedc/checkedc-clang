@@ -12,7 +12,7 @@ int *func(int *a, int *b) {
     // This is a checked pointer
     return *a?(0+0):b;	
 }
-//CHECK: _Ptr<int> func(int *a : itype(_Ptr<int>), _Ptr<int> b) {
+//CHECK: _Ptr<int> func(_Ptr<int> a, _Ptr<int> b) {
 
 int main() {
   int *arr;
