@@ -82,10 +82,24 @@ public:
 
   bool VisitCallExpr(CallExpr *E) {
     Decl *D = E->getCalleeDecl();
-    if (!D)
-      return true;
     std::set<ConstraintVariable *> FVCons;
-    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+    if (D == nullptr) {
+      // If the callee declaration could not be found, then we're doing some
+      // sort of indirect call through an array or conditional. FV constraints
+      // can be obtained for this from getExprConstraintVars.
+      Expr *CalledExpr = E->getCallee();
+      FVCons = CB.getExprConstraintVars(CalledExpr, CalledExpr->getType());
+
+      // When multiple function variables are used in the same expression, they
+      // must have the same type.
+      if(FVCons.size() > 1) {
+        PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CalledExpr, *Context);
+        constrainConsVarGeq(FVCons, FVCons, Info.getConstraints(), &PL,
+                            Same_to_Same, false, false, &Info);
+      }
+
+      handleFunctionCall(E, FVCons);
+    } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       // Get the function declaration, if exists
       if (getDeclaration(FD) != nullptr) {
         FD = getDeclaration(FD);
