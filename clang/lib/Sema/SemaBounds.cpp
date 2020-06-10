@@ -3909,16 +3909,37 @@ namespace {
       if (DeclaredBounds)
         State.ObservedBounds[VariableDecl] = SrcBounds;
 
+      // If Src initially has unknown bounds (before making any variable
+      // replacements), use Src to explain bounds checking errors that
+      // can occur when validating the bounds context.
+      if (DeclaredBounds) {
+        if (SrcBounds->isUnknown())
+          State.UnknownSrcBounds[VariableDecl].push_back(Src);
+      }
+
       // Adjust ObservedBounds to account for any uses of V in the bounds.
-      for (auto Pair : State.ObservedBounds)
-        State.ObservedBounds[Pair.first] =
-          ReplaceVariableInBounds(Pair.second, V, OriginalValue, CSS);
+      for (auto Pair : State.ObservedBounds) {
+        const VarDecl *W = Pair.first;
+        BoundsExpr *Bounds = Pair.second;
+        BoundsExpr *AdjustedBounds = ReplaceVariableInBounds(Bounds, V, OriginalValue, CSS);
+        if (!Pair.second->isUnknown() && AdjustedBounds->isUnknown())
+          State.LostVariables[W] = std::make_pair(Bounds, V);
+        State.ObservedBounds[W] = AdjustedBounds;
+      }
 
       // Adjust SrcBounds to account for any uses of V and, if V has declared
       // bounds, record the updated observed bounds for V.
-      SrcBounds = ReplaceVariableInBounds(SrcBounds, V, OriginalValue, CSS);
+      BoundsExpr *AdjustedSrcBounds = ReplaceVariableInBounds(SrcBounds, V, OriginalValue, CSS);
       if (DeclaredBounds)
-        State.ObservedBounds[VariableDecl] = SrcBounds;
+        State.ObservedBounds[VariableDecl] = AdjustedSrcBounds;
+
+      // If the initial source bounds were not unknown, but they are unknown
+      // after replacing uses of V, then the assignment to V caused the
+      // source bounds (which are the observed bounds for V) to be unknown.
+      if (DeclaredBounds) {
+        if (!SrcBounds->isUnknown() && AdjustedSrcBounds->isUnknown())
+          State.LostVariables[VariableDecl] = std::make_pair(SrcBounds, V);
+      }
 
       // Adjust EquivExprs to account for any uses of V in PrevState.EquivExprs.
       State.EquivExprs.clear();
@@ -3955,7 +3976,7 @@ namespace {
       }
 
       RecordEqualityWithTarget(Target, State);
-      return SrcBounds;
+      return AdjustedSrcBounds;
     }
 
     // RecordEqualityWithTarget updates the checking state to record equality
