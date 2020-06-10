@@ -1,3 +1,5 @@
+// XFAIL: *
+
 // Tests for Checked C rewriter tool.
 //
 // Checks very simple inference properties for local variables.

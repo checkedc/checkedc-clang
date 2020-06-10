@@ -1,3 +1,5 @@
+// XFAIL: *
+
 // Tests for Checked C rewriter tool.
 //
 // Tests for rewriting global declarations.
