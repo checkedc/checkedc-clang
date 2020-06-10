@@ -541,7 +541,6 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   FunctionDecl *Definition = getDefinition(FD);
   if (Definition == nullptr)
     Definition = FD;
-    //return true;
 
   // Make sure we haven't visited this function name before, and that we
   // only visit it once.

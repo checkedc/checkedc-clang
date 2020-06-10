@@ -102,7 +102,8 @@ int *mul2(int *x) {
 //CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
 
 struct warr * sus(struct warr *, struct warr *);
-//CHECK: struct warr * sus(struct warr *, struct warr *);
+
+//CHECK: _Array_ptr<struct warr> sus(struct warr *, struct warr *y : itype(_Array_ptr<struct warr>));
 
 struct warr * foo() {
         struct warr * x = malloc(sizeof(struct warr));

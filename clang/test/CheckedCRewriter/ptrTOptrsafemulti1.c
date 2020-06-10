@@ -99,7 +99,7 @@ int *mul2(int *x) {
 //CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
 
 char *** sus(char * * *, char * * *);
-//CHECK: char *** sus(char * * *, char * * *);
+//CHECK: char *** sus(char ***, char ***y : itype(_Ptr<char**>));
 
 char *** foo() {
         char * * * x = malloc(sizeof(char * *));
