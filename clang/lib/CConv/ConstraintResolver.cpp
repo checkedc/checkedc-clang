@@ -177,19 +177,71 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
     } else if (MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
       return Info.getVariable(ME->getMemberDecl(), Context);
     } else if (BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
-      bool LHSAssigned = false, RHSAssigned = false;
-      std::set<ConstraintVariable *> T1 = getExprConstraintVars(
-          LHSConstraints, BO->getLHS(), RvalCons, LhsType, LHSAssigned);
-      std::set<ConstraintVariable *> T2 = getExprConstraintVars(
-          LHSConstraints, BO->getRHS(), RvalCons, LhsType, RHSAssigned);
-      if (T1.empty() && !LHSAssigned && T2.empty() && !RHSAssigned) {
-        T1 = RvalCons;
-        IsAssigned = false;
-      } else {
-        T1.insert(T2.begin(), T2.end());
-        IsAssigned = T1.empty();
+      switch (BO->getOpcode()) {
+      /* Assignment, comma, bitshift operators; only care about LHS */
+      case BO_Assign:
+      case BO_AddAssign:
+      case BO_SubAssign:
+      case BO_Comma:
+        return getExprConstraintVars(LHSConstraints, BO->getLHS(), RvalCons,
+                                     LhsType, IsAssigned);
+      /* Possible pointer arithmetic: Could be LHS or RHS */
+      case BO_Add:
+      case BO_Sub:
+        if (BO->getLHS()->getType()->isPointerType())
+          return getExprConstraintVars(
+              LHSConstraints, BO->getLHS(), RvalCons, LhsType, IsAssigned);
+        else if (BO->getRHS()->getType()->isPointerType())
+          return getExprConstraintVars(
+              LHSConstraints, BO->getRHS(), RvalCons, LhsType, IsAssigned);
+        else
+          return std::set<ConstraintVariable *>();
+      /* Pointer-to-member ops unsupported */
+      case BO_PtrMemD:
+      case BO_PtrMemI:
+        assert(false && "Bogus pointer-to-member operator");
+        break;
+      /* bit-shift/arithmetic/assign/comp operators return ints; do nothing */
+      case BO_ShlAssign:
+      case BO_ShrAssign:
+      case BO_AndAssign:
+      case BO_XorAssign:
+      case BO_OrAssign:
+      case BO_MulAssign:
+      case BO_DivAssign:
+      case BO_RemAssign:
+      case BO_And:
+      case BO_Or:
+      case BO_Mul:
+      case BO_Div:
+      case BO_Rem:
+      case BO_Xor:
+      case BO_Cmp:
+      case BO_EQ:
+      case BO_NE:
+      case BO_GE:
+      case BO_GT:
+      case BO_LE:
+      case BO_LT:
+      case BO_LAnd:
+      case BO_LOr:
+      case BO_Shl:
+      case BO_Shr:
+        return std::set<ConstraintVariable *>();
       }
-      return T1;
+//      bool LHSAssigned = false, RHSAssigned = false;
+//      std::set<ConstraintVariable *> T1 = getExprConstraintVars(
+//          LHSConstraints, BO->getLHS(), RvalCons, LhsType, LHSAssigned);
+//      std::set<ConstraintVariable *> T2 = getExprConstraintVars(
+//          LHSConstraints, BO->getRHS(), RvalCons, LhsType, RHSAssigned);
+//      if (T1.empty() && !LHSAssigned && T2.empty() && !RHSAssigned) {
+//        T1 = RvalCons;
+//        IsAssigned = false;
+//      } else {
+//        T1.insert(T2.begin(), T2.end());
+//        IsAssigned = T1.empty();
+//      }
+//      return T1;
     } else if (ArraySubscriptExpr *AE = dyn_cast<ArraySubscriptExpr>(E)) {
       // In an array subscript, we want to do something sort of similar to
       // taking the address or doing a dereference.
