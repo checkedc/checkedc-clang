@@ -288,6 +288,9 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
     } else if (ImplicitCastExpr *IE = dyn_cast<ImplicitCastExpr>(E)) {
       return getExprConstraintVars(LHSConstraints, IE->getSubExpr(), RvalCons,
                                    LhsType, IsAssigned);
+    } else if (isNULLExpression(E, *Context)) {
+      // Do Nothing.
+      return std::set<ConstraintVariable *>();
     } else if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(E)) {
       Expr *TmpE = removeAuxillaryCasts(ECE->getSubExpr());
       std::set<ConstraintVariable *> TmpCons = getExprConstraintVars(
@@ -297,17 +300,13 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
         constraintAllCVarsToWild(LHSConstraints, "Casted From a different type.", E);
       }
       // Is cast internally safe?
-      /* FIXME: This causes some tests to fail. But without it, issue
-       * #81 persists. Need to think more carefully about how casts
-       * should be treated. */
-      /*
       if (!isExplicitCastSafe(ECE->getType(),TmpE->getType())) {
         // Return WILD ins R constraint
         auto TmpCvs = getWildPVConstraint();
         RvalCons.insert(TmpCvs.begin(), TmpCvs.end());
         //NB: Cast safety also checked in ConstraintBuilder::FunctionVisitor.VisitCStyleCastExpr
       }
-       */
+
       return TmpCons;
     } else if (ParenExpr *PE = dyn_cast<ParenExpr>(E)) {
       return getExprConstraintVars(LHSConstraints, PE->getSubExpr(), RvalCons,
@@ -458,9 +457,6 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       T.insert(newC);
       return T;
 
-    } else if (isNULLExpression(E, *Context)) {
-      // Do Nothing.
-      return std::set<ConstraintVariable *>();
     } else if (E->isIntegerConstantExpr(*Context) &&
                !E->isNullPointerConstant(*Context,
                                          Expr::NPC_ValueDependentIsNotNull)) {
