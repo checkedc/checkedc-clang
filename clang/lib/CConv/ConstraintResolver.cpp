@@ -252,17 +252,51 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       switch (UO->getOpcode()) {
       // &e
       case UO_AddrOf: {
-        // We are taking the address, so don't assign to the LHS
         T = getExprConstraintVars(UOExpr, UOExpr->getType());
         std::set<ConstraintVariable *> tmp;
-        /* BUG: Shouldn't always be PTR; could be WILD, so make constraint */
         if (T.empty()) { // doing &x where x is a non-pointer
-          tmp.insert(PVConstraint::getPtrPVConstraint(Info.getConstraints()));
+          UOExpr = UOExpr->IgnoreParenImpCasts();
+          UOExpr = getNormalizedExpr(UOExpr);
+
+          UnaryOperator *SubUO = dyn_cast<UnaryOperator>(UOExpr);
+          if (SubUO && SubUO->getOpcode() == UO_Deref) {
+            // Taking the address of a dereference is a NoOp, so the constraint
+            // vars for the subexpression can be passed through.
+            return getExprConstraintVars(
+                LHSConstraints, SubUO->getSubExpr(), RvalCons,
+                SubUO->getSubExpr()->getType(), IsAssigned);
+          } else {
+            // TODO: There should be a case for ArraySubscriptExpr so that
+            // &(a[0]) is the same is a.
+            std::string Name;
+            if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(UOExpr)) {
+              Name = DRE->getDecl()->getNameAsString();
+            } else {
+              Name = "";
+            }
+            Atom *NewA = CS.getFreshVar("&" + Name, VarAtom::V_Other);
+            CAtoms V;
+            V.push_back(NewA);
+            ConstraintVariable *newC = new PointerVariableConstraint(
+                V, UOExpr->getType().getAsString(), Name, nullptr, false, false,
+                "");
+            CS.addConstraint(CS.createGeq(NewA, CS.getPtr(), false));
+            tmp.insert(newC);
+          }
         } else {
-          auto CV = getOnly(T);
-          if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
-            tmp.insert(addAtom(PVC, CS.getPtr(), CS));
-          } // no-op for FPs
+          for (auto *CV : T) {
+            if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
+              // TODO: The second argument to addAtom gets thrown out, but the
+              // function doesn't work properly if I give it null. addAtom should be fixed up.
+              PVC = addAtom(PVC, CS.getFreshVar("", VarAtom::V_Other), CS);
+              Atom *NewA = PVC->getCvars().front();
+              CS.addConstraint(CS.createGeq(NewA, CS.getPtr(), false));
+              tmp.insert(PVC);
+            } else {
+              // no-op for FPs
+              tmp.insert(CV);
+            }
+          }
         }
         T.swap(tmp);
         return T;
