@@ -17,6 +17,37 @@
 using namespace llvm;
 using namespace clang;
 
+private int lastRecordLocation = -1;
+
+private void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info, ASTContext *Context) {
+    if (RecordDecl *Definition = Declaration->getDefinition()) {
+
+        //store the current record's location to cross reference later in a VarDecl
+        lastRecordLocation = Definition->getBeginLoc().getRawEncoding();
+
+        FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
+
+        if (FL.isValid() && !FL.isInSystemHeader()) {
+            SourceManager &SM = Context->getSourceManager();
+            FileID FID = FL.getFileID();
+            const FileEntry *FE = SM.getFileEntryForID(FID);
+
+            if (FE && FE->isValid()) {
+                // We only want to re-write a record if it contains
+                // any pointer types, to include array types.
+                // Most record types probably do,
+                // but let's scan it and not consider any records
+                // that don't have any pointers or arrays.
+
+                for (const auto &D : Definition->fields())
+                    if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
+                        Info.addVariable(D, Context);
+                    }
+            }
+        }
+    }
+}
+
 // This class visits functions and adds constraints to the
 // Constraints instance assigned to it.
 // Each VisitXXX method is responsible either for looking inside statements
@@ -31,20 +62,28 @@ public:
   // T x = e
   bool VisitDeclStmt(DeclStmt *S) {
     // Introduce variables as needed.
-    for (const auto &D : S->decls())
-      if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-        if (VD->isLocalVarDecl()) {
-          /* FIXME: Are the following three lines really necessary?
-           * We don't seem to have these shorts of checks elsewhere. */
-          FullSourceLoc FL = Context->getFullLoc(VD->getBeginLoc());
-          SourceRange SR = VD->getSourceRange();
-          if (SR.isValid() && FL.isValid() && !FL.isInSystemHeader() &&
-              (VD->getType()->isPointerType() ||
-               VD->getType()->isArrayType())) {
-            Info.addVariable(VD, Context);
-          }
+    for (const auto &D : S->decls()) {
+        if(RecordDecl *RD = dyn_cast<RecordDecl>(D)) {
+            processRecordDecl(RD, Info, Context);
         }
-      }
+        if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
+            if (VD->isLocalVarDecl()) {
+                /* FIXME: Are the following three lines really necessary?
+                 * We don't seem to have these shorts of checks elsewhere. */
+                FullSourceLoc FL = Context->getFullLoc(VD->getBeginLoc());
+                SourceRange SR = VD->getSourceRange();
+                if (SR.isValid() && FL.isValid() && !FL.isInSystemHeader() &&
+                    (VD->getType()->isPointerType() ||
+                     VD->getType()->isArrayType())) {
+                    Info.addVariable(VD, Context);
+                    if(lastRecordLocation == VD->getBeginLoc().getRawEncoding()) {
+                        std::set<ConstraintVariable *> C = Info.getVariable(VD, Context);
+                        CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
+                    }
+                }
+            }
+        }
+    }
 
     // FIXME: Merge into the loop above; but: we should process inits
     //   even for non-pointers because things like structs and unions
@@ -343,9 +382,16 @@ public:
 
     if (G->hasGlobalStorage() &&
         (G->getType()->isPointerType() || G->getType()->isArrayType())) {
+      // If the location of the previous RecordDecl and the current VarDecl are the same,
+      // this implies an inline struct as per Clang's AST, so set a flag in ProgramInfo
+      // to indicate that this variable should be constrained to wild later
       Info.addVariable(G, Context);
       if (G->hasInit()) {
         CB.constrainLocalAssign(nullptr, G, G->getInit());
+      }
+      if(lastRecordLocation == G->getBeginLoc().getRawEncoding()) {
+          std::set<ConstraintVariable *> C = Info.getVariable(G, Context);
+          CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
       }
     }
 
@@ -375,29 +421,7 @@ public:
   }
 
   bool VisitRecordDecl(RecordDecl *Declaration) {
-    if (RecordDecl *Definition = Declaration->getDefinition()) {
-      FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
-
-      if (FL.isValid() && !FL.isInSystemHeader()) {
-        SourceManager &SM = Context->getSourceManager();
-        FileID FID = FL.getFileID();
-        const FileEntry *FE = SM.getFileEntryForID(FID);
-
-        if (FE && FE->isValid()) {
-          // We only want to re-write a record if it contains
-          // any pointer types, to include array types. 
-          // Most record types probably do,
-          // but let's scan it and not consider any records
-          // that don't have any pointers or arrays. 
-
-          for (const auto &D : Definition->fields())
-            if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
-              Info.addVariable(D, Context);
-            }
-        }
-      }
-    }
-
+    processRecordDecl(Declaration, Info, Context);
     return true;
   }
 
@@ -431,3 +455,5 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
   Info.exitCompilationUnit();
   return;
 }
+
+
