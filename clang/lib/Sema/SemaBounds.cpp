@@ -2813,6 +2813,9 @@ namespace {
         }
       }
 
+      // Determine whether the assignment is to a variable.
+      DeclRefExpr *LHSVar = GetLValueVariable(LHS);
+
       // Update the checking state.  The result bounds may also be updated
       // for assignments to a variable.
       if (E->isAssignmentOp()) {
@@ -2833,30 +2836,27 @@ namespace {
 
         // Update the checking state and result bounds for assignments to `e1`
         // where `e1` is a variable.
-        if (DeclRefExpr *V = GetLValueVariable(LHS)) {
-          ResultBounds = UpdateAfterAssignment(V, Target, Src, ResultBounds,
+        if (LHSVar)
+          ResultBounds = UpdateAfterAssignment(LHSVar, Target, Src, ResultBounds,
                                                CSS, State, State);
-        }
         // Update EquivExprs and SameValue for assignments where `e1` is not
         // a variable.
-        else {
+        else
           // SameValue is empty for assignments to a non-variable.  This
           // conservative approach avoids recording false equality facts for
           // assignments where the LHS appears on the RHS, e.g. *p = *p + 1.
           State.SameValue.clear();
-        }
       } else if (BinaryOperator::isLogicalOp(Op)) {
         // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
       } else if (Op == BinaryOperatorKind::BO_Comma) {
         // Do nothing for comma operators `e1, e2`. State already contains the
         // the correct EquivExprs and SameValue sets as a result of checking
         // `e1` and `e2`.
-      } else {
+      } else
         // For all other binary operators `e1 @ e2`, use the SameValue sets for
         // `e1` and `e2` stored in SubExprSameValueSets to update
         // State.SameValue for `e1 @ e2`.
         UpdateSameValue(E, SubExprSameValueSets, State.SameValue);
-      }
 
       if (E->isAssignmentOp()) {
         QualType LHSType = LHS->getType();
@@ -2880,15 +2880,32 @@ namespace {
             else
               RightBounds = S.CheckNonModifyingBounds(ResultBounds, RHS);
 
+            // For assignments to a variable where the RHS bounds contain a
+            // modifying expression (i.e. are invalid), update the variable's
+            // observed bounds to avoid extraneous errors during bounds
+            // validation.
+            if (LHSVar && RightBounds->isInvalid()) {
+              VarDecl *V = dyn_cast_or_null<VarDecl>(LHSVar->getDecl());
+              if (V)
+                State.ObservedBounds[V] = RightBounds;
+            }
+
             if (RightBounds->isUnknown()) {
-                S.Diag(RHS->getBeginLoc(),
-                      diag::err_expected_bounds_for_assignment)
-                      << RHS->getSourceRange();
+                // Only emit an error for assignments to a non-variable.
+                // Assignments to variables will be checked after checking the
+                // current top-level CFG statement.
+                if (!LHSVar)
+                  S.Diag(RHS->getBeginLoc(),
+                        diag::err_expected_bounds_for_assignment)
+                        << RHS->getSourceRange();
                 RightBounds = S.CreateInvalidBoundsExpr();
             }
 
-            CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
-                                        RHS, RightBounds, State.EquivExprs, CSS);
+            // For assignments to a non-variable, check that the source bounds
+            // imply the target bounds.
+            if (!LHSVar)
+              CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
+                                          RHS, RightBounds, State.EquivExprs, CSS);
           }
         }
 
