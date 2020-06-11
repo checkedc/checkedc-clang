@@ -238,11 +238,19 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     }
 
     // This type is not a constant atom. We need to create a VarAtom for this.
+
     if (!VarCreated) {
-      VarAtom *VA = CS.getFreshVar(Npre + N, VK);
-      vars.push_back(VA);
-      if (isArr)
-        CS.addConstraint(CS.createGeq(CS.getArr(), VA, false));
+        FullSourceLoc FL =
+        if(C != nullptr)
+        FullSourceLoc FL = C.getFullLoc(D->getBeginLoc());
+        if (FL.isInSystemHeader()) {
+            vars.push_back(CS.getWild());
+        } else {
+            VarAtom *VA = CS.getFreshVar(Npre + N, VK);
+            vars.push_back(VA);
+            if (isArr)
+                CS.addConstraint(CS.createGeq(CS.getArr(), VA, false));
+        }
     }
 
     // Prepare for next level of pointer
