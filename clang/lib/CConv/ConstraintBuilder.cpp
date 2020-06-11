@@ -356,6 +356,7 @@ public:
           std::string Rsn = "Variable " + G->getNameAsString() + " is an inline struct definition.";
           Var->constrainToWild(Info.getConstraints(), Rsn);
         }
+        InLineStructEncountered = false;
       }
     }
 
