@@ -17,21 +17,19 @@
 using namespace llvm;
 using namespace clang;
 
-private bool InLineStructEncountered = false;
+private int lastRecordLocation = -1;
 private void processInlineStruct(VarDecl *VD, ProgramInfo &Info, ASTContext *Context) {
     const std::set<ConstraintVariable *> &C = Info.getVariable(VD, Context);
     for(const auto &Var : C) {
         std::string Rsn = "Variable " + VD->getNameAsString() + " is an inline struct definition.";
         Var->constrainToWild(Info.getConstraints(), Rsn);
     }
-    InLineStructEncountered = false;
 }
 private void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info, ASTContext *Context) {
     if (RecordDecl *Definition = Declaration->getDefinition()) {
 
         //store the current record's location to cross reference later in a VarDecl
-        InLineStructEncountered =
-                Definition->getBeginLoc().getRawEncoding() == Declaration->getNextDeclInContext()->getBeginLoc().getRawEncoding();
+        lastRecordLocation = Definition->getBeginLoc().getRawEncoding();
 
         FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
 
@@ -84,7 +82,7 @@ public:
                     (VD->getType()->isPointerType() ||
                      VD->getType()->isArrayType())) {
                     Info.addVariable(VD, Context);
-                    if(InLineStructEncountered) {
+                    if(lastRecordLocation == VD->getBeginLoc().getRawEncoding()) {
                         processInlineStruct(VD, Info, Context);
                     }
                 }
@@ -396,7 +394,7 @@ public:
       if (G->hasInit()) {
         CB.constrainLocalAssign(nullptr, G, G->getInit());
       }
-      if(InLineStructEncountered) {
+      if(lastRecordLocation == G->getBeginLoc().getRawEncoding()) {
         processInlineStruct(G, Info, Context);
       }
     }
