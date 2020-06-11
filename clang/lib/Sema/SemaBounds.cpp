@@ -1907,42 +1907,6 @@ namespace {
       }
     }
 
-    // Given an increment/decrement operator ++e, e++, --e, or e--, where
-    // e has declared bounds DeclaredBounds and e +/- 1 has inferred bounds
-    // SrcBounds, make sure that SrcBounds implies that DeclaredBounds are
-    // provably true.
-    void CheckBoundsDeclAtIncrementDecrement(UnaryOperator *E,
-                                             BoundsExpr *DeclaredBounds,
-                                             BoundsExpr *SrcBounds,
-                                             EquivExprSets EquivExprs,
-                                             CheckedScopeSpecifier CSS) {
-      if (!UnaryOperator::isIncrementDecrementOp(E->getOpcode()))
-        return;
-
-      ProofFailure Cause;
-      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds,
-                                                   Cause, &EquivExprs);
-
-      if (Result != ProofResult::True) {
-        Expr *Target = E->getSubExpr();
-        Expr *Src = E;
-        unsigned DiagId = (Result == ProofResult::False) ?
-          diag::error_bounds_declaration_invalid :
-          (CSS != CheckedScopeSpecifier::CSS_Unchecked?
-           diag::warn_checked_scope_bounds_declaration_invalid :
-           diag::warn_bounds_declaration_invalid);
-        S.Diag(E->getExprLoc(), DiagId)
-          << Sema::BoundsDeclarationCheck::BDC_Assignment << Target
-          << Target->getSourceRange() << Src->getSourceRange();
-        if (Result == ProofResult::False)
-          ExplainProofFailure(E->getExprLoc(), Cause, ProofStmtKind::BoundsDeclaration);
-        S.Diag(Target->getExprLoc(), diag::note_declared_bounds)
-          << DeclaredBounds << DeclaredBounds->getSourceRange();
-        S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)
-          << SrcBounds << Src->getSourceRange();
-      }
-    }
-
     // Check that the bounds for an argument imply the expected
     // bounds for the argument.   The expected bounds are computed
     // by substituting the arguments into the bounds expression for
@@ -3273,29 +3237,6 @@ namespace {
           IncDecResultBounds = UpdateAfterAssignment(V, Target, RHS,
                                                      IncDecResultBounds,
                                                      CSS, State, State);
-
-          // Check that the updated IncDecResultBounds imply the target bounds
-          // for the variable `e1`.
-          QualType SubExprType = SubExpr->getType();
-          // Source bounds used to check the inc/dec operator.
-          BoundsExpr *SrcBounds = nullptr;
-          if (SubExprType->isCheckedPointerType() || SubExprType->isIntegerType()) {
-            // Check that the source `e1 +/- 1` has bounds if the lvalue
-            // subexpression `e1` has bounds.
-            SubExprTargetBounds = S.CheckNonModifyingBounds(SubExprTargetBounds, E);
-            if (!SubExprTargetBounds->isUnknown()) {
-              SrcBounds = S.CheckNonModifyingBounds(IncDecResultBounds, E);
-              if (SrcBounds->isUnknown()) {
-                  S.Diag(E->getBeginLoc(),
-                        diag::err_expected_bounds_for_assignment)
-                        << E->getSourceRange();
-                  SrcBounds = S.CreateInvalidBoundsExpr();
-              }
-
-              CheckBoundsDeclAtIncrementDecrement(E, SubExprTargetBounds,
-                SrcBounds, State.EquivExprs, CSS);
-            }
-          }
         }
 
         // Update the set SameValue of expressions that produce the same
