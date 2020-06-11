@@ -29,7 +29,11 @@ struct S3 {
 //-------------------------------------------------------------------------//
 
 void f1(struct S1 *a1, struct S2 *b2) {
-  _Array_ptr<int> ap : count(a1->len) = a1->p;
+  // TODO: checkedc-clang issue #845: equality between ap and ap->p
+  // needs to be recorded in order to properly validate the bounds of ap.
+  _Array_ptr<int> ap : count(a1->len) = a1->p;  // expected-warning {{cannot prove declared bounds for 'ap' are valid after statement}} \
+                                                // expected-note {{(expanded) declared bounds are 'bounds(ap, ap + a1->len)'}} \
+                                                // expected-note {{(expanded) inferred bounds are 'bounds(a1->p, a1->p + a1->len)'}}
 
 // CHECK: VarDecl {{.*}} ap '_Array_ptr<int>' cinit
 // CHECK: |-CountBoundsExpr {{.*}} 'NULL TYPE' Element
