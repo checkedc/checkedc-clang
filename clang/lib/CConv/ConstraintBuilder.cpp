@@ -28,6 +28,7 @@ public:
   explicit FunctionVisitor(ASTContext *C, ProgramInfo &I, FunctionDecl *FD)
       : Context(C), Info(I), Function(FD), CB(Info, Context) {}
 
+  // T x = e
   bool VisitDeclStmt(DeclStmt *S) {
     // Introduce variables as needed.
     for (const auto &D : S->decls())
@@ -45,7 +46,9 @@ public:
         }
       }
 
-    // Build rules based on initializers.
+    // FIXME: Merge into the loop above; but: we should process inits
+    //   even for non-pointers because things like structs and unions
+    //   can contain pointers
     for (const auto &D : S->decls()) {
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         Expr *InitE = VD->getInit();
@@ -59,20 +62,31 @@ public:
   // TODO: other visitors to visit statements and expressions that we use to
   // Gather constraints.
 
+  // (T)e
   bool VisitCStyleCastExpr(CStyleCastExpr *C) {
     // Is cast compatible with LHS type?
     if (!isExplicitCastSafe(C->getType(), C->getSubExpr()->getType())) {
-      auto CVs = CB.getExprConstraintVars(C, C->getType());
+      auto CVs = CB.getExprConstraintVars(C, C->getType(), true);
       CB.constraintAllCVarsToWild(CVs, "Casted to a different type.", C);
     }
     return true;
   }
 
+  // x += e
   bool VisitCompoundAssignOperator(CompoundAssignOperator *O) {
-    arithBinop(O);
+    switch(O->getOpcode()) {
+    case BO_AddAssign:
+    case BO_SubAssign:
+      arithBinop(O);
+      break;
+    // rest shouldn't happen on pointers, so we ignore
+    default:
+      break;
+    }
     return true;
   }
 
+  // x = e
   bool VisitBinAssign(BinaryOperator *O) {
     Expr *LHS = O->getLHS();
     Expr *RHS = O->getRHS();
@@ -80,6 +94,7 @@ public:
     return true;
   }
 
+  // e(e1,e2,...)
   bool VisitCallExpr(CallExpr *E) {
     Decl *D = E->getCalleeDecl();
     std::set<ConstraintVariable *> FVCons;
@@ -121,14 +136,14 @@ public:
     return true;
   }
 
-  // This will add the constraint that
-  // variable is an array i.e., (V=ARR).
+  // e1[e2]
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
     Constraints &CS = Info.getConstraints();
     constraintInBodyVariable(E->getBase(), CS.getArr());
     return true;
   }
 
+  // return e;
   bool VisitReturnStmt(ReturnStmt *S) {
     // Get function variable constraint of the body
     PersistentSourceLoc PL =
@@ -157,31 +172,37 @@ public:
     return true;
   }
 
+  // ++x
   bool VisitUnaryPreInc(UnaryOperator *O) {
     constraintPointerArithmetic(O->getSubExpr());
     return true;
   }
 
+  // x++
   bool VisitUnaryPostInc(UnaryOperator *O) {
     constraintPointerArithmetic(O->getSubExpr());
     return true;
   }
 
+  // --x
   bool VisitUnaryPreDec(UnaryOperator *O) {
     constraintPointerArithmetic(O->getSubExpr());
     return true;
   }
 
+  // x--
   bool VisitUnaryPostDec(UnaryOperator *O) {
     constraintPointerArithmetic(O->getSubExpr());
     return true;
   }
 
+  // e1 + e2
   bool VisitBinAdd(BinaryOperator *O) {
     arithBinop(O);
     return true;
   }
 
+  // e1 - e2
   bool VisitBinSub(BinaryOperator *O) {
     arithBinop(O);
     return true;
