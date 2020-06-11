@@ -606,7 +606,7 @@ void assign7(
   // CHECK-NEXT: NullaryBoundsExpr {{.*}} Unknown
   // CHECK-NEXT: }
 
-  // Observed bounds context before assignemnt: { a => bounds(a, a + 1), b => bounds(a, a + 1), c => bounds(a, a + 1) }
+  // Observed bounds context before assignment: { a => bounds(a, a + 1), b => bounds(a, a + 1), c => bounds(a, a + 1) }
   // Original value of a: b
   // Observed bounds context after assignment:  { a => bounds(b, b + 1), b => bounds(b, b + 1), c => bounds(b, b + 1) }
   a = c; // expected-warning {{cannot prove declared bounds for 'a' are valid after statement}} \
@@ -680,7 +680,6 @@ void assign7(
 
 // Scalar-typed variable declarations (array_ptr, nt_array_ptr) set the observed bounds to the initializer bounds
 void source_bounds1(array_ptr<int> a: count(1)) {
-  // Observed bounds context before declaration: { a => bounds(a, a + 1), arr => bounds(arr, arr + 0) }
   // Initializer bounds for a: bounds(a, a + 1)
   // Observed bounds context after declaration:  { a => bounds(a, a + 1), arr => bounds(a, a + 1) }
   array_ptr<int> arr : count(0) = a;
@@ -719,7 +718,6 @@ void source_bounds1(array_ptr<int> a: count(1)) {
   // CHECK-NEXT:     IntegerLiteral {{.*}} 1
   // CHECK-NEXT: }
 
-  // Observed bounds context before declaration: { a => bounds(a, a + 1), arr => bounds(arr, arr + 0), buf => bounds(buf, buf + 2) }
   // Initializer bounds for "abc": bounds(temp("abc"), temp("abc") + 3)
   // Observed bounds context after declaration:  { a => bounds(a, a + 1), arr => bounds(arr, arr + 0), buf => bounds(temp("abc"), temp("abc") + 3) }
   // TODO: checkedc-clang issue #845: equality between buf and "abc"
@@ -775,7 +773,6 @@ void source_bounds1(array_ptr<int> a: count(1)) {
   // CHECK-NEXT:     IntegerLiteral {{.*}} 3
   // CHECK-NEXT: }
 
-  // Observed bounds context before declaration: { a => bounds(a, a + 1), arr => bounds(arr, arr + 0), buf => bounds(buf, buf + 2) }
   // Initializer bounds for getArr(): bounds(temp(getArr()), temp(getArr()) + 4)
   // Observed bounds context after declaration:  { a => bounds(a, a + 1), arr => bounds(arr, arr + 0), buf => bounds(buf, buf + 2), c => bounds(temp(getArr()), temp(getArr()) + 4) }
   array_ptr<int> c : count(3) = getArr();
@@ -841,7 +838,6 @@ void source_bounds1(array_ptr<int> a: count(1)) {
 
 // Non-scalar-typed variable declarations (e.g. arrays) do not set the observed bounds to the initializer bounds
 void source_bounds2(void) {
-  // Observed bounds context before declaration: { arr => bounds(arr, arr + 1) }
   // Initializer bounds for (int checked[]){ 0, 1, 2 }: bounds(unknown)
   // Observed bounds context after declaration:  { arr => bounds(arr, arr + 1) }
   int arr checked[] : count(1) = (int checked[]){ 0, 1, 2 };
@@ -871,7 +867,6 @@ void source_bounds2(void) {
   // CHECK-NEXT:     IntegerLiteral {{.*}} 1
   // CHECK-NEXT: }
 
-  // Observed bounds context before declaration: { arr => bounds(arr, arr + 1), buf => bounds(buf, buf + 0) }
   // Initializer bounds for "abcde": bounds(unknown)
   // Observed bounds context after declaration:  { arr => bounds(arr, arr + 1), buf => bounds(buf, buf + 0) }
   char buf nt_checked[] : count(0) = "abcde";
@@ -2005,7 +2000,7 @@ void inc_dec_bounds1(nt_array_ptr<char> a) { // expected-note {{(expanded) decla
   // Observed bounds context before increment: { a => bounds(a, a + 0) }
   // Observed bounds context after increment:  { a => bounds(a - 1, (a - 1) + 0) }
   ++a; // expected-warning {{cannot prove declared bounds for 'a' are valid after statement}} \
-       // expected-note {{(expanded) inferred bounds are 'bounds(a - 1i8, a - 1i8 + 0)'}}
+       // expected-note {{(expanded) inferred bounds are 'bounds(a - 1, a - 1 + 0)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'

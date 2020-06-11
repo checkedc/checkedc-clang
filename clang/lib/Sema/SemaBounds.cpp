@@ -1943,12 +1943,8 @@ namespace {
                                       BoundsExpr *SrcBounds,
                                       EquivExprSets EquivExprs,
                                       CheckedScopeSpecifier CSS) {
-      // Record expression equality implied by initialization.
-      // EquivExprs may not already contain equality implied by initialization
-      // for certain kinds of initializer expressions.  For example, EquivExprs
-      // will not contain equality implied by the initializations v = *e,
-      // v = a[i], or v = s->f, since the sets of expressions that produce the
-      // same value as *e, a[i], and s->f are empty.
+      // Record expression equality implied by initialization (see
+      // CheckBoundsDeclAtAssignment).
       
       // Record equivalence between expressions implied by initializion.
       // If D declares a variable V, and
@@ -4055,12 +4051,14 @@ namespace {
       // value as the source, add the target to F.  This prevents EquivExprs
       // from growing too large and containing redundant equality information.
       // For example, for the assignments x = 1; y = x; where the target is y,
-      // SameValue = { 1, x }, and EquivExprs contains F = { 1, x }, EquivExprs
+      // SameValue = { x }, and EquivExprs contains F = { 1, x }, EquivExprs
       // should contain { 1, x, y } rather than { 1, x } and { 1, x, y }.
       if (State.SameValue.size() > 0) {
-        for (auto I = State.EquivExprs.begin(); I != State.EquivExprs.end(); ++I) {
-          if (IsEqualExprsSubset(State.SameValue, *I)) {
-            I->push_back(Target);
+        for (auto F = State.EquivExprs.begin(); F != State.EquivExprs.end(); ++F) {
+          if (IsEqualExprsSubset(State.SameValue, *F)) {
+            if (!EqualExprsContainsExpr(*F, Target))
+              F->push_back(Target);
+
             // Add the target to SameValue if SameValue does not already
             // contain the target.
             if (!EqualExprsContainsExpr(State.SameValue, Target))
@@ -4272,13 +4270,35 @@ namespace {
 
     // Returns true if a unary operator is invertible with respect to x.
     bool IsUnaryOperatorInvertible(DeclRefExpr *X, UnaryOperator *E) {
+      Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
-      if (Op != UnaryOperatorKind::UO_Not &&
-          Op != UnaryOperatorKind::UO_Minus &&
-          Op != UnaryOperatorKind::UO_Plus)
-        return false;
 
-      return IsInvertible(X, E->getSubExpr());
+      // &*e1 is invertible with respect to x if e1 is invertible with
+      // respect to x.
+      if (Op == UnaryOperatorKind::UO_AddrOf) {
+        if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
+          if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
+            return IsInvertible(X, UnarySubExpr->getSubExpr());
+        }
+      }
+
+      // *&e1 is invertible with respect to x if e1 is invertible with
+      // respect to x.
+      if (Op == UnaryOperatorKind::UO_Deref) {
+        if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
+          if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_AddrOf)
+            return IsInvertible(X, UnarySubExpr->getSubExpr());
+        }
+      }
+
+      // ~e1, -e1, and +e1 are invertible with respect to x if e1 is
+      // invertible with respect to x.
+      if (Op == UnaryOperatorKind::UO_Not ||
+          Op == UnaryOperatorKind::UO_Minus ||
+          Op == UnaryOperatorKind::UO_Plus)
+        return IsInvertible(X, SubExpr);
+
+      return false;
     }
 
     // Returns true if a binary operator is invertible with respect to x.
@@ -4398,11 +4418,30 @@ namespace {
       return nullptr;
     }
 
-    // Returns the inverse of a unary operator using the following rule:
-    // Inverse(f, @e1) = Inverse(@f, e1) where @ can be ~, -, or +.
+    // Returns the inverse of a unary operator.
     Expr *UnaryOperatorInverse(DeclRefExpr *X, Expr *F, UnaryOperator *E) {
-      Expr *SubExpr = E->getSubExpr();
+      Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
+      
+      // Inverse(f, &*e1) = Inverse(f, e1)
+      if (Op == UnaryOperatorKind::UO_AddrOf) {
+        if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
+          if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
+            return Inverse(X, F, UnarySubExpr->getSubExpr());
+        }
+      }
+
+      // Inverse(f, *&e1) = Inverse(f, e1)
+      if (Op == UnaryOperatorKind::UO_Deref) {
+        if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
+          if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_AddrOf)
+            return Inverse(X, F, UnarySubExpr->getSubExpr());
+        }
+      }
+
+      // Inverse(f, ~e1) = Inverse(~f, e1)
+      // Inverse(f, -e1) = Inverse(-f, e1)
+      // Inverse(f, +e1) = Inverse(+f, e1)
       Expr *Child = ExprCreatorUtil::EnsureRValue(S, F);
       Expr *F1 = new (S.Context) UnaryOperator(Child, Op, E->getType(),
                                                E->getValueKind(),
@@ -4623,9 +4662,9 @@ namespace {
     // If E is a possibly parenthesized lvalue variable V,
     // GetLValueVariable returns V. Otherwise, it returns nullptr.
     //
-    // V may have value-preserving operations applied to it.  For example,
-    // if E is ((T)V), where (T) is a value-preserving cast and V is a
-    // variable, GetLValueVariable will return V.
+    // V may have value-preserving operations applied to it, such as
+    // LValueBitCasts.  For example, if E is (LValueBitCast(V)), where V
+    // is a variable, GetLValueVariable will return V.
     DeclRefExpr *GetLValueVariable(Expr *E) {
       Lexicographic Lex(S.Context, nullptr);
       E = Lex.IgnoreValuePreservingOperations(S.Context, E);
@@ -4644,12 +4683,8 @@ namespace {
       if (CastExpr *CE = dyn_cast<CastExpr>(E->IgnoreParens())) {
         CastKind CK = CE->getCastKind();
         if (CK == CastKind::CK_LValueToRValue ||
-            CK == CastKind::CK_ArrayToPointerDecay) {
-          Lexicographic Lex(S.Context, nullptr);
-          Expr *SubExpr = const_cast<Expr *>(CE->getSubExpr());
-          Expr *E1 = Lex.IgnoreValuePreservingOperations(S.Context, SubExpr);
-          return dyn_cast<DeclRefExpr>(E1);
-        }
+            CK == CastKind::CK_ArrayToPointerDecay)
+          return GetLValueVariable(CE->getSubExpr());
       }
       return nullptr;
     }
@@ -4874,35 +4909,28 @@ namespace {
       return Lit;
     }
 
+    // If Ty is a pointer type, CreateIntegerLiteral returns an integer
+    // literal with a target-dependent bit width.
     // If Ty is an integer type (char, unsigned int, int, etc.),
     // CreateIntegerLiteral returns an integer literal with Ty type.
-    // If Ty denotes a pointer to an integer type (char *, ptr<int>, etc.),
-    // CreateIntegerLiteral returns an integer literal with Ty's pointee type.
-    // If Ty denotes a pointer to a non-integer type (float *, ptr<double>,
-    // etc.), CreateIntegerLiteral returns an integer literal with a target-
-    // dependent bit width.
     // Otherwise, it returns nullptr.
     IntegerLiteral *CreateIntegerLiteral(int Value, QualType Ty) {
-      QualType AdjustedType = Ty;
       if (Ty->isPointerType()) {
-        AdjustedType = Ty->getPointeeType();
-        if (!AdjustedType->isIntegerType()) {
-          const llvm::APInt
-            ResultVal(Context.getTargetInfo().getPointerWidth(0), Value);
-          return CreateIntegerLiteral(ResultVal);
-        }
+        const llvm::APInt
+          ResultVal(Context.getTargetInfo().getPointerWidth(0), Value);
+        return CreateIntegerLiteral(ResultVal);
       }
-      if (!AdjustedType->isIntegerType())
+
+      if (!Ty->isIntegerType())
         return nullptr;
 
-      unsigned BitSize = Context.getTypeSize(AdjustedType);
-      unsigned IntWidth = Context.getIntWidth(AdjustedType);
+      unsigned BitSize = Context.getTypeSize(Ty);
+      unsigned IntWidth = Context.getIntWidth(Ty);
       if (BitSize != IntWidth)
         return nullptr;
 
       const llvm::APInt ResultVal(BitSize, Value);
-      return IntegerLiteral::Create(Context, ResultVal, AdjustedType,
-                                    SourceLocation());
+      return IntegerLiteral::Create(Context, ResultVal, Ty, SourceLocation());
     }
 
     // Infer bounds for string literals.
