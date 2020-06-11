@@ -101,7 +101,7 @@ int *mul2(int *x) {
 //CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
 
 struct fptr * sus(struct fptr *, struct fptr *);
-//CHECK: struct fptr * sus(struct fptr *, struct fptr *);
+//CHECK: struct fptr * sus(struct fptr *, struct fptr *y : itype(_Ptr<struct fptr>));
 
 struct fptr * foo() {
  

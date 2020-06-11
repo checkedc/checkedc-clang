@@ -101,7 +101,7 @@ int *mul2(int *x) {
 //CHECK: int * mul2(int *x) { 
 
 int * sus(int (*) (int), int (*) (int));
-//CHECK: int * sus(int (*) (int), int (*) (int));
+//CHECK: int * sus(int (*)(int), _Ptr<int (int )> y);
 
 int * foo() {
  

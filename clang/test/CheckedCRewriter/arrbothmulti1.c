@@ -97,11 +97,10 @@ int *mul2(int *x) {
     *x *= 2; 
     return x;
 }
-
 //CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
 
 int * sus(int *, int *);
-//CHECK: int * sus(int *, int *);
+//CHECK: int * sus(int *, int *y : itype(_Ptr<int>));
 
 int * foo() {
         int * x = malloc(sizeof(int));
