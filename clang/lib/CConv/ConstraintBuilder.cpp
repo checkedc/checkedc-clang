@@ -28,6 +28,7 @@ public:
   explicit FunctionVisitor(ASTContext *C, ProgramInfo &I, FunctionDecl *FD)
       : Context(C), Info(I), Function(FD), CB(Info, Context) {}
 
+  // T x = e
   bool VisitDeclStmt(DeclStmt *S) {
     // Introduce variables as needed.
     for (const auto &D : S->decls())
@@ -45,7 +46,9 @@ public:
         }
       }
 
-    // Build rules based on initializers.
+    // FIXME: Merge into the loop above; but: we should process inits
+    //   even for non-pointers because things like structs and unions
+    //   can contain pointers
     for (const auto &D : S->decls()) {
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         Expr *InitE = VD->getInit();
@@ -59,20 +62,31 @@ public:
   // TODO: other visitors to visit statements and expressions that we use to
   // Gather constraints.
 
+  // (T)e
   bool VisitCStyleCastExpr(CStyleCastExpr *C) {
     // Is cast compatible with LHS type?
     if (!isExplicitCastSafe(C->getType(), C->getSubExpr()->getType())) {
-      auto CVs = CB.getExprConstraintVars(C, C->getType());
+      auto CVs = CB.getExprConstraintVars(C, C->getType(), true);
       CB.constraintAllCVarsToWild(CVs, "Casted to a different type.", C);
     }
     return true;
   }
 
+  // x += e
   bool VisitCompoundAssignOperator(CompoundAssignOperator *O) {
-    arithBinop(O);
+    switch(O->getOpcode()) {
+    case BO_AddAssign:
+    case BO_SubAssign:
+      arithBinop(O);
+      break;
+    // rest shouldn't happen on pointers, so we ignore
+    default:
+      break;
+    }
     return true;
   }
 
+  // x = e
   bool VisitBinAssign(BinaryOperator *O) {
     Expr *LHS = O->getLHS();
     Expr *RHS = O->getRHS();
@@ -80,12 +94,27 @@ public:
     return true;
   }
 
+  // e(e1,e2,...)
   bool VisitCallExpr(CallExpr *E) {
     Decl *D = E->getCalleeDecl();
-    if (!D)
-      return true;
     std::set<ConstraintVariable *> FVCons;
-    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+    if (D == nullptr) {
+      // If the callee declaration could not be found, then we're doing some
+      // sort of indirect call through an array or conditional. FV constraints
+      // can be obtained for this from getExprConstraintVars.
+      Expr *CalledExpr = E->getCallee();
+      FVCons = CB.getExprConstraintVars(CalledExpr, CalledExpr->getType());
+
+      // When multiple function variables are used in the same expression, they
+      // must have the same type.
+      if(FVCons.size() > 1) {
+        PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CalledExpr, *Context);
+        constrainConsVarGeq(FVCons, FVCons, Info.getConstraints(), &PL,
+                            Same_to_Same, false, false, &Info);
+      }
+
+      handleFunctionCall(E, FVCons);
+    } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       // Get the function declaration, if exists
       if (getDeclaration(FD) != nullptr) {
         FD = getDeclaration(FD);
@@ -107,14 +136,14 @@ public:
     return true;
   }
 
-  // This will add the constraint that
-  // variable is an array i.e., (V=ARR).
+  // e1[e2]
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
     Constraints &CS = Info.getConstraints();
     constraintInBodyVariable(E->getBase(), CS.getArr());
     return true;
   }
 
+  // return e;
   bool VisitReturnStmt(ReturnStmt *S) {
     // Get function variable constraint of the body
     PersistentSourceLoc PL =
@@ -136,38 +165,44 @@ public:
         // This is to ensure that the return type of the function is same
         // as the type of return expression.
         constrainConsVarGeq(FV->getReturnVars(), RconsVar,
-                            Info.getConstraints(), &PL, Same_to_Same,
+                            Info.getConstraints(), &PL, Same_to_Same, false,
                             false, &Info);
       }
     }
     return true;
   }
 
+  // ++x
   bool VisitUnaryPreInc(UnaryOperator *O) {
     constraintPointerArithmetic(O->getSubExpr());
     return true;
   }
 
+  // x++
   bool VisitUnaryPostInc(UnaryOperator *O) {
     constraintPointerArithmetic(O->getSubExpr());
     return true;
   }
 
+  // --x
   bool VisitUnaryPreDec(UnaryOperator *O) {
     constraintPointerArithmetic(O->getSubExpr());
     return true;
   }
 
+  // x--
   bool VisitUnaryPostDec(UnaryOperator *O) {
     constraintPointerArithmetic(O->getSubExpr());
     return true;
   }
 
+  // e1 + e2
   bool VisitBinAdd(BinaryOperator *O) {
     arithBinop(O);
     return true;
   }
 
+  // e1 - e2
   bool VisitBinSub(BinaryOperator *O) {
     arithBinop(O);
     return true;
@@ -198,7 +233,7 @@ private:
               std::set<ConstraintVariable *> ParameterDC =
                   TargetFV->getParamVar(i);
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
-                                  Wild_to_Safe, false, &Info);
+                                  Wild_to_Safe, false, false, &Info);
             } else {
               // This is the case of an argument passed to a function
               // with varargs.

@@ -23,3 +23,14 @@ void baz(void) {
 }
 //CHECK:  _Ptr<int (_Ptr<int> )> fp =  f;
 //CHECK:  _Ptr<int (_Ptr<int> )> fp2 =  &f;
+
+void bif(int **x) {
+  int **w = 0;
+  int *y = *(x = w);
+  w = &y;
+}
+//CHECK: void bif(_Ptr<_Ptr<int>> x) {
+//CHECK-NEXT: _Ptr<_Ptr<int>> w =  0;
+//CHECK-NEXT: _Ptr<int> y =  *(x = w);
+//CHECK-NEXT: w = _Assume_bounds_cast<_Ptr<_Ptr<int>> >(&y);
+

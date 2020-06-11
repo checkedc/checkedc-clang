@@ -341,7 +341,8 @@ bool ProgramInfo::link() {
       if (Verbose)
         llvm::errs() << "Global variables:" << V.first << "\n";
       while (J != C.end()) {
-        constrainConsVarGeq(*I, *J, CS, nullptr, Same_to_Same, true, this);
+        constrainConsVarGeq(*I, *J, CS, nullptr, Same_to_Same, true, false,
+                            this);
         ++I;
         ++J;
       }
