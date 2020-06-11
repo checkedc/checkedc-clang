@@ -540,7 +540,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   // Do we have a definition for this function?
   FunctionDecl *Definition = getDefinition(FD);
   if (Definition == nullptr)
-    return true;
+    Definition = FD;
 
   // Make sure we haven't visited this function name before, and that we
   // only visit it once.
@@ -552,6 +552,13 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   auto &DefFVars = *(Info.getFuncConstraints(Definition, Context));
   FVConstraint *Defnc = getOnly(DefFVars);
   assert(Defnc != nullptr);
+
+  // If this is an external function. The no need to rewrite this declaration.
+  // Because, we cannot and should not change the signature of
+  // external functions.
+  if (!Defnc->hasBody()) {
+    return true;
+  }
 
   bool DidAny = Defnc->numParams() > 0;
   std::string s = "";

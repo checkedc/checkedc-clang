@@ -100,7 +100,7 @@ int *mul2(int *x) {
 //CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
 
 struct arrfptr * sus(struct arrfptr *, struct arrfptr *);
-//CHECK: struct arrfptr * sus(struct arrfptr *, struct arrfptr *);
+//CHECK: struct arrfptr * sus(struct arrfptr *, struct arrfptr *y : itype(_Ptr<struct arrfptr>));
 
 struct arrfptr * foo() {
  
