@@ -170,7 +170,8 @@ void f10(_Array_ptr<int> a, _Array_ptr<int> b) {
 void f11(_Array_ptr<int> a, _Array_ptr<int> b) {
     _Array_ptr<int> c : bounds(a, a+1) = f_bounds(b++, a); // \
     // expected-error {{expression not allowed in argument for parameter used in function return bounds}} \
-    // expected-error {{initializer expected to have bounds}}
+    // expected-error {{inferred bounds for 'c' are unknown after statement}} \
+    // expected-note {{(expanded) declared bounds are 'bounds(a, a + 1)'}}
 }
 
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} c '_Array_ptr<int>' cinit
@@ -230,7 +231,8 @@ void f12(int i, int j) {
 void f13(int i, int j) {
     _Array_ptr<int> b : count(i) = f_count(j++, i); // \
     // expected-error {{expression not allowed in argument for parameter used in function return bounds}} \
-    // expected-error {{initializer expected to have bounds}}
+    // expected-error {{inferred bounds for 'b' are unknown after statement}} \
+    // expected-note {{(expanded) declared bounds are 'bounds(b, b + i)'}}
 }
 
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} b '_Array_ptr<int>' cinit
@@ -284,7 +286,8 @@ void f14(int i, int j) {
 void f15(int i, int j) {
     _Array_ptr<int> b : byte_count(i) = f_byte(j++, i); // \
     // expected-error {{expression not allowed in argument for parameter used in function return bounds}} \
-    // expected-error {{initializer expected to have bounds}}
+    // expected-error {{inferred bounds for 'b' are unknown after statement}} \
+    // expected-note {{(expanded) declared bounds are 'bounds((_Array_ptr<char>)b, (_Array_ptr<char>)b + i)'}}
 }
 
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} b '_Array_ptr<int>' cinit
@@ -347,7 +350,8 @@ void f20(int* a, int* b) {
 void f21(int* a, int* b) {
     _Array_ptr<int> c : bounds(a, a+1) = f_boundsi(b++, a); // \
     // expected-error {{expression not allowed in argument for parameter used in function return bounds}} \
-    // expected-error {{initializer expected to have bounds}}
+    // expected-error {{inferred bounds for 'c' are unknown after statement}} \
+    // expected-note {{(expanded) declared bounds are 'bounds(a, a + 1)'}}
 }
 
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} c '_Array_ptr<int>' cinit
@@ -409,7 +413,8 @@ void f22(int i, int j) {
 void f23(int i, int j) {
     _Array_ptr<int> b : count(i) = f_counti(j++, i); // \
     // expected-error {{expression not allowed in argument for parameter used in function return bounds}} \
-    // expected-error {{initializer expected to have bounds}}
+    // expected-error {{inferred bounds for 'b' are unknown after statement}} \
+    // expected-note {{(expanded) declared bounds are 'bounds(b, b + i)'}}
 }
 
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} b '_Array_ptr<int>' cinit
@@ -465,7 +470,8 @@ void f24(int i, int j) {
 void f25(int i, int j) {
     _Array_ptr<int> b : byte_count(i) = f_bytei(j++, i); // \
     // expected-error {{expression not allowed in argument for parameter used in function return bounds}} \
-    // expected-error {{initializer expected to have bounds}}
+    // expected-error {{inferred bounds for 'b' are unknown after statement}} \
+    // expected-note {{(expanded) declared bounds are 'bounds((_Array_ptr<char>)b, (_Array_ptr<char>)b + i)'}}
 }
 
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} b '_Array_ptr<int>' cinit

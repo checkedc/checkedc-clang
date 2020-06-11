@@ -1,8 +1,6 @@
 // Tests for bounds widening for K&R string related functions.
 //
-// RUN: %clang_cc1 -fdump-widened-bounds -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s 2>&1 | FileCheck %s
-
-// expected-no-diagnostics
+// RUN: %clang_cc1 -fdump-widened-bounds -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s | FileCheck %s
 
 // Return length of p (adapted from p. 39, K&R 2nd Edition).
 // p implicitly has count(0).
@@ -14,7 +12,7 @@ int my_strlen(_Nt_array_ptr<char> p) {
   // s[i] implies that the count can increase
   // by 1.
   while (s[i])
-    ++i;
+    ++i; // expected-error {{inferred bounds for 's' are unknown after statement}}
   return i;
 
 // CHECK: In function: my_strlen
@@ -30,7 +28,8 @@ void squeeze(_Nt_array_ptr<char> p, char c) {
   // Create a temporary whose count of elements can
   // change.
   _Nt_array_ptr<char> s : count(i) = p;
-  for ( ; s[i]; i++) {
+  for ( ; s[i]; i++) { // expected-error {{inferred bounds for 's' are unknown after statement}} \
+                       // expected-error {{inferred bounds for 'tmp' are unknown after statement}}
     // We will widen the bounds of s so that we
     // can assign to s[j] when j == i.
     _Nt_array_ptr<char> tmp : count(i + 1) = s;
@@ -63,7 +62,7 @@ void reverse(_Nt_array_ptr<char> p) {
   int len = 0;
   // Calculate the length of the string.
   _Nt_array_ptr<char> s : count(len) = p;
-  for (; s[len]; len++);
+  for (; s[len]; len++); // expected-error {{inferred bounds for 's' are unknown after statement}}
 
   // Now that we know the length, use s just like we would use an array_ptr.
   for (int i = 0, j = len - 1; i < j; i++, j--) {

@@ -295,12 +295,11 @@ void declared2(int flag, int x, int y) {
 /////////////////////////////////////////////
 
 // Assignment to a variable used in its own bounds
-void assign1(array_ptr<int> arr : count(1)) {
+void assign1(array_ptr<int> arr : count(1)) { // expected-note {{(expanded) declared bounds are 'bounds(arr, arr + 1)'}}
   // Observed bounds context before assignment: { arr => bounds(arr, arr + 1) }
   // Original value of arr: arr - 2
   // Observed bounds context after assignment:  { arr => bounds(arr - 2, (arr - 2) + 1) }
-  arr = arr + 2; // expected-warning {{cannot prove declared bounds for arr are valid after assignment}} \
-                 // expected-note {{(expanded) declared bounds are 'bounds(arr, arr + 1)'}} \
+  arr = arr + 2; // expected-warning {{cannot prove declared bounds for 'arr' are valid after statement}} \
                  // expected-note {{(expanded) inferred bounds are 'bounds(arr - 2, arr - 2 + 1)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -331,11 +330,18 @@ void assign1(array_ptr<int> arr : count(1)) {
 }
 
 // Assignment to a variable used in other variables' bounds
-void assign2(array_ptr<int> a : count(len - 1), char b nt_checked[0] : count(len), unsigned len) {
+void assign2(
+  array_ptr<int> a : count(len - 1), // expected-note {{(expanded) declared bounds are 'bounds(a, a + len - 1)'}}
+  char b nt_checked[0] : count(len), // expected-note {{(expanded) declared bounds are 'bounds(b, b + len)'}}
+  unsigned len
+) {
   // Observed bounds context before assignment: { a => bounds(a, a + len - 1), b => bounds(b, b + len) }
   // Original value of len: len + 3
   // Observed bounds context after assignment : { a => bounds(a, a + ((len + 3) - 1)), b => bounds(b, b + (len + 3)) }
-  len = len - 3;
+  len = len - 3; // expected-warning {{cannot prove declared bounds for 'a' are valid after statement}} \
+                 // expected-note {{(expanded) inferred bounds are 'bounds(a, a + len + 3 - 1)'}} \
+                 // expected-warning {{cannot prove declared bounds for 'b' are valid after statement}} \
+                 // expected-note {{(expanded) inferred bounds are 'bounds(b, b + len + 3)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
@@ -421,13 +427,12 @@ void assign3(array_ptr<int> a : bounds(unknown), nt_array_ptr<char> b : count(1)
 }
 
 // Multiple assignments to variables used in bounds
-void assign4(array_ptr<int> a : count(len), unsigned len) {
+void assign4(array_ptr<int> a : count(len), unsigned len) { // expected-note {{(expanded) declared bounds are 'bounds(a, a + len)'}}
   // Observed bounds context before assignment: { a => bounds(a, a + len) }
   // Original value of a: a - 1, original value of len: len + 1
   // Observed bounds context after assignment:  { a => bounds(a - 1, (a - 1) + (len + 1)) }
-  ++a, len--; // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
-              // expected-note {{(expanded) declared bounds are 'bounds(a, a + len)'}} \
-              // expected-note {{(expanded) inferred bounds are 'bounds(a - 1, a - 1 + len)'}}
+  ++a, len--; // expected-warning {{cannot prove declared bounds for 'a' are valid after statement}} \
+              // expected-note {{(expanded) inferred bounds are 'bounds(a - 1, a - 1 + len + 1U)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} ','
   // CHECK-NEXT:   UnaryOperator {{.*}} prefix '++'
@@ -459,7 +464,7 @@ void assign4(array_ptr<int> a : count(len), unsigned len) {
 }
 
 // Original value of variable used in bounds is another variable
-void assign5(array_ptr<int> a : count(len), int len, int size) {
+void assign5(array_ptr<int> a : count(len), int len, int size) { // expected-note {{(expanded) declared bounds are 'bounds(a, a + len)'}}
   // Observed bounds context before assignment: { a => bounds(a, a + len) }
   // Observed bounds context after assignment:  { a => bounds(a, a + len) }
   size = len;
@@ -489,7 +494,8 @@ void assign5(array_ptr<int> a : count(len), int len, int size) {
   // Observed bounds context before assignment: { a => bounds(a, a + len) }
   // Original value of len: size
   // Observed bounds context after assignment:  { a => bounds(a, a + size) }
-  len = len * 2;
+  len = len * 2; // expected-warning {{cannot prove declared bounds for 'a' are valid after statement}} \
+                 // expected-note {{(expanded) inferred bounds are 'bounds(a, a + size)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
@@ -518,11 +524,12 @@ void assign5(array_ptr<int> a : count(len), int len, int size) {
 
 // Assignment to a variable with no original value sets the observed bounds
 // that use the variable to unknown
-void assign6(array_ptr<int> a : count(len), int len) {
+void assign6(array_ptr<int> a : count(len), int len) { // expected-note {{(expanded) declared bounds are 'bounds(a, a + len)'}}
   // Observed bounds context before assignment: { a => bounds(a, a + len) }
   // Original value of len: null
   // Observed bounds context after assignment:  { a => bounds(unknown) }
-  len = len * 2;
+  len = len * 2; // expected-error {{inferred bounds for 'a' are unknown after statement}} \
+                 // expected-note {{lost the value of the variable 'len' which is used in the (expanded) inferred bounds 'bounds(a, a + len)' of 'a'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
@@ -543,11 +550,20 @@ void assign6(array_ptr<int> a : count(len), int len) {
 }
 
 // Assignment to a variable that is used in the bounds of the RHS of the assignment
-void assign7(array_ptr<int> a : bounds(a, a + 1), array_ptr<int> b : bounds(a, a + 1), array_ptr<int> c : bounds(a, a + 1)) {
+void assign7(
+  array_ptr<int> a : bounds(a, a + 1), // expected-note 2 {{(expanded) declared bounds are 'bounds(a, a + 1)'}}
+  array_ptr<int> b : bounds(a, a + 1), // expected-note 2 {{(expanded) declared bounds are 'bounds(a, a + 1)'}}
+  array_ptr<int> c : bounds(a, a + 1) // expected-note 2 {{(expanded) declared bounds are 'bounds(a, a + 1)'}}
+) {
   // Observed bounds context before assignemnt: { a => bounds(a, a + 1), b => bounds(a, a + 1), c => bounds(a + 1) }
   // Original value of a: null
   // Observed bounds context after assignment:  { a => bounds(unknown), b => bounds(unknown), c => bounds(unknown) }
-  a = b; // expected-error {{expression has unknown bounds}}
+  a = b; // expected-error {{inferred bounds for 'a' are unknown after statement}} \
+         // expected-note {{lost the value of the variable 'a' which is used in the (expanded) inferred bounds 'bounds(a, a + 1)' of 'a'}} \
+         // expected-error {{inferred bounds for 'b' are unknown after statement}} \
+         // expected-note {{lost the value of the variable 'a' which is used in the (expanded) inferred bounds 'bounds(a, a + 1)' of 'b'}} \
+         // expected-error {{inferred bounds for 'c' are unknown after statement}} \
+         // expected-note {{lost the value of the variable 'a' which is used in the (expanded) inferred bounds 'bounds(a, a + 1)' of 'c'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
@@ -593,9 +609,10 @@ void assign7(array_ptr<int> a : bounds(a, a + 1), array_ptr<int> b : bounds(a, a
   // Observed bounds context before assignemnt: { a => bounds(a, a + 1), b => bounds(a, a + 1), c => bounds(a, a + 1) }
   // Original value of a: b
   // Observed bounds context after assignment:  { a => bounds(b, b + 1), b => bounds(b, b + 1), c => bounds(b, b + 1) }
-  a = c; // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
-         // expected-note {{(expanded) declared bounds are 'bounds(a, a + 1)'}} \
-         // expected-note {{(expanded) inferred bounds are 'bounds(b, b + 1)'}}
+  a = c; // expected-warning {{cannot prove declared bounds for 'a' are valid after statement}} \
+         // expected-warning {{cannot prove declared bounds for 'b' are valid after statement}} \
+         // expected-warning {{cannot prove declared bounds for 'c' are valid after statement}} \
+         // expected-note 3 {{(expanded) inferred bounds are 'bounds(b, b + 1)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
@@ -1057,13 +1074,15 @@ void source_bounds4(array_ptr<int> arr : count(1)) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Multiple assignments that may result in assignment-related warnings or errors
-void multiple_assign1(array_ptr<int> a : count(len), array_ptr<int> b : count(len), unsigned len) {
+void multiple_assign1(
+  array_ptr<int> a : count(len), // expected-note 3 {{(expanded) declared bounds are 'bounds(a, a + len)'}}
+  array_ptr<int> b : count(len), // expected-note 2 {{(expanded) declared bounds are 'bounds(b, b + len)'}}
+  unsigned len
+) {
   // Target bounds of a at assignment a = b: bounds(a, a + len)
   // Observed bounds of b at assignment a = b: bounds(b, b + len)
   // Observed bounds context after assignments: { a => bounds(b, b + len), b => bounds(b, b + len) }
-  a++, a = b; // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
-              // expected-note {{(expanded) declared bounds are 'bounds(a, a + len)'}} \
-              // expected-note {{(expanded) inferred bounds are 'bounds(a - 1, a - 1 + len)'}}
+  a++, a = b;
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} ','
   // CHECK-NEXT:   UnaryOperator {{.*}} postfix '++'
@@ -1107,11 +1126,9 @@ void multiple_assign1(array_ptr<int> a : count(len), array_ptr<int> b : count(le
   // Target bounds of b at assignment b = a: bounds(b, b + len)
   // Observed bounds of a at assignment b = a: bounds(a - 1, a - 1 + len)
   // Observed bounds context after assignments: { a => bounds(a - 1, a - 1 + len), b => bounds(a - 1, a - 1 + len) }
-  a++, b = a; // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
-              // expected-note {{(expanded) declared bounds are 'bounds(a, a + len)'}} \
+  a++, b = a; // expected-warning {{cannot prove declared bounds for 'a' are valid after statement}} \
               // expected-note {{(expanded) inferred bounds are 'bounds(a - 1, a - 1 + len)'}} \
-              // expected-warning {{cannot prove declared bounds for b are valid after assignment}} \
-              // expected-note {{(expanded) declared bounds are 'bounds(b, b + len)'}} \
+              // expected-warning {{cannot prove declared bounds for 'b' are valid after statement}} \
               // expected-note {{(expanded) inferred bounds are 'bounds(a - 1, a - 1 + len)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} ','
@@ -1164,9 +1181,8 @@ void multiple_assign1(array_ptr<int> a : count(len), array_ptr<int> b : count(le
   // Target bounds of a at assignment a = a: bounds(a, a + len)
   // Observed bounds of a at assignment a = a: bounds(a + 1, a + 1 + len)
   // Observed bounds context after assignments: { a => bounds(a + 1, a + 1 + len), b => bounds(b, b + len) }
-  a--, a = a; // expected-warning 2 {{cannot prove declared bounds for a are valid after assignment}} \
-              // expected-note 2 {{(expanded) declared bounds are 'bounds(a, a + len)'}} \
-              // expected-note 2 {{(expanded) inferred bounds are 'bounds(a + 1, a + 1 + len)'}}
+  a--, a = a; // expected-warning {{cannot prove declared bounds for 'a' are valid after statement}} \
+              // expected-note {{(expanded) inferred bounds are 'bounds(a + 1, a + 1 + len)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} ','
   // CHECK-NEXT:   UnaryOperator {{.*}} postfix '--'
@@ -1214,7 +1230,11 @@ void multiple_assign1(array_ptr<int> a : count(len), array_ptr<int> b : count(le
   // Target bounds of a at assignment a = b: bounds(a, a + len)
   // Observed bounds of b at assignment a = b: bounds(unknown)
   // Observed bounds context after assignments: { a => bounds(unknown), b => bounds(unknown) }
-  len = 0, a = b; // expected-error {{expression has unknown bounds, right-hand side of assignment expected to have bounds because the left-hand side has bounds}}
+  len = 0, a = b; // expected-error {{inferred bounds for 'a' are unknown after statement}} \
+                  // expected-note {{lost the value of the variable 'len' which is used in the (expanded) inferred bounds 'bounds(a, a + len)' of 'a'}} \
+                  // expected-note {{assigned expression 'b' with unknown bounds to 'a'}} \
+                  // expected-error {{inferred bounds for 'b' are unknown after statement}} \
+                  // expected-note {{lost the value of the variable 'len' which is used in the (expanded) inferred bounds 'bounds(b, b + len)' of 'b'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} ','
   // CHECK-NEXT:   BinaryOperator {{.*}} '='
@@ -1245,10 +1265,17 @@ void multiple_assign1(array_ptr<int> a : count(len), array_ptr<int> b : count(le
 }
 
 // Multiple assignments that may result in memory access-related errors
-void multiple_assign2(array_ptr<int> a : count(len), array_ptr<int> b : bounds(a, a + len), array_ptr<int> c : count(2), unsigned len) {
+void multiple_assign2(
+  array_ptr<int> a : count(len), // expected-note 3 {{(expanded) declared bounds are 'bounds(a, a + len)'}}
+  array_ptr<int> b : bounds(a, a + len), // expected-note 3 {{(expanded) declared bounds are 'bounds(a, a + len)'}}
+  array_ptr<int> c : count(2), // expected-note {{(expanded) declared bounds are 'bounds(c, c + 2)'}}
+  unsigned len
+) {
   // Observed bounds of a at memory access a[len]: bounds(a, a + (len - 1))
   // Observed bounds context after statement: { a => bounds(a, a + (len - 1)), b => bounds(a, a + (len - 1)), c => bounds(c, c + 2) }
-  len++, a[len];
+  len++, a[len]; // expected-warning {{cannot prove declared bounds for 'a' are valid after statement}} \
+                 // expected-warning {{cannot prove declared bounds for 'b' are valid after statement}} \
+                 // expected-note 2 {{(expanded) inferred bounds are 'bounds(a, a + len - 1U)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} ','
   // CHECK-NEXT:   UnaryOperator {{.*}} postfix '++'
@@ -1325,8 +1352,7 @@ void multiple_assign2(array_ptr<int> a : count(len), array_ptr<int> b : bounds(a
 
   // Observed bounds of c at memory access c[2]: bounds(c - 1, (c - 1) + 2)
   // Observed bounds context after statement: { a => bounds(a, a + len), b => bounds(b, b + len), c => bounds(c - 1, (c - 1) + 2) }
-  c++, c[2]; // expected-warning {{cannot prove declared bounds for c are valid after assignment}} \
-             // expected-note {{(expanded) declared bounds are 'bounds(c, c + 2)'}} \
+  c++, c[2]; // expected-warning {{cannot prove declared bounds for 'c' are valid after statement}} \
              // expected-note {{(expanded) inferred bounds are 'bounds(c - 1, c - 1 + 2)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} ','
@@ -1404,7 +1430,11 @@ void multiple_assign2(array_ptr<int> a : count(len), array_ptr<int> b : bounds(a
 
   // Observed bounds of a at memory access a[0]: bounds(unknown)
   // Observed bounds context after statement: { a => bounds(unknown), b => bounds(unknown), c => bounds(c, c + 2) }
-  len = 0, a[0]; // expected-error {{expression has unknown bounds}}
+  len = 0, a[0]; // expected-error {{expression has unknown bounds}} \
+                 // expected-error {{inferred bounds for 'a' are unknown after statement}} \
+                 // expected-note {{lost the value of the variable 'len' which is used in the (expanded) inferred bounds 'bounds(a, a + len)' of 'a'}} \
+                 // expected-error {{inferred bounds for 'b' are unknown after statement}} \
+                 // expected-note {{lost the value of the variable 'len' which is used in the (expanded) inferred bounds 'bounds(a, a + len)' of 'b'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} ','
   // CHECK-NEXT:   BinaryOperator {{.*}} '='
@@ -1455,7 +1485,11 @@ void multiple_assign2(array_ptr<int> a : count(len), array_ptr<int> b : bounds(a
 
   // Observed bounds of b at memory access *b: bounds(unknown)
   // Observed bounds context after statement: { a => bounds(unknown), b => bounds(unknown), c => bounds(c, c + 2) }
-  a = b, *b; // expected-error 2 {{expression has unknown bounds}}
+  a = b, *b; // expected-error {{expression has unknown bounds}} \
+             // expected-error {{inferred bounds for 'a' are unknown after statement}} \
+             // expected-note {{lost the value of the variable 'a' which is used in the (expanded) inferred bounds 'bounds(a, a + len)' of 'a'}} \
+             // expected-error {{inferred bounds for 'b' are unknown after statement}} \
+             // expected-note {{lost the value of the variable 'a' which is used in the (expanded) inferred bounds 'bounds(a, a + len)' of 'b'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} ','
   // CHECK-NEXT:   BinaryOperator {{.*}} '='
@@ -1505,11 +1539,12 @@ void multiple_assign2(array_ptr<int> a : count(len), array_ptr<int> b : bounds(a
 }
 
 // Single-assignment statements do not result in memory access errors
-void multiple_assign3(array_ptr<int> a : count(len), int len) {
+void multiple_assign3(array_ptr<int> a : count(len), int len) { // expected-note {{(expanded) declared bounds are 'bounds(a, a + len)'}}
   // Observed bounds context before assignment: { a => bounds(a, a + len) }
   // Original value of len: null
   // Observed bounds context after assignment:  { a => bounds(unknown) }
-  len = 0;
+  len = 0; // expected-error {{inferred bounds for 'a' are unknown after statement}} \
+           // expected-note {{lost the value of the variable 'len' which is used in the (expanded) inferred bounds 'bounds(a, a + len)' of 'a'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
@@ -1774,13 +1809,15 @@ void nested_assign4(array_ptr<int> a : count(2), array_ptr<int> b : count(3)) {
 /////////////////////////////////////////////////
 
 // Updated result bounds of a nested assignment with a binary operator
-void update_result_bounds1(array_ptr<int> a : bounds(b, b + 1), array_ptr<int> b : count(1)) {
+void update_result_bounds1(
+  array_ptr<int> a : bounds(b, b + 1), // expected-note {{(expanded) declared bounds are 'bounds(b, b + 1)'}}
+  array_ptr<int> b : count(1) // expected-note {{(expanded) declared bounds are 'bounds(b, b + 1)'}}
+) {
   // Observed bounds context before assignments: { a => bounds(b, b + 1), b => bounds(b, b + 1) }
   // Bounds of b = b + 1: bounds(b - 1, (b - 1) + 1)
   // Observed bounds context after assignments: { a => bounds(b - 1, (b - 1 + 1)), b => bounds(b - 1, (b - 1) + 1) }
-  a = (b = b + 1); // expected-warning {{cannot prove declared bounds for b are valid after assignment}} \
-                   // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
-                   // expected-note 2 {{(expanded) declared bounds are 'bounds(b, b + 1)'}} \
+  a = (b = b + 1); // expected-warning {{cannot prove declared bounds for 'b' are valid after statement}} \
+                   // expected-warning {{cannot prove declared bounds for 'a' are valid after statement}} \
                    // expected-note 2 {{(expanded) inferred bounds are 'bounds(b - 1, b - 1 + 1)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1835,13 +1872,15 @@ void update_result_bounds1(array_ptr<int> a : bounds(b, b + 1), array_ptr<int> b
 }
 
 // Updated result bounds of a nested assignment with a compound operator
-void update_result_bounds2(array_ptr<int> a : bounds(b, b + 1), array_ptr<int> b : count(1)) {
+void update_result_bounds2(
+  array_ptr<int> a : bounds(b, b + 1), // expected-note {{(expanded) declared bounds are 'bounds(b, b + 1)'}}
+  array_ptr<int> b : count(1) // expected-note {{(expanded) declared bounds are 'bounds(b, b + 1)'}}
+) {
   // Observed bounds context before assignments: { a => bounds(b, b + 1), b => bounds(b, b + 1) }
   // Bounds of b += 1: bounds(b - 1, (b - 1) + 1)
   // Observed bounds context after assignments: { a => bounds(b - 1, (b - 1 + 1)), b => bounds(b - 1, (b - 1) + 1) }
-  a = (b += 1); // expected-warning {{cannot prove declared bounds for b are valid after assignment}} \
-                // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
-                // expected-note 2 {{(expanded) declared bounds are 'bounds(b, b + 1)'}} \
+  a = (b += 1); // expected-warning {{cannot prove declared bounds for 'b' are valid after statement}} \
+                // expected-warning {{cannot prove declared bounds for 'a' are valid after statement}} \
                 // expected-note 2 {{(expanded) inferred bounds are 'bounds(b - 1, b - 1 + 1)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1893,16 +1932,16 @@ void update_result_bounds2(array_ptr<int> a : bounds(b, b + 1), array_ptr<int> b
 }
 
 // Updated result bounds of a nested assignment with a post-increment operator
-void update_result_bounds3(array_ptr<int> a : bounds(b, b + 1), array_ptr<int> b : count(1)) {
+void update_result_bounds3(
+  array_ptr<int> a : bounds(b, b + 1), // expected-note {{(expanded) declared bounds are 'bounds(b, b + 1)'}}
+  array_ptr<int> b : count(1) // expected-note {{(expanded) declared bounds are 'bounds(b, b + 1)'}}
+) {
   // Observed bounds context before assignments: { a => bounds(b, b + 1), b => bounds(b, b + 1) }
   // Bounds of b++: bounds(b - 1, (b - 1) + 1)
   // Observed bounds context after assignments: { a => bounds(b - 1, (b - 1 + 1)), b => bounds(b - 1, (b - 1) + 1) }
-  a = b++; // expected-warning {{cannot prove declared bounds for b are valid after assignment}} \
-           // expected-note {{(expanded) declared bounds are 'bounds(b, b + 1)'}} \
-           // expected-note {{(expanded) inferred bounds are 'bounds(b - 1, b - 1 + 1)'}} \
-           // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
-           // expected-note {{(expanded) declared bounds are 'bounds(b, b + 1)'}} \
-           // expected-note {{(expanded) inferred bounds are 'bounds(b - 1, b - 1 + 1)'}}
+  a = b++; // expected-warning {{cannot prove declared bounds for 'a' are valid after statement}} \
+           // expected-warning {{cannot prove declared bounds for 'b' are valid after statement}} \
+           // expected-note 2 {{(expanded) inferred bounds are 'bounds(b - 1, b - 1 + 1)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
@@ -1955,11 +1994,10 @@ void update_result_bounds3(array_ptr<int> a : bounds(b, b + 1), array_ptr<int> b
 ///////////////////////////////////////////////////////////////////////////
 
 // Pre-increment operator: bounds warning
-void inc_dec_bounds1(nt_array_ptr<char> a) {
+void inc_dec_bounds1(nt_array_ptr<char> a) { // expected-note {{(expanded) declared bounds are 'bounds(a, a + 0)'}}
   // Observed bounds context before increment: { a => bounds(a, a + 0) }
   // Observed bounds context after increment:  { a => bounds(a - 1, (a - 1) + 0) }
-  ++a; // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
-       // expected-note {{(expanded) declared bounds are 'bounds(a, a + 0)'}} \
+  ++a; // expected-warning {{cannot prove declared bounds for 'a' are valid after statement}} \
        // expected-note {{(expanded) inferred bounds are 'bounds(a - 1i8, a - 1i8 + 0)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '++'
@@ -1986,14 +2024,13 @@ void inc_dec_bounds1(nt_array_ptr<char> a) {
 }
 
 // Post-increment operator: bounds error
-void inc_dec_bounds2(nt_array_ptr<int> a : bounds(a, a)) {
+void inc_dec_bounds2(nt_array_ptr<int> a : bounds(a, a)) { // expected-note {{(expanded) declared bounds are 'bounds(a, a)'}}
   // Observed bounds context before increment: { a => bounds(a, a) }
   // Observed bounds context after increment:  { a => bounds(a - 1, a - 1) }
-  a++; // expected-error {{declared bounds for a are invalid after assignment}} \
-       // expected-note {{(expanded) declared bounds are 'bounds(a, a)'}} \
-       // expected-note {{(expanded) inferred bounds are 'bounds(a - 1, a - 1)'}} \
+  a++; // expected-error {{declared bounds for 'a' are invalid after statement}} \
        // expected-note {{source bounds are an empty range}} \
-       // expected-note {{destination upper bound is above source upper bound}}
+       // expected-note {{destination upper bound is above source upper bound}} \
+       // expected-note {{(expanded) inferred bounds are 'bounds(a - 1, a - 1)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} postfix '++'
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
@@ -2020,11 +2057,10 @@ void inc_dec_bounds2(nt_array_ptr<int> a : bounds(a, a)) {
 }
 
 // Pre-decrement operator: bounds warning
-void inc_dec_bounds3(array_ptr<float> a : count(2)) {
+void inc_dec_bounds3(array_ptr<float> a : count(2)) { // expected-note {{(expanded) declared bounds are 'bounds(a, a + 2)'}}
   // Observed bounds context before decrement: { a => bounds(a, a + 2) }
   // Observed bounds context after decrement:  { a => bounds(a + 1, (a + 1) + 2) }
-  --a; // expected-warning {{cannot prove declared bounds for a are valid after assignment}} \
-       // expected-note {{(expanded) declared bounds are 'bounds(a, a + 2)'}} \
+  --a; // expected-warning {{cannot prove declared bounds for 'a' are valid after statement}} \
        // expected-note {{(expanded) inferred bounds are 'bounds(a + 1, a + 1 + 2)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '--'
@@ -2051,11 +2087,10 @@ void inc_dec_bounds3(array_ptr<float> a : count(2)) {
 }
 
 // Post-decrement operator: bounds error
-void inc_dec_bounds4(array_ptr<int> a : bounds(a, a)) {
+void inc_dec_bounds4(array_ptr<int> a : bounds(a, a)) { // expected-note {{(expanded) declared bounds are 'bounds(a, a)'}}
   // Observed bounds context before decrement: { a => bounds(a, a) }
   // Observed bounds context after decrement:  { a => bounds(a + 1, (a + 1)) }
-  a--; // expected-error {{declared bounds for a are invalid after assignment}} \
-       // expected-note {{(expanded) declared bounds are 'bounds(a, a)'}} \
+  a--; // expected-error {{declared bounds for 'a' are invalid after statement}} \
        // expected-note {{(expanded) inferred bounds are 'bounds(a + 1, a + 1)'}} \
        // expected-note {{source bounds are an empty range}} \
        // expected-note {{destination lower bound is below source lower bound}}
