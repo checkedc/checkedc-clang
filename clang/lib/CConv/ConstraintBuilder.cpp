@@ -311,13 +311,17 @@ public:
       // If the location of the previous RecordDecl and the current VarDecl are the same,
       // this implies an inline struct as per Clang's AST, so set a flag in ProgramInfo
       // to indicate that this variable should be constrained to wild later
-      if(G->getBeginLoc().getRawEncoding() == LastRecordLoc) { Info.InlineStructEncountered = true; }
       Info.addVariable(G, Context);
       if (G->hasInit()) {
         CB.constrainLocalAssign(nullptr, G, G->getInit());
       }
-      // For safety, reset the flag to false after the variable has been added
-      Info.InlineStructEncountered = false;
+      if(InLineStructEncountered) {
+        const std::set<ConstraintVariable *> &C = Info.getVariable(G, Context);
+        for(const auto &Var : C) {
+          std::string Rsn = "Variable " + G->getNameAsString() + " is an inline struct definition.";
+          Var->constrainToWild(Info.getConstraints(), Rsn);
+        }
+      }
     }
 
     return true;
@@ -349,7 +353,8 @@ public:
     if (RecordDecl *Definition = Declaration->getDefinition()) {
 
       //store the current record's location to cross reference later in a VarDecl
-      LastRecordLoc = Definition->getBeginLoc().getRawEncoding();
+      InLineStructEncountered =
+              Definition->getBeginLoc().getRawEncoding() == Declaration->getNextDeclInContext()->getBeginLoc().getRawEncoding();
 
       FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
 
@@ -379,8 +384,8 @@ public:
 private:
   ASTContext *Context;
   ProgramInfo &Info;
-  int LastRecordLoc;
   ConstraintResolver CB;
+  bool InLineStructEncountered;
 };
 
 void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {

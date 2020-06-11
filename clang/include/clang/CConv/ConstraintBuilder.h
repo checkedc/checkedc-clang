@@ -17,16 +17,12 @@
 class ConstraintBuilderConsumer : public clang::ASTConsumer {
 public:
   explicit ConstraintBuilderConsumer(ProgramInfo &I, clang::ASTContext *C) :
-    Info(I), LastRecordLoc(-1) { }
+    Info(I) { }
 
   virtual void HandleTranslationUnit(clang::ASTContext &);
 
 private:
   ProgramInfo &Info;
-  // stores the raw encoding of the begin location of the most recently
-  // processed RecordDecl. This location is compared against subsequent VarDecl
-  // locations, and if so, the flag InLineStructEncountered is set in ProgramInfo
-  int LastRecordLoc;
 };
 
 #endif
