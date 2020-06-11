@@ -2685,7 +2685,7 @@ namespace {
     void TraverseTopLevelVarDecl(VarDecl *VD, CheckedScopeSpecifier CSS) {
       ResetFacts();
       CheckingState State;
-      CheckVarDecl(VD, CSS, State);
+      CheckVarDecl(VD, CSS, State, /*CheckBounds=*/true);
     }
 
     void ResetFacts() {
@@ -3360,7 +3360,7 @@ namespace {
 
     // CheckVarDecl returns empty bounds.
     BoundsExpr *CheckVarDecl(VarDecl *D, CheckedScopeSpecifier CSS,
-                             CheckingState &State) {
+                             CheckingState &State, bool CheckBounds = false) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
       Expr *Init = D->getInit();
@@ -3422,11 +3422,12 @@ namespace {
         InitBounds = S.CheckNonModifyingBounds(InitBounds, Init);
         State.ObservedBounds[D] = InitBounds;
         if (InitBounds->isUnknown()) {
-          // TODO: need some place to record the initializer bounds
-          S.Diag(Init->getBeginLoc(), diag::err_expected_bounds_for_initializer)
-              << Init->getSourceRange();
+          if (CheckBounds)
+            // TODO: need some place to record the initializer bounds
+            S.Diag(Init->getBeginLoc(), diag::err_expected_bounds_for_initializer)
+                << Init->getSourceRange();
           InitBounds = S.CreateInvalidBoundsExpr();
-        } else {
+        } else if (CheckBounds) {
           BoundsExpr *NormalizedDeclaredBounds = ExpandToRange(D, DeclaredBounds);
           CheckBoundsDeclAtInitializer(D->getLocation(), D, NormalizedDeclaredBounds,
             Init, InitBounds, State.EquivExprs, CSS);
