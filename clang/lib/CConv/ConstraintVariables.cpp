@@ -1327,9 +1327,16 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
       NewVatoms.push_back(IAt);
     }
     if (ICAt && JCAt) {
-      // Sanity
       // Both are ConstAtoms, no need to equate them.
-      assert(ICAt == JCAt && "Should be same checked types");
+
+      // Sanity: If both are ConstAtoms and they are not same,
+      // Make sure that current ConstAtom is WILD. This ensure that
+      // we are moving towards checked types
+      if (ICAt != JCAt) {
+        if (!dyn_cast<WildAtom>(ICAt)) {
+          assert(false && "Should be same checked types");
+        }
+      }
     }
     ++I;
     ++J;
