@@ -1,3 +1,5 @@
+// UNSUPPORTED: system-windows
+
 // Tests for Checked C rewriter tool.
 //
 // Tests properties about type re-writing and replacement, and simple function
