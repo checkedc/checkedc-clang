@@ -18,13 +18,7 @@ using namespace llvm;
 using namespace clang;
 
 private int lastRecordLocation = -1;
-private void processInlineStruct(VarDecl *VD, ProgramInfo &Info, ASTContext *Context) {
-    const std::set<ConstraintVariable *> &C = Info.getVariable(VD, Context);
-    for(const auto &Var : C) {
-        std::string Rsn = "Variable " + VD->getNameAsString() + " is an inline struct definition.";
-        Var->constrainToWild(Info.getConstraints(), Rsn);
-    }
-}
+
 private void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info, ASTContext *Context) {
     if (RecordDecl *Definition = Declaration->getDefinition()) {
 
@@ -83,7 +77,8 @@ public:
                      VD->getType()->isArrayType())) {
                     Info.addVariable(VD, Context);
                     if(lastRecordLocation == VD->getBeginLoc().getRawEncoding()) {
-                        processInlineStruct(VD, Info, Context);
+                        std::set<ConstraintVariable *> C = Info.getVariable(VD, Context);
+                        CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
                     }
                 }
             }
@@ -395,7 +390,8 @@ public:
         CB.constrainLocalAssign(nullptr, G, G->getInit());
       }
       if(lastRecordLocation == G->getBeginLoc().getRawEncoding()) {
-        processInlineStruct(G, Info, Context);
+          std::set<ConstraintVariable *> C = Info.getVariable(G, Context);
+          CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
       }
     }
 
