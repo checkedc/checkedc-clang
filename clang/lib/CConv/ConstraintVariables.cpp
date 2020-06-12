@@ -242,14 +242,16 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     // This type is not a constant atom. We need to create a VarAtom for this.
 
     if (!VarCreated) {
-        if (InSysHdr) {
-            vars.push_back(CS.getWild());
-        } else {
-            VarAtom *VA = CS.getFreshVar(Npre + N, VK);
-            vars.push_back(VA);
-            if (isArr)
-                CS.addConstraint(CS.createGeq(CS.getArr(), VA, false));
-        }
+      // if in a system header and the Declaration is non-null,
+      // constrain everything about it
+      if (InSysHdr) {
+        vars.push_back(CS.getWild());
+      } else {
+        VarAtom *VA = CS.getFreshVar(Npre + N, VK);
+        vars.push_back(VA);
+        if (isArr)
+          CS.addConstraint(CS.createGeq(CS.getArr(), VA, false));
+      }
     }
 
     // Prepare for next level of pointer
