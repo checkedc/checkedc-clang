@@ -90,8 +90,8 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC,
     //   one to be wild if this added one is
     if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
       NewA = CS.getFreshVar("&"+(PVC->getName()), VarAtom::V_Other);
-      auto *Prem = CS.createGeq(VA, CS.getWild());
-      auto *Conc = CS.createGeq(NewA, CS.getWild());
+      auto *Prem = CS.createGeq(NewA, CS.getWild());
+      auto *Conc = CS.createGeq(VA, CS.getWild());
       CS.addConstraint(CS.createImplies(Prem, Conc));
     } else if (ConstAtom *C = dyn_cast<WildAtom>(A)) {
       NewA = CS.getWild();

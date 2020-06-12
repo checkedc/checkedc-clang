@@ -40,4 +40,4 @@ void foo(void) {
 }
 // CHECK:  _Ptr<int> y =  &x;
 // CHECK:  _Ptr<_Ptr<int>> z =  &y;
-// CHECK:  int **q2 = &p2;
+// CHECK:  _Ptr<int*> q2 = &p2;
