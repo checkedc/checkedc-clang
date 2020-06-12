@@ -308,13 +308,11 @@ public:
 
 
 // Represents constraints of the form:
-//  - a = b
 //  - a >= b
 //  - a ==> b
 class Constraint {
 public:
   enum ConstraintKind {
-    C_Eq,
     C_Geq,
     C_Imp
   };
@@ -604,11 +602,7 @@ private:
   // function parameters or returns.
   EnvironmentMap itypeConstraintVars;
 
-  // Map of function unique key to it declaration FVConstraintVariable.
-  FuncKeyToConsMap FuncDeclConstraints;
-  // Map of function unique key to it definition FVConstraintVariable.
-  FuncKeyToConsMap FuncDefnConstraints;
-
+  // Confirm a constraint is well-formed
   bool check(Constraint *C);
 
   // Managing constraints based on the underlying reason.
@@ -618,6 +612,8 @@ private:
   bool removeReasonBasedConstraint(Constraint *C);
 
   VarSolTy getDefaultSolution();
+
+  // Solve constraint set via graph-based dynamic transitive closure
   bool graph_based_solve(ConstraintSet &Conflicts);
 
   // These atoms can be singletons, so we'll store them in the

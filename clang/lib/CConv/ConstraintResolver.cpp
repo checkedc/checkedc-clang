@@ -133,6 +133,7 @@ static Atom *analyzeAllocExpr(Expr *E, Constraints &CS, QualType &ArgTy) {
   }
   return nullptr;
 }
+
 ConstraintVariable *
 ConstraintResolver::getTemporaryConstraintVariable(clang::Expr *E,
                                                    ConstraintVariable *CV) {

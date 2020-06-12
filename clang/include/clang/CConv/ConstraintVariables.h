@@ -54,13 +54,6 @@ public:
 
   ConstraintVariableKind getKind() const { return Kind; }
 
-  // From a given set of ConstraintVariables (toCheck), get the constraint
-  // variable that is not WILD and sits highest in the type lattice.
-  static ConstraintVariable *
-  getHighestNonWildConstraint(std::set<ConstraintVariable *> &ToCheck,
-                              EnvironmentMap &E,
-                              ProgramInfo &I);
-
 private:
   ConstraintVariableKind Kind;
 protected:
@@ -72,13 +65,13 @@ protected:
   // so that later on we do not introduce a spurious constraint
   // making those variables WILD.
   std::set<ConstraintKey> ConstrainedVars;
-  // A flag to indicate that we already equated definition and declaration
-  // constraints for this FV. This is needed to avoid infinite recursive calls.
-  bool HasDefDeclEquated;
+  // A flag to indicate that we already forced argConstraints to be equated
+  // Avoids infinite recursive calls.
+  bool HasEqArgumentConstraints;
 
   // Only subclasses should call this
   ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) :
-      Kind(K),OriginalType(T),Name(N), HasDefDeclEquated(false) {}
+      Kind(K),OriginalType(T),Name(N), HasEqArgumentConstraints(false) {}
 
 public:
   // Create a "for-rewriting" representation of this ConstraintVariable.
@@ -108,11 +101,12 @@ public:
   virtual bool hasWild(EnvironmentMap &E) = 0;
   virtual bool hasArr(EnvironmentMap &E) = 0;
   virtual bool hasNtArr(EnvironmentMap &E) = 0;
-  // Get the highest type assigned to the cvars of this constraint variable.
-  //virtual ConstAtom *getHighestType(EnvironmentMap &E) = 0;
-  virtual void equateInsideOutsideVars(ProgramInfo &I) = 0;
-  virtual void brainTransplant(ConstraintVariable *) = 0;
 
+  // Force use of equality constraints in function calls for this CV
+  virtual void equateArgumentConstraints(ProgramInfo &I) = 0;
+
+  // Update this CV with information from duplicate declaration CVs
+  virtual void brainTransplant(ConstraintVariable *) = 0;
   virtual void mergeDeclaration(ConstraintVariable *) = 0;
 
   std::string getOriginalTy() { return OriginalType; }
@@ -125,24 +119,9 @@ public:
 
   virtual ~ConstraintVariable() {};
 
-  // Constraint atoms may be either constants or variables. The constants are
-  // trivial to compare, but the variables can only really be compared under
-  // a specific valuation. That valuation is stored in the ProgramInfo data
-  // structure, so these functions (isLt, isEq) compare two ConstraintVariables
-  // with a specific assignment to the variables in mind.
-//  virtual bool isLt(const ConstraintVariable &Other, ProgramInfo &I) const = 0;
-//  virtual bool isEq(const ConstraintVariable &Other, ProgramInfo &I) const = 0;
   // Sometimes, constraint variables can be produced that are empty. This
   // tests for the existence of those constraint variables.
   virtual bool isEmpty(void) const = 0;
-
-//  // A helper function for isLt and isEq where the last parameter is a lambda
-//  // for the specific comparison operation to perform.
-//  virtual bool liftedOnCVars(const ConstraintVariable &O,
-//                             ProgramInfo &Info,
-//                             llvm::function_ref<bool (ConstAtom *,
-//                                                     ConstAtom *)>) const = 0;
-
 };
 
 enum ConsAction {
@@ -231,10 +210,6 @@ private:
                             Constraints &CS);
   PointerVariableConstraint *Parent;
 
-  // A global constraint that has a single ConstAtom. This is expected to
-  // be used in cases where a PVConstraint is expected but doesn't exist.
-  static PointerVariableConstraint *GlobalWildPV;
-  static PointerVariableConstraint *GlobalPtrPV;
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
@@ -267,8 +242,8 @@ public:
                             const clang::ASTContext &C, std::string* inFunc = nullptr);
 
   const CAtoms &getCvars() const { return vars; }
-  void brainTransplant(ConstraintVariable *From);
 
+  void brainTransplant(ConstraintVariable *From);
   void mergeDeclaration(ConstraintVariable *From);
 
   static bool classof(const ConstraintVariable *S) {
@@ -294,7 +269,7 @@ public:
   bool hasArr(EnvironmentMap &E);
   bool hasNtArr(EnvironmentMap &E);
 
-  void equateInsideOutsideVars(ProgramInfo &I);
+  void equateArgumentConstraints(ProgramInfo &I);
 
   bool isPartOfFunctionPrototype() const  { return partOFFuncPrototype; }
   // Add the provided constraint variable as an argument constraint.
@@ -384,7 +359,7 @@ public:
   bool hasArr(EnvironmentMap &E);
   bool hasNtArr(EnvironmentMap &E);
 
-  void equateInsideOutsideVars(ProgramInfo &P);
+  void equateArgumentConstraints(ProgramInfo &P);
 
   ConstraintVariable *getCopy(Constraints &CS);
 
