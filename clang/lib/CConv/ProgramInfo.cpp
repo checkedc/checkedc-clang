@@ -586,24 +586,20 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     // Function Decls have FVConstraints.
     FVConstraint *F = new FVConstraint(D, CS, *astContext);
     std::set<FVConstraint *> NewFVars;
+    /* Store the FVConstraint in the global and Variables maps */
     NewFVars.insert(F);
-    /* Only retain the FVConstraint if we stored in the global map */
-    // TODO there is some bug here if we condition on this call
     insertNewFVConstraints(FD, NewFVars, astContext);
-    if (true) {
-      S.insert(F);
-      // Add mappings from the parameters PLoc to the constraint variables for
-      // the parameters.
-      for (unsigned i = 0; i < FD->getNumParams(); i++) {
-        ParmVarDecl *PVD = FD->getParamDecl(i);
-        std::set<ConstraintVariable *> PS = F->getParamVar(i);
-        assert(PS.size());
-        PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *astContext);
-        Variables[PSL].insert(PS.begin(), PS.end());
-        specialCaseVarIntros(PVD, astContext);
-      }
-    } 
-
+    S.insert(F);
+    // Add mappings from the parameters PLoc to the constraint variables for
+    // the parameters.
+    for (unsigned i = 0; i < FD->getNumParams(); i++) {
+      ParmVarDecl *PVD = FD->getParamDecl(i);
+      std::set<ConstraintVariable *> PS = F->getParamVar(i);
+      assert(PS.size());
+      PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *astContext);
+      Variables[PSL].insert(PS.begin(), PS.end());
+      specialCaseVarIntros(PVD, astContext);
+    }
   } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
     const Type *Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     if (Ty->isPointerType() || Ty->isArrayType()) {
