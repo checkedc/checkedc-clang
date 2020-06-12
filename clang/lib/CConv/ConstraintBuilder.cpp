@@ -17,37 +17,35 @@
 using namespace llvm;
 using namespace clang;
 
-private unsigned int lastRecordLocation = -1;
+unsigned int lastRecordLocation = -1;
 
-private
-  void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
-                         ASTContext *Context) {
-    if (RecordDecl *Definition = Declaration->getDefinition()) {
+void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info, ASTContext *Context) {
+  if (RecordDecl *Definition = Declaration->getDefinition()) {
 
-      // store the current record's location to cross reference later in a
-      // VarDecl
-      lastRecordLocation = Definition->getBeginLoc().getRawEncoding();
+    // store the current record's location to cross reference later in a
+    // VarDecl
+    lastRecordLocation = Definition->getBeginLoc().getRawEncoding();
 
-      FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
+    FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
 
-      if (FL.isValid() && !FL.isInSystemHeader()) {
-        SourceManager &SM = Context->getSourceManager();
-        FileID FID = FL.getFileID();
-        const FileEntry *FE = SM.getFileEntryForID(FID);
+    if (FL.isValid() && !FL.isInSystemHeader()) {
+      SourceManager &SM = Context->getSourceManager();
+      FileID FID = FL.getFileID();
+      const FileEntry *FE = SM.getFileEntryForID(FID);
 
-        if (FE && FE->isValid()) {
-          // We only want to re-write a record if it contains
-          // any pointer types, to include array types.
-          // Most record types probably do,
-          // but let's scan it and not consider any records
-          // that don't have any pointers or arrays.
+      if (FE && FE->isValid()) {
+        // We only want to re-write a record if it contains
+        // any pointer types, to include array types.
+        // Most record types probably do,
+        // but let's scan it and not consider any records
+        // that don't have any pointers or arrays.
 
-          for (const auto &D : Definition->fields())
-            if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
-              Info.addVariable(D, Context);
-            }
-        }
+        for (const auto &D : Definition->fields())
+          if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
+            Info.addVariable(D, Context);
+          }
       }
+    }
     }
   }
 
