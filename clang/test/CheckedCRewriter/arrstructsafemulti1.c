@@ -100,7 +100,7 @@ int *mul2(int *x) {
 //CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
 
 int * sus(struct general *, struct general *);
-//CHECK: int * sus(struct general *, struct general *);
+//CHECK: int * sus(struct general *, struct general *y : itype(_Ptr<struct general>));
 
 int * foo() {
         struct general * x = malloc(sizeof(struct general));

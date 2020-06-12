@@ -361,6 +361,7 @@ bool ProgramInfo::link() {
           }
       }
   }
+
   // MWH: Should never happen: Def/decl set sizes == 1
 //  if (!SeperateMultipleFuncDecls) {
 //    int Gap = 0;
