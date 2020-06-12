@@ -2103,8 +2103,6 @@ namespace {
       BoundsAnalyzer(BoundsAnalysis(SemaRef, nullptr)),
       IncludeNullTerminator(false) {}
 
-    typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
-
     void IdentifyChecked(Stmt *S, StmtSet &MemoryCheckedStmts, StmtSet &BoundsCheckedStmts, CheckedScopeSpecifier CSS) {
       if (!S)
         return;
@@ -2305,7 +2303,7 @@ namespace {
 
      // Run the bounds widening analysis on this function.
      BoundsAnalysis BA = getBoundsAnalyzer();
-     BA.WidenBounds(FD);
+     BA.WidenBounds(FD, NestedElements);
      if (S.getLangOpts().DumpWidenedBounds)
        BA.DumpWidenedBounds(FD);
 

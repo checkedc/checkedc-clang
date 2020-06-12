@@ -210,6 +210,7 @@ add_clang_library(cconvClangDaemon
   refactor/Tweak.cpp
 
   LINK_LIBS
+  CConv
   clangAST
   clangASTMatchers
   clangBasic
@@ -254,7 +255,6 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
   # FIXME: Make fuzzer not use linux-specific APIs, build it everywhere.
   add_subdirectory(fuzzer)
 endif()
-add_subdirectory(cconvert)
 add_subdirectory(tool)
 add_subdirectory(indexer)
 add_subdirectory(index/dex/dexp)
