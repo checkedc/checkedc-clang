@@ -5213,6 +5213,12 @@ public:
   // will always fail.
   void WarnDynamicCheckAlwaysFails(const Expr *Condition);
 
+  // If the VarDecl D has a byte_count or count bounds expression,
+  // NormalizeBounds expands it to a range bounds expression.  The expanded
+  // range bounds are attached to the VarDecl D to avoid recomputing the
+  // normalized bounds for D.
+  BoundsExpr *NormalizeBounds(const VarDecl *D);
+
   // This is wrapper around CheckBoundsDeclaration::ExpandToRange. This
   // provides an easy way to invoke this function from outside the class. Given
   // a byte_count or count bounds expression for the VarDecl D, ExpandToRange
