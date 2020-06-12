@@ -17,9 +17,9 @@
 using namespace llvm;
 using namespace clang;
 
-private int lastRecordLocation = -1;
+int lastRecordLocation = -1;
 
-private void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info, ASTContext *Context) {
+void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info, ASTContext *Context) {
     if (RecordDecl *Definition = Declaration->getDefinition()) {
 
         //store the current record's location to cross reference later in a VarDecl
