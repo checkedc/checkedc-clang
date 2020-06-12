@@ -81,15 +81,15 @@ std::set<ConstraintVariable *>
 }
 
 // Update a PVConstraint with one additional level of indirection
-PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC,
-                                          Atom *NewA, Constraints &CS) {
+// The pointer type of the new atom is constrained >= PtrTyp.
+PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, Atom *PtrTyp, Constraints &CS) {
+  Atom *NewA = CS.getFreshVar("&"+(PVC->getName()), VarAtom::V_Other);
   CAtoms C = PVC->getCvars();
   if (!C.empty()) {
     Atom *A = *C.begin();
     // If PVC is already a pointer, add implication forcing outermost
     //   one to be wild if this added one is
     if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
-      NewA = CS.getFreshVar("&"+(PVC->getName()), VarAtom::V_Other);
       auto *Prem = CS.createGeq(NewA, CS.getWild());
       auto *Conc = CS.createGeq(VA, CS.getWild());
       CS.addConstraint(CS.createImplies(Prem, Conc));
@@ -97,6 +97,7 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC,
       NewA = CS.getWild();
     } // else stick with what's given
   }
+
   C.insert(C.begin(), NewA);
   bool a = PVC->getArrPresent();
   FVConstraint *b = PVC->getFV();
@@ -104,6 +105,7 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC,
   std::string d = PVC->getItype();
   PVConstraint *TmpPV = new PVConstraint(C, PVC->getTy(), PVC->getName(),
                                          b, a, c, d);
+  CS.addConstraint(CS.createGeq(NewA, PtrTyp, false));
   TempConstraintVars.insert(TmpPV);
   return TmpPV;
 }
@@ -254,44 +256,41 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       case UO_AddrOf: {
         T = getExprConstraintVars(UOExpr, UOExpr->getType());
         std::set<ConstraintVariable *> tmp;
-        if (T.empty()) { // doing &x where x is a non-pointer
-          UOExpr = UOExpr->IgnoreParenImpCasts();
-          UOExpr = getNormalizedExpr(UOExpr);
 
-          UnaryOperator *SubUO = dyn_cast<UnaryOperator>(UOExpr);
-          if (SubUO && SubUO->getOpcode() == UO_Deref) {
-            // Taking the address of a dereference is a NoOp, so the constraint
-            // vars for the subexpression can be passed through.
-            return getExprConstraintVars(
-                LHSConstraints, SubUO->getSubExpr(), RvalCons,
-                SubUO->getSubExpr()->getType(), IsAssigned);
+        UOExpr = UOExpr->IgnoreParenImpCasts();
+        UOExpr = getNormalizedExpr(UOExpr);
+
+        if(T.empty()){
+          // If no constraint vars are found, an empty one must be created.
+          // TODO: can we come up with meaningfull names in more cases?
+          std::string Name;
+          if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(UOExpr)) {
+            Name = DRE->getDecl()->getNameAsString();
           } else {
-            // TODO: There should be a case for ArraySubscriptExpr so that
-            // &(a[0]) is the same is a.
-            std::string Name;
-            if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(UOExpr)) {
-              Name = DRE->getDecl()->getNameAsString();
-            } else {
-              Name = "";
-            }
-            Atom *NewA = CS.getFreshVar("&" + Name, VarAtom::V_Other);
-            CAtoms V;
-            V.push_back(NewA);
-            ConstraintVariable *newC = new PointerVariableConstraint(
-                V, UOExpr->getType().getAsString(), Name, nullptr, false, false,
-                "");
-            CS.addConstraint(CS.createGeq(NewA, CS.getPtr(), false));
-            tmp.insert(newC);
+            Name = "";
           }
+          CAtoms V;
+          ConstraintVariable *newC = new PointerVariableConstraint(
+              V, UOExpr->getType().getAsString(), Name, nullptr, false,
+              false, "");
+          T.insert(newC);
+        }
+
+        UnaryOperator *SubUO = dyn_cast<UnaryOperator>(UOExpr);
+        if (SubUO && SubUO->getOpcode() == UO_Deref) {
+          // Taking the address of a dereference is a NoOp, so the constraint
+          // vars for the subexpression can be passed through.
+          return getExprConstraintVars(LHSConstraints, SubUO->getSubExpr(),
+                                       RvalCons, SubUO->getSubExpr()->getType(),
+                                       IsAssigned);
+        // TODO: this should also work for array subscript (issue #51), but it break some regression tests.
+        //} else if (ArraySubscriptExpr *ASE = dyn_cast<ArraySubscriptExpr>(UOExpr)) {
+        //  return getExprConstraintVars(LHSConstraints, ASE->getBase(), RvalCons,
+        //                               ASE->getBase()->getType(), IsAssigned);
         } else {
           for (auto *CV : T) {
             if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
-              // TODO: The second argument to addAtom gets thrown out, but the
-              // function doesn't work properly if I give it null. addAtom should be fixed up.
-              PVC = addAtom(PVC, CS.getFreshVar("", VarAtom::V_Other), CS);
-              Atom *NewA = PVC->getCvars().front();
-              CS.addConstraint(CS.createGeq(NewA, CS.getPtr(), false));
-              tmp.insert(PVC);
+              tmp.insert(addAtom(PVC, CS.getPtr(), CS));
             } else {
               // no-op for FPs
               tmp.insert(CV);
