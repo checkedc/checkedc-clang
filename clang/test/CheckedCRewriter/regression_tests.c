@@ -1,17 +1,20 @@
 // Tests for Checked C rewriter tool.
 //
-// Tests checked-c-convert tool for any regressions.
+// Tests cconv-standalone tool for any regressions.
 //
-// RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
 //
 
-#include <stdlib.h>
+#define NULL ((void *)0)
+typedef unsigned long size_t;
 
-char *func(void) {
+_Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
+
+unsigned char *func(void) {
    char *ptr = NULL;
-   return ptr;
+   return (unsigned char*)ptr;
 }
-//CHECK: _Nt_array_ptr<char> func(void) {
+//CHECK: _Nt_array_ptr<unsigned char> func(void) {
 //CHECK-NEXT: _Nt_array_ptr<char> ptr =  NULL;
 
 int main() {
@@ -24,4 +27,4 @@ int main() {
   return 0;
 }
 //CHECK: _Ptr<char> ptr1 =  NULL;
-//CHECK-NEXT: _Nt_array_ptr<char> d =  "sss";
+//CHECK-NEXT: _Nt_array_ptr<char> d: count(3) =  "sss";
