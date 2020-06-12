@@ -137,11 +137,9 @@ std::string getStorageQualifierString(Decl *D) {
 }
 
 bool isNULLExpression(clang::Expr *E, ASTContext &C) {
-  // This checks if the expression is NULL. Specifically, (void*)0
-  if (CStyleCastExpr *CS = dyn_cast<CStyleCastExpr>(E)) {
-    E = CS->getSubExpr(); // FIXME: Check the type of the cast?
-  }
-  return E->isIntegerConstantExpr(C) &&
+  QualType Typ = E->getType();
+  E = removeAuxillaryCasts(E);
+  return Typ->isPointerType() && E->isIntegerConstantExpr(C) &&
          E->isNullPointerConstant(C,Expr::NPC_ValueDependentIsNotNull);
 }
 
@@ -200,19 +198,20 @@ Expr *removeAuxillaryCasts(Expr *E) {
   return E;
 }
 
-Expr *getNormalizedExpr(Expr *CE) {
-  if (dyn_cast<ImplicitCastExpr>(CE)) {
-    CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
-  }
-  if (dyn_cast<CHKCBindTemporaryExpr>(CE)) {
-    CE = (dyn_cast<CHKCBindTemporaryExpr>(CE))->getSubExpr();
-  }
-  if (dyn_cast<ImplicitCastExpr>(CE)) {
-    CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
-  }
-  return CE;
-}
-
+//Expr *getNormalizedExpr(Expr *CE) {
+//  while (true) {
+//    if (CHKCBindTemporaryExpr *E = dyn_cast<CHKCBindTemporaryExpr>(CE)) {
+//      CE = E->getSubExpr();
+//      continue;
+//    }
+//    if (ParenExpr *E = dyn_cast <ParenExpr>(CE)) {
+//      CE = E->getSubExpr();
+//      continue;
+//    }
+//    break;
+//  }
+//  return CE;
+//}
 
 bool isTypeHasVoid(clang::QualType QT) {
   const clang::Type *CurrType = QT.getTypePtrOrNull();
@@ -276,9 +275,11 @@ static bool CastCheck(clang::QualType DstType,
   const clang::PointerType *DstPtrTypePtr = dyn_cast<clang::PointerType>(DstTypePtr);
 
   // Both are pointers? check their pointee
-  if (SrcPtrTypePtr && DstPtrTypePtr)
-    return CastCheck(DstPtrTypePtr->getPointeeType(),
-                     SrcPtrTypePtr->getPointeeType());
+  if (SrcPtrTypePtr && DstPtrTypePtr) {
+    return (SrcPtrTypePtr->isVoidPointerType()) ||
+        CastCheck(DstPtrTypePtr->getPointeeType(),
+                  SrcPtrTypePtr->getPointeeType());
+  }
 
   if (SrcPtrTypePtr || DstPtrTypePtr)
     return false;
@@ -297,11 +298,11 @@ static bool CastCheck(clang::QualType DstType,
   return !(BothNotChar || BothNotInt || BothNotFloat);
 }
 
-bool isExplicitCastSafe(clang::QualType DstType,
-                        clang::QualType SrcType) {
+bool isCastSafe(clang::QualType DstType,
+                clang::QualType SrcType) {
   const clang::Type *DstTypePtr = DstType.getTypePtr();
   const clang::PointerType *DstPtrTypePtr = dyn_cast<clang::PointerType>(DstTypePtr);
-  if (!DstPtrTypePtr) // Always safe to cast to a non-pointer
+  if (!DstPtrTypePtr) // Safe to cast to a non-pointer
     return true;
   else
     return CastCheck(DstType,SrcType);

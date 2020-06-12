@@ -37,7 +37,6 @@ PointerVariableConstraint *
 PointerVariableConstraint::getWildPVConstraint(Constraints &CS) {
   static PointerVariableConstraint *GlobalWildPV = nullptr;
   if (GlobalWildPV == nullptr) {
-    // Is this the first time? Then create PVConstraint.
     CAtoms NewVA;
     NewVA.push_back(CS.getWild());
     GlobalWildPV =
@@ -50,13 +49,23 @@ PointerVariableConstraint *
 PointerVariableConstraint::getPtrPVConstraint(Constraints &CS) {
   static PointerVariableConstraint *GlobalPtrPV = nullptr;
   if (GlobalPtrPV == nullptr) {
-    // Is this the first time? Then create PVConstraint.
     CAtoms NewVA;
     NewVA.push_back(CS.getPtr());
     GlobalPtrPV =
         new PVConstraint(NewVA, "unsigned", "ptrvar", nullptr, false, false, "");
   }
   return GlobalPtrPV;
+}
+
+PointerVariableConstraint *
+PointerVariableConstraint::getNonPtrPVConstraint(Constraints &CS) {
+  static PointerVariableConstraint *GlobalNonPtrPV = nullptr;
+  if (GlobalNonPtrPV == nullptr) {
+    CAtoms NewVA; // empty -- represents a base type
+    GlobalNonPtrPV =
+        new PVConstraint(NewVA, "unsigned", "basevar", nullptr, false, false, "");
+  }
+  return GlobalNonPtrPV;
 }
 
 PointerVariableConstraint::
@@ -1215,31 +1224,36 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
           CLHS.erase(CLHS.begin());
         }
 
-        if (CLHS.size() == CRHS.size()) {
-          int n = 0;
-          CAtoms::iterator I = CLHS.begin();
-          CAtoms::iterator J = CRHS.begin();
-          while (I != CLHS.end()) {
-	    // Get outermost pointer first, using current ConsAction
-            if (n == 0) createAtomGeq(CS, *I, *J, Rsn, PL, CA, doEqType);
-            else {
-	      // Now constrain the inner ones as equal
-	      createAtomGeq(CS, *I, *J, Rsn, PL, CA, true);
-	    }
-            ++I;
-            ++J;
-            n++;
+        // Only generate constraint if LHS is not a base type
+        if (CLHS.size() != 0) {
+          if (CLHS.size() == CRHS.size()) {
+            int n = 0;
+            CAtoms::iterator I = CLHS.begin();
+            CAtoms::iterator J = CRHS.begin();
+            while (I != CLHS.end()) {
+              // Get outermost pointer first, using current ConsAction
+              if (n == 0)
+                createAtomGeq(CS, *I, *J, Rsn, PL, CA, doEqType);
+              else {
+                // Now constrain the inner ones as equal
+                createAtomGeq(CS, *I, *J, Rsn, PL, CA, true);
+              }
+              ++I;
+              ++J;
+              n++;
+            }
+          // Unequal sizes means casting from (say) T** to T*; not safe
+          } else {
+            // Constrain both to be top.
+            std::string Rsn = "Assigning from:" + PCRHS->getName() + " to " +
+                              PCLHS->getName();
+            PCLHS->constrainToWild(CS, Rsn, PL);
+            PCRHS->constrainToWild(CS, Rsn, PL);
           }
-        } else {
-          // Constrain both to be top.
-          std::string Rsn = "Assigning from:" + PCRHS->getName() +
-                            " to " + PCLHS->getName();
-          PCLHS->constrainToWild(CS, Rsn, PL);
-          PCRHS->constrainToWild(CS, Rsn, PL);
+          // Equate the corresponding FunctionContraint.
+          constrainConsVarGeq(PCLHS->getFV(), PCRHS->getFV(), CS, PL, CA,
+                              doEqType, false, Info);
         }
-        // Equate the corresponding FunctionContraint.
-        constrainConsVarGeq(PCLHS->getFV(), PCRHS->getFV(), CS, PL, CA,
-                            doEqType, false, Info);
       } else
         llvm_unreachable("impossible");
     } else

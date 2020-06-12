@@ -7,8 +7,8 @@
 // expected-no-diagnostics
 //
 typedef __SIZE_TYPE__ size_t;
-extern void *malloc(size_t n) : byte_count(n);
-extern void free(void *);
+_Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
+_Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 
 void dosomething(void) {
   int a = 0;

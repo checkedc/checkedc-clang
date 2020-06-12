@@ -107,8 +107,9 @@ public:
   // (T)e
   bool VisitCStyleCastExpr(CStyleCastExpr *C) {
     // Is cast compatible with LHS type?
-    if (!isExplicitCastSafe(C->getType(), C->getSubExpr()->getType())) {
-      auto CVs = CB.getExprConstraintVars(C, C->getType(), true);
+    if (!isCastSafe(C->getType(), C->getSubExpr()->getType())) {
+      auto CVs = CB.getExprConstraintVars(C->getSubExpr(),
+                                          C->getSubExpr()->getType(), true);
       CB.constraintAllCVarsToWild(CVs, "Casted to a different type.", C);
     }
     return true;

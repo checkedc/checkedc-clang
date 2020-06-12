@@ -119,7 +119,7 @@ return z; }
 //CHECK:         struct general *x = malloc(sizeof(struct general)); 
 //CHECK:         struct general *y = malloc(sizeof(struct general));
 //CHECK:         struct general *curr = y;
-//CHECK:         _Ptr<int (struct fptr *, struct fptr *)> sus_ptr =  sus;   
+//CHECK:         int (*sus_ptr)(struct fptr *, struct fptr *) = sus;   
 //CHECK:         int *z = (int *) sus_ptr(x, y);
 
 int * bar() {
@@ -140,7 +140,7 @@ return z; }
 //CHECK:         struct general *x = malloc(sizeof(struct general)); 
 //CHECK:         struct general *y = malloc(sizeof(struct general));
 //CHECK:         struct general *curr = y;
-//CHECK:         _Ptr<int (struct fptr *, struct fptr *)> sus_ptr =  sus;   
+//CHECK:         int (*sus_ptr)(struct fptr *, struct fptr *) = sus;   
 //CHECK:         int *z = (int *) sus_ptr(x, y);
 
 int * sus(struct general *x, struct general *y) {
