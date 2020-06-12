@@ -2106,8 +2106,6 @@ namespace {
       BoundsAnalyzer(BoundsAnalysis(SemaRef, nullptr)),
       IncludeNullTerminator(false) {}
 
-    typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
-
     void IdentifyChecked(Stmt *S, StmtSet &MemoryCheckedStmts, StmtSet &BoundsCheckedStmts, CheckedScopeSpecifier CSS) {
       if (!S)
         return;
@@ -2203,7 +2201,7 @@ namespace {
      // bounds are killed by each statement. Here we reset the bounds of all
      // variables killed by the statement S to the declared bounds.
      for (const VarDecl *V : I->second) {
-       if (const BoundsExpr *Bounds = V->getBoundsExpr())
+       if (const BoundsExpr *Bounds = V->getBoundsExpr()) {
 
          // TODO: Throughout clang in general (and inside dataflow analysis in
          // particular) we repeatedly invoke ExpandBoundsToRange in order to
@@ -2219,6 +2217,7 @@ namespace {
          auto It = State.WidenedVariables.find(V);
          if (It != State.WidenedVariables.end())
            State.WidenedVariables.erase(It);
+        }
      }
    }
 
@@ -2307,7 +2306,7 @@ namespace {
 
      // Run the bounds widening analysis on this function.
      BoundsAnalysis BA = getBoundsAnalyzer();
-     BA.WidenBounds(FD);
+     BA.WidenBounds(FD, NestedElements);
      if (S.getLangOpts().DumpWidenedBounds)
        BA.DumpWidenedBounds(FD);
 

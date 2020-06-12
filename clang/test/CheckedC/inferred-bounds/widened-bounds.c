@@ -796,6 +796,9 @@ void f26() {
   }
 
   switch (*p) {
+  default: break;
+// CHECK:   default:
+// CHECK: upper_bound(p) = 1
   case '\0': break;
 // CHECK:   case '\x00':
 // CHECK-NOT: upper_bound(p)
@@ -811,6 +814,9 @@ void f26() {
   case 'a': break;
 // CHECK:   case '\x00':
 // CHECK-NOT: upper_bound(p)
+  default: break;
+// CHECK:   default:
+// CHECK: upper_bound(p) = 1
   }
 }
 
@@ -824,6 +830,10 @@ void f27() {
 // CHECK: In function: f27
 
   switch (*p) {
+  default: break;
+// CHECK:   default:
+// CHECK: upper_bound(p) = 1
+
   case a: break;
 // CHECK:   case a:
 // CHECK-NOT: upper_bound(p)
@@ -850,6 +860,10 @@ void f27() {
   case e2: break;
 // CHECK:   case e2:
 // CHECK: upper_bound(p) = 1
+
+  default: break;
+// CHECK:   default:
+// CHECK: upper_bound(p) = 1
   }
 }
 
@@ -860,8 +874,16 @@ void f28() {
 // CHECK: In function: f28
 
   switch (*p) {
+  default: break;
+// CHECK:   default:
+// CHECK: upper_bound(p) = 1
+
   case 0:
     switch (*p) {
+      default: break;
+// CHECK:   default:
+// CHECK-NOT: upper_bound(p)
+
       case 1: break;
     }
 // CHECK:  [B11]
@@ -1092,4 +1114,119 @@ void f31() {
 // CHECK: case x:
 // CHECK: upper_bound(p) = 1
   }
+}
+
+void f32() {
+// CHECK: In function: f32
+
+  _Nt_array_ptr<char> p : count(0) = "";
+
+  switch(*p) {
+    default: f1(); break;
+    case 0: {
+      switch(*p) {
+        default: f2(); break;
+        case 'a': break;
+      }
+      break;
+    }
+  }
+
+// CHECK:   default:
+// CHECK:    1: f1()
+// CHECK: upper_bound(p) = 1
+// CHECK:   default:
+// CHECK:    1: f2()
+// CHECK-NOT: upper_bound(p)
+// CHECK:   case 'a':
+// CHECK: upper_bound(p) = 1
+// CHECK:   case 0:
+// CHECK-NOT: upper_bound(p)
+
+  switch(*p) {
+    default: f1(); break;
+    case 0: {
+      switch(*p) {
+        default: f2(); break;
+        case '\0': break;
+      }
+      break;
+    }
+  }
+
+// CHECK:   default:
+// CHECK:    1: f1()
+// CHECK: upper_bound(p) = 1
+// CHECK:   default:
+// CHECK:    1: f2()
+// CHECK: upper_bound(p) = 1
+// CHECK:   case '\x00':
+// CHECK-NOT: upper_bound(p)
+// CHECK:   case 0:
+// CHECK-NOT: upper_bound(p)
+
+  switch(*p) {
+    default: f1(); break;
+    case 'b': {
+      switch(*(p+1)) {
+        default: f2(); break;
+        case 'a': break;
+      }
+      break;
+    }
+  }
+
+// CHECK:   default:
+// CHECK:    1: f1()
+// CHECK-NOT: upper_bound(p)
+// CHECK:   default:
+// CHECK:    1: f2()
+// CHECK: upper_bound(p) = 1
+// CHECK:   case 'a':
+// CHECK: upper_bound(p) = 2
+// CHECK:   case 'b':
+// CHECK: upper_bound(p) = 1
+
+  switch(*p) {
+    default: f1(); break;
+    case 'b': {
+      switch(*(p+1)) {
+        default: f2(); break;
+        case '\0': break;
+      }
+      break;
+    }
+  }
+
+// CHECK:   default:
+// CHECK:    1: f1()
+// CHECK-NOT: upper_bound(p)
+// CHECK:   default:
+// CHECK:    1: f2()
+// CHECK: upper_bound(p) = 2
+// CHECK:   case '\x00':
+// CHECK: upper_bound(p) = 1
+// CHECK:   case 'b':
+// CHECK: upper_bound(p) = 1
+
+  switch(*p) {
+    default: {
+      switch(*(p+1)) {
+        default: f2(); break;
+        case '\0': break;
+      }
+      break;
+    }
+    case 0: break;
+  }
+
+// CHECK:   default:
+// CHECK:    1: f2()
+// CHECK: upper_bound(p) = 2
+// CHECK:   case '\x00':
+// CHECK: upper_bound(p) = 1
+// CHECK:   default:
+// CHECK: upper_bound(p) = 1
+// CHECK:   case 0:
+// CHECK-NOT: upper_bound(p)
 }

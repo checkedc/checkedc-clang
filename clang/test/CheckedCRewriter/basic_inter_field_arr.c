@@ -2,7 +2,9 @@
 //
 // Tests properties about arr constraints propagation.
 //
-// RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
+// expected-no-diagnostics
 //
 // This tests the propagation of constraints
 // within the fields of structure.
@@ -12,7 +14,7 @@ typedef struct {
 } foo;
 //CHECK: typedef struct {
 //CHECK-NEXT: _Ptr<int> ptr;
-//CHECK: _Array_ptr<char> arrptr;
+//CHECK: char *arrptr;
 
 foo obj1 = {};
 
@@ -22,7 +24,7 @@ int* func(int *ptr, char *arrptr) {
   obj1.arrptr = arrptr;
   return ptr;
 }
-//CHECK: _Ptr<int> func(_Ptr<int> ptr, char *arrptr : itype(_Array_ptr<char> ) ) {
+//CHECK: _Ptr<int> func(_Ptr<int> ptr, char *arrptr) {
 
 int main() {
   int a;
