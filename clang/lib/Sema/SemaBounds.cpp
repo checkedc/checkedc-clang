@@ -5530,8 +5530,8 @@ void Sema::WarnDynamicCheckAlwaysFails(const Expr *Condition) {
 // normalized bounds for D.
 BoundsExpr *Sema::NormalizeBounds(const VarDecl *D) {
   // If D already has a normalized bounds expression, do not recompute it.
-  if (const BoundsExpr *NormalizedBounds = D->getNormalizedBounds())
-    return const_cast<BoundsExpr *>(NormalizedBounds);
+  if (BoundsExpr *NormalizedBounds = D->getNormalizedBounds())
+    return NormalizedBounds;
 
   // Normalize the bounds of D to a RangeBoundsExpr and attach the normalized
   // bounds to D to avoid recomputing them.

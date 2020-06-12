@@ -822,7 +822,7 @@ public:
 
   // \brief The bounds expression for this declaration, expanded to a
   // range bounds expression.
-  const BoundsExpr *getNormalizedBounds() const {
+  BoundsExpr *getNormalizedBounds() const {
     return const_cast<DeclaratorDecl *>(this)->getNormalizedBounds();
   }
 
