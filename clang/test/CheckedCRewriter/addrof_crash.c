@@ -39,4 +39,9 @@ void test3(){
   // CHECK: _Ptr<_Ptr<int>> e =  &((0?c:d)[0]);
 }
 
-
+void test4() {
+  int *x = (int *)5;
+  // CHECK: int *x = (int *)5;
+  int *p = &(*x);
+  // CHECK: int *p = &(*x);
+}
