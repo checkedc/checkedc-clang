@@ -264,7 +264,9 @@ public:
   PointerVariableConstraint(const clang::QualType &QT,
                             clang::DeclaratorDecl *D, std::string N,
                             Constraints &CS,
-                            const clang::ASTContext &C, std::string* inFunc = nullptr);
+                            const clang::ASTContext &C,
+                            std::string *inFunc = nullptr,
+                            bool InSysHdr = false);
 
   const CAtoms &getCvars() const { return vars; }
   void brainTransplant(ConstraintVariable *From);
@@ -346,7 +348,8 @@ public:
                              Constraints &CS, const clang::ASTContext &C);
   FunctionVariableConstraint(const clang::Type *Ty,
                              clang::DeclaratorDecl *D, std::string N,
-                             Constraints &CS, const clang::ASTContext &C);
+                             Constraints &CS, const clang::ASTContext &C,
+                             bool InSysHdr = false);
 
   std::set<ConstraintVariable *> &
   getReturnVars() { return returnVars; }
