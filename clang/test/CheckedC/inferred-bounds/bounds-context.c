@@ -2129,7 +2129,6 @@ struct S {
 // Increment/decrement operators on non-variables or variables without declared bounds
 // do not result in bounds checking-related warnings or errors
 void inc_dec_bounds5(nt_array_ptr<int> *p, struct S s, array_ptr<int> a) {
-  // Observed bounds context before increment: { }
   // Observed bounds context after increment:  { }
   ++*p;
   // CHECK: Statement S:
@@ -2140,7 +2139,6 @@ void inc_dec_bounds5(nt_array_ptr<int> *p, struct S s, array_ptr<int> a) {
   // CHECK-NEXT: Observed bounds context after checking S:
   // CHECK-NEXT: { }
 
-  // Observed bounds context before increment: { }
   // Observed bounds context after increment:  { }
   p[0]++;
   // CHECK: Statement S:
@@ -2152,7 +2150,6 @@ void inc_dec_bounds5(nt_array_ptr<int> *p, struct S s, array_ptr<int> a) {
   // CHECK-NEXT: Observed bounds context after checking S:
   // CHECK-NEXT: { }
 
-  // Observed bounds context before increment: { }
   // Observed bounds context after increment:  { }
   --s.f;
   // CHECK: Statement S:
@@ -2162,7 +2159,6 @@ void inc_dec_bounds5(nt_array_ptr<int> *p, struct S s, array_ptr<int> a) {
   // CHECK-NEXT: Observed bounds context after checking S:
   // CHECK-NEXT: { }
   
-  // Observed bounds context before increment: { }
   // Observed bounds context after increment:  { }
   a--;
   // CHECK: Statement S:
