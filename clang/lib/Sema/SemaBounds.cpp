@@ -2200,7 +2200,7 @@ namespace {
      // bounds are killed by each statement. Here we reset the bounds of all
      // variables killed by the statement S to the declared bounds.
      for (const VarDecl *V : I->second) {
-       if (const BoundsExpr *Bounds = V->getBoundsExpr())
+       if (const BoundsExpr *Bounds = V->getBoundsExpr()) {
 
          // TODO: Throughout clang in general (and inside dataflow analysis in
          // particular) we repeatedly invoke ExpandBoundsToRange in order to
@@ -2216,6 +2216,7 @@ namespace {
          auto It = State.WidenedVariables.find(V);
          if (It != State.WidenedVariables.end())
            State.WidenedVariables.erase(It);
+        }
      }
    }
 
