@@ -101,9 +101,12 @@ public:
   virtual bool hasWild(EnvironmentMap &E) = 0;
   virtual bool hasArr(EnvironmentMap &E) = 0;
   virtual bool hasNtArr(EnvironmentMap &E) = 0;
-  virtual void equateArgumentConstraints(ProgramInfo &I) = 0;
-  virtual void brainTransplant(ConstraintVariable *) = 0;
 
+  // Force use of equality constraints in function calls for this CV
+  virtual void equateArgumentConstraints(ProgramInfo &I) = 0;
+
+  // Update this CV with information from duplicate declaration CVs
+  virtual void brainTransplant(ConstraintVariable *) = 0;
   virtual void mergeDeclaration(ConstraintVariable *) = 0;
 
   std::string getOriginalTy() { return OriginalType; }
@@ -119,7 +122,6 @@ public:
   // Sometimes, constraint variables can be produced that are empty. This
   // tests for the existence of those constraint variables.
   virtual bool isEmpty(void) const = 0;
-
 };
 
 enum ConsAction {
@@ -164,6 +166,7 @@ public:
 
   static PointerVariableConstraint *getWildPVConstraint(Constraints &CS);
   static PointerVariableConstraint *getPtrPVConstraint(Constraints &CS);
+  static PointerVariableConstraint *getNonPtrPVConstraint(Constraints &CS);
 private:
   std::string BaseType;
   CAtoms vars;

@@ -36,7 +36,7 @@ public:
   // The flag NonEmptyCons is used to indicate that this expression is used as
   // an Rvalue.
   std::set<ConstraintVariable *>
-  getExprConstraintVars(Expr *E, QualType LhsType, bool NonEmptyCons = false);
+  getExprConstraintVars(Expr *E, QualType LhsType);
 
   // This is a bit of a hack. What we need to do is traverse the AST in a
   // bottom-up manner, and, for a given expression, decide which singular,
@@ -57,9 +57,7 @@ public:
   std::set<ConstraintVariable *>  getExprConstraintVars(
       std::set<ConstraintVariable *> &LHSConstraints,
       Expr                            *E,
-      std::set<ConstraintVariable *> &RvalCons,
-      QualType                   LhsType,
-      bool                    &IsAssigned);
+      QualType                   LhsType);
 
   // Handle assignment of RHS expression to LHS expression using the
   // given action.
@@ -91,11 +89,11 @@ private:
 
 
   std::set<ConstraintVariable *> getWildPVConstraint();
+  std::set<ConstraintVariable *> PVConstraintFromType(QualType TypE);
 
   std::set<ConstraintVariable *> getAllSubExprConstraintVars(
-      std::set<ConstraintVariable *> &LHSConstraints, std::vector<Expr *> &Exprs,
-      std::set<ConstraintVariable *> &RvalCons, QualType LhsType,
-      bool &IsAssigned);
+    std::set<ConstraintVariable *> &LHSConstraints, std::vector<Expr *> &Exprs,
+      QualType LhsType);
 };
 
 #endif // _CONSTRAINTRESOLVER_H

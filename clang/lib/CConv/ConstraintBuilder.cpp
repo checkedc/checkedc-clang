@@ -23,7 +23,8 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
     ASTContext *Context, ConstraintResolver CB) {
   if (RecordDecl *Definition = Declaration->getDefinition()) {
 
-    // store the current record's location to cross reference later in a VarDecl
+    // store the current record's location to cross reference later in a
+    // VarDecl
     lastRecordLocation = Definition->getBeginLoc().getRawEncoding();
 
     FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
@@ -109,7 +110,8 @@ public:
   bool VisitCStyleCastExpr(CStyleCastExpr *C) {
     // Is cast compatible with LHS type?
     if (!isCastSafe(C->getType(), C->getSubExpr()->getType())) {
-      auto CVs = CB.getExprConstraintVars(C, C->getType(), true);
+      auto CVs = CB.getExprConstraintVars(C->getSubExpr(),
+                                          C->getSubExpr()->getType());
       CB.constraintAllCVarsToWild(CVs, "Casted to a different type.", C);
     }
     return true;
@@ -200,7 +202,7 @@ public:
     QualType Typ = Function->getReturnType();
 
     std::set<ConstraintVariable *> RconsVar =
-        CB.getExprConstraintVars(RetExpr, Typ, true);
+        CB.getExprConstraintVars(RetExpr, Typ);
     // Constrain the return type of the function
     // to the type of the return expression.
     for (const auto &F : Fun) {
@@ -263,7 +265,7 @@ private:
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
         std::set<ConstraintVariable *> ArgumentConstraints =
-            CB.getExprConstraintVars(A, A->getType(), true);
+            CB.getExprConstraintVars(A, A->getType());
         for (auto *TmpC : FuncCVars) {
           if (PVConstraint *PVC = dyn_cast<PVConstraint>(TmpC)) {
             TmpC = PVC->getFV();

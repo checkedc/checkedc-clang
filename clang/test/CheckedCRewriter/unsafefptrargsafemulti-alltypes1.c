@@ -101,7 +101,7 @@ int *mul2(int *x) {
 //CHECK: int * mul2(int *x) { 
 
 int * sus(int (*) (int), int (*) (int));
-//CHECK: int * sus(int (*)(int), _Ptr<int (int )> y);
+//CHECK: int * sus(int (*)(int), int (*)(int) y : itype(_Ptr<int (int )>));
 
 int * foo() {
  
@@ -112,6 +112,7 @@ int * foo() {
 return z; }
 //CHECK: int * foo() {
 //CHECK:         int (*x)(int) = add1; 
+//CHECK:         int (*y)(int) = mul2; 
 //CHECK:         int *z = sus(x, y);
 
 int * bar() {
@@ -123,4 +124,5 @@ int * bar() {
 return z; }
 //CHECK: int * bar() {
 //CHECK:         int (*x)(int) = add1; 
+//CHECK:         int (*y)(int) = mul2; 
 //CHECK:         int *z = sus(x, y);

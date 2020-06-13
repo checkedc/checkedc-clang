@@ -15,7 +15,7 @@ char *sus(int *x, int*y) {
   *x = 2;
   return z;
 }
-//CHECK: char *sus(int *x, _Ptr<int> y) : itype(_Ptr<char>) {
+//CHECK: char * sus(int *x, _Ptr<int> y) {
 
 char* foo() {
   int sx = 3, sy = 4, *x = &sx, *y = &sy;

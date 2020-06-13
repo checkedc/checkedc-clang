@@ -26,10 +26,19 @@ int main() {
 //CHECK-NEXT: int *b;
 
 int * bar(int *x) { x = (int*)5; return x; }
-void foo(int *y, int *w) {
+int *foo(int *y, int *w) {
   int *z = 0;
   z = (y, w = bar(w));
+  return z;
 }
 //CHECK: int * bar(int *x) { x = (int*)5; return x; }
-//CHECK-NEXT: void foo(_Ptr<int> y, int *w) {
-//CHECK-NEXT: _Ptr<int> z =  0;
+//CHECK-NEXT: _Array_ptr<int> foo(_Array_ptr<int> y, int *w) {
+//CHECK-NEXT: _Array_ptr<int> z =  0;
+
+void baz(int *p) {
+  int *q = 0 ? p : foo(0,0);
+  q++;
+}
+//CHECK: void baz(_Array_ptr<int> p) {
+//CHECK-NEXT:  _Array_ptr<int> q =  0 ? p : foo(0,0);
+

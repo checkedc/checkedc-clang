@@ -88,7 +88,7 @@ clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD,
 clang::Expr *removeAuxillaryCasts(clang::Expr *SrcExpr);
 
 // Get normalized expression by removing clang syntactic sugar
-clang::Expr *getNormalizedExpr(clang::Expr *CE);
+// clang::Expr *getNormalizedExpr(clang::Expr *CE);
 
 // OK to cast from Src to Dst?
 bool isCastSafe(clang::QualType DstType,

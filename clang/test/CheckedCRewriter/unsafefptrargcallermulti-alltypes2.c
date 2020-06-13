@@ -110,5 +110,5 @@ int * sus(int (*x) (int), int (*y) (int)) {
         }
         
 return z; }
-//CHECK: int * sus(int (*x)(int), _Ptr<int (int )> y) {
+//CHECK: int * sus(int (*x)(int), int (*)(int) y : itype(_Ptr<int (int )>)) {
 //CHECK:         int *z = calloc(5, sizeof(int));

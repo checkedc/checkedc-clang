@@ -8,7 +8,7 @@ import subprocess
 #### USERS PUT YOUR INFO HERE ##### 
 
 # Please remember to add a '/' at the very end!
-path_to_monorepo = "~/checkedc-clang/"
+path_to_monorepo = "/Users/mwh/checkedc/checkedc-clang/llvm/cmake-build-debug/bin/"
 
 
 
@@ -530,12 +530,12 @@ def annot_gen(prefix, proto, suffix, flag):
     
     # run the porting tool on the file(s)
     if proto=="multi": 
-        if flag!="": os.system("{}build/bin/cconv-standalone -alltypes -output-postfix=checked {} {}".format(path_to_monorepo, name, name2))
-        else: os.system("{}build/bin/cconv-standalone -output-postfix=checked {} {}".format(path_to_monorepo, name, name2))
+        if flag!="": os.system("{}cconv-standalone -alltypes -output-postfix=checked {} {}".format(path_to_monorepo, name, name2))
+        else: os.system("{}cconv-standalone -output-postfix=checked {} {}".format(path_to_monorepo, name, name2))
         os.system("rm {} {}".format(name, name2))
     else: 
-        if flag!="": os.system("{}build/bin/cconv-standalone -alltypes -output-postfix=checked {}".format(path_to_monorepo, name))
-        else: os.system("{}build/bin/cconv-standalone -output-postfix=checked {}".format(path_to_monorepo, name))
+        if flag!="": os.system("{}cconv-standalone -alltypes -output-postfix=checked {}".format(path_to_monorepo, name))
+        else: os.system("{}cconv-standalone -output-postfix=checked {}".format(path_to_monorepo, name))
         os.system("rm {}".format(name))
     
     # isolate the definitions (at the top of the file) into more bitesize chunks  
@@ -548,14 +548,14 @@ def annot_gen(prefix, proto, suffix, flag):
     file = open(cname, "r") 
     bug_generated = False
     if proto != "multi" and flag == "": 
-        out = subprocess.Popen(['../../../build/bin/clang', '-c', cname], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) 
+        out = subprocess.Popen(['{}clang'.format(path_to_monorepo), '-c', cname], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) 
         stdout, stderr = out.communicate()
         stdout = str(stdout) 
         if "error:" in stdout: 
             bug_generated = True
             name = prefix + proto + suffix + flag + "_BUG.c" 
     elif flag == "": 
-        out = subprocess.Popen(['../../../build/bin/clang', '-c', cname, cname2], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) 
+        out = subprocess.Popen(['{}clang'.format(path_to_monorepo), '-c', cname, cname2], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) 
         stdout, stderr = out.communicate()
         stdout = str(stdout) 
         if "error:" in stdout: 
