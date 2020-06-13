@@ -57,8 +57,7 @@ public:
   std::set<ConstraintVariable *>  getExprConstraintVars(
       std::set<ConstraintVariable *> &LHSConstraints,
       Expr                            *E,
-      QualType                   LhsType,
-      bool                    &IsAssigned);
+      QualType                   LhsType);
 
   // Handle assignment of RHS expression to LHS expression using the
   // given action.
@@ -94,7 +93,7 @@ private:
 
   std::set<ConstraintVariable *> getAllSubExprConstraintVars(
     std::set<ConstraintVariable *> &LHSConstraints, std::vector<Expr *> &Exprs,
-      QualType LhsType, bool &IsAssigned);
+      QualType LhsType);
 };
 
 #endif // _CONSTRAINTRESOLVER_H

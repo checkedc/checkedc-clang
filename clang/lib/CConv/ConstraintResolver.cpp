@@ -47,9 +47,8 @@ void ConstraintResolver::constraintAllCVarsToWild(
 std::set<ConstraintVariable *>
 ConstraintResolver::getExprConstraintVars(Expr *E, QualType LhsType) {
   std::set<ConstraintVariable *> IgnCons;
-  bool IgnIsAssigned;
   std::set<ConstraintVariable *> ExprCons =
-      getExprConstraintVars(IgnCons, E, LhsType, IgnIsAssigned);
+      getExprConstraintVars(IgnCons, E, LhsType);
   return ExprCons;
 }
 
@@ -167,8 +166,7 @@ ConstraintResolver::getTemporaryConstraintVariable(clang::Expr *E,
 // ifc mirrors the inFunctionContext boolean parameter to getVariable.
 std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
     std::set<ConstraintVariable *> &LHSConstraints, Expr *E,
-    QualType LhsType,
-    bool &IsAssigned) {
+    QualType LhsType) {
   if (E != nullptr) {
     auto &CS = Info.getConstraints();
     QualType TypE = E->getType();
@@ -187,7 +185,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
     } else if (ImplicitCastExpr *IE = dyn_cast<ImplicitCastExpr>(E)) {
       QualType SubTypE = IE->getSubExpr()->getType();
       auto CVs = getExprConstraintVars(
-          LHSConstraints, IE->getSubExpr(), LhsType, IsAssigned);
+          LHSConstraints, IE->getSubExpr(), LhsType);
       // if TypE is a pointer type, and the cast is unsafe, return WildPtr
       if (TypE->isPointerType()
           && !(SubTypE->isFunctionType()
@@ -214,7 +212,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
         // NB: Expression ECE itself handled in ConstraintBuilder::FunctionVisitor
       else
         return getExprConstraintVars(
-              LHSConstraints, TmpE, LhsType, IsAssigned);
+              LHSConstraints, TmpE, LhsType);
 
     // variable (x)
     } else if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
@@ -233,16 +231,16 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       case BO_SubAssign:
       case BO_Comma:
         return getExprConstraintVars(LHSConstraints, BO->getLHS(),
-                                     LhsType, IsAssigned);
+                                     LhsType);
       /* Possible pointer arithmetic: Could be LHS or RHS */
       case BO_Add:
       case BO_Sub:
         if (BO->getLHS()->getType()->isPointerType())
           return getExprConstraintVars(
-              LHSConstraints, BO->getLHS(), LhsType, IsAssigned);
+              LHSConstraints, BO->getLHS(), LhsType);
         else if (BO->getRHS()->getType()->isPointerType())
           return getExprConstraintVars(
-              LHSConstraints, BO->getRHS(), LhsType, IsAssigned);
+              LHSConstraints, BO->getRHS(), LhsType);
         else
           return PVConstraintFromType(TypE);
       /* Pointer-to-member ops unsupported */
@@ -321,12 +319,11 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
           // Taking the address of a dereference is a NoOp, so the constraint
           // vars for the subexpression can be passed through.
           return getExprConstraintVars(LHSConstraints, SubUO->getSubExpr(),
-                                       SubUO->getSubExpr()->getType(),
-                                       IsAssigned);
+                                       SubUO->getSubExpr()->getType());
         // TODO: this should also work for array subscript (issue #51), but it break some regression tests.
         //} else if (ArraySubscriptExpr *ASE = dyn_cast<ArraySubscriptExpr>(UOExpr)) {
-        //  return getExprConstraintVars(LHSConstraints, ASE->getBase(), RvalCons,
-        //                               ASE->getBase()->getType(), IsAssigned);
+        //  return getExprConstraintVars(LHSConstraints, ASE->getBase(),
+        //                               ASE->getBase()->getType());
         } else {
           for (auto *CV : T) {
             if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
@@ -355,8 +352,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       case UO_PostDec:
       case UO_PreInc:
       case UO_PreDec:
-        return getExprConstraintVars(
-            LHSConstraints, UOExpr, LhsType, IsAssigned);
+        return getExprConstraintVars(LHSConstraints, UOExpr, LhsType);
       /* Integer operators */
       // +e, -e, ~e
       case UO_Plus:
@@ -385,7 +381,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
         // the call could be done through an array subscript.
         Expr *CalledExpr = CE->getCallee();
         std::set<ConstraintVariable *> tmp = getExprConstraintVars(
-            LHSConstraints, CalledExpr, LhsType, IsAssigned);
+            LHSConstraints, CalledExpr, LhsType);
 
         for (ConstraintVariable *C : tmp) {
           if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
@@ -464,21 +460,12 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
         TmpCVs.insert(NewCV);
       }
 
-      // FIXME: I don't know why this is here, but not in other places in this code
-      if (!isCastSafe(LhsType, ExprType)) {
-        constraintAllCVarsToWild(TmpCVs, "Assigning to a different type.", E);
-        constraintAllCVarsToWild(LHSConstraints,
-                                 "Assigned from a different type.", E);
-      }
-
       // If LHS constraints are not empty? Assign to LHS.
       if (!LHSConstraints.empty()) {
         auto PL = PersistentSourceLoc::mkPSL(CE, *Context);
         constrainConsVarGeq(LHSConstraints, TmpCVs, CS, &PL, Safe_to_Wild,
                             false, false, &Info);
-        // We assigned the constraints to the LHS.
-        // We do not need to propagate the constraints.
-        IsAssigned = true;
+        // We assigned the constraints to the LHS; no need to propagate
         TmpCVs.clear();
       }
       return TmpCVs;
@@ -489,7 +476,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       SubExprs.push_back(CO->getLHS());
       SubExprs.push_back(CO->getRHS());
       return getAllSubExprConstraintVars(LHSConstraints, SubExprs,
-                                         LhsType, IsAssigned);
+                                         LhsType);
 
     // { e1, e2, e3, ... }
     } else if (InitListExpr *ILE = dyn_cast<InitListExpr>(E)) {
@@ -497,7 +484,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
         std::vector<Expr *> SubExprs = ILE->inits().vec();
         return
             getAllSubExprConstraintVars(LHSConstraints, SubExprs,
-                                        LhsType, IsAssigned);
+                                        LhsType);
       } else if (LhsType->isStructureType()) {
         if (Verbose) {
           llvm::errs() << "WARNING! Structure initialization expression ignored: ";
@@ -524,7 +511,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
     // Checked-C temporary
     } else if (CHKCBindTemporaryExpr *CE = dyn_cast<CHKCBindTemporaryExpr>(E)) {
       return getExprConstraintVars(
-          LHSConstraints, CE->getSubExpr(), LhsType, IsAssigned);
+          LHSConstraints, CE->getSubExpr(), LhsType);
 
     // Not specifically handled -- impose no constraint
     } else {
@@ -543,16 +530,12 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
 // Exprs into a single set.
 std::set<ConstraintVariable *> ConstraintResolver::getAllSubExprConstraintVars(
     std::set<ConstraintVariable *> &LHSConstraints, std::vector<Expr *> &Exprs,
-    QualType LhsType,
-    bool &IsAssigned) {
+    QualType LhsType) {
 
   std::set<ConstraintVariable *> AggregateCons;
-  IsAssigned = true;
   for (const auto &E : Exprs) {
     std::set<ConstraintVariable *> ECons;
-    bool EAssign = false;
-    ECons = getExprConstraintVars(LHSConstraints, E, LhsType, EAssign);
-    IsAssigned = EAssign && IsAssigned;
+    ECons = getExprConstraintVars(LHSConstraints, E, LhsType);
     AggregateCons.insert(ECons.begin(), ECons.end());
   }
 
@@ -563,19 +546,15 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
                                              ConsAction CAction) {
   PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(TSt, *Context);
   std::set<ConstraintVariable *> L = getExprConstraintVars(LHS, LHS->getType());
-  bool IsAssigned = false;
   std::set<ConstraintVariable *> R =
-      getExprConstraintVars(L, RHS, LHS->getType(), IsAssigned);
-  if (!IsAssigned) {
-    constrainConsVarGeq(L, R, Info.getConstraints(), &PL, CAction, false, false,
+      getExprConstraintVars(L, RHS, LHS->getType());
+  constrainConsVarGeq(L, R, Info.getConstraints(), &PL, CAction, false, false,
                         &Info);
-  }
 }
 
 void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
                                               Expr *RHS,
                                              ConsAction CAction) {
-  bool IsAssigned = false;
   PersistentSourceLoc PL, *PLPtr = nullptr;
   if (TSt != nullptr) {
    PL = PersistentSourceLoc::mkPSL(TSt, *Context);
@@ -583,8 +562,7 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
   }
   // Get the in-context local constraints.
   std::set<ConstraintVariable *> V = Info.getVariable(D, Context);
-  auto RHSCons =
-      getExprConstraintVars(V, RHS, D->getType(), IsAssigned);
+  auto RHSCons = getExprConstraintVars(V, RHS, D->getType());
 
   // When the RHS of the assignment is an array initializer, the LHS must be
   // dereferenced in order to generate the correct constraints. Not doing this
