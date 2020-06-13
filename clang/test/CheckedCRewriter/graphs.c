@@ -1,12 +1,8 @@
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
 
-#define NULL ((void*)0)
-extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
-extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
-extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
-extern _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
-extern int printf(const char * restrict format : itype(restrict _Nt_array_ptr<const char>), ...);
-extern _Unchecked char *strcpy(char * restrict dest, const char * restrict src : itype(restrict _Nt_array_ptr<const char>));
+#include <stdio.h>
+
+#include <stdlib.h>
 
 #define MAX_SIZE 40//Assume 40 nodes at max in graph
 #define INT_MIN 0
@@ -85,15 +81,30 @@ int main()
 
 {
 
-	int vertices = 4,edges = 3,i,src,dst;
+	int vertices,edges,i,src,dst;
+
+	printf("Enter the number of vertices\n");
+
+	scanf("%d",&vertices);
 
 	struct Graph* graph = createGraph(vertices);
+
+	printf("Enter the number of edges\n");
+
+	scanf("%d",&edges);
 
 	for(i=0; i<edges; i++)
 
 	{
-        src = i; 
-        dst = i+1;
+
+		printf("Edge %d \nEnter source: ",i+1);
+
+		scanf("%d",&src);
+
+		printf("Enter destination: ");
+
+		scanf("%d",&dst);
+
 		addEdge(graph, src, dst);
 
 	}
