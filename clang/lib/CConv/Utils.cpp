@@ -319,6 +319,15 @@ bool canWrite(const std::string &FilePath) {
   return fileAbsPath.rfind(BaseDir, 0) == 0;
 }
 
+bool isInSysHeader(clang::Decl *D) {
+  if (D != nullptr) {
+    auto &C = D->getASTContext();
+    FullSourceLoc FL = C.getFullLoc(D->getBeginLoc());
+    return FL.isInSystemHeader();
+  }
+  return false;
+}
+
 unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
                                   unsigned long Str1Len, unsigned long Str2Len) {
   if (Str1Len == 0 || Str2Len == 0)

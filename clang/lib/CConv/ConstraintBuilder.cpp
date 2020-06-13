@@ -28,7 +28,7 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info, ASTContext *C
 
     FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
 
-    if (FL.isValid() && !FL.isInSystemHeader()) {
+    if (FL.isValid()) {
       SourceManager &SM = Context->getSourceManager();
       FileID FID = FL.getFileID();
       const FileEntry *FE = SM.getFileEntryForID(FID);
@@ -64,7 +64,7 @@ public:
   bool VisitDeclStmt(DeclStmt *S) {
     // Introduce variables as needed.
     for (const auto &D : S->decls()) {
-      if (RecordDecl *RD = dyn_cast<RecordDecl>(D)) {
+      if(RecordDecl *RD = dyn_cast<RecordDecl>(D)) {
         processRecordDecl(RD, Info, Context);
       }
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
@@ -73,14 +73,13 @@ public:
            * We don't seem to have these shorts of checks elsewhere. */
           FullSourceLoc FL = Context->getFullLoc(VD->getBeginLoc());
           SourceRange SR = VD->getSourceRange();
-          if (SR.isValid() && FL.isValid() && !FL.isInSystemHeader() &&
+          if (SR.isValid() && FL.isValid() &&
               (VD->getType()->isPointerType() ||
                VD->getType()->isArrayType())) {
             Info.addVariable(VD, Context);
             if (lastRecordLocation == VD->getBeginLoc().getRawEncoding()) {
               std::set<ConstraintVariable *> C = Info.getVariable(VD, Context);
-              CB.constraintAllCVarsToWild(C, "Inline struct encountered.",
-                                          nullptr);
+              CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
             }
           }
         }

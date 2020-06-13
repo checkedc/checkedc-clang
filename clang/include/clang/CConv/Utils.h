@@ -103,6 +103,9 @@ bool hasVoidType(clang::ValueDecl *D);
 // Check if the provided type has void as one of its type
 bool isTypeHasVoid(clang::QualType QT);
 
+// Check if the provided declaration is in system header.
+bool isInSysHeader(clang::Decl *D);
+
 // Find the longest common subsequence.
 unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
                                   unsigned long Str1Len, unsigned long Str2Len);

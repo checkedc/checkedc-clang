@@ -104,7 +104,8 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
                                                      std::string N,
                                                      Constraints &CS,
                                                      const ASTContext &C,
-                                                     std::string *inFunc) :
+                                                     std::string *inFunc,
+                                                     bool InSysHdr) :
         ConstraintVariable(ConstraintVariable::PointerVariable,
                            tyToStr(QT.getTypePtr()),N), FV(nullptr),
         partOFFuncPrototype(inFunc != nullptr), Parent(nullptr)
@@ -130,6 +131,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
   bool isDeclTy = false;
   if (D != nullptr) {
+    InSysHdr |= isInSysHeader(D);
     isDeclTy = D->getType() == QT; // If false, then QT may be D's return type
     if (InteropTypeExpr *ITE = D->getInteropTypeExpr()) {
       // External variables can also have itype.
@@ -246,11 +248,18 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     }
 
     // This type is not a constant atom. We need to create a VarAtom for this.
+
     if (!VarCreated) {
-      VarAtom *VA = CS.getFreshVar(Npre + N, VK);
-      vars.push_back(VA);
-      if (isArr)
-        CS.addConstraint(CS.createGeq(CS.getArr(), VA, false));
+      // if in a system header and the Declaration is non-null,
+      // constrain everything about it
+      if (InSysHdr) {
+        vars.push_back(CS.getWild());
+      } else {
+        VarAtom *VA = CS.getFreshVar(Npre + N, VK);
+        vars.push_back(VA);
+        if (isArr)
+          CS.addConstraint(CS.createGeq(CS.getArr(), VA, false));
+      }
     }
 
     // Prepare for next level of pointer
@@ -274,7 +283,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     // where tn is the typedef'ed type name.
     // There is possibly something more elegant to do in the code here.
     FV = new FVConstraint(Ty, isDeclTy ? D : nullptr,
-                          (IsTypedef ? "" : N), CS, C);
+                          (IsTypedef ? "" : N), CS, C, InSysHdr);
 
   BaseType = tyToStr(Ty);
 
@@ -609,7 +618,8 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
                                                        DeclaratorDecl *D,
                                                        std::string N,
                                                        Constraints &CS,
-                                                       const ASTContext &Ctx) :
+                                                       const ASTContext &Ctx,
+                                                       bool InSysHdr) :
         ConstraintVariable(ConstraintVariable::FunctionVariable,
                            tyToStr(Ty), N), Parent(nullptr)
 {
@@ -637,6 +647,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     auto PSL = PersistentSourceLoc::mkPSL(D, *TmpCtx);
     FileName = PSL.getFileName();
     IsFunctionPtr = false;
+    InSysHdr |= isInSysHeader(FD);
   }
 
   // ConstraintVariables for the parameters
@@ -666,7 +677,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
       }
 
       std::set<ConstraintVariable *> C;
-      C.insert(new PVConstraint(QT, ParmVD, PName, CS, Ctx, &N));
+      C.insert(new PVConstraint(QT, ParmVD, PName, CS, Ctx, &N, InSysHdr));
       paramVars.push_back(C);
     }
 
@@ -680,7 +691,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   }
 
   // ConstraintVariable for the return
-  returnVars.insert(new PVConstraint(RT, D, RETVAR, CS, Ctx, &N));
+  returnVars.insert(new PVConstraint(RT, D, RETVAR, CS, Ctx, &N, InSysHdr));
 }
 
 void FunctionVariableConstraint::constrainToWild(Constraints &CS) {
