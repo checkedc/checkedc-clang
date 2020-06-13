@@ -241,8 +241,7 @@ public:
                             clang::DeclaratorDecl *D, std::string N,
                             Constraints &CS,
                             const clang::ASTContext &C,
-                            std::string *inFunc = nullptr,
-                            bool InSysHdr = false);
+                            std::string *inFunc = nullptr);
 
   const CAtoms &getCvars() const { return vars; }
 
@@ -324,8 +323,7 @@ public:
                              Constraints &CS, const clang::ASTContext &C);
   FunctionVariableConstraint(const clang::Type *Ty,
                              clang::DeclaratorDecl *D, std::string N,
-                             Constraints &CS, const clang::ASTContext &C,
-                             bool InSysHdr = false);
+                             Constraints &CS, const clang::ASTContext &C);
 
   std::set<ConstraintVariable *> &
   getReturnVars() { return returnVars; }

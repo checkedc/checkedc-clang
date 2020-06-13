@@ -47,6 +47,7 @@ autoconf/autom4te.cache
 /CMakeSettings.json
 # CLion project configuration
 /.idea
+lit.local.cfg
 
 #==============================================================================#
 # Directories to ignore (do not add trailing '/'s, they skip symlinks).
