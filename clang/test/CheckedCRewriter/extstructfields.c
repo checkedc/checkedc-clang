@@ -1,6 +1,6 @@
 // RUN: CPATH=$CHECKED_CPATH:$CPATH cconv-standalone %s -- | FileCheck -match-full-lines %s
 
-#include<signal_checked.h>
+#include <signal.h>
 
 void vsf_sysutil_set_sighandler(int sig, void (*p_handlefunc)(int))
 {
