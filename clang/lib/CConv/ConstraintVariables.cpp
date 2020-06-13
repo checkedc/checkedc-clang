@@ -1167,7 +1167,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS,
 
         // This is an assignment between function pointer and
         // function pointer or a function.
-        // Equate the definition and declaration.
+        // Force past/future callers of function to use equality constraints.
         FCLHS->equateArgumentConstraints(*Info);
         FCRHS->equateArgumentConstraints(*Info);
 
