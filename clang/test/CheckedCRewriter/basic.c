@@ -1,12 +1,8 @@
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
 
-#define NULL ((void*)0)
-extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
-extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
-extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
-extern _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
-extern int printf(const char * restrict format : itype(restrict _Nt_array_ptr<const char>), ...);
-extern _Unchecked char *strcpy(char * restrict dest, const char * restrict src : itype(restrict _Nt_array_ptr<const char>));
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 void basic1() {
 	char data[] = "abcdefghijklmnop";
@@ -31,6 +27,8 @@ char* basic2(int temp) {
 		strcpy(buffer, data2); // Overflow
 		if (temp) {
 			free(buffer);
+		} else {
+			puts(buffer);
 		}
 		return buffer; // Return after free
 	} else {
@@ -65,6 +63,14 @@ void sum_numbers(int count) {
     if(ptr == NULL)
     {
         printf("Error! memory not allocated.");
+        exit(0);
+    }
+    printf("Enter elements: ");
+
+    for(i = 0; i < n; ++i)
+    {
+        scanf("%d", ptr + i);
+        sum += *(ptr + i);
     }
     free(ptr);
 }
@@ -81,9 +87,16 @@ void basic_calloc(int count) {
     if(ptr == NULL)
     {
         printf("Error! memory not allocated.");
+        exit(0);
     }
 
     printf("Enter elements: ");
+
+    for(i = 0; i < n; ++i)
+    {
+        scanf("%d", ptr + i);
+        sum += *(ptr + i);
+    }
 
     printf("Sum = %d", sum);
     free(ptr);
@@ -97,6 +110,19 @@ void basic_realloc(int count) {
 
 	n1 = count;
     int *ptr = (int*) malloc(n1 * sizeof(int));
+
+    printf("Addresses of previously allocated memory: ");
+
+    for(i = 0; i < n1; ++i)
+         printf("%u\n",ptr + i);
+    printf("\nEnter the new size: ");
+    scanf("%d", &n2);
+    ptr = realloc(ptr, n2 * sizeof(int));
+    printf("Addresses of newly allocated memory: ");
+
+    for(i = 0; i < n2; ++i)
+
+         printf("%u\n", ptr + i);
 
     free(ptr);
 }
@@ -125,8 +151,27 @@ void basic_struct(int count) {
         printf("Insufficient Memory, Exiting... \n");
     }
 
+    for(i=0; i<n; i++)
+    {
+        printf("\nEnter detail of student [%3d]:\n",i+1);
+        printf("Enter name: ");
+        scanf(" "); /*clear input buffer*/
+        gets((pstd+i)->name);
+        printf("Enter roll number: ");
+        scanf("%d",&(pstd+i)->roll);
+        printf("Enter percentage: ");
+        scanf("%f",&(pstd+i)->perc);
+    }
+
+    printf("\nEntered details are:\n");
+
+    for(i=0; i<n; i++)
+    {
+        printf("%30s \t %5d \t %.2f\n",(pstd+i)->name,(pstd+i)->roll,(pstd+i)->perc);
+    }
+
 }
-//CHECK: _Ptr<struct student> pstd = (struct student*)malloc(n*sizeof(struct student));
+//CHECK: struct student *pstd=(struct student*)malloc(n*sizeof(struct student));
 
 struct student * new_student() {
 		char name[] = "Bilbo Baggins";
