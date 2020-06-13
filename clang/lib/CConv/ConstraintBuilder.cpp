@@ -110,8 +110,7 @@ public:
   bool VisitCStyleCastExpr(CStyleCastExpr *C) {
     // Is cast compatible with LHS type?
     if (!isCastSafe(C->getType(), C->getSubExpr()->getType())) {
-      auto CVs = CB.getExprConstraintVars(C->getSubExpr(),
-                                          C->getSubExpr()->getType());
+      auto CVs = CB.getExprConstraintVars(C->getSubExpr());
       CB.constraintAllCVarsToWild(CVs, "Casted to a different type.", C);
     }
     return true;
@@ -148,7 +147,7 @@ public:
       // sort of indirect call through an array or conditional. FV constraints
       // can be obtained for this from getExprConstraintVars.
       Expr *CalledExpr = E->getCallee();
-      FVCons = CB.getExprConstraintVars(CalledExpr, CalledExpr->getType());
+      FVCons = CB.getExprConstraintVars(CalledExpr);
 
       // When multiple function variables are used in the same expression, they
       // must have the same type.
@@ -201,8 +200,7 @@ public:
     Expr *RetExpr = S->getRetValue();
     QualType Typ = Function->getReturnType();
 
-    std::set<ConstraintVariable *> RconsVar =
-        CB.getExprConstraintVars(RetExpr, Typ);
+    std::set<ConstraintVariable *> RconsVar = CB.getExprConstraintVars(RetExpr);
     // Constrain the return type of the function
     // to the type of the return expression.
     for (const auto &F : Fun) {
@@ -265,7 +263,7 @@ private:
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
         std::set<ConstraintVariable *> ArgumentConstraints =
-            CB.getExprConstraintVars(A, A->getType());
+            CB.getExprConstraintVars(A);
         for (auto *TmpC : FuncCVars) {
           if (PVConstraint *PVC = dyn_cast<PVConstraint>(TmpC)) {
             TmpC = PVC->getFV();
@@ -321,8 +319,7 @@ private:
 
   // Constraint helpers.
   void constraintInBodyVariable(Expr *e, ConstAtom *CAtom) {
-    std::set<ConstraintVariable *> Var =
-        CB.getExprConstraintVars(e, e->getType());
+    std::set<ConstraintVariable *> Var = CB.getExprConstraintVars(e);
     constrainVarsTo(Var, CAtom);
   }
 
@@ -338,8 +335,7 @@ private:
     for (const auto &A : E->arguments()) {
       // Get constraint from within the function body
       // of the caller.
-      std::set<ConstraintVariable *> ParameterEC =
-          CB.getExprConstraintVars(A, A->getType());
+      std::set<ConstraintVariable *> ParameterEC = CB.getExprConstraintVars(A);
 
       // Assign WILD to each of the constraint variables.
       FunctionDecl *FD = E->getDirectCallee();
@@ -360,8 +356,7 @@ private:
   // is WILD.
   void constraintPointerArithmetic(Expr *E) {
     if (E->getType()->isFunctionPointerType()) {
-      std::set<ConstraintVariable *> Var =
-          CB.getExprConstraintVars(E, E->getType());
+      std::set<ConstraintVariable *> Var = CB.getExprConstraintVars(E);
       std::string Rsn = "Pointer arithmetic performed on a function pointer.";
       CB.constraintAllCVarsToWild(Var, Rsn, E);
     } else {

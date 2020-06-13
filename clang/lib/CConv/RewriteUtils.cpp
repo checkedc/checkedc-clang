@@ -1210,7 +1210,7 @@ public:
               if (i < FD->getNumParams()) {
 
                 std::set<ConstraintVariable *> ArgumentConstraints =
-                    CR.getExprConstraintVars(A, A->getType());
+                    CR.getExprConstraintVars(A);
                 std::set<ConstraintVariable *> &ParameterConstraints =
                     FV->getParamVar(i);
                 bool CastInserted = false;
@@ -1248,8 +1248,7 @@ public:
       Expr *LHS = O->getLHS();
       Expr *RHS = O->getRHS();
       auto &CS = Info.getConstraints();
-      std::set<ConstraintVariable *> LCons =
-          CR.getExprConstraintVars(LHS, LHS->getType());
+      std::set<ConstraintVariable *> LCons = CR.getExprConstraintVars(LHS);
       ConstraintVariable *LCVariable = nullptr;
       bool LHSChkType = false;
       for (auto *LC : LCons) {

@@ -35,8 +35,7 @@ public:
   // Returns a set of ConstraintVariables which represent the result of
   // evaluating the expression E. Will explore E recursively, but will
   // ignore parts of it that do not contribute to the final result
-  std::set<ConstraintVariable *> getExprConstraintVars(Expr *E,
-                                                       QualType LhsType);
+  std::set<ConstraintVariable *> getExprConstraintVars(Expr *E);
 
   // Handle assignment of RHS expression to LHS expression using the
   // given action.
@@ -69,8 +68,8 @@ private:
   std::set<ConstraintVariable *> getWildPVConstraint();
   std::set<ConstraintVariable *> PVConstraintFromType(QualType TypE);
 
-  std::set<ConstraintVariable *> getAllSubExprConstraintVars(
-    std::vector<Expr *> &Exprs, QualType LhsType);
+  std::set<ConstraintVariable *>
+      getAllSubExprConstraintVars(std::vector<Expr *> &Exprs);
 };
 
 #endif // _CONSTRAINTRESOLVER_H
