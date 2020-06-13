@@ -19,7 +19,8 @@ using namespace clang;
 
 unsigned int lastRecordLocation = -1;
 
-void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info, ASTContext *Context) {
+void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
+    ASTContext *Context, ConstraintResolver CB) {
   if (RecordDecl *Definition = Declaration->getDefinition()) {
 
     // store the current record's location to cross reference later in a VarDecl
@@ -42,6 +43,10 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info, ASTContext *C
         for (const auto &D : Definition->fields())
           if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
             Info.addVariable(D, Context);
+            if(FL.isInSystemHeader()) {
+              std::set<ConstraintVariable *> C = Info.getVariable(D, Context);
+              CB.constraintAllCVarsToWild(C, "Field in header.", nullptr);
+            }
           }
       }
     }
@@ -64,7 +69,7 @@ public:
     // Introduce variables as needed.
     for (const auto &D : S->decls()) {
       if(RecordDecl *RD = dyn_cast<RecordDecl>(D)) {
-        processRecordDecl(RD, Info, Context);
+        processRecordDecl(RD, Info, Context, CB);
       }
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         if (VD->isLocalVarDecl()) {
@@ -420,7 +425,7 @@ public:
   }
 
   bool VisitRecordDecl(RecordDecl *Declaration) {
-    processRecordDecl(Declaration, Info, Context);
+    processRecordDecl(Declaration, Info, Context, CB);
     return true;
   }
 
