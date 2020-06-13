@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // This implements a simple constraint solver for expressions of the form:
-//  a = b
+//  a >= b
 //  a implies b
 //
 // The Checked C converter tool performs type inference to identify locations

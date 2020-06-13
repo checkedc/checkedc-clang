@@ -600,6 +600,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       Variables[PSL].insert(PS.begin(), PS.end());
       specialCaseVarIntros(PVD, astContext);
     }
+
   } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
     const Type *Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     if (Ty->isPointerType() || Ty->isArrayType()) {

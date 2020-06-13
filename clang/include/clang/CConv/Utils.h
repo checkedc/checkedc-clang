@@ -92,7 +92,7 @@ clang::Expr *removeAuxillaryCasts(clang::Expr *SrcExpr);
 
 // OK to cast from Src to Dst?
 bool isCastSafe(clang::QualType DstType,
-                        clang::QualType SrcType);
+                clang::QualType SrcType);
 
 // Check if the provided file path belongs to the input project
 // and can be rewritten.

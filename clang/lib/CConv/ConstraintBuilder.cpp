@@ -46,8 +46,8 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info, ASTContext *C
           }
       }
     }
-    }
   }
+}
 
 // This class visits functions and adds constraints to the
 // Constraints instance assigned to it.
