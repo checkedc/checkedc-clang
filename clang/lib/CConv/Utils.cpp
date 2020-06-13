@@ -28,26 +28,6 @@ const clang::Type *getNextTy(const clang::Type *Ty) {
     return Ty;
 }
 
-//ConstraintVariable *getHighest(std::set<ConstraintVariable *> Vs,
-//                               ProgramInfo &Info) {
-//  if (Vs.size() == 0)
-//    return nullptr;
-//
-//  ConstraintVariable *V = nullptr;
-//
-//  for (auto &P : Vs) {
-//    if (V) {
-//      if (V->isLt(*P, Info))
-//        V = P;
-//    } else {
-//      V = P;
-//    }
-//  }
-//
-//  return V;
-//}
-
-
 // Walk the list of declarations and find a declaration that is NOT
 // a definition and does NOT have a body.
 FunctionDecl *getDeclaration(FunctionDecl *FD) {
@@ -317,7 +297,7 @@ static bool CastCheck(clang::QualType DstType,
   return !(BothNotChar || BothNotInt || BothNotFloat);
 }
 
-bool isExplicitCastSafe(clang::QualType DstType,
+bool isCastSafe(clang::QualType DstType,
                         clang::QualType SrcType) {
   const clang::Type *DstTypePtr = DstType.getTypePtr();
   const clang::PointerType *DstPtrTypePtr = dyn_cast<clang::PointerType>(DstTypePtr);

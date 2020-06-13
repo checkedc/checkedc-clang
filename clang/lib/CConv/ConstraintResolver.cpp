@@ -340,11 +340,11 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       std::set<ConstraintVariable *> TmpCons = getExprConstraintVars(
           LHSConstraints, TmpE, RvalCons, LhsType, IsAssigned);
       // Is cast compatible with LHS type?
-      if (!isExplicitCastSafe(LhsType, ECE->getType())) {
+      if (!isCastSafe(LhsType, ECE->getType())) {
         constraintAllCVarsToWild(LHSConstraints, "Casted From a different type.", E);
       }
       // Is cast internally safe?
-      if (!isExplicitCastSafe(ECE->getType(),TmpE->getType())) {
+      if (!isCastSafe(ECE->getType(), TmpE->getType())) {
         // Return WILD ins R constraint
         auto TmpCvs = getWildPVConstraint();
         RvalCons.insert(TmpCvs.begin(), TmpCvs.end());
@@ -450,7 +450,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getExprConstraintVars(
       }
 
       // FIXME: I don't know why this is here, but not in other places in this code
-      if (!isExplicitCastSafe(LhsType, ExprType)) {
+      if (!isCastSafe(LhsType, ExprType)) {
         constraintAllCVarsToWild(TmpCVs, "Assigning to a different type.", E);
         constraintAllCVarsToWild(LHSConstraints,
                                  "Assigned from a different type.", E);

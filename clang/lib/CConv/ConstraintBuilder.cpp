@@ -85,9 +85,8 @@ public:
         }
     }
 
-    // FIXME: Merge into the loop above; but: we should process inits
-    //   even for non-pointers because things like structs and unions
-    //   can contain pointers
+    // Process inits even for non-pointers because structs and union values
+    // can contain pointers
     for (const auto &D : S->decls()) {
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         Expr *InitE = VD->getInit();
@@ -104,7 +103,7 @@ public:
   // (T)e
   bool VisitCStyleCastExpr(CStyleCastExpr *C) {
     // Is cast compatible with LHS type?
-    if (!isExplicitCastSafe(C->getType(), C->getSubExpr()->getType())) {
+    if (!isCastSafe(C->getType(), C->getSubExpr()->getType())) {
       auto CVs = CB.getExprConstraintVars(C, C->getType(), true);
       CB.constraintAllCVarsToWild(CVs, "Casted to a different type.", C);
     }
