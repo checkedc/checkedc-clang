@@ -14,3 +14,4 @@ void vsf_sysutil_set_sighandler(int sig, void (*p_handlefunc)(int))
 void foo(int *x) { 
 
 }
+//CHECK: void foo(_Ptr<int> x) {
