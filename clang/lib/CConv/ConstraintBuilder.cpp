@@ -17,6 +17,7 @@
 using namespace llvm;
 using namespace clang;
 
+// Used to keep track of in-line struct defs
 unsigned int lastRecordLocation = -1;
 
 void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
@@ -37,10 +38,6 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
       if (FE && FE->isValid()) {
         // We only want to re-write a record if it contains
         // any pointer types, to include array types.
-        // Most record types probably do,
-        // but let's scan it and not consider any records
-        // that don't have any pointers or arrays.
-
         for (const auto &D : Definition->fields())
           if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
             Info.addVariable(D, Context);
@@ -56,10 +53,8 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
 
 // This class visits functions and adds constraints to the
 // Constraints instance assigned to it.
-// Each VisitXXX method is responsible either for looking inside statements
-// to find constraints
-// The results of this class are returned via the ProgramInfo
-// parameter to the user.
+// Each VisitXXX method is responsible for looking inside statements
+// and imposing constraints on variables it uses
 class FunctionVisitor : public RecursiveASTVisitor<FunctionVisitor> {
 public:
   explicit FunctionVisitor(ASTContext *C, ProgramInfo &I, FunctionDecl *FD)
@@ -102,9 +97,6 @@ public:
 
     return true;
   }
-
-  // TODO: other visitors to visit statements and expressions that we use to
-  // Gather constraints.
 
   // (T)e
   bool VisitCStyleCastExpr(CStyleCastExpr *C) {
