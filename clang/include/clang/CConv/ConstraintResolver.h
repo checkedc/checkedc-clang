@@ -32,32 +32,10 @@ public:
                                 std::string rsn,
                                 Expr *AtExpr = nullptr);
 
-  // This function gets the constraint variables for the given expression.
-  // The flag NonEmptyCons is used to indicate that this expression is used as
-  // an Rvalue.
-  std::set<ConstraintVariable *>
-  getExprConstraintVars(Expr *E, QualType LhsType);
-
-  // This is a bit of a hack. What we need to do is traverse the AST in a
-  // bottom-up manner, and, for a given expression, decide which singular,
-  // if any, constraint variable is involved in that expression. However,
-  // in the current version of clang (3.8.1), bottom-up traversal is not
-  // supported. So instead, we do a manual top-down traversal, considering
-  // the different cases and their meaning on the value of the constraint
-  // variable involved. This is probably incomplete, but, we're going to
-  // go with it for now.
-  //
-  // V is (currentVariable, baseVariable, limitVariable)
-  // E is an expression to recursively traverse.
-  //
-  // Returns true if E resolves to a constraint variable q_i and the
-  // currentVariable field of V is that constraint variable. Returns false if
-  // a constraint variable cannot be found.
-  // ifc mirrors the inFunctionContext boolean parameter to getVariable.
-  std::set<ConstraintVariable *>  getExprConstraintVars(
-      std::set<ConstraintVariable *> &LHSConstraints,
-      Expr                            *E,
-      QualType                   LhsType);
+  // Returns a set of ConstraintVariables which represent the result of
+  // evaluating the expression E. Will explore E recursively, but will
+  // ignore parts of it that do not contribute to the final result
+  std::set<ConstraintVariable *> getExprConstraintVars(Expr *E);
 
   // Handle assignment of RHS expression to LHS expression using the
   // given action.
@@ -87,13 +65,11 @@ private:
   // Update a PVConstraint with one additional level of indirection
   PVConstraint *addAtom(PVConstraint *PVC, Atom *NewA, Constraints &CS);
 
-
   std::set<ConstraintVariable *> getWildPVConstraint();
   std::set<ConstraintVariable *> PVConstraintFromType(QualType TypE);
 
-  std::set<ConstraintVariable *> getAllSubExprConstraintVars(
-    std::set<ConstraintVariable *> &LHSConstraints, std::vector<Expr *> &Exprs,
-      QualType LhsType);
+  std::set<ConstraintVariable *>
+      getAllSubExprConstraintVars(std::vector<Expr *> &Exprs);
 };
 
 #endif // _CONSTRAINTRESOLVER_H
