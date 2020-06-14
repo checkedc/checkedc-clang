@@ -23,6 +23,7 @@ ConstraintResolver::~ConstraintResolver() {
   ExprTmpConstraints.clear();
 }
 
+// Force all ConstraintVariables in this set to be WILD
 void ConstraintResolver::constraintAllCVarsToWild(
     std::set<ConstraintVariable *> &CSet, std::string rsn, Expr *AtExpr) {
   PersistentSourceLoc Psl;
@@ -44,6 +45,8 @@ void ConstraintResolver::constraintAllCVarsToWild(
   }
 }
 
+// Return a set of PVConstraints equivalent to the set given,
+// but dereferenced one level down
 std::set<ConstraintVariable *>
     ConstraintResolver::handleDeref(std::set<ConstraintVariable *> T) {
   std::set<ConstraintVariable *> tmp;
@@ -70,7 +73,7 @@ std::set<ConstraintVariable *>
   return tmp;
 }
 
-// Update a PVConstraint with one additional level of indirection
+// Add to a PVConstraint one additional level of indirection
 // The pointer type of the new atom is constrained >= PtrTyp.
 PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, Atom *PtrTyp, Constraints &CS) {
   Atom *NewA = CS.getFreshVar("&"+(PVC->getName()), VarAtom::V_Other);
@@ -256,7 +259,6 @@ std::set<ConstraintVariable *>
     // ++e, &e, *e, etc.
     } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
       Expr *UOExpr = UO->getSubExpr();
-      QualType UOExprTyp = UOExpr->getType();
       std::set<ConstraintVariable *> T;
       switch (UO->getOpcode()) {
       // &e
@@ -287,8 +289,7 @@ std::set<ConstraintVariable *>
           return getExprConstraintVars(SubUO->getSubExpr());
         // TODO: this should also work for array subscript (issue #51), but it break some regression tests.
         //} else if (ArraySubscriptExpr *ASE = dyn_cast<ArraySubscriptExpr>(UOExpr)) {
-        //  return getExprConstraintVars(ASE->getBase(),
-        //                               ASE->getBase()->getType());
+        //  return getExprConstraintVars(ASE->getBase());
         } else {
           for (auto *CV : T) {
             if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
