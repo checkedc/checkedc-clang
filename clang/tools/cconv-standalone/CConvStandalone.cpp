@@ -33,13 +33,6 @@ static cl::opt<bool> OptVerbose("verbose", cl::desc("Print verbose "
                                                  "information"),
                              cl::init(false), cl::cat(ConvertCategory));
 
-static cl::opt<bool>
-    OptSeperateMultipleFuncDecls("seperatefds",
-                              cl::desc("Do not merge multiple "
-                                       "declarations of functions."),
-                              cl::init(false),
-                              cl::cat(ConvertCategory));
-
 static cl::opt<std::string>
     OptOutputPostfix("output-postfix",
                   cl::desc("Postfix to add to the names of rewritten "
@@ -77,11 +70,6 @@ static cl::opt<bool> OptAllTypes("alltypes",
                               cl::init(false),
                               cl::cat(ConvertCategory));
 
-static cl::opt<bool> OptNewSolver("new-solver",
-                                 cl::desc("Use more sophisticated constraint solver for ptyps"),
-                                 cl::init(true),
-                                 cl::cat(ConvertCategory));
-
 static cl::opt<bool> OptAddCheckedRegions("addcr", cl::desc("Add Checked "
                                                          "Regions"),
                                        cl::init(false),
@@ -114,10 +102,8 @@ int main(int argc, const char **argv) {
   CcOptions.Verbose = OptVerbose;
   CcOptions.DumpIntermediate = OptDumpIntermediate;
   CcOptions.ConstraintOutputJson = OptConstraintOutputJson.getValue();
-  CcOptions.SeperateMultipleFuncDecls = OptSeperateMultipleFuncDecls;
   CcOptions.AddCheckedRegions = OptAddCheckedRegions;
   CcOptions.EnableAllTypes = OptAllTypes;
-  CcOptions.NewSolver = OptNewSolver;
 
   // Create CConv Interface.
   CConvInterface CCInterface(CcOptions,

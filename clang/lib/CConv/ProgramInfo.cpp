@@ -10,7 +10,6 @@
 
 #include "clang/CConv/ProgramInfo.h"
 #include "clang/CConv/CCGlobalOptions.h"
-#include "clang/CConv/ConstraintBuilder.h"
 #include "clang/CConv/MappingVisitor.h"
 #include <sstream>
 
@@ -19,11 +18,8 @@ using namespace clang;
 ProgramInfo::ProgramInfo() :
   persisted(true) {
   ArrBoundsInfo = new ArrayBoundsInformation(*this);
-//  ExternalFunctionDeclFVCons.clear();
   ExternalFunctionFVCons.clear();
-//  StaticFunctionDeclFVCons.clear();
   StaticFunctionFVCons.clear();
-  MultipleRewrites = false;
 }
 
 
@@ -216,7 +212,6 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
                               bool OnlySummary) {
   if (!OnlySummary) {
     O << "Enable itype propagation:" << EnablePropThruIType << "\n";
-    O << "Merge multiple function declaration:" << !SeperateMultipleFuncDecls << "\n";
     O << "Sound handling of var args functions:" << HandleVARARGS << "\n";
   }
   std::map<std::string, std::tuple<int, int, int, int, int>> FilesToVars;
@@ -362,64 +357,6 @@ bool ProgramInfo::link() {
       }
   }
 
-  // MWH: Should never happen: Def/decl set sizes == 1
-//  if (!SeperateMultipleFuncDecls) {
-//    int Gap = 0;
-//    for (auto &S : ExternalFunctionDeclFVCons) {
-//      std::string Fname = S.first;
-//      std::set<FVConstraint *> &P = S.second;
-//
-//      if (P.size() > 1) {
-//        assert(false); // Should never get here
-//        std::set<FVConstraint *>::iterator I = P.begin();
-//        std::set<FVConstraint *>::iterator J = P.begin();
-//        ++J;
-//
-//        while (J != P.end()) {
-//          FVConstraint *P1 = *I;
-//          FVConstraint *P2 = *J;
-//
-//          if (P2->hasBody()) { // skip over decl with fun body
-//            Gap = 1;
-//            ++J;
-//            continue;
-//          }
-//          // Constrain the return values to be equal.
-//          if (!P1->hasBody() && !P2->hasBody()) {
-//            constrainConsVarGeq(P1->getReturnVars(), P2->getReturnVars(), CS,
-//                                nullptr, Same_to_Same, true, this);
-//
-//            // Constrain the parameters to be equal, if the parameter arity is
-//            // the same. If it is not the same, constrain both to be wild.
-//            if (P1->numParams() == P2->numParams()) {
-//              for (unsigned i = 0; i < P1->numParams(); i++) {
-//                constrainConsVarGeq(P1->getParamVar(i), P2->getParamVar(i), CS,
-//                                    nullptr, Same_to_Same, true, this);
-//              }
-//
-//            } else {
-//              // It could be the case that P1 or P2 is missing a prototype, in
-//              // which case we don't need to constrain anything.
-//              if (P1->hasProtoType() && P2->hasProtoType()) {
-//                // Nope, we have no choice. Constrain everything to wild.
-//                std::string rsn = "Return value of function:" + P1->getName();
-//                P1->constrainToWild(CS, rsn);
-//                P2->constrainToWild(CS, rsn);
-//              }
-//            }
-//          }
-//          ++I;
-//          if (!Gap) {
-//            ++J;
-//          } else {
-//            Gap = 0;
-//          }
-//        }
-//      }
-//    }
-//  }
-
-
   // For every global function that is an unresolved external, constrain 
   // its parameter types to be wild. Unless it has a bounds-safe annotation. 
   for (const auto &U : ExternFunctions) {
@@ -492,7 +429,6 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
     Map[FuncName] = ToIns;
     RetVal = true;
   } else {
-    // MultipleRewrites = true;
     auto oldS = Map[FuncName];
     auto *newC = getOnly(ToIns);
     auto *oldC = getOnly(oldS);

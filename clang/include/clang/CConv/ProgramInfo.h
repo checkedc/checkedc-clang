@@ -92,10 +92,6 @@ public:
   }
   bool computePointerDisjointSet();
 
-  // Perform multiple rewrites because declarations are spread across multiple
-  // files and need to be rewritten multiple times.
-  bool MultipleRewrites;
-
   ExternalFunctionMapType &getExternFuncDefFVMap() {
     return ExternalFunctionFVCons;
   }

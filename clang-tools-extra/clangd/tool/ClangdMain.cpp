@@ -299,13 +299,6 @@ static llvm::cl::opt<bool> Verbose("verbose",
                                    llvm::cl::init(false),
                                    llvm::cl::cat(ConvertCategory));
 
-static llvm::cl::opt<bool>
-    SeperateMultipleFuncDecls("seperatefds",
-                              llvm::cl::desc("Do not merge multiple "
-                                             "declarations of functions."),
-                              llvm::cl::init(false),
-                              llvm::cl::cat(ConvertCategory));
-
 static llvm::cl::opt<std::string>
     OutputPostfix("output-postfix",
                   llvm::cl::desc("Postfix to add to the names of "
@@ -341,13 +334,6 @@ static llvm::cl::opt<bool>
                         llvm::cl::init(false),
                         llvm::cl::cat(ConvertCategory));
 
-
-static llvm::cl::opt<bool> OptNewSolver("new-solver",
-                                  llvm::cl::desc("Use more sophisticated "
-                                                       "constraint solver "
-                                                       "for ptyps"),
-                                  llvm::cl::init(true),
-                                  llvm::cl::cat(ConvertCategory));
 
 static llvm::cl::opt<bool>
     AllTypes("alltypes",
@@ -452,10 +438,8 @@ int main(int argc, char *argv[]) {
   CcOptions.Verbose = Verbose;
   CcOptions.DumpIntermediate = DumpIntermediate;
   CcOptions.ConstraintOutputJson = ConstraintOutputJson.getValue();
-  CcOptions.SeperateMultipleFuncDecls = SeperateMultipleFuncDecls;
   CcOptions.AddCheckedRegions = AddCheckedRegions;
   CcOptions.EnableAllTypes = AllTypes;
-  CcOptions.NewSolver = OptNewSolver;
 
   CConvInterface CCInterface(CcOptions,
                              OptionsParser.getSourcePathList(),

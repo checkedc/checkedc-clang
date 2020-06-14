@@ -28,8 +28,6 @@ struct CConvertOptions {
 
   bool Verbose;
 
-  bool SeperateMultipleFuncDecls;
-
   std::string OutputPostfix;
 
   std::string ConstraintOutputJson;
@@ -43,8 +41,6 @@ struct CConvertOptions {
   std::string BaseDir;
 
   bool EnableAllTypes;
-
-  bool NewSolver;
 
   bool AddCheckedRegions;
 };

@@ -333,7 +333,7 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
         do_solve(PtrTypCG, Empty, env, this, false, nullptr, Conflicts);
 
     // Step 2: Reset all solutions but for function params, and compute the least
-    if (res && NewSolver) {
+    if (res) {
       std::set<VarAtom *> rest = env.resetSolution(isNonParam, getNTArr());
       res = do_solve(PtrTypCG, Empty, env, this, true, &rest, Conflicts);
 

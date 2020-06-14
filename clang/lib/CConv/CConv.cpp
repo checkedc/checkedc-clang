@@ -32,7 +32,6 @@ using namespace llvm;
 
 bool DumpIntermediate;
 bool Verbose;
-bool SeperateMultipleFuncDecls;
 std::string OutputPostfix;
 std::string ConstraintOutputJson;
 bool DumpStats;
@@ -40,7 +39,6 @@ bool HandleVARARGS;
 bool EnablePropThruIType;
 bool ConsiderAllocUnsafe;
 bool AllTypes;
-bool NewSolver;
 std::string BaseDir;
 bool AddCheckedRegions;
 std::set<std::string> FilePaths;
@@ -166,7 +164,6 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
 
   DumpIntermediate = CCopt.DumpIntermediate;
   Verbose = CCopt.Verbose;
-  SeperateMultipleFuncDecls = CCopt.SeperateMultipleFuncDecls;
   OutputPostfix = CCopt.OutputPostfix;
   ConstraintOutputJson = CCopt.ConstraintOutputJson;
   DumpStats = CCopt.DumpStats;
@@ -174,7 +171,6 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
   EnablePropThruIType = CCopt.EnablePropThruIType;
   BaseDir = CCopt.BaseDir;
   AllTypes = CCopt.EnableAllTypes;
-  NewSolver = CCopt.NewSolver;
   AddCheckedRegions = CCopt.AddCheckedRegions;
 
   llvm::InitializeAllTargets();
@@ -300,20 +296,17 @@ bool CConvInterface::WriteConvertedFileToDisk(const std::string &FilePath) {
 
 bool CConvInterface::WriteAllConvertedFilesToDisk() {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
-  unsigned NumOfRewrites = GlobalProgramInfo.MultipleRewrites ? 2 : 1;
-  ClangTool &Tool = getGlobalClangTool();
-  while (NumOfRewrites > 0) {
-    // 4. Re-write based on constraints.
-    std::unique_ptr<ToolAction> RewriteTool =
-        newFrontendActionFactoryA<
-            RewriteAction<RewriteConsumer, ProgramInfo>>(GlobalProgramInfo);
 
-    if (RewriteTool)
-      Tool.run(RewriteTool.get());
-    else
-      llvm_unreachable("No action");
-    NumOfRewrites--;
-  }
+  ClangTool &Tool = getGlobalClangTool();
+
+  // Rewrite the input files
+  std::unique_ptr<ToolAction> RewriteTool =
+      newFrontendActionFactoryA<
+          RewriteAction<RewriteConsumer, ProgramInfo>>(GlobalProgramInfo);
+  if (RewriteTool)
+    Tool.run(RewriteTool.get());
+  else
+    llvm_unreachable("No action");
 
   if (DumpStats)
     GlobalProgramInfo.dump_stats(FilePaths);
