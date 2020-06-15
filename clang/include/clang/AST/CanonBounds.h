@@ -50,7 +50,8 @@ namespace clang {
     enum class Result {
       LessThan,
       Equal,
-      GreaterThan
+      GreaterThan,
+      NotEqual,
     };
 
   private:

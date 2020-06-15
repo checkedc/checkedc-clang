@@ -361,6 +361,8 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
       continue;
 
     const Expr *UE = RBE->getUpperExpr();
+    Lex.CompareExprSemantic(UE, E);
+
     assert(UE && "invalid upper bounds expr");
 
     // Split the upper bounds expr into base and offset for matching with the
@@ -371,7 +373,7 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
       continue;
     llvm::APSInt UpperOffset = UpperExprIntPair.second;
 
-    if (Lex.CompareExprSemantic(DerefBase, UpperBase) !=
+    if (Lex.CompareExpr(DerefBase, UpperBase) !=
         Lexicographic::Result::Equal)
       continue;
 

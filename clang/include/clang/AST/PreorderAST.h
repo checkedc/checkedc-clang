@@ -21,37 +21,33 @@
 #include "clang/AST/Expr.h"
 
 namespace clang {
-  class Expr;
-  using Opcode = BinaryOperator::Opcode;
-  using Operands = SmallVector<Expr *, 4>;
-  using Constants = llvm::APSInt;
+  using Result = Lexicographic::Result;
+  using OpcodeTy = BinaryOperator::Opcode;
+  using VarTy = std::string;
+  using VarListTy = std::vector<VarTy>;
+  using ConstTy = llvm::APSInt;
 
   class PreorderAST {
-
-    class ASTData {
-    private:
-      Opcode opcode;
-      Operands operands;
-      Constants constants;
-
-    public:
-      ASTData(Opcode opc) : opcode(opc) {}
-
-      Opcode getOpcode() { return opcode; }
-      size_t getNumOperands() { return operands.size(); }
-      void addOperand(Expr *op) { operands.push_back(op); }
-      Operands getOperands() { return operands; }
-    };
-
     class ASTNode {
     public:
-      ASTData *data;
+      OpcodeTy opcode;
+      VarListTy variables;
+      ConstTy constant;
+      bool hasConstant;
       ASTNode *left, *right, *parent;
       
-      ASTNode(ASTNode *p = nullptr) :
-        data(nullptr), left(nullptr), right(nullptr), parent(p) {}
+      ASTNode(ASTContext &Ctx, ASTNode *Parent = nullptr) :
+        opcode(BO_Add), hasConstant(false),
+        left(nullptr), right(nullptr), parent(Parent) {
+          llvm::APSInt Zero(Ctx.getTypeSize(Ctx.IntTy), 0);
+          constant = Zero;
+        }
 
-      ~ASTNode() {}
+      void addVar(VarTy V) { variables.push_back(V); }
+
+      void setOpcode(OpcodeTy Opc) { opcode = Opc; }
+
+      bool isLeafNode() { return !left && !right; }
     };
 
   private:
@@ -61,29 +57,30 @@ namespace clang {
     ASTNode *AST;
 
   public:
-    PreorderAST(ASTContext &Ctx, const Expr *E) :
-      Ctx(Ctx), Lex(Lexicographic(Ctx, nullptr)), OS(llvm::outs()) {
+    PreorderAST(ASTContext &Ctx, Expr *E) :
+      Ctx(Ctx), Lex(Lexicographic(Ctx, nullptr)),
+      OS(llvm::outs()) {
 
-      AST = new ASTNode();
-      insert(const_cast<Expr *>(E), AST);
+      AST = new ASTNode(Ctx);
+      insert(AST, E);
       coalesce(AST);
+      sort(AST);
+      normalize(AST);
       print(AST);
     }
 
-    void insert(Expr *E, ASTNode *CurrNode, ASTNode *Parent = nullptr);
+    void insert(ASTNode *N, Expr *E, ASTNode *Parent = nullptr);
     void coalesce(ASTNode *N);
+    void coalesceConst(ASTNode *N, llvm::APSInt IntVal);
+    void sort(ASTNode *N);
+    void normalize(ASTNode *N);
     void print(ASTNode *N);
+    Result compare(PreorderAST &PT);
+    Result compare(ASTNode *N1, ASTNode *N2);
 
-    bool isLeafNode(ASTNode *N) {
-      return N && !N->left && !N->right;
-    }
-
-    bool hasData(ASTNode *N) {
-      return N && N->data && N->data->getNumOperands();
-    }
-
-    bool IsDeclOperand(Expr *E);
     Expr *IgnoreCasts(const Expr *E);
+    bool IsDeclOperand(Expr *E);
+    DeclRefExpr *GetDeclOperand(Expr *E);
   };
 }
 

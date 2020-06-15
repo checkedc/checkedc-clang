@@ -220,10 +220,17 @@ Lexicographic::CompareDecl(const NamedDecl *D1Arg, const NamedDecl *D2Arg) const
 }
 
 Result Lexicographic::CompareExprSemantic(const Expr *Arg1, const Expr *Arg2) {
-Arg1->dump();
-llvm::outs() << "--------------------------------------------\n";
+  Expr *E1 = const_cast<Expr *>(Arg1);
+  Expr *E2 = const_cast<Expr *>(Arg2);
 
-  PreorderAST PT1(Context, Arg1);
+  PreorderAST PT1(Context, E1);
+  PreorderAST PT2(Context, E2);
+  Result res = PT1.compare(PT2);
+
+  if (res == Result::Equal)
+    llvm::outs() << "Result: EQUAL\n";
+  else
+    llvm::outs() << "Result: NOT EQUAL\n";
 
   return CompareExpr(Arg1, Arg2);
 }
