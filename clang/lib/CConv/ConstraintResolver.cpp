@@ -412,8 +412,7 @@ std::set<ConstraintVariable *>
         ConstraintVariable *NewCV = getTemporaryConstraintVariable(CE, CV);
         // Important: Do Safe_to_Wild from returnvar in this copy, which then
         //   might be assigned otherwise (Same_to_Same) to LHS
-        constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false, false,
-                            &Info);
+        constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false, &Info);
         TmpCVs.insert(NewCV);
       }
       return TmpCVs;
@@ -490,8 +489,7 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
   PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(TSt, *Context);
   std::set<ConstraintVariable *> L = getExprConstraintVars(LHS);
   std::set<ConstraintVariable *> R = getExprConstraintVars(RHS);
-  constrainConsVarGeq(L, R, Info.getConstraints(), &PL, CAction, false, false,
-                        &Info);
+  constrainConsVarGeq(L, R, Info.getConstraints(), &PL, CAction, false, &Info);
 }
 
 void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
@@ -519,7 +517,7 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
     }
   }
   constrainConsVarGeq(V, RHSCons, Info.getConstraints(), PLPtr, CAction, false,
-                      false, &Info);
+                      &Info);
 }
 
 std::set<ConstraintVariable *> ConstraintResolver::getWildPVConstraint() {

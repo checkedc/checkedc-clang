@@ -136,16 +136,10 @@ void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
                          PersistentSourceLoc *PL,
                          ConsAction CA,
                          bool doEqType,
-                         bool derefLHS,
                          ProgramInfo *Info);
-void constrainConsVarGeq(ConstraintVariable *LHS,
-                         ConstraintVariable *RHS,
-                         Constraints &CS,
-                         PersistentSourceLoc *PL,
-                         ConsAction CA,
-                         bool doEqType,
-                         bool derefLHS,
-                         ProgramInfo *Info);
+void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
+                         Constraints &CS, PersistentSourceLoc *PL,
+                         ConsAction CA, bool doEqType, ProgramInfo *Info);
 
 // True if [C] is a PVConstraint that contains at least one Atom (i.e.,
 //   it represents a C pointer)
