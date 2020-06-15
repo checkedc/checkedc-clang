@@ -149,7 +149,7 @@ public:
       if (FVCons.size() > 1) {
         PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CalledExpr, *Context);
         constrainConsVarGeq(FVCons, FVCons, Info.getConstraints(), &PL,
-                            Same_to_Same, false, false, &Info);
+                            Same_to_Same, false, &Info);
       }
     } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       FVCons = Info.getVariable(FD, Context);
@@ -180,7 +180,7 @@ public:
               std::set<ConstraintVariable *> ParameterDC =
                   TargetFV->getParamVar(i);
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
-                                  Wild_to_Safe, false, false, &Info);
+                                  Wild_to_Safe, false, &Info);
             } else {
               // The argument passed to a function ith varargs; make it wild
               if (HandleVARARGS) {
@@ -232,7 +232,7 @@ public:
         // as the type of return expression.
         constrainConsVarGeq(FV->getReturnVars(), RconsVar,
                             Info.getConstraints(), &PL, Same_to_Same, false,
-                            false, &Info);
+                            &Info);
       }
     }
     return true;

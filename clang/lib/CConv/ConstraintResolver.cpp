@@ -73,6 +73,22 @@ std::set<ConstraintVariable *>
   return tmp;
 }
 
+// For each constraint variable either invoke addAtom to add an additional level
+// of indirection (when the constraint is PVConstraint), or return the constraint
+// unchanged (when the constraint is a function constraint).
+std::set<ConstraintVariable *> ConstraintResolver::addAtomAll(std::set<ConstraintVariable *> CVS, Atom *PtrTyp, Constraints &CS) {
+  std::set<ConstraintVariable *> Result;
+  for (auto *CV : CVS) {
+    if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
+      PVConstraint *temp = addAtom(PVC, PtrTyp, CS);
+      Result.insert(temp);
+    } else {
+      Result.insert(CV);
+    }
+  }
+  return Result;
+}
+
 // Add to a PVConstraint one additional level of indirection
 // The pointer type of the new atom is constrained >= PtrTyp.
 PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, Atom *PtrTyp, Constraints &CS) {
@@ -86,9 +102,7 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, Atom *PtrTyp, Const
       auto *Prem = CS.createGeq(NewA, CS.getWild());
       auto *Conc = CS.createGeq(VA, CS.getWild());
       CS.addConstraint(CS.createImplies(Prem, Conc));
-    } else if (ConstAtom *C = dyn_cast<WildAtom>(A)) {
-      NewA = CS.getWild();
-    } // else stick with what's given
+    }
   }
 
   C.insert(C.begin(), NewA);
@@ -264,7 +278,6 @@ std::set<ConstraintVariable *>
       // &e
       case UO_AddrOf: {
         T = getExprConstraintVars(UOExpr);
-        std::set<ConstraintVariable *> tmp;
         UOExpr = UOExpr->IgnoreParenImpCasts();
         if (T.empty()) {
           // If no constraint vars are found, an empty one must be created.
@@ -291,17 +304,8 @@ std::set<ConstraintVariable *>
         //} else if (ArraySubscriptExpr *ASE = dyn_cast<ArraySubscriptExpr>(UOExpr)) {
         //  return getExprConstraintVars(ASE->getBase());
         } else {
-          for (auto *CV : T) {
-            if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
-              tmp.insert(addAtom(PVC, CS.getPtr(), CS));
-            } else {
-              // no-op for FPs
-              tmp.insert(CV);
-            }
-          }
+          return addAtomAll(T, CS.getPtr(), CS);
         }
-        T.swap(tmp);
-        return T;
       }
 
       // *e
@@ -414,8 +418,7 @@ std::set<ConstraintVariable *>
         ConstraintVariable *NewCV = getTemporaryConstraintVariable(CE, CV);
         // Important: Do Safe_to_Wild from returnvar in this copy, which then
         //   might be assigned otherwise (Same_to_Same) to LHS
-        constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false, false,
-                            &Info);
+        constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false, &Info);
         TmpCVs.insert(NewCV);
       }
       return TmpCVs;
@@ -429,9 +432,27 @@ std::set<ConstraintVariable *>
 
     // { e1, e2, e3, ... }
     } else if (InitListExpr *ILE = dyn_cast<InitListExpr>(E)) {
-      // WARNING: This won't work for nested lists, or non-arrays
-      std::vector<Expr *> SubExprs = ILE->inits().vec();
-      return getAllSubExprConstraintVars(SubExprs);
+      if(ILE->getType()->isArrayType()) {
+        // Array initialization is similar AddrOf, so the same pattern is used
+        // where a new indirection is added to constraint variables.
+        std::vector<Expr *> SubExprs = ILE->inits().vec();
+        std::set<ConstraintVariable *> CVars =
+            getAllSubExprConstraintVars(SubExprs);
+        return addAtomAll(CVars, CS.getArr(), CS);
+      } else if (ILE->getType()->isStructureType()) {
+        // Struct initialization is treated as a series of assignments to the
+        // fields of the struct.
+        const RecordDecl *Definition =
+            ILE->getType()->getAsStructureType()->getDecl()->getDefinition();
+        int initIdx = 0;
+        for (const auto &D : Definition->fields()) {
+          std::set<ConstraintVariable *> DefCVars = Info.getVariable(D, Context);
+          Expr *InitExpr = ILE->getInit(initIdx);
+          std::set<ConstraintVariable *> InitCVars = getExprConstraintVars(InitExpr);
+          constrainLocalAssign(nullptr, D, InitExpr);
+          initIdx++;
+        }
+      }
 
     // "foo"
     } else if (clang::StringLiteral *exr = dyn_cast<clang::StringLiteral>(E)) {
@@ -483,8 +504,7 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
   PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(TSt, *Context);
   std::set<ConstraintVariable *> L = getExprConstraintVars(LHS);
   std::set<ConstraintVariable *> R = getExprConstraintVars(RHS);
-  constrainConsVarGeq(L, R, Info.getConstraints(), &PL, CAction, false, false,
-                        &Info);
+  constrainConsVarGeq(L, R, Info.getConstraints(), &PL, CAction, false, &Info);
 }
 
 void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
@@ -498,24 +518,8 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
   std::set<ConstraintVariable *> V = Info.getVariable(D, Context);
   auto RHSCons = getExprConstraintVars(RHS);
 
-  // When the RHS of the assignment is an array initializer, the LHS must be
-  // dereferenced in order to generate the correct constraints.
-  bool derefLHS = false;
-  if (RHS != nullptr && dyn_cast<InitListExpr>(RHS) != nullptr) {
-    if (D->getType()->isArrayType())
-      derefLHS = true;
-    else {
-      if (Verbose) {
-        llvm::errs()
-            << "WARNING! Non-array list initialization expression ignored: ";
-        RHS->dump(llvm::errs());
-        llvm::errs() << "\n";
-      }
-      RHSCons = std::set<ConstraintVariable *>();
-    }
-  }
   constrainConsVarGeq(V, RHSCons, Info.getConstraints(), PLPtr, CAction, false,
-                      derefLHS, &Info);
+                      &Info);
 }
 
 std::set<ConstraintVariable *> ConstraintResolver::getWildPVConstraint() {
