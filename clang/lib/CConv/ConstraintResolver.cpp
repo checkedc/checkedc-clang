@@ -433,10 +433,25 @@ std::set<ConstraintVariable *>
     // { e1, e2, e3, ... }
     } else if (InitListExpr *ILE = dyn_cast<InitListExpr>(E)) {
       if(ILE->getType()->isArrayType()) {
+        // Array initialization is similar AddrOf, so the same pattern is used
+        // where a new indirection is added to constraint variables.
         std::vector<Expr *> SubExprs = ILE->inits().vec();
         std::set<ConstraintVariable *> CVars =
             getAllSubExprConstraintVars(SubExprs);
         return addAtomAll(CVars, CS.getArr(), CS);
+      } else if (ILE->getType()->isStructureType()) {
+        // Struct initialization is treated as a series of assignments to the
+        // fields of the struct.
+        const RecordDecl *Definition =
+            ILE->getType()->getAsStructureType()->getDecl()->getDefinition();
+        int initIdx = 0;
+        for (const auto &D : Definition->fields()) {
+          std::set<ConstraintVariable *> DefCVars = Info.getVariable(D, Context);
+          Expr *InitExpr = ILE->getInit(initIdx);
+          std::set<ConstraintVariable *> InitCVars = getExprConstraintVars(InitExpr);
+          constrainLocalAssign(nullptr, D, InitExpr);
+          initIdx++;
+        }
       }
 
     // "foo"
