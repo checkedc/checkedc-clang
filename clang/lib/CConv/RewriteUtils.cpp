@@ -1174,7 +1174,8 @@ class CastPlacementVisitor :
 public:
   explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I,
                                 Rewriter &R)
-      : Context(C), Info(I), Writer(R), CR(Info, Context) {}
+      : Context(C), Info(I), Writer(R), CR(Info, Context),
+        FD(nullptr) {}
 
   bool VisitCallExpr(CallExpr *CE) {
     Decl *D = CE->getCalleeDecl();
@@ -1247,39 +1248,41 @@ public:
     if (O->getOpcode() == BO_Assign) {
       Expr *LHS = O->getLHS();
       Expr *RHS = O->getRHS();
-      auto &CS = Info.getConstraints();
       std::set<ConstraintVariable *> LCons = CR.getExprConstraintVars(LHS);
-      ConstraintVariable *LCVariable = nullptr;
-      bool LHSChkType = false;
-      for (auto *LC : LCons) {
-        if (LC->anyChanges(CS.getVariables())) {
-          LCVariable = LC;
-          LHSChkType = true;
+      std::string CastStr;
+      if (needsFancyCast(LCons, RHS, CastStr)) {
+        surroundByCast(CastStr, RHS);
+      }
+    }
+    return true;
+  }
+
+  bool VisitReturnStmt(ReturnStmt *S) {
+    Expr *RetExpr = S->getRetValue();
+
+    if (RetExpr != nullptr) {
+      assert(FD != nullptr && "Function Declaration should not be nullptr");
+
+      std::set<ConstraintVariable *> Fun = Info.getVariable(FD, Context);
+
+      std::set<ConstraintVariable *> FuncRet;
+      for (const auto &F : Fun) {
+        if (FVConstraint *FV = dyn_cast<FVConstraint>(F)) {
+          FuncRet = FV->getReturnVars();
           break;
         }
       }
-      if (LHSChkType) {
-        assert (LCVariable != nullptr && "Expected non-null");
-        // Now, check if RHS is either explicit cast or addr-of (&) expression
-        // in which case we insert fancy cast.
-        RHS = RHS->IgnoreParenImpCasts();
-        bool NeedFancyCast = false;
-        if (!isNULLExpression(RHS, *Context) &&
-            dyn_cast<ExplicitCastExpr>(RHS)) {
-          NeedFancyCast = true;
-        }
-        if (UnaryOperator *UO = dyn_cast<UnaryOperator>(RHS)) {
-          if (UO->getOpcode() == UO_AddrOf) {
-            NeedFancyCast = true;
-          }
-        }
-        if (NeedFancyCast) {
-          std::string CastStr = "_Assume_bounds_cast<" +
-              LCVariable->mkString(CS.getVariables(), false) + ">(";
-          surroundByCast(CastStr, O->getRHS());
-        }
+
+      std::string CastStr;
+      if (needsFancyCast(FuncRet, RetExpr, CastStr)) {
+        surroundByCast(CastStr, RetExpr);
       }
     }
+    return true;
+  }
+
+  bool VisitFunctionDecl(FunctionDecl *D) {
+    FD = D;
     return true;
   }
 
@@ -1291,9 +1294,21 @@ private:
                    IsChecked Dinfo) {
     auto &E = Info.getConstraints().getVariables();
     auto SrcChecked = Src->anyChanges(E);
-    // Check if the src is a checked type and destination is not.
-    return (SrcChecked && !Dst->anyChanges(E)) ||
-           (SrcChecked && Dinfo == WILD);
+    // Check if the src is a checked type.
+    if (SrcChecked) {
+      // Check if Dst is an itype, if yes then
+      // Src should have exactly same checked type else we need to insert cast.
+      if (Dst->getItypePresent()) {
+        return !Dst->haveSameAssignment(Info.getConstraints(), Src);
+      }
+
+      // Is Dst Wild?
+      if (!Dst->anyChanges(E) || Dinfo == WILD) {
+        return true;
+      }
+
+    }
+    return false;
   }
 
   // Get the type name to insert for casting.
@@ -1302,7 +1317,8 @@ private:
     assert(needCasting(Src, Dst, Dinfo) && "No casting needed.");
     auto &E = Info.getConstraints().getVariables();
     // The destination type should be a non-checked type.
-    assert(!Dst->anyChanges(E) || Dinfo == WILD);
+    // This is not necessary because of itypes
+    //assert(!Dst->anyChanges(E) || Dinfo == WILD);
     return "((" + Dst->getRewritableOriginalTy() + ")";
   }
 
@@ -1324,10 +1340,51 @@ private:
       Writer.InsertTextBefore(E->getBeginLoc(), CastPrefix);
     }
   }
+
+  bool needsFancyCast(std::set<ConstraintVariable *> &LHSCons, Expr *E,
+                      std::string &CastStr) {
+    ConstraintVariable *LCVariable = nullptr;
+    bool LHSChkType = false;
+    bool NeedFancyCast = false;
+    auto &CS = Info.getConstraints();
+    for (auto *LC : LHSCons) {
+      if (LC->anyChanges(CS.getVariables())) {
+        LCVariable = LC;
+        LHSChkType = true;
+        break;
+      }
+    }
+    if (LHSChkType) {
+      assert(LCVariable != nullptr && "Expected non-null");
+
+      // Now, check if RHS is either explicit cast or addr-of (&) expression
+      // in which case we insert fancy cast.
+      E = E->IgnoreParenImpCasts();
+      if (!isNULLExpression(E, *Context) &&
+          dyn_cast<ExplicitCastExpr>(E)) {
+        NeedFancyCast = true;
+      }
+      if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
+        if (UO->getOpcode() == UO_AddrOf) {
+          NeedFancyCast = true;
+        }
+      }
+
+      if (NeedFancyCast) {
+        CastStr = "_Assume_bounds_cast<" +
+                  LCVariable->mkString(CS.getVariables(), false) +
+                  ">(";
+      }
+    }
+
+    return NeedFancyCast;
+  }
+
   ASTContext            *Context;
   ProgramInfo           &Info;
   Rewriter              &Writer;
   ConstraintResolver    CR;
+  FunctionDecl          *FD;
 
 };
 

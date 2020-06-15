@@ -957,6 +957,42 @@ bool PointerVariableConstraint::hasNtArr(EnvironmentMap &E)
   return false;
 }
 
+bool PointerVariableConstraint::
+    haveSameAssignment(Constraints &CS, ConstraintVariable *CV) {
+  bool Ret = false;
+  if (CV != nullptr) {
+    if (PVConstraint *PV = dyn_cast<PVConstraint>(CV)) {
+      auto &OthCVars = PV->vars;
+      if (vars.size() == OthCVars.size()) {
+        Ret = true;
+
+        // First compare Vars to see if they are same.
+        CAtoms::iterator I = vars.begin();
+        CAtoms::iterator J = OthCVars.begin();
+        while (I != vars.end()) {
+          if (CS.getAssignment(*I) != CS.getAssignment(*J)) {
+            Ret = false;
+            break;
+          }
+          ++I;
+          ++J;
+        }
+
+        if (Ret) {
+          FVConstraint *OtherFV = PV->getFV();
+          if (FV != nullptr && OtherFV != nullptr) {
+            Ret = FV->haveSameAssignment(CS, OtherFV);
+          } else if (FV != nullptr || OtherFV != nullptr) {
+            // One of them has FV null.
+            Ret = false;
+          }
+        }
+      }
+    }
+  }
+  return Ret;
+}
+
 void FunctionVariableConstraint::print(raw_ostream &O) const {
   O << "( ";
   for (const auto &I : returnVars)
@@ -1003,6 +1039,47 @@ void FunctionVariableConstraint::dump_json(raw_ostream &O) const {
   }
   O << "]";
   O << "}}";
+}
+
+bool FunctionVariableConstraint::getItypePresent() {
+  for (auto &RV : getReturnVars()) {
+    if (RV->getItypePresent()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool sameAssignmentCVSet(Constraints &CS,
+                                std::set<ConstraintVariable *> &CVS1,
+                                std::set<ConstraintVariable *> &CVS2) {
+  bool Ret = false;
+  if (CVS1.size() == CVS2.size()) {
+    Ret = CVS1.size() <= 1;
+    if (CVS1.size() == 1) {
+     auto *CV1 = getOnly(CVS1);
+     auto *CV2 = getOnly(CVS2);
+     Ret = CV1->haveSameAssignment(CS, CV2);
+    }
+  }
+  return Ret;
+}
+
+bool FunctionVariableConstraint::
+    haveSameAssignment(Constraints &CS, ConstraintVariable *CV) {
+  bool Ret = false;
+  if (CV != nullptr) {
+    if (FVConstraint *OtherFV = dyn_cast<FVConstraint>(CV)) {
+      Ret = (numParams() == OtherFV->numParams());
+      Ret = Ret && sameAssignmentCVSet(CS, getReturnVars(),
+                                       OtherFV->getReturnVars());
+      for (unsigned i=0; i < numParams(); i++) {
+        Ret = Ret && sameAssignmentCVSet(CS, getParamVar(i),
+                                         OtherFV->getParamVar(i));
+      }
+    }
+  }
+  return Ret;
 }
 
 std::string
@@ -1316,13 +1393,11 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
   CAtoms CFrom = From->getCvars();
   CAtoms::iterator I = vars.begin();
   CAtoms::iterator J = CFrom.begin();
-  bool EquateCons = true;
   while (I != vars.end()) {
     Atom *IAt = *I;
     Atom *JAt = *J;
     ConstAtom *ICAt = dyn_cast<ConstAtom>(IAt);
     ConstAtom *JCAt = dyn_cast<ConstAtom>(JAt);
-    EquateCons = true;
     if (JCAt && !ICAt) {
       NewVatoms.push_back(JAt);
     } else {

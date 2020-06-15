@@ -105,10 +105,11 @@ public:
 
   static std::string VarKindToStr(VarKind V) {
     switch (V) {
-    case V_Param: return ">>";
-    case V_Return: return "<<";
-    case V_Other: return "";
+      case V_Param: return ">>";
+      case V_Return: return "<<";
+      case V_Other: return "";
     }
+    return "";
   }
 
   void print(llvm::raw_ostream &O) const {
