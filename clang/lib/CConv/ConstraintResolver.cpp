@@ -73,6 +73,22 @@ std::set<ConstraintVariable *>
   return tmp;
 }
 
+// For each constraint variable either invoke addAtom to add an additional level
+// of indirection (when the constraint is PVConstraint), or return the constraint
+// unchanged (when the constraint is a function constraint).
+std::set<ConstraintVariable *> ConstraintResolver::addAtomAll(std::set<ConstraintVariable *> CVS, Atom *PtrTyp, Constraints &CS) {
+  std::set<ConstraintVariable *> Result;
+  for (auto *CV : CVS) {
+    if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
+      PVConstraint *temp = addAtom(PVC, PtrTyp, CS);
+      Result.insert(temp);
+    } else {
+      Result.insert(CV);
+    }
+  }
+  return Result;
+}
+
 // Add to a PVConstraint one additional level of indirection
 // The pointer type of the new atom is constrained >= PtrTyp.
 PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, Atom *PtrTyp, Constraints &CS) {
@@ -262,7 +278,6 @@ std::set<ConstraintVariable *>
       // &e
       case UO_AddrOf: {
         T = getExprConstraintVars(UOExpr);
-        std::set<ConstraintVariable *> tmp;
         UOExpr = UOExpr->IgnoreParenImpCasts();
         if (T.empty()) {
           // If no constraint vars are found, an empty one must be created.
@@ -289,17 +304,8 @@ std::set<ConstraintVariable *>
         //} else if (ArraySubscriptExpr *ASE = dyn_cast<ArraySubscriptExpr>(UOExpr)) {
         //  return getExprConstraintVars(ASE->getBase());
         } else {
-          for (auto *CV : T) {
-            if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
-              tmp.insert(addAtom(PVC, CS.getPtr(), CS));
-            } else {
-              // no-op for FPs
-              tmp.insert(CV);
-            }
-          }
+          return addAtomAll(T, CS.getPtr(), CS);
         }
-        T.swap(tmp);
-        return T;
       }
 
       // *e
@@ -426,18 +432,12 @@ std::set<ConstraintVariable *>
 
     // { e1, e2, e3, ... }
     } else if (InitListExpr *ILE = dyn_cast<InitListExpr>(E)) {
-      std::vector<Expr *> SubExprs = ILE->inits().vec();
-      std::set<ConstraintVariable *> CVars = getAllSubExprConstraintVars(SubExprs);
-      std::set<ConstraintVariable *> Result;
-      for (auto *CV : CVars) {
-        if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
-          PVConstraint *temp = addAtom(PVC, CS.getArr(), CS);
-          Result.insert(temp);
-        } else {
-          Result.insert(CV);
-        }
+      if(ILE->getType()->isArrayType()) {
+        std::vector<Expr *> SubExprs = ILE->inits().vec();
+        std::set<ConstraintVariable *> CVars =
+            getAllSubExprConstraintVars(SubExprs);
+        return addAtomAll(CVars, CS.getArr(), CS);
       }
-      return Result;
 
     // "foo"
     } else if (clang::StringLiteral *exr = dyn_cast<clang::StringLiteral>(E)) {

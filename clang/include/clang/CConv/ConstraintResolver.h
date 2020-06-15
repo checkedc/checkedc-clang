@@ -64,7 +64,8 @@ private:
 
   // Update a PVConstraint with one additional level of indirection
   PVConstraint *addAtom(PVConstraint *PVC, Atom *NewA, Constraints &CS);
-
+  std::set<ConstraintVariable *> addAtomAll(std::set<ConstraintVariable *> CVS,
+                                            Atom *PtrTyp, Constraints &CS);
   std::set<ConstraintVariable *> getWildPVConstraint();
   std::set<ConstraintVariable *> PVConstraintFromType(QualType TypE);
 
