@@ -5,9 +5,7 @@
 #include <limits.h>
 
 void f1() {
-  // TODO: checkedc-clang issue #845: equality between p and ""
-  // needs to be recorded in order to properly validate the bounds of p.
-  _Nt_array_ptr<char> p : bounds(p, p) = ""; // expected-warning {{cannot prove declared bounds for 'p' are valid after statement}}
+  _Nt_array_ptr<char> p : bounds(p, p) = "";
 
   if (*p)
     if (*(p + 1))

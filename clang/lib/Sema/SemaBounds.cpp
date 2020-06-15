@@ -711,11 +711,18 @@ namespace {
       // validating the observed bounds context.
       llvm::DenseSet<const VarDecl *> WidenedVariables;
 
+      // TargetSrcEquality maps a target expression V to the most recent
+      // expression Src that has been assigned to V within the current
+      // top-level CFG statement.  Each pair <V, Src> should be temporarily
+      // included in EquivExprs in order to validate the bounds context.
+      llvm::DenseMap<Expr *, Expr *> TargetSrcEquality;
+
       // Resets the checking state after checking a top-level CFG statement.
       void Reset() {
         SameValue.clear();
         LostVariables.clear();
         UnknownSrcBounds.clear();
+        TargetSrcEquality.clear();
       }
   };
 }
@@ -3327,7 +3334,7 @@ namespace {
         Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
 
         // Record equality between the target and initializer.
-        RecordEqualityWithTarget(TargetExpr, State);
+        RecordEqualityWithTarget(TargetExpr, Init, State);
       }
 
       if (D->isInvalidDecl())
@@ -3832,6 +3839,25 @@ namespace {
     // statement S, for each variable v in the checking state observed bounds
     // context, the observed bounds of v imply the declared bounds of v.
     void ValidateBoundsContext(Stmt *S, CheckingState State, CheckedScopeSpecifier CSS) {
+      EquivExprSets EQ = State.EquivExprs;
+      for (auto Pair : State.TargetSrcEquality) {
+        bool FoundTarget = false;
+        for (auto I = EQ.begin(); I != EQ.end(); ++I) {
+          EqualExprTy F = *I;
+          if (EqualExprsContainsExpr(F, Pair.first)) {
+            FoundTarget = true;
+            I->push_back(Pair.second);
+            break;
+          }
+        }
+        if (!FoundTarget) {
+          EqualExprTy Set;
+          Set.push_back(Pair.first);
+          Set.push_back(Pair.second);
+          EQ.push_back(Set);
+        }
+      }
+
       for (auto Pair : State.ObservedBounds) {
         VarDecl *V = const_cast<VarDecl *>(Pair.first);
         BoundsExpr *ObservedBounds = Pair.second;
@@ -3842,7 +3868,7 @@ namespace {
         if (ObservedBounds->isUnknown())
           DiagnoseUnknownObservedBounds(S, V, DeclaredBounds, State);
         else
-          CheckObservedBounds(S, V, DeclaredBounds, ObservedBounds, State, CSS);
+          CheckObservedBounds(S, V, DeclaredBounds, ObservedBounds, State, &EQ, CSS);
       }
     }
 
@@ -3891,10 +3917,10 @@ namespace {
     void CheckObservedBounds(Stmt *St, const VarDecl *V,
                              BoundsExpr *DeclaredBounds,
                              BoundsExpr *ObservedBounds, CheckingState State,
-                             CheckedScopeSpecifier CSS) {
+                             EquivExprSets *EQ, CheckedScopeSpecifier CSS) {
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, ObservedBounds,
-                                                   Cause, &State.EquivExprs);
+                                                   Cause, EQ);
       if (Result == ProofResult::True)
         return;
 
@@ -4036,7 +4062,7 @@ namespace {
           State.SameValue.push_back(AdjustedE);
       }
 
-      RecordEqualityWithTarget(Target, State);
+      RecordEqualityWithTarget(Target, Src, State);
       return AdjustedSrcBounds;
     }
 
@@ -4046,7 +4072,7 @@ namespace {
     //
     // State.SameValue is assumed to contain expressions that produce the same
     // value as the source of the assignment.
-    void RecordEqualityWithTarget(Expr *Target, CheckingState &State) {
+    void RecordEqualityWithTarget(Expr *Target, Expr *Src, CheckingState &State) {
       // If EquivExprs contains a set F of expressions that produce the same
       // value as the source, add the target to F.  This prevents EquivExprs
       // from growing too large and containing redundant equality information.
@@ -4067,6 +4093,12 @@ namespace {
           }
         }
       }
+
+      // Record temporary equality between the target and source in order
+      // to validate the bounds context after checking the current top-level
+      // CFG statement.
+      if (State.SameValue.size() == 0)
+        State.TargetSrcEquality[Target] = Src;
 
       // Avoid adding sets with duplicate expressions such as { e, e }
       // and singleton sets such as { e } to EquivExprs.
