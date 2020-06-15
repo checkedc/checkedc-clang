@@ -86,9 +86,7 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, Atom *PtrTyp, Const
       auto *Prem = CS.createGeq(NewA, CS.getWild());
       auto *Conc = CS.createGeq(VA, CS.getWild());
       CS.addConstraint(CS.createImplies(Prem, Conc));
-    } else if (ConstAtom *C = dyn_cast<WildAtom>(A)) {
-      NewA = CS.getWild();
-    } // else stick with what's given
+    }
   }
 
   C.insert(C.begin(), NewA);
@@ -429,9 +427,18 @@ std::set<ConstraintVariable *>
 
     // { e1, e2, e3, ... }
     } else if (InitListExpr *ILE = dyn_cast<InitListExpr>(E)) {
-      // WARNING: This won't work for nested lists, or non-arrays
       std::vector<Expr *> SubExprs = ILE->inits().vec();
-      return getAllSubExprConstraintVars(SubExprs);
+      std::set<ConstraintVariable *> CVars = getAllSubExprConstraintVars(SubExprs);
+      std::set<ConstraintVariable *> Result;
+      for (auto *CV : CVars) {
+        if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
+          PVConstraint *temp = addAtom(PVC, CS.getArr(), CS);
+          Result.insert(temp);
+        } else {
+          Result.insert(CV);
+        }
+      }
+      return Result;
 
     // "foo"
     } else if (clang::StringLiteral *exr = dyn_cast<clang::StringLiteral>(E)) {
@@ -500,11 +507,8 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
 
   // When the RHS of the assignment is an array initializer, the LHS must be
   // dereferenced in order to generate the correct constraints.
-  bool derefLHS = false;
   if (RHS != nullptr && dyn_cast<InitListExpr>(RHS) != nullptr) {
-    if (D->getType()->isArrayType())
-      derefLHS = true;
-    else {
+    if (!D->getType()->isArrayType()) {
       if (Verbose) {
         llvm::errs()
             << "WARNING! Non-array list initialization expression ignored: ";
@@ -515,7 +519,7 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
     }
   }
   constrainConsVarGeq(V, RHSCons, Info.getConstraints(), PLPtr, CAction, false,
-                      derefLHS, &Info);
+                      false, &Info);
 }
 
 std::set<ConstraintVariable *> ConstraintResolver::getWildPVConstraint() {
