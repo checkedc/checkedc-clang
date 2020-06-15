@@ -1264,7 +1264,8 @@ public:
         // in which case we insert fancy cast.
         RHS = RHS->IgnoreParenImpCasts();
         bool NeedFancyCast = false;
-        if (dyn_cast<ExplicitCastExpr>(RHS)) {
+        if (!isNULLExpression(RHS, *Context) &&
+            dyn_cast<ExplicitCastExpr>(RHS)) {
           NeedFancyCast = true;
         }
         if (UnaryOperator *UO = dyn_cast<UnaryOperator>(RHS)) {
