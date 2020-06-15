@@ -361,7 +361,7 @@ bool ProgramInfo::link() {
   for (const auto &U : ExternFunctions) {
     // If we've seen this symbol, but never seen a body for it, constrain
     // everything about it.
-    if (U.second == false && isExternOkay(U.first) == false) {
+    if (!U.second && !isExternOkay(U.first)) {
       // Some global symbols we don't need to constrain to wild, like 
       // malloc and free. Check those here and skip if we find them. 
       std::string FuncName = U.first;
@@ -371,9 +371,9 @@ bool ProgramInfo::link() {
 
       for (const auto GIterator : Gs) {
         auto G = GIterator;
-        for (const auto &U : G->getReturnVars()) {
+        for (const auto &R : G->getReturnVars()) {
           std::string Rsn = "Return value of an external function:" + FuncName;
-          U->constrainToWild(CS, Rsn);
+          R->constrainToWild(CS, Rsn);
         }
         std::string rsn = "Inner pointer of a parameter to external function.";
         for (unsigned i = 0; i < G->numParams(); i++)
@@ -394,7 +394,7 @@ bool ProgramInfo::isAnExternFunction(const std::string &FName) {
 // AST data structures that correspond do the data stored in PDMap and
 // ReversePDMap.
 void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
-  assert(persisted == true);
+  assert(persisted);
   // Get a set of all of the PersistentSourceLoc's we need to fill in.
   std::set<PersistentSourceLoc> P;
   //for (auto I : PersistentVariables)
@@ -414,7 +414,7 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
 // After this, the Variables, VarDeclToStatement, RVariables, and DepthMap
 // should all be empty.
 void ProgramInfo::exitCompilationUnit() {
-  assert(persisted == false);
+  assert(!persisted);
   persisted = true;
   return;
 }
@@ -507,7 +507,7 @@ void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context) {
 // constraint system for that pointer type.
 void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
                               clang::ASTContext *astContext) {
-  assert(persisted == false);
+  assert(!persisted);
 
   PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(D, *astContext);
   assert(PLoc.valid());
@@ -556,8 +556,8 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       specialCaseVarIntros(D, astContext);
     }
 
-  } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
-    const Type *Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
+  } else if (FieldDecl *FlD = dyn_cast<FieldDecl>(D)) {
+    const Type *Ty = FlD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     if (Ty->isPointerType() || Ty->isArrayType()) {
       PVConstraint *P = new PVConstraint(D, CS, *astContext);
       S.insert(P);
@@ -634,7 +634,6 @@ std::set<FVConstraint *> *ProgramInfo::getFuncFVConstraints(FunctionDecl *FD,
       // make one
       FVConstraint *F = new FVConstraint(FD, CS, *C);
       assert(!F->hasBody());
-      //FIXME: breaks encapsulation. Not sure it's necessary
       ExternalFunctionFVCons[FuncName].insert(F);
       FunFVars = &ExternalFunctionFVCons[FuncName];
     }
@@ -650,7 +649,7 @@ std::set<FVConstraint *> *ProgramInfo::getFuncFVConstraints(FunctionDecl *FD,
 // Given a decl, return the variables for the constraints of the Decl.
 std::set<ConstraintVariable *> ProgramInfo::getVariable(clang::Decl *D,
                                                         clang::ASTContext *C) {
-  assert(persisted == false);
+  assert(!persisted);
 
   if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
     int PIdx = -1;
@@ -820,7 +819,6 @@ bool ProgramInfo::computePointerDisjointSet() {
       }
     }
   }
-
 
   // Compute all the WILD pointers.
   CVars WildCkeys;

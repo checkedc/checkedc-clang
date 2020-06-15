@@ -23,18 +23,13 @@ unsigned int lastRecordLocation = -1;
 void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
     ASTContext *Context, ConstraintResolver CB) {
   if (RecordDecl *Definition = Declaration->getDefinition()) {
-
-    // store the current record's location to cross reference later in a
-    // VarDecl
+    // store current record's location to cross-ref later in a VarDecl
     lastRecordLocation = Definition->getBeginLoc().getRawEncoding();
-
     FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
-
     if (FL.isValid()) {
       SourceManager &SM = Context->getSourceManager();
       FileID FID = FL.getFileID();
       const FileEntry *FE = SM.getFileEntryForID(FID);
-
       if (FE && FE->isValid()) {
         // We only want to re-write a record if it contains
         // any pointer types, to include array types.
@@ -69,8 +64,6 @@ public:
       }
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         if (VD->isLocalVarDecl()) {
-          /* FIXME: Are the following three lines really necessary?
-           * We don't seem to have these shorts of checks elsewhere. */
           FullSourceLoc FL = Context->getFullLoc(VD->getBeginLoc());
           SourceRange SR = VD->getSourceRange();
           if (SR.isValid() && FL.isValid() &&
@@ -140,8 +133,7 @@ public:
     // figure out who we are calling
     if (D == nullptr) {
       // If the callee declaration could not be found, then we're doing some
-      // sort of indirect call through an array or conditional. FV constraints
-      // can be obtained for this from getExprConstraintVars.
+      // sort of indirect call through an array or conditional.
       Expr *CalledExpr = E->getCallee();
       FVCons = CB.getExprConstraintVars(CalledExpr);
       // When multiple function variables are used in the same expression, they
@@ -162,20 +154,19 @@ public:
       // Don't know who we are calling; make args WILD
       constraintAllArgumentsToWild(E);
     } else {
-      unsigned i = 0;
-      // For each argument
-      for (const auto &A : E->arguments()) {
-        std::set<ConstraintVariable *> ArgumentConstraints =
-            CB.getExprConstraintVars(A);
-        // ... and each function we could be calling
-        for (auto *TmpC : FVCons) {
-          if (PVConstraint *PVC = dyn_cast<PVConstraint>(TmpC)) {
-            TmpC = PVC->getFV();
-            assert(TmpC != nullptr &&
-                   "Function pointer with null FVConstraint.");
-          }
-          if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
-            // constraint the arg CV to the param CV
+      // For each function we are calling ...
+      for (auto *TmpC : FVCons) {
+        if (PVConstraint *PVC = dyn_cast<PVConstraint>(TmpC)) {
+          TmpC = PVC->getFV();
+          assert(TmpC != nullptr && "Function pointer with null FVConstraint.");
+        }
+        // and for each arg to the function ...
+        if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
+          unsigned i = 0;
+          for (const auto &A : E->arguments()) {
+            std::set<ConstraintVariable *> ArgumentConstraints =
+                CB.getExprConstraintVars(A);
+            // constrain the arg CV to the param CV
             if (i < TargetFV->numParams()) {
               std::set<ConstraintVariable *> ParameterDC =
                   TargetFV->getParamVar(i);
@@ -196,9 +187,9 @@ public:
                 }
               }
             }
+            i++;
           }
         }
-        i++;
       }
     }
     return true;
@@ -293,11 +284,6 @@ private:
     constrainVarsTo(Var, CAtom);
   }
 
-  void constraintInBodyVariable(Decl *d, ConstAtom *CAtom) {
-    std::set<ConstraintVariable *> Var = Info.getVariable(d, Context);
-    constrainVarsTo(Var, CAtom);
-  }
-
   // Constraint all the argument of the provided
   // call expression to be WILD.
   void constraintAllArgumentsToWild(CallExpr *E) {
@@ -340,10 +326,8 @@ private:
   ConstraintResolver CB;
 };
 
-// This class visits a global declaration and either
-// - Builds an _enviornment_ and _constraints_ for each function
-// - Builds _constraints_ for declared struct/records in the translation unit
-// The results are returned in the ProgramInfo parameter to the user.
+// This class visits a global declaration, generating constraints
+//   for functions, variables, types, etc. that are visited
 class GlobalVisitor : public RecursiveASTVisitor<GlobalVisitor> {
 public:
   explicit GlobalVisitor(ASTContext *Context, ProgramInfo &I)
@@ -353,14 +337,15 @@ public:
 
     if (G->hasGlobalStorage() &&
         (G->getType()->isPointerType() || G->getType()->isArrayType())) {
-      // If the location of the previous RecordDecl and the current VarDecl are the same,
-      // this implies an inline struct as per Clang's AST, so set a flag in ProgramInfo
-      // to indicate that this variable should be constrained to wild later
       Info.addVariable(G, Context);
       if (G->hasInit()) {
         CB.constrainLocalAssign(nullptr, G, G->getInit());
       }
-      if(lastRecordLocation == G->getBeginLoc().getRawEncoding()) {
+      // If the location of the previous RecordDecl and the current VarDecl are
+      // the same, this implies an inline struct as per Clang's AST, so set a
+      // flag in ProgramInfo to indicate that this variable should be
+      // constrained to wild later
+      if (lastRecordLocation == G->getBeginLoc().getRawEncoding()) {
         std::set<ConstraintVariable *> C = Info.getVariable(G, Context);
         CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
       }

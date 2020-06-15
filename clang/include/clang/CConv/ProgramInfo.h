@@ -60,8 +60,6 @@ public:
   // Get constraint variable for the provided Decl
   std::set<ConstraintVariable *> getVariable(clang::Decl *D,
                                              clang::ASTContext *C);
-  // std::set<ConstraintVariable *>
-  //  getVariable(clang::ASTContext *C, FunctionDecl *FD, int PIdx); // use the functions above
 
   // Retrieve a function's constraints by decl, or by name; nullptr if not found
   std::set<FVConstraint *> *getFuncConstraints(FunctionDecl *D, ASTContext *C);
@@ -110,13 +108,10 @@ private:
   // Is the ProgramInfo persisted? Only tested in asserts. Starts at true.
   bool persisted;
 
-  // Map of global functions for whom we don't have a body, the keys are 
-  // names of external functions, the value is whether the body has been
-  // seen before.
+  // Map of global decls for which we don't have a body, the keys are
+  // names of external functions/vars, the value is whether the body/def
+  // has been seen before.
   std::map<std::string, bool> ExternFunctions;
-  // Map of global extern variables that are not defined; the keys are
-  // names of the variables, and the value indicates whether a definition
-  // for it has been seen. 
   std::map<std::string, bool> ExternGVars;
 
   // Maps for global/static functions, global variables
@@ -154,10 +149,14 @@ private:
   //  * va_list-typed variables
   void specialCaseVarIntros(ValueDecl *D, ASTContext *Context);
 
+  // Inserts the given FVConstraint* set into the global map, depending
+  // on whether static or not; returns true on success
   bool
   insertNewFVConstraints(FunctionDecl *FD, std::set<FVConstraint *> &FVcons,
                          ASTContext *C);
 
+  // Retrieves a FVConstraint* based on the decl (which could be static,
+  //   or global)
   std::set<FVConstraint *> *getFuncFVConstraints(FunctionDecl *FD,
                                                  ASTContext *C);
 };
