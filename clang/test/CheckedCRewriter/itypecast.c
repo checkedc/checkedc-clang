@@ -3,8 +3,6 @@
 // Checks cast insertion while passing arguments to itype parameters.
 //
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-// RUN: cconv-standalone %s -- | %clang_cc1 -fignore-checkedc-pointers -verify -fcheckedc-extension -x c -
-// expected-no-diagnostics
 
 int foo(int **p:itype(_Ptr<_Ptr<int>>));
 int bar(int **p:itype(_Ptr<int *>));
