@@ -518,19 +518,6 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
   std::set<ConstraintVariable *> V = Info.getVariable(D, Context);
   auto RHSCons = getExprConstraintVars(RHS);
 
-  // When the RHS of the assignment is an array initializer, the LHS must be
-  // dereferenced in order to generate the correct constraints.
-  if (RHS != nullptr && dyn_cast<InitListExpr>(RHS) != nullptr) {
-    if (!D->getType()->isArrayType()) {
-      if (Verbose) {
-        llvm::errs()
-            << "WARNING! Non-array list initialization expression ignored: ";
-        RHS->dump(llvm::errs());
-        llvm::errs() << "\n";
-      }
-      RHSCons = std::set<ConstraintVariable *>();
-    }
-  }
   constrainConsVarGeq(V, RHSCons, Info.getConstraints(), PLPtr, CAction, false,
                       &Info);
 }
