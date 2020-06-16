@@ -371,7 +371,7 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
       continue;
     llvm::APSInt UpperOffset = UpperExprIntPair.second;
 
-    if (Lex.CompareExpr(DerefBase, UpperBase) !=
+    if (Lex.CompareExprSemantically(DerefBase, UpperBase) !=
         Lexicographic::Result::Equal)
       continue;
 
