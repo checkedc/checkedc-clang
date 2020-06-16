@@ -284,8 +284,7 @@ std::set<ConstraintVariable *>
         UOExpr = UOExpr->IgnoreParenImpCasts();
         // Taking the address of a dereference is a NoOp, so the constraint
         // vars for the subexpression can be passed through.
-        // FIXME: We've dumped implicit casts on UOEXpr, and we haven't
-        //   considered the presence of explicit casts
+        // FIXME: We've dumped implicit casts on UOEXpr; restore?
         if (UnaryOperator *SubUO = dyn_cast<UnaryOperator>(UOExpr)) {
           if (SubUO->getOpcode() == UO_Deref)
             return getExprConstraintVars(SubUO->getSubExpr());
