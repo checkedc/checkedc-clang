@@ -60,7 +60,7 @@ std::set<ConstraintVariable *>
       C.erase(C.begin());
       if (C.size() > 0) {
         bool a = PVC->getArrPresent();
-        bool c = PVC->getItypePresent();
+        bool c = PVC->hasItype();
         std::string d = PVC->getItype();
         FVConstraint *b = PVC->getFV();
         PVConstraint *TmpPV = new PVConstraint(C, PVC->getTy(), PVC->getName(),
@@ -108,7 +108,7 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, Atom *PtrTyp, Const
   C.insert(C.begin(), NewA);
   bool a = PVC->getArrPresent();
   FVConstraint *b = PVC->getFV();
-  bool c = PVC->getItypePresent();
+  bool c = PVC->hasItype();
   std::string d = PVC->getItype();
   PVConstraint *TmpPV = new PVConstraint(C, PVC->getTy(), PVC->getName(),
                                          b, a, c, d);
