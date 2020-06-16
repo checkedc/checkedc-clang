@@ -1174,8 +1174,7 @@ class CastPlacementVisitor :
 public:
   explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I,
                                 Rewriter &R)
-      : Context(C), Info(I), Writer(R), CR(Info, Context),
-        FD(nullptr) {}
+      : Context(C), Info(I), Writer(R), CR(Info, Context) {}
 
   bool VisitCallExpr(CallExpr *CE) {
     Decl *D = CE->getCalleeDecl();
@@ -1254,7 +1253,7 @@ private:
     if (SrcChecked) {
       // Check if Dst is an itype, if yes then
       // Src should have exactly same checked type else we need to insert cast.
-      if (Dst->getItypePresent()) {
+      if (Dst->hasItype()) {
         return !Dst->solutionEqualTo(Info.getConstraints(), Src);
       }
 
