@@ -21,15 +21,19 @@
 #include "clang/AST/Expr.h"
 
 namespace clang {
-  using Result = Lexicographic::Result;
-  using OpcodeTy = BinaryOperator::Opcode;
-  using VarTy = std::string;
+  struct VarTy {
+    std::string name;
+    llvm::APSInt count;
+  };
   using VarListTy = std::vector<VarTy>;
+  using OpcodeTy = BinaryOperator::Opcode;
   using ConstTy = llvm::APSInt;
+  using Result = Lexicographic::Result;
 
   class PreorderAST {
     class ASTNode {
     public:
+      ASTContext &Ctx;
       OpcodeTy opcode;
       VarListTy variables;
       ConstTy constant;
@@ -37,17 +41,30 @@ namespace clang {
       ASTNode *left, *right, *parent;
       
       ASTNode(ASTContext &Ctx, ASTNode *Parent = nullptr) :
-        opcode(BO_Add), hasConstant(false),
+        Ctx(Ctx), opcode(BO_Add), hasConstant(false),
         left(nullptr), right(nullptr), parent(Parent) {
-          llvm::APSInt Zero(Ctx.getTypeSize(Ctx.IntTy), 0);
-          constant = Zero;
+          constant = getConstVal(0);
         }
 
-      void addVar(VarTy V) { variables.push_back(V); }
+      llvm::APSInt getConstVal(unsigned Val) {
+      return llvm::APSInt(llvm::APInt(Ctx.getTypeSize(Ctx.IntTy), Val));
+      }
 
-      void setOpcode(OpcodeTy Opc) { opcode = Opc; }
+      void addVar(std::string name) {
+        variables.push_back(VarTy {name, getConstVal(1)});
+      }
 
-      bool isLeafNode() { return !left && !right; }
+      void addVar(VarTy V) {
+        variables.push_back(V);
+      }
+
+      void setOpcode(OpcodeTy Opc) {
+        opcode = Opc;
+      }
+
+      bool isLeafNode() {
+        return !left && !right;
+      }
     };
 
   private:
@@ -63,10 +80,7 @@ namespace clang {
 
       AST = new ASTNode(Ctx);
       insert(AST, E);
-      coalesce(AST);
-      sort(AST);
       normalize(AST);
-      print(AST);
     }
 
     void insert(ASTNode *N, Expr *E, ASTNode *Parent = nullptr);
@@ -74,6 +88,7 @@ namespace clang {
     void coalesceConst(ASTNode *N, llvm::APSInt IntVal);
     void sort(ASTNode *N);
     void normalize(ASTNode *N);
+    void optimize(ASTNode *N);
     void print(ASTNode *N);
     Result compare(PreorderAST &PT);
     Result compare(ASTNode *N1, ASTNode *N2);

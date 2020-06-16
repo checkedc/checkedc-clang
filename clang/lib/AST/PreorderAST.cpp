@@ -149,7 +149,7 @@ void PreorderAST::sort(ASTNode *N) {
 
   llvm::sort(N->variables.begin(), N->variables.end(),
              [](VarTy a, VarTy b) {
-               return a.compare(b) < 0;
+               return a.name.compare(b.name) < 0;
              });
 
   sort(N->left);
@@ -169,13 +169,16 @@ Result PreorderAST::compare(ASTNode *N1, ASTNode *N2) {
   if (N1->variables.size() != N2->variables.size())
     return Result::NotEqual;
 
-  if (N1->constant != N2->constant)
+  if (llvm::APSInt::compareValues(N1->constant, N2->constant) != 0)
     return Result::NotEqual;
 
   for (size_t i = 0; i != N1->variables.size(); ++i) {
     auto &V1 = N1->variables[i];
     auto &V2 = N2->variables[i];
-    if (V1.compare(V2) != 0)
+
+    if (V1.name.compare(V2.name) != 0)
+      return Result::NotEqual;
+    if (V1.count != V2.count)
       return Result::NotEqual;
   }
 
@@ -190,7 +193,61 @@ Result PreorderAST::compare(ASTNode *N1, ASTNode *N2) {
   return Result::Equal;
 }
 
+void PreorderAST::optimize(ASTNode *N) {
+  if (!N)
+    return;
+
+  std::map<std::string, unsigned> VarCounts;
+  bool foundDuplicates = false;
+  for (auto &V : N->variables) {
+    if (VarCounts.count(V.name)) {
+      VarCounts[V.name]++;
+      foundDuplicates = true;
+    }
+    else
+      VarCounts[V.name] = 1;
+  }
+
+  if (foundDuplicates) {
+    VarListTy NewV;
+    for (auto &V : N->variables) {
+      auto it = VarCounts.find(V.name);
+      if (it != VarCounts.end()) {
+        V.count = N->getConstVal(it->second);
+        NewV.push_back(V);
+        VarCounts.erase(it);
+      }
+    }
+    N->variables = NewV;
+  }
+
+  if (N->opcode == BO_Mul && N->hasConstant) {
+    for (auto &V : N->variables) {
+      bool Overflow;
+      V.count = V.count.smul_ov(N->constant, Overflow);
+      assert(!Overflow);
+    }
+
+    N->constant = N->getConstVal(0);
+    N->hasConstant = false;
+
+    if (N->variables.size() < 2)
+      N->opcode = BO_Add;
+  }
+
+  optimize(N->left);
+  optimize(N->right);
+}
+
 void PreorderAST::normalize(ASTNode *N) {
+  coalesce(AST);
+  sort(AST);
+  optimize(AST);
+  coalesce(AST);
+  sort(AST);
+
+  OS << "--------------------------------------\n";
+  print(AST);
 }
 
 Result PreorderAST::compare(PreorderAST &PT) {
@@ -204,9 +261,9 @@ void PreorderAST::print(ASTNode *N) {
   OS << BinaryOperator::getOpcodeStr(N->opcode);
   if (N->variables.size()) {
     for (auto &V : N->variables)
-      OS << " " << V;
+      OS << " [" << V.name << ":" << V.count << "]";
   }
-  OS << " " << N->constant << "\n";
+  OS << " [const:" << N->constant << "]\n";
 
   print(N->left);
   print(N->right);
