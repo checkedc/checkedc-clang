@@ -101,7 +101,7 @@ int *mul2(int *x) {
 //CHECK: int * mul2(int *x) { 
 
 int ** sus(int *, int *);
-//CHECK: int ** sus(int *, int *y : itype(_Array_ptr<int>));
+//CHECK: int ** sus(int *, int *);
 
 int ** foo() {
 

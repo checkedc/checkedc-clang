@@ -11,6 +11,11 @@ void bar(int *x) {
   int *y = *(&x);
 }
 
+int *id(int *x) {
+  return &(*x);
+}
+//CHECK: _Ptr<int> id(_Ptr<int> x) {
+
 int f(int *x) {
   return *x;
 }

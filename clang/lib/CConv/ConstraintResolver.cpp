@@ -276,9 +276,25 @@ std::set<ConstraintVariable *>
       std::set<ConstraintVariable *> T;
       switch (UO->getOpcode()) {
       // &e
+      // C99 6.5.3.2: "The operand of the unary & operator shall be either a
+      // function designator, the result of a [] or unary * operator, or an
+      // lvalue that designates an object that is not a bit-field and is not
+      // declared with the register storage-class specifier."
       case UO_AddrOf: {
-        T = getExprConstraintVars(UOExpr);
         UOExpr = UOExpr->IgnoreParenImpCasts();
+        // Taking the address of a dereference is a NoOp, so the constraint
+        // vars for the subexpression can be passed through.
+        // FIXME: We've dumped implicit casts on UOEXpr, and we haven't
+        //   considered the presence of explicit casts
+        if (UnaryOperator *SubUO = dyn_cast<UnaryOperator>(UOExpr)) {
+          if (SubUO->getOpcode() == UO_Deref)
+            return getExprConstraintVars(SubUO->getSubExpr());
+          // else, fall through
+        } else if (ArraySubscriptExpr *ASE = dyn_cast<ArraySubscriptExpr>(UOExpr)) {
+          return getExprConstraintVars(ASE->getBase());
+        }
+        // add a VarAtom to UOExpr's PVConstraint, for &
+        T = getExprConstraintVars(UOExpr);
         if (T.empty()) {
           // If no constraint vars are found, an empty one must be created.
           // TODO: can we come up with meaningful names in more cases?
@@ -289,22 +305,12 @@ std::set<ConstraintVariable *>
             Name = "";
           }
           CAtoms V;
-          ConstraintVariable *newC = new PointerVariableConstraint(
-              V, UOExpr->getType().getAsString(), Name, nullptr, false,
-              false, "");
+          ConstraintVariable *newC =
+              new PointerVariableConstraint(V, UOExpr->getType().getAsString(),
+                                            Name, nullptr, false, false, "");
           T.insert(newC);
         }
-
-        UnaryOperator *SubUO = dyn_cast<UnaryOperator>(UOExpr);
-        if (SubUO && SubUO->getOpcode() == UO_Deref) {
-          // Taking the address of a dereference is a NoOp, so the constraint
-          // vars for the subexpression can be passed through.
-          return getExprConstraintVars(SubUO->getSubExpr());
-        } else if (ArraySubscriptExpr *ASE = dyn_cast<ArraySubscriptExpr>(UOExpr)) {
-          if(!AllTypes) return getExprConstraintVars(ASE->getBase());
-        } else {
-          return addAtomAll(T, CS.getPtr(), CS);
-        }
+        return addAtomAll(T, CS.getPtr(), CS);
       }
 
       // *e
