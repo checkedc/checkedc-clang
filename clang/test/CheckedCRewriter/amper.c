@@ -37,5 +37,4 @@ void bif(int **x) {
 //CHECK: void bif(_Ptr<_Ptr<int>> x) {
 //CHECK-NEXT: _Ptr<_Ptr<int>> w =  0;
 //CHECK-NEXT: _Ptr<int> y =  *(x = w);
-//CHECK-NEXT: w = _Assume_bounds_cast<_Ptr<_Ptr<int>> >(&y);
 
