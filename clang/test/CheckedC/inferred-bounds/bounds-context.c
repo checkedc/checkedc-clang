@@ -1651,17 +1651,14 @@ void nested_assign1(nt_array_ptr<int> a : count(1), nt_array_ptr<const int> b : 
   // CHECK-NEXT: }
 }
 
-// Pointer deferences are not included in nested assignment information in State.EquivExprs
+// Pointer deferences are included in temporary expression equality while validating bounds
 void nested_assign2(
-  nt_array_ptr<int> a : count(0), // expected-note {{(expanded) declared bounds are 'bounds(a, a + 0)'}}
+  nt_array_ptr<int> a : count(0),
   nt_array_ptr<int> b : count(0),
   ptr<nt_array_ptr<int>> p
 ) {                                                                                                  
-  // TODO: checkedc-clang issue #845: equality between b and *p
-  // needs to be recorded in order to properly validate the bounds of b.
   // Observed bounds context after all assignments: { a => bounds(*p, *p + 0), b => bounds(*p, *p + 0) }
-  a = (b = *p); // expected-warning {{cannot prove declared bounds for 'a' are valid after statement}} \
-                // expected-note {{(expanded) inferred bounds are 'bounds(*p, *p + 0)'}}
+  a = (b = *p);
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
