@@ -3813,12 +3813,11 @@ namespace {
     // context, the observed bounds of v imply the declared bounds of v.
     void ValidateBoundsContext(Stmt *S, CheckingState State, CheckedScopeSpecifier CSS) {
       for (auto Pair : State.ObservedBounds) {
-        VarDecl *V = const_cast<VarDecl *>(Pair.first);
+        const VarDecl *V = Pair.first;
         BoundsExpr *ObservedBounds = Pair.second;
-        BoundsExpr *DeclaredBounds = V->getBoundsExpr();
+        BoundsExpr *DeclaredBounds = this->S.NormalizeBounds(V);
         if (!DeclaredBounds || DeclaredBounds->isUnknown())
           continue;
-        DeclaredBounds = this->S.ExpandBoundsToRange(V, DeclaredBounds);
         if (ObservedBounds->isUnknown())
           DiagnoseUnknownObservedBounds(S, V, DeclaredBounds, State);
         else
