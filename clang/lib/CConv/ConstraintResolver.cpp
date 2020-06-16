@@ -300,9 +300,8 @@ std::set<ConstraintVariable *>
           // Taking the address of a dereference is a NoOp, so the constraint
           // vars for the subexpression can be passed through.
           return getExprConstraintVars(SubUO->getSubExpr());
-        // TODO: this should also work for array subscript (issue #51), but it break some regression tests.
-        //} else if (ArraySubscriptExpr *ASE = dyn_cast<ArraySubscriptExpr>(UOExpr)) {
-        //  return getExprConstraintVars(ASE->getBase());
+        } else if (ArraySubscriptExpr *ASE = dyn_cast<ArraySubscriptExpr>(UOExpr)) {
+          if(!AllTypes) return getExprConstraintVars(ASE->getBase());
         } else {
           return addAtomAll(T, CS.getPtr(), CS);
         }
