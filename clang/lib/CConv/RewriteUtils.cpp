@@ -1317,7 +1317,9 @@ private:
                                                     Context->getSourceManager(),
                                                     Context->getLangOpts());
       std::string SrcText = clang::tooling::getText(CRA, *Context);
-      Writer.ReplaceText(NewCRA, CastPrefix + SrcText + ")");
+      // Only insert if there is anything to write.
+      if (!SrcText.empty())
+        Writer.ReplaceText(NewCRA, CastPrefix + SrcText + ")");
     } else {
       Writer.InsertTextBefore(E->getBeginLoc(), CastPrefix);
     }
