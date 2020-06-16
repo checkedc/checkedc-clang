@@ -87,9 +87,9 @@ public:
   virtual void dump() const = 0;
   virtual void dump_json(llvm::raw_ostream &O) const = 0;
 
-  virtual bool getItypePresent() = 0;
+  virtual bool hasItype() = 0;
 
-  virtual bool haveSameAssignment(Constraints &, ConstraintVariable *) = 0;
+  virtual bool solutionEqualTo(Constraints &, ConstraintVariable *) = 0;
 
   // Constrain all pointers in this ConstraintVariable to be Wild.
   virtual void constrainToWild(Constraints &CS) = 0;
@@ -224,10 +224,10 @@ public:
 
   // Is an itype present for this constraint? If yes,
   // what is the text of that itype?
-  bool getItypePresent() { return ItypeStr.size() > 0; }
+  bool hasItype() { return ItypeStr.size() > 0; }
   std::string getItype() { return ItypeStr; }
 
-  bool haveSameAssignment(Constraints &CS, ConstraintVariable *CV);
+  bool solutionEqualTo(Constraints &CS, ConstraintVariable *CV);
 
   // Constructor for when we have a Decl. K is the current free
   // constraint variable index. We don't need to explicitly pass
@@ -347,8 +347,8 @@ public:
     return paramVars.at(i);
   }
 
-  bool getItypePresent();
-  bool haveSameAssignment(Constraints &CS, ConstraintVariable *CV);
+  bool hasItype();
+  bool solutionEqualTo(Constraints &CS, ConstraintVariable *CV);
 
   std::string mkString(EnvironmentMap &E, bool EmitName =true,
                        bool ForItype =false);

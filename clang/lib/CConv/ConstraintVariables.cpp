@@ -415,7 +415,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
   bool EmittedBase = false;
   bool EmittedName = false;
   bool EmittedCheckedAnnotation = false;
-  if (EmitName == false && getItypePresent() == false)
+  if (EmitName == false && hasItype() == false)
     EmittedName = true;
   uint32_t TypeIdx = 0;
   for (const auto &V : vars) {
@@ -444,7 +444,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
         // We need to check and see if this level of variable
         // is constrained by a bounds safe interface. If it is,
         // then we shouldn't re-write it.
-        if (getItypePresent() == false) {
+        if (hasItype() == false) {
           EmittedBase = false;
           Ss << "_Ptr<";
           CaratsToAdd++;
@@ -463,7 +463,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
         // We need to check and see if this level of variable
         // is constrained by a bounds safe interface. If it is,
         // then we shouldn't re-write it.
-        if (getItypePresent() == false) {
+        if (hasItype() == false) {
           EmittedBase = false;
           Ss << "_Array_ptr<";
           CaratsToAdd++;
@@ -482,7 +482,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
           // We need to check and see if this level of variable
           // is constrained by a bounds safe interface. If it is,
           // then we shouldn't re-write it.
-          if (getItypePresent() == false) {
+          if (hasItype() == false) {
             EmittedBase = false;
             Ss << "_Nt_array_ptr<";
             CaratsToAdd++;
@@ -958,7 +958,7 @@ bool PointerVariableConstraint::hasNtArr(EnvironmentMap &E)
 }
 
 bool PointerVariableConstraint::
-    haveSameAssignment(Constraints &CS, ConstraintVariable *CV) {
+    solutionEqualTo(Constraints &CS, ConstraintVariable *CV) {
   bool Ret = false;
   if (CV != nullptr) {
     if (PVConstraint *PV = dyn_cast<PVConstraint>(CV)) {
@@ -981,7 +981,7 @@ bool PointerVariableConstraint::
         if (Ret) {
           FVConstraint *OtherFV = PV->getFV();
           if (FV != nullptr && OtherFV != nullptr) {
-            Ret = FV->haveSameAssignment(CS, OtherFV);
+            Ret = FV->solutionEqualTo(CS, OtherFV);
           } else if (FV != nullptr || OtherFV != nullptr) {
             // One of them has FV null.
             Ret = false;
@@ -1041,16 +1041,16 @@ void FunctionVariableConstraint::dump_json(raw_ostream &O) const {
   O << "}}";
 }
 
-bool FunctionVariableConstraint::getItypePresent() {
+bool FunctionVariableConstraint::hasItype() {
   for (auto &RV : getReturnVars()) {
-    if (RV->getItypePresent()) {
+    if (RV->hasItype()) {
       return true;
     }
   }
   return false;
 }
 
-static bool sameAssignmentCVSet(Constraints &CS,
+static bool cvSetsSolutionEqualTo(Constraints &CS,
                                 std::set<ConstraintVariable *> &CVS1,
                                 std::set<ConstraintVariable *> &CVS2) {
   bool Ret = false;
@@ -1059,22 +1059,22 @@ static bool sameAssignmentCVSet(Constraints &CS,
     if (CVS1.size() == 1) {
      auto *CV1 = getOnly(CVS1);
      auto *CV2 = getOnly(CVS2);
-     Ret = CV1->haveSameAssignment(CS, CV2);
+     Ret = CV1->solutionEqualTo(CS, CV2);
     }
   }
   return Ret;
 }
 
 bool FunctionVariableConstraint::
-    haveSameAssignment(Constraints &CS, ConstraintVariable *CV) {
+    solutionEqualTo(Constraints &CS, ConstraintVariable *CV) {
   bool Ret = false;
   if (CV != nullptr) {
     if (FVConstraint *OtherFV = dyn_cast<FVConstraint>(CV)) {
       Ret = (numParams() == OtherFV->numParams());
-      Ret = Ret && sameAssignmentCVSet(CS, getReturnVars(),
+      Ret = Ret && cvSetsSolutionEqualTo(CS, getReturnVars(),
                                        OtherFV->getReturnVars());
       for (unsigned i=0; i < numParams(); i++) {
-        Ret = Ret && sameAssignmentCVSet(CS, getParamVar(i),
+        Ret = Ret && cvSetsSolutionEqualTo(CS, getParamVar(i),
                                          OtherFV->getParamVar(i));
       }
     }
