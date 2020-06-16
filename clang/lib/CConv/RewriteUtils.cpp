@@ -510,7 +510,7 @@ std::string TypeRewritingVisitor::getExistingIType(ConstraintVariable *DeclC) {
   std::string Ret = "";
   ConstraintVariable *T = DeclC;
   if (PVConstraint *PVC = dyn_cast<PVConstraint>(T)) {
-    if (PVC->getItypePresent()) {
+    if (PVC->hasItype()) {
       Ret = " : " + PVC->getItype();
     }
   }
