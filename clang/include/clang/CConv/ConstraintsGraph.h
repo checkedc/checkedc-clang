@@ -19,9 +19,12 @@
 using namespace boost;
 using namespace std;
 
+enum EdgeType { Ptype, Checked };
+const std::string EdgeTypeColors[2] = { "blue", "red" };
+
 class ConstraintsGraph {
 public:
-  typedef adjacency_list<setS, vecS, bidirectionalS, Atom*> DirectedGraphType;
+  typedef adjacency_list<vecS, vecS, bidirectionalS, Atom*, EdgeType> DirectedGraphType;
   typedef boost::graph_traits<DirectedGraphType>::vertex_descriptor vertex_t;
   typedef std::map<Atom*, vertex_t> VertexMapType;
 
@@ -38,7 +41,7 @@ public:
 
   // Get all successors of a given Atom which are of particular type.
   template <typename ConstraintType>
-  bool getNeighbors(Atom *A, std::set<Atom*> &Atoms, bool Succs) {
+  bool getNeighbors(Atom *A, std::set<Atom*> &Atoms, bool Succs, EdgeType edgeType) {
     // Get the vertex descriptor.
     auto Vidx = addVertex(A);
     Atoms.clear();
@@ -47,8 +50,10 @@ public:
       for (boost::tie(ei, ei_end) = out_edges(Vidx, CG); ei != ei_end; ++ei) {
         auto source = boost::source(*ei, CG);
         auto target = boost::target(*ei, CG);
+
         assert(CG[source] == A && "Source has to be the given node.");
-        if (clang::dyn_cast<ConstraintType>(CG[target])) {
+
+        if (CG[*ei] == edgeType && clang::dyn_cast<ConstraintType>(CG[target])) {
           Atoms.insert(CG[target]);
         }
       }
@@ -58,7 +63,8 @@ public:
         auto source = boost::source ( *ei, CG );
         auto target = boost::target ( *ei, CG );
         assert(CG[target] == A && "Target has to be the given node.");
-        if (clang::dyn_cast<ConstraintType>(CG[source])) {
+
+        if (CG[*ei] == edgeType && clang::dyn_cast<ConstraintType>(CG[source])) {
           Atoms.insert(CG[source]);
         }
       }
