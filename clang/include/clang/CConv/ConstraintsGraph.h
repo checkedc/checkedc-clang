@@ -14,7 +14,6 @@
 
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/dijkstra_shortest_paths.hpp>
 #include "clang/CConv/Constraints.h"
 
 using namespace boost;
@@ -31,7 +30,6 @@ public:
     AtomToVDMap.clear();
   }
 
-  void addEdge(Atom *V1, Atom *V2, bool isBackward);
   void addConstraint(Geq *C, Constraints &CS);
 
   // Get all ConstAtoms, basically the points
