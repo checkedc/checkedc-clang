@@ -29,6 +29,14 @@ void baz(void) {
 //CHECK:  _Ptr<int (_Ptr<int> )> fp =  f;
 //CHECK:  _Ptr<int (_Ptr<int> )> fp2 =  &f;
 
+extern int xfunc(int *arg);
+int (*fp)(int *);
+//CHECK: _Ptr<int (int *)> fp = ((void *)0);
+
+void addrof(void){
+  fp = &xfunc;
+}
+
 void bif(int **x) {
   int **w = 0;
   int *y = *(x = w);
