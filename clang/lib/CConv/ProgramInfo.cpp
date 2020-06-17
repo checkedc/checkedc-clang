@@ -654,6 +654,9 @@ std::set<ConstraintVariable *> ProgramInfo::getVariable(clang::Decl *D,
   if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
     int PIdx = -1;
     DeclContext *DC = PD->getParentFunctionOrMethod();
+    // This can fail for extern definitions
+    if(!DC)
+      return std::set<ConstraintVariable*>();
     FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
     // Get the parameter index with in the function.
     for (unsigned i = 0; i < FD->getNumParams(); i++) {
