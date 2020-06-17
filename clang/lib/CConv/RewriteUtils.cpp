@@ -1035,9 +1035,6 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       bool FoundWild = false;
       std::set<ConstraintVariable *> CVSet = Info.getVariable(PVD, Context);
       for (auto Cv : CVSet) {
-	llvm::errs() << "\nCheckedRegion:\n";
-        Cv->dump();
-	llvm::errs() << "\n";
         if (Cv->hasWild(Info.getConstraints().getVariables())) {
           FoundWild = true;
         }
