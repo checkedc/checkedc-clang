@@ -168,7 +168,7 @@ std::set<ConstraintVariable *>
     E = E->IgnoreParens();
 
     // Non-pointer (int, char, etc.) types have a special base PVConstraint
-    if (TypE->isArithmeticType()) {
+    if (TypE->isStructureType() || TypE->isArithmeticType()) {
       if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
         // If we have a DeclRef, the PVC can get a meaningful name
         return getBaseVarPVConstraint(DRE);
@@ -448,20 +448,11 @@ std::set<ConstraintVariable *>
         std::set<ConstraintVariable *> CVars =
             getAllSubExprConstraintVars(SubExprs);
         return addAtomAll(CVars, CS.getArr(), CS);
-      } else if (ILE->getType()->isStructureType()) {
-        // Struct initialization is treated as a series of assignments to the
-        // fields of the struct.
-        const RecordDecl *Definition =
-            ILE->getType()->getAsStructureType()->getDecl()->getDefinition();
-        int initIdx = 0;
-        for (const auto &D : Definition->fields()) {
-          std::set<ConstraintVariable *> DefCVars = Info.getVariable(D, Context);
-          Expr *InitExpr = ILE->getInit(initIdx);
-          std::set<ConstraintVariable *> InitCVars = getExprConstraintVars(InitExpr);
-          constrainLocalAssign(nullptr, D, InitExpr);
-          initIdx++;
-        }
       }
+
+    // (int[]){e1, e2, e3, ... }
+    } else if (CompoundLiteralExpr *CLE = dyn_cast<CompoundLiteralExpr>(E)) {
+      return getExprConstraintVars(CLE->getInitializer());
 
     // "foo"
     } else if (clang::StringLiteral *exr = dyn_cast<clang::StringLiteral>(E)) {
@@ -539,7 +530,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getWildPVConstraint() {
 
 std::set<ConstraintVariable *> ConstraintResolver::PVConstraintFromType(QualType TypE) {
   std::set<ConstraintVariable *> Ret;
-  if (TypE->isArithmeticType())
+  if (TypE->isStructureType() || TypE->isArithmeticType())
     Ret.insert(PVConstraint::getNonPtrPVConstraint(Info.getConstraints()));
   else if (TypE->isPointerType())
     Ret.insert(PVConstraint::getWildPVConstraint(Info.getConstraints()));
