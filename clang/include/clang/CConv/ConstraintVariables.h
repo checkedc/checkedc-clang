@@ -165,6 +165,8 @@ public:
   static PointerVariableConstraint *getWildPVConstraint(Constraints &CS);
   static PointerVariableConstraint *getPtrPVConstraint(Constraints &CS);
   static PointerVariableConstraint *getNonPtrPVConstraint(Constraints &CS);
+  static PointerVariableConstraint *getNamedNonPtrPVConstraint(StringRef name, Constraints &CS);
+
 private:
   std::string BaseType;
   CAtoms vars;
