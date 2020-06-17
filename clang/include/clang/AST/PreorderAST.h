@@ -99,7 +99,7 @@ namespace clang {
       normalize(AST, HasError);
     }
 
-    // Create an preorder AST from the expression E.
+    // Create a preorder AST from the expression E.
     // @param[in] N is the current node of the AST.
     // @param[in] E is the sub expression which needs to be added to N.
     // @param[in] Parent is the parent node for N.

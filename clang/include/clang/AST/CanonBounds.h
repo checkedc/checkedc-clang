@@ -52,7 +52,6 @@ namespace clang {
       Equal,
       GreaterThan,
       NotEqual,
-      Unknown,
     };
 
   private:

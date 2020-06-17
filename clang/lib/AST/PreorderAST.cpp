@@ -50,7 +50,7 @@ void PreorderAST::insert(ASTNode *N, Expr *E, ASTNode *Parent) {
   if (!N)
     N = new ASTNode(Ctx, Parent);
 
-  // If the parent is non null, make sure that the current node is marked as a
+  // If the parent is non-null, make sure that the current node is marked as a
   // child of the parent. As a convention, we create left children first.
   if (Parent) {
     if (!Parent->left)
