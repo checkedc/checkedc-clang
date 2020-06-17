@@ -68,6 +68,13 @@ PointerVariableConstraint::getNonPtrPVConstraint(Constraints &CS) {
   return GlobalNonPtrPV;
 }
 
+PointerVariableConstraint *
+PointerVariableConstraint::getNamedNonPtrPVConstraint(StringRef name,
+                                                      Constraints &CS) {
+  CAtoms NewVA; // empty -- represents a base type
+  return new PVConstraint(NewVA, "unsigned", name, nullptr, false, false, "");
+}
+
 PointerVariableConstraint::
     PointerVariableConstraint(PointerVariableConstraint *Ot,
                               Constraints &CS) :

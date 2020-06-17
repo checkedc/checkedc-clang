@@ -169,7 +169,12 @@ std::set<ConstraintVariable *>
 
     // Non-pointer (int, char, etc.) types have a special base PVConstraint
     if (TypE->isArithmeticType()) {
-      return PVConstraintFromType(TypE);
+      if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
+        // If we have a DeclRef, the PVC can get a meaningful name
+        return getBaseVarPVConstraint(DRE);
+      } else {
+        return PVConstraintFromType(TypE);
+      }
 
     // NULL
     } else if (isNULLExpression(E, *Context)) {
@@ -540,5 +545,12 @@ std::set<ConstraintVariable *> ConstraintResolver::PVConstraintFromType(QualType
     Ret.insert(PVConstraint::getWildPVConstraint(Info.getConstraints()));
   else
     llvm::errs() << "Warning: Returning non-base, non-wild type";
+  return Ret;
+}
+
+std::set<ConstraintVariable *> ConstraintResolver::getBaseVarPVConstraint(DeclRefExpr *Decl) {
+  assert(Decl->getType()->isArithmeticType());
+  std::set<ConstraintVariable *> Ret;
+  Ret.insert(PVConstraint::getNamedNonPtrPVConstraint(Decl->getDecl()->getName(), Info.getConstraints()));
   return Ret;
 }

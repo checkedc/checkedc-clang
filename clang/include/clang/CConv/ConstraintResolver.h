@@ -71,6 +71,7 @@ private:
 
   std::set<ConstraintVariable *>
       getAllSubExprConstraintVars(std::vector<Expr *> &Exprs);
+  std::set<ConstraintVariable *> getBaseVarPVConstraint(DeclRefExpr *Decl);
 };
 
 #endif // _CONSTRAINTRESOLVER_H
