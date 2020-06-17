@@ -205,6 +205,9 @@ std::set<ConstraintVariable *>
 
     // variable (x)
     } else if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
+      if(TypE->isStructureType()) {
+        return PVConstraintFromType(TypE);
+      }
       return Info.getVariable(DRE->getDecl(), Context);
 
     // x.f
@@ -293,6 +296,7 @@ std::set<ConstraintVariable *>
         }
         // add a VarAtom to UOExpr's PVConstraint, for &
         std::set<ConstraintVariable *> T = getExprConstraintVars(UOExpr);
+        assert("Empty constraint vars in AddrOf!" && !T.empty());
         return addAtomAll(T, CS.getPtr(), CS);
       }
 
@@ -438,6 +442,7 @@ std::set<ConstraintVariable *>
           constrainLocalAssign(nullptr, D, InitExpr);
           initIdx++;
         }
+        return PVConstraintFromType(TypE);
       }
 
     // "foo"
@@ -516,7 +521,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getWildPVConstraint() {
 
 std::set<ConstraintVariable *> ConstraintResolver::PVConstraintFromType(QualType TypE) {
   std::set<ConstraintVariable *> Ret;
-  if (TypE->isArithmeticType())
+  if (TypE->isStructureType() || TypE->isArithmeticType())
     Ret.insert(PVConstraint::getNonPtrPVConstraint(Info.getConstraints()));
   else if (TypE->isPointerType())
     Ret.insert(PVConstraint::getWildPVConstraint(Info.getConstraints()));
