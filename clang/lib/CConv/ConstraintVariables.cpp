@@ -403,6 +403,7 @@ bool PointerVariableConstraint::emitArraySize(std::ostringstream &Pss,
         Pss << "[]";
         Ret = true;
         break;
+      default: break;
     }
     return Ret;
   }
@@ -457,7 +458,8 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
           CaratsToAdd++;
           break;
         }
-      case Atom::A_Arr:
+        LLVM_FALLTHROUGH;
+    case Atom::A_Arr:
         // If this is an array.
         getQualString(TypeIdx, Ss);
         // If it's an Arr, then the character we substitute should
@@ -476,6 +478,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
           CaratsToAdd++;
           break;
         }
+        LLVM_FALLTHROUGH;
       case Atom::A_NTArr:
 
         if (emitArraySize(Pss, TypeIdx, EmittedName,
@@ -496,8 +499,9 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
             break;
           }
         }
-        // If there is no array in the original program, then we fall through to
-        // the case where we write a pointer value.
+        LLVM_FALLTHROUGH;
+      // If there is no array in the original program, then we fall through to
+      // the case where we write a pointer value.
       case Atom::A_Wild:
         if (EmittedBase) {
           Ss << "*";
@@ -1127,16 +1131,18 @@ FunctionVariableConstraint::mkString(EnvironmentMap &E,
   return Ret;
 }
 
-static ConsAction neg(ConsAction CA) {
-  switch (CA) {
-  case Safe_to_Wild: return Wild_to_Safe;
-  case Wild_to_Safe: return Safe_to_Wild;
-  case Same_to_Same: return Same_to_Same;
-  }
-  // Silencing the compiler.
-  assert(false && "Can never reach here.");
-  return Same_to_Same;
-}
+// Reverses the direction of CA for function subtyping
+//   TODO: function pointers forced to be equal right now
+//static ConsAction neg(ConsAction CA) {
+//  switch (CA) {
+//  case Safe_to_Wild: return Wild_to_Safe;
+//  case Wild_to_Safe: return Safe_to_Wild;
+//  case Same_to_Same: return Same_to_Same;
+//  }
+//  // Silencing the compiler.
+//  assert(false && "Can never reach here.");
+//  return Same_to_Same;
+//}
 
 // CA |- R <: L
 // Action depends on the kind of constraint (checked, ptyp),
@@ -1263,6 +1269,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
         FCRHS->equateArgumentConstraints(*Info);
 
         // Constrain the return values covariantly.
+        // FIXME: Make neg(CA) here? Function pointers equated
         constrainConsVarGeq(FCLHS->getReturnVars(), FCRHS->getReturnVars(), CS,
                             PL, Same_to_Same, doEqType, Info);
 
@@ -1273,6 +1280,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
                 FCLHS->getParamVar(i);
             std::set<ConstraintVariable *> &RHSV =
                 FCRHS->getParamVar(i);
+            // FIXME: Make neg(CA) here? Now: Function pointers equated
             constrainConsVarGeq(RHSV, LHSV, CS, PL, Same_to_Same, doEqType,
                                 Info);
           }
