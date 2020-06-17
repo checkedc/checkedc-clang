@@ -3829,7 +3829,7 @@ namespace {
       // do not meet the criteria for persistent inclusion in State.EquivExprs:
       // for example, they may create new objects or read memory via pointers.
       EquivExprSets EquivExprs = State.EquivExprs;
-      for (auto Pair : State.TargetSrcEquality) {
+      for (auto const &Pair : State.TargetSrcEquality) {
         Expr *Target = Pair.first;
         Expr *Src = Pair.second;
         bool FoundTarget = false;
