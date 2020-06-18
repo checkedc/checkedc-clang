@@ -1,7 +1,10 @@
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checked %s %S/arrbothmulti2.c
-//RUN: %clang -c %S/arrbothmulti1.checked.c %S/arrbothmulti2.checked.c
-//RUN: FileCheck -match-full-lines --input-file %S/arrbothmulti1.checked.c %s
-//RUN: rm %S/arrbothmulti1.checked.c %S/arrbothmulti2.checked.c
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/arrbothmulti2.c
+// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/arrbothmulti2.c
+//RUN: %clang -c %S/arrbothmulti1.checkedNOALL.c %S/arrbothmulti2.checkedNOALL.c
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/arrbothmulti1.checkedNOALL.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/arrbothmulti1.checkedALL.c %s
+//RUN: rm %S/arrbothmulti1.checkedALL.c %S/arrbothmulti2.checkedALL.c
+//RUN: rm %S/arrbothmulti1.checkedNOALL.c %S/arrbothmulti2.checkedNOALL.c
 
 
 /*********************************************************************************/
@@ -31,15 +34,20 @@ struct general {
     int data; 
     struct general *next;
 };
-//CHECK:     _Ptr<struct general> next;
+//CHECK_NOALL:     _Ptr<struct general> next;
+
+//CHECK_ALL:     _Ptr<struct general> next;
 
 
 struct warr { 
     int data1[5];
     char *name;
 };
-//CHECK:     int data1[5];
-//CHECK-NEXT:     _Ptr<char> name;
+//CHECK_NOALL:     int data1[5];
+//CHECK_NOALL:     _Ptr<char> name;
+
+//CHECK_ALL:     int data1 _Checked[5];
+//CHECK_ALL:     _Ptr<char> name;
 
 
 struct fptrarr { 
@@ -47,25 +55,35 @@ struct fptrarr {
     char *name;
     int (*mapper)(int);
 };
-//CHECK:     _Ptr<int> values; 
-//CHECK-NEXT:     _Ptr<char> name;
-//CHECK-NEXT:     _Ptr<int (int )> mapper;
+//CHECK_NOALL:     _Ptr<int> values; 
+//CHECK_NOALL:     _Ptr<char> name;
+//CHECK_NOALL:     _Ptr<int (int )> mapper;
+
+//CHECK_ALL:     _Ptr<int> values; 
+//CHECK_ALL:     _Ptr<char> name;
+//CHECK_ALL:     _Ptr<int (int )> mapper;
 
 
 struct fptr { 
     int *value; 
     int (*func)(int);
 };  
-//CHECK:     _Ptr<int> value; 
-//CHECK-NEXT:     _Ptr<int (int )> func;
+//CHECK_NOALL:     _Ptr<int> value; 
+//CHECK_NOALL:     _Ptr<int (int )> func;
+
+//CHECK_ALL:     _Ptr<int> value; 
+//CHECK_ALL:     _Ptr<int (int )> func;
 
 
 struct arrfptr { 
     int args[5]; 
     int (*funcs[5]) (int);
 };
-//CHECK:     int args[5]; 
-//CHECK-NEXT:     int (*funcs[5]) (int);
+//CHECK_NOALL:     int args[5]; 
+//CHECK_NOALL:     int (*funcs[5]) (int);
+
+//CHECK_ALL:     int args _Checked[5]; 
+//CHECK_ALL:     _Ptr<int (int )> funcs _Checked[5];
 
 
 int add1(int x) { 
@@ -98,20 +116,27 @@ int *mul2(int *x) {
     return x;
 }
 
-//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+//CHECK_NOALL: _Ptr<int> mul2(_Ptr<int> x) { 
+
+//CHECK_ALL: _Ptr<int> mul2(_Ptr<int> x) { 
 
 int * sus(int *, int *);
-//CHECK: int * sus(int *, int *y : itype(_Ptr<int>));
+//CHECK_NOALL: int * sus(int *, int *y : itype(_Ptr<int>));
+//CHECK_ALL: int * sus(int *, int *y : itype(_Ptr<int>));
 
 int * foo() {
         int * x = malloc(sizeof(int));
         int * y = malloc(sizeof(int));
         int * z = sus(x, y);
 return z; }
-//CHECK: int * foo() {
-//CHECK:         int * x = malloc(sizeof(int));
-//CHECK:         int * y = malloc(sizeof(int));
-//CHECK:         int * z = sus(x, y);
+//CHECK_NOALL: int * foo() {
+//CHECK_NOALL:         int * x = malloc(sizeof(int));
+//CHECK_NOALL:         int * y = malloc(sizeof(int));
+//CHECK_NOALL:         int * z = sus(x, y);
+//CHECK_ALL: int * foo() {
+//CHECK_ALL:         int * x = malloc(sizeof(int));
+//CHECK_ALL:         int * y = malloc(sizeof(int));
+//CHECK_ALL:         int * z = sus(x, y);
 
 int * bar() {
         int * x = malloc(sizeof(int));
@@ -119,7 +144,11 @@ int * bar() {
         int * z = sus(x, y);
 z += 2;
 return z; }
-//CHECK: int * bar() {
-//CHECK:         int * x = malloc(sizeof(int));
-//CHECK:         int * y = malloc(sizeof(int));
-//CHECK:         int * z = sus(x, y);
+//CHECK_NOALL: int * bar() {
+//CHECK_NOALL:         int * x = malloc(sizeof(int));
+//CHECK_NOALL:         int * y = malloc(sizeof(int));
+//CHECK_NOALL:         int * z = sus(x, y);
+//CHECK_ALL: int * bar() {
+//CHECK_ALL:         int * x = malloc(sizeof(int));
+//CHECK_ALL:         int * y = malloc(sizeof(int));
+//CHECK_ALL:         int * z = sus(x, y);

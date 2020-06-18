@@ -1,7 +1,8 @@
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-//RUN: cconv-standalone -output-postfix=checked %s
-//RUN: %clang -Wno-everything -c %S/fptrarrstructcaller.checked.c
-//RUN: rm %S/fptrarrstructcaller.checked.c
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL" %s
+//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" %s
+//RUN: cconv-standalone -output-postfix=checkedNOALL %s
+//RUN: %clang -c %S/fptrarrstructcaller.checkedNOALL.c
+//RUN: rm %S/fptrarrstructcaller.checkedNOALL.c
 
 
 /*********************************************************************************/
@@ -28,15 +29,20 @@ struct general {
     int data; 
     struct general *next;
 };
-//CHECK:     _Ptr<struct general> next;
+//CHECK_NOALL:     _Ptr<struct general> next;
+
+//CHECK_ALL:     _Ptr<struct general> next;
 
 
 struct warr { 
     int data1[5];
     char *name;
 };
-//CHECK:     int data1[5];
-//CHECK-NEXT:     _Ptr<char> name;
+//CHECK_NOALL:     int data1[5];
+//CHECK_NOALL:     _Ptr<char> name;
+
+//CHECK_ALL:     int data1 _Checked[5];
+//CHECK_ALL:     _Ptr<char> name;
 
 
 struct fptrarr { 
@@ -44,25 +50,35 @@ struct fptrarr {
     char *name;
     int (*mapper)(int);
 };
-//CHECK:     int *values; 
-//CHECK-NEXT:     char *name;
-//CHECK-NEXT:     _Ptr<int (int )> mapper;
+//CHECK_NOALL:     int *values; 
+//CHECK_NOALL:     char *name;
+//CHECK_NOALL:     _Ptr<int (int )> mapper;
+
+//CHECK_ALL:     int *values; 
+//CHECK_ALL:     char *name;
+//CHECK_ALL:     _Ptr<int (int )> mapper;
 
 
 struct fptr { 
     int *value; 
     int (*func)(int);
 };  
-//CHECK:     _Ptr<int> value; 
-//CHECK-NEXT:     _Ptr<int (int )> func;
+//CHECK_NOALL:     _Ptr<int> value; 
+//CHECK_NOALL:     _Ptr<int (int )> func;
+
+//CHECK_ALL:     _Ptr<int> value; 
+//CHECK_ALL:     _Ptr<int (int )> func;
 
 
 struct arrfptr { 
     int args[5]; 
     int (*funcs[5]) (int);
 };
-//CHECK:     int args[5]; 
-//CHECK-NEXT:     int (*funcs[5]) (int);
+//CHECK_NOALL:     int args[5]; 
+//CHECK_NOALL:     int (*funcs[5]) (int);
+
+//CHECK_ALL:     int args _Checked[5]; 
+//CHECK_ALL:     _Ptr<int (int )> funcs _Checked[5];
 
 
 int add1(int x) { 
@@ -95,7 +111,9 @@ int *mul2(int *x) {
     return x;
 }
 
-//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+//CHECK_NOALL: _Ptr<int> mul2(_Ptr<int> x) { 
+
+//CHECK_ALL: _Ptr<int> mul2(_Ptr<int> x) { 
 
 struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
  
@@ -110,8 +128,10 @@ struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
         }
         
 return z; }
-//CHECK: struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y : itype(_Ptr<struct fptrarr>)) {
-//CHECK:         struct fptrarr *z = malloc(sizeof(struct fptrarr)); 
+//CHECK_NOALL: struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y : itype(_Ptr<struct fptrarr>)) {
+//CHECK_NOALL:         struct fptrarr *z = malloc(sizeof(struct fptrarr)); 
+//CHECK_ALL: struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y : itype(_Ptr<struct fptrarr>)) {
+//CHECK_ALL:         struct fptrarr *z = malloc(sizeof(struct fptrarr)); 
 
 struct fptrarr * foo() {
  
@@ -129,11 +149,16 @@ struct fptrarr * foo() {
         struct fptrarr *z = sus(x, y);
         
 return z; }
-//CHECK: struct fptrarr * foo() {
-//CHECK:         struct fptrarr * x = malloc(sizeof(struct fptrarr));
-//CHECK:         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
-//CHECK:         int *yvals = calloc(5, sizeof(int)); 
-//CHECK:         struct fptrarr *z = sus(x, y);
+//CHECK_NOALL: struct fptrarr * foo() {
+//CHECK_NOALL:         struct fptrarr * x = malloc(sizeof(struct fptrarr));
+//CHECK_NOALL:         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
+//CHECK_NOALL:         int *yvals = calloc(5, sizeof(int)); 
+//CHECK_NOALL:         struct fptrarr *z = sus(x, y);
+//CHECK_ALL: struct fptrarr * foo() {
+//CHECK_ALL:         struct fptrarr * x = malloc(sizeof(struct fptrarr));
+//CHECK_ALL:         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
+//CHECK_ALL:         int *yvals = calloc(5, sizeof(int)); 
+//CHECK_ALL:         struct fptrarr *z = sus(x, y);
 
 struct fptrarr * bar() {
  
@@ -152,8 +177,13 @@ struct fptrarr * bar() {
         
 z += 2;
 return z; }
-//CHECK: struct fptrarr * bar() {
-//CHECK:         struct fptrarr * x = malloc(sizeof(struct fptrarr));
-//CHECK:         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
-//CHECK:         int *yvals = calloc(5, sizeof(int)); 
-//CHECK:         struct fptrarr *z = sus(x, y);
+//CHECK_NOALL: struct fptrarr * bar() {
+//CHECK_NOALL:         struct fptrarr * x = malloc(sizeof(struct fptrarr));
+//CHECK_NOALL:         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
+//CHECK_NOALL:         int *yvals = calloc(5, sizeof(int)); 
+//CHECK_NOALL:         struct fptrarr *z = sus(x, y);
+//CHECK_ALL: struct fptrarr * bar() {
+//CHECK_ALL:         struct fptrarr * x = malloc(sizeof(struct fptrarr));
+//CHECK_ALL:         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
+//CHECK_ALL:         int *yvals = calloc(5, sizeof(int)); 
+//CHECK_ALL:         struct fptrarr *z = sus(x, y);
