@@ -221,24 +221,28 @@ Lexicographic::CompareDecl(const NamedDecl *D1Arg, const NamedDecl *D2Arg) const
 
 Result Lexicographic::CompareExprSemantically(const Expr *Arg1,
                                               const Expr *Arg2) {
+   // Compare Arg1 and Arg2 semantically. If we hit an error during comparison
+   // simply fallback to CompareExpr which compares two expressions
+   // structurally.
+
    Expr *E1 = const_cast<Expr *>(Arg1);
    Expr *E2 = const_cast<Expr *>(Arg2);
 
-   PreorderAST PT1(Context, E1);
-   if (PT1.HasError()) {
-     PT1.Cleanup();
+   PreorderAST P1(Context, E1);
+   if (P1.HasError()) {
+     P1.Cleanup();
      return CompareExpr(Arg1, Arg2);
    }
 
-   PreorderAST PT2(Context, E2);
-   if (PT2.HasError()) {
-     PT2.Cleanup();
+   PreorderAST P2(Context, E2);
+   if (P2.HasError()) {
+     P2.Cleanup();
      return CompareExpr(Arg1, Arg2);
    }
 
-   Result ComparisonResult = PT1.Compare(PT2);
-   PT1.Cleanup();
-   PT2.Cleanup();
+   Result ComparisonResult = P1.Compare(P2);
+   P1.Cleanup();
+   P2.Cleanup();
    return ComparisonResult;
 }
 

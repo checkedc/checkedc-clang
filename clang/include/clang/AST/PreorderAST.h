@@ -88,16 +88,6 @@ namespace clang {
     bool Error;
     ASTNode *AST;
 
-  public:
-    PreorderAST(ASTContext &Ctx, Expr *E) :
-      Ctx(Ctx), Lex(Lexicographic(Ctx, nullptr)),
-      OS(llvm::outs()), Error(false) {
-
-      AST = new ASTNode(Ctx);
-      Create(AST, E);
-      Normalize(AST, Error);
-    }
-
     // Create a preorder AST from the expression E.
     // @param[in] N is the current node of the AST.
     // @param[in] E is the sub expression which needs to be added to N.
@@ -123,27 +113,9 @@ namespace clang {
     // @return Returns a boolean indicating whether N1 and N2 are equal.
     bool IsEqual(ASTNode *N1, ASTNode *N2);
 
-    // Compare the current AST with the given AST. This in turn, invokes
-    // isEqual(N1, N2);
-    // @param[in] this is the first AST.
-    // @param[in] PT is the second AST.
-    // @return Returns a value of type Lexicographic::Result indicating whether
-    // the two ASTs are equal or not. 
-    Result Compare(PreorderAST &PT);
-
     // Cleanup the memory consumed by the AST.
     // @param[in] N is the root node of the AST.
     void Cleanup(ASTNode *N);
-
-    // Cleanup the memory consumed by the AST. This is intended to be called
-    // from outside the PreorderAST class.
-    void Cleanup();
-
-    // Check if an error has occurred during normalization of the expression.
-    // @return Whether an error has occurred or not.
-    bool HasError() {
-      return Error;
-    }
 
     // Print the preorder AST.
     // @param[in] N is the root node of the AST.
@@ -158,6 +130,34 @@ namespace clang {
     // @return A bool indicating whether E is an expression containing a
     // reference to an array subscript or a pointer dereference.
     bool IsDeclOperand(Expr *E, DeclRefExpr *&D);
+
+  public:
+    PreorderAST(ASTContext &Ctx, Expr *E) :
+      Ctx(Ctx), Lex(Lexicographic(Ctx, nullptr)),
+      OS(llvm::outs()), Error(false) {
+
+      AST = new ASTNode(Ctx);
+      Create(AST, E);
+      Normalize(AST, Error);
+    }
+
+    // Check if an error has occurred during normalization of the expression.
+    // @return Whether an error has occurred or not.
+    bool HasError() {
+      return Error;
+    }
+
+    // Compare the current AST with the given AST. This in turn, invokes
+    // isEqual(N1, N2);
+    // @param[in] this is the first AST.
+    // @param[in] PT is the second AST.
+    // @return Returns a value of type Lexicographic::Result indicating whether
+    // the two ASTs are equal or not.
+    Result Compare(PreorderAST &PT);
+
+    // Cleanup the memory consumed by the AST. This is intended to be called
+    // from outside the PreorderAST class.
+    void Cleanup();
   };
 }
 
