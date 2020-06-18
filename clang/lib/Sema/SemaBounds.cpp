@@ -897,7 +897,7 @@ namespace {
         // then by location in order to guarantee a deterministic output
         // so that printing the bounds context can be tested.
         std::vector<const VarDecl *> OrderedDecls;
-        for (auto Pair : Context)
+        for (auto const &Pair : Context)
           OrderedDecls.push_back(Pair.first);
         llvm::sort(OrderedDecls.begin(), OrderedDecls.end(),
              [] (const VarDecl *A, const VarDecl *B) {
@@ -3844,7 +3844,7 @@ namespace {
           EquivExprs.push_back({Target, Src});
       }
 
-      for (auto Pair : State.ObservedBounds) {
+      for (auto const &Pair : State.ObservedBounds) {
         const VarDecl *V = Pair.first;
         BoundsExpr *ObservedBounds = Pair.second;
         BoundsExpr *DeclaredBounds = this->S.NormalizeBounds(V);
@@ -3995,7 +3995,7 @@ namespace {
       }
 
       // Adjust ObservedBounds to account for any uses of V in the bounds.
-      for (auto Pair : State.ObservedBounds) {
+      for (auto const &Pair : State.ObservedBounds) {
         const VarDecl *W = Pair.first;
         BoundsExpr *Bounds = Pair.second;
         BoundsExpr *AdjustedBounds = ReplaceVariableInBounds(Bounds, V, OriginalValue, CSS);
@@ -4591,7 +4591,7 @@ namespace {
     BoundsContextTy IntersectBoundsContexts(BoundsContextTy Context1,
                                             BoundsContextTy Context2) {
       BoundsContextTy IntersectedContext;
-      for (auto Pair : Context1) {
+      for (auto const &Pair : Context1) {
         const VarDecl *D = Pair.first;
         if (!Pair.second || !Context2.count(D))
           continue;
