@@ -4026,12 +4026,25 @@ namespace {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
 
-      // &*e1 is invertible with respect to x if e1 is invertible with
-      // respect to x.
       if (Op == UnaryOperatorKind::UO_AddrOf) {
+        // &*e1 is invertible with respect to x if e1 is invertible with
+        // respect to x.
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
             return IsInvertible(X, UnarySubExpr->getSubExpr());
+        }
+        // &e1[e2] is invertible with respect to x if e1 + e2 is invertible
+        // with respect to x.
+        else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
+          Expr *Base = ArraySubExpr->getBase();
+          Expr *Index = ArraySubExpr->getIdx();
+          BinaryOperator Sum(Base, Index, BinaryOperatorKind::BO_Add,
+                             Base->getType(),
+                             Base->getValueKind(),
+                             Base->getObjectKind(),
+                             SourceLocation(),
+                             FPOptions());
+          return IsInvertible(X, &Sum);
         }
       }
 
@@ -4176,11 +4189,23 @@ namespace {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
       
-      // Inverse(f, &*e1) = Inverse(f, e1)
       if (Op == UnaryOperatorKind::UO_AddrOf) {
+        // Inverse(f, &*e1) = Inverse(f, e1)
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
             return Inverse(X, F, UnarySubExpr->getSubExpr());
+        }
+        // Inverse(f, &e1[e2]) = Inverse(f, e1 + e2)
+        else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
+          Expr *Base = ArraySubExpr->getBase();
+          Expr *Index = ArraySubExpr->getIdx();
+          BinaryOperator Sum(Base, Index, BinaryOperatorKind::BO_Add,
+                             Base->getType(),
+                             Base->getValueKind(),
+                             Base->getObjectKind(),
+                             SourceLocation(),
+                             FPOptions());
+          return Inverse(X, F, &Sum);
         }
       }
 
