@@ -38,12 +38,12 @@ void PreorderAST::Create(ASTNode *N, Expr *E, ASTNode *Parent) {
     return;
 
   // When we invoke Create(N->Left, ...) or Create(N->Right, ...) we need to
-  // create the Left or the Right nodes with N as the Parent node.
+  // create the left or the right nodes with N as the parent node.
   if (!N)
     N = new ASTNode(Ctx, Parent);
 
-  // If the Parent is non-null, make sure that the current node is marked as a
-  // child of the Parent. As a convention, we create Left children first.
+  // If the parent is non-null, make sure that the current node is marked as a
+  // child of the parent. As a convention, we create left children first.
   if (Parent) {
     if (!Parent->Left)
       Parent->Left = N;
@@ -53,7 +53,7 @@ void PreorderAST::Create(ASTNode *N, Expr *E, ASTNode *Parent) {
 
   E = Lex.IgnoreValuePreservingOperations(Ctx, E);
 
-  // If E is a variable, store its Name in the variable list for the current
+  // If E is a variable, store its name in the variable list for the current
   // node. Initialize the count of the variable to 1.
   DeclRefExpr *D;
   if (IsDeclOperand(E, D)) {
@@ -63,8 +63,8 @@ void PreorderAST::Create(ASTNode *N, Expr *E, ASTNode *Parent) {
     }
   }
 
-  // If E is a Constant, store it in the Constant field of the current node and
-  // mark that this node has a Constant.
+  // If E is a constant, store it in the constant field of the current node and
+  // mark that this node has a constant.
   llvm::APSInt IntVal;
   if (E->isIntegerConstantExpr(IntVal, Ctx)) {
     N->Constant = IntVal;
@@ -81,15 +81,15 @@ void PreorderAST::Create(ASTNode *N, Expr *E, ASTNode *Parent) {
     N->Opcode = Opc;
 
     if (isa<BinaryOperator>(LHS))
-      // Create the LHS as the Left child of the current node.
-      Create(N->Left, LHS, /* Parent node */ N);
+      // Create the LHS as the left child of the current node.
+      Create(N->Left, LHS, /* parent node */ N);
     else
       // Create the LHS in the current node.
       Create(N, LHS);
 
     if (isa<BinaryOperator>(RHS))
-      // Create the RHS as the Right child of the current node.
-      Create(N->Right, RHS, /* Parent node */ N);
+      // Create the RHS as the right child of the current node.
+      Create(N->Right, RHS, /* parent node */ N);
     else
       // Create the RHS in the current node.
       Create(N, RHS);
@@ -120,6 +120,7 @@ void PreorderAST::Sort(ASTNode *N, bool &Error) {
 
 void PreorderAST::Normalize(ASTNode *N, bool &Error) {
   Sort(N, Error);
+  // TODO: Coalesce nodes having the same commutative and associative operator.
 }
 
 bool PreorderAST::IsEqual(ASTNode *N1, ASTNode *N2) {
@@ -139,7 +140,7 @@ bool PreorderAST::IsEqual(ASTNode *N1, ASTNode *N2) {
   if (N1->Variables.size() != N2->Variables.size())
     return false;
 
-  // If the values of the Constants in the two nodes differ.
+  // If the values of the constants in the two nodes differ.
   if (llvm::APSInt::compareValues(N1->Constant, N2->Constant) != 0)
     return false;
 
@@ -157,7 +158,7 @@ bool PreorderAST::IsEqual(ASTNode *N1, ASTNode *N2) {
       return false;
   }
 
-  // Recursively match the Left and the Right subtrees of the AST.
+  // Recursively match the left and the right subtrees of the AST.
   return IsEqual(N1->Left, N2->Left) &&
          IsEqual(N1->Right, N2->Right);
 }
