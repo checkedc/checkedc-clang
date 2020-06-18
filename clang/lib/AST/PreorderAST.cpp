@@ -163,12 +163,7 @@ bool PreorderAST::IsEqual(ASTNode *N1, ASTNode *N2) {
 }
 
 Result PreorderAST::Compare(PreorderAST &PT) {
-  bool ExprsEqual = IsEqual(AST, PT.AST);
-  // Cleanup memory consumed by the ASTs.
-  Cleanup();
-  PT.Cleanup();
-
-  if (ExprsEqual)
+  if (IsEqual(AST, PT.AST))
     return Result::Equal;
   return Result::NotEqual;
 }

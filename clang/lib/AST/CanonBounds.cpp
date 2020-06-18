@@ -236,7 +236,10 @@ Result Lexicographic::CompareExprSemantically(const Expr *Arg1,
      return CompareExpr(Arg1, Arg2);
    }
 
-   return PT1.Compare(PT2);
+   Result ComparisonResult = PT1.Compare(PT2);
+   PT1.Cleanup();
+   PT2.Cleanup();
+   return ComparisonResult;
 }
 
 Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
