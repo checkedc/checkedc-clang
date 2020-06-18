@@ -225,18 +225,18 @@ Result Lexicographic::CompareExprSemantically(const Expr *Arg1,
    Expr *E2 = const_cast<Expr *>(Arg2);
 
    PreorderAST PT1(Context, E1);
-   if (PT1.hasError()) {
-     PT1.cleanup();
+   if (PT1.HasError()) {
+     PT1.Cleanup();
      return CompareExpr(Arg1, Arg2);
    }
 
    PreorderAST PT2(Context, E2);
-   if (PT2.hasError()) {
-     PT2.cleanup();
+   if (PT2.HasError()) {
+     PT2.Cleanup();
      return CompareExpr(Arg1, Arg2);
    }
 
-   return PT1.compare(PT2);
+   return PT1.Compare(PT2);
 }
 
 Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {

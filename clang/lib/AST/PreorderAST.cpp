@@ -17,65 +17,57 @@
 
 using namespace clang;
 
-Expr *PreorderAST::IgnoreCasts(const Expr *E) {
-  return Lex.IgnoreValuePreservingOperations(Ctx, const_cast<Expr *>(E));
-}
-
-bool PreorderAST::IsDeclOperand(Expr *E) {
-  if (auto *CE = dyn_cast<CastExpr>(E)) {
+bool PreorderAST::IsDeclOperand(Expr *E, DeclRefExpr *&D) {
+  if (auto *CE = dyn_cast_or_null<CastExpr>(E)) {
     assert(CE->getSubExpr() && "invalid CastExpr expression");
 
     if (CE->getCastKind() == CastKind::CK_LValueToRValue ||
-        CE->getCastKind() == CastKind::CK_ArrayToPointerDecay)
-      return isa<DeclRefExpr>(IgnoreCasts(CE->getSubExpr()));
+        CE->getCastKind() == CastKind::CK_ArrayToPointerDecay) {
+      E = Lex.IgnoreValuePreservingOperations(Ctx, CE->getSubExpr());
+      if (auto *DRE = dyn_cast_or_null<DeclRefExpr>(E)) {
+        D = DRE;
+        return true;
+      }
+    }
   }
   return false;
 }
 
-DeclRefExpr *PreorderAST::GetDeclOperand(Expr *E) {
-  if (!E || !isa<CastExpr>(E))
-    return nullptr;
-  auto *CE = dyn_cast<CastExpr>(E);
-  assert(CE->getSubExpr() && "invalid CastExpr expression");
-
-  return dyn_cast<DeclRefExpr>(IgnoreCasts(CE->getSubExpr()));
-}
-
-void PreorderAST::insert(ASTNode *N, Expr *E, ASTNode *Parent) {
+void PreorderAST::Create(ASTNode *N, Expr *E, ASTNode *Parent) {
   if (!E)
     return;
 
-  // When we invoke insert(N->left, ...) or insert(N->right, ...) we need to
-  // create the left or the right nodes with N as the parent node.
+  // When we invoke Create(N->Left, ...) or Create(N->Right, ...) we need to
+  // create the Left or the Right nodes with N as the Parent node.
   if (!N)
     N = new ASTNode(Ctx, Parent);
 
-  // If the parent is non-null, make sure that the current node is marked as a
-  // child of the parent. As a convention, we create left children first.
+  // If the Parent is non-null, make sure that the current node is marked as a
+  // child of the Parent. As a convention, we create Left children first.
   if (Parent) {
-    if (!Parent->left)
-      Parent->left = N;
+    if (!Parent->Left)
+      Parent->Left = N;
     else
-      Parent->right = N;
+      Parent->Right = N;
   }
 
-  E = IgnoreCasts(E);
+  E = Lex.IgnoreValuePreservingOperations(Ctx, E);
 
-  // If E is a variable, store its name in the variable list for the current
+  // If E is a variable, store its Name in the variable list for the current
   // node. Initialize the count of the variable to 1.
-  if (IsDeclOperand(E)) {
-    const DeclRefExpr *D = GetDeclOperand(E);
+  DeclRefExpr *D;
+  if (IsDeclOperand(E, D)) {
     if (const auto *V = dyn_cast_or_null<VarDecl>(D->getDecl())) {
-      N->addVar(V->getQualifiedNameAsString());
+      N->AddVar(V->getQualifiedNameAsString());
       return;
     }
   }
 
-  // If E is a constant, store it in the constant field of the current node and
-  // mark that this node has a constant.
+  // If E is a Constant, store it in the Constant field of the current node and
+  // mark that this node has a Constant.
   llvm::APSInt IntVal;
   if (E->isIntegerConstantExpr(IntVal, Ctx)) {
-    N->constant = IntVal;
+    N->Constant = IntVal;
     N->HasConstant = true;
     return;
   }
@@ -85,52 +77,52 @@ void PreorderAST::insert(ASTNode *N, Expr *E, ASTNode *Parent) {
     Expr *LHS = BO->getLHS()->IgnoreParens();
     Expr *RHS = BO->getRHS()->IgnoreParens();
 
-    // Set the opcode for the current node.
-    N->opcode = Opc;
+    // Set the Opcode for the current node.
+    N->Opcode = Opc;
 
     if (isa<BinaryOperator>(LHS))
-      // Insert the LHS as the left child of the current node.
-      insert(N->left, LHS, /* parent node */ N);
+      // Create the LHS as the Left child of the current node.
+      Create(N->Left, LHS, /* Parent node */ N);
     else
-      // Insert the LHS in the current node.
-      insert(N, LHS);
+      // Create the LHS in the current node.
+      Create(N, LHS);
 
     if (isa<BinaryOperator>(RHS))
-      // Insert the RHS as the right child of the current node.
-      insert(N->right, RHS, /* parent node */ N);
+      // Create the RHS as the Right child of the current node.
+      Create(N->Right, RHS, /* Parent node */ N);
     else
-      // Insert the RHS in the current node.
-      insert(N, RHS);
+      // Create the RHS in the current node.
+      Create(N, RHS);
   }
 }
 
-void PreorderAST::sort(ASTNode *N, bool &HasError) {
-  if (HasError)
+void PreorderAST::Sort(ASTNode *N, bool &Error) {
+  if (Error)
     return;
 
-  if (!N || !N->variables.size())
+  if (!N || !N->Variables.size())
     return;
 
-  if (!N->isOpCommutativeAndAssociative()) {
-    HasError = true;
+  if (!N->IsOpCommutativeAndAssociative()) {
+    Error = true;
     return;
   }
 
   // Sort the variables in the node lexicographically.
-  llvm::sort(N->variables.begin(), N->variables.end(),
+  llvm::sort(N->Variables.begin(), N->Variables.end(),
              [](VarTy a, VarTy b) {
-               return a.name.compare(b.name) < 0;
+               return a.Name.compare(b.Name) < 0;
              });
 
-  sort(N->left, HasError);
-  sort(N->right, HasError);
+  Sort(N->Left, Error);
+  Sort(N->Right, Error);
 }
 
-void PreorderAST::normalize(ASTNode *N, bool &HasError) {
-  sort(N, HasError);
+void PreorderAST::Normalize(ASTNode *N, bool &Error) {
+  Sort(N, Error);
 }
 
-bool PreorderAST::isEqual(ASTNode *N1, ASTNode *N2) {
+bool PreorderAST::IsEqual(ASTNode *N1, ASTNode *N2) {
   // If both the nodes are null.
   if (!N1 && !N2)
     return true;
@@ -139,76 +131,76 @@ bool PreorderAST::isEqual(ASTNode *N1, ASTNode *N2) {
   if ((N1 && !N2) || (!N1 && N2))
     return false;
 
-  // If the opcodes mismatch.
-  if (N1->opcode != N2->opcode)
+  // If the Opcodes mismatch.
+  if (N1->Opcode != N2->Opcode)
     return false;
 
   // If the number of variables in the two nodes mismatch.
-  if (N1->variables.size() != N2->variables.size())
+  if (N1->Variables.size() != N2->Variables.size())
     return false;
 
-  // If the values of the constants in the two nodes differ.
-  if (llvm::APSInt::compareValues(N1->constant, N2->constant) != 0)
+  // If the values of the Constants in the two nodes differ.
+  if (llvm::APSInt::compareValues(N1->Constant, N2->Constant) != 0)
     return false;
 
   // Match each variable occurring in the two nodes.
-  for (size_t i = 0; i != N1->variables.size(); ++i) {
-    auto &V1 = N1->variables[i];
-    auto &V2 = N2->variables[i];
+  for (size_t i = 0; i != N1->Variables.size(); ++i) {
+    auto &V1 = N1->Variables[i];
+    auto &V2 = N2->Variables[i];
 
     // If any variable differs between the two nodes.
-    if (V1.name.compare(V2.name) != 0)
+    if (V1.Name.compare(V2.Name) != 0)
       return false;
 
     // If the count of any variable differs.
-    if (V1.count != V2.count)
+    if (V1.Count != V2.Count)
       return false;
   }
 
-  // Recursively match the left and the right subtrees of the AST.
-  return isEqual(N1->left, N2->left) &&
-         isEqual(N1->right, N2->right);
+  // Recursively match the Left and the Right subtrees of the AST.
+  return IsEqual(N1->Left, N2->Left) &&
+         IsEqual(N1->Right, N2->Right);
 }
 
-Result PreorderAST::compare(PreorderAST &PT) {
-  bool areExprsEqual = isEqual(AST, PT.AST);
+Result PreorderAST::Compare(PreorderAST &PT) {
+  bool ExprsEqual = IsEqual(AST, PT.AST);
   // Cleanup memory consumed by the ASTs.
-  cleanup();
-  PT.cleanup();
+  Cleanup();
+  PT.Cleanup();
 
-  if (areExprsEqual)
+  if (ExprsEqual)
     return Result::Equal;
   return Result::NotEqual;
 }
 
-void PreorderAST::print(ASTNode *N) {
+void PreorderAST::PrettyPrint(ASTNode *N) {
   if (!N)
     return;
 
-  OS << BinaryOperator::getOpcodeStr(N->opcode);
-  if (N->variables.size()) {
-    for (auto &V : N->variables)
-      OS << " [" << V.name << ":" << V.count << "]";
+  OS << BinaryOperator::getOpcodeStr(N->Opcode);
+  if (N->Variables.size()) {
+    for (auto &V : N->Variables)
+      OS << " [" << V.Name << ":" << V.Count << "]";
   }
 
   if (N->HasConstant)
-    OS << " [const:" << N->constant << "]";
+    OS << " [const:" << N->Constant << "]";
   OS << "\n";
 
-  print(N->left);
-  print(N->right);
+  PrettyPrint(N->Left);
+  PrettyPrint(N->Right);
 }
 
-void PreorderAST::cleanup(ASTNode *N) {
+void PreorderAST::Cleanup(ASTNode *N) {
   if (!N)
     return;
 
-  cleanup(N->left);
-  cleanup(N->right);
+  Cleanup(N->Left);
+  Cleanup(N->Right);
 
   delete N;
 }
 
-void PreorderAST::cleanup() {
-  cleanup(AST);
+void PreorderAST::Cleanup() {
+  Cleanup(AST);
 }
