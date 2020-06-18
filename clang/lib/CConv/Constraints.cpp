@@ -52,8 +52,15 @@ void Constraints::editConstraintHook(Constraint *C) {
           return;
         }
         // Make this checked only if the const atom is other than Ptr.
-        if (RHSA && !dyn_cast<PtrAtom>(E->getLHS())) {
-          E->setChecked(getWild());
+        if (RHSA) {
+          if (!dyn_cast<PtrAtom>(E->getLHS())) {
+            E->setChecked(getWild());
+          }
+        } else {
+          assert (LHSA && "Adding constraint between constants?!");
+          if (!dyn_cast<PtrAtom>(E->getRHS())) {
+            E->setChecked(getWild());
+          }
         }
       }
     }
