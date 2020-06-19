@@ -50,27 +50,14 @@ void ConstraintsGraph::addConstraint(Geq *C, Constraints &CS) {
   }
   auto V1 = addVertex(A1);
   auto V2 = addVertex(A2);
-
-  EdgeType edgeType;
-  if (C->constraintIsChecked()) {
-    edgeType = Checked;
-  } else {
-    edgeType = Ptype;
-  }
-
-  add_edge(V2, V1, edgeType, CG);
+  add_edge(V2, V1, CG);
 }
 
 void ConstraintsGraph::dumpCGDot(const std::string& GraphDotFile) {
    std::ofstream DotFile;
    DotFile.open(GraphDotFile);
-   write_graphviz(DotFile, CG,
-       [&] (std::ostream &out, unsigned v) {
-         out << "[label=\"" << CG[v]->getStr() << "\"]";
-       },
-       [&] (std::ostream &out, boost::detail::edge_desc_impl<boost::bidirectional_tag, long unsigned int> e)  {
-         std::string color = EdgeTypeColors[CG[e]];
-         out << "[color=\"" << color << "\"]";
-       });
+   write_graphviz(DotFile, CG, [&] (std::ostream &out, unsigned v) {
+     out << "[label=\"" << CG[v]->getStr() << "\"]";
+   });
    DotFile.close();
 }
