@@ -39,3 +39,48 @@ void structs() {
   // CHECK: _Array_ptr<int> f = (int*) 0;
   ((&(struct c){f})->a)++;
 }
+
+void lists() {
+  int x;
+
+  int a[1] = (int[1]){1};
+  // CHECK: int a _Checked[1] = (int _Checked[1]){1};
+
+  int *b[1] = (int*[1]){&x};
+  // CHECK: _Ptr<int> b _Checked[1] = (_Ptr<int> _Checked[1]){&x};
+
+  int *c[1] = (int*[1]){&x};
+  // CHECK: _Ptr<int> c _Checked[1] = (_Ptr<int> _Checked[1]){&x};
+  int *c0 = c[0];
+  // CHECK: _Ptr<int> c0 = c[0];
+
+  int *d[2] = (int*[2]){&x, (int*)1};
+  // CHECK: int* d _Checked[2] = (int* _Checked[2]){&x, (int*)1};
+  int *d0 = d[0];
+  // CHECK: int *d0 = d[0];
+
+  int *e = (int*[1]){&x}[0];
+  // CHECK _Ptr<int> e = (_Ptr<int> _Checked[1]){&x}[0]
+
+  int *f = (int*[1]){(int*)1}[0];
+  // CHECK int *e = (int* _Checked[1]){&x}[0]
+}
+
+
+struct d {
+  int *a;
+  // CHECK: _Ptr<int> a;
+};
+
+struct e {
+  int *a;
+  // CHECK: int *a;
+};
+
+void nested(int* x) {
+  struct d a[1] = (struct d[1]){(struct d){x}};
+  // CHECK: struct d a _Checked[1] = (struct d _Checked[1]){(struct d){x}};
+
+  struct e b[1] = (struct e[1]){(struct e){(int*)1}};
+  // CHECK: struct e b _Checked[1] = (struct e _Checked[1]){(struct e){(int*)1}};
+}
