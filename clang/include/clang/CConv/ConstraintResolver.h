@@ -63,14 +63,15 @@ private:
   std::set<ConstraintVariable *> handleDeref(std::set<ConstraintVariable *> T);
 
   // Update a PVConstraint with one additional level of indirection
-  PVConstraint *addAtom(PVConstraint *PVC, Atom *NewA, Constraints &CS);
+  PVConstraint *addAtom(PVConstraint *PVC, ConstAtom *NewA, Constraints &CS);
   std::set<ConstraintVariable *> addAtomAll(std::set<ConstraintVariable *> CVS,
-                                            Atom *PtrTyp, Constraints &CS);
+                                            ConstAtom *PtrTyp, Constraints &CS);
   std::set<ConstraintVariable *> getWildPVConstraint();
   std::set<ConstraintVariable *> PVConstraintFromType(QualType TypE);
 
   std::set<ConstraintVariable *>
       getAllSubExprConstraintVars(std::vector<Expr *> &Exprs);
+  std::set<ConstraintVariable *> getBaseVarPVConstraint(DeclRefExpr *Decl);
 };
 
 #endif // _CONSTRAINTRESOLVER_H
