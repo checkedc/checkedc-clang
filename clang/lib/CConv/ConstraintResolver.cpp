@@ -469,11 +469,9 @@ std::set<ConstraintVariable *>
       // If this is a string literal. i.e., "foo".
       // We create a new constraint variable and constraint it to an Nt_array.
       std::set<ConstraintVariable *> T;
-      // Create a new constraint var number and make it NTArr.
-      CAtoms V;
-      V.push_back(CS.getNTArr());
-      ConstraintVariable *newC = new PointerVariableConstraint(
-          V, "const char*", exr->getBytes(), nullptr, false, false, "");
+      PVConstraint *newC = new PVConstraint(
+          exr->getType(), nullptr, "str", CS, *Context, nullptr);
+      newC->constrainOuterTo(CS, CS.getNTArr()); // NB: ARR already there
       TempConstraintVars.insert(newC);
       T.insert(newC);
       return T;
