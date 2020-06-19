@@ -112,8 +112,7 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, ConstAtom *PtrTyp, 
   std::string d = PVC->getItype();
   PVConstraint *TmpPV = new PVConstraint(C, PVC->getTy(), PVC->getName(),
                                          b, a, c, d);
-  //TmpPV->constrainOuterTo(CS,PtrTyp); // wrong direction; want lower bound
-  CS.addConstraint(CS.createGeq(NewA, PtrTyp, false));
+  TmpPV->constrainOuterTo(CS, PtrTyp, true);
   TempConstraintVars.insert(TmpPV);
   return TmpPV;
 }
@@ -382,12 +381,12 @@ std::set<ConstraintVariable *>
             ConstAtom *A = analyzeAllocExpr(CE->getArg(0), CS, ArgTy);
             if (A) {
               std::string N = FD->getName(); N = "&"+N;
-              PVConstraint *PVC =
-                  new PVConstraint(ArgTy, nullptr, N, CS, *Context);
-              TempConstraintVars.insert(PVC);
               ExprType = Context->getPointerType(ArgTy);
-              PVConstraint *PVCaddr = addAtom(PVC, A,CS);
-              ReturnCVs.insert(PVCaddr);
+              PVConstraint *PVC =
+                  new PVConstraint(ExprType, nullptr, N, CS, *Context);
+              TempConstraintVars.insert(PVC);
+              PVC->constrainOuterTo(CS,A,true);
+              ReturnCVs.insert(PVC);
               didInsert = true;
             }
           }
