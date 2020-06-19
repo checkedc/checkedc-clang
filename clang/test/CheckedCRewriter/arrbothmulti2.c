@@ -127,7 +127,7 @@ x = (int *) 5;
         { *p = fac; }
 z += 2;
 return z; }
-//CHECK_NOALL: int * sus(int *x, int *y : itype(_Ptr<int>)) {
+//CHECK_NOALL: int * sus(int *x, _Ptr<int> y) {
 //CHECK_NOALL:         int *z = calloc(5, sizeof(int)); 
-//CHECK_ALL: int * sus(int *x, int *y : itype(_Ptr<int>)) {
+//CHECK_ALL: int * sus(int *x, _Ptr<int> y) {
 //CHECK_ALL:         int *z = calloc(5, sizeof(int)); 
