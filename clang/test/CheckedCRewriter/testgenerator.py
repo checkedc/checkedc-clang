@@ -550,13 +550,13 @@ def process_file(file, cname, cname2, proto, alltypes, new_defs, new_defs2, susp
                 new_defs[-1] += "\n//" + check + ": " + line 
         
         elif insus: 
-            if any(substr in line for substr in keywords) and line.find("*") != -1 and line.find("5;") == -1:
+            if any(substr in line for substr in keywords) and line.find("5;") == -1:
                 susc += "//" + check + ": " + line
         elif infoo: 
-            if any(substr in line for substr in keywords) and line.find("*") != -1:
+            if any(substr in line for substr in keywords):
                 fooc += "//" + check + ": " + line 
         elif inbar: 
-            if any(substr in line for substr in keywords) and line.find("*") != -1:
+            if any(substr in line for substr in keywords):
                 barc += "//" + check + ": " + line
     
     if proto=="multi": 
@@ -575,7 +575,7 @@ def process_file(file, cname, cname2, proto, alltypes, new_defs, new_defs2, susp
                 susc += "//" + check + ": " + line
 
             elif insus: 
-                if any(substr in line for substr in keywords) and line.find("*") != -1 and line.find("5;") == -1:
+                if any(substr in line for substr in keywords) and line.find("5;") == -1:
                     susc += "//" + check + ": " + line
 
             elif indefs: 

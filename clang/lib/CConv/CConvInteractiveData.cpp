@@ -36,11 +36,10 @@ void DisjointSet::AddElements(ConstraintKey A, ConstraintKey B) {
         LeaderB = Leaders[A];
       }
       GrpA.insert(GrpB.begin(), GrpB.end());
-      Groups.erase(LeaderB);
       for (auto k : GrpB) {
         Leaders[k] = LeaderA;
       }
-
+      Groups.erase(LeaderB);
     } else {
       Groups[Leaders[A]].insert(B);
       Leaders[B] = Leaders[A];

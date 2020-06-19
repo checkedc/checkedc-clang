@@ -136,10 +136,12 @@ return z; }
 //CHECK_NOALL: int ** foo() {
 //CHECK_NOALL:         int *x = malloc(sizeof(int)); 
 //CHECK_NOALL:         int *y = calloc(5, sizeof(int)); 
+//CHECK_NOALL:         for(int i = 0; i < 5; i++) { 
 //CHECK_NOALL:         int *z = sus(x, y);
 //CHECK_ALL: int ** foo() {
 //CHECK_ALL:         int *x = malloc(sizeof(int)); 
 //CHECK_ALL:         int *y = calloc(5, sizeof(int)); 
+//CHECK_ALL:         for(int i = 0; i < 5; i++) { 
 //CHECK_ALL:         int *z = sus(x, y);
 
 int ** bar() {
@@ -155,8 +157,10 @@ return z; }
 //CHECK_NOALL: int ** bar() {
 //CHECK_NOALL:         int *x = malloc(sizeof(int)); 
 //CHECK_NOALL:         int *y = calloc(5, sizeof(int)); 
+//CHECK_NOALL:         for(int i = 0; i < 5; i++) { 
 //CHECK_NOALL:         int *z = sus(x, y);
 //CHECK_ALL: int ** bar() {
 //CHECK_ALL:         int *x = malloc(sizeof(int)); 
 //CHECK_ALL:         int *y = calloc(5, sizeof(int)); 
+//CHECK_ALL:         for(int i = 0; i < 5; i++) { 
 //CHECK_ALL:         int *z = sus(x, y);

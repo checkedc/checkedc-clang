@@ -120,7 +120,7 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, ConstAtom *PtrTyp, 
 // Processes E from malloc(E) to discern the pointer type this will be
 static ConstAtom *analyzeAllocExpr(Expr *E, Constraints &CS, QualType &ArgTy) {
   ConstAtom *ret = CS.getPtr();
-  //E = E->IgnoreParenImpCasts();
+  E = E->IgnoreParenImpCasts();
   BinaryOperator *B = dyn_cast<BinaryOperator>(E);
   std::set<Expr *> Exprs;
 

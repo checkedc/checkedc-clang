@@ -128,9 +128,11 @@ struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
         }
         
 return z; }
-//CHECK_NOALL: struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y : itype(_Ptr<struct fptrarr>)) {
-//CHECK_NOALL:         struct fptrarr *z = malloc(sizeof(struct fptrarr)); 
-//CHECK_ALL: struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y : itype(_Ptr<struct fptrarr>)) {
+//CHECK_NOALL: struct fptrarr *sus(struct fptrarr *x, _Ptr<struct fptrarr> y) : itype(_Ptr<struct fptrarr>) {
+//CHECK_NOALL:         char name[30]; 
+//CHECK_NOALL:         _Ptr<struct fptrarr> z =  malloc(sizeof(struct fptrarr)); 
+//CHECK_ALL: struct fptrarr * sus(struct fptrarr *x, _Ptr<struct fptrarr> y) {
+//CHECK_ALL:         char name[30]; 
 //CHECK_ALL:         struct fptrarr *z = malloc(sizeof(struct fptrarr)); 
 
 struct fptrarr * foo() {
@@ -149,15 +151,19 @@ struct fptrarr * foo() {
         struct fptrarr *z = sus(x, y);
         
 return z; }
-//CHECK_NOALL: struct fptrarr * foo() {
+//CHECK_NOALL: _Ptr<struct fptrarr> foo(void) {
+//CHECK_NOALL:         char name[20]; 
 //CHECK_NOALL:         struct fptrarr * x = malloc(sizeof(struct fptrarr));
-//CHECK_NOALL:         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
+//CHECK_NOALL:         _Ptr<struct fptrarr> y =   malloc(sizeof(struct fptrarr));
 //CHECK_NOALL:         int *yvals = calloc(5, sizeof(int)); 
-//CHECK_NOALL:         struct fptrarr *z = sus(x, y);
+//CHECK_NOALL:         for(int i = 0; i < 5; i++) {
+//CHECK_NOALL:         _Ptr<struct fptrarr> z =  sus(x, y);
 //CHECK_ALL: struct fptrarr * foo() {
+//CHECK_ALL:         char name[20]; 
 //CHECK_ALL:         struct fptrarr * x = malloc(sizeof(struct fptrarr));
-//CHECK_ALL:         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
+//CHECK_ALL:         _Ptr<struct fptrarr> y =   malloc(sizeof(struct fptrarr));
 //CHECK_ALL:         int *yvals = calloc(5, sizeof(int)); 
+//CHECK_ALL:         for(int i = 0; i < 5; i++) {
 //CHECK_ALL:         struct fptrarr *z = sus(x, y);
 
 struct fptrarr * bar() {
@@ -178,12 +184,16 @@ struct fptrarr * bar() {
 z += 2;
 return z; }
 //CHECK_NOALL: struct fptrarr * bar() {
+//CHECK_NOALL:         char name[20]; 
 //CHECK_NOALL:         struct fptrarr * x = malloc(sizeof(struct fptrarr));
-//CHECK_NOALL:         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
+//CHECK_NOALL:         _Ptr<struct fptrarr> y =   malloc(sizeof(struct fptrarr));
 //CHECK_NOALL:         int *yvals = calloc(5, sizeof(int)); 
+//CHECK_NOALL:         for(int i = 0; i < 5; i++) {
 //CHECK_NOALL:         struct fptrarr *z = sus(x, y);
 //CHECK_ALL: struct fptrarr * bar() {
+//CHECK_ALL:         char name[20]; 
 //CHECK_ALL:         struct fptrarr * x = malloc(sizeof(struct fptrarr));
-//CHECK_ALL:         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
+//CHECK_ALL:         _Ptr<struct fptrarr> y =   malloc(sizeof(struct fptrarr));
 //CHECK_ALL:         int *yvals = calloc(5, sizeof(int)); 
+//CHECK_ALL:         for(int i = 0; i < 5; i++) {
 //CHECK_ALL:         struct fptrarr *z = sus(x, y);

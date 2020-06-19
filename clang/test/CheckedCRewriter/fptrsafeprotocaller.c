@@ -32,9 +32,9 @@ struct general {
     int data; 
     struct general *next;
 };
-//CHECK_NOALL:     struct general *next;
+//CHECK_NOALL:     _Ptr<struct general> next;
 
-//CHECK_ALL:     struct general *next;
+//CHECK_ALL:     _Ptr<struct general> next;
 
 
 struct warr { 
@@ -119,8 +119,8 @@ int *mul2(int *x) {
 //CHECK_ALL: _Ptr<int> mul2(_Ptr<int> x) { 
 
 int * sus(struct general *, struct general *);
-//CHECK_NOALL: int * sus(struct general *x, struct general *y);
-//CHECK_ALL: int * sus(struct general *x, struct general *y);
+//CHECK_NOALL: int * sus(struct general *x, _Ptr<struct general> y);
+//CHECK_ALL: int * sus(struct general *x, _Ptr<struct general> y);
 
 int * foo() {
 
@@ -138,15 +138,19 @@ int * foo() {
 return z; }
 //CHECK_NOALL: int * foo() {
 //CHECK_NOALL:         struct general *x = malloc(sizeof(struct general)); 
-//CHECK_NOALL:         struct general *y = malloc(sizeof(struct general));
-//CHECK_NOALL:         struct general *curr = y;
-//CHECK_NOALL:         _Ptr<int* (struct general *, struct general *)> sus_ptr =  sus;   
+//CHECK_NOALL:         _Ptr<struct general> y =  malloc(sizeof(struct general));
+//CHECK_NOALL:         _Ptr<struct general> curr =  y;
+//CHECK_NOALL:         for(int i = 1; i < 5; i++, curr = curr->next) { 
+//CHECK_NOALL:             curr->next = malloc(sizeof(struct general));
+//CHECK_NOALL:         _Ptr<int* (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
 //CHECK_NOALL:         int *z = sus_ptr(x, y);
 //CHECK_ALL: int * foo() {
 //CHECK_ALL:         struct general *x = malloc(sizeof(struct general)); 
-//CHECK_ALL:         struct general *y = malloc(sizeof(struct general));
-//CHECK_ALL:         struct general *curr = y;
-//CHECK_ALL:         _Ptr<int* (struct general *, struct general *)> sus_ptr =  sus;   
+//CHECK_ALL:         _Ptr<struct general> y =  malloc(sizeof(struct general));
+//CHECK_ALL:         _Ptr<struct general> curr =  y;
+//CHECK_ALL:         for(int i = 1; i < 5; i++, curr = curr->next) { 
+//CHECK_ALL:             curr->next = malloc(sizeof(struct general));
+//CHECK_ALL:         _Ptr<int* (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
 //CHECK_ALL:         int *z = sus_ptr(x, y);
 
 int * bar() {
@@ -166,15 +170,19 @@ z += 2;
 return z; }
 //CHECK_NOALL: int * bar() {
 //CHECK_NOALL:         struct general *x = malloc(sizeof(struct general)); 
-//CHECK_NOALL:         struct general *y = malloc(sizeof(struct general));
-//CHECK_NOALL:         struct general *curr = y;
-//CHECK_NOALL:         _Ptr<int* (struct general *, struct general *)> sus_ptr =  sus;   
+//CHECK_NOALL:         _Ptr<struct general> y =  malloc(sizeof(struct general));
+//CHECK_NOALL:         _Ptr<struct general> curr =  y;
+//CHECK_NOALL:         for(int i = 1; i < 5; i++, curr = curr->next) { 
+//CHECK_NOALL:             curr->next = malloc(sizeof(struct general));
+//CHECK_NOALL:         _Ptr<int* (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
 //CHECK_NOALL:         int *z = sus_ptr(x, y);
 //CHECK_ALL: int * bar() {
 //CHECK_ALL:         struct general *x = malloc(sizeof(struct general)); 
-//CHECK_ALL:         struct general *y = malloc(sizeof(struct general));
-//CHECK_ALL:         struct general *curr = y;
-//CHECK_ALL:         _Ptr<int* (struct general *, struct general *)> sus_ptr =  sus;   
+//CHECK_ALL:         _Ptr<struct general> y =  malloc(sizeof(struct general));
+//CHECK_ALL:         _Ptr<struct general> curr =  y;
+//CHECK_ALL:         for(int i = 1; i < 5; i++, curr = curr->next) { 
+//CHECK_ALL:             curr->next = malloc(sizeof(struct general));
+//CHECK_ALL:         _Ptr<int* (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
 //CHECK_ALL:         int *z = sus_ptr(x, y);
 
 int * sus(struct general *x, struct general *y) {
@@ -187,9 +195,9 @@ int * sus(struct general *x, struct general *y) {
         } 
         
 return z; }
-//CHECK_NOALL: int * sus(struct general *x, struct general *y) {
+//CHECK_NOALL: int * sus(struct general *x, _Ptr<struct general> y) {
 //CHECK_NOALL:         int *z = calloc(5, sizeof(int)); 
-//CHECK_NOALL:         struct general *p = y;
-//CHECK_ALL: int * sus(struct general *x, struct general *y) {
+//CHECK_NOALL:         _Ptr<struct general> p =  y;
+//CHECK_ALL: int * sus(struct general *x, _Ptr<struct general> y) {
 //CHECK_ALL:         int *z = calloc(5, sizeof(int)); 
-//CHECK_ALL:         struct general *p = y;
+//CHECK_ALL:         _Ptr<struct general> p =  y;
