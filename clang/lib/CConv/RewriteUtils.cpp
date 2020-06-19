@@ -815,16 +815,49 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
         }
 }
 
+typedef enum {
+  IS_UNCHECKED,
+  IS_CHECKED,
+} AnnotationNeeded;
 
-// This Visitor adds _Checked and _UnChecked annotations to blocks
+
 class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 {
   public:
     explicit CheckedRegionAdder(ASTContext *_C, Rewriter &_R, ProgramInfo &_I,
-                                std::set<llvm::FoldingSetNodeID> &S)
-      : Context(_C), Writer(_R), Info(_I), Seen(S) {
+                                std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &M)
+      : Context(_C), Writer(_R), Info(_I), Map(M) {}
 
+    bool VisitCompoundStmt(CompoundStmt *S) {
+      llvm::FoldingSetNodeID id;
+      S->Profile(id, *Context, true);
+      switch (Map[id]) {
+        case IS_UNCHECKED: return true;
+        case IS_CHECKED:
+                           auto loc = S->getBeginLoc();
+                           Writer.InsertTextBefore(loc, "_Checked");
+                           return false;
+      }
+      llvm_unreachable("Bad flag in CheckedRegionAdder");
     }
+
+
+  private:
+    ASTContext* Context;
+    Rewriter &Writer;
+    ProgramInfo &Info;
+    std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &Map;
+};
+
+
+// This Visitor adds _Checked and _UnChecked annotations to blocks
+class CheckedRegionFinder : public clang::RecursiveASTVisitor<CheckedRegionFinder>
+{
+  public:
+    explicit CheckedRegionFinder(ASTContext *_C, Rewriter &_R, ProgramInfo &_I,
+                                std::set<llvm::FoldingSetNodeID> &S,
+                                std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &M)
+      : Context(_C), Writer(_R), Info(_I), Seen(S), Map(M)   {}
     int Nwild = 0;
     int Nchecked = 0;
     int Ndecls = 0;
@@ -833,7 +866,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       int Localwild = 0;
 
       for (const auto &SubStmt : S->children()) {
-        CheckedRegionAdder Sub(Context,Writer,Info,Seen);
+        CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
         Sub.TraverseStmt(SubStmt);
         Localwild += Sub.Nwild;
       }
@@ -846,7 +879,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       int Localwild = 0;
 
       for (const auto &SubStmt : S->children()) {
-        CheckedRegionAdder Sub(Context,Writer,Info,Seen);
+        CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
         Sub.TraverseStmt(SubStmt);
         Localwild += Sub.Nwild;
       }
@@ -859,7 +892,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       int Localwild = 0;
 
       for (const auto &SubStmt : S->children()) {
-        CheckedRegionAdder Sub(Context,Writer,Info,Seen);
+        CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
         Sub.TraverseStmt(SubStmt);
         Localwild += Sub.Nwild;
       }
@@ -872,7 +905,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       int Localwild = 0;
 
       for (const auto &SubStmt : S->children()) {
-        CheckedRegionAdder Sub(Context,Writer,Info,Seen);
+        CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
         Sub.TraverseStmt(SubStmt);
         Localwild += Sub.Nwild;
       }
@@ -885,7 +918,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       int Localwild = 0;
 
       for (const auto &subStmt : S->children()) {
-        CheckedRegionAdder Sub(Context,Writer,Info,Seen);
+        CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
         Sub.TraverseStmt(subStmt);
         Localwild += Sub.Nwild;
       }
@@ -899,14 +932,14 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       // Visit all subblocks, find all unchecked types
       int Localwild = 0;
       for (const auto &SubStmt : S->children()) {
-        CheckedRegionAdder Sub(Context,Writer,Info,Seen);
+        CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
         Sub.TraverseStmt(SubStmt);
         Localwild += Sub.Nwild;
         Nchecked += Sub.Nchecked;
         Ndecls += Sub.Ndecls;
       }
 
-      addCheckedAnnotation(S, Localwild);
+      addUnCheckedAnnotation(S, Localwild);
 
       // Compound Statements are always considered to have 0 wild types
       // This is because a compound statement marked w/ _Unchecked can live
@@ -943,7 +976,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 
       int Localwild = 0;
       for (auto Child : Parent->parameters()) {
-        CheckedRegionAdder Sub(Context,Writer,Info,Seen);
+        CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
         Sub.TraverseParmVarDecl(Child);
         Localwild += Sub.Nwild;
       }
@@ -1106,7 +1139,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       }
     }
 
-    void addCheckedAnnotation(CompoundStmt *S, int Localwild) {
+    void addUnCheckedAnnotation(CompoundStmt *S, int Localwild) {
       auto Cur = S->getWrittenCheckedSpecifier();
 
       llvm::FoldingSetNodeID Id;
@@ -1118,9 +1151,12 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
         bool IsChecked = !hasUncheckedParameters(S) &&
                        Cur == CheckedScopeSpecifier::CSS_None && Localwild == 0;
 
+        // TODO HERE
+         Map[Id] = IsChecked ? IS_CHECKED : IS_UNCHECKED;
+
         // Don't add _Unchecked to top level functions.
-        if (!(!IsChecked && isFunctionBody(S))) {
-          Writer.InsertTextBefore(Loc, IsChecked ? "_Checked" : "_Unchecked");
+        if ((!IsChecked && !isFunctionBody(S))) {
+          Writer.InsertTextBefore(Loc, "_Unchecked");
         }
       }
     }
@@ -1162,6 +1198,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     Rewriter &Writer;
     ProgramInfo &Info;
     std::set<llvm::FoldingSetNodeID> &Seen;
+    std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &Map;
 };
 
 // Class for visiting variable usages and function calls to add
@@ -1456,15 +1493,20 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
       StructVariableInitializer(&Context, Info, RewriteThese);
   GlobalVariableGroups GVG(R.getSourceMgr());
   std::set<llvm::FoldingSetNodeID> seen;
-  CheckedRegionAdder CRA(&Context, R, Info, seen);
+  std::map<llvm::FoldingSetNodeID, AnnotationNeeded> nodeMap;
+  CheckedRegionFinder CRF(&Context, R, Info, seen, nodeMap);
+  CheckedRegionAdder CRA(&Context, R, Info, nodeMap);
   CastPlacementVisitor ECPV(&Context, Info, R);
   for (auto &D : TUD->decls()) {
     V.TraverseDecl(D);
     FV.TraverseDecl(D);
     ECPV.TraverseDecl(D);
-    if (AddCheckedRegions)
+    if (AddCheckedRegions) {
       // Adding checked regions enabled!?
+      CRF.TraverseDecl(D);
       CRA.TraverseDecl(D);
+    }
+
     GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
   }
 
