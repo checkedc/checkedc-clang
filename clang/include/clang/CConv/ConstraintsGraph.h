@@ -19,11 +19,29 @@
 using namespace boost;
 using namespace std;
 
-class ConstraintsGraph {
+template<class G>
+class BaseGraph {
+public:
+  typedef typename boost::graph_traits<G>::vertex_descriptor vertex_t;
+  typedef std::map<Atom*, vertex_t> VertexMapType;
+
+protected:
+  G CG;
+  VertexMapType AtomToVDMap;
+
+  virtual vertex_t addVertex(Atom *A) {
+    if (AtomToVDMap.find(A) == AtomToVDMap.end()) {
+      auto Vidx = add_vertex(A, CG);
+      AtomToVDMap[A] = Vidx;
+    }
+    return AtomToVDMap[A];
+  }
+};
+
+class ConstraintsGraph
+    : public BaseGraph<adjacency_list<setS, vecS, bidirectionalS, Atom *>> {
 public:
   typedef adjacency_list<setS, vecS, bidirectionalS, Atom*> DirectedGraphType;
-  typedef boost::graph_traits<DirectedGraphType>::vertex_descriptor vertex_t;
-  typedef std::map<Atom*, vertex_t> VertexMapType;
 
   ConstraintsGraph() {
     AllConstAtoms.clear();
@@ -32,9 +50,12 @@ public:
 
   void addConstraint(Geq *C, Constraints &CS);
 
+
   // Get all ConstAtoms, basically the points
   // from where the constraint solving should begin.
   std::set<ConstAtom*> &getAllConstAtoms();
+
+  std::set<std::pair<Atom*,Atom*>> getAllEdges();
 
   // Get all successors of a given Atom which are of particular type.
   template <typename ConstraintType>
@@ -66,14 +87,34 @@ public:
     return !Atoms.empty();
   }
 
+private:
+  std::set<ConstAtom*> AllConstAtoms;
+
+  vertex_t addVertex(Atom *A);
+};
+
+// Used during debugging to create a single graph that contains edges and nodes
+// from all constraint graphs. This single graph can then be printed to a file
+// in graphviz format.
+enum EdgeType { Checked, Ptype};
+class GraphVizOutputGraph
+    : public BaseGraph<
+          adjacency_list<vecS, vecS, bidirectionalS, Atom *, EdgeType>> {
+public:
+  typedef adjacency_list<vecS, vecS, bidirectionalS, Atom *, EdgeType>
+      DirectedGraphType;
+
+  void mergeConstraintGraph(ConstraintsGraph Graph, EdgeType EdgeType);
+
   // Dump the graph to stdout in a dot format.
   void dumpCGDot(const std::string& GraphDotFile);
 
+  static void dumpConstraintGraphs(const std::string &GraphDotFile,
+                                   ConstraintsGraph Chk,
+                                   ConstraintsGraph Pty);
+
 private:
-  std::set<ConstAtom*> AllConstAtoms;
-  VertexMapType AtomToVDMap;
-  vertex_t addVertex(Atom *A);
-  DirectedGraphType CG;
+  const std::string EdgeTypeColors[2] = { "red", "blue" };
 };
 
 #endif // _CONSTRAINTSGRAPH_H

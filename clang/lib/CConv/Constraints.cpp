@@ -322,8 +322,11 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
     else
       llvm_unreachable("Bogus constraint type");
   }
-  if (DebugSolver)
-    ChkCG.dumpCGDot("checked_constraints_graph.dot");
+
+  if (DebugSolver) {
+    GraphVizOutputGraph::dumpConstraintGraphs(
+        "initial_constraints_graph.dot", ChkCG, PtrTypCG);
+  }
 
   // Solve Checked/unchecked constraints first
   env.doCheckedSolve(true);
@@ -332,8 +335,6 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
   // now solve PtrType constraints
   if (res && AllTypes) {
     env.doCheckedSolve(false);
-    if (DebugSolver)
-      PtrTypCG.dumpCGDot("ptyp_constraints_graph.dot");
 
     // Step 1: Greatest solution
     res =
@@ -374,6 +375,11 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
     }
     // Final Step: Merge ptyp solution with checked solution
     env.mergePtrTypes();
+  }
+
+  if (DebugSolver) {
+    GraphVizOutputGraph::dumpConstraintGraphs(
+        "implication_constraints_graph.dot", ChkCG, PtrTypCG);
   }
 
   return res;
