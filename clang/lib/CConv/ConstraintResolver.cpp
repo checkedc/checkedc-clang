@@ -112,8 +112,7 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, ConstAtom *PtrTyp, 
   std::string d = PVC->getItype();
   PVConstraint *TmpPV = new PVConstraint(C, PVC->getTy(), PVC->getName(),
                                          b, a, c, d);
-  //TmpPV->constrainOuterTo(CS,PtrTyp); // wrong direction; want lower bound
-  CS.addConstraint(CS.createGeq(NewA, PtrTyp, false));
+  TmpPV->constrainOuterTo(CS, PtrTyp, true);
   TempConstraintVars.insert(TmpPV);
   return TmpPV;
 }
@@ -382,12 +381,12 @@ std::set<ConstraintVariable *>
             ConstAtom *A = analyzeAllocExpr(CE->getArg(0), CS, ArgTy);
             if (A) {
               std::string N = FD->getName(); N = "&"+N;
-              PVConstraint *PVC =
-                  new PVConstraint(ArgTy, nullptr, N, CS, *Context);
-              TempConstraintVars.insert(PVC);
               ExprType = Context->getPointerType(ArgTy);
-              PVConstraint *PVCaddr = addAtom(PVC, A,CS);
-              ReturnCVs.insert(PVCaddr);
+              PVConstraint *PVC =
+                  new PVConstraint(ExprType, nullptr, N, CS, *Context);
+              TempConstraintVars.insert(PVC);
+              PVC->constrainOuterTo(CS,A,true);
+              ReturnCVs.insert(PVC);
               didInsert = true;
             }
           }
@@ -470,11 +469,9 @@ std::set<ConstraintVariable *>
       // If this is a string literal. i.e., "foo".
       // We create a new constraint variable and constraint it to an Nt_array.
       std::set<ConstraintVariable *> T;
-      // Create a new constraint var number and make it NTArr.
-      CAtoms V;
-      V.push_back(CS.getNTArr());
-      ConstraintVariable *newC = new PointerVariableConstraint(
-          V, "const char*", exr->getBytes(), nullptr, false, false, "");
+      PVConstraint *newC = new PVConstraint(
+          exr->getType(), nullptr, "str", CS, *Context, nullptr);
+      newC->constrainOuterTo(CS, CS.getNTArr()); // NB: ARR already there
       TempConstraintVars.insert(newC);
       T.insert(newC);
       return T;

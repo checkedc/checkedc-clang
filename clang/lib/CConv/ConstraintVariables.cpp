@@ -865,17 +865,26 @@ void PointerVariableConstraint::constrainToWild(Constraints &CS,
     FV->constrainToWild(CS, Rsn);
 }
 
-// FIXME: Should do some checking here, eventually to make sure
-// checked types are respected
-void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C) {
+void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C,
+                                                 bool doLB) {
   assert(C == CS.getPtr() || C == CS.getArr() || C == CS.getNTArr());
 
   if (vars.size() > 0) {
     Atom *A = *vars.begin();
-    if (VarAtom *VA = dyn_cast<VarAtom>(A))
-      CS.addConstraint(CS.createGeq(C, VA, false));
-    else if (ConstAtom *CA = dyn_cast<ConstAtom>(A)) {
-      if (*C < *CA) {
+    if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
+      if (doLB)
+        CS.addConstraint(CS.createGeq(VA, C, false));
+      else
+        CS.addConstraint(CS.createGeq(C, VA, false));
+    } else if (ConstAtom *CA = dyn_cast<ConstAtom>(A)) {
+      if (doLB) {
+        if (*CA < *C) {
+          llvm::errs() << "Warning: " << CA->getStr() << " not less than "
+                       << C->getStr() << "\n";
+          assert(CA == CS.getWild()); // definitely bogus if not
+        }
+      }
+      else if (*C < *CA) {
         llvm::errs() << "Warning: " << C->getStr() << " not less than " << CA->getStr() <<"\n";
         assert(CA == CS.getWild()); // definitely bogus if not
       }
