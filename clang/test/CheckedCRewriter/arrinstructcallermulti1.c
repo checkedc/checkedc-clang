@@ -1,7 +1,10 @@
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checked %s %S/arrinstructcallermulti2.c
-//RUN: %clang -c %S/arrinstructcallermulti1.checked.c %S/arrinstructcallermulti2.checked.c
-//RUN: FileCheck -match-full-lines --input-file %S/arrinstructcallermulti1.checked.c %s
-//RUN: rm %S/arrinstructcallermulti1.checked.c %S/arrinstructcallermulti2.checked.c
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/arrinstructcallermulti2.c
+// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/arrinstructcallermulti2.c
+//RUN: %clang -c %S/arrinstructcallermulti1.checkedNOALL.c %S/arrinstructcallermulti2.checkedNOALL.c
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/arrinstructcallermulti1.checkedNOALL.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/arrinstructcallermulti1.checkedALL.c %s
+//RUN: rm %S/arrinstructcallermulti1.checkedALL.c %S/arrinstructcallermulti2.checkedALL.c
+//RUN: rm %S/arrinstructcallermulti1.checkedNOALL.c %S/arrinstructcallermulti2.checkedNOALL.c
 
 
 /*********************************************************************************/
@@ -31,15 +34,20 @@ struct general {
     int data; 
     struct general *next;
 };
-//CHECK:     _Ptr<struct general> next;
+//CHECK_NOALL:     _Ptr<struct general> next;
+
+//CHECK_ALL:     _Ptr<struct general> next;
 
 
 struct warr { 
     int data1[5];
     char *name;
 };
-//CHECK:     int data1[5];
-//CHECK-NEXT:     _Ptr<char> name;
+//CHECK_NOALL:     int data1[5];
+//CHECK_NOALL:     _Ptr<char> name;
+
+//CHECK_ALL:     int data1 _Checked[5];
+//CHECK_ALL:     _Ptr<char> name;
 
 
 struct fptrarr { 
@@ -47,25 +55,35 @@ struct fptrarr {
     char *name;
     int (*mapper)(int);
 };
-//CHECK:     _Ptr<int> values; 
-//CHECK-NEXT:     _Ptr<char> name;
-//CHECK-NEXT:     _Ptr<int (int )> mapper;
+//CHECK_NOALL:     _Ptr<int> values; 
+//CHECK_NOALL:     _Ptr<char> name;
+//CHECK_NOALL:     _Ptr<int (int )> mapper;
+
+//CHECK_ALL:     _Ptr<int> values; 
+//CHECK_ALL:     _Ptr<char> name;
+//CHECK_ALL:     _Ptr<int (int )> mapper;
 
 
 struct fptr { 
     int *value; 
     int (*func)(int);
 };  
-//CHECK:     _Ptr<int> value; 
-//CHECK-NEXT:     _Ptr<int (int )> func;
+//CHECK_NOALL:     _Ptr<int> value; 
+//CHECK_NOALL:     _Ptr<int (int )> func;
+
+//CHECK_ALL:     _Ptr<int> value; 
+//CHECK_ALL:     _Ptr<int (int )> func;
 
 
 struct arrfptr { 
     int args[5]; 
     int (*funcs[5]) (int);
 };
-//CHECK:     int args[5]; 
-//CHECK-NEXT:     int (*funcs[5]) (int);
+//CHECK_NOALL:     int args[5]; 
+//CHECK_NOALL:     int (*funcs[5]) (int);
+
+//CHECK_ALL:     int args _Checked[5]; 
+//CHECK_ALL:     _Ptr<int (int )> funcs _Checked[5];
 
 
 int add1(int x) { 
@@ -98,19 +116,25 @@ int *mul2(int *x) {
     return x;
 }
 
-//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+//CHECK_NOALL: _Ptr<int> mul2(_Ptr<int> x) { 
+
+//CHECK_ALL: _Ptr<int> mul2(_Ptr<int> x) { 
 
 struct warr * sus(struct warr *, struct warr *);
-//CHECK: struct warr *sus(struct warr *, struct warr *y : itype(_Ptr<struct warr>)) : itype(_Ptr<struct warr>);
+//CHECK_NOALL: struct warr *sus(struct warr *, struct warr *y : itype(_Ptr<struct warr>)) : itype(_Ptr<struct warr>);
+//CHECK_ALL: _Array_ptr<struct warr> sus(struct warr *, struct warr *y : itype(_Array_ptr<struct warr>));
 
 struct warr * foo() {
         struct warr * x = malloc(sizeof(struct warr));
         struct warr * y = malloc(sizeof(struct warr));
         struct warr * z = sus(x, y);
 return z; }
-//CHECK: _Ptr<struct warr> foo(void) {
-//CHECK:         struct warr * x = malloc(sizeof(struct warr));
-//CHECK:         struct warr * y = malloc(sizeof(struct warr));
+//CHECK_NOALL: _Ptr<struct warr> foo(void) {
+//CHECK_NOALL:         struct warr * x = malloc(sizeof(struct warr));
+//CHECK_NOALL:         struct warr * y = malloc(sizeof(struct warr));
+//CHECK_ALL: _Array_ptr<struct warr> foo(void) {
+//CHECK_ALL:         struct warr * x = malloc(sizeof(struct warr));
+//CHECK_ALL:         struct warr * y = malloc(sizeof(struct warr));
 
 struct warr * bar() {
         struct warr * x = malloc(sizeof(struct warr));
@@ -118,7 +142,10 @@ struct warr * bar() {
         struct warr * z = sus(x, y);
 z += 2;
 return z; }
-//CHECK: struct warr * bar() {
-//CHECK:         struct warr * x = malloc(sizeof(struct warr));
-//CHECK:         struct warr * y = malloc(sizeof(struct warr));
-//CHECK:         struct warr * z = sus(x, y);
+//CHECK_NOALL: struct warr * bar() {
+//CHECK_NOALL:         struct warr * x = malloc(sizeof(struct warr));
+//CHECK_NOALL:         struct warr * y = malloc(sizeof(struct warr));
+//CHECK_NOALL:         struct warr * z = sus(x, y);
+//CHECK_ALL: _Array_ptr<struct warr> bar(void) {
+//CHECK_ALL:         struct warr * x = malloc(sizeof(struct warr));
+//CHECK_ALL:         struct warr * y = malloc(sizeof(struct warr));
