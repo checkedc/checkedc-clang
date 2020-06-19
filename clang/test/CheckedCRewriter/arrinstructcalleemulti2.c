@@ -131,5 +131,8 @@ x = (struct warr *) 5;
 z += 2;
 return z; }
 //CHECK_NOALL: struct warr * sus(struct warr *x, struct warr *y) {
+//CHECK_NOALL:         char name[20]; 
 //CHECK_NOALL:         struct warr *z = y;
-//CHECK_ALL: _Array_ptr<struct warr> sus(struct warr *x, struct warr *y : itype(_Array_ptr<struct warr>)) {
+//CHECK_ALL: _Ptr<struct warr> sus(struct warr *x, struct warr *y : itype(_Array_ptr<struct warr>)) {
+//CHECK_ALL:         char name _Checked[20]; 
+//CHECK_ALL:         _Array_ptr<struct warr> z =  y;

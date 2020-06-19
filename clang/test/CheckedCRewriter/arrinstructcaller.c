@@ -124,8 +124,12 @@ x = (struct warr *) 5;
         }
         
 return z; }
-//CHECK_NOALL: struct warr *sus(struct warr *x, struct warr *y : itype(_Ptr<struct warr>)) : itype(_Ptr<struct warr>) {
+//CHECK_NOALL: struct warr *sus(struct warr *x, _Ptr<struct warr> y) : itype(_Ptr<struct warr>) {
+//CHECK_NOALL:         char name[20]; 
+//CHECK_NOALL:         _Ptr<struct warr> z =  y;
 //CHECK_ALL: _Array_ptr<struct warr> sus(struct warr *x, struct warr *y : itype(_Array_ptr<struct warr>)) {
+//CHECK_ALL:         char name _Checked[20]; 
+//CHECK_ALL:         _Array_ptr<struct warr> z =  y;
 
 struct warr * foo() {
         struct warr * x = malloc(sizeof(struct warr));
@@ -134,10 +138,12 @@ struct warr * foo() {
 return z; }
 //CHECK_NOALL: _Ptr<struct warr> foo(void) {
 //CHECK_NOALL:         struct warr * x = malloc(sizeof(struct warr));
-//CHECK_NOALL:         struct warr * y = malloc(sizeof(struct warr));
-//CHECK_ALL: _Array_ptr<struct warr> foo(void) {
+//CHECK_NOALL:         _Ptr<struct warr> y =  malloc(sizeof(struct warr));
+//CHECK_NOALL:         _Ptr<struct warr> z =  sus(x, y);
+//CHECK_ALL: _Ptr<struct warr> foo(void) {
 //CHECK_ALL:         struct warr * x = malloc(sizeof(struct warr));
 //CHECK_ALL:         struct warr * y = malloc(sizeof(struct warr));
+//CHECK_ALL:         _Ptr<struct warr> z =  sus(x, y);
 
 struct warr * bar() {
         struct warr * x = malloc(sizeof(struct warr));
@@ -147,8 +153,9 @@ z += 2;
 return z; }
 //CHECK_NOALL: struct warr * bar() {
 //CHECK_NOALL:         struct warr * x = malloc(sizeof(struct warr));
-//CHECK_NOALL:         struct warr * y = malloc(sizeof(struct warr));
+//CHECK_NOALL:         _Ptr<struct warr> y =  malloc(sizeof(struct warr));
 //CHECK_NOALL:         struct warr * z = sus(x, y);
-//CHECK_ALL: _Array_ptr<struct warr> bar(void) {
+//CHECK_ALL: _Ptr<struct warr> bar(void) {
 //CHECK_ALL:         struct warr * x = malloc(sizeof(struct warr));
 //CHECK_ALL:         struct warr * y = malloc(sizeof(struct warr));
+//CHECK_ALL:         _Array_ptr<struct warr> z =  sus(x, y);

@@ -119,8 +119,8 @@ int *mul2(int *x) {
 //CHECK_ALL: _Ptr<int> mul2(_Ptr<int> x) { 
 
 int * sus(int *, int *);
-//CHECK_NOALL: int * sus(int *x, int *y : itype(_Ptr<int>));
-//CHECK_ALL: int * sus(int *x, int *y : itype(_Ptr<int>));
+//CHECK_NOALL: int * sus(int *x, _Ptr<int> y);
+//CHECK_ALL: int * sus(int *x, _Ptr<int> y);
 
 int * foo() {
         int * x = malloc(sizeof(int));
@@ -129,11 +129,11 @@ int * foo() {
 return z; }
 //CHECK_NOALL: int * foo() {
 //CHECK_NOALL:         int * x = malloc(sizeof(int));
-//CHECK_NOALL:         int * y = malloc(sizeof(int));
+//CHECK_NOALL:         _Ptr<int> y =  malloc(sizeof(int));
 //CHECK_NOALL:         int * z = sus(x, y);
 //CHECK_ALL: int * foo() {
 //CHECK_ALL:         int * x = malloc(sizeof(int));
-//CHECK_ALL:         int * y = malloc(sizeof(int));
+//CHECK_ALL:         _Ptr<int> y =  malloc(sizeof(int));
 //CHECK_ALL:         int * z = sus(x, y);
 
 int * bar() {
@@ -144,11 +144,11 @@ z += 2;
 return z; }
 //CHECK_NOALL: int * bar() {
 //CHECK_NOALL:         int * x = malloc(sizeof(int));
-//CHECK_NOALL:         int * y = malloc(sizeof(int));
+//CHECK_NOALL:         _Ptr<int> y =  malloc(sizeof(int));
 //CHECK_NOALL:         int * z = sus(x, y);
 //CHECK_ALL: int * bar() {
 //CHECK_ALL:         int * x = malloc(sizeof(int));
-//CHECK_ALL:         int * y = malloc(sizeof(int));
+//CHECK_ALL:         _Ptr<int> y =  malloc(sizeof(int));
 //CHECK_ALL:         int * z = sus(x, y);
 
 int * sus(int * x, int * y) {
@@ -158,7 +158,7 @@ x = (int *) 5;
         { *p = fac; }
 z += 2;
 return z; }
-//CHECK_NOALL: int * sus(int *x, int *y : itype(_Ptr<int>)) {
+//CHECK_NOALL: int * sus(int *x, _Ptr<int> y) {
 //CHECK_NOALL:         int *z = calloc(5, sizeof(int)); 
-//CHECK_ALL: int * sus(int *x, int *y : itype(_Ptr<int>)) {
+//CHECK_ALL: int * sus(int *x, _Ptr<int> y) {
 //CHECK_ALL:         int *z = calloc(5, sizeof(int)); 

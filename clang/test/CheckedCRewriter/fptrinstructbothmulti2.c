@@ -129,7 +129,7 @@ struct fptr * sus(struct fptr *x, struct fptr *y) {
         
 z += 2;
 return z; }
-//CHECK_NOALL: struct fptr * sus(struct fptr *x, struct fptr *y : itype(_Ptr<struct fptr>)) {
+//CHECK_NOALL: struct fptr * sus(struct fptr *x, _Ptr<struct fptr> y) {
 //CHECK_NOALL:         struct fptr *z = malloc(sizeof(struct fptr)); 
-//CHECK_ALL: struct fptr * sus(struct fptr *x, struct fptr *y : itype(_Ptr<struct fptr>)) {
+//CHECK_ALL: struct fptr * sus(struct fptr *x, _Ptr<struct fptr> y) {
 //CHECK_ALL:         struct fptr *z = malloc(sizeof(struct fptr)); 
