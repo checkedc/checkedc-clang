@@ -56,10 +56,12 @@ public:
   // For each pointer type in the declaration of D, add a variable to the 
   // constraint system for that pointer type.
   void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *astContext);
+  void addArrayCompoundLiteral(CompoundLiteralExpr *CLE, ASTContext *astContext);
 
   // Get constraint variable for the provided Decl
   std::set<ConstraintVariable *> getVariable(clang::Decl *D,
                                              clang::ASTContext *C);
+  std::set<ConstraintVariable *> getArrayCompoundLiteral(CompoundLiteralExpr *CLE, ASTContext *C);
 
   // Retrieve a function's constraints by decl, or by name; nullptr if not found
   std::set<FVConstraint *> *getFuncConstraints(FunctionDecl *D, ASTContext *C);
@@ -159,6 +161,8 @@ private:
   //   or global)
   std::set<FVConstraint *> *getFuncFVConstraints(FunctionDecl *FD,
                                                  ASTContext *C);
+  void constrainWildIfMacro(std::set<ConstraintVariable *> S,
+                            SourceLocation location);
 };
 
 #endif

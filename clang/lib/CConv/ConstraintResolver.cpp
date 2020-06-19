@@ -452,7 +452,20 @@ std::set<ConstraintVariable *>
 
     // (int[]){e1, e2, e3, ... }
     } else if (CompoundLiteralExpr *CLE = dyn_cast<CompoundLiteralExpr>(E)) {
-      return getExprConstraintVars(CLE->getInitializer());
+      if(CLE->getType()->isArrayType()){
+        std::set<ConstraintVariable *> Vars = getExprConstraintVars(CLE->getInitializer());
+
+        FullSourceLoc FL = Context->getFullLoc(CLE->getBeginLoc());
+        SourceRange SR = CLE->getSourceRange();
+        if (SR.isValid() && FL.isValid()) {
+          Info.addArrayCompoundLiteral(CLE, Context);
+        }
+        PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CLE, *Context);
+        std::set<ConstraintVariable *> L = Info.getArrayCompoundLiteral(CLE, Context);
+        constrainConsVarGeq(L, Vars, Info.getConstraints(), &PL, Same_to_Same, false, &Info);
+
+        return Vars;
+      }
 
     // "foo"
     } else if (clang::StringLiteral *exr = dyn_cast<clang::StringLiteral>(E)) {
@@ -540,7 +553,7 @@ std::set<ConstraintVariable *> ConstraintResolver::PVConstraintFromType(QualType
 }
 
 std::set<ConstraintVariable *> ConstraintResolver::getBaseVarPVConstraint(DeclRefExpr *Decl) {
-  assert(Decl->getType()->isArithmeticType());
+  assert(Decl->getType()->isStructureType() || Decl->getType()->isArithmeticType());
   std::set<ConstraintVariable *> Ret;
   Ret.insert(PVConstraint::getNamedNonPtrPVConstraint(Decl->getDecl()->getName(), Info.getConstraints()));
   return Ret;
