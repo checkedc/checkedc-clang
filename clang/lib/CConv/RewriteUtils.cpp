@@ -1385,36 +1385,35 @@ private:
 
 // Visit every array compound literal expression (i.e., (int*[2]){&a, &b}) and
 // replace the type name with a new type based on constraint solution.
-class ArrayCompoundExpressionsRewriter
-    : public clang::RecursiveASTVisitor<ArrayCompoundExpressionsRewriter> {
+class CompoundLiteralRewriter
+    : public clang::RecursiveASTVisitor<CompoundLiteralRewriter> {
 public:
-  explicit ArrayCompoundExpressionsRewriter(ASTContext *C, ProgramInfo &I, Rewriter &R)
+  explicit CompoundLiteralRewriter(ASTContext *C, ProgramInfo &I, Rewriter &R)
       : Context(C), Info(I) , Writer(R) {}
 
   bool VisitCompoundLiteralExpr(CompoundLiteralExpr *CLE) {
-    // Struct types always look the same, even if they have checked pointers
-    // inside them, so we don't need to bother with Rewriting in that case.
-    if(CLE->getType()->isArrayType()) {
-      // When an array compound literal was visited in constraint generation,
-      // a constraint variable for it was stored in program info.  There should
-      // be exactly one of these.
-      std::set<ConstraintVariable *> CVSingleton = Info.getArrayCompoundLiteral(CLE, Context);
-      ConstraintVariable *CV = getOnly(CVSingleton);
+    // When an compound literal was visited in constraint generation, a
+    // constraint variable for it was stored in program info.  There should be
+    // either zero or one of these.
+    std::set<ConstraintVariable *> CVSingleton = Info.getCompoundLiteral(CLE, Context);
+    if (CVSingleton.empty()) {
+      return true;
+    }
+    ConstraintVariable *CV = getOnly(CVSingleton);
 
-      // Only rewrite if the type has changed.
-      if(CV->anyChanges(Info.getConstraints().getVariables())){
-        // The constraint variable is able to tell us what the new type string
-        // should be.
-        std::string newType = CV->mkString(Info.getConstraints().getVariables(),false);
+    // Only rewrite if the type has changed.
+    if(CV->anyChanges(Info.getConstraints().getVariables())){
+      // The constraint variable is able to tell us what the new type string
+      // should be.
+      std::string newType = CV->mkString(Info.getConstraints().getVariables(),false);
 
-        // Replace the original type with this new one
-        SourceRange *TypeSrcRange =
-            new SourceRange(CLE->getBeginLoc().getLocWithOffset(1),
-                            CLE->getTypeSourceInfo()->getTypeLoc().getEndLoc());
+      // Replace the original type with this new one
+      SourceRange *TypeSrcRange =
+          new SourceRange(CLE->getBeginLoc().getLocWithOffset(1),
+                          CLE->getTypeSourceInfo()->getTypeLoc().getEndLoc());
 
-        if(canRewrite(Writer, *TypeSrcRange)) {
-          Writer.ReplaceText(*TypeSrcRange, newType);
-        }
+      if(canRewrite(Writer, *TypeSrcRange)) {
+        Writer.ReplaceText(*TypeSrcRange, newType);
       }
     }
     return true;
@@ -1502,7 +1501,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   std::set<llvm::FoldingSetNodeID> seen;
   CheckedRegionAdder CRA(&Context, R, Info, seen);
   CastPlacementVisitor ECPV(&Context, Info, R);
-  ArrayCompoundExpressionsRewriter ACLR(&Context, Info, R);
+  CompoundLiteralRewriter CLR(&Context, Info, R);
   for (auto &D : TUD->decls()) {
     V.TraverseDecl(D);
     FV.TraverseDecl(D);
@@ -1511,7 +1510,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
       // Adding checked regions enabled!?
       CRA.TraverseDecl(D);
     GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
-    ACLR.TraverseDecl(D);
+    CLR.TraverseDecl(D);
   }
 
   std::tie(PSLMap, VDLToStmtMap) = V.getResults();

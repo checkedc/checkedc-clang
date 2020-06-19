@@ -442,31 +442,31 @@ std::set<ConstraintVariable *>
 
     // { e1, e2, e3, ... }
     } else if (InitListExpr *ILE = dyn_cast<InitListExpr>(E)) {
+      std::vector<Expr *> SubExprs = ILE->inits().vec();
+      std::set<ConstraintVariable *> CVars =
+          getAllSubExprConstraintVars(SubExprs);
       if(ILE->getType()->isArrayType()) {
         // Array initialization is similar AddrOf, so the same pattern is used
         // where a new indirection is added to constraint variables.
-        std::vector<Expr *> SubExprs = ILE->inits().vec();
-        std::set<ConstraintVariable *> CVars =
-            getAllSubExprConstraintVars(SubExprs);
         return addAtomAll(CVars, CS.getArr(), CS);
+      } else {
+        return CVars;
       }
 
     // (int[]){e1, e2, e3, ... }
     } else if (CompoundLiteralExpr *CLE = dyn_cast<CompoundLiteralExpr>(E)) {
-      if(CLE->getType()->isArrayType()){
-        std::set<ConstraintVariable *> Vars = getExprConstraintVars(CLE->getInitializer());
+      std::set<ConstraintVariable *> Vars = getExprConstraintVars(CLE->getInitializer());
 
-        FullSourceLoc FL = Context->getFullLoc(CLE->getBeginLoc());
-        SourceRange SR = CLE->getSourceRange();
-        if (SR.isValid() && FL.isValid()) {
-          Info.addArrayCompoundLiteral(CLE, Context);
-        }
-        PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CLE, *Context);
-        std::set<ConstraintVariable *> L = Info.getArrayCompoundLiteral(CLE, Context);
-        constrainConsVarGeq(L, Vars, Info.getConstraints(), &PL, Same_to_Same, false, &Info);
-
-        return Vars;
+      FullSourceLoc FL = Context->getFullLoc(CLE->getBeginLoc());
+      SourceRange SR = CLE->getSourceRange();
+      if (SR.isValid() && FL.isValid()) {
+        Info.addCompoundLiteral(CLE, Context);
       }
+      PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CLE, *Context);
+      std::set<ConstraintVariable *> L = Info.getCompoundLiteral(CLE, Context);
+      constrainConsVarGeq(L, Vars, Info.getConstraints(), &PL, Same_to_Same, false, &Info);
+
+      return Vars;
 
     // "foo"
     } else if (clang::StringLiteral *exr = dyn_cast<clang::StringLiteral>(E)) {

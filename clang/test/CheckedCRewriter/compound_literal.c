@@ -84,3 +84,14 @@ void nested(int* x) {
   struct e b[1] = (struct e[1]){(struct e){(int*)1}};
   // CHECK: struct e b _Checked[1] = (struct e _Checked[1]){(struct e){(int*)1}};
 }
+
+void silly(int *x) {
+  int *a = (int*){x};
+  // CHECK: _Ptr<int> a = (_Ptr<int> ){x};
+
+  int *b = (int*){(int*) 1};
+  // CHECK: int *b = (int*){(int*) 1};
+
+  int c = (int){1};
+  // CHECK: int c = (int){1};
+}

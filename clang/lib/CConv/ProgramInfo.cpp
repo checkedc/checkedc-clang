@@ -569,19 +569,18 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
   constrainWildIfMacro(S, D->getLocation());
 }
 
-// An analogous method to addVariable that create constraints for array compound
-// literal expressions. This is required because array compound literals contain
-// the type of the array which must be rewritten to generate correct checked-c.
-void ProgramInfo::addArrayCompoundLiteral(clang::CompoundLiteralExpr *CLE,
-                                          clang::ASTContext *astContext) {
-  assert(CLE->getType()->isArrayType());
-
+// An analogous method to addVariable that create constraints for compound
+// literal expressions. This is required because compound literals contain
+// the type of the expressions which must be rewritten to generate correct
+// checked-c.
+void ProgramInfo::addCompoundLiteral(clang::CompoundLiteralExpr *CLE,
+                                     clang::ASTContext *astContext) {
   PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(CLE, *astContext);
   assert(PLoc.valid());
   std::set<ConstraintVariable *> &S = Variables[PLoc];
   if (S.size()) return;
 
-  PVConstraint *P = new PVConstraint(CLE->getType(), nullptr, "ARR_CLE", CS,
+  PVConstraint *P = new PVConstraint(CLE->getType(), nullptr, "CLE", CS,
                                      *astContext, nullptr);
   S.insert(P);
 
@@ -724,9 +723,8 @@ std::set<ConstraintVariable *> ProgramInfo::getVariable(clang::Decl *D,
 }
 
 std::set<ConstraintVariable *>
-ProgramInfo::getArrayCompoundLiteral(clang::CompoundLiteralExpr *CLE,
-                                     clang::ASTContext *C) {
-  assert(CLE->getType()->isArrayType());
+ProgramInfo::getCompoundLiteral(clang::CompoundLiteralExpr *CLE,
+                                clang::ASTContext *C) {
   VariableMap::iterator I = Variables.find(PersistentSourceLoc::mkPSL(CLE, *C));
   if (I != Variables.end()) {
     return I->second;
