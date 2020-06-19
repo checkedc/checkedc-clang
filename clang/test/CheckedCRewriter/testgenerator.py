@@ -8,7 +8,7 @@ import subprocess
 #### USERS PUT YOUR INFO HERE ##### 
 
 # Please remember to add a '/' at the very end!
-path_to_monorepo = "/Users/mwh/checkedc/checkedc-clang/llvm/cmake-build-debug/bin/"
+path_to_monorepo = "/Users/shilpa-roy/checkedc-clang/build/bin/"
 
 
 
@@ -20,12 +20,11 @@ addendums = ["", "proto", "multi"]
 # casts = ["", "expcastunsafe", "expcastsafe", "impcast"]
 
 suffixes = ["safe", "callee", "caller", "both"]
-flags = ["", "-alltypes"]
 
 # generate testnames by taking the cartesian product of the above
 testnames = [] 
-for e in it.product(prefixes, addendums, suffixes, flags): 
-    testnames.append([e[0], e[1], e[2], e[3]]) 
+for e in it.product(prefixes, addendums, suffixes): 
+    testnames.append([e[0], e[1], e[2]]) 
 
 
 ### FILE GENERATION ###
@@ -461,10 +460,179 @@ def method_gen(prefix, proto, suffix):
 
     return [susproto, sus+susbody, foo+foobody, bar+barbody] 
 
+def process_file(file, cname, cname2, proto, alltypes, new_defs, new_defs2, susprotoc, susc, fooc, barc): 
+    check = "CHECK_NOALL"
+    if alltypes: check = "CHECK_ALL"
+
+    keywords = "int char struct double float _Ptr _Array_ptr _Nt_array_ptr".split(" ")
+
+    # these boolean variables indicate which method definition we are in, so we know where to add
+    # our checked annotations later
+    indefs = insus = infoo = inbar = False 
+    inwarr = infptrarr = infptr = inarrfptr = False
+
+    # generate the check annotations
+    for line in file.readlines():   
+        # this indicates that we've reached the definitions
+        if line.find("struct general {") != -1: 
+            indefs = insus = infoo = inbar = False 
+            indefs = True
+
+        # annotate the prototype for sus
+        elif proto != "" and line.find("sus") != -1 and line.find("=") == -1 and line.find(";") != -1: 
+           indefs = insus = infoo = inbar = False
+           susprotoc += "//" + check + ": " + line
+
+        # annotate the definition for sus
+        elif proto != "multi" and line.find("sus") != -1 and line.find("{") != -1: 
+            indefs = insus = infoo = inbar = False
+            insus = True
+            susc += "//" + check + ": " + line
+
+        # annotate the definition for foo
+        elif line.find("foo") != -1:
+            indefs = insus = infoo = inbar = False
+            infoo = True 
+            fooc += "//" + check + ": " + line  
+
+        # annotate the definition for bar
+        elif line.find("bar") != -1:  
+            indefs = insus = infoo = inbar = False
+            inbar = True 
+            barc += "//" + check + ": " + line  
+
+        elif indefs: 
+            # struct general
+            if line.find("general") != -1 and line.find(";") != -1: 
+                new_defs[0] += "\n//" + check + ": " + line
+
+            # struct warr
+            elif line.find("struct warr {") != -1: 
+                inwarr = True
+            elif line.find("data1") != -1 and inwarr: 
+                new_defs[1] += "\n//" + check + ": " + line 
+            elif line.find("name") != -1 and inwarr: 
+                inwarr = False 
+                new_defs[1] += "//" + check + ": " + line 
+
+            # struct fptrarr
+            elif line.find("struct fptrarr {") != -1: 
+                infptrarr = True
+            elif line.find("values") != -1 and infptrarr: 
+                new_defs[2] += "\n//" + check + ": " + line 
+            elif line.find("name") != -1 and infptrarr: 
+                new_defs[2] += "//" + check + ": " + line
+            elif line.find("mapper") != -1 and infptrarr: 
+                infptrarr = False 
+                new_defs[2] += "//" + check + ": " + line
+            
+            # struct fptr
+            elif line.find("struct fptr {") != -1: 
+                infptr = True
+            elif line.find("value") != -1 and infptr: 
+                new_defs[3] += "\n//" + check + ": " + line 
+            elif line.find("func") != -1 and infptr: 
+                infptr = False 
+                new_defs[3] += "//" + check + ": " + line
+
+            # struct arrfptr
+            elif line.find("struct arrfptr {") != -1: 
+                inarrfptr = True
+            elif line.find("args") != -1 and inarrfptr: 
+                new_defs[4] += "\n//" + check + ": " + line 
+            elif line.find("funcs") != -1 and inarrfptr: 
+                inarrfptr = False 
+                new_defs[4] += "//" + check + ": " + line
+                 
+            # mul2
+            elif line.find("mul2") != -1:
+                indefs = False
+                new_defs[-1] += "\n//" + check + ": " + line 
+        
+        elif insus: 
+            if any(substr in line for substr in keywords) and line.find("5;") == -1:
+                susc += "//" + check + ": " + line
+        elif infoo: 
+            if any(substr in line for substr in keywords):
+                fooc += "//" + check + ": " + line 
+        elif inbar: 
+            if any(substr in line for substr in keywords):
+                barc += "//" + check + ": " + line
+    
+    if proto=="multi": 
+        file2 = open(cname2, "r")
+
+        for line in file2.readlines(): 
+            # this indicates that we've reached the definitions
+            if line.find("struct general {") != -1: 
+                indefs = insus = infoo = inbar = False 
+                indefs = True
+
+            # annotate the definition for sus
+            elif line.find("sus") != -1 and line.find("{") != -1: 
+                indefs = insus = infoo = inbar = False
+                insus = True
+                susc += "//" + check + ": " + line
+
+            elif insus: 
+                if any(substr in line for substr in keywords) and line.find("5;") == -1:
+                    susc += "//" + check + ": " + line
+
+            elif indefs: 
+                # struct general
+                if line.find("general") != -1 and line.find(";") != -1: 
+                    new_defs2[0] += "\n//" + check + ": " + line
+
+                # struct warr
+                elif line.find("struct warr {") != -1: 
+                    inwarr = True
+                elif line.find("data1") != -1 and inwarr: 
+                    new_defs2[1] += "\n//" + check + ": " + line 
+                elif line.find("name") != -1 and inwarr: 
+                    inwarr = False 
+                    new_defs2[1] += "//" + check + ": " + line 
+
+                # struct fptrarr
+                elif line.find("struct fptrarr {") != -1: 
+                    infptrarr = True
+                elif line.find("values") != -1 and infptrarr: 
+                    new_defs2[2] += "\n//" + check + ": " + line 
+                elif line.find("name") != -1 and infptrarr: 
+                    new_defs2[2] += "//" + check + ": " + line
+                elif line.find("mapper") != -1 and infptrarr: 
+                    infptrarr = False 
+                    new_defs2[2] += "//" + check + ": " + line
+            
+                # struct fptr
+                elif line.find("struct fptr {") != -1: 
+                    infptr = True
+                elif line.find("value") != -1 and infptr: 
+                    new_defs2[3] += "\n//" + check + ": " + line 
+                elif line.find("func") != -1 and infptr: 
+                    infptr = False 
+                    new_defs2[3] += "//" + check + ": " + line
+
+                # struct arrfptr
+                elif line.find("struct arrfptr {") != -1: 
+                    inarrfptr = True
+                elif line.find("args") != -1 and inarrfptr: 
+                    new_defs2[4] += "\n//" + check + ": " + line 
+                elif line.find("funcs") != -1 and inarrfptr: 
+                    inarrfptr = False 
+                    new_defs2[4] += "//" + check + ": " + line
+                 
+                # mul2
+                elif line.find("mul2") != -1:
+                    indefs = False
+                    new_defs2[-1] += "\n//" + check + ": " + line 
+            
+        file2.close() 
+    return [new_defs, new_defs2, susprotoc, susc, fooc, barc]
+
 # this function will generate a C file using method_gen(), 
 # run the porting tool on that C file, and generate a new
 # C file that contains the annotations for llvm-lit
-def annot_gen(prefix, proto, suffix, flag):  
+def annot_gen(prefix, proto, suffix):  
  
     # generate a descriptive comment that describes what the test will do: 
     comm_general = "/*This file tests three functions: two callers bar and foo, and a callee sus*/\n" 
@@ -486,31 +654,33 @@ def annot_gen(prefix, proto, suffix, flag):
     if prefix=="fptrarrinstruct": comm_prefix += "how the tool behaves when there is an array\nof function pointers in a struct*/"
     if prefix=="ptrTOptr": comm_prefix += "having a pointer to a pointer*/"
     comm_proto = "" 
-    if proto=="multi": comm_proto = "\n/*For robustness, this test is identical to {}.c and {}.c except in that\nthe callee and callers are split amongst two files to see how\nthe tool performs conversions*/".format(prefix+"proto"+suffix+flag, prefix+suffix+flag) 
-    elif proto=="proto": comm_proto = "\n/*For robustness, this test is identical to {}.c except in that\na prototype for sus is available, and is called by foo and bar,\nwhile the definition for sus appears below them*/".format(prefix+suffix+flag)
+    if proto=="multi": comm_proto = "\n/*For robustness, this test is identical to {}.c and {}.c except in that\nthe callee and callers are split amongst two files to see how\nthe tool performs conversions*/".format(prefix+"proto"+suffix, prefix+suffix) 
+    elif proto=="proto": comm_proto = "\n/*For robustness, this test is identical to {}.c except in that\na prototype for sus is available, and is called by foo and bar,\nwhile the definition for sus appears below them*/".format(prefix+suffix)
     comm_suffix = ""
     if suffix == "safe": comm_suffix = "\n/*In this test, foo, bar, and sus will all treat their return values safely*/"
     elif suffix == "callee": comm_suffix = "\n/*In this test, foo and bar will treat their return values safely, but sus will\nnot, through invalid pointer arithmetic, an unsafe cast, etc*/"
     elif suffix == "caller": comm_suffix = "\n/*In this test, foo and sus will treat their return values safely, but bar will\nnot, through invalid pointer arithmetic, an unsafe cast, etc.*/"
     elif suffix == "both": comm_suffix = "\n/*In this test, foo will treat its return value safely, but sus and bar will not,\nthrough invalid pointer arithmetic, an unsafe cast, etc.*/"
-    comm_flag = "" 
-    if flag == "-alltypes": comm_flag = "\n/*This file was converted with the alltypes flag, which adds support for arrays\nand other data structures*/"
     comm_dec = "\n\n/*********************************************************************************/\n\n" 
 
-    comment = ''.join(["\n", comm_dec, comm_general, comm_prefix, comm_proto, comm_suffix, comm_flag, comm_dec])
+    comment = ''.join(["\n", comm_dec, comm_general, comm_prefix, comm_proto, comm_suffix, comm_dec])
 
     # generate the body of the file
     [susproto, sus, foo, bar] = method_gen(prefix, proto, suffix) 
-    name = prefix + proto + suffix + flag + ".c"
-    cname = prefix + proto + suffix + flag + ".checked.c"  
+    name = prefix + proto + suffix + ".c"
+    cnameNOALL = prefix + proto + suffix + ".checkedNOALL.c"  
+    cnameALL = prefix + proto + suffix + ".checkedALL.c"
     name2 = name 
-    cname2 = cname
+    cname2NOALL = cnameNOALL 
+    cname2ALL = cnameALL
 
     if proto=="multi": 
-        name = prefix + suffix + proto + flag + "1.c" 
-        name2 = prefix + suffix + proto + flag + "2.c"
-        cname = prefix + suffix + proto + flag + "1.checked.c"
-        cname2 = prefix + suffix + proto + flag + "2.checked.c"
+        name = prefix + suffix + proto + "1.c" 
+        name2 = prefix + suffix + proto + "2.c"
+        cnameNOALL = prefix + suffix + proto + "1.checkedNOALL.c"  
+        cnameALL = prefix + suffix + proto + "1.checkedALL.c"
+        cname2NOALL = prefix + suffix + proto + "2.checkedNOALL.c"  
+        cname2ALL = prefix + suffix + proto + "2.checkedALL.c"
     
     if proto=="proto": test = header + definitions + susproto + foo + bar + sus
     elif proto=="multi": test = header + definitions + susproto + foo + bar
@@ -530,236 +700,82 @@ def annot_gen(prefix, proto, suffix, flag):
     
     # run the porting tool on the file(s)
     if proto=="multi": 
-        if flag!="": os.system("{}cconv-standalone -alltypes -output-postfix=checked {} {}".format(path_to_monorepo, name, name2))
-        else: os.system("{}cconv-standalone -output-postfix=checked {} {}".format(path_to_monorepo, name, name2))
+        os.system("{}cconv-standalone -alltypes -output-postfix=checkedALL {} {}".format(path_to_monorepo, name, name2))
+        os.system("{}cconv-standalone -output-postfix=checkedNOALL {} {}".format(path_to_monorepo, name, name2))
         os.system("rm {} {}".format(name, name2))
     else: 
-        if flag!="": os.system("{}cconv-standalone -alltypes -output-postfix=checked {}".format(path_to_monorepo, name))
-        else: os.system("{}cconv-standalone -output-postfix=checked {}".format(path_to_monorepo, name))
+        os.system("{}cconv-standalone -alltypes -output-postfix=checkedALL {}".format(path_to_monorepo, name))
+        os.system("{}cconv-standalone -output-postfix=checkedNOALL {}".format(path_to_monorepo, name))
         os.system("rm {}".format(name))
     
+    bug_generated = False
+    if proto != "multi":
+        out = subprocess.Popen(['{}clang'.format(path_to_monorepo), '-c', cnameNOALL], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) 
+        stdout, stderr = out.communicate()
+        stdout = str(stdout) 
+        if "error:" in stdout: 
+            bug_generated = True
+            name = prefix + proto + suffix + "_BUG.c" 
+    else: 
+        out = subprocess.Popen(['{}clang'.format(path_to_monorepo), '-c', cnameNOALL, cname2NOALL], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) 
+        stdout, stderr = out.communicate()
+        stdout = str(stdout) 
+        if "error:" in stdout: 
+            bug_generated = True
+            name = prefix + suffix + proto + "1_BUG.c"
+            name2 = prefix + suffix + proto + "2_BUG.c"
+    
+    # read the checked generated file for new types
     # isolate the definitions (at the top of the file) into more bitesize chunks  
     # this will make adding checked annotations to them much easier
     new_defs = definitions.split("\n\n")
     new_defs2 = definitions.split("\n\n") 
-    keywords = "int char struct double float".split(" ")
-
-    # read the checked generated file for new types
-    file = open(cname, "r") 
-    bug_generated = False
-    if proto != "multi" and flag == "": 
-        out = subprocess.Popen(['{}clang'.format(path_to_monorepo), '-c', cname], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) 
-        stdout, stderr = out.communicate()
-        stdout = str(stdout) 
-        if "error:" in stdout: 
-            bug_generated = True
-            name = prefix + proto + suffix + flag + "_BUG.c" 
-    elif flag == "": 
-        out = subprocess.Popen(['{}clang'.format(path_to_monorepo), '-c', cname, cname2], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) 
-        stdout, stderr = out.communicate()
-        stdout = str(stdout) 
-        if "error:" in stdout: 
-            bug_generated = True
-            name = prefix + suffix + proto + flag + "1_BUG.c"
-            name2 = prefix + suffix + proto + flag + "2_BUG.c"
-
-
     susprotoc = susc = fooc = barc = ""
-
-    # these boolean variables indicate which method definition we are in, so we know where to add
-    # our checked annotations later
-    indefs = insus = infoo = inbar = False 
-    inwarr = infptrarr = infptr = inarrfptr = False
-
-    # generate the check annotations
-    for line in file.readlines():   
-        # this indicates that we've reached the definitions
-        if line.find("struct general {") != -1: 
-            indefs = insus = infoo = inbar = False 
-            indefs = True
-
-        # annotate the prototype for sus
-        elif proto != "" and line.find("sus") != -1 and line.find("=") == -1 and line.find(";") != -1: 
-           indefs = insus = infoo = inbar = False
-           susprotoc += "//CHECK: " + line
-
-        # annotate the definition for sus
-        elif proto != "multi" and line.find("sus") != -1 and line.find("{") != -1: 
-            indefs = insus = infoo = inbar = False
-            insus = True
-            susc += "//CHECK: " + line
-
-        # annotate the definition for foo
-        elif line.find("foo") != -1:
-            indefs = insus = infoo = inbar = False
-            infoo = True 
-            fooc += "//CHECK: " + line  
-
-        # annotate the definition for bar
-        elif line.find("bar") != -1:  
-            indefs = insus = infoo = inbar = False
-            inbar = True 
-            barc += "//CHECK: " + line  
-
-        elif indefs: 
-            # struct general
-            if line.find("general") != -1 and line.find(";") != -1: 
-                new_defs[0] += "\n//CHECK: " + line
-
-            # struct warr
-            elif line.find("struct warr {") != -1: 
-                inwarr = True
-            elif line.find("data1") != -1 and inwarr: 
-                new_defs[1] += "\n//CHECK: " + line 
-            elif line.find("name") != -1 and inwarr: 
-                inwarr = False 
-                new_defs[1] += "//CHECK-NEXT: " + line 
-
-            # struct fptrarr
-            elif line.find("struct fptrarr {") != -1: 
-                infptrarr = True
-            elif line.find("values") != -1 and infptrarr: 
-                new_defs[2] += "\n//CHECK: " + line 
-            elif line.find("name") != -1 and infptrarr: 
-                new_defs[2] += "//CHECK-NEXT: " + line
-            elif line.find("mapper") != -1 and infptrarr: 
-                infptrarr = False 
-                new_defs[2] += "//CHECK-NEXT: " + line
-            
-            # struct fptr
-            elif line.find("struct fptr {") != -1: 
-                infptr = True
-            elif line.find("value") != -1 and infptr: 
-                new_defs[3] += "\n//CHECK: " + line 
-            elif line.find("func") != -1 and infptr: 
-                infptr = False 
-                new_defs[3] += "//CHECK-NEXT: " + line
-
-            # struct arrfptr
-            elif line.find("struct arrfptr {") != -1: 
-                inarrfptr = True
-            elif line.find("args") != -1 and inarrfptr: 
-                new_defs[4] += "\n//CHECK: " + line 
-            elif line.find("funcs") != -1 and inarrfptr: 
-                inarrfptr = False 
-                new_defs[4] += "//CHECK-NEXT: " + line
-                 
-            # mul2
-            elif line.find("mul2") != -1:
-                indefs = False
-                new_defs[-1] += "\n//CHECK: " + line 
-        
-        elif insus: 
-            if any(substr in line for substr in keywords) and line.find("*") != -1 and line.find("5;") == -1:
-                susc += "//CHECK: " + line
-        elif infoo: 
-            if any(substr in line for substr in keywords) and line.find("*") != -1:
-                fooc += "//CHECK: " + line 
-        elif inbar: 
-            if any(substr in line for substr in keywords) and line.find("*") != -1:
-                barc += "//CHECK: " + line
-    
-    if proto=="multi": 
-        file2 = open(cname2, "r")
-
-        for line in file2.readlines(): 
-            # this indicates that we've reached the definitions
-            if line.find("struct general {") != -1: 
-                indefs = insus = infoo = inbar = False 
-                indefs = True
-
-            # annotate the definition for sus
-            elif line.find("sus") != -1 and line.find("{") != -1: 
-                indefs = insus = infoo = inbar = False
-                insus = True
-                susc += "//CHECK: " + line
-
-            elif insus: 
-                if any(substr in line for substr in keywords) and line.find("*") != -1 and line.find("5;") == -1:
-                    susc += "//CHECK: " + line
-
-            elif indefs: 
-                # struct general
-                if line.find("general") != -1 and line.find(";") != -1: 
-                    new_defs2[0] += "\n//CHECK: " + line
-
-                # struct warr
-                elif line.find("struct warr {") != -1: 
-                    inwarr = True
-                elif line.find("data1") != -1 and inwarr: 
-                    new_defs2[1] += "\n//CHECK: " + line 
-                elif line.find("name") != -1 and inwarr: 
-                    inwarr = False 
-                    new_defs2[1] += "//CHECK-NEXT: " + line 
-
-                # struct fptrarr
-                elif line.find("struct fptrarr {") != -1: 
-                    infptrarr = True
-                elif line.find("values") != -1 and infptrarr: 
-                    new_defs2[2] += "\n//CHECK: " + line 
-                elif line.find("name") != -1 and infptrarr: 
-                    new_defs2[2] += "//CHECK-NEXT: " + line
-                elif line.find("mapper") != -1 and infptrarr: 
-                    infptrarr = False 
-                    new_defs2[2] += "//CHECK-NEXT: " + line
-            
-                # struct fptr
-                elif line.find("struct fptr {") != -1: 
-                    infptr = True
-                elif line.find("value") != -1 and infptr: 
-                    new_defs2[3] += "\n//CHECK: " + line 
-                elif line.find("func") != -1 and infptr: 
-                    infptr = False 
-                    new_defs2[3] += "//CHECK-NEXT: " + line
-
-                # struct arrfptr
-                elif line.find("struct arrfptr {") != -1: 
-                    inarrfptr = True
-                elif line.find("args") != -1 and inarrfptr: 
-                    new_defs2[4] += "\n//CHECK: " + line 
-                elif line.find("funcs") != -1 and inarrfptr: 
-                    inarrfptr = False 
-                    new_defs2[4] += "//CHECK-NEXT: " + line
-                 
-                # mul2
-                elif line.find("mul2") != -1:
-                    indefs = False
-                    new_defs2[-1] += "\n//CHECK: " + line 
-            
-        file2.close()
-    
+    file = open(cnameNOALL, "r") 
+    [new_defs, new_defs2, susprotoc, susc, fooc, barc] = process_file(file, cnameNOALL, cname2NOALL, proto, False, new_defs, new_defs2, susprotoc, susc, fooc, barc)
     file.close() 
-    os.system("rm {}".format(cname))
-    if proto=="multi": os.system("rm {}".format(cname2))
+    os.system("rm {}".format(cnameNOALL))
+    if proto=="multi": os.system("rm {}".format(cname2NOALL)) 
+
+    file = open(cnameALL, "r") 
+    [new_defs, new_defs2, susprotoc, susc, fooc, barc] = process_file(file, cnameALL, cname2ALL, proto, True, new_defs, new_defs2, susprotoc, susc, fooc, barc)
+    file.close() 
+    os.system("rm {}".format(cnameALL))
+    if proto=="multi": os.system("rm {}".format(cname2ALL)) 
 
     if bug_generated: 
-        cname = prefix + suffix + proto + flag + "1_BUG.checked.c"
-        cname2 = prefix + suffix + proto + flag + "2_BUG.checked.c"
+        cname = prefix + suffix + proto + "1_BUG.checked.c"
+        cname2 = prefix + suffix + proto + "2_BUG.checked.c"
         return
 
-    run = "// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s"
-    if flag=="": 
-        run = "// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s"
-        run += "\n//RUN: cconv-standalone -output-postfix=checked %s" 
-        run += "\n//RUN: %clang -Wno-everything -c %S/{}".format(cname)
-        run += "\n//RUN: rm %S/{}".format(cname)
+    run = "// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\" %s"
+    run += "\n//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\" %s"
+    run += "\n//RUN: cconv-standalone -output-postfix=checkedNOALL %s" 
+    run += "\n//RUN: %clang -c %S/{}".format(cnameNOALL)
+    run += "\n//RUN: rm %S/{}".format(cnameNOALL)
     run2 = ""
     if proto=="multi": 
-        run = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %s %S/" + name2 
-        if flag=="": 
-            run = "// RUN: cconv-standalone -base-dir=%S -output-postfix=checked %s %S/" + name2 
-            run += "\n//RUN: %clang -c %S/{} %S/{}".format(cname, cname2)
-        run += "\n//RUN: FileCheck -match-full-lines --input-file %S/{} %s".format(cname)
-        run += "\n//RUN: rm %S/{} %S/{}".format(cname, cname2)
-        cname21 = prefix + suffix + proto + flag + "1.checked2.c"
-        cname22 = prefix + suffix + proto + flag + "2.checked2.c" 
+        run = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/" + name2  
+        run += "\n// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/" + name2 
+        run += "\n//RUN: %clang -c %S/{} %S/{}".format(cnameNOALL, cname2NOALL)
+        run += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\" --input-file %S/{} %s".format(cnameNOALL) 
+        run += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\" --input-file %S/{} %s".format(cnameALL)
+        run += "\n//RUN: rm %S/{} %S/{}".format(cnameALL, cname2ALL)
+        run += "\n//RUN: rm %S/{} %S/{}".format(cnameNOALL, cname2NOALL)
+        cnameNOALL2 = prefix + suffix + proto + "1.checkedNOALL2.c"  
+        cnameALL2 = prefix + suffix + proto + "1.checkedALL2.c"
+        cname2NOALL2 = prefix + suffix + proto + "2.checkedNOALL2.c"  
+        cname2ALL2 = prefix + suffix + proto + "2.checkedALL2.c"
         if bug_generated: 
-            cname21 = prefix + suffix + proto + flag + "1_BUG.checked2.c" 
-            cname22 = prefix + suffix + proto + flag + "2_BUG.checked2.c"
-        run2 = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %s %S/" + name
-        if flag=="": run2 = "// RUN: cconv-standalone -base-dir=%S -output-postfix=checked2 %s %S/" + name
-        run2 += "\n//RUN: FileCheck -match-full-lines --input-file %S/{} %s".format(cname22) 
-        run2 += "\n//RUN: rm %S/{} %S/{}".format(cname21, cname22)
+            cname21 = prefix + suffix + proto + "1_BUG.checked2.c" 
+            cname22 = prefix + suffix + proto + "2_BUG.checked2.c"
+        run2 = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %s %S/" + name  
+        run2 += "\n// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %s %S/" + name 
+        run2 += "\n//RUN: %clang -c %S/{} %S/{}".format(cnameNOALL2, cname2NOALL2)
+        run2 += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\" --input-file %S/{} %s".format(cname2NOALL2) 
+        run2 += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\" --input-file %S/{} %s".format(cname2ALL2)
+        run2 += "\n//RUN: rm %S/{} %S/{}".format(cnameALL2, cname2ALL2)
+        run2 += "\n//RUN: rm %S/{} %S/{}".format(cnameNOALL2, cname2NOALL2)
 
     # generate the final file with all annotations
     ctest = run + comment + header + '\n\n'.join(new_defs) + sus + susc + foo + fooc + bar + barc
@@ -783,5 +799,5 @@ def annot_gen(prefix, proto, suffix, flag):
 if __name__ == "__main__": 
     os.system("rm *.checked*")
     for skeleton in testnames: 
-        annot_gen(skeleton[0], skeleton[1], skeleton[2], skeleton[3])
+        annot_gen(skeleton[0], skeleton[1], skeleton[2])
     os.system("rm *.checked*")

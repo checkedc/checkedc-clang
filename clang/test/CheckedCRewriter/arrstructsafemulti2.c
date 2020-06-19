@@ -1,6 +1,10 @@
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checked2 %s %S/arrstructsafemulti1.c
-//RUN: FileCheck -match-full-lines --input-file %S/arrstructsafemulti2.checked2.c %s
-//RUN: rm %S/arrstructsafemulti1.checked2.c %S/arrstructsafemulti2.checked2.c
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %s %S/arrstructsafemulti1.c
+// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %s %S/arrstructsafemulti1.c
+//RUN: %clang -c %S/arrstructsafemulti1.checkedNOALL2.c %S/arrstructsafemulti2.checkedNOALL2.c
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/arrstructsafemulti2.checkedNOALL2.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/arrstructsafemulti2.checkedALL2.c %s
+//RUN: rm %S/arrstructsafemulti1.checkedALL2.c %S/arrstructsafemulti2.checkedALL2.c
+//RUN: rm %S/arrstructsafemulti1.checkedNOALL2.c %S/arrstructsafemulti2.checkedNOALL2.c
 
 
 /*********************************************************************************/
@@ -29,15 +33,20 @@ struct general {
     int data; 
     struct general *next;
 };
-//CHECK:     _Ptr<struct general> next;
+//CHECK_NOALL:     _Ptr<struct general> next;
+
+//CHECK_ALL:     _Ptr<struct general> next;
 
 
 struct warr { 
     int data1[5];
     char *name;
 };
-//CHECK:     int data1[5];
-//CHECK-NEXT:     _Ptr<char> name;
+//CHECK_NOALL:     int data1[5];
+//CHECK_NOALL:     _Ptr<char> name;
+
+//CHECK_ALL:     int data1 _Checked[5];
+//CHECK_ALL:     _Ptr<char> name;
 
 
 struct fptrarr { 
@@ -45,25 +54,35 @@ struct fptrarr {
     char *name;
     int (*mapper)(int);
 };
-//CHECK:     _Ptr<int> values; 
-//CHECK-NEXT:     _Ptr<char> name;
-//CHECK-NEXT:     _Ptr<int (int )> mapper;
+//CHECK_NOALL:     _Ptr<int> values; 
+//CHECK_NOALL:     _Ptr<char> name;
+//CHECK_NOALL:     _Ptr<int (int )> mapper;
+
+//CHECK_ALL:     _Ptr<int> values; 
+//CHECK_ALL:     _Ptr<char> name;
+//CHECK_ALL:     _Ptr<int (int )> mapper;
 
 
 struct fptr { 
     int *value; 
     int (*func)(int);
 };  
-//CHECK:     _Ptr<int> value; 
-//CHECK-NEXT:     _Ptr<int (int )> func;
+//CHECK_NOALL:     _Ptr<int> value; 
+//CHECK_NOALL:     _Ptr<int (int )> func;
+
+//CHECK_ALL:     _Ptr<int> value; 
+//CHECK_ALL:     _Ptr<int (int )> func;
 
 
 struct arrfptr { 
     int args[5]; 
     int (*funcs[5]) (int);
 };
-//CHECK:     int args[5]; 
-//CHECK-NEXT:     int (*funcs[5]) (int);
+//CHECK_NOALL:     int args[5]; 
+//CHECK_NOALL:     int (*funcs[5]) (int);
+
+//CHECK_ALL:     int args _Checked[5]; 
+//CHECK_ALL:     _Ptr<int (int )> funcs _Checked[5];
 
 
 int add1(int x) { 
@@ -96,7 +115,9 @@ int *mul2(int *x) {
     return x;
 }
 
-//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+//CHECK_NOALL: _Ptr<int> mul2(_Ptr<int> x) { 
+
+//CHECK_ALL: _Ptr<int> mul2(_Ptr<int> x) { 
 
 int * sus(struct general * x, struct general * y) {
 x = (struct general *) 5;
@@ -107,5 +128,9 @@ x = (struct general *) 5;
         } 
         
 return z; }
-//CHECK: int * sus(struct general *x, struct general *y : itype(_Ptr<struct general>)) {
-//CHECK:         int *z = calloc(5, sizeof(int)); 
+//CHECK_NOALL: int * sus(struct general *x, _Ptr<struct general> y) {
+//CHECK_NOALL:         int *z = calloc(5, sizeof(int)); 
+//CHECK_NOALL:         _Ptr<struct general> p =  y;
+//CHECK_ALL: int * sus(struct general *x, _Ptr<struct general> y) {
+//CHECK_ALL:         int *z = calloc(5, sizeof(int)); 
+//CHECK_ALL:         _Ptr<struct general> p =  y;
