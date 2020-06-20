@@ -170,8 +170,7 @@ static bool do_solve(ConstraintsGraph &CG,
                      ConstraintsEnv & env,
                      Constraints *CS, bool doLeastSolution,
                      std::set<VarAtom *> *InitVs,
-                     Constraints::ConstraintSet &Conflicts,
-                     EdgeType edgeType) {
+                     Constraints::ConstraintSet &Conflicts) {
 
   std::vector<Atom *> WorkList;
   std::set<Implies *> FiredImplies;
@@ -193,7 +192,7 @@ static bool do_solve(ConstraintsGraph &CG,
 
       // get its neighbors
       std::set<Atom *> Neighbors;
-      CG.getNeighbors<VarAtom>(Curr, Neighbors, doLeastSolution, edgeType);
+      CG.getNeighbors<VarAtom>(Curr, Neighbors, doLeastSolution);
       // update each successor's solution
       for (auto *NeighborA : Neighbors) {
         bool Changed = false;
@@ -250,7 +249,7 @@ static bool do_solve(ConstraintsGraph &CG,
   std::set<Atom *> Neighbors;
   bool ok = true;
   for (ConstAtom *Cbound : CG.getAllConstAtoms()) {
-    if (CG.getNeighbors<VarAtom>(Cbound, Neighbors, !doLeastSolution, edgeType)) {
+    if (CG.getNeighbors<VarAtom>(Cbound, Neighbors, !doLeastSolution)) {
       for (Atom *A : Neighbors) {
         VarAtom *VA = dyn_cast<VarAtom>(A);
         assert (VA != nullptr && "bogus vertex");
@@ -297,7 +296,8 @@ auto isNonParamReturn =
     };
 
 bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
-  ConstraintsGraph CG;
+  ConstraintsGraph ChkCG;
+  ConstraintsGraph PtrTypCG;
   std::set<Implies *> SavedImplies;
   std::set<Implies *> Empty;
   ConstraintsEnv &env = environment;
@@ -308,7 +308,10 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
   // Setup the Checked Constraint Graph.
   for (const auto &C : constraints) {
     if (Geq *G = dyn_cast<Geq>(C)) {
-      CG.addConstraint(G, *this);
+      if (G->constraintIsChecked())
+	ChkCG.addConstraint(G, *this);
+      else
+        PtrTypCG.addConstraint(G, *this);
     }
     // Save the implies to solve them later.
     else if (Implies *Imp = dyn_cast<Implies>(C)) {
@@ -321,12 +324,13 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
   }
 
   if (DebugSolver) {
-    CG.dumpCGDot("initial_constraints_graph.dot");
+    GraphVizOutputGraph::dumpConstraintGraphs(
+        "initial_constraints_graph.dot", ChkCG, PtrTypCG);
   }
 
   // Solve Checked/unchecked constraints first
   env.doCheckedSolve(true);
-  bool res = do_solve(CG, SavedImplies, env, this, true, nullptr, Conflicts, Checked);
+  bool res = do_solve(ChkCG, SavedImplies, env, this, true, nullptr, Conflicts);
 
   // now solve PtrType constraints
   if (res && AllTypes) {
@@ -334,19 +338,19 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
 
     // Step 1: Greatest solution
     res =
-        do_solve(CG, Empty, env, this, false, nullptr, Conflicts, Ptype);
+        do_solve(PtrTypCG, Empty, env, this, false, nullptr, Conflicts);
 
     // Step 2: Reset all solutions but for function params, and compute the least
     if (res) {
       std::set<VarAtom *> rest = env.resetSolution(isNonParam, getNTArr());
-      res = do_solve(CG, Empty, env, this, true, &rest, Conflicts, Ptype);
+      res = do_solve(PtrTypCG, Empty, env, this, true, &rest, Conflicts);
 
       // Step 3: Reset local variable solutions, compute greatest
       if (res) {
         rest.clear();
         rest = env.resetSolution(isNonParamReturn, getPtr());
-        res = do_solve(CG, Empty, env, this, false, &rest,
-                       Conflicts, Ptype);
+        res = do_solve(PtrTypCG, Empty, env, this, false, &rest,
+                       Conflicts);
       }
     }
     // If PtrType solving (partly) failed, make the affected VarAtoms wild
@@ -365,8 +369,8 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
       }
       Conflicts.clear();
       /* FIXME: Should we propagate the old res? */
-      res = do_solve(CG, SavedImplies, env, this, true, &rest,
-                     Conflicts, Checked);
+      res = do_solve(ChkCG, SavedImplies, env, this, true, &rest,
+                     Conflicts);
 
     }
     // Final Step: Merge ptyp solution with checked solution
@@ -374,7 +378,8 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
   }
 
   if (DebugSolver) {
-    CG.dumpCGDot("implication_constraints_graph.dot");
+    GraphVizOutputGraph::dumpConstraintGraphs(
+        "implication_constraints_graph.dot", ChkCG, PtrTypCG);
   }
 
   return res;
