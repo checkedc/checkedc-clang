@@ -33,7 +33,7 @@ std::set<ConstAtom*> &ConstraintsGraph::getAllConstAtoms() {
   return AllConstAtoms;
 }
 
-std::set<std::pair<Atom*, Atom*>> ConstraintsGraph::getAllEdges() {
+std::set<std::pair<Atom*, Atom*>> ConstraintsGraph::getAllEdges() const {
   std::set<std::pair<Atom*, Atom*>> EdgeSet;
 
   typename graph_traits<DirectedGraphType>::edge_iterator I, IEnd;
@@ -46,7 +46,7 @@ std::set<std::pair<Atom*, Atom*>> ConstraintsGraph::getAllEdges() {
   return EdgeSet;
 }
 
-void ConstraintsGraph::addConstraint(Geq *C, Constraints &CS) {
+void ConstraintsGraph::addConstraint(Geq *C, const Constraints &CS) {
   Atom *A1 = C->getLHS();
   if (VarAtom *VA1 = clang::dyn_cast<VarAtom>(A1)) {
     assert(CS.getVar(VA1->getLoc()) == VA1);
@@ -61,7 +61,7 @@ void ConstraintsGraph::addConstraint(Geq *C, Constraints &CS) {
 }
 
 
-void GraphVizOutputGraph::mergeConstraintGraph(ConstraintsGraph Graph,
+void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph& Graph,
                                                EdgeType EdgeType) {
   for (auto E : Graph.getAllEdges()) {
     auto S = addVertex(E.first);
@@ -87,8 +87,8 @@ void GraphVizOutputGraph::dumpCGDot(const std::string& GraphDotFile) {
 }
 
 void GraphVizOutputGraph::dumpConstraintGraphs(const std::string &GraphDotFile,
-                                                     ConstraintsGraph Chk,
-                                                     ConstraintsGraph Pty) {
+                                               const ConstraintsGraph& Chk,
+                                               const ConstraintsGraph& Pty) {
   GraphVizOutputGraph OutGraph;
   OutGraph.mergeConstraintGraph(Chk, Checked);
   OutGraph.mergeConstraintGraph(Pty,Ptype);

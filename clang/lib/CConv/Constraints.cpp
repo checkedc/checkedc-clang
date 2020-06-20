@@ -309,7 +309,7 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
   for (const auto &C : constraints) {
     if (Geq *G = dyn_cast<Geq>(C)) {
       if (G->constraintIsChecked())
-	ChkCG.addConstraint(G, *this);
+        ChkCG.addConstraint(G, *this);
       else
         PtrTypCG.addConstraint(G, *this);
     }

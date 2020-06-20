@@ -48,14 +48,14 @@ public:
     AtomToVDMap.clear();
   }
 
-  void addConstraint(Geq *C, Constraints &CS);
+  void addConstraint(Geq *C, const Constraints &CS);
 
 
   // Get all ConstAtoms, basically the points
   // from where the constraint solving should begin.
   std::set<ConstAtom*> &getAllConstAtoms();
-
-  std::set<std::pair<Atom*,Atom*>> getAllEdges();
+  // FIXME: Drop this in favor of using an iterator with an llvm::function_ref
+  std::set<std::pair<Atom*,Atom*>> getAllEdges() const;
 
   // Get all successors of a given Atom which are of particular type.
   template <typename ConstraintType>
@@ -96,7 +96,7 @@ private:
 // Used during debugging to create a single graph that contains edges and nodes
 // from all constraint graphs. This single graph can then be printed to a file
 // in graphviz format.
-enum EdgeType { Checked, Ptype};
+enum EdgeType { Checked, Ptype };
 class GraphVizOutputGraph
     : public BaseGraph<
           adjacency_list<vecS, vecS, bidirectionalS, Atom *, EdgeType>> {
@@ -104,14 +104,14 @@ public:
   typedef adjacency_list<vecS, vecS, bidirectionalS, Atom *, EdgeType>
       DirectedGraphType;
 
-  void mergeConstraintGraph(ConstraintsGraph Graph, EdgeType EdgeType);
+  void mergeConstraintGraph(const ConstraintsGraph& Graph, EdgeType EdgeType);
 
   // Dump the graph to stdout in a dot format.
   void dumpCGDot(const std::string& GraphDotFile);
 
   static void dumpConstraintGraphs(const std::string &GraphDotFile,
-                                   ConstraintsGraph Chk,
-                                   ConstraintsGraph Pty);
+                                   const ConstraintsGraph& Chk,
+                                   const ConstraintsGraph& Pty);
 
 private:
   const std::string EdgeTypeColors[2] = { "red", "blue" };
