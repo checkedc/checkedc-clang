@@ -566,16 +566,38 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
   } else
     llvm_unreachable("unknown decl type");
 
-  // The Rewriter won't let us re-write things that are in macros. So, we 
-  // should check to see if what we just added was defined within a macro.
-  // If it was, we should constrain it to top. This is sad. Hopefully, 
-  // someday, the Rewriter will become less lame and let us re-write stuff
-  // in macros.
+  constrainWildIfMacro(S, D->getLocation());
+}
+
+// An analogous method to addVariable that create constraints for compound
+// literal expressions. This is required because compound literals contain
+// the type of the expressions which must be rewritten to generate correct
+// checked-c.
+void ProgramInfo::addCompoundLiteral(clang::CompoundLiteralExpr *CLE,
+                                     clang::ASTContext *AstContext) {
+  PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(CLE, *AstContext);
+  assert(PLoc.valid());
+  std::set<ConstraintVariable *> &S = Variables[PLoc];
+  if (S.size()) return;
+
+  PVConstraint *P = new PVConstraint(CLE->getType(), nullptr, "CLE", CS,
+                                     *AstContext, nullptr);
+  S.insert(P);
+
+  constrainWildIfMacro(S, CLE->getExprLoc());
+}
+
+// The Rewriter won't let us re-write things that are in macros. So, we
+// should check to see if what we just added was defined within a macro.
+// If it was, we should constrain it to top. This is sad. Hopefully,
+// someday, the Rewriter will become less lame and let us re-write stuff
+// in macros.
+void ProgramInfo::constrainWildIfMacro(std::set<ConstraintVariable *> S,
+                                       SourceLocation Location) {
   std::string Rsn = "Pointer in Macro declaration.";
-  if (!Rewriter::isRewritable(D->getLocation())) 
+  if (!Rewriter::isRewritable(Location))
     for (const auto &C : S)
       C->constrainToWild(CS, Rsn);
-
 }
 
 //std::string ProgramInfo::getUniqueDeclKey(Decl *D, ASTContext *C) {
@@ -696,6 +718,15 @@ std::set<ConstraintVariable *> ProgramInfo::getVariable(clang::Decl *D,
     }
     return std::set<ConstraintVariable *>();
   }
+}
+
+std::set<ConstraintVariable *>
+ProgramInfo::getCompoundLiteral(clang::CompoundLiteralExpr *CLE,
+                                clang::ASTContext *C) {
+  VariableMap::iterator I = Variables.find(PersistentSourceLoc::mkPSL(CLE, *C));
+  if (I != Variables.end())
+    return I->second;
+  return std::set<ConstraintVariable *>();
 }
 
 std::set<FVConstraint *> *

@@ -1419,6 +1419,46 @@ private:
 
 };
 
+// Visit every array compound literal expression (i.e., (int*[2]){&a, &b}) and
+// replace the type name with a new type based on constraint solution.
+class CompoundLiteralRewriter
+    : public clang::RecursiveASTVisitor<CompoundLiteralRewriter> {
+public:
+  explicit CompoundLiteralRewriter(ASTContext *C, ProgramInfo &I, Rewriter &R)
+      : Context(C), Info(I) , Writer(R) {}
+
+  bool VisitCompoundLiteralExpr(CompoundLiteralExpr *CLE) {
+    // When an compound literal was visited in constraint generation, a
+    // constraint variable for it was stored in program info.  There should be
+    // either zero or one of these.
+    std::set<ConstraintVariable *> CVSingleton = Info.getCompoundLiteral(CLE, Context);
+    if (CVSingleton.empty())
+      return true;
+    ConstraintVariable *CV = getOnly(CVSingleton);
+
+    // Only rewrite if the type has changed.
+    if(CV->anyChanges(Info.getConstraints().getVariables())){
+      // The constraint variable is able to tell us what the new type string
+      // should be.
+      std::string NewType = CV->mkString(Info.getConstraints().getVariables(),false);
+
+      // Replace the original type with this new one
+      SourceRange *TypeSrcRange =
+          new SourceRange(CLE->getBeginLoc().getLocWithOffset(1),
+                          CLE->getTypeSourceInfo()->getTypeLoc().getEndLoc());
+
+      if(canRewrite(Writer, *TypeSrcRange))
+        Writer.ReplaceText(*TypeSrcRange, NewType);
+    }
+    return true;
+  }
+
+private:
+  ASTContext *Context;
+  ProgramInfo &Info;
+  Rewriter &Writer;
+};
+
 std::map<std::string, std::string> RewriteConsumer::ModifiedFuncSignatures;
 
 std::string RewriteConsumer::getModifiedFuncSignature(std::string FuncName) {
@@ -1497,6 +1537,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   CheckedRegionFinder CRF(&Context, R, Info, seen, nodeMap);
   CheckedRegionAdder CRA(&Context, R, Info, nodeMap);
   CastPlacementVisitor ECPV(&Context, Info, R);
+  CompoundLiteralRewriter CLR(&Context, Info, R);
   for (auto &D : TUD->decls()) {
     V.TraverseDecl(D);
     FV.TraverseDecl(D);
@@ -1508,6 +1549,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
     }
 
     GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
+    CLR.TraverseDecl(D);
   }
 
   std::tie(PSLMap, VDLToStmtMap) = V.getResults();
