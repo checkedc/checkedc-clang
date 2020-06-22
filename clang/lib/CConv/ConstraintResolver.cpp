@@ -425,14 +425,13 @@ std::set<ConstraintVariable *>
 
     // { e1, e2, e3, ... }
     } else if (InitListExpr *ILE = dyn_cast<InitListExpr>(E)) {
-      if(ILE->getType()->isArrayType()) {
-        // Array initialization is similar AddrOf, so the same pattern is used
-        // where a new indirection is added to constraint variables.
-        std::vector<Expr *> SubExprs = ILE->inits().vec();
-        std::set<ConstraintVariable *> CVars =
-            getAllSubExprConstraintVars(SubExprs);
-        return addAtomAll(CVars, CS.getArr(), CS);
-      }
+      assert("InitListExpr for type other than array" && ILE->getType()->isArrayType());
+      // Array initialization is similar AddrOf, so the same pattern is used
+      // where a new indirection is added to constraint variables.
+      std::vector<Expr *> SubExprs = ILE->inits().vec();
+      std::set<ConstraintVariable *> CVars =
+          getAllSubExprConstraintVars(SubExprs);
+      return addAtomAll(CVars, CS.getArr(), CS);
 
     // "foo"
     } else if (clang::StringLiteral *exr = dyn_cast<clang::StringLiteral>(E)) {
