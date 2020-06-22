@@ -354,6 +354,21 @@ public:
     return true;
   }
 
+  bool VisitInitListExpr(InitListExpr *E){
+    if (E->getType()->isStructureType()) {
+      const RecordDecl *Definition =
+          E->getType()->getAsStructureType()->getDecl()->getDefinition();
+
+      unsigned int initIdx = 0;
+      const auto fields = Definition->fields();
+      for (auto it = fields.begin(); initIdx < E->getNumInits() && it != fields.end(); initIdx++, it++) {
+        Expr *InitExpr = E->getInit(initIdx);
+        CB.constrainLocalAssign(nullptr, *it, InitExpr);
+      }
+    }
+    return true;
+  }
+
   bool VisitFunctionDecl(FunctionDecl *D) {
     FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
 
