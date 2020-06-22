@@ -96,15 +96,15 @@ void PreorderAST::Create(ASTNode *N, Expr *E, ASTNode *Parent) {
   }
 }
 
-void PreorderAST::Sort(ASTNode *N, bool &Error) {
-  if (Error)
+void PreorderAST::Sort(ASTNode *N) {
+  if (GetError())
     return;
 
   if (!N || !N->Variables.size())
     return;
 
   if (!N->IsOpCommutativeAndAssociative()) {
-    Error = true;
+    SetError(true);
     return;
   }
 
@@ -114,12 +114,12 @@ void PreorderAST::Sort(ASTNode *N, bool &Error) {
                return a.Name.compare(b.Name) < 0;
              });
 
-  Sort(N->Left, Error);
-  Sort(N->Right, Error);
+  Sort(N->Left);
+  Sort(N->Right);
 }
 
-void PreorderAST::Normalize(ASTNode *N, bool &Error) {
-  Sort(N, Error);
+void PreorderAST::Normalize(ASTNode *N) {
+  Sort(N);
   // TODO: Coalesce nodes having the same commutative and associative operator.
 }
 

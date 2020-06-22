@@ -1,4 +1,4 @@
-//===------- PreorderAST.h: An n-ary preorder abstract syntax tree -------===//
+//===------r PreorderAST.h: An n-ary preorder abstract syntax tree -------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -95,17 +95,15 @@ namespace clang {
     void Create(ASTNode *N, Expr *E, ASTNode *Parent = nullptr);
 
     // Normalize the input expression through a series of transforms on the
-    // preorder AST.
-    // @param[in] N is the root of the AST.
-    // @param[out] Error is populated if an error is encountered during
+    // preorder AST. The Error field is set if an error is encountered during
     // normalization.
-    void Normalize(ASTNode *N, bool &Error);
-
-    // Sort the variables in a node of the AST.
     // @param[in] N is the root of the AST.
-    // @param[out] Error is populated if an error is encountered during
-    // sorting.
-    void Sort(ASTNode *N, bool &Error);
+    void Normalize(ASTNode *N);
+
+    // Sort the variables in a node of the AST. The Error field is set if an
+    // error is encountered during normalization.
+    // @param[in] N is the root of the AST.
+    void Sort(ASTNode *N);
 
     // Check if the two ASTs N1 and N2 are equal.
     // @param[in] N1 is the first AST.
@@ -138,13 +136,19 @@ namespace clang {
 
       AST = new ASTNode(Ctx);
       Create(AST, E);
-      Normalize(AST, Error);
+      Normalize(AST);
     }
 
-    // Check if an error has occurred during normalization of the expression.
+    // Check if an error has occurred during transformation of the AST.
     // @return Whether an error has occurred or not.
-    bool HasError() {
+    bool GetError() {
       return Error;
+    }
+
+    // Set Error in case an error occurs during transformation of the AST.
+    // @param[in] Err is the value to be set for the Error field.
+    void SetError(bool Err) {
+      Error = Err;
     }
 
     // Compare the current AST with the given AST. This in turn, invokes

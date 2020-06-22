@@ -229,13 +229,13 @@ Result Lexicographic::CompareExprSemantically(const Expr *Arg1,
    Expr *E2 = const_cast<Expr *>(Arg2);
 
    PreorderAST P1(Context, E1);
-   if (P1.HasError()) {
+   if (P1.GetError()) {
      P1.Cleanup();
      return CompareExpr(Arg1, Arg2);
    }
 
    PreorderAST P2(Context, E2);
-   if (P2.HasError()) {
+   if (P2.GetError()) {
      P2.Cleanup();
      return CompareExpr(Arg1, Arg2);
    }
