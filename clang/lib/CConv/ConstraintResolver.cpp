@@ -433,6 +433,12 @@ std::set<ConstraintVariable *>
         // where a new indirection is added to constraint variables.
         return addAtomAll(CVars, CS.getArr(), CS);
       } else {
+        // This branch should only be taken on compound literal expressions
+        // with pointer type (e.g. int *a = (int*){(int*) 1}). In particular,
+        // structure initialization should not reach here, as that caught by the
+        // non-pointer check at the top of this method.
+        assert("InitlistExpr of type other than array or pointer in "
+               "getExprConstraintVars" && ILE->getType()->isPointerType());
         return CVars;
       }
 
