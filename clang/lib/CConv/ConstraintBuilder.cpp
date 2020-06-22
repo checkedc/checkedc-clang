@@ -33,14 +33,16 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
       if (FE && FE->isValid()) {
         // We only want to re-write a record if it contains
         // any pointer types, to include array types.
-        for (const auto &D : Definition->fields())
+        for (const auto &D : Definition->fields()) {
+          Info.getABoundsInfo().insertVariable(D);
           if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
             Info.addVariable(D, Context);
-            if(FL.isInSystemHeader()) {
+            if (FL.isInSystemHeader()) {
               std::set<ConstraintVariable *> C = Info.getVariable(D, Context);
               CB.constraintAllCVarsToWild(C, "Field in header.", nullptr);
             }
           }
+        }
       }
     }
   }
@@ -64,6 +66,7 @@ public:
       }
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         if (VD->isLocalVarDecl()) {
+          Info.getABoundsInfo().insertVariable(VD);
           FullSourceLoc FL = Context->getFullLoc(VD->getBeginLoc());
           SourceRange SR = VD->getSourceRange();
           if (SR.isValid() && FL.isValid() &&
@@ -129,6 +132,7 @@ public:
     PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
     auto &CS = Info.getConstraints();
     std::set<ConstraintVariable *> FVCons;
+    FunctionDecl *TFD = nullptr;
 
     // figure out who we are calling
     if (D == nullptr) {
@@ -145,6 +149,7 @@ public:
       }
     } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       FVCons = Info.getVariable(FD, Context);
+      TFD = FD;
     } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {
       FVCons = Info.getVariable(DD, Context);
     }
@@ -172,6 +177,16 @@ public:
                   TargetFV->getParamVar(i);
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
                                   Wild_to_Safe, false, &Info);
+              if (AllTypes && TFD != nullptr && ParameterDC.empty() &&
+                  ArgumentConstraints.empty()) {
+                auto *PVD = TFD->getParamDecl(i);
+                auto &ABI = Info.getABoundsInfo();
+                BoundsKey PVKey, AGKey;
+                if (ABI.getVariable(PVD, PVKey) &&
+                    ABI.getVariable(A, *Context, AGKey)) {
+                  ABI.addAssignment(PVKey, AGKey);
+                }
+              }
             } else {
               // The argument passed to a function ith varargs; make it wild
               if (HandleVARARGS) {

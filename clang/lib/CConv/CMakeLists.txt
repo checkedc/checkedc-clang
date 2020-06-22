@@ -9,6 +9,9 @@ if (LLVM_BOOST_FOUND)
     else()
         # This is to populate the boost link libraries.
         add_clang_library(CConv
+          ABounds.cpp
+          AVarBoundsInfo.cpp
+          AVarGraph.cpp
           ArrayBoundsInferenceConsumer.cpp
           ArrayBoundsInformation.cpp
           CConv.cpp
@@ -22,6 +25,7 @@ if (LLVM_BOOST_FOUND)
           MappingVisitor.cpp
           PersistentSourceLoc.cpp
           ProgramInfo.cpp
+          ProgramVar.cpp
           RewriteUtils.cpp
           Utils.cpp
           LINK_LIBS

@@ -29,6 +29,7 @@
 #include "clang/Lex/Lexer.h"
 #include "clang/AST/ASTContext.h"
 
+#include "ProgramVar.h"
 #include "Constraints.h"
 
 using namespace clang;
@@ -68,10 +69,15 @@ protected:
   // A flag to indicate that we already forced argConstraints to be equated
   // Avoids infinite recursive calls.
   bool HasEqArgumentConstraints;
+  // Flag to indicate if this Constraint Variable has a bounds key.
+  bool ValidBoundsKey;
+  // Bounds key of this Constraint Variable.
+  BoundsKey BKey;
 
   // Only subclasses should call this
   ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) :
-      Kind(K),OriginalType(T),Name(N), HasEqArgumentConstraints(false) {}
+      Kind(K),OriginalType(T),Name(N), HasEqArgumentConstraints(false),
+      ValidBoundsKey(false) {}
 
 public:
   // Create a "for-rewriting" representation of this ConstraintVariable.
@@ -88,6 +94,11 @@ public:
   virtual void dump_json(llvm::raw_ostream &O) const = 0;
 
   virtual bool hasItype() = 0;
+  bool hasBoundsKey() { return ValidBoundsKey; }
+  BoundsKey getBoundsKey() {
+    assert(ValidBoundsKey && "No valid Bkey");
+    return BKey;
+  }
 
   virtual bool solutionEqualTo(Constraints &, ConstraintVariable *) = 0;
 
@@ -235,13 +246,13 @@ public:
   // constraint variable index. We don't need to explicitly pass
   // the name because it's available in 'D'.
   PointerVariableConstraint(clang::DeclaratorDecl *D,
-                            Constraints &CS, const clang::ASTContext &C);
+                            ProgramInfo &I, const clang::ASTContext &C);
 
   // Constructor for when we only have a Type. Needs a string name
   // N for the name of the variable that this represents.
   PointerVariableConstraint(const clang::QualType &QT,
                             clang::DeclaratorDecl *D, std::string N,
-                            Constraints &CS,
+                            ProgramInfo &I,
                             const clang::ASTContext &C,
                             std::string *inFunc = nullptr);
 
@@ -322,10 +333,10 @@ public:
                                  IsFunctionPtr(false) { }
 
   FunctionVariableConstraint(clang::DeclaratorDecl *D,
-                             Constraints &CS, const clang::ASTContext &C);
+                             ProgramInfo &I, const clang::ASTContext &C);
   FunctionVariableConstraint(const clang::Type *Ty,
                              clang::DeclaratorDecl *D, std::string N,
-                             Constraints &CS, const clang::ASTContext &C);
+                             ProgramInfo &I, const clang::ASTContext &C);
 
   std::set<ConstraintVariable *> &
   getReturnVars() { return returnVars; }
