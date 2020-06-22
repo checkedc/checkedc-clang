@@ -425,13 +425,36 @@ std::set<ConstraintVariable *>
 
     // { e1, e2, e3, ... }
     } else if (InitListExpr *ILE = dyn_cast<InitListExpr>(E)) {
-      assert("InitListExpr for type other than array" && ILE->getType()->isArrayType());
-      // Array initialization is similar AddrOf, so the same pattern is used
-      // where a new indirection is added to constraint variables.
       std::vector<Expr *> SubExprs = ILE->inits().vec();
       std::set<ConstraintVariable *> CVars =
           getAllSubExprConstraintVars(SubExprs);
-      return addAtomAll(CVars, CS.getArr(), CS);
+      if(ILE->getType()->isArrayType()) {
+        // Array initialization is similar AddrOf, so the same pattern is used
+        // where a new indirection is added to constraint variables.
+        return addAtomAll(CVars, CS.getArr(), CS);
+      } else {
+        // This branch should only be taken on compound literal expressions
+        // with pointer type (e.g. int *a = (int*){(int*) 1}). In particular,
+        // structure initialization should not reach here, as that caught by the
+        // non-pointer check at the top of this method.
+        assert("InitlistExpr of type other than array or pointer in "
+               "getExprConstraintVars" && ILE->getType()->isPointerType());
+        return CVars;
+      }
+
+    // (int[]){e1, e2, e3, ... }
+    } else if (CompoundLiteralExpr *CLE = dyn_cast<CompoundLiteralExpr>(E)) {
+      std::set<ConstraintVariable *> Vars = getExprConstraintVars(CLE->getInitializer());
+
+      FullSourceLoc FL = Context->getFullLoc(CLE->getBeginLoc());
+      SourceRange SR = CLE->getSourceRange();
+      if (SR.isValid() && FL.isValid())
+        Info.addCompoundLiteral(CLE, Context);
+      PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CLE, *Context);
+      std::set<ConstraintVariable *> L = Info.getCompoundLiteral(CLE, Context);
+      constrainConsVarGeq(L, Vars, Info.getConstraints(), &PL, Same_to_Same, false, &Info);
+
+      return Vars;
 
     // "foo"
     } else if (clang::StringLiteral *exr = dyn_cast<clang::StringLiteral>(E)) {
