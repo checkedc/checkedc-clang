@@ -115,6 +115,12 @@ namespace clang {
     // @param[in] N is the root node of the AST.
     void Cleanup(ASTNode *N);
 
+    // Set Error in case an error occurs during transformation of the AST.
+    // @param[in] Err is the value to be set for the Error field.
+    void SetError(bool Err) {
+      Error = Err;
+    }
+
     // Print the preorder AST.
     // @param[in] N is the root node of the AST.
     void PrettyPrint(ASTNode *N);
@@ -143,12 +149,6 @@ namespace clang {
     // @return Whether an error has occurred or not.
     bool GetError() {
       return Error;
-    }
-
-    // Set Error in case an error occurs during transformation of the AST.
-    // @param[in] Err is the value to be set for the Error field.
-    void SetError(bool Err) {
-      Error = Err;
     }
 
     // Compare the current AST with the given AST. This in turn, invokes
