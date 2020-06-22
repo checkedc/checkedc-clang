@@ -17,23 +17,23 @@ ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo,
                                 BoundsExpr *BExpr,
                                 const ASTContext &C) {
   ABounds *Ret = nullptr;
-  Expr *NrExpr = BExpr->IgnoreParenImpCasts();
+  CountBoundsExpr *CBE = dyn_cast<CountBoundsExpr>(BExpr->IgnoreParenCasts());
+  RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(BExpr->IgnoreParenCasts());
   BoundsKey VK;
-  if (BExpr->isElementCount()) {
-    assert(ABInfo->getVariable(NrExpr, C, VK) && "Unable to find bounds "
-                                                 "for count annotation.");
+  if (BExpr->isElementCount() && CBE) {
+
+    assert(ABInfo->getVariable(CBE->getCountExpr()->IgnoreParenCasts(), C, VK)
+           && "Unable to find bounds for count annotation.");
     Ret = new CountBound(VK);
   }
-  if (BExpr->isByteCount()) {
-    assert(ABInfo->getVariable(NrExpr, C, VK) && "Unable to find bounds for "
-                                                 "byte annotation.");
+  if (BExpr->isByteCount() && CBE) {
+    assert(ABInfo->getVariable(CBE->getCountExpr()->IgnoreParenCasts(), C, VK)
+           && "Unable to find bounds for byte annotation.");
     Ret = new ByteBound(VK);
   }
-  if (BExpr->isRange()) {
-    BinaryOperator *BO = dyn_cast<BinaryOperator>(NrExpr);
-    assert(BO->getOpcode() == BO_Comma && "Invalid range bounds");
-    Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
-    Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
+  if (BExpr->isRange() && RBE) {
+    Expr *LHS = RBE->getLowerExpr()->IgnoreParenCasts();
+    Expr *RHS = RBE->getUpperExpr()->IgnoreParenImpCasts();
     BoundsKey LV, RV;
     assert(ABInfo->getVariable(LHS, C, LV) && "Unable to find bounds for "
                                               "LHS of range annotation.");

@@ -166,7 +166,8 @@ bool AVarBoundsInfo::getVariable(clang::Expr *E,
   llvm::APSInt ConsVal;
   bool Ret = false;
   E = E->IgnoreParenCasts();
-  if (E->isIntegerConstantExpr(ConsVal, C)) {
+  if (E->getType()->isArithmeticType() &&
+      E->isIntegerConstantExpr(ConsVal, C)) {
     Res = getVarKey(ConsVal);
     Ret = true;
   } else if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
