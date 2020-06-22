@@ -33,17 +33,13 @@ std::set<ConstAtom*> &ConstraintsGraph::getAllConstAtoms() {
   return AllConstAtoms;
 }
 
-std::set<std::pair<Atom*, Atom*>> ConstraintsGraph::getAllEdges() const {
-  std::set<std::pair<Atom*, Atom*>> EdgeSet;
-
-  typename graph_traits<DirectedGraphType>::edge_iterator I, IEnd;
-  for (boost::tie(I, IEnd) = edges(CG); I != IEnd; ++I) {
-    auto s = source(*I, CG);
-    auto t = target(*I, CG);
-    EdgeSet.insert(std::pair<Atom*, Atom*>(CG[s], CG[t]));
+void ConstraintsGraph::forEachEdge(llvm::function_ref<void(Atom*,Atom*)> fn) const {
+  auto EI = boost::edges(CG);
+  for (auto E = EI.first; E != EI.second; ++E) {
+    auto s = source(*E, CG);
+    auto t = target(*E, CG);
+    fn(CG[s],CG[t]);
   }
-
-  return EdgeSet;
 }
 
 void ConstraintsGraph::addConstraint(Geq *C, const Constraints &CS) {
@@ -60,14 +56,13 @@ void ConstraintsGraph::addConstraint(Geq *C, const Constraints &CS) {
   add_edge(V2, V1, CG);
 }
 
-
 void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph& Graph,
                                                EdgeType EdgeType) {
-  for (auto E : Graph.getAllEdges()) {
-    auto S = addVertex(E.first);
-    auto T = addVertex(E.second);
-    add_edge(S, T, EdgeType, CG);
-  }
+  Graph.forEachEdge( [this, EdgeType] (Atom* S, Atom* T) {
+    auto SVertex = addVertex(S);
+    auto TVertex = addVertex(T);
+    add_edge(SVertex, TVertex, EdgeType, CG);
+  });
 }
 
 void GraphVizOutputGraph::dumpCGDot(const std::string& GraphDotFile) {

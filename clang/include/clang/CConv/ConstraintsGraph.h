@@ -54,8 +54,7 @@ public:
   // Get all ConstAtoms, basically the points
   // from where the constraint solving should begin.
   std::set<ConstAtom*> &getAllConstAtoms();
-  // FIXME: Drop this in favor of using an iterator with an llvm::function_ref
-  std::set<std::pair<Atom*,Atom*>> getAllEdges() const;
+  void forEachEdge(llvm::function_ref<void(Atom*,Atom*)>) const;
 
   // Get all successors of a given Atom which are of particular type.
   template <typename ConstraintType>
