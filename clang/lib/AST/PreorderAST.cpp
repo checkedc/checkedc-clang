@@ -17,20 +17,17 @@
 
 using namespace clang;
 
-bool PreorderAST::IsDeclOperand(Expr *E, DeclRefExpr *&D) {
+DeclRefExpr *PreorderAST::GetDeclOperand(Expr *E) {
   if (auto *CE = dyn_cast_or_null<CastExpr>(E)) {
     assert(CE->getSubExpr() && "invalid CastExpr expression");
 
     if (CE->getCastKind() == CastKind::CK_LValueToRValue ||
         CE->getCastKind() == CastKind::CK_ArrayToPointerDecay) {
       E = Lex.IgnoreValuePreservingOperations(Ctx, CE->getSubExpr());
-      if (auto *DRE = dyn_cast_or_null<DeclRefExpr>(E)) {
-        D = DRE;
-        return true;
-      }
+      return dyn_cast_or_null<DeclRefExpr>(E);
     }
   }
-  return false;
+  return nullptr;
 }
 
 void PreorderAST::Create(ASTNode *N, Expr *E, ASTNode *Parent) {
@@ -55,8 +52,7 @@ void PreorderAST::Create(ASTNode *N, Expr *E, ASTNode *Parent) {
 
   // If E is a variable, store its name in the variable list for the current
   // node. Initialize the count of the variable to 1.
-  DeclRefExpr *D;
-  if (IsDeclOperand(E, D)) {
+  if (DeclRefExpr *D = GetDeclOperand(E)) {
     if (const auto *V = dyn_cast_or_null<VarDecl>(D->getDecl())) {
       N->AddVar(V->getQualifiedNameAsString());
       return;

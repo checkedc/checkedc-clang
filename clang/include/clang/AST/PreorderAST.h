@@ -129,11 +129,8 @@ namespace clang {
     // case it is wrapped around a ArrayToPointerDecay cast) or to a pointer
     // dereference (in which case it is wrapped around an LValueToRValue cast).
     // @param[in] An expression E.
-    // @param[out] D is populated with the DeclRefExpr if E contains a
-    // DeclRefExpr.
-    // @return A bool indicating whether E is an expression containing a
-    // reference to an array subscript or a pointer dereference.
-    bool IsDeclOperand(Expr *E, DeclRefExpr *&D);
+    // @return Returns a DeclRefExpr if E is a DeclRefExpr, otherwise nullptr.
+    DeclRefExpr *GetDeclOperand(Expr *E);
 
   public:
     PreorderAST(ASTContext &Ctx, Expr *E) :
