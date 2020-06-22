@@ -96,11 +96,18 @@ private:
 // from all constraint graphs. This single graph can then be printed to a file
 // in graphviz format.
 enum EdgeType { Checked, Ptype };
+class EdgeProperties {
+public:
+  EdgeProperties(EdgeType Type, bool IsBidirectional);
+  EdgeType Type;
+  bool IsBidirectional;
+};
+
 class GraphVizOutputGraph
     : public BaseGraph<
-          adjacency_list<vecS, vecS, bidirectionalS, Atom *, EdgeType>> {
+          adjacency_list<vecS, vecS, bidirectionalS, Atom *, EdgeProperties *>> {
 public:
-  typedef adjacency_list<vecS, vecS, bidirectionalS, Atom *, EdgeType>
+  typedef adjacency_list<vecS, vecS, bidirectionalS, Atom *, EdgeProperties *>
       DirectedGraphType;
 
   void mergeConstraintGraph(const ConstraintsGraph& Graph, EdgeType EdgeType);
@@ -114,6 +121,7 @@ public:
 
 private:
   const std::string EdgeTypeColors[2] = { "red", "blue" };
+  const std::string EdgeDirections[2] = { "forward", "both" };
 };
 
 #endif // _CONSTRAINTSGRAPH_H

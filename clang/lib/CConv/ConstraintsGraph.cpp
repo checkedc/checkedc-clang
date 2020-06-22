@@ -61,7 +61,22 @@ void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph& Graph,
   Graph.forEachEdge( [this, EdgeType] (Atom* S, Atom* T) {
     auto SVertex = addVertex(S);
     auto TVertex = addVertex(T);
-    add_edge(SVertex, TVertex, EdgeType, CG);
+
+    // If an edge of the same type exists oriented the other direction, update
+    // the properties of that edge to indicate that it should be drawn as
+    // bidirectional.
+    auto OldEdge = edge(TVertex, SVertex, CG);
+    if (OldEdge.second) {
+      EdgeProperties *OldProps =  CG[OldEdge.first];
+      if(OldProps->Type == EdgeType) {
+        OldProps->IsBidirectional = true;
+        return;
+      }
+    }
+
+    // Otherwise, create a new edge that is not bidirectional.
+    EdgeProperties *EProps = new EdgeProperties(EdgeType, false);
+    add_edge(SVertex, TVertex, EProps, CG);
   });
 }
 
@@ -75,8 +90,10 @@ void GraphVizOutputGraph::dumpCGDot(const std::string& GraphDotFile) {
      [&] (std::ostream &out,
               boost::detail::edge_desc_impl<boost::bidirectional_tag,
                                             long unsigned int> e)  {
-       std::string Color = EdgeTypeColors[CG[e]];
-       out << "[color=\"" << Color << "\"]";
+       EdgeProperties *EProps = CG[e];
+       std::string Color = EdgeTypeColors[EProps->Type];
+       std::string Dir = EdgeDirections[EProps->IsBidirectional];
+       out << "[color=\"" << Color << "\" " << "dir=\"" << Dir <<"\"]";
      });
    DotFile.close();
 }
@@ -89,3 +106,6 @@ void GraphVizOutputGraph::dumpConstraintGraphs(const std::string &GraphDotFile,
   OutGraph.mergeConstraintGraph(Pty,Ptype);
   OutGraph.dumpCGDot(GraphDotFile);
 }
+
+EdgeProperties::EdgeProperties(EdgeType Type, bool IsBidirectional)
+    : Type(Type), IsBidirectional(IsBidirectional) {}
