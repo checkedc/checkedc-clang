@@ -572,30 +572,32 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     if (isAValidPVConstraint(Defn)) {
       // If this holds, then we want to insert a bounds safe interface.
       bool Constrained = Defn->anyChanges(CS.getVariables());
-      if (Constrained && Defn->anyArgumentIsWild(CS.getVariables())) {
-        // If definition is more precise
-        // than declaration emit an itype.
-        std::string PtypeS =
-            Defn->mkString(Info.getConstraints().getVariables(), false, true);
-        std::string bi =
-            Defn->getRewritableOriginalTy() + Defn->getName() + " : itype(" +
-            PtypeS + ")" +
-            ABRewriter.getBoundsString(Definition->getParamDecl(i), true);
-        ParmStrs.push_back(bi);
-        ParameterHandled = true;
-      } else if (Constrained) {
-        // Both the declaration and definition are same
-        // and they are safer than what was originally declared.
-        // Here we should emit a checked type!
-        std::string PtypeS =
-            Defn->mkString(Info.getConstraints().getVariables());
+      if (Constrained) {
+        // If the definition already has itype or there is no
+        // argument which is WILD.
+        if (Defn->hasItype() ||
+            !Defn->anyArgumentIsWild(CS.getVariables())) {
+          // Here we should emit a checked type, with an itype (if exists)
+          std::string PtypeS =
+              Defn->mkString(Info.getConstraints().getVariables());
 
-        // If there is no declaration?
-        // check the itype in definition.
-        PtypeS = PtypeS + getExistingIType(Defn) +
-                 ABRewriter.getBoundsString(Definition->getParamDecl(i));
+          // If there is no declaration?
+          // check the itype in definition.
+          PtypeS = PtypeS + getExistingIType(Defn) +
+              ABRewriter.getBoundsString(Definition->getParamDecl(i));
 
-        ParmStrs.push_back(PtypeS);
+          ParmStrs.push_back(PtypeS);
+        } else {
+          // Here, definition is checked type but at least one of the arguments
+          // is WILD.
+          std::string PtypeS =
+              Defn->mkString(Info.getConstraints().getVariables(), false, true);
+          std::string bi =
+              Defn->getRewritableOriginalTy() + Defn->getName() + " : itype(" +
+                  PtypeS + ")" +
+                  ABRewriter.getBoundsString(Definition->getParamDecl(i), true);
+          ParmStrs.push_back(bi);
+        }
         ParameterHandled = true;
       }
     }
@@ -619,24 +621,23 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     // Insert a bounds safe interface for the return.
     bool anyConstrained = Defn->anyChanges(CS.getVariables());
     if (anyConstrained) {
+      // This means we were able to infer that return type
+      // is a checked type.
       ReturnHandled = true;
       DidAny = true;
       std::string Ctype = "";
-      // Definition is more precise than use.
-      if (Defn->anyArgumentIsWild(CS.getVariables())) {
+      // If the definition has itype or there is no argument which is WILD?
+      if (Defn->hasItype() ||
+          !Defn->anyArgumentIsWild(CS.getVariables())) {
+        // Just get the checked itype
+        ReturnVar = Defn->mkString(Info.getConstraints().getVariables());
+        EndStuff = getExistingIType(Defn);
+      } else {
+        // One of the argument is WILD, emit an itype.
         Ctype =
             Defn->mkString(Info.getConstraints().getVariables(), true, true);
         ReturnVar = Defn->getRewritableOriginalTy();
         EndStuff = " : itype(" + Ctype + ")";
-      } else {
-        // This means we were able to infer that return type
-        // is a checked type.
-        // However, the function returns a less precise type, whereas
-        // all the uses of the function converts the return value
-        // into a more precise type.
-        // Do not change the type
-        ReturnVar = Defn->mkString(Info.getConstraints().getVariables());
-        EndStuff = getExistingIType(Defn);
       }
     }
   }
@@ -1035,9 +1036,6 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       bool FoundWild = false;
       std::set<ConstraintVariable *> CVSet = Info.getVariable(PVD, Context);
       for (auto Cv : CVSet) {
-	llvm::errs() << "\nCheckedRegion:\n";
-        Cv->dump();
-	llvm::errs() << "\n";
         if (Cv->hasWild(Info.getConstraints().getVariables())) {
           FoundWild = true;
         }

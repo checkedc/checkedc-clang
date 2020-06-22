@@ -165,6 +165,8 @@ public:
   static PointerVariableConstraint *getWildPVConstraint(Constraints &CS);
   static PointerVariableConstraint *getPtrPVConstraint(Constraints &CS);
   static PointerVariableConstraint *getNonPtrPVConstraint(Constraints &CS);
+  static PointerVariableConstraint *getNamedNonPtrPVConstraint(StringRef name, Constraints &CS);
+
 private:
   std::string BaseType;
   CAtoms vars;
@@ -264,7 +266,7 @@ public:
   void constrainToWild(Constraints &CS, std::string &Rsn);
   void constrainToWild(Constraints &CS, std::string &Rsn,
                        PersistentSourceLoc *PL);
-  void constrainOuterTo(Constraints &CS, ConstAtom *C);
+  void constrainOuterTo(Constraints &CS, ConstAtom *C, bool doLB = false);
   bool anyChanges(EnvironmentMap &E);
   bool anyArgumentIsWild(EnvironmentMap &E);
   bool hasWild(EnvironmentMap &E);

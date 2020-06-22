@@ -52,8 +52,15 @@ void Constraints::editConstraintHook(Constraint *C) {
           return;
         }
         // Make this checked only if the const atom is other than Ptr.
-        if (RHSA && !dyn_cast<PtrAtom>(E->getLHS())) {
-          E->setChecked(getWild());
+        if (RHSA) {
+          if (!dyn_cast<PtrAtom>(E->getLHS())) {
+            E->setChecked(getWild());
+          }
+        } else {
+          assert (LHSA && "Adding constraint between constants?!");
+          if (!dyn_cast<PtrAtom>(E->getRHS())) {
+            E->setChecked(getWild());
+          }
         }
       }
     }
@@ -302,7 +309,7 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
   for (const auto &C : constraints) {
     if (Geq *G = dyn_cast<Geq>(C)) {
       if (G->constraintIsChecked())
-	ChkCG.addConstraint(G, *this);
+        ChkCG.addConstraint(G, *this);
       else
         PtrTypCG.addConstraint(G, *this);
     }
@@ -315,8 +322,11 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
     else
       llvm_unreachable("Bogus constraint type");
   }
-  if (DebugSolver)
-    ChkCG.dumpCGDot("checked_constraints_graph.dot");
+
+  if (DebugSolver) {
+    GraphVizOutputGraph::dumpConstraintGraphs(
+        "initial_constraints_graph.dot", ChkCG, PtrTypCG);
+  }
 
   // Solve Checked/unchecked constraints first
   env.doCheckedSolve(true);
@@ -325,8 +335,6 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
   // now solve PtrType constraints
   if (res && AllTypes) {
     env.doCheckedSolve(false);
-    if (DebugSolver)
-      PtrTypCG.dumpCGDot("ptyp_constraints_graph.dot");
 
     // Step 1: Greatest solution
     res =
@@ -367,6 +375,11 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
     }
     // Final Step: Merge ptyp solution with checked solution
     env.mergePtrTypes();
+  }
+
+  if (DebugSolver) {
+    GraphVizOutputGraph::dumpConstraintGraphs(
+        "implication_constraints_graph.dot", ChkCG, PtrTypCG);
   }
 
   return res;

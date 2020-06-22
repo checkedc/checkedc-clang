@@ -76,7 +76,7 @@ std::set<ConstraintVariable *>
 // For each constraint variable either invoke addAtom to add an additional level
 // of indirection (when the constraint is PVConstraint), or return the constraint
 // unchanged (when the constraint is a function constraint).
-std::set<ConstraintVariable *> ConstraintResolver::addAtomAll(std::set<ConstraintVariable *> CVS, Atom *PtrTyp, Constraints &CS) {
+std::set<ConstraintVariable *> ConstraintResolver::addAtomAll(std::set<ConstraintVariable *> CVS, ConstAtom *PtrTyp, Constraints &CS) {
   std::set<ConstraintVariable *> Result;
   for (auto *CV : CVS) {
     if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
@@ -91,7 +91,7 @@ std::set<ConstraintVariable *> ConstraintResolver::addAtomAll(std::set<Constrain
 
 // Add to a PVConstraint one additional level of indirection
 // The pointer type of the new atom is constrained >= PtrTyp.
-PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, Atom *PtrTyp, Constraints &CS) {
+PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, ConstAtom *PtrTyp, Constraints &CS) {
   Atom *NewA = CS.getFreshVar("&"+(PVC->getName()), VarAtom::V_Other);
   CAtoms C = PVC->getCvars();
   if (!C.empty()) {
@@ -112,14 +112,15 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, Atom *PtrTyp, Const
   std::string d = PVC->getItype();
   PVConstraint *TmpPV = new PVConstraint(C, PVC->getTy(), PVC->getName(),
                                          b, a, c, d);
-  CS.addConstraint(CS.createGeq(NewA, PtrTyp, false));
+  TmpPV->constrainOuterTo(CS, PtrTyp, true);
   TempConstraintVars.insert(TmpPV);
   return TmpPV;
 }
 
 // Processes E from malloc(E) to discern the pointer type this will be
-static Atom *analyzeAllocExpr(Expr *E, Constraints &CS, QualType &ArgTy) {
-  Atom *ret = CS.getPtr();
+static ConstAtom *analyzeAllocExpr(Expr *E, Constraints &CS, QualType &ArgTy) {
+  ConstAtom *ret = CS.getPtr();
+  E = E->IgnoreParenImpCasts();
   BinaryOperator *B = dyn_cast<BinaryOperator>(E);
   std::set<Expr *> Exprs;
 
@@ -169,7 +170,12 @@ std::set<ConstraintVariable *>
 
     // Non-pointer (int, char, etc.) types have a special base PVConstraint
     if (TypE->isArithmeticType()) {
-      return PVConstraintFromType(TypE);
+      if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
+        // If we have a DeclRef, the PVC can get a meaningful name
+        return getBaseVarPVConstraint(DRE);
+      } else {
+        return PVConstraintFromType(TypE);
+      }
 
     // NULL
     } else if (isNULLExpression(E, *Context)) {
@@ -358,16 +364,16 @@ std::set<ConstraintVariable *>
           // FIXME: Should be treating malloc, realloc, calloc differently
           if (CE->getNumArgs() > 0) {
             QualType ArgTy;
-            Atom *A = analyzeAllocExpr(CE->getArg(0), CS, ArgTy);
+            ConstAtom *A = analyzeAllocExpr(CE->getArg(0), CS, ArgTy);
             if (A) {
               std::string N = FD->getName(); N = "&"+N;
-              PVConstraint *PVC =
-                  new PVConstraint(ArgTy, nullptr, N, CS,*Context);
-              TempConstraintVars.insert(PVC);
-              PVConstraint *PVCaddr = addAtom(PVC, A,CS);
-              ReturnCVs.insert(PVCaddr);
-              didInsert = true;
               ExprType = Context->getPointerType(ArgTy);
+              PVConstraint *PVC =
+                  new PVConstraint(ExprType, nullptr, N, CS, *Context);
+              TempConstraintVars.insert(PVC);
+              PVC->constrainOuterTo(CS,A,true);
+              ReturnCVs.insert(PVC);
+              didInsert = true;
             }
           }
           if (!didInsert)
@@ -450,11 +456,9 @@ std::set<ConstraintVariable *>
       // If this is a string literal. i.e., "foo".
       // We create a new constraint variable and constraint it to an Nt_array.
       std::set<ConstraintVariable *> T;
-      // Create a new constraint var number and make it NTArr.
-      CAtoms V;
-      V.push_back(CS.getNTArr());
-      ConstraintVariable *newC = new PointerVariableConstraint(
-          V, "const char*", exr->getBytes(), nullptr, false, false, "");
+      PVConstraint *newC = new PVConstraint(
+          exr->getType(), nullptr, "str", CS, *Context, nullptr);
+      newC->constrainOuterTo(CS, CS.getNTArr()); // NB: ARR already there
       TempConstraintVars.insert(newC);
       T.insert(newC);
       return T;
@@ -527,5 +531,12 @@ std::set<ConstraintVariable *> ConstraintResolver::PVConstraintFromType(QualType
     Ret.insert(PVConstraint::getWildPVConstraint(Info.getConstraints()));
   else
     llvm::errs() << "Warning: Returning non-base, non-wild type";
+  return Ret;
+}
+
+std::set<ConstraintVariable *> ConstraintResolver::getBaseVarPVConstraint(DeclRefExpr *Decl) {
+  assert(Decl->getType()->isArithmeticType());
+  std::set<ConstraintVariable *> Ret;
+  Ret.insert(PVConstraint::getNamedNonPtrPVConstraint(Decl->getDecl()->getName(), Info.getConstraints()));
   return Ret;
 }

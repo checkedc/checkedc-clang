@@ -392,11 +392,17 @@ public:
     Atom *getRHS(void) const { return rhs; }
 
     void setChecked(ConstAtom *C) {
-      assert(!isCheckedConstraint && llvm::isa<ConstAtom>(lhs));
-      lhs = rhs; // reverse direction for checked constraint
-      rhs = C;
+      assert(!isCheckedConstraint);
       isCheckedConstraint = true;
+      if (llvm::isa<ConstAtom>(lhs)) {
+        lhs = rhs; // reverse direction for checked constraint
+        rhs = C;
+      } else {
+        assert(llvm::isa<ConstAtom>(rhs));
+        rhs = C;
+      }
     }
+
     bool constraintIsChecked(void) const { return isCheckedConstraint; }
 
     bool operator==(const Constraint &Other) const {
