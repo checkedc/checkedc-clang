@@ -381,7 +381,7 @@ public:
         Stmt *Body = D->getBody();
         FunctionVisitor FV = FunctionVisitor(Context, Info, D);
         FV.TraverseStmt(Body);
-        AddArrayHeuristics(Context, Info, D);
+        AddMainFuncHeuristic(Context, Info, D);
       }
     }
 

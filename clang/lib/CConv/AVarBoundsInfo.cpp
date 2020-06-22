@@ -25,7 +25,7 @@ bool AVarBoundsInfo::isValidBoundVariable(clang::Decl *D) {
   return false;
 }
 
-void AVarBoundsInfo::insertBounds(clang::Decl *D, ABounds *B) {
+void AVarBoundsInfo::insertDeclaredBounds(clang::Decl *D, ABounds *B) {
   assert(isValidBoundVariable(D) && "Declaration not a valid bounds variable");
   BoundsKey BK;
   getVariable(D, BK);
@@ -50,6 +50,44 @@ bool AVarBoundsInfo::getVariable(clang::Decl *D, BoundsKey &R) {
     return true;
   }
   return false;
+}
+
+bool AVarBoundsInfo::mergeBounds(BoundsKey L, ABounds *B) {
+  bool RetVal = false;
+  if (BInfo.find(L) != BInfo.end()) {
+    // If previous computed bounds are not same? Then release the old bounds.
+    if (!BInfo[L]->areSame(B)) {
+      InvalidBounds.insert(L);
+      delete (BInfo[L]);
+      BInfo.erase(L);
+    }
+  } else {
+    BInfo[L] = B;
+    RetVal = true;
+  }
+  return RetVal;
+}
+
+bool AVarBoundsInfo::removeBounds(BoundsKey L) {
+  bool RetVal = false;
+  if (BInfo.find(L) != BInfo.end()) {
+    delete (BInfo[L]);
+    BInfo.erase(L);
+    RetVal = true;
+  }
+  return RetVal;
+}
+
+bool AVarBoundsInfo::replaceBounds(BoundsKey L, ABounds *B) {
+  removeBounds(L);
+  return mergeBounds(L, B);
+}
+
+ABounds *AVarBoundsInfo::getBounds(BoundsKey L) {
+  if (BInfo.find(L) != BInfo.end()) {
+    return BInfo[L];
+  }
+  return nullptr;
 }
 
 void AVarBoundsInfo::insertVariable(clang::Decl *D) {
@@ -98,9 +136,10 @@ BoundsKey AVarBoundsInfo::getVariable(clang::ParmVarDecl *PVD) {
   assert(ParamIdx >= 0 && "Unable to find parameter.");
   if (ParamDeclVarMap.find(ParamKey) == ParamDeclVarMap.end()) {
     BoundsKey NK = ++BCount;
-    FunctionScope *FS =
-        FunctionScope::getFunctionScope(FD->getNameAsString(), FD->isStatic());
-    auto *PVar = new ProgramVar(NK, PVD->getNameAsString(), FS);
+    FunctionParamScope *FPS =
+        FunctionParamScope::getFunctionParamScope(FD->getNameAsString(),
+                                                  FD->isStatic());
+    auto *PVar = new ProgramVar(NK, PVD->getNameAsString(), FPS);
     insertProgramVar(NK, PVar);
     ParamDeclVarMap[ParamKey] = NK;
   }
@@ -177,16 +216,20 @@ BoundsKey AVarBoundsInfo::getVarKey(PersistentSourceLoc &PSL) {
   return DeclVarMap[PSL];
 }
 
-BoundsKey AVarBoundsInfo::getVarKey(llvm::APSInt &API) {
-  if (ConstVarKeys.find(API) == ConstVarKeys.end()) {
+BoundsKey AVarBoundsInfo::getConstKey(uint64_t value) {
+  if (ConstVarKeys.find(value) == ConstVarKeys.end()) {
     BoundsKey NK = ++BCount;
-    ConstVarKeys[API] = NK;
-    std::string ConsString = std::to_string(API.abs().getZExtValue());
+    ConstVarKeys[value] = NK;
+    std::string ConsString = std::to_string(value);
     ProgramVar *NPV = new ProgramVar(NK, ConsString,
                                      GlobalScope::getGlobalScope(), true);
     insertProgramVar(NK, NPV);
   }
-  return ConstVarKeys[API];
+  return ConstVarKeys[value];
+}
+
+BoundsKey AVarBoundsInfo::getVarKey(llvm::APSInt &API) {
+  return getConstKey(API.abs().getZExtValue());
 }
 
 void AVarBoundsInfo::insertVarKey(PersistentSourceLoc &PSL, BoundsKey NK) {

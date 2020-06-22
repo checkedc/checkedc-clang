@@ -18,12 +18,15 @@ ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo,
                                 const ASTContext &C) {
   ABounds *Ret = nullptr;
   Expr *NrExpr = BExpr->IgnoreParenImpCasts();
+  BoundsKey VK;
   if (BExpr->isElementCount()) {
-    BoundsKey VK = ABInfo->getVariable(NrExpr, C);
+    assert(ABInfo->getVariable(NrExpr, C, VK) && "Unable to find bounds "
+                                                 "for count annotation.");
     Ret = new CountBound(VK);
   }
   if (BExpr->isByteCount()) {
-    BoundsKey VK = ABInfo->getVariable(NrExpr, C);
+    assert(ABInfo->getVariable(NrExpr, C, VK) && "Unable to find bounds for "
+                                                 "byte annotation.");
     Ret = new ByteBound(VK);
   }
   if (BExpr->isRange()) {
@@ -31,8 +34,11 @@ ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo,
     assert(BO->getOpcode() == BO_Comma && "Invalid range bounds");
     Expr *LHS = BO->getLHS()->IgnoreParenImpCasts();
     Expr *RHS = BO->getRHS()->IgnoreParenImpCasts();
-    BoundsKey LV = ABInfo->getVariable(LHS, C);
-    BoundsKey RV = ABInfo->getVariable(RHS, C);
+    BoundsKey LV, RV;
+    assert(ABInfo->getVariable(LHS, C, LV) && "Unable to find bounds for "
+                                              "LHS of range annotation.");
+    assert(ABInfo->getVariable(RHS, C, RV) && "Unable to find bounds for "
+                                              "LHS of range annotation.");
     Ret = new RangeBound(LV, RV);
   }
   return Ret;

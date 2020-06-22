@@ -150,7 +150,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       BoundsExpr *BExpr = BA.getBoundsExpr();
       if (BExpr != nullptr) {
         ABounds *NewB = ABounds::getBoundsInfo(&ABInfo, BExpr, C);
-        ABInfo.insertBounds(D, NewB);
+        ABInfo.insertDeclaredBounds(D, NewB);
       }
     }
 

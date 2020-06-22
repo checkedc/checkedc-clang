@@ -16,6 +16,8 @@ GlobalScope *GlobalScope::ProgScope = nullptr;
 std::map<std::string, StructScope*> StructScope::StScopeMap;
 std::map<std::pair<std::string, bool>, FunctionScope*>
     FunctionScope::FnScopeMap;
+std::map<std::pair<std::string, bool>, FunctionParamScope*>
+    FunctionParamScope::FnParmScopeMap;
 
 GlobalScope *GlobalScope::getGlobalScope() {
   if (ProgScope == nullptr) {
@@ -29,6 +31,15 @@ StructScope *StructScope::getStructScope(std::string StName) {
     StScopeMap[StName] = new StructScope(StName);
   }
   return StScopeMap[StName];
+}
+
+FunctionParamScope *FunctionParamScope::getFunctionParamScope(
+    std::string FnName, bool IsSt) {
+  auto MapK = std::make_pair(FnName, IsSt);
+  if (FnParmScopeMap.find(MapK) == FnParmScopeMap.end()) {
+    FnParmScopeMap[MapK] = new FunctionParamScope(FnName, IsSt);
+  }
+  return FnParmScopeMap[MapK];
 }
 
 FunctionScope *FunctionScope::getFunctionScope(std::string FnName, bool IsSt) {

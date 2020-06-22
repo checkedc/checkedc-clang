@@ -1405,16 +1405,18 @@ void ArrayBoundsRewriter::computeArrayBounds() {
 std::string ArrayBoundsRewriter::getBoundsString(Decl *D, bool Isitype) {
   std::string BString = "";
   std::string BVarString = "";
-  auto &ArrBInfo = Info.getArrayBoundsInformation();
-
-  if (ArrBInfo.hasBoundsInformation(D))
-    BVarString = ArrBInfo.getBoundsInformation(D).second;
-
-  if (BVarString.length() > 0) {
-    // For itype we do not need ":".
-    if (!Isitype)
-      BString = ":";
-    BString += " count(" + BVarString + ")";
+  auto &ABInfo = Info.getABoundsInfo();
+  BoundsKey DK;
+  if (ABInfo.getVariable(D, DK)) {
+    ABounds *ArrB = ABInfo.getBounds(DK);
+    if (ArrB != nullptr) {
+      BString = ArrB->mkString(&ABInfo);
+      if (!BString.empty()) {
+        // For itype we do not need ":".
+        std::string Pfix = Isitype ? " " : " : ";
+        BString = Pfix + BString;
+      }
+    }
   }
   return BString;
 }

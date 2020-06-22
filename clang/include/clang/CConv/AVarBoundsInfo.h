@@ -18,6 +18,38 @@
 #include "clang/AST/Decl.h"
 #include "clang/CConv/PersistentSourceLoc.h"
 
+// Class that maintains stats about how the bounds of various variables is
+// computed.
+class AVarBoundsStats {
+public:
+  // Found by using variables that start with same prefix as the corresponding
+  // array variable.
+  std::set<BoundsKey> NamePrefixMatch;
+  // Found by using allocation sites.
+  std::set<BoundsKey> AllocatorMatch;
+  // Found by using variable names that match size related words.
+  std::set<BoundsKey> VariableNameMatch;
+  // Neighbour scalar parameter match.
+  std::set<BoundsKey> NeighbourParamMatch;
+  // These are dataflow matches i.e., matches found by dataflow analysis
+  std::set<BoundsKey> DataflowMatch;
+  AVarBoundsStats() {
+    clear();
+  }
+  ~AVarBoundsStats() {
+    clear();
+  }
+private:
+  void clear() {
+    NamePrefixMatch.clear();
+    AllocatorMatch.clear();
+    VariableNameMatch.clear();
+    NeighbourParamMatch.clear();
+    DataflowMatch.clear();
+  }
+
+};
+
 class AVarBoundsInfo {
 public:
   AVarBoundsInfo() {
@@ -30,7 +62,12 @@ public:
 
   // Checks if the given declaration is a valid bounds variable.
   bool isValidBoundVariable(clang::Decl *D);
-  void insertBounds(clang::Decl *D, ABounds *B);
+
+  void insertDeclaredBounds(clang::Decl *D, ABounds *B);
+  bool mergeBounds(BoundsKey L, ABounds *B);
+  bool removeBounds(BoundsKey L);
+  bool replaceBounds(BoundsKey L, ABounds *B);
+  ABounds *getBounds(BoundsKey L);
 
   // Try and get BoundsKey, into R, for the given declaration. If the declaration
   // does not have a BoundsKey then return false.
@@ -45,6 +82,8 @@ public:
 
   BoundsKey getVariable(clang::FieldDecl *FD);
 
+  BoundsKey getConstKey(uint64_t value);
+
   bool getVariable(clang::Expr *E, const ASTContext &C, BoundsKey &R);
 
   bool addAssignment(clang::Decl *L, clang::Decl *R);
@@ -56,23 +95,29 @@ public:
   // Get the ProgramVar for the provided VarKey.
   ProgramVar *getProgramVar(BoundsKey VK);
 
+  AVarBoundsStats &getBStats() { return BoundsInferStats; }
+
 private:
   // Variable that is used to generate new bound keys.
   BoundsKey BCount;
   // Map of VarKeys and corresponding program variables.
   std::map<BoundsKey, ProgramVar *> PVarInfo;
   // Map of APSInt (constants) and corresponding VarKeys.
-  std::map<llvm::APSInt, BoundsKey> ConstVarKeys;
+  std::map<uint64_t, BoundsKey> ConstVarKeys;
   // Map of Persistent source loc and  corresponding bounds information.
   // Note that although each PSL could have multiple ConstraintKeys Ex: **p.
   // Only the outer most pointer can have bounds.
   std::map<BoundsKey, ABounds *> BInfo;
+  // Set that contains BoundsKeys of variables which have invalid bounds.
+  std::set<BoundsKey> InvalidBounds;
   // Map of Persistent source loc and BoundsKey of regular variables.
   std::map<PersistentSourceLoc, BoundsKey> DeclVarMap;
   // Map of parameter keys and BoundsKey for function parameters.
   std::map<std::tuple<std::string, bool, unsigned>, BoundsKey> ParamDeclVarMap;
   // Graph of all program variables.
   AVarGraph ProgVarGraph;
+  // Stats on techniques used to find length for various variables.
+  AVarBoundsStats BoundsInferStats;
 
   bool hasVarKey(PersistentSourceLoc &PSL);
 

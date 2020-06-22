@@ -25,6 +25,8 @@ public:
   enum ScopeKind {
     // Function scope.
     FunctionScopeKind,
+    // Function parameter scope.
+    FunctionParamScopeKind,
     // Struct scope.
     StructScopeKind,
     // Global scope.
@@ -106,6 +108,44 @@ private:
   static std::map<std::string, StructScope*> StScopeMap;
 };
 
+class FunctionParamScope : public ProgramVarScope {
+public:
+  FunctionParamScope(std::string FN, bool IsSt) :
+      ProgramVarScope(FunctionParamScopeKind),
+      FName(FN), IsStatic(IsSt) { }
+
+  virtual ~FunctionParamScope() { }
+
+  static bool classof(const ProgramVarScope *S) {
+    return S->getKind() == FunctionParamScopeKind;
+  }
+
+  bool operator==(const ProgramVarScope &O) const {
+    if (const FunctionParamScope *FPS = clang::dyn_cast<FunctionParamScope>(&O)) {
+      return (FPS->FName == FName && FPS->IsStatic == IsStatic);
+    }
+    return false;
+  }
+
+  bool operator!=(const ProgramVarScope &O) const {
+    return !(*this == O);
+  }
+
+  bool operator<(const ProgramVarScope &O) const {
+    return clang::isa<GlobalScope>(&O);
+  }
+
+  static FunctionParamScope *getFunctionParamScope(std::string FnName,
+                                                   bool IsSt);
+
+private:
+  std::string FName;
+  bool IsStatic;
+
+  static std::map<std::pair<std::string, bool>,
+                  FunctionParamScope*> FnParmScopeMap;
+};
+
 class FunctionScope : public ProgramVarScope {
 public:
   FunctionScope(std::string FN, bool IsSt) :
@@ -148,6 +188,8 @@ public:
       K(VK), VarName(VName), VScope(PVS), IsConstant(IsCons) { }
   ProgramVar(BoundsKey VK, std::string VName, ProgramVarScope *PVS) :
       ProgramVar(VK, VName, PVS, false) { }
+  ProgramVarScope *getScope() { return VScope; }
+  bool IsNumConstant() { return IsConstant; }
   std::string mkString(bool GetKey = false);
   virtual ~ProgramVar() { }
 private:
