@@ -169,7 +169,7 @@ std::set<ConstraintVariable *>
     E = E->IgnoreParens();
 
     // Non-pointer (int, char, etc.) types have a special base PVConstraint
-    if (TypE->isArithmeticType()) {
+    if (TypE->isStructureType() || TypE->isArithmeticType()) {
       if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
         // If we have a DeclRef, the PVC can get a meaningful name
         return getBaseVarPVConstraint(DRE);
@@ -211,9 +211,6 @@ std::set<ConstraintVariable *>
 
     // variable (x)
     } else if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
-      if(TypE->isStructureType()) {
-        return PVConstraintFromType(TypE);
-      }
       return Info.getVariable(DRE->getDecl(), Context);
 
     // x.f
@@ -435,20 +432,6 @@ std::set<ConstraintVariable *>
         std::set<ConstraintVariable *> CVars =
             getAllSubExprConstraintVars(SubExprs);
         return addAtomAll(CVars, CS.getArr(), CS);
-      } else if (ILE->getType()->isStructureType()) {
-        // Struct initialization is treated as a series of assignments to the
-        // fields of the struct.
-        const RecordDecl *Definition =
-            ILE->getType()->getAsStructureType()->getDecl()->getDefinition();
-        int initIdx = 0;
-        for (const auto &D : Definition->fields()) {
-          std::set<ConstraintVariable *> DefCVars = Info.getVariable(D, Context);
-          Expr *InitExpr = ILE->getInit(initIdx);
-          std::set<ConstraintVariable *> InitCVars = getExprConstraintVars(InitExpr);
-          constrainLocalAssign(nullptr, D, InitExpr);
-          initIdx++;
-        }
-        return PVConstraintFromType(TypE);
       }
 
     // "foo"
@@ -535,7 +518,7 @@ std::set<ConstraintVariable *> ConstraintResolver::PVConstraintFromType(QualType
 }
 
 std::set<ConstraintVariable *> ConstraintResolver::getBaseVarPVConstraint(DeclRefExpr *Decl) {
-  assert(Decl->getType()->isArithmeticType());
+  assert(Decl->getType()->isStructureType() || Decl->getType()->isArithmeticType());
   std::set<ConstraintVariable *> Ret;
   Ret.insert(PVConstraint::getNamedNonPtrPVConstraint(Decl->getDecl()->getName(), Info.getConstraints()));
   return Ret;
