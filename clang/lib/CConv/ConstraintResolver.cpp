@@ -541,6 +541,15 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
 
   constrainConsVarGeq(V, RHSCons, Info.getConstraints(), PLPtr, CAction, false,
                       &Info);
+
+  if (AllTypes && V.empty() && RHSCons.empty()) {
+    BoundsKey LKey, RKey;
+    auto &ABI = Info.getABoundsInfo();
+    if (ABI.getVariable(D, LKey) &&
+        ABI.getVariable(RHS, *Context, RKey)) {
+      ABI.addAssignment(LKey, RKey);
+    }
+  }
 }
 
 std::set<ConstraintVariable *> ConstraintResolver::getWildPVConstraint() {
