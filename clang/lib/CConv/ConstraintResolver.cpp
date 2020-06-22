@@ -448,9 +448,8 @@ std::set<ConstraintVariable *>
 
       FullSourceLoc FL = Context->getFullLoc(CLE->getBeginLoc());
       SourceRange SR = CLE->getSourceRange();
-      if (SR.isValid() && FL.isValid()) {
+      if (SR.isValid() && FL.isValid())
         Info.addCompoundLiteral(CLE, Context);
-      }
       PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CLE, *Context);
       std::set<ConstraintVariable *> L = Info.getCompoundLiteral(CLE, Context);
       constrainConsVarGeq(L, Vars, Info.getConstraints(), &PL, Same_to_Same, false, &Info);

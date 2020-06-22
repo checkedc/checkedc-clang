@@ -1396,25 +1396,23 @@ public:
     // constraint variable for it was stored in program info.  There should be
     // either zero or one of these.
     std::set<ConstraintVariable *> CVSingleton = Info.getCompoundLiteral(CLE, Context);
-    if (CVSingleton.empty()) {
+    if (CVSingleton.empty())
       return true;
-    }
     ConstraintVariable *CV = getOnly(CVSingleton);
 
     // Only rewrite if the type has changed.
     if(CV->anyChanges(Info.getConstraints().getVariables())){
       // The constraint variable is able to tell us what the new type string
       // should be.
-      std::string newType = CV->mkString(Info.getConstraints().getVariables(),false);
+      std::string NewType = CV->mkString(Info.getConstraints().getVariables(),false);
 
       // Replace the original type with this new one
       SourceRange *TypeSrcRange =
           new SourceRange(CLE->getBeginLoc().getLocWithOffset(1),
                           CLE->getTypeSourceInfo()->getTypeLoc().getEndLoc());
 
-      if(canRewrite(Writer, *TypeSrcRange)) {
-        Writer.ReplaceText(*TypeSrcRange, newType);
-      }
+      if(canRewrite(Writer, *TypeSrcRange))
+        Writer.ReplaceText(*TypeSrcRange, NewType);
     }
     return true;
   }

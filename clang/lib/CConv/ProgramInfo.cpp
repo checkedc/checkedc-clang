@@ -574,14 +574,14 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
 // the type of the expressions which must be rewritten to generate correct
 // checked-c.
 void ProgramInfo::addCompoundLiteral(clang::CompoundLiteralExpr *CLE,
-                                     clang::ASTContext *astContext) {
-  PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(CLE, *astContext);
+                                     clang::ASTContext *AstContext) {
+  PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(CLE, *AstContext);
   assert(PLoc.valid());
   std::set<ConstraintVariable *> &S = Variables[PLoc];
   if (S.size()) return;
 
   PVConstraint *P = new PVConstraint(CLE->getType(), nullptr, "CLE", CS,
-                                     *astContext, nullptr);
+                                     *AstContext, nullptr);
   S.insert(P);
 
   constrainWildIfMacro(S, CLE->getExprLoc());
@@ -593,13 +593,11 @@ void ProgramInfo::addCompoundLiteral(clang::CompoundLiteralExpr *CLE,
 // someday, the Rewriter will become less lame and let us re-write stuff
 // in macros.
 void ProgramInfo::constrainWildIfMacro(std::set<ConstraintVariable *> S,
-                                       SourceLocation location) {
+                                       SourceLocation Location) {
   std::string Rsn = "Pointer in Macro declaration.";
-  if (!Rewriter::isRewritable(location)) {
-    for (const auto &C : S) {
+  if (!Rewriter::isRewritable(Location))
+    for (const auto &C : S)
       C->constrainToWild(CS, Rsn);
-    }
-  }
 }
 
 //std::string ProgramInfo::getUniqueDeclKey(Decl *D, ASTContext *C) {
@@ -726,9 +724,8 @@ std::set<ConstraintVariable *>
 ProgramInfo::getCompoundLiteral(clang::CompoundLiteralExpr *CLE,
                                 clang::ASTContext *C) {
   VariableMap::iterator I = Variables.find(PersistentSourceLoc::mkPSL(CLE, *C));
-  if (I != Variables.end()) {
+  if (I != Variables.end())
     return I->second;
-  }
   return std::set<ConstraintVariable *>();
 }
 
