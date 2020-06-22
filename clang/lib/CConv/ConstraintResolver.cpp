@@ -279,7 +279,6 @@ std::set<ConstraintVariable *>
     // ++e, &e, *e, etc.
     } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
       Expr *UOExpr = UO->getSubExpr();
-      std::set<ConstraintVariable *> T;
       switch (UO->getOpcode()) {
       // &e
       // C99 6.5.3.2: "The operand of the unary & operator shall be either a
@@ -299,32 +298,16 @@ std::set<ConstraintVariable *>
           return getExprConstraintVars(ASE->getBase());
         }
         // add a VarAtom to UOExpr's PVConstraint, for &
-        T = getExprConstraintVars(UOExpr);
-        if (T.empty()) {
-          // If no constraint vars are found, an empty one must be created.
-          // TODO: can we come up with meaningful names in more cases?
-          std::string Name;
-          if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(UOExpr)) {
-            Name = DRE->getDecl()->getNameAsString();
-          } else {
-            Name = "";
-          }
-          CAtoms V;
-          ConstraintVariable *newC =
-              new PointerVariableConstraint(V, UOExpr->getType().getAsString(),
-                                            Name, nullptr, false, false, "");
-          T.insert(newC);
-        }
+        std::set<ConstraintVariable *> T = getExprConstraintVars(UOExpr);
+        assert("Empty constraint vars in AddrOf!" && !T.empty());
         return addAtomAll(T, CS.getPtr(), CS);
       }
 
       // *e
       case UO_Deref: {
         // We are dereferencing, so don't assign to LHS
-        T = getExprConstraintVars(UOExpr);
-        std::set<ConstraintVariable *> tmp = handleDeref(T);
-        T.swap(tmp);
-        return T;
+        std::set<ConstraintVariable *> T = getExprConstraintVars(UOExpr);
+        return handleDeref(T);
       }
       /* Operations on lval; if pointer, just process that */
       // e++, e--, ++e, --e

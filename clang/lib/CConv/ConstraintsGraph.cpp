@@ -26,20 +26,27 @@ ConstraintsGraph::vertex_t ConstraintsGraph::addVertex(Atom *A) {
   if (ConstAtom *CA = clang::dyn_cast<ConstAtom>(A)) {
     AllConstAtoms.insert(CA);
   }
-
-  // If we haven't seen the Atom? Insert into the graph.
-  if (AtomToVDMap.find(A) == AtomToVDMap.end()) {
-    auto Vidx = add_vertex(A, CG);
-    AtomToVDMap[A] = Vidx;
-  }
-  return AtomToVDMap[A];
+  return BaseGraph::addVertex(A);
 }
 
 std::set<ConstAtom*> &ConstraintsGraph::getAllConstAtoms() {
   return AllConstAtoms;
 }
 
-void ConstraintsGraph::addConstraint(Geq *C, Constraints &CS) {
+std::set<std::pair<Atom*, Atom*>> ConstraintsGraph::getAllEdges() const {
+  std::set<std::pair<Atom*, Atom*>> EdgeSet;
+
+  typename graph_traits<DirectedGraphType>::edge_iterator I, IEnd;
+  for (boost::tie(I, IEnd) = edges(CG); I != IEnd; ++I) {
+    auto s = source(*I, CG);
+    auto t = target(*I, CG);
+    EdgeSet.insert(std::pair<Atom*, Atom*>(CG[s], CG[t]));
+  }
+
+  return EdgeSet;
+}
+
+void ConstraintsGraph::addConstraint(Geq *C, const Constraints &CS) {
   Atom *A1 = C->getLHS();
   if (VarAtom *VA1 = clang::dyn_cast<VarAtom>(A1)) {
     assert(CS.getVar(VA1->getLoc()) == VA1);
@@ -50,27 +57,40 @@ void ConstraintsGraph::addConstraint(Geq *C, Constraints &CS) {
   }
   auto V1 = addVertex(A1);
   auto V2 = addVertex(A2);
-
-  EdgeType edgeType;
-  if (C->constraintIsChecked()) {
-    edgeType = Checked;
-  } else {
-    edgeType = Ptype;
-  }
-
-  add_edge(V2, V1, edgeType, CG);
+  add_edge(V2, V1, CG);
 }
 
-void ConstraintsGraph::dumpCGDot(const std::string& GraphDotFile) {
+
+void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph& Graph,
+                                               EdgeType EdgeType) {
+  for (auto E : Graph.getAllEdges()) {
+    auto S = addVertex(E.first);
+    auto T = addVertex(E.second);
+    add_edge(S, T, EdgeType, CG);
+  }
+}
+
+void GraphVizOutputGraph::dumpCGDot(const std::string& GraphDotFile) {
    std::ofstream DotFile;
    DotFile.open(GraphDotFile);
    write_graphviz(DotFile, CG,
-       [&] (std::ostream &out, unsigned v) {
-         out << "[label=\"" << CG[v]->getStr() << "\"]";
-       },
-       [&] (std::ostream &out, boost::detail::edge_desc_impl<boost::bidirectional_tag, long unsigned int> e)  {
-         std::string color = EdgeTypeColors[CG[e]];
-         out << "[color=\"" << color << "\"]";
-       });
+     [&] (std::ostream &out, unsigned v) {
+       out << "[label=\"" << CG[v]->getStr() << "\"]";
+     },
+     [&] (std::ostream &out,
+              boost::detail::edge_desc_impl<boost::bidirectional_tag,
+                                            long unsigned int> e)  {
+       std::string Color = EdgeTypeColors[CG[e]];
+       out << "[color=\"" << Color << "\"]";
+     });
    DotFile.close();
+}
+
+void GraphVizOutputGraph::dumpConstraintGraphs(const std::string &GraphDotFile,
+                                               const ConstraintsGraph& Chk,
+                                               const ConstraintsGraph& Pty) {
+  GraphVizOutputGraph OutGraph;
+  OutGraph.mergeConstraintGraph(Chk, Checked);
+  OutGraph.mergeConstraintGraph(Pty,Ptype);
+  OutGraph.dumpCGDot(GraphDotFile);
 }
