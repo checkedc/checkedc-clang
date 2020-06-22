@@ -169,7 +169,7 @@ std::set<ConstraintVariable *>
     E = E->IgnoreParens();
 
     // Non-pointer (int, char, etc.) types have a special base PVConstraint
-    if (TypE->isArithmeticType()) {
+    if (TypE->isStructureType() || TypE->isArithmeticType()) {
       if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
         // If we have a DeclRef, the PVC can get a meaningful name
         return getBaseVarPVConstraint(DRE);
@@ -279,7 +279,6 @@ std::set<ConstraintVariable *>
     // ++e, &e, *e, etc.
     } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
       Expr *UOExpr = UO->getSubExpr();
-      std::set<ConstraintVariable *> T;
       switch (UO->getOpcode()) {
       // &e
       // C99 6.5.3.2: "The operand of the unary & operator shall be either a
@@ -299,32 +298,16 @@ std::set<ConstraintVariable *>
           return getExprConstraintVars(ASE->getBase());
         }
         // add a VarAtom to UOExpr's PVConstraint, for &
-        T = getExprConstraintVars(UOExpr);
-        if (T.empty()) {
-          // If no constraint vars are found, an empty one must be created.
-          // TODO: can we come up with meaningful names in more cases?
-          std::string Name;
-          if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(UOExpr)) {
-            Name = DRE->getDecl()->getNameAsString();
-          } else {
-            Name = "";
-          }
-          CAtoms V;
-          ConstraintVariable *newC =
-              new PointerVariableConstraint(V, UOExpr->getType().getAsString(),
-                                            Name, nullptr, false, false, "");
-          T.insert(newC);
-        }
+        std::set<ConstraintVariable *> T = getExprConstraintVars(UOExpr);
+        assert("Empty constraint vars in AddrOf!" && !T.empty());
         return addAtomAll(T, CS.getPtr(), CS);
       }
 
       // *e
       case UO_Deref: {
         // We are dereferencing, so don't assign to LHS
-        T = getExprConstraintVars(UOExpr);
-        std::set<ConstraintVariable *> tmp = handleDeref(T);
-        T.swap(tmp);
-        return T;
+        std::set<ConstraintVariable *> T = getExprConstraintVars(UOExpr);
+        return handleDeref(T);
       }
       /* Operations on lval; if pointer, just process that */
       // e++, e--, ++e, --e
@@ -442,27 +425,13 @@ std::set<ConstraintVariable *>
 
     // { e1, e2, e3, ... }
     } else if (InitListExpr *ILE = dyn_cast<InitListExpr>(E)) {
-      if(ILE->getType()->isArrayType()) {
-        // Array initialization is similar AddrOf, so the same pattern is used
-        // where a new indirection is added to constraint variables.
-        std::vector<Expr *> SubExprs = ILE->inits().vec();
-        std::set<ConstraintVariable *> CVars =
-            getAllSubExprConstraintVars(SubExprs);
-        return addAtomAll(CVars, CS.getArr(), CS);
-      } else if (ILE->getType()->isStructureType()) {
-        // Struct initialization is treated as a series of assignments to the
-        // fields of the struct.
-        const RecordDecl *Definition =
-            ILE->getType()->getAsStructureType()->getDecl()->getDefinition();
-        int initIdx = 0;
-        for (const auto &D : Definition->fields()) {
-          std::set<ConstraintVariable *> DefCVars = Info.getVariable(D, Context);
-          Expr *InitExpr = ILE->getInit(initIdx);
-          std::set<ConstraintVariable *> InitCVars = getExprConstraintVars(InitExpr);
-          constrainLocalAssign(nullptr, D, InitExpr);
-          initIdx++;
-        }
-      }
+      assert("InitListExpr for type other than array" && ILE->getType()->isArrayType());
+      // Array initialization is similar AddrOf, so the same pattern is used
+      // where a new indirection is added to constraint variables.
+      std::vector<Expr *> SubExprs = ILE->inits().vec();
+      std::set<ConstraintVariable *> CVars =
+          getAllSubExprConstraintVars(SubExprs);
+      return addAtomAll(CVars, CS.getArr(), CS);
 
     // "foo"
     } else if (clang::StringLiteral *exr = dyn_cast<clang::StringLiteral>(E)) {
@@ -538,7 +507,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getWildPVConstraint() {
 
 std::set<ConstraintVariable *> ConstraintResolver::PVConstraintFromType(QualType TypE) {
   std::set<ConstraintVariable *> Ret;
-  if (TypE->isArithmeticType())
+  if (TypE->isStructureType() || TypE->isArithmeticType())
     Ret.insert(PVConstraint::getNonPtrPVConstraint(Info.getConstraints()));
   else if (TypE->isPointerType())
     Ret.insert(PVConstraint::getWildPVConstraint(Info.getConstraints()));
@@ -548,7 +517,7 @@ std::set<ConstraintVariable *> ConstraintResolver::PVConstraintFromType(QualType
 }
 
 std::set<ConstraintVariable *> ConstraintResolver::getBaseVarPVConstraint(DeclRefExpr *Decl) {
-  assert(Decl->getType()->isArithmeticType());
+  assert(Decl->getType()->isStructureType() || Decl->getType()->isArithmeticType());
   std::set<ConstraintVariable *> Ret;
   Ret.insert(PVConstraint::getNamedNonPtrPVConstraint(Decl->getDecl()->getName(), Info.getConstraints()));
   return Ret;
