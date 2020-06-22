@@ -1,4 +1,4 @@
-//===------r PreorderAST.h: An n-ary preorder abstract syntax tree -------===//
+//===------- PreorderAST.h: An n-ary preorder abstract syntax tree -------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -96,12 +96,12 @@ namespace clang {
 
     // Normalize the input expression through a series of transforms on the
     // preorder AST. The Error field is set if an error is encountered during
-    // normalization.
+    // transformation of the AST.
     // @param[in] N is the root of the AST.
     void Normalize(ASTNode *N);
 
     // Sort the variables in a node of the AST. The Error field is set if an
-    // error is encountered during normalization.
+    // error is encountered during transformation of the AST.
     // @param[in] N is the root of the AST.
     void Sort(ASTNode *N);
 

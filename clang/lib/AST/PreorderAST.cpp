@@ -120,7 +120,11 @@ void PreorderAST::Sort(ASTNode *N) {
 
 void PreorderAST::Normalize(ASTNode *N) {
   Sort(N);
+
   // TODO: Coalesce nodes having the same commutative and associative operator.
+  // TODO: Constant fold the constants in the nodes.
+  // TODO: Perform simple arithmetic optimizations/transformations on the
+  // constants in the nodes.
 }
 
 bool PreorderAST::IsEqual(ASTNode *N1, ASTNode *N2) {
