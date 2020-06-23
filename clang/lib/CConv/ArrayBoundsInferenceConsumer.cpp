@@ -177,7 +177,7 @@ static bool isAllocatorCall(Expr *E, std::string &FName,
         std::vector<Expr *> BaseExprs;
         BaseExprs.clear();
         for (auto Pidx : AllocatorSizeAssoc[FName]) {
-         Expr *PExpr = CE->getArg(Pidx);
+         Expr *PExpr = CE->getArg(Pidx)->IgnoreParenCasts();
          BinaryOperator *BO = dyn_cast<BinaryOperator>(PExpr);
          UnaryExprOrTypeTraitExpr *UExpr =
              dyn_cast<UnaryExprOrTypeTraitExpr>(PExpr);
@@ -526,7 +526,8 @@ bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
     if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       Expr *InitE = VD->getInit();
       BoundsKey DeclKey;
-      if (InitE != nullptr) {
+      if (InitE != nullptr && (needArrayBounds(VD, Info, Context) ||
+                               needArrayBounds(VD, Info, Context, true))) {
         clang::StringLiteral *SL =
             dyn_cast<clang::StringLiteral>(InitE->IgnoreParenCasts());
         if (ABoundsInfo.getVariable(VD, DeclKey)) {
