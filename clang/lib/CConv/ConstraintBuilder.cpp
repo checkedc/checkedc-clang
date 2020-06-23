@@ -182,8 +182,8 @@ public:
                 auto *PVD = TFD->getParamDecl(i);
                 auto &ABI = Info.getABoundsInfo();
                 BoundsKey PVKey, AGKey;
-                if (ABI.getVariable(PVD, PVKey) &&
-                    ABI.getVariable(A, *Context, AGKey)) {
+                if (ABI.tryGetVariable(PVD, PVKey) &&
+                    ABI.tryGetVariable(A, *Context, AGKey)) {
                   ABI.addAssignment(PVKey, AGKey);
                 }
               }

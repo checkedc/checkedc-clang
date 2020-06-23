@@ -140,12 +140,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
   bool isDeclTy = false;
   if (D != nullptr) {
-    // Insert Bounds Information.
-    auto &ABInfo = I.getABoundsInfo();
-    if (D->hasBoundsAnnotations() && ABInfo.isValidBoundVariable(D)) {
-      ValidBoundsKey = true;
-      assert(ABInfo.getVariable(D, BKey) &&
-             "Is expected to have valid Bounds key");
+    if (D->hasBoundsAnnotations()) {
       BoundsAnnotations BA = D->getBoundsAnnotations();
       BoundsExpr *BExpr = BA.getBoundsExpr();
       if (BExpr != nullptr) {
@@ -153,8 +148,16 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
         if (R.isValid()) {
           BoundsAnnotationStr = getSourceText(R, C);
         }
-        ABounds *NewB = ABounds::getBoundsInfo(&ABInfo, BExpr, C);
-        ABInfo.insertDeclaredBounds(D, NewB);
+        // Store bounds information as seed information.
+        auto &ABInfo = I.getABoundsInfo();
+        if (D->hasBoundsAnnotations() && ABInfo.isValidBoundVariable(D)) {
+          ValidBoundsKey = true;
+          assert(ABInfo.tryGetVariable(D, BKey) &&
+                 "Is expected to have valid Bounds key");
+
+            ABounds *NewB = ABounds::getBoundsInfo(&ABInfo, BExpr, C);
+            ABInfo.insertDeclaredBounds(D, NewB);
+        }
       }
     }
 

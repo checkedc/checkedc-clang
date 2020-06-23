@@ -20,6 +20,7 @@
 
 typedef uint32_t BoundsKey;
 
+// Class representing scope of a program variable.
 class ProgramVarScope {
 public:
   enum ScopeKind {
@@ -47,6 +48,7 @@ public:
 
 };
 
+// Scope for all global variables and program constants.
 class GlobalScope : public ProgramVarScope {
 public:
   GlobalScope() :
@@ -182,12 +184,15 @@ private:
   static std::map<std::pair<std::string, bool>, FunctionScope*> FnScopeMap;
 };
 
+// Class that represents a program variable along with its scope.
 class ProgramVar {
 public:
   ProgramVar(BoundsKey VK, std::string VName, ProgramVarScope *PVS, bool IsCons) :
       K(VK), VarName(VName), VScope(PVS), IsConstant(IsCons) { }
+
   ProgramVar(BoundsKey VK, std::string VName, ProgramVarScope *PVS) :
       ProgramVar(VK, VName, PVS, false) { }
+
   ProgramVarScope *getScope() { return VScope; }
   bool IsNumConstant() { return IsConstant; }
   std::string mkString(bool GetKey = false);

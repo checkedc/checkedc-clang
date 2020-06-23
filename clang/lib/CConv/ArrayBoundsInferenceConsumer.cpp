@@ -238,7 +238,7 @@ static void handleAllocatorCall(QualType LHSType, BoundsKey LK, Expr *E,
           FoundKey = false;
           break;
         }
-      } else if (AVarBInfo.getVariable(TmpE, *Context, RK)) {
+      } else if (AVarBInfo.tryGetVariable(TmpE, *Context, RK)) {
         // Is this variable?
         if (!FoundKey) {
           FoundKey = true;
@@ -330,11 +330,11 @@ bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
       std::string FldName = FldDecl->getNameAsString();
       // This is an integer field and could be a length field
       if (FldDecl->getType().getTypePtr()->isIntegerType() &&
-          ABInfo.getVariable(FldDecl, FldKey))
+          ABInfo.tryGetVariable(FldDecl, FldKey))
         PotLenFields.insert(std::make_pair(FldName, FldKey));
       // Is this an array field?
       if (needArrayBounds(FldDecl, Info, Context) &&
-          ABInfo.getVariable(FldDecl, FldKey))
+          ABInfo.tryGetVariable(FldDecl, FldKey))
         IdentifiedArrVars.insert(std::make_pair(FldName, FldKey));
     }
 
@@ -388,7 +388,7 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         ParmVarDecl *PVD = FD->getParamDecl(i);
         BoundsKey PK;
 
-        if (ABInfo.getVariable(PVD, PK)) {
+        if (ABInfo.tryGetVariable(PVD, PK)) {
           auto PVal = std::make_pair(PVD->getNameAsString(), PK);
           if (needArrayBounds(PVD, Info, Context)) {
             // Is this an array?
@@ -489,7 +489,7 @@ bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
   BoundsKey LK;
   // is the RHS expression a call to allocator function?
   if (needArrayBounds(LHS, Info, Context) &&
-      AVarBInfo.getVariable(LHS, *Context, LK)) {
+      AVarBInfo.tryGetVariable(LHS, *Context, LK)) {
     handleAllocatorCall(LHS->getType(), LK, RHS, Info, Context);
   }
 
@@ -530,7 +530,7 @@ bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
                                needArrayBounds(VD, Info, Context, true))) {
         clang::StringLiteral *SL =
             dyn_cast<clang::StringLiteral>(InitE->IgnoreParenCasts());
-        if (ABoundsInfo.getVariable(VD, DeclKey)) {
+        if (ABoundsInfo.tryGetVariable(VD, DeclKey)) {
           handleAllocatorCall(VD->getType(), DeclKey, InitE,
                               Info, Context);
           if (SL != nullptr) {
@@ -581,8 +581,8 @@ void AddMainFuncHeuristic(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
         BoundsKey ArgvKey;
         BoundsKey ArgcKey;
         if (needArrayBounds(Argv, I, C) &&
-            ABInfo.getVariable(Argv, ArgvKey) &&
-            ABInfo.getVariable(FD->getParamDecl(0), ArgcKey)) {
+            ABInfo.tryGetVariable(Argv, ArgvKey) &&
+            ABInfo.tryGetVariable(FD->getParamDecl(0), ArgcKey)) {
           ABounds *ArgcBounds = new CountBound(ArgcKey);
           ABInfo.replaceBounds(ArgvKey, ArgcBounds);
         }

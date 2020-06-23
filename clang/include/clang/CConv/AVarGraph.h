@@ -39,6 +39,7 @@ protected:
   }
 };
 
+// Graph that keeps tracks of direct assignments between various variables.
 class AVarGraph
     : public AVarBaseGraph<adjacency_list<setS, vecS,
                                           bidirectionalS, BoundsKey>> {

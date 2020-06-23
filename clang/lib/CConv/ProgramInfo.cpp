@@ -17,7 +17,6 @@ using namespace clang;
 
 ProgramInfo::ProgramInfo() :
   persisted(true) {
-  ArrBoundsInfo = new ArrayBoundsInformation(*this);
   ExternalFunctionFVCons.clear();
   StaticFunctionFVCons.clear();
 }

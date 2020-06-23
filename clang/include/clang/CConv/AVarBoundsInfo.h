@@ -80,25 +80,24 @@ public:
 
   // Try and get BoundsKey, into R, for the given declaration. If the declaration
   // does not have a BoundsKey then return false.
-  bool getVariable(clang::Decl *D, BoundsKey &R);
+  bool tryGetVariable(clang::Decl *D, BoundsKey &R);
+  // Try and get bounds for the expression.
+  bool tryGetVariable(clang::Expr *E, const ASTContext &C, BoundsKey &R);
 
-  // Gets VarKey for various declarations.
+  // Insert the variable into the system.
   void insertVariable(clang::Decl *D);
 
+  // Get variable helpers. These functions will fatal fail if the provided
+  // Decl cannot have a BoundsKey
   BoundsKey getVariable(clang::VarDecl *VD);
-
   BoundsKey getVariable(clang::ParmVarDecl *PVD);
-
   BoundsKey getVariable(clang::FieldDecl *FD);
-
   BoundsKey getConstKey(uint64_t value);
 
-  bool getVariable(clang::Expr *E, const ASTContext &C, BoundsKey &R);
-
+  // Add Assignments between variables. These methods will add edges between
+  // corresponding BoundsKeys
   bool addAssignment(clang::Decl *L, clang::Decl *R);
-
   bool addAssignment(clang::DeclRefExpr *L, clang::DeclRefExpr *R);
-
   bool addAssignment(BoundsKey L, BoundsKey R);
 
   // Get the ProgramVar for the provided VarKey.
@@ -113,7 +112,7 @@ private:
   std::map<BoundsKey, ProgramVar *> PVarInfo;
   // Map of APSInt (constants) and corresponding VarKeys.
   std::map<uint64_t, BoundsKey> ConstVarKeys;
-  // Map of Persistent source loc and  corresponding bounds information.
+  // Map of BoundsKey and  corresponding bounds information.
   // Note that although each PSL could have multiple ConstraintKeys Ex: **p.
   // Only the outer most pointer can have bounds.
   std::map<BoundsKey, ABounds *> BInfo;
@@ -121,9 +120,9 @@ private:
   std::set<BoundsKey> InvalidBounds;
   // Set of BoundsKeys that correspond to pointers.
   std::set<BoundsKey> PointerBoundsKey;
-  // Map of Persistent source loc and BoundsKey of regular variables.
+  // BiMap of Persistent source loc and BoundsKey of regular variables.
   DeclKeyBiMapType DeclVarMap;
-  // Map of parameter keys and BoundsKey for function parameters.
+  // BiMap of parameter keys and BoundsKey for function parameters.
   ParmKeyBiMapType ParamDeclVarMap;
   // Graph of all program variables.
   AVarGraph ProgVarGraph;

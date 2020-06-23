@@ -21,7 +21,6 @@
 #include "ConstraintVariables.h"
 #include "Utils.h"
 #include "PersistentSourceLoc.h"
-#include "ArrayBoundsInformation.h"
 #include "CConvInteractiveData.h"
 #include "GatherTypes.h"
 
@@ -83,10 +82,6 @@ public:
   void merge_MF(ParameterMap &MF);
   ParameterMap &get_MF();
 
-  ArrayBoundsInformation &getArrayBoundsInformation() {
-    return *ArrBoundsInfo;
-  }
-
   DisjointSet &getPointerConstraintDisjointSet() {
     return ConstraintDisjointSet;
   }
@@ -125,7 +120,6 @@ private:
   // Object that contains all the bounds information of various
   // array variables.
   AVarBoundsInfo ArrBInfo;
-  ArrayBoundsInformation *ArrBoundsInfo;
   // Disjoint sets for constraints.
   DisjointSet ConstraintDisjointSet;
 

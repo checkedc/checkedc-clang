@@ -20,7 +20,7 @@
 using namespace clang;
 
 class AVarBoundsInfo;
-
+// Class that represents bounds information of a program variable.
 class ABounds {
 public:
   enum BoundsKind {

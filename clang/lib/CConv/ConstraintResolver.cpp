@@ -521,8 +521,8 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
   if (AllTypes && L.empty() && R.empty()) {
     BoundsKey LKey, RKey;
     auto &ABI = Info.getABoundsInfo();
-    if (ABI.getVariable(LHS, *Context, LKey) &&
-        ABI.getVariable(RHS, *Context, RKey)) {
+    if (ABI.tryGetVariable(LHS, *Context, LKey) &&
+        ABI.tryGetVariable(RHS, *Context, RKey)) {
       ABI.addAssignment(LKey, RKey);
     }
   }
@@ -545,8 +545,8 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
   if (AllTypes && V.empty() && RHSCons.empty()) {
     BoundsKey LKey, RKey;
     auto &ABI = Info.getABoundsInfo();
-    if (ABI.getVariable(D, LKey) &&
-        ABI.getVariable(RHS, *Context, RKey)) {
+    if (ABI.tryGetVariable(D, LKey) &&
+        ABI.tryGetVariable(RHS, *Context, RKey)) {
       ABI.addAssignment(LKey, RKey);
     }
   }

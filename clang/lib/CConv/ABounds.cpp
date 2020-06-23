@@ -21,19 +21,19 @@ ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo,
   RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(BExpr->IgnoreParenCasts());
   BoundsKey VK;
   if (BExpr->isElementCount() && CBE &&
-      ABInfo->getVariable(CBE->getCountExpr()->IgnoreParenCasts(), C, VK)) {
+      ABInfo->tryGetVariable(CBE->getCountExpr()->IgnoreParenCasts(), C, VK)) {
     Ret = new CountBound(VK);
   }
   if (BExpr->isByteCount() && CBE &&
-      ABInfo->getVariable(CBE->getCountExpr()->IgnoreParenCasts(), C, VK)) {
+      ABInfo->tryGetVariable(CBE->getCountExpr()->IgnoreParenCasts(), C, VK)) {
     Ret = new ByteBound(VK);
   }
   if (BExpr->isRange() && RBE) {
     Expr *LHS = RBE->getLowerExpr()->IgnoreParenCasts();
     Expr *RHS = RBE->getUpperExpr()->IgnoreParenImpCasts();
     BoundsKey LV, RV;
-    if (ABInfo->getVariable(LHS, C, LV) &&
-        ABInfo->getVariable(RHS, C, RV)) {
+    if (ABInfo->tryGetVariable(LHS, C, LV) &&
+        ABInfo->tryGetVariable(RHS, C, RV)) {
       Ret = new RangeBound(LV, RV);
     }
   }

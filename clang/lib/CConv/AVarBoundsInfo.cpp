@@ -28,7 +28,7 @@ bool AVarBoundsInfo::isValidBoundVariable(clang::Decl *D) {
 void AVarBoundsInfo::insertDeclaredBounds(clang::Decl *D, ABounds *B) {
   assert(isValidBoundVariable(D) && "Declaration not a valid bounds variable");
   BoundsKey BK;
-  getVariable(D, BK);
+  tryGetVariable(D, BK);
   if (B != nullptr) {
     // If there is already bounds information, release it.
     if (BInfo.find(BK) != BInfo.end()) {
@@ -41,7 +41,7 @@ void AVarBoundsInfo::insertDeclaredBounds(clang::Decl *D, ABounds *B) {
   }
 }
 
-bool AVarBoundsInfo::getVariable(clang::Decl *D, BoundsKey &R) {
+bool AVarBoundsInfo::tryGetVariable(clang::Decl *D, BoundsKey &R) {
   if (isValidBoundVariable(D)) {
     if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       R = getVariable(VD);
@@ -55,6 +55,30 @@ bool AVarBoundsInfo::getVariable(clang::Decl *D, BoundsKey &R) {
     return true;
   }
   return false;
+}
+
+bool AVarBoundsInfo::tryGetVariable(clang::Expr *E,
+                                    const ASTContext &C,
+                                    BoundsKey &Res) {
+  llvm::APSInt ConsVal;
+  bool Ret = false;
+  if (E != nullptr) {
+    E = E->IgnoreParenCasts();
+    if (E->getType()->isArithmeticType() &&
+        E->isIntegerConstantExpr(ConsVal, C)) {
+      Res = getVarKey(ConsVal);
+      Ret = true;
+    } else if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
+      auto *D = DRE->getDecl();
+      Ret = tryGetVariable(D, Res);
+      if (!Ret) {
+        assert(false && "Invalid declaration found inside bounds expression");
+      }
+    } else {
+      // assert(false && "Variable inside bounds declaration is an expression");
+    }
+  }
+  return Ret;
 }
 
 bool AVarBoundsInfo::mergeBounds(BoundsKey L, ABounds *B) {
@@ -98,7 +122,7 @@ ABounds *AVarBoundsInfo::getBounds(BoundsKey L) {
 
 void AVarBoundsInfo::insertVariable(clang::Decl *D) {
   BoundsKey Tmp;
-  getVariable(D, Tmp);
+  tryGetVariable(D, Tmp);
 }
 
 BoundsKey AVarBoundsInfo::getVariable(clang::VarDecl *VD) {
@@ -172,33 +196,9 @@ BoundsKey AVarBoundsInfo::getVariable(clang::FieldDecl *FD) {
   return getVarKey(PSL);
 }
 
-bool AVarBoundsInfo::getVariable(clang::Expr *E,
-                                 const ASTContext &C,
-                                 BoundsKey &Res) {
-  llvm::APSInt ConsVal;
-  bool Ret = false;
-  if (E != nullptr) {
-    E = E->IgnoreParenCasts();
-    if (E->getType()->isArithmeticType() &&
-        E->isIntegerConstantExpr(ConsVal, C)) {
-      Res = getVarKey(ConsVal);
-      Ret = true;
-    } else if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
-      auto *D = DRE->getDecl();
-      Ret = getVariable(D, Res);
-      if (!Ret) {
-        assert(false && "Invalid declaration found inside bounds expression");
-      }
-    } else {
-      // assert(false && "Variable inside bounds declaration is an expression");
-    }
-  }
-  return Ret;
-}
-
 bool AVarBoundsInfo::addAssignment(clang::Decl *L, clang::Decl *R) {
   BoundsKey BL, BR;
-  if (getVariable(L, BL) && getVariable(R, BR)) {
+  if (tryGetVariable(L, BL) && tryGetVariable(R, BR)) {
     return addAssignment(BL, BR);
   }
   return false;
