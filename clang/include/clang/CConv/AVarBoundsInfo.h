@@ -18,6 +18,9 @@
 #include "clang/AST/Decl.h"
 #include "clang/CConv/PersistentSourceLoc.h"
 
+#include <boost/config.hpp>
+#include <boost/bimap.hpp>
+
 // Class that maintains stats about how the bounds of various variables is
 // computed.
 class AVarBoundsStats {
@@ -49,6 +52,12 @@ private:
   }
 
 };
+
+typedef boost::bimap<PersistentSourceLoc, BoundsKey> DeclKeyBiMapType;
+typedef DeclKeyBiMapType::value_type DeclMapItemType;
+typedef boost::bimap<std::tuple<std::string, bool, unsigned>,
+                     BoundsKey> ParmKeyBiMapType;
+typedef ParmKeyBiMapType::value_type ParmMapItemType;
 
 class AVarBoundsInfo {
 public:
@@ -110,10 +119,12 @@ private:
   std::map<BoundsKey, ABounds *> BInfo;
   // Set that contains BoundsKeys of variables which have invalid bounds.
   std::set<BoundsKey> InvalidBounds;
+  // Set of BoundsKeys that correspond to pointers.
+  std::set<BoundsKey> PointerBoundsKey;
   // Map of Persistent source loc and BoundsKey of regular variables.
-  std::map<PersistentSourceLoc, BoundsKey> DeclVarMap;
+  DeclKeyBiMapType DeclVarMap;
   // Map of parameter keys and BoundsKey for function parameters.
-  std::map<std::tuple<std::string, bool, unsigned>, BoundsKey> ParamDeclVarMap;
+  ParmKeyBiMapType ParamDeclVarMap;
   // Graph of all program variables.
   AVarGraph ProgVarGraph;
   // Stats on techniques used to find length for various variables.

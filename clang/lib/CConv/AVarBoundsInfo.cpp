@@ -115,6 +115,8 @@ BoundsKey AVarBoundsInfo::getVariable(clang::VarDecl *VD) {
     assert(PVS != nullptr && "Context not null");
     auto *PVar = new ProgramVar(NK, VD->getNameAsString(), PVS);
     insertProgramVar(NK, PVar);
+    if (VD->getType()->isPointerType())
+      PointerBoundsKey.insert(NK);
   }
   return getVarKey(PSL);
 }
@@ -134,16 +136,18 @@ BoundsKey AVarBoundsInfo::getVariable(clang::ParmVarDecl *PVD) {
   auto ParamKey = std::make_tuple(FD->getNameAsString(),
                                   FD->isStatic(), ParamIdx);
   assert(ParamIdx >= 0 && "Unable to find parameter.");
-  if (ParamDeclVarMap.find(ParamKey) == ParamDeclVarMap.end()) {
+  if (ParamDeclVarMap.left.find(ParamKey) == ParamDeclVarMap.left.end()) {
     BoundsKey NK = ++BCount;
     FunctionParamScope *FPS =
         FunctionParamScope::getFunctionParamScope(FD->getNameAsString(),
                                                   FD->isStatic());
     auto *PVar = new ProgramVar(NK, PVD->getNameAsString(), FPS);
     insertProgramVar(NK, PVar);
-    ParamDeclVarMap[ParamKey] = NK;
+    ParamDeclVarMap.insert(ParmMapItemType(ParamKey, NK));
+    if (PVD->getType()->isPointerType())
+      PointerBoundsKey.insert(NK);
   }
-  return ParamDeclVarMap[ParamKey];
+  return ParamDeclVarMap.left.at(ParamKey);
 }
 
 BoundsKey AVarBoundsInfo::getVariable(clang::FieldDecl *FD) {
@@ -156,6 +160,8 @@ BoundsKey AVarBoundsInfo::getVariable(clang::FieldDecl *FD) {
     StructScope *SS = StructScope::getStructScope(StName);
     auto *PVar = new ProgramVar(NK, FD->getNameAsString(), SS);
     insertProgramVar(NK, PVar);
+    if (FD->getType()->isPointerType())
+      PointerBoundsKey.insert(NK);
   }
   return getVarKey(PSL);
 }
@@ -165,19 +171,21 @@ bool AVarBoundsInfo::getVariable(clang::Expr *E,
                                  BoundsKey &Res) {
   llvm::APSInt ConsVal;
   bool Ret = false;
-  E = E->IgnoreParenCasts();
-  if (E->getType()->isArithmeticType() &&
-      E->isIntegerConstantExpr(ConsVal, C)) {
-    Res = getVarKey(ConsVal);
-    Ret = true;
-  } else if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
-    auto *D = DRE->getDecl();
-    Ret = getVariable(D, Res);
-    if (!Ret) {
-      assert(false && "Invalid declaration found inside bounds expression");
+  if (E != nullptr) {
+    E = E->IgnoreParenCasts();
+    if (E->getType()->isArithmeticType() &&
+        E->isIntegerConstantExpr(ConsVal, C)) {
+      Res = getVarKey(ConsVal);
+      Ret = true;
+    } else if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
+      auto *D = DRE->getDecl();
+      Ret = getVariable(D, Res);
+      if (!Ret) {
+        assert(false && "Invalid declaration found inside bounds expression");
+      }
+    } else {
+      // assert(false && "Variable inside bounds declaration is an expression");
     }
-  } else {
-    // assert(false && "Variable inside bounds declaration is an expression");
   }
   return Ret;
 }
@@ -209,12 +217,12 @@ ProgramVar *AVarBoundsInfo::getProgramVar(BoundsKey VK) {
 }
 
 bool AVarBoundsInfo::hasVarKey(PersistentSourceLoc &PSL) {
-  return DeclVarMap.find(PSL) != DeclVarMap.end();
+  return DeclVarMap.left.find(PSL) != DeclVarMap.left.end();
 }
 
 BoundsKey AVarBoundsInfo::getVarKey(PersistentSourceLoc &PSL) {
   assert (hasVarKey(PSL) && "VarKey doesn't exist");
-  return DeclVarMap[PSL];
+  return DeclVarMap.left.at(PSL);
 }
 
 BoundsKey AVarBoundsInfo::getConstKey(uint64_t value) {
@@ -234,7 +242,7 @@ BoundsKey AVarBoundsInfo::getVarKey(llvm::APSInt &API) {
 }
 
 void AVarBoundsInfo::insertVarKey(PersistentSourceLoc &PSL, BoundsKey NK) {
-  DeclVarMap[PSL] = NK;
+  DeclVarMap.insert(DeclMapItemType(PSL, NK));
 }
 
 void AVarBoundsInfo::insertProgramVar(BoundsKey NK, ProgramVar *PV) {
