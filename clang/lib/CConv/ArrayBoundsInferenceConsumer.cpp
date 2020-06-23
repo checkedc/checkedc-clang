@@ -195,10 +195,12 @@ static bool isAllocatorCall(Expr *E, std::string &FName,
         // Check if each of the expression is either sizeof or a DeclRefExpr
         if (RetVal && !BaseExprs.empty()) {
           for (auto *TmpE : BaseExprs) {
+            TmpE = TmpE->IgnoreParenCasts();
             UnaryExprOrTypeTraitExpr *UExpr =
                 dyn_cast<UnaryExprOrTypeTraitExpr>(TmpE);
             if (isa<DeclRefExpr>(TmpE) ||
-                (UExpr && UExpr->getKind() == UETT_SizeOf)) {
+                (UExpr && UExpr->getKind() == UETT_SizeOf) ||
+                isa<IntegerLiteral>(TmpE)) {
               ArgVals.push_back(TmpE);
             } else {
               RetVal = false;
