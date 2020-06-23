@@ -23,6 +23,8 @@ if (LLVM_BOOST_FOUND)
           PersistentSourceLoc.cpp
           ProgramInfo.cpp
           RewriteUtils.cpp
+          CheckedRegions.cpp
+          StructInit.cpp
           Utils.cpp
           LINK_LIBS
           clangAST
