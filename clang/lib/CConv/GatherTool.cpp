@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/RecursiveASTVisitor.h"
-
+#include "clang/CConv/ArrayBoundsInferenceConsumer.h"
 #include "clang/CConv/GatherTool.h"
 
 using namespace llvm;
@@ -64,6 +64,7 @@ private:
 
 void ArgGatherer::HandleTranslationUnit(ASTContext &Context) {
   Info.enterCompilationUnit(Context);
+  HandleArrayVariablesBoundsDetection(&Context, Info);
   ParameterGatherer PG(&Context, Info, MF);
   for (auto &D : Context.getTranslationUnitDecl()->decls()) {
     PG.TraverseDecl(D);

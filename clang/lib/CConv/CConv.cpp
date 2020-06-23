@@ -24,7 +24,7 @@ using namespace clang;
 using namespace llvm;
 
 
-// Suffixes for constraint output files.
+// Suffixes for constraint output files.ParameterGatherer
 #define INITIAL_OUTPUT_SUFFIX "_initial_constraints"
 #define FINAL_OUTPUT_SUFFIX "_final_output"
 #define BEFORE_SOLVING_SUFFIX "_before_solving_"
@@ -268,6 +268,8 @@ bool CConvInterface::SolveConstraints() {
     Tool.run(GatherTool.get());
   else
     llvm_unreachable("No Action");
+
+  // Propogate data-flow information for
 
   return true;
 }

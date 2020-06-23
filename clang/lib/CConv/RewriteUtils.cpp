@@ -1398,10 +1398,6 @@ bool RewriteConsumer::hasModifiedSignature(std::string FuncName) {
          RewriteConsumer::ModifiedFuncSignatures.end();
 }
 
-void ArrayBoundsRewriter::computeArrayBounds() {
-  HandleArrayVariablesBoundsDetection(Context, Info);
-}
-
 std::string ArrayBoundsRewriter::getBoundsString(Decl *D, bool Isitype) {
   std::string BString = "";
   std::string BVarString = "";
@@ -1426,7 +1422,6 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
 
   // Compute the bounds information for all the array variables.
   ArrayBoundsRewriter ABRewriter(&Context, Info);
-  ABRewriter.computeArrayBounds();
 
   Rewriter R(Context.getSourceManager(), Context.getLangOpts());
   std::set<FileID> Files;
