@@ -584,7 +584,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           // If there is no declaration?
           // check the itype in definition.
           PtypeS = PtypeS + getExistingIType(Defn) +
-              ABRewriter.getBoundsString(Definition->getParamDecl(i));
+              ABRewriter.getBoundsString(Defn, Definition->getParamDecl(i));
 
           ParmStrs.push_back(PtypeS);
         } else {
@@ -595,7 +595,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           std::string bi =
               Defn->getRewritableOriginalTy() + Defn->getName() + " : itype(" +
                   PtypeS + ")" +
-                  ABRewriter.getBoundsString(Definition->getParamDecl(i), true);
+                  ABRewriter.getBoundsString(Defn, Definition->getParamDecl(i), true);
           ParmStrs.push_back(bi);
         }
         ParameterHandled = true;
@@ -1398,21 +1398,25 @@ bool RewriteConsumer::hasModifiedSignature(std::string FuncName) {
          RewriteConsumer::ModifiedFuncSignatures.end();
 }
 
-std::string ArrayBoundsRewriter::getBoundsString(Decl *D, bool Isitype) {
+std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
+                                                 Decl *D, bool Isitype) {
   std::string BString = "";
   std::string BVarString = "";
   auto &ABInfo = Info.getABoundsInfo();
   BoundsKey DK;
+  std::string Pfix = Isitype ? " " : " : ";
   if (ABInfo.getVariable(D, DK)) {
     ABounds *ArrB = ABInfo.getBounds(DK);
     if (ArrB != nullptr) {
       BString = ArrB->mkString(&ABInfo);
       if (!BString.empty()) {
         // For itype we do not need ":".
-        std::string Pfix = Isitype ? " " : " : ";
         BString = Pfix + BString;
       }
     }
+  }
+  if (BString.empty() && PV->hasBoundsStr()) {
+    BString = Pfix + PV->getBoundsStr();
   }
   return BString;
 }
@@ -1514,7 +1518,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
         // Rewrite a declaration, only if it is not part of function prototype.
         std::string newTy = getStorageQualifierString(D) +
                             PV->mkString(Info.getConstraints().getVariables()) +
-                            ABRewriter.getBoundsString(D);
+                            ABRewriter.getBoundsString(PV, D);
         RewriteThese.insert(DAndReplace(D, DS, newTy));
       } else if (FV && RewriteConsumer::hasModifiedSignature(FV->getName()) &&
                  !TRV.isFunctionVisited(FV->getName())) {

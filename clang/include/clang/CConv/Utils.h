@@ -17,6 +17,7 @@
 #include <unordered_set>
 #include "llvm/Support/CommandLine.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/SourceLocation.h"
 #include "llvm/Support/Casting.h"
 
 #include "PersistentSourceLoc.h"
@@ -105,6 +106,8 @@ bool isTypeHasVoid(clang::QualType QT);
 
 // Check if the provided declaration is in system header.
 bool isInSysHeader(clang::Decl *D);
+
+std::string getSourceText(clang::SourceRange &SR, const clang::ASTContext &C);
 
 // Find the longest common subsequence.
 unsigned longestCommonSubsequence(const char *Str1, const char *Str2,

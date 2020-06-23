@@ -221,6 +221,8 @@ private:
   PointerVariableConstraint(PointerVariableConstraint *Ot,
                             Constraints &CS);
   PointerVariableConstraint *Parent;
+  // String representing declared bounds expression.
+  std::string BoundsAnnotationStr;
 
 public:
   // Constructor for when we know a CVars and a type string.
@@ -230,7 +232,8 @@ public:
           ConstraintVariable(PointerVariable, "" /*not used*/, Name),
           BaseType(T),vars(V),FV(F),
         ArrPresent(isArr), ItypeStr(is),
-           partOFFuncPrototype(false), Parent(nullptr) {}
+           partOFFuncPrototype(false), Parent(nullptr),
+         BoundsAnnotationStr("") {}
 
   std::string getTy() { return BaseType; }
   bool getArrPresent() { return ArrPresent; }
@@ -239,6 +242,10 @@ public:
   // what is the text of that itype?
   bool hasItype() { return ItypeStr.size() > 0; }
   std::string getItype() { return ItypeStr; }
+  // Check if this variable has bounds annotation.
+  bool hasBoundsStr() { return !BoundsAnnotationStr.empty(); }
+  // Get bounds annotation.
+  std::string getBoundsStr() { return BoundsAnnotationStr; }
 
   bool solutionEqualTo(Constraints &CS, ConstraintVariable *CV);
 

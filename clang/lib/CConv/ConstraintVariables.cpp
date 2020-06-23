@@ -149,6 +149,10 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       BoundsAnnotations BA = D->getBoundsAnnotations();
       BoundsExpr *BExpr = BA.getBoundsExpr();
       if (BExpr != nullptr) {
+        SourceRange R = BExpr->getSourceRange();
+        if (R.isValid()) {
+          BoundsAnnotationStr = getSourceText(R, C);
+        }
         ABounds *NewB = ABounds::getBoundsInfo(&ABInfo, BExpr, C);
         ABInfo.insertDeclaredBounds(D, NewB);
       }
@@ -180,11 +184,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
         SourceRange R = ITE->getSourceRange();
         if (R.isValid()) {
-          auto &SM = C.getSourceManager();
-          auto LO = C.getLangOpts();
-          llvm::StringRef Srctxt =
-              Lexer::getSourceText(CharSourceRange::getTokenRange(R), SM, LO);
-          ItypeStr = Srctxt.str();
+          ItypeStr = getSourceText(R, C);
           assert(ItypeStr.size() > 0);
         }
       }

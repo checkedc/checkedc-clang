@@ -29,11 +29,16 @@ void AVarBoundsInfo::insertDeclaredBounds(clang::Decl *D, ABounds *B) {
   assert(isValidBoundVariable(D) && "Declaration not a valid bounds variable");
   BoundsKey BK;
   getVariable(D, BK);
-  // If there is already bounds information, release it.
-  if (BInfo.find(BK) != BInfo.end()) {
-    delete (BInfo[BK]);
+  if (B != nullptr) {
+    // If there is already bounds information, release it.
+    if (BInfo.find(BK) != BInfo.end()) {
+      delete (BInfo[BK]);
+    }
+    BInfo[BK] = B;
+  } else {
+    // Set bounds to be invalid.
+    InvalidBounds.insert(BK);
   }
-  BInfo[BK] = B;
 }
 
 bool AVarBoundsInfo::getVariable(clang::Decl *D, BoundsKey &R) {
@@ -84,7 +89,8 @@ bool AVarBoundsInfo::replaceBounds(BoundsKey L, ABounds *B) {
 }
 
 ABounds *AVarBoundsInfo::getBounds(BoundsKey L) {
-  if (BInfo.find(L) != BInfo.end()) {
+  if (InvalidBounds.find(L) == InvalidBounds.end() &&
+      BInfo.find(L) != BInfo.end()) {
     return BInfo[L];
   }
   return nullptr;
