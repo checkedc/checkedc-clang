@@ -1152,7 +1152,7 @@ class CheckedRegionFinder : public clang::RecursiveASTVisitor<CheckedRegionFinde
         bool IsChecked = !hasUncheckedParameters(S) &&
                        Cur == CheckedScopeSpecifier::CSS_None && Localwild == 0;
 
-         Map[Id] = IsChecked ? IS_CHECKED : IS_UNCHECKED;
+        Map[Id] = IsChecked ? IS_CHECKED : IS_UNCHECKED;
 
         // Don't add _Unchecked to top level functions.
         if ((!IsChecked && !isFunctionBody(S))) {
