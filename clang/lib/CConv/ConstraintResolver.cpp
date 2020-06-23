@@ -118,8 +118,27 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, ConstAtom *PtrTyp, 
 }
 
 // Processes E from malloc(E) to discern the pointer type this will be
-static ConstAtom *analyzeAllocExpr(Expr *E, Constraints &CS, QualType &ArgTy) {
+static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS, QualType &ArgTy,
+    std::string FuncName, ASTContext *Context) {
+  if (!FuncName.compare("calloc")) {
+    ArgTy = CE->getArg(1)->getType();
+    // Check if first argument to calloc is 1
+    Expr *E = CE->getArg(0);
+    Expr::EvalResult res;
+    E->EvaluateAsInt(res, *Context,
+                     clang::Expr::SE_NoSideEffects, false);
+    if (res.Val.isInt() && res.Val.getInt().getExtValue() == 1)
+      return CS.getPtr();
+    else
+      return CS.getNTArr();
+  }
+
   ConstAtom *ret = CS.getPtr();
+  Expr *E;
+  if (!FuncName.compare("malloc"))
+    E = CE->getArg(0);
+  else
+    E = CE->getArg(1);
   E = E->IgnoreParenImpCasts();
   BinaryOperator *B = dyn_cast<BinaryOperator>(E);
   std::set<Expr *> Exprs;
@@ -363,20 +382,7 @@ std::set<ConstraintVariable *>
             QualType ArgTy;
             std::string FuncName = FD->getNameAsString();
             ConstAtom *A;
-            if (!FuncName.compare("calloc")) {
-              A = CS.getNTArr();
-              ArgTy = CE->getArg(1)->getType();
-              // Check if first argument to calloc is 1
-              Expr *E = CE->getArg(0);
-              Expr::EvalResult res;
-              E->EvaluateAsInt(res, *Context,
-                               clang::Expr::SE_NoSideEffects, false);
-              if (res.Val.isInt() && res.Val.getInt().getExtValue() == 1)
-                A = CS.getPtr();
-            }
-            else {
-              A = analyzeAllocExpr(CE->getArg(0), CS, ArgTy);
-            }
+            A = analyzeAllocExpr(CE, CS, ArgTy, FuncName, Context);
             if (A) {
               std::string N = FD->getName(); N = "&"+N;
               ExprType = Context->getPointerType(ArgTy);

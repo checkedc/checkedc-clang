@@ -159,6 +159,4 @@ return z; }
 //CHECK_NOALL:         int *z = calloc(5, sizeof(int)); 
 //CHECK_ALL: _Nt_array_ptr<int> sus(int *x, _Ptr<int> y) {
 //CHECK_ALL:         _Nt_array_ptr<int> z =  calloc(5, sizeof(int)); 
-//CHECK_ALL:         forint i = 0;
 //CHECK_ALL: _Array_ptr<int> p = z;
-//CHECK_ALL: int fac = 1;

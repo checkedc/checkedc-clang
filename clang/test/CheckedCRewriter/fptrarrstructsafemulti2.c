@@ -133,10 +133,6 @@ struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
         
 return z; }
 //CHECK_NOALL: _Ptr<struct fptrarr> sus(struct fptrarr *x, _Ptr<struct fptrarr> y) {
-//CHECK_NOALL:         char name[30]; 
 //CHECK_NOALL:         _Ptr<struct fptrarr> z =  malloc(sizeof(struct fptrarr)); 
-//CHECK_NOALL:         z->name = strcpy(name, ((const char *)"Hello World"));
 //CHECK_ALL: _Ptr<struct fptrarr> sus(struct fptrarr *x, _Ptr<struct fptrarr> y) {
-//CHECK_ALL:         char name[30]; 
 //CHECK_ALL:         _Ptr<struct fptrarr> z =  malloc(sizeof(struct fptrarr)); 
-//CHECK_ALL:         z->name = strcpy(name, ((const char *)"Hello World"));

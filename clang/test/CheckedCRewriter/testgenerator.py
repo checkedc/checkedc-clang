@@ -464,7 +464,8 @@ def process_file(file, cname, cname2, proto, alltypes, new_defs, new_defs2, susp
     check = "CHECK_NOALL"
     if alltypes: check = "CHECK_ALL"
 
-    keywords = "int char struct double float _Ptr _Array_ptr _Nt_array_ptr".split(" ")
+    keywords = "int char struct double float".split(" ") 
+    ckeywords = "_Ptr _Array_ptr _Nt_array_ptr".split(" ")
 
     # these boolean variables indicate which method definition we are in, so we know where to add
     # our checked annotations later
@@ -473,6 +474,7 @@ def process_file(file, cname, cname2, proto, alltypes, new_defs, new_defs2, susp
 
     # generate the check annotations
     for line in file.readlines():   
+        linepre = line.split("=")[0]
         # this indicates that we've reached the definitions
         if line.find("struct general {") != -1: 
             indefs = insus = infoo = inbar = False 
@@ -550,13 +552,13 @@ def process_file(file, cname, cname2, proto, alltypes, new_defs, new_defs2, susp
                 new_defs[-1] += "\n//" + check + ": " + line 
         
         elif insus: 
-            if any(substr in line for substr in keywords) and line.find("5;") == -1:
+            if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
                 susc += "//" + check + ": " + line
         elif infoo: 
-            if any(substr in line for substr in keywords):
+            if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
                 fooc += "//" + check + ": " + line 
         elif inbar: 
-            if any(substr in line for substr in keywords):
+            if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
                 barc += "//" + check + ": " + line
     
     if proto=="multi": 
@@ -575,7 +577,7 @@ def process_file(file, cname, cname2, proto, alltypes, new_defs, new_defs2, susp
                 susc += "//" + check + ": " + line
 
             elif insus: 
-                if any(substr in line for substr in keywords) and line.find("5;") == -1:
+                if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
                     susc += "//" + check + ": " + line
 
             elif indefs: 

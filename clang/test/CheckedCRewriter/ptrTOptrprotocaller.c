@@ -168,10 +168,6 @@ return z; }
 //CHECK_NOALL: char *** sus(char ***x, _Ptr<_Ptr<_Ptr<char>>> y) {
 //CHECK_NOALL:         char *ch = malloc(sizeof(char)); 
 //CHECK_NOALL:         char *** z = malloc(5*sizeof(char**)); 
-//CHECK_NOALL:             z[i] = malloc(5*sizeof(char *)); 
-//CHECK_NOALL:                 z[i][j] = malloc(2*sizeof(char)); 
 //CHECK_ALL: _Array_ptr<_Array_ptr<char*>> sus(char ***x, _Ptr<_Ptr<_Ptr<char>>> y) {
 //CHECK_ALL:         char *ch = malloc(sizeof(char)); 
 //CHECK_ALL:         _Array_ptr<_Array_ptr<char*>> z: count((5 * sizeof(char **))) =  malloc(5*sizeof(char**)); 
-//CHECK_ALL:             z[i] = malloc(5*sizeof(char *)); 
-//CHECK_ALL:                 z[i][j] = malloc(2*sizeof(char)); 
