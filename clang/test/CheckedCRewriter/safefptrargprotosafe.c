@@ -119,7 +119,7 @@ int *mul2(int *x) {
 
 int * sus(int (*) (int), int (*) (int));
 //CHECK_NOALL: int * sus(int (*x)(int), _Ptr<int (int )> y);
-//CHECK_ALL: int * sus(int (*x)(int), _Ptr<int (int )> y);
+//CHECK_ALL: _Nt_array_ptr<int> sus(int (*x)(int), _Ptr<int (int )> y);
 
 int * foo() {
  
@@ -132,10 +132,10 @@ return z; }
 //CHECK_NOALL:         int (*x)(int) = add1; 
 //CHECK_NOALL:         _Ptr<int (int )> y =  sub1; 
 //CHECK_NOALL:         int *z = sus(x, y);
-//CHECK_ALL: int * foo() {
+//CHECK_ALL: _Nt_array_ptr<int> foo(void) {
 //CHECK_ALL:         int (*x)(int) = add1; 
 //CHECK_ALL:         _Ptr<int (int )> y =  sub1; 
-//CHECK_ALL:         int *z = sus(x, y);
+//CHECK_ALL:         _Nt_array_ptr<int> z =  sus(x, y);
 
 int * bar() {
  
@@ -148,10 +148,10 @@ return z; }
 //CHECK_NOALL:         int (*x)(int) = add1; 
 //CHECK_NOALL:         _Ptr<int (int )> y =  sub1; 
 //CHECK_NOALL:         int *z = sus(x, y);
-//CHECK_ALL: int * bar() {
+//CHECK_ALL: _Nt_array_ptr<int> bar(void) {
 //CHECK_ALL:         int (*x)(int) = add1; 
 //CHECK_ALL:         _Ptr<int (int )> y =  sub1; 
-//CHECK_ALL:         int *z = sus(x, y);
+//CHECK_ALL:         _Nt_array_ptr<int> z =  sus(x, y);
 
 int * sus(int (*x) (int), int (*y) (int)) {
  
@@ -164,5 +164,5 @@ int * sus(int (*x) (int), int (*y) (int)) {
 return z; }
 //CHECK_NOALL: int * sus(int (*x)(int), _Ptr<int (int )> y) {
 //CHECK_NOALL:         int *z = calloc(5, sizeof(int));
-//CHECK_ALL: int * sus(int (*x)(int), _Ptr<int (int )> y) {
-//CHECK_ALL:         int *z = calloc(5, sizeof(int));
+//CHECK_ALL: _Nt_array_ptr<int> sus(int (*x)(int), _Ptr<int (int )> y) {
+//CHECK_ALL:         _Nt_array_ptr<int> z =  calloc(5, sizeof(int));

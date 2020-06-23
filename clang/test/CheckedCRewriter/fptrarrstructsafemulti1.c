@@ -58,7 +58,7 @@ struct fptrarr {
 //CHECK_NOALL:     char *name;
 //CHECK_NOALL:     _Ptr<int (int )> mapper;
 
-//CHECK_ALL:     int *values; 
+//CHECK_ALL:     _Ptr<int> values; 
 //CHECK_ALL:     char *name;
 //CHECK_ALL:     _Ptr<int (int )> mapper;
 
@@ -145,13 +145,15 @@ return z; }
 //CHECK_NOALL:         _Ptr<struct fptrarr> y =   malloc(sizeof(struct fptrarr));
 //CHECK_NOALL:         int *yvals = calloc(5, sizeof(int)); 
 //CHECK_NOALL:         for(int i = 0; i < 5; i++) {
+//CHECK_NOALL:         strcpy(y->name, ((const char *)"Example")); 
 //CHECK_NOALL:         _Ptr<struct fptrarr> z =  sus(x, y);
 //CHECK_ALL: _Ptr<struct fptrarr> foo(void) {
 //CHECK_ALL:         char name[20]; 
 //CHECK_ALL:         struct fptrarr * x = malloc(sizeof(struct fptrarr));
 //CHECK_ALL:         _Ptr<struct fptrarr> y =   malloc(sizeof(struct fptrarr));
-//CHECK_ALL:         int *yvals = calloc(5, sizeof(int)); 
+//CHECK_ALL:         _Array_ptr<int> yvals: count((5 * sizeof(int))) =  calloc(5, sizeof(int)); 
 //CHECK_ALL:         for(int i = 0; i < 5; i++) {
+//CHECK_ALL:         strcpy(y->name, ((const char *)"Example")); 
 //CHECK_ALL:         _Ptr<struct fptrarr> z =  sus(x, y);
 
 struct fptrarr * bar() {
@@ -176,11 +178,13 @@ return z; }
 //CHECK_NOALL:         _Ptr<struct fptrarr> y =   malloc(sizeof(struct fptrarr));
 //CHECK_NOALL:         int *yvals = calloc(5, sizeof(int)); 
 //CHECK_NOALL:         for(int i = 0; i < 5; i++) {
+//CHECK_NOALL:         strcpy(y->name, ((const char *)"Example")); 
 //CHECK_NOALL:         _Ptr<struct fptrarr> z =  sus(x, y);
 //CHECK_ALL: _Ptr<struct fptrarr> bar(void) {
 //CHECK_ALL:         char name[20]; 
 //CHECK_ALL:         struct fptrarr * x = malloc(sizeof(struct fptrarr));
 //CHECK_ALL:         _Ptr<struct fptrarr> y =   malloc(sizeof(struct fptrarr));
-//CHECK_ALL:         int *yvals = calloc(5, sizeof(int)); 
+//CHECK_ALL:         _Array_ptr<int> yvals: count((5 * sizeof(int))) =  calloc(5, sizeof(int)); 
 //CHECK_ALL:         for(int i = 0; i < 5; i++) {
+//CHECK_ALL:         strcpy(y->name, ((const char *)"Example")); 
 //CHECK_ALL:         _Ptr<struct fptrarr> z =  sus(x, y);

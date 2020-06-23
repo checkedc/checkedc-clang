@@ -358,10 +358,25 @@ std::set<ConstraintVariable *>
         /* Allocator call */
         if (isFunctionAllocator(FD->getName())) {
           bool didInsert = false;
-          // FIXME: Should be treating malloc, realloc, calloc differently
+          // FIXME: Add support for realloc
           if (CE->getNumArgs() > 0) {
             QualType ArgTy;
-            ConstAtom *A = analyzeAllocExpr(CE->getArg(0), CS, ArgTy);
+            std::string FuncName = FD->getNameAsString();
+            ConstAtom *A;
+            if (!FuncName.compare("calloc")) {
+              A = CS.getNTArr();
+              ArgTy = CE->getArg(1)->getType();
+              // Check if first argument to calloc is 1
+              Expr *E = CE->getArg(0);
+              Expr::EvalResult res;
+              E->EvaluateAsInt(res, *Context,
+                               clang::Expr::SE_NoSideEffects, false);
+              if (res.Val.isInt() && res.Val.getInt().getExtValue() == 1)
+                A = CS.getPtr();
+            }
+            else {
+              A = analyzeAllocExpr(CE->getArg(0), CS, ArgTy);
+            }
             if (A) {
               std::string N = FD->getName(); N = "&"+N;
               ExprType = Context->getPointerType(ArgTy);
