@@ -54,8 +54,7 @@ public:
   // Get all ConstAtoms, basically the points
   // from where the constraint solving should begin.
   std::set<ConstAtom*> &getAllConstAtoms();
-  // FIXME: Drop this in favor of using an iterator with an llvm::function_ref
-  std::set<std::pair<Atom*,Atom*>> getAllEdges() const;
+  void forEachEdge(llvm::function_ref<void(Atom*,Atom*)>) const;
 
   // Get all successors of a given Atom which are of particular type.
   template <typename ConstraintType>
@@ -97,11 +96,18 @@ private:
 // from all constraint graphs. This single graph can then be printed to a file
 // in graphviz format.
 enum EdgeType { Checked, Ptype };
+class EdgeProperties {
+public:
+  EdgeProperties(EdgeType Type, bool IsBidirectional);
+  EdgeType Type;
+  bool IsBidirectional;
+};
+
 class GraphVizOutputGraph
     : public BaseGraph<
-          adjacency_list<vecS, vecS, bidirectionalS, Atom *, EdgeType>> {
+          adjacency_list<vecS, vecS, bidirectionalS, Atom *, EdgeProperties *>> {
 public:
-  typedef adjacency_list<vecS, vecS, bidirectionalS, Atom *, EdgeType>
+  typedef adjacency_list<vecS, vecS, bidirectionalS, Atom *, EdgeProperties *>
       DirectedGraphType;
 
   void mergeConstraintGraph(const ConstraintsGraph& Graph, EdgeType EdgeType);
@@ -115,6 +121,7 @@ public:
 
 private:
   const std::string EdgeTypeColors[2] = { "red", "blue" };
+  const std::string EdgeDirections[2] = { "forward", "both" };
 };
 
 #endif // _CONSTRAINTSGRAPH_H
