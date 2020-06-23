@@ -702,51 +702,51 @@ bool TypeRewritingVisitor::isFunctionVisited(std::string FuncName) {
   return VisitedSet.find(FuncName) != VisitedSet.end();
 }
 
-static bool
-canWrite(std::string filePath, std::set<std::string> &iof, std::string b) {
-  // Was this file explicitly provided on the command line?
-  if (iof.count(filePath) > 0)
-    return true;
-  // Is this file contained within the base directory?
-
-  sys::path::const_iterator baseIt = sys::path::begin(b);
-  sys::path::const_iterator pathIt = sys::path::begin(filePath);
-  sys::path::const_iterator baseEnd = sys::path::end(b);
-  sys::path::const_iterator pathEnd = sys::path::end(filePath);
-  std::string baseSoFar = (*baseIt).str() + sys::path::get_separator().str();
-  std::string pathSoFar = (*pathIt).str() + sys::path::get_separator().str();
-  ++baseIt;
-  ++pathIt;
-
-  while ((baseIt != baseEnd) && (pathIt != pathEnd)) {
-    sys::fs::file_status baseStatus;
-    sys::fs::file_status pathStatus;
-    std::string s1 = (*baseIt).str();
-    std::string s2 = (*pathIt).str();
-
-    if (std::error_code ec = sys::fs::status(baseSoFar, baseStatus))
-      return false;
-
-    if (std::error_code ec = sys::fs::status(pathSoFar, pathStatus))
-      return false;
-
-    if (!sys::fs::equivalent(baseStatus, pathStatus))
-      break;
-
-    if (s1 != sys::path::get_separator().str())
-      baseSoFar += (s1 + sys::path::get_separator().str());
-    if (s2 != sys::path::get_separator().str())
-      pathSoFar += (s2 + sys::path::get_separator().str());
-
-    ++baseIt;
-    ++pathIt;
-  }
-
-  if (baseIt == baseEnd && baseSoFar == pathSoFar)
-    return true;
-  else
-    return false;
-}
+//static bool
+//canWrite(std::string filePath, std::set<std::string> &iof, std::string b) {
+//  // Was this file explicitly provided on the command line?
+//  if (iof.count(filePath) > 0)
+//    return true;
+//  // Is this file contained within the base directory?
+//
+//  sys::path::const_iterator baseIt = sys::path::begin(b);
+//  sys::path::const_iterator pathIt = sys::path::begin(filePath);
+//  sys::path::const_iterator baseEnd = sys::path::end(b);
+//  sys::path::const_iterator pathEnd = sys::path::end(filePath);
+//  std::string baseSoFar = (*baseIt).str() + sys::path::get_separator().str();
+//  std::string pathSoFar = (*pathIt).str() + sys::path::get_separator().str();
+//  ++baseIt;
+//  ++pathIt;
+//
+//  while ((baseIt != baseEnd) && (pathIt != pathEnd)) {
+//    sys::fs::file_status baseStatus;
+//    sys::fs::file_status pathStatus;
+//    std::string s1 = (*baseIt).str();
+//    std::string s2 = (*pathIt).str();
+//
+//    if (std::error_code ec = sys::fs::status(baseSoFar, baseStatus))
+//      return false;
+//
+//    if (std::error_code ec = sys::fs::status(pathSoFar, pathStatus))
+//      return false;
+//
+//    if (!sys::fs::equivalent(baseStatus, pathStatus))
+//      break;
+//
+//    if (s1 != sys::path::get_separator().str())
+//      baseSoFar += (s1 + sys::path::get_separator().str());
+//    if (s2 != sys::path::get_separator().str())
+//      pathSoFar += (s2 + sys::path::get_separator().str());
+//
+//    ++baseIt;
+//    ++pathIt;
+//  }
+//
+//  if (baseIt == baseEnd && baseSoFar == pathSoFar)
+//    return true;
+//  else
+//    return false;
+//}
 
 static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
                  std::string &OutputPostfix) {
@@ -825,18 +825,17 @@ typedef enum {
 class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 {
   public:
-    explicit CheckedRegionAdder(ASTContext *_C, Rewriter &_R, ProgramInfo &_I,
+    explicit CheckedRegionAdder(ASTContext *_C, Rewriter &_R,
                                 std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &M)
-      : Context(_C), Writer(_R), Info(_I), Map(M) {}
+      : Context(_C), Writer(_R), Map(M) {}
 
     bool VisitCompoundStmt(CompoundStmt *S) {
-      llvm::FoldingSetNodeID id;
-      S->Profile(id, *Context, true);
-      switch (Map[id]) {
+      llvm::FoldingSetNodeID Id;
+      S->Profile(Id, *Context, true);
+      switch (Map[Id]) {
         case IS_UNCHECKED: return true;
-        case IS_CHECKED:
-                           auto loc = S->getBeginLoc();
-                           Writer.InsertTextBefore(loc, "_Checked");
+        case IS_CHECKED:   auto Loc = S->getBeginLoc();
+                           Writer.InsertTextBefore(Loc, "_Checked");
                            return false;
       }
       llvm_unreachable("Bad flag in CheckedRegionAdder");
@@ -846,12 +845,11 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
   private:
     ASTContext* Context;
     Rewriter &Writer;
-    ProgramInfo &Info;
     std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &Map;
 };
 
 
-// This Visitor adds _Checked and _UnChecked annotations to blocks
+// Determines whether _Checked, or _UnChecked, is appropriate for a block
 class CheckedRegionFinder : public clang::RecursiveASTVisitor<CheckedRegionFinder>
 {
   public:
@@ -864,67 +862,27 @@ class CheckedRegionFinder : public clang::RecursiveASTVisitor<CheckedRegionFinde
     int Ndecls = 0;
 
     bool VisitForStmt(ForStmt *S) {
-      int Localwild = 0;
-
-      for (const auto &SubStmt : S->children()) {
-        CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
-        Sub.TraverseStmt(SubStmt);
-        Localwild += Sub.Nwild;
-      }
-
-      Nwild += Localwild;
+      handleChildren(S->children());
       return false;
     }
 
     bool VisitSwitchStmt(SwitchStmt *S) {
-      int Localwild = 0;
-
-      for (const auto &SubStmt : S->children()) {
-        CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
-        Sub.TraverseStmt(SubStmt);
-        Localwild += Sub.Nwild;
-      }
-
-      Nwild += Localwild;
+      handleChildren(S->children());
       return false;
     }
 
     bool VisitIfStmt(IfStmt *S) {
-      int Localwild = 0;
-
-      for (const auto &SubStmt : S->children()) {
-        CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
-        Sub.TraverseStmt(SubStmt);
-        Localwild += Sub.Nwild;
-      }
-
-      Nwild += Localwild;
+      handleChildren(S->children());
       return false;
     }
 
     bool VisitWhileStmt(WhileStmt *S) {
-      int Localwild = 0;
-
-      for (const auto &SubStmt : S->children()) {
-        CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
-        Sub.TraverseStmt(SubStmt);
-        Localwild += Sub.Nwild;
-      }
-
-      Nwild += Localwild;
+      handleChildren(S->children());
       return false;
     }
 
     bool VisitDoStmt(DoStmt *S) {
-      int Localwild = 0;
-
-      for (const auto &subStmt : S->children()) {
-        CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
-        Sub.TraverseStmt(subStmt);
-        Localwild += Sub.Nwild;
-      }
-
-      Nwild += Localwild;
+      handleChildren(S->children());
       return false;
     }
 
@@ -940,7 +898,7 @@ class CheckedRegionFinder : public clang::RecursiveASTVisitor<CheckedRegionFinde
         Ndecls += Sub.Ndecls;
       }
 
-      addUnCheckedAnnotation(S, Localwild);
+      addUncheckedAnnotation(S, Localwild);
 
       // Compound Statements are always considered to have 0 wild types
       // This is because a compound statement marked w/ _Unchecked can live
@@ -1140,7 +1098,7 @@ class CheckedRegionFinder : public clang::RecursiveASTVisitor<CheckedRegionFinde
       }
     }
 
-    void addUnCheckedAnnotation(CompoundStmt *S, int Localwild) {
+    void addUncheckedAnnotation(CompoundStmt *S, int Localwild) {
       auto Cur = S->getWrittenCheckedSpecifier();
 
       llvm::FoldingSetNodeID Id;
@@ -1194,7 +1152,19 @@ class CheckedRegionFinder : public clang::RecursiveASTVisitor<CheckedRegionFinde
     }
 
   private:
-    ASTContext *Context;
+  void handleChildren(const Stmt::child_range &Stmts) {
+    int Localwild = 0;
+
+    for (const auto &SubStmt : Stmts) {
+      CheckedRegionFinder Sub(Context, Writer, Info, Seen, Map);
+      Sub.TraverseStmt(SubStmt);
+      Localwild += Sub.Nwild;
+    }
+
+    Nwild += Localwild;
+  }
+
+  ASTContext *Context;
     Rewriter &Writer;
     ProgramInfo &Info;
     std::set<llvm::FoldingSetNodeID> &Seen;
@@ -1304,9 +1274,9 @@ private:
   std::string getCastString(ConstraintVariable *Src, ConstraintVariable *Dst,
                             IsChecked Dinfo) {
     assert(needCasting(Src, Dst, Dinfo) && "No casting needed.");
-    auto &E = Info.getConstraints().getVariables();
     // The destination type should be a non-checked type.
     // This is not necessary because of itypes
+    //auto &E = Info.getConstraints().getVariables();
     //assert(!Dst->anyChanges(E) || Dinfo == WILD);
     return "((" + Dst->getRewritableOriginalTy() + ")";
   }
@@ -1535,7 +1505,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   std::set<llvm::FoldingSetNodeID> seen;
   std::map<llvm::FoldingSetNodeID, AnnotationNeeded> nodeMap;
   CheckedRegionFinder CRF(&Context, R, Info, seen, nodeMap);
-  CheckedRegionAdder CRA(&Context, R, Info, nodeMap);
+  CheckedRegionAdder CRA(&Context, R, nodeMap);
   CastPlacementVisitor ECPV(&Context, Info, R);
   CompoundLiteralRewriter CLR(&Context, Info, R);
   for (auto &D : TUD->decls()) {
