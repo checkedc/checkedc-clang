@@ -122,7 +122,8 @@ struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
         z->values = y->values; 
         z->name = strcpy(name, "Hello World");
         z->mapper = fact; 
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z->values[i] = z->mapper(z->values[i]);
         }
         
@@ -138,7 +139,8 @@ struct fptrarr * foo() {
         struct fptrarr * x = malloc(sizeof(struct fptrarr));
         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
         int *yvals = calloc(5, sizeof(int)); 
-        for(int i = 0; i < 5; i++) {
+        int i;
+        for(i = 0; i < 5; i++) {
             yvals[i] = i+1; 
             }  
         y->values = yvals; 
@@ -167,7 +169,8 @@ struct fptrarr * bar() {
         struct fptrarr * x = malloc(sizeof(struct fptrarr));
         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
         int *yvals = calloc(5, sizeof(int)); 
-        for(int i = 0; i < 5; i++) {
+        int i;
+        for(i = 0; i < 5; i++) {
             yvals[i] = i+1; 
             }  
         y->values = yvals; 

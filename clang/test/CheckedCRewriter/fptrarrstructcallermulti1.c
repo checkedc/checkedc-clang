@@ -130,7 +130,8 @@ struct fptrarr * foo() {
         struct fptrarr * x = malloc(sizeof(struct fptrarr));
         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
         int *yvals = calloc(5, sizeof(int)); 
-        for(int i = 0; i < 5; i++) {
+        int i;
+        for(i = 0; i < 5; i++) {
             yvals[i] = i+1; 
             }  
         y->values = yvals; 
@@ -159,7 +160,8 @@ struct fptrarr * bar() {
         struct fptrarr * x = malloc(sizeof(struct fptrarr));
         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
         int *yvals = calloc(5, sizeof(int)); 
-        for(int i = 0; i < 5; i++) {
+        int i;
+        for(i = 0; i < 5; i++) {
             yvals[i] = i+1; 
             }  
         y->values = yvals; 

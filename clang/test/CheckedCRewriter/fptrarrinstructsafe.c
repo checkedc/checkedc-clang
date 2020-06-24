@@ -118,7 +118,8 @@ struct arrfptr * sus(struct arrfptr *x, struct arrfptr *y) {
  
         x = (struct arrfptr *) 5; 
         struct arrfptr *z = malloc(sizeof(struct arrfptr)); 
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z->args[i] = i + 1; 
         } 
         z->funcs[0] = add1;
@@ -139,7 +140,8 @@ struct arrfptr * foo() {
         struct arrfptr * y =  malloc(sizeof(struct arrfptr));
        
         struct arrfptr *z = sus(x, y); 
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z->args[i] = z->funcs[i](z->args[i]);
         }
         
@@ -159,7 +161,8 @@ struct arrfptr * bar() {
         struct arrfptr * y =  malloc(sizeof(struct arrfptr));
        
         struct arrfptr *z = sus(x, y); 
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z->args[i] = z->funcs[i](z->args[i]);
         }
         

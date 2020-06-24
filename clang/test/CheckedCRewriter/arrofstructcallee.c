@@ -119,7 +119,8 @@ struct general ** sus(struct general * x, struct general * y) {
 x = (struct general *) 5; 
         struct general **z = calloc(5, sizeof(struct general *));
         struct general *curr = y;
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z[i] = curr; 
             curr = curr->next; 
         } 
@@ -138,7 +139,8 @@ struct general ** foo() {
         struct general * y = malloc(sizeof(struct general));
         
         struct general *curr = y;
-        for(int i = 1; i < 5; i++, curr = curr->next) { 
+        int i;
+        for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
             curr->next = malloc(sizeof(struct general));
             curr->next->data = i+1;
@@ -161,7 +163,8 @@ struct general ** bar() {
         struct general * y = malloc(sizeof(struct general));
         
         struct general *curr = y;
-        for(int i = 1; i < 5; i++, curr = curr->next) { 
+        int i;
+        for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
             curr->next = malloc(sizeof(struct general));
             curr->next->data = i+1;

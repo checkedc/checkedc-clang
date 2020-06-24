@@ -124,12 +124,14 @@ struct warr * sus(struct warr * x, struct warr * y) {
 x = (struct warr *) 5;
         char name[20]; 
         struct warr *z = y;
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z->data1[i] = i; 
         }
         
 z += 2;
 return z; }
 //CHECK_NOALL: struct warr * sus(struct warr *x, struct warr *y) {
+//CHECK_NOALL:         struct warr *z = y;
 //CHECK_ALL: _Ptr<struct warr> sus(struct warr *x, struct warr *y : itype(_Array_ptr<struct warr>)) {
 //CHECK_ALL:         _Array_ptr<struct warr> z =  y;

@@ -124,7 +124,8 @@ struct arrfptr * sus(struct arrfptr *x, struct arrfptr *y) {
  
         x = (struct arrfptr *) 5; 
         struct arrfptr *z = malloc(sizeof(struct arrfptr)); 
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z->args[i] = i + 1; 
         } 
         z->funcs[0] = add1;
@@ -137,3 +138,4 @@ return z; }
 //CHECK_NOALL: struct arrfptr *sus(struct arrfptr *x, _Ptr<struct arrfptr> y) : itype(_Ptr<struct arrfptr>) {
 //CHECK_NOALL:         _Ptr<struct arrfptr> z =  malloc(sizeof(struct arrfptr)); 
 //CHECK_ALL: struct arrfptr * sus(struct arrfptr *x, _Ptr<struct arrfptr> y) {
+//CHECK_ALL:         struct arrfptr *z = malloc(sizeof(struct arrfptr)); 

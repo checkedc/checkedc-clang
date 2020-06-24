@@ -153,7 +153,8 @@ struct warr * sus(struct warr * x, struct warr * y) {
 x = (struct warr *) 5;
         char name[20]; 
         struct warr *z = y;
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z->data1[i] = i; 
         }
         

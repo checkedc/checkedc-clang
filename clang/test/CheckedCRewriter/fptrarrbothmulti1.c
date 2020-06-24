@@ -128,7 +128,8 @@ int ** foo() {
 
         int *x = malloc(sizeof(int)); 
         int *y = calloc(5, sizeof(int)); 
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             y[i] = i+1;
         } 
         int *z = sus(x, y);
@@ -147,7 +148,8 @@ int ** bar() {
 
         int *x = malloc(sizeof(int)); 
         int *y = calloc(5, sizeof(int)); 
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             y[i] = i+1;
         } 
         int *z = sus(x, y);

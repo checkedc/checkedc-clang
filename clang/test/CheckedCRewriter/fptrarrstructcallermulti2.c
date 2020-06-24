@@ -128,7 +128,8 @@ struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
         z->values = y->values; 
         z->name = strcpy(name, "Hello World");
         z->mapper = fact; 
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z->values[i] = z->mapper(z->values[i]);
         }
         
@@ -136,3 +137,4 @@ return z; }
 //CHECK_NOALL: struct fptrarr *sus(struct fptrarr *x, _Ptr<struct fptrarr> y) : itype(_Ptr<struct fptrarr>) {
 //CHECK_NOALL:         _Ptr<struct fptrarr> z =  malloc(sizeof(struct fptrarr)); 
 //CHECK_ALL: struct fptrarr * sus(struct fptrarr *x, _Ptr<struct fptrarr> y) {
+//CHECK_ALL:         struct fptrarr *z = malloc(sizeof(struct fptrarr)); 

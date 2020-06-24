@@ -129,7 +129,8 @@ int * foo() {
         struct general *x = malloc(sizeof(struct general)); 
         struct general *y = malloc(sizeof(struct general));
         struct general *curr = y;
-        for(int i = 1; i < 5; i++, curr = curr->next) { 
+        int i;
+        for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
             curr->next = malloc(sizeof(struct general));
             curr->next->data = i+1;
@@ -156,7 +157,8 @@ int * bar() {
         struct general *x = malloc(sizeof(struct general)); 
         struct general *y = malloc(sizeof(struct general));
         struct general *curr = y;
-        for(int i = 1; i < 5; i++, curr = curr->next) { 
+        int i;
+        for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
             curr->next = malloc(sizeof(struct general));
             curr->next->data = i+1;

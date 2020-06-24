@@ -124,11 +124,16 @@ struct general ** sus(struct general * x, struct general * y) {
 x = (struct general *) 5; 
         struct general **z = calloc(5, sizeof(struct general *));
         struct general *curr = y;
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z[i] = curr; 
             curr = curr->next; 
         } 
         
 return z; }
 //CHECK_NOALL: struct general ** sus(struct general *x, struct general *y) {
+//CHECK_NOALL:         struct general **z = calloc(5, sizeof(struct general *));
+//CHECK_NOALL:         struct general *curr = y;
 //CHECK_ALL: struct general ** sus(struct general *x, struct general *y) {
+//CHECK_ALL:         struct general **z = calloc(5, sizeof(struct general *));
+//CHECK_ALL:         struct general *curr = y;

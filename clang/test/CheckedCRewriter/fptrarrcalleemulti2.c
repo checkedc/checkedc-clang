@@ -125,13 +125,16 @@ int ** sus(int *x, int *y) {
         x = (int *) 5;
         int **z = calloc(5, sizeof(int *)); 
         int * (*mul2ptr) (int *) = mul2;
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z[i] = mul2ptr(&y[i]);
         } 
         
 z += 2;
 return z; }
 //CHECK_NOALL: int ** sus(int *x, int *y) {
+//CHECK_NOALL:         int **z = calloc(5, sizeof(int *)); 
 //CHECK_NOALL:         _Ptr<int* (int *)> mul2ptr =  mul2;
 //CHECK_ALL: int ** sus(int *x, int *y) {
+//CHECK_ALL:         int **z = calloc(5, sizeof(int *)); 
 //CHECK_ALL:         _Ptr<int* (int *)> mul2ptr =  mul2;
