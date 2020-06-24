@@ -10,7 +10,8 @@ extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_c
 extern _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
 
 void foo(int *w) { 
-    int *y = malloc(sizeof(int)); 
+    int *y = malloc(2*sizeof(int)); 
+    y[1] = 3;
     int *z = realloc(y, 5*sizeof(int)); 
     z[3] =  2;
 } 
