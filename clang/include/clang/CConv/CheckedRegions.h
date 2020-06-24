@@ -1,4 +1,4 @@
-//=--RewriteUtils.h-----------------------------------------------*- C++-*-===//
+//=--CheckedRegions.h-----------------------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // This class contains functions and classes that deal with
-// rewriting the source file after converting to CheckedC format.
+// adding the _Checked and _Unchecked annotations to code
+// when enabled with the -addcr flag
 //===----------------------------------------------------------------------===//
 
 #ifndef _CHECKEDREGIONS_H

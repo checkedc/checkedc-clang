@@ -1,3 +1,14 @@
+//=--StructInit.cpp-----------------------------------------------*- C++-*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+// This class contains implementation of the functions and
+// classes of StructInit.h
+//===----------------------------------------------------------------------===//
+
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/CConv/MappingVisitor.h"
 #include "clang/CConv/StructInit.h"
