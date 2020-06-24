@@ -153,14 +153,13 @@ struct warr * sus(struct warr * x, struct warr * y) {
 x = (struct warr *) 5;
         char name[20]; 
         struct warr *z = y;
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z->data1[i] = i; 
         }
         
 return z; }
 //CHECK_NOALL: _Ptr<struct warr> sus(struct warr *x, _Ptr<struct warr> y) {
-//CHECK_NOALL:         char name[20]; 
 //CHECK_NOALL:         _Ptr<struct warr> z =  y;
 //CHECK_ALL: _Ptr<struct warr> sus(struct warr *x, _Ptr<struct warr> y) {
-//CHECK_ALL:         char name _Checked[20]; 
 //CHECK_ALL:         _Ptr<struct warr> z =  y;

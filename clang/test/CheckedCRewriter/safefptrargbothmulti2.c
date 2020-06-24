@@ -124,7 +124,8 @@ int * sus(int (*x) (int), int (*y) (int)) {
  
         x = (int (*) (int)) 5;
         int *z = calloc(5, sizeof(int));
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z[i] = y(i);
         }
         
@@ -132,5 +133,5 @@ z += 2;
 return z; }
 //CHECK_NOALL: int * sus(int (*x)(int), _Ptr<int (int )> y) {
 //CHECK_NOALL:         int *z = calloc(5, sizeof(int));
-//CHECK_ALL: int * sus(int (*x)(int), _Ptr<int (int )> y) {
-//CHECK_ALL:         int *z = calloc(5, sizeof(int));
+//CHECK_ALL: _Nt_array_ptr<int> sus(int (*x)(int), _Ptr<int (int )> y) {
+//CHECK_ALL:         _Nt_array_ptr<int> z =  calloc(5, sizeof(int));
