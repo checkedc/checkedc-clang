@@ -124,7 +124,8 @@ int * sus(struct general *x, struct general *y) {
         x = (struct general *) 5;
         int *z = calloc(5, sizeof(int)); 
         struct general *p = y;
-        for(int i = 0; i < 5; p = p->next, i++) { 
+        int i;
+        for(i = 0; i < 5; p = p->next, i++) { 
             z[i] = p->data; 
         } 
         

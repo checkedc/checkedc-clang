@@ -127,14 +127,16 @@ def method_gen(prefix, proto, suffix):
         arg_type = "int *" 
         susbody = """
         int *z = calloc(5, sizeof(int)); 
-        for(int i = 0, *p = z, fac = 1; i < 5; ++i, p++, fac *= i) 
+        int i, *p, fac;
+        for(i = 0, p = z, fac = 1; i < 5; ++i, p++, fac *= i) 
         { *p = fac; }"""
     elif prefix=="arrstruct":
         return_type = "int *" 
         arg_type = "struct general *" 
         barbody = foobody = """
         struct general *curr = y;
-        for(int i = 1; i < 5; i++, curr = curr->next) { 
+        int i;
+        for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
             curr->next = malloc(sizeof(struct general));
             curr->next->data = i+1;
@@ -143,7 +145,8 @@ def method_gen(prefix, proto, suffix):
         susbody = """
         int *z = calloc(5, sizeof(int)); 
         struct general *p = y;
-        for(int i = 0; i < 5; p = p->next, i++) { 
+        int i;
+        for(i = 0; i < 5; p = p->next, i++) { 
             z[i] = p->data; 
         } 
         """
@@ -153,7 +156,8 @@ def method_gen(prefix, proto, suffix):
         susbody = """
         char name[20]; 
         struct warr *z = y;
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z->data1[i] = i; 
         }
         """
@@ -163,14 +167,16 @@ def method_gen(prefix, proto, suffix):
         susbody = """ 
         struct general **z = calloc(5, sizeof(struct general *));
         struct general *curr = y;
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z[i] = curr; 
             curr = curr->next; 
         } 
         """ 
         barbody = foobody = """
         struct general *curr = y;
-        for(int i = 1; i < 5; i++, curr = curr->next) { 
+        int i;
+        for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
             curr->next = malloc(sizeof(struct general));
             curr->next->data = i+1;
@@ -184,7 +190,8 @@ def method_gen(prefix, proto, suffix):
         susbody = """ 
         x = (int (*) (int)) 5;
         int *z = calloc(5, sizeof(int));
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z[i] = y(i);
         }
         """
@@ -201,7 +208,8 @@ def method_gen(prefix, proto, suffix):
         susbody = """ 
         x = (int (*) (int)) 5;
         int *z = calloc(5, sizeof(int));
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z[i] = y(i);
         }
         """
@@ -247,7 +255,8 @@ def method_gen(prefix, proto, suffix):
         struct general *x = malloc(sizeof(struct general)); 
         struct general *y = malloc(sizeof(struct general));
         struct general *curr = y;
-        for(int i = 1; i < 5; i++, curr = curr->next) { 
+        int i;
+        for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
             curr->next = malloc(sizeof(struct general));
             curr->next->data = i+1;
@@ -259,7 +268,8 @@ def method_gen(prefix, proto, suffix):
         x = (struct general *) 5;
         int *z = calloc(5, sizeof(int)); 
         struct general *p = y;
-        for(int i = 0; i < 5; p = p->next, i++) { 
+        int i;
+        for(i = 0; i < 5; p = p->next, i++) { 
             z[i] = p->data; 
         } 
         """
@@ -272,7 +282,8 @@ def method_gen(prefix, proto, suffix):
         struct general *x = malloc(sizeof(struct general)); 
         struct general *y = malloc(sizeof(struct general));
         struct general *curr = y;
-        for(int i = 1; i < 5; i++, curr = curr->next) { 
+        int i;
+        for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
             curr->next = malloc(sizeof(struct general));
             curr->next->data = i+1;
@@ -284,7 +295,8 @@ def method_gen(prefix, proto, suffix):
         x = (struct general *) 5;
         int *z = calloc(5, sizeof(int)); 
         struct general *p = y;
-        for(int i = 0; i < 5; p = p->next, i++) { 
+        int i;
+        for(i = 0; i < 5; p = p->next, i++) { 
             z[i] = p->data; 
         } 
         """
@@ -297,14 +309,16 @@ def method_gen(prefix, proto, suffix):
         x = (int *) 5;
         int **z = calloc(5, sizeof(int *)); 
         int * (*mul2ptr) (int *) = mul2;
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z[i] = mul2ptr(&y[i]);
         } 
         """
         foobody = barbody = """
         int *x = malloc(sizeof(int)); 
         int *y = calloc(5, sizeof(int)); 
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             y[i] = i+1;
         } 
         int *z = sus(x, y);
@@ -318,7 +332,8 @@ def method_gen(prefix, proto, suffix):
         foobody = barbody = """
         int *x = malloc(sizeof(int));
         int *y = calloc(5, sizeof(int)); 
-        for(int i = 0; i < 5; i++) {
+        int i;
+        for(i = 0; i < 5; i++) {
             y[i] = i+1;
         } 
         int (**z)(int) = sus(x, y);
@@ -332,8 +347,8 @@ def method_gen(prefix, proto, suffix):
         z[2] = zerohuh;
         z[3] = fib;
         z[4] = fact;
-        
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             y[i] = z[i](y[i]);
         }
         """
@@ -365,7 +380,8 @@ def method_gen(prefix, proto, suffix):
         z->values = y->values; 
         z->name = strcpy(name, "Hello World");
         z->mapper = fact; 
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z->values[i] = z->mapper(z->values[i]);
         }
         """ 
@@ -374,7 +390,8 @@ def method_gen(prefix, proto, suffix):
         struct fptrarr * x = malloc(sizeof(struct fptrarr));
         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
         int *yvals = calloc(5, sizeof(int)); 
-        for(int i = 0; i < 5; i++) {
+        int i;
+        for(i = 0; i < 5; i++) {
             yvals[i] = i+1; 
             }  
         y->values = yvals; 
@@ -391,7 +408,8 @@ def method_gen(prefix, proto, suffix):
         susbody = """ 
         x = (struct arrfptr *) 5; 
         struct arrfptr *z = malloc(sizeof(struct arrfptr)); 
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z->args[i] = i + 1; 
         } 
         z->funcs[0] = add1;
@@ -405,7 +423,8 @@ def method_gen(prefix, proto, suffix):
         struct arrfptr * y =  malloc(sizeof(struct arrfptr));
        
         struct arrfptr *z = sus(x, y); 
-        for(int i = 0; i < 5; i++) { 
+        int i;
+        for(i = 0; i < 5; i++) { 
             z->args[i] = z->funcs[i](z->args[i]);
         }
         """
@@ -464,7 +483,8 @@ def process_file(file, cname, cname2, proto, alltypes, new_defs, new_defs2, susp
     check = "CHECK_NOALL"
     if alltypes: check = "CHECK_ALL"
 
-    keywords = "int char struct double float _Ptr _Array_ptr _Nt_array_ptr".split(" ")
+    keywords = "int char struct double float".split(" ") 
+    ckeywords = "_Ptr _Array_ptr _Nt_array_ptr".split(" ")
 
     # these boolean variables indicate which method definition we are in, so we know where to add
     # our checked annotations later
@@ -473,6 +493,7 @@ def process_file(file, cname, cname2, proto, alltypes, new_defs, new_defs2, susp
 
     # generate the check annotations
     for line in file.readlines():   
+        linepre = line.split("=")[0]
         # this indicates that we've reached the definitions
         if line.find("struct general {") != -1: 
             indefs = insus = infoo = inbar = False 
@@ -550,19 +571,20 @@ def process_file(file, cname, cname2, proto, alltypes, new_defs, new_defs2, susp
                 new_defs[-1] += "\n//" + check + ": " + line 
         
         elif insus: 
-            if any(substr in line for substr in keywords) and line.find("5;") == -1:
+            if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
                 susc += "//" + check + ": " + line
         elif infoo: 
-            if any(substr in line for substr in keywords):
+            if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
                 fooc += "//" + check + ": " + line 
         elif inbar: 
-            if any(substr in line for substr in keywords):
+            if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
                 barc += "//" + check + ": " + line
     
     if proto=="multi": 
         file2 = open(cname2, "r")
 
-        for line in file2.readlines(): 
+        for line in file2.readlines():  
+            linepre = line.split("=")[0] 
             # this indicates that we've reached the definitions
             if line.find("struct general {") != -1: 
                 indefs = insus = infoo = inbar = False 
@@ -575,7 +597,7 @@ def process_file(file, cname, cname2, proto, alltypes, new_defs, new_defs2, susp
                 susc += "//" + check + ": " + line
 
             elif insus: 
-                if any(substr in line for substr in keywords) and line.find("5;") == -1:
+                if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
                     susc += "//" + check + ": " + line
 
             elif indefs: 

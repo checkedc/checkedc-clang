@@ -128,7 +128,8 @@ struct general ** foo() {
         struct general * y = malloc(sizeof(struct general));
         
         struct general *curr = y;
-        for(int i = 1; i < 5; i++, curr = curr->next) { 
+        int i;
+        for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
             curr->next = malloc(sizeof(struct general));
             curr->next->data = i+1;
@@ -139,15 +140,11 @@ return z; }
 //CHECK_NOALL:         struct general * x = malloc(sizeof(struct general));
 //CHECK_NOALL:         struct general * y = malloc(sizeof(struct general));
 //CHECK_NOALL:         struct general *curr = y;
-//CHECK_NOALL:         for(int i = 1; i < 5; i++, curr = curr->next) { 
-//CHECK_NOALL:             curr->next = malloc(sizeof(struct general));
 //CHECK_NOALL:         struct general ** z = sus(x, y);
 //CHECK_ALL: struct general ** foo() {
 //CHECK_ALL:         struct general * x = malloc(sizeof(struct general));
 //CHECK_ALL:         struct general * y = malloc(sizeof(struct general));
 //CHECK_ALL:         struct general *curr = y;
-//CHECK_ALL:         for(int i = 1; i < 5; i++, curr = curr->next) { 
-//CHECK_ALL:             curr->next = malloc(sizeof(struct general));
 //CHECK_ALL:         struct general ** z = sus(x, y);
 
 struct general ** bar() {
@@ -155,7 +152,8 @@ struct general ** bar() {
         struct general * y = malloc(sizeof(struct general));
         
         struct general *curr = y;
-        for(int i = 1; i < 5; i++, curr = curr->next) { 
+        int i;
+        for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
             curr->next = malloc(sizeof(struct general));
             curr->next->data = i+1;
@@ -166,13 +164,9 @@ return z; }
 //CHECK_NOALL:         struct general * x = malloc(sizeof(struct general));
 //CHECK_NOALL:         struct general * y = malloc(sizeof(struct general));
 //CHECK_NOALL:         struct general *curr = y;
-//CHECK_NOALL:         for(int i = 1; i < 5; i++, curr = curr->next) { 
-//CHECK_NOALL:             curr->next = malloc(sizeof(struct general));
 //CHECK_NOALL:         struct general ** z = sus(x, y);
 //CHECK_ALL: struct general ** bar() {
 //CHECK_ALL:         struct general * x = malloc(sizeof(struct general));
 //CHECK_ALL:         struct general * y = malloc(sizeof(struct general));
 //CHECK_ALL:         struct general *curr = y;
-//CHECK_ALL:         for(int i = 1; i < 5; i++, curr = curr->next) { 
-//CHECK_ALL:             curr->next = malloc(sizeof(struct general));
 //CHECK_ALL:         struct general ** z = sus(x, y);
