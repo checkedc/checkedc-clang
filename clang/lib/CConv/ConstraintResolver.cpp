@@ -392,6 +392,13 @@ std::set<ConstraintVariable *>
               PVC->constrainOuterTo(CS,A,true);
               ReturnCVs.insert(PVC);
               didInsert = true;
+              if (!FuncName.compare("realloc")) {
+                std::set<ConstraintVariable *> R =
+                    getExprConstraintVars(CE->getArg(0));
+                for (auto &Constraint : R)
+                  constrainConsVarGeq(PVC, Constraint, Info.getConstraints(),
+                      nullptr, Same_to_Same, true, &Info);
+              }
             }
           }
           if (!didInsert)
