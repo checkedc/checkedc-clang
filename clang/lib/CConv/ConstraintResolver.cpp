@@ -120,7 +120,7 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, ConstAtom *PtrTyp, 
 // Processes E from malloc(E) to discern the pointer type this will be
 static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS, QualType &ArgTy,
     std::string FuncName, ASTContext *Context) {
-  if (!FuncName.compare("calloc")) {
+  if (FuncName.compare("calloc") == 0) {
     ArgTy = CE->getArg(1)->getType();
     // Check if first argument to calloc is 1
     Expr *E = CE->getArg(0);
@@ -135,10 +135,12 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS, QualType &ArgT
 
   ConstAtom *ret = CS.getPtr();
   Expr *E;
-  if (!FuncName.compare("malloc"))
+  if (FuncName.compare("malloc") == 0)
     E = CE->getArg(0);
-  else
+  else {
+    assert(FuncName.compare("realloc") == 0);
     E = CE->getArg(1);
+  }
   E = E->IgnoreParenImpCasts();
   BinaryOperator *B = dyn_cast<BinaryOperator>(E);
   std::set<Expr *> Exprs;
@@ -358,6 +360,7 @@ std::set<ConstraintVariable *>
       // constraints for the return value of that function.
       QualType ExprType = E->getType();
       Decl *D = CE->getCalleeDecl();
+      std::set<ConstraintVariable *> ReallocFlow;
       if (D == nullptr) {
         // There are a few reasons that we couldn't get a decl. For example,
         // the call could be done through an array subscript.
@@ -392,12 +395,9 @@ std::set<ConstraintVariable *>
               PVC->constrainOuterTo(CS,A,true);
               ReturnCVs.insert(PVC);
               didInsert = true;
-              if (!FuncName.compare("realloc")) {
-                std::set<ConstraintVariable *> R =
-                    getExprConstraintVars(CE->getArg(0));
-                for (auto &Constraint : R)
-                  constrainConsVarGeq(PVC, Constraint, Info.getConstraints(),
-                      nullptr, Same_to_Same, true, &Info);
+              if (FuncName.compare("realloc") == 0) {
+                // We will constrain the first arg to the return of realloc, below
+                ReallocFlow = getExprConstraintVars(CE->getArg(0)->IgnoreParenImpCasts());
               }
             }
           }
@@ -441,6 +441,13 @@ std::set<ConstraintVariable *>
         //   might be assigned otherwise (Same_to_Same) to LHS
         constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false, &Info);
         TmpCVs.insert(NewCV);
+        // If this is realloc, constrain the first arg to flow to the return
+        if (!ReallocFlow.empty()) {
+          for (auto &Constraint : ReallocFlow)
+            constrainConsVarGeq(NewCV, Constraint, Info.getConstraints(),
+                                nullptr, Wild_to_Safe, false, &Info);
+
+        }
       }
       return TmpCVs;
 

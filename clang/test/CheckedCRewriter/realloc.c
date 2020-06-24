@@ -15,5 +15,8 @@ void foo(int *w) {
     int *z = realloc(y, 5*sizeof(int)); 
     z[3] =  2;
 } 
-//CHECK: int *y = malloc(sizeof(int));
-//CHECK: int *z = realloc(y, 5*sizeof(int));
+//CHECK_NOALL: int *y = malloc(2*sizeof(int)); 
+//CHECK_NOALL: int *z = realloc(y, 5*sizeof(int));
+//CHECK_ALL: _Array_ptr<int> y: count((2 * sizeof(int))) =  malloc(2*sizeof(int)); 
+//CHECK_ALL: _Array_ptr<int> z =  realloc(y, 5*sizeof(int)); 
+
