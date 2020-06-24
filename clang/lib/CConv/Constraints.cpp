@@ -283,17 +283,58 @@ static bool do_solve(ConstraintsGraph &CG,
   return ok;
 }
 
-auto isNonParam =
-    [](VarAtom *VA) -> bool {
-      VarAtom::VarKind VK = VA->getVarKind();
-      return VK != VarAtom::V_Param;
-    };
+VarAtomPred isReturn = [](VarAtom *VA) -> bool {
+  return VA->getVarKind() == VarAtom::V_Return;
+};
+VarAtomPred isParam = [](VarAtom *VA) -> bool {
+  return VA->getVarKind() == VarAtom::V_Param;
+};
+VarAtomPred isNonParamReturn = [](VarAtom *VA) -> bool {
+  return !isReturn(VA) && !isParam(VA);
+};
 
-auto isNonParamReturn =
-    [](VarAtom *VA) -> bool {
-      VarAtom::VarKind VK = VA->getVarKind();
-      return VK != VarAtom::V_Param && VK != VarAtom::V_Return;
-    };
+// Remove from S all elements that don't match the predicate P
+void filter(VarAtomPred P, std::set<VarAtom *> &S) {
+  for (auto I = S.begin(), E = S.end(); I != E; ) {
+    if (!P(*I))
+      I = S.erase(I);
+    else
+      ++I;
+  }
+}
+
+static std::set<VarAtom *> findBounded(ConstraintsGraph &CG, std::set<VarAtom *> *Concrete, bool Succs, bool UseConstAtoms) {
+  std::set<VarAtom *> Bounded;
+  std::vector<Atom *> Open;
+  if (Concrete != nullptr) {
+    Open.insert(Open.begin(), Concrete->begin(), Concrete->end());
+    Bounded.insert(Concrete->begin(), Concrete->end());
+  }
+
+  if (UseConstAtoms) {
+    auto &ConstA = CG.getAllConstAtoms();
+    Open.insert(Open.begin(), ConstA.begin(), ConstA.end());
+  }
+
+  while (!Open.empty()) {
+    auto *Curr = *(Open.begin());
+    Open.erase(Open.begin());
+
+    std::set<Atom *> Neighbors;
+    if (CG.getNeighbors<VarAtom>(Curr, Neighbors, Succs)) {
+      for (Atom *N : Neighbors) {
+        if(VarAtom *VA = dyn_cast<VarAtom>(N)){
+          if (Bounded.find(VA) == Bounded.end()){
+            Open.push_back(VA);
+            Bounded.insert(VA);
+          }
+        }
+      }
+    }
+  }
+
+  return Bounded;
+}
 
 bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
   ConstraintsGraph ChkCG;
@@ -342,13 +383,60 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
 
     // Step 2: Reset all solutions but for function params, and compute the least
     if (res) {
-      std::set<VarAtom *> rest = env.resetSolution(isNonParam, getNTArr());
+
+      // We want to find all local variables with an upper bound that provide a
+      // lower bound for return variables that are not otherwise bounded.
+
+      // 1. Find return vars with a lower bound
+      std::set<VarAtom *> ParamVars = env.filterAtoms(isParam);
+      std::set<VarAtom *> LowerBoundedRet =
+          findBounded(PtrTypCG, &ParamVars, true, true);
+      filter(isReturn, LowerBoundedRet);
+
+      // 2. Find local vars where one of the return vars is an upper bound.
+      //    Conversely, these are an alternative lower bound for the return var.
+      std::set<VarAtom *> RetUpperBoundedLocals =
+          findBounded(PtrTypCG, &LowerBoundedRet, false, false);
+      filter(isNonParamReturn, RetUpperBoundedLocals);
+
+      // 3. Find local vars upper bounded by a const var.
+      std::set<VarAtom *> ConstUpperBoundedLocals =
+          findBounded(PtrTypCG, nullptr, false, true);
+      filter(isNonParamReturn, ConstUpperBoundedLocals);
+
+      // 4. Take set difference of 2 and 3 to find bounded vars that do not
+      //    effect an existing lower bound.
+      std::set<VarAtom *> Diff;
+      std::set_difference(
+          ConstUpperBoundedLocals.begin(), ConstUpperBoundedLocals.end(),
+          RetUpperBoundedLocals.begin(), RetUpperBoundedLocals.end(),
+          std::inserter(Diff, Diff.begin()));
+
+      // 5. Reset var to NTArr if not a param var and not in the previous set.
+      std::set<VarAtom *> rest = env.resetSolution(
+          [Diff](VarAtom *VA) -> bool {
+            return !(isParam(VA) || Diff.find(VA) != Diff.end());
+          },
+          getNTArr());
+
+      // Remember which variables have a concrete lower bound. Variables without
+      // a lower bound will be resolved in the final greatest solution.
+      std::set<VarAtom *> LowerBounded =
+          findBounded(PtrTypCG, &rest, true, true);
+
       res = do_solve(PtrTypCG, Empty, env, this, true, &rest, Conflicts);
 
       // Step 3: Reset local variable solutions, compute greatest
       if (res) {
         rest.clear();
-        rest = env.resetSolution(isNonParamReturn, getPtr());
+
+        rest = env.resetSolution(
+            [LowerBounded](VarAtom *VA) -> bool {
+              return isNonParamReturn(VA) ||
+                     LowerBounded.find(VA) == LowerBounded.end();
+            },
+            getPtr());
+
         res = do_solve(PtrTypCG, Empty, env, this, false, &rest,
                        Conflicts);
       }
@@ -635,6 +723,17 @@ bool ConstraintsEnv::assign(VarAtom *V, ConstAtom *C) {
     VI->second.second = C;
   }
   return true;
+}
+
+// Find VarAtoms in the environment that match a predicate.
+std::set<VarAtom *> ConstraintsEnv::filterAtoms(VarAtomPred Pred) {
+  std::set<VarAtom *> Matches;
+  for (const auto &CurrE : environment) {
+    VarAtom *VA = CurrE.first;
+    if (Pred(VA))
+      Matches.insert(VA);
+  }
+  return Matches;
 }
 
 // Reset solution of all VarAtoms that satisfy the given predicate
