@@ -25,6 +25,7 @@ if (LLVM_BOOST_FOUND)
           RewriteUtils.cpp
           CheckedRegions.cpp
           StructInit.cpp
+          CastPlacement.cpp
           Utils.cpp
           LINK_LIBS
           clangAST

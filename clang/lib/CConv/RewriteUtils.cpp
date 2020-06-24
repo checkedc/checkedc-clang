@@ -17,6 +17,7 @@
 #include "clang/CConv/CCGlobalOptions.h"
 #include "clang/CConv/MappingVisitor.h"
 #include "clang/CConv/CheckedRegions.h"
+#include "clang/CConv/CastPlacement.h"
 #include "clang/CConv/StructInit.h"
 #include "llvm/Support/raw_ostream.h"
 #include "clang/Tooling/Refactoring/SourceCode.h"
@@ -148,8 +149,7 @@ void GlobalVariableGroups::addGlobalDecl(VarDecl *VD,
 
 std::set<VarDecl *> &GlobalVariableGroups::getVarsOnSameLine(VarDecl *VD) {
   assert (globVarGroups.find(VD) != globVarGroups.end() &&
-         "Expected to find the group.");
-  return *(globVarGroups[VD]);
+         "Expected to find the group."); return *(globVarGroups[VD]);
 }
 
 GlobalVariableGroups::~GlobalVariableGroups() {
@@ -704,51 +704,6 @@ bool TypeRewritingVisitor::isFunctionVisited(std::string FuncName) {
   return VisitedSet.find(FuncName) != VisitedSet.end();
 }
 
-//static bool
-//canWrite(std::string filePath, std::set<std::string> &iof, std::string b) {
-//  // Was this file explicitly provided on the command line?
-//  if (iof.count(filePath) > 0)
-//    return true;
-//  // Is this file contained within the base directory?
-//
-//  sys::path::const_iterator baseIt = sys::path::begin(b);
-//  sys::path::const_iterator pathIt = sys::path::begin(filePath);
-//  sys::path::const_iterator baseEnd = sys::path::end(b);
-//  sys::path::const_iterator pathEnd = sys::path::end(filePath);
-//  std::string baseSoFar = (*baseIt).str() + sys::path::get_separator().str();
-//  std::string pathSoFar = (*pathIt).str() + sys::path::get_separator().str();
-//  ++baseIt;
-//  ++pathIt;
-//
-//  while ((baseIt != baseEnd) && (pathIt != pathEnd)) {
-//    sys::fs::file_status baseStatus;
-//    sys::fs::file_status pathStatus;
-//    std::string s1 = (*baseIt).str();
-//    std::string s2 = (*pathIt).str();
-//
-//    if (std::error_code ec = sys::fs::status(baseSoFar, baseStatus))
-//      return false;
-//
-//    if (std::error_code ec = sys::fs::status(pathSoFar, pathStatus))
-//      return false;
-//
-//    if (!sys::fs::equivalent(baseStatus, pathStatus))
-//      break;
-//
-//    if (s1 != sys::path::get_separator().str())
-//      baseSoFar += (s1 + sys::path::get_separator().str());
-//    if (s2 != sys::path::get_separator().str())
-//      pathSoFar += (s2 + sys::path::get_separator().str());
-//
-//    ++baseIt;
-//    ++pathIt;
-//  }
-//
-//  if (baseIt == baseEnd && baseSoFar == pathSoFar)
-//    return true;
-//  else
-//    return false;
-//}
 
 static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
                  std::string &OutputPostfix) {
@@ -820,225 +775,6 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 
 
 
-
-// Class for visiting variable usages and function calls to add
-// explicit casting if needed.
-class CastPlacementVisitor :
-    public RecursiveASTVisitor<CastPlacementVisitor> {
-public:
-  explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I,
-                                Rewriter &R)
-      : Context(C), Info(I), Writer(R), CR(Info, Context) {}
-
-  bool VisitCallExpr(CallExpr *CE) {
-    Decl *D = CE->getCalleeDecl();
-    if (D) {
-      PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CE, *Context);
-      if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-        // Get the constraint variable for the function.
-        std::set<FVConstraint *> *V = Info.getFuncConstraints(FD, Context);
-        // Function has no definition i.e., external function.
-        assert(V);
-//        if (V == nullptr) {
-//          V = Info.getFuncDeclConstraints(FD, Context);
-//        }
-        // TODO Deubgging lines
-        // llvm::errs() << "Decl for: " << FD->getNameAsString() << "\nVars:";
-        // for (auto &CV : V) {
-        //   CV->dump();
-        //   llvm::errs() << "\n";
-        // }
-
-        // Did we see this function in another file?
-        auto Fname = FD->getNameAsString();
-        auto PInfo = Info.get_MF()[Fname];
-
-        if (V != nullptr && V->size() > 0) {
-          // Get the FV constraint for the Callee.
-          FVConstraint *FV = *(V->begin());
-          // Now we need to check the type of the arguments and corresponding
-          // parameters to see, if any explicit casting is needed.
-          if (FV) {
-            unsigned i = 0;
-            for (const auto &A : CE->arguments()) {
-              if (i < FD->getNumParams()) {
-
-                std::set<ConstraintVariable *> ArgumentConstraints =
-                    CR.getExprConstraintVars(A);
-                std::set<ConstraintVariable *> &ParameterConstraints =
-                    FV->getParamVar(i);
-                bool CastInserted = false;
-                for (auto *ArgumentC : ArgumentConstraints) {
-                  CastInserted = false;
-                  for (auto *ParameterC : ParameterConstraints) {
-                    auto Dinfo = i < PInfo.size() ? PInfo[i] : CHECKED;
-                    if (needCasting(ArgumentC, ParameterC, Dinfo)) {
-                      // We expect the cast string to end with "(".
-                      std::string CastString =
-                          getCastString(ArgumentC, ParameterC, Dinfo);
-                      surroundByCast(CastString, A);
-                      CastInserted = true;
-                      break;
-                    }
-                  }
-                  // If we have already inserted a cast, then break.
-                  if (CastInserted) break;
-                }
-
-              }
-              i++;
-            }
-          }
-        }
-      }
-    }
-    return true;
-  }
-
-  
-private:
-  // Check whether an explicit casting is needed when the pointer represented
-  // by src variable is assigned to dst.
-  bool needCasting(ConstraintVariable *Src, ConstraintVariable *Dst,
-                   IsChecked Dinfo) {
-    auto &E = Info.getConstraints().getVariables();
-    auto SrcChecked = Src->anyChanges(E);
-    // Check if the src is a checked type.
-    if (SrcChecked) {
-      // Check if Dst is an itype, if yes then
-      // Src should have exactly same checked type else we need to insert cast.
-      if (Dst->hasItype()) {
-        return !Dst->solutionEqualTo(Info.getConstraints(), Src);
-      }
-
-      // Is Dst Wild?
-      if (!Dst->anyChanges(E) || Dinfo == WILD) {
-        return true;
-      }
-
-    }
-    return false;
-  }
-
-  // Get the type name to insert for casting.
-  std::string getCastString(ConstraintVariable *Src, ConstraintVariable *Dst,
-                            IsChecked Dinfo) {
-    assert(needCasting(Src, Dst, Dinfo) && "No casting needed.");
-    // The destination type should be a non-checked type.
-    // This is not necessary because of itypes
-    //auto &E = Info.getConstraints().getVariables();
-    //assert(!Dst->anyChanges(E) || Dinfo == WILD);
-    return "((" + Dst->getRewritableOriginalTy() + ")";
-  }
-
-  void surroundByCast(std::string CastPrefix, Expr *E) {
-    if (Writer.InsertTextAfterToken(E->getEndLoc(), ")")) {
-      // This means we failed to insert the text at the end of the RHS.
-      // This can happen because of Macro expansion.
-      // We will see if this is a single expression statement?
-      // If yes, then we will use parent statement to add ")"
-      auto CRA = CharSourceRange::getTokenRange(E->getSourceRange());
-      auto NewCRA = clang::Lexer::makeFileCharRange(CRA,
-                                                    Context->getSourceManager(),
-                                                    Context->getLangOpts());
-      std::string SrcText = clang::tooling::getText(CRA, *Context);
-      // Only insert if there is anything to write.
-      if (!SrcText.empty())
-        Writer.ReplaceText(NewCRA, CastPrefix + SrcText + ")");
-    } else {
-      Writer.InsertTextBefore(E->getBeginLoc(), CastPrefix);
-    }
-  }
-
-  ASTContext            *Context;
-  ProgramInfo           &Info;
-  Rewriter              &Writer;
-  ConstraintResolver    CR;
-
-};
-
-// This class initializes all the structure variables that
-// contains at least one checked pointer?
-/*
-class StructVariableInitializer :
-    public clang::RecursiveASTVisitor<StructVariableInitializer>
-{
-public:
-  explicit StructVariableInitializer(ASTContext *_C, ProgramInfo &_I, RSet &R)
-    : Context(_C), I(_I), RewriteThese(R)
-  {
-    RecordsWithCPointers.clear();
-  }
-
-  bool VariableNeedsInitializer(VarDecl *VD, DeclStmt *S) {
-    RecordDecl *RD = VD->getType().getTypePtr()->getAsRecordDecl();
-    if (RecordDecl *Definition = RD->getDefinition()) {
-      // See if we already know that this structure has a checked pointer.
-      if (RecordsWithCPointers.find(Definition) !=
-          RecordsWithCPointers.end()) {
-        return true;
-      }
-      for (const auto &D : Definition->fields()) {
-        if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
-          std::set<ConstraintVariable *> FieldConsVars =
-              I.getVariable(D, Context);
-          for (auto CV : FieldConsVars) {
-            PVConstraint *PV = dyn_cast<PVConstraint>(CV);
-            if (PV && PV->anyChanges(I.getConstraints().getVariables())) {
-              // Ok this contains a pointer that is checked.
-              // Store it.
-              RecordsWithCPointers.insert(Definition);
-              return true;
-            }
-          }
-        }
-      }
-    }
-    return false;
-  }
-
-  // Check to see if this variable require an initialization.
-  bool VisitDeclStmt(DeclStmt *S) {
-
-    std::set<VarDecl *> AllDecls;
-
-    if (S->isSingleDecl()) {
-      if (VarDecl *VD = dyn_cast<VarDecl>(S->getSingleDecl())) {
-        AllDecls.insert(VD);
-      }
-    } else {
-      for (const auto &D : S->decls()) {
-        if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-          AllDecls.insert(VD);
-        }
-      }
-    }
-
-    for (auto VD : AllDecls) {
-      // Check if this variable is a structure or union and
-      // doesn't have an initializer.
-      if (!VD->hasInit() && isStructOrUnionType(VD)) {
-        // Check if the variable needs a initializer.
-        if (VariableNeedsInitializer(VD, S)) {
-          const clang::Type *Ty = VD->getType().getTypePtr();
-          std::string OriginalType = tyToStr(Ty);
-          // Create replacement text with an initializer.
-          std::string ToReplace = OriginalType + " " +
-                                  VD->getName().str() + " = {}";
-          RewriteThese.insert(DAndReplace(VD, S, ToReplace));
-        }
-      }
-    }
-
-    return true;
-  }
-private:
-  ASTContext *Context;
-  ProgramInfo &I;
-  RSet &RewriteThese;
-  std::set<RecordDecl *> RecordsWithCPointers;
-
-}; */
 
 // Visit every array compound literal expression (i.e., (int*[2]){&a, &b}) and
 // replace the type name with a new type based on constraint solution.
