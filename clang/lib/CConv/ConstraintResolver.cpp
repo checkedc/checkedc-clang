@@ -380,7 +380,6 @@ std::set<ConstraintVariable *>
         /* Allocator call */
         if (isFunctionAllocator(FD->getName())) {
           bool didInsert = false;
-          // FIXME: Add support for realloc
           if (CE->getNumArgs() > 0) {
             QualType ArgTy;
             std::string FuncName = FD->getNameAsString();
