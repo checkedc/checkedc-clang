@@ -6,16 +6,30 @@
 
 /**********************************************************/
 /* This file tests the conversion tool's behavior with    */
-/* mulitple complex realloc calls                         */
+/* multiple complex realloc calls                         */
 /**********************************************************/
 
 #define size_t int
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 extern _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
 
-void foo(int *n) { 
+void foo(int *count) { 
+    /*using a as an array in both the malloc and realloc*/
+    int *a = malloc(2*sizeof(int));  
+    a[1] = 4; 
+    a = realloc(a, sizeof(int)*(*count));
+    a[2] = 2;
+
+    /*using b as a pointer here*/
+    int *b = malloc(sizeof(int));  
+    *b = 3;
+    /*now using it as an array here, should be wild*/
+    b = realloc(b, sizeof(int)*(*count));
+    b[2] = 2;
+
+    /*  what follows are variations of the above, but instead 
+        using two separate pointers for the malloc and realloc */
     int *y = malloc(2*sizeof(int)); 
-    /*w should be WILD because of unsolvable pointer, arr constraint*/
     int *w = malloc(sizeof(int));
     y[1] = 3;
     int *z = realloc(y, 5*sizeof(int));
@@ -23,6 +37,11 @@ void foo(int *n) {
     m[1] = 5; 
     z[3] =  2;
 } 
+//CHECK_NOALL: int *a = malloc(2*sizeof(int));
+//CHECK_ALL: _Array_ptr<int> a: count((2 * sizeof(int))) =  malloc(2*sizeof(int)); 
+
+//CHECK: int *b = malloc(sizeof(int));
+
 //CHECK_ALL: _Array_ptr<int> y: count((2 * sizeof(int))) =  malloc(2*sizeof(int)); 
 //CHECK_NOALL: int *y = malloc(2*sizeof(int));
 //CHECK: int *w = malloc(sizeof(int));
