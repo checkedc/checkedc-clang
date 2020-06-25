@@ -129,6 +129,7 @@ public:
     PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
     auto &CS = Info.getConstraints();
     std::set<ConstraintVariable *> FVCons;
+    std::string FuncName = "";
 
     // figure out who we are calling
     if (D == nullptr) {
@@ -139,22 +140,26 @@ public:
       // When multiple function variables are used in the same expression, they
       // must have the same type.
       if (FVCons.size() > 1) {
-        PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CalledExpr, *Context);
+        PersistentSourceLoc PL =
+            PersistentSourceLoc::mkPSL(CalledExpr, *Context);
         constrainConsVarGeq(FVCons, FVCons, Info.getConstraints(), &PL,
                             Same_to_Same, false, &Info);
       }
     } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+      FuncName = FD->getNameAsString();
       FVCons = Info.getVariable(FD, Context);
     } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {
       FVCons = Info.getVariable(DD, Context);
+      FuncName = DD->getNameAsString();
     }
 
     // Now do the call: Constrain arguments to parameters (but ignore returns)
     if (FVCons.empty()) {
       // Don't know who we are calling; make args WILD
       constraintAllArgumentsToWild(E);
-    } else {
-      // For each function we are calling ...
+    } else if (FuncName.compare("realloc") != 0) {
+      // If we are calling realloc, ignore it, so as not to constrain the first arg
+      // Else, for each function we are calling ...
       for (auto *TmpC : FVCons) {
         if (PVConstraint *PVC = dyn_cast<PVConstraint>(TmpC)) {
           TmpC = PVC->getFV();
