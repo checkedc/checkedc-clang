@@ -9,18 +9,18 @@
 // classes of RewriteUtils.h
 //===----------------------------------------------------------------------===//
 
-#include "clang/CConv/ConstraintResolver.h"
-#include "clang/CConv/RewriteUtils.h"
-#include "clang/CConv/Utils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/CConv/ArrayBoundsInferenceConsumer.h"
-#include "clang/CConv/CCGlobalOptions.h"
-#include "clang/CConv/MappingVisitor.h"
-#include "clang/CConv/CheckedRegions.h"
 #include "clang/CConv/CastPlacement.h"
+#include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/CheckedRegions.h"
+#include "clang/CConv/ConstraintResolver.h"
+#include "clang/CConv/MappingVisitor.h"
+#include "clang/CConv/RewriteUtils.h"
 #include "clang/CConv/StructInit.h"
-#include "llvm/Support/raw_ostream.h"
+#include "clang/CConv/Utils.h"
 #include "clang/Tooling/Refactoring/SourceCode.h"
+#include "llvm/Support/raw_ostream.h"
 #include <sstream>
 
 using namespace llvm;

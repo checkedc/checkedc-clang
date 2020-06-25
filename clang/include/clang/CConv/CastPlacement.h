@@ -48,11 +48,4 @@ class CastPlacementVisitor :
       ConstraintResolver CR;
 
 };
-
-
-
-
-
-
-
-#endif
+#endif // _CASTPLACEMENT_H

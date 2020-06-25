@@ -11,21 +11,21 @@ if (LLVM_BOOST_FOUND)
         add_clang_library(CConv
           ArrayBoundsInferenceConsumer.cpp
           ArrayBoundsInformation.cpp
+          CastPlacement.cpp
           CConv.cpp
           CConvInteractiveData.cpp
+          CheckedRegions.cpp
           ConstraintBuilder.cpp
-          ConstraintsGraph.cpp
           ConstraintResolver.cpp
-          ConstraintVariables.cpp
           Constraints.cpp
+          ConstraintsGraph.cpp
+          ConstraintVariables.cpp
           GatherTool.cpp
           MappingVisitor.cpp
           PersistentSourceLoc.cpp
           ProgramInfo.cpp
           RewriteUtils.cpp
-          CheckedRegions.cpp
           StructInit.cpp
-          CastPlacement.cpp
           Utils.cpp
           LINK_LIBS
           clangAST
