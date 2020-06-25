@@ -3331,8 +3331,9 @@ namespace {
           DeclaredBounds->isUnknown())
         return ResultBounds;
 
-      // TODO: for array types, check that any declared bounds at the point
-      // of initialization are true based on the array size.
+      // TODO: checkedc-clang issue #862: for array types, check that any
+      // declared bounds at the point of initialization are true based on
+      // the array size.
 
       // If there is a scalar initializer, record the initializer bounds as the
       // observed bounds for the variable and check that the initializer meets
