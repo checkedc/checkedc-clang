@@ -711,11 +711,20 @@ namespace {
       // validating the observed bounds context.
       llvm::DenseSet<const VarDecl *> WidenedVariables;
 
+      // TargetSrcEquality maps a target expression V to the most recent
+      // expression Src that has been assigned to V within the current
+      // top-level CFG statement.  When validating the bounds context,
+      // each pair <V, Src> should be included in a set EQ that contains
+      // all equality facts in the EquivExprs state set.  The set EQ will
+      // then be used to validate the bounds context.
+      llvm::DenseMap<Expr *, Expr *> TargetSrcEquality;
+
       // Resets the checking state after checking a top-level CFG statement.
       void Reset() {
         SameValue.clear();
         LostVariables.clear();
         UnknownSrcBounds.clear();
+        TargetSrcEquality.clear();
       }
   };
 }
@@ -888,7 +897,7 @@ namespace {
         // then by location in order to guarantee a deterministic output
         // so that printing the bounds context can be tested.
         std::vector<const VarDecl *> OrderedDecls;
-        for (auto Pair : Context)
+        for (auto const &Pair : Context)
           OrderedDecls.push_back(Pair.first);
         llvm::sort(OrderedDecls.begin(), OrderedDecls.end(),
              [] (const VarDecl *A, const VarDecl *B) {
@@ -3307,7 +3316,7 @@ namespace {
         Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
 
         // Record equality between the target and initializer.
-        RecordEqualityWithTarget(TargetExpr, State);
+        RecordEqualityWithTarget(TargetExpr, Init, State);
       }
 
       if (D->isInvalidDecl())
@@ -3812,7 +3821,30 @@ namespace {
     // statement S, for each variable v in the checking state observed bounds
     // context, the observed bounds of v imply the declared bounds of v.
     void ValidateBoundsContext(Stmt *S, CheckingState State, CheckedScopeSpecifier CSS) {
-      for (auto Pair : State.ObservedBounds) {
+      // Construct a set of sets of equivalent expressions that contains all
+      // the equality facts in State.EquivExprs, as well as any equality facts
+      // implied by State.TargetSrcEquality.  These equality facts will only
+      // be used to validate the bounds context and will not persist across
+      // CFG statements.  The source expressions in State.TargetSrcEquality
+      // do not meet the criteria for persistent inclusion in State.EquivExprs:
+      // for example, they may create new objects or read memory via pointers.
+      EquivExprSets EquivExprs = State.EquivExprs;
+      for (auto const &Pair : State.TargetSrcEquality) {
+        Expr *Target = Pair.first;
+        Expr *Src = Pair.second;
+        bool FoundTarget = false;
+        for (auto I = EquivExprs.begin(); I != EquivExprs.end(); ++I) {
+          if (EqualExprsContainsExpr(*I, Target)) {
+            FoundTarget = true;
+            I->push_back(Src);
+            break;
+          }
+        }
+        if (!FoundTarget)
+          EquivExprs.push_back({Target, Src});
+      }
+
+      for (auto const &Pair : State.ObservedBounds) {
         const VarDecl *V = Pair.first;
         BoundsExpr *ObservedBounds = Pair.second;
         BoundsExpr *DeclaredBounds = this->S.NormalizeBounds(V);
@@ -3821,7 +3853,8 @@ namespace {
         if (ObservedBounds->isUnknown())
           DiagnoseUnknownObservedBounds(S, V, DeclaredBounds, State);
         else
-          CheckObservedBounds(S, V, DeclaredBounds, ObservedBounds, State, CSS);
+          CheckObservedBounds(S, V, DeclaredBounds, ObservedBounds, State,
+                              &EquivExprs, CSS);
       }
     }
 
@@ -3867,13 +3900,17 @@ namespace {
     // CheckObservedBounds checks that the observed bounds for a variable v
     // imply that the declared bounds for v are provably true after checking
     // the top-level CFG statement St.
+    //
+    // EquivExprs contains all equality facts contained in State.EquivExprs,
+    // as well as any equality facts implied by State.TargetSrcEquality.
     void CheckObservedBounds(Stmt *St, const VarDecl *V,
                              BoundsExpr *DeclaredBounds,
                              BoundsExpr *ObservedBounds, CheckingState State,
+                             EquivExprSets *EquivExprs,
                              CheckedScopeSpecifier CSS) {
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, ObservedBounds,
-                                                   Cause, &State.EquivExprs);
+                                                   Cause, EquivExprs);
       if (Result == ProofResult::True)
         return;
 
@@ -3958,7 +3995,7 @@ namespace {
       }
 
       // Adjust ObservedBounds to account for any uses of V in the bounds.
-      for (auto Pair : State.ObservedBounds) {
+      for (auto const &Pair : State.ObservedBounds) {
         const VarDecl *W = Pair.first;
         BoundsExpr *Bounds = Pair.second;
         BoundsExpr *AdjustedBounds = ReplaceVariableInBounds(Bounds, V, OriginalValue, CSS);
@@ -4015,7 +4052,7 @@ namespace {
           State.SameValue.push_back(AdjustedE);
       }
 
-      RecordEqualityWithTarget(Target, State);
+      RecordEqualityWithTarget(Target, Src, State);
       return AdjustedSrcBounds;
     }
 
@@ -4025,7 +4062,7 @@ namespace {
     //
     // State.SameValue is assumed to contain expressions that produce the same
     // value as the source of the assignment.
-    void RecordEqualityWithTarget(Expr *Target, CheckingState &State) {
+    void RecordEqualityWithTarget(Expr *Target, Expr *Src, CheckingState &State) {
       // If EquivExprs contains a set F of expressions that produce the same
       // value as the source, add the target to F.  This prevents EquivExprs
       // from growing too large and containing redundant equality information.
@@ -4045,6 +4082,17 @@ namespace {
             return;
           }
         }
+      }
+
+      // If the source will not be included in State.EquivExprs, record
+      // equality between the target and source that will be used to validate
+      // the bounds context after checking the current top-level CFG statement.
+      if (Src && State.SameValue.size() == 0) {
+        CHKCBindTemporaryExpr *Temp = GetTempBinding(Src);
+        if (Temp)
+          State.TargetSrcEquality[Target] = CreateTemporaryUse(Temp);
+        else if (CheckIsNonModifying(Src))
+          State.TargetSrcEquality[Target] = Src;
       }
 
       // Avoid adding sets with duplicate expressions such as { e, e }
@@ -4543,7 +4591,7 @@ namespace {
     BoundsContextTy IntersectBoundsContexts(BoundsContextTy Context1,
                                             BoundsContextTy Context2) {
       BoundsContextTy IntersectedContext;
-      for (auto Pair : Context1) {
+      for (auto const &Pair : Context1) {
         const VarDecl *D = Pair.first;
         if (!Pair.second || !Context2.count(D))
           continue;
