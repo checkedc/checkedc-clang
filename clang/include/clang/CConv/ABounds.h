@@ -61,6 +61,8 @@ public:
   static bool classof(const ABounds *S) {
     return S->getKind() == CountBoundKind;
   }
+
+  BoundsKey getCountVar() { return CountVar; }
 private:
   BoundsKey CountVar;
 };
@@ -77,6 +79,7 @@ public:
   static bool classof(const ABounds *S) {
     return S->getKind() == ByteBoundKind;
   }
+  BoundsKey getByteVar() { return ByteVar; }
 private:
   BoundsKey ByteVar;
 };

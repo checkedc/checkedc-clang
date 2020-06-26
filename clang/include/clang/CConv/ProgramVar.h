@@ -194,6 +194,7 @@ public:
       ProgramVar(VK, VName, PVS, false) { }
 
   ProgramVarScope *getScope() { return VScope; }
+  BoundsKey getKey() { return K; }
   bool IsNumConstant() { return IsConstant; }
   std::string mkString(bool GetKey = false);
   virtual ~ProgramVar() { }

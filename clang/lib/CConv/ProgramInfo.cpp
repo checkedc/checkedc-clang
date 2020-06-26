@@ -288,6 +288,10 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
   O << "Summary\nTotalConstraints|TotalPtrs|TotalNTArr|TotalArr|TotalWild\n";
   O << totC << "|" << totP << "|" << totNt << "|" << totA << "|" << totWi << "\n";
 
+  if (AllTypes) {
+    ArrBInfo.getBStats().print(O);
+  }
+
 }
 
 bool ProgramInfo::isExternOkay(std::string Ext) {

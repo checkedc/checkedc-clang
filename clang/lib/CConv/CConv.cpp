@@ -269,7 +269,8 @@ bool CConvInterface::SolveConstraints() {
   else
     llvm_unreachable("No Action");
 
-  // Propogate data-flow information for
+  // Propagate data-flow information for Array pointers.
+  GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
 
   return true;
 }

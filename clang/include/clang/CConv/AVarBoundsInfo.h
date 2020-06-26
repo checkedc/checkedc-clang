@@ -21,6 +21,8 @@
 #include <boost/config.hpp>
 #include <boost/bimap.hpp>
 
+class ProgramInfo;
+
 // Class that maintains stats about how the bounds of various variables is
 // computed.
 class AVarBoundsStats {
@@ -42,6 +44,8 @@ public:
   ~AVarBoundsStats() {
     clear();
   }
+  void print(llvm::raw_ostream &O) const;
+  void dump() const { print(llvm::errs()); }
 private:
   void clear() {
     NamePrefixMatch.clear();
@@ -55,9 +59,24 @@ private:
 
 typedef boost::bimap<PersistentSourceLoc, BoundsKey> DeclKeyBiMapType;
 typedef DeclKeyBiMapType::value_type DeclMapItemType;
-typedef boost::bimap<std::tuple<std::string, bool, unsigned>,
+typedef boost::bimap<std::tuple<std::string, string, bool, unsigned>,
                      BoundsKey> ParmKeyBiMapType;
 typedef ParmKeyBiMapType::value_type ParmMapItemType;
+
+class AVarBoundsInfo;
+
+class AvarBoundsInference {
+public:
+  AvarBoundsInference(AVarBoundsInfo *BoundsInfo) : BI(BoundsInfo) { }
+
+  bool inferPossibleBounds(BoundsKey K, ABounds *SB,
+                           std::set<ABounds *> &EB);
+
+  // Infer bounds for the given key from the set of given ARR atoms.
+  bool inferBounds(BoundsKey K, std::set<BoundsKey> &ArrAtoms);
+private:
+  AVarBoundsInfo *BI;
+};
 
 class AVarBoundsInfo {
 public:
@@ -103,10 +122,14 @@ public:
   // Get the ProgramVar for the provided VarKey.
   ProgramVar *getProgramVar(BoundsKey VK);
 
+  // Propagate the array bounds information for all array ptrs.
+  bool performFlowAnalysis(ProgramInfo *PI);
+
   AVarBoundsStats &getBStats() { return BoundsInferStats; }
 
 private:
-  // Variable that is used to generate new bound keys.
+  friend class AvarBoundsInference;
+    // Variable that is used to generate new bound keys.
   BoundsKey BCount;
   // Map of VarKeys and corresponding program variables.
   std::map<BoundsKey, ProgramVar *> PVarInfo;
@@ -138,6 +161,7 @@ private:
   void insertVarKey(PersistentSourceLoc &PSL, BoundsKey NK);
 
   void insertProgramVar(BoundsKey NK, ProgramVar *PV);
+
 };
 
 #endif // _AVARBOUNDSINFO_H

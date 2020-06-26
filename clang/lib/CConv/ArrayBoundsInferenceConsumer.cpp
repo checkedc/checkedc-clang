@@ -184,8 +184,10 @@ static bool isAllocatorCall(Expr *E, std::string &FName,
          if (BO && BO->isMultiplicativeOp()) {
            BaseExprs.push_back(BO->getLHS());
            BaseExprs.push_back(BO->getRHS());
-         } else if(UExpr && UExpr->getKind() == UETT_SizeOf) {
+         } else if (UExpr && UExpr->getKind() == UETT_SizeOf) {
            BaseExprs.push_back(UExpr);
+         } else if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(PExpr)) {
+           BaseExprs.push_back(DRE);
          } else {
            RetVal = false;
            break;
