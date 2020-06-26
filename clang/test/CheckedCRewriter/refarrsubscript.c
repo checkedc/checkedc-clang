@@ -18,8 +18,8 @@ int **bar(struct foo *p) {
 //CHECK_NOALL: struct foo { int **b; int n; };
 //CHECK_NOALL-NEXT: int ** bar(_Ptr<struct foo> p) {
 //CHECK_NOALL-NEXT:  _Ptr<int> n =  &p->n;
-//CHECK_ALL: struct foo { _Nt_array_ptr<_Ptr<int>> b; int n; };
-//CHECK_ALL-NEXT: _Nt_array_ptr<_Ptr<int>> bar(_Ptr<struct foo> p) {
+//CHECK_ALL: struct foo { _Array_ptr<_Ptr<int>> b; int n; };
+//CHECK_ALL-NEXT: _Array_ptr<_Ptr<int>> bar(_Ptr<struct foo> p) {
 //CHECK_ALL-NEXT:  _Ptr<int> n =  &p->n;
 
 struct s { int *c; };
