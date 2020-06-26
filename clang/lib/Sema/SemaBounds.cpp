@@ -951,7 +951,7 @@ namespace {
     };
 
     bool AddBoundsCheck(Expr *E, OperationKind OpKind, CheckedScopeSpecifier CSS,
-                        BoundsExpr *LValueBounds) {
+                        EquivExprSets *EquivExprs, BoundsExpr *LValueBounds) {
       assert(E->isLValue());
       bool NeedsBoundsCheck = false;
       QualType PtrType;
@@ -972,7 +972,7 @@ namespace {
           S.Diag(E->getBeginLoc(), diag::err_expected_bounds) << E->getSourceRange();
           LValueBounds = S.CreateInvalidBoundsExpr();
         } else {
-          CheckBoundsAtMemoryAccess(Deref, LValueBounds, Kind, CSS);
+          CheckBoundsAtMemoryAccess(Deref, LValueBounds, Kind, CSS, EquivExprs);
         }
         if (UnaryOperator *UO = dyn_cast<UnaryOperator>(Deref)) {
           assert(!UO->hasBoundsExpr());
@@ -994,6 +994,7 @@ namespace {
     // always need bounds checks, even though their lvalues are only used for an
     // address computation.
     bool AddMemberBaseBoundsCheck(MemberExpr *E, CheckedScopeSpecifier CSS,
+                                  EquivExprSets *EquivExprs,
                                   BoundsExpr *BaseLValueBounds,
                                   BoundsExpr *BaseBounds) {
       Expr *Base = E->getBase();
@@ -1002,7 +1003,7 @@ namespace {
         // The base expression only needs a bounds check if it is an lvalue.
         if (Base->isLValue())
           return AddBoundsCheck(Base, OperationKind::Other, CSS,
-                                BaseLValueBounds);
+                                EquivExprs, BaseLValueBounds);
         return false;
       }
 
@@ -1013,7 +1014,7 @@ namespace {
           S.Diag(Base->getBeginLoc(), diag::err_expected_bounds) << Base->getSourceRange();
           Bounds = S.CreateInvalidBoundsExpr();
         } else {
-          CheckBoundsAtMemoryAccess(E, Bounds, BCK_Normal, CSS);
+          CheckBoundsAtMemoryAccess(E, Bounds, BCK_Normal, CSS, EquivExprs);
         }
         E->setBoundsExpr(Bounds);
         return true;
@@ -1715,7 +1716,8 @@ namespace {
     // Try to prove that PtrBase + Offset is within Bounds, where PtrBase has pointer type.
     // Offset is optional and may be a nullptr.
     ProofResult ProveMemoryAccessInRange(Expr *PtrBase, Expr *Offset, BoundsExpr *Bounds,
-                                         BoundsCheckKind Kind, ProofFailure &Cause) {
+                                         BoundsCheckKind Kind, EquivExprSets *EquivExprs,
+                                         ProofFailure &Cause) {
 #ifdef TRACE_RANGE
       llvm::outs() << "Examining:\nPtrBase\n";
       PtrBase->dump(llvm::outs());
@@ -1795,7 +1797,7 @@ namespace {
         return ProofResult::False;
       }
       std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-      ProofResult R = ValidRange.InRange(MemoryAccessRange, Cause, nullptr, EmptyFacts);
+      ProofResult R = ValidRange.InRange(MemoryAccessRange, Cause, EquivExprs, EmptyFacts);
       if (R == ProofResult::True)
         return R;
       if (R == ProofResult::False || R == ProofResult::Maybe) {
@@ -2049,7 +2051,8 @@ namespace {
 
     void CheckBoundsAtMemoryAccess(Expr *Deref, BoundsExpr *ValidRange,
                                    BoundsCheckKind CheckKind,
-                                   CheckedScopeSpecifier CSS) {
+                                   CheckedScopeSpecifier CSS,
+                                   EquivExprSets *EquivExprs) {
       ProofFailure Cause;
       ProofResult Result;
       ProofStmtKind ProofKind;
@@ -2061,15 +2064,15 @@ namespace {
       if (UnaryOperator *UO = dyn_cast<UnaryOperator>(Deref)) {
         ProofKind = ProofStmtKind::MemoryAccess;
         Result = ProveMemoryAccessInRange(UO->getSubExpr(), nullptr, ValidRange,
-                                          CheckKind, Cause);
+                                          CheckKind, EquivExprs, Cause);
       } else if (ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(Deref)) {
         ProofKind = ProofStmtKind::MemoryAccess;
         Result = ProveMemoryAccessInRange(AS->getBase(), AS->getIdx(),
-                                          ValidRange, CheckKind, Cause);
+                                          ValidRange, CheckKind, EquivExprs, Cause);
       } else if (MemberExpr *ME = dyn_cast<MemberExpr>(Deref)) {
         assert(ME->isArrow());
         ProofKind = ProofStmtKind::MemberArrowBase;
-        Result = ProveMemoryAccessInRange(ME->getBase(), nullptr, ValidRange, CheckKind, Cause);
+        Result = ProveMemoryAccessInRange(ME->getBase(), nullptr, ValidRange, CheckKind, EquivExprs, Cause);
       } else {
         llvm_unreachable("unexpected expression kind");
       }
@@ -2863,7 +2866,9 @@ namespace {
         bool LHSNeedsBoundsCheck = false;
         OperationKind OpKind = (E->getOpcode() == BO_Assign) ?
           OperationKind::Assign : OperationKind::Other;
-        LHSNeedsBoundsCheck = AddBoundsCheck(LHS, OpKind, CSS, LHSLValueBounds);
+        LHSNeedsBoundsCheck = AddBoundsCheck(LHS, OpKind, CSS,
+                                             &State.EquivExprs,
+                                             LHSLValueBounds);
         if (DumpBounds && (LHSNeedsBoundsCheck ||
                             (LHSTargetBounds && !LHSTargetBounds->isUnknown())))
           DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RightBounds);
@@ -3086,7 +3091,8 @@ namespace {
 
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
         bool NeedsBoundsCheck = AddBoundsCheck(SubExpr, OperationKind::Read,
-                                               CSS, SubExprLValueBounds);
+                                               CSS, &State.EquivExprs,
+                                               SubExprLValueBounds);
         if (NeedsBoundsCheck && DumpBounds)
           DumpExpression(llvm::outs(), E);
         return ResultBounds;
@@ -3180,7 +3186,8 @@ namespace {
 
       if (E->isIncrementDecrementOp()) {
         bool NeedsBoundsCheck = AddBoundsCheck(SubExpr, OperationKind::Other,
-                                               CSS, SubExprLValueBounds);
+                                               CSS, &State.EquivExprs,
+                                               SubExprLValueBounds);
         if (NeedsBoundsCheck && DumpBounds)
           DumpExpression(llvm::outs(), E);
       }
@@ -3595,6 +3602,7 @@ namespace {
       State.SameValue.clear();
 
       bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS,
+                                                       &State.EquivExprs,
                                                        BaseLValueBounds,
                                                        BaseBounds);
       if (NeedsBoundsCheck && DumpBounds)
