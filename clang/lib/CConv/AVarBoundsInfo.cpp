@@ -85,7 +85,10 @@ bool AVarBoundsInfo::tryGetVariable(clang::Expr *E,
       if (!Ret) {
         assert(false && "Invalid declaration found inside bounds expression");
       }
-    } else {
+    } else if (MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
+      return tryGetVariable(ME->getMemberDecl(), Res);
+    }
+    else {
       // assert(false && "Variable inside bounds declaration is an expression");
     }
   }
@@ -291,12 +294,14 @@ bool hasArray(std::set<ConstraintVariable *> &CSet, Constraints &CS) {
 class ScopeVisitor : public boost::default_bfs_visitor {
 public:
   ScopeVisitor(ProgramVarScope *S, std::set<ProgramVar *> &R,
-               std::map<BoundsKey, ProgramVar *> &VarM): TS(S), Res(R),
-                                                          VM(VarM) { }
+               std::map<BoundsKey, ProgramVar *> &VarM,
+               std::set<BoundsKey> &P): TS(S), Res(R), VM(VarM)
+               , PtrAtoms(P) { }
   template < typename Vertex, typename Graph >
   void discover_vertex(Vertex u, const Graph &g) const {
     BoundsKey V = g[u];
-    if (VM.find(V) != VM.end()) {
+    // If the variable is non-pointer?
+    if (VM.find(V) != VM.end() && PtrAtoms.find(V) == PtrAtoms.end()) {
       auto *S = VM[V];
       // If the variable is constant or in the same scope?
       if (S->IsNumConstant() ||
@@ -305,13 +310,67 @@ public:
       }
     }
   }
+
+  void filterOutBKeys(std::set<BoundsKey> &Src) {
+    for (auto BK : Src) {
+      // If the variable non-pointer?
+      if (PtrAtoms.find(BK) == PtrAtoms.end()) {
+        auto *S = VM[BK];
+        // If the variable is constant or in the same scope?
+        if (S->IsNumConstant() || (*(S->getScope()) == *(TS))) {
+          Res.insert(S);
+        }
+      }
+    }
+  }
   ProgramVarScope *TS;
   std::set<ProgramVar *> &Res;
   std::map<BoundsKey, ProgramVar *> &VM;
+  std::set<BoundsKey> &PtrAtoms;
 };
 
+bool AvarBoundsInference::intersectBounds(std::set<ProgramVar *> &ProgVars,
+                                          ABounds::BoundsKind BK,
+                                          std::set<ABounds *> &CurrB) {
+  std::set<ABounds *> CommonNewBounds;
+  for (auto *PVar : ProgVars) {
+    ABounds *NewB = nullptr;
+    if (BK == ABounds::CountBoundKind) {
+      NewB = new CountBound(PVar->getKey());
+    } else if (BK == ABounds::ByteBoundKind) {
+      NewB = new ByteBound(PVar->getKey());
+    } else {
+      continue;
+    }
+    assert(NewB != nullptr && "New Bounds cannot be nullptr");
+    if (CurrB.empty()) {
+      CommonNewBounds.insert(NewB);
+    } else {
+      bool found = false;
+      for (auto *OB : CurrB) {
+        if (OB->areSame(NewB)) {
+          found = true;
+          CommonNewBounds.insert(NewB);
+          break;
+        }
+      }
+      if (!found) {
+        delete (NewB);
+      }
+    }
+  }
+
+  for (auto *D : CurrB) {
+    delete(D);
+  }
+  CurrB.clear();
+  CurrB.insert(CommonNewBounds.begin(), CommonNewBounds.end());
+  return !CurrB.empty();
+}
+
 bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
-                                              std::set<ABounds *> &EB) {
+                                              std::set<ABounds *> &EB,
+                                              bool IsSucc) {
   bool RetVal = false;
   if (SB != nullptr) {
     auto &VarG = BI->ProgVarGraph;
@@ -335,83 +394,69 @@ bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
       if (SBVar->IsNumConstant()) {
         PotentialB.insert(SBVar);
       } else {
-        ScopeVisitor TV(Kvar->getScope(), PotentialB, BI->PVarInfo);
-        auto Vidx = VarG.addVertex(SBKey);
-        boost::breadth_first_search(VarG.CG, Vidx, boost::visitor(TV));
-      }
-
-      std::set<ABounds *> CommonNewBounds;
-      for (auto *PVar : PotentialB) {
-        ABounds *NewB = nullptr;
-        if (BKind == ABounds::CountBoundKind) {
-          NewB = new CountBound(PVar->getKey());
-        } else if (BKind == ABounds::ByteBoundKind) {
-          NewB = new ByteBound(PVar->getKey());
+        ScopeVisitor TV(Kvar->getScope(), PotentialB, BI->PVarInfo,
+                        BI->PointerBoundsKey);
+        if (!IsSucc) {
+          // If we are looking at predecessor ARR atom? get all variables
+          // that the predecessors bound information flows to.
+          auto Vidx = VarG.addVertex(SBKey);
+          boost::breadth_first_search(VarG.CG, Vidx, boost::visitor(TV));
         } else {
-          continue;
-        }
-        assert(NewB != nullptr && "New Bounds cannot be nullptr");
-        if (EB.empty()) {
-          CommonNewBounds.insert(NewB);
-        } else {
-          bool found = false;
-          for (auto *OB : EB) {
-            if (OB->areSame(NewB)) {
-              found = true;
-              CommonNewBounds.insert(NewB);
-              break;
-            }
-          }
-          if (!found) {
-            delete (NewB);
-          }
+          // If we are looking at sucessors ARR Atom? The find all the
+          // variables that flow into the sucessors atom.
+          std::set<BoundsKey> AllPredKeys;
+          VarG.getPredecessors(SBKey, AllPredKeys);
+          TV.filterOutBKeys(AllPredKeys);
         }
       }
 
-      for (auto *D : EB) {
-        delete(D);
-      }
-      EB.clear();
-      EB.insert(CommonNewBounds.begin(), CommonNewBounds.end());
-      RetVal = !EB.empty();
+      RetVal = intersectBounds(PotentialB, BKind, EB);
     }
   }
 
   return RetVal;
 }
 
-bool AvarBoundsInference::inferBounds(BoundsKey K,
-                                      std::set<BoundsKey> &ArrAtoms) {
-  std::set<BoundsKey> AllPredArrs;
-  bool IsChanged = false;
-  if (BI->InvalidBounds.find(K) != BI->InvalidBounds.end() &&
-      BI->ProgVarGraph.getPredecessors(K, AllPredArrs)) {
-    // Get all the ARR atoms which are flowing into K.
-    std::set<BoundsKey> IncomingArrs;
-    std::set_intersection(AllPredArrs.begin(), AllPredArrs.end(),
-                          ArrAtoms.begin(), ArrAtoms.end(),
-                          std::inserter(IncomingArrs, IncomingArrs.end()));
+bool AvarBoundsInference::getRelevantBounds(std::set<BoundsKey> &RBKeys,
+                                            std::set<BoundsKey> &ArrAtoms,
+                                            std::set<ABounds *> &ResBounds,
+                                            bool IsSucc) {
+  std::set<BoundsKey> IncomingArrs;
+  // First, get all the related boundskeys that are arrays.
+  std::set_intersection(RBKeys.begin(), RBKeys.end(),
+                        ArrAtoms.begin(), ArrAtoms.end(),
+                        std::inserter(IncomingArrs, IncomingArrs.end()));
 
-    ABounds *KB = nullptr;
-    bool ValidB = true;
-    std::set<ABounds *> IncomingBounds;
-
-    for (auto PrevBKey : IncomingArrs) {
-      auto *PrevBounds = BI->getBounds(PrevBKey);
-      // Does the parent arr has bounds?
-      if (PrevBounds  == nullptr) {
-        ValidB = false;
-        break;
-      }
-      IncomingBounds.insert(PrevBounds);
+  // Next, try to get their bounds.
+  bool ValidB = true;
+  for (auto PrevBKey : IncomingArrs) {
+    auto *PrevBounds = BI->getBounds(PrevBKey);
+    // Does the parent arr has bounds?
+    if (!IsSucc && PrevBounds  == nullptr) {
+      ValidB = false;
+      break;
     }
+    if (PrevBounds != nullptr)
+      ResBounds.insert(PrevBounds);
+  }
+  return ValidB;
+}
 
-    // Does all the predecessor ARR have bounds?
-    if (ValidB && !IncomingBounds.empty()) {
-      std::set<ABounds *> KBounds;
+bool AvarBoundsInference::predictBounds(BoundsKey K,
+                                        std::set<BoundsKey> &Neighbours,
+                                        std::set<BoundsKey> &ArrAtoms,
+                                        ABounds **KB,
+                                        bool IsSucc) {
+  std::set<ABounds *> ResBounds;
+  std::set<ABounds *> KBounds;
+  *KB = nullptr;
+  bool IsValid = true;
+  // Get all the relevant bounds from the neighbour ARRs
+  if (getRelevantBounds(Neighbours, ArrAtoms, ResBounds, IsSucc)) {
+    if (!ResBounds.empty()) {
       // Find the intersection?
-      for (auto *B : IncomingBounds) {
-        inferPossibleBounds(K, B, KBounds);
+      for (auto *B : ResBounds) {
+        inferPossibleBounds(K, B, KBounds, IsSucc);
         //TODO: check this
         // This is stricter version i.e., there should be at least one common
         // bounds information from an incoming ARR.
@@ -420,20 +465,39 @@ bool AvarBoundsInference::inferBounds(BoundsKey K,
           break;
         }*/
       }
-
-      // If we can concur on a single bound information?
-      // We found the appropriate bounds information.
-      if (ValidB && KBounds.size() == 1) {
-        KB = *KBounds.begin();
+      // If we converge to single bounds information? We found the bounds.
+      if (KBounds.size() == 1) {
+        *KB = *KBounds.begin();
         KBounds.clear();
       } else {
+        IsValid = false;
         // TODO: Should we give up when we have multiple bounds?
         for (auto *T : KBounds) {
           delete(T);
         }
       }
     }
+  }
+  return IsValid;
+}
+bool AvarBoundsInference::inferBounds(BoundsKey K,
+                                      std::set<BoundsKey> &ArrAtoms) {
+  bool IsChanged = false;
 
+  if (BI->InvalidBounds.find(K) == BI->InvalidBounds.end()) {
+    std::set<BoundsKey> TmpBkeys;
+    // Try to predict bounds from successors.
+    BI->ProgVarGraph.getSuccessors(K, TmpBkeys);
+
+    ABounds *KB = nullptr;
+    if (!predictBounds(K, TmpBkeys, ArrAtoms, &KB, true) ||
+        KB == nullptr) {
+      // If it is not possible to predict from successors?
+      // Try to predict from predecessors.
+      TmpBkeys.clear();
+      BI->ProgVarGraph.getPredecessors(K, TmpBkeys);
+      predictBounds(K, TmpBkeys, ArrAtoms, &KB, false);
+    }
     if (KB != nullptr) {
       BI->replaceBounds(K, KB);
       IsChanged = true;

@@ -70,11 +70,25 @@ public:
   AvarBoundsInference(AVarBoundsInfo *BoundsInfo) : BI(BoundsInfo) { }
 
   bool inferPossibleBounds(BoundsKey K, ABounds *SB,
-                           std::set<ABounds *> &EB);
+                           std::set<ABounds *> &EB, bool IsSucc = false);
 
   // Infer bounds for the given key from the set of given ARR atoms.
   bool inferBounds(BoundsKey K, std::set<BoundsKey> &ArrAtoms);
 private:
+  bool intersectBounds(std::set<ProgramVar *> &ProgVars,
+                       ABounds::BoundsKind BK,
+                       std::set<ABounds *> &CurrB);
+
+  bool getRelevantBounds(std::set<BoundsKey> &RBKeys,
+                         std::set<BoundsKey> &ArrAtoms,
+                         std::set<ABounds *> &ResBounds,
+                         bool IsSucc = false);
+
+  bool predictBounds(BoundsKey K, std::set<BoundsKey> &Neighbours,
+                     std::set<BoundsKey> &ArrAtoms,
+                     ABounds **KB,
+                     bool IsSucc = false);
+
   AVarBoundsInfo *BI;
 };
 

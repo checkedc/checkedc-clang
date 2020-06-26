@@ -46,6 +46,9 @@ public:
   void constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D, Expr *RHS,
                             ConsAction CAction = Same_to_Same);
 
+  // Check if the set contains any valid constraints.
+  bool containsValidCons(std::set<ConstraintVariable *> &CVs);
+
 private:
   ProgramInfo &Info;
   ASTContext *Context;

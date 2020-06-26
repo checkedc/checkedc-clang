@@ -162,9 +162,11 @@ static std::string getCalledFunctionName(const Expr *E) {
 
 // Check if the provided expression is a call to one of the known
 // memory allocators.
-static bool isAllocatorCall(Expr *E, std::string &FName,
+static bool isAllocatorCall(Expr *E, std::string &FName, ProgramInfo &I,
+                            ASTContext *C,
                             std::vector<Expr *> &ArgVals) {
   bool RetVal = false;
+  auto &ABInfo = I.getABoundsInfo();
   if (CallExpr *CE = dyn_cast<CallExpr>(removeAuxillaryCasts(E)))
     if (CE->getCalleeDecl() != nullptr) {
       // Is this a call to a named function?
@@ -173,6 +175,7 @@ static bool isAllocatorCall(Expr *E, std::string &FName,
       if (AllocatorSizeAssoc.find(FName) !=
              AllocatorSizeAssoc.end()) {
         RetVal = true;
+        BoundsKey Tmp;
         // First get all base expressions.
         std::vector<Expr *> BaseExprs;
         BaseExprs.clear();
@@ -186,8 +189,8 @@ static bool isAllocatorCall(Expr *E, std::string &FName,
            BaseExprs.push_back(BO->getRHS());
          } else if (UExpr && UExpr->getKind() == UETT_SizeOf) {
            BaseExprs.push_back(UExpr);
-         } else if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(PExpr)) {
-           BaseExprs.push_back(DRE);
+         } else if (ABInfo.tryGetVariable(PExpr, *C, Tmp)) {
+           BaseExprs.push_back(PExpr);
          } else {
            RetVal = false;
            break;
@@ -200,9 +203,8 @@ static bool isAllocatorCall(Expr *E, std::string &FName,
             TmpE = TmpE->IgnoreParenCasts();
             UnaryExprOrTypeTraitExpr *UExpr =
                 dyn_cast<UnaryExprOrTypeTraitExpr>(TmpE);
-            if (isa<DeclRefExpr>(TmpE) ||
-                (UExpr && UExpr->getKind() == UETT_SizeOf) ||
-                isa<IntegerLiteral>(TmpE)) {
+            if ((UExpr && UExpr->getKind() == UETT_SizeOf) ||
+                ABInfo.tryGetVariable(TmpE, *C, Tmp)) {
               ArgVals.push_back(TmpE);
             } else {
               RetVal = false;
@@ -223,7 +225,7 @@ static void handleAllocatorCall(QualType LHSType, BoundsKey LK, Expr *E,
   std::string FnName;
   std::vector<Expr *> ArgVals;
   // is the RHS expression a call to allocator function?
-  if (isAllocatorCall(E, FnName, ArgVals)) {
+  if (isAllocatorCall(E, FnName, Info, Context, ArgVals)) {
     BoundsKey RK;
     bool FoundKey = false;
     // We consider everything as byte_count unless we see a sizeof

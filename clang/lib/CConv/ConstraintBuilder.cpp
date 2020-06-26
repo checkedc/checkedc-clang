@@ -177,8 +177,9 @@ public:
                   TargetFV->getParamVar(i);
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
                                   Wild_to_Safe, false, &Info);
-              if (AllTypes && TFD != nullptr && ParameterDC.empty() &&
-                  ArgumentConstraints.empty()) {
+              if (AllTypes && TFD != nullptr &&
+                  !CB.containsValidCons(ParameterDC) &&
+                  !CB.containsValidCons(ArgumentConstraints)) {
                 auto *PVD = TFD->getParamDecl(i);
                 auto &ABI = Info.getABoundsInfo();
                 BoundsKey PVKey, AGKey;

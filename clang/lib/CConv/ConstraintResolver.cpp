@@ -542,7 +542,7 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
   constrainConsVarGeq(V, RHSCons, Info.getConstraints(), PLPtr, CAction, false,
                       &Info);
 
-  if (AllTypes && V.empty() && RHSCons.empty()) {
+  if (AllTypes && !containsValidCons(V) && !containsValidCons(RHSCons)) {
     BoundsKey LKey, RKey;
     auto &ABI = Info.getABoundsInfo();
     if (ABI.tryGetVariable(D, LKey) &&
@@ -574,4 +574,18 @@ std::set<ConstraintVariable *> ConstraintResolver::getBaseVarPVConstraint(DeclRe
   std::set<ConstraintVariable *> Ret;
   Ret.insert(PVConstraint::getNamedNonPtrPVConstraint(Decl->getDecl()->getName(), Info.getConstraints()));
   return Ret;
+}
+
+bool
+ConstraintResolver::containsValidCons(std::set<ConstraintVariable *> &CVs) {
+  bool RetVal = false;
+  for (auto *ConsVar : CVs) {
+    if (PVConstraint *PV = dyn_cast<PVConstraint>(ConsVar)) {
+      if (!PV->getCvars().empty()) {
+        RetVal = true;
+        break;
+      }
+    }
+  }
+  return RetVal;
 }
