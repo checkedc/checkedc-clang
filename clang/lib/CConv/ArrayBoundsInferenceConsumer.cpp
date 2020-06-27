@@ -263,7 +263,7 @@ static void handleAllocatorCall(QualType LHSType, BoundsKey LK, Expr *E,
       auto *PrgLVar = AVarBInfo.getProgramVar(LK);
       auto *PrgRVar = AVarBInfo.getProgramVar(RK);
       // Either both should be in same scope or the RHS should be constant.
-      if (PrgLVar->getScope() == PrgRVar->getScope() ||
+      if (*(PrgLVar->getScope()) == *(PrgRVar->getScope()) ||
           PrgRVar->IsNumConstant()) {
         ABounds *LBounds = nullptr;
         if (IsByteBound) {

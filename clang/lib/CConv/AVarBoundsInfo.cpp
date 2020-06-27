@@ -305,7 +305,7 @@ public:
       auto *S = VM[V];
       // If the variable is constant or in the same scope?
       if (S->IsNumConstant() ||
-          (*(S->getScope()) == *(TS))) {
+          (*(TS) == *(S->getScope()))) {
         Res.insert(S);
       }
     }
@@ -317,7 +317,7 @@ public:
       if (PtrAtoms.find(BK) == PtrAtoms.end()) {
         auto *S = VM[BK];
         // If the variable is constant or in the same scope?
-        if (S->IsNumConstant() || (*(S->getScope()) == *(TS))) {
+        if (S->IsNumConstant() || (*(TS) == *(S->getScope()))) {
           Res.insert(S);
         }
       }

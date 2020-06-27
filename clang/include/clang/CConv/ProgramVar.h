@@ -110,8 +110,11 @@ private:
   static std::map<std::string, StructScope*> StScopeMap;
 };
 
+class FunctionScope;
+
 class FunctionParamScope : public ProgramVarScope {
 public:
+  friend class FunctionScope;
   FunctionParamScope(std::string FN, bool IsSt) :
       ProgramVarScope(FunctionParamScopeKind),
       FName(FN), IsStatic(IsSt) { }
@@ -163,6 +166,9 @@ public:
   bool operator==(const ProgramVarScope &O) const {
     if (const FunctionScope *FS = clang::dyn_cast<FunctionScope>(&O)) {
       return (FS->FName == FName && FS->IsStatic == IsStatic);
+    }
+    if (const FunctionParamScope *FPS = clang::dyn_cast<FunctionParamScope>(&O)) {
+      return (FPS->FName == FName && FPS->IsStatic == IsStatic);
     }
     return false;
   }
