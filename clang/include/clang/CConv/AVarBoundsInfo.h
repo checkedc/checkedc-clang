@@ -65,16 +65,17 @@ typedef ParmKeyBiMapType::value_type ParmMapItemType;
 
 class AVarBoundsInfo;
 
+// The main class that handles figuring out bounds of arr variables.
 class AvarBoundsInference {
 public:
   AvarBoundsInference(AVarBoundsInfo *BoundsInfo) : BI(BoundsInfo) { }
 
-  bool inferPossibleBounds(BoundsKey K, ABounds *SB,
-                           std::set<ABounds *> &EB, bool IsSucc = false);
-
   // Infer bounds for the given key from the set of given ARR atoms.
   bool inferBounds(BoundsKey K, std::set<BoundsKey> &ArrAtoms);
 private:
+  bool inferPossibleBounds(BoundsKey K, ABounds *SB,
+                           std::set<ABounds *> &EB, bool IsSucc = false);
+
   bool intersectBounds(std::set<ProgramVar *> &ProgVars,
                        ABounds::BoundsKind BK,
                        std::set<ABounds *> &CurrB);

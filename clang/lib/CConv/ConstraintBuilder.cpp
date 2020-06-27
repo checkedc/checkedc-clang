@@ -353,6 +353,7 @@ public:
 
     if (G->hasGlobalStorage() &&
         (G->getType()->isPointerType() || G->getType()->isArrayType())) {
+      Info.getABoundsInfo().insertVariable(G);
       Info.addVariable(G, Context);
       if (G->hasInit()) {
         CB.constrainLocalAssign(nullptr, G, G->getInit());
