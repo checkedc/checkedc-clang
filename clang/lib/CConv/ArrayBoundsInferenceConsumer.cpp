@@ -393,21 +393,25 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         ParmVarDecl *PVD = FD->getParamDecl(i);
         BoundsKey PK;
 
-        auto PVal = std::make_pair(PVD->getNameAsString(), PK);
         // Does this parameter already has bounds?
-        if (ABInfo.tryGetVariable(PVD, PK) && !ABInfo.getBounds(PK)) {
-          if (needArrayBounds(PVD, Info, Context)) {
-            // Is this an array?
-            ParamArrays[i] = PVal;
+        if (ABInfo.tryGetVariable(PVD, PK)) {
+          auto PVal = std::make_pair(PVD->getNameAsString(), PK);
+
+          if (!ABInfo.getBounds(PK)) {
+            if (needArrayBounds(PVD, Info, Context)) {
+              // Is this an array?
+              ParamArrays[i] = PVal;
+            }
+            if (needArrayBounds(PVD, Info, Context, true)) {
+              // Is this an NTArray?
+              ParamNtArrays[i] = PVal;
+            }
           }
-          if (needArrayBounds(PVD, Info, Context, true)) {
-            // Is this an NTArray?
-            ParamNtArrays[i] = PVal;
-          }
+
+          // If this is a length field?
+          if (IsPotentialLengthVar(PVD))
+            LengthParams[i] = PVal;
         }
-        // If this is a length field?
-        if (IsPotentialLengthVar(PVD))
-          LengthParams[i] = PVal;
       }
       if (!ParamArrays.empty() && !LengthParams.empty()) {
         // We have multiple parameters that are arrays and multiple params
