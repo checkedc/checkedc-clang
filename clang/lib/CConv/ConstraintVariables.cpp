@@ -176,6 +176,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
   bool VarCreated = false;
   bool isArr = false;
+  bool IsIncompleteArr = false;
   uint32_t TypeIdx = 0;
   std::string Npre = inFunc ? ((*inFunc)+":") : "";
   VarAtom::VarKind VK =
@@ -212,6 +213,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
     if (Ty->isArrayType() || Ty->isIncompleteArrayType()) {
       ArrPresent = isArr = true;
+      IsIncompleteArr = Ty->isIncompleteArrayType();
 
       // See if there is a constant size to this array type at this position.
       if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
@@ -257,7 +259,12 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     if (!VarCreated) {
       VarAtom *VA = CS.getFreshVar(Npre + N, VK);
       vars.push_back(VA);
-      if (isArr)
+
+      // Incomplete arrays are lower bounded to ARR because the transformation
+      // int[] -> _Ptr<int> is permitted while int[1] -> _Ptr<int> is not.
+      if (IsIncompleteArr)
+        CS.addConstraint(CS.createGeq(VA, CS.getArr(), false));
+      else if (isArr)
         CS.addConstraint(CS.createGeq(CS.getArr(), VA, false));
     }
 
