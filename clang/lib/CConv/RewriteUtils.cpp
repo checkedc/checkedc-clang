@@ -840,7 +840,12 @@ std::string ArrayBoundsRewriter::getBoundsString(Decl *D, bool Isitype) {
   std::string BVarString = "";
   auto &ArrBInfo = Info.getArrayBoundsInformation();
 
-  if (ArrBInfo.hasBoundsInformation(D))
+  auto CS = Info.getVariable(D, Context);
+  bool hasArr = false;
+  for (auto *CV : CS)
+    hasArr = hasArr || CV->hasArr(Info.getConstraints().getVariables());
+
+  if (hasArr && ArrBInfo.hasBoundsInformation(D))
     BVarString = ArrBInfo.getBoundsInformation(D).second;
 
   if (BVarString.length() > 0) {
