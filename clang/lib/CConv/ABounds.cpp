@@ -20,13 +20,17 @@ ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo,
   CountBoundsExpr *CBE = dyn_cast<CountBoundsExpr>(BExpr->IgnoreParenCasts());
   RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(BExpr->IgnoreParenCasts());
   BoundsKey VK;
-  if (BExpr->isElementCount() && CBE &&
-      ABInfo->tryGetVariable(CBE->getCountExpr()->IgnoreParenCasts(), C, VK)) {
-    Ret = new CountBound(VK);
-  }
-  if (BExpr->isByteCount() && CBE &&
-      ABInfo->tryGetVariable(CBE->getCountExpr()->IgnoreParenCasts(), C, VK)) {
-    Ret = new ByteBound(VK);
+  if (CBE && !CBE->isCompilerGenerated()) {
+    if (BExpr->isElementCount() &&
+        ABInfo->tryGetVariable(CBE->getCountExpr()->IgnoreParenCasts(), C,
+                               VK)) {
+      Ret = new CountBound(VK);
+    }
+    if (BExpr->isByteCount() &&
+        ABInfo->tryGetVariable(CBE->getCountExpr()->IgnoreParenCasts(), C,
+                               VK)) {
+      Ret = new ByteBound(VK);
+    }
   }
   if (BExpr->isRange() && RBE) {
     Expr *LHS = RBE->getLowerExpr()->IgnoreParenCasts();

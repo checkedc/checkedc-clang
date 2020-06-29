@@ -336,9 +336,10 @@ bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
       if (FldDecl->getType().getTypePtr()->isIntegerType() &&
           ABInfo.tryGetVariable(FldDecl, FldKey))
         PotLenFields.insert(std::make_pair(FldName, FldKey));
-      // Is this an array field?
+      // Is this an array field and has no declared bounds?
       if (needArrayBounds(FldDecl, Info, Context) &&
-          ABInfo.tryGetVariable(FldDecl, FldKey))
+          ABInfo.tryGetVariable(FldDecl, FldKey) &&
+          !ABInfo.getBounds(FldKey))
         IdentifiedArrVars.insert(std::make_pair(FldName, FldKey));
     }
 
@@ -392,8 +393,9 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         ParmVarDecl *PVD = FD->getParamDecl(i);
         BoundsKey PK;
 
-        if (ABInfo.tryGetVariable(PVD, PK)) {
-          auto PVal = std::make_pair(PVD->getNameAsString(), PK);
+        auto PVal = std::make_pair(PVD->getNameAsString(), PK);
+        // Does this parameter already has bounds?
+        if (ABInfo.tryGetVariable(PVD, PK) && !ABInfo.getBounds(PK)) {
           if (needArrayBounds(PVD, Info, Context)) {
             // Is this an array?
             ParamArrays[i] = PVal;
@@ -402,10 +404,10 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
             // Is this an NTArray?
             ParamNtArrays[i] = PVal;
           }
-          // If this is a length field?
-          if (IsPotentialLengthVar(PVD))
-            LengthParams[i] = PVal;
         }
+        // If this is a length field?
+        if (IsPotentialLengthVar(PVD))
+          LengthParams[i] = PVal;
       }
       if (!ParamArrays.empty() && !LengthParams.empty()) {
         // We have multiple parameters that are arrays and multiple params
