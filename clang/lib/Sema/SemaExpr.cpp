@@ -8878,7 +8878,7 @@ static bool arrayConstantCheckedConversion(Sema &S, QualType LHSType,
   if (ICE->getCastKind() != CK_ArrayToPointerDecay)
     return false;
 
-  Expr *Child = ICE->getSubExpr()->IgnoreExprTmp()->IgnoreParens();
+  Expr *Child = ICE->getSubExpr()->IgnoreParens()->IgnoreExprTmp()->IgnoreParens();
   if (!isa<InitListExpr>(Child) && !isa<StringLiteral>(Child) &&
       !isa<CompoundLiteralExpr>(Child))
     return false;
