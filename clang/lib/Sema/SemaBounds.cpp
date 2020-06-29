@@ -3569,6 +3569,10 @@ namespace {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
 
       if (isa<CompoundLiteralExpr>(SubExpr)) {
+        // Struct-typed compound literals do not have lvalue bounds.
+        if (SubExpr->getType()->isStructureType())
+          return CreateBoundsAlwaysUnknown();
+
         BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
         QualType PtrType = Context.getDecayedType(E->getType());
         Expr *ArrLValue = CreateTemporaryUse(E);
