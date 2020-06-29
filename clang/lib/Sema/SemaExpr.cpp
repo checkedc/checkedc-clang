@@ -6365,6 +6365,9 @@ Sema::BuildCompoundLiteralExpr(SourceLocation LParenLoc, TypeSourceInfo *TInfo,
     checkNonTrivialCUnionInInitializer(E->getInitializer(),
                                        E->getInitializer()->getExprLoc());
 
+  if (getLangOpts().CheckedC)
+    return new (Context) CHKCBindTemporaryExpr(E);
+
   return MaybeBindToTemporary(E);
 }
 
