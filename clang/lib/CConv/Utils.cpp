@@ -268,11 +268,13 @@ static bool CastCheck(clang::QualType DstType,
   if (SrcType == DstType)
     return true;
 
-  const clang::Type *SrcTypePtr = SrcType.getTypePtr();
-  const clang::Type *DstTypePtr = DstType.getTypePtr();
+  const clang::Type *SrcTypePtr = SrcType.getCanonicalType().getTypePtr();
+  const clang::Type *DstTypePtr = DstType.getCanonicalType().getTypePtr();
 
-  const clang::PointerType *SrcPtrTypePtr = dyn_cast<clang::PointerType>(SrcTypePtr);
-  const clang::PointerType *DstPtrTypePtr = dyn_cast<clang::PointerType>(DstTypePtr);
+  const clang::PointerType *SrcPtrTypePtr =
+      dyn_cast<clang::PointerType>(SrcTypePtr);
+  const clang::PointerType *DstPtrTypePtr =
+      dyn_cast<clang::PointerType>(DstTypePtr);
 
   // Both are pointers? check their pointee
   if (SrcPtrTypePtr && DstPtrTypePtr) {
