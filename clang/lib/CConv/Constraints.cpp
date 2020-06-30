@@ -295,7 +295,7 @@ VarAtomPred isNonParamReturn = [](VarAtom *VA) -> bool {
 
 // Remove from S all elements that don't match the predicate P
 void filter(VarAtomPred P, std::set<VarAtom *> &S) {
-  for (auto I = S.begin(), E = S.end(); I != E; ) {
+  for (auto I = S.begin(), E = S.end(); I != E;) {
     if (!P(*I))
       I = S.erase(I);
     else
@@ -303,19 +303,37 @@ void filter(VarAtomPred P, std::set<VarAtom *> &S) {
   }
 }
 
-static std::set<VarAtom *> findBounded(ConstraintsGraph &CG, std::set<VarAtom *> *Concrete, bool Succs, bool UseConstAtoms) {
+// For the provided constraint graph, construct the set of atoms bounded in a
+// direction (defined by Succs) by an atom from the set of concrete atoms.
+// When Succs is true, the traversal flows from each node to its successor - in
+// the direction the edges are oriented. When false, the traversal is reversed.
+// To view this another way, true checks for a lower bound in the Ptyp
+// constraint graph, but an upper bound in the checked graph. UseConstAtoms
+// decides if constant atoms should be used in addition to the provided Concrete
+// atoms.
+static std::set<VarAtom *> findBounded(ConstraintsGraph &CG,
+                                       std::set<VarAtom *> *Concrete,
+                                       bool Succs, bool UseConstAtoms = true) {
   std::set<VarAtom *> Bounded;
-  std::vector<Atom *> Open;
+  std::set<Atom *> Open;
+
+  // Initialize the open set of atoms with the provided set of fixed atoms.
+  // These are the start points for a traversal of the constraint graph.
   if (Concrete != nullptr) {
-    Open.insert(Open.begin(), Concrete->begin(), Concrete->end());
+    Open.insert(Concrete->begin(), Concrete->end());
     Bounded.insert(Concrete->begin(), Concrete->end());
   }
 
+  // We often, but not always, want to consider constant atoms as concrete.
   if (UseConstAtoms) {
     auto &ConstA = CG.getAllConstAtoms();
-    Open.insert(Open.begin(), ConstA.begin(), ConstA.end());
+    Open.insert(ConstA.begin(), ConstA.end());
   }
 
+  // Traversal of the constraint graph. An atom is bounded in a direction by
+  // one of the Concrete atoms if it is reachable from one of the atoms taking
+  // only edges in that direction. The particular atom bounding it does not
+  // matter.
   while (!Open.empty()) {
     auto *Curr = *(Open.begin());
     Open.erase(Open.begin());
@@ -323,9 +341,9 @@ static std::set<VarAtom *> findBounded(ConstraintsGraph &CG, std::set<VarAtom *>
     std::set<Atom *> Neighbors;
     if (CG.getNeighbors<VarAtom>(Curr, Neighbors, Succs)) {
       for (Atom *N : Neighbors) {
-        if(VarAtom *VA = dyn_cast<VarAtom>(N)){
-          if (Bounded.find(VA) == Bounded.end()){
-            Open.push_back(VA);
+        if (VarAtom *VA = dyn_cast<VarAtom>(N)) {
+          if (Bounded.find(VA) == Bounded.end()) {
+            Open.insert(VA);
             Bounded.insert(VA);
           }
         }
@@ -354,13 +372,12 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
       else
         PtrTypCG.addConstraint(G, *this);
     }
-    // Save the implies to solve them later.
+      // Save the implies to solve them later.
     else if (Implies *Imp = dyn_cast<Implies>(C)) {
       assert(Imp->getConclusion()->constraintIsChecked() &&
-             Imp->getPremise()->constraintIsChecked());
+          Imp->getPremise()->constraintIsChecked());
       SavedImplies.insert(Imp);
-    }
-    else
+    } else
       llvm_unreachable("Bogus constraint type");
   }
 
@@ -390,7 +407,7 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
       // 1. Find return vars with a lower bound
       std::set<VarAtom *> ParamVars = env.filterAtoms(isParam);
       std::set<VarAtom *> LowerBoundedRet =
-          findBounded(PtrTypCG, &ParamVars, true, true);
+          findBounded(PtrTypCG, &ParamVars, true);
       filter(isReturn, LowerBoundedRet);
 
       // 2. Find local vars where one of the return vars is an upper bound.
@@ -401,7 +418,7 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
 
       // 3. Find local vars upper bounded by a const var.
       std::set<VarAtom *> ConstUpperBoundedLocals =
-          findBounded(PtrTypCG, nullptr, false, true);
+          findBounded(PtrTypCG, nullptr, false);
       filter(isNonParamReturn, ConstUpperBoundedLocals);
 
       // 4. Take set difference of 2 and 3 to find bounded vars that do not
@@ -422,7 +439,7 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
       // Remember which variables have a concrete lower bound. Variables without
       // a lower bound will be resolved in the final greatest solution.
       std::set<VarAtom *> LowerBounded =
-          findBounded(PtrTypCG, &rest, true, true);
+          findBounded(PtrTypCG, &rest, true);
 
       res = do_solve(PtrTypCG, Empty, env, this, true, &rest, Conflicts);
 
@@ -433,7 +450,7 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
         rest = env.resetSolution(
             [LowerBounded](VarAtom *VA) -> bool {
               return isNonParamReturn(VA) ||
-                     LowerBounded.find(VA) == LowerBounded.end();
+                  LowerBounded.find(VA) == LowerBounded.end();
             },
             getPtr());
 
