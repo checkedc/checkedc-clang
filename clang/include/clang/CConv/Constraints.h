@@ -539,6 +539,7 @@ public:
   std::set<VarAtom *> resetSolution(VarAtomPred Pred, ConstAtom *CA);
   void resetFullSolution(VarSolTy InitC);
   bool checkAssignment(VarSolTy C);
+  std::set<VarAtom *> filterAtoms(VarAtomPred Pred);
 
 private:
   EnvironmentMap environment; // Solution map: Var --> Sol
