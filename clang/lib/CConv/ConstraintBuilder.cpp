@@ -36,9 +36,10 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
         for (const auto &D : Definition->fields())
           if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
             Info.addVariable(D, Context);
-            if(FL.isInSystemHeader()) {
+            if(FL.isInSystemHeader() || Definition->isUnion()) {
               std::set<ConstraintVariable *> C = Info.getVariable(D, Context);
-              CB.constraintAllCVarsToWild(C, "Field in header.", nullptr);
+              std::string Rsn = "External struct field or union encountered";
+              CB.constraintAllCVarsToWild(C, Rsn, nullptr);
             }
           }
       }
