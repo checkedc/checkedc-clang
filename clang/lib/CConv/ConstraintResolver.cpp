@@ -190,7 +190,7 @@ std::set<ConstraintVariable *>
     E = E->IgnoreParens();
 
     // Non-pointer (int, char, etc.) types have a special base PVConstraint
-    if (TypE->isStructureType() || TypE->isArithmeticType()) {
+    if (TypE->isRecordType() || TypE->isArithmeticType()) {
       if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
         // If we have a DeclRef, the PVC can get a meaningful name
         return getBaseVarPVConstraint(DRE);
@@ -564,7 +564,7 @@ std::set<ConstraintVariable *> ConstraintResolver::getWildPVConstraint() {
 
 std::set<ConstraintVariable *> ConstraintResolver::PVConstraintFromType(QualType TypE) {
   std::set<ConstraintVariable *> Ret;
-  if (TypE->isStructureType() || TypE->isArithmeticType())
+  if (TypE->isRecordType() || TypE->isArithmeticType())
     Ret.insert(PVConstraint::getNonPtrPVConstraint(Info.getConstraints()));
   else if (TypE->isPointerType())
     Ret.insert(PVConstraint::getWildPVConstraint(Info.getConstraints()));
@@ -574,7 +574,7 @@ std::set<ConstraintVariable *> ConstraintResolver::PVConstraintFromType(QualType
 }
 
 std::set<ConstraintVariable *> ConstraintResolver::getBaseVarPVConstraint(DeclRefExpr *Decl) {
-  assert(Decl->getType()->isStructureType() || Decl->getType()->isArithmeticType());
+  assert(Decl->getType()->isRecordType() || Decl->getType()->isArithmeticType());
   std::set<ConstraintVariable *> Ret;
   Ret.insert(PVConstraint::getNamedNonPtrPVConstraint(Decl->getDecl()->getName(), Info.getConstraints()));
   return Ret;
