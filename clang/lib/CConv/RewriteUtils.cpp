@@ -604,9 +604,16 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     // If the parameter has no changes? Just dump the original declaration.
     if (!ParameterHandled) {
       std::string Scratch = "";
-      raw_string_ostream DeclText(Scratch);
-      Definition->getParamDecl(i)->print(DeclText);
-      ParmStrs.push_back(DeclText.str());
+      const auto &SrcR = Definition->getParamDecl(i)->getSourceRange();
+      if (SrcR.isValid()) {
+        Scratch = getSourceText(Definition->getParamDecl(i)->getSourceRange(),
+                                *Context);
+      } else {
+        raw_string_ostream DeclText(Scratch);
+        Definition->getParamDecl(i)->print(DeclText);
+        Scratch = DeclText.str();
+      }
+      ParmStrs.push_back(Scratch);
     }
   }
 

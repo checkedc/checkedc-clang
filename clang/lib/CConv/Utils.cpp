@@ -328,7 +328,8 @@ bool isInSysHeader(clang::Decl *D) {
   return false;
 }
 
-std::string getSourceText(clang::SourceRange &SR, const clang::ASTContext &C) {
+std::string getSourceText(const clang::SourceRange &SR,
+                          const clang::ASTContext &C) {
   assert(SR.isValid() && "Invalid Source Range requested.");
   auto &SM = C.getSourceManager();
   auto LO = C.getLangOpts();
