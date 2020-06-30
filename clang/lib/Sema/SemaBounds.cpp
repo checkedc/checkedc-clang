@@ -1920,6 +1920,42 @@ namespace {
       }
     }
 
+    // Given an increment/decrement operator ++e, e++, --e, or e--, where
+    // e has declared bounds DeclaredBounds and e +/- 1 has inferred bounds
+    // SrcBounds, make sure that SrcBounds implies that DeclaredBounds are
+    // provably true.
+    void CheckBoundsDeclAtIncrementDecrement(UnaryOperator *E,
+                                             BoundsExpr *DeclaredBounds,
+                                             BoundsExpr *SrcBounds,
+                                             EquivExprSets EquivExprs,
+                                             CheckedScopeSpecifier CSS) {
+      if (!UnaryOperator::isIncrementDecrementOp(E->getOpcode()))
+        return;
+
+      ProofFailure Cause;
+      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds,
+                                                   Cause, &EquivExprs);
+
+      if (Result != ProofResult::True) {
+        Expr *Target = E->getSubExpr();
+        Expr *Src = E;
+        unsigned DiagId = (Result == ProofResult::False) ?
+          diag::error_bounds_declaration_invalid :
+          (CSS != CheckedScopeSpecifier::CSS_Unchecked?
+           diag::warn_checked_scope_bounds_declaration_invalid :
+           diag::warn_bounds_declaration_invalid);
+        S.Diag(E->getExprLoc(), DiagId)
+          << Sema::BoundsDeclarationCheck::BDC_Assignment << Target
+          << Target->getSourceRange() << Src->getSourceRange();
+        if (Result == ProofResult::False)
+          ExplainProofFailure(E->getExprLoc(), Cause, ProofStmtKind::BoundsDeclaration);
+        S.Diag(Target->getExprLoc(), diag::note_declared_bounds)
+          << DeclaredBounds << DeclaredBounds->getSourceRange();
+        S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)
+          << SrcBounds << Src->getSourceRange();
+      }
+    }
+
     // Check that the bounds for an argument imply the expected
     // bounds for the argument.   The expected bounds are computed
     // by substituting the arguments into the bounds expression for
@@ -3342,8 +3378,9 @@ namespace {
           DeclaredBounds->isUnknown())
         return ResultBounds;
 
-      // TODO: for array types, check that any declared bounds at the point
-      // of initialization are true based on the array size.
+      // TODO: checkedc-clang issue #862: for array types, check that any
+      // declared bounds at the point of initialization are true based on
+      // the array size.
 
       // If there is a scalar initializer, record the initializer bounds as the
       // observed bounds for the variable and check that the initializer meets
@@ -4308,12 +4345,25 @@ namespace {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
 
-      // &*e1 is invertible with respect to x if e1 is invertible with
-      // respect to x.
       if (Op == UnaryOperatorKind::UO_AddrOf) {
+        // &*e1 is invertible with respect to x if e1 is invertible with
+        // respect to x.
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
             return IsInvertible(X, UnarySubExpr->getSubExpr());
+        }
+        // &e1[e2] is invertible with respect to x if e1 + e2 is invertible
+        // with respect to x.
+        else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
+          Expr *Base = ArraySubExpr->getBase();
+          Expr *Index = ArraySubExpr->getIdx();
+          BinaryOperator Sum(Base, Index, BinaryOperatorKind::BO_Add,
+                             Base->getType(),
+                             Base->getValueKind(),
+                             Base->getObjectKind(),
+                             SourceLocation(),
+                             FPOptions());
+          return IsInvertible(X, &Sum);
         }
       }
 
@@ -4458,11 +4508,23 @@ namespace {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
       
-      // Inverse(f, &*e1) = Inverse(f, e1)
       if (Op == UnaryOperatorKind::UO_AddrOf) {
+        // Inverse(f, &*e1) = Inverse(f, e1)
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
           if (UnarySubExpr->getOpcode() == UnaryOperatorKind::UO_Deref)
             return Inverse(X, F, UnarySubExpr->getSubExpr());
+        }
+        // Inverse(f, &e1[e2]) = Inverse(f, e1 + e2)
+        else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
+          Expr *Base = ArraySubExpr->getBase();
+          Expr *Index = ArraySubExpr->getIdx();
+          BinaryOperator Sum(Base, Index, BinaryOperatorKind::BO_Add,
+                             Base->getType(),
+                             Base->getValueKind(),
+                             Base->getObjectKind(),
+                             SourceLocation(),
+                             FPOptions());
+          return Inverse(X, F, &Sum);
         }
       }
 
