@@ -38,5 +38,5 @@ int foo(int *arr, unsigned len) {
     return 0;
 }
 //CHECK: int foo(_Array_ptr<int> arr : count(len), unsigned len) {
-//CHECK: _Array_ptr<char> arr1 : count(n) = malloc(n*sizeof(char));
+//CHECK: _Array_ptr<char> arr1 : count(n) =  malloc(n*sizeof(char));
 //CHECK: char *arr2 = calloc(n, sizeof(char));
