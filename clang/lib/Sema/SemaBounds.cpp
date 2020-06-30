@@ -1827,11 +1827,17 @@ namespace {
     void CheckBoundsDeclAtAssignment(SourceLocation ExprLoc, Expr *Target,
                                      BoundsExpr *DeclaredBounds, Expr *Src,
                                      BoundsExpr *SrcBounds,
+                                     EquivExprSets EquivExprs,
                                      CheckedScopeSpecifier CSS) {
       // Record expression equality implied by assignment.
-      SmallVector<SmallVector <Expr *, 4>, 4> EquivExprs;
-      SmallVector<Expr *, 4> EqualExpr;
-
+      // EquivExprs may not already contain equality implied by assignment.
+      // For example, EquivExprs will not contain equality implied by
+      // assignments to non-variables, e.g. *p = e, a[i] = e, s.f = e.
+      // EquivExprs also will not contain equality implied by assignment
+      // for certain kinds of source expressions.  For example, EquivExprs
+      // will not contain equality implied by the assignments v = *e, v = a[i],
+      // or v = s->f, since the sets of expressions that produce the same value
+      // as *e, a[i], and s->f are empty.
       if (S.CheckIsNonModifying(Target, Sema::NonModifyingContext::NMC_Unknown,
                                 Sema::NonModifyingMessage::NMM_None)) {
          CHKCBindTemporaryExpr *Temp = GetTempBinding(Src);
@@ -1840,6 +1846,7 @@ namespace {
            S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
                                  Sema::NonModifyingMessage::NMM_None);
          if (Temp || SrcIsNonModifying) {
+           SmallVector<Expr *, 4> EqualExpr;
            Expr *TargetExpr =
              CreateImplicitCast(Target->getType(), CK_LValueToRValue, Target);
            EqualExpr.push_back(TargetExpr);
@@ -1872,6 +1879,42 @@ namespace {
       }
     }
 
+    // Given an increment/decrement operator ++e, e++, --e, or e--, where
+    // e has declared bounds DeclaredBounds and e +/- 1 has inferred bounds
+    // SrcBounds, make sure that SrcBounds implies that DeclaredBounds are
+    // provably true.
+    void CheckBoundsDeclAtIncrementDecrement(UnaryOperator *E,
+                                             BoundsExpr *DeclaredBounds,
+                                             BoundsExpr *SrcBounds,
+                                             EquivExprSets EquivExprs,
+                                             CheckedScopeSpecifier CSS) {
+      if (!UnaryOperator::isIncrementDecrementOp(E->getOpcode()))
+        return;
+
+      ProofFailure Cause;
+      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds,
+                                                   Cause, &EquivExprs);
+
+      if (Result != ProofResult::True) {
+        Expr *Target = E->getSubExpr();
+        Expr *Src = E;
+        unsigned DiagId = (Result == ProofResult::False) ?
+          diag::error_bounds_declaration_invalid :
+          (CSS != CheckedScopeSpecifier::CSS_Unchecked?
+           diag::warn_checked_scope_bounds_declaration_invalid :
+           diag::warn_bounds_declaration_invalid);
+        S.Diag(E->getExprLoc(), DiagId)
+          << Sema::BoundsDeclarationCheck::BDC_Assignment << Target
+          << Target->getSourceRange() << Src->getSourceRange();
+        if (Result == ProofResult::False)
+          ExplainProofFailure(E->getExprLoc(), Cause, ProofStmtKind::BoundsDeclaration);
+        S.Diag(Target->getExprLoc(), diag::note_declared_bounds)
+          << DeclaredBounds << DeclaredBounds->getSourceRange();
+        S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)
+          << SrcBounds << Src->getSourceRange();
+      }
+    }
+
     // Check that the bounds for an argument imply the expected
     // bounds for the argument.   The expected bounds are computed
     // by substituting the arguments into the bounds expression for
@@ -1880,11 +1923,11 @@ namespace {
                                   BoundsExpr *ExpectedArgBounds, Expr *Arg,
                                   BoundsExpr *ArgBounds,
                                   CheckedScopeSpecifier CSS,
-                                  SmallVector<SmallVector <Expr *, 4>, 4> *EquivExprs) {
+                                  EquivExprSets EquivExprs) {
       SourceLocation ArgLoc = Arg->getBeginLoc();
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(ExpectedArgBounds,
-                                                   ArgBounds, Cause, EquivExprs);
+                                                   ArgBounds, Cause, &EquivExprs);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_argument_bounds_invalid :
@@ -1906,10 +1949,11 @@ namespace {
     void CheckBoundsDeclAtInitializer(SourceLocation ExprLoc, VarDecl *D,
                                       BoundsExpr *DeclaredBounds, Expr *Src,
                                       BoundsExpr *SrcBounds,
+                                      EquivExprSets EquivExprs,
                                       CheckedScopeSpecifier CSS) {
-      // Record expression equality implied by initialization.
-      SmallVector<SmallVector <Expr *, 4>, 4> EquivExprs;
-      SmallVector<Expr *, 4> EqualExpr;
+      // Record expression equality implied by initialization (see
+      // CheckBoundsDeclAtAssignment).
+      
       // Record equivalence between expressions implied by initializion.
       // If D declares a variable V, and
       // 1. Src binds a temporary variable T, record equivalence
@@ -1933,6 +1977,7 @@ namespace {
           Kind = CK_LValueToRValue;
           TargetTy = D->getType();
         }
+        SmallVector<Expr *, 4> EqualExpr;
         Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
         EqualExpr.push_back(TargetExpr);
         if (Temp)
@@ -2707,7 +2752,8 @@ namespace {
         }
       }
 
-      // Update State.EquivExprs and State.SameValue.
+      // Update the checking state.  The result bounds may also be updated
+      // for assignments to a variable.
       if (E->isAssignmentOp()) {
         Expr *Target =
              CreateImplicitCast(LHS->getType(), CK_LValueToRValue, LHS);
@@ -2724,15 +2770,11 @@ namespace {
           UpdateSameValue(Src, SubExprSameValueSets, State.SameValue);
         }
 
-        // Update EquivExprs and SameValue for assignments to `e1` where `e1`
-        // is a variable.
+        // Update the checking state and result bounds for assignments to `e1`
+        // where `e1` is a variable.
         if (DeclRefExpr *V = GetLValueVariable(LHS)) {
-          bool OriginalValueUsesV = false;
-          Expr *OriginalValue = GetOriginalValue(V, Target, Src,
-                                                 State.EquivExprs,
-                                                 OriginalValueUsesV);
-          UpdateAfterAssignment(V, Target, OriginalValue, OriginalValueUsesV,
-                                CSS, State, State);
+          ResultBounds = UpdateAfterAssignment(V, Target, Src, ResultBounds,
+                                               CSS, State, State);
         }
         // Update EquivExprs and SameValue for assignments where `e1` is not
         // a variable.
@@ -2785,7 +2827,7 @@ namespace {
             }
 
             CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
-                                        RHS, RightBounds, CSS);
+                                        RHS, RightBounds, State.EquivExprs, CSS);
           }
         }
 
@@ -2928,11 +2970,11 @@ namespace {
           DumpCallArgumentBounds(llvm::outs(), FuncProtoTy->getParamAnnots(i).getBoundsExpr(), Arg, SubstParamBounds, ArgBounds);
         }
 
-        CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, CSS, nullptr);
+        CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, CSS, State.EquivExprs);
       }
 
-      // Check any arguments that are beyond
-      // the number of function parameters.
+      // Check any arguments that are beyond the number of function
+      // parameters.
       for (unsigned i = Count; i < NumArgs; i++) {
         Expr *Arg = E->getArg(i);
         Check(Arg, CSS, State);
@@ -3120,17 +3162,21 @@ namespace {
       if (Op == UnaryOperatorKind::UO_Deref)
         return CreateBoundsInferenceError();
 
-      // Update EquivExprs and SameValue for inc/dec operators `++e1`, `e1++`,
-      // `--e1`, `e1--`. At this point, State contains EquivExprs and SameValue
-      // for `e1`.
+      // Check inc/dec operators `++e1`, `e1++`, `--e1`, `e1--`.
+      // At this point, State contains EquivExprs and SameValue for `e1`.
       if (UnaryOperator::isIncrementDecrementOp(Op)) {
+        // `++e1`, `e1++`, `--e1`, `e1--` all have bounds of `e1`.
+        // `e1` is an lvalue, so its bounds are its lvalue target bounds.
+        // These bounds may be updated if `e1` is a variable.
+        BoundsExpr *IncDecResultBounds = SubExprTargetBounds;
+
         // Create the target of the implied assignment `e1 = e1 +/- 1`.
         Expr *Target = CreateImplicitCast(SubExpr->getType(),
                                             CK_LValueToRValue, SubExpr);
 
         // Only use the RHS `e1 +/1 ` of the implied assignment to update
-        // EquivExprs and SameValue if the integer constant 1 can be created,
-        // which is only true if `e1` has integer type or integer pointer type.
+        // the checking state if the integer constant 1 can be created, which
+        // is only true if `e1` has integer or pointer type.
         IntegerLiteral *One = CreateIntegerLiteral(1, SubExpr->getType());
         Expr *RHS = nullptr;
         if (One) {
@@ -3140,28 +3186,46 @@ namespace {
           RHS = ExprCreatorUtil::CreateBinaryOperator(S, SubExpr, One, RHSOp);
         }
 
-        // Update EquivExprs for inc/dec operators where `e1` is a variable.
-        // Any expressions in EquivExprs that use the value of `e1` need to be
-        // adjusted using the original value of `e1`, since `e1` has been
-        // updated.
+        // Update the checking state and result bounds for inc/dec operators
+        // where `e1` is a variable.
         if (DeclRefExpr *V = GetLValueVariable(SubExpr)) {
           // Update SameValue to be the set of expressions that produce the
           // same value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateSameValue(E, State.SameValue, State.SameValue, RHS);
-          bool OriginalValueUsesV = false;
-          Expr *OriginalValue = GetOriginalValue(V, Target, RHS,
-                                                 State.EquivExprs,
-                                                 OriginalValueUsesV);
-          UpdateAfterAssignment(V, Target, OriginalValue, OriginalValueUsesV,
-                                CSS, State, State);
+          IncDecResultBounds = UpdateAfterAssignment(V, Target, RHS,
+                                                     IncDecResultBounds,
+                                                     CSS, State, State);
+
+          // Check that the updated IncDecResultBounds imply the target bounds
+          // for the variable `e1`.
+          QualType SubExprType = SubExpr->getType();
+          // Source bounds used to check the inc/dec operator.
+          BoundsExpr *SrcBounds = nullptr;
+          if (SubExprType->isCheckedPointerType() || SubExprType->isIntegerType()) {
+            // Check that the source `e1 +/- 1` has bounds if the lvalue
+            // subexpression `e1` has bounds.
+            SubExprTargetBounds = S.CheckNonModifyingBounds(SubExprTargetBounds, E);
+            if (!SubExprTargetBounds->isUnknown()) {
+              SrcBounds = S.CheckNonModifyingBounds(IncDecResultBounds, E);
+              if (SrcBounds->isUnknown()) {
+                  S.Diag(E->getBeginLoc(),
+                        diag::err_expected_bounds_for_assignment)
+                        << E->getSourceRange();
+                  SrcBounds = S.CreateInvalidBoundsExpr();
+              }
+
+              CheckBoundsDeclAtIncrementDecrement(E, SubExprTargetBounds,
+                SrcBounds, State.EquivExprs, CSS);
+            }
+          }
         }
 
         // Update the set SameValue of expressions that produce the same
         // value as `e`.
         if (One) {
-          // For integer or integer pointer-typed expressions, create the
-          // expression Val that is equivalent to `e` in the program state
-          // after the increment/decrement expression `e` has executed.
+          // For integer or pointer-typed expressions, create the expression
+          // Val that is equivalent to `e` in the program state after the
+          // increment/decrement expression `e` has executed.
           // (The call to UpdateSameValue will only add Val to SameValue if
           // Val is a non-modifying expression).
 
@@ -3182,6 +3246,8 @@ namespace {
           // could not be constructed (e.g. floating point expressions).
           State.SameValue.clear();
         }
+
+        return IncDecResultBounds;
       }
 
       // `&e` has the bounds of `e`.
@@ -3195,11 +3261,6 @@ namespace {
 
         return SubExprLValueBounds;
       }
-
-      // `++e`, `e++`, `--e`, `e--` all have bounds of `e`.
-      // `e` is an lvalue, so its bounds are its lvalue target bounds.
-      if (UnaryOperator::isIncrementDecrementOp(Op))
-        return SubExprTargetBounds;
 
       // Update State.SameValue for `!e`, `+e`, `-e`, and `~e`
       // using the current State.SameValue for `e`.
@@ -3270,16 +3331,19 @@ namespace {
           DeclaredBounds->isUnknown())
         return ResultBounds;
 
-      // TODO: for array types, check that any declared bounds at the point
-      // of initialization are true based on the array size.
+      // TODO: checkedc-clang issue #862: for array types, check that any
+      // declared bounds at the point of initialization are true based on
+      // the array size.
 
-      // If there is a scalar initializer, check that the initializer meets the bounds
-      // requirements for the variable.  For non-scalar types (arrays, structs, and
-      // unions), the amount of storage allocated depends on the type, so we don't
-      // to check the initializer bounds.
+      // If there is a scalar initializer, record the initializer bounds as the
+      // observed bounds for the variable and check that the initializer meets
+      // the bounds requirements for the variable.  For non-scalar types
+      // arrays, structs, and unions), the amount of storage allocated depends
+      // on the type, so we don't need to check the initializer bounds.
       if (Init && D->getType()->isScalarType()) {
         assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
         InitBounds = S.CheckNonModifyingBounds(InitBounds, Init);
+        State.ObservedBounds[D] = InitBounds;
         if (InitBounds->isUnknown()) {
           // TODO: need some place to record the initializer bounds
           S.Diag(Init->getBeginLoc(), diag::err_expected_bounds_for_initializer)
@@ -3288,7 +3352,7 @@ namespace {
         } else {
           BoundsExpr *NormalizedDeclaredBounds = ExpandToRange(D, DeclaredBounds);
           CheckBoundsDeclAtInitializer(D->getLocation(), D, NormalizedDeclaredBounds,
-            Init, InitBounds, CSS);
+            Init, InitBounds, State.EquivExprs, CSS);
         }
         if (DumpBounds)
           DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
@@ -3747,33 +3811,56 @@ namespace {
         RValueBounds = Check(E, CSS, State);
     }
 
-    // Methods to update sets of equivalent expressions.
+    // Methods to update the checking state.
 
     // UpdateAfterAssignment updates the checking state after a variable V
-    // is assigned to, based on the state before the assignment.
+    // is updated in an assignment Target = Src, based on the state before
+    // the assignment.  It also returns updated bounds for Src.
     //
-    // Target is the target expression of the assignment (that accounts for
-    // any necessary casts of V).
+    // If V has an original value, the original value is substituted for
+    // any uses of the value of V in the bounds in ObservedBounds and the
+    // expressions in EquivExprs and SameValue.
+    // If V does not have an original value, any bounds in ObservedBounds
+    // that use the value of V are set to bounds(unknown), and any expressions
+    // in EquivExprs and SameValue that use the value of V are removed from
+    // EquivExprs and SameValue.
     //
-    // OriginalValue is the original value (if any) for V before the assignment.
-    // If OriginalValue is non-null, it is substituted for any uses of the
-    // value of V in the expressions in EquivExprs and SameValue.
-    // If OriginalValue is null, any expressions in EquivExprs and SameValue
-    // that use the value of V are removed from EquivExprs and SameValue.
-    // OriginalValue is named OV in the Checked C spec.
-    //
-    // OriginalValueUsesV is true if the original value (if any) uses the
-    // value of V.  It is used to prevent the EquivExprs and SameValue sets
-    // from recording equality between two mathematically equivalent
-    // expressions, which can occur for assignments where the variable appears
-    // on the right-hand side, e.g. i = i + 2.
+    // SrcBounds are the original bounds for the source of the assignment.
     //
     // PrevState is the checking state that was true before the assignment.
-    void UpdateAfterAssignment(DeclRefExpr *V, Expr *Target,
-                               Expr *OriginalValue, bool OriginalValueUsesV,
-                               CheckedScopeSpecifier CSS,
-                               const CheckingState PrevState,
-                               CheckingState &State) {
+    BoundsExpr *UpdateAfterAssignment(DeclRefExpr *V, Expr *Target, Expr *Src,
+                                      BoundsExpr *SrcBounds,
+                                      CheckedScopeSpecifier CSS,
+                                      const CheckingState PrevState,
+                                      CheckingState &State) {
+      // Get the original value (if any) of V before the assignment, and
+      // determine whether the original value uses the value of V.
+      // OriginalValue is named OV in the Checked C spec.
+      bool OriginalValueUsesV = false;
+      Expr *OriginalValue = GetOriginalValue(V, Target, Src,
+                              PrevState.EquivExprs, OriginalValueUsesV);
+
+      // Determine whether V has declared bounds.
+      VarDecl *VariableDecl = dyn_cast_or_null<VarDecl>(V->getDecl());
+      BoundsExpr *DeclaredBounds;
+      if (VariableDecl)
+        DeclaredBounds = VariableDecl->getBoundsExpr();
+
+      // If V has declared bounds, set ObservedBounds[V] to SrcBounds.
+      if (DeclaredBounds)
+        State.ObservedBounds[VariableDecl] = SrcBounds;
+
+      // Adjust ObservedBounds to account for any uses of V in the bounds.
+      for (auto Pair : State.ObservedBounds)
+        State.ObservedBounds[Pair.first] =
+          ReplaceVariableInBounds(Pair.second, V, OriginalValue, CSS);
+
+      // Adjust SrcBounds to account for any uses of V and, if V has declared
+      // bounds, record the updated observed bounds for V.
+      SrcBounds = ReplaceVariableInBounds(SrcBounds, V, OriginalValue, CSS);
+      if (DeclaredBounds)
+        State.ObservedBounds[VariableDecl] = SrcBounds;
+
       // Adjust EquivExprs to account for any uses of V in PrevState.EquivExprs.
       State.EquivExprs.clear();
       for (auto I = PrevState.EquivExprs.begin(); I != PrevState.EquivExprs.end(); ++I) {
@@ -3809,6 +3896,7 @@ namespace {
       }
 
       RecordEqualityWithTarget(Target, State);
+      return SrcBounds;
     }
 
     // RecordEqualityWithTarget updates the checking state to record equality
@@ -3845,6 +3933,24 @@ namespace {
         State.SameValue.push_back(Target);
       if (State.SameValue.size() > 1)
         State.EquivExprs.push_back(State.SameValue);
+    }
+
+    // If Bounds uses the value of v and an original value is provided,
+    // ReplaceVariableInBounds will return a bounds expression where the uses
+    // of v are replaced with the original value.
+    // If Bounds uses the value of v and no original value is provided,
+    // ReplaceVariableInBounds will return bounds(unknown).
+    BoundsExpr *ReplaceVariableInBounds(BoundsExpr *Bounds, DeclRefExpr *V,
+                                        Expr *OriginalValue,
+                                        CheckedScopeSpecifier CSS) {
+      Expr *Replaced = ReplaceVariableReferences(S, Bounds, V,
+                                                 OriginalValue, CSS);
+      if (!Replaced)
+        return CreateBoundsUnknown();
+      else if (BoundsExpr *AdjustedBounds = dyn_cast<BoundsExpr>(Replaced))
+        return AdjustedBounds;
+      else
+        return CreateBoundsUnknown();
     }
 
     // UpdateSameValue updates the set SameValue of expressions that produce
@@ -4437,10 +4543,16 @@ namespace {
       return false;
     }
 
-    // If E is a (possibly parenthesized) lvalue variable V,
+    // If E is a possibly parenthesized lvalue variable V,
     // GetLValueVariable returns V. Otherwise, it returns nullptr.
+    //
+    // V may have value-preserving operations applied to it, such as
+    // LValueBitCasts.  For example, if E is (LValueBitCast(V)), where V
+    // is a variable, GetLValueVariable will return V.
     DeclRefExpr *GetLValueVariable(Expr *E) {
-      return dyn_cast<DeclRefExpr>(E->IgnoreParens());
+      Lexicographic Lex(S.Context, nullptr);
+      E = Lex.IgnoreValuePreservingOperations(S.Context, E);
+      return dyn_cast<DeclRefExpr>(E);
     }
 
     // If E is a possibly parenthesized rvalue cast of a variable V,
@@ -4455,12 +4567,8 @@ namespace {
       if (CastExpr *CE = dyn_cast<CastExpr>(E->IgnoreParens())) {
         CastKind CK = CE->getCastKind();
         if (CK == CastKind::CK_LValueToRValue ||
-            CK == CastKind::CK_ArrayToPointerDecay) {
-          Lexicographic Lex(S.Context, nullptr);
-          Expr *SubExpr = const_cast<Expr *>(CE->getSubExpr());
-          Expr *E1 = Lex.IgnoreValuePreservingOperations(S.Context, SubExpr);
-          return dyn_cast<DeclRefExpr>(E1);
-        }
+            CK == CastKind::CK_ArrayToPointerDecay)
+          return GetLValueVariable(CE->getSubExpr());
       }
       return nullptr;
     }
@@ -4685,26 +4793,28 @@ namespace {
       return Lit;
     }
 
+    // If Ty is a pointer type, CreateIntegerLiteral returns an integer
+    // literal with a target-dependent bit width.
     // If Ty is an integer type (char, unsigned int, int, etc.),
     // CreateIntegerLiteral returns an integer literal with Ty type.
-    // If Ty denotes a pointer to an integer type (char *, ptr<int>, etc.),
-    // CreateIntegerLiteral returns an integer literal with Ty's pointee type.
     // Otherwise, it returns nullptr.
     IntegerLiteral *CreateIntegerLiteral(int Value, QualType Ty) {
-      QualType AdjustedType = Ty;
-      if (Ty->isPointerType())
-        AdjustedType = Ty->getPointeeType();
-      if (!AdjustedType->isIntegerType())
+      if (Ty->isPointerType()) {
+        const llvm::APInt
+          ResultVal(Context.getTargetInfo().getPointerWidth(0), Value);
+        return CreateIntegerLiteral(ResultVal);
+      }
+
+      if (!Ty->isIntegerType())
         return nullptr;
 
-      unsigned BitSize = Context.getTypeSize(AdjustedType);
-      unsigned IntWidth = Context.getIntWidth(AdjustedType);
+      unsigned BitSize = Context.getTypeSize(Ty);
+      unsigned IntWidth = Context.getIntWidth(Ty);
       if (BitSize != IntWidth)
         return nullptr;
 
-      llvm::APInt ResultVal(BitSize, Value);
-      return IntegerLiteral::Create(Context, ResultVal, AdjustedType,
-                                    SourceLocation());
+      const llvm::APInt ResultVal(BitSize, Value);
+      return IntegerLiteral::Create(Context, ResultVal, Ty, SourceLocation());
     }
 
     // Infer bounds for string literals.
