@@ -39,3 +39,38 @@ int *bar() {
   z += 2;
   return z;
 }
+
+int *baz(int *a) {
+  // CHECK: _Array_ptr<int> baz(_Array_ptr<int> a) {
+  a++;
+
+  int *b = (int*) 0;
+  // CHECK: _Array_ptr<int> b = (int*) 0;
+  a = b;
+
+  int *c = b;
+  // CHECK: _Array_ptr<int> c = b;
+
+  return c;
+}
+
+int *buz(int *a) {
+  // CHECK: _Ptr<int> buz(_Array_ptr<int> a) {
+  a++;
+
+  int *b = (int*) 0;
+  // CHECK: _Array_ptr<int> b = (int*) 0;
+  a = b;
+
+  // The current implementation does not propagate array constraint to c and d, but
+  // if this test starts failing because it does, that's probably OK.
+
+  int *c = b;
+  // CHECK: _Ptr<int>  c = b;
+
+  int *d = (int*) 0;
+  // CHECK: _Ptr<int> d = (int*) 0;
+  c = d;
+
+  return d;
+}
