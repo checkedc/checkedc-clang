@@ -3756,6 +3756,14 @@ bool Expr::hasNonTrivialCall(const ASTContext &Ctx) const {
 Expr::NullPointerConstantKind
 Expr::isNullPointerConstant(ASTContext &Ctx,
                             NullPointerConstantValueDependence NPC) const {
+  // Bounds expressions are not null pointer constants.
+  if (isa<BoundsExpr>(this))
+    return NPCK_NotNull;
+  
+  // TempBinding(e) is a null pointer constant if e is a null pointer constant.
+  if (const CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(this))
+    return Temp->getSubExpr()->isNullPointerConstant(Ctx, NPC);
+
   if (isValueDependent() &&
       (!Ctx.getLangOpts().CPlusPlus11 || Ctx.getLangOpts().MSVCCompat)) {
     switch (NPC) {

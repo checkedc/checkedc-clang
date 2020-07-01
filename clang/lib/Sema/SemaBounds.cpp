@@ -2461,14 +2461,6 @@ namespace {
       }
 
       if (Expr *E = dyn_cast<Expr>(S)) {
-        // Bounds expressions are not null ptrs.
-        if (isa<BoundsExpr>(E))
-          return ResultBounds;
-
-        // Temporary bindings are not null ptrs.
-        if (isa<CHKCBindTemporaryExpr>(E))
-          return ResultBounds;
-
         // Null ptrs always have bounds(any).
         // This is the correct way to detect all the different ways that
         // C can make a null ptr.
