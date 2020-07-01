@@ -178,6 +178,8 @@ static void updateGNUCompoundLiteralRValue(Expr *E) {
       E = GSE->getResultExpr();
     } else if (ChooseExpr *CE = dyn_cast<ChooseExpr>(E)) {
       E = CE->getChosenSubExpr();
+    } else if (CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(E)) {
+      E = Temp->getSubExpr();
     } else {
       llvm_unreachable("unexpected expr in array compound literal init");
     }
