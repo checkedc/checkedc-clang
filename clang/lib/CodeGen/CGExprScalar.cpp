@@ -847,9 +847,9 @@ public:
   }
 
   Value *VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
-    assert(!E->getSubExpr()->isLValue());
     Value *Result = Visit(E->getSubExpr());
-    CGF.setBoundsTemporaryRValueMapping(E, RValue::get(Result));
+    if (!E->getSubExpr()->isLValue())
+      CGF.setBoundsTemporaryRValueMapping(E, RValue::get(Result));
     return Result;
   }
 };
