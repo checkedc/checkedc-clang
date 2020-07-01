@@ -1146,7 +1146,7 @@ void original_value13(array_ptr<int> p, array_ptr<int> q) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator: pre-increment and post-increment inverses
+// UnaryOperator: pre-increment and post-increment inverses (unsigned integer arithmetic)
 void original_value14(unsigned x, unsigned i) {
   // Updated EquivExprs: { { i, x } }
   x = i;
@@ -1216,8 +1216,8 @@ void original_value14(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator: pre-decrement and post-decrement inverses
-void original_value15(unsigned x, unsigned i) {
+// UnaryOperator: pre-decrement and post-decrement inverses (checked pointer arithmetic)
+void original_value15(array_ptr<float> x, array_ptr<float> i) {
   // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
@@ -1286,7 +1286,7 @@ void original_value15(unsigned x, unsigned i) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator: pre-increment with no inverse
+// UnaryOperator: pre-increment with no inverse (signed integer arithmetic)
 void original_value16(int x, int i) {
   // Updated EquivExprs: { { i, x } }
   x = i;
@@ -1329,8 +1329,8 @@ void original_value16(int x, int i) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator: post-increment with no inverse
-void original_value17(int x, int i) {
+// UnaryOperator: post-increment with no inverse (unchecked pointer arithmetic)
+void original_value17(unsigned *x, unsigned *i) {
   // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
@@ -1374,8 +1374,8 @@ void original_value17(int x, int i) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator: pre-decrement with no inverse
-void original_value18(int x, int i) {
+// UnaryOperator: pre-decrement with no inverse (unchecked pointer arithmetic)
+void original_value18(float *x, float *i) {
   // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
@@ -1417,8 +1417,8 @@ void original_value18(int x, int i) {
   // CHECK-NEXT: }
 }
 
-// UnaryOperator: post-decrement with no inverse
-void original_value19(int x, int i) {
+// UnaryOperator: post-decrement with no inverse (unchecked pointer arithmetic)
+void original_value19(array_ptr<int> *x, array_ptr<int> *i) {
   // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
@@ -2073,7 +2073,7 @@ void original_value30(array_ptr<int> a : count(1), array_ptr<int> val) {
   // CHECK-NEXT: }
 
   // Original value of a: (array_ptr<int>)a
-  // Updated UEQ: { { (array_ptr<int>)a + 1, val } }
+  // Updated EquivExprs: { { (array_ptr<int>)a + 1, val } }
   a = _Dynamic_bounds_cast<array_ptr<int>>(a, count(1));
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -2122,7 +2122,7 @@ void original_value31(array_ptr<int> a : count(1), array_ptr<int> val) {
   // CHECK-NEXT: }
 
   // Original value of a: (array_ptr<int>)(array_ptr<const int>)a
-  // Updated UEQ: { { (array_ptr<int>)(array_ptr<const int>)a + 1, val } }
+  // Updated EquivExprs: { { (array_ptr<int>)(array_ptr<const int>)a + 1, val } }
   a = _Assume_bounds_cast<array_ptr<const int>>(a, count(1));
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -2173,7 +2173,7 @@ void original_value32(array_ptr<int> a : count(1), array_ptr<int> val) {
   // CHECK-NEXT: }
 
   // Original value of a: (array_ptr<int>)(array_ptr<const int>)a - 1
-  // Updated UEQ: { { (array_ptr<int>)(array_ptr<const int>)a - 1 + 1, val }, { value(temp(a + 1)), a } }
+  // Updated EquivExprs: { { (array_ptr<int>)(array_ptr<const int>)a - 1 + 1, val }, { value(temp(a + 1)), a } }
   // TODO: checkedc-clang issue #832: equality between value(temp(a + 1)) and a should not be recorded
   a = _Dynamic_bounds_cast<array_ptr<const int>>(a + 1, count(1));
   // CHECK: Statement S:
