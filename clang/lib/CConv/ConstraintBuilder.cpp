@@ -347,11 +347,12 @@ public:
       if (G->hasInit()) {
         CB.constrainLocalAssign(nullptr, G, G->getInit());
       }
-      // If the location of the previous RecordDecl and the current VarDecl are
-      // the same, this implies an inline struct as per Clang's AST, so set a
-      // flag in ProgramInfo to indicate that this variable should be
-      // constrained to wild later
-      if (lastRecordLocation == G->getBeginLoc().getRawEncoding()) {
+      // If the location of the previous RecordDecl and the current VarDecl
+      // coincide with one another, we constrain the VarDecl to be wild
+      // in order to allow the fields of the RecordDecl to be converted
+      int BeginLoc = G->getBeginLoc().getRawEncoding();
+      int EndLoc = G->getEndLoc().getRawEncoding();
+      if (lastRecordLocation >= BeginLoc && lastRecordLocation <= EndLoc) {
         std::set<ConstraintVariable *> C = Info.getVariable(G, Context);
         CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
       }
