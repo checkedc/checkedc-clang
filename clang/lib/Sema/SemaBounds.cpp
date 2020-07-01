@@ -3569,8 +3569,10 @@ namespace {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
 
       if (isa<CompoundLiteralExpr>(SubExpr)) {
-        // Struct-typed compound literals do not have lvalue bounds.
-        if (SubExpr->getType()->isStructureType())
+        // Only expressions with array or function type can have a decayed
+        // type, which is used to create the lvalue bounds.  Compound literals
+        // with non-array, non-function types do not have lvalue bounds.
+        if (!(E->getType()->isArrayType() || E->getType()->isFunctionType()))
           return CreateBoundsAlwaysUnknown();
 
         BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
