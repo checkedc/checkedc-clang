@@ -5272,6 +5272,10 @@ Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
         return GetArrayPtrDereference(IC->getSubExpr(), Result);
       return nullptr;
     }
+    case Expr::CHKCBindTemporaryExprClass: {
+      CHKCBindTemporaryExpr *Temp = cast<CHKCBindTemporaryExpr>(E);
+      return GetArrayPtrDereference(Temp->getSubExpr(), Result);
+    }
     default: {
       llvm_unreachable("unexpected lvalue expression");
       return nullptr;
