@@ -5167,6 +5167,11 @@ namespace {
                                            ToPtrType->getPointeeType(),
                                            /*CompareUnqualifed=*/false,
                                            /*IgnoreBounds=*/false)) {
+            // An _Assume_bounds_cast can be used to cast an unchecked function
+            // pointer to a checked function pointer, if the only difference
+            // is that the source is an unchecked pointer type.
+            if (E->getCastKind() == CastKind::CK_AssumePtrBounds)
+              return;
             S.Diag(Needle->getExprLoc(), 
                    diag::err_cast_to_checked_fn_ptr_from_unchecked_fn_ptr) <<
               ToType << E->getSourceRange();
