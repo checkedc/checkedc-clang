@@ -5195,6 +5195,10 @@ namespace {
       case CK_FunctionToPointerDecay:
       case CK_BitCast:
       case CK_LValueBitCast:
+      // An _Assume_bounds_cast can be used to cast an unchecked function
+      // pointer to a checked pointer, and should therefore be considered
+      // value-preserving for a function-pointer cast.
+      case CK_AssumePtrBounds:
         return true;
       default:
         S.Diag(E->getExprLoc(), diag::err_cast_to_checked_fn_ptr_not_value_preserving)
