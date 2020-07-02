@@ -129,6 +129,6 @@ struct fptr * sus(struct fptr *x, struct fptr *y) {
         
 return z; }
 //CHECK_NOALL: struct fptr *sus(struct fptr *x, _Ptr<struct fptr> y) : itype(_Ptr<struct fptr>) {
-//CHECK_NOALL:         _Ptr<struct fptr> z =  malloc(sizeof(struct fptr)); 
+//CHECK_NOALL:         _Ptr<struct fptr> z =  malloc<struct fptr>(sizeof(struct fptr)); 
 //CHECK_ALL: struct fptr * sus(struct fptr *x, _Ptr<struct fptr> y) {
-//CHECK_ALL:         struct fptr *z = malloc(sizeof(struct fptr)); 
+//CHECK_ALL:         struct fptr *z = malloc<struct fptr>(sizeof(struct fptr)); 

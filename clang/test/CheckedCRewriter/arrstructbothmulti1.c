@@ -138,13 +138,13 @@ int * foo() {
         int * z = sus(x, y);
 return z; }
 //CHECK_NOALL: int * foo() {
-//CHECK_NOALL:         struct general * x = malloc(sizeof(struct general));
-//CHECK_NOALL:         _Ptr<struct general> y =  malloc(sizeof(struct general));
+//CHECK_NOALL:         struct general * x = malloc<struct general>(sizeof(struct general));
+//CHECK_NOALL:         _Ptr<struct general> y =  malloc<struct general>(sizeof(struct general));
 //CHECK_NOALL:         _Ptr<struct general> curr =  y;
 //CHECK_NOALL:         int * z = sus(x, y);
 //CHECK_ALL: _Nt_array_ptr<int> foo(void) {
-//CHECK_ALL:         struct general * x = malloc(sizeof(struct general));
-//CHECK_ALL:         _Ptr<struct general> y =  malloc(sizeof(struct general));
+//CHECK_ALL:         struct general * x = malloc<struct general>(sizeof(struct general));
+//CHECK_ALL:         _Ptr<struct general> y =  malloc<struct general>(sizeof(struct general));
 //CHECK_ALL:         _Ptr<struct general> curr =  y;
 //CHECK_ALL:         _Nt_array_ptr<int> z =  sus(x, y);
 
@@ -163,12 +163,12 @@ int * bar() {
 z += 2;
 return z; }
 //CHECK_NOALL: int * bar() {
-//CHECK_NOALL:         struct general * x = malloc(sizeof(struct general));
-//CHECK_NOALL:         _Ptr<struct general> y =  malloc(sizeof(struct general));
+//CHECK_NOALL:         struct general * x = malloc<struct general>(sizeof(struct general));
+//CHECK_NOALL:         _Ptr<struct general> y =  malloc<struct general>(sizeof(struct general));
 //CHECK_NOALL:         _Ptr<struct general> curr =  y;
 //CHECK_NOALL:         int * z = sus(x, y);
 //CHECK_ALL: _Nt_array_ptr<int> bar(void) {
-//CHECK_ALL:         struct general * x = malloc(sizeof(struct general));
-//CHECK_ALL:         _Ptr<struct general> y =  malloc(sizeof(struct general));
+//CHECK_ALL:         struct general * x = malloc<struct general>(sizeof(struct general));
+//CHECK_ALL:         _Ptr<struct general> y =  malloc<struct general>(sizeof(struct general));
 //CHECK_ALL:         _Ptr<struct general> curr =  y;
 //CHECK_ALL:         _Nt_array_ptr<int> z =  sus(x, y);

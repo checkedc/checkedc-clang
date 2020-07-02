@@ -9,8 +9,8 @@ int * foo(int *x) {
 }
 void bar(void) {
   int *y = malloc(sizeof(int)*2);
-  //CHECK_NOALL: int *y = malloc(sizeof(int)*2);
-  //CHECK_ALL: int *y = malloc(sizeof(int)*2);
+  //CHECK_NOALL: int *y = malloc<int>(sizeof(int)*2);
+  //CHECK_ALL: int *y = malloc<int>(sizeof(int)*2);
   y = (int *)5;
   int *z = foo(y);
   //CHECK_NOALL: int *z = foo(y);

@@ -127,12 +127,12 @@ struct warr * foo() {
         struct warr * z = sus(x, y);
 return z; }
 //CHECK_NOALL: _Ptr<struct warr> foo(void) {
-//CHECK_NOALL:         struct warr * x = malloc(sizeof(struct warr));
-//CHECK_NOALL:         _Ptr<struct warr> y =  malloc(sizeof(struct warr));
+//CHECK_NOALL:         struct warr * x = malloc<struct warr>(sizeof(struct warr));
+//CHECK_NOALL:         _Ptr<struct warr> y =  malloc<struct warr>(sizeof(struct warr));
 //CHECK_NOALL:         _Ptr<struct warr> z =  sus(x, y);
 //CHECK_ALL: _Ptr<struct warr> foo(void) {
-//CHECK_ALL:         struct warr * x = malloc(sizeof(struct warr));
-//CHECK_ALL:         _Ptr<struct warr> y =  malloc(sizeof(struct warr));
+//CHECK_ALL:         struct warr * x = malloc<struct warr>(sizeof(struct warr));
+//CHECK_ALL:         _Ptr<struct warr> y =  malloc<struct warr>(sizeof(struct warr));
 //CHECK_ALL:         _Ptr<struct warr> z =  sus(x, y);
 
 struct warr * bar() {
@@ -141,12 +141,12 @@ struct warr * bar() {
         struct warr * z = sus(x, y);
 return z; }
 //CHECK_NOALL: _Ptr<struct warr> bar(void) {
-//CHECK_NOALL:         struct warr * x = malloc(sizeof(struct warr));
-//CHECK_NOALL:         _Ptr<struct warr> y =  malloc(sizeof(struct warr));
+//CHECK_NOALL:         struct warr * x = malloc<struct warr>(sizeof(struct warr));
+//CHECK_NOALL:         _Ptr<struct warr> y =  malloc<struct warr>(sizeof(struct warr));
 //CHECK_NOALL:         _Ptr<struct warr> z =  sus(x, y);
 //CHECK_ALL: _Ptr<struct warr> bar(void) {
-//CHECK_ALL:         struct warr * x = malloc(sizeof(struct warr));
-//CHECK_ALL:         _Ptr<struct warr> y =  malloc(sizeof(struct warr));
+//CHECK_ALL:         struct warr * x = malloc<struct warr>(sizeof(struct warr));
+//CHECK_ALL:         _Ptr<struct warr> y =  malloc<struct warr>(sizeof(struct warr));
 //CHECK_ALL:         _Ptr<struct warr> z =  sus(x, y);
 
 struct warr * sus(struct warr * x, struct warr * y) {

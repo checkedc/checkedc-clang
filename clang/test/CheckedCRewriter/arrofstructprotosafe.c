@@ -135,13 +135,13 @@ struct general ** foo() {
         struct general ** z = sus(x, y);
 return z; }
 //CHECK_NOALL: struct general ** foo() {
-//CHECK_NOALL:         struct general * x = malloc(sizeof(struct general));
-//CHECK_NOALL:         struct general * y = malloc(sizeof(struct general));
+//CHECK_NOALL:         struct general * x = malloc<struct general>(sizeof(struct general));
+//CHECK_NOALL:         struct general * y = malloc<struct general>(sizeof(struct general));
 //CHECK_NOALL:         struct general *curr = y;
 //CHECK_NOALL:         struct general ** z = sus(x, y);
 //CHECK_ALL: struct general ** foo() {
-//CHECK_ALL:         struct general * x = malloc(sizeof(struct general));
-//CHECK_ALL:         struct general * y = malloc(sizeof(struct general));
+//CHECK_ALL:         struct general * x = malloc<struct general>(sizeof(struct general));
+//CHECK_ALL:         struct general * y = malloc<struct general>(sizeof(struct general));
 //CHECK_ALL:         struct general *curr = y;
 //CHECK_ALL:         struct general ** z = sus(x, y);
 
@@ -159,13 +159,13 @@ struct general ** bar() {
         struct general ** z = sus(x, y);
 return z; }
 //CHECK_NOALL: struct general ** bar() {
-//CHECK_NOALL:         struct general * x = malloc(sizeof(struct general));
-//CHECK_NOALL:         struct general * y = malloc(sizeof(struct general));
+//CHECK_NOALL:         struct general * x = malloc<struct general>(sizeof(struct general));
+//CHECK_NOALL:         struct general * y = malloc<struct general>(sizeof(struct general));
 //CHECK_NOALL:         struct general *curr = y;
 //CHECK_NOALL:         struct general ** z = sus(x, y);
 //CHECK_ALL: struct general ** bar() {
-//CHECK_ALL:         struct general * x = malloc(sizeof(struct general));
-//CHECK_ALL:         struct general * y = malloc(sizeof(struct general));
+//CHECK_ALL:         struct general * x = malloc<struct general>(sizeof(struct general));
+//CHECK_ALL:         struct general * y = malloc<struct general>(sizeof(struct general));
 //CHECK_ALL:         struct general *curr = y;
 //CHECK_ALL:         struct general ** z = sus(x, y);
 
@@ -181,8 +181,8 @@ x = (struct general *) 5;
         
 return z; }
 //CHECK_NOALL: struct general ** sus(struct general *x, struct general *y) {
-//CHECK_NOALL:         struct general **z = calloc(5, sizeof(struct general *));
+//CHECK_NOALL:         struct general **z = calloc<struct general *>(5, sizeof(struct general *));
 //CHECK_NOALL:         struct general *curr = y;
 //CHECK_ALL: struct general ** sus(struct general *x, struct general *y) {
-//CHECK_ALL:         struct general **z = calloc(5, sizeof(struct general *));
+//CHECK_ALL:         struct general **z = calloc<struct general *>(5, sizeof(struct general *));
 //CHECK_ALL:         struct general *curr = y;

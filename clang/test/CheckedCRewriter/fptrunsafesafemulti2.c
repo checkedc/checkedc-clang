@@ -131,8 +131,8 @@ int * sus(struct general *x, struct general *y) {
         
 return z; }
 //CHECK_NOALL: int * sus(struct general *x, struct general *y) {
-//CHECK_NOALL:         int *z = calloc(5, sizeof(int)); 
+//CHECK_NOALL:         int *z = calloc<int>(5, sizeof(int)); 
 //CHECK_NOALL:         struct general *p = y;
 //CHECK_ALL: int * sus(struct general *x, struct general *y) {
-//CHECK_ALL:         int *z = calloc(5, sizeof(int)); 
+//CHECK_ALL:         int *z = calloc<int>(5, sizeof(int)); 
 //CHECK_ALL:         struct general *p = y;
