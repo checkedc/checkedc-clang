@@ -120,7 +120,7 @@ namespace clang {
     Result CompareExpr(const Expr *E1, const Expr *E2);
     /// \brief Semantic comparison of expressions that can occur in
     /// bounds expressions.
-    Result CompareExprSemantically(const Expr *E1, const Expr *E2);
+    bool CompareExprSemantically(const Expr *E1, const Expr *E2);
 
     /// \brief Compare declarations that may be used by expressions or
     /// or types.

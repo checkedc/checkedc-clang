@@ -219,8 +219,8 @@ Lexicographic::CompareDecl(const NamedDecl *D1Arg, const NamedDecl *D2Arg) const
   return Result::LessThan;
 }
 
-Result Lexicographic::CompareExprSemantically(const Expr *Arg1,
-                                              const Expr *Arg2) {
+bool Lexicographic::CompareExprSemantically(const Expr *Arg1,
+                                            const Expr *Arg2) {
    // Compare Arg1 and Arg2 semantically. If we hit an error during comparison
    // simply fallback to CompareExpr which compares two expressions
    // structurally.
@@ -232,24 +232,20 @@ Result Lexicographic::CompareExprSemantically(const Expr *Arg1,
    P1.Normalize();
    if (P1.GetError()) {
      P1.Cleanup();
-     return CompareExpr(Arg1, Arg2);
+     return CompareExpr(Arg1, Arg2) == Result::Equal;
    }
 
    PreorderAST P2(Context, E2);
    P2.Normalize();
    if (P2.GetError()) {
      P2.Cleanup();
-     return CompareExpr(Arg1, Arg2);
+     return CompareExpr(Arg1, Arg2) == Result::Equal;
    }
 
   bool Res = P1.IsEqual(P2);
   P1.Cleanup();
   P2.Cleanup();
-
-  if (Res)
-    return Result::Equal;
-  // We use Result::LessThan to indicate that Arg1 and Arg2 are not equal.
-  return Result::LessThan;
+  return Res;
 }
 
 Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
