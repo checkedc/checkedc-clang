@@ -3964,8 +3964,12 @@ namespace {
       // bounds of v.  Diagnostics should not be emitted in this case.
       // Otherwise, statements that make no changes to v or any variables used
       // in the bounds of v would cause diagnostics to be emitted.
-      auto WidenedBoundsIt = State.WidenedVariables.find(V);
-      if (WidenedBoundsIt != State.WidenedVariables.end())
+      // For example, the widened bounds (p, (p + 0) + 1) do not provably imply
+      // the declared bounds (p, p + 0) due to the left-associativity of the
+      // observed upper bound (p + 0) + 1.
+      // TODO: checkedc-clang issue #867: the widened bounds of a variable
+      // should provably imply the declared bounds of a variable.
+      if (State.WidenedVariables.find(V) != State.WidenedVariables.end())
         return;
 
       // For a declaration, the diagnostic message should start at the
