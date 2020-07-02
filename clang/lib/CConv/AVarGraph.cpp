@@ -58,18 +58,23 @@ void AVarGraph::dumpCGDot(const std::string &GraphDotFile,
                    auto BK = CG[v];
                    bool IsPtr = ABInfo->PointerBoundsKey.find(BK) !=
                                 ABInfo->PointerBoundsKey.end();
+                   bool IsArrPtr = ABInfo->ArrPointerBoundsKey.find(BK) !=
+                                   ABInfo->ArrPointerBoundsKey.end();
+                   // If this is a regular pointer? Ignore.
+                   if (IsPtr && !IsArrPtr) {
+                     return;
+                   }
                    std::string ClrStr = IsPtr ? "red" : "blue";
                    std::string LblStr =
                        ABInfo->getProgramVar(CG[v])->verboseStr();
                    std::string ShapeStr = "oval";
-                   if (ABInfo->ArrPointerBoundsKey.find(BK) !=
-                       ABInfo->ArrPointerBoundsKey.end()) {
+                   if (IsArrPtr) {
                      ClrStr = "green";
                      ShapeStr = "note";
                    } else {
                      ShapeStr = "ellipse";
                    }
-                   if (IsPtr) {
+                   if (IsArrPtr) {
                      // The pointer has bounds. Get the bounds.
                      if (auto *B = ABInfo->getBounds(BK)) {
                        ShapeStr = "tripleoctagon";

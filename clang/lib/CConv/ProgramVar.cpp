@@ -56,6 +56,9 @@ std::string ProgramVar::mkString(bool GetKey) {
   if (GetKey) {
     Ret = std::to_string(K) + "_";
   }
+  if (IsConstant) {
+    Ret += "Cons:";
+  }
   Ret += VarName;
   return Ret;
 }
