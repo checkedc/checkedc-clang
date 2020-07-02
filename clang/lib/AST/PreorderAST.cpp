@@ -88,11 +88,99 @@ void PreorderAST::Create(Expr *E, Node *N, Node *Parent) {
   SetError();
 }
 
+bool PreorderAST::ConstantFold(Node *N, llvm::APSInt ConstVal) {
+  // Constant fold ConstVal into the node N.
+
+  // If N does not already have a constant simply make ConstVal the constant
+  // value for N.
+  if (!N->HasConst) {
+    N->Const = ConstVal;
+    N->HasConst = true;
+    return true;
+  }
+
+  bool Overflow;
+  switch (N->Opc) {
+    default: return false;
+    case BO_Add:
+      N->Const = N->Const.sadd_ov(ConstVal, Overflow);
+       break;
+    case BO_Mul:
+      N->Const = N->Const.smul_ov(ConstVal, Overflow);
+       break;
+  }
+
+  if (Overflow)
+    SetError();
+  return !Overflow;
+}
+
+void PreorderAST::SwapChildren(Node *N) {
+  if (!N)
+    return;
+
+  Node *Tmp = N->Left;
+  N->Left = N->Right;
+  N->Right = Tmp;
+}
+
+void PreorderAST::Coalesce(Node *N) {
+  if (Error)
+    return;
+
+  if (!N)
+    return;
+
+  // Coalesce the leaf nodes first.
+  if (!N->IsLeafNode()) {
+    Coalesce(N->Left);
+    Coalesce(N->Right);
+  }
+
+  // For coalescing a node we would transfer its variables and constant to its
+  // parent. So if the parent itself is null (for example, the root node) we
+  // cannot proceed.
+  if (!N->Parent)
+    return;
+
+  // Currently, we only coalese leaf nodes into non-leaf nodes.
+  // TODO: Coalesce non-leaf nodes?
+  if (!N->IsLeafNode())
+    return;
+
+  Node *Parent = N->Parent;
+
+  // We can only coalesce if the parent has the same opcode as the current
+  // node.
+  if (Parent->Opc != N->Opc)
+    return;
+
+  // Move all the variables of the current node to the parent.
+  for (auto &V : N->Vars)
+    Parent->Vars.push_back(V);
+
+  // Constant fold the constant of the current node with the constant of
+  // the parent. Do not proceed if we could not fold the constant.
+  if (N->HasConst) {
+    if (!ConstantFold(Parent, N->Const))
+      return;
+  }
+
+  // Remove current node from its parent.
+  if (N == Parent->Left)
+    Parent->Left = nullptr;
+  else
+    Parent->Right = nullptr;
+
+  // Cleanup the current node.
+  Cleanup(N);
+}
+
 void PreorderAST::Sort(Node *N) {
   if (Error)
     return;
 
-  if (!N || !N->Vars.size())
+  if (!N)
     return;
 
   if (!N->IsOpCommutativeAndAssociative()) {
@@ -100,15 +188,48 @@ void PreorderAST::Sort(Node *N) {
     return;
   }
 
-  // Sort the variables in the node lexicographically.
-  llvm::sort(N->Vars.begin(), N->Vars.end(),
-             [](const VarDecl *V1, const VarDecl *V2) {
-               return V1->getQualifiedNameAsString().compare(
-                      V2->getQualifiedNameAsString()) < 0;
-             });
-
   Sort(N->Left);
   Sort(N->Right);
+
+  if (N->Vars.size() > 1) {
+    // Sort the variables in the node lexicographically.
+    llvm::sort(N->Vars.begin(), N->Vars.end(),
+               [](const VarDecl *V1, const VarDecl *V2) {
+                 return V1->getQualifiedNameAsString().compare(
+                        V2->getQualifiedNameAsString()) < 0;
+               });
+  }
+
+  // Now, sort the children nodes of the current node.
+  // We need to sort the nodes only if the current node has both children
+  // nodes.
+  if (!N->Left || !N->Right)
+    return;
+
+  size_t NumLHSVars = N->Left->Vars.size();
+  size_t NumRHSVars = N->Right->Vars.size();
+
+  // Make the node with the lesser number of variables the left child of the
+  // current node.
+  if (NumRHSVars < NumLHSVars) {
+    SwapChildren(N);
+    return;
+  }
+
+  // If both the children have the same number of variables, compare the
+  // variables lexicographically to sort the nodes.
+  if (NumLHSVars == NumRHSVars) {
+    for (size_t I = 0; I != NumLHSVars; ++I) {
+      auto &V1 = N->Left->Vars[I];
+      auto &V2 = N->Right->Vars[I];
+
+      if (V1->getQualifiedNameAsString().compare(
+          V2->getQualifiedNameAsString()) > 0) {
+        SwapChildren(N);
+        return;
+      }
+    }
+  }
 }
 
 bool PreorderAST::IsEqual(Node *N1, Node *N2) {
@@ -149,12 +270,12 @@ bool PreorderAST::IsEqual(Node *N1, Node *N2) {
 }
 
 void PreorderAST::Normalize() {
-  // TODO: Coalesce nodes having the same commutative and associative operator.
-  // TODO: Constant fold the constants in the nodes.
   // TODO: Perform simple arithmetic optimizations/transformations on the
   // constants in the nodes.
 
+  Coalesce(Root);
   Sort(Root);
+  PrettyPrint(Root);
 }
 
 DeclRefExpr *PreorderAST::GetDeclOperand(Expr *E) {

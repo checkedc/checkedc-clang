@@ -46,6 +46,8 @@ namespace clang {
     bool IsOpCommutativeAndAssociative() {
       return Opc == BO_Add || Opc == BO_Mul;
     }
+
+    bool IsLeafNode() { return !Left && !Right; }
   };
 
   class PreorderAST {
@@ -65,6 +67,24 @@ namespace clang {
     // Sort the variables in a node of the AST.
     // @param[in] N is current node of the AST.
     void Sort(Node *N);
+
+    // Coalesce nodes having the same commutative and associative operator.
+    // This involves moving all variables from the current node to its parent
+    // and constant folding the constants with those of the parant.
+    // @param[in] N is the current node of the AST.
+    void Coalesce(Node *N);
+
+    // Constant fold the constant of the current node into its parent.
+    // @param[in] N is the current node of the AST.
+    // @param[in] Val is the constant which needs to be constant folded.
+    // @return Return a boolean indicating whether there was an error during
+    // constant folding.
+    bool ConstantFold(Node *N, llvm::APSInt Val);
+
+    // Swap the children nodes of the current node. This is used to normalize
+    // expressions like "(a + b) + (c + d)" and "(c + d) + (a + b)".
+    // @param[in] N is the current node of the AST.
+    void SwapChildren(Node *N);
 
     // Check if the two AST nodes N1 and N2 are equal.
     // @param[in] N1 is the first node.

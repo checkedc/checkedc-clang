@@ -425,6 +425,8 @@ ExprIntPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   if (!E)
     return std::make_pair(nullptr, Zero);;
 
+  E = E->IgnoreParens();
+
   if (IsDeclOperand(E))
     return std::make_pair(GetDeclOperand(E), Zero);
 
