@@ -2372,6 +2372,25 @@ public:
            getCanonicalType(T2).getTypePtr();
   }
 
+  /// Determine whether the given types are equivalent after
+  /// cvr-qualifiers have been removed, ignoring any difference
+  /// in pointer checkedness.
+  bool hasSameUnqualifiedUncheckedType(QualType T1, QualType T2) const {
+    if (hasSameUnqualifiedType(T1, T2))
+      return true;
+
+    // See if the only difference between T1 and T2 is that one is a
+    // checked pointer type and one is an unchecked pointer type.
+    if (T1->isPointerType() && T2->isPointerType()) {
+      const PointerType *PtrType1 = T1->getAs<PointerType>();
+      const PointerType *PtrType2 = T2->getAs<PointerType>();
+      return hasSameUnqualifiedUncheckedType(PtrType1->getPointeeType(),
+                                             PtrType2->getPointeeType());
+    }
+
+    return false;
+  }
+
   bool hasSameNullabilityTypeQualifier(QualType SubT, QualType SuperT,
                                        bool IsParam) const {
     auto SubTnullability = SubT->getNullability(*this);
