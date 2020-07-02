@@ -832,8 +832,13 @@ public:
       SubExpr = TempE->getSubExpr();
 
     if (CallExpr *Call = getAllocatorCall(SubExpr)) {
-      // This is a bit odd, but I'm not sure how else to figure out the correct
-      // spot to add the type parameter.
+      // If the function call already has type arguments, we'll trust that
+      // they're correct and not add anything else.
+      if(allocTypeArgProvided(Call))
+        return true;
+
+      // I don't like depending on the function having arguments, but I'm not
+      // sure how else to figure out the correct spot to add the type parameter.
       assert("No arguments to allocator function." && Call->getNumArgs() > 0);
       SourceLocation TypeParamLoc = Call->getArg( 0)->
         getBeginLoc().getLocWithOffset(-1);
@@ -860,6 +865,27 @@ private:
           return Call;
       }
       return nullptr;
+    }
+
+    // Check if type arguments have already been provided for this function
+    // call so that we don't mess with anything already there.
+    bool allocTypeArgProvided(CallExpr *Call) {
+      Expr *Callee = Call->getCallee()->IgnoreImpCasts();
+      if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Callee)) {
+        // ArgInfo is null if there are no type arguments in the program
+        if (auto *ArgInfo = DRE->GetTypeArgumentInfo()) {
+          auto TypeArgs = ArgInfo->typeArgumentss();
+          assert("Unexpected number of type arguments in alloc function." &&
+                 TypeArgs.size() == 1);
+          // If there are some type arguments provided, then missing type
+          // arguments are filled in with Void.
+          return !TypeArgs.front().typeName->isVoidType();
+        }
+        return false;
+      }
+      // We only handle direct calls, so there must be a DeclRefExpr.
+      assert("Callee of alloc function call is not DeclRefExpr." && false);
+      return false;
     }
 };
 

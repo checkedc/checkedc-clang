@@ -49,3 +49,9 @@ void baz() {
   void *v = malloc(sizeof(int));
   // CHECK: void *v = malloc(sizeof(int));
 }
+
+// Don't mess with any existing type arguments.
+void fuz() {
+  int *a = malloc<int>(sizeof(int));
+  // CHECK: _Ptr<int> a  = malloc<int>(sizeof(int));
+}
