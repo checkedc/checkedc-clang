@@ -21,109 +21,67 @@
 #include "clang/AST/Expr.h"
 
 namespace clang {
-  // Each node of the PreorderAST has a variable-count list which stores the
-  // Name of each variable along with a count of the number of times the
-  // variable appears in the node.
-  struct VarTy {
-    std::string Name;
-    llvm::APSInt Count;
+
+  // Each binary operator of an expression results in a new node of the
+  // PreorderAST. Each node contains 3 fields:
+  // Opc: The opcode of the operator.
+  // Vars: A list of variables in the sub expression.
+  // Const: Constants of the sub expression are folded.
+
+  struct Node {
+    BinaryOperator::Opcode Opc;
+    std::vector<const VarDecl *> Vars;
+    llvm::APSInt Const;
+    // HasConst indicates whether there is a constant in the node. This is used
+    // to differentiate between an absence of a constant and a constant of value
+    // 0.
+    bool HasConst;
+    Node *Parent, *Left, *Right;
+
+    Node(Node *Parent) :
+      Opc(BO_Add), HasConst(false),
+      Parent(Parent), Left(nullptr), Right(nullptr) {}
+
+    // Is the operator commutative and associative?
+    bool IsOpCommutativeAndAssociative() {
+      return Opc == BO_Add || Opc == BO_Mul;
+    }
   };
 
-  // Each node of the PreorderAST contains 3 fields:
-  // - Opcode: The Opcode for the node.
-  // - variable-count list: A list of variables and their counts.
-  // - Constant value: All Constants occurring in the node are Constant folded.
-
-  // For example, consider an expression E = a + 3 + b + 4 + a
-  // A node of the PreorderAST for E would contain the following:
-  // - Opcode: +
-  // - variable-count list: [a:2, b:1]
-  // - Constant value: 3 + 4 = 7
-
-  using VarListTy = std::vector<VarTy>;
-  using OpcodeTy = BinaryOperator::Opcode;
-  using ConstTy = llvm::APSInt;
-  using Result = Lexicographic::Result;
-
   class PreorderAST {
-    class ASTNode {
-    public:
-      ASTContext &Ctx;
-      OpcodeTy Opcode;
-      VarListTy Variables;
-      ConstTy Constant;
-      ASTNode *Left, *Right, *Parent;
-      bool HasConstant;
-      
-      ASTNode(ASTContext &Ctx, ASTNode *Parent = nullptr) :
-        Ctx(Ctx), Opcode(BO_Add),
-        Left(nullptr), Right(nullptr), Parent(Parent),
-        HasConstant(false) {
-          // We initialize the Constant value for each node to 0. So we need a
-          // way to indicate the absence of a Constant. So we have a boolean
-          // HasConstant to indicate whether a node has a Constant or not.
-          Constant = GetConstVal(0);
-        }
-
-      llvm::APSInt GetConstVal(unsigned Val) {
-        return llvm::APSInt(llvm::APInt(Ctx.getTypeSize(Ctx.IntTy), Val));
-      }
-
-      void AddVar(std::string Name) {
-        // We initialize the count of each variable in a node to 1.
-        Variables.push_back(VarTy {Name, GetConstVal(1)});
-      }
-
-      // Is the operator commutative and associative?
-      bool IsOpCommutativeAndAssociative() {
-        return Opcode == BO_Add ||
-               Opcode == BO_Mul;
-      }
-    };
-
   private:
     ASTContext &Ctx;
     Lexicographic Lex;
     llvm::raw_ostream &OS;
     bool Error;
-    ASTNode *AST;
+    Node *Root;
 
-    // Create a preorder AST from the expression E.
-    // @param[in] N is the current node of the AST.
+    // Create a PreorderAST for the expression E.
     // @param[in] E is the sub expression which needs to be added to N.
-    // @param[in] Parent is the Parent node for N.
-    void Create(ASTNode *N, Expr *E, ASTNode *Parent = nullptr);
+    // @param[in] N is the current node of the AST.
+    // @param[in] Parent is the parent node for N.
+    void Create(Expr *E, Node *N = nullptr, Node *Parent = nullptr);
 
-    // Normalize the input expression through a series of transforms on the
-    // preorder AST. The Error field is set if an error is encountered during
-    // transformation of the AST.
-    // @param[in] N is the root of the AST.
-    void Normalize(ASTNode *N);
+    // Sort the variables in a node of the AST.
+    // @param[in] N is current node of the AST.
+    void Sort(Node *N);
 
-    // Sort the variables in a node of the AST. The Error field is set if an
-    // error is encountered during transformation of the AST.
-    // @param[in] N is the root of the AST.
-    void Sort(ASTNode *N);
-
-    // Check if the two ASTs N1 and N2 are equal.
-    // @param[in] N1 is the first AST.
-    // @param[in] N2 is the second AST.
+    // Check if the two AST nodes N1 and N2 are equal.
+    // @param[in] N1 is the first node.
+    // @param[in] N2 is the second node.
     // @return Returns a boolean indicating whether N1 and N2 are equal.
-    bool IsEqual(ASTNode *N1, ASTNode *N2);
-
-    // Cleanup the memory consumed by the AST.
-    // @param[in] N is the root node of the AST.
-    void Cleanup(ASTNode *N);
+    bool IsEqual(Node *N1, Node *N2);
 
     // Set Error in case an error occurs during transformation of the AST.
-    // @param[in] Err is the value to be set for the Error field.
-    void SetError(bool Err) {
-      Error = Err;
-    }
+    void SetError() { Error = true; }
 
-    // Print the preorder AST.
-    // @param[in] N is the root node of the AST.
-    void PrettyPrint(ASTNode *N);
+    // Print the PreorderAST.
+    // @param[in] N is the current node of the AST.
+    void PrettyPrint(Node *N);
+
+    // Cleanup the memory consumed by node N.
+    // @param[in] N is the current node of the AST.
+    void Cleanup(Node *N);
 
     // A DeclRefExpr can be a reference either to an array subscript (in which
     // case it is wrapped around a ArrayToPointerDecay cast) or to a pointer
@@ -134,32 +92,33 @@ namespace clang {
 
   public:
     PreorderAST(ASTContext &Ctx, Expr *E) :
-      Ctx(Ctx), Lex(Lexicographic(Ctx, nullptr)),
-      OS(llvm::outs()), Error(false) {
-
-      AST = new ASTNode(Ctx);
-      Create(AST, E);
-      Normalize(AST);
+      Ctx(Ctx), Lex(Lexicographic(Ctx, nullptr)), OS(llvm::outs()),
+      Error(false), Root(nullptr) {
+      Create(E);
     }
+
+    // Normalize the input expression through a series of transforms on the
+    // preorder AST. The Error field is set if an error is encountered during
+    // transformation of the AST.
+    void Normalize();
+
+    // Check if the two ASTs are equal. This is intended to be called from
+    // outside this class and invokes IsEqual on the root nodes of the two ASTs
+    // to recursively compare the AST nodes.
+    // @param[in] this is the first AST.
+    // @param[in] P is the second AST.
+    // @return Returns a bool indicating whether the two ASTs are equal.
+    bool IsEqual(PreorderAST &P) { return IsEqual(Root, P.Root); }
 
     // Check if an error has occurred during transformation of the AST.
     // @return Whether an error has occurred or not.
-    bool GetError() {
-      return Error;
-    }
-
-    // Compare the current AST with the given AST. This in turn, invokes
-    // isEqual(N1, N2);
-    // @param[in] this is the first AST.
-    // @param[in] PT is the second AST.
-    // @return Returns a value of type Lexicographic::Result indicating whether
-    // the two ASTs are equal or not.
-    Result Compare(PreorderAST &PT);
+    bool GetError() { return Error; }
 
     // Cleanup the memory consumed by the AST. This is intended to be called
-    // from outside the PreorderAST class.
-    void Cleanup();
+    // from outside this class and invokes Cleanup on the root node which
+    // recursively deletes the AST.
+    void Cleanup() { Cleanup(Root); }
   };
-}
 
+} // end namespace clang
 #endif

@@ -17,27 +17,16 @@
 
 using namespace clang;
 
-DeclRefExpr *PreorderAST::GetDeclOperand(Expr *E) {
-  if (auto *CE = dyn_cast_or_null<CastExpr>(E)) {
-    assert(CE->getSubExpr() && "invalid CastExpr expression");
-
-    if (CE->getCastKind() == CastKind::CK_LValueToRValue ||
-        CE->getCastKind() == CastKind::CK_ArrayToPointerDecay) {
-      E = Lex.IgnoreValuePreservingOperations(Ctx, CE->getSubExpr());
-      return dyn_cast_or_null<DeclRefExpr>(E);
-    }
-  }
-  return nullptr;
-}
-
-void PreorderAST::Create(ASTNode *N, Expr *E, ASTNode *Parent) {
+void PreorderAST::Create(Expr *E, Node *N, Node *Parent) {
   if (!E)
     return;
 
-  // When we invoke Create(N->Left, ...) or Create(N->Right, ...) we need to
-  // create the left or the right nodes with N as the parent node.
   if (!N)
-    N = new ASTNode(Ctx, Parent);
+    N = new Node(Parent);
+
+  // If the root is null, the current node is the root.
+  if (!Root)
+    Root = N;
 
   // If the parent is non-null, make sure that the current node is marked as a
   // child of the parent. As a convention, we create left children first.
@@ -51,79 +40,78 @@ void PreorderAST::Create(ASTNode *N, Expr *E, ASTNode *Parent) {
   E = Lex.IgnoreValuePreservingOperations(Ctx, E);
 
   // If E is a variable, store its name in the variable list for the current
-  // node. Initialize the count of the variable to 1.
+  // node.
   if (DeclRefExpr *D = GetDeclOperand(E)) {
     if (const auto *V = dyn_cast_or_null<VarDecl>(D->getDecl())) {
-      N->AddVar(V->getQualifiedNameAsString());
+      N->Vars.push_back(V);
       return;
     }
   }
 
   // If E is a constant, store it in the constant field of the current node and
-  // mark that this node has a constant.
+  // set the HasConst field.
   llvm::APSInt IntVal;
   if (E->isIntegerConstantExpr(IntVal, Ctx)) {
-    N->Constant = IntVal;
-    N->HasConstant = true;
+    N->Const = IntVal;
+    N->HasConst = true;
     return;
   }
 
   if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
-    OpcodeTy Opc = BO->getOpcode();
+    // Set the opcode for the current node.
+    N->Opc = BO->getOpcode();
+
     Expr *LHS = BO->getLHS()->IgnoreParens();
     Expr *RHS = BO->getRHS()->IgnoreParens();
-
-    // Set the Opcode for the current node.
-    N->Opcode = Opc;
-
+  
     if (isa<BinaryOperator>(LHS))
       // Create the LHS as the left child of the current node.
-      Create(N->Left, LHS, /* parent node */ N);
+      Create(LHS, N->Left, N);
     else
       // Create the LHS in the current node.
-      Create(N, LHS);
-
+      Create(LHS, N);
+  
     if (isa<BinaryOperator>(RHS))
       // Create the RHS as the right child of the current node.
-      Create(N->Right, RHS, /* parent node */ N);
+      Create(RHS, N->Right, N);
     else
       // Create the RHS in the current node.
-      Create(N, RHS);
+      Create(RHS, N);
+  
+    return;
   }
+
+  // Currently, we only handle expression which are either variables or
+  // constants.
+  // TODO: Handle expressions that are non-variables and non-constants.
+  // Possibly, add a field to the node to represent such expressions.
+  SetError();
 }
 
-void PreorderAST::Sort(ASTNode *N) {
-  if (GetError())
+void PreorderAST::Sort(Node *N) {
+  if (Error)
     return;
 
-  if (!N || !N->Variables.size())
+  if (!N || !N->Vars.size())
     return;
 
   if (!N->IsOpCommutativeAndAssociative()) {
-    SetError(true);
+    SetError();
     return;
   }
 
   // Sort the variables in the node lexicographically.
-  llvm::sort(N->Variables.begin(), N->Variables.end(),
-             [](VarTy a, VarTy b) {
-               return a.Name.compare(b.Name) < 0;
+  llvm::sort(N->Vars.begin(), N->Vars.end(),
+             [](const VarDecl *V1, const VarDecl *V2) {
+               return V1->getQualifiedNameAsString().compare(
+                      V2->getQualifiedNameAsString()) < 0;
              });
 
   Sort(N->Left);
   Sort(N->Right);
 }
 
-void PreorderAST::Normalize(ASTNode *N) {
-  Sort(N);
-
-  // TODO: Coalesce nodes having the same commutative and associative operator.
-  // TODO: Constant fold the constants in the nodes.
-  // TODO: Perform simple arithmetic optimizations/transformations on the
-  // constants in the nodes.
-}
-
-bool PreorderAST::IsEqual(ASTNode *N1, ASTNode *N2) {
+bool PreorderAST::IsEqual(Node *N1, Node *N2) {
   // If both the nodes are null.
   if (!N1 && !N2)
     return true;
@@ -133,28 +121,25 @@ bool PreorderAST::IsEqual(ASTNode *N1, ASTNode *N2) {
     return false;
 
   // If the Opcodes mismatch.
-  if (N1->Opcode != N2->Opcode)
+  if (N1->Opc != N2->Opc)
     return false;
 
   // If the number of variables in the two nodes mismatch.
-  if (N1->Variables.size() != N2->Variables.size())
+  if (N1->Vars.size() != N2->Vars.size())
     return false;
 
   // If the values of the constants in the two nodes differ.
-  if (llvm::APSInt::compareValues(N1->Constant, N2->Constant) != 0)
+  if (llvm::APSInt::compareValues(N1->Const, N2->Const) != 0)
     return false;
 
   // Match each variable occurring in the two nodes.
-  for (size_t i = 0; i != N1->Variables.size(); ++i) {
-    auto &V1 = N1->Variables[i];
-    auto &V2 = N2->Variables[i];
+  for (size_t I = 0; I != N1->Vars.size(); ++I) {
+    auto &V1 = N1->Vars[I];
+    auto &V2 = N2->Vars[I];
 
     // If any variable differs between the two nodes.
-    if (V1.Name.compare(V2.Name) != 0)
-      return false;
-
-    // If the count of any variable differs.
-    if (V1.Count != V2.Count)
+    if (V1->getQualifiedNameAsString().compare(
+        V2->getQualifiedNameAsString()) != 0)
       return false;
   }
 
@@ -163,31 +148,47 @@ bool PreorderAST::IsEqual(ASTNode *N1, ASTNode *N2) {
          IsEqual(N1->Right, N2->Right);
 }
 
-Result PreorderAST::Compare(PreorderAST &PT) {
-  if (IsEqual(AST, PT.AST))
-    return Result::Equal;
-  return Result::NotEqual;
+void PreorderAST::Normalize() {
+  // TODO: Coalesce nodes having the same commutative and associative operator.
+  // TODO: Constant fold the constants in the nodes.
+  // TODO: Perform simple arithmetic optimizations/transformations on the
+  // constants in the nodes.
+
+  Sort(Root);
 }
 
-void PreorderAST::PrettyPrint(ASTNode *N) {
+DeclRefExpr *PreorderAST::GetDeclOperand(Expr *E) {
+  if (auto *CE = dyn_cast_or_null<CastExpr>(E)) {
+    assert(CE->getSubExpr() && "Invalid CastExpr expression");
+
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue ||
+        CE->getCastKind() == CastKind::CK_ArrayToPointerDecay) {
+      E = Lex.IgnoreValuePreservingOperations(Ctx, CE->getSubExpr());
+      return dyn_cast_or_null<DeclRefExpr>(E);
+    }
+  }
+  return nullptr;
+}
+
+void PreorderAST::PrettyPrint(Node *N) {
   if (!N)
     return;
 
-  OS << BinaryOperator::getOpcodeStr(N->Opcode);
-  if (N->Variables.size()) {
-    for (auto &V : N->Variables)
-      OS << " [" << V.Name << ":" << V.Count << "]";
-  }
+  OS << BinaryOperator::getOpcodeStr(N->Opc);
 
-  if (N->HasConstant)
-    OS << " [const:" << N->Constant << "]";
+  for (auto &V : N->Vars)
+    OS << " [" << V->getQualifiedNameAsString() << "]";
+
+  if (N->HasConst)
+    OS << " [const:" << N->Const << "]";
+
   OS << "\n";
 
   PrettyPrint(N->Left);
   PrettyPrint(N->Right);
 }
 
-void PreorderAST::Cleanup(ASTNode *N) {
+void PreorderAST::Cleanup(Node *N) {
   if (!N)
     return;
 
@@ -195,8 +196,4 @@ void PreorderAST::Cleanup(ASTNode *N) {
   Cleanup(N->Right);
 
   delete N;
-}
-
-void PreorderAST::Cleanup() {
-  Cleanup(AST);
 }
