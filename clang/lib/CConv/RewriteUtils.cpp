@@ -816,6 +816,53 @@ private:
   Rewriter &Writer;
 };
 
+// Adds type parameters to calls to alloc functions.
+// The basic assumption this makes is that an alloc function will be surrounded
+// by a cast expression giving its type when used as a type other than void*.
+class AllocTypeParamAdder
+  : public clang::RecursiveASTVisitor<AllocTypeParamAdder> {
+public:
+  explicit AllocTypeParamAdder(Rewriter &R) : Writer(R) {}
+
+  // Check if each cast contains a call to an alloc function. If it does, add
+  // the pointee type of the cast as the type param for the alloc.
+  bool VisitCastExpr(CastExpr *CE) {
+    Expr *SubExpr = CE->getSubExpr();
+    if (CHKCBindTemporaryExpr *TempE = dyn_cast<CHKCBindTemporaryExpr>(SubExpr))
+      SubExpr = TempE->getSubExpr();
+
+    if (CallExpr *Call = getAllocatorCall(SubExpr)) {
+      // This is a bit odd, but I'm not sure how else to figure out the correct
+      // spot to add the type parameter.
+      assert("No arguments to allocator function." && Call->getNumArgs() > 0);
+      SourceLocation TypeParamLoc = Call->getArg( 0)->
+        getBeginLoc().getLocWithOffset(-1);
+
+      // CheckedC doesn't seem to care that this doesn't get the correct checked
+      // type for the pointer. malloc<int*>(sizeof(int*)) is treated the same as
+      // malloc<_Ptr<int>>(sizeof(int*)).
+      std::string TypeStr = CE->getType()->getPointeeType().getAsString();
+      Writer.InsertTextAfter(TypeParamLoc, "<" + TypeStr + ">");
+    }
+    return true;
+  }
+
+private:
+    Rewriter &Writer;
+
+    // Return E cast to CallExpr if it is a CallExpr for a call to an allocator
+    // function. Return nullptr otherwise.
+    CallExpr *getAllocatorCall(Expr *E) {
+      if (CallExpr *Call = dyn_cast<CallExpr>(E)) {
+        DeclaratorDecl *D =
+          dyn_cast_or_null<DeclaratorDecl>(Call->getCalleeDecl());
+        if (D != nullptr && isFunctionAllocator(D->getName()))
+          return Call;
+      }
+      return nullptr;
+    }
+};
+
 std::map<std::string, std::string> RewriteConsumer::ModifiedFuncSignatures;
 
 std::string RewriteConsumer::getModifiedFuncSignature(std::string FuncName) {
@@ -900,6 +947,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   CheckedRegionAdder CRA(&Context, R, nodeMap);
   CastPlacementVisitor ECPV(&Context, Info, R);
   CompoundLiteralRewriter CLR(&Context, Info, R);
+  AllocTypeParamAdder TPA(R);
   for (auto &D : TUD->decls()) {
     V.TraverseDecl(D);
     FV.TraverseDecl(D);
@@ -912,6 +960,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
 
     GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
     CLR.TraverseDecl(D);
+    TPA.TraverseDecl(D);
   }
 
   std::tie(PSLMap, VDLToStmtMap) = V.getResults();
