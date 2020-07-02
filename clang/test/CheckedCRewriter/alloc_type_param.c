@@ -50,6 +50,23 @@ void baz() {
   // CHECK: void *v = malloc(sizeof(int));
 }
 
+void buz() {
+  // Anonymous structs shouldn't get a type parameter since they don't have a name.
+  struct {int a;} *b = malloc(10);
+  // CHECK: struct {int a;} *b = malloc(10);
+
+  // Inline structs work just fine as long as they've been named.
+  // Note that c isn't made checked due to limitation in how inline structs are converted.
+  // If this test fails because it's made checked, that's great.
+  struct test {int a;} *c = malloc(sizeof(struct test));
+  // CHECK: struct test {int a;} *c = malloc<struct test>(sizeof(struct test));
+
+  // typedefs are also OK.
+  typedef struct {int a;} other;
+  other *d = malloc(sizeof(other));
+  // CHECK: _Ptr<other> d = malloc<other>(sizeof(other));
+}
+
 // Don't mess with any existing type arguments.
 void fuz() {
   int *a = malloc<int>(sizeof(int));

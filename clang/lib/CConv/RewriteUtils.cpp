@@ -837,6 +837,14 @@ public:
       if(allocTypeArgProvided(Call))
         return true;
 
+      // If the type does not have an identifier (i.e., it's anonymous), then we
+      // can't use it as a type parameter.
+      QualType PointeeType = CE->getType()->getPointeeType();
+      if (PointeeType->isRecordType() &&
+        !(PointeeType->getAsRecordDecl()->getIdentifier() ||
+          PointeeType->getAsRecordDecl()->getTypedefNameForAnonDecl()))
+        return true;
+
       // I don't like depending on the function having arguments, but I'm not
       // sure how else to figure out the correct spot to add the type parameter.
       assert("No arguments to allocator function." && Call->getNumArgs() > 0);
@@ -846,7 +854,7 @@ public:
       // CheckedC doesn't seem to care that this doesn't get the correct checked
       // type for the pointer. malloc<int*>(sizeof(int*)) is treated the same as
       // malloc<_Ptr<int>>(sizeof(int*)).
-      std::string TypeStr = CE->getType()->getPointeeType().getAsString();
+      std::string TypeStr = PointeeType.getAsString();
       Writer.InsertTextAfter(TypeParamLoc, "<" + TypeStr + ">");
     }
     return true;
