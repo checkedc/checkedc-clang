@@ -183,8 +183,10 @@ public:
                 auto *PVD = TFD->getParamDecl(i);
                 auto &ABI = Info.getABoundsInfo();
                 BoundsKey PVKey, AGKey;
-                if (ABI.tryGetVariable(PVD, PVKey) &&
-                    ABI.tryGetVariable(A, *Context, AGKey)) {
+                if ((CB.resolveBoundsKey(ParameterDC, PVKey) ||
+                     ABI.tryGetVariable(PVD, PVKey)) &&
+                    (CB.resolveBoundsKey(ArgumentConstraints, AGKey) ||
+                     ABI.tryGetVariable(A, *Context, AGKey))) {
                   ABI.addAssignment(PVKey, AGKey);
                 }
               }
@@ -383,7 +385,6 @@ public:
         Stmt *Body = D->getBody();
         FunctionVisitor FV = FunctionVisitor(Context, Info, D);
         FV.TraverseStmt(Body);
-        AddMainFuncHeuristic(Context, Info, D);
       }
     }
 

@@ -1404,8 +1404,14 @@ std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
   std::string BVarString = "";
   auto &ABInfo = Info.getABoundsInfo();
   BoundsKey DK;
+  bool ValidBKey = true;
   std::string Pfix = Isitype ? " " : " : ";
-  if (ABInfo.tryGetVariable(D, DK)) {
+  if (PV->hasBoundsKey()) {
+    DK = PV->getBoundsKey();
+  } else if(!ABInfo.tryGetVariable(D, DK)){
+    ValidBKey = false;
+  }
+  if (ValidBKey) {
     ABounds *ArrB = ABInfo.getBounds(DK);
     if (ArrB != nullptr) {
       BString = ArrB->mkString(&ABInfo);

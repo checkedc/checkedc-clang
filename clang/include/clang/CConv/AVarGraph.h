@@ -19,6 +19,7 @@
 
 using namespace boost;
 using namespace std;
+class AVarBoundsInfo;
 
 template<class G>
 class AVarBaseGraph {
@@ -61,6 +62,8 @@ public:
   bool getSuccessors(BoundsKey K, std::set<BoundsKey> &Succ);
 
   void addEdge(BoundsKey L, BoundsKey R);
+
+  void dumpCGDot(const std::string &GraphDotFile, AVarBoundsInfo *ABInfo);
 };
 
 #endif // _AVARGRAPH_H

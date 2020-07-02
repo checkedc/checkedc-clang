@@ -113,9 +113,11 @@ public:
   // results from running unification on the set of constraints and the
   // environment.
   virtual bool anyChanges(EnvironmentMap &E) = 0;
-  virtual bool hasWild(EnvironmentMap &E) = 0;
-  virtual bool hasArr(EnvironmentMap &E) = 0;
-  virtual bool hasNtArr(EnvironmentMap &E) = 0;
+  // Here, AIdx is the pointer level which needs to be checked.
+  // By default, we check for all pointer levels (or VarAtoms)
+  virtual bool hasWild(EnvironmentMap &E, int AIdx = -1) = 0;
+  virtual bool hasArr(EnvironmentMap &E, int AIdx = -1) = 0;
+  virtual bool hasNtArr(EnvironmentMap &E, int AIdx = -1) = 0;
 
   // Force use of equality constraints in function calls for this CV
   virtual void equateArgumentConstraints(ProgramInfo &I) = 0;
@@ -237,6 +239,8 @@ public:
 
   std::string getTy() { return BaseType; }
   bool getArrPresent() { return ArrPresent; }
+  // Check if the outermost pointer is an unsized array.
+  bool isTopCvarUnsizedArr();
 
   // Is an itype present for this constraint? If yes,
   // what is the text of that itype?
@@ -287,9 +291,9 @@ public:
   void constrainOuterTo(Constraints &CS, ConstAtom *C, bool doLB = false);
   bool anyChanges(EnvironmentMap &E);
   bool anyArgumentIsWild(EnvironmentMap &E);
-  bool hasWild(EnvironmentMap &E);
-  bool hasArr(EnvironmentMap &E);
-  bool hasNtArr(EnvironmentMap &E);
+  bool hasWild(EnvironmentMap &E, int AIdx = -1);
+  bool hasArr(EnvironmentMap &E, int AIdx = -1);
+  bool hasNtArr(EnvironmentMap &E, int AIdx = -1);
 
   void equateArgumentConstraints(ProgramInfo &I);
 
@@ -380,9 +384,9 @@ public:
   void constrainToWild(Constraints &CS, std::string &Rsn,
                        PersistentSourceLoc *PL);
   bool anyChanges(EnvironmentMap &E);
-  bool hasWild(EnvironmentMap &E);
-  bool hasArr(EnvironmentMap &E);
-  bool hasNtArr(EnvironmentMap &E);
+  bool hasWild(EnvironmentMap &E, int AIdx = -1);
+  bool hasArr(EnvironmentMap &E, int AIdx = -1);
+  bool hasNtArr(EnvironmentMap &E, int AIdx = -1);
 
   void equateArgumentConstraints(ProgramInfo &P);
 

@@ -13,6 +13,7 @@
 #include "clang/CConv/AVarBoundsInfo.h"
 #include "clang/CConv/ProgramInfo.h"
 #include <boost/graph/breadth_first_search.hpp>
+#include <boost/graph/reverse_graph.hpp>
 
 void AVarBoundsStats::print(llvm::raw_ostream &O) const {
   O << "Array Bounds Inference Stats:\n";
@@ -226,6 +227,7 @@ bool AVarBoundsInfo::addAssignment(clang::DeclRefExpr *L,
 
 bool AVarBoundsInfo::addAssignment(BoundsKey L, BoundsKey R) {
   ProgVarGraph.addEdge(L, R);
+  ProgVarGraph.addEdge(R, L);
   return true;
 }
 
@@ -276,14 +278,12 @@ void AVarBoundsInfo::insertProgramVar(BoundsKey NK, ProgramVar *PV) {
 }
 
 bool hasArray(std::set<ConstraintVariable *> &CSet, Constraints &CS) {
+  auto &E = CS.getVariables();
   for (auto *CK : CSet) {
     if (PVConstraint *PV = dyn_cast<PVConstraint>(CK)) {
-      if (!PV->getCvars().empty()) {
-        auto *CA = *(PV->getCvars().begin());
-        auto *CAssign = CS.getAssignment(CA);
-        if (CAssign == CS.getArr() || CAssign == CS.getNTArr()) {
-          return true;
-        }
+      if ((PV->hasArr(E, 0) || PV->hasNtArr(E, 0)) &&
+          PV->isTopCvarUnsizedArr()) {
+        return true;
       }
     }
   }
@@ -369,8 +369,7 @@ bool AvarBoundsInference::intersectBounds(std::set<ProgramVar *> &ProgVars,
 }
 
 bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
-                                              std::set<ABounds *> &EB,
-                                              bool IsSucc) {
+                                              std::set<ABounds *> &EB) {
   bool RetVal = false;
   if (SB != nullptr) {
     auto &VarG = BI->ProgVarGraph;
@@ -396,18 +395,10 @@ bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
       } else {
         ScopeVisitor TV(Kvar->getScope(), PotentialB, BI->PVarInfo,
                         BI->PointerBoundsKey);
-        if (!IsSucc) {
-          // If we are looking at predecessor ARR atom? get all variables
-          // that the predecessors bound information flows to.
-          auto Vidx = VarG.addVertex(SBKey);
-          boost::breadth_first_search(VarG.CG, Vidx, boost::visitor(TV));
-        } else {
-          // If we are looking at sucessors ARR Atom? The find all the
-          // variables that flow into the sucessors atom.
-          std::set<BoundsKey> AllPredKeys;
-          VarG.getPredecessors(SBKey, AllPredKeys);
-          TV.filterOutBKeys(AllPredKeys);
-        }
+        auto Vidx = VarG.addVertex(SBKey);
+        // Find all the in scope variables reachable from the current
+        // bounds variable.
+        boost::breadth_first_search(VarG.CG, Vidx, boost::visitor(TV));
       }
 
       RetVal = intersectBounds(PotentialB, BKind, EB);
@@ -418,10 +409,9 @@ bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
 }
 
 bool AvarBoundsInference::getRelevantBounds(std::set<BoundsKey> &RBKeys,
-                                            std::set<BoundsKey> &ArrAtoms,
-                                            std::set<ABounds *> &ResBounds,
-                                            bool IsSucc) {
+                                            std::set<ABounds *> &ResBounds) {
   std::set<BoundsKey> IncomingArrs;
+  auto &ArrAtoms = BI->ArrPointerBoundsKey;
   // First, get all the related boundskeys that are arrays.
   std::set_intersection(RBKeys.begin(), RBKeys.end(),
                         ArrAtoms.begin(), ArrAtoms.end(),
@@ -432,10 +422,6 @@ bool AvarBoundsInference::getRelevantBounds(std::set<BoundsKey> &RBKeys,
   for (auto PrevBKey : IncomingArrs) {
     auto *PrevBounds = BI->getBounds(PrevBKey);
     // Does the parent arr has bounds?
-    if (!IsSucc && PrevBounds  == nullptr) {
-      ValidB = false;
-      break;
-    }
     if (PrevBounds != nullptr)
       ResBounds.insert(PrevBounds);
   }
@@ -444,19 +430,17 @@ bool AvarBoundsInference::getRelevantBounds(std::set<BoundsKey> &RBKeys,
 
 bool AvarBoundsInference::predictBounds(BoundsKey K,
                                         std::set<BoundsKey> &Neighbours,
-                                        std::set<BoundsKey> &ArrAtoms,
-                                        ABounds **KB,
-                                        bool IsSucc) {
+                                        ABounds **KB) {
   std::set<ABounds *> ResBounds;
   std::set<ABounds *> KBounds;
   *KB = nullptr;
   bool IsValid = true;
   // Get all the relevant bounds from the neighbour ARRs
-  if (getRelevantBounds(Neighbours, ArrAtoms, ResBounds, IsSucc)) {
+  if (getRelevantBounds(Neighbours, ResBounds)) {
     if (!ResBounds.empty()) {
       // Find the intersection?
       for (auto *B : ResBounds) {
-        inferPossibleBounds(K, B, KBounds, IsSucc);
+        inferPossibleBounds(K, B, KBounds);
         //TODO: check this
         // This is stricter version i.e., there should be at least one common
         // bounds information from an incoming ARR.
@@ -480,8 +464,7 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
   }
   return IsValid;
 }
-bool AvarBoundsInference::inferBounds(BoundsKey K,
-                                      std::set<BoundsKey> &ArrAtoms) {
+bool AvarBoundsInference::inferBounds(BoundsKey K) {
   bool IsChanged = false;
 
   if (BI->InvalidBounds.find(K) == BI->InvalidBounds.end()) {
@@ -490,15 +473,8 @@ bool AvarBoundsInference::inferBounds(BoundsKey K,
     BI->ProgVarGraph.getSuccessors(K, TmpBkeys);
 
     ABounds *KB = nullptr;
-    if (!predictBounds(K, TmpBkeys, ArrAtoms, &KB, true) ||
-        KB == nullptr) {
-      // If it is not possible to predict from successors?
-      // Try to predict from predecessors.
-      TmpBkeys.clear();
-      BI->ProgVarGraph.getPredecessors(K, TmpBkeys);
-      predictBounds(K, TmpBkeys, ArrAtoms, &KB, false);
-    }
-    if (KB != nullptr) {
+    if (predictBounds(K, TmpBkeys, &KB) &&
+        KB != nullptr) {
       BI->replaceBounds(K, KB);
       IsChanged = true;
     }
@@ -541,6 +517,10 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
     }
   }
 
+  // Repopulate array bounds key.
+  ArrPointerBoundsKey.clear();
+  ArrPointerBoundsKey.insert(ArrPointers.begin(), ArrPointers.end());
+
 
   // Next, get the ARR pointers that has bounds.
 
@@ -549,6 +529,8 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
   for (auto &T : BInfo) {
     ArrWithBounds.insert(T.first);
   }
+  // Also arrays wil invalid bounds should be rejected.
+  ArrWithBounds.insert(InvalidBounds.begin(), InvalidBounds.end());
 
   // This are the array atoms that need bounds.
   // i.e., ArrNeededBounds = ArrPtrs - ArrPtrsWithBounds.
@@ -574,7 +556,7 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
       // Remove the bounds key from the worklist.
       WorkList.erase(CurrArrKey);
       // Can we find bounds for this Arr?
-      if (BI.inferBounds(CurrArrKey, ArrPointers)) {
+      if (BI.inferBounds(CurrArrKey)) {
         // Record the stats.
         BoundsInferStats.DataflowMatch.insert(CurrArrKey);
         // We found the bounds.
@@ -592,4 +574,8 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
   }
 
   return RetVal;
+}
+
+void AVarBoundsInfo::dumpAVarGraph(const std::string &DFPath) {
+  ProgVarGraph.dumpCGDot(DFPath, this);
 }

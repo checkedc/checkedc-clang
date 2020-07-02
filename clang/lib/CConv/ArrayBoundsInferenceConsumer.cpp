@@ -12,7 +12,6 @@
 
 #include "clang/CConv/ArrayBoundsInferenceConsumer.h"
 #include "clang/CConv/ConstraintResolver.h"
-
 #include <sstream>
 
 static std::set<std::string> LengthVarNamesPrefixes = {"len", "count",
@@ -99,22 +98,18 @@ static bool hasLengthKeyword(std::string VarName) {
 // Check if the provided constraint variable is an array and it needs bounds.
 static bool needArrayBounds(ConstraintVariable *CV,
                             EnvironmentMap &E) {
-  if (CV->hasArr(E)) {
+  if (CV->hasArr(E, 0)) {
     PVConstraint *PV = dyn_cast<PVConstraint>(CV);
-    if (PV && PV->getArrPresent())
-      return false;
-    return true;
+    return !PV || PV->isTopCvarUnsizedArr();
   }
   return false;
 }
 
 static bool needNTArrayBounds(ConstraintVariable *CV,
                               EnvironmentMap &E) {
-  if (CV->hasNtArr(E)) {
+  if (CV->hasNtArr(E, 0)) {
     PVConstraint *PV = dyn_cast<PVConstraint>(CV);
-    if (PV && PV->getArrPresent())
-      return false;
-    return true;
+    return !PV || PV->isTopCvarUnsizedArr();
   }
   return false;
 }
@@ -160,13 +155,31 @@ static std::string getCalledFunctionName(const Expr *E) {
   return "";
 }
 
+bool tryGetBoundsKeyVar(Expr *E, BoundsKey &BK, ProgramInfo &Info,
+                        ASTContext *Context) {
+  ConstraintResolver CR(Info, Context);
+  std::set<ConstraintVariable *> CVs = CR.getExprConstraintVars(E);
+  auto &ABInfo = Info.getABoundsInfo();
+  return CR.resolveBoundsKey(CVs, BK) ||
+         ABInfo.tryGetVariable(E, *Context, BK);
+
+}
+
+bool tryGetBoundsKeyVar(Decl *D, BoundsKey &BK, ProgramInfo &Info,
+                        ASTContext *Context) {
+  ConstraintResolver CR(Info, Context);
+  std::set<ConstraintVariable *> CVs = Info.getVariable(D, Context);
+  auto &ABInfo = Info.getABoundsInfo();
+  return CR.resolveBoundsKey(CVs, BK) ||
+         ABInfo.tryGetVariable(D, BK);
+}
+
 // Check if the provided expression is a call to one of the known
 // memory allocators.
 static bool isAllocatorCall(Expr *E, std::string &FName, ProgramInfo &I,
                             ASTContext *C,
                             std::vector<Expr *> &ArgVals) {
   bool RetVal = false;
-  auto &ABInfo = I.getABoundsInfo();
   if (CallExpr *CE = dyn_cast<CallExpr>(removeAuxillaryCasts(E)))
     if (CE->getCalleeDecl() != nullptr) {
       // Is this a call to a named function?
@@ -189,7 +202,7 @@ static bool isAllocatorCall(Expr *E, std::string &FName, ProgramInfo &I,
            BaseExprs.push_back(BO->getRHS());
          } else if (UExpr && UExpr->getKind() == UETT_SizeOf) {
            BaseExprs.push_back(UExpr);
-         } else if (ABInfo.tryGetVariable(PExpr, *C, Tmp)) {
+         } else if (tryGetBoundsKeyVar(PExpr, Tmp, I, C)) {
            BaseExprs.push_back(PExpr);
          } else {
            RetVal = false;
@@ -204,7 +217,7 @@ static bool isAllocatorCall(Expr *E, std::string &FName, ProgramInfo &I,
             UnaryExprOrTypeTraitExpr *UExpr =
                 dyn_cast<UnaryExprOrTypeTraitExpr>(TmpE);
             if ((UExpr && UExpr->getKind() == UETT_SizeOf) ||
-                ABInfo.tryGetVariable(TmpE, *C, Tmp)) {
+                tryGetBoundsKeyVar(TmpE, Tmp, I, C)) {
               ArgVals.push_back(TmpE);
             } else {
               RetVal = false;
@@ -242,7 +255,7 @@ static void handleAllocatorCall(QualType LHSType, BoundsKey LK, Expr *E,
           FoundKey = false;
           break;
         }
-      } else if (AVarBInfo.tryGetVariable(TmpE, *Context, RK)) {
+      } else if (tryGetBoundsKeyVar(TmpE, RK, Info, Context)) {
         // Is this variable?
         if (!FoundKey) {
           FoundKey = true;
@@ -271,9 +284,10 @@ static void handleAllocatorCall(QualType LHSType, BoundsKey LK, Expr *E,
         } else {
           LBounds = new CountBound(RK);
         }
-        ABStats.AllocatorMatch.insert(LK);
         if (!AVarBInfo.mergeBounds(LK, LBounds)) {
           delete (LBounds);
+        } else {
+          ABStats.AllocatorMatch.insert(LK);
         }
       }
     }
@@ -334,11 +348,11 @@ bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
       std::string FldName = FldDecl->getNameAsString();
       // This is an integer field and could be a length field
       if (FldDecl->getType().getTypePtr()->isIntegerType() &&
-          ABInfo.tryGetVariable(FldDecl, FldKey))
+          tryGetBoundsKeyVar(FldDecl, FldKey, Info, Context))
         PotLenFields.insert(std::make_pair(FldName, FldKey));
       // Is this an array field and has no declared bounds?
       if (needArrayBounds(FldDecl, Info, Context) &&
-          ABInfo.tryGetVariable(FldDecl, FldKey) &&
+          tryGetBoundsKeyVar(FldDecl, FldKey, Info, Context) &&
           !ABInfo.getBounds(FldKey))
         IdentifiedArrVars.insert(std::make_pair(FldName, FldKey));
     }
@@ -394,9 +408,11 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         BoundsKey PK;
 
         // Does this parameter already has bounds?
-        if (ABInfo.tryGetVariable(PVD, PK)) {
+        if (tryGetBoundsKeyVar(PVD, PK, Info, Context)) {
           auto PVal = std::make_pair(PVD->getNameAsString(), PK);
 
+          // Here, we are using heuristics. So we only use heuristics when
+          // there are no bounds already computed.
           if (!ABInfo.getBounds(PK)) {
             if (needArrayBounds(PVD, Info, Context)) {
               // Is this an array?
@@ -492,14 +508,13 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
   Expr *LHS = O->getLHS()->IgnoreParenCasts();
   Expr *RHS = O->getRHS()->IgnoreParenCasts();
-  auto &AVarBInfo = Info.getABoundsInfo();
   ConstraintResolver CR(Info, Context);
   std::string FnName;
   std::vector<Expr *> ArgVals;
   BoundsKey LK;
   // is the RHS expression a call to allocator function?
   if (needArrayBounds(LHS, Info, Context) &&
-      AVarBInfo.tryGetVariable(LHS, *Context, LK)) {
+      tryGetBoundsKeyVar(LHS, LK, Info, Context)) {
     handleAllocatorCall(LHS->getType(), LK, RHS, Info, Context);
   }
 
@@ -540,7 +555,7 @@ bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
                                needArrayBounds(VD, Info, Context, true))) {
         clang::StringLiteral *SL =
             dyn_cast<clang::StringLiteral>(InitE->IgnoreParenCasts());
-        if (ABoundsInfo.tryGetVariable(VD, DeclKey)) {
+        if (tryGetBoundsKeyVar(VD, DeclKey, Info, Context)) {
           handleAllocatorCall(VD->getType(), DeclKey, InitE,
                               Info, Context);
           if (SL != nullptr) {
@@ -591,8 +606,8 @@ void AddMainFuncHeuristic(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
         BoundsKey ArgvKey;
         BoundsKey ArgcKey;
         if (needArrayBounds(Argv, I, C) &&
-            ABInfo.tryGetVariable(Argv, ArgvKey) &&
-            ABInfo.tryGetVariable(FD->getParamDecl(0), ArgcKey)) {
+            tryGetBoundsKeyVar(Argv, ArgvKey, I, C) &&
+            tryGetBoundsKeyVar(FD->getParamDecl(0), ArgcKey, I, C)) {
           ABounds *ArgcBounds = new CountBound(ArgcKey);
           ABInfo.replaceBounds(ArgvKey, ArgcBounds);
         }
@@ -619,6 +634,7 @@ void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {
         // Set information collected after analyzing the function body.
         GlobABV.SetParamHeuristicInfo(&LFV);
         GlobABV.TraverseDecl(D);
+        AddMainFuncHeuristic(C, I, FD);
         GlobalTraversed = true;
       }
     }

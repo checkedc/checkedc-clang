@@ -420,10 +420,10 @@ bool PointerVariableConstraint::emitArraySize(std::ostringstream &Pss,
         Pss << "[" << Oas << "]";
         Ret = true;
         break;
-      case O_UnSizedArray:
+      /*case O_UnSizedArray:
         Pss << "[]";
         Ret = true;
-        break;
+        break;*/
       default: break;
     }
     return Ret;
@@ -756,28 +756,28 @@ bool FunctionVariableConstraint::anyChanges(EnvironmentMap &E) {
   return f;
 }
 
-bool FunctionVariableConstraint::hasWild(EnvironmentMap &E)
+bool FunctionVariableConstraint::hasWild(EnvironmentMap &E, int AIdx)
 {
   for (const auto &C : returnVars)
-    if (C->hasWild(E))
+    if (C->hasWild(E, AIdx))
       return true;
 
   return false;
 }
 
-bool FunctionVariableConstraint::hasArr(EnvironmentMap &E)
+bool FunctionVariableConstraint::hasArr(EnvironmentMap &E, int AIdx)
 {
   for (const auto &C : returnVars)
-    if (C->hasArr(E))
+    if (C->hasArr(E, AIdx))
       return true;
 
   return false;
 }
 
-bool FunctionVariableConstraint::hasNtArr(EnvironmentMap &E)
+bool FunctionVariableConstraint::hasNtArr(EnvironmentMap &E, int AIdx)
 {
   for (const auto &C : returnVars)
-    if (C->hasNtArr(E))
+    if (C->hasNtArr(E, AIdx))
       return true;
 
   return false;
@@ -957,46 +957,65 @@ PointerVariableConstraint::getSolution(const Atom *A, EnvironmentMap &E) const {
   return CS;
 }
 
-bool PointerVariableConstraint::hasWild(EnvironmentMap &E)
+bool PointerVariableConstraint::hasWild(EnvironmentMap &E, int AIdx)
 {
+  int VarIdx = 0;
   for (const auto &C : vars) {
     const ConstAtom *CS = getSolution(C, E);
     if (isa<WildAtom>(CS))
       return true;
+    if (VarIdx == AIdx)
+      break;
+    VarIdx++;
   }
 
   if (FV)
-    return FV->hasWild(E);
+    return FV->hasWild(E, AIdx);
 
   return false;
 }
 
-bool PointerVariableConstraint::hasArr(EnvironmentMap &E)
+bool PointerVariableConstraint::hasArr(EnvironmentMap &E, int AIdx)
 {
+  int VarIdx = 0;
   for (const auto &C : vars) {
     const ConstAtom *CS = getSolution(C, E);
     if (isa<ArrAtom>(CS))
       return true;
+    if (VarIdx == AIdx)
+      break;
+    VarIdx++;
   }
 
   if (FV)
-    return FV->hasArr(E);
+    return FV->hasArr(E, AIdx);
 
   return false;
 }
 
-bool PointerVariableConstraint::hasNtArr(EnvironmentMap &E)
+bool PointerVariableConstraint::hasNtArr(EnvironmentMap &E, int AIdx)
 {
+  int VarIdx = 0;
   for (const auto &C : vars) {
     const ConstAtom *CS = getSolution(C, E);
     if (isa<NTArrAtom>(CS))
       return true;
+    if (VarIdx == AIdx)
+      break;
+    VarIdx++;
   }
 
   if (FV)
-    return FV->hasNtArr(E);
+    return FV->hasNtArr(E, AIdx);
 
   return false;
+}
+
+bool PointerVariableConstraint::isTopCvarUnsizedArr() {
+  if (arrSizes.find(0) != arrSizes.end()) {
+    return arrSizes[0].first != O_SizedArray;
+  }
+  return true;
 }
 
 bool PointerVariableConstraint::
@@ -1432,6 +1451,9 @@ void PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
   assert (From != nullptr);
   CAtoms CFrom = From->getCvars();
   assert (vars.size() == CFrom.size());
+  ValidBoundsKey = From->hasBoundsKey();
+  if (From->hasBoundsKey())
+    BKey = From->getBoundsKey();
   vars = CFrom; // FIXME: structural copy? By reference?
   argumentConstraints = From->getArgumentConstraints();
   if (FV) {

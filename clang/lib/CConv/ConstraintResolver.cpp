@@ -545,8 +545,10 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
   if (AllTypes && !containsValidCons(V) && !containsValidCons(RHSCons)) {
     BoundsKey LKey, RKey;
     auto &ABI = Info.getABoundsInfo();
-    if (ABI.tryGetVariable(D, LKey) &&
-        ABI.tryGetVariable(RHS, *Context, RKey)) {
+    if ((resolveBoundsKey(V, LKey) ||
+         ABI.tryGetVariable(D, LKey)) &&
+        (resolveBoundsKey(RHSCons, RKey) ||
+         ABI.tryGetVariable(RHS, *Context, RKey))) {
       ABI.addAssignment(LKey, RKey);
     }
   }
@@ -584,6 +586,21 @@ ConstraintResolver::containsValidCons(std::set<ConstraintVariable *> &CVs) {
       if (!PV->getCvars().empty()) {
         RetVal = true;
         break;
+      }
+    }
+  }
+  return RetVal;
+}
+
+bool ConstraintResolver::resolveBoundsKey(std::set<ConstraintVariable *> &CVs,
+                                          BoundsKey &BK) {
+  bool RetVal = false;
+  if (CVs.size() == 1) {
+    auto *OCons = getOnly(CVs);
+    if (PVConstraint *PV = dyn_cast<PVConstraint>(OCons)) {
+      if (PV->hasBoundsKey()) {
+        BK = PV->getBoundsKey();
+        RetVal = true;
       }
     }
   }

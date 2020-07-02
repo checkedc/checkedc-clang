@@ -59,3 +59,8 @@ std::string ProgramVar::mkString(bool GetKey) {
   Ret += VarName;
   return Ret;
 }
+
+std::string ProgramVar::verboseStr() {
+  std::string Ret = mkString() + "(" + VScope->getStr() + ")";
+  return Ret;
+}

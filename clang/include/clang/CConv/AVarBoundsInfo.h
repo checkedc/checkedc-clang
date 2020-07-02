@@ -44,6 +44,22 @@ public:
   ~AVarBoundsStats() {
     clear();
   }
+
+  bool isDataflowMatch(BoundsKey BK) {
+    return DataflowMatch.find(BK) != DataflowMatch.end();
+  }
+  bool isNamePrefixMatch(BoundsKey BK) {
+    return NamePrefixMatch.find(BK) != NamePrefixMatch.end();
+  }
+  bool isAllocatorMatch(BoundsKey BK) {
+    return AllocatorMatch.find(BK) != AllocatorMatch.end();
+  }
+  bool isVariableNameMatch(BoundsKey BK) {
+    return VariableNameMatch.find(BK) != VariableNameMatch.end();
+  }
+  bool isNeighbourParamMatch(BoundsKey BK) {
+    return NeighbourParamMatch.find(BK) != NeighbourParamMatch.end();
+  }
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
 private:
@@ -71,24 +87,20 @@ public:
   AvarBoundsInference(AVarBoundsInfo *BoundsInfo) : BI(BoundsInfo) { }
 
   // Infer bounds for the given key from the set of given ARR atoms.
-  bool inferBounds(BoundsKey K, std::set<BoundsKey> &ArrAtoms);
+  bool inferBounds(BoundsKey K);
 private:
   bool inferPossibleBounds(BoundsKey K, ABounds *SB,
-                           std::set<ABounds *> &EB, bool IsSucc = false);
+                           std::set<ABounds *> &EB);
 
   bool intersectBounds(std::set<ProgramVar *> &ProgVars,
                        ABounds::BoundsKind BK,
                        std::set<ABounds *> &CurrB);
 
   bool getRelevantBounds(std::set<BoundsKey> &RBKeys,
-                         std::set<BoundsKey> &ArrAtoms,
-                         std::set<ABounds *> &ResBounds,
-                         bool IsSucc = false);
+                         std::set<ABounds *> &ResBounds);
 
   bool predictBounds(BoundsKey K, std::set<BoundsKey> &Neighbours,
-                     std::set<BoundsKey> &ArrAtoms,
-                     ABounds **KB,
-                     bool IsSucc = false);
+                     ABounds **KB);
 
   AVarBoundsInfo *BI;
 };
@@ -142,8 +154,12 @@ public:
 
   AVarBoundsStats &getBStats() { return BoundsInferStats; }
 
+  // Dump the AVar graph to the provided dot file.
+  void dumpAVarGraph(const std::string &DFPath);
+
 private:
   friend class AvarBoundsInference;
+  friend class AVarGraph;
     // Variable that is used to generate new bound keys.
   BoundsKey BCount;
   // Map of VarKeys and corresponding program variables.
@@ -158,6 +174,8 @@ private:
   std::set<BoundsKey> InvalidBounds;
   // Set of BoundsKeys that correspond to pointers.
   std::set<BoundsKey> PointerBoundsKey;
+  // Set of BoundsKey that correspond to array pointers.
+  std::set<BoundsKey> ArrPointerBoundsKey;
   // BiMap of Persistent source loc and BoundsKey of regular variables.
   DeclKeyBiMapType DeclVarMap;
   // BiMap of parameter keys and BoundsKey for function parameters.

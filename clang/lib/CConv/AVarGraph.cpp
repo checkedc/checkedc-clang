@@ -10,7 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/CConv/AVarBoundsInfo.h"
 #include "clang/CConv/AVarGraph.h"
+#include <boost/graph/graphviz.hpp>
+#include <iostream>
 
 void AVarGraph::addEdge(BoundsKey L, BoundsKey R) {
   auto V1 = addVertex(L);
@@ -44,4 +47,51 @@ bool AVarGraph::getSuccessors(BoundsKey K, std::set<BoundsKey> &Succ) {
     }
   }
   return RetVal;
+}
+
+void AVarGraph::dumpCGDot(const std::string &GraphDotFile,
+                          AVarBoundsInfo *ABInfo) {
+  std::ofstream DotFile;
+  DotFile.open(GraphDotFile);
+  write_graphviz(DotFile, CG,
+                 [this, ABInfo] (std::ostream &out, unsigned v) {
+                   auto BK = CG[v];
+                   bool IsPtr = ABInfo->PointerBoundsKey.find(BK) !=
+                                ABInfo->PointerBoundsKey.end();
+                   std::string ClrStr = IsPtr ? "red" : "blue";
+                   std::string LblStr =
+                       ABInfo->getProgramVar(CG[v])->verboseStr();
+                   std::string ShapeStr = "oval";
+                   if (ABInfo->ArrPointerBoundsKey.find(BK) !=
+                       ABInfo->ArrPointerBoundsKey.end()) {
+                     ClrStr = "green";
+                     ShapeStr = "note";
+                   } else {
+                     ShapeStr = "ellipse";
+                   }
+                   if (IsPtr) {
+                     // The pointer has bounds. Get the bounds.
+                     if (auto *B = ABInfo->getBounds(BK)) {
+                       ShapeStr = "tripleoctagon";
+                       LblStr += "(B:" + B->mkString(ABInfo) + ")";
+                       auto &ABStats = ABInfo->getBStats();
+                       if (ABStats.isDataflowMatch(BK)) {
+                         ShapeStr = "box";
+                       } else if(ABStats.isNamePrefixMatch(BK)) {
+                         ShapeStr = "pentagon";
+                       } else if(ABStats.isAllocatorMatch(BK)) {
+                         ShapeStr = "hexagon";
+                       } else if(ABStats.isVariableNameMatch(BK)) {
+                         ShapeStr = "septagon";
+                       } else if(ABStats.isNeighbourParamMatch(BK)) {
+                         ShapeStr = "octagon";
+                       }
+                     }
+                   }
+
+                   out << "[label=\"" << LblStr << "\", " <<
+                          "color=\"" << ClrStr << "\", " <<
+                          "shape=\"" << ShapeStr << "\"]";
+                 });
+  DotFile.close();
 }

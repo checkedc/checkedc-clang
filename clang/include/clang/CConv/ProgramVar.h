@@ -45,6 +45,7 @@ public:
   virtual bool operator==(const ProgramVarScope &) const = 0;
   virtual bool operator!=(const ProgramVarScope &) const = 0;
   virtual bool operator<(const ProgramVarScope &) const = 0;
+  virtual std::string getStr() const = 0;
 
 };
 
@@ -69,6 +70,10 @@ public:
 
   bool operator<(const ProgramVarScope &O) const {
     return false;
+  }
+
+  std::string getStr() const {
+    return "Global";
   }
 
   static GlobalScope *getGlobalScope();
@@ -101,6 +106,10 @@ public:
 
   bool operator<(const ProgramVarScope &O) const {
     return clang::isa<GlobalScope>(&O);
+  }
+
+  std::string getStr() const {
+    return "Struct_" + StName;
   }
 
   static StructScope *getStructScope(std::string StName);
@@ -138,6 +147,10 @@ public:
 
   bool operator<(const ProgramVarScope &O) const {
     return clang::isa<GlobalScope>(&O);
+  }
+
+  std::string getStr() const {
+    return "FuncParm_" + FName;
   }
 
   static FunctionParamScope *getFunctionParamScope(std::string FnName,
@@ -181,6 +194,10 @@ public:
     return clang::isa<GlobalScope>(&O);
   }
 
+  std::string getStr() const {
+    return "InFunc_" + FName;
+  }
+
   static FunctionScope *getFunctionScope(std::string FnName, bool IsSt);
 
 private:
@@ -203,6 +220,7 @@ public:
   BoundsKey getKey() { return K; }
   bool IsNumConstant() { return IsConstant; }
   std::string mkString(bool GetKey = false);
+  std::string verboseStr();
   virtual ~ProgramVar() { }
 private:
   BoundsKey K;
