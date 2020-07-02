@@ -248,6 +248,7 @@ Result Lexicographic::CompareExprSemantically(const Expr *Arg1,
 
   if (Res)
     return Result::Equal;
+  // We use Result::LessThan to indicate that Arg1 and Arg2 are not equal.
   return Result::LessThan;
 }
 
