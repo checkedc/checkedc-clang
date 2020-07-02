@@ -8804,7 +8804,10 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
         // For unchecked return types, a return with
         // bounds is compatible with a return without bounds.
         // The merged type includes the bounds.
-        if (!retType->isUncheckedPointerType())
+        if (!retType->isUncheckedPointerType())  
+          // TODO: skip this test to suppress errors where a parameter
+          // with checked pointer type has an annotation in one declaration
+          // and doesn't have an annotation in another declaration.
           return QualType();
         if (!lReturnAnnots.IsEmpty() && rReturnAnnots.IsEmpty()) {
           ReturnAnnots = lReturnAnnots;
@@ -8859,6 +8862,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
           // bounds is compatible with a parameter without bounds.
           // The merged type includes the bounds.
           if (!paramType->isUncheckedPointerType())
+            // TODO: skip this too.
             return QualType();
           if (!lBounds.IsEmpty() && rBounds.IsEmpty()) {
             bounds.push_back(lBounds);

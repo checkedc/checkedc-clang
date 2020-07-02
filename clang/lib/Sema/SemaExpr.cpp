@@ -4786,7 +4786,7 @@ Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
     BaseExpr = LHSExp;
     IndexExpr = RHSExp;
     // Array subscripting not allowed on ptr<T> values
-    if (PTy->getKind() == CheckedPointerKind::Ptr) {
+    if (PTy->getKind() == CheckedPointerKind::Ptr) {  // TODO
         return ExprError(Diag(LLoc, diag::err_typecheck_ptr_subscript)
             << LHSTy << LHSExp->getSourceRange() << RHSExp->getSourceRange());
     }
@@ -4808,7 +4808,7 @@ Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
     BaseExpr = RHSExp;
     IndexExpr = LHSExp;
     // Array subscripting not allowed on ptr<T> values
-    if (PTy->getKind() == CheckedPointerKind::Ptr) {
+    if (PTy->getKind() == CheckedPointerKind::Ptr) {  // TODO
         return ExprError(Diag(LLoc, diag::err_typecheck_ptr_subscript)
             << RHSTy << LHSExp->getSourceRange() << RHSExp->getSourceRange());
     }
@@ -7161,7 +7161,7 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
        incompatibleCheckedPointer = resultKind != CheckedPointerKind::Unchecked && CompositeTy.isNull();
      }
      else if (lhsKind == CheckedPointerKind::Unchecked) {
-       // The rhs must be a checked ponter type. The least upper bound is determined
+       // The rhs must be a checked pointer type. The least upper bound is determined
        // as follows:
        //    Unchecked ^ Array =  Array
        //    Unchecked ^ NtArray = Array
@@ -7196,6 +7196,7 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
        resultKind = CheckedPointerKind::Array;
        incompatibleCheckedPointer = CompositeTy.isNull();
      } else {
+       // TODO
        // Must have different kinds of checked pointers (_Ptr vs.
        // _Array_ptr or _Nt_Array_ptr). Implicit conversions between these
        // kinds of pointers are not allowed.
@@ -7363,6 +7364,7 @@ static bool checkUncheckedPointerIntegerMismatch(Sema &S, ExprResult &Int,
     return false;
 
   const PointerType *ptrTy = PointerExpr->getType()->getAs<PointerType>();
+  // TODO
   if (ptrTy->isChecked()) {
      return false;
   }
@@ -8263,10 +8265,12 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // - Allow implicit conversions from any kind of pointer to _Ptr 
   //   or _Array_ptr
 
+  // TODO
   if (rhkind != CheckedPointerKind::Unchecked &&
       lhkind == CheckedPointerKind::Unchecked)
     return Sema::Incompatible;
 
+  // TODO
   if (lhkind == CheckedPointerKind::NtArray &&
       rhkind != CheckedPointerKind::NtArray)
     return Sema::Incompatible;
@@ -9066,6 +9070,14 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
 
   // If we can't convert to the LHS type, try the LHS interop type instead.
   // Note that we have to insert a cast that "downgrades" the checkedness.
+
+  // TODO: think about this. When suppressing Checked C type checking errors,
+  // we'll never successfully insert this implicit case (case 1: the types
+  // differ only in checkedness.   The result is compatible, so the case below
+  // is never executed.  case 2: the type differ some other way.  Then result
+  // is Incompatible below, so we never execute the code below to insert the
+  // case.   This may result in a failure to diagnose errors during
+  // checking of bounds declarations.
   if ((result == Incompatible || result == IncompatibleCheckedCVoid) &&
       !LHSInteropType.isNull()) {
     result = CheckAssignmentConstraints(LHSInteropType, RHS, Kind, ConvertRHS);
@@ -9774,6 +9786,7 @@ static void diagnoseArithmeticOnTwoVoidPointers(Sema &S, SourceLocation Loc,
                                                 Expr *LHSExpr, Expr *RHSExpr) {
   bool isCheckedPointerType = LHSExpr->getType()->isCheckedPointerType() ||
     RHSExpr->getType()->isCheckedPointerType();
+  //TODO
   S.Diag(Loc, S.getLangOpts().CPlusPlus || isCheckedPointerType
                 ? diag::err_typecheck_pointer_arith_void_type
                 : diag::ext_gnu_void_ptr)
@@ -9784,6 +9797,7 @@ static void diagnoseArithmeticOnTwoVoidPointers(Sema &S, SourceLocation Loc,
 /// Diagnose invalid arithmetic on a void pointer.
 static void diagnoseArithmeticOnVoidPointer(Sema &S, SourceLocation Loc,
                                             Expr *Pointer) {
+  // TODO
   bool isCheckedPointerType = Pointer->getType()->isCheckedPointerType();
   S.Diag(Loc, S.getLangOpts().CPlusPlus || isCheckedPointerType
                 ? diag::err_typecheck_pointer_arith_void_type
@@ -9881,6 +9895,7 @@ static bool checkArithmeticOpPointerOperand(Sema &S, SourceLocation Loc,
   if (!ResType->isAnyPointerType()) return true;
 
   if (ResType->isCheckedPointerPtrType()) {
+     // TODO
      diagnoseArithmeticOnPtrPointerType(S, Loc, Operand);
      return false;
   }
@@ -9941,6 +9956,7 @@ static bool checkArithmeticBinOpPointerOperands(Sema &S, SourceLocation Loc,
     else if (!isLHSVoidPtr) diagnoseArithmeticOnVoidPointer(S, Loc, RHSExpr);
     else diagnoseArithmeticOnTwoVoidPointers(S, Loc, LHSExpr, RHSExpr);
 
+    // TODO
     return !(S.getLangOpts().CPlusPlus ||
              LHSExpr->getType()->isCheckedPointerType() ||
              RHSExpr->getType()->isCheckedPointerType());
@@ -9955,7 +9971,7 @@ static bool checkArithmeticBinOpPointerOperands(Sema &S, SourceLocation Loc,
     else diagnoseArithmeticOnTwoFunctionPointers(S, Loc, LHSExpr, RHSExpr);
 
     // We don't have to check if the function pointers are checked. Only _Ptrs to
-    // function types are allowd and arithmetic on _Ptrs is covered by another
+    // function types are allowed and arithmetic on _Ptrs is covered by another
     // diagnostic.
     return !S.getLangOpts().CPlusPlus;
   }
