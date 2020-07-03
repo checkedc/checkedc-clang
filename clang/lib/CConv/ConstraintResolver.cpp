@@ -544,11 +544,14 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
 
   // Only if all types are enabled and these are not pointers, then track
   // the assignment.
-  if (AllTypes && L.empty() && R.empty()) {
+  if (AllTypes && !containsValidCons(L) &&
+      !containsValidCons(R)) {
     BoundsKey LKey, RKey;
     auto &ABI = Info.getABoundsInfo();
-    if (ABI.tryGetVariable(LHS, *Context, LKey) &&
-        ABI.tryGetVariable(RHS, *Context, RKey)) {
+    if ((resolveBoundsKey(L, LKey) ||
+        ABI.tryGetVariable(LHS, *Context, LKey)) &&
+        (resolveBoundsKey(R, RKey) ||
+        ABI.tryGetVariable(RHS, *Context, RKey))) {
       ABI.addAssignment(LKey, RKey);
     }
   }
