@@ -33,14 +33,17 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
       if (FE && FE->isValid()) {
         // We only want to re-write a record if it contains
         // any pointer types, to include array types.
-        for (const auto &D : Definition->fields())
+        for (const auto &D : Definition->fields()) {
+          Info.getABoundsInfo().insertVariable(D);
           if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
             Info.addVariable(D, Context);
-            if(FL.isInSystemHeader()) {
+            if(FL.isInSystemHeader() || Definition->isUnion()) {
               std::set<ConstraintVariable *> C = Info.getVariable(D, Context);
-              CB.constraintAllCVarsToWild(C, "Field in header.", nullptr);
+              std::string Rsn = "External struct field or union encountered";
+              CB.constraintAllCVarsToWild(C, Rsn, nullptr);
             }
           }
+        }
       }
     }
   }
@@ -64,6 +67,7 @@ public:
       }
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         if (VD->isLocalVarDecl()) {
+          Info.getABoundsInfo().insertVariable(VD);
           FullSourceLoc FL = Context->getFullLoc(VD->getBeginLoc());
           SourceRange SR = VD->getSourceRange();
           if (SR.isValid() && FL.isValid() &&
@@ -130,6 +134,7 @@ public:
     auto &CS = Info.getConstraints();
     std::set<ConstraintVariable *> FVCons;
     std::string FuncName = "";
+    FunctionDecl *TFD = nullptr;
 
     // figure out who we are calling
     if (D == nullptr) {
@@ -148,6 +153,7 @@ public:
     } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       FuncName = FD->getNameAsString();
       FVCons = Info.getVariable(FD, Context);
+      TFD = FD;
     } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {
       FVCons = Info.getVariable(DD, Context);
       FuncName = DD->getNameAsString();
@@ -177,6 +183,19 @@ public:
                   TargetFV->getParamVar(i);
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
                                   Wild_to_Safe, false, &Info);
+              if (AllTypes && TFD != nullptr &&
+                  !CB.containsValidCons(ParameterDC) &&
+                  !CB.containsValidCons(ArgumentConstraints)) {
+                auto *PVD = TFD->getParamDecl(i);
+                auto &ABI = Info.getABoundsInfo();
+                BoundsKey PVKey, AGKey;
+                if ((CB.resolveBoundsKey(ParameterDC, PVKey) ||
+                     ABI.tryGetVariable(PVD, PVKey)) &&
+                    (CB.resolveBoundsKey(ArgumentConstraints, AGKey) ||
+                     ABI.tryGetVariable(A, *Context, AGKey))) {
+                  ABI.addAssignment(PVKey, AGKey);
+                }
+              }
             } else {
               // The argument passed to a function ith varargs; make it wild
               if (HandleVARARGS) {
@@ -342,15 +361,17 @@ public:
 
     if (G->hasGlobalStorage() &&
         (G->getType()->isPointerType() || G->getType()->isArrayType())) {
+      Info.getABoundsInfo().insertVariable(G);
       Info.addVariable(G, Context);
       if (G->hasInit()) {
         CB.constrainLocalAssign(nullptr, G, G->getInit());
       }
-      // If the location of the previous RecordDecl and the current VarDecl are
-      // the same, this implies an inline struct as per Clang's AST, so set a
-      // flag in ProgramInfo to indicate that this variable should be
-      // constrained to wild later
-      if (lastRecordLocation == G->getBeginLoc().getRawEncoding()) {
+      // If the location of the previous RecordDecl and the current VarDecl
+      // coincide with one another, we constrain the VarDecl to be wild
+      // in order to allow the fields of the RecordDecl to be converted
+      unsigned int BeginLoc = G->getBeginLoc().getRawEncoding();
+      unsigned int EndLoc = G->getEndLoc().getRawEncoding();
+      if (lastRecordLocation >= BeginLoc && lastRecordLocation <= EndLoc) {
         std::set<ConstraintVariable *> C = Info.getVariable(G, Context);
         CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
       }
@@ -386,7 +407,6 @@ public:
         Stmt *Body = D->getBody();
         FunctionVisitor FV = FunctionVisitor(Context, Info, D);
         FV.TraverseStmt(Body);
-        AddArrayHeuristics(Context, Info, D);
       }
     }
 

@@ -330,6 +330,16 @@ bool isInSysHeader(clang::Decl *D) {
   return false;
 }
 
+std::string getSourceText(const clang::SourceRange &SR,
+                          const clang::ASTContext &C) {
+  assert(SR.isValid() && "Invalid Source Range requested.");
+  auto &SM = C.getSourceManager();
+  auto LO = C.getLangOpts();
+  llvm::StringRef Srctxt =
+      Lexer::getSourceText(CharSourceRange::getTokenRange(SR), SM, LO);
+  return Srctxt.str();
+}
+
 unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
                                   unsigned long Str1Len, unsigned long Str2Len) {
   if (Str1Len == 0 || Str2Len == 0)

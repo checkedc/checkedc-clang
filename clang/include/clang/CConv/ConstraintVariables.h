@@ -29,6 +29,7 @@
 #include "clang/Lex/Lexer.h"
 #include "clang/AST/ASTContext.h"
 
+#include "ProgramVar.h"
 #include "Constraints.h"
 
 using namespace clang;
@@ -68,10 +69,15 @@ protected:
   // A flag to indicate that we already forced argConstraints to be equated
   // Avoids infinite recursive calls.
   bool HasEqArgumentConstraints;
+  // Flag to indicate if this Constraint Variable has a bounds key.
+  bool ValidBoundsKey;
+  // Bounds key of this Constraint Variable.
+  BoundsKey BKey;
 
   // Only subclasses should call this
   ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) :
-      Kind(K),OriginalType(T),Name(N), HasEqArgumentConstraints(false) {}
+      Kind(K),OriginalType(T),Name(N), HasEqArgumentConstraints(false),
+      ValidBoundsKey(false) {}
 
 public:
   // Create a "for-rewriting" representation of this ConstraintVariable.
@@ -88,6 +94,11 @@ public:
   virtual void dump_json(llvm::raw_ostream &O) const = 0;
 
   virtual bool hasItype() = 0;
+  bool hasBoundsKey() { return ValidBoundsKey; }
+  BoundsKey getBoundsKey() {
+    assert(ValidBoundsKey && "No valid Bkey");
+    return BKey;
+  }
 
   virtual bool solutionEqualTo(Constraints &, ConstraintVariable *) = 0;
 
@@ -102,9 +113,11 @@ public:
   // results from running unification on the set of constraints and the
   // environment.
   virtual bool anyChanges(EnvironmentMap &E) = 0;
-  virtual bool hasWild(EnvironmentMap &E) = 0;
-  virtual bool hasArr(EnvironmentMap &E) = 0;
-  virtual bool hasNtArr(EnvironmentMap &E) = 0;
+  // Here, AIdx is the pointer level which needs to be checked.
+  // By default, we check for all pointer levels (or VarAtoms)
+  virtual bool hasWild(EnvironmentMap &E, int AIdx = -1) = 0;
+  virtual bool hasArr(EnvironmentMap &E, int AIdx = -1) = 0;
+  virtual bool hasNtArr(EnvironmentMap &E, int AIdx = -1) = 0;
 
   // Force use of equality constraints in function calls for this CV
   virtual void equateArgumentConstraints(ProgramInfo &I) = 0;
@@ -210,6 +223,8 @@ private:
   PointerVariableConstraint(PointerVariableConstraint *Ot,
                             Constraints &CS);
   PointerVariableConstraint *Parent;
+  // String representing declared bounds expression.
+  std::string BoundsAnnotationStr;
 
 public:
   // Constructor for when we know a CVars and a type string.
@@ -219,15 +234,22 @@ public:
           ConstraintVariable(PointerVariable, "" /*not used*/, Name),
           BaseType(T),vars(V),FV(F),
         ArrPresent(isArr), ItypeStr(is),
-           partOFFuncPrototype(false), Parent(nullptr) {}
+           partOFFuncPrototype(false), Parent(nullptr),
+         BoundsAnnotationStr("") {}
 
   std::string getTy() { return BaseType; }
   bool getArrPresent() { return ArrPresent; }
+  // Check if the outermost pointer is an unsized array.
+  bool isTopCvarUnsizedArr();
 
   // Is an itype present for this constraint? If yes,
   // what is the text of that itype?
   bool hasItype() { return ItypeStr.size() > 0; }
   std::string getItype() { return ItypeStr; }
+  // Check if this variable has bounds annotation.
+  bool hasBoundsStr() { return !BoundsAnnotationStr.empty(); }
+  // Get bounds annotation.
+  std::string getBoundsStr() { return BoundsAnnotationStr; }
 
   bool solutionEqualTo(Constraints &CS, ConstraintVariable *CV);
 
@@ -235,13 +257,13 @@ public:
   // constraint variable index. We don't need to explicitly pass
   // the name because it's available in 'D'.
   PointerVariableConstraint(clang::DeclaratorDecl *D,
-                            Constraints &CS, const clang::ASTContext &C);
+                            ProgramInfo &I, const clang::ASTContext &C);
 
   // Constructor for when we only have a Type. Needs a string name
   // N for the name of the variable that this represents.
   PointerVariableConstraint(const clang::QualType &QT,
                             clang::DeclaratorDecl *D, std::string N,
-                            Constraints &CS,
+                            ProgramInfo &I,
                             const clang::ASTContext &C,
                             std::string *inFunc = nullptr);
 
@@ -269,9 +291,9 @@ public:
   void constrainOuterTo(Constraints &CS, ConstAtom *C, bool doLB = false);
   bool anyChanges(EnvironmentMap &E);
   bool anyArgumentIsWild(EnvironmentMap &E);
-  bool hasWild(EnvironmentMap &E);
-  bool hasArr(EnvironmentMap &E);
-  bool hasNtArr(EnvironmentMap &E);
+  bool hasWild(EnvironmentMap &E, int AIdx = -1);
+  bool hasArr(EnvironmentMap &E, int AIdx = -1);
+  bool hasNtArr(EnvironmentMap &E, int AIdx = -1);
 
   void equateArgumentConstraints(ProgramInfo &I);
 
@@ -322,10 +344,10 @@ public:
                                  IsFunctionPtr(false) { }
 
   FunctionVariableConstraint(clang::DeclaratorDecl *D,
-                             Constraints &CS, const clang::ASTContext &C);
+                             ProgramInfo &I, const clang::ASTContext &C);
   FunctionVariableConstraint(const clang::Type *Ty,
                              clang::DeclaratorDecl *D, std::string N,
-                             Constraints &CS, const clang::ASTContext &C);
+                             ProgramInfo &I, const clang::ASTContext &C);
 
   std::set<ConstraintVariable *> &
   getReturnVars() { return returnVars; }
@@ -362,9 +384,9 @@ public:
   void constrainToWild(Constraints &CS, std::string &Rsn,
                        PersistentSourceLoc *PL);
   bool anyChanges(EnvironmentMap &E);
-  bool hasWild(EnvironmentMap &E);
-  bool hasArr(EnvironmentMap &E);
-  bool hasNtArr(EnvironmentMap &E);
+  bool hasWild(EnvironmentMap &E, int AIdx = -1);
+  bool hasArr(EnvironmentMap &E, int AIdx = -1);
+  bool hasNtArr(EnvironmentMap &E, int AIdx = -1);
 
   void equateArgumentConstraints(ProgramInfo &P);
 

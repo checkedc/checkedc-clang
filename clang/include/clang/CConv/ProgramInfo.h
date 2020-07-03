@@ -17,10 +17,10 @@
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Tooling/Tooling.h"
 
+#include "AVarBoundsInfo.h"
 #include "ConstraintVariables.h"
 #include "Utils.h"
 #include "PersistentSourceLoc.h"
-#include "ArrayBoundsInformation.h"
 #include "CConvInteractiveData.h"
 #include "GatherTypes.h"
 
@@ -78,14 +78,11 @@ public:
 
   VariableMap &getVarMap() { return Variables; }
   Constraints &getConstraints() { return CS;  }
+  AVarBoundsInfo &getABoundsInfo() { return ArrBInfo; }
 
   // Parameter map is used for cast insertion, post-rewriting
   void merge_MF(ParameterMap &MF);
   ParameterMap &get_MF();
-
-  ArrayBoundsInformation &getArrayBoundsInformation() {
-    return *ArrBoundsInfo;
-  }
 
   DisjointSet &getPointerConstraintDisjointSet() {
     return ConstraintDisjointSet;
@@ -124,7 +121,7 @@ private:
   ParameterMap MF;
   // Object that contains all the bounds information of various
   // array variables.
-  ArrayBoundsInformation *ArrBoundsInfo;
+  AVarBoundsInfo ArrBInfo;
   // Disjoint sets for constraints.
   DisjointSet ConstraintDisjointSet;
 

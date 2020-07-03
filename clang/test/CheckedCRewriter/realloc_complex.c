@@ -38,11 +38,11 @@ void foo(int *count) {
     z[3] =  2;
 } 
 //CHECK_NOALL: int *a = malloc<int>(2*sizeof(int));
-//CHECK_ALL: _Array_ptr<int> a: count((2 * sizeof(int))) =  malloc<int>(2*sizeof(int)); 
+//CHECK_ALL: _Array_ptr<int> a : count(2) =  malloc<int>(2*sizeof(int)); 
 
 //CHECK: int *b = malloc<int>(sizeof(int));
 
-//CHECK_ALL: _Array_ptr<int> y: count((2 * sizeof(int))) =  malloc<int>(2*sizeof(int)); 
+//CHECK_ALL: _Array_ptr<int> y : count(2) =  malloc<int>(2*sizeof(int)); 
 //CHECK_NOALL: int *y = malloc<int>(2*sizeof(int));
 //CHECK: int *w = malloc<int>(sizeof(int));
 //CHECK_NOALL: int *z = realloc<int>(y, 5*sizeof(int)); 

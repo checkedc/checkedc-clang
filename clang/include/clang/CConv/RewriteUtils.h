@@ -142,10 +142,8 @@ void rewrite( Rewriter              &R,
 class ArrayBoundsRewriter {
 public:
   ArrayBoundsRewriter(ASTContext *C, ProgramInfo &I): Context(C), Info(I) {}
-  // Compute the possible bounds for all the array variables.
-  void computeArrayBounds();
   // Get the string representation of the bounds for the given variable.
-  std::string getBoundsString(Decl *D, bool Isitype = false);
+  std::string getBoundsString(PVConstraint *PV, Decl *D, bool Isitype = false);
 private:
   ASTContext *Context;
   ProgramInfo &Info;
