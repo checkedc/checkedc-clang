@@ -834,7 +834,7 @@ public:
     if (CallExpr *Call = getAllocatorCall(SubExpr)) {
       // If the function call already has type arguments, we'll trust that
       // they're correct and not add anything else.
-      if(allocTypeArgProvided(Call))
+      if (allocTypeArgProvided(Call))
         return true;
 
       // If the type does not have an identifier (i.e., it's anonymous), then we
@@ -892,8 +892,7 @@ private:
         return false;
       }
       // We only handle direct calls, so there must be a DeclRefExpr.
-      assert("Callee of alloc function call is not DeclRefExpr." && false);
-      return false;
+      llvm_unreachable("Callee of alloc function call is not DeclRefExpr.");
     }
 };
 
