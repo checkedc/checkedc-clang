@@ -46,6 +46,11 @@ public:
   void constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D, Expr *RHS,
                             ConsAction CAction = Same_to_Same);
 
+  // Check if the set contains any valid constraints.
+  bool containsValidCons(std::set<ConstraintVariable *> &CVs);
+  // Try to get the bounds key from the constraint variable set.
+  bool resolveBoundsKey(std::set<ConstraintVariable *> &CVs, BoundsKey &BK);
+
 private:
   ProgramInfo &Info;
   ASTContext *Context;

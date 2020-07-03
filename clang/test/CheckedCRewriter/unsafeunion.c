@@ -25,4 +25,4 @@ void bar(int *x) {
 } 
 //CHECK: _Ptr<union foo> g = (void *) 0;
 //CHECK_NOALL: union foo *h = calloc(5, sizeof(union foo)); 
-//CHECK_ALL: _Array_ptr<union foo> h: count((5 * sizeof(union foo))) =  calloc(5, sizeof(union foo));
+//CHECK_ALL: _Array_ptr<union foo> h : count(5) =  calloc(5, sizeof(union foo));

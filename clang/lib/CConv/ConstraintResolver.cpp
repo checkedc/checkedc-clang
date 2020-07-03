@@ -18,7 +18,7 @@ using namespace clang;
 std::set<ConstraintVariable *> ConstraintResolver::TempConstraintVars;
 
 ConstraintResolver::~ConstraintResolver() {
-  // No need to free the memory. The memory should be relased explicitly
+  // No need to free the memory. The memory should be released explicitly
   // by calling releaseTempConsVars
   ExprTmpConstraints.clear();
 }
@@ -76,7 +76,9 @@ std::set<ConstraintVariable *>
 // For each constraint variable either invoke addAtom to add an additional level
 // of indirection (when the constraint is PVConstraint), or return the constraint
 // unchanged (when the constraint is a function constraint).
-std::set<ConstraintVariable *> ConstraintResolver::addAtomAll(std::set<ConstraintVariable *> CVS, ConstAtom *PtrTyp, Constraints &CS) {
+std::set<ConstraintVariable *>
+    ConstraintResolver::addAtomAll(std::set<ConstraintVariable *> CVS,
+                                   ConstAtom *PtrTyp, Constraints &CS) {
   std::set<ConstraintVariable *> Result;
   for (auto *CV : CVS) {
     if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
@@ -389,7 +391,7 @@ std::set<ConstraintVariable *>
               std::string N = FD->getName(); N = "&"+N;
               ExprType = Context->getPointerType(ArgTy);
               PVConstraint *PVC =
-                  new PVConstraint(ExprType, nullptr, N, CS, *Context);
+                  new PVConstraint(ExprType, nullptr, N, Info, *Context);
               TempConstraintVars.insert(PVC);
               PVC->constrainOuterTo(CS,A,true);
               ReturnCVs.insert(PVC);
@@ -496,7 +498,7 @@ std::set<ConstraintVariable *>
       // We create a new constraint variable and constraint it to an Nt_array.
       std::set<ConstraintVariable *> T;
       PVConstraint *newC = new PVConstraint(
-          exr->getType(), nullptr, "str", CS, *Context, nullptr);
+          exr->getType(), nullptr, "str", Info, *Context, nullptr);
       newC->constrainOuterTo(CS, CS.getNTArr()); // NB: ARR already there
       TempConstraintVars.insert(newC);
       T.insert(newC);
@@ -539,6 +541,20 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
   std::set<ConstraintVariable *> L = getExprConstraintVars(LHS);
   std::set<ConstraintVariable *> R = getExprConstraintVars(RHS);
   constrainConsVarGeq(L, R, Info.getConstraints(), &PL, CAction, false, &Info);
+
+  // Only if all types are enabled and these are not pointers, then track
+  // the assignment.
+  if (AllTypes && !containsValidCons(L) &&
+      !containsValidCons(R)) {
+    BoundsKey LKey, RKey;
+    auto &ABI = Info.getABoundsInfo();
+    if ((resolveBoundsKey(L, LKey) ||
+        ABI.tryGetVariable(LHS, *Context, LKey)) &&
+        (resolveBoundsKey(R, RKey) ||
+        ABI.tryGetVariable(RHS, *Context, RKey))) {
+      ABI.addAssignment(LKey, RKey);
+    }
+  }
 }
 
 void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
@@ -554,6 +570,17 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
 
   constrainConsVarGeq(V, RHSCons, Info.getConstraints(), PLPtr, CAction, false,
                       &Info);
+
+  if (AllTypes && !containsValidCons(V) && !containsValidCons(RHSCons)) {
+    BoundsKey LKey, RKey;
+    auto &ABI = Info.getABoundsInfo();
+    if ((resolveBoundsKey(V, LKey) ||
+         ABI.tryGetVariable(D, LKey)) &&
+        (resolveBoundsKey(RHSCons, RKey) ||
+         ABI.tryGetVariable(RHS, *Context, RKey))) {
+      ABI.addAssignment(LKey, RKey);
+    }
+  }
 }
 
 std::set<ConstraintVariable *> ConstraintResolver::getWildPVConstraint() {
@@ -578,4 +605,33 @@ std::set<ConstraintVariable *> ConstraintResolver::getBaseVarPVConstraint(DeclRe
   std::set<ConstraintVariable *> Ret;
   Ret.insert(PVConstraint::getNamedNonPtrPVConstraint(Decl->getDecl()->getName(), Info.getConstraints()));
   return Ret;
+}
+
+bool
+ConstraintResolver::containsValidCons(std::set<ConstraintVariable *> &CVs) {
+  bool RetVal = false;
+  for (auto *ConsVar : CVs) {
+    if (PVConstraint *PV = dyn_cast<PVConstraint>(ConsVar)) {
+      if (!PV->getCvars().empty()) {
+        RetVal = true;
+        break;
+      }
+    }
+  }
+  return RetVal;
+}
+
+bool ConstraintResolver::resolveBoundsKey(std::set<ConstraintVariable *> &CVs,
+                                          BoundsKey &BK) {
+  bool RetVal = false;
+  if (CVs.size() == 1) {
+    auto *OCons = getOnly(CVs);
+    if (PVConstraint *PV = dyn_cast<PVConstraint>(OCons)) {
+      if (PV->hasBoundsKey()) {
+        BK = PV->getBoundsKey();
+        RetVal = true;
+      }
+    }
+  }
+  return RetVal;
 }

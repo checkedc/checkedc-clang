@@ -11,7 +11,7 @@ struct tree {
 };
 
 //CHECK: _Ptr<struct tree> parent;
-//CHECK: _Array_ptr<_Ptr<struct tree>> children: count(len);
+//CHECK: _Array_ptr<_Ptr<struct tree>> children : count(len);
 
 struct tree *new_node(int val, unsigned int num_childs, struct tree *parent) {
   struct tree *n = malloc(sizeof(struct tree));
@@ -29,7 +29,7 @@ struct tree *new_node(int val, unsigned int num_childs, struct tree *parent) {
 
 //CHECK: _Ptr<struct tree> new_node(int val, unsigned int num_childs, _Ptr<struct tree> parent) {
 //CHECK: _Ptr<struct tree> n = malloc(sizeof(struct tree));
-//CHECK: _Array_ptr<_Ptr<struct tree>> children: count((sizeof(struct tree *) * num_childs)) = ((void *)0);
+//CHECK: _Array_ptr<_Ptr<struct tree>> children : count(num_childs) = ((void *)0);
 
 int add_child(struct tree *p, struct tree *c) {
   if (p->child_count >= p->len) {
@@ -48,7 +48,7 @@ int add_child(struct tree *p, struct tree *c) {
 }
 
 //CHECK:int add_child(_Ptr<struct tree> p, _Ptr<struct tree> c) _Checked{
-//CHECK:_Array_ptr<_Ptr<struct tree>> children = ((void *)0);
+//CHECK:_Array_ptr<_Ptr<struct tree>> children : count(len) = ((void *)0);
 
 int sum(struct tree *p) {
   int n = 0;
