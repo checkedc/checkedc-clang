@@ -583,7 +583,7 @@ void ProgramInfo::addCompoundLiteral(clang::CompoundLiteralExpr *CLE,
   std::set<ConstraintVariable *> &S = Variables[PLoc];
   if (S.size()) return;
 
-  PVConstraint *P = new PVConstraint(CLE->getType(), nullptr, "CLE", CS,
+  PVConstraint *P = new PVConstraint(CLE->getType(), nullptr, "CLE", *this,
                                      *AstContext, nullptr);
   S.insert(P);
 
