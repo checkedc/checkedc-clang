@@ -185,6 +185,8 @@ private:
   // Stats on techniques used to find length for various variables.
   AVarBoundsStats BoundsInferStats;
 
+  // BoundsKey helper function: These functions help in getting bounds key from
+  // various artifacts.
   bool hasVarKey(PersistentSourceLoc &PSL);
 
   BoundsKey getVarKey(PersistentSourceLoc &PSL);

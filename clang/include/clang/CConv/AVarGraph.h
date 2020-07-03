@@ -61,7 +61,9 @@ public:
   bool getPredecessors(BoundsKey K, std::set<BoundsKey> &Pred);
   bool getSuccessors(BoundsKey K, std::set<BoundsKey> &Succ);
 
-  void addEdge(BoundsKey L, BoundsKey R);
+  // Add edge between two bounds key. The flag BD indicates if the edge
+  // is bidirectional.
+  void addEdge(BoundsKey L, BoundsKey R, bool BD = true);
 
   void dumpCGDot(const std::string &GraphDotFile, AVarBoundsInfo *ABInfo);
 };
