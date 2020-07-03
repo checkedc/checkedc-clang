@@ -19,6 +19,7 @@ if (LLVM_BOOST_FOUND)
       clangStaticAnalyzerFrontend
       clangTooling
       )
+    target_include_directories(cconv-standalone PUBLIC ${Boost_INCLUDE_DIRS})
 
     install(TARGETS cconv-standalone
       RUNTIME DESTINATION bin)

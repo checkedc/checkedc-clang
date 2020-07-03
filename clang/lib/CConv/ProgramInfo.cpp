@@ -17,7 +17,6 @@ using namespace clang;
 
 ProgramInfo::ProgramInfo() :
   persisted(true) {
-  ArrBoundsInfo = new ArrayBoundsInformation(*this);
   ExternalFunctionFVCons.clear();
   StaticFunctionFVCons.clear();
 }
@@ -289,6 +288,10 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
   O << "Summary\nTotalConstraints|TotalPtrs|TotalNTArr|TotalArr|TotalWild\n";
   O << totC << "|" << totP << "|" << totNt << "|" << totA << "|" << totWi << "\n";
 
+  if (AllTypes) {
+    ArrBInfo.getBStats().print(O);
+  }
+
 }
 
 bool ProgramInfo::isExternOkay(std::string Ext) {
@@ -519,7 +522,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
 
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     // Function Decls have FVConstraints.
-    FVConstraint *F = new FVConstraint(D, CS, *astContext);
+    FVConstraint *F = new FVConstraint(D, *this, *astContext);
     std::set<FVConstraint *> NewFVars;
     /* Store the FVConstraint in the global and Variables maps */
     NewFVars.insert(F);
@@ -539,7 +542,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
   } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
     const Type *Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     if (Ty->isPointerType() || Ty->isArrayType()) {
-      PVConstraint *P = new PVConstraint(D, CS, *astContext);
+      PVConstraint *P = new PVConstraint(D, *this, *astContext);
       S.insert(P);
       std::string VarName = VD->getName();
       if (VD->hasGlobalStorage()) {
@@ -559,7 +562,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
   } else if (FieldDecl *FlD = dyn_cast<FieldDecl>(D)) {
     const Type *Ty = FlD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     if (Ty->isPointerType() || Ty->isArrayType()) {
-      PVConstraint *P = new PVConstraint(D, CS, *astContext);
+      PVConstraint *P = new PVConstraint(D, *this, *astContext);
       S.insert(P);
       specialCaseVarIntros(D, astContext);
     }
@@ -654,7 +657,7 @@ std::set<FVConstraint *> *ProgramInfo::getFuncFVConstraints(FunctionDecl *FD,
     // FIXME: We are being asked to access a function never declared; best action?
     if (FunFVars == nullptr) {
       // make one
-      FVConstraint *F = new FVConstraint(FD, CS, *C);
+      FVConstraint *F = new FVConstraint(FD, *this, *C);
       assert(!F->hasBody());
       ExternalFunctionFVCons[FuncName].insert(F);
       FunFVars = &ExternalFunctionFVCons[FuncName];

@@ -24,11 +24,17 @@ using namespace clang;
 using namespace llvm;
 
 
-// Suffixes for constraint output files.
+// Suffixes for constraint output files.ParameterGatherer
 #define INITIAL_OUTPUT_SUFFIX "_initial_constraints"
 #define FINAL_OUTPUT_SUFFIX "_final_output"
 #define BEFORE_SOLVING_SUFFIX "_before_solving_"
 #define AFTER_SUBTYPING_SUFFIX "_after_subtyping_"
+
+static cl::OptionCategory ArrBoundsInferCat("Array bounds inference options");
+static cl::opt<bool> DebugArrSolver("debug-arr-solver",
+                                   cl::desc("Dump array bounds inference graph"),
+                                   cl::init(false),
+                                    cl::cat(ArrBoundsInferCat));
 
 bool DumpIntermediate;
 bool Verbose;
@@ -259,6 +265,13 @@ bool CConvInterface::SolveConstraints() {
     dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, GlobalProgramInfo);
   }
 
+  if (DebugArrSolver) {
+    GlobalProgramInfo.getABoundsInfo().dumpAVarGraph("arr_bounds_initial.dot");
+  }
+
+  // Propagate initial data-flow information for Array pointers.
+  GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
+
   // 3. Gather pre-rewrite data.
   ClangTool &Tool = getGlobalClangTool();
   std::unique_ptr<ToolAction> GatherTool =
@@ -268,6 +281,13 @@ bool CConvInterface::SolveConstraints() {
     Tool.run(GatherTool.get());
   else
     llvm_unreachable("No Action");
+
+  // Propagate data-flow information for Array pointers.
+  GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
+
+  if (DebugArrSolver) {
+    GlobalProgramInfo.getABoundsInfo().dumpAVarGraph("arr_bounds_final.dot");
+  }
 
   return true;
 }

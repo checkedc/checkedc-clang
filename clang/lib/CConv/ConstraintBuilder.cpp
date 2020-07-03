@@ -33,7 +33,8 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
       if (FE && FE->isValid()) {
         // We only want to re-write a record if it contains
         // any pointer types, to include array types.
-        for (const auto &D : Definition->fields())
+        for (const auto &D : Definition->fields()) {
+          Info.getABoundsInfo().insertVariable(D);
           if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
             Info.addVariable(D, Context);
             if(FL.isInSystemHeader() || Definition->isUnion()) {
@@ -42,6 +43,7 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
               CB.constraintAllCVarsToWild(C, Rsn, nullptr);
             }
           }
+        }
       }
     }
   }
@@ -65,6 +67,7 @@ public:
       }
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         if (VD->isLocalVarDecl()) {
+          Info.getABoundsInfo().insertVariable(VD);
           FullSourceLoc FL = Context->getFullLoc(VD->getBeginLoc());
           SourceRange SR = VD->getSourceRange();
           if (SR.isValid() && FL.isValid() &&
@@ -131,6 +134,7 @@ public:
     auto &CS = Info.getConstraints();
     std::set<ConstraintVariable *> FVCons;
     std::string FuncName = "";
+    FunctionDecl *TFD = nullptr;
 
     // figure out who we are calling
     if (D == nullptr) {
@@ -149,6 +153,7 @@ public:
     } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       FuncName = FD->getNameAsString();
       FVCons = Info.getVariable(FD, Context);
+      TFD = FD;
     } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {
       FVCons = Info.getVariable(DD, Context);
       FuncName = DD->getNameAsString();
@@ -178,6 +183,19 @@ public:
                   TargetFV->getParamVar(i);
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
                                   Wild_to_Safe, false, &Info);
+              if (AllTypes && TFD != nullptr &&
+                  !CB.containsValidCons(ParameterDC) &&
+                  !CB.containsValidCons(ArgumentConstraints)) {
+                auto *PVD = TFD->getParamDecl(i);
+                auto &ABI = Info.getABoundsInfo();
+                BoundsKey PVKey, AGKey;
+                if ((CB.resolveBoundsKey(ParameterDC, PVKey) ||
+                     ABI.tryGetVariable(PVD, PVKey)) &&
+                    (CB.resolveBoundsKey(ArgumentConstraints, AGKey) ||
+                     ABI.tryGetVariable(A, *Context, AGKey))) {
+                  ABI.addAssignment(PVKey, AGKey);
+                }
+              }
             } else {
               // The argument passed to a function ith varargs; make it wild
               if (HandleVARARGS) {
@@ -343,6 +361,7 @@ public:
 
     if (G->hasGlobalStorage() &&
         (G->getType()->isPointerType() || G->getType()->isArrayType())) {
+      Info.getABoundsInfo().insertVariable(G);
       Info.addVariable(G, Context);
       if (G->hasInit()) {
         CB.constrainLocalAssign(nullptr, G, G->getInit());
@@ -388,7 +407,6 @@ public:
         Stmt *Body = D->getBody();
         FunctionVisitor FV = FunctionVisitor(Context, Info, D);
         FV.TraverseStmt(Body);
-        AddArrayHeuristics(Context, Info, D);
       }
     }
 

@@ -84,6 +84,8 @@ PointerVariableConstraint::
   this->arrSizes = Ot->arrSizes;
   this->ArrPresent = Ot->ArrPresent;
   this->HasEqArgumentConstraints = Ot->HasEqArgumentConstraints;
+  this->ValidBoundsKey = Ot->ValidBoundsKey;
+  this->BKey = Ot->BKey;
   // Make copy of the vars only for VarAtoms.
   for (auto *CV : Ot->vars) {
     if (ConstAtom *CA = dyn_cast<ConstAtom>(CV)) {
@@ -101,15 +103,15 @@ PointerVariableConstraint::
 }
 
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
-                                                     Constraints &CS,
+                                                     ProgramInfo &I,
                                                      const ASTContext &C) :
         PointerVariableConstraint(D->getType(), D, D->getName(),
-                                  CS, C) { }
+                                  I, C) { }
 
 PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
                                                      DeclaratorDecl *D,
                                                      std::string N,
-                                                     Constraints &CS,
+                                                     ProgramInfo &I,
                                                      const ASTContext &C,
                                                      std::string *inFunc) :
         ConstraintVariable(ConstraintVariable::PointerVariable,
@@ -118,6 +120,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 {
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
+  auto &CS = I.getConstraints();
   // If the type is a decayed type, then maybe this is the result of
   // decaying an array to a pointer. If the original type is some
   // kind of array type, we want to use that instead.
@@ -137,6 +140,28 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
   bool isDeclTy = false;
   if (D != nullptr) {
+    auto &ABInfo = I.getABoundsInfo();
+    if (ABInfo.tryGetVariable(D, BKey)) {
+      ValidBoundsKey = true;
+    }
+    if (D->hasBoundsAnnotations()) {
+      BoundsAnnotations BA = D->getBoundsAnnotations();
+      BoundsExpr *BExpr = BA.getBoundsExpr();
+      if (BExpr != nullptr) {
+        SourceRange R = BExpr->getSourceRange();
+        if (R.isValid()) {
+          BoundsAnnotationStr = getSourceText(R, C);
+        }
+        if (D->hasBoundsAnnotations() && ABInfo.isValidBoundVariable(D)) {
+          assert(ABInfo.tryGetVariable(D, BKey) &&
+                 "Is expected to have valid Bounds key");
+
+            ABounds *NewB = ABounds::getBoundsInfo(&ABInfo, BExpr, C);
+            ABInfo.insertDeclaredBounds(D, NewB);
+        }
+      }
+    }
+
     isDeclTy = D->getType() == QT; // If false, then QT may be D's return type
     if (InteropTypeExpr *ITE = D->getInteropTypeExpr()) {
       // External variables can also have itype.
@@ -163,11 +188,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
         SourceRange R = ITE->getSourceRange();
         if (R.isValid()) {
-          auto &SM = C.getSourceManager();
-          auto LO = C.getLangOpts();
-          llvm::StringRef Srctxt =
-              Lexer::getSourceText(CharSourceRange::getTokenRange(R), SM, LO);
-          ItypeStr = Srctxt.str();
+          ItypeStr = getSourceText(R, C);
           assert(ItypeStr.size() > 0);
         }
       }
@@ -289,7 +310,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     // where tn is the typedef'ed type name.
     // There is possibly something more elegant to do in the code here.
     FV = new FVConstraint(Ty, isDeclTy ? D : nullptr,
-                          (IsTypedef ? "" : N), CS, C);
+                          (IsTypedef ? "" : N), I, C);
 
   BaseType = tyToStr(Ty);
 
@@ -406,10 +427,10 @@ bool PointerVariableConstraint::emitArraySize(std::ostringstream &Pss,
         Pss << "[" << Oas << "]";
         Ret = true;
         break;
-      case O_UnSizedArray:
+      /*case O_UnSizedArray:
         Pss << "[]";
         Ret = true;
-        break;
+        break;*/
       default: break;
     }
     return Ret;
@@ -617,17 +638,17 @@ FunctionVariableConstraint::
 // return, even those that aren't pointer types, since we may need to
 // re-emit the function signature as a type.
 FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
-                                                       Constraints &CS,
+                                                       ProgramInfo &I,
                                                        const ASTContext &C) :
         FunctionVariableConstraint(D->getType().getTypePtr(), D,
                                    (D->getDeclName().isIdentifier() ?
-                                        D->getName() : ""), CS, C)
+                                        D->getName() : ""), I, C)
 { }
 
 FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
                                                        DeclaratorDecl *D,
                                                        std::string N,
-                                                       Constraints &CS,
+                                                       ProgramInfo &I,
                                                        const ASTContext &Ctx) :
         ConstraintVariable(ConstraintVariable::FunctionVariable,
                            tyToStr(Ty), N), Parent(nullptr)
@@ -638,6 +659,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   FileName = "";
   HasEqArgumentConstraints = false;
   IsFunctionPtr = true;
+  auto &CS = I.getConstraints();
 
   // Metadata about function
   FunctionDecl *FD = nullptr;
@@ -685,7 +707,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
       }
 
       std::set<ConstraintVariable *> C;
-      C.insert(new PVConstraint(QT, ParmVD, PName, CS, Ctx, &N));
+      C.insert(new PVConstraint(QT, ParmVD, PName, I, Ctx, &N));
       paramVars.push_back(C);
     }
 
@@ -699,7 +721,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   }
 
   // ConstraintVariable for the return
-  returnVars.insert(new PVConstraint(RT, D, RETVAR, CS, Ctx, &N));
+  returnVars.insert(new PVConstraint(RT, D, RETVAR, I, Ctx, &N));
 }
 
 void FunctionVariableConstraint::constrainToWild(Constraints &CS) {
@@ -741,28 +763,28 @@ bool FunctionVariableConstraint::anyChanges(EnvironmentMap &E) {
   return f;
 }
 
-bool FunctionVariableConstraint::hasWild(EnvironmentMap &E)
+bool FunctionVariableConstraint::hasWild(EnvironmentMap &E, int AIdx)
 {
   for (const auto &C : returnVars)
-    if (C->hasWild(E))
+    if (C->hasWild(E, AIdx))
       return true;
 
   return false;
 }
 
-bool FunctionVariableConstraint::hasArr(EnvironmentMap &E)
+bool FunctionVariableConstraint::hasArr(EnvironmentMap &E, int AIdx)
 {
   for (const auto &C : returnVars)
-    if (C->hasArr(E))
+    if (C->hasArr(E, AIdx))
       return true;
 
   return false;
 }
 
-bool FunctionVariableConstraint::hasNtArr(EnvironmentMap &E)
+bool FunctionVariableConstraint::hasNtArr(EnvironmentMap &E, int AIdx)
 {
   for (const auto &C : returnVars)
-    if (C->hasNtArr(E))
+    if (C->hasNtArr(E, AIdx))
       return true;
 
   return false;
@@ -942,46 +964,65 @@ PointerVariableConstraint::getSolution(const Atom *A, EnvironmentMap &E) const {
   return CS;
 }
 
-bool PointerVariableConstraint::hasWild(EnvironmentMap &E)
+bool PointerVariableConstraint::hasWild(EnvironmentMap &E, int AIdx)
 {
+  int VarIdx = 0;
   for (const auto &C : vars) {
     const ConstAtom *CS = getSolution(C, E);
     if (isa<WildAtom>(CS))
       return true;
+    if (VarIdx == AIdx)
+      break;
+    VarIdx++;
   }
 
   if (FV)
-    return FV->hasWild(E);
+    return FV->hasWild(E, AIdx);
 
   return false;
 }
 
-bool PointerVariableConstraint::hasArr(EnvironmentMap &E)
+bool PointerVariableConstraint::hasArr(EnvironmentMap &E, int AIdx)
 {
+  int VarIdx = 0;
   for (const auto &C : vars) {
     const ConstAtom *CS = getSolution(C, E);
     if (isa<ArrAtom>(CS))
       return true;
+    if (VarIdx == AIdx)
+      break;
+    VarIdx++;
   }
 
   if (FV)
-    return FV->hasArr(E);
+    return FV->hasArr(E, AIdx);
 
   return false;
 }
 
-bool PointerVariableConstraint::hasNtArr(EnvironmentMap &E)
+bool PointerVariableConstraint::hasNtArr(EnvironmentMap &E, int AIdx)
 {
+  int VarIdx = 0;
   for (const auto &C : vars) {
     const ConstAtom *CS = getSolution(C, E);
     if (isa<NTArrAtom>(CS))
       return true;
+    if (VarIdx == AIdx)
+      break;
+    VarIdx++;
   }
 
   if (FV)
-    return FV->hasNtArr(E);
+    return FV->hasNtArr(E, AIdx);
 
   return false;
+}
+
+bool PointerVariableConstraint::isTopCvarUnsizedArr() {
+  if (arrSizes.find(0) != arrSizes.end()) {
+    return arrSizes[0].first != O_SizedArray;
+  }
+  return true;
 }
 
 bool PointerVariableConstraint::
@@ -1313,6 +1354,13 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
     }
     else if (PVConstraint *PCLHS = dyn_cast<PVConstraint>(LHS)) {
       if (PVConstraint *PCRHS = dyn_cast<PVConstraint>(RHS)) {
+
+        // Add assignment to bounds info graph
+        if (PCLHS->hasBoundsKey() && PCRHS->hasBoundsKey()) {
+          Info->getABoundsInfo().addAssignment(PCLHS->getBoundsKey(),
+                                               PCRHS->getBoundsKey());
+        }
+
         std::string Rsn = "";
         // This is to handle function subtyping. Try to add LHS and RHS
         // to each others argument constraints.
@@ -1410,6 +1458,9 @@ void PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
   assert (From != nullptr);
   CAtoms CFrom = From->getCvars();
   assert (vars.size() == CFrom.size());
+  ValidBoundsKey = From->hasBoundsKey();
+  if (From->hasBoundsKey())
+    BKey = From->getBoundsKey();
   vars = CFrom; // FIXME: structural copy? By reference?
   argumentConstraints = From->getArgumentConstraints();
   if (FV) {
