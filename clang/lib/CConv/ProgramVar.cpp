@@ -56,7 +56,7 @@ std::string ProgramVar::mkString(bool GetKey) {
   if (GetKey) {
     Ret = std::to_string(K) + "_";
   }
-  if (IsConstant) {
+  if (GetKey && IsConstant) {
     Ret += "Cons:";
   }
   Ret += VarName;
@@ -64,6 +64,6 @@ std::string ProgramVar::mkString(bool GetKey) {
 }
 
 std::string ProgramVar::verboseStr() {
-  std::string Ret = mkString() + "(" + VScope->getStr() + ")";
+  std::string Ret = mkString(true) + "(" + VScope->getStr() + ")";
   return Ret;
 }
