@@ -168,4 +168,4 @@ return z; }
 //CHECK_NOALL: int * sus(int (*x)(int), _Ptr<int (int )> y) {
 //CHECK_NOALL:         int *z = calloc(5, sizeof(int));
 //CHECK_ALL: _Nt_array_ptr<int> sus(int (*x)(int), _Ptr<int (int )> y) {
-//CHECK_ALL:         _Nt_array_ptr<int> z =  calloc(5, sizeof(int));
+//CHECK_ALL:         _Nt_array_ptr<int> z : count(5) =  calloc(5, sizeof(int));
