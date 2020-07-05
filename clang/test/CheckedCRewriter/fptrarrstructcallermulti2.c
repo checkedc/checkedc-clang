@@ -59,7 +59,7 @@ struct fptrarr {
 //CHECK_NOALL:     char *name;
 //CHECK_NOALL:     _Ptr<int (int )> mapper;
 
-//CHECK_ALL:     _Array_ptr<int> values; 
+//CHECK_ALL:     _Array_ptr<int> values : count(5); 
 //CHECK_ALL:     char *name;
 //CHECK_ALL:     _Ptr<int (int )> mapper;
 
