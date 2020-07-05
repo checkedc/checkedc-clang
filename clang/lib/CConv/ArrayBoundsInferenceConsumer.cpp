@@ -677,6 +677,13 @@ public:
     }
   }
 
+  void VisitSwitchStmt(SwitchStmt *St) {
+    // Ignore.
+  }
+
+  void VisitSwitchCase(SwitchCase *St) {
+    // Ignore.
+  }
   void VisitBinaryOperator(BinaryOperator *BO) {
     // We care about < and >= operator.
     if (BO->getOpcode() == BO_LT || BO->getOpcode() == BO_GE) {
