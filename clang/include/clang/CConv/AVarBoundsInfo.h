@@ -87,7 +87,8 @@ public:
   AvarBoundsInference(AVarBoundsInfo *BoundsInfo) : BI(BoundsInfo) { }
 
   // Infer bounds for the given key from the set of given ARR atoms.
-  bool inferBounds(BoundsKey K);
+  // The flag FromPB requests the inference to use potential length variables.
+  bool inferBounds(BoundsKey K, bool FromPB = false);
 private:
   bool inferPossibleBounds(BoundsKey K, ABounds *SB,
                            std::set<ABounds *> &EB);
@@ -123,6 +124,7 @@ public:
   bool removeBounds(BoundsKey L);
   bool replaceBounds(BoundsKey L, ABounds *B);
   ABounds *getBounds(BoundsKey L);
+  bool updatePotentialCountBounds(BoundsKey BK, std::set<BoundsKey> &CntBK);
 
   // Try and get BoundsKey, into R, for the given declaration. If the declaration
   // does not have a BoundsKey then return false.
@@ -184,6 +186,9 @@ private:
   AVarGraph ProgVarGraph;
   // Stats on techniques used to find length for various variables.
   AVarBoundsStats BoundsInferStats;
+  // This is the map of pointer variable bounds key and set of bounds key
+  // which can be the count bounds.
+  std::map<BoundsKey, std::set<BoundsKey>> PotentialCntBounds;
 
   // BoundsKey helper function: These functions help in getting bounds key from
   // various artifacts.
@@ -196,6 +201,11 @@ private:
   void insertVarKey(PersistentSourceLoc &PSL, BoundsKey NK);
 
   void insertProgramVar(BoundsKey NK, ProgramVar *PV);
+
+  // Perform worklist based inference on the requested array variables.
+  // The flag FromPB requests the algorithm to use potential length variables.
+  bool performWorkListInference(std::set<BoundsKey> &ArrNeededBounds,
+                                bool FromPB = false);
 
 };
 

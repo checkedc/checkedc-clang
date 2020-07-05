@@ -407,6 +407,8 @@ public:
         Stmt *Body = D->getBody();
         FunctionVisitor FV = FunctionVisitor(Context, Info, D);
         FV.TraverseStmt(Body);
+        LengthVarInference LVI(Info, Context, D);
+        LVI.Visit(Body);
       }
     }
 
