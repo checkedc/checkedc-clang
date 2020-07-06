@@ -395,20 +395,6 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   // If we have seen the body of this function? Then try to guess the length
   // of the parameters that are arrays.
   if (FD->isThisDeclarationADefinition() && FD->hasBody()) {
-    std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, FD->getBody(),
-                                             Context, CFG::BuildOptions());
-
-    CFGDomTree DT(Cfg.get());
-
-    auto *RBB = DT.getRoot();
-    DT.getRootNode()->getChildren();
-
-    ControlDependencyCalculator CDG(Cfg.get());
-    CDG.getControlDependencies(RBB);
-
-
-
-
     auto &ABInfo = Info.getABoundsInfo();
     auto &ABStats = ABInfo.getBStats();
     const clang::Type *Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
