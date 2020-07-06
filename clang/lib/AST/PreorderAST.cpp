@@ -39,8 +39,7 @@ void PreorderAST::Create(Expr *E, Node *N, Node *Parent) {
 
   E = Lex.IgnoreValuePreservingOperations(Ctx, E);
 
-  // If E is a variable, store its name in the variable list for the current
-  // node.
+  // If E is a variable, store it in the variable list for the current node.
   if (DeclRefExpr *D = GetDeclOperand(E)) {
     if (const auto *V = dyn_cast_or_null<VarDecl>(D->getDecl())) {
       N->Vars.push_back(V);
@@ -176,13 +175,15 @@ void PreorderAST::PrettyPrint(Node *N) {
 
   OS << BinaryOperator::getOpcodeStr(N->Opc);
 
-  for (auto &V : N->Vars)
-    OS << " [" << V->getQualifiedNameAsString() << "]";
+  if (N->Vars.size()) {
+    OS << "[ ";
+    for (auto &V : N->Vars)
+      OS << V->getQualifiedNameAsString() << " ";
+    OS << "]\n";
+  }
 
   if (N->HasConst)
-    OS << " [const:" << N->Const << "]";
-
-  OS << "\n";
+    OS << " [const:" << N->Const << "]\n";
 
   PrettyPrint(N->Left);
   PrettyPrint(N->Right);
