@@ -572,22 +572,13 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
   constrainWildIfMacro(S, D->getLocation());
 }
 
-// An analogous method to addVariable that create constraints for compound
-// literal expressions. This is required because compound literals contain
-// the type of the expressions which must be rewritten to generate correct
-// checked-c.
-void ProgramInfo::addCompoundLiteral(clang::CompoundLiteralExpr *CLE,
-                                     clang::ASTContext *AstContext) {
-  PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(CLE, *AstContext);
+std::set<ConstraintVariable *>
+    &ProgramInfo::getPersistentConstraintVars(Expr *E,
+                                              clang::ASTContext *AstContext){
+  PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(E, *AstContext);
   assert(PLoc.valid());
-  std::set<ConstraintVariable *> &S = Variables[PLoc];
-  if (S.size()) return;
 
-  PVConstraint *P = new PVConstraint(CLE->getType(), nullptr, "CLE", *this,
-                                     *AstContext, nullptr);
-  S.insert(P);
-
-  constrainWildIfMacro(S, CLE->getExprLoc());
+  return Variables[PLoc];
 }
 
 // The Rewriter won't let us re-write things that are in macros. So, we
@@ -721,15 +712,6 @@ std::set<ConstraintVariable *> ProgramInfo::getVariable(clang::Decl *D,
     }
     return std::set<ConstraintVariable *>();
   }
-}
-
-std::set<ConstraintVariable *>
-ProgramInfo::getCompoundLiteral(clang::CompoundLiteralExpr *CLE,
-                                clang::ASTContext *C) {
-  VariableMap::iterator I = Variables.find(PersistentSourceLoc::mkPSL(CLE, *C));
-  if (I != Variables.end())
-    return I->second;
-  return std::set<ConstraintVariable *>();
 }
 
 std::set<FVConstraint *> *

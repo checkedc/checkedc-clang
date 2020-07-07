@@ -323,7 +323,9 @@ std::set<ConstraintVariable *>
         // add a VarAtom to UOExpr's PVConstraint, for &
         std::set<ConstraintVariable *> T = getExprConstraintVars(UOExpr);
         assert("Empty constraint vars in AddrOf!" && !T.empty());
-        return addAtomAll(T, CS.getPtr(), CS);
+        std::set<ConstraintVariable *> AddrVs = addAtomAll(T, CS.getPtr(), CS);
+
+        return getPersistentConstraints(UO, AddrVs);
       }
 
       // *e
@@ -450,7 +452,8 @@ std::set<ConstraintVariable *>
 
         }
       }
-      return TmpCVs;
+
+      return getPersistentConstraints(CE, TmpCVs);
 
     // e1 ? e2 : e3
     } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
@@ -480,29 +483,33 @@ std::set<ConstraintVariable *>
 
     // (int[]){e1, e2, e3, ... }
     } else if (CompoundLiteralExpr *CLE = dyn_cast<CompoundLiteralExpr>(E)) {
-      std::set<ConstraintVariable *> Vars = getExprConstraintVars(CLE->getInitializer());
+      std::set<ConstraintVariable *>
+          Vars = getExprConstraintVars(CLE->getInitializer());
 
-      FullSourceLoc FL = Context->getFullLoc(CLE->getBeginLoc());
-      SourceRange SR = CLE->getSourceRange();
-      if (SR.isValid() && FL.isValid())
-        Info.addCompoundLiteral(CLE, Context);
+      PVConstraint *P = new PVConstraint(CLE->getType(), nullptr,
+                                         CLE->getStmtClassName(), Info,
+                                         *Context, nullptr);
+      std::set<ConstraintVariable *> T = {P};
+
       PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CLE, *Context);
-      std::set<ConstraintVariable *> L = Info.getCompoundLiteral(CLE, Context);
-      constrainConsVarGeq(L, Vars, Info.getConstraints(), &PL, Same_to_Same, false, &Info);
+      constrainConsVarGeq(T, Vars, Info.getConstraints(), &PL,
+                          Same_to_Same, false, &Info);
 
-      return Vars;
+      return getPersistentConstraints(CLE, T);
 
     // "foo"
-    } else if (clang::StringLiteral *exr = dyn_cast<clang::StringLiteral>(E)) {
+    } else if (clang::StringLiteral *Str = dyn_cast<clang::StringLiteral>(E)) {
       // If this is a string literal. i.e., "foo".
       // We create a new constraint variable and constraint it to an Nt_array.
-      std::set<ConstraintVariable *> T;
-      PVConstraint *newC = new PVConstraint(
-          exr->getType(), nullptr, "str", Info, *Context, nullptr);
-      newC->constrainOuterTo(CS, CS.getNTArr()); // NB: ARR already there
-      TempConstraintVars.insert(newC);
-      T.insert(newC);
-      return T;
+
+      PVConstraint *P = new PVConstraint(Str->getType(), nullptr,
+                                         Str->getStmtClassName(), Info,
+                                         *Context, nullptr);
+      P->constrainOuterTo(CS, CS.getNTArr()); // NB: ARR already there
+      TempConstraintVars.insert(P);
+      std::set<ConstraintVariable *> T = {P};
+
+      return getPersistentConstraints(Str, T);
 
     // Checked-C temporary
     } else if (CHKCBindTemporaryExpr *CE = dyn_cast<CHKCBindTemporaryExpr>(E)) {
@@ -519,6 +526,16 @@ std::set<ConstraintVariable *>
     }
   }
   return std::set<ConstraintVariable *>();
+}
+
+std::set<ConstraintVariable *> ConstraintResolver::getPersistentConstraints(
+    clang::Expr *E,
+    std::set<ConstraintVariable *> &Vars) {
+  std::set<ConstraintVariable *>
+      &Persist = Info.getPersistentConstraintVars(E, Context);
+  if(Persist.empty())
+    Persist.insert(Vars.begin(), Vars.end());
+  return Persist;
 }
 
 // Collect constraint variables for Exprs int a set

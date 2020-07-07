@@ -788,7 +788,8 @@ public:
     // When an compound literal was visited in constraint generation, a
     // constraint variable for it was stored in program info.  There should be
     // either zero or one of these.
-    std::set<ConstraintVariable *> CVSingleton = Info.getCompoundLiteral(CLE, Context);
+    std::set<ConstraintVariable *>
+        CVSingleton = Info.getPersistentConstraintVars(CLE, Context);
     if (CVSingleton.empty())
       return true;
     ConstraintVariable *CV = getOnly(CVSingleton);
