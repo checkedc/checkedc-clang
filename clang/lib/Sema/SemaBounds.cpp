@@ -1865,6 +1865,10 @@ namespace {
     // Given an assignment target = e, where target has declared bounds
     // DeclaredBounds and and e has inferred bounds SrcBounds, make sure
     // that SrcBounds implies that DeclaredBounds are provably true.
+    //
+    // CheckBoundsDeclAtAssignment is currently used only to check the bounds
+    // for assignments to non-variable target expressions.  Variable bounds
+    // are checked after each top-level statement in ValidateBoundsContext.
     void CheckBoundsDeclAtAssignment(SourceLocation ExprLoc, Expr *Target,
                                      BoundsExpr *DeclaredBounds, Expr *Src,
                                      BoundsExpr *SrcBounds,
@@ -2868,10 +2872,10 @@ namespace {
             else
               RightBounds = S.CheckNonModifyingBounds(ResultBounds, RHS);
 
-            // For assignments to a variable where the RHS bounds contain a
-            // modifying expression (i.e. are invalid), update the variable's
-            // observed bounds to avoid extraneous errors during bounds
-            // validation.
+            // If RightBounds are invalid bounds, it is because the bounds for
+            // the RHS contained a modifying expression. Update the variable's
+            // observed bounds to be InvalidBounds to avoid extraneous errors
+            // during bounds declaration validation.
             if (LHSVar && RightBounds->isInvalid()) {
               VarDecl *V = dyn_cast_or_null<VarDecl>(LHSVar->getDecl());
               if (V)
