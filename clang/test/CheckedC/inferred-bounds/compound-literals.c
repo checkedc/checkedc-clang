@@ -116,6 +116,7 @@ void f2(_Array_ptr<struct S> arr : count(1), struct S s) {
   // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'arr' '_Array_ptr<struct S>'
   // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <BitCast>
   // CHECK:  `-UnaryOperator {{0x[0-9a-f]+}} 'struct S *' prefix '&' cannot overflow
+  // CHECK:  `-CHKCBindTemporaryExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
   // CHECK:  `-CompoundLiteralExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
   // CHECK:  `-InitListExpr {{0x[0-9a-f]+}} 'struct S':'struct S'
   // CHECK:  |-IntegerLiteral {{0x[0-9a-f]+}} 'int' 0
