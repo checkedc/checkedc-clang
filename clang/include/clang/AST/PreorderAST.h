@@ -22,6 +22,8 @@
 
 namespace clang {
 
+  using Result = Lexicographic::Result;
+
   // Each binary operator of an expression results in a new node of the
   // PreorderAST. Each node contains 3 fields:
   // Opc: The opcode of the operator.
@@ -110,7 +112,9 @@ namespace clang {
     // @return Returns a bool indicating whether the two ASTs are equal.
     bool IsEqual(PreorderAST &P) { return IsEqual(Root, P.Root); }
 
-    // Check if an error has occurred during transformation of the AST.
+    // Check if an error has occurred during transformation of the AST. This
+    // is intended to be called from outside this class to check if an error
+    // has occurred during comparison of expressions.
     // @return Whether an error has occurred or not.
     bool GetError() { return Error; }
 

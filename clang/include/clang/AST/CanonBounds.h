@@ -119,7 +119,8 @@ namespace clang {
     /// bounds expressions.
     Result CompareExpr(const Expr *E1, const Expr *E2);
     /// \brief Semantic comparison of expressions that can occur in
-    /// bounds expressions.
+    /// bounds expressions. A return value of true indicates that the two
+    /// expressions are equivalent semantically.
     bool CompareExprSemantically(const Expr *E1, const Expr *E2);
 
     /// \brief Compare declarations that may be used by expressions or

@@ -101,9 +101,8 @@ void PreorderAST::Sort(Node *N) {
 
   // Sort the variables in the node lexicographically.
   llvm::sort(N->Vars.begin(), N->Vars.end(),
-             [](const VarDecl *V1, const VarDecl *V2) {
-               return V1->getQualifiedNameAsString().compare(
-                      V2->getQualifiedNameAsString()) < 0;
+             [&](const VarDecl *V1, const VarDecl *V2) {
+               return Lex.CompareDecl(V1, V2) == Result::LessThan;
              });
 
   Sort(N->Left);
@@ -137,8 +136,7 @@ bool PreorderAST::IsEqual(Node *N1, Node *N2) {
     auto &V2 = N2->Vars[I];
 
     // If any variable differs between the two nodes.
-    if (V1->getQualifiedNameAsString().compare(
-        V2->getQualifiedNameAsString()) != 0)
+    if (Lex.CompareDecl(V1, V2) != Result::Equal)
       return false;
   }
 
