@@ -847,9 +847,13 @@ public:
   }
 
   Value *VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+    if (E->getSubExpr()->isLValue()) {
+      LValue LV = CGF.EmitLValue(E->getSubExpr());
+      CGF.setBoundsTemporaryLValueMapping(E, LV);
+      return EmitLoadOfLValue(LV, E->getExprLoc());
+    }
     Value *Result = Visit(E->getSubExpr());
-    if (!E->getSubExpr()->isLValue())
-      CGF.setBoundsTemporaryRValueMapping(E, RValue::get(Result));
+    CGF.setBoundsTemporaryRValueMapping(E, RValue::get(Result));
     return Result;
   }
 };
