@@ -3636,6 +3636,8 @@ namespace {
         // Only expressions with array or function type can have a decayed
         // type, which is used to create the lvalue bounds.  Compound literals
         // with non-array, non-function types do not have lvalue bounds.
+        // TODO: checkedc-clang issue #870: bind all compound literals to
+        // temporaries and infer lvalue bounds for struct compound literals.
         if (!(E->getType()->isArrayType() || E->getType()->isFunctionType()))
           return CreateBoundsAlwaysUnknown();
 
