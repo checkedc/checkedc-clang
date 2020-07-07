@@ -104,6 +104,9 @@ public:
     return Visit(E->getSubExpr());
   }
   ComplexPairTy VisitParenExpr(ParenExpr *PE) { return Visit(PE->getSubExpr());}
+  ComplexPairTy VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+    return Visit(E->getSubExpr());
+  }
   ComplexPairTy VisitGenericSelectionExpr(GenericSelectionExpr *GE) {
     return Visit(GE->getResultExpr());
   }

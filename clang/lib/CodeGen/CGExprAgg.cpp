@@ -109,6 +109,9 @@ public:
     CGF.ErrorUnsupported(S, "aggregate expression");
   }
   void VisitParenExpr(ParenExpr *PE) { Visit(PE->getSubExpr()); }
+  void VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+    Visit(E->getSubExpr());
+  }
   void VisitGenericSelectionExpr(GenericSelectionExpr *GE) {
     Visit(GE->getResultExpr());
   }
