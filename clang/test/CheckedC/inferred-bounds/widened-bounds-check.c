@@ -13,6 +13,7 @@ void f1() {
   {}
 
   if (*p) {
+    // TODO: checkedc-clang issue #872: declared bounds for p should not be invalid
     p++; // expected-error {{declared bounds for 'p' are invalid after statement}}
     if (*(p + 1)) // expected-error {{out-of-bounds memory access}}
     {}

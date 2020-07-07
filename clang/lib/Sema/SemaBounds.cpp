@@ -2850,6 +2850,9 @@ namespace {
         // State.SameValue for `e1 @ e2`.
         UpdateSameValue(E, SubExprSameValueSets, State.SameValue);
 
+      // TODO: checkedc-clang issue #873: combine this E->isAssignmentOp()
+      // block with the earlier E->isAssignmentOp() block for updating the
+      // checking state.
       if (E->isAssignmentOp()) {
         QualType LHSType = LHS->getType();
         // Bounds of the right-hand side of the assignment
