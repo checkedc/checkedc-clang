@@ -2885,22 +2885,20 @@ namespace {
                 State.ObservedBounds[V] = RightBounds;
             }
 
-            if (RightBounds->isUnknown()) {
-                // Only emit an error for assignments to a non-variable.
-                // Assignments to variables will be checked after checking the
-                // current top-level CFG statement.
-                if (!LHSVar)
-                  S.Diag(RHS->getBeginLoc(),
-                        diag::err_expected_bounds_for_assignment)
-                        << RHS->getSourceRange();
+            // Check bounds declarations for assignments to a non-variable.
+            // Assignments to variables will be checked after checking the
+            // current top-level CFG statement.
+            if (!LHSVar) {
+              if (RightBounds->isUnknown()) {
+                S.Diag(RHS->getBeginLoc(),
+                       diag::err_expected_bounds_for_assignment)
+                    << RHS->getSourceRange();
                 RightBounds = S.CreateInvalidBoundsExpr();
-            }
-
-            // For assignments to a non-variable, check that the source bounds
-            // imply the target bounds.
-            if (!LHSVar)
+              }
               CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
-                                          RHS, RightBounds, State.EquivExprs, CSS);
+                                          RHS, RightBounds, State.EquivExprs,
+                                          CSS);
+            }
           }
         }
 
@@ -2913,8 +2911,11 @@ namespace {
                                              &State.EquivExprs,
                                              LHSLValueBounds);
         if (DumpBounds && (LHSNeedsBoundsCheck ||
-                            (LHSTargetBounds && !LHSTargetBounds->isUnknown())))
+                            (LHSTargetBounds && !LHSTargetBounds->isUnknown()))) {
+          if (RightBounds && RightBounds->isUnknown())
+            RightBounds = S.CreateInvalidBoundsExpr();
           DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RightBounds);
+        }
       }
 
       return ResultBounds;
