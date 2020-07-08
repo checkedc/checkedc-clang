@@ -8284,9 +8284,9 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
      if (LHSType->isOrContainsCheckedType() ||
          RHSType->isOrContainsCheckedType()) {
        // If ignoring checked pointers is enabled then assignments containing
-       // checked pointers is always compatible
-       return S.getLangOpts().IgnoreCheckedPtr? Sema::Compatible :
-                                                Sema::Incompatible;
+       // checked pointers is always compatible.
+       return S.getLangOpts().IgnoreCheckedPtr ? Sema::Compatible :
+                                                 Sema::Incompatible;
      }
 
     // Check if the pointee types are compatible ignoring the sign.
