@@ -2506,14 +2506,6 @@ namespace {
       }
 
       if (Expr *E = dyn_cast<Expr>(S)) {
-        // Bounds expressions are not null ptrs.
-        if (isa<BoundsExpr>(E))
-          return ResultBounds;
-
-        // Temporary bindings are not null ptrs.
-        if (isa<CHKCBindTemporaryExpr>(E))
-          return ResultBounds;
-
         // Null ptrs always have bounds(any).
         // This is the correct way to detect all the different ways that
         // C can make a null ptr.
@@ -5277,6 +5269,11 @@ namespace {
                                            ToPtrType->getPointeeType(),
                                            /*CompareUnqualifed=*/false,
                                            /*IgnoreBounds=*/false)) {
+            // An _Assume_bounds_cast can be used to cast an unchecked function
+            // pointer to a checked function pointer, if the only difference
+            // is that the source is an unchecked pointer type.
+            if (E->getCastKind() == CastKind::CK_AssumePtrBounds)
+              return;
             S.Diag(Needle->getExprLoc(), 
                    diag::err_cast_to_checked_fn_ptr_from_unchecked_fn_ptr) <<
               ToType << E->getSourceRange();
@@ -5305,6 +5302,10 @@ namespace {
       case CK_FunctionToPointerDecay:
       case CK_BitCast:
       case CK_LValueBitCast:
+      // An _Assume_bounds_cast can be used to cast an unchecked function
+      // pointer to a checked pointer, and should therefore be considered
+      // value-preserving for a function-pointer cast.
+      case CK_AssumePtrBounds:
         return true;
       default:
         S.Diag(E->getExprLoc(), diag::err_cast_to_checked_fn_ptr_not_value_preserving)
