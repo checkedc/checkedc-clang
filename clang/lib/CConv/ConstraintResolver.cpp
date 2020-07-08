@@ -528,12 +528,16 @@ std::set<ConstraintVariable *>
   return std::set<ConstraintVariable *>();
 }
 
+// Get the set of constraint variables for an expression that will persist
+// between the constraint generation and rewriting pass. If the expression
+// already has a set of persistent constraints, this set is returned. Otherwise,
+// the set provided in the arguments is stored persistent and returned. This is
+// required for correct cast insertion.
 std::set<ConstraintVariable *> ConstraintResolver::getPersistentConstraints(
-    clang::Expr *E,
-    std::set<ConstraintVariable *> &Vars) {
+    clang::Expr *E, std::set<ConstraintVariable *> &Vars) {
   std::set<ConstraintVariable *>
       &Persist = Info.getPersistentConstraintVars(E, Context);
-  if(Persist.empty())
+  if (Persist.empty())
     Persist.insert(Vars.begin(), Vars.end());
   return Persist;
 }
