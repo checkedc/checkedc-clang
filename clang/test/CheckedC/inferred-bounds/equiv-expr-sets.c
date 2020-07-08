@@ -1004,8 +1004,150 @@ void original_value10(int *p, int *q, int *r, int *s) {
   // CHECK-NEXT: { }
 }
 
+// UnaryOperator and ArraySubscriptExpr inverse
+void original_value11(array_ptr<int> p, array_ptr<int> q) {
+  // Updated EquivExprs: { { p + 1, q } }
+  q = p + 1;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'q'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'q'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+
+  // Original value of p in (_Array_ptr<int>&p[2]): (int *)p - 2
+  // Updated EquivExprs: { { (int *)p - 2 + 1, q } }
+  p = &p[2];
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} '_Array_ptr<int>' <BitCast>
+  // CHECK-NEXT:     UnaryOperator {{.*}} 'int *' prefix '&'
+  // CHECK-NEXT:       ArraySubscriptExpr {{.*}} 'int'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 2
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} 'int *' <BitCast>
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 2
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'q'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+}
+
+// UnaryOperator and ArraySubscriptExpr: no inverse (unchecked pointer arithmetic)
+void original_value12(int *p, int *q) {
+  // Updated EquivExprs: { { p + 1, q } }
+  q = p + 1;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'q'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'q'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+
+  // Original value of p in &p[0]: null
+  // Updated EquivExprs: { { } }
+  p = &p[0];
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:   UnaryOperator {{.*}} 'int *' prefix '&'
+  // CHECK-NEXT:     ArraySubscriptExpr {{.*}} 'int'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 0
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+}
+
+// UnaryOperator and ArraySubscriptExpr: combined &* and array subscript inverse
+void original_value13(array_ptr<int> p, array_ptr<int> q) {
+  // Updated EquivExprs: { { p + 1, q } }
+  q = p + 1;
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'q'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 1
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'q'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+
+  // Original value of p in (_Array_ptr<int>)&0[&*p]: (int *)p - 0
+  // Updated EquivExprs: { { (int *)p - 0 + 1, q } }
+  p = &0[&*p];
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} '_Array_ptr<int>' <BitCast>
+  // CHECK-NEXT:     UnaryOperator {{.*}} 'int *' prefix '&'
+  // CHECK-NEXT:       ArraySubscriptExpr {{.*}} 'int'
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:         UnaryOperator {{.*}} '_Array_ptr<int>' prefix '&'
+  // CHECK-NEXT:           UnaryOperator {{.*}} '*'
+  // CHECK-NEXT:             ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:               DeclRefExpr {{.*}} 'p'
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:   BinaryOperator {{.*}} '-'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} 'int *' <BitCast>
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'p'
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'q'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+}
+
 // UnaryOperator: pre-increment and post-increment inverses
-void original_value11(unsigned x, unsigned i) {
+void original_value14(unsigned x, unsigned i) {
   // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
@@ -1075,7 +1217,7 @@ void original_value11(unsigned x, unsigned i) {
 }
 
 // UnaryOperator: pre-decrement and post-decrement inverses
-void original_value12(unsigned x, unsigned i) {
+void original_value15(unsigned x, unsigned i) {
   // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
@@ -1145,7 +1287,7 @@ void original_value12(unsigned x, unsigned i) {
 }
 
 // UnaryOperator: pre-increment with no inverse
-void original_value13(int x, int i) {
+void original_value16(int x, int i) {
   // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
@@ -1188,7 +1330,7 @@ void original_value13(int x, int i) {
 }
 
 // UnaryOperator: post-increment with no inverse
-void original_value14(int x, int i) {
+void original_value17(int x, int i) {
   // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
@@ -1233,7 +1375,7 @@ void original_value14(int x, int i) {
 }
 
 // UnaryOperator: pre-decrement with no inverse
-void original_value15(int x, int i) {
+void original_value18(int x, int i) {
   // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
@@ -1276,7 +1418,7 @@ void original_value15(int x, int i) {
 }
 
 // UnaryOperator: post-decrement with no inverse
-void original_value16(int x, int i) {
+void original_value19(int x, int i) {
   // Updated EquivExprs: { { i, x } }
   x = i;
   // CHECK: Statement S:
@@ -1321,7 +1463,7 @@ void original_value16(int x, int i) {
 }
 
 // No inverse
-void original_value17(unsigned x, unsigned i, unsigned *p, unsigned arr[1]) {
+void original_value20(unsigned x, unsigned i, unsigned *p, unsigned arr[1]) {
   // Updated EquivExprs: { { i * 1, x } }, Updated SameValue: { i * 1, x }
   x = i * 1;
   // CHECK: Statement S:
@@ -1428,7 +1570,7 @@ void original_value17(unsigned x, unsigned i, unsigned *p, unsigned arr[1]) {
 }
 
 // Original value from equivalence with another variable
-void original_value18(int x, int y) {
+void original_value21(int x, int y) {
   // Updated EquivExprs: { { y, x } }
   x = y;
   // CHECK: Statement S:
@@ -1478,7 +1620,7 @@ void original_value18(int x, int y) {
 // Original value from equivalence with another variable,
 // accounting for value-preserving casts when searching for a set
 // in EquivExprs that contains a variable w != v in an assignment v = src
-void original_value19(array_ptr<int> arr_int, array_ptr<const int> arr_const, array_ptr<int> arr) {
+void original_value22(array_ptr<int> arr_int, array_ptr<const int> arr_const, array_ptr<int> arr) {
   // Updated EquivExprs: { { arr_int + 1, arr } }
   arr = arr_int + 1;
   // CHECK: Statement S:
@@ -1554,7 +1696,7 @@ void original_value19(array_ptr<int> arr_int, array_ptr<const int> arr_const, ar
 }
 
 // Original value is a value-preserving cast of another variable
-void original_value20(array_ptr<int> arr_int, array_ptr<const int> arr_const, array_ptr<int> arr) {
+void original_value23(array_ptr<int> arr_int, array_ptr<const int> arr_const, array_ptr<int> arr) {
   // Updated EquivExprs: { { (array_ptr<int>)arr_const, arr_int } }
   arr_int = arr_const;
   // CHECK: Statement S:
@@ -1630,7 +1772,7 @@ void original_value20(array_ptr<int> arr_int, array_ptr<const int> arr_const, ar
 }
 
 // The left-hand side variable is the original value
-void original_value21(int x, int val) {
+void original_value24(int x, int val) {
   // Updated EquivExprs: { { x + 1, val } }
   val = x + 1;
   // CHECK: Statement S:
@@ -1674,7 +1816,7 @@ void original_value21(int x, int val) {
 }
 
 // Original value is a no-op cast
-void original_value22(int i) {
+void original_value25(int i) {
   // Updated EquivExprs: { { i + 1, val } }
   int val = i + 1;
   // CHECK: Statement S:
@@ -1720,7 +1862,7 @@ void original_value22(int i) {
 }
 
 // Original value involves explicit and implicit casts
-void original_value23(int i, int val) {
+void original_value26(int i, int val) {
   // Updated EquivExprs: { { i + 1, val } }
   val = i + 1;
   // CHECK: Statement S:
@@ -1777,7 +1919,7 @@ void original_value23(int i, int val) {
 }
 
 // Combined CastExpr and BinaryOperator inverse
-void original_value24(int i, unsigned j, int val) {
+void original_value27(int i, unsigned j, int val) {
   // Updated EquivExprs: { { i + 1, val } }
   val = i + 1;
   // CHECK: Statement S:
@@ -1831,7 +1973,7 @@ void original_value24(int i, unsigned j, int val) {
 }
 
 // No original value for an implicit narrowing cast
-void original_value25(int i, float f, int val) {
+void original_value28(int i, float f, int val) {
   // Updated EquivExprs: { { i + 1, val } }
   val = i + 1;
   // CHECK: Statement S:
@@ -1871,7 +2013,7 @@ void original_value25(int i, float f, int val) {
 }
 
 // No original value for an explicit narrowing cast
-void original_value26(double d, double val) {
+void original_value29(double d, double val) {
   // Updated EquivExprs: { { d + 1.0, val } }
   val = d + 1.0;
   // CHECK: Statement S:
@@ -1908,7 +2050,7 @@ void original_value26(double d, double val) {
 }
 
 // Bounds cast expression inverse where the type is the same as the LHS variable type
-void original_value27(array_ptr<int> a : count(1), array_ptr<int> val) {
+void original_value30(array_ptr<int> a : count(1), array_ptr<int> val) {
   // Updated UEQ: { { a + 1, val } }
   val = a + 1;
   // CHECK: Statement S:
@@ -1957,7 +2099,7 @@ void original_value27(array_ptr<int> a : count(1), array_ptr<int> val) {
 }
 
 // Bounds cast expression inverse including a type cast
-void original_value28(array_ptr<int> a : count(1), array_ptr<int> val) {
+void original_value31(array_ptr<int> a : count(1), array_ptr<int> val) {
   // Updated UEQ: { { a + 1, val } }
   val = a + 1;
   // CHECK: Statement S:
@@ -2008,7 +2150,7 @@ void original_value28(array_ptr<int> a : count(1), array_ptr<int> val) {
 }
 
 // Combined bounds cast and binary inverse
-void original_value29(array_ptr<int> a : count(1), array_ptr<int> val) {
+void original_value32(array_ptr<int> a : count(1), array_ptr<int> val) {
   // Updated UEQ: { { a + 1, val } }
   val = a + 1;
   // CHECK: Statement S:
@@ -2069,7 +2211,7 @@ void original_value29(array_ptr<int> a : count(1), array_ptr<int> val) {
 }
 
 // CallExpr: using the left-hand side of an assignment as a call argument
-void original_value30(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) {
+void original_value33(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) {
   // Updated UEQ: { { b, a } }
   a = b;
   // CHECK: Statement S:
@@ -2113,7 +2255,7 @@ void original_value30(array_ptr<int> a : count(1), array_ptr<int> b : count(1)) 
 // The original value is type-compatible with the variable,
 // even when expressions in the same set are not type compatible
 // (resulting from assignments to NullToPointer casts)
-void original_value31(int *p,
+void original_value34(int *p,
                       array_ptr<int> val, array_ptr<int> arr,
                       array_ptr<int> a, array_ptr<int> b,
                       array_ptr<char> c, nt_array_ptr<int> n) {
