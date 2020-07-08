@@ -15,5 +15,5 @@ void foo(int *w) {
     x[2] = 3; 
     func(x);
 }
-//CHECK_ALL: _Nt_array_ptr<int> x : count(5) =  calloc(5, sizeof(int)); 
-//CHECK_NOALL: int *x = calloc(5, sizeof(int));
+//CHECK_ALL: _Nt_array_ptr<int> x : count(5) =  calloc<int>(5, sizeof(int)); 
+//CHECK_NOALL: int *x = calloc<int>(5, sizeof(int));

@@ -4,6 +4,9 @@
 // RUN: %clang -c %S/unsafeunion.checkedNOALL.c
 // RUN: rm %S/unsafeunion.checkedNOALL.c
 
+typedef unsigned long size_t;
+extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
+
 union foo {
   /*fields of a union should never be converted*/
   int * p;
@@ -24,5 +27,5 @@ void bar(int *x) {
   *f.p = 1;
 } 
 //CHECK: _Ptr<union foo> g = (void *) 0;
-//CHECK_NOALL: union foo *h = calloc(5, sizeof(union foo)); 
-//CHECK_ALL: _Array_ptr<union foo> h : count(5) =  calloc(5, sizeof(union foo));
+//CHECK_NOALL: union foo *h = calloc<union foo>(5, sizeof(union foo)); 
+//CHECK_ALL: _Array_ptr<union foo> h : count(5) =  calloc<union foo>(5, sizeof(union foo));

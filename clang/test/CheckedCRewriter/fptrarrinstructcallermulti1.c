@@ -137,12 +137,12 @@ struct arrfptr * foo() {
         
 return z; }
 //CHECK_NOALL: _Ptr<struct arrfptr> foo(void) {
-//CHECK_NOALL:         struct arrfptr * x = malloc(sizeof(struct arrfptr));
-//CHECK_NOALL:         _Ptr<struct arrfptr> y =   malloc(sizeof(struct arrfptr));
+//CHECK_NOALL:         struct arrfptr * x = malloc<struct arrfptr>(sizeof(struct arrfptr));
+//CHECK_NOALL:         _Ptr<struct arrfptr> y =   malloc<struct arrfptr>(sizeof(struct arrfptr));
 //CHECK_NOALL:         _Ptr<struct arrfptr> z =  sus(x, y); 
 //CHECK_ALL: struct arrfptr * foo() {
-//CHECK_ALL:         struct arrfptr * x = malloc(sizeof(struct arrfptr));
-//CHECK_ALL:         _Ptr<struct arrfptr> y =   malloc(sizeof(struct arrfptr));
+//CHECK_ALL:         struct arrfptr * x = malloc<struct arrfptr>(sizeof(struct arrfptr));
+//CHECK_ALL:         _Ptr<struct arrfptr> y =   malloc<struct arrfptr>(sizeof(struct arrfptr));
 //CHECK_ALL:         struct arrfptr *z = sus(x, y); 
 
 struct arrfptr * bar() {
@@ -159,10 +159,10 @@ struct arrfptr * bar() {
 z += 2;
 return z; }
 //CHECK_NOALL: struct arrfptr * bar() {
-//CHECK_NOALL:         struct arrfptr * x = malloc(sizeof(struct arrfptr));
-//CHECK_NOALL:         _Ptr<struct arrfptr> y =   malloc(sizeof(struct arrfptr));
+//CHECK_NOALL:         struct arrfptr * x = malloc<struct arrfptr>(sizeof(struct arrfptr));
+//CHECK_NOALL:         _Ptr<struct arrfptr> y =   malloc<struct arrfptr>(sizeof(struct arrfptr));
 //CHECK_NOALL:         struct arrfptr *z = sus(x, y); 
 //CHECK_ALL: struct arrfptr * bar() {
-//CHECK_ALL:         struct arrfptr * x = malloc(sizeof(struct arrfptr));
-//CHECK_ALL:         _Ptr<struct arrfptr> y =   malloc(sizeof(struct arrfptr));
+//CHECK_ALL:         struct arrfptr * x = malloc<struct arrfptr>(sizeof(struct arrfptr));
+//CHECK_ALL:         _Ptr<struct arrfptr> y =   malloc<struct arrfptr>(sizeof(struct arrfptr));
 //CHECK_ALL:         struct arrfptr *z = sus(x, y); 

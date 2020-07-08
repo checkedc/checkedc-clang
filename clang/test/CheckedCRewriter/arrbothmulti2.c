@@ -129,8 +129,8 @@ x = (int *) 5;
 z += 2;
 return z; }
 //CHECK_NOALL: int * sus(int *x, _Ptr<int> y) {
-//CHECK_NOALL:         int *z = calloc(5, sizeof(int)); 
+//CHECK_NOALL:         int *z = calloc<int>(5, sizeof(int)); 
 //CHECK_NOALL:         int i, *p, fac;
 //CHECK_ALL: _Nt_array_ptr<int> sus(int *x, _Ptr<int> y) {
-//CHECK_ALL:         _Nt_array_ptr<int> z : count(5) =  calloc(5, sizeof(int)); 
+//CHECK_ALL:         _Nt_array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int)); 
 //CHECK_ALL: _Array_ptr<int> p : count(5) = ((void *)0);

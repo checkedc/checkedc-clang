@@ -28,7 +28,7 @@ void g() {
   r = p;
   **r = 1;
 }
-// CHECK:  _Array_ptr<int> x : count(1) =  malloc(sizeof(int)*1);
+// CHECK:  _Array_ptr<int> x : count(1) =  malloc<int>(sizeof(int)*1);
 // CHECK:  int y _Checked[5];
 // CHECK:  _Ptr<_Array_ptr<int>> p =  &x;
 // CHECK:  _Ptr<_Array_ptr<int>> r =  0;

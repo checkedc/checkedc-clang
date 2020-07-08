@@ -130,8 +130,8 @@ x = (struct general *) 5;
         
 return z; }
 //CHECK_NOALL: int * sus(struct general *x, _Ptr<struct general> y) {
-//CHECK_NOALL:         int *z = calloc(5, sizeof(int)); 
+//CHECK_NOALL:         int *z = calloc<int>(5, sizeof(int)); 
 //CHECK_NOALL:         _Ptr<struct general> p =  y;
 //CHECK_ALL: _Nt_array_ptr<int> sus(struct general *x, _Ptr<struct general> y) {
-//CHECK_ALL:         _Nt_array_ptr<int> z : count(5) =  calloc(5, sizeof(int)); 
+//CHECK_ALL:         _Nt_array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int)); 
 //CHECK_ALL:         _Ptr<struct general> p =  y;
