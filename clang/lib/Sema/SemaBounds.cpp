@@ -929,7 +929,7 @@ namespace {
             Kind = BCK_NullTermWriteAssign;
           // Otherwise, use the default range check for bounds.
         }
-        if (LValueBounds->isUnknown()) {
+        if (LValueBounds->isUnknown() && !S.getLangOpts().IgnoreCheckedPtr) {
           S.Diag(E->getBeginLoc(), diag::err_expected_bounds) << E->getSourceRange();
           LValueBounds = S.CreateInvalidBoundsExpr();
         } else {
@@ -970,7 +970,7 @@ namespace {
       // E->F.  This is equivalent to (*E).F.
       if (Base->getType()->isCheckedPointerArrayType()) {
         BoundsExpr *Bounds = S.CheckNonModifyingBounds(BaseBounds, Base);
-        if (Bounds->isUnknown()) {
+        if (Bounds->isUnknown() && !S.getLangOpts().IgnoreCheckedPtr) {
           S.Diag(Base->getBeginLoc(), diag::err_expected_bounds) << Base->getSourceRange();
           Bounds = S.CreateInvalidBoundsExpr();
         } else {
@@ -1829,6 +1829,10 @@ namespace {
                                      BoundsExpr *SrcBounds,
                                      EquivExprSets EquivExprs,
                                      CheckedScopeSpecifier CSS) {
+      // If we have to ignore checked pointers then disable bounds checking.
+      if (S.getLangOpts().IgnoreCheckedPtr)
+        return;
+
       // Record expression equality implied by assignment.
       // EquivExprs may not already contain equality implied by assignment.
       // For example, EquivExprs will not contain equality implied by
@@ -1891,6 +1895,10 @@ namespace {
       if (!UnaryOperator::isIncrementDecrementOp(E->getOpcode()))
         return;
 
+      // If we have to ignore checked pointers then disable bounds checking.
+      if (S.getLangOpts().IgnoreCheckedPtr)
+        return;
+
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds,
                                                    Cause, &EquivExprs);
@@ -1924,6 +1932,11 @@ namespace {
                                   BoundsExpr *ArgBounds,
                                   CheckedScopeSpecifier CSS,
                                   EquivExprSets EquivExprs) {
+
+      // If we have to ignore checked pointers then disable bounds checking.
+      if (S.getLangOpts().IgnoreCheckedPtr)
+        return;
+
       SourceLocation ArgLoc = Arg->getBeginLoc();
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(ExpectedArgBounds,
@@ -1951,6 +1964,11 @@ namespace {
                                       BoundsExpr *SrcBounds,
                                       EquivExprSets EquivExprs,
                                       CheckedScopeSpecifier CSS) {
+
+      // If we have to ignore checked pointers then disable bounds checking.
+      if (S.getLangOpts().IgnoreCheckedPtr)
+        return;
+
       // Record expression equality implied by initialization (see
       // CheckBoundsDeclAtAssignment).
       
@@ -2021,6 +2039,11 @@ namespace {
                                         Expr *Src,
                                         BoundsExpr *SrcBounds,
                                         CheckedScopeSpecifier CSS) {
+
+      // If we have to ignore checked pointers then disable bounds checking.
+      if (S.getLangOpts().IgnoreCheckedPtr)
+        return;
+
       ProofFailure Cause;
       bool IsStaticPtrCast = (Src->getType()->isCheckedPointerPtrType() &&
                               Cast->getType()->isCheckedPointerPtrType());
@@ -2047,6 +2070,11 @@ namespace {
     void CheckBoundsAtMemoryAccess(Expr *Deref, BoundsExpr *ValidRange,
                                    BoundsCheckKind CheckKind,
                                    CheckedScopeSpecifier CSS) {
+
+      // If we have to ignore checked pointers then disable bounds checking.
+      if (S.getLangOpts().IgnoreCheckedPtr)
+        return;
+
       ProofFailure Cause;
       ProofResult Result;
       ProofStmtKind ProofKind;
@@ -2819,7 +2847,7 @@ namespace {
             else
               RightBounds = S.CheckNonModifyingBounds(ResultBounds, RHS);
 
-            if (RightBounds->isUnknown()) {
+            if (RightBounds->isUnknown() && !S.getLangOpts().IgnoreCheckedPtr) {
                 S.Diag(RHS->getBeginLoc(),
                       diag::err_expected_bounds_for_assignment)
                       << RHS->getSourceRange();
@@ -2922,7 +2950,7 @@ namespace {
           continue;
 
         ArgBounds = S.CheckNonModifyingBounds(ArgBounds, Arg);
-        if (ArgBounds->isUnknown()) {
+        if (ArgBounds->isUnknown() && !S.getLangOpts().IgnoreCheckedPtr) {
           S.Diag(Arg->getBeginLoc(),
                   diag::err_expected_bounds_for_argument) << (i + 1) <<
             Arg->getSourceRange();
@@ -3093,7 +3121,7 @@ namespace {
                                                       DeclaredBounds);
 
         SubExprBounds = S.CheckNonModifyingBounds(SubExprBounds, SubExpr);
-        if (SubExprBounds->isUnknown()) {
+        if (SubExprBounds->isUnknown() && !S.getLangOpts().IgnoreCheckedPtr) {
           S.Diag(SubExpr->getBeginLoc(), diag::err_expected_bounds);
         }
 
@@ -3113,7 +3141,7 @@ namespace {
           E->getType()->isCheckedPointerPtrType() &&
           !E->getType()->isFunctionPointerType()) {
         SubExprBounds = S.CheckNonModifyingBounds(SubExprBounds, SubExpr);
-        if (SubExprBounds->isUnknown()) {
+        if (SubExprBounds->isUnknown() && !S.getLangOpts().IgnoreCheckedPtr) {
           S.Diag(SubExpr->getBeginLoc(),
                   diag::err_expected_bounds_for_ptr_cast)
                   << SubExpr->getSourceRange();
@@ -3207,7 +3235,8 @@ namespace {
             SubExprTargetBounds = S.CheckNonModifyingBounds(SubExprTargetBounds, E);
             if (!SubExprTargetBounds->isUnknown()) {
               SrcBounds = S.CheckNonModifyingBounds(IncDecResultBounds, E);
-              if (SrcBounds->isUnknown()) {
+              if (SrcBounds->isUnknown() &&
+                  !S.getLangOpts().IgnoreCheckedPtr) {
                   S.Diag(E->getBeginLoc(),
                         diag::err_expected_bounds_for_assignment)
                         << E->getSourceRange();
@@ -3344,7 +3373,7 @@ namespace {
         assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
         InitBounds = S.CheckNonModifyingBounds(InitBounds, Init);
         State.ObservedBounds[D] = InitBounds;
-        if (InitBounds->isUnknown()) {
+        if (InitBounds->isUnknown() && !S.getLangOpts().IgnoreCheckedPtr) {
           // TODO: need some place to record the initializer bounds
           S.Diag(Init->getBeginLoc(), diag::err_expected_bounds_for_initializer)
               << Init->getSourceRange();
@@ -5166,6 +5195,9 @@ namespace {
       // We're only looking for casts to checked function ptr<>s.
       if (!ToType->isCheckedPointerPtrType() ||
         !ToType->isFunctionPointerType())
+        return;
+
+      if (S.getLangOpts().IgnoreCheckedPtr)
         return;
 
       // Skip lvalue-to-rvalue casts because they preserve types (except that

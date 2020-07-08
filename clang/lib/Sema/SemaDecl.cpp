@@ -12656,23 +12656,25 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       if (InCheckedScope && Var->hasInteropTypeExpr())
         Ty = Var->getInteropType();
 
-      if (Ty->isCheckedPointerPtrType())
+      if (Ty->isCheckedPointerPtrType() && !getLangOpts().IgnoreCheckedPtr)
         Diag(Var->getLocation(), diag::err_initializer_expected_for_ptr)
           << Var;
-      else if (B && !B->isInvalid() && !B->isUnknown() && !Ty->isArrayType())
+      else if (B && !B->isInvalid() && !B->isUnknown() &&
+               !Ty->isArrayType() && !getLangOpts().IgnoreCheckedPtr)
         Diag(Var->getLocation(), diag::err_initializer_expected_with_bounds)
           << Var;
 
       // An unchecked pointer in a checked scope with a bounds expression must
       // be initialized
       if (Ty->isUncheckedPointerType() && InCheckedScope &&
-          Var->hasBoundsExpr())
+          Var->hasBoundsExpr() && !getLangOpts().IgnoreCheckedPtr)
         Diag(Var->getLocation(),
              diag::err_initializer_expected_for_unchecked_pointer)
           << Var;
 
       // An integer with a bounds expression must be initialized
-      if (Ty->isIntegerType() && Var->hasBoundsExpr())
+      if (Ty->isIntegerType() && Var->hasBoundsExpr() &&
+          !getLangOpts().IgnoreCheckedPtr)
         Diag(Var->getLocation(),
               diag::err_initializer_expected_for_integer)
           << Var;
@@ -12680,7 +12682,7 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       // struct/union and array with checked pointer members must have
       // initializers.
       // array with checked ptr element
-      if (Ty->isArrayType()) {
+      if (Ty->isArrayType() && !getLangOpts().IgnoreCheckedPtr) {
         // if this is an array type, check the element type of the array,
         // potentially with type qualifiers missing
         if (Type::HasCheckedValue == Ty->getPointeeOrArrayElementType()->
@@ -12689,7 +12691,7 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
           << Var;
       }
       // RecordType(struct/union) with checked pointer member
-      if (Ty->isRecordType()) {
+      if (Ty->isRecordType() && !getLangOpts().IgnoreCheckedPtr) {
         const RecordType *RT = Ty->getAs<RecordType>();
         switch (RT->containsCheckedValue(InCheckedScope)) {
           default:
