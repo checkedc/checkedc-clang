@@ -136,6 +136,6 @@ struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
 z += 2;
 return z; }
 //CHECK_NOALL: struct fptrarr * sus(struct fptrarr *x, _Ptr<struct fptrarr> y) {
-//CHECK_NOALL:         struct fptrarr *z = malloc(sizeof(struct fptrarr)); 
+//CHECK_NOALL:         struct fptrarr *z = malloc<struct fptrarr>(sizeof(struct fptrarr)); 
 //CHECK_ALL: struct fptrarr * sus(struct fptrarr *x, _Ptr<struct fptrarr> y) {
-//CHECK_ALL:         struct fptrarr *z = malloc(sizeof(struct fptrarr)); 
+//CHECK_ALL:         struct fptrarr *z = malloc<struct fptrarr>(sizeof(struct fptrarr)); 

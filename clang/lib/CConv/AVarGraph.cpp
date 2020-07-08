@@ -15,10 +15,13 @@
 #include <boost/graph/graphviz.hpp>
 #include <iostream>
 
-void AVarGraph::addEdge(BoundsKey L, BoundsKey R) {
+void AVarGraph::addEdge(BoundsKey L, BoundsKey R, bool BD) {
   auto V1 = addVertex(L);
   auto V2 = addVertex(R);
   add_edge(V2, V1, CG);
+  if (BD) {
+    add_edge(V1, V2, CG);
+  }
 }
 
 bool AVarGraph::getPredecessors(BoundsKey K, std::set<BoundsKey> &Pred) {

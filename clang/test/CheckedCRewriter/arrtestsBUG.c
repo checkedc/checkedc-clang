@@ -20,7 +20,7 @@ void foo(void) {
   g[0] = 0;
 }
 //CHECK: _Array_ptr<int> g : count(100) = ((void *)0); // array : count is 100; see the call to foo
-//CHECK: _Array_ptr<int> h : count(100) =  malloc(sizeof(int)*100); // length is 100
+//CHECK: _Array_ptr<int> h : count(100) =  malloc<int>(sizeof(int)*100); // length is 100
 
 
 struct tree {
@@ -46,8 +46,8 @@ void add_child(struct tree *p) {
   p->num = n;
 }
 //CHECK: void add_child(_Ptr<struct tree> p) {
-//CHECK-NEXT: _Ptr<struct tree> c =  malloc(sizeof(struct tree));
-//CHECK: _Array_ptr<_Ptr<struct tree>> xs : count(n) = realloc(p->children,sizeof(struct tree *)*n);
+//CHECK-NEXT: _Ptr<struct tree> c =  malloc<struct tree>(sizeof(struct tree));
+//CHECK: _Array_ptr<_Ptr<struct tree>> xs : count(n) = realloc<struct tree>(p->children,sizeof(struct tree *)*n);
 
 void do_c(void (*fp)(char), char *cp) {
   while (*cp != '\0' && *cp != ' ') {

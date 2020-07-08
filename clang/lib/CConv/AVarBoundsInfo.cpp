@@ -226,8 +226,7 @@ bool AVarBoundsInfo::addAssignment(clang::DeclRefExpr *L,
 }
 
 bool AVarBoundsInfo::addAssignment(BoundsKey L, BoundsKey R) {
-  ProgVarGraph.addEdge(L, R);
-  ProgVarGraph.addEdge(R, L);
+  ProgVarGraph.addEdge(L, R, true);
   return true;
 }
 
@@ -529,7 +528,7 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
   for (auto &T : BInfo) {
     ArrWithBounds.insert(T.first);
   }
-  // Also arrays wil invalid bounds should be rejected.
+  // Also add arrays with invalid bounds.
   ArrWithBounds.insert(InvalidBounds.begin(), InvalidBounds.end());
 
   // This are the array atoms that need bounds.

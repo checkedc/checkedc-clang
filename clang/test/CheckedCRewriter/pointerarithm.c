@@ -16,7 +16,7 @@ int *sus(int *x, int*y) {
   return z;
 }
 //CHECK: _Array_ptr<int> sus(int *x : itype(_Array_ptr<int>), _Ptr<int> y) {
-//CHECK-NEXT:  _Array_ptr<int> z : count(2) =  malloc(sizeof(int)*2);
+//CHECK-NEXT:  _Array_ptr<int> z : count(2) =  malloc<int>(sizeof(int)*2);
 
 int* foo() {
   int sx = 3, sy = 4, *x = &sx, *y = &sy;
