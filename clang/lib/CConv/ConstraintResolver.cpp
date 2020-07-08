@@ -247,8 +247,9 @@ std::set<ConstraintVariable *>
       case BO_Assign:
       case BO_AddAssign:
       case BO_SubAssign:
-      case BO_Comma:
         return getExprConstraintVars(BO->getLHS());
+      case BO_Comma:
+        return getExprConstraintVars(BO->getRHS());
       /* Possible pointer arithmetic: Could be LHS or RHS */
       case BO_Add:
       case BO_Sub:
