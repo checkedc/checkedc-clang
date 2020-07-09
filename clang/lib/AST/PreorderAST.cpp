@@ -28,10 +28,12 @@ void PreorderAST::Create(Expr *E, Node *N, Node *Parent) {
   if (!Root)
     Root = N;
 
-  // If the parent is non-null, make sure that the current node is added to the
-  // children of the parent.
-  if (Parent)
-    Parent->Children.push_back(N);
+  // If the parent is non-null and the current node has not already been added
+  // to the list of children of the parent, add it.
+  if (Parent) {
+    if (!Parent->Children.size() || Parent->Children.back() != N)
+      Parent->Children.push_back(N);
+  }
 
   E = Lex.IgnoreValuePreservingOperations(Ctx, E);
 
@@ -159,7 +161,6 @@ void PreorderAST::Normalize() {
   // constants in the nodes.
 
   Sort(Root);
-  PrettyPrint(Root);
 }
 
 DeclRefExpr *PreorderAST::GetDeclOperand(Expr *E) {
