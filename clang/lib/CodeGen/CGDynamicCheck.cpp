@@ -43,7 +43,7 @@ namespace {
 //
 
 void CodeGenFunction::EmitExplicitDynamicCheck(const Expr *Condition) {
-  if (!getLangOpts().CheckedC || CGM.getLangOpts().IgnoreCheckedPtr)
+  if (!getLangOpts().CheckedC)
     return;
 
   ++NumDynamicChecksExplicit;
@@ -59,7 +59,7 @@ void CodeGenFunction::EmitExplicitDynamicCheck(const Expr *Condition) {
 
 static bool shouldEmitNonNullCheck(const CodeGenModule &CGM,
                                    const QualType BaseTy) {
-  if (!CGM.getLangOpts().CheckedC || CGM.getLangOpts().IgnoreCheckedPtr)
+  if (!CGM.getLangOpts().CheckedC)
     return false;
 
   if (!(BaseTy->isCheckedPointerType() || BaseTy->isCheckedArrayType()))
@@ -96,7 +96,7 @@ void CodeGenFunction::EmitDynamicNonNullCheck(Value *Val,
 void CodeGenFunction::EmitDynamicOverflowCheck(const Address BaseAddr,
                                                const QualType BaseTy,
                                                const Address PtrAddr) {
-  if (!getLangOpts().CheckedC || getLangOpts().IgnoreCheckedPtr)
+  if (!getLangOpts().CheckedC)
     return;
 
   ++NumDynamicChecksOverflow;
@@ -108,7 +108,7 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr,
                                              const BoundsExpr *Bounds,
                                              BoundsCheckKind CheckKind,
                                              llvm::Value *Val) {
-  if (!getLangOpts().CheckedC || getLangOpts().IgnoreCheckedPtr)
+  if (!getLangOpts().CheckedC)
     return;
 
   if (!Bounds)
@@ -188,7 +188,7 @@ void
 CodeGenFunction::EmitDynamicBoundsCastCheck(const Address BaseAddr,
                                             const BoundsExpr *CastBounds,
                                             const BoundsExpr *SubExprBounds) {
-  if (!getLangOpts().CheckedC || getLangOpts().IgnoreCheckedPtr)
+  if (!getLangOpts().CheckedC)
     return;
 
   if (!SubExprBounds || !CastBounds)

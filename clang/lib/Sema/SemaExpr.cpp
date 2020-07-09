@@ -4787,7 +4787,7 @@ Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
     IndexExpr = RHSExp;
     // Array subscripting not allowed on ptr<T> values
     if (PTy->getKind() == CheckedPointerKind::Ptr &&
-        !getLangOpts().IgnoreCheckedPtr) {
+        !getLangOpts().CheckedCConverter) {
         return ExprError(Diag(LLoc, diag::err_typecheck_ptr_subscript)
             << LHSTy << LHSExp->getSourceRange() << RHSExp->getSourceRange());
     }
@@ -4810,7 +4810,7 @@ Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
     IndexExpr = LHSExp;
     // Array subscripting not allowed on ptr<T> values
     if (PTy->getKind() == CheckedPointerKind::Ptr &&
-        !getLangOpts().IgnoreCheckedPtr) {
+        !getLangOpts().CheckedCConverter) {
         return ExprError(Diag(LLoc, diag::err_typecheck_ptr_subscript)
             << RHSTy << LHSExp->getSourceRange() << RHSExp->getSourceRange());
     }
@@ -7201,7 +7201,7 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
        // Must have different kinds of checked pointers (_Ptr vs.
        // _Array_ptr or _Nt_Array_ptr). Implicit conversions between these
        // kinds of pointers are not allowed.
-       incompatibleCheckedPointer = !S.getLangOpts().IgnoreCheckedPtr;
+       incompatibleCheckedPointer = !S.getLangOpts().CheckedCConverter;
        // _Array_ptr is less likely to cause spurious downstream warnings.
        resultKind = CheckedPointerKind::Array;
      }
@@ -7365,7 +7365,7 @@ static bool checkUncheckedPointerIntegerMismatch(Sema &S, ExprResult &Int,
     return false;
 
   const PointerType *ptrTy = PointerExpr->getType()->getAs<PointerType>();
-  if (ptrTy->isChecked() && !S.getLangOpts().IgnoreCheckedPtr) {
+  if (ptrTy->isChecked() && !S.getLangOpts().CheckedCConverter) {
      return false;
   }
 
@@ -8265,7 +8265,7 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // - Allow implicit conversions from any kind of pointer to _Ptr 
   //   or _Array_ptr
 
-  if (!S.getLangOpts().IgnoreCheckedPtr) {
+  if (!S.getLangOpts().CheckedCConverter) {
     if (rhkind != CheckedPointerKind::Unchecked &&
         lhkind == CheckedPointerKind::Unchecked)
       return Sema::Incompatible;
@@ -8285,8 +8285,8 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
          RHSType->isOrContainsCheckedType()) {
        // If ignoring checked pointers is enabled then assignments containing
        // checked pointers is always compatible.
-       return S.getLangOpts().IgnoreCheckedPtr ? Sema::Compatible :
-                                                 Sema::Incompatible;
+       return S.getLangOpts().CheckedCConverter ? Sema::Compatible :
+                                                  Sema::Incompatible;
      }
 
     // Check if the pointee types are compatible ignoring the sign.
@@ -9783,7 +9783,7 @@ static void diagnoseArithmeticOnTwoVoidPointers(Sema &S, SourceLocation Loc,
                                                 Expr *LHSExpr, Expr *RHSExpr) {
   bool isCheckedPointerType = (LHSExpr->getType()->isCheckedPointerType() ||
                                RHSExpr->getType()->isCheckedPointerType()) &&
-                              !S.getLangOpts().IgnoreCheckedPtr;
+                              !S.getLangOpts().CheckedCConverter;
     S.Diag(Loc, S.getLangOpts().CPlusPlus || isCheckedPointerType
                     ? diag::err_typecheck_pointer_arith_void_type
                     : diag::ext_gnu_void_ptr)
@@ -9795,7 +9795,7 @@ static void diagnoseArithmeticOnTwoVoidPointers(Sema &S, SourceLocation Loc,
 static void diagnoseArithmeticOnVoidPointer(Sema &S, SourceLocation Loc,
                                             Expr *Pointer) {
   bool isCheckedPointerType = Pointer->getType()->isCheckedPointerType() &&
-                              !S.getLangOpts().IgnoreCheckedPtr;
+                              !S.getLangOpts().CheckedCConverter;
   S.Diag(Loc, S.getLangOpts().CPlusPlus || isCheckedPointerType
                 ? diag::err_typecheck_pointer_arith_void_type
                 : diag::ext_gnu_void_ptr)
@@ -9891,7 +9891,7 @@ static bool checkArithmeticOpPointerOperand(Sema &S, SourceLocation Loc,
 
   if (!ResType->isAnyPointerType()) return true;
 
-  if (ResType->isCheckedPointerPtrType() && !S.getLangOpts().IgnoreCheckedPtr) {
+  if (ResType->isCheckedPointerPtrType() && !S.getLangOpts().CheckedCConverter) {
      diagnoseArithmeticOnPtrPointerType(S, Loc, Operand);
      return false;
   }
@@ -9955,7 +9955,7 @@ static bool checkArithmeticBinOpPointerOperands(Sema &S, SourceLocation Loc,
     return !(S.getLangOpts().CPlusPlus ||
             ((LHSExpr->getType()->isCheckedPointerType() ||
              RHSExpr->getType()->isCheckedPointerType()) &&
-             !S.getLangOpts().IgnoreCheckedPtr));
+             !S.getLangOpts().CheckedCConverter));
   }
 
   bool isLHSFuncPtr = isLHSPointer && LHSPointeeTy->isFunctionType();

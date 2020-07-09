@@ -2789,7 +2789,7 @@ void CastOperation::CheckCStyleCast(bool IsCheckedScope) {
 
   // Checked C - No C-style casts to unchecked pointer/array type or variadic
   // type in a checked block.
-  if (IsCheckedScope && !Self.getLangOpts().IgnoreCheckedPtr) {
+  if (IsCheckedScope) {
     bool isNullPointerConstant =
       DestType->isVoidPointerType() &&
       DestType->isUncheckedPointerType() &&

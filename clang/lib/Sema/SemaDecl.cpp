@@ -12656,25 +12656,25 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       if (InCheckedScope && Var->hasInteropTypeExpr())
         Ty = Var->getInteropType();
 
-      if (Ty->isCheckedPointerPtrType() && !getLangOpts().IgnoreCheckedPtr)
+      if (Ty->isCheckedPointerPtrType() && !getLangOpts().CheckedCConverter)
         Diag(Var->getLocation(), diag::err_initializer_expected_for_ptr)
           << Var;
       else if (B && !B->isInvalid() && !B->isUnknown() &&
-               !Ty->isArrayType() && !getLangOpts().IgnoreCheckedPtr)
+               !Ty->isArrayType() && !getLangOpts().CheckedCConverter)
         Diag(Var->getLocation(), diag::err_initializer_expected_with_bounds)
           << Var;
 
       // An unchecked pointer in a checked scope with a bounds expression must
       // be initialized
       if (Ty->isUncheckedPointerType() && InCheckedScope &&
-          Var->hasBoundsExpr() && !getLangOpts().IgnoreCheckedPtr)
+          Var->hasBoundsExpr() && !getLangOpts().CheckedCConverter)
         Diag(Var->getLocation(),
              diag::err_initializer_expected_for_unchecked_pointer)
           << Var;
 
       // An integer with a bounds expression must be initialized
       if (Ty->isIntegerType() && Var->hasBoundsExpr() &&
-          !getLangOpts().IgnoreCheckedPtr)
+          !getLangOpts().CheckedCConverter)
         Diag(Var->getLocation(),
               diag::err_initializer_expected_for_integer)
           << Var;
@@ -12682,7 +12682,7 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       // struct/union and array with checked pointer members must have
       // initializers.
       // array with checked ptr element
-      if (Ty->isArrayType() && !getLangOpts().IgnoreCheckedPtr) {
+      if (Ty->isArrayType() && !getLangOpts().CheckedCConverter) {
         // if this is an array type, check the element type of the array,
         // potentially with type qualifiers missing
         if (Type::HasCheckedValue == Ty->getPointeeOrArrayElementType()->
@@ -12691,7 +12691,7 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
           << Var;
       }
       // RecordType(struct/union) with checked pointer member
-      if (Ty->isRecordType() && !getLangOpts().IgnoreCheckedPtr) {
+      if (Ty->isRecordType() && !getLangOpts().CheckedCConverter) {
         const RecordType *RT = Ty->getAs<RecordType>();
         switch (RT->containsCheckedValue(InCheckedScope)) {
           default:
@@ -13096,7 +13096,7 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
                                                CurInitSegLoc));
   }
 
-  if (getLangOpts().CheckedC)
+  if (getLangOpts().CheckedC && !getLangOpts().CheckedCConverter)
     CheckTopLevelBoundsDecls(var);
 
   // All the following checks are C++ only.
@@ -14857,7 +14857,7 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
   // meant to pop the context added in ActOnStartOfFunctionDef().
   ExitFunctionBodyRAII ExitRAII(*this, isLambdaCallOperator(FD));
 
-  if (getLangOpts().CheckedC)
+  if (getLangOpts().CheckedC && !getLangOpts().CheckedCConverter)
     CheckFunctionBodyBoundsDecls(FD, Body);
 
   if (FD) {
