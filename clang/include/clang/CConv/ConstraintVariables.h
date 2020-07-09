@@ -172,7 +172,8 @@ class PointerVariableConstraint : public ConstraintVariable {
 public:
   enum Qualification {
       ConstQualification,
-      StaticQualification
+      VolatileQualification,
+      RestrictQualification
   };
 
   static PointerVariableConstraint *getWildPVConstraint(Constraints &CS);
@@ -184,7 +185,7 @@ private:
   std::string BaseType;
   CAtoms vars;
   FunctionVariableConstraint *FV;
-  std::map<uint32_t, Qualification> QualMap;
+  std::map<uint32_t, std::set<Qualification>> QualMap;
   enum OriginalArrType {
       O_Pointer,
       O_SizedArray,
@@ -205,6 +206,7 @@ private:
   // Get the qualifier string (e.g., const, etc) for the provided
   // pointer type into the provided string stream (ss).
   void getQualString(uint32_t TypeIdx, std::ostringstream &Ss);
+  void insertQualType(uint32_t TypeIdx, QualType &QTy);
   // This function tries to emit an array size for the variable.
   // and returns true if the variable is an array and a size is emitted.
   bool emitArraySize(std::ostringstream &Pss, uint32_t TypeIdx, bool &EmitName,
