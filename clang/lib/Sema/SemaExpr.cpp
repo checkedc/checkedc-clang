@@ -8283,7 +8283,7 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
      // that are checked pointers or that contain checked types.
      if (LHSType->isOrContainsCheckedType() ||
          RHSType->isOrContainsCheckedType()) {
-       // If ignoring checked pointers is enabled then assignments containing
+       // If ignoring checked pointers are enabled then assignments containing
        // checked pointers is always compatible.
        return S.getLangOpts().CheckedCConverter ? Sema::Compatible :
                                                   Sema::Incompatible;

@@ -1829,7 +1829,6 @@ namespace {
                                      BoundsExpr *SrcBounds,
                                      EquivExprSets EquivExprs,
                                      CheckedScopeSpecifier CSS) {
-
       // Record expression equality implied by assignment.
       // EquivExprs may not already contain equality implied by assignment.
       // For example, EquivExprs will not contain equality implied by
@@ -1925,7 +1924,6 @@ namespace {
                                   BoundsExpr *ArgBounds,
                                   CheckedScopeSpecifier CSS,
                                   EquivExprSets EquivExprs) {
-
       SourceLocation ArgLoc = Arg->getBeginLoc();
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(ExpectedArgBounds,
@@ -1953,7 +1951,6 @@ namespace {
                                       BoundsExpr *SrcBounds,
                                       EquivExprSets EquivExprs,
                                       CheckedScopeSpecifier CSS) {
-
       // Record expression equality implied by initialization (see
       // CheckBoundsDeclAtAssignment).
       
@@ -2024,7 +2021,6 @@ namespace {
                                         Expr *Src,
                                         BoundsExpr *SrcBounds,
                                         CheckedScopeSpecifier CSS) {
-
       ProofFailure Cause;
       bool IsStaticPtrCast = (Src->getType()->isCheckedPointerPtrType() &&
                               Cast->getType()->isCheckedPointerPtrType());

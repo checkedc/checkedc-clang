@@ -8804,7 +8804,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
         // For unchecked return types, a return with
         // bounds is compatible with a return without bounds.
         // The merged type includes the bounds.
-        // Ignored the error if we do not want to consider checked pointers.
+        // Ignore the error if we do not want to consider checked pointers.
         if (!retType->isUncheckedPointerType() &&
             !getLangOpts().CheckedCConverter)
           return QualType();

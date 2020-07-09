@@ -5,7 +5,7 @@
 // This test checks that the compiler does not generate any error while trying
 // to generate AST for programs even when the Checked C type checking fails.
 //
-// RUN: %clang -cc1 -verify -fignore-checkedc-pointers %s
+// RUN: %clang -cc1 -verify -fcheckedc-convert-tool %s
 // expected-no-diagnostics
 
 struct st1 {

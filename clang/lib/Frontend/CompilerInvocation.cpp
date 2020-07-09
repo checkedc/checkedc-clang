@@ -2635,7 +2635,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       Opts.CheckedC = true;
   }
 
-  if (Args.hasArg(OPT_fignore_checkedc_pointers))
+  if (Args.hasArg(OPT_fcheckedc_convert_tool))
     Opts.CheckedCConverter = true;
 
   if (Args.hasArg(OPT_fno_checkedc_extension))
