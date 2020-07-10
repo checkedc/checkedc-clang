@@ -60,36 +60,33 @@ void PreorderAST::Create(Expr *E, Node *N, Node *Parent) {
 
     Expr *LHS = BO->getLHS()->IgnoreParens();
     Expr *RHS = BO->getRHS()->IgnoreParens();
-  
+
     if (isa<BinaryOperator>(LHS))
       // Create the LHS as a child of the current node.
       Create(LHS, nullptr, N);
     else
       // Create the LHS in the current node.
       Create(LHS, N);
-  
+
     if (isa<BinaryOperator>(RHS))
       // Create the RHS as a child of the current node.
       Create(RHS, nullptr, N);
     else
       // Create the RHS in the current node.
       Create(RHS, N);
-  
+
     return;
   }
 
-  // Currently, we only handle expression which are either variables or
-  // constants.
-  // TODO: Handle expressions that are non-variables and non-constants.
-  // Possibly, add a field to the node to represent such expressions.
-  SetError();
+  // Store all other non-variable, non-constant expressions here.
+  N->Others.push_back(E);
 }
 
 void PreorderAST::Sort(Node *N) {
   if (Error)
     return;
 
-  if (!N || !N->Vars.size())
+  if (!N)
     return;
 
   if (!N->IsOpCommutativeAndAssociative()) {
@@ -101,6 +98,12 @@ void PreorderAST::Sort(Node *N) {
   llvm::sort(N->Vars.begin(), N->Vars.end(),
              [&](const VarDecl *V1, const VarDecl *V2) {
                return Lex.CompareDecl(V1, V2) == Result::LessThan;
+             });
+
+  // Sort the other expressions in the node.
+  llvm::sort(N->Others.begin(), N->Others.end(),
+             [&](const Expr *E1, const Expr *E2) {
+               return Lex.CompareExpr(E1, E2) == Result::LessThan;
              });
 
   for (auto *Child : N->Children)
@@ -128,6 +131,10 @@ bool PreorderAST::IsEqual(Node *N1, Node *N2) {
   if (llvm::APSInt::compareValues(N1->Const, N2->Const) != 0)
     return false;
 
+  // If the number of other expressions in the two nodes mismatch.
+  if (N1->Others.size() != N2->Others.size())
+    return false;
+
   // If the number of children of the two nodes mismatch.
   if (N1->Children.size() != N2->Children.size())
     return false;
@@ -139,6 +146,16 @@ bool PreorderAST::IsEqual(Node *N1, Node *N2) {
 
     // If any variable differs between the two nodes.
     if (Lex.CompareDecl(V1, V2) != Result::Equal)
+      return false;
+  }
+
+  // Match each of the other expressions occurring in the two nodes.
+  for (size_t I = 0; I != N1->Others.size(); ++I) {
+    auto &E1 = N1->Others[I];
+    auto &E2 = N2->Others[I];
+
+    // If any other expression differs between the two nodes.
+    if (Lex.CompareExpr(E1, E2) != Result::Equal)
       return false;
   }
 
@@ -180,17 +197,24 @@ void PreorderAST::PrettyPrint(Node *N) {
   if (!N)
     return;
 
-  OS << BinaryOperator::getOpcodeStr(N->Opc);
+  OS << "Opc: { " << BinaryOperator::getOpcodeStr(N->Opc) << " }\n";
 
   if (N->Vars.size()) {
-    OS << "[ ";
+    OS << "Vars: { ";
     for (auto &V : N->Vars)
       OS << V->getQualifiedNameAsString() << " ";
-    OS << "]\n";
+    OS << "}\n";
   }
 
   if (N->HasConst)
-    OS << " [const:" << N->Const << "]\n";
+    OS << "Const: { " << N->Const << " }\n";
+
+  if (N->Others.size()) {
+    OS << "Others: { ";
+    for (auto &E : N->Others)
+      E->dump(OS);
+    OS << "}\n";
+  }
 
   for (auto *Child : N->Children)
     PrettyPrint(Child);

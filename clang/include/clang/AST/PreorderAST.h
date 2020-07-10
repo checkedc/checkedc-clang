@@ -30,6 +30,7 @@ namespace clang {
   // Opc: The opcode of the operator.
   // Vars: A list of variables in the sub expression.
   // Const: Constants of the sub expression are folded.
+  // Others: A list of all other non-variable, non-constant expressions.
   // HasConst: Indicates whether there is a constant in the node. It is used to
   // differentiate between the absence of a constant and a constant value of 0.
   // Parent: A link to the parent node of the current node.
@@ -40,6 +41,7 @@ namespace clang {
     BinaryOperator::Opcode Opc;
     std::vector<const VarDecl *> Vars;
     llvm::APSInt Const;
+    std::vector<const Expr *> Others;
     bool HasConst;
     Node *Parent;
     std::vector<Node *> Children;

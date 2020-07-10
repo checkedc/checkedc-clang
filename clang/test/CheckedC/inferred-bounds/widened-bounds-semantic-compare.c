@@ -34,3 +34,13 @@ void f3(int i, int j) {
 // CHECK:   2: *(p + (j * i))
 // CHECK: upper_bound(p) = 1
 }
+
+void f4(int i, int *r) {
+  _Nt_array_ptr<char> p : bounds(p, p + i + *r) = "a";
+
+  if (*(i + p + *r)) {}
+
+// CHECK: In function: f4
+// CHECK:   2: *(i + p + *r)
+// CHECK: upper_bound(p) = 1
+}
