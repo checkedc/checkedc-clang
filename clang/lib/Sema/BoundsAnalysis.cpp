@@ -327,10 +327,6 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
   //   if (*(p + 1)) // no widening
   //     if (*(p + i)) // widen p and q by 1
 
-  // TODO: Currently, Lexicographic::CompareExpr does not understand
-  // commutativity of operations. Exprs like "p + e" and "e + p" are considered
-  // unequal.
-
   // TODO: Currently, we iterate and re-compute info for all ntptrs in scope
   // for each ntptr dereference. We can optimize this at the cost of space by
   // storing the VarDecls, variables used in bounds exprs and base/offset for
@@ -371,8 +367,7 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
       continue;
     llvm::APSInt UpperOffset = UpperExprIntPair.second;
 
-    if (Lex.CompareExpr(DerefBase, UpperBase) !=
-        Lexicographic::Result::Equal)
+    if (!Lex.CompareExprSemantically(DerefBase, UpperBase))
       continue;
 
     // We cannot widen the bounds if the offset in the deref expr is less than
