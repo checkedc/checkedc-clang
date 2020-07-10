@@ -262,10 +262,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
       // Save here if QTy is qualified or not into a map that
       // indexes K to the qualification of QTy, if any.
-      if (QTy.isConstQualified())
-        QualMap.insert(
-                std::pair<uint32_t, Qualification>(TypeIdx,
-                                                    ConstQualification));
+      insertQualType(TypeIdx, QTy);
 
       arrSizes[TypeIdx] = std::pair<OriginalArrType,uint64_t>(O_Pointer,0);
 
@@ -296,6 +293,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     Npre = Npre + "*";
     VK = VarAtom::V_Other; // only the outermost pointer considered a param/return
   }
+  insertQualType(TypeIdx, QTy);
 
   // If, after boiling off the pointer-ness from this type, we hit a
   // function, then create a base-level FVConstraint that we carry
@@ -327,9 +325,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   }
 
   // Add qualifiers.
-  if (QTy.isConstQualified()) {
-    BaseType = "const " + BaseType;
-  }
+  std::ostringstream QualStr;
+  getQualString(TypeIdx, QualStr);
+  BaseType = QualStr.str() + BaseType;
 
   // Here lets add implication that if outer pointer is WILD
   // then make the inner pointers WILD too.
@@ -395,10 +393,32 @@ void PointerVariableConstraint::dump_json(llvm::raw_ostream &O) const {
 
 void PointerVariableConstraint::getQualString(uint32_t TypeIdx,
                                               std::ostringstream &Ss) {
-  std::map<ConstraintKey, Qualification>::iterator Q = QualMap.find(TypeIdx);
-  if (Q != QualMap.end())
-    if (Q->second == ConstQualification)
-      Ss << "const ";
+  auto QIter = QualMap.find(TypeIdx);
+  if (QIter != QualMap.end()) {
+    for (Qualification Q : QIter->second) {
+      switch (Q) {
+      case ConstQualification:
+        Ss << "const ";
+        break;
+      case VolatileQualification:
+        Ss << "volatile ";
+        break;
+      case RestrictQualification:
+        Ss << "restrict ";
+        break;
+      }
+    }
+  }
+}
+
+void PointerVariableConstraint::insertQualType(uint32_t TypeIdx,
+                                               QualType &QTy) {
+  if (QTy.isConstQualified())
+    QualMap[TypeIdx].insert(ConstQualification);
+  if (QTy.isVolatileQualified())
+    QualMap[TypeIdx].insert(VolatileQualification);
+  if (QTy.isRestrictQualified())
+    QualMap[TypeIdx].insert(RestrictQualification);
 }
 
 bool PointerVariableConstraint::emitArraySize(std::ostringstream &Pss,
