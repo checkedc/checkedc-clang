@@ -24,9 +24,8 @@ class BaseGraph {
 public:
   typedef typename boost::graph_traits<G>::vertex_descriptor vertex_t;
   typedef std::map<Atom*, vertex_t> VertexMapType;
-
-protected:
   G CG;
+protected:
   VertexMapType AtomToVDMap;
 
   virtual vertex_t addVertex(Atom *A) {
@@ -86,10 +85,10 @@ public:
     return !Atoms.empty();
   }
 
+  vertex_t addVertex(Atom *A);
+
 private:
   std::set<ConstAtom*> AllConstAtoms;
-
-  vertex_t addVertex(Atom *A);
 };
 
 // Used during debugging to create a single graph that contains edges and nodes

@@ -21,12 +21,12 @@ void CConvertDiagnostics::ClearAllDiags() {
   AllFileDiagnostics.clear();
 }
 
-static bool IsValidSourceFile(DisjointSet &CCRes, std::string &FilePath) {
+static bool IsValidSourceFile(ConstraintsInfo &CCRes, std::string &FilePath) {
   return CCRes.ValidSourceFiles.find(FilePath) != CCRes.ValidSourceFiles.end();
 }
 
 
-bool CConvertDiagnostics::PopulateDiagsFromDisjointSet(DisjointSet &CCRes) {
+bool CConvertDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line) {
   std::lock_guard<std::mutex> Lock(DiagMutex);
   std::set<ConstraintKey> ProcessedCKeys;
   ProcessedCKeys.clear();
@@ -40,12 +40,12 @@ bool CConvertDiagnostics::PopulateDiagsFromDisjointSet(DisjointSet &CCRes) {
     return nRange;
   };
 
-  for (auto &WReason : CCRes.RealWildPtrsWithReasons) {
-    if (CCRes.PtrSourceMap.find(WReason.first) != CCRes.PtrSourceMap.end()) {
-      auto *PsInfo = CCRes.PtrSourceMap[WReason.first];
+  for (auto &WReason : Line.RealWildPtrsWithReasons) {
+    if (Line.PtrSourceMap.find(WReason.first) != Line.PtrSourceMap.end()) {
+      auto *PsInfo = Line.PtrSourceMap[WReason.first];
       std::string FilePath = PsInfo->getFileName();
       // If this is not a file in a project? Then ignore.
-      if (!IsValidSourceFile(CCRes, FilePath))
+      if (!IsValidSourceFile(Line, FilePath))
         continue;
 
       ProcessedCKeys.insert(WReason.first);
@@ -72,14 +72,14 @@ bool CConvertDiagnostics::PopulateDiagsFromDisjointSet(DisjointSet &CCRes) {
   }
 
   // For non-direct wild pointers..update the reason and diag information.
-  for (auto NonWildCk : CCRes.TotalNonDirectWildPointers) {
+  for (auto NonWildCk : Line.TotalNonDirectWildPointers) {
     if (ProcessedCKeys.find(NonWildCk) == ProcessedCKeys.end()) {
       ProcessedCKeys.insert(NonWildCk);
-      if (CCRes.PtrSourceMap.find(NonWildCk) != CCRes.PtrSourceMap.end()) {
-        auto *PsInfo = CCRes.PtrSourceMap[NonWildCk];
+      if (Line.PtrSourceMap.find(NonWildCk) != Line.PtrSourceMap.end()) {
+        auto *PsInfo = Line.PtrSourceMap[NonWildCk];
         std::string FilePath = PsInfo->getFileName();
         // If this is not a file in a project? Then ignore.
-        if (!IsValidSourceFile(CCRes, FilePath))
+        if (!IsValidSourceFile(Line, FilePath))
           continue;
 
         ProcessedCKeys.insert(NonWildCk);
@@ -93,29 +93,20 @@ bool CConvertDiagnostics::PopulateDiagsFromDisjointSet(DisjointSet &CCRes) {
                           "depends on other pointer(s)";
 
         // find the pointer group
-        auto DirectWildPtrKey = CCRes.GetLeader(NonWildCk);
-        auto &PtrGroup = CCRes.GetGroup(DirectWildPtrKey);
-        CVars DirectWildPtrs;
-        DirectWildPtrs.clear();
-        std::set_intersection(
-            PtrGroup.begin(), PtrGroup.end(),
-                              CCRes.AllWildPtrs.begin(),
-                              CCRes.AllWildPtrs.end(),
-                              std::inserter(DirectWildPtrs,
-                          DirectWildPtrs.begin()));
+        CVars &DirectWildPtrs = Line.GetRCVars(NonWildCk);
 
         unsigned MaxPtrReasons = 4;
         for (auto tC : DirectWildPtrs) {
           Note DiagNote;
 
-          if (CCRes.PtrSourceMap.find(tC) != CCRes.PtrSourceMap.end()) {
-            PsInfo = CCRes.PtrSourceMap[tC];
+          if (Line.PtrSourceMap.find(tC) != Line.PtrSourceMap.end()) {
+            PsInfo = Line.PtrSourceMap[tC];
             FilePath = PsInfo->getFileName();
             DiagNote.AbsFile = FilePath;
             DiagNote.Range =
                 GetLocRange(PsInfo->getLineNo(), PsInfo->getColNo());
             MaxPtrReasons--;
-            DiagNote.Message = CCRes.RealWildPtrsWithReasons[tC].WildPtrReason;
+            DiagNote.Message = Line.RealWildPtrsWithReasons[tC].WildPtrReason;
             if (MaxPtrReasons <= 1)
               DiagNote.Message += " (others)";
             NewDiag.Notes.push_back(DiagNote);

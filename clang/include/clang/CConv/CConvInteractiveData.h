@@ -25,17 +25,16 @@ struct WildPointerInferenceInfo {
   unsigned ColStart = 0;
 };
 
-// Standard implementation of disjoint sets.
-class DisjointSet {
+// Constraints information.
+class ConstraintsInfo {
   friend class ProgramInfo;
 public:
-  DisjointSet() {
+  ConstraintsInfo() {
 
   }
   void Clear();
-  void AddElements(ConstraintKey, ConstraintKey);
-  ConstraintKey GetLeader(ConstraintKey);
-  CVars &GetGroup(ConstraintKey);
+  CVars &GetRCVars(ConstraintKey);
+  CVars &GetSrcCVars(ConstraintKey);
 
   std::map<ConstraintKey, struct WildPointerInferenceInfo>
       RealWildPtrsWithReasons;
@@ -45,8 +44,8 @@ public:
   std::map<ConstraintKey, PersistentSourceLoc *> PtrSourceMap;
 
 private:
-  std::map<ConstraintKey, ConstraintKey> Leaders;
-  std::map<ConstraintKey, CVars> Groups;
+  std::map<ConstraintKey, CVars> RCMap;
+  std::map<ConstraintKey, CVars> SrcWMap;
 };
 
 #endif // _CCONVINTERACTIVEDATA_H

@@ -63,12 +63,12 @@ public:
   bool BuildInitialConstraints();
 
   // Constraint Solving.
-  bool SolveConstraints();
+  bool SolveConstraints(bool CWildInfo = false);
 
   // Interactivity.
 
   // Get all the WILD pointers and corresponding reason why they became WILD.
-  DisjointSet &GetWILDPtrsInfo();
+  ConstraintsInfo &GetWILDPtrsInfo();
 
   // Given a constraint key make the corresponding constraint var
   // to be non-WILD.
