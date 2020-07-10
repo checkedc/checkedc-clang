@@ -293,7 +293,8 @@ static bool CastCheck(clang::QualType DstType,
   // Check if both types are compatible.
   bool BothNotChar = SrcTypePtr->isCharType() ^ DstTypePtr->isCharType();
   bool BothNotInt =
-      SrcTypePtr->isIntegerType() ^ DstTypePtr->isIntegerType();
+      (SrcTypePtr->isIntegerType() && SrcTypePtr->isUnsignedIntegerType())
+      ^ (DstTypePtr->isIntegerType() && DstTypePtr->isUnsignedIntegerType());
   bool BothNotFloat =
       SrcTypePtr->isFloatingType() ^ DstTypePtr->isFloatingType();
 
