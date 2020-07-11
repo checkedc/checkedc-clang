@@ -1577,7 +1577,6 @@ protected:
 
     unsigned : NumTypeBits;
     unsigned CheckedPointerKind : 2;
-    unsigned DeclaredCheckedPointerKind : 2;
   };
 
   class ArrayTypeBitfields {
@@ -2071,19 +2070,6 @@ public:
                                                    // _Nt_array_ptr type.
   bool isExactlyCheckedPointerArrayType() const;   // Checked C _Array_ptr type.
   bool isCheckedPointerNtArrayType() const;        // Checked C Nt_Array type.
-  bool isDeclaredCheckedPointerType() const;
-  bool isDeclaredUncheckedPointerType() const;
-  bool isDeclaredCheckedPointerPtrType() const;        // Is this Declared a
-                                                       // Checked C _Ptr type.
-  bool isDeclaredCheckedPointerArrayType() const;      // Is this Declared a
-                                                       // Checked C _Array_ptr
-                                                       // or _Nt_array_ptr type.
-  bool isDeclaredExactlyCheckedPointerArrayType() const; // Is this Declared a
-                                                         // Checked C _Array_ptr
-                                                         // type.
-  bool isDeclaredCheckedPointerNtArrayType() const;      // Declared a
-                                                         // Checked C Nt_Array
-                                                         // type.
   bool isAnyPointerType() const;   // Any C pointer or ObjC object pointer
   bool isBlockPointerType() const;
   bool isVoidPointerType() const;
@@ -2719,22 +2705,10 @@ class PointerType : public Type, public llvm::FoldingSetNode {
           PointerTypeBits.DeclaredCheckedPointerKind = (unsigned)ptrKind;
         }
 
-  PointerType(QualType Pointee, QualType CanonicalPtr, CheckedPointerKind ptrKind,
-              CheckedPointerKind declaredPtrKind)
-      : Type(Pointer, CanonicalPtr, Pointee->isDependentType(),
-             Pointee->isInstantiationDependentType(),
-             Pointee->isVariablyModifiedType(),
-             Pointee->containsUnexpandedParameterPack()),
-        PointeeType(Pointee) {
-    PointerTypeBits.CheckedPointerKind = (unsigned)ptrKind;
-    PointerTypeBits.DeclaredCheckedPointerKind = (unsigned)declaredPtrKind;
-  }
-
 public:
   QualType getPointeeType() const { return PointeeType; }
 
   CheckedPointerKind getKind() const { return CheckedPointerKind(PointerTypeBits.CheckedPointerKind); }
-  CheckedPointerKind getDeclaredKind() const { return CheckedPointerKind(PointerTypeBits.DeclaredCheckedPointerKind); }
 
   /// Returns true if address spaces of pointers overlap.
   /// OpenCL v2.0 defines conversion rules for pointers to different
@@ -2755,17 +2729,6 @@ public:
   bool isNTChecked() const { return getKind() == CheckedPointerKind::NtArray; }
   bool isChecked() const { return getKind() != CheckedPointerKind::Unchecked; }
   bool isUnchecked() const { return getKind() == CheckedPointerKind::Unchecked; }
-
-  bool isDeclaredNTChecked() const {
-    return getDeclaredKind() == CheckedPointerKind::NtArray;
-  }
-  bool isDeclaredChecked() const {
-    return getDeclaredKind() != CheckedPointerKind::Unchecked;
-  }
-  bool isDeclaredUnchecked() const {
-    return getDeclaredKind() == CheckedPointerKind::Unchecked;
-  }
-
   bool isSugared() const { return false; }
   QualType desugar() const { return QualType(this, 0); }
 
@@ -6789,43 +6752,6 @@ inline bool Type::isExactlyCheckedPointerArrayType() const {
 inline bool Type::isCheckedPointerNtArrayType() const {
   if (const PointerType *T = getAs<PointerType>())
     return T->getKind() == CheckedPointerKind::NtArray;
-  return false;
-}
-
-inline bool Type::isDeclaredCheckedPointerType() const {
-  if (const PointerType *T = getAs<PointerType>())
-    return T->isDeclaredChecked();
-  return false;
-}
-
-inline bool Type::isDeclaredUncheckedPointerType() const {
-  if (const PointerType *T = getAs<PointerType>())
-    return T->isDeclaredUnchecked();
-  return false;
-}
-
-inline bool Type::isDeclaredCheckedPointerPtrType() const {
-  if (const PointerType *T = getAs<PointerType>())
-    return T->getDeclaredKind() == CheckedPointerKind::Ptr;
-  return false;
-}
-
-inline bool Type::isDeclaredCheckedPointerArrayType() const {
-  if (const PointerType *T = getAs<PointerType>())
-    return T->getDeclaredKind() == CheckedPointerKind::Array ||
-        T->getDeclaredKind() == CheckedPointerKind::NtArray;
-  return false;
-}
-
-inline bool Type::isDeclaredExactlyCheckedPointerArrayType() const {
-  if (const PointerType *T = getAs<PointerType>())
-    return T->getDeclaredKind() == CheckedPointerKind::Array;
-  return false;
-}
-
-inline bool Type::isDeclaredCheckedPointerNtArrayType() const {
-  if (const PointerType *T = getAs<PointerType>())
-    return T->getDeclaredKind() == CheckedPointerKind::NtArray;
   return false;
 }
 

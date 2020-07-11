@@ -3912,8 +3912,7 @@ static bool diagnoseBoundsError(Sema &S,
 
   const InteropTypeExpr *OldIType = OldAnnots.getInteropTypeExpr();
   const InteropTypeExpr *NewIType = NewAnnots.getInteropTypeExpr();
-  if (!S.getLangOpts().IgnoreCheckedPtr &&
-      !S.Context.EquivalentInteropTypes(OldIType, NewIType)) {
+  if (!S.Context.EquivalentInteropTypes(OldIType, NewIType)) {
     if (OldIType && NewIType)
       DiagId = diag::err_decl_conflicting_annot;
     else if (!IsUncheckedType || IsInconsistent)
@@ -4049,7 +4048,7 @@ bool Sema::DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
                                  /*CompareUnqualified=*/false,
                                  /*IgnoreBounds=*/true);
     // If they are, make sure an error message has been emitted.
-    if (BoundsOnlyError && !Err && !getLangOpts().IgnoreCheckedPtr) {
+    if (BoundsOnlyError && !Err) {
           Diag(New->getLocation(), diag::err_conflicting_annots) <<
             New->getDeclName();
           int PrevDiag;
@@ -4058,7 +4057,7 @@ bool Sema::DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
             = getNoteDiagForInvalidRedeclaration(Old, New);
           Diag(OldLocation, PrevDiag);
     }
-    return BoundsOnlyError && !getLangOpts().IgnoreCheckedPtr;
+    return BoundsOnlyError;
   } else {
     // One declaration has a prototype and the other doesn't.
     // Look for checked parameters that are not allowed when mixing prototype
@@ -12666,8 +12665,7 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
 
       // An unchecked pointer in a checked scope with a bounds expression must
       // be initialized
-      if (!getLangOpts().IgnoreCheckedPtr &&
-          Ty->isUncheckedPointerType() && InCheckedScope &&
+      if (Ty->isUncheckedPointerType() && InCheckedScope &&
           Var->hasBoundsExpr())
         Diag(Var->getLocation(),
              diag::err_initializer_expected_for_unchecked_pointer)
@@ -13981,16 +13979,14 @@ static bool checkBoundsDeclWithTypeAnnotation(Sema &S, QualType DeclaredTy,
   }
 
   // Make sure that the annotation type is a checked type.
-  if (!S.getLangOpts().IgnoreCheckedPtr && !(Errors & Annot_Illegal_Type) &&
-      !AnnotTy->isOrContainsCheckedType()) {
+  if (!(Errors & Annot_Illegal_Type) && !AnnotTy->isOrContainsCheckedType()) {
     S.Diag(AnnotTyLoc,
            diag::err_typecheck_bounds_type_annotation_must_be_checked_type);
     Errors |= Annot_Unchecked;
   }
 
   // Check that the types are identical if checking is ignored.
-  if (!S.getLangOpts().IgnoreCheckedPtr &&
-      !(Errors & Declared_Illegal_Type || Errors & Annot_Illegal_Type) &&
+  if (!(Errors & Declared_Illegal_Type || Errors & Annot_Illegal_Type) &&
      !S.Context.isEqualIgnoringChecked(AnnotTy, DeclaredTy)) {
     DiagId = diag::err_typecheck_bounds_type_annotation_incompatible;
     S.Diag(AnnotTyLoc, DiagId) << AnnotTy << DeclaredTy;
@@ -14001,8 +13997,7 @@ static bool checkBoundsDeclWithTypeAnnotation(Sema &S, QualType DeclaredTy,
     return true;
 
   // Check that the annotation type does not lose checking of the declared type.
-  if (!S.getLangOpts().IgnoreCheckedPtr &&
-      !S.Context.isAtLeastAsCheckedAs(AnnotTy, DeclaredTy)) {
+  if (!S.Context.isAtLeastAsCheckedAs(AnnotTy, DeclaredTy)) {
     S.Diag(AnnotTyLoc, diag::err_bounds_type_annotation_lost_checking)
         << AnnotTy << DeclaredTy;
     return true;
@@ -14211,7 +14206,7 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations Annots,
       isInvalid = true;
     }
 
-    if (BoundsExpr && !getLangOpts().IgnoreCheckedPtr) {
+    if (BoundsExpr) {
       if (Ty->isPointerType() && !Ty->isCheckedPointerType())
         DiagId = diag::err_bounds_declaration_unchecked_local_pointer;
       else if (Ty->isArrayType() && !Ty->isCheckedArrayType())
