@@ -2702,7 +2702,6 @@ class PointerType : public Type, public llvm::FoldingSetNode {
              Pointee->containsUnexpandedParameterPack()),
         PointeeType(Pointee) {
           PointerTypeBits.CheckedPointerKind = (unsigned)ptrKind;
-          PointerTypeBits.DeclaredCheckedPointerKind = (unsigned)ptrKind;
         }
 
 public:
