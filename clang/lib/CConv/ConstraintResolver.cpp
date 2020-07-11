@@ -183,6 +183,11 @@ ConstraintResolver::getTemporaryConstraintVariable(clang::Expr *E,
 
 std::set<ConstraintVariable *>
     ConstraintResolver::getInvalidCastPVCons(Expr *E) {
+  std::set<ConstraintVariable *> Ret;
+  if (hasPersistentConstraints(E)) {
+    return getPersistentConstraints(E,Ret);
+  }
+
   QualType SrcType, DstType;
   DstType = E->getType();
   SrcType = E->getType();
@@ -192,11 +197,7 @@ std::set<ConstraintVariable *>
   if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(E)) {
     SrcType = ECE->getSubExpr()->getType();
   }
-  std::set<ConstraintVariable *> Ret;
   auto &CS = Info.getConstraints();
-  if (hasPersistentConstraints(E)) {
-    return getPersistentConstraints(E,Ret);
-  }
   CAtoms NewVA;
   Atom *NewA = CS.getFreshVar("Invalid cast to:" + E->getType().getAsString(),
                               VarAtom::V_Other);
@@ -210,7 +211,7 @@ std::set<ConstraintVariable *>
 
   Ret = {P};
 
-  return Ret;
+  return getPersistentConstraints(E, Ret);
 
 }
 
@@ -712,4 +713,8 @@ bool ConstraintResolver::resolveBoundsKey(std::set<ConstraintVariable *> &CVs,
     }
   }
   return RetVal;
+}
+
+bool ConstraintResolver::canFunctionBeSkipped(const std::string &FN) {
+  return FN == "realloc";
 }

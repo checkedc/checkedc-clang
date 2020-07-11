@@ -51,6 +51,8 @@ public:
   // Try to get the bounds key from the constraint variable set.
   bool resolveBoundsKey(std::set<ConstraintVariable *> &CVs, BoundsKey &BK);
 
+  static bool canFunctionBeSkipped(const std::string &FN);
+
 private:
   ProgramInfo &Info;
   ASTContext *Context;

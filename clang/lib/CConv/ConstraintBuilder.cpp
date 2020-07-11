@@ -163,7 +163,7 @@ public:
     if (FVCons.empty()) {
       // Don't know who we are calling; make args WILD
       constraintAllArgumentsToWild(E);
-    } else if (FuncName.compare("realloc") != 0) {
+    } else if (!ConstraintResolver::canFunctionBeSkipped(FuncName)) {
       // If we are calling realloc, ignore it, so as not to constrain the first arg
       // Else, for each function we are calling ...
       for (auto *TmpC : FVCons) {
