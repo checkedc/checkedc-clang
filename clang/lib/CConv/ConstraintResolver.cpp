@@ -17,11 +17,7 @@ using namespace clang;
 
 std::set<ConstraintVariable *> ConstraintResolver::TempConstraintVars;
 
-ConstraintResolver::~ConstraintResolver() {
-  // No need to free the memory. The memory should be released explicitly
-  // by calling releaseTempConsVars
-  ExprTmpConstraints.clear();
-}
+ConstraintResolver::~ConstraintResolver() { }
 
 // Force all ConstraintVariables in this set to be WILD
 void ConstraintResolver::constraintAllCVarsToWild(
@@ -165,20 +161,6 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS, QualType &ArgT
     }
   }
   return nullptr;
-}
-
-ConstraintVariable *
-ConstraintResolver::getTemporaryConstraintVariable(clang::Expr *E,
-                                                   ConstraintVariable *CV) {
-  auto ExpKey = std::make_pair(E, CV);
-  if (ExprTmpConstraints.find(ExpKey) == ExprTmpConstraints.end()) {
-    // Make a copy and store the copy of the underlying constraint
-    // into TempConstraintVars to handle memory management.
-    auto *CVarPtr = CV->getCopy(Info.getConstraints());
-    TempConstraintVars.insert(CVarPtr);
-    ExprTmpConstraints[ExpKey] = CVarPtr;
-  }
-  return ExprTmpConstraints[ExpKey];
 }
 
 std::set<ConstraintVariable *>

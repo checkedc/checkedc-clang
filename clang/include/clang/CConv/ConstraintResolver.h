@@ -22,9 +22,7 @@ using namespace clang;
 class ConstraintResolver {
 
 public:
-  ConstraintResolver(ProgramInfo &I, ASTContext *C) : Info(I), Context(C) {
-    ExprTmpConstraints.clear();
-  }
+  ConstraintResolver(ProgramInfo &I, ASTContext *C) : Info(I), Context(C) { }
 
   virtual ~ConstraintResolver();
 
@@ -59,13 +57,6 @@ private:
   // These are temporary constraints, that will be created to handle various
   // expressions
   static std::set<ConstraintVariable *> TempConstraintVars;
-  // Map that stores temporary constraint variable copies created for the
-  // corresponding expression and constraint variable
-  std::map<std::pair<clang::Expr *, ConstraintVariable *>,
-           ConstraintVariable *> ExprTmpConstraints;
-
-  ConstraintVariable *getTemporaryConstraintVariable(clang::Expr *E,
-                                                     ConstraintVariable *CV);
 
   std::set<ConstraintVariable *> handleDeref(std::set<ConstraintVariable *> T);
 
