@@ -16,7 +16,7 @@
 
 namespace clang {
 
-void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
+void BoundsAnalysis::WidenBounds(FunctionDecl *FD, StmtSet NestedStmts) {
   assert(Cfg && "expected CFG to exist");
 
   WorkListTy WorkList;
@@ -59,7 +59,7 @@ void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
 
   // Compute Gen and Kill sets.
   ComputeGenSets();
-  ComputeKillSets();
+  ComputeKillSets(NestedStmts);
 
   // Initialize the In and Out sets to Top.
   InitInOutSets();
@@ -327,10 +327,6 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
   //   if (*(p + 1)) // no widening
   //     if (*(p + i)) // widen p and q by 1
 
-  // TODO: Currently, Lexicographic::CompareExpr does not understand
-  // commutativity of operations. Exprs like "p + e" and "e + p" are considered
-  // unequal.
-
   // TODO: Currently, we iterate and re-compute info for all ntptrs in scope
   // for each ntptr dereference. We can optimize this at the cost of space by
   // storing the VarDecls, variables used in bounds exprs and base/offset for
@@ -371,8 +367,7 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
       continue;
     llvm::APSInt UpperOffset = UpperExprIntPair.second;
 
-    if (Lex.CompareExpr(DerefBase, UpperBase) !=
-        Lexicographic::Result::Equal)
+    if (!Lex.CompareExprSemantically(DerefBase, UpperBase))
       continue;
 
     // We cannot widen the bounds if the offset in the deref expr is less than
@@ -595,9 +590,9 @@ void BoundsAnalysis::FillGenSet(Expr *E,
   }
 }
 
-void BoundsAnalysis::ComputeKillSets() {
+void BoundsAnalysis::ComputeKillSets(StmtSet NestedStmts) {
   // For a block B, a variable v is added to Kill[B][S] if v is assigned to in
-  // B by Stmt S.
+  // B by Stmt S or some child S1 of S.
 
   for (const auto item : BlockMap) {
     ElevatedCFGBlock *EB = item.second;
@@ -607,13 +602,19 @@ void BoundsAnalysis::ComputeKillSets() {
         const Stmt *S = Elem.castAs<CFGStmt>().getStmt();
         if (!S)
           continue;
-        FillKillSet(EB, S);
+        // Skip top-level statements that are nested in another
+        // top-level statement.
+        if (NestedStmts.find(S) != NestedStmts.end())
+          continue;
+        FillKillSet(EB, S, S);
       }
     }
   }
 }
 
-void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB, const Stmt *S) {
+void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB,
+                                 const Stmt *TopLevelStmt,
+                                 const Stmt *S) {
   if (!S)
     return;
 
@@ -635,7 +636,7 @@ void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB, const Stmt *S) {
         // If the variable being assigned to is an ntptr, add the Stmt:V pair
         // to the Kill set for the block.
         if (IsNtArrayType(V))
-          EB->Kill[S].insert(V);
+          EB->Kill[TopLevelStmt].insert(V);
 
         else {
           // Else look for the variable in BoundsVars.
@@ -655,7 +656,7 @@ void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB, const Stmt *S) {
             // If the variable exists in the bounds declaration for the ntptr,
             // then add the Stmt:ntptr pair to the Kill set for the block.
             if (Vars.count(V))
-              EB->Kill[S].insert(NtPtr);
+              EB->Kill[TopLevelStmt].insert(NtPtr);
           }
         }
       }
@@ -663,7 +664,7 @@ void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB, const Stmt *S) {
   }
 
   for (const Stmt *St : S->children())
-    FillKillSet(EB, St);
+    FillKillSet(EB, TopLevelStmt, St);
 }
 
 void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB) {
@@ -829,13 +830,10 @@ T BoundsAnalysis::Difference(T &A, U &B) const {
     return A;
 
   auto Ret = A;
-  for (auto I = Ret.begin(), E = Ret.end(); I != E; ) {
-    const auto *V = I->first;
-    if (B.count(V)) {
-      auto Next = std::next(I);
-      Ret.erase(I);
-      I = Next;
-    } else ++I;
+  for (auto I : A) {
+    const auto *V = I.first;
+    if (B.count(V))
+      Ret.erase(V);
   }
   return Ret;
 }

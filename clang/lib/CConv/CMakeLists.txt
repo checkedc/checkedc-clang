@@ -4,6 +4,10 @@ set( LLVM_LINK_COMPONENTS
         Support
         )
 
+if (MSVC)
+  set_source_files_properties(RewriteUtils.cpp PROPERTIES COMPILE_FLAGS /bigobj)	
+endif()
+
 add_clang_library(CConv
   ArrayBoundsInferenceConsumer.cpp
   ArrayBoundsInformation.cpp

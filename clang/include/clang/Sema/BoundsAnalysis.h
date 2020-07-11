@@ -96,6 +96,9 @@ namespace clang {
   // 2. any variable used in the bounds expr of V is assigned to in S.
   using StmtDeclSetTy = llvm::DenseMap<const Stmt *, DeclSetTy>;
 
+  // StmtSet denotes a set of Stmts.
+  using StmtSet = llvm::SmallPtrSet<const Stmt *, 16>;
+
   class BoundsAnalysis {
   private:
     Sema &S;
@@ -184,7 +187,9 @@ namespace clang {
 
     // Run the dataflow analysis to widen bounds for ntptr's.
     // @param[in] FD is the current function.
-    void WidenBounds(FunctionDecl *FD);
+    // @param[in] NestedStmts is a set of top-level statements that are
+    // nested in another top-level statement.
+    void WidenBounds(FunctionDecl *FD, StmtSet NestedStmts);
 
     // Get the widened bounds for block B.
     // @param[in] B is the block for which the widened bounds are needed.
@@ -214,7 +219,9 @@ namespace clang {
     // Compute Kill set for each block in BlockMap. For a block B, if a
     // variable V is assigned to in B by Stmt S, then the pair S:V is added to
     // the Kill set for the block.
-    void ComputeKillSets();
+    // @param[in] NestedStmts is a set of top-level statements that are
+    // nested in another top-level statement.
+    void ComputeKillSets(StmtSet NestedStmts);
 
     // Compute In set for each block in BlockMap. In[B1] = n Out[B*->B1], where
     // B* are all preds of B1.
@@ -314,10 +321,12 @@ namespace clang {
     // @param[in] FD is the current function.
     void CollectNtPtrsInScope(FunctionDecl *FD);
 
-    // If variable V is killed by Stmt S in Block B, add S:V pair to EB->Kill.
+    // If variable V is killed by Stmt S in Block B, add TopLevelStmt:V pair
+    // to EB->Kill, where TopLevelStmt is the top-level Stmt that contains S.
     // @param[in] EB is the ElevatedCFGBlock for the current block.
+    // @param[in] TopLevelStmt is the top-level Stmt in the block.
     // @param[in] S is the current Stmt in the block.
-    void FillKillSet(ElevatedCFGBlock *EB, const Stmt *S);
+    void FillKillSet(ElevatedCFGBlock *EB, const Stmt *TopLevelStmt, const Stmt *S);
 
     // Initialize the In and Out sets for all blocks, except the Entry block,
     // as Top.
