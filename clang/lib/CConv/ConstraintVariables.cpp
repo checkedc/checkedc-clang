@@ -214,15 +214,15 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       break;
     }
 
-    if (Ty->isDeclaredCheckedPointerType()) {
+    if (Ty->isCheckedPointerType()) {
       ConstAtom *CAtom = nullptr;
-      if (Ty->isDeclaredCheckedPointerNtArrayType()) {
+      if (Ty->isCheckedPointerNtArrayType()) {
         // This is an NT array type.
         CAtom = CS.getNTArr();
-      } else if (Ty->isDeclaredCheckedPointerArrayType()) {
+      } else if (Ty->isCheckedPointerArrayType()) {
         // This is an array type.
         CAtom = CS.getArr();
-      } else if (Ty->isDeclaredCheckedPointerPtrType()) {
+      } else if (Ty->isCheckedPointerPtrType()) {
         // This is a regular checked pointer.
         CAtom = CS.getPtr();
       }

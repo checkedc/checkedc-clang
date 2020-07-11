@@ -84,13 +84,13 @@ getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S)
 clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *ItypeExpr) {
   TypeSourceInfo *InteropTypeInfo = ItypeExpr->getTypeInfoAsWritten();
   const clang::Type *InnerType = InteropTypeInfo->getType().getTypePtr();
-  if (InnerType->isDeclaredCheckedPointerNtArrayType()) {
+  if (InnerType->isCheckedPointerNtArrayType()) {
     return CheckedPointerKind::NtArray;
   }
-  if (InnerType->isDeclaredCheckedPointerArrayType()) {
+  if (InnerType->isCheckedPointerArrayType()) {
     return CheckedPointerKind::Array;
   }
-  if (InnerType->isDeclaredCheckedPointerType()) {
+  if (InnerType->isCheckedPointerType()) {
     return CheckedPointerKind::Ptr;
   }
   return CheckedPointerKind::Unchecked;
