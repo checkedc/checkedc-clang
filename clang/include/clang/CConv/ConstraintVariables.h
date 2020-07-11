@@ -104,8 +104,8 @@ public:
 
   // Constrain all pointers in this ConstraintVariable to be Wild.
   virtual void constrainToWild(Constraints &CS) = 0;
-  virtual void constrainToWild(Constraints &CS, std::string &Rsn) = 0;
-  virtual void constrainToWild(Constraints &CS, std::string &Rsn,
+  virtual void constrainToWild(Constraints &CS, const std::string &Rsn) = 0;
+  virtual void constrainToWild(Constraints &CS, const std::string &Rsn,
                                PersistentSourceLoc *PL) = 0;
 
   // Returns true if any of the constraint variables 'within' this instance
@@ -285,8 +285,8 @@ public:
   void dump() const { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const;
   void constrainToWild(Constraints &CS);
-  void constrainToWild(Constraints &CS, std::string &Rsn);
-  void constrainToWild(Constraints &CS, std::string &Rsn,
+  void constrainToWild(Constraints &CS, const std::string &Rsn);
+  void constrainToWild(Constraints &CS, const std::string &Rsn,
                        PersistentSourceLoc *PL);
   void constrainOuterTo(Constraints &CS, ConstAtom *C, bool doLB = false);
   bool anyChanges(EnvironmentMap &E);
@@ -380,8 +380,8 @@ public:
   void dump() const { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const;
   void constrainToWild(Constraints &CS);
-  void constrainToWild(Constraints &CS, std::string &Rsn);
-  void constrainToWild(Constraints &CS, std::string &Rsn,
+  void constrainToWild(Constraints &CS, const std::string &Rsn);
+  void constrainToWild(Constraints &CS, const std::string &Rsn,
                        PersistentSourceLoc *PL);
   bool anyChanges(EnvironmentMap &E);
   bool hasWild(EnvironmentMap &E, int AIdx = -1);

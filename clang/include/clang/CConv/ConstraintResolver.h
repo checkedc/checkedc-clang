@@ -67,6 +67,8 @@ private:
 
   std::set<ConstraintVariable *> handleDeref(std::set<ConstraintVariable *> T);
 
+  std::set<ConstraintVariable *> getInvalidCastPVCons(Expr *E);
+
   // Update a PVConstraint with one additional level of indirection
   PVConstraint *addAtom(PVConstraint *PVC, ConstAtom *NewA, Constraints &CS);
   std::set<ConstraintVariable *> addAtomAll(std::set<ConstraintVariable *> CVS,
@@ -77,6 +79,7 @@ private:
   std::set<ConstraintVariable *>
       getAllSubExprConstraintVars(std::vector<Expr *> &Exprs);
   std::set<ConstraintVariable *> getBaseVarPVConstraint(DeclRefExpr *Decl);
+  bool hasPersistentConstraints(clang::Expr *E);
   std::set<ConstraintVariable *>
       getPersistentConstraints(clang::Expr *E,
                                std::set<ConstraintVariable *> &Vars);

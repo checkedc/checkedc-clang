@@ -24,7 +24,7 @@ static cl::opt<bool> DebugSolver("debug-solver",
   cl::desc("Dump intermediate solver state"),
   cl::init(false), cl::cat(SolverCategory));
 
-Constraint::Constraint(ConstraintKind K, std::string &Rsn,
+Constraint::Constraint(ConstraintKind K, const std::string &Rsn,
                        PersistentSourceLoc *PL): Constraint(K, Rsn) {
   if (PL != nullptr && PL->valid()) {
     FileName = PL->getFileName();
@@ -596,12 +596,12 @@ Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, bool isCheckedConstraint) {
     return new Geq(Lhs, Rhs, isCheckedConstraint);
 }
 
-Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
+Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,
                             bool isCheckedConstraint) {
     return new Geq(Lhs, Rhs, Rsn, isCheckedConstraint);
 }
 
-Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn,
+Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,
                             PersistentSourceLoc *PL, bool isCheckedConstraint) {
     if (PL != nullptr && PL->valid()) {
         // Make this invalid, if the source location is not absolute path

@@ -181,6 +181,39 @@ ConstraintResolver::getTemporaryConstraintVariable(clang::Expr *E,
   return ExprTmpConstraints[ExpKey];
 }
 
+std::set<ConstraintVariable *>
+    ConstraintResolver::getInvalidCastPVCons(Expr *E) {
+  QualType SrcType, DstType;
+  DstType = E->getType();
+  SrcType = E->getType();
+  if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E)) {
+    SrcType = ICE->getSubExpr()->getType();
+  }
+  if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(E)) {
+    SrcType = ECE->getSubExpr()->getType();
+  }
+  std::set<ConstraintVariable *> Ret;
+  auto &CS = Info.getConstraints();
+  if (hasPersistentConstraints(E)) {
+    return getPersistentConstraints(E,Ret);
+  }
+  CAtoms NewVA;
+  Atom *NewA = CS.getFreshVar("Invalid cast to:" + E->getType().getAsString(),
+                              VarAtom::V_Other);
+  NewVA.push_back(NewA);
+
+  PVConstraint *P = new PVConstraint(NewVA, "unsigned", "wildvar",
+                                     nullptr, false, false, "");
+  PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
+  P->constrainToWild(CS, "Casted from " + SrcType.getAsString() +  " to " +
+                             DstType.getAsString() , &PL);
+
+  Ret = {P};
+
+  return Ret;
+
+}
+
 // Returns a set of ConstraintVariables which represent the result of
 // evaluating the expression E. Will explore E recursively, but will
 // ignore parts of it that do not contribute to the final result
@@ -216,7 +249,7 @@ std::set<ConstraintVariable *>
                || SubTypE->isVoidPointerType())
           && !isCastSafe(TypE, SubTypE)) {
         constraintAllCVarsToWild(CVs, "Casted to a different type.", IE);
-        return getWildPVConstraint();
+        return getInvalidCastPVCons(E);
       }
       // else, return sub-expression's result
       return CVs;
@@ -227,7 +260,7 @@ std::set<ConstraintVariable *>
       // Is cast internally safe? Return WILD if not
       Expr *TmpE = ECE->getSubExpr();
       if (TypE->isPointerType() && !isCastSafe(TypE, TmpE->getType()))
-        return getWildPVConstraint();
+        return getInvalidCastPVCons(E);
         // NB: Expression ECE itself handled in ConstraintBuilder::FunctionVisitor
       else
         return getExprConstraintVars(TmpE);
@@ -310,6 +343,11 @@ std::set<ConstraintVariable *>
       // lvalue that designates an object that is not a bit-field and is not
       // declared with the register storage-class specifier."
       case UO_AddrOf: {
+        std::set<ConstraintVariable *> AddrVs;
+        if (hasPersistentConstraints(UO)) {
+          return getPersistentConstraints(UO, AddrVs);
+        }
+
         UOExpr = UOExpr->IgnoreParenImpCasts();
         // Taking the address of a dereference is a NoOp, so the constraint
         // vars for the subexpression can be passed through.
@@ -324,7 +362,7 @@ std::set<ConstraintVariable *>
         // add a VarAtom to UOExpr's PVConstraint, for &
         std::set<ConstraintVariable *> T = getExprConstraintVars(UOExpr);
         assert("Empty constraint vars in AddrOf!" && !T.empty());
-        std::set<ConstraintVariable *> AddrVs = addAtomAll(T, CS.getPtr(), CS);
+        AddrVs = addAtomAll(T, CS.getPtr(), CS);
 
         return getPersistentConstraints(UO, AddrVs);
       }
@@ -361,6 +399,10 @@ std::set<ConstraintVariable *>
     } else if (CallExpr *CE = dyn_cast<CallExpr>(E)) {
       // Call expression should always get out-of context constraint variable.
       std::set<ConstraintVariable *> ReturnCVs;
+      if (hasPersistentConstraints(CE)) {
+        return getPersistentConstraints(CE, ReturnCVs);
+      }
+
       // Here, we need to look up the target of the call and return the
       // constraints for the return value of that function.
       QualType ExprType = E->getType();
@@ -440,7 +482,7 @@ std::set<ConstraintVariable *>
       // ConstraintVariables.
       std::set<ConstraintVariable *> TmpCVs;
       for (ConstraintVariable *CV : ReturnCVs) {
-        ConstraintVariable *NewCV = getTemporaryConstraintVariable(CE, CV);
+        ConstraintVariable *NewCV = CV->getCopy(CS);
         // Important: Do Safe_to_Wild from returnvar in this copy, which then
         //   might be assigned otherwise (Same_to_Same) to LHS
         constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false, &Info);
@@ -455,7 +497,6 @@ std::set<ConstraintVariable *>
       }
 
       return getPersistentConstraints(CE, TmpCVs);
-
     // e1 ? e2 : e3
     } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
       std::vector<Expr *> SubExprs;
@@ -484,13 +525,18 @@ std::set<ConstraintVariable *>
 
     // (int[]){e1, e2, e3, ... }
     } else if (CompoundLiteralExpr *CLE = dyn_cast<CompoundLiteralExpr>(E)) {
+      std::set<ConstraintVariable *> T;
+      if (hasPersistentConstraints(CLE)) {
+        return getPersistentConstraints(CLE, T);
+      }
+
       std::set<ConstraintVariable *>
           Vars = getExprConstraintVars(CLE->getInitializer());
 
       PVConstraint *P = new PVConstraint(CLE->getType(), nullptr,
                                          CLE->getStmtClassName(), Info,
                                          *Context, nullptr);
-      std::set<ConstraintVariable *> T = {P};
+      T = {P};
 
       PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CLE, *Context);
       constrainConsVarGeq(T, Vars, Info.getConstraints(), &PL,
@@ -500,6 +546,10 @@ std::set<ConstraintVariable *>
 
     // "foo"
     } else if (clang::StringLiteral *Str = dyn_cast<clang::StringLiteral>(E)) {
+      std::set<ConstraintVariable *> T;
+      if (hasPersistentConstraints(Str)) {
+        return getPersistentConstraints(Str, T);
+      }
       // If this is a string literal. i.e., "foo".
       // We create a new constraint variable and constraint it to an Nt_array.
 
@@ -507,8 +557,7 @@ std::set<ConstraintVariable *>
                                          Str->getStmtClassName(), Info,
                                          *Context, nullptr);
       P->constrainOuterTo(CS, CS.getNTArr()); // NB: ARR already there
-      TempConstraintVars.insert(P);
-      std::set<ConstraintVariable *> T = {P};
+      T = {P};
 
       return getPersistentConstraints(Str, T);
 
@@ -529,6 +578,12 @@ std::set<ConstraintVariable *>
   return std::set<ConstraintVariable *>();
 }
 
+bool ConstraintResolver::hasPersistentConstraints(clang::Expr *E) {
+  std::set<ConstraintVariable *>
+      &Persist = Info.getPersistentConstraintVars(E, Context);
+  return !Persist.empty();
+}
+
 // Get the set of constraint variables for an expression that will persist
 // between the constraint generation and rewriting pass. If the expression
 // already has a set of persistent constraints, this set is returned. Otherwise,
@@ -536,10 +591,11 @@ std::set<ConstraintVariable *>
 // required for correct cast insertion.
 std::set<ConstraintVariable *> ConstraintResolver::getPersistentConstraints(
     clang::Expr *E, std::set<ConstraintVariable *> &Vars) {
+  assert ((!hasPersistentConstraints(E) || Vars.empty()) &&
+         "Persistent constraints already present.");
   std::set<ConstraintVariable *>
       &Persist = Info.getPersistentConstraintVars(E, Context);
-  if (Persist.empty())
-    Persist.insert(Vars.begin(), Vars.end());
+  Persist.insert(Vars.begin(), Vars.end());
   return Persist;
 }
 

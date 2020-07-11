@@ -325,10 +325,10 @@ public:
   unsigned LineNo = 0;
   unsigned ColStart = 0;
   Constraint(ConstraintKind K) : Kind(K) { }
-  Constraint(ConstraintKind K, std::string &rsn) : Kind(K) {
+  Constraint(ConstraintKind K, const std::string &rsn) : Kind(K) {
     REASON = rsn;
   }
-  Constraint(ConstraintKind K, std::string &Rsn, PersistentSourceLoc *PL);
+  Constraint(ConstraintKind K, const std::string &Rsn, PersistentSourceLoc *PL);
 
   virtual ~Constraint() {}
 
@@ -353,10 +353,10 @@ public:
     Geq(Atom *Lhs, Atom *Rhs, bool isCC = true)
             : Constraint(C_Geq), lhs(Lhs), rhs(Rhs), isCheckedConstraint(isCC) {}
 
-    Geq(Atom *Lhs, Atom *Rhs, std::string &Rsn, bool isCC = true)
+    Geq(Atom *Lhs, Atom *Rhs, const std::string &Rsn, bool isCC = true)
             : Constraint(C_Geq, Rsn), lhs(Lhs), rhs(Rhs), isCheckedConstraint(isCC) {}
 
-    Geq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL, bool isCC = true)
+    Geq(Atom *Lhs, Atom *Rhs, const std::string &Rsn, PersistentSourceLoc *PL, bool isCC = true)
             : Constraint(C_Geq, Rsn, PL), lhs(Lhs), rhs(Rhs), isCheckedConstraint(isCC) {}
 
     static bool classof(const Constraint *C) {
@@ -579,8 +579,10 @@ public:
   void dump_json(llvm::raw_ostream &) const;
 
   Geq *createGeq(Atom *Lhs, Atom *Rhs, bool isCheckedConstraint = true);
-  Geq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, bool isCheckedConstraint = true);
-  Geq *createGeq(Atom *Lhs, Atom *Rhs, std::string &Rsn, PersistentSourceLoc *PL, bool isCheckedConstraint = true);
+  Geq *createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,
+                 bool isCheckedConstraint = true);
+  Geq *createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,
+                 PersistentSourceLoc *PL, bool isCheckedConstraint = true);
   Implies *createImplies(Geq *Premise, Geq *Conclusion);
 
   VarAtom *getFreshVar(std::string Name, VarAtom::VarKind VK);

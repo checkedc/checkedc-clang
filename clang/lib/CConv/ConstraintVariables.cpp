@@ -734,7 +734,7 @@ void FunctionVariableConstraint::constrainToWild(Constraints &CS) {
 }
 
 void FunctionVariableConstraint::constrainToWild(Constraints &CS,
-                                                 std::string &Rsn) {
+                                                 const std::string &Rsn) {
   for (const auto &V : returnVars)
     V->constrainToWild(CS, Rsn);
 
@@ -744,7 +744,7 @@ void FunctionVariableConstraint::constrainToWild(Constraints &CS,
 }
 
 void FunctionVariableConstraint::constrainToWild(Constraints &CS,
-                                                 std::string &Rsn,
+                                                 const std::string &Rsn,
                                                  PersistentSourceLoc *PL) {
   for (const auto &V : returnVars)
     V->constrainToWild(CS, Rsn, PL);
@@ -870,7 +870,7 @@ void PointerVariableConstraint::constrainToWild(Constraints &CS) {
 }
 
 void PointerVariableConstraint::constrainToWild(Constraints &CS,
-                                                std::string &Rsn,
+                                                const std::string &Rsn,
                                                 PersistentSourceLoc *PL) {
   ConstAtom *WA = CS.getWild();
   for (const auto &V : vars) {
@@ -883,7 +883,7 @@ void PointerVariableConstraint::constrainToWild(Constraints &CS,
 }
 
 void PointerVariableConstraint::constrainToWild(Constraints &CS,
-                                                std::string &Rsn) {
+                                                const std::string &Rsn) {
   ConstAtom *WA = CS.getWild();
   for (const auto &V : vars) {
     if (VarAtom *VA = dyn_cast<VarAtom>(V))
