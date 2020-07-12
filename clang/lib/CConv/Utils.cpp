@@ -304,8 +304,9 @@ static bool CastCheck(clang::QualType DstType,
 bool isCastSafe(clang::QualType DstType,
                 clang::QualType SrcType) {
   const clang::Type *DstTypePtr = DstType.getTypePtr();
-  const clang::PointerType *DstPtrTypePtr = dyn_cast<clang::PointerType>(DstTypePtr);
-  if (!DstPtrTypePtr) // Safe to cast to a non-pointer
+  const clang::PointerType *DstPtrTypePtr =
+      dyn_cast<clang::PointerType>(DstTypePtr);
+  if (!DstPtrTypePtr) // Safe to cast to a non-pointer.
     return true;
   else
     return CastCheck(DstType,SrcType);
