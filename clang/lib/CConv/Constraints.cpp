@@ -29,7 +29,7 @@ Constraint::Constraint(ConstraintKind K, const std::string &Rsn,
   if (PL != nullptr && PL->valid()) {
     FileName = PL->getFileName();
     LineNo = PL->getLineNo();
-    ColStart = PL->getColNo();
+    ColStart = PL->getColSNo();
   }
 }
 

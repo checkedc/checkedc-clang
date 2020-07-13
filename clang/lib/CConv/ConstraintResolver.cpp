@@ -227,7 +227,6 @@ CVarSet
       // NULL
     } else if (isNULLExpression(E, *Context)) {
       return EmptyCSet;
-
       // Implicit cast, e.g., T* from T[] or int (*)(int) from int (int),
       //   but also weird int->int * conversions (and back)
     } else if (ImplicitCastExpr *IE = dyn_cast<ImplicitCastExpr>(E)) {
@@ -245,7 +244,6 @@ CVarSet
       }
       // else, return sub-expression's result
       return CVs;
-
       // variable (x)
     } else if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
       return Info.getVariable(DRE->getDecl(), Context);
