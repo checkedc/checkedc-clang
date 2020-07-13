@@ -187,7 +187,7 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
   }
   if (FD) {
     auto type = FD->getReturnType();
-    if (type->isPointerType())
+    if (isUncheckedPtr(type))
       Nwild++;
   }
   return true;
