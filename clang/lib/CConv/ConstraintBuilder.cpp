@@ -164,19 +164,33 @@ public:
       // Don't know who we are calling; make args WILD
       constraintAllArgumentsToWild(E);
     } else if (FuncName.compare("realloc") != 0) {
-      // If we are calling realloc, ignore it, so as not to constrain the first arg
-      // Else, for each function we are calling ...
+      // FIXME: realloc comparison is still required. See issue #176.
       for (auto *TmpC : FVCons) {
         if (PVConstraint *PVC = dyn_cast<PVConstraint>(TmpC)) {
           TmpC = PVC->getFV();
           assert(TmpC != nullptr && "Function pointer with null FVConstraint.");
         }
+
+        // TODO: create map containing equivalence set for each type param. Add
+        //       to these sets the argument expressions that instantiate the
+        //       corresponding parameter. For each set, check that all
+        //       expressions have an compatible type. If yes, the cast to void*
+        //       can be removed, otherwise it is kept.
+
         // and for each arg to the function ...
         if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
           unsigned i = 0;
           for (const auto &A : E->arguments()) {
-            std::set<ConstraintVariable *> ArgumentConstraints =
-                CB.getExprConstraintVars(A);
+            std::set<ConstraintVariable *> ArgumentConstraints;
+            // TODO: force type equality between args using same type param
+            if(TFD != nullptr && i < TFD->getNumParams()) {
+              if (getTypeVariableType(TFD->getParamDecl(i)))
+                ArgumentConstraints = CB.getExprConstraintVars(ignoreCast(A));
+              else
+                ArgumentConstraints = CB.getExprConstraintVars(A);
+            } else {
+              ArgumentConstraints = CB.getExprConstraintVars(A);
+            }
             // constrain the arg CV to the param CV
             if (i < TargetFV->numParams()) {
               std::set<ConstraintVariable *> ParameterDC =
@@ -217,6 +231,24 @@ public:
       }
     }
     return true;
+  }
+
+  // Get the type variable used in a parameter declaration, or return null if no
+  // type variable is used.
+  const TypeVariableType *getTypeVariableType(ParmVarDecl *ParmDecl){
+    // This makes a lot of assumptions about how the AST will look.
+    if(InteropTypeExpr *PTy = ParmDecl->getInteropTypeExpr())
+      if (const clang::Type *T = PTy->getType().getTypePtr())
+        if (const auto *PtrTy =
+            dyn_cast_or_null<TypedefType>(T->getPointeeType().getTypePtr()))
+          return dyn_cast<TypeVariableType>(PtrTy->desugar());
+    return nullptr;
+  }
+
+  Expr *ignoreCast(Expr *E){
+    if(auto *ImpCast = dyn_cast<ImplicitCastExpr>(E))
+      return ImpCast->getSubExpr();
+    return E;
   }
 
   // e1[e2]
