@@ -720,6 +720,38 @@ void LengthVarInference::VisitStmt(Stmt *St) {
   }
 }
 
+// Consider the following example:
+//
+// int foo(int *a, int *b, unsigned l) {
+//  unsigned i = 0;
+//  for (i=0; i<l; i++) {
+//    a[i] = b[i];
+//  }
+// }
+// From the above code, it is obvious that the length of a and b should be l.
+//
+// Consider the following a bit more complex example:
+//
+// struct f {
+//  int *a;
+//  unsigned l;
+// };
+// void clear(struct f *b, int idx) {
+//  unsigned n = b->l;
+//  if (idx >= n) {
+//    return;
+//  }
+//  b->a[idx] = 0;
+// }
+// Here, we can see that the length of the f's struct member a is l.
+//
+// We can capture these facts by using control dependencies. Specifically, for
+// each array indexing operation, i.e., arr[i], we find all the statements that
+// the indexing statement is control dependent on.
+// Then, for each of the control dependent nodes, we check if there is any
+// relational comparison of the form i < X or i >= X, then we consider X
+// (or any assignments of X to the variables of the same scope as arr) to be
+// the size of arr.
 void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
   assert (CurBB != nullptr && "Array dereference does not belong "
                               "to any basic block");
