@@ -558,6 +558,7 @@ CVarSet
       return getOrCreatePersistentConstraints(E, PersistentExprHandler);
     }
   }
+  return EmptyCSet;
 }
 
 bool ConstraintResolver::hasPersistentConstraints(clang::Expr *E) {
