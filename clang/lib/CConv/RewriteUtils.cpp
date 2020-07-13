@@ -73,7 +73,8 @@ bool DComp::operator()(const DAndReplace Lhs, const DAndReplace Rhs) const {
 
   DeclStmt *RhStmt = dyn_cast_or_null<DeclStmt>(Rhs.Statement);
   if (RhStmt && !RhStmt->isSingleDecl()) {
-    SourceLocation NewBegin = (*RhStmt->decls().begin())->getSourceRange().getBegin();
+    SourceLocation NewBegin =
+        (*RhStmt->decls().begin())->getSourceRange().getBegin();
     bool Found;
     for (const auto &DT : RhStmt->decls()) {
       if (DT == Rhs.Declaration) {
@@ -526,7 +527,8 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   // For the return value and each of the parameters, do the following:
   //   1. Get a constraint variable representing the definition (def) and the
   //      uses ("arguments").
-  //   2. If arguments could be wild but def is not, we insert a bounds-safe interface.
+  //   2. If arguments could be wild but def is not, we insert a bounds-safe
+  //      interface.
   // If we don't have a definition in scope, we can assert that all of
   // the constraint variables are equal.
   // Finally, we need to note that we've visited this particular function, and
@@ -597,7 +599,8 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           std::string bi =
               Defn->getRewritableOriginalTy() + Defn->getName() + " : itype(" +
                   PtypeS + ")" +
-                  ABRewriter.getBoundsString(Defn, Definition->getParamDecl(i), true);
+                  ABRewriter.getBoundsString(Defn,
+                                         Definition->getParamDecl(i), true);
           ParmStrs.push_back(bi);
         }
         ParameterHandled = true;

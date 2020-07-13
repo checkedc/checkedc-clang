@@ -83,10 +83,10 @@ public:
   void merge_MF(ParameterMap &MF);
   ParameterMap &get_MF();
 
-  DisjointSet &getPointerConstraintDisjointSet() {
-    return ConstraintDisjointSet;
+  ConstraintsInfo &getInterimConstraintState() {
+    return CState;
   }
-  bool computePointerDisjointSet();
+  bool computeInterimConstraintState();
 
   ExternalFunctionMapType &getExternFuncDefFVMap() {
     return ExternalFunctionFVCons;
@@ -121,8 +121,8 @@ private:
   // Object that contains all the bounds information of various
   // array variables.
   AVarBoundsInfo ArrBInfo;
-  // Disjoint sets for constraints.
-  DisjointSet ConstraintDisjointSet;
+  // Constraints state.
+  ConstraintsInfo CState;
 
   // Function to check if an external symbol is okay to leave
   // constrained.

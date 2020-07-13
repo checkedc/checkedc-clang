@@ -28,6 +28,7 @@ class Constraint;
 class ConstraintVariable;
 class Constraints;
 class PersistentSourceLoc;
+class ConstraintsGraph;
 
 #define DEFAULT_REASON "UNKNOWN_REASON"
 
@@ -594,6 +595,8 @@ public:
   NTArrAtom *getNTArr() const;
   WildAtom *getWild() const;
   ConstAtom *getAssignment(Atom *A);
+  ConstraintsGraph &getChkCG();
+  ConstraintsGraph &getPtrTypCG();
 
   void resetEnvironment();
   bool checkInitialEnvSanity();
@@ -604,6 +607,9 @@ public:
                                     ConstraintSet &RemovedCons);
 private:
   ConstraintSet constraints;
+  // These are constraint graph representation of constraints.
+  ConstraintsGraph *ChkCG;
+  ConstraintsGraph *PtrTypCG;
   std::map<std::string, ConstraintSet> constraintsByReason;
   ConstraintsEnv environment;
   // Map of constraint variables, which are identified

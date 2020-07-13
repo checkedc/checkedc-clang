@@ -120,16 +120,16 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS,
     ArgTy = CE->getArg(1)->getType();
     // Check if first argument to calloc is 1
     Expr *E = CE->getArg(0);
-    Expr::EvalResult res;
-    E->EvaluateAsInt(res, *Context,
+    Expr::EvalResult ER;
+    E->EvaluateAsInt(ER, *Context,
                      clang::Expr::SE_NoSideEffects, false);
-    if (res.Val.isInt() && res.Val.getInt().getExtValue() == 1)
+    if (ER.Val.isInt() && ER.Val.getInt().getExtValue() == 1)
       return CS.getPtr();
     else
       return CS.getNTArr();
   }
 
-  ConstAtom *ret = CS.getPtr();
+  ConstAtom *Ret = CS.getPtr();
   Expr *E;
   if (FuncName.compare("malloc") == 0)
     E = CE->getArg(0);
@@ -143,7 +143,7 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS,
 
   // Looking for X*Y -- could be an array
   if (B && B->isMultiplicativeOp()) {
-    ret = CS.getArr();
+    Ret = CS.getArr();
     Exprs.insert(B->getLHS());
     Exprs.insert(B->getRHS());
   }
@@ -152,10 +152,10 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS,
 
   // Look for sizeof(X); return Arr or Ptr if found
   for (Expr *Ex: Exprs) {
-    UnaryExprOrTypeTraitExpr *arg = dyn_cast<UnaryExprOrTypeTraitExpr>(Ex);
-    if (arg && arg->getKind() == UETT_SizeOf) {
-      ArgTy = arg->getTypeOfArgument();
-      return ret;
+    UnaryExprOrTypeTraitExpr *Arg = dyn_cast<UnaryExprOrTypeTraitExpr>(Ex);
+    if (Arg && Arg->getKind() == UETT_SizeOf) {
+      ArgTy = Arg->getTypeOfArgument();
+      return Ret;
     }
   }
   return nullptr;
@@ -360,8 +360,7 @@ CVarSet
             assert("Empty constraint vars in AddrOf!" && !T.empty());
             return addAtomAll(T, CS.getPtr(), CS);
           }
-
-            // *e
+          // *e
           case UO_Deref: {
             // We are dereferencing, so don't assign to LHS
             CVarSet T = getExprConstraintVars(UOExpr);
@@ -676,7 +675,9 @@ CVarSet ConstraintResolver::PVConstraintFromType(QualType TypE) {
 CVarSet ConstraintResolver::getBaseVarPVConstraint(DeclRefExpr *Decl) {
   assert(Decl->getType()->isRecordType() || Decl->getType()->isArithmeticType());
   CVarSet Ret;
-  Ret.insert(PVConstraint::getNamedNonPtrPVConstraint(Decl->getDecl()->getName(), Info.getConstraints()));
+  auto DN = Decl->getDecl()->getName();
+  Ret.insert(PVConstraint::getNamedNonPtrPVConstraint(DN,
+                                                      Info.getConstraints()));
   return Ret;
 }
 

@@ -19,7 +19,8 @@
 using namespace clang;
 
 
-bool StructVariableInitializer::VariableNeedsInitializer(VarDecl *VD, DeclStmt *S) {
+bool StructVariableInitializer::VariableNeedsInitializer(VarDecl *VD,
+                                                         DeclStmt *S) {
   RecordDecl *RD = VD->getType().getTypePtr()->getAsRecordDecl();
   if (RecordDecl *Definition = RD->getDefinition()) {
     // See if we already know that this structure has a checked pointer.

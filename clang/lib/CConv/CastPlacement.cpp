@@ -93,8 +93,9 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
   
 // Check whether an explicit casting is needed when the pointer represented
 // by src variable is assigned to dst.
-bool CastPlacementVisitor::needCasting(ConstraintVariable *Src, ConstraintVariable *Dst,
-                 IsChecked Dinfo) {
+bool CastPlacementVisitor::needCasting(ConstraintVariable *Src,
+                                       ConstraintVariable *Dst,
+                                       IsChecked Dinfo) {
   auto &E = Info.getConstraints().getVariables();
   auto SrcChecked = Src->anyChanges(E);
   // Check if the src is a checked type.
@@ -113,8 +114,9 @@ bool CastPlacementVisitor::needCasting(ConstraintVariable *Src, ConstraintVariab
   } return false; }
 
 // Get the type name to insert for casting.
-std::string CastPlacementVisitor::getCastString(ConstraintVariable *Src, ConstraintVariable *Dst,
-                          IsChecked Dinfo) {
+std::string CastPlacementVisitor::getCastString(ConstraintVariable *Src,
+                                                ConstraintVariable *Dst,
+                                                IsChecked Dinfo) {
   assert(needCasting(Src, Dst, Dinfo) && "No casting needed.");
   // The destination type should be a non-checked type.
   // This is not necessary because of itypes
