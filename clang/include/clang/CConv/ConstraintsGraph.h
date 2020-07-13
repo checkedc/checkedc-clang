@@ -24,9 +24,8 @@ class BaseGraph {
 public:
   typedef typename boost::graph_traits<G>::vertex_descriptor vertex_t;
   typedef std::map<Atom*, vertex_t> VertexMapType;
-
-protected:
   G CG;
+protected:
   VertexMapType AtomToVDMap;
 
   virtual vertex_t addVertex(Atom *A) {
@@ -44,6 +43,10 @@ public:
   typedef adjacency_list<setS, vecS, bidirectionalS, Atom*> DirectedGraphType;
 
   ConstraintsGraph() {
+    AllConstAtoms.clear();
+    AtomToVDMap.clear();
+  }
+  virtual ~ConstraintsGraph() {
     AllConstAtoms.clear();
     AtomToVDMap.clear();
   }
@@ -86,10 +89,11 @@ public:
     return !Atoms.empty();
   }
 
+  vertex_t addVertex(Atom *A);
+  void removeEdge(Atom *Src, Atom *Dst);
+
 private:
   std::set<ConstAtom*> AllConstAtoms;
-
-  vertex_t addVertex(Atom *A);
 };
 
 // Used during debugging to create a single graph that contains edges and nodes
@@ -110,14 +114,14 @@ public:
   typedef adjacency_list<vecS, vecS, bidirectionalS, Atom *, EdgeProperties *>
       DirectedGraphType;
 
-  void mergeConstraintGraph(const ConstraintsGraph& Graph, EdgeType EdgeType);
+  void mergeConstraintGraph(const ConstraintsGraph &Graph, EdgeType EdgeType);
 
   // Dump the graph to stdout in a dot format.
   void dumpCGDot(const std::string& GraphDotFile);
 
   static void dumpConstraintGraphs(const std::string &GraphDotFile,
-                                   const ConstraintsGraph& Chk,
-                                   const ConstraintsGraph& Pty);
+                                   const ConstraintsGraph &Chk,
+                                   const ConstraintsGraph &Pty);
 
 private:
   const std::string EdgeTypeColors[2] = { "red", "blue" };

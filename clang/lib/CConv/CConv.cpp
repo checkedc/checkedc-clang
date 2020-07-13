@@ -243,7 +243,7 @@ bool CConvInterface::BuildInitialConstraints() {
   return true;
 }
 
-bool CConvInterface::SolveConstraints() {
+bool CConvInterface::SolveConstraints(bool ComputeInterimState) {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
   assert(ConstraintsBuilt && "Constraints not yet built. We need to call "
                              "build constraint before trying to solve them." );
@@ -251,26 +251,28 @@ bool CConvInterface::SolveConstraints() {
   if (Verbose)
     outs() << "Solving constraints\n";
 
-  if (DumpIntermediate) {
+  if (DumpIntermediate)
     GlobalProgramInfo.dump();
-  }
 
   runSolver(GlobalProgramInfo, FilePaths);
 
   if (Verbose)
     outs() << "Constraints solved\n";
 
-  //GlobalProgramInfo.computePointerDisjointSet();
-  if (DumpIntermediate) {
+  if (ComputeInterimState)
+    GlobalProgramInfo.computeInterimConstraintState();
+
+  if (DumpIntermediate)
     dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, GlobalProgramInfo);
-  }
 
-  if (DebugArrSolver) {
-    GlobalProgramInfo.getABoundsInfo().dumpAVarGraph("arr_bounds_initial.dot");
-  }
+  if (AllTypes) {
+    if (DebugArrSolver)
+      GlobalProgramInfo.getABoundsInfo().dumpAVarGraph(
+          "arr_bounds_initial.dot");
 
-  // Propagate initial data-flow information for Array pointers.
-  GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
+    // Propagate initial data-flow information for Array pointers.
+    GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
+  }
 
   // 3. Gather pre-rewrite data.
   ClangTool &Tool = getGlobalClangTool();
@@ -282,11 +284,12 @@ bool CConvInterface::SolveConstraints() {
   else
     llvm_unreachable("No Action");
 
-  // Propagate data-flow information for Array pointers.
-  GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
+  if (AllTypes) {
+    // Propagate data-flow information for Array pointers.
+    GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
 
-  if (DebugArrSolver) {
-    GlobalProgramInfo.getABoundsInfo().dumpAVarGraph("arr_bounds_final.dot");
+    if (DebugArrSolver)
+      GlobalProgramInfo.getABoundsInfo().dumpAVarGraph("arr_bounds_final.dot");
   }
 
   return true;
@@ -334,8 +337,8 @@ bool CConvInterface::WriteAllConvertedFilesToDisk() {
   return true;
 }
 
-DisjointSet &CConvInterface::GetWILDPtrsInfo() {
-  return GlobalProgramInfo.getPointerConstraintDisjointSet();
+ConstraintsInfo &CConvInterface::GetWILDPtrsInfo() {
+  return GlobalProgramInfo.getInterimConstraintState();
 }
 
 bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
@@ -343,7 +346,7 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   CVars RemovePtrs;
   RemovePtrs.clear();
 
-  auto &PtrDisjointSet = GlobalProgramInfo.getPointerConstraintDisjointSet();
+  auto &PtrDisjointSet = GlobalProgramInfo.getInterimConstraintState();
   auto &CS = GlobalProgramInfo.getConstraints();
 
   // Get all the current WILD pointers.
@@ -365,7 +368,7 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   runSolver(GlobalProgramInfo, FilePaths);
 
   // Compute new disjoint set.
-  GlobalProgramInfo.computePointerDisjointSet();
+  GlobalProgramInfo.computeInterimConstraintState();
 
   // Get new WILD pointers.
   CVars &NewWildPtrs = PtrDisjointSet.AllWildPtrs;
@@ -406,7 +409,7 @@ bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
   CVars RemovePtrs;
   RemovePtrs.clear();
 
-  auto &PtrDisjointSet = GlobalProgramInfo.getPointerConstraintDisjointSet();
+  auto &PtrDisjointSet = GlobalProgramInfo.getInterimConstraintState();
   auto &CS = GlobalProgramInfo.getConstraints();
 
   CVars OldWildPtrs = PtrDisjointSet.AllWildPtrs;
@@ -424,7 +427,7 @@ bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
   runSolver(GlobalProgramInfo, FilePaths);
 
   // Recompute the WILD pointer disjoint sets.
-  GlobalProgramInfo.computePointerDisjointSet();
+  GlobalProgramInfo.computeInterimConstraintState();
 
   // Computed the number of removed pointers.
   CVars &NewWildPtrs = PtrDisjointSet.AllWildPtrs;
