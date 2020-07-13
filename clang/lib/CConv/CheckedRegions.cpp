@@ -240,8 +240,7 @@ bool CheckedRegionFinder::isWild(std::set<ConstraintVariable*> S) {
 bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) { 
   auto T = DR->getType();
   auto D = DR->getDecl();
-  DR->dump();
-  T->dump();
+
   if (isWild(Info.getVariable(D, Context)) 
       || (T->isPointerType() && isUncheckedPtr(T)))
     Nwild++;
