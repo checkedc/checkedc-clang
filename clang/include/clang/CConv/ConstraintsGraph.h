@@ -46,6 +46,10 @@ public:
     AllConstAtoms.clear();
     AtomToVDMap.clear();
   }
+  virtual ~ConstraintsGraph() {
+    AllConstAtoms.clear();
+    AtomToVDMap.clear();
+  }
 
   void addConstraint(Geq *C, const Constraints &CS);
 
@@ -86,6 +90,7 @@ public:
   }
 
   vertex_t addVertex(Atom *A);
+  void removeEdge(Atom *Src, Atom *Dst);
 
 private:
   std::set<ConstAtom*> AllConstAtoms;
@@ -109,14 +114,14 @@ public:
   typedef adjacency_list<vecS, vecS, bidirectionalS, Atom *, EdgeProperties *>
       DirectedGraphType;
 
-  void mergeConstraintGraph(const ConstraintsGraph& Graph, EdgeType EdgeType);
+  void mergeConstraintGraph(const ConstraintsGraph &Graph, EdgeType EdgeType);
 
   // Dump the graph to stdout in a dot format.
   void dumpCGDot(const std::string& GraphDotFile);
 
   static void dumpConstraintGraphs(const std::string &GraphDotFile,
-                                   const ConstraintsGraph& Chk,
-                                   const ConstraintsGraph& Pty);
+                                   const ConstraintsGraph &Chk,
+                                   const ConstraintsGraph &Pty);
 
 private:
   const std::string EdgeTypeColors[2] = { "red", "blue" };

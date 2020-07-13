@@ -62,8 +62,9 @@ public:
   // Build initial constraints.
   bool BuildInitialConstraints();
 
-  // Constraint Solving.
-  bool SolveConstraints(bool CWildInfo = false);
+  // Constraint Solving. The flag: ComputeInterimState requests to compute
+  // interim constraint solver state.
+  bool SolveConstraints(bool ComputeInterimState = false);
 
   // Interactivity.
 

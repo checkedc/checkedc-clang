@@ -605,6 +605,7 @@ public:
                                     ConstraintSet &RemovedCons);
 private:
   ConstraintSet constraints;
+  // These are constraint graph representation of constraints.
   ConstraintsGraph *ChkCG;
   ConstraintsGraph *PtrTypCG;
   std::map<std::string, ConstraintSet> constraintsByReason;

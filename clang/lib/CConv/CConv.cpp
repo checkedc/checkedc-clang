@@ -243,7 +243,7 @@ bool CConvInterface::BuildInitialConstraints() {
   return true;
 }
 
-bool CConvInterface::SolveConstraints(bool CWildInfo) {
+bool CConvInterface::SolveConstraints(bool ComputeInterimState) {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
   assert(ConstraintsBuilt && "Constraints not yet built. We need to call "
                              "build constraint before trying to solve them." );
@@ -251,28 +251,24 @@ bool CConvInterface::SolveConstraints(bool CWildInfo) {
   if (Verbose)
     outs() << "Solving constraints\n";
 
-  if (DumpIntermediate) {
+  if (DumpIntermediate)
     GlobalProgramInfo.dump();
-  }
 
   runSolver(GlobalProgramInfo, FilePaths);
 
   if (Verbose)
     outs() << "Constraints solved\n";
 
-  if (CWildInfo) {
+  if (ComputeInterimState)
     GlobalProgramInfo.computeInterimConstraintState();
-  }
 
-  if (DumpIntermediate) {
+  if (DumpIntermediate)
     dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, GlobalProgramInfo);
-  }
 
   if (AllTypes) {
-    if (DebugArrSolver) {
+    if (DebugArrSolver)
       GlobalProgramInfo.getABoundsInfo().dumpAVarGraph(
           "arr_bounds_initial.dot");
-    }
 
     // Propagate initial data-flow information for Array pointers.
     GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
@@ -292,9 +288,8 @@ bool CConvInterface::SolveConstraints(bool CWildInfo) {
     // Propagate data-flow information for Array pointers.
     GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
 
-    if (DebugArrSolver) {
+    if (DebugArrSolver)
       GlobalProgramInfo.getABoundsInfo().dumpAVarGraph("arr_bounds_final.dot");
-    }
   }
 
   return true;

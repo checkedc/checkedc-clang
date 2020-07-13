@@ -44,7 +44,23 @@ public:
   std::map<ConstraintKey, PersistentSourceLoc *> PtrSourceMap;
 
 private:
+  // Root cause map: This is the map of a Constraint var and a set of
+  // Constraint vars (that are directly assigned WILD) which are the reason
+  // for making the above constraint var WILD.
+  // Example:
+  //  WILD
+  //  / \
+  // p   q
+  // \    \
+  //  \    r
+  //   \  /
+  //    s
+  // Here: s -> {p, q} and r -> {q}
   std::map<ConstraintKey, CVars> RCMap;
+  // This is source map: Map of Constraint var (which are directly
+  // assigned WILD) and the set of constraint vars which are WILD because of
+  // the above constraint.
+  // For the above case, this contains: p -> {s}, q -> {r, s}
   std::map<ConstraintKey, CVars> SrcWMap;
 };
 

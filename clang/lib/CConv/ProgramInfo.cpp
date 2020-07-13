@@ -754,6 +754,8 @@ ProgramInfo::getStaticFuncConstraintSet(std::string FuncName,
   return nullptr;
 }
 
+// Compute all CVars reachable from a given CVar i.e., SrcWAtom that are
+// not directly assigned WILD.
 class ReachableVarVisitor : public boost::default_bfs_visitor {
 public:
   ReachableVarVisitor(const ConstraintKey &SrcWAtom,
@@ -777,6 +779,10 @@ public:
   std::set<Atom *> &AllDirectWild;
 };
 
+// From the given constraint graph, this method computes the interim constraint
+// state that contains constraint vars which are directly assigned WILD and
+// other constraint vars that have been determined to be WILD because they
+// depend on other constraint vars that are directly assigned WILD.
 bool ProgramInfo::computeInterimConstraintState() {
   CState.Clear();
   auto &RCMap = CState.RCMap;
