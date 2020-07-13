@@ -562,8 +562,13 @@ CVarSet
 }
 
 bool ConstraintResolver::hasPersistentConstraints(clang::Expr *E) {
-  CVarSet &Persist = Info.getPersistentConstraintVars(E, Context);
-  return !Persist.empty();
+  auto PSL = PersistentSourceLoc::mkPSL(E, *Context);
+  // Has constraints only if the PSL is valid.
+  if (PSL.valid()) {
+    CVarSet &Persist = Info.getPersistentConstraintVars(E, Context);
+    return !Persist.empty();
+  }
+  return false;
 }
 
 // Get the set of constraint variables for an expression that will persist
@@ -581,8 +586,12 @@ CVarSet
 
 void ConstraintResolver::storePersistentConstraints(clang::Expr *E,
                                                     CVarSet &Vars) {
-  CVarSet &Persist = Info.getPersistentConstraintVars(E, Context);
-  Persist.insert(Vars.begin(), Vars.end());
+  auto PSL = PersistentSourceLoc::mkPSL(E, *Context);
+  // Store only if the PSL is valid.
+  if (PSL.valid()) {
+    CVarSet &Persist = Info.getPersistentConstraintVars(E, Context);
+    Persist.insert(Vars.begin(), Vars.end());
+  }
 }
 
 // Collect constraint variables for Exprs int a set
