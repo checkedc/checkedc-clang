@@ -50,9 +50,11 @@ namespace clang {
       Opc(BO_Add), HasConst(false), Parent(Parent) {}
 
     // Is the operator commutative and associative?
-    bool IsOpCommutativeAndAssociative() {
+    bool IsOpCommutativeAndAssociative() const {
       return Opc == BO_Add || Opc == BO_Mul;
     }
+
+    bool IsLeafNode() const { return Children.size() == 0; }
   };
 
   class PreorderAST {
@@ -84,7 +86,7 @@ namespace clang {
 
     // Print the PreorderAST.
     // @param[in] N is the current node of the AST.
-    void PrettyPrint(Node *N);
+    void PrettyPrint(Node *N) const;
 
     // Cleanup the memory consumed by node N.
     // @param[in] N is the current node of the AST.
@@ -121,7 +123,7 @@ namespace clang {
     // is intended to be called from outside this class to check if an error
     // has occurred during comparison of expressions.
     // @return Whether an error has occurred or not.
-    bool GetError() { return Error; }
+    bool GetError() const { return Error; }
 
     // Cleanup the memory consumed by the AST. This is intended to be called
     // from outside this class and invokes Cleanup on the root node which

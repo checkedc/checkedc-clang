@@ -82,6 +82,53 @@ void PreorderAST::Create(Expr *E, Node *N, Node *Parent) {
   N->Others.push_back(E);
 }
 
+void PreorderAST::Coalesce(Node *N) {
+  if (Error)
+    return;
+
+  if (!N)
+    return;
+
+  // Coalesce the children first.
+  for (auto *Child : N->Children)
+    Coalesce(Child);
+
+  // For coalescing a node we would transfer its data to its parent. So if the
+  // parent itself is null (for example, the root node) we cannot proceed.
+  if (!N->Parent)
+    return;
+
+  Node *Parent = N->Parent;
+
+  // We can only coalesce if the parent has the same opcode as the current
+  // node.
+  if (Parent->Opc != N->Opc)
+    return;
+
+  // Constant fold the constant of the current node with the constant of
+  // the parent. Do not proceed if we could not fold the constant.
+  if (N->HasConst) {
+    if (!ConstantFold(Parent, N->Const))
+      return;
+  }
+
+  // Move all the variables of the current node to the parent.
+  for (auto &V : N->Vars)
+    Parent->Vars.push_back(V);
+
+  // Move all other non-variable, non-constant expressions to the parent.
+  for (auto &E : N->Others)
+    Parent->Others.push_back(E);
+
+  // Move all children of the current node to the parent.
+  for (auto &Child : N->Children)
+    Parent->Children.push_back(Child);
+
+  // Remove the current node from the list of children.
+
+  Cleanup(N);
+}
+
 void PreorderAST::Sort(Node *N) {
   if (Error)
     return;
@@ -172,11 +219,11 @@ bool PreorderAST::IsEqual(Node *N1, Node *N2) {
 }
 
 void PreorderAST::Normalize() {
-  // TODO: Coalesce nodes having the same commutative and associative operator.
   // TODO: Constant fold the constants in the nodes.
   // TODO: Perform simple arithmetic optimizations/transformations on the
   // constants in the nodes.
 
+  Coalesce(Root);
   Sort(Root);
 }
 
@@ -193,7 +240,7 @@ DeclRefExpr *PreorderAST::GetDeclOperand(Expr *E) {
   return nullptr;
 }
 
-void PreorderAST::PrettyPrint(Node *N) {
+void PreorderAST::PrettyPrint(Node *N) const {
   if (!N)
     return;
 
