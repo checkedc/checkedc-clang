@@ -620,7 +620,7 @@ bool PVConstraint::addArgumentConstraint(ConstraintVariable *DstCons,
   return this->Parent->addArgumentConstraint(DstCons, Info);
 }
 
-std::set<ConstraintVariable *> &PVConstraint::getArgumentConstraints() {
+CVarSet &PVConstraint::getArgumentConstraints() {
   return argumentConstraints;
 }
 
@@ -643,7 +643,7 @@ FunctionVariableConstraint::
   }
   // Make copy of ParameterCVs too.
   for (auto &Pset : Ot->paramVars) {
-    std::set<ConstraintVariable *> ParmCVs;
+    CVarSet ParmCVs;
     ParmCVs.clear();
     for (auto *ParmPV : Pset) {
       ParmCVs.insert(ParmPV->getCopy(CS));
@@ -726,7 +726,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
         }
       }
 
-      std::set<ConstraintVariable *> C;
+      CVarSet C;
       C.insert(new PVConstraint(QT, ParmVD, PName, I, Ctx, &N));
       paramVars.push_back(C);
     }
@@ -831,7 +831,7 @@ void PVConstraint::equateArgumentConstraints(ProgramInfo &Info) {
 
 void
 FunctionVariableConstraint::equateFVConstraintVars(
-    std::set<ConstraintVariable *> &Cset, ProgramInfo &Info) {
+    CVarSet &Cset, ProgramInfo &Info) {
   for (auto *TmpCons : Cset) {
     if (FVConstraint *FVCons = dyn_cast<FVConstraint>(TmpCons)) {
       for (auto &PConSet : FVCons->paramVars) {
@@ -852,7 +852,7 @@ void FunctionVariableConstraint::equateArgumentConstraints(ProgramInfo &Info) {
   }
 
   HasEqArgumentConstraints = true;
-  std::set<ConstraintVariable *> TmpCSet;
+  CVarSet TmpCSet;
   TmpCSet.insert(this);
 
   // Equate arguments and parameters vars.
@@ -871,7 +871,7 @@ void FunctionVariableConstraint::equateArgumentConstraints(ProgramInfo &Info) {
     assert(DefnCons != nullptr);
 
     // Equate arguments and parameters vars.
-    std::set<ConstraintVariable *> TmpDefn;
+    CVarSet TmpDefn;
     TmpDefn.clear();
     TmpDefn.insert(DefnCons->begin(), DefnCons->end());
     this->equateFVConstraintVars(TmpDefn, Info);
@@ -1139,8 +1139,8 @@ bool FunctionVariableConstraint::hasItype() {
 }
 
 static bool cvSetsSolutionEqualTo(Constraints &CS,
-                                std::set<ConstraintVariable *> &CVS1,
-                                std::set<ConstraintVariable *> &CVS2) {
+                                CVarSet &CVS1,
+                                CVarSet &CVS2) {
   bool Ret = false;
   if (CVS1.size() == CVS2.size()) {
     Ret = CVS1.size() <= 1;
@@ -1353,9 +1353,9 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
         // Constrain the parameters contravariantly
         if (FCLHS->numParams() == FCRHS->numParams()) {
           for (unsigned i = 0; i < FCLHS->numParams(); i++) {
-            std::set<ConstraintVariable *> &LHSV =
+            CVarSet &LHSV =
                 FCLHS->getParamVar(i);
-            std::set<ConstraintVariable *> &RHSV =
+            CVarSet &RHSV =
                 FCRHS->getParamVar(i);
             // FIXME: Make neg(CA) here? Now: Function pointers equated
             constrainConsVarGeq(RHSV, LHSV, CS, PL, Same_to_Same, doEqType,
@@ -1448,8 +1448,8 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
 }
 
 // Given an RHS and a LHS, constrain them to be equal.
-void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
-                      std::set<ConstraintVariable *> &RHS,
+void constrainConsVarGeq(CVarSet &LHS,
+                      CVarSet &RHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
                       ConsAction CA,
@@ -1541,8 +1541,8 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
   // transplant params
   assert(From->numParams() == numParams());
   for (unsigned i = 0; i < From->numParams(); i++) {
-    std::set<ConstraintVariable *> &FromP = From->getParamVar(i);
-    std::set<ConstraintVariable *> &P = getParamVar(i);
+    CVarSet &FromP = From->getParamVar(i);
+    CVarSet &P = getParamVar(i);
     auto FromVar = getOnly(FromP);
     auto Var = getOnly(P);
     Var->brainTransplant(FromVar);
@@ -1559,8 +1559,8 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
   // transplant params
   assert(From->numParams() == numParams());
   for (unsigned i = 0; i < From->numParams(); i++) {
-    std::set<ConstraintVariable *> &FromP = From->getParamVar(i);
-    std::set<ConstraintVariable *> &P = getParamVar(i);
+    CVarSet &FromP = From->getParamVar(i);
+    CVarSet &P = getParamVar(i);
     auto FromVar = getOnly(FromP);
     auto Var = getOnly(P);
     Var->mergeDeclaration(FromVar);

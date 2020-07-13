@@ -141,6 +141,8 @@ public:
   virtual bool isEmpty(void) const = 0;
 };
 
+typedef std::set<ConstraintVariable *> CVarSet;
+
 enum ConsAction {
   Safe_to_Wild,
   Wild_to_Safe,

@@ -276,7 +276,7 @@ void AVarBoundsInfo::insertProgramVar(BoundsKey NK, ProgramVar *PV) {
   PVarInfo[NK] = PV;
 }
 
-bool hasArray(std::set<ConstraintVariable *> &CSet, Constraints &CS) {
+bool hasArray(CVarSet &CSet, Constraints &CS) {
   auto &E = CS.getVariables();
   for (auto *CK : CSet) {
     if (PVConstraint *PV = dyn_cast<PVConstraint>(CK)) {

@@ -58,9 +58,9 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
           for (const auto &A : CE->arguments()) {
             if (i < FD->getNumParams()) {
 
-              std::set<ConstraintVariable *> ArgumentConstraints =
+              CVarSet ArgumentConstraints =
                   CR.getExprConstraintVars(A);
-              std::set<ConstraintVariable *> &ParameterConstraints =
+              CVarSet &ParameterConstraints =
                   FV->getParamVar(i);
               bool CastInserted = false;
               for (auto *ArgumentC : ArgumentConstraints) {

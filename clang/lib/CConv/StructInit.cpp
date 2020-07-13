@@ -29,7 +29,7 @@ bool StructVariableInitializer::VariableNeedsInitializer(VarDecl *VD, DeclStmt *
     }
     for (const auto &D : Definition->fields()) {
       if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
-        std::set<ConstraintVariable *> FieldConsVars =
+        CVarSet FieldConsVars =
             I.getVariable(D, Context);
         for (auto CV : FieldConsVars) {
           PVConstraint *PV = dyn_cast<PVConstraint>(CV);
