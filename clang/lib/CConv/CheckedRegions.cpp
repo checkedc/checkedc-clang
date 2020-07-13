@@ -217,13 +217,7 @@ bool CheckedRegionFinder::VisitVarDecl(VarDecl *VD) {
 
 bool CheckedRegionFinder::VisitParmVarDecl(ParmVarDecl *PVD) {
   // Check if the variable is WILD.
-  bool FoundWild = false;
-  std::set<ConstraintVariable *> CVSet = Info.getVariable(PVD, Context);
-  for (auto Cv : CVSet) {
-    if (Cv->hasWild(Info.getConstraints().getVariables())) {
-      FoundWild = true;
-    }
-  }
+  bool FoundWild = isWild(Info.getVariable(PVD, Context));
 
   if (FoundWild)
     Nwild++;
@@ -233,6 +227,25 @@ bool CheckedRegionFinder::VisitParmVarDecl(ParmVarDecl *PVD) {
     Nwild++;
   Ndecls++;
   return true;
+}
+
+bool CheckedRegionFinder::isWild(std::set<ConstraintVariable*> S) { 
+  for (auto Cv : S) 
+    if (Cv->hasWild(Info.getConstraints().getVariables()))
+      return true;
+
+  return false;
+}
+
+bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) { 
+  auto T = DR->getType();
+  auto D = DR->getDecl();
+  DR->dump();
+  T->dump();
+  if (isWild(Info.getVariable(D, Context)) 
+      || (T->isPointerType() && isUncheckedPtr(T)))
+    Nwild++;
+  return false;
 }
 
 bool CheckedRegionFinder::isUncheckedPtr(QualType Qt) {
@@ -264,6 +277,8 @@ bool CheckedRegionFinder::isUncheckedPtrAcc(QualType Qt, std::set<std::string> &
     return false;
   }
 }
+
+
 
 // Iterate through all fields of the struct and find unchecked types.
 // TODO doesn't handle recursive structs correctly
