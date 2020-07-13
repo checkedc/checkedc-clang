@@ -622,9 +622,9 @@ void AddMainFuncHeuristic(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
 // Given a variable I, this visitor collects all the variables that are used as
 // RHS operand of < and I >=  expression.
 // i.e., for all I < X expressions, it collects X.
-class ComparisionVisitor : public StmtVisitor<ComparisionVisitor> {
+class ComparisionVisitor : public RecursiveASTVisitor<ComparisionVisitor> {
 public:
-  ComparisionVisitor(ProgramInfo &In, ASTContext *AC,
+  explicit ComparisionVisitor(ProgramInfo &In, ASTContext *AC,
                      BoundsKey I, std::set<BoundsKey> &PossB) : I(In),
                                     C(AC),
                                     IndxBKey(I), PB(PossB) {
@@ -637,40 +637,7 @@ public:
     }
   }
 
-  void VisitStmt(Stmt *St) {
-    for (auto *Child : St->children()) {
-      if (Child) {
-        Visit(Child);
-      }
-    }
-  }
-
-  void VisitIfStmt(IfStmt *St) {
-    if (St->getCond() != nullptr) {
-      Visit(St->getCond());
-    }
-  }
-
-  void VisitWhileStmt(WhileStmt *St) {
-    if (St->getCond() != nullptr) {
-      Visit(St->getCond());
-    }
-  }
-
-  void VisitForStmt(ForStmt *St) {
-    if (St->getCond() != nullptr) {
-      Visit(St->getCond());
-    }
-  }
-
-  void VisitSwitchStmt(SwitchStmt *St) {
-    // Ignore.
-  }
-
-  void VisitSwitchCase(SwitchCase *St) {
-    // Ignore.
-  }
-  void VisitBinaryOperator(BinaryOperator *BO) {
+  bool VisitBinaryOperator(BinaryOperator *BO) {
     // We care about < and >= operator.
     if (BO->getOpcode() == BO_LT || BO->getOpcode() == BO_GE) {
       Expr *LHS = BO->getLHS()->IgnoreParenCasts();
@@ -694,13 +661,8 @@ public:
           }
         }
       }
-    } else {
-      for (auto *Child : BO->children()) {
-        if (Child) {
-          Visit(Child);
-        }
-      }
     }
+    return true;
   }
 private:
   ProgramInfo &I;
@@ -787,7 +749,7 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
         // index variable with another variable.
         for (auto &CDGNode : CDNodes) {
           // Collect the possible length bounds keys.
-          CV.Visit(CDGNode->getTerminatorStmt());
+          CV.TraverseStmt(CDGNode->getTerminatorStmt());
         }
         ABI.updatePotentialCountBounds(BasePtr, PossibleLens);
       }
