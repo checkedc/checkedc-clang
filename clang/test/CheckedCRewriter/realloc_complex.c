@@ -37,16 +37,16 @@ void foo(int *count) {
     m[1] = 5; 
     z[3] =  2;
 } 
-//CHECK_NOALL: int *a = malloc(2*sizeof(int));
-//CHECK_ALL: _Array_ptr<int> a : count(2) =  malloc(2*sizeof(int)); 
+//CHECK_NOALL: int *a = malloc<int>(2*sizeof(int));
+//CHECK_ALL: _Array_ptr<int> a : count(2) =  malloc<int>(2*sizeof(int)); 
 
-//CHECK: int *b = malloc(sizeof(int));
+//CHECK: int *b = malloc<int>(sizeof(int));
 
-//CHECK_ALL: _Array_ptr<int> y : count(2) =  malloc(2*sizeof(int)); 
-//CHECK_NOALL: int *y = malloc(2*sizeof(int));
-//CHECK: int *w = malloc(sizeof(int));
-//CHECK_NOALL: int *z = realloc(y, 5*sizeof(int)); 
-//CHECK_NOALL: int *m = realloc(w, 2*sizeof(int));
-//CHECK_ALL: _Array_ptr<int> z =  realloc(y, 5*sizeof(int));
-//CHECK_ALL: _Array_ptr<int> m =  realloc(w, 2*sizeof(int)); 
+//CHECK_ALL: _Array_ptr<int> y : count(2) =  malloc<int>(2*sizeof(int)); 
+//CHECK_NOALL: int *y = malloc<int>(2*sizeof(int));
+//CHECK: int *w = malloc<int>(sizeof(int));
+//CHECK_NOALL: int *z = realloc<int>(y, 5*sizeof(int)); 
+//CHECK_NOALL: int *m = realloc<int>(w, 2*sizeof(int));
+//CHECK_ALL: _Array_ptr<int> z =  realloc<int>(y, 5*sizeof(int));
+//CHECK_ALL: _Array_ptr<int> m =  realloc<int>(w, 2*sizeof(int)); 
 

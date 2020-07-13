@@ -28,7 +28,7 @@ int main() {
 int * bar(int *x) { x = (int*)5; return x; }
 int *foo(int *y, int *w) {
   int *z = 0;
-  z = (y, w = bar(w));
+  z = (w = bar(w), y);
   return z;
 }
 //CHECK: int * bar(int *x) { x = (int*)5; return x; }
@@ -42,3 +42,11 @@ void baz(int *p) {
 //CHECK: void baz(_Array_ptr<int> p) {
 //CHECK-NEXT:  _Array_ptr<int> q =  0 ? p : foo(0,0);
 
+void test() {
+  int *a = (int*) 0;
+  int **b = (int*) 0;
+
+  *b = (0, a);
+}
+//CHECK: _Ptr<int> a = (int*) 0;
+//CHECK: _Ptr<_Ptr<int>> b = (int*) 0;

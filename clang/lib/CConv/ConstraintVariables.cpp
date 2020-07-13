@@ -40,7 +40,8 @@ PointerVariableConstraint::getWildPVConstraint(Constraints &CS) {
     CAtoms NewVA;
     NewVA.push_back(CS.getWild());
     GlobalWildPV =
-        new PVConstraint(NewVA, "unsigned", "wildvar", nullptr, false, false, "");
+        new PVConstraint(NewVA, "unsigned", "wildvar", nullptr,
+                         false, false, "");
   }
   return GlobalWildPV;
 }
@@ -52,7 +53,8 @@ PointerVariableConstraint::getPtrPVConstraint(Constraints &CS) {
     CAtoms NewVA;
     NewVA.push_back(CS.getPtr());
     GlobalPtrPV =
-        new PVConstraint(NewVA, "unsigned", "ptrvar", nullptr, false, false, "");
+        new PVConstraint(NewVA, "unsigned", "ptrvar", nullptr,
+                         false, false, "");
   }
   return GlobalPtrPV;
 }
@@ -63,7 +65,8 @@ PointerVariableConstraint::getNonPtrPVConstraint(Constraints &CS) {
   if (GlobalNonPtrPV == nullptr) {
     CAtoms NewVA; // empty -- represents a base type
     GlobalNonPtrPV =
-        new PVConstraint(NewVA, "unsigned", "basevar", nullptr, false, false, "");
+        new PVConstraint(NewVA, "unsigned", "basevar", nullptr,
+                         false, false, "");
   }
   return GlobalNonPtrPV;
 }
@@ -72,7 +75,8 @@ PointerVariableConstraint *
 PointerVariableConstraint::getNamedNonPtrPVConstraint(StringRef name,
                                                       Constraints &CS) {
   CAtoms NewVA; // empty -- represents a base type
-  return new PVConstraint(NewVA, "unsigned", name, nullptr, false, false, "");
+  return new PVConstraint(NewVA, "unsigned", name, nullptr,
+                          false, false, "");
 }
 
 PointerVariableConstraint::
@@ -196,7 +200,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   }
 
   bool VarCreated = false;
-  bool isArr = false;
+  bool IsArr = false;
   bool IsIncompleteArr = false;
   uint32_t TypeIdx = 0;
   std::string Npre = inFunc ? ((*inFunc)+":") : "";
@@ -214,15 +218,15 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       break;
     }
 
-    if (Ty->isDeclaredCheckedPointerType()) {
+    if (Ty->isCheckedPointerType()) {
       ConstAtom *CAtom = nullptr;
-      if (Ty->isDeclaredCheckedPointerNtArrayType()) {
+      if (Ty->isCheckedPointerNtArrayType()) {
         // This is an NT array type.
         CAtom = CS.getNTArr();
-      } else if (Ty->isDeclaredCheckedPointerArrayType()) {
+      } else if (Ty->isCheckedPointerArrayType()) {
         // This is an array type.
         CAtom = CS.getArr();
-      } else if (Ty->isDeclaredCheckedPointerPtrType()) {
+      } else if (Ty->isCheckedPointerPtrType()) {
         // This is a regular checked pointer.
         CAtom = CS.getPtr();
       }
@@ -233,7 +237,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     }
 
     if (Ty->isArrayType() || Ty->isIncompleteArrayType()) {
-      ArrPresent = isArr = true;
+      ArrPresent = IsArr = true;
       IsIncompleteArr = Ty->isIncompleteArrayType();
 
       // See if there is a constant size to this array type at this position.
@@ -262,10 +266,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
       // Save here if QTy is qualified or not into a map that
       // indexes K to the qualification of QTy, if any.
-      if (QTy.isConstQualified())
-        QualMap.insert(
-                std::pair<uint32_t, Qualification>(TypeIdx,
-                                                    ConstQualification));
+      insertQualType(TypeIdx, QTy);
 
       arrSizes[TypeIdx] = std::pair<OriginalArrType,uint64_t>(O_Pointer,0);
 
@@ -285,17 +286,18 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       // int[] -> _Ptr<int> is permitted while int[1] -> _Ptr<int> is not.
       if (IsIncompleteArr)
         CS.addConstraint(CS.createGeq(VA, CS.getArr(), false));
-      else if (isArr)
+      else if (IsArr)
         CS.addConstraint(CS.createGeq(CS.getArr(), VA, false));
     }
 
     // Prepare for next level of pointer
     VarCreated = false;
-    isArr = false;
+    IsArr = false;
     TypeIdx++;
     Npre = Npre + "*";
     VK = VarAtom::V_Other; // only the outermost pointer considered a param/return
   }
+  insertQualType(TypeIdx, QTy);
 
   // If, after boiling off the pointer-ness from this type, we hit a
   // function, then create a base-level FVConstraint that we carry
@@ -327,9 +329,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   }
 
   // Add qualifiers.
-  if (QTy.isConstQualified()) {
-    BaseType = "const " + BaseType;
-  }
+  std::ostringstream QualStr;
+  getQualString(TypeIdx, QualStr);
+  BaseType = QualStr.str() + BaseType;
 
   // Here lets add implication that if outer pointer is WILD
   // then make the inner pointers WILD too.
@@ -395,10 +397,32 @@ void PointerVariableConstraint::dump_json(llvm::raw_ostream &O) const {
 
 void PointerVariableConstraint::getQualString(uint32_t TypeIdx,
                                               std::ostringstream &Ss) {
-  std::map<ConstraintKey, Qualification>::iterator Q = QualMap.find(TypeIdx);
-  if (Q != QualMap.end())
-    if (Q->second == ConstQualification)
-      Ss << "const ";
+  auto QIter = QualMap.find(TypeIdx);
+  if (QIter != QualMap.end()) {
+    for (Qualification Q : QIter->second) {
+      switch (Q) {
+      case ConstQualification:
+        Ss << "const ";
+        break;
+      case VolatileQualification:
+        Ss << "volatile ";
+        break;
+      case RestrictQualification:
+        Ss << "restrict ";
+        break;
+      }
+    }
+  }
+}
+
+void PointerVariableConstraint::insertQualType(uint32_t TypeIdx,
+                                               QualType &QTy) {
+  if (QTy.isConstQualified())
+    QualMap[TypeIdx].insert(ConstQualification);
+  if (QTy.isVolatileQualified())
+    QualMap[TypeIdx].insert(VolatileQualification);
+  if (QTy.isRestrictQualified())
+    QualMap[TypeIdx].insert(RestrictQualification);
 }
 
 bool PointerVariableConstraint::emitArraySize(std::ostringstream &Pss,
@@ -659,7 +683,6 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   FileName = "";
   HasEqArgumentConstraints = false;
   IsFunctionPtr = true;
-  auto &CS = I.getConstraints();
 
   // Metadata about function
   FunctionDecl *FD = nullptr;
@@ -914,7 +937,8 @@ void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C,
         }
       }
       else if (*C < *CA) {
-        llvm::errs() << "Warning: " << C->getStr() << " not less than " << CA->getStr() <<"\n";
+        llvm::errs() << "Warning: " << C->getStr() << " not less than " <<
+                        CA->getStr() <<"\n";
         assert(CA == CS.getWild()); // definitely bogus if not
       }
     }
@@ -1240,11 +1264,14 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
   } else if (VAL != nullptr && VAR != nullptr) {
     switch (CAct) {
     case Same_to_Same:
-      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true)); // Equality for checked
+      // Equality for checked.
+      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
       CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
-      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, false)); // Not for ptyp ...
+      // Not for ptyp.
+      CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, false));
+      // Unless indicated.
       if (doEqType)
-        CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, false)); // .... Unless indicated
+        CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, false));
       break;
     case Safe_to_Wild:
       CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
@@ -1255,7 +1282,8 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
       }
       break;
     case Wild_to_Safe:
-      CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true)); // note reversal!
+      // Note: reversal.
+      CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
       CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, false));
       if (doEqType) {
         CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
@@ -1264,7 +1292,8 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
       break;
     }
   } else {
-    if (CAL == Wild || CAR == Wild) { // This should be a checked/unchecked constraint
+    // This should be a checked/unchecked constraint.
+    if (CAL == Wild || CAR == Wild) {
       switch (CAct) {
       case Same_to_Same:
 	CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
@@ -1281,7 +1310,8 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
           CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
         break;
       }
-    } else { // This should be a pointer-type constraint
+    } else {
+      // This should be a pointer-type constraint.
       switch (CAct) {
       case Same_to_Same:
       case Safe_to_Wild:
@@ -1296,7 +1326,7 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
 }
 
 // Generate constraints according to CA |- RHS <: LHS.
-// If doEqType is true, then also do CA |- LHS <: RHS
+// If doEqType is true, then also do CA |- LHS <: RHS.
 void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
                          ConsAction CA, bool doEqType, ProgramInfo *Info) {
@@ -1330,7 +1360,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
         constrainConsVarGeq(FCLHS->getReturnVars(), FCRHS->getReturnVars(), CS,
                             PL, Same_to_Same, doEqType, Info);
 
-        // Constrain the parameters contravariantly
+        // Constrain the parameters contravariantly.
         if (FCLHS->numParams() == FCRHS->numParams()) {
           for (unsigned i = 0; i < FCLHS->numParams(); i++) {
             std::set<ConstraintVariable *> &LHSV =
@@ -1355,7 +1385,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
     else if (PVConstraint *PCLHS = dyn_cast<PVConstraint>(LHS)) {
       if (PVConstraint *PCRHS = dyn_cast<PVConstraint>(RHS)) {
 
-        // Add assignment to bounds info graph
+        // Add assignment to bounds info graph.
         if (PCLHS->hasBoundsKey() && PCRHS->hasBoundsKey()) {
           Info->getABoundsInfo().addAssignment(PCLHS->getBoundsKey(),
                                                PCRHS->getBoundsKey());
@@ -1366,29 +1396,29 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
         // to each others argument constraints.
         PCLHS->addArgumentConstraint(PCRHS, *Info);
         PCRHS->addArgumentConstraint(PCLHS, *Info);
-        // Element-wise constrain PCLHS and PCRHS to be equal
+        // Element-wise constrain PCLHS and PCRHS to be equal.
         CAtoms CLHS = PCLHS->getCvars();
         CAtoms CRHS = PCRHS->getCvars();
 
-        // Only generate constraint if LHS is not a base type
+        // Only generate constraint if LHS is not a base type.
         if (CLHS.size() != 0) {
           if (CLHS.size() == CRHS.size()) {
             int n = 0;
             CAtoms::iterator I = CLHS.begin();
             CAtoms::iterator J = CRHS.begin();
             while (I != CLHS.end()) {
-              // Get outermost pointer first, using current ConsAction
+              // Get outermost pointer first, using current ConsAction.
               if (n == 0)
                 createAtomGeq(CS, *I, *J, Rsn, PL, CA, doEqType);
               else {
-                // Now constrain the inner ones as equal
+                // Now constrain the inner ones as equal.
                 createAtomGeq(CS, *I, *J, Rsn, PL, CA, true);
               }
               ++I;
               ++J;
               n++;
             }
-          // Unequal sizes means casting from (say) T** to T*; not safe
+          // Unequal sizes means casting from (say) T** to T*; not safe.
           } else {
             // Constrain both to be top.
             std::string Rsn = "Assigning from:" + PCRHS->getName() + " to " +
@@ -1443,7 +1473,7 @@ void constrainConsVarGeq(std::set<ConstraintVariable *> &LHS,
 }
 
 // True if [C] is a PVConstraint that contains at least one Atom (i.e.,
-//   it represents a C pointer)
+//   it represents a C pointer).
 bool isAValidPVConstraint(ConstraintVariable *C) {
   if (C != nullptr) {
     if (PVConstraint *PV = dyn_cast<PVConstraint>(C))
@@ -1452,7 +1482,7 @@ bool isAValidPVConstraint(ConstraintVariable *C) {
   return false;
 }
 
-// Replace CVars and argumentConstraints with those in [FromCV]
+// Replace CVars and argumentConstraints with those in [FromCV].
 void PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
   PVConstraint *From = dyn_cast<PVConstraint>(FromCV);
   assert (From != nullptr);
@@ -1490,7 +1520,7 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
 
       // Sanity: If both are ConstAtoms and they are not same,
       // Make sure that current ConstAtom is WILD. This ensure that
-      // we are moving towards checked types
+      // we are moving towards checked types.
       if (ICAt != JCAt) {
         if (!dyn_cast<WildAtom>(ICAt)) {
           assert(false && "Should be same checked types");
@@ -1510,15 +1540,15 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
   }
 }
 
-// Brain Transplant params and returns in [FromCV], recursively
+// Brain Transplant params and returns in [FromCV], recursively.
 void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert (From != nullptr);
-  // transplant returns
-  auto fromRetVar = getOnly(From->getReturnVars());
-  auto retVar = getOnly(returnVars);
-  retVar->brainTransplant(fromRetVar);
-  // transplant params
+  // Transplant returns.
+  auto FromRetVar = getOnly(From->getReturnVars());
+  auto RetVar = getOnly(returnVars);
+  RetVar->brainTransplant(FromRetVar);
+  // Transplant params.
   assert(From->numParams() == numParams());
   for (unsigned i = 0; i < From->numParams(); i++) {
     std::set<ConstraintVariable *> &FromP = From->getParamVar(i);
@@ -1532,11 +1562,11 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
 void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert (From != nullptr);
-  // transplant returns
-  auto fromRetVar = getOnly(From->getReturnVars());
-  auto retVar = getOnly(returnVars);
-  retVar->mergeDeclaration(fromRetVar);
-  // transplant params
+  // Transplant returns.
+  auto FromRetVar = getOnly(From->getReturnVars());
+  auto RetVar = getOnly(returnVars);
+  RetVar->mergeDeclaration(FromRetVar);
+  // Transplant params.
   assert(From->numParams() == numParams());
   for (unsigned i = 0; i < From->numParams(); i++) {
     std::set<ConstraintVariable *> &FromP = From->getParamVar(i);

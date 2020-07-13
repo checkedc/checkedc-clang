@@ -84,13 +84,13 @@ getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S)
 clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *ItypeExpr) {
   TypeSourceInfo *InteropTypeInfo = ItypeExpr->getTypeInfoAsWritten();
   const clang::Type *InnerType = InteropTypeInfo->getType().getTypePtr();
-  if (InnerType->isDeclaredCheckedPointerNtArrayType()) {
+  if (InnerType->isCheckedPointerNtArrayType()) {
     return CheckedPointerKind::NtArray;
   }
-  if (InnerType->isDeclaredCheckedPointerArrayType()) {
+  if (InnerType->isCheckedPointerArrayType()) {
     return CheckedPointerKind::Array;
   }
-  if (InnerType->isDeclaredCheckedPointerType()) {
+  if (InnerType->isCheckedPointerType()) {
     return CheckedPointerKind::Ptr;
   }
   return CheckedPointerKind::Unchecked;
@@ -293,7 +293,8 @@ static bool CastCheck(clang::QualType DstType,
   // Check if both types are compatible.
   bool BothNotChar = SrcTypePtr->isCharType() ^ DstTypePtr->isCharType();
   bool BothNotInt =
-      SrcTypePtr->isIntegerType() ^ DstTypePtr->isIntegerType();
+      (SrcTypePtr->isIntegerType() && SrcTypePtr->isUnsignedIntegerType())
+      ^ (DstTypePtr->isIntegerType() && DstTypePtr->isUnsignedIntegerType());
   bool BothNotFloat =
       SrcTypePtr->isFloatingType() ^ DstTypePtr->isFloatingType();
 
@@ -303,8 +304,9 @@ static bool CastCheck(clang::QualType DstType,
 bool isCastSafe(clang::QualType DstType,
                 clang::QualType SrcType) {
   const clang::Type *DstTypePtr = DstType.getTypePtr();
-  const clang::PointerType *DstPtrTypePtr = dyn_cast<clang::PointerType>(DstTypePtr);
-  if (!DstPtrTypePtr) // Safe to cast to a non-pointer
+  const clang::PointerType *DstPtrTypePtr =
+      dyn_cast<clang::PointerType>(DstTypePtr);
+  if (!DstPtrTypePtr) // Safe to cast to a non-pointer.
     return true;
   else
     return CastCheck(DstType,SrcType);

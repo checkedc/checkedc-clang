@@ -16,6 +16,6 @@ void foo(int *w) {
     /*allocating multiple things, should only be converted when alltypes is on*/
     int *y = calloc(5, sizeof(int)); 
 }
-//CHECK: _Ptr<int> x = calloc(1, sizeof(int));
-//CHECK_ALL: _Ptr<int> y = calloc(5, sizeof(int)); 
-//CHECK_NOALL: int *y = calloc(5, sizeof(int));
+//CHECK: _Ptr<int> x = calloc<int>(1, sizeof(int));
+//CHECK_ALL: _Ptr<int> y = calloc<int>(5, sizeof(int)); 
+//CHECK_NOALL: int *y = calloc<int>(5, sizeof(int));

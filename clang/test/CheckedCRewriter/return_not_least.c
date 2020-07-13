@@ -35,7 +35,7 @@ extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_
 int *bar() {
 // CHECK: _Nt_array_ptr<int> bar(void) {
   int *z = calloc(2, sizeof(int));
-  //CHECK: _Nt_array_ptr<int> z : count(2) =  calloc(2, sizeof(int));
+  //CHECK: _Nt_array_ptr<int> z : count(2) =  calloc<int>(2, sizeof(int));
   z += 2;
   return z;
 }

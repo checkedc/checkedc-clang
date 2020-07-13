@@ -52,8 +52,10 @@ static bool nameSubStringMatch(std::string PtrName, std::string FieldName) {
                  [](unsigned char c){ return std::tolower(c); });
   std::transform(FieldName.begin(), FieldName.end(), FieldName.begin(),
                  [](unsigned char c){ return std::tolower(c); });
-  unsigned SubSeqLen = longestCommonSubsequence(PtrName.c_str(), FieldName.c_str(),
-                               PtrName.length(), FieldName.length());
+  unsigned SubSeqLen = longestCommonSubsequence(PtrName.c_str(),
+                                                FieldName.c_str(),
+                                                PtrName.length(),
+                                                FieldName.length());
   if (SubSeqLen > 0) {
     // Check if we get 80% match on the common subsequence matching on the
     // variable name of length and the name of array.

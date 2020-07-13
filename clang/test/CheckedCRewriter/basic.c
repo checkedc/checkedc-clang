@@ -15,7 +15,7 @@ void basic1() {
 }
 
 //CHECK: char data[] = "abcdefghijklmnop";
-//CHECK: char *buffer = malloc(50);
+//CHECK: char *buffer = malloc<char>(50);
 //CHECK-NEXT: strcpy(buffer, data);
 
 char* basic2(int temp) {
@@ -38,8 +38,8 @@ char* basic2(int temp) {
 	}
 }
 //CHECK: char * basic2(int temp) {
-//CHECK: char *buffer = malloc(8);
-//CHECK: char *buffer = malloc(1024);
+//CHECK: char *buffer = malloc<char>(8);
+//CHECK: char *buffer = malloc<char>(1024);
 
 char* basic3(int* data, int count) {
 	while (count > 1) {
@@ -50,7 +50,7 @@ char* basic3(int* data, int count) {
 	return NULL;
 }
 //CHECK: _Ptr<char> basic3(_Ptr<int> data, int count) {
-//CHECK: _Ptr<int> temp =  malloc(sizeof(int));
+//CHECK: _Ptr<int> temp =  malloc<int>(sizeof(int));
 
 void sum_numbers(int count) {
     int n, i, sum = 0;
@@ -74,7 +74,7 @@ void sum_numbers(int count) {
     }
     free(ptr);
 }
-//CHECK: int *ptr = (int*) malloc(n * sizeof(int));
+//CHECK: int *ptr = (int*) malloc<int>(n * sizeof(int));
 
 
 void basic_calloc(int count) {
@@ -101,7 +101,7 @@ void basic_calloc(int count) {
     printf("Sum = %d", sum);
     free(ptr);
 }
-//CHECK: int *ptr = (int*) calloc(n, sizeof(int));
+//CHECK: int *ptr = (int*) calloc<int>(n, sizeof(int));
 
 void basic_realloc(int count) {
     int i , n1, n2;
@@ -126,7 +126,7 @@ void basic_realloc(int count) {
 
     free(ptr);
 }
-//CHECK: int *ptr = (int*) malloc(n1 * sizeof(int));
+//CHECK: int *ptr = (int*) malloc<int>(n1 * sizeof(int));
 
 struct student
 {
@@ -171,7 +171,7 @@ void basic_struct(int count) {
     }
 
 }
-//CHECK: struct student *pstd=(struct student*)malloc(n*sizeof(struct student));
+//CHECK: struct student *pstd=(struct student*)malloc<struct student>(n*sizeof(struct student));
 
 struct student * new_student() {
 		char name[] = "Bilbo Baggins";
@@ -183,7 +183,7 @@ struct student * new_student() {
 }
 //CHECK: _Ptr<struct student> new_student(void) {
 //CHECK-NEXT: char name[] = "Bilbo Baggins";
-//CHECK: _Ptr<struct student> new_s =  malloc(sizeof(struct student));
+//CHECK: _Ptr<struct student> new_s =  malloc<struct student>(sizeof(struct student));
 
 int main() {
 	basic1();

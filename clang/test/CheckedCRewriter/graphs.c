@@ -230,7 +230,7 @@ struct node* createNode(int v)
 
 }
 //CHECK: struct node *createNode(int v) : itype(_Ptr<struct node>)
-//CHECK: _Ptr<struct node> newNode =  malloc(sizeof(struct node));
+//CHECK: _Ptr<struct node> newNode =  malloc<struct node>(sizeof(struct node));
 
 //Allocate memory for the entire graph structure
 
@@ -325,7 +325,7 @@ struct Stack* createStack()
 
 }
 //CHECK: _Ptr<struct Stack> createStack(void)
-//CHECK: _Ptr<struct Stack> stack = malloc(sizeof(struct Stack));
+//CHECK: _Ptr<struct Stack> stack = malloc<struct Stack>(sizeof(struct Stack));
 
 //Pushes element into stack
 

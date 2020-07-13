@@ -59,4 +59,4 @@ struct r *sus(struct r *x, struct r *y) {
   return z;
 }
 //CHECK: struct r *sus(_Ptr<struct r> x, _Ptr<struct r> y) : itype(_Ptr<struct r>) {
-//CHECK: _Ptr<struct r> z =  malloc(sizeof(struct r));
+//CHECK: _Ptr<struct r> z =  malloc<struct r>(sizeof(struct r));

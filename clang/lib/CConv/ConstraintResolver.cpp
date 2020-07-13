@@ -74,8 +74,8 @@ std::set<ConstraintVariable *>
 }
 
 // For each constraint variable either invoke addAtom to add an additional level
-// of indirection (when the constraint is PVConstraint), or return the constraint
-// unchanged (when the constraint is a function constraint).
+// of indirection (when the constraint is PVConstraint), or return the
+// constraint unchanged (when the constraint is a function constraint).
 std::set<ConstraintVariable *>
     ConstraintResolver::addAtomAll(std::set<ConstraintVariable *> CVS,
                                    ConstAtom *PtrTyp, Constraints &CS) {
@@ -93,7 +93,8 @@ std::set<ConstraintVariable *>
 
 // Add to a PVConstraint one additional level of indirection
 // The pointer type of the new atom is constrained >= PtrTyp.
-PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, ConstAtom *PtrTyp, Constraints &CS) {
+PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC,
+                                          ConstAtom *PtrTyp, Constraints &CS) {
   Atom *NewA = CS.getFreshVar("&"+(PVC->getName()), VarAtom::V_Other);
   CAtoms C = PVC->getCvars();
   if (!C.empty()) {
@@ -119,23 +120,24 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, ConstAtom *PtrTyp, 
   return TmpPV;
 }
 
-// Processes E from malloc(E) to discern the pointer type this will be
-static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS, QualType &ArgTy,
-    std::string FuncName, ASTContext *Context) {
+// Processes E from malloc(E) to discern the pointer type.
+static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS,
+                                   QualType &ArgTy,
+                                   std::string FuncName, ASTContext *Context) {
   if (FuncName.compare("calloc") == 0) {
     ArgTy = CE->getArg(1)->getType();
     // Check if first argument to calloc is 1
     Expr *E = CE->getArg(0);
-    Expr::EvalResult res;
-    E->EvaluateAsInt(res, *Context,
+    Expr::EvalResult ER;
+    E->EvaluateAsInt(ER, *Context,
                      clang::Expr::SE_NoSideEffects, false);
-    if (res.Val.isInt() && res.Val.getInt().getExtValue() == 1)
+    if (ER.Val.isInt() && ER.Val.getInt().getExtValue() == 1)
       return CS.getPtr();
     else
       return CS.getNTArr();
   }
 
-  ConstAtom *ret = CS.getPtr();
+  ConstAtom *Ret = CS.getPtr();
   Expr *E;
   if (FuncName.compare("malloc") == 0)
     E = CE->getArg(0);
@@ -149,7 +151,7 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS, QualType &ArgT
 
   // Looking for X*Y -- could be an array
   if (B && B->isMultiplicativeOp()) {
-    ret = CS.getArr();
+    Ret = CS.getArr();
     Exprs.insert(B->getLHS());
     Exprs.insert(B->getRHS());
   }
@@ -158,10 +160,10 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS, QualType &ArgT
 
   // Look for sizeof(X); return Arr or Ptr if found
   for (Expr *Ex: Exprs) {
-    UnaryExprOrTypeTraitExpr *arg = dyn_cast<UnaryExprOrTypeTraitExpr>(Ex);
-    if (arg && arg->getKind() == UETT_SizeOf) {
-      ArgTy = arg->getTypeOfArgument();
-      return ret;
+    UnaryExprOrTypeTraitExpr *Arg = dyn_cast<UnaryExprOrTypeTraitExpr>(Ex);
+    if (Arg && Arg->getKind() == UETT_SizeOf) {
+      ArgTy = Arg->getTypeOfArgument();
+      return Ret;
     }
   }
   return nullptr;
@@ -247,8 +249,9 @@ std::set<ConstraintVariable *>
       case BO_Assign:
       case BO_AddAssign:
       case BO_SubAssign:
-      case BO_Comma:
         return getExprConstraintVars(BO->getLHS());
+      case BO_Comma:
+        return getExprConstraintVars(BO->getRHS());
       /* Possible pointer arithmetic: Could be LHS or RHS */
       case BO_Add:
       case BO_Sub:
@@ -295,8 +298,8 @@ std::set<ConstraintVariable *>
     // x[e]
     } else if (ArraySubscriptExpr *AE = dyn_cast<ArraySubscriptExpr>(E)) {
       std::set<ConstraintVariable *> T = getExprConstraintVars(AE->getBase());
-      std::set<ConstraintVariable *> tmp = handleDeref(T);
-      T.swap(tmp);
+      std::set<ConstraintVariable *> Tmp = handleDeref(T);
+      T.swap(Tmp);
       return T;
 
     // ++e, &e, *e, etc.
@@ -323,7 +326,9 @@ std::set<ConstraintVariable *>
         // add a VarAtom to UOExpr's PVConstraint, for &
         std::set<ConstraintVariable *> T = getExprConstraintVars(UOExpr);
         assert("Empty constraint vars in AddrOf!" && !T.empty());
-        return addAtomAll(T, CS.getPtr(), CS);
+        std::set<ConstraintVariable *> AddrVs = addAtomAll(T, CS.getPtr(), CS);
+
+        return getPersistentConstraints(UO, AddrVs);
       }
 
       // *e
@@ -381,7 +386,7 @@ std::set<ConstraintVariable *>
       } else if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
         /* Allocator call */
         if (isFunctionAllocator(FD->getName())) {
-          bool didInsert = false;
+          bool DidInsert = false;
           if (CE->getNumArgs() > 0) {
             QualType ArgTy;
             std::string FuncName = FD->getNameAsString();
@@ -395,20 +400,22 @@ std::set<ConstraintVariable *>
               TempConstraintVars.insert(PVC);
               PVC->constrainOuterTo(CS,A,true);
               ReturnCVs.insert(PVC);
-              didInsert = true;
+              DidInsert = true;
               if (FuncName.compare("realloc") == 0) {
                 // We will constrain the first arg to the return of realloc, below
-                ReallocFlow = getExprConstraintVars(CE->getArg(0)->IgnoreParenImpCasts());
+                ReallocFlow =
+                    getExprConstraintVars(CE->getArg(0)->IgnoreParenImpCasts());
               }
             }
           }
-          if (!didInsert)
-            ReturnCVs.insert(PVConstraint::getWildPVConstraint(Info.getConstraints()));
+          if (!DidInsert)
+            ReturnCVs.insert(
+                PVConstraint::getWildPVConstraint(Info.getConstraints()));
 
         /* Normal function call */
         } else {
-          std::set<ConstraintVariable *> CS = Info.getVariable(FD, Context);
-          ConstraintVariable *J = getOnly(CS);
+          std::set<ConstraintVariable *> CVars = Info.getVariable(FD, Context);
+          ConstraintVariable *J = getOnly(CVars);
           /* Direct function call */
           if (FVConstraint *FVC = dyn_cast<FVConstraint>(J))
             ReturnCVs.insert(FVC->getReturnVars().begin(),
@@ -450,7 +457,8 @@ std::set<ConstraintVariable *>
 
         }
       }
-      return TmpCVs;
+
+      return getPersistentConstraints(CE, TmpCVs);
 
     // e1 ? e2 : e3
     } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
@@ -480,29 +488,33 @@ std::set<ConstraintVariable *>
 
     // (int[]){e1, e2, e3, ... }
     } else if (CompoundLiteralExpr *CLE = dyn_cast<CompoundLiteralExpr>(E)) {
-      std::set<ConstraintVariable *> Vars = getExprConstraintVars(CLE->getInitializer());
+      std::set<ConstraintVariable *>
+          Vars = getExprConstraintVars(CLE->getInitializer());
 
-      FullSourceLoc FL = Context->getFullLoc(CLE->getBeginLoc());
-      SourceRange SR = CLE->getSourceRange();
-      if (SR.isValid() && FL.isValid())
-        Info.addCompoundLiteral(CLE, Context);
+      PVConstraint *P = new PVConstraint(CLE->getType(), nullptr,
+                                         CLE->getStmtClassName(), Info,
+                                         *Context, nullptr);
+      std::set<ConstraintVariable *> T = {P};
+
       PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CLE, *Context);
-      std::set<ConstraintVariable *> L = Info.getCompoundLiteral(CLE, Context);
-      constrainConsVarGeq(L, Vars, Info.getConstraints(), &PL, Same_to_Same, false, &Info);
+      constrainConsVarGeq(T, Vars, Info.getConstraints(), &PL,
+                          Same_to_Same, false, &Info);
 
-      return Vars;
+      return getPersistentConstraints(CLE, T);
 
     // "foo"
-    } else if (clang::StringLiteral *exr = dyn_cast<clang::StringLiteral>(E)) {
+    } else if (clang::StringLiteral *Str = dyn_cast<clang::StringLiteral>(E)) {
       // If this is a string literal. i.e., "foo".
       // We create a new constraint variable and constraint it to an Nt_array.
-      std::set<ConstraintVariable *> T;
-      PVConstraint *newC = new PVConstraint(
-          exr->getType(), nullptr, "str", Info, *Context, nullptr);
-      newC->constrainOuterTo(CS, CS.getNTArr()); // NB: ARR already there
-      TempConstraintVars.insert(newC);
-      T.insert(newC);
-      return T;
+
+      PVConstraint *P = new PVConstraint(Str->getType(), nullptr,
+                                         Str->getStmtClassName(), Info,
+                                         *Context, nullptr);
+      P->constrainOuterTo(CS, CS.getNTArr()); // NB: ARR already there
+      TempConstraintVars.insert(P);
+      std::set<ConstraintVariable *> T = {P};
+
+      return getPersistentConstraints(Str, T);
 
     // Checked-C temporary
     } else if (CHKCBindTemporaryExpr *CE = dyn_cast<CHKCBindTemporaryExpr>(E)) {
@@ -521,7 +533,21 @@ std::set<ConstraintVariable *>
   return std::set<ConstraintVariable *>();
 }
 
-// Collect constraint variables for Exprs int a set
+// Get the set of constraint variables for an expression that will persist
+// between the constraint generation and rewriting pass. If the expression
+// already has a set of persistent constraints, this set is returned. Otherwise,
+// the set provided in the arguments is stored persistent and returned. This is
+// required for correct cast insertion.
+std::set<ConstraintVariable *> ConstraintResolver::getPersistentConstraints(
+    clang::Expr *E, std::set<ConstraintVariable *> &Vars) {
+  std::set<ConstraintVariable *>
+      &Persist = Info.getPersistentConstraintVars(E, Context);
+  if (Persist.empty())
+    Persist.insert(Vars.begin(), Vars.end());
+  return Persist;
+}
+
+// Collect constraint variables for Exprs into a set.
 std::set<ConstraintVariable *> ConstraintResolver::getAllSubExprConstraintVars(
     std::vector<Expr *> &Exprs) {
 
@@ -589,7 +615,8 @@ std::set<ConstraintVariable *> ConstraintResolver::getWildPVConstraint() {
   return Ret;
 }
 
-std::set<ConstraintVariable *> ConstraintResolver::PVConstraintFromType(QualType TypE) {
+std::set<ConstraintVariable *>
+    ConstraintResolver::PVConstraintFromType(QualType TypE) {
   std::set<ConstraintVariable *> Ret;
   if (TypE->isRecordType() || TypE->isArithmeticType())
     Ret.insert(PVConstraint::getNonPtrPVConstraint(Info.getConstraints()));
@@ -600,10 +627,13 @@ std::set<ConstraintVariable *> ConstraintResolver::PVConstraintFromType(QualType
   return Ret;
 }
 
-std::set<ConstraintVariable *> ConstraintResolver::getBaseVarPVConstraint(DeclRefExpr *Decl) {
+std::set<ConstraintVariable *>
+    ConstraintResolver::getBaseVarPVConstraint(DeclRefExpr *Decl) {
   assert(Decl->getType()->isRecordType() || Decl->getType()->isArithmeticType());
   std::set<ConstraintVariable *> Ret;
-  Ret.insert(PVConstraint::getNamedNonPtrPVConstraint(Decl->getDecl()->getName(), Info.getConstraints()));
+  auto DN = Decl->getDecl()->getName();
+  Ret.insert(PVConstraint::getNamedNonPtrPVConstraint(DN,
+                                                      Info.getConstraints()));
   return Ret;
 }
 

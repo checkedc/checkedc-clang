@@ -16,7 +16,7 @@ int *sus(int *x, int*y) {
   return z;
 }
 //CHECK: int *sus(int *x, _Ptr<int> y) : itype(_Ptr<int>) {
-//CHECK:   _Ptr<int> z =  malloc(sizeof(int));
+//CHECK:   _Ptr<int> z =  malloc<int>(sizeof(int));
 
 int* foo() {
   int sx = 3;

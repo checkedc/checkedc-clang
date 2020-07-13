@@ -123,9 +123,9 @@ struct fptr * sus(struct fptr *x, struct fptr *y) {
         
 return z; }
 //CHECK_NOALL: _Ptr<struct fptr> sus(struct fptr *x, _Ptr<struct fptr> y) {
-//CHECK_NOALL:         _Ptr<struct fptr> z =  malloc(sizeof(struct fptr)); 
+//CHECK_NOALL:         _Ptr<struct fptr> z =  malloc<struct fptr>(sizeof(struct fptr)); 
 //CHECK_ALL: _Ptr<struct fptr> sus(struct fptr *x, _Ptr<struct fptr> y) {
-//CHECK_ALL:         _Ptr<struct fptr> z =  malloc(sizeof(struct fptr)); 
+//CHECK_ALL:         _Ptr<struct fptr> z =  malloc<struct fptr>(sizeof(struct fptr)); 
 
 struct fptr * foo() {
  
@@ -135,12 +135,12 @@ struct fptr * foo() {
         
 return z; }
 //CHECK_NOALL: _Ptr<struct fptr> foo(void) {
-//CHECK_NOALL:         struct fptr * x = malloc(sizeof(struct fptr)); 
-//CHECK_NOALL:         _Ptr<struct fptr> y =   malloc(sizeof(struct fptr));
+//CHECK_NOALL:         struct fptr * x = malloc<struct fptr>(sizeof(struct fptr)); 
+//CHECK_NOALL:         _Ptr<struct fptr> y =   malloc<struct fptr>(sizeof(struct fptr));
 //CHECK_NOALL:         _Ptr<struct fptr> z =  sus(x, y);
 //CHECK_ALL: _Ptr<struct fptr> foo(void) {
-//CHECK_ALL:         struct fptr * x = malloc(sizeof(struct fptr)); 
-//CHECK_ALL:         _Ptr<struct fptr> y =   malloc(sizeof(struct fptr));
+//CHECK_ALL:         struct fptr * x = malloc<struct fptr>(sizeof(struct fptr)); 
+//CHECK_ALL:         _Ptr<struct fptr> y =   malloc<struct fptr>(sizeof(struct fptr));
 //CHECK_ALL:         _Ptr<struct fptr> z =  sus(x, y);
 
 struct fptr * bar() {
@@ -151,10 +151,10 @@ struct fptr * bar() {
         
 return z; }
 //CHECK_NOALL: _Ptr<struct fptr> bar(void) {
-//CHECK_NOALL:         struct fptr * x = malloc(sizeof(struct fptr)); 
-//CHECK_NOALL:         _Ptr<struct fptr> y =   malloc(sizeof(struct fptr));
+//CHECK_NOALL:         struct fptr * x = malloc<struct fptr>(sizeof(struct fptr)); 
+//CHECK_NOALL:         _Ptr<struct fptr> y =   malloc<struct fptr>(sizeof(struct fptr));
 //CHECK_NOALL:         _Ptr<struct fptr> z =  sus(x, y);
 //CHECK_ALL: _Ptr<struct fptr> bar(void) {
-//CHECK_ALL:         struct fptr * x = malloc(sizeof(struct fptr)); 
-//CHECK_ALL:         _Ptr<struct fptr> y =   malloc(sizeof(struct fptr));
+//CHECK_ALL:         struct fptr * x = malloc<struct fptr>(sizeof(struct fptr)); 
+//CHECK_ALL:         _Ptr<struct fptr> y =   malloc<struct fptr>(sizeof(struct fptr));
 //CHECK_ALL:         _Ptr<struct fptr> z =  sus(x, y);

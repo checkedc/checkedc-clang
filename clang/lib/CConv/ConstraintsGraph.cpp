@@ -33,7 +33,8 @@ std::set<ConstAtom*> &ConstraintsGraph::getAllConstAtoms() {
   return AllConstAtoms;
 }
 
-void ConstraintsGraph::forEachEdge(llvm::function_ref<void(Atom*,Atom*)> fn) const {
+void
+ConstraintsGraph::forEachEdge(llvm::function_ref<void(Atom*,Atom*)> fn) const {
   auto EI = boost::edges(CG);
   for (auto E = EI.first; E != EI.second; ++E) {
     auto s = source(*E, CG);

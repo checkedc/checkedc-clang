@@ -3970,7 +3970,7 @@ public:
   void DiagnoseUnterminatedCheckedScope();
 
   bool IsCheckedScope() {
-    return !getLangOpts().IgnoreCheckedPtr && CheckingKind != CSS_Unchecked;
+    return CheckingKind != CSS_Unchecked;
   }
 
   class CheckedScopeRAII {

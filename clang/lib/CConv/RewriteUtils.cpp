@@ -73,7 +73,8 @@ bool DComp::operator()(const DAndReplace Lhs, const DAndReplace Rhs) const {
 
   DeclStmt *RhStmt = dyn_cast_or_null<DeclStmt>(Rhs.Statement);
   if (RhStmt && !RhStmt->isSingleDecl()) {
-    SourceLocation NewBegin = (*RhStmt->decls().begin())->getSourceRange().getBegin();
+    SourceLocation NewBegin =
+        (*RhStmt->decls().begin())->getSourceRange().getBegin();
     bool Found;
     for (const auto &DT : RhStmt->decls()) {
       if (DT == Rhs.Declaration) {
@@ -526,7 +527,8 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   // For the return value and each of the parameters, do the following:
   //   1. Get a constraint variable representing the definition (def) and the
   //      uses ("arguments").
-  //   2. If arguments could be wild but def is not, we insert a bounds-safe interface.
+  //   2. If arguments could be wild but def is not, we insert a bounds-safe
+  //      interface.
   // If we don't have a definition in scope, we can assert that all of
   // the constraint variables are equal.
   // Finally, we need to note that we've visited this particular function, and
@@ -597,7 +599,8 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           std::string bi =
               Defn->getRewritableOriginalTy() + Defn->getName() + " : itype(" +
                   PtypeS + ")" +
-                  ABRewriter.getBoundsString(Defn, Definition->getParamDecl(i), true);
+                  ABRewriter.getBoundsString(Defn,
+                                         Definition->getParamDecl(i), true);
           ParmStrs.push_back(bi);
         }
         ParameterHandled = true;
@@ -788,7 +791,8 @@ public:
     // When an compound literal was visited in constraint generation, a
     // constraint variable for it was stored in program info.  There should be
     // either zero or one of these.
-    std::set<ConstraintVariable *> CVSingleton = Info.getCompoundLiteral(CLE, Context);
+    std::set<ConstraintVariable *>
+        CVSingleton = Info.getPersistentConstraintVars(CLE, Context);
     if (CVSingleton.empty())
       return true;
     ConstraintVariable *CV = getOnly(CVSingleton);
@@ -814,6 +818,86 @@ private:
   ASTContext *Context;
   ProgramInfo &Info;
   Rewriter &Writer;
+};
+
+// Adds type parameters to calls to alloc functions.
+// The basic assumption this makes is that an alloc function will be surrounded
+// by a cast expression giving its type when used as a type other than void*.
+class AllocTypeParamAdder
+  : public clang::RecursiveASTVisitor<AllocTypeParamAdder> {
+public:
+  explicit AllocTypeParamAdder(Rewriter &R) : Writer(R) {}
+
+  // Check if each cast contains a call to an alloc function. If it does, add
+  // the pointee type of the cast as the type param for the alloc.
+  bool VisitCastExpr(CastExpr *CE) {
+    Expr *SubExpr = CE->getSubExpr();
+    if (CHKCBindTemporaryExpr *TempE = dyn_cast<CHKCBindTemporaryExpr>(SubExpr))
+      SubExpr = TempE->getSubExpr();
+
+    if (CallExpr *Call = getAllocatorCall(SubExpr)) {
+      // If the function call already has type arguments, we'll trust that
+      // they're correct and not add anything else.
+      if (allocTypeArgProvided(Call))
+        return true;
+
+      // If the type does not have an identifier (i.e., it's anonymous), then we
+      // can't use it as a type parameter.
+      QualType PointeeType = CE->getType()->getPointeeType();
+      if (PointeeType->isRecordType() &&
+        !(PointeeType->getAsRecordDecl()->getIdentifier() ||
+          PointeeType->getAsRecordDecl()->getTypedefNameForAnonDecl()))
+        return true;
+
+      // I don't like depending on the function having arguments, but I'm not
+      // sure how else to figure out the correct spot to add the type parameter.
+      assert("No arguments to allocator function." && Call->getNumArgs() > 0);
+      SourceLocation TypeParamLoc = Call->getArg( 0)->
+        getBeginLoc().getLocWithOffset(-1);
+
+      // CheckedC doesn't seem to care that this doesn't get the correct checked
+      // type for the pointer. malloc<int*>(sizeof(int*)) is treated the same as
+      // malloc<_Ptr<int>>(sizeof(int*)).
+      std::string TypeStr = PointeeType.getAsString();
+      Writer.InsertTextAfter(TypeParamLoc, "<" + TypeStr + ">");
+    }
+    return true;
+  }
+
+private:
+    Rewriter &Writer;
+
+    // Return E cast to CallExpr if it is a CallExpr for a call to an allocator
+    // function. Return nullptr otherwise.
+    CallExpr *getAllocatorCall(Expr *E) {
+      if (CallExpr *Call = dyn_cast<CallExpr>(E)) {
+        DeclaratorDecl *D =
+          dyn_cast_or_null<DeclaratorDecl>(Call->getCalleeDecl());
+        if (D != nullptr && isFunctionAllocator(D->getName()))
+          return Call;
+      }
+      return nullptr;
+    }
+
+    // Check if type arguments have already been provided for this function
+    // call so that we don't mess with anything already there.
+    bool allocTypeArgProvided(CallExpr *Call) {
+      Expr *Callee = Call->getCallee()->IgnoreImpCasts();
+      if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Callee)) {
+        // ArgInfo is null if there are no type arguments in the program
+        if (auto *ArgInfo = DRE->GetTypeArgumentInfo()) {
+          auto TypeArgs = ArgInfo->typeArgumentss();
+          assert("Unexpected number of type arguments in alloc function." &&
+                 TypeArgs.size() == 1);
+          // If there are some type arguments provided, then missing type
+          // arguments are filled in with Void.
+          return !TypeArgs.front().typeName->isVoidType();
+        }
+        return false;
+      }
+      // We only handle direct calls, so there must be a DeclRefExpr.
+      llvm_unreachable("Callee of alloc function call is not DeclRefExpr.");
+    }
 };
 
 std::map<std::string, std::string> RewriteConsumer::ModifiedFuncSignatures;
@@ -902,6 +986,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   CheckedRegionAdder CRA(&Context, R, nodeMap);
   CastPlacementVisitor ECPV(&Context, Info, R);
   CompoundLiteralRewriter CLR(&Context, Info, R);
+  AllocTypeParamAdder TPA(R);
   for (auto &D : TUD->decls()) {
     V.TraverseDecl(D);
     FV.TraverseDecl(D);
@@ -914,6 +999,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
 
     GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
     CLR.TraverseDecl(D);
+    TPA.TraverseDecl(D);
   }
 
   std::tie(PSLMap, VDLToStmtMap) = V.getResults();
