@@ -9,7 +9,7 @@ void b() {
 void c() {
     int *b = (int*)1;
     { b; }
-    //CHECK: { b; }
+    //CHECK: _Unchecked{ b; }
 }
 
 // Dummy
