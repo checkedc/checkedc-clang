@@ -36,20 +36,19 @@ Constraint::Constraint(ConstraintKind K, std::string &Rsn,
 // Remove the constraint from the global constraint set.
 bool Constraints::removeConstraint(Constraint *C) {
   bool RetVal = false;
-  removeReasonBasedConstraint(C);
-  RetVal = constraints.erase(C) != 0;
-  // Delete from graph.
-  ConstraintsGraph *TG = nullptr;
-  if (Geq *GE = dyn_cast<Geq>(C)) {
-    assert(GE != nullptr && "Invalid constrains requested to be removed.");
-    // We can only remove constraints from ConstAtoms.
-    if (GE != nullptr && isa<ConstAtom>(GE->getRHS()) &&
-        isa<VarAtom>(GE->getLHS())) {
-      TG = GE->constraintIsChecked() ? ChkCG : PtrTypCG;
-      RetVal = true;
-      // Remove the edge form the corresponding constraint graph.
-      TG->removeEdge(GE->getRHS(), GE->getLHS());
-    }
+  Geq *GE = dyn_cast<Geq>(C);
+  assert(GE != nullptr && "Invalid constrains requested to be removed.");
+  // We can only remove constraints from ConstAtoms.
+  if (isa<ConstAtom>(GE->getRHS()) &&
+      isa<VarAtom>(GE->getLHS())) {
+    removeReasonBasedConstraint(C);
+    RetVal = constraints.erase(C) != 0;
+    // Delete from graph.
+    ConstraintsGraph *TG = nullptr;
+    TG = GE->constraintIsChecked() ? ChkCG : PtrTypCG;
+    RetVal = true;
+    // Remove the edge form the corresponding constraint graph.
+    TG->removeEdge(GE->getRHS(), GE->getLHS());
   }
   return RetVal;
 }
