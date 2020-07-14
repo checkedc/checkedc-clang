@@ -231,69 +231,6 @@ public:
     return true;
   }
 
-  // Get the type variable used in a parameter declaration, or return null if no
-  // type variable is used.
-  const TypeVariableType *getTypeVariableType(ParmVarDecl *ParmDecl){
-    // This makes a lot of assumptions about how the AST will look.
-    if(InteropTypeExpr *PTy = ParmDecl->getInteropTypeExpr())
-      if (const clang::Type *T = PTy->getType().getTypePtr())
-        if (const auto *PtrTy =
-            dyn_cast_or_null<TypedefType>(T->getPointeeType().getTypePtr()))
-          return dyn_cast<TypeVariableType>(PtrTy->desugar());
-    return nullptr;
-  }
-
-  // Collect the set of TypeVariableTypes that are always used for arguments
-  // with the same type. These are type variables that can be instantiated with
-  // a concrete type, so it is correct to remove casts to void* on their
-  // arguments.
-  // TODO: Check that the type parameter for the return type agrees with its
-  //       other uses. This is non-trivial because the type of the CallExpr is
-  //       always void* for itype generics. I'll need to add something in
-  //       vistCastExpr to remember how itype generics are used. When making
-  //       this change, look out for ways to avoid duplicating code from
-  //       AllocTypeParamAdder in RewriteUtils.
-  void getInstantiableTypeParams(CallExpr *CE,
-                                 FunctionDecl *FD,
-                                 std::set<const TypeVariableType *> &Types) {
-    assert("Must provide nonnull FunctionDecl." && FD);
-    // Construct a map from TypeVariables to the set of arguments that must have
-    // that type.
-    std::map<const TypeVariableType *,
-             std::set<const clang::Type *>> TypeVarClasses;
-    unsigned int I = 0;
-    for (auto *const A : CE->arguments()) {
-      // This can happen with varargs
-      if(I >= FD->getNumParams())
-        break;
-      if (const auto *Ty = getTypeVariableType(FD->getParamDecl(I)))
-        TypeVarClasses[Ty].insert(ignoreCast(A)->getType().getTypePtr());
-      ++I;
-    }
-
-    // For each set of arguments, add the corresponding type variable to the
-    // instantiable set if all arguments have the same type.
-    for (const auto &TVEntry : TypeVarClasses) {
-      const clang::Type *ClassTy = nullptr;
-      bool AllSame = true;
-      for (const clang::Type *Ty : TVEntry.second) {
-        assert("Type variables can only be used for array and pointer types."
-                   && Ty->isPointerType());
-        if (ClassTy == nullptr)
-          ClassTy = Ty;
-        else
-          AllSame &= (ClassTy->getPointeeType() == Ty->getPointeeType());
-      }
-      if (AllSame)
-        Types.insert(TVEntry.first);
-    }
-  }
-
-  Expr *ignoreCast(Expr *E){
-    if(auto *ImpCast = dyn_cast<ImplicitCastExpr>(E))
-      return ImpCast->getSubExpr();
-    return E;
-  }
 
   // e1[e2]
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
@@ -418,6 +355,70 @@ private:
     } else {
       constraintInBodyVariable(E, Info.getConstraints().getArr());
     }
+  }
+
+  // Get the type variable used in a parameter declaration, or return null if no
+  // type variable is used.
+  const TypeVariableType *getTypeVariableType(ParmVarDecl *ParmDecl){
+    // This makes a lot of assumptions about how the AST will look.
+    if(InteropTypeExpr *PTy = ParmDecl->getInteropTypeExpr())
+      if (const clang::Type *T = PTy->getType().getTypePtr())
+        if (const auto *PtrTy =
+            dyn_cast_or_null<TypedefType>(T->getPointeeType().getTypePtr()))
+          return dyn_cast<TypeVariableType>(PtrTy->desugar());
+    return nullptr;
+  }
+
+  // Collect the set of TypeVariableTypes that are always used for arguments
+  // with the same type. These are type variables that can be instantiated with
+  // a concrete type, so it is correct to remove casts to void* on their
+  // arguments.
+  // TODO: Check that the type parameter for the return type agrees with its
+  //       other uses. This is non-trivial because the type of the CallExpr is
+  //       always void* for itype generics. I'll need to add something in
+  //       vistCastExpr to remember how itype generics are used. When making
+  //       this change, look out for ways to avoid duplicating code from
+  //       AllocTypeParamAdder in RewriteUtils.
+  void getInstantiableTypeParams(CallExpr *CE,
+                                 FunctionDecl *FD,
+                                 std::set<const TypeVariableType *> &Types) {
+    assert("Must provide nonnull FunctionDecl." && FD);
+    // Construct a map from TypeVariables to the set of arguments that must have
+    // that type.
+    std::map<const TypeVariableType *,
+             std::set<const clang::Type *>> TypeVarClasses;
+    unsigned int I = 0;
+    for (auto *const A : CE->arguments()) {
+      // This can happen with varargs
+      if(I >= FD->getNumParams())
+        break;
+      if (const auto *Ty = getTypeVariableType(FD->getParamDecl(I)))
+        TypeVarClasses[Ty].insert(ignoreCast(A)->getType().getTypePtr());
+      ++I;
+    }
+
+    // For each set of arguments, add the corresponding type variable to the
+    // instantiable set if all arguments have the same type.
+    for (const auto &TVEntry : TypeVarClasses) {
+      const clang::Type *ClassTy = nullptr;
+      bool AllSame = true;
+      for (const clang::Type *Ty : TVEntry.second) {
+        assert("Type variables can only be used for array and pointer types."
+                   && Ty->isPointerType());
+        if (ClassTy == nullptr)
+          ClassTy = Ty;
+        else
+          AllSame &= (ClassTy->getPointeeType() == Ty->getPointeeType());
+      }
+      if (AllSame)
+        Types.insert(TVEntry.first);
+    }
+  }
+
+  Expr *ignoreCast(Expr *E){
+    if(auto *ImpCast = dyn_cast<ImplicitCastExpr>(E))
+      return ImpCast->getSubExpr();
+    return E;
   }
 
   ASTContext *Context;
