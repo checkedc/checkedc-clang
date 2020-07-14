@@ -82,6 +82,38 @@ void PreorderAST::Create(Expr *E, Node *N, Node *Parent) {
   N->Others.push_back(E);
 }
 
+bool PreorderAST::ConstantFold(Node *N, llvm::APSInt Val) {
+  // Constant fold Val into the node N.
+
+  if (!N) {
+    SetError();
+    return false;
+  }
+
+  // If N does not already have a constant simply make Val the constant
+  // value for N.
+  if (!N->HasConst) {
+    N->Const = Val;
+    N->HasConst = true;
+    return true;
+  }
+
+  bool Overflow;
+  switch (N->Opc) {
+    default: return false;
+    case BO_Add:
+      N->Const = N->Const.sadd_ov(Val, Overflow);
+      break;
+    case BO_Mul:
+      N->Const = N->Const.smul_ov(Val, Overflow);
+      break;
+  }
+
+  if (Overflow)
+    SetError();
+  return !Overflow;
+}
+
 void PreorderAST::Coalesce(Node *N) {
   if (Error)
     return;
@@ -113,20 +145,30 @@ void PreorderAST::Coalesce(Node *N) {
   }
 
   // Move all the variables of the current node to the parent.
-  for (auto &V : N->Vars)
-    Parent->Vars.push_back(V);
+  Parent->Vars.insert(Parent->Vars.end(),
+                      N->Vars.begin(),
+                      N->Vars.end());
 
   // Move all other non-variable, non-constant expressions to the parent.
-  for (auto &E : N->Others)
-    Parent->Others.push_back(E);
+  Parent->Others.insert(Parent->Others.end(),
+                        N->Others.begin(),
+                        N->Others.end());
+  
+  // Remove the current node from the list of children of its parent.
+  for (size_t I = 0; I != Parent->Children.size(); ++I) {
+    if (Parent->Children[I] == N) {
+      Parent->Children.erase(Parent->Children.begin() + I);
+      break;
+    }
+  }
 
   // Move all children of the current node to the parent.
-  for (auto &Child : N->Children)
-    Parent->Children.push_back(Child);
+  Parent->Children.insert(Parent->Children.end(),
+                          N->Children.begin(),
+                          N->Children.end());
 
-  // Remove the current node from the list of children.
-
-  Cleanup(N);
+  // Delete the current node.
+  delete N;
 }
 
 void PreorderAST::Sort(Node *N) {
@@ -141,6 +183,9 @@ void PreorderAST::Sort(Node *N) {
     return;
   }
 
+  for (auto *Child : N->Children)
+    Sort(Child);
+
   // Sort the variables in the node lexicographically.
   llvm::sort(N->Vars.begin(), N->Vars.end(),
              [&](const VarDecl *V1, const VarDecl *V2) {
@@ -153,8 +198,48 @@ void PreorderAST::Sort(Node *N) {
                return Lex.CompareExpr(E1, E2) == Result::LessThan;
              });
 
-  for (auto *Child : N->Children)
-    Sort(Child);
+  // Sort the children nodes.
+  llvm::sort(N->Children.begin(), N->Children.end(),
+    [&](Node *N1, Node *N2) {
+      // There is no single criteria for sorting the nodes. So we do our best
+      // to sort the nodes.
+      
+      // Sort based on the values of the constants.
+      if (N1->HasConst && N2->HasConst)
+        return llvm::APSInt::compareValues(N1->Const, N2->Const) < 0;
+      
+      // Sort based on the number of variables.
+      if (N1->Vars.size() != N2->Vars.size())
+        return N1->Vars.size() < N2->Vars.size();
+      
+      // Sort based on the number of other expressions.
+      if (N1->Others.size() != N2->Others.size())
+        return N1->Others.size() < N2->Others.size();
+      
+      // Sort based on the number of children.
+      if (N1->Children.size() != N2->Children.size())
+        return N1->Children.size() < N2->Children.size();
+      
+      // Sort lexicographically on the variables of the two nodes.
+      for (size_t I = 0; I != N1->Vars.size(); ++I) {
+        auto &V1 = N1->Vars[I];
+        auto &V2 = N2->Vars[I];
+      
+        if (Lex.CompareDecl(V1, V2) == Result::LessThan)
+          return true;
+      }
+      
+      // Sort based on the other expressions of the two nodes.
+      for (size_t I = 0; I != N1->Others.size(); ++I) {
+        auto &E1 = N1->Others[I];
+        auto &E2 = N2->Others[I];
+      
+        if (Lex.CompareExpr(E1, E2) == Result::LessThan)
+          return true;
+      }
+      
+      return false;
+    });
 }
 
 bool PreorderAST::IsEqual(Node *N1, Node *N2) {
@@ -219,7 +304,6 @@ bool PreorderAST::IsEqual(Node *N1, Node *N2) {
 }
 
 void PreorderAST::Normalize() {
-  // TODO: Constant fold the constants in the nodes.
   // TODO: Perform simple arithmetic optimizations/transformations on the
   // constants in the nodes.
 

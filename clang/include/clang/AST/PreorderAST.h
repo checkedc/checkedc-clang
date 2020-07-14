@@ -71,9 +71,23 @@ namespace clang {
     // @param[in] Parent is the parent node for N.
     void Create(Expr *E, Node *N = nullptr, Node *Parent = nullptr);
 
-    // Sort the variables in a node of the AST.
+    // Sort the data and the children of a node of the AST.
     // @param[in] N is current node of the AST.
     void Sort(Node *N);
+
+    // Coalesce nodes having the same commutative and associative operator.
+    // This involves moving all variables and other expressions from the
+    // current node to its parent and constant folding the constants with those
+    // of the parent.
+    // @param[in] N is the current node of the AST.
+    void Coalesce(Node *N);
+
+    // Constant fold the constant of the current node into its parent.
+    // @param[in] N is the current node of the AST.
+    // @param[in] Val is the constant which needs to be constant folded.
+    // @return Return a boolean indicating whether there was an error during
+    // constant folding.
+    bool ConstantFold(Node *N, llvm::APSInt Val);
 
     // Check if the two AST nodes N1 and N2 are equal.
     // @param[in] N1 is the first node.

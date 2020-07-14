@@ -44,3 +44,23 @@ void f4(int i, int *r) {
 // CHECK:   2: *(i + p + *r)
 // CHECK: upper_bound(p) = 1
 }
+
+void f5(int i, int j, int m, int n) {
+  _Nt_array_ptr<char> p : bounds (p, p + i + j + m + n) = "a";
+
+  if (*(i + m + j + p + n)) {}
+
+// CHECK: In function: f5
+// CHECK:   2: *(i + m + j + p + n)
+// CHECK: upper_bound(p) = 1
+}
+
+void f6(int i, int j, int m, int n) {
+  _Nt_array_ptr<char> p : bounds (p, ((n * m) + (j * i)) + p) = "a";
+
+  if (*(p + ((i * j) + (m * n)))) {}
+
+// CHECK: In function: f6
+// CHECK:   2: *(p + ((i * j) + (m * n)))
+// CHECK: upper_bound(p) = 1
+}
