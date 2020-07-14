@@ -410,6 +410,11 @@ std::set<ConstraintVariable *>
 
         /* Normal function call */
         } else {
+          // FIXME: Maybe do something to constrain function returns to wild
+          //        if the functions has a type param on the return type that
+          //        cannot be instantiated. Not sure this is the best place to
+          //        do that since ConstraintBuilders vistCastExpr is called
+          //        after a function is seen here idk.
           std::set<ConstraintVariable *> CS = Info.getVariable(FD, Context);
           ConstraintVariable *J = getOnly(CS);
           /* Direct function call */

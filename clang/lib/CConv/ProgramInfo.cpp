@@ -855,3 +855,25 @@ bool ProgramInfo::computePointerDisjointSet() {
 
   return true;
 }
+
+void ProgramInfo::setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
+                                      std::string TyStr, ASTContext *C) {
+
+  auto PSL = PersistentSourceLoc::mkPSL(CE, *C);
+  auto CallMap = TypeParamBindings[PSL];
+  assert("Attempting to overwrite type param binding in ProgramInfo."
+             && CallMap.find(TypeVarIdx) == CallMap.end());
+
+  TypeParamBindings[PSL][TypeVarIdx] = TyStr;
+}
+
+bool ProgramInfo::hasTypeParamBindings(CallExpr *CE, ASTContext *C) {
+  auto PSL = PersistentSourceLoc::mkPSL(CE, *C);
+  return TypeParamBindings.find(PSL) != TypeParamBindings.end();
+}
+
+const std::map<unsigned int, std::string> &ProgramInfo::getTypeParamBindings(
+    CallExpr *CE, ASTContext *C) {
+  auto PSL = PersistentSourceLoc::mkPSL(CE, *C);
+  return TypeParamBindings[PSL];
+}

@@ -14,6 +14,9 @@
 
 #include "ProgramInfo.h"
 
+typedef std::map<CallExpr *, std::map<unsigned int, const clang::Type *>>
+    TypeVariableBindingsMapT;
+
 class ConstraintBuilderConsumer : public clang::ASTConsumer {
 public:
   explicit ConstraintBuilderConsumer(ProgramInfo &I, clang::ASTContext *C) :
@@ -23,6 +26,8 @@ public:
 
 private:
   ProgramInfo &Info;
+  void SetProgramInfoTypeVars(TypeVariableBindingsMapT TypeVariableBindings,
+                              ASTContext &C);
 };
 
 #endif

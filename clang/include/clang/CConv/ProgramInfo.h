@@ -96,6 +96,12 @@ public:
     return StaticFunctionFVCons;
   }
 
+  void setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
+                           std::string TyStr, ASTContext *C);
+  bool hasTypeParamBindings(CallExpr *CE, ASTContext *C);
+  const map<unsigned int, std::string> &getTypeParamBindings (CallExpr *CE,
+                                                              ASTContext *C);
+
 private:
   // List of all constraint variables, indexed by their location in the source.
   // This information persists across invocations of the constraint analysis
@@ -123,6 +129,11 @@ private:
   AVarBoundsInfo ArrBInfo;
   // Disjoint sets for constraints.
   DisjointSet ConstraintDisjointSet;
+
+  // For each call to a generic function, remember how the type parameters were
+  // instantiated so they can be inserted during rewriting.
+  std::map<PersistentSourceLoc, std::map<unsigned int, std::string>>
+      TypeParamBindings;
 
   // Function to check if an external symbol is okay to leave
   // constrained.
