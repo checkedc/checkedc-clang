@@ -50,7 +50,7 @@ void t6(int *a, int *b, int *c, int *d, int *e) {
 }
 
 void t7(int *a, int *b, int *c, int *d, int *e) {
-// void t7(int *a, int *b, _Ptr<int> c, int *d, int *e) {
+//CHECK: void t7(int *a, int *b, _Ptr<int> c, int *d, int *e) {
   float f;
   test_many(a, b, &f, d, e);
 }

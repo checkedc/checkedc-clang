@@ -175,7 +175,7 @@ public:
         // and for each arg to the function ...
         if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
           std::set<const TypeVariableType *> InstantiableTypes;
-          if(TFD != nullptr)
+          if (TFD != nullptr)
             getInstantiableTypeParams(E, TFD, InstantiableTypes);
 
           unsigned i = 0;
@@ -187,9 +187,9 @@ public:
                 ArgumentConstraints = CB.getExprConstraintVars(ignoreCast(A));
               else
                 ArgumentConstraints = CB.getExprConstraintVars(A);
-            } else {
+            } else
               ArgumentConstraints = CB.getExprConstraintVars(A);
-            }
+
             // constrain the arg CV to the param CV
             if (i < TargetFV->numParams()) {
               std::set<ConstraintVariable *> ParameterDC =
@@ -390,7 +390,7 @@ private:
     unsigned int I = 0;
     for (auto *const A : CE->arguments()) {
       // This can happen with varargs
-      if(I >= FD->getNumParams())
+      if (I >= FD->getNumParams())
         break;
       if (const auto *Ty = getTypeVariableType(FD->getParamDecl(I)))
         TypeVarClasses[Ty].insert(ignoreCast(A)->getType().getTypePtr());
@@ -418,7 +418,7 @@ private:
   }
 
   Expr *ignoreCast(Expr *E){
-    if(auto *ImpCast = dyn_cast<ImplicitCastExpr>(E))
+    if (auto *ImpCast = dyn_cast<ImplicitCastExpr>(E))
       return ImpCast->getSubExpr();
     return E;
   }
