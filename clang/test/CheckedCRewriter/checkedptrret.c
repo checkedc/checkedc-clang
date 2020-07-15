@@ -6,11 +6,11 @@ int* foo() {
     return c;
 }
 
-// CHECK:   _Ptr<int> foo(void) _Checked{
+// CHECK:   _Ptr<int> foo(void) _Checked {
 // CHECK: _Ptr<int> c = 0;
 
 int *bar() {
-// CHECK: _Ptr<int> bar(void) _Checked{
+// CHECK: _Ptr<int> bar(void) _Checked {
     int *c;
     // CHECK:  _Ptr<int> c = ((void *)0);
     int a = 1;
