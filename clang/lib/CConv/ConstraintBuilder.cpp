@@ -390,38 +390,35 @@ private:
                                FunctionDecl *FD,
                                std::set<const TypeVariableType *> &Types) {
     assert("Must provide nonnull FunctionDecl." && FD);
-    // Construct a map from TypeVariables to the set of arguments that must have
-    // that type.
-    std::map<const TypeVariableType *,
-             std::set<const clang::Type *>> TypeVarClasses;
+    // Construct a map from TypeVariables to a single type they are consistently
+    // used as. If there is no single consistent type for a variable, then it
+    // maps to nullptr.
+    std::map<const TypeVariableType *, const clang::Type *> TypeVarBindings;
     unsigned int I = 0;
     for (auto *const A : CE->arguments()) {
       // This can happen with varargs
       if (I >= FD->getNumParams())
         break;
-      if (const auto *Ty = getTypeVariableType(FD->getParamDecl(I)))
-        TypeVarClasses[Ty].insert(A->IgnoreImpCasts()->getType().getTypePtr());
+      if (const auto *TyVar = getTypeVariableType(FD->getParamDecl(I))) {
+        const clang::Type *Ty = A->IgnoreImpCasts()->getType().getTypePtr();
+        if (TypeVarBindings.find(TyVar) == TypeVarBindings.end()) {
+          // If the type variable hasn't been seen before, add it to the map.
+          TypeVarBindings[TyVar] = Ty;
+        } else if (TypeVarBindings[TyVar] != Ty) {
+          // If it has previously been instantiated as a different type, its use
+          // is not consistent.
+          TypeVarBindings[TyVar] = nullptr;
+        }
+        // If neither branch is taken, then the type variable has been
+        // encountered before with the same type. Nothing needs to be done.
+      }
       ++I;
     }
 
-    // For each set of arguments, add the corresponding type variable to the
-    // instantiable set if all arguments have the same type.
-    for (const auto &TVEntry : TypeVarClasses) {
-      const clang::Type *ClassTy = nullptr;
-      bool AllSame = true;
-      for (const clang::Type *Ty : TVEntry.second) {
-        assert("Type variables can only be used for array and pointer types."
-                   && Ty->isPointerType());
-        if (ClassTy == nullptr)
-          ClassTy = Ty;
-        else {
-          // TODO: Requiring equal types is probably too strict.
-          AllSame &= (ClassTy->getPointeeType() == Ty->getPointeeType());
-        }
-      }
-      if (AllSame)
+    // Gather consistent TypeVariables into output set
+    for (const auto &TVEntry : TypeVarBindings)
+      if(TVEntry.second != nullptr)
         Types.insert(TVEntry.first);
-    }
   }
 
   ASTContext *Context;
