@@ -165,18 +165,19 @@ public:
       constraintAllArgumentsToWild(E);
     } else if (FuncName.compare("realloc") != 0) {
       // FIXME: realloc comparison is still required. See issue #176.
+      // If we are calling realloc, ignore it, so as not to constrain the first arg
+      // Else, for each function we are calling ...
       for (auto *TmpC : FVCons) {
         if (PVConstraint *PVC = dyn_cast<PVConstraint>(TmpC)) {
           TmpC = PVC->getFV();
           assert(TmpC != nullptr && "Function pointer with null FVConstraint.");
         }
-
+        // and for each arg to the function ...
         if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
           std::set<const TypeVariableType *> InstantiableTypes;
           if(TFD != nullptr)
             getInstantiableTypeParams(E, TFD, InstantiableTypes);
 
-          // and for each arg to the function ...
           unsigned i = 0;
           for (const auto &A : E->arguments()) {
             std::set<ConstraintVariable *> ArgumentConstraints;
@@ -230,7 +231,6 @@ public:
     }
     return true;
   }
-
 
   // e1[e2]
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
@@ -407,8 +407,10 @@ private:
                    && Ty->isPointerType());
         if (ClassTy == nullptr)
           ClassTy = Ty;
-        else
+        else {
+          // TODO: Requiring equal types is probably too strict.
           AllSame &= (ClassTy->getPointeeType() == Ty->getPointeeType());
+        }
       }
       if (AllSame)
         Types.insert(TVEntry.first);
