@@ -361,11 +361,14 @@ private:
   // type variable is used.
   const TypeVariableType *getTypeVariableType(ParmVarDecl *ParmDecl){
     // This makes a lot of assumptions about how the AST will look.
-    if(InteropTypeExpr *PTy = ParmDecl->getInteropTypeExpr())
-      if (const clang::Type *T = PTy->getType().getTypePtr())
-        if (const auto *PtrTy =
-            dyn_cast_or_null<TypedefType>(T->getPointeeType().getTypePtr()))
-          return dyn_cast<TypeVariableType>(PtrTy->desugar());
+    if (auto *ITy = ParmDecl->getInteropTypeExpr()){
+      const auto *Ty = ITy->getType().getTypePtr();
+      if (Ty && Ty->isPointerType()) {
+        auto *PtrTy = Ty->getPointeeType().getTypePtr();
+        if (auto *TypdefTy = dyn_cast_or_null<TypedefType>(PtrTy))
+          return dyn_cast<TypeVariableType>(TypdefTy->desugar());
+      }
+    }
     return nullptr;
   }
 
