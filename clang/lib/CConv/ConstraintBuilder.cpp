@@ -174,17 +174,21 @@ public:
         }
         // and for each arg to the function ...
         if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
-          std::set<const TypeVariableType *> InstantiableTypes;
+          // Collect type parameters for this function call that are
+          // consistently instantiated as single type in this function call.
+          std::set<const TypeVariableType *> consistentTypeParams;
           if (TFD != nullptr)
-            getInstantiableTypeParams(E, TFD, InstantiableTypes);
+            getConsistentTypeParams(E, TFD, consistentTypeParams);
 
           unsigned i = 0;
           for (const auto &A : E->arguments()) {
             std::set<ConstraintVariable *> ArgumentConstraints;
             if(TFD != nullptr && i < TFD->getNumParams()) {
+              // Remove casts to void* on polymorphic types that are used
+              // consistently.
               const auto *Ty = getTypeVariableType(TFD->getParamDecl(i));
-              if (InstantiableTypes.find(Ty) != InstantiableTypes.end())
-                ArgumentConstraints = CB.getExprConstraintVars(ignoreCast(A));
+              if (consistentTypeParams.find(Ty) != consistentTypeParams.end())
+                ArgumentConstraints = CB.getExprConstraintVars(A->IgnoreImpCasts());
               else
                 ArgumentConstraints = CB.getExprConstraintVars(A);
             } else
@@ -382,9 +386,9 @@ private:
   //       vistCastExpr to remember how itype generics are used. When making
   //       this change, look out for ways to avoid duplicating code from
   //       AllocTypeParamAdder in RewriteUtils.
-  void getInstantiableTypeParams(CallExpr *CE,
-                                 FunctionDecl *FD,
-                                 std::set<const TypeVariableType *> &Types) {
+  void getConsistentTypeParams(CallExpr *CE,
+                               FunctionDecl *FD,
+                               std::set<const TypeVariableType *> &Types) {
     assert("Must provide nonnull FunctionDecl." && FD);
     // Construct a map from TypeVariables to the set of arguments that must have
     // that type.
@@ -396,7 +400,7 @@ private:
       if (I >= FD->getNumParams())
         break;
       if (const auto *Ty = getTypeVariableType(FD->getParamDecl(I)))
-        TypeVarClasses[Ty].insert(ignoreCast(A)->getType().getTypePtr());
+        TypeVarClasses[Ty].insert(A->IgnoreImpCasts()->getType().getTypePtr());
       ++I;
     }
 
@@ -418,12 +422,6 @@ private:
       if (AllSame)
         Types.insert(TVEntry.first);
     }
-  }
-
-  Expr *ignoreCast(Expr *E){
-    if (auto *ImpCast = dyn_cast<ImplicitCastExpr>(E))
-      return ImpCast->getSubExpr();
-    return E;
   }
 
   ASTContext *Context;
