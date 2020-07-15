@@ -25,17 +25,16 @@ struct WildPointerInferenceInfo {
   unsigned ColStart = 0;
 };
 
-// Standard implementation of disjoint sets.
-class DisjointSet {
+// Constraints information.
+class ConstraintsInfo {
   friend class ProgramInfo;
 public:
-  DisjointSet() {
+  ConstraintsInfo() {
 
   }
   void Clear();
-  void AddElements(ConstraintKey, ConstraintKey);
-  ConstraintKey GetLeader(ConstraintKey);
-  CVars &GetGroup(ConstraintKey);
+  CVars &GetRCVars(ConstraintKey);
+  CVars &GetSrcCVars(ConstraintKey);
 
   std::map<ConstraintKey, struct WildPointerInferenceInfo>
       RealWildPtrsWithReasons;
@@ -45,8 +44,24 @@ public:
   std::map<ConstraintKey, PersistentSourceLoc *> PtrSourceMap;
 
 private:
-  std::map<ConstraintKey, ConstraintKey> Leaders;
-  std::map<ConstraintKey, CVars> Groups;
+  // Root cause map: This is the map of a Constraint var and a set of
+  // Constraint vars (that are directly assigned WILD) which are the reason
+  // for making the above constraint var WILD.
+  // Example:
+  //  WILD
+  //  / \
+  // p   q
+  // \    \
+  //  \    r
+  //   \  /
+  //    s
+  // Here: s -> {p, q} and r -> {q}
+  std::map<ConstraintKey, CVars> RCMap;
+  // This is source map: Map of Constraint var (which are directly
+  // assigned WILD) and the set of constraint vars which are WILD because of
+  // the above constraint.
+  // For the above case, this contains: p -> {s}, q -> {r, s}
+  std::map<ConstraintKey, CVars> SrcWMap;
 };
 
 #endif // _CCONVINTERACTIVEDATA_H

@@ -5,7 +5,7 @@
 int foo(int *x) { 
   return *x;
 }
-//CHECK: int foo(_Ptr<int> x) _Checked{ 
+//CHECK: int foo(_Ptr<int> x) _Checked {
 
 int bar(int *x) { 
   int i;
@@ -15,7 +15,7 @@ int bar(int *x) {
   return *x;
 }
 
-//CHECK: int bar(_Ptr<int> x) _Checked{ 
+//CHECK: int bar(_Ptr<int> x) _Checked { 
 //CHECK: for(i = 0; i<2; i++) { 
 
 int gar(int *x) { 

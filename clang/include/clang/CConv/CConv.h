@@ -62,13 +62,14 @@ public:
   // Build initial constraints.
   bool BuildInitialConstraints();
 
-  // Constraint Solving.
-  bool SolveConstraints();
+  // Constraint Solving. The flag: ComputeInterimState requests to compute
+  // interim constraint solver state.
+  bool SolveConstraints(bool ComputeInterimState = false);
 
   // Interactivity.
 
   // Get all the WILD pointers and corresponding reason why they became WILD.
-  DisjointSet &GetWILDPtrsInfo();
+  ConstraintsInfo &GetWILDPtrsInfo();
 
   // Given a constraint key make the corresponding constraint var
   // to be non-WILD.

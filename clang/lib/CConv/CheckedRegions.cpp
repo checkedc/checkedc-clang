@@ -33,7 +33,7 @@ bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
     case IS_UNCHECKED: return true;
     case IS_CHECKED:   
                         auto Loc = S->getBeginLoc();
-                        Writer.InsertTextBefore(Loc, "_Checked");
+                        Writer.InsertTextBefore(Loc, "_Checked ");
                         return false;
   }
 
@@ -321,7 +321,7 @@ void CheckedRegionFinder::addUncheckedAnnotation(CompoundStmt *S, int Localwild)
 
     // Don't add _Unchecked to top level functions.
     if ((!IsChecked && !isFunctionBody(S))) {
-      Writer.InsertTextBefore(Loc, "_Unchecked");
+      Writer.InsertTextBefore(Loc, "_Unchecked ");
     }
   }
 }
