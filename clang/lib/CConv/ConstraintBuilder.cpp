@@ -164,6 +164,7 @@ public:
       // Don't know who we are calling; make args WILD
       constraintAllArgumentsToWild(E);
     } else if (!ConstraintResolver::canFunctionBeSkipped(FuncName)) {
+      // FIXME: realloc comparison is still required. See issue #176.
       // If we are calling realloc, ignore it, so as not to constrain the first arg
       // Else, for each function we are calling ...
       for (auto *TmpC : FVCons) {
@@ -173,10 +174,26 @@ public:
         }
         // and for each arg to the function ...
         if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
+          // Collect type parameters for this function call that are
+          // consistently instantiated as single type in this function call.
+          std::set<const TypeVariableType *> consistentTypeParams;
+          if (TFD != nullptr)
+            getConsistentTypeParams(E, TFD, consistentTypeParams);
+
           unsigned i = 0;
           for (const auto &A : E->arguments()) {
-            CVarSet ArgumentConstraints =
-                CB.getExprConstraintVars(A);
+            CVarSet ArgumentConstraints;
+            if(TFD != nullptr && i < TFD->getNumParams()) {
+              // Remove casts to void* on polymorphic types that are used
+              // consistently.
+              const auto *Ty = getTypeVariableType(TFD->getParamDecl(i));
+              if (consistentTypeParams.find(Ty) != consistentTypeParams.end())
+                ArgumentConstraints = CB.getExprConstraintVars(A->IgnoreImpCasts());
+              else
+                ArgumentConstraints = CB.getExprConstraintVars(A);
+            } else
+              ArgumentConstraints = CB.getExprConstraintVars(A);
+
             // constrain the arg CV to the param CV
             if (i < TargetFV->numParams()) {
               CVarSet ParameterDC =
@@ -344,6 +361,66 @@ private:
     }
   }
 
+  // Get the type variable used in a parameter declaration, or return null if no
+  // type variable is used.
+  const TypeVariableType *getTypeVariableType(ParmVarDecl *ParmDecl){
+    // This makes a lot of assumptions about how the AST will look.
+    if (auto *ITy = ParmDecl->getInteropTypeExpr()){
+      const auto *Ty = ITy->getType().getTypePtr();
+      if (Ty && Ty->isPointerType()) {
+        auto *PtrTy = Ty->getPointeeType().getTypePtr();
+        if (auto *TypdefTy = dyn_cast_or_null<TypedefType>(PtrTy))
+          return dyn_cast<TypeVariableType>(TypdefTy->desugar());
+      }
+    }
+    return nullptr;
+  }
+
+  // Collect the set of TypeVariableTypes that are always used for arguments
+  // with the same type. These are type variables that can be instantiated with
+  // a concrete type, so it is correct to remove casts to void* on their
+  // arguments.
+  // TODO: Check that the type parameter for the return type agrees with its
+  //       other uses. This is non-trivial because the type of the CallExpr is
+  //       always void* for itype generics. I'll need to add something in
+  //       vistCastExpr to remember how itype generics are used. When making
+  //       this change, look out for ways to avoid duplicating code from
+  //       AllocTypeParamAdder in RewriteUtils.
+  void getConsistentTypeParams(CallExpr *CE,
+                               FunctionDecl *FD,
+                               std::set<const TypeVariableType *> &Types) {
+    assert("Must provide nonnull FunctionDecl." && FD);
+    // Construct a map from TypeVariables to a single type they are consistently
+    // used as. If there is no single consistent type for a variable, then it
+    // maps to nullptr.
+    std::map<const TypeVariableType *, const clang::Type *> TypeVarBindings;
+    unsigned int I = 0;
+    for (auto *const A : CE->arguments()) {
+      // This can happen with varargs
+      if (I >= FD->getNumParams())
+        break;
+      if (const auto *TyVar = getTypeVariableType(FD->getParamDecl(I))) {
+        const clang::Type *Ty = A->IgnoreImpCasts()->getType().getTypePtr();
+        if (TypeVarBindings.find(TyVar) == TypeVarBindings.end()) {
+          // If the type variable hasn't been seen before, add it to the map.
+          TypeVarBindings[TyVar] = Ty;
+        } else if (TypeVarBindings[TyVar] != Ty) {
+          // If it has previously been instantiated as a different type, its use
+          // is not consistent.
+          TypeVarBindings[TyVar] = nullptr;
+        }
+        // If neither branch is taken, then the type variable has been
+        // encountered before with the same type. Nothing needs to be done.
+      }
+      ++I;
+    }
+
+    // Gather consistent TypeVariables into output set
+    for (const auto &TVEntry : TypeVarBindings)
+      if(TVEntry.second != nullptr)
+        Types.insert(TVEntry.first);
+  }
+
   ASTContext *Context;
   ProgramInfo &Info;
   FunctionDecl *Function;
@@ -407,6 +484,11 @@ public:
         Stmt *Body = D->getBody();
         FunctionVisitor FV = FunctionVisitor(Context, Info, D);
         FV.TraverseStmt(Body);
+        if (AllTypes) {
+          // Only do this, if all types is enabled.
+          LengthVarInference LVI(Info, Context, D);
+          LVI.Visit(Body);
+        }
       }
     }
 

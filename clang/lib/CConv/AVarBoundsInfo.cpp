@@ -135,6 +135,17 @@ ABounds *AVarBoundsInfo::getBounds(BoundsKey L) {
   return nullptr;
 }
 
+bool AVarBoundsInfo::updatePotentialCountBounds(BoundsKey BK,
+                                                std::set<BoundsKey> &CntBK) {
+  bool RetVal = false;
+  if (!CntBK.empty()) {
+    auto &TmpK = PotentialCntBounds[BK];
+    TmpK.insert(CntBK.begin(), CntBK.end());
+    RetVal = true;
+  }
+  return RetVal;
+}
+
 void AVarBoundsInfo::insertVariable(clang::Decl *D) {
   BoundsKey Tmp;
   tryGetVariable(D, Tmp);
@@ -463,17 +474,74 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
   }
   return IsValid;
 }
-bool AvarBoundsInference::inferBounds(BoundsKey K) {
+bool AvarBoundsInference::inferBounds(BoundsKey K, bool FromPB) {
   bool IsChanged = false;
 
   if (BI->InvalidBounds.find(K) == BI->InvalidBounds.end()) {
-    std::set<BoundsKey> TmpBkeys;
-    // Try to predict bounds from successors.
-    BI->ProgVarGraph.getSuccessors(K, TmpBkeys);
-
     ABounds *KB = nullptr;
-    if (predictBounds(K, TmpBkeys, &KB) &&
-        KB != nullptr) {
+    // Infer from potential bounds?
+    if (FromPB) {
+      auto &PotBDs = BI->PotentialCntBounds;
+      if (PotBDs.find(K) != PotBDs.end()) {
+        auto &VarG = BI->ProgVarGraph;
+        ProgramVar *Kvar = BI->getProgramVar(K);
+        std::set<ProgramVar *> PotentialB;
+        PotentialB.clear();
+        for (auto TK : PotBDs[K]) {
+          ProgramVar *TKVar = BI->getProgramVar(TK);
+          // If the count var is of different scope? Then try to find variables
+          // that are in scope.
+          if (*Kvar->getScope() != *TKVar->getScope()) {
+            ScopeVisitor TV(Kvar->getScope(), PotentialB, BI->PVarInfo,
+                            BI->PointerBoundsKey);
+            auto Vidx = VarG.addVertex(TK);
+            // Find all the in scope variables reachable from the current
+            // bounds variable.
+            boost::breadth_first_search(VarG.CG, Vidx, boost::visitor(TV));
+          } else {
+            PotentialB.insert(TKVar);
+          }
+        }
+        if (!PotentialB.empty()) {
+          ProgramVar *BVar = nullptr;
+          // We want to merge all bounds vars. We give preference to
+          // non-constants if there are multiple non-constant variables,
+          // we give up.
+          for (auto *TmpB : PotentialB) {
+            if (BVar == nullptr) {
+              BVar = TmpB;
+            } else if (BVar->IsNumConstant()) {
+              if (!TmpB->IsNumConstant()) {
+                // We give preference to non-constant lengths.
+                BVar = TmpB;
+              } else if (BVar->getKey() != TmpB->getKey()) {
+                // If both are different constants?
+                BVar = nullptr;
+                break;
+              }
+            } else if (!TmpB->IsNumConstant() &&
+                       BVar->getKey() != TmpB->getKey()) {
+              // If they are different variables?
+              BVar = nullptr;
+              break;
+            }
+          }
+          if (BVar != nullptr) {
+            KB = new CountBound(BVar->getKey());
+          }
+        }
+      }
+    } else {
+      // Infer from the flow-graph.
+      std::set<BoundsKey> TmpBkeys;
+      // Try to predict bounds from successors.
+      BI->ProgVarGraph.getSuccessors(K, TmpBkeys);
+      if (!predictBounds(K, TmpBkeys, &KB)) {
+        KB = nullptr;
+      }
+    }
+
+    if (KB != nullptr) {
       BI->replaceBounds(K, KB);
       IsChanged = true;
     }
@@ -481,6 +549,42 @@ bool AvarBoundsInference::inferBounds(BoundsKey K) {
   return IsChanged;
 }
 
+bool AVarBoundsInfo::performWorkListInference(std::set<BoundsKey> &ArrNeededBounds,
+                                              bool FromPB) {
+  bool RetVal = false;
+  std::set<BoundsKey> WorkList;
+  WorkList.insert(ArrNeededBounds.begin(), ArrNeededBounds.end());
+  AvarBoundsInference BI(this);
+  std::set<BoundsKey> NextIterArrs;
+  bool Changed = true;
+  while (Changed) {
+    Changed = false;
+    NextIterArrs.clear();
+    // Are there any ARR atoms that need bounds?
+    while (!WorkList.empty()) {
+      BoundsKey CurrArrKey = *WorkList.begin();
+      // Remove the bounds key from the worklist.
+      WorkList.erase(CurrArrKey);
+      // Can we find bounds for this Arr?
+      if (BI.inferBounds(CurrArrKey, FromPB)) {
+        // Record the stats.
+        BoundsInferStats.DataflowMatch.insert(CurrArrKey);
+        // We found the bounds.
+        ArrNeededBounds.erase(CurrArrKey);
+        RetVal = true;
+        Changed = true;
+        // Get all the successors of the ARR whose bounds we just found.
+        ProgVarGraph.getSuccessors(CurrArrKey, NextIterArrs);
+      }
+    }
+    if (Changed) {
+      std::set_intersection(ArrNeededBounds.begin(), ArrNeededBounds.end(),
+                            NextIterArrs.begin(), NextIterArrs.end(),
+                            std::inserter(WorkList, WorkList.end()));
+    }
+  }
+  return RetVal;
+}
 bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
   bool RetVal = false;
   auto &CS = PI->getConstraints();
@@ -538,38 +642,15 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
                       ArrWithBounds.begin(), ArrWithBounds.end(),
                       std::inserter(ArrNeededBounds, ArrNeededBounds.end()));
 
-  // Now compute the bounds information of all the ARR pointers that need it.
-  std::set<BoundsKey> WorkList;
-  // First, populate worklist with all the ARRs that need bounds.
-  WorkList.insert(ArrNeededBounds.begin(), ArrNeededBounds.end());
+  bool Changed = !ArrNeededBounds.empty();
 
-  AvarBoundsInference BI(this);
-  std::set<BoundsKey> NextIterArrs;
-  bool Changed = true;
+  // Now compute the bounds information of all the ARR pointers that need it.
   while (Changed) {
     Changed = false;
-    NextIterArrs.clear();
-    // Are there any ARR atoms that need bounds?
-    while (!WorkList.empty()) {
-      BoundsKey CurrArrKey = *WorkList.begin();
-      // Remove the bounds key from the worklist.
-      WorkList.erase(CurrArrKey);
-      // Can we find bounds for this Arr?
-      if (BI.inferBounds(CurrArrKey)) {
-        // Record the stats.
-        BoundsInferStats.DataflowMatch.insert(CurrArrKey);
-        // We found the bounds.
-        ArrNeededBounds.erase(CurrArrKey);
-        Changed = true;
-        // Get all the successors of the ARR whose bounds we just found.
-        ProgVarGraph.getSuccessors(CurrArrKey, NextIterArrs);
-      }
-    }
-    if (Changed) {
-      std::set_intersection(ArrNeededBounds.begin(), ArrNeededBounds.end(),
-                            NextIterArrs.begin(), NextIterArrs.end(),
-                            std::inserter(WorkList, WorkList.end()));
-    }
+    // Use flow-graph.
+    Changed = performWorkListInference(ArrNeededBounds) || Changed;
+    // Use potential length variables.
+    Changed = performWorkListInference(ArrNeededBounds, true) || Changed;
   }
 
   return RetVal;

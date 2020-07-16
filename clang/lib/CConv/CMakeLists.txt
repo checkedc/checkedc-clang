@@ -33,6 +33,7 @@ if (LLVM_BOOST_FOUND)
           Utils.cpp
           LINK_LIBS
           clangAST
+          clangAnalysis
           clangBasic
           clangDriver
           clangFrontend
