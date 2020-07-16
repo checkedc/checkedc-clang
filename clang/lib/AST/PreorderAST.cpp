@@ -153,18 +153,12 @@ void PreorderAST::Coalesce(Node *N) {
                         N->Others.begin(),
                         N->Others.end());
 
-  // Remove the current node from the list of children of its parent.
-  for (size_t I = 0; I != Parent->Children.size(); ++I) {
-    if (Parent->Children[I] == N) {
-      Parent->Children.erase(Parent->Children.begin() + I);
-      break;
-    }
-  }
-
   // Move all children of the current node to the parent.
-  Parent->Children.insert(Parent->Children.end(),
-                          N->Children.begin(),
+  Parent->Children.insert(N->Children.begin(),
                           N->Children.end());
+
+  // Remove the current node from the list of children of its parent.
+  Parent->Children.remove(N);
 
   // Delete the current node.
   delete N;
@@ -198,7 +192,14 @@ void PreorderAST::Sort(Node *N) {
              });
 
   // Sort the children nodes.
-  llvm::sort(N->Children.begin(), N->Children.end(),
+  if (N->Children.size() < 2)
+    return;
+
+  // We cannot sort a SetVector since it has a const iterator. So we sort the
+  // underlying vector, and copy back the sorted elements to the SetVector.
+  std::vector<Node *> Children = N->Children.takeVector();
+
+  llvm::sort(Children.begin(), Children.end(),
     [&](Node *N1, Node *N2) {
       // There is no single criteria for sorting the nodes. So we do our best
       // to sort the nodes.
@@ -239,6 +240,9 @@ void PreorderAST::Sort(Node *N) {
 
       return false;
     });
+
+  N->Children.insert(Children.begin(),
+                     Children.end());
 }
 
 bool PreorderAST::IsEqual(Node *N1, Node *N2) {
