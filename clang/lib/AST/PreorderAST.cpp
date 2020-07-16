@@ -28,12 +28,11 @@ void PreorderAST::Create(Expr *E, Node *N, Node *Parent) {
   if (!Root)
     Root = N;
 
-  // If the parent is non-null and the current node has not already been added
-  // to the list of children of the parent, add it.
-  if (Parent) {
-    if (!Parent->Children.size() || !Parent->Children.count(N))
-      Parent->Children.insert(N);
-  }
+  // If the parent is non-null add the current node to its list of children.
+  // Note: Children is a SetVector which has set insertion semantics. So it
+  // would only insert N if it is not already present in the set.
+  if (Parent)
+    Parent->Children.insert(N);
 
   E = Lex.IgnoreValuePreservingOperations(Ctx, E);
 
