@@ -125,7 +125,7 @@ void ProgramInfo::print(raw_ostream &O) const {
   O << "Constraint Variables\n";
   for ( const auto &I : Variables ) {
     PersistentSourceLoc L = I.first;
-    const std::set<ConstraintVariable *> &S = I.second;
+    const CVarSet &S = I.second;
     L.print(O);
     O << "=>";
     for (const auto &J : S) {
@@ -153,7 +153,7 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
       O << ",\n";
     }
     PersistentSourceLoc L = I.first;
-    const std::set<ConstraintVariable *> &S = I.second;
+    const CVarSet &S = I.second;
 
     O << "{\"line\":\"";
     L.print(O);
@@ -520,7 +520,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
 
   // We only add a PVConstraint or an FVConstraint if the set at
   // Variables[PLoc] does not contain one already. TODO: Explain why would this happen
-  std::set<ConstraintVariable *> &S = Variables[PLoc];
+  CVarSet &S = Variables[PLoc];
   if (S.size()) return;
 
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
@@ -535,7 +535,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     // the parameters.
     for (unsigned i = 0; i < FD->getNumParams(); i++) {
       ParmVarDecl *PVD = FD->getParamDecl(i);
-      std::set<ConstraintVariable *> PS = F->getParamVar(i);
+      CVarSet PS = F->getParamVar(i);
       assert(PS.size());
       PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *astContext);
       Variables[PSL].insert(PS.begin(), PS.end());
@@ -575,7 +575,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
   constrainWildIfMacro(S, D->getLocation());
 }
 
-std::set<ConstraintVariable *>
+CVarSet
     &ProgramInfo::getPersistentConstraintVars(Expr *E,
                                               clang::ASTContext *AstContext){
   PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(E, *AstContext);
@@ -589,7 +589,7 @@ std::set<ConstraintVariable *>
 // If it was, we should constrain it to top. This is sad. Hopefully,
 // someday, the Rewriter will become less lame and let us re-write stuff
 // in macros.
-void ProgramInfo::constrainWildIfMacro(std::set<ConstraintVariable *> S,
+void ProgramInfo::constrainWildIfMacro(CVarSet S,
                                        SourceLocation Location) {
   std::string Rsn = "Pointer in Macro declaration.";
   if (!Rewriter::isRewritable(Location))
@@ -666,8 +666,7 @@ std::set<FVConstraint *> *ProgramInfo::getFuncFVConstraints(FunctionDecl *FD,
 }
 
 // Given a decl, return the variables for the constraints of the Decl.
-std::set<ConstraintVariable *> ProgramInfo::getVariable(clang::Decl *D,
-                                                        clang::ASTContext *C) {
+CVarSet ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C) {
   assert(!persisted);
 
   if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
@@ -688,7 +687,7 @@ std::set<ConstraintVariable *> ProgramInfo::getVariable(clang::Decl *D,
     // Get corresponding FVConstraint vars.
     std::set<FVConstraint *> *FunFVars = getFuncFVConstraints(FD, C);
     assert(FunFVars != nullptr && "Unable to find function constraints.");
-    std::set<ConstraintVariable *> ParameterCons;
+    CVarSet ParameterCons;
     ParameterCons.clear();
     for (auto fv : *FunFVars) {
       auto currParamConstraint = fv->getParamVar(PIdx);
@@ -713,7 +712,7 @@ std::set<ConstraintVariable *> ProgramInfo::getVariable(clang::Decl *D,
     if (I != Variables.end()) {
       return I->second;
     }
-    return std::set<ConstraintVariable *>();
+    return CVarSet();
   }
 }
 
@@ -815,7 +814,7 @@ bool ProgramInfo::computeInterimConstraintState() {
     } else {
       continue;
     }
-    const std::set<ConstraintVariable *> &S = I.second;
+    const CVarSet &S = I.second;
     for (auto *CV : S) {
       if (PVConstraint *PV = dyn_cast<PVConstraint>(CV)) {
         for (auto ck : PV->getCvars()) {

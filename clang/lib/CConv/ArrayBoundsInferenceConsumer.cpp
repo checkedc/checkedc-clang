@@ -120,7 +120,7 @@ static bool needNTArrayBounds(ConstraintVariable *CV,
 
 static bool needArrayBounds(Expr *E, ProgramInfo &Info, ASTContext *C) {
   ConstraintResolver CR(Info, C);
-  std::set<ConstraintVariable *> ConsVar = CR.getExprConstraintVars(E);
+  CVarSet ConsVar = CR.getExprConstraintVars(E);
   for (auto CurrCVar : ConsVar) {
     if (needArrayBounds(CurrCVar, Info.getConstraints().getVariables()))
       return true;
@@ -131,7 +131,7 @@ static bool needArrayBounds(Expr *E, ProgramInfo &Info, ASTContext *C) {
 
 static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C,
                             bool IsNtArr = false) {
-  std::set<ConstraintVariable *> ConsVar = Info.getVariable(D, C);
+  CVarSet ConsVar = Info.getVariable(D, C);
   auto &E = Info.getConstraints().getVariables();
   for (auto CurrCVar : ConsVar) {
     if ((!IsNtArr && needArrayBounds(CurrCVar, E)) ||
@@ -162,7 +162,7 @@ static std::string getCalledFunctionName(const Expr *E) {
 bool tryGetBoundsKeyVar(Expr *E, BoundsKey &BK, ProgramInfo &Info,
                         ASTContext *Context) {
   ConstraintResolver CR(Info, Context);
-  std::set<ConstraintVariable *> CVs = CR.getExprConstraintVars(E);
+  CVarSet CVs = CR.getExprConstraintVars(E);
   auto &ABInfo = Info.getABoundsInfo();
   return CR.resolveBoundsKey(CVs, BK) ||
          ABInfo.tryGetVariable(E, *Context, BK);
@@ -172,7 +172,7 @@ bool tryGetBoundsKeyVar(Expr *E, BoundsKey &BK, ProgramInfo &Info,
 bool tryGetBoundsKeyVar(Decl *D, BoundsKey &BK, ProgramInfo &Info,
                         ASTContext *Context) {
   ConstraintResolver CR(Info, Context);
-  std::set<ConstraintVariable *> CVs = Info.getVariable(D, Context);
+  CVarSet CVs = Info.getVariable(D, Context);
   auto &ABInfo = Info.getABoundsInfo();
   return CR.resolveBoundsKey(CVs, BK) ||
          ABInfo.tryGetVariable(D, BK);
