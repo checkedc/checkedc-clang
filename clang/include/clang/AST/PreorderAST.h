@@ -44,7 +44,7 @@ namespace clang {
     std::vector<const Expr *> Others;
     bool HasConst;
     Node *Parent;
-    std::vector<Node *> Children;
+    llvm::SetVector<Node *> Children;
 
     Node(Node *Parent) :
       Opc(BO_Add), HasConst(false), Parent(Parent) {}
