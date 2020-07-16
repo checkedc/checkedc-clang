@@ -52,7 +52,7 @@ int add_child(struct tree *p, struct tree *c) {
   return 0;
 }
 
-//CHECK:int add_child(_Ptr<struct tree> p, _Ptr<struct tree> c) _Checked{
+//CHECK:int add_child(_Ptr<struct tree> p, _Ptr<struct tree> c) _Checked {
 //CHECK:_Array_ptr<_Ptr<struct tree>> children : count(len) = ((void *)0);
 
 int sum(struct tree *p) {
@@ -65,4 +65,4 @@ int sum(struct tree *p) {
   return n;
 }    
 
-//CHECK:int sum(_Ptr<struct tree> p) _Checked{
+//CHECK:int sum(_Ptr<struct tree> p) _Checked {

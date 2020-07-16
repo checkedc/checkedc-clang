@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/Analysis/CFG.h"
+#include "clang/Analysis/Analyses/Dominators.h"
 #include "clang/CConv/ArrayBoundsInferenceConsumer.h"
 #include "clang/CConv/ConstraintResolver.h"
 #include <sstream>
@@ -52,8 +54,10 @@ static bool nameSubStringMatch(std::string PtrName, std::string FieldName) {
                  [](unsigned char c){ return std::tolower(c); });
   std::transform(FieldName.begin(), FieldName.end(), FieldName.begin(),
                  [](unsigned char c){ return std::tolower(c); });
-  unsigned SubSeqLen = longestCommonSubsequence(PtrName.c_str(), FieldName.c_str(),
-                               PtrName.length(), FieldName.length());
+  unsigned SubSeqLen = longestCommonSubsequence(PtrName.c_str(),
+                                                FieldName.c_str(),
+                                                PtrName.length(),
+                                                FieldName.length());
   if (SubSeqLen > 0) {
     // Check if we get 80% match on the common subsequence matching on the
     // variable name of length and the name of array.
@@ -611,6 +615,177 @@ void AddMainFuncHeuristic(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
           ABounds *ArgcBounds = new CountBound(ArgcKey);
           ABInfo.replaceBounds(ArgvKey, ArgcBounds);
         }
+      }
+    }
+  }
+
+}
+
+// Given a variable I, this visitor collects all the variables that are used as
+// RHS operand of < and I >=  expression.
+// i.e., for all I < X expressions, it collects X.
+class ComparisionVisitor : public RecursiveASTVisitor<ComparisionVisitor> {
+public:
+  explicit ComparisionVisitor(ProgramInfo &In, ASTContext *AC,
+                     BoundsKey I, std::set<BoundsKey> &PossB) : I(In),
+                                    C(AC),
+                                    IndxBKey(I), PB(PossB) {
+    CR = new ConstraintResolver(In, AC);
+  }
+  virtual ~ComparisionVisitor() {
+    if (CR != nullptr) {
+      delete (CR);
+      CR = nullptr;
+    }
+  }
+
+  bool VisitBinaryOperator(BinaryOperator *BO) {
+    // We care about < and >= operator.
+    if (BO->getOpcode() == BO_LT || BO->getOpcode() == BO_GE) {
+      Expr *LHS = BO->getLHS()->IgnoreParenCasts();
+      Expr *RHS = BO->getRHS()->IgnoreParenCasts();
+      auto LHSCVars = CR->getExprConstraintVars(LHS);
+      auto RHSCVars = CR->getExprConstraintVars(RHS);
+
+      if (!CR->containsValidCons(LHSCVars) &&
+          !CR->containsValidCons(RHSCVars)) {
+        BoundsKey LKey, RKey;
+        auto &ABI = I.getABoundsInfo();
+        if ((CR->resolveBoundsKey(LHSCVars, LKey) ||
+            ABI.tryGetVariable(LHS, *C, LKey)) &&
+            (CR->resolveBoundsKey(RHSCVars, RKey) ||
+             ABI.tryGetVariable(RHS, *C, RKey))) {
+          // If this the left hand side of a < comparision and the LHS is the
+          // index used in array indexing operation? Then add the RHS to the
+          // possible bounds key.
+          if (LKey == IndxBKey) {
+            PB.insert(RKey);
+          }
+        }
+      }
+    }
+    return true;
+  }
+private:
+  ProgramInfo &I;
+  ASTContext *C;
+  // Index variable used in dereference.
+  BoundsKey IndxBKey;
+  // Possible Bounds.
+  std::set<BoundsKey> &PB;
+  // Helper objects.
+  ConstraintResolver *CR;
+};
+
+LengthVarInference::LengthVarInference(ProgramInfo &In,
+                                       ASTContext *AC,
+                                       FunctionDecl *F) : I(In),
+                                       C(AC),
+                                       FD(F),
+                                       CurBB(nullptr) {
+
+  Cfg = CFG::buildCFG(nullptr, FD->getBody(),
+                      AC, CFG::BuildOptions());
+  for (auto *CBlock : *(Cfg.get())) {
+    for (auto &CfgElem : *CBlock) {
+      if (CfgElem.getKind() == clang::CFGElement::Statement) {
+        const Stmt *TmpSt = CfgElem.castAs<CFGStmt>().getStmt();
+        StMap[TmpSt] = CBlock;
+      }
+    }
+  }
+
+  CDG = new ControlDependencyCalculator(Cfg.get());
+
+  CR = new ConstraintResolver(I, C);
+}
+
+LengthVarInference::~LengthVarInference() {
+  if (CDG != nullptr) {
+    delete (CDG);
+    CDG = nullptr;
+  }
+  if (CR != nullptr) {
+    delete (CR);
+    CR = nullptr;
+  }
+}
+
+void LengthVarInference::VisitStmt(Stmt *St) {
+  for (auto *Child : St->children()) {
+    if (Child) {
+      if (StMap.find(St) != StMap.end()) {
+        CurBB = StMap[St];
+      }
+      Visit(Child);
+    }
+  }
+}
+
+// Consider the following example:
+//
+// int foo(int *a, int *b, unsigned l) {
+//  unsigned i = 0;
+//  for (i=0; i<l; i++) {
+//    a[i] = b[i];
+//  }
+// }
+// From the above code, it is obvious that the length of a and b should be l.
+//
+// Consider the following a bit more complex example:
+//
+// struct f {
+//  int *a;
+//  unsigned l;
+// };
+// void clear(struct f *b, int idx) {
+//  unsigned n = b->l;
+//  if (idx >= n) {
+//    return;
+//  }
+//  b->a[idx] = 0;
+// }
+// Here, we can see that the length of the f's struct member a is l.
+//
+// We can capture these facts by using control dependencies. Specifically, for
+// each array indexing operation, i.e., arr[i], we find all the statements that
+// the indexing statement is control dependent on.
+// Then, for each of the control dependent nodes, we check if there is any
+// relational comparison of the form i < X or i >= X, then we consider X
+// (or any assignments of X to the variables of the same scope as arr) to be
+// the size of arr.
+void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
+  assert (CurBB != nullptr && "Array dereference does not belong "
+                              "to any basic block");
+  // First, get the BoundsKey for the base.
+  Expr *BE = ASE->getBase()->IgnoreParenCasts();
+  auto BaseCVars = CR->getExprConstraintVars(BE);
+  // Next get the index used.
+  Expr *IdxExpr = ASE->getIdx()->IgnoreParenCasts();
+  auto IdxCVars = CR->getExprConstraintVars(IdxExpr);
+
+  // Get the bounds key of the base and index.
+  if (CR->containsValidCons(BaseCVars) &&
+      !CR->containsValidCons(IdxCVars)) {
+    BoundsKey BasePtr, IdxKey;
+    auto &ABI = I.getABoundsInfo();
+    if (CR->resolveBoundsKey(BaseCVars, BasePtr) &&
+        (CR->resolveBoundsKey(IdxCVars, IdxKey) ||
+            ABI.tryGetVariable(IdxExpr, *C, IdxKey))) {
+      std::set<BoundsKey> PossibleLens;
+      PossibleLens.clear();
+      ComparisionVisitor CV(I, C, IdxKey, PossibleLens);
+      auto &CDNodes = CDG->getControlDependencies(CurBB);
+      if (!CDNodes.empty()) {
+        // Next try to find all the nodes that the CurBB is
+        // control dependent on.
+        // For each of the control dependent node, check if we are comparing the
+        // index variable with another variable.
+        for (auto &CDGNode : CDNodes) {
+          // Collect the possible length bounds keys.
+          CV.TraverseStmt(CDGNode->getTerminatorStmt());
+        }
+        ABI.updatePotentialCountBounds(BasePtr, PossibleLens);
       }
     }
   }

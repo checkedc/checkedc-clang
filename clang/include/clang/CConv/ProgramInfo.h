@@ -87,10 +87,10 @@ public:
   void merge_MF(ParameterMap &MF);
   ParameterMap &get_MF();
 
-  DisjointSet &getPointerConstraintDisjointSet() {
-    return ConstraintDisjointSet;
+  ConstraintsInfo &getInterimConstraintState() {
+    return CState;
   }
-  bool computePointerDisjointSet();
+  bool computeInterimConstraintState();
 
   ExternalFunctionMapType &getExternFuncDefFVMap() {
     return ExternalFunctionFVCons;
@@ -132,8 +132,8 @@ private:
   // Object that contains all the bounds information of various
   // array variables.
   AVarBoundsInfo ArrBInfo;
-  // Disjoint sets for constraints.
-  DisjointSet ConstraintDisjointSet;
+  // Constraints state.
+  ConstraintsInfo CState;
 
   // For each call to a generic function, remember how the type parameters were
   // instantiated so they can be inserted during rewriting.

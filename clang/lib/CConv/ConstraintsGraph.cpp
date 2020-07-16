@@ -33,7 +33,8 @@ std::set<ConstAtom*> &ConstraintsGraph::getAllConstAtoms() {
   return AllConstAtoms;
 }
 
-void ConstraintsGraph::forEachEdge(llvm::function_ref<void(Atom*,Atom*)> fn) const {
+void
+ConstraintsGraph::forEachEdge(llvm::function_ref<void(Atom*,Atom*)> fn) const {
   auto EI = boost::edges(CG);
   for (auto E = EI.first; E != EI.second; ++E) {
     auto s = source(*E, CG);
@@ -56,7 +57,13 @@ void ConstraintsGraph::addConstraint(Geq *C, const Constraints &CS) {
   add_edge(V2, V1, CG);
 }
 
-void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph& Graph,
+void ConstraintsGraph::removeEdge(Atom *Src, Atom *Dst) {
+  auto SrcIdx = addVertex(Src);
+  auto DstIdx = addVertex(Dst);
+  boost::remove_edge(SrcIdx, DstIdx, CG);
+}
+
+void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph &Graph,
                                                EdgeType EdgeType) {
   Graph.forEachEdge( [this, EdgeType] (Atom* S, Atom* T) {
     auto SVertex = addVertex(S);
@@ -80,7 +87,7 @@ void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph& Graph,
   });
 }
 
-void GraphVizOutputGraph::dumpCGDot(const std::string& GraphDotFile) {
+void GraphVizOutputGraph::dumpCGDot(const std::string &GraphDotFile) {
    std::ofstream DotFile;
    DotFile.open(GraphDotFile);
    write_graphviz(DotFile, CG,
@@ -99,8 +106,8 @@ void GraphVizOutputGraph::dumpCGDot(const std::string& GraphDotFile) {
 }
 
 void GraphVizOutputGraph::dumpConstraintGraphs(const std::string &GraphDotFile,
-                                               const ConstraintsGraph& Chk,
-                                               const ConstraintsGraph& Pty) {
+                                               const ConstraintsGraph &Chk,
+                                               const ConstraintsGraph &Pty) {
   GraphVizOutputGraph OutGraph;
   OutGraph.mergeConstraintGraph(Chk, Checked);
   OutGraph.mergeConstraintGraph(Pty,Ptype);

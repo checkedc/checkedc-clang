@@ -504,6 +504,11 @@ public:
         FunctionVisitor
             FV = FunctionVisitor(Context, Info, D, TypeVariableBindings);
         FV.TraverseStmt(Body);
+        if (AllTypes) {
+          // Only do this, if all types is enabled.
+          LengthVarInference LVI(Info, Context, D);
+          LVI.Visit(Body);
+        }
       }
     }
 

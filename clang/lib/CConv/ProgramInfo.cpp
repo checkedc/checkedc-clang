@@ -9,8 +9,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/CConv/ProgramInfo.h"
+#include "clang/CConv/ConstraintsGraph.h"
 #include "clang/CConv/CCGlobalOptions.h"
 #include "clang/CConv/MappingVisitor.h"
+
+#include <boost/graph/breadth_first_search.hpp>
 #include <sstream>
 
 using namespace clang;
@@ -733,17 +736,65 @@ ProgramInfo::getStaticFuncConstraintSet(std::string FuncName,
   return nullptr;
 }
 
-bool ProgramInfo::computePointerDisjointSet() {
-  ConstraintDisjointSet.Clear();
-  CVars WildPtrs;
+// Compute all CVars reachable from a given CVar i.e., SrcWAtom that are
+// not directly assigned WILD.
+class ReachableVarVisitor : public boost::default_bfs_visitor {
+public:
+  ReachableVarVisitor(const ConstraintKey &SrcWAtom,
+                      CVars &T,
+                      std::map<ConstraintKey, CVars> &RCMap,
+                      std::set<Atom *> &AllDWild):  SrcA(SrcWAtom),
+                      RootCauseMap(RCMap), VisitedCVars(T),
+                      AllDirectWild(AllDWild) { }
+  template < typename Vertex, typename Graph >
+  void discover_vertex(Vertex u, const Graph &g) const {
+    Atom *V = g[u];
+    VarAtom *VA = dyn_cast<VarAtom>(V);
+    if (VA != nullptr && AllDirectWild.find(VA) == AllDirectWild.end()) {
+      RootCauseMap[VA->getLoc()].insert(SrcA);
+      VisitedCVars.insert(VA->getLoc());
+    }
+  }
+  const ConstraintKey &SrcA;
+  std::map<ConstraintKey, CVars> &RootCauseMap;
+  CVars &VisitedCVars;
+  std::set<Atom *> &AllDirectWild;
+};
+
+// From the given constraint graph, this method computes the interim constraint
+// state that contains constraint vars which are directly assigned WILD and
+// other constraint vars that have been determined to be WILD because they
+// depend on other constraint vars that are directly assigned WILD.
+bool ProgramInfo::computeInterimConstraintState() {
+  CState.Clear();
+  auto &RCMap = CState.RCMap;
+  auto &SrcWMap = CState.SrcWMap;
+  auto &TotalNDirectWPtrs = CState.TotalNonDirectWildPointers;
+  CVars &WildPtrs = CState.AllWildPtrs;;
   WildPtrs.clear();
-  auto &WildPtrsReason = ConstraintDisjointSet.RealWildPtrsWithReasons;
-  auto &CurrLeaders = ConstraintDisjointSet.Leaders;
-  auto &CurrGroups = ConstraintDisjointSet.Groups;
+  std::set<Atom *> DirectWildVarAtoms;
+  std::set<Atom *> IndirectWildAtoms;
+  auto &ChkCG = CS.getChkCG();
+  ChkCG.getNeighbors<VarAtom>(CS.getWild(), DirectWildVarAtoms, true);
+
+  for (auto *DA : DirectWildVarAtoms) {
+    if (VarAtom *VA = dyn_cast<VarAtom>(DA)) {
+      WildPtrs.insert(VA->getLoc());
+      CVars &CGrp = SrcWMap[VA->getLoc()];
+      ReachableVarVisitor TV(VA->getLoc(), CGrp,
+                             RCMap, DirectWildVarAtoms);
+      auto Vidx = ChkCG.addVertex(DA);
+      boost::breadth_first_search(ChkCG.CG, Vidx, boost::visitor(TV));
+      TotalNDirectWPtrs.insert(CGrp.begin(), CGrp.end());
+    }
+  }
+
+  auto &WildPtrsReason = CState.RealWildPtrsWithReasons;
+
   for (auto currC : CS.getConstraints()) {
     if (Geq *EC = dyn_cast<Geq>(currC)) {
       VarAtom *VLhs = dyn_cast<VarAtom>(EC->getLHS());
-      if (dyn_cast<WildAtom>(EC->getRHS())) {
+      if (EC->constraintIsChecked() && dyn_cast<WildAtom>(EC->getRHS())) {
         WildPtrsReason[VLhs->getLoc()].WildPtrReason = EC->getReason();
         if (!EC->FileName.empty() && EC->LineNo != 0) {
           WildPtrsReason[VLhs->getLoc()].IsValid = true;
@@ -752,65 +803,15 @@ bool ProgramInfo::computePointerDisjointSet() {
           WildPtrsReason[VLhs->getLoc()].ColStart = EC->ColStart;
         }
         WildPtrs.insert(VLhs->getLoc());
-      } else {
-        VarAtom *Vrhs = dyn_cast<VarAtom>(EC->getRHS());
-        if (Vrhs != nullptr)
-          ConstraintDisjointSet.AddElements(VLhs->getLoc(), Vrhs->getLoc());
       }
     }
   }
-
-  // Perform adjustment of group leaders. So that, the real-WILD
-  // pointers are the leaders for each group.
-  for (auto &RealCp : WildPtrsReason) {
-    auto &RealCVar = RealCp.first;
-    // check if the leader CVar is a real WILD Ptr
-    if (CurrLeaders.find(RealCVar) != CurrLeaders.end()) {
-      auto OldGroupLeader = CurrLeaders[RealCVar];
-      // If not?
-      if (ConstraintDisjointSet.RealWildPtrsWithReasons.find(OldGroupLeader) ==
-          ConstraintDisjointSet.RealWildPtrsWithReasons.end()) {
-        for (auto &LeadersP : CurrLeaders) {
-          if (LeadersP.second == OldGroupLeader) {
-            LeadersP.second = RealCVar;
-          }
-        }
-
-        auto &OldG = CurrGroups[OldGroupLeader];
-        CurrGroups[RealCVar].insert(OldG.begin(), OldG.end());
-        CurrGroups[RealCVar].insert(RealCVar);
-        CurrGroups.erase(OldGroupLeader);
-      }
-    }
-  }
-
-  // Compute non-direct WILD pointers.
-  for (auto &Gm : CurrGroups) {
-    // Is this group a WILD pointer group?
-    if (ConstraintDisjointSet.RealWildPtrsWithReasons.find(Gm.first) !=
-        ConstraintDisjointSet.RealWildPtrsWithReasons.end()) {
-        ConstraintDisjointSet.TotalNonDirectWildPointers.insert(Gm.second.begin(),
-                                                              Gm.second.end());
-    }
-  }
-
-  CVars TmpCKeys;
-  TmpCKeys.clear();
-  auto &TotalNDirectWPtrs = ConstraintDisjointSet.TotalNonDirectWildPointers;
-  // Remove direct WILD pointers from non-direct wild pointers.
-  std::set_difference(TotalNDirectWPtrs.begin(), TotalNDirectWPtrs.end(),
-                      WildPtrs.begin(), WildPtrs.end(),
-                      std::inserter(TmpCKeys, TmpCKeys.begin()));
-
-  // Update the totalNonDirectWildPointers.
-  TotalNDirectWPtrs.clear();
-  TotalNDirectWPtrs.insert(TmpCKeys.begin(), TmpCKeys.end());
 
   for ( const auto &I : Variables ) {
     PersistentSourceLoc L = I.first;
     std::string FilePath = L.getFileName();
     if (canWrite(FilePath)) {
-      ConstraintDisjointSet.ValidSourceFiles.insert(FilePath);
+      CState.ValidSourceFiles.insert(FilePath);
     } else {
       continue;
     }
@@ -819,8 +820,8 @@ bool ProgramInfo::computePointerDisjointSet() {
       if (PVConstraint *PV = dyn_cast<PVConstraint>(CV)) {
         for (auto ck : PV->getCvars()) {
           if (VarAtom *VA = dyn_cast<VarAtom>(ck)) {
-            ConstraintDisjointSet.PtrSourceMap[VA->getLoc()] =
-                (PersistentSourceLoc*)(&(I.first));
+            CState.PtrSourceMap[VA->getLoc()] =
+                const_cast<PersistentSourceLoc *>(&(I.first));
           }
         }
       }
@@ -829,27 +830,13 @@ bool ProgramInfo::computePointerDisjointSet() {
           if (PVConstraint *RPV = dyn_cast<PVConstraint>(PV)) {
             for (auto ck : RPV->getCvars()) {
               if (VarAtom *VA = dyn_cast<VarAtom>(ck)) {
-                ConstraintDisjointSet.PtrSourceMap[VA->getLoc()] =
-                    (PersistentSourceLoc*)(&(I.first));
+                CState.PtrSourceMap[VA->getLoc()] =
+                    const_cast<PersistentSourceLoc *>(&(I.first));
               }
             }
           }
         }
       }
-    }
-  }
-
-  // Compute all the WILD pointers.
-  CVars WildCkeys;
-  for (auto &G : CurrGroups) {
-    WildCkeys.clear();
-    std::set_intersection(G.second.begin(), G.second.end(), WildPtrs.begin(),
-                          WildPtrs.end(),
-                          std::inserter(WildCkeys, WildCkeys.begin()));
-
-    if (!WildCkeys.empty()) {
-      ConstraintDisjointSet.AllWildPtrs.insert(WildCkeys.begin(),
-                                               WildCkeys.end());
     }
   }
 
