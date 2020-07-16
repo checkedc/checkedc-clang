@@ -218,7 +218,8 @@ bool CheckedRegionFinder::VisitVarDecl(VarDecl *VD) {
 
 bool CheckedRegionFinder::VisitParmVarDecl(ParmVarDecl *PVD) {
   // Check if the variable is WILD.
-  bool FoundWild = isWild(Info.getVariable(PVD, Context));
+  auto V = Info.getVariable(PVD, Context);
+  bool FoundWild = isWild(V);
 
   if (FoundWild)
     Nwild++;
@@ -230,7 +231,7 @@ bool CheckedRegionFinder::VisitParmVarDecl(ParmVarDecl *PVD) {
   return true;
 }
 
-bool CheckedRegionFinder::isWild(std::set<ConstraintVariable*> S) { 
+bool CheckedRegionFinder::isWild(std::set<ConstraintVariable*> &S) { 
   for (auto Cv : S) 
     if (Cv->hasWild(Info.getConstraints().getVariables()))
       return true;
@@ -241,11 +242,9 @@ bool CheckedRegionFinder::isWild(std::set<ConstraintVariable*> S) {
 bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) { 
   auto T = DR->getType();
   auto D = DR->getDecl();
+  auto var = Info.getVariable(D, Context);
 
-  llvm::errs() << "Hit declref\n";
-  DR->dump();
-
-  if (isWild(Info.getVariable(D, Context)) 
+  if (isWild(var)
       || (T->isPointerType() && isUncheckedPtr(T)))
     Nwild++;
 

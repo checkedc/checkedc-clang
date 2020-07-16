@@ -80,7 +80,7 @@ class CheckedRegionFinder : public RecursiveASTVisitor<CheckedRegionFinder>
     bool isUncheckedPtrAcc(QualType Qt, std::set<std::string> &Seen);
     bool isUncheckedStruct(QualType Qt, std::set<std::string> &Seen);
     bool isFunctionBody(CompoundStmt *S);
-    bool isWild(std::set<ConstraintVariable*>);
+    bool isWild(std::set<ConstraintVariable*>&);
 
     ASTContext* Context;
     Rewriter& Writer;
