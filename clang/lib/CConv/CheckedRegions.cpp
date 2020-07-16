@@ -158,11 +158,6 @@ bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
     //Check if we are the only child
     auto childs = Parent->children();
     int NumChilds = std::distance(childs.begin(), childs.end());
-
-    /*
-    for (const auto &child : Parent->children()) {
-      NumChilds++;
-    }*/
     return NumChilds > 1;
   } else {
     //TODO there are other statement positions
@@ -190,6 +185,8 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
     }
   }
   if (FD) {
+    if(!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody()))
+      Nwild++;
     auto type = FD->getReturnType();
     if (isUncheckedPtr(type))
       Nwild++;
