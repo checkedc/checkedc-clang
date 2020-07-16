@@ -31,8 +31,8 @@ void PreorderAST::Create(Expr *E, Node *N, Node *Parent) {
   // If the parent is non-null and the current node has not already been added
   // to the list of children of the parent, add it.
   if (Parent) {
-    if (!Parent->Children.size() || Parent->Children.back() != N)
-      Parent->Children.push_back(N);
+    if (!Parent->Children.size() || !Parent->Children.count(N))
+      Parent->Children.insert(N);
   }
 
   E = Lex.IgnoreValuePreservingOperations(Ctx, E);

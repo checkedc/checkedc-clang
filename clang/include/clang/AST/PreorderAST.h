@@ -42,7 +42,7 @@ namespace clang {
     llvm::APSInt Const;
     bool HasConst;
     Node *Parent;
-    std::vector<Node *> Children;
+    llvm::SetVector<Node *> Children;
 
     Node(Node *Parent) :
       Opc(BO_Add), HasConst(false), Parent(Parent) {}
