@@ -153,7 +153,7 @@ void PreorderAST::Coalesce(Node *N) {
   Parent->Others.insert(Parent->Others.end(),
                         N->Others.begin(),
                         N->Others.end());
-  
+
   // Remove the current node from the list of children of its parent.
   for (size_t I = 0; I != Parent->Children.size(); ++I) {
     if (Parent->Children[I] == N) {
@@ -203,41 +203,41 @@ void PreorderAST::Sort(Node *N) {
     [&](Node *N1, Node *N2) {
       // There is no single criteria for sorting the nodes. So we do our best
       // to sort the nodes.
-      
+
       // Sort based on the values of the constants.
       if (N1->HasConst && N2->HasConst)
         return llvm::APSInt::compareValues(N1->Const, N2->Const) < 0;
-      
+
       // Sort based on the number of variables.
       if (N1->Vars.size() != N2->Vars.size())
         return N1->Vars.size() < N2->Vars.size();
-      
+
       // Sort based on the number of other expressions.
       if (N1->Others.size() != N2->Others.size())
         return N1->Others.size() < N2->Others.size();
-      
+
       // Sort based on the number of children.
       if (N1->Children.size() != N2->Children.size())
         return N1->Children.size() < N2->Children.size();
-      
+
       // Sort lexicographically on the variables of the two nodes.
       for (size_t I = 0; I != N1->Vars.size(); ++I) {
         auto &V1 = N1->Vars[I];
         auto &V2 = N2->Vars[I];
-      
+
         if (Lex.CompareDecl(V1, V2) == Result::LessThan)
           return true;
       }
-      
+
       // Sort based on the other expressions of the two nodes.
       for (size_t I = 0; I != N1->Others.size(); ++I) {
         auto &E1 = N1->Others[I];
         auto &E2 = N2->Others[I];
-      
+
         if (Lex.CompareExpr(E1, E2) == Result::LessThan)
           return true;
       }
-      
+
       return false;
     });
 }
