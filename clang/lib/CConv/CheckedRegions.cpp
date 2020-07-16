@@ -156,10 +156,13 @@ bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
   auto Parent = Parents[0].get<CompoundStmt>();
   if (Parent) {
     //Check if we are the only child
-    int NumChilds = 0;
+    auto childs = Parent->children();
+    int NumChilds = std::distance(childs.begin(), childs.end());
+
+    /*
     for (const auto &child : Parent->children()) {
       NumChilds++;
-    }
+    }*/
     return NumChilds > 1;
   } else {
     //TODO there are other statement positions
