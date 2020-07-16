@@ -1,5 +1,10 @@
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL" %s
+//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" %s
+//RUN: cconv-standalone -output-postfix=checkedNOALL %s
+//RUN: %clang -c %S/b29_structprotocastsafe.checkedNOALL.c
+//RUN: rm %S/b29_structprotocastsafe.checkedNOALL.c
 
+typedef unsigned long size_t;
 #define NULL ((void*)0)
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
@@ -24,7 +29,9 @@ struct r {
 };
 
 struct r *sus(struct r *, struct r *);
-//CHECK: _Ptr<struct r> sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>));
+//CHECK_NOALL: _Ptr<struct r> sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>));
+//CHECK_ALL: _Ptr<struct r> sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>));
+
 
 struct r *foo() {
   struct r *x, *y;
@@ -37,7 +44,13 @@ struct r *foo() {
   struct r *z = (struct r *) sus(x, y);
   return z;
 }
-//CHECK: _Ptr<struct r> foo(void) {
+//CHECK_NOALL: _Ptr<struct r> foo(void) {
+//CHECK_NOALL:   struct r *x, *y;
+//CHECK_NOALL:   _Ptr<struct r> z =  (struct r *) sus(x, y);
+//CHECK_ALL: _Ptr<struct r> foo(void) {
+//CHECK_ALL:   struct r *x, *y;
+//CHECK_ALL:   _Ptr<struct r> z =  (struct r *) sus(x, y);
+
 
 struct r *bar() {
   struct r *x, *y;
@@ -48,8 +61,13 @@ struct r *bar() {
   struct r *z = sus(x, y);
   return z;
 }
-//CHECK: _Ptr<struct r> bar(void) {
-//CHECK: _Ptr<struct r> z =  sus(x, y);
+//CHECK_NOALL: _Ptr<struct r> bar(void) {
+//CHECK_NOALL:   struct r *x, *y;
+//CHECK_NOALL:   _Ptr<struct r> z =  sus(x, y);
+//CHECK_ALL: _Ptr<struct r> bar(void) {
+//CHECK_ALL:   struct r *x, *y;
+//CHECK_ALL:   _Ptr<struct r> z =  sus(x, y);
+
 
 struct r *sus(struct r *x, struct r *y) {
   // This will make next pointer WILD	
@@ -59,4 +77,7 @@ struct r *sus(struct r *x, struct r *y) {
   z->next = 0;
   return z;
 }
-//CHECK: _Ptr<struct r> sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) {
+//CHECK_NOALL: _Ptr<struct r> sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) {
+//CHECK_NOALL:   _Ptr<struct r> z =  malloc<struct r>(sizeof(struct r));
+//CHECK_ALL: _Ptr<struct r> sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) {
+//CHECK_ALL:   _Ptr<struct r> z =  malloc<struct r>(sizeof(struct r));

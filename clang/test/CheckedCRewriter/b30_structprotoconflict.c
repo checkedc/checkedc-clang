@@ -1,5 +1,10 @@
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL" %s
+//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" %s
+//RUN: cconv-standalone -output-postfix=checkedNOALL %s
+//RUN: %clang -c %S/b30_structprotoconflict.checkedNOALL.c
+//RUN: rm %S/b30_structprotoconflict.checkedNOALL.c
 
+typedef unsigned long size_t;
 #define NULL ((void*)0)
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
@@ -17,8 +22,6 @@ struct p {
   int *x;
   char *y;
 };
-//CHECK: _Ptr<int> x;
-//CHECK-NEXT: _Ptr<char> y;
 
 struct r {
   int data;
@@ -26,8 +29,9 @@ struct r {
 };
 
 struct r *sus(struct r *, struct r *);
-//CHECK: struct r *sus(_Ptr<struct r> x, _Ptr<struct r> y) : itype(_Ptr<struct r>);
-// FIXME-- the above annotation is wrong; the cast at bar() is making it seem like it should be an itype
+//CHECK_NOALL: struct r *sus(_Ptr<struct r> x, _Ptr<struct r> y) : itype(_Ptr<struct r>);
+//CHECK_ALL: struct r *sus(_Ptr<struct r> x, _Ptr<struct r> y) : itype(_Ptr<struct r>);
+
 
 struct np *foo() {
   struct r x, y;
@@ -38,6 +42,13 @@ struct np *foo() {
   struct np *z = (struct np *) sus(&x, &y);
   return z;
 }
+//CHECK_NOALL: struct np *foo() {
+//CHECK_NOALL:   struct np *z = (struct np *) sus(&x, &y);
+//CHECK_ALL: struct np *foo() {
+//CHECK_ALL:   struct np *z = (struct np *) sus(&x, &y);
+
+
+// FIXME-- the above annotation is wrong; the cast at bar() is making it seem like it should be an itype
 
 struct r *bar() {
   struct r x, y;
@@ -48,8 +59,13 @@ struct r *bar() {
   struct r *z = (struct r *) sus(&x, &y);
   return z;
 }
-//CHECK: _Ptr<struct r> bar(void) {
-//CHECK: _Ptr<struct r> z =  (struct r *) sus(&x, &y);
+//CHECK_NOALL: // FIXME-- the above annotation is wrong; the cast at bar() is making it seem like it should be an itype
+//CHECK_NOALL: _Ptr<struct r> bar(void) {
+//CHECK_NOALL:   _Ptr<struct r> z =  (struct r *) sus(&x, &y);
+//CHECK_ALL: // FIXME-- the above annotation is wrong; the cast at bar() is making it seem like it should be an itype
+//CHECK_ALL: _Ptr<struct r> bar(void) {
+//CHECK_ALL:   _Ptr<struct r> z =  (struct r *) sus(&x, &y);
+
 
 struct r *sus(struct r *x, struct r *y) {
   x->next += 1;
@@ -58,5 +74,7 @@ struct r *sus(struct r *x, struct r *y) {
   z->next = 0;
   return z;
 }
-//CHECK: struct r *sus(_Ptr<struct r> x, _Ptr<struct r> y) : itype(_Ptr<struct r>) {
-//CHECK: _Ptr<struct r> z =  malloc<struct r>(sizeof(struct r));
+//CHECK_NOALL: struct r *sus(_Ptr<struct r> x, _Ptr<struct r> y) : itype(_Ptr<struct r>) {
+//CHECK_NOALL:   _Ptr<struct r> z =  malloc<struct r>(sizeof(struct r));
+//CHECK_ALL: struct r *sus(_Ptr<struct r> x, _Ptr<struct r> y) : itype(_Ptr<struct r>) {
+//CHECK_ALL:   _Ptr<struct r> z =  malloc<struct r>(sizeof(struct r));

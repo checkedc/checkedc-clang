@@ -1,5 +1,10 @@
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL" %s
+//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" %s
+//RUN: cconv-standalone -output-postfix=checkedNOALL %s
+//RUN: %clang -c %S/b24_implicitunsafecast.checkedNOALL.c
+//RUN: rm %S/b24_implicitunsafecast.checkedNOALL.c
 
+typedef unsigned long size_t;
 #define NULL 0
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
@@ -15,7 +20,11 @@ int *sus(int *x, int*y) {
   *x = 2;
   return z;
 }
-//CHECK: int *sus(int *x, _Ptr<int> y) : itype(_Ptr<int>) {
+//CHECK_NOALL: int *sus(int *x, _Ptr<int> y) : itype(_Ptr<int>) {
+//CHECK_NOALL:   _Ptr<int> z =  malloc<int>(sizeof(int));
+//CHECK_ALL: int *sus(int *x : itype(_Array_ptr<int>), _Ptr<int> y) : itype(_Ptr<int>) {
+//CHECK_ALL:   _Ptr<int> z =  malloc<int>(sizeof(int));
+
 
 int* foo() {
   int sx = 3, sy = 4, *x = &sx, *y = &sy;
@@ -23,7 +32,15 @@ int* foo() {
   *z = *z + 1;
   return z;
 }
-//CHECK: _Ptr<int> foo(void) {
+//CHECK_NOALL: _Ptr<int> foo(void) {
+//CHECK_NOALL: int *x = &sx;
+//CHECK_NOALL: _Ptr<int> y = &sy;
+//CHECK_NOALL:   _Ptr<int> z =  (int *) sus(x, y);
+//CHECK_ALL: _Ptr<int> foo(void) {
+//CHECK_ALL: int *x = &sx;
+//CHECK_ALL: _Ptr<int> y = &sy;
+//CHECK_ALL:   _Ptr<int> z =  (int *) sus(x, y);
+
 
 char* bar() {
   int sx = 3, sy = 4, *x = &sx, *y = &sy;
@@ -32,4 +49,13 @@ char* bar() {
   char *z = sus(x, y);
   return z;
 }
-//CHECK: char* bar() {
+//CHECK_NOALL: char* bar() {
+//CHECK_NOALL: int *x = &sx;
+//CHECK_NOALL: _Ptr<int> y = &sy;
+//CHECK_NOALL:   // Because, sus returns int* but assigning to char *
+//CHECK_NOALL:   char *z = sus(x, y);
+//CHECK_ALL: char* bar() {
+//CHECK_ALL: int *x = &sx;
+//CHECK_ALL: _Ptr<int> y = &sy;
+//CHECK_ALL:   // Because, sus returns int* but assigning to char *
+//CHECK_ALL:   char *z = sus(x, y);

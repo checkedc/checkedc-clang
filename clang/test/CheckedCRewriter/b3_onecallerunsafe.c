@@ -1,5 +1,10 @@
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL" %s
+//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" %s
+//RUN: cconv-standalone -output-postfix=checkedNOALL %s
+//RUN: %clang -c %S/b3_onecallerunsafe.checkedNOALL.c
+//RUN: rm %S/b3_onecallerunsafe.checkedNOALL.c
 
+typedef unsigned long size_t;
 #define NULL 0
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
@@ -15,8 +20,11 @@ int *sus(int *x, int*y) {
   *x = 2;
   return z;
 }
-//CHECK: int *sus(int *x, _Ptr<int> y) : itype(_Ptr<int>) {
-//CHECK:   _Ptr<int> z =  malloc<int>(sizeof(int));
+//CHECK_NOALL: int *sus(int *x, _Ptr<int> y) : itype(_Ptr<int>) {
+//CHECK_NOALL:   _Ptr<int> z =  malloc<int>(sizeof(int));
+//CHECK_ALL: int * sus(int *x : itype(_Array_ptr<int>), _Ptr<int> y) {
+//CHECK_ALL:   int *z = malloc<int>(sizeof(int));
+
 
 int* foo() {
   int sx = 3;
@@ -27,10 +35,15 @@ int* foo() {
   *z = *z + 1;
   return z;
 }
-//CHECK: _Ptr<int> foo(void) {
-//CHECK: int *x = &sx;
-//CHECK: _Ptr<int> y = &sy;
-//CHECK: _Ptr<int> z =  sus(x, y);
+//CHECK_NOALL: _Ptr<int> foo(void) {
+//CHECK_NOALL:   int *x = &sx; 
+//CHECK_NOALL:   _Ptr<int> y =  &sy;
+//CHECK_NOALL:   _Ptr<int> z =  sus(x, y);
+//CHECK_ALL: int* foo() {
+//CHECK_ALL:   int *x = &sx; 
+//CHECK_ALL:   _Ptr<int> y =  &sy;
+//CHECK_ALL:   int *z = sus(x, y);
+
 
 int* bar() {
   int sx = 3;
@@ -42,5 +55,11 @@ int* bar() {
   *z = -17;
   return z;
 }
-//CHECK: int* bar() {
-//CHECK: _Ptr<int> y = &sy;
+//CHECK_NOALL: int* bar() {
+//CHECK_NOALL:   int *x = &sx; 
+//CHECK_NOALL:   _Ptr<int> y =  &sy;
+//CHECK_NOALL:   int *z = sus(x, y);
+//CHECK_ALL: int* bar() {
+//CHECK_ALL:   int *x = &sx; 
+//CHECK_ALL:   _Ptr<int> y =  &sy;
+//CHECK_ALL:   int *z = sus(x, y);

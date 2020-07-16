@@ -1,5 +1,10 @@
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL" %s
+//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" %s
+//RUN: cconv-standalone -output-postfix=checkedNOALL %s
+//RUN: %clang -c %S/b10_allsafepointerstruct.checkedNOALL.c
+//RUN: rm %S/b10_allsafepointerstruct.checkedNOALL.c
 
+typedef unsigned long size_t;
 #define NULL 0
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
@@ -28,7 +33,11 @@ struct p *sus(struct p *x, struct p *y) {
   struct p *z = malloc(sizeof(struct p));
   return z;
 }
-//CHECK: _Ptr<struct p> sus(_Ptr<struct p> x, _Ptr<struct p> y) {
+//CHECK_NOALL: _Ptr<struct p> sus(_Ptr<struct p> x, _Ptr<struct p> y) {
+//CHECK_NOALL:   _Ptr<struct p> z =  malloc<struct p>(sizeof(struct p));
+//CHECK_ALL: _Ptr<struct p> sus(_Ptr<struct p> x, _Ptr<struct p> y) {
+//CHECK_ALL:   _Ptr<struct p> z =  malloc<struct p>(sizeof(struct p));
+
 
 struct p *foo() {
   int ex1 = 2, ex2 = 3;
@@ -40,7 +49,15 @@ struct p *foo() {
   struct p *z = (struct p *) sus(x, y);
   return z;
 }
-//CHECK: _Ptr<struct p> foo(void) {
+//CHECK_NOALL: _Ptr<struct p> foo(void) {
+//CHECK_NOALL:  _Ptr<struct p> x = ((void *)0);
+//CHECK_NOALL: _Ptr<struct p> y = ((void *)0);
+//CHECK_NOALL:   _Ptr<struct p> z =  (struct p *) sus(x, y);
+//CHECK_ALL: _Ptr<struct p> foo(void) {
+//CHECK_ALL:  _Ptr<struct p> x = ((void *)0);
+//CHECK_ALL: _Ptr<struct p> y = ((void *)0);
+//CHECK_ALL:   _Ptr<struct p> z =  (struct p *) sus(x, y);
+
 
 struct p *bar() {
   int ex1 = 2, ex2 = 3;
@@ -52,4 +69,11 @@ struct p *bar() {
   struct p *z = (struct p *) sus(x, y);
   return z;
 }
-//CHECK: _Ptr<struct p> bar(void) {
+//CHECK_NOALL: _Ptr<struct p> bar(void) {
+//CHECK_NOALL:  _Ptr<struct p> x = ((void *)0);
+//CHECK_NOALL: _Ptr<struct p> y = ((void *)0);
+//CHECK_NOALL:   _Ptr<struct p> z =  (struct p *) sus(x, y);
+//CHECK_ALL: _Ptr<struct p> bar(void) {
+//CHECK_ALL:  _Ptr<struct p> x = ((void *)0);
+//CHECK_ALL: _Ptr<struct p> y = ((void *)0);
+//CHECK_ALL:   _Ptr<struct p> z =  (struct p *) sus(x, y);

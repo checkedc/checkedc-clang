@@ -1,5 +1,10 @@
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL" %s
+//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" %s
+//RUN: cconv-standalone -output-postfix=checkedNOALL %s
+//RUN: %clang -c %S/b17_bothstructnp.checkedNOALL.c
+//RUN: rm %S/b17_bothstructnp.checkedNOALL.c
 
+typedef unsigned long size_t;
 #define NULL 0
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
@@ -30,7 +35,11 @@ struct np *sus(struct p x, struct p y) {
   z += 2;
   return z;
 }
-//CHECK: struct np * sus(struct p x, struct p y) {
+//CHECK_NOALL: struct np * sus(struct p x, struct p y) {
+//CHECK_NOALL:   struct np *z = malloc<struct np>(sizeof(struct np));
+//CHECK_ALL: struct np * sus(struct p x, struct p y) {
+//CHECK_ALL:   struct np *z = malloc<struct np>(sizeof(struct np));
+
 
 struct np *foo() {
   struct p x, y;
@@ -41,7 +50,11 @@ struct np *foo() {
   struct np *z = sus(x, y);
   return z;
 }
-//CHECK: struct np *foo() {
+//CHECK_NOALL: struct np *foo() {
+//CHECK_NOALL:   struct np *z = sus(x, y);
+//CHECK_ALL: struct np *foo() {
+//CHECK_ALL:   struct np *z = sus(x, y);
+
 
 struct np *bar() {
   struct p x, y;
@@ -54,3 +67,9 @@ struct np *bar() {
   return z;
 }
 //struct np *bar() {
+//CHECK_NOALL: struct np *bar() {
+//CHECK_NOALL:   struct np *z = sus(x, y);
+//CHECK_NOALL: //struct np *bar() {
+//CHECK_ALL: struct np *bar() {
+//CHECK_ALL:   struct np *z = sus(x, y);
+//CHECK_ALL: //struct np *bar() {
