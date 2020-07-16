@@ -20,6 +20,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "clang/Tooling/Refactoring/SourceCode.h"
 #include <sstream>
+#include <algorithm>
 
 using namespace llvm;
 using namespace clang;
@@ -189,7 +190,12 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
     auto type = FD->getReturnType();
     if (isUncheckedPtr(type))
       Nwild++;
-  }
+    if (any_of(FD->param_begin(), FD->param_end(), [this] (Decl *param) { 
+          auto var = Info.getVariable(param, Context);
+          return isWild(var);
+          }))
+        Nwild++;
+  } 
   handleChildren(C->children());
   return false;
 }

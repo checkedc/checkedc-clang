@@ -4,6 +4,7 @@
 void f(int *x) {}
 
 void foo(char c) { 
+  //CHECK: void foo(char c) {
   unsafe(&c);
 }
 
