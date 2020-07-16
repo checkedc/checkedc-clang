@@ -190,7 +190,8 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
     if (isUncheckedPtr(type))
       Nwild++;
   }
-  return true;
+  handleChildren(C->children());
+  return false;
 }
 
 
@@ -241,10 +242,14 @@ bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) {
   auto T = DR->getType();
   auto D = DR->getDecl();
 
+  llvm::errs() << "Hit declref\n";
+  DR->dump();
+
   if (isWild(Info.getVariable(D, Context)) 
       || (T->isPointerType() && isUncheckedPtr(T)))
     Nwild++;
-  return false;
+
+  return true;
 }
 
 bool CheckedRegionFinder::isUncheckedPtr(QualType Qt) {
