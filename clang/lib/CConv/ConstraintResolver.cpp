@@ -194,17 +194,6 @@ CVarSet ConstraintResolver::getInvalidCastPVCons(Expr *E) {
   return Ret;
 }
 
-CVarSet
-  ConstraintResolver::getOrCreatePersistentConstraints(clang::Expr *E,
-                         llvm::function_ref<CVarSet (clang::Expr *)> ConsGen) {
-  if (hasPersistentConstraints(E))
-    return getPersistentConstraints(E);
-
-  CVarSet Ret = ConsGen(E);
-  storePersistentConstraints(E, Ret);
-  return Ret;
-}
-
 // Returns a set of ConstraintVariables which represent the result of
 // evaluating the expression E. Will explore E recursively, but will
 // ignore parts of it that do not contribute to the final result
@@ -254,307 +243,316 @@ CVarSet
     } else if (CHKCBindTemporaryExpr *CE = dyn_cast<CHKCBindTemporaryExpr>(E)) {
       return getExprConstraintVars(CE->getSubExpr());
     } else {
+
       // Apart from the above expressions constraints for all the other
       // expressions can be cached.
-      auto PersistentExprHandler = [this](Expr *E) {
-        QualType TypE = E->getType();
-        CVarSet EmptyCSet;
-        auto &CS = Info.getConstraints();
-        if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(E)) {
-          assert(ECE->getType() == TypE);
-          // Is cast internally safe? Return WILD if not
-          Expr *TmpE = ECE->getSubExpr();
-          if (TypE->isPointerType() && !isCastSafe(TypE, TmpE->getType()))
-            return getInvalidCastPVCons(E);
+      // First, check if the expression has constraints that are cached?
+      if (hasPersistentConstraints(E)) {
+        return getPersistentConstraints(E);
+      }
+
+      CVarSet Ret = EmptyCSet;
+      if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(E)) {
+        assert(ECE->getType() == TypE);
+        // Is cast internally safe? Return WILD if not
+        Expr *TmpE = ECE->getSubExpr();
+        if (TypE->isPointerType() && !isCastSafe(TypE, TmpE->getType()))
+          Ret = getInvalidCastPVCons(E);
           // NB: Expression ECE itself handled in
           // ConstraintBuilder::FunctionVisitor
-          else
-            return getExprConstraintVars(TmpE);
-        }
+        else
+          Ret = getExprConstraintVars(TmpE);
+      }
         // x = y, x+y, x+=y, etc.
-        else if (BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
-          switch (BO->getOpcode()) {
-            // Assignment, comma operators; only care about LHS.
-          case BO_Assign:
-          case BO_AddAssign:
-          case BO_SubAssign:
-            return getExprConstraintVars(BO->getLHS());
-          case BO_Comma:
-            return getExprConstraintVars(BO->getRHS());
-            // Possible pointer arithmetic: Could be LHS or RHS.
-          case BO_Add:
-          case BO_Sub:
-            if (BO->getLHS()->getType()->isPointerType())
-              return getExprConstraintVars(BO->getLHS());
-            else if (BO->getRHS()->getType()->isPointerType())
-              return getExprConstraintVars(BO->getRHS());
-            else
-              return PVConstraintFromType(TypE);
-            // Pointer-to-member ops unsupported.
-          case BO_PtrMemD:
-          case BO_PtrMemI:
-            assert(false && "Bogus pointer-to-member operator");
-            break;
-            // Bit-shift/arithmetic/assign/comp operators
-            // return ints; do nothing.
-          case BO_ShlAssign:
-          case BO_ShrAssign:
-          case BO_AndAssign:
-          case BO_XorAssign:
-          case BO_OrAssign:
-          case BO_MulAssign:
-          case BO_DivAssign:
-          case BO_RemAssign:
-          case BO_And:
-          case BO_Or:
-          case BO_Mul:
-          case BO_Div:
-          case BO_Rem:
-          case BO_Xor:
-          case BO_Cmp:
-          case BO_EQ:
-          case BO_NE:
-          case BO_GE:
-          case BO_GT:
-          case BO_LE:
-          case BO_LT:
-          case BO_LAnd:
-          case BO_LOr:
-          case BO_Shl:
-          case BO_Shr:
-            return PVConstraintFromType(TypE);
-          }
-          return EmptyCSet;
-          // x[e]
-        } else if (ArraySubscriptExpr *ASE = dyn_cast<ArraySubscriptExpr>(E)) {
-          CVarSet T = getExprConstraintVars(ASE->getBase());
-          CVarSet tmp = handleDeref(T);
-          T.swap(tmp);
-          return T;
-          // ++e, &e, *e, etc.
-        } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
-          Expr *UOExpr = UO->getSubExpr();
-          switch (UO->getOpcode()) {
-            // &e
-            // C99 6.5.3.2: "The operand of the unary & operator shall be
-            // either a function designator, the result of a [] or
-            // unary * operator, or an lvalue that designates an object that is
-            // not a bit-field and is not declared with the register
-            // storage-class specifier."
-          case UO_AddrOf: {
+      else if (BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
+        switch (BO->getOpcode()) {
+          // Assignment, comma operators; only care about LHS.
+        case BO_Assign:
+        case BO_AddAssign:
+        case BO_SubAssign:
+          Ret = getExprConstraintVars(BO->getLHS());
+          break;
+        case BO_Comma:
+          Ret = getExprConstraintVars(BO->getRHS());
+          break;
+          // Possible pointer arithmetic: Could be LHS or RHS.
+        case BO_Add:
+        case BO_Sub:
+          if (BO->getLHS()->getType()->isPointerType())
+            Ret = getExprConstraintVars(BO->getLHS());
+          else if (BO->getRHS()->getType()->isPointerType())
+            Ret = getExprConstraintVars(BO->getRHS());
+          else
+            Ret = PVConstraintFromType(TypE);
+          break;
+          // Pointer-to-member ops unsupported.
+        case BO_PtrMemD:
+        case BO_PtrMemI:
+          assert(false && "Bogus pointer-to-member operator");
+          break;
+          // Bit-shift/arithmetic/assign/comp operators
+          // Ret = ints; do nothing.
+        case BO_ShlAssign:
+        case BO_ShrAssign:
+        case BO_AndAssign:
+        case BO_XorAssign:
+        case BO_OrAssign:
+        case BO_MulAssign:
+        case BO_DivAssign:
+        case BO_RemAssign:
+        case BO_And:
+        case BO_Or:
+        case BO_Mul:
+        case BO_Div:
+        case BO_Rem:
+        case BO_Xor:
+        case BO_Cmp:
+        case BO_EQ:
+        case BO_NE:
+        case BO_GE:
+        case BO_GT:
+        case BO_LE:
+        case BO_LT:
+        case BO_LAnd:
+        case BO_LOr:
+        case BO_Shl:
+        case BO_Shr:
+          Ret = PVConstraintFromType(TypE);
+          break;
+        }
+        // x[e]
+      } else if (ArraySubscriptExpr *ASE = dyn_cast<ArraySubscriptExpr>(E)) {
+        CVarSet T = getExprConstraintVars(ASE->getBase());
+        CVarSet tmp = handleDeref(T);
+        T.swap(tmp);
+        Ret = T;
+        // ++e, &e, *e, etc.
+      } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
+        Expr *UOExpr = UO->getSubExpr();
+        switch (UO->getOpcode()) {
+          // &e
+          // C99 6.5.3.2: "The operand of the unary & operator shall be
+          // either a function designator, the result of a [] or
+          // unary * operator, or an lvalue that designates an object that is
+          // not a bit-field and is not declared with the register
+          // storage-class specifier."
+        case UO_AddrOf: {
 
-            UOExpr = UOExpr->IgnoreParenImpCasts();
-            // Taking the address of a dereference is a NoOp, so the constraint
-            // vars for the subexpression can be passed through.
-            // FIXME: We've dumped implicit casts on UOEXpr; restore?
-            if (UnaryOperator *SubUO = dyn_cast<UnaryOperator>(UOExpr)) {
-              if (SubUO->getOpcode() == UO_Deref)
-                return getExprConstraintVars(SubUO->getSubExpr());
-              // else, fall through
-            } else if (ArraySubscriptExpr *ASE =
-                           dyn_cast<ArraySubscriptExpr>(UOExpr)) {
-              return getExprConstraintVars(ASE->getBase());
-            }
+          UOExpr = UOExpr->IgnoreParenImpCasts();
+          // Taking the address of a dereference is a NoOp, so the constraint
+          // vars for the subexpression can be passed through.
+          // FIXME: We've dumped implicit casts on UOEXpr; restore?
+          if (UnaryOperator *SubUO = dyn_cast<UnaryOperator>(UOExpr)) {
+            if (SubUO->getOpcode() == UO_Deref)
+              Ret = getExprConstraintVars(SubUO->getSubExpr());
+            // else, fall through
+          } else if (ArraySubscriptExpr *ASE =
+              dyn_cast<ArraySubscriptExpr>(UOExpr)) {
+            Ret = getExprConstraintVars(ASE->getBase());
+          } else {
             // add a VarAtom to UOExpr's PVConstraint, for &
             CVarSet T = getExprConstraintVars(UOExpr);
             assert("Empty constraint vars in AddrOf!" && !T.empty());
-            return addAtomAll(T, CS.getPtr(), CS);
+            Ret = addAtomAll(T, CS.getPtr(), CS);
           }
+          break;
+        }
           // *e
-          case UO_Deref: {
-            // We are dereferencing, so don't assign to LHS
-            CVarSet T = getExprConstraintVars(UOExpr);
-            return handleDeref(T);
-          }
-            /* Operations on lval; if pointer, just process that */
-            // e++, e--, ++e, --e
-          case UO_PostInc:
-          case UO_PostDec:
-          case UO_PreInc:
-          case UO_PreDec:
-            return getExprConstraintVars(UOExpr);
-            /* Integer operators */
-            // +e, -e, ~e
-          case UO_Plus:
-          case UO_Minus:
-          case UO_LNot:
-          case UO_Not:
-            return PVConstraintFromType(TypE);
-          case UO_Coawait:
-          case UO_Real:
-          case UO_Imag:
-          case UO_Extension:
-            assert(false && "Unsupported unary operator");
-            break;
-          }
-          return EmptyCSet;
-          // f(e1,e2, ...)
-        } else if (CallExpr *CE = dyn_cast<CallExpr>(E)) {
-          // Call expression should always get out-of context constraint variable.
-          CVarSet ReturnCVs;
+        case UO_Deref: {
+          // We are dereferencing, so don't assign to LHS
+          CVarSet T = getExprConstraintVars(UOExpr);
+          Ret = handleDeref(T);
+          break;
+        }
+          /* Operations on lval; if pointer, just process that */
+          // e++, e--, ++e, --e
+        case UO_PostInc:
+        case UO_PostDec:
+        case UO_PreInc:
+        case UO_PreDec:
+          Ret = getExprConstraintVars(UOExpr);
+          break;
+          /* Integer operators */
+          // +e, -e, ~e
+        case UO_Plus:
+        case UO_Minus:
+        case UO_LNot:
+        case UO_Not:
+          Ret = PVConstraintFromType(TypE);
+          break;
+        case UO_Coawait:
+        case UO_Real:
+        case UO_Imag:
+        case UO_Extension:
+          assert(false && "Unsupported unary operator");
+          break;
+        }
+        // f(e1,e2, ...)
+      } else if (CallExpr *CE = dyn_cast<CallExpr>(E)) {
+        // Call expression should always get out-of context constraint variable.
+        CVarSet ReturnCVs;
 
-          // Here, we need to look up the target of the call and return the
-          // constraints for the return value of that function.
-          QualType ExprType = E->getType();
-          Decl *D = CE->getCalleeDecl();
-          CVarSet ReallocFlow;
-          if (D == nullptr) {
-            // There are a few reasons that we couldn't get a decl. For example,
-            // the call could be done through an array subscript.
-            Expr *CalledExpr = CE->getCallee();
-            CVarSet tmp = getExprConstraintVars(CalledExpr);
+        // Here, we need to look up the target of the call and return the
+        // constraints for the return value of that function.
+        QualType ExprType = E->getType();
+        Decl *D = CE->getCalleeDecl();
+        CVarSet ReallocFlow;
+        if (D == nullptr) {
+          // There are a few reasons that we couldn't get a decl. For example,
+          // the call could be done through an array subscript.
+          Expr *CalledExpr = CE->getCallee();
+          CVarSet tmp = getExprConstraintVars(CalledExpr);
 
-            for (ConstraintVariable *C : tmp) {
-              if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
+          for (ConstraintVariable *C : tmp) {
+            if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
+              ReturnCVs.insert(FV->getReturnVars().begin(),
+                               FV->getReturnVars().end());
+            } else if (PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
+              if (FVConstraint *FV = PV->getFV()) {
                 ReturnCVs.insert(FV->getReturnVars().begin(),
                                  FV->getReturnVars().end());
-              } else if (PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
-                if (FVConstraint *FV = PV->getFV()) {
-                  ReturnCVs.insert(FV->getReturnVars().begin(),
-                                   FV->getReturnVars().end());
+              }
+            }
+          }
+        } else if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
+          /* Allocator call */
+          if (isFunctionAllocator(FD->getName())) {
+            bool didInsert = false;
+            if (CE->getNumArgs() > 0) {
+              QualType ArgTy;
+              std::string FuncName = FD->getNameAsString();
+              ConstAtom *A;
+              A = analyzeAllocExpr(CE, CS, ArgTy, FuncName, Context);
+              if (A) {
+                std::string N = FD->getName();
+                N = "&" + N;
+                ExprType = Context->getPointerType(ArgTy);
+                PVConstraint *PVC =
+                    new PVConstraint(ExprType, nullptr, N, Info, *Context);
+                PVC->constrainOuterTo(CS, A, true);
+                ReturnCVs.insert(PVC);
+                didInsert = true;
+                if (FuncName.compare("realloc") == 0) {
+                  // We will constrain the first arg to the return of
+                  // realloc, below
+                  ReallocFlow = getExprConstraintVars(
+                      CE->getArg(0)->IgnoreParenImpCasts());
                 }
               }
             }
-          } else if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
-            /* Allocator call */
-            if (isFunctionAllocator(FD->getName())) {
-              bool didInsert = false;
-              if (CE->getNumArgs() > 0) {
-                QualType ArgTy;
-                std::string FuncName = FD->getNameAsString();
-                ConstAtom *A;
-                A = analyzeAllocExpr(CE, CS, ArgTy, FuncName, Context);
-                if (A) {
-                  std::string N = FD->getName();
-                  N = "&" + N;
-                  ExprType = Context->getPointerType(ArgTy);
-                  PVConstraint *PVC =
-                      new PVConstraint(ExprType, nullptr, N, Info, *Context);
-                  PVC->constrainOuterTo(CS, A, true);
-                  ReturnCVs.insert(PVC);
-                  didInsert = true;
-                  if (FuncName.compare("realloc") == 0) {
-                    // We will constrain the first arg to the return of
-                    // realloc, below
-                    ReallocFlow = getExprConstraintVars(
-                        CE->getArg(0)->IgnoreParenImpCasts());
-                  }
-                }
-              }
-              if (!didInsert)
-                ReturnCVs.insert(
-                    PVConstraint::getWildPVConstraint(Info.getConstraints()));
+            if (!didInsert)
+              ReturnCVs.insert(
+                  PVConstraint::getWildPVConstraint(Info.getConstraints()));
 
-              /* Normal function call */
-            } else {
-              CVarSet TmpCSet = Info.getVariable(FD, Context);
-              ConstraintVariable *J = getOnly(TmpCSet);
-              /* Direct function call */
-              if (FVConstraint *FVC = dyn_cast<FVConstraint>(J))
+            /* Normal function call */
+          } else {
+            CVarSet TmpCSet = Info.getVariable(FD, Context);
+            ConstraintVariable *J = getOnly(TmpCSet);
+            /* Direct function call */
+            if (FVConstraint *FVC = dyn_cast<FVConstraint>(J))
+              ReturnCVs.insert(FVC->getReturnVars().begin(),
+                               FVC->getReturnVars().end());
+              /* Call via function pointer */
+            else {
+              PVConstraint *tmp = dyn_cast<PVConstraint>(J);
+              assert(tmp != nullptr);
+              if (FVConstraint *FVC = tmp->getFV())
                 ReturnCVs.insert(FVC->getReturnVars().begin(),
                                  FVC->getReturnVars().end());
-              /* Call via function pointer */
               else {
-                PVConstraint *tmp = dyn_cast<PVConstraint>(J);
-                assert(tmp != nullptr);
-                if (FVConstraint *FVC = tmp->getFV())
-                  ReturnCVs.insert(FVC->getReturnVars().begin(),
-                                   FVC->getReturnVars().end());
-                else {
-                  // No FVConstraint -- make WILD
-                  auto *TmpFV = new FVConstraint();
-                  ReturnCVs.insert(TmpFV);
-                }
+                // No FVConstraint -- make WILD
+                auto *TmpFV = new FVConstraint();
+                ReturnCVs.insert(TmpFV);
               }
             }
-          } else {
-            // If it ISN'T, though... what to do? How could this happen?
-            llvm_unreachable("TODO");
           }
-
-          // This is R-Value, we need to make a copy of the resulting
-          // ConstraintVariables.
-          CVarSet TmpCVs;
-          for (ConstraintVariable *CV : ReturnCVs) {
-            ConstraintVariable *NewCV = CV->getCopy(CS);
-            // Important: Do Safe_to_Wild from returnvar in this copy, which then
-            //   might be assigned otherwise (Same_to_Same) to LHS
-            constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false,
-                                &Info);
-            TmpCVs.insert(NewCV);
-            // If this is realloc, constrain the first arg to flow to the return
-            if (!ReallocFlow.empty()) {
-              for (auto &Constraint : ReallocFlow)
-                constrainConsVarGeq(NewCV, Constraint, Info.getConstraints(),
-                                    nullptr, Wild_to_Safe, false, &Info);
-            }
-          }
-          return TmpCVs;
-          // e1 ? e2 : e3
-        } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
-          std::vector<Expr *> SubExprs;
-          SubExprs.push_back(CO->getLHS());
-          SubExprs.push_back(CO->getRHS());
-          return getAllSubExprConstraintVars(SubExprs);
-          // { e1, e2, e3, ... }
-        } else if (InitListExpr *ILE = dyn_cast<InitListExpr>(E)) {
-          std::vector<Expr *> SubExprs = ILE->inits().vec();
-          CVarSet CVars = getAllSubExprConstraintVars(SubExprs);
-          if (ILE->getType()->isArrayType()) {
-            // Array initialization is similar AddrOf, so the same pattern is
-            // used where a new indirection is added to constraint variables.
-            return addAtomAll(CVars, CS.getArr(), CS);
-          } else {
-            // This branch should only be taken on compound literal expressions
-            // with pointer type (e.g. int *a = (int*){(int*) 1}).
-            // In particular, structure initialization should not reach here,
-            // as that caught by the non-pointer check at the top of this
-            // method.
-            assert("InitlistExpr of type other than array or pointer in "
-                   "getExprConstraintVars" &&
-                   ILE->getType()->isPointerType());
-            return CVars;
-          }
-          // (int[]){e1, e2, e3, ... }
-        } else if (CompoundLiteralExpr *CLE =
-                       dyn_cast<CompoundLiteralExpr>(E)) {
-          CVarSet T;
-          CVarSet Vars = getExprConstraintVars(CLE->getInitializer());
-
-          PVConstraint *P =
-              new PVConstraint(CLE->getType(), nullptr, CLE->getStmtClassName(),
-                               Info, *Context, nullptr);
-          T = {P};
-
-          PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CLE, *Context);
-          constrainConsVarGeq(T, Vars, Info.getConstraints(), &PL, Same_to_Same,
-                              false, &Info);
-
-          return T;
-          // "foo"
-        } else if (clang::StringLiteral *Str =
-                       dyn_cast<clang::StringLiteral>(E)) {
-          CVarSet T;
-          // If this is a string literal. i.e., "foo".
-          // We create a new constraint variable and constraint it to an Nt_array.
-
-          PVConstraint *P =
-              new PVConstraint(Str->getType(), nullptr, Str->getStmtClassName(),
-                               Info, *Context, nullptr);
-          P->constrainOuterTo(CS, CS.getNTArr()); // NB: ARR already there
-          T = {P};
-
-          return T;
         } else {
-          if (Verbose) {
-            llvm::errs() << "WARNING! Initialization expression ignored: ";
-            E->dump(llvm::errs());
-            llvm::errs() << "\n";
-          }
-          return EmptyCSet;
+          // If it ISN'T, though... what to do? How could this happen?
+          llvm_unreachable("TODO");
         }
-      };
-      return getOrCreatePersistentConstraints(E, PersistentExprHandler);
+
+        // This is R-Value, we need to make a copy of the resulting
+        // ConstraintVariables.
+        CVarSet TmpCVs;
+        for (ConstraintVariable *CV : ReturnCVs) {
+          ConstraintVariable *NewCV = CV->getCopy(CS);
+          // Important: Do Safe_to_Wild from returnvar in this copy, which then
+          //   might be assigned otherwise (Same_to_Same) to LHS
+          constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false,
+                              &Info);
+          TmpCVs.insert(NewCV);
+          // If this is realloc, constrain the first arg to flow to the return
+          if (!ReallocFlow.empty()) {
+            for (auto &Constraint : ReallocFlow)
+              constrainConsVarGeq(NewCV, Constraint, Info.getConstraints(),
+                                  nullptr, Wild_to_Safe, false, &Info);
+          }
+        }
+        Ret = TmpCVs;
+        // e1 ? e2 : e3
+      } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
+        std::vector<Expr *> SubExprs;
+        SubExprs.push_back(CO->getLHS());
+        SubExprs.push_back(CO->getRHS());
+        Ret = getAllSubExprConstraintVars(SubExprs);
+        // { e1, e2, e3, ... }
+      } else if (InitListExpr *ILE = dyn_cast<InitListExpr>(E)) {
+        std::vector<Expr *> SubExprs = ILE->inits().vec();
+        CVarSet CVars = getAllSubExprConstraintVars(SubExprs);
+        if (ILE->getType()->isArrayType()) {
+          // Array initialization is similar AddrOf, so the same pattern is
+          // used where a new indirection is added to constraint variables.
+          Ret = addAtomAll(CVars, CS.getArr(), CS);
+        } else {
+          // This branch should only be taken on compound literal expressions
+          // with pointer type (e.g. int *a = (int*){(int*) 1}).
+          // In particular, structure initialization should not reach here,
+          // as that caught by the non-pointer check at the top of this
+          // method.
+          assert("InitlistExpr of type other than array or pointer in "
+                 "getExprConstraintVars" &&
+              ILE->getType()->isPointerType());
+          Ret = CVars;
+        }
+        // (int[]){e1, e2, e3, ... }
+      } else if (CompoundLiteralExpr *CLE =
+          dyn_cast<CompoundLiteralExpr>(E)) {
+        CVarSet T;
+        CVarSet Vars = getExprConstraintVars(CLE->getInitializer());
+
+        PVConstraint *P =
+            new PVConstraint(CLE->getType(), nullptr, CLE->getStmtClassName(),
+                             Info, *Context, nullptr);
+        T = {P};
+
+        PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CLE, *Context);
+        constrainConsVarGeq(T, Vars, Info.getConstraints(), &PL, Same_to_Same,
+                            false, &Info);
+
+        Ret = T;
+        // "foo"
+      } else if (clang::StringLiteral *Str =
+          dyn_cast<clang::StringLiteral>(E)) {
+        CVarSet T;
+        // If this is a string literal. i.e., "foo".
+        // We create a new constraint variable and constraint it to an Nt_array.
+
+        PVConstraint *P =
+            new PVConstraint(Str->getType(), nullptr, Str->getStmtClassName(),
+                             Info, *Context, nullptr);
+        P->constrainOuterTo(CS, CS.getNTArr()); // NB: ARR already there
+        T = {P};
+
+        Ret = T;
+      } else {
+        if (Verbose) {
+          llvm::errs() << "WARNING! Initialization expression ignored: ";
+          E->dump(llvm::errs());
+          llvm::errs() << "\n";
+        }
+      }
+      storePersistentConstraints(E, Ret);
+      return Ret;
     }
   }
   return EmptyCSet;

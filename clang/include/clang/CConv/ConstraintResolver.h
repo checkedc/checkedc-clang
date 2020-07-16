@@ -65,9 +65,6 @@ private:
   CVarSet getWildPVConstraint();
   CVarSet PVConstraintFromType(QualType TypE);
 
-  CVarSet getOrCreatePersistentConstraints(clang::Expr *E,
-                                           llvm::function_ref<CVarSet (clang::Expr *)>);
-
   CVarSet getAllSubExprConstraintVars(std::vector<Expr *> &Exprs);
   CVarSet getBaseVarPVConstraint(DeclRefExpr *Decl);
   bool hasPersistentConstraints(clang::Expr *E);
