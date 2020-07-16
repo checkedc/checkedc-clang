@@ -29,6 +29,10 @@ class ProgramInfo;
 
 class ProgramInfo {
 public:
+  typedef std::map<unsigned int, std::string> CallTypeParamBindingsType;
+  typedef std::map<PersistentSourceLoc, CallTypeParamBindingsType>
+      TypeParamBindingsType;
+
   typedef std::map<std::string, std::map<std::string, std::set<FVConstraint *>>>
       StaticFunctionMapType;
 
@@ -99,8 +103,9 @@ public:
   void setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
                            std::string TyStr, ASTContext *C);
   bool hasTypeParamBindings(CallExpr *CE, ASTContext *C);
-  const map<unsigned int, std::string> &getTypeParamBindings (CallExpr *CE,
-                                                              ASTContext *C);
+  std::pair<CallTypeParamBindingsType::const_iterator,
+            CallTypeParamBindingsType::const_iterator>
+      getTypeParamBindings( CallExpr *CE, ASTContext *C);
 
 private:
   // List of all constraint variables, indexed by their location in the source.
@@ -132,8 +137,7 @@ private:
 
   // For each call to a generic function, remember how the type parameters were
   // instantiated so they can be inserted during rewriting.
-  std::map<PersistentSourceLoc, std::map<unsigned int, std::string>>
-      TypeParamBindings;
+  TypeParamBindingsType TypeParamBindings;
 
   // Function to check if an external symbol is okay to leave
   // constrained.
