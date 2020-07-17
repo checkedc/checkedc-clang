@@ -203,16 +203,8 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
 
 bool CheckedRegionFinder::VisitVarDecl(VarDecl *VD) {
   // Check if the variable is WILD.
-  bool FoundWild = false;
-  std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context);
-  for (auto Cv : CVSet) {
-    if (Cv->hasWild(Info.getConstraints().getVariables())) {
-      FoundWild = true;
-    }
-  }
-
-  if (FoundWild)
-    Nwild++;
+  auto CVSet = Info.getVariable(VD, Context);
+  isWild(CVSet);
 
 
   // Check if the variable contains an unchecked type.
@@ -250,8 +242,16 @@ bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) {
   auto D = DR->getDecl();
   auto var = Info.getVariable(D, Context);
 
-  if (isWild(var)
-      || (T->isPointerType() && isUncheckedPtr(T)))
+  bool IW = isWild(var);
+
+  if (auto FD = dyn_cast<FunctionDecl>(D)) { 
+    for (const auto& param: FD->parameters()) { 
+      auto pv = Info.getVariable(param, Context);
+      IW |= isWild(pv);
+    }
+  }
+
+  if (IW || isUncheckedPtr(T))
     Nwild++;
 
   return true;
