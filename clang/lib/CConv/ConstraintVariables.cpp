@@ -117,10 +117,12 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
                                                      std::string N,
                                                      ProgramInfo &I,
                                                      const ASTContext &C,
-                                                     std::string *inFunc) :
+                                                     std::string *inFunc,
+                                                     bool Generic) :
         ConstraintVariable(ConstraintVariable::PointerVariable,
                            tyToStr(QT.getTypePtr()),N), FV(nullptr),
-        partOFFuncPrototype(inFunc != nullptr), Parent(nullptr)
+        partOFFuncPrototype(inFunc != nullptr), Parent(nullptr),
+        IsGeneric(Generic)
 {
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
@@ -728,9 +730,10 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
           PName = PVD->getName();
         }
       }
-
+      bool IsGeneric = ParmVD != nullptr &&
+                       getTypeVariableType(ParmVD) != nullptr;
       std::set<ConstraintVariable *> C;
-      C.insert(new PVConstraint(QT, ParmVD, PName, I, Ctx, &N));
+      C.insert(new PVConstraint(QT, ParmVD, PName, I, Ctx, &N, IsGeneric));
       paramVars.push_back(C);
     }
 
@@ -1419,7 +1422,8 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
               n++;
             }
           // Unequal sizes means casting from (say) T** to T*; not safe.
-          } else {
+          // unless assigning to a generic type.
+          } else if (!PCLHS->GetIsGeneric()) {
             // Constrain both to be top.
             std::string Rsn = "Assigning from:" + PCRHS->getName() + " to " +
                               PCLHS->getName();
