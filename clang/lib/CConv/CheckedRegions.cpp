@@ -237,21 +237,31 @@ bool CheckedRegionFinder::isWild(std::set<ConstraintVariable*> &S) {
   return false;
 }
 
+bool CheckedRegionFinder::isWild(std::set<FVConstraint*> *S) { 
+  for (auto Fv : *S) 
+    if (Fv->hasWild(Info.getConstraints().getVariables()))
+      return true;
+  return false;
+}
+
 bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) { 
   auto T = DR->getType();
   auto D = DR->getDecl();
   auto var = Info.getVariable(D, Context);
 
-  bool IW = isWild(var);
+  bool IW = isWild(var) || isUncheckedPtr(T);
+
 
   if (auto FD = dyn_cast<FunctionDecl>(D)) { 
+    auto FV = Info.getFuncConstraints(FD, Context);
+    IW |= isWild(FV);
     for (const auto& param: FD->parameters()) { 
       auto pv = Info.getVariable(param, Context);
       IW |= isWild(pv);
     }
   }
 
-  if (IW || isUncheckedPtr(T))
+  if (IW) 
     Nwild++;
 
   return true;
@@ -274,7 +284,16 @@ bool CheckedRegionFinder::isUncheckedPtrAcc(QualType Qt, std::set<std::string> &
     return false;
   }
 
-  if (Ct->isVoidPointerType()) {
+  if (Ct->isFunctionPointerType()) {
+    if (auto FPT = dyn_cast<FunctionProtoType>(Ct->getPointeeType())) { 
+      auto PTs = FPT->getParamTypes();
+      bool params = any_of(PTs.begin(), PTs.end(), 
+          [this, &Seen] (QualType QT) { return isUncheckedPtrAcc(QT, Seen); });
+      return isUncheckedPtrAcc(FPT->getReturnType(), Seen) || params;
+    } else { 
+      return false;
+    }
+  } else if (Ct->isVoidPointerType()) {
     return true;
   } else if (Ct->isVoidType()) {
     return true;
