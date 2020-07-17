@@ -325,6 +325,7 @@ public:
   std::string FileName = "";
   unsigned LineNo = 0;
   unsigned ColStart = 0;
+  unsigned ColEnd = 0;
   Constraint(ConstraintKind K) : Kind(K) { }
   Constraint(ConstraintKind K, const std::string &rsn) : Kind(K) {
     REASON = rsn;

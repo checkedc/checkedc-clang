@@ -30,6 +30,7 @@ Constraint::Constraint(ConstraintKind K, const std::string &Rsn,
     FileName = PL->getFileName();
     LineNo = PL->getLineNo();
     ColStart = PL->getColSNo();
+    ColEnd = PL->getColENo();
   }
 }
 

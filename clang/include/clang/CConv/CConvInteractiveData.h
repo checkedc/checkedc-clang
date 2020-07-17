@@ -22,7 +22,8 @@ struct WildPointerInferenceInfo {
   std::string WildPtrReason = "";
   bool IsValid = false;
   unsigned LineNo = 0;
-  unsigned ColStart = 0;
+  unsigned ColStartS = 0;
+  unsigned ColStartE = 0;
 };
 
 // Constraints information.

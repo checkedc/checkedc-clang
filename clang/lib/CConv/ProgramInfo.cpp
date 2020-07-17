@@ -799,7 +799,8 @@ bool ProgramInfo::computeInterimConstraintState() {
           WildPtrsReason[VLhs->getLoc()].IsValid = true;
           WildPtrsReason[VLhs->getLoc()].SourceFileName = EC->FileName;
           WildPtrsReason[VLhs->getLoc()].LineNo = EC->LineNo;
-          WildPtrsReason[VLhs->getLoc()].ColStart = EC->ColStart;
+          WildPtrsReason[VLhs->getLoc()].ColStartS = EC->ColStart;
+          WildPtrsReason[VLhs->getLoc()].ColStartE = EC->ColEnd;
         }
         WildPtrs.insert(VLhs->getLoc());
       }
