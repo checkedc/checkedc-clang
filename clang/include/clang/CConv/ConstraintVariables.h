@@ -73,11 +73,13 @@ protected:
   bool ValidBoundsKey;
   // Bounds key of this Constraint Variable.
   BoundsKey BKey;
+  // Is this Constraint Variable for a declaration?
+  bool IsForDecl;
 
   // Only subclasses should call this
   ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) :
       Kind(K),OriginalType(T),Name(N), HasEqArgumentConstraints(false),
-      ValidBoundsKey(false) {}
+      ValidBoundsKey(false), IsForDecl(false) {}
 
 public:
   // Create a "for-rewriting" representation of this ConstraintVariable.
@@ -131,6 +133,9 @@ public:
   // used for rewriting.
   std::string getRewritableOriginalTy();
   std::string getName() const { return Name; }
+
+  void setValidDecl() { IsForDecl = true; }
+  bool isForValidDecl() { return IsForDecl; }
 
   virtual ConstraintVariable *getCopy(Constraints &CS) = 0;
 

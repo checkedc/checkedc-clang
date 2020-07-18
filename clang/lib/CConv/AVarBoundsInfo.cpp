@@ -15,13 +15,23 @@
 #include <boost/graph/breadth_first_search.hpp>
 #include <boost/graph/reverse_graph.hpp>
 
-void AVarBoundsStats::print(llvm::raw_ostream &O) const {
-  O << "Array Bounds Inference Stats:\n";
-  O << "NamePrefixMatch:" << NamePrefixMatch.size() << "\n";
-  O << "AllocatorMatch:" << AllocatorMatch.size() << "\n";
-  O << "VariableNameMatch:" << VariableNameMatch.size() << "\n";
-  O << "NeighbourParamMatch:" << NeighbourParamMatch.size() << "\n";
-  O << "DataflowMatch:" << DataflowMatch.size() << "\n";
+void AVarBoundsStats::print(llvm::raw_ostream &O, bool JsonFormat) const {
+  if (!JsonFormat) {
+    O << "Array Bounds Inference Stats:\n";
+    O << "NamePrefixMatch:" << NamePrefixMatch.size() << "\n";
+    O << "AllocatorMatch:" << AllocatorMatch.size() << "\n";
+    O << "VariableNameMatch:" << VariableNameMatch.size() << "\n";
+    O << "NeighbourParamMatch:" << NeighbourParamMatch.size() << "\n";
+    O << "DataflowMatch:" << DataflowMatch.size() << "\n";
+  } else {
+    O << "\"ArrayBoundsInferenceStats\":{";
+    O << "\"NamePrefixMatch\":" << NamePrefixMatch.size() << ",\n";
+    O << "\"AllocatorMatch\":" << AllocatorMatch.size() << ",\n";
+    O << "\"VariableNameMatch\":" << VariableNameMatch.size() << ",\n";
+    O << "\"NeighbourParamMatch\":" << NeighbourParamMatch.size() << ",\n";
+    O << "\"DataflowMatch\":" << DataflowMatch.size() << ",\n";
+    O << "}";
+  }
 }
 
 bool AVarBoundsInfo::isValidBoundVariable(clang::Decl *D) {
@@ -658,4 +668,21 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
 
 void AVarBoundsInfo::dumpAVarGraph(const std::string &DFPath) {
   ProgVarGraph.dumpCGDot(DFPath, this);
+}
+
+void AVarBoundsInfo::print_stats(llvm::raw_ostream &O, bool JsonFormat) const {
+  if (!JsonFormat) {
+    O << "NumPointersNeedBounds:" << ArrPointerBoundsKey.size() << ",\n";
+    O << "Details:\n";
+    O << "Invalid:" << InvalidBounds.size() << "\n,BoundsFound:\n";
+    BoundsInferStats.print(O, JsonFormat);
+  } else {
+    O << "{\"NumPointersNeedBounds\":" << ArrPointerBoundsKey.size() << ",";
+    O << "\"Details\":{";
+    O << "\"Invalid\":" << InvalidBounds.size() << ",\"BoundsFound\":{";
+    BoundsInferStats.print(O, JsonFormat);
+    O << "}";
+    O << "}";
+    O << "}";
+  }
 }

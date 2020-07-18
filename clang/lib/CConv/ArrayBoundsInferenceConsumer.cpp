@@ -567,6 +567,8 @@ bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
                 new ByteBound(ABoundsInfo.getConstKey(SL->getByteLength()));
             if (!ABoundsInfo.mergeBounds(DeclKey, ByBounds)) {
               delete (ByBounds);
+            } else {
+              ABoundsInfo.getBStats().AllocatorMatch.insert(DeclKey);
             }
           }
         }

@@ -31,6 +31,7 @@ class PersistentSourceLoc;
 class ConstraintsGraph;
 
 #define DEFAULT_REASON "UNKNOWN_REASON"
+#define POINTER_IS_ARRAY_REASON "Pointer is array but alltypes is disabled."
 
 template<typename T>
 struct PComp
@@ -344,6 +345,9 @@ public:
   virtual bool operator<(const Constraint &other) const = 0;
   virtual std::string getReason() {
     return REASON;
+  }
+  virtual void setReason(const std::string &Rsn) {
+    REASON = Rsn;
   }
 };
 

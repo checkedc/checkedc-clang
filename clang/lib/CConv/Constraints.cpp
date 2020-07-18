@@ -70,11 +70,13 @@ void Constraints::editConstraintHook(Constraint *C) {
         if (RHSA) {
           if (!dyn_cast<PtrAtom>(E->getLHS())) {
             E->setChecked(getWild());
+            E->setReason(POINTER_IS_ARRAY_REASON);
           }
         } else {
           assert (LHSA && "Adding constraint between constants?!");
           if (!dyn_cast<PtrAtom>(E->getRHS())) {
             E->setChecked(getWild());
+            E->setReason(POINTER_IS_ARRAY_REASON);
           }
         }
       }

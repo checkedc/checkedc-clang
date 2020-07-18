@@ -41,7 +41,7 @@ public:
   void dump_json(llvm::raw_ostream &O) const;
   void dump_stats(std::set<std::string> &F) { print_stats(F, llvm::errs()); }
   void print_stats(std::set<std::string> &F, llvm::raw_ostream &O,
-                   bool OnlySummary =false);
+                   bool OnlySummary = false, bool JsonFormat = false);
 
   // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with
   // AST data structures that correspond do the data stored in PDMap and 
@@ -86,7 +86,7 @@ public:
   ConstraintsInfo &getInterimConstraintState() {
     return CState;
   }
-  bool computeInterimConstraintState();
+  bool computeInterimConstraintState(std::set<std::string> &FilePaths);
 
   ExternalFunctionMapType &getExternFuncDefFVMap() {
     return ExternalFunctionFVCons;
