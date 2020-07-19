@@ -5,6 +5,7 @@ struct A {
 };
 
 int foo(struct A *a) { 
+  //CHECK: int foo(struct A *a : itype(_Ptr<struct A>)) _Checked {
   return a->b + 1;
 }
 
