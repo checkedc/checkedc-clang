@@ -35,7 +35,7 @@ bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
     case IS_CHECKED:   
                         auto Loc = S->getBeginLoc();
                         Writer.InsertTextBefore(Loc, "_Checked ");
-                        return false;
+                        return true;
   }
 
   llvm_unreachable("Bad flag in CheckedRegionAdder");
@@ -190,12 +190,12 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
     auto type = FD->getReturnType();
     if (isUncheckedPtr(type))
       Nwild++;
-    if (any_of(FD->param_begin(), FD->param_end(), [this] (Decl *param) { 
+    if (any_of(FD->param_begin(), FD->param_end(), [this] (Decl *param) {
           auto var = Info.getVariable(param, Context);
           return isWild(var);
           }))
         Nwild++;
-  } 
+  }
   handleChildren(C->children());
   return false;
 }
@@ -277,11 +277,12 @@ bool CheckedRegionFinder::isUncheckedPtr(QualType Qt) {
 bool CheckedRegionFinder::isUncheckedPtrAcc(QualType Qt, std::set<std::string> &Seen) {
   auto Ct = Qt.getCanonicalType();
   auto TyStr = Ct.getAsString();
+  bool isSeen;
   auto Search = Seen.find(TyStr);
   if (Search == Seen.end()) {
     Seen.insert(TyStr);
   } else {
-    return false;
+    isSeen = true;
   }
 
   if (Ct->isFunctionPointerType()) {
@@ -300,7 +301,11 @@ bool CheckedRegionFinder::isUncheckedPtrAcc(QualType Qt, std::set<std::string> &
   } if (Ct->isPointerType()) {
     return isUncheckedPtrAcc(Ct->getPointeeType(), Seen);
   } else if (Ct->isRecordType()) {
-    return isUncheckedStruct(Ct, Seen);
+    if (isSeen) {
+      return false;
+    } else {
+      return isUncheckedStruct(Ct, Seen);
+    }
   } else {
     return false;
   }
@@ -336,23 +341,19 @@ bool CheckedRegionFinder::isUncheckedStruct(QualType Qt, std::set<std::string> &
 
 void CheckedRegionFinder::addUncheckedAnnotation(CompoundStmt *S, int Localwild) {
   auto Cur = S->getWrittenCheckedSpecifier();
-
   llvm::FoldingSetNodeID Id;
   S->Profile(Id, *Context, true);
-  auto Search = Seen.find(Id);
 
-  if (Search == Seen.end()) {
-    auto Loc = S->getBeginLoc();
-    bool IsChecked = !hasUncheckedParameters(S) &&
-                   Cur == CheckedScopeSpecifier::CSS_None && Localwild == 0;
 
-    Map[Id] = IsChecked ? IS_CHECKED : IS_UNCHECKED;
+  auto Loc = S->getBeginLoc();
+  bool IsChecked = !hasUncheckedParameters(S) &&
+    Cur == CheckedScopeSpecifier::CSS_None && Localwild == 0;
 
-    // Don't add _Unchecked to top level functions.
-    if ((!IsChecked && !isFunctionBody(S))) {
-      Writer.InsertTextBefore(Loc, "_Unchecked ");
-    }
-  }
+  Map[Id] = IsChecked ? IS_CHECKED : IS_UNCHECKED;
+
+  // Don't add _Unchecked to top level functions.
+  if ((!IsChecked && !isFunctionBody(S)))
+    Writer.InsertTextBefore(Loc, "_Unchecked ");
 }
 
 bool CheckedRegionFinder::isFunctionBody(CompoundStmt *S) {
