@@ -1,4 +1,5 @@
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 
 #include<stdio.h>
 
@@ -47,5 +48,7 @@ void createGraph(struct Graph* G,int V){
 
 }
 //CHECK: void createGraph(_Ptr<struct Graph> G, int V){
-//CHECK: int ** toadd = malloc<int *>(V * sizeof(int*));
-//CHECK: int *adder = malloc<int>(V * sizeof(int));
+//CHECK_NOALL: int ** toadd = malloc<int *>(V * sizeof(int*));
+//CHECK_NOALL: int *adder = malloc<int>(V * sizeof(int));
+//CHECK_ALL: _Array_ptr<_Array_ptr<int>> toadd : count(V) =  malloc<int *>(V * sizeof(int*)); 
+//CHECK_ALL: _Array_ptr<int> adder : count(V) =  malloc<int>(V * sizeof(int));

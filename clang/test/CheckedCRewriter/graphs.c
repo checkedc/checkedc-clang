@@ -1,4 +1,6 @@
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+
 
 #include <stdio.h>
 
@@ -18,12 +20,14 @@ struct node
     struct node* next;
 
 };
-//CHECK: struct node* next;
+//CHECK_NOALL: struct node* next;
+//CHECK_ALL: _Ptr<struct node> next;
 
 //Some declarations
 
 struct node* createNode(int v);
-//CHECK: struct node *createNode(int v) : itype(_Ptr<struct node>);
+//CHECK_NOALL: struct node *createNode(int v) : itype(_Ptr<struct node>);
+//CHECK_ALL: _Ptr<struct node> createNode(int v);
 
 struct Graph
 
@@ -36,6 +40,8 @@ struct Graph
     struct node** adjLists; // we need int** to store a two dimensional array. Similary, we need struct node** to store an array of Linked lists
 
 };
+//CHECK_ALL: _Array_ptr<int> visited : count(numVertices);
+//CHECK_ALL: _Array_ptr<_Ptr<struct node>> adjLists : count(numVertices); // we need int** to store a two dimensional array. Similary, we need struct node** to store an array of Linked lists 
 
 //Structure to create a stack, necessary for topological sorting
 
@@ -48,7 +54,8 @@ struct Stack
 	int top;
 
 };
-//CHECK: int arr[MAX_SIZE];
+//CHECK_NOALL: int arr[MAX_SIZE];
+//CHECK_ALL: int arr _Checked[40];
 
 struct Graph* createGraph(int);
 
@@ -175,7 +182,8 @@ void topologicalSortHelper(int vertex, struct Graph* graph, struct Stack* stack)
 }
 
 //CHECK: void topologicalSortHelper(int vertex, _Ptr<struct Graph> graph, _Ptr<struct Stack> stack)
-//CHECK: struct node* adjList = graph->adjLists[vertex];
+//CHECK_NOALL: struct node* adjList = graph->adjLists[vertex];
+//CHECK_ALL: _Ptr<struct node> adjList =  graph->adjLists[vertex];
 
 
 //Recursive topologial sort approach
@@ -229,7 +237,8 @@ struct node* createNode(int v)
     return newNode;
 
 }
-//CHECK: struct node *createNode(int v) : itype(_Ptr<struct node>)
+//CHECK_NOALL: struct node *createNode(int v) : itype(_Ptr<struct node>)
+//CHECK_ALL: _Ptr<struct node> createNode(int v)
 //CHECK: _Ptr<struct node> newNode =  malloc<struct node>(sizeof(struct node));
 
 //Allocate memory for the entire graph structure
@@ -336,6 +345,7 @@ void push(struct Stack* stack,int element)
 	stack->arr[++stack->top]=element;//Increment then add, as we start from -1
 
 }
+//CHECK: void push(_Ptr<struct Stack> stack, int element) 
 
 //Removes element from stack, or returns INT_MIN if stack empty
 
@@ -352,3 +362,4 @@ int pop(struct Stack* stack)
 		return stack->arr[stack->top--];
 
 }
+//CHECK: int pop(_Ptr<struct Stack> stack) 

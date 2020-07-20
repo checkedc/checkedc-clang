@@ -1,4 +1,5 @@
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,9 +15,9 @@ void basic1() {
 	free(buffer); // Double free
 }
 
-//CHECK: char data[] = "abcdefghijklmnop";
+//CHECK_NOALL: char data[] = "abcdefghijklmnop";
+//CHECK_ALL: char data _Checked[17] =  "abcdefghijklmnop";
 //CHECK: char *buffer = malloc<char>(50);
-//CHECK-NEXT: strcpy(buffer, data);
 
 char* basic2(int temp) {
 	char data[] = "abcdefghijklmnop";
@@ -38,6 +39,8 @@ char* basic2(int temp) {
 	}
 }
 //CHECK: char * basic2(int temp) {
+//CHECK_ALL: char data _Checked[17] =  "abcdefghijklmnop";
+//CHECK_ALL: char data2 _Checked[65] =  "abcdefghijklmnopabcdefghijklmnopabcdefghijklmnopabcdefghijklmnop";
 //CHECK: char *buffer = malloc<char>(8);
 //CHECK: char *buffer = malloc<char>(1024);
 
@@ -171,7 +174,8 @@ void basic_struct(int count) {
     }
 
 }
-//CHECK: struct student *pstd=(struct student*)malloc<struct student>(n*sizeof(struct student));
+//CHECK_NOALL: struct student *pstd=(struct student*)malloc<struct student>(n*sizeof(struct student));
+//CHECK_ALL:  _Array_ptr<struct student> pstd : count(n) = (struct student*)malloc<struct student>(n*sizeof(struct student)); 
 
 struct student * new_student() {
 		char name[] = "Bilbo Baggins";
@@ -182,7 +186,8 @@ struct student * new_student() {
 		return NULL;
 }
 //CHECK: _Ptr<struct student> new_student(void) {
-//CHECK-NEXT: char name[] = "Bilbo Baggins";
+//CHECK_NOALL: char name[] = "Bilbo Baggins";
+//CHECK_ALL: char name _Checked[14] =  "Bilbo Baggins";
 //CHECK: _Ptr<struct student> new_s =  malloc<struct student>(sizeof(struct student));
 
 int main() {

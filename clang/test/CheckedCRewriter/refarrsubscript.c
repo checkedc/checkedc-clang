@@ -1,8 +1,6 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines --check-prefixes="CHECK_ALL" %s
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines --check-prefixes="CHECK_NOALL" %s
-// RUN: cconv-standalone -output-postfix=checked %s 
-// RUN: %clang -c %S/refarrsubscript.checked.c
-// RUN: rm %S/refarrsubscript.checked.c
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 int **func(int **p, int *x) {
   return &(p[1]);
