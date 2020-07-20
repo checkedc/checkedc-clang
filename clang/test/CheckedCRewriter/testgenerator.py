@@ -8,7 +8,7 @@ import subprocess
 #### USERS PUT YOUR INFO HERE ##### 
 
 # Please remember to add a '/' at the very end!
-path_to_monorepo = "/Users/shilpa-roy/checkedc-clang/build/bin/"
+path_to_monorepo ="" #"/Users/shilpa-roy/checkedc-clang/build/bin/"
 
 
 

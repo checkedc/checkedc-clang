@@ -183,8 +183,8 @@ x = (struct general *) 5;
         
 return z; }
 //CHECK_NOALL: struct general ** sus(struct general *x, struct general *y) {
-//CHECK_NOALL:         struct general **z = calloc<struct general *>(5, sizeof(struct general *));
+//CHECK_NOALL:         struct general **z = calloc<struct general*>(5, sizeof(struct general *));
 //CHECK_NOALL:         struct general *curr = y;
 //CHECK_ALL: struct general ** sus(struct general *x, struct general *y) {
-//CHECK_ALL:         struct general **z = calloc<struct general *>(5, sizeof(struct general *));
+//CHECK_ALL:         struct general **z = calloc<struct general*>(5, sizeof(struct general *));
 //CHECK_ALL:         struct general *curr = y;

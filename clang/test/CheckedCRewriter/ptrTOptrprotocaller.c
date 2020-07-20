@@ -127,12 +127,12 @@ char *** foo() {
         char *** z = sus(x, y);
 return z; }
 //CHECK_NOALL: char *** foo() {
-//CHECK_NOALL:         char * * * x = malloc<char **>(sizeof(char * *));
-//CHECK_NOALL:         _Ptr<_Ptr<_Ptr<char>>> y =  malloc<char **>(sizeof(char * *));
+//CHECK_NOALL:         char * * * x = malloc<char**>(sizeof(char * *));
+//CHECK_NOALL:         _Ptr<_Ptr<_Ptr<char>>> y =  malloc<_Ptr<_Ptr<char>>>(sizeof(char * *));
 //CHECK_NOALL:         char *** z = sus(x, y);
 //CHECK_ALL: _Ptr<_Array_ptr<char*>> foo(void) {
-//CHECK_ALL:         char * * * x = malloc<char **>(sizeof(char * *));
-//CHECK_ALL:         _Ptr<_Ptr<_Ptr<char>>> y =  malloc<char **>(sizeof(char * *));
+//CHECK_ALL:         char * * * x = malloc<char**>(sizeof(char * *));
+//CHECK_ALL:         _Ptr<_Ptr<_Ptr<char>>> y =  malloc<_Ptr<_Ptr<char>>>(sizeof(char * *));
 //CHECK_ALL:         _Ptr<_Array_ptr<char*>> z =  sus(x, y);
 
 char *** bar() {
@@ -142,12 +142,12 @@ char *** bar() {
 z += 2;
 return z; }
 //CHECK_NOALL: char *** bar() {
-//CHECK_NOALL:         char * * * x = malloc<char **>(sizeof(char * *));
-//CHECK_NOALL:         _Ptr<_Ptr<_Ptr<char>>> y =  malloc<char **>(sizeof(char * *));
+//CHECK_NOALL:         char * * * x = malloc<char**>(sizeof(char * *));
+//CHECK_NOALL:         _Ptr<_Ptr<_Ptr<char>>> y =  malloc<_Ptr<_Ptr<char>>>(sizeof(char * *));
 //CHECK_NOALL:         char *** z = sus(x, y);
 //CHECK_ALL: _Ptr<_Array_ptr<char*>> bar(void) {
-//CHECK_ALL:         char * * * x = malloc<char **>(sizeof(char * *));
-//CHECK_ALL:         _Ptr<_Ptr<_Ptr<char>>> y =  malloc<char **>(sizeof(char * *));
+//CHECK_ALL:         char * * * x = malloc<char**>(sizeof(char * *));
+//CHECK_ALL:         _Ptr<_Ptr<_Ptr<char>>> y =  malloc<_Ptr<_Ptr<char>>>(sizeof(char * *));
 //CHECK_ALL:         _Array_ptr<_Array_ptr<char*>> z =  sus(x, y);
 
 char *** sus(char * * * x, char * * * y) {
@@ -167,7 +167,7 @@ x = (char * * *) 5;
 return z; }
 //CHECK_NOALL: char *** sus(char ***x, _Ptr<_Ptr<_Ptr<char>>> y) {
 //CHECK_NOALL:         char *ch = malloc<char>(sizeof(char)); 
-//CHECK_NOALL:         char *** z = malloc<char **>(5*sizeof(char**)); 
+//CHECK_NOALL:         char *** z = malloc<char**>(5*sizeof(char**)); 
 //CHECK_ALL: _Array_ptr<_Array_ptr<char*>> sus(char ***x, _Ptr<_Ptr<_Ptr<char>>> y) {
 //CHECK_ALL:         char *ch = malloc<char>(sizeof(char)); 
-//CHECK_ALL:         _Array_ptr<_Array_ptr<char*>> z : count(5) =  malloc<char **>(5*sizeof(char**)); 
+//CHECK_ALL:         _Array_ptr<_Array_ptr<char*>> z : count(5) =  malloc<_Array_ptr<char*>>(5*sizeof(char**)); 

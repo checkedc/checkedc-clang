@@ -127,10 +127,10 @@ int ** sus(int *x, int *y) {
         
 return z; }
 //CHECK_NOALL: int ** sus(int *x, int *y) {
-//CHECK_NOALL:         int **z = calloc<int *>(5, sizeof(int *)); 
+//CHECK_NOALL:         int **z = calloc<int*>(5, sizeof(int *)); 
 //CHECK_NOALL:         _Ptr<int* (int *)> mul2ptr =  mul2;
 //CHECK_ALL: int ** sus(int *x, int *y) {
-//CHECK_ALL:         int **z = calloc<int *>(5, sizeof(int *)); 
+//CHECK_ALL:         int **z = calloc<int*>(5, sizeof(int *)); 
 //CHECK_ALL:         _Ptr<int* (int *)> mul2ptr =  mul2;
 
 int ** foo() {

@@ -50,5 +50,5 @@ void createGraph(struct Graph* G,int V){
 
 }
 //CHECK: void createGraph(_Ptr<struct Graph> G, int V){
-//CHECK: int ** toadd = malloc<int *>(V * sizeof(int*));
+//CHECK: int ** toadd = malloc<int*>(V * sizeof(int*));
 //CHECK: int *adder = malloc<int>(V * sizeof(int));

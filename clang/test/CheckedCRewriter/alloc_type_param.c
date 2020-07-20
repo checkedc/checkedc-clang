@@ -30,15 +30,14 @@ void foo() {
 
 // Allocating pointers to pointers
 void bar() {
-  // The type parameter doesn't need to be _Ptr<int> even though it is checked
   int **a = malloc(sizeof(int*));
-  // CHECK: _Ptr<_Ptr<int>> a = malloc<int *>(sizeof(int*));
+  // CHECK: _Ptr<_Ptr<int>> a = malloc<_Ptr<int>>(sizeof(int*));
   *a = malloc(sizeof(int));
   // CHECK: *a = malloc<int>(sizeof(int));
 
   // It's also fine if the pointer is unchecked
   int **b = malloc(sizeof(int*));
-  // CHECK: _Ptr<int*> b = malloc<int *>(sizeof(int*));
+  // CHECK: _Ptr<int*> b = malloc<int*>(sizeof(int*));
   *b = (int*) 1;
 }
 
