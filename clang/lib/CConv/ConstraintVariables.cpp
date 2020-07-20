@@ -471,7 +471,8 @@ bool PointerVariableConstraint::emitArraySize(std::ostringstream &Pss,
 std::string
 PointerVariableConstraint::mkString(EnvironmentMap &E,
                                     bool EmitName,
-                                    bool ForItype) {
+                                    bool ForItype,
+                                    bool EmitPointee) {
   std::ostringstream Ss;
   std::ostringstream Pss;
   unsigned CaratsToAdd = 0;
@@ -481,7 +482,14 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
   if (EmitName == false && hasItype() == false)
     EmittedName = true;
   uint32_t TypeIdx = 0;
-  for (const auto &V : vars) {
+
+  auto It = vars.begin();
+  // Skip over first pointer level if only emitting pointee string.
+  // This is needed when inserting type arguments.
+  if (EmitPointee)
+    ++It;
+  for (; It != vars.end(); ++It) {
+    const auto &V = *It;
     ConstAtom *C = nullptr;
     if (ConstAtom *CA = dyn_cast<ConstAtom>(V)) {
       C = CA;
@@ -1181,7 +1189,8 @@ bool FunctionVariableConstraint::
 
 std::string
 FunctionVariableConstraint::mkString(EnvironmentMap &E,
-                                     bool EmitName, bool ForItype) {
+                                     bool EmitName, bool ForItype,
+                                     bool EmitPointee) {
   std::string Ret = "";
   // TODO punting on what to do here. The right thing to do is to figure out
   // The LUB of all of the V in returnVars.

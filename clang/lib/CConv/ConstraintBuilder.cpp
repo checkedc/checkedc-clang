@@ -58,9 +58,9 @@ public:
   explicit FunctionVisitor(ASTContext *C,
                            ProgramInfo &I,
                            FunctionDecl *FD,
-                           TypeVariableBindingsMapT &TVMap)
+                           TypeVariableMapT &TVMap)
       : Context(C), Info(I), Function(FD), CB(Info, Context),
-        TypeVariableBindings(TVMap) {}
+        TypeVariableMap(TVMap) {}
 
   // T x = e
   bool VisitDeclStmt(DeclStmt *S) {
@@ -118,8 +118,12 @@ public:
 
     if (auto *Call = dyn_cast<CallExpr>(SubExpr))
       if (auto *FD = dyn_cast_or_null<FunctionDecl>(Call->getCalleeDecl()))
-        if (const auto *TyVar = getTypeVariableType(FD))
-          insertTypeParamBinding(Call, TyVar, CE->getType().getTypePtr());
+        if (const auto *TyVar = getTypeVariableType(FD)) {
+          clang::QualType Ty = CE->getType();
+          std::set<ConstraintVariable *>
+              CVs = CB.getExprConstraintVars(SubExpr);
+          insertTypeParamBinding(Call, TyVar, Ty, CVs);
+        }
     return true;
   }
 
@@ -177,6 +181,12 @@ public:
       FuncName = DD->getNameAsString();
     }
 
+    // Collect type parameters for this function call that are
+    // consistently instantiated as single type in this function call.
+    std::set<unsigned int> consistentTypeParams;
+    if (TFD != nullptr)
+      getConsistentTypeParams(E, TFD, consistentTypeParams);
+
     // Now do the call: Constrain arguments to parameters (but ignore returns)
     if (FVCons.empty()) {
       // Don't know who we are calling; make args WILD
@@ -192,12 +202,6 @@ public:
         }
         // and for each arg to the function ...
         if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
-          // Collect type parameters for this function call that are
-          // consistently instantiated as single type in this function call.
-          std::set<unsigned int> consistentTypeParams;
-          if (TFD != nullptr)
-            getConsistentTypeParams(E, TFD, consistentTypeParams);
-
           unsigned i = 0;
           for (const auto &A : E->arguments()) {
             std::set<ConstraintVariable *> ArgumentConstraints;
@@ -392,55 +396,84 @@ private:
     // Construct a map from TypeVariables to a single type they are consistently
     // used as. If there is no single consistent type for a variable, then it
     // maps to nullptr.
+
+    // Visit each function argument, and if it use a type variable, insert it
+    // into the type variable binding map.
     unsigned int I = 0;
     for (auto *const A : CE->arguments()) {
       // This can happen with varargs
       if (I >= FD->getNumParams())
         break;
       if (const auto *TyVar = getTypeVariableType(FD->getParamDecl(I))) {
-        const clang::Type *Ty = A->IgnoreImpCasts()->getType().getTypePtr();
-        insertTypeParamBinding(CE, TyVar, Ty);
+        Expr *Uncast = A->IgnoreImpCasts();
+        std::set<ConstraintVariable *> CVs = CB.getExprConstraintVars(Uncast);
+        insertTypeParamBinding(CE, TyVar, Uncast->getType(), CVs);
       }
       ++I;
     }
 
-    // Gather consistent TypeVariables into output set
-    auto &CallTypeVarBindings = TypeVariableBindings[CE];
-    for (const auto &TVEntry : CallTypeVarBindings)
-      if(TVEntry.second != nullptr)
+    for (auto &TVEntry : TypeVariableMap[CE])
+      if (TVEntry.second.getIsConsistent()) {
         Types.insert(TVEntry.first);
+
+        // Make a new constraint variable to remember the solved pointer type
+        // of the type argument.
+        std::string Name =
+            FD->getNameAsString() + "_tyarg_" + std::to_string(TVEntry.first);
+        PVConstraint *P = new PVConstraint(TVEntry.second.getType(), nullptr,
+                                           Name, Info, *Context, nullptr);
+
+        // Constrain this variable GEQ the function arguments using the type
+        // variable so if any of them are wild, the type argument will also be
+        // an unchecked pointer.
+        std::set<ConstraintVariable *> CVs = {P};
+        constrainConsVarGeq(CVs, TVEntry.second.getConstraintVariables(),
+                            Info.getConstraints(), nullptr, Safe_to_Wild, false,
+                            &Info);
+
+        TVEntry.second.setTypeParamConsVar(P);
+      }
   }
 
+  // Update the type variable map for a new use of a type variable. For each use
+  // the exact type variable is identified by the call expression where it is
+  // used and the index of the type variable type in the function declaration.
   void insertTypeParamBinding(CallExpr *CE, const TypeVariableType *TyVar,
-                              const clang::Type *Ty) {
+                              clang::QualType Ty,
+                              std::set<ConstraintVariable *> &CVs) {
     assert("Type param must go to pointer." && Ty->isPointerType());
 
-    auto &CallTypeVarBindings = TypeVariableBindings[CE];
+    auto &CallTypeVarMap = TypeVariableMap[CE];
+
     QualType PointeeType = Ty->getPointeeType();
     if (PointeeType->isRecordType() &&
         !(PointeeType->getAsRecordDecl()->getIdentifier() ||
             PointeeType->getAsRecordDecl()->getTypedefNameForAnonDecl())) {
       // We'll need a name to provide the type arguments during rewriting, so
       // no anonymous things here.
-      CallTypeVarBindings[TyVar->GetIndex()] = nullptr;
-    } if (CallTypeVarBindings.find(TyVar->GetIndex())
-        == CallTypeVarBindings.end()) {
+      CallTypeVarMap[TyVar->GetIndex()].makeInconsistent();
+    } else if (CallTypeVarMap.find(TyVar->GetIndex()) == CallTypeVarMap.end()){
       // If the type variable hasn't been seen before, add it to the map.
-      CallTypeVarBindings[TyVar->GetIndex()] = Ty;
-    } else if (CallTypeVarBindings[TyVar->GetIndex()] != Ty) {
+      TypeVariableEntry TVEntry = TypeVariableEntry(Ty);
+      TVEntry.insertConstraintVariables(CVs);
+      CallTypeVarMap[TyVar->GetIndex()] = TVEntry;
+    } else if (CallTypeVarMap[TyVar->GetIndex()].getIsConsistent()
+        && CallTypeVarMap[TyVar->GetIndex()].getType() != Ty) {
       // If it has previously been instantiated as a different type, its use
       // is not consistent.
-      CallTypeVarBindings[TyVar->GetIndex()] = nullptr;
+      CallTypeVarMap[TyVar->GetIndex()].makeInconsistent();
+    } else if (CallTypeVarMap[TyVar->GetIndex()].getIsConsistent()) {
+      // Type variable has been encountered before with the same type. Insert
+      // new constraint variables.
+      CallTypeVarMap[TyVar->GetIndex()].insertConstraintVariables(CVs);
     }
-    // If neither branch is taken, then the type variable has been
-    // encountered before with the same type. Nothing needs to be done.
   }
 
   ASTContext *Context;
   ProgramInfo &Info;
   FunctionDecl *Function;
   ConstraintResolver CB;
-  TypeVariableBindingsMapT &TypeVariableBindings;
+  TypeVariableMapT &TypeVariableMap;
 };
 
 // This class visits a global declaration, generating constraints
@@ -449,9 +482,9 @@ class GlobalVisitor : public RecursiveASTVisitor<GlobalVisitor> {
 public:
   explicit GlobalVisitor(ASTContext *Context,
                          ProgramInfo &I,
-                         TypeVariableBindingsMapT &TVMap)
+                         TypeVariableMapT &TVMap)
       : Context(Context), Info(I), CB(Info, Context),
-        TypeVariableBindings(TVMap) {}
+        TypeVariableMap(TVMap) {}
 
   bool VisitVarDecl(VarDecl *G) {
 
@@ -501,8 +534,7 @@ public:
       Info.addVariable(D, Context);
       if (D->hasBody() && D->isThisDeclarationADefinition()) {
         Stmt *Body = D->getBody();
-        FunctionVisitor
-            FV = FunctionVisitor(Context, Info, D, TypeVariableBindings);
+        FunctionVisitor FV = FunctionVisitor(Context, Info, D, TypeVariableMap);
         FV.TraverseStmt(Body);
         if (AllTypes) {
           // Only do this, if all types is enabled.
@@ -527,24 +559,28 @@ private:
   ASTContext *Context;
   ProgramInfo &Info;
   ConstraintResolver CB;
-  TypeVariableBindingsMapT &TypeVariableBindings;
+  TypeVariableMapT &TypeVariableMap;
 };
 
 // Store type param bindings persistently in ProgramInfo so they are available
 // during rewriting.
 void ConstraintBuilderConsumer::SetProgramInfoTypeVars
-   (TypeVariableBindingsMapT TypeVariableBindings, ASTContext &C) {
+   (TypeVariableMapT TypeVariableBindings, ASTContext &C) {
   for (const auto &TVEntry : TypeVariableBindings) {
-    bool AllNull = true;
+    bool AllInconsistent = true;
     for (auto TVCallEntry : TVEntry.second)
-      AllNull &= TVCallEntry.second == nullptr;
-    if (!AllNull) {
+      AllInconsistent &= !TVCallEntry.second.getIsConsistent();
+    // If they're are not consistent type variables, ignore the call expression
+    if (!AllInconsistent) {
+      // Add each type variable into the map in ProgramInfo. Inconsistent
+      // variables are mapped to null.
       for (auto TVCallEntry : TVEntry.second)
-        if (TVCallEntry.second != nullptr) {
-          std::string TyStr = TVCallEntry.second->getPointeeType().getAsString();
-          Info.setTypeParamBinding(TVEntry.first, TVCallEntry.first, TyStr, &C);
+        if (TVCallEntry.second.getIsConsistent()) {
+          Info.setTypeParamBinding(TVEntry.first, TVCallEntry.first,
+                                   TVCallEntry.second.getTypeParamConsVar(),
+                                   &C);
         } else
-          Info.setTypeParamBinding(TVEntry.first, TVCallEntry.first, "void", &C);
+          Info.setTypeParamBinding(TVEntry.first, TVCallEntry.first, nullptr, &C);
     }
   }
 }
@@ -560,15 +596,17 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
     else
       errs() << "Analyzing\n";
   }
-  TypeVariableBindingsMapT TypeVariableBindings;
-  GlobalVisitor GV = GlobalVisitor(&C, Info, TypeVariableBindings);
+  TypeVariableMapT TypeVariableMap;
+  GlobalVisitor GV =
+      GlobalVisitor(&C, Info, TypeVariableMap);
   TranslationUnitDecl *TUD = C.getTranslationUnitDecl();
   // Generate constraints.
   for (const auto &D : TUD->decls()) {
     GV.TraverseDecl(D);
   }
 
-  SetProgramInfoTypeVars(TypeVariableBindings, C);
+  // Store type variable information for use in rewriting
+  SetProgramInfoTypeVars(TypeVariableMap, C);
 
   if (Verbose)
     outs() << "Done analyzing\n";

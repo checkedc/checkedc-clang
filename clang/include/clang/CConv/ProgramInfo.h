@@ -29,7 +29,7 @@ class ProgramInfo;
 
 class ProgramInfo {
 public:
-  typedef std::map<unsigned int, std::string> CallTypeParamBindingsType;
+  typedef std::map<unsigned int, ConstraintVariable *> CallTypeParamBindingsType;
   typedef std::map<PersistentSourceLoc, CallTypeParamBindingsType>
       TypeParamBindingsType;
 
@@ -101,7 +101,7 @@ public:
   }
 
   void setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
-                           std::string TyStr, ASTContext *C);
+                           ConstraintVariable *CV, ASTContext *C);
   bool hasTypeParamBindings(CallExpr *CE, ASTContext *C);
   std::pair<CallTypeParamBindingsType::const_iterator,
             CallTypeParamBindingsType::const_iterator>

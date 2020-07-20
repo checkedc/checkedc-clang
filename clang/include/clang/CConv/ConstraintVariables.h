@@ -86,7 +86,8 @@ public:
   // The 'forIType' parameter is true when the generated string is expected
   // to be used inside an itype
   virtual std::string mkString(EnvironmentMap &E,
-                               bool emitName=true, bool forItype=false) = 0;
+                               bool emitName=true, bool forItype=false,
+                               bool emitPointee=false) = 0;
 
   // Debug printing of the constraint variable.
   virtual void print(llvm::raw_ostream &O) const = 0;
@@ -285,7 +286,7 @@ public:
   }
 
   std::string mkString(EnvironmentMap &E, bool EmitName =true,
-                       bool ForItype =false);
+                       bool ForItype =false, bool EmitPointee = false);
 
   FunctionVariableConstraint *getFV() { return FV; }
 
@@ -383,7 +384,7 @@ public:
   bool solutionEqualTo(Constraints &CS, ConstraintVariable *CV);
 
   std::string mkString(EnvironmentMap &E, bool EmitName =true,
-                       bool ForItype =false);
+                       bool ForItype =false, bool EmitPointee=false);
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const;
