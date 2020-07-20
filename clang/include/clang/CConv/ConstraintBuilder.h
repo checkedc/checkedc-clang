@@ -19,52 +19,17 @@ public:
   // Note: does not initialize TyVarType!
   TypeVariableEntry() :
       IsConsistent(false) {}
-
   TypeVariableEntry(QualType Ty) :
       IsConsistent(true), TyVarType(Ty) {}
 
-  void makeInconsistent() {
-    IsConsistent = false;
-  }
+  void makeInconsistent();
+  bool getIsConsistent();
+  QualType getType();
+  std::set<ConstraintVariable *> &getConstraintVariables();
+  ConstraintVariable *getTypeParamConsVar();
 
-  bool getIsConsistent() {
-    return IsConsistent;
-  }
-
-  // TODO: make sure return can't be modified
-  std::set<ConstraintVariable *> &getConstraintVariables() {
-    assert("Accessing ConstraintVariable set for inconsistent Type Variable." &&
-        IsConsistent);
-    return ArgConsVars;
-  }
-
-  void insertConstraintVariables(std::set<ConstraintVariable *> &CVs){
-    assert("Accessing ConstraintVariable set for inconsistent Type Variable." &&
-            IsConsistent);
-    ArgConsVars.insert(CVs.begin(), CVs.end());
-  }
-
-  QualType getType() {
-    assert("Accessing Type for inconsistent Type Variable." &&
-            IsConsistent);
-    return TyVarType;
-  }
-
-  void setTypeParamConsVar(ConstraintVariable *CV) {
-    assert("Accessing constraint variable for inconsistent Type Variable." &&
-        IsConsistent);
-    assert("Setting constraint variable to null" && CV != nullptr);
-    assert("Changing already set constraint variable" &&
-        TypeParamConsVar == nullptr);
-    TypeParamConsVar = CV;
-  }
-
-  ConstraintVariable *getTypeParamConsVar() {
-    assert("Accessing constraint variable for inconsistent Type Variable." &&
-        IsConsistent);
-    assert("Accessing null constraint variable" && TypeParamConsVar != nullptr);
-    return TypeParamConsVar;
-  }
+  void insertConstraintVariables(std::set<ConstraintVariable *> &CVs);
+  void setTypeParamConsVar(ConstraintVariable *CV);
 
 private:
   // Is this type variable used consistently. True when all uses have the same

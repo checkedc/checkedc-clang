@@ -615,4 +615,46 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
   return;
 }
 
+// TODO: make sure return can't be modified
+std::set<ConstraintVariable *> &TypeVariableEntry::getConstraintVariables() {
+  assert("Accessing ConstraintVariable set for inconsistent Type Variable." &&
+      IsConsistent);
+  return ArgConsVars;
+}
 
+void TypeVariableEntry::insertConstraintVariables
+    (set<ConstraintVariable *> &CVs) {
+  assert("Accessing ConstraintVariable set for inconsistent Type Variable." &&
+      IsConsistent);
+  ArgConsVars.insert(CVs.begin(), CVs.end());
+}
+
+void TypeVariableEntry::setTypeParamConsVar(ConstraintVariable *CV) {
+  assert("Accessing constraint variable for inconsistent Type Variable." &&
+      IsConsistent);
+  assert("Setting constraint variable to null" && CV != nullptr);
+  assert("Changing already set constraint variable" &&
+      TypeParamConsVar == nullptr);
+  TypeParamConsVar = CV;
+}
+
+ConstraintVariable *TypeVariableEntry::getTypeParamConsVar() {
+  assert("Accessing constraint variable for inconsistent Type Variable." &&
+      IsConsistent);
+  assert("Accessing null constraint variable" && TypeParamConsVar != nullptr);
+  return TypeParamConsVar;
+}
+
+QualType TypeVariableEntry::getType() {
+  assert("Accessing Type for inconsistent Type Variable." &&
+      IsConsistent);
+  return TyVarType;
+}
+
+void TypeVariableEntry::makeInconsistent() {
+  IsConsistent = false;
+}
+
+bool TypeVariableEntry::getIsConsistent() {
+  return IsConsistent;
+}
