@@ -103,6 +103,7 @@ PointerVariableConstraint::
     this->FV = dyn_cast<FVConstraint>(Ot->FV->getCopy(CS));
   }
   this->Parent = Ot;
+  this->IsGeneric = Ot->IsGeneric;
   // We need not initialize other members.
 }
 
@@ -747,7 +748,8 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   }
 
   // ConstraintVariable for the return
-  returnVars.insert(new PVConstraint(RT, D, RETVAR, I, Ctx, &N));
+  bool IsGeneric = FD != nullptr && getTypeVariableType(FD) != nullptr;
+  returnVars.insert(new PVConstraint(RT, D, RETVAR, I, Ctx, &N, IsGeneric));
 }
 
 void FunctionVariableConstraint::constrainToWild(Constraints &CS) {
@@ -1423,7 +1425,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
             }
           // Unequal sizes means casting from (say) T** to T*; not safe.
           // unless assigning to a generic type.
-          } else if (!PCLHS->GetIsGeneric()) {
+          } else if (!(PCLHS->GetIsGeneric() || PCRHS->GetIsGeneric())) {
             // Constrain both to be top.
             std::string Rsn = "Assigning from:" + PCRHS->getName() + " to " +
                               PCLHS->getName();
