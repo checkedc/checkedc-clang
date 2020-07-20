@@ -1230,3 +1230,15 @@ void f32() {
 // CHECK:   case 0:
 // CHECK-NOT: upper_bound(p)
 }
+
+void f33() {
+  _Nt_array_ptr<char> p : bounds(p, ((((((p + 1))))))) = "a";
+
+  if (*(((p + 1)))) {}
+
+// CHECK: In function: f33
+// CHECK: [B2]
+// CHECK:   2: *(((p + 1)))
+// CHECK: [B1]
+// CHECK: upper_bound(p) = 1
+}
