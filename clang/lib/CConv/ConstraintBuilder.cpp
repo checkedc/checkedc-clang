@@ -9,6 +9,7 @@
 // visitors create constraints based on the AST of the program.
 //===----------------------------------------------------------------------===//
 
+#include <clang/ASTMatchers/ASTMatchers.h>
 #include "clang/CConv/ConstraintBuilder.h"
 #include "clang/CConv/ConstraintResolver.h"
 #include "clang/CConv/ArrayBoundsInferenceConsumer.h"
@@ -444,28 +445,13 @@ private:
     assert("Type param must go to pointer." && Ty->isPointerType());
 
     auto &CallTypeVarMap = TypeVariableMap[CE];
-
-    QualType PointeeType = Ty->getPointeeType();
-    if (PointeeType->isRecordType() &&
-        !(PointeeType->getAsRecordDecl()->getIdentifier() ||
-            PointeeType->getAsRecordDecl()->getTypedefNameForAnonDecl())) {
-      // We'll need a name to provide the type arguments during rewriting, so
-      // no anonymous things here.
-      CallTypeVarMap[TyVar->GetIndex()].makeInconsistent();
-    } else if (CallTypeVarMap.find(TyVar->GetIndex()) == CallTypeVarMap.end()){
+    if (CallTypeVarMap.find(TyVar->GetIndex()) == CallTypeVarMap.end()){
       // If the type variable hasn't been seen before, add it to the map.
-      TypeVariableEntry TVEntry = TypeVariableEntry(Ty);
-      TVEntry.insertConstraintVariables(CVs);
+      TypeVariableEntry TVEntry = TypeVariableEntry(Ty, CVs);
       CallTypeVarMap[TyVar->GetIndex()] = TVEntry;
-    } else if (CallTypeVarMap[TyVar->GetIndex()].getIsConsistent()
-        && CallTypeVarMap[TyVar->GetIndex()].getType() != Ty) {
-      // If it has previously been instantiated as a different type, its use
-      // is not consistent.
-      CallTypeVarMap[TyVar->GetIndex()].makeInconsistent();
-    } else if (CallTypeVarMap[TyVar->GetIndex()].getIsConsistent()) {
-      // Type variable has been encountered before with the same type. Insert
-      // new constraint variables.
-      CallTypeVarMap[TyVar->GetIndex()].insertConstraintVariables(CVs);
+    } else {
+      // otherwise, update entry with new type and constraints
+      CallTypeVarMap[TyVar->GetIndex()].updateEntry(Ty, CVs);
     }
   }
 
@@ -615,7 +601,6 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
   return;
 }
 
-// TODO: make sure return can't be modified
 std::set<ConstraintVariable *> &TypeVariableEntry::getConstraintVariables() {
   assert("Accessing ConstraintVariable set for inconsistent Type Variable." &&
       IsConsistent);
@@ -638,6 +623,26 @@ void TypeVariableEntry::setTypeParamConsVar(ConstraintVariable *CV) {
   TypeParamConsVar = CV;
 }
 
+void TypeVariableEntry::updateEntry(QualType Ty,
+                                    std::set<ConstraintVariable *> &CVs) {
+  QualType PointeeType = Ty->getPointeeType();
+  if (isTypeAnonymous(PointeeType)) {
+    // We'll need a name to provide the type arguments during rewriting, so
+    // no anonymous things here.
+    IsConsistent = false;
+  } else if (IsConsistent && getType() != Ty) {
+    // If it has previously been instantiated as a different type, its use
+    // is not consistent.
+    IsConsistent = false;
+  } else if (IsConsistent) {
+    // Type variable has been encountered before with the same type. Insert
+    // new constraint variables.
+    insertConstraintVariables(CVs);
+  }
+  // If none of the above branches are hit, then this was already inconsistent,
+  // so there's no need to update anything.
+}
+
 ConstraintVariable *TypeVariableEntry::getTypeParamConsVar() {
   assert("Accessing constraint variable for inconsistent Type Variable." &&
       IsConsistent);
@@ -649,10 +654,6 @@ QualType TypeVariableEntry::getType() {
   assert("Accessing Type for inconsistent Type Variable." &&
       IsConsistent);
   return TyVarType;
-}
-
-void TypeVariableEntry::makeInconsistent() {
-  IsConsistent = false;
 }
 
 bool TypeVariableEntry::getIsConsistent() {

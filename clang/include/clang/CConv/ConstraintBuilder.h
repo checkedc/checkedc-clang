@@ -19,10 +19,16 @@ public:
   // Note: does not initialize TyVarType!
   TypeVariableEntry() :
       IsConsistent(false) {}
-  TypeVariableEntry(QualType Ty) :
-      IsConsistent(true), TyVarType(Ty) {}
+  TypeVariableEntry(QualType Ty, std::set<ConstraintVariable *> &CVs) {
+    if (isTypeAnonymous(Ty->getPointeeType())) {
+      IsConsistent = false;
+    } else {
+      IsConsistent = true;
+      TyVarType = Ty;
+      ArgConsVars = CVs;
+    }
+  }
 
-  void makeInconsistent();
   bool getIsConsistent();
   QualType getType();
   std::set<ConstraintVariable *> &getConstraintVariables();
@@ -30,6 +36,7 @@ public:
 
   void insertConstraintVariables(std::set<ConstraintVariable *> &CVs);
   void setTypeParamConsVar(ConstraintVariable *CV);
+  void updateEntry(QualType Ty, set<ConstraintVariable *> &CVs);
 
 private:
   // Is this type variable used consistently. True when all uses have the same

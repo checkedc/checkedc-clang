@@ -115,4 +115,6 @@ unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
                                   unsigned long Str1Len, unsigned long Str2Len);
 
 const clang::TypeVariableType *getTypeVariableType(clang::DeclaratorDecl *Decl);
+
+bool isTypeAnonymous(clang::QualType T);
 #endif
