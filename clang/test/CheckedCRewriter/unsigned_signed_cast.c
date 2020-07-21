@@ -1,8 +1,6 @@
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone -output-postfix=checkedNOALL %s
-// RUN: %clang -c %S/unsigned_signed_cast.checkedNOALL.c
-// RUN: rm %S/unsigned_signed_cast.checkedNOALL.c
+// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 /*unsigned integer cast*/
 

@@ -1,5 +1,5 @@
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-//
+// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 void f(int *(*fp)(int *)) {
   fp(0);
