@@ -38,7 +38,7 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
           if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
             Info.addVariable(D, Context);
             if(FL.isInSystemHeader() || Definition->isUnion()) {
-              std::set<ConstraintVariable *> C = Info.getVariable(D, Context);
+              CVarSet C = Info.getVariable(D, Context);
               std::string Rsn = "External struct field or union encountered";
               CB.constraintAllCVarsToWild(C, Rsn, nullptr);
             }
@@ -79,7 +79,7 @@ public:
                VD->getType()->isArrayType())) {
             Info.addVariable(VD, Context);
             if (lastRecordLocation == VD->getBeginLoc().getRawEncoding()) {
-              std::set<ConstraintVariable *> C = Info.getVariable(VD, Context);
+              CVarSet C = Info.getVariable(VD, Context);
               CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
             }
           }
@@ -150,7 +150,7 @@ public:
     Decl *D = E->getCalleeDecl();
     PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
     auto &CS = Info.getConstraints();
-    std::set<ConstraintVariable *> FVCons;
+    CVarSet FVCons;
     std::string FuncName = "";
     FunctionDecl *TFD = nullptr;
 
@@ -181,7 +181,7 @@ public:
     if (FVCons.empty()) {
       // Don't know who we are calling; make args WILD
       constraintAllArgumentsToWild(E);
-    } else if (FuncName.compare("realloc") != 0) {
+    } else if (!ConstraintResolver::canFunctionBeSkipped(FuncName)) {
       // FIXME: realloc comparison is still required. See issue #176.
       // If we are calling realloc, ignore it, so as not to constrain the first arg
       // Else, for each function we are calling ...
@@ -200,7 +200,7 @@ public:
 
           unsigned i = 0;
           for (const auto &A : E->arguments()) {
-            std::set<ConstraintVariable *> ArgumentConstraints;
+            CVarSet ArgumentConstraints;
             if(TFD != nullptr && i < TFD->getNumParams()) {
               // Remove casts to void* on polymorphic types that are used
               // consistently.
@@ -216,7 +216,7 @@ public:
 
             // constrain the arg CV to the param CV
             if (i < TargetFV->numParams()) {
-              std::set<ConstraintVariable *> ParameterDC =
+              CVarSet ParameterDC =
                   TargetFV->getParamVar(i);
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
                                   Wild_to_Safe, false, &Info);
@@ -268,14 +268,14 @@ public:
     // Get function variable constraint of the body
     PersistentSourceLoc PL =
         PersistentSourceLoc::mkPSL(S, *Context);
-    std::set<ConstraintVariable *> Fun =
+    CVarSet Fun =
         Info.getVariable(Function, Context);
 
     // Constrain the value returned (if present) against the return value
     // of the function.
     Expr *RetExpr = S->getRetValue();
 
-    std::set<ConstraintVariable *> RconsVar = CB.getExprConstraintVars(RetExpr);
+    CVarSet RconsVar = CB.getExprConstraintVars(RetExpr);
     // Constrain the return type of the function
     // to the type of the return expression.
     for (const auto &F : Fun) {
@@ -330,7 +330,7 @@ private:
 
   // Constraint all the provided vars to be
   // equal to the provided type i.e., (V >= type).
-  void constrainVarsTo(std::set<ConstraintVariable *> &Vars,
+  void constrainVarsTo(CVarSet &Vars,
                        ConstAtom *CAtom) {
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Vars)
@@ -341,7 +341,7 @@ private:
 
   // Constraint helpers.
   void constraintInBodyVariable(Expr *e, ConstAtom *CAtom) {
-    std::set<ConstraintVariable *> Var = CB.getExprConstraintVars(e);
+    CVarSet Var = CB.getExprConstraintVars(e);
     constrainVarsTo(Var, CAtom);
   }
 
@@ -352,7 +352,7 @@ private:
     for (const auto &A : E->arguments()) {
       // Get constraint from within the function body
       // of the caller.
-      std::set<ConstraintVariable *> ParameterEC = CB.getExprConstraintVars(A);
+      CVarSet ParameterEC = CB.getExprConstraintVars(A);
 
       // Assign WILD to each of the constraint variables.
       FunctionDecl *FD = E->getDirectCallee();
@@ -373,7 +373,7 @@ private:
   // is WILD.
   void constraintPointerArithmetic(Expr *E) {
     if (E->getType()->isFunctionPointerType()) {
-      std::set<ConstraintVariable *> Var = CB.getExprConstraintVars(E);
+      CVarSet Var = CB.getExprConstraintVars(E);
       std::string Rsn = "Pointer arithmetic performed on a function pointer.";
       CB.constraintAllCVarsToWild(Var, Rsn, E);
     } else {
@@ -468,7 +468,7 @@ public:
       unsigned int BeginLoc = G->getBeginLoc().getRawEncoding();
       unsigned int EndLoc = G->getEndLoc().getRawEncoding();
       if (lastRecordLocation >= BeginLoc && lastRecordLocation <= EndLoc) {
-        std::set<ConstraintVariable *> C = Info.getVariable(G, Context);
+        CVarSet C = Info.getVariable(G, Context);
         CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
       }
     }

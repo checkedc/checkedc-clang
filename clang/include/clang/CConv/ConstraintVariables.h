@@ -73,11 +73,13 @@ protected:
   bool ValidBoundsKey;
   // Bounds key of this Constraint Variable.
   BoundsKey BKey;
+  // Is this Constraint Variable for a declaration?
+  bool IsForDecl;
 
   // Only subclasses should call this
   ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) :
       Kind(K),OriginalType(T),Name(N), HasEqArgumentConstraints(false),
-      ValidBoundsKey(false) {}
+      ValidBoundsKey(false), IsForDecl(false) {}
 
 public:
   // Create a "for-rewriting" representation of this ConstraintVariable.
@@ -104,8 +106,8 @@ public:
 
   // Constrain all pointers in this ConstraintVariable to be Wild.
   virtual void constrainToWild(Constraints &CS) = 0;
-  virtual void constrainToWild(Constraints &CS, std::string &Rsn) = 0;
-  virtual void constrainToWild(Constraints &CS, std::string &Rsn,
+  virtual void constrainToWild(Constraints &CS, const std::string &Rsn) = 0;
+  virtual void constrainToWild(Constraints &CS, const std::string &Rsn,
                                PersistentSourceLoc *PL) = 0;
 
   // Returns true if any of the constraint variables 'within' this instance
@@ -132,6 +134,9 @@ public:
   std::string getRewritableOriginalTy();
   std::string getName() const { return Name; }
 
+  void setValidDecl() { IsForDecl = true; }
+  bool isForValidDecl() { return IsForDecl; }
+
   virtual ConstraintVariable *getCopy(Constraints &CS) = 0;
 
   virtual ~ConstraintVariable() {};
@@ -140,6 +145,8 @@ public:
   // tests for the existence of those constraint variables.
   virtual bool isEmpty(void) const = 0;
 };
+
+typedef std::set<ConstraintVariable *> CVarSet;
 
 enum ConsAction {
   Safe_to_Wild,
@@ -293,8 +300,8 @@ public:
   void dump() const { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const;
   void constrainToWild(Constraints &CS);
-  void constrainToWild(Constraints &CS, std::string &Rsn);
-  void constrainToWild(Constraints &CS, std::string &Rsn,
+  void constrainToWild(Constraints &CS, const std::string &Rsn);
+  void constrainToWild(Constraints &CS, const std::string &Rsn,
                        PersistentSourceLoc *PL);
   void constrainOuterTo(Constraints &CS, ConstAtom *C, bool doLB = false);
   bool anyChanges(EnvironmentMap &E);
@@ -388,8 +395,8 @@ public:
   void dump() const { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const;
   void constrainToWild(Constraints &CS);
-  void constrainToWild(Constraints &CS, std::string &Rsn);
-  void constrainToWild(Constraints &CS, std::string &Rsn,
+  void constrainToWild(Constraints &CS, const std::string &Rsn);
+  void constrainToWild(Constraints &CS, const std::string &Rsn,
                        PersistentSourceLoc *PL);
   bool anyChanges(EnvironmentMap &E);
   bool hasWild(EnvironmentMap &E, int AIdx = -1);

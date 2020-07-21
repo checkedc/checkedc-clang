@@ -77,10 +77,9 @@ _Itype_for_any(T) void *memcpy(void * restrict dest : itype(restrict _Array_ptr<
              const void * restrict src : itype(restrict _Array_ptr<const T>) byte_count(n),
              size_t n) : itype(_Array_ptr<T>) byte_count(n);
 
-void foo() {
+void foo(int *p2) {
     int *p = malloc(2*sizeof(int));
     //CHECK_ALL: _Array_ptr<int> p =  malloc<int>(2*sizeof(int));
-    int p2;
-    memcpy(p, &p2, sizeof(int));
-    //CHECK: memcpy<int>(p, &p2, sizeof(int));
+    memcpy(p, p2, sizeof(int));
+    //CHECK: memcpy<int>(p, p2, sizeof(int));
 }
