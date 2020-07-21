@@ -54,12 +54,25 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
         // Now we need to check the type of the arguments and corresponding
         // parameters to see, if any explicit casting is needed.
         if (FV) {
+          ProgramInfo::CallTypeParamBindingsType TypeVars;
+          if (Info.hasTypeParamBindings(CE, Context))
+            TypeVars = Info.getTypeParamBindings(CE, Context);
           unsigned i = 0;
           for (const auto &A : CE->arguments()) {
             if (i < FD->getNumParams()) {
 
-              CVarSet ArgumentConstraints =
-                  CR.getExprConstraintVars(A);
+              // Avoid adding incorrect casts to generic function arguments by
+              // removing implicit casts when on arguments with a consistently
+              // used generic type.
+              CVarSet ArgumentConstraints;
+              const TypeVariableType
+                  *TyVar = getTypeVariableType(FD->getParamDecl(i));
+              if (TyVar && TypeVars.find(TyVar->GetIndex()) != TypeVars.end()
+                  && TypeVars[TyVar->GetIndex()] != "void")
+                ArgumentConstraints =
+                    CR.getExprConstraintVars(A->IgnoreImpCasts());
+              else
+                ArgumentConstraints = CR.getExprConstraintVars(A);
               CVarSet &ParameterConstraints =
                   FV->getParamVar(i);
               bool CastInserted = false;

@@ -940,12 +940,10 @@ bool ProgramInfo::hasTypeParamBindings(CallExpr *CE, ASTContext *C) {
   return TypeParamBindings.find(PSL) != TypeParamBindings.end();
 }
 
-std::pair<ProgramInfo::CallTypeParamBindingsType::const_iterator,
-          ProgramInfo::CallTypeParamBindingsType::const_iterator>
-    ProgramInfo::getTypeParamBindings(CallExpr *CE, ASTContext *C) {
+ProgramInfo::CallTypeParamBindingsType
+    &ProgramInfo::getTypeParamBindings(CallExpr *CE, ASTContext *C) {
   auto PSL = PersistentSourceLoc::mkPSL(CE, *C);
   assert("Type parameter bindings could not be found."
              && TypeParamBindings.find(PSL) != TypeParamBindings.end());
-  return std::make_pair(TypeParamBindings[PSL].cbegin(),
-                        TypeParamBindings[PSL].cend());
+  return TypeParamBindings[PSL];
 }

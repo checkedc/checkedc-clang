@@ -103,9 +103,7 @@ public:
   void setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
                            std::string TyStr, ASTContext *C);
   bool hasTypeParamBindings(CallExpr *CE, ASTContext *C);
-  std::pair<CallTypeParamBindingsType::const_iterator,
-            CallTypeParamBindingsType::const_iterator>
-      getTypeParamBindings( CallExpr *CE, ASTContext *C);
+  CallTypeParamBindingsType &getTypeParamBindings(CallExpr *CE, ASTContext *C);
 
 private:
   // List of all constraint variables, indexed by their location in the source.

@@ -840,9 +840,8 @@ public:
         // Construct a string containing concatenation of all type arguments for
         // the function call.
         std::string TypeParamString;
-        auto Bindings = Info.getTypeParamBindings(CE, Context);
-        for (auto it = Bindings.first; it != Bindings.second; ++it)
-          TypeParamString += it->second + ",";
+        for (auto Entry : Info.getTypeParamBindings(CE, Context))
+          TypeParamString += Entry.second + ",";
         TypeParamString.pop_back();
 
         SourceLocation TypeParamLoc = getTypeArgLocation(CE);
