@@ -55,6 +55,11 @@ private:
   ConstraintVariable *TypeParamConsVar;
 };
 
+// Stores the concrete type that type variables are instantiated. This map has
+// an entry for every call expression where the callee is has a generically
+// typed parameter. The values in the map are another maps from type variable
+// index in the called function's parameter list to the type the type variable
+// becomes (or null if it is not used consistently).
 typedef std::map<CallExpr *, std::map<unsigned int, TypeVariableEntry>>
     TypeVariableMapT;
 

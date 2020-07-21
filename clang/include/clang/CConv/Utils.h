@@ -42,6 +42,14 @@ T getOnly(std::set<T> &singletonSet) {
   return (*singletonSet.begin());
 }
 
+template <typename T>
+void findIntersection(const std::set<T> &Set1, const std::set<T> &Set2,
+                      std::set<T> &Out) {
+  Out.clear();
+  std::set_intersection(Set1.begin(), Set1.end(), Set2.begin(), Set2.end(),
+                        std::inserter(Out, Out.begin()));
+}
+
 
 const clang::Type *getNextTy(const clang::Type *Ty);
 

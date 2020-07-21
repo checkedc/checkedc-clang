@@ -17,6 +17,7 @@
 #include "ProgramVar.h"
 #include "clang/AST/Decl.h"
 #include "clang/CConv/PersistentSourceLoc.h"
+#include "clang/CConv/ConstraintVariables.h"
 
 #include <boost/config.hpp>
 #include <boost/bimap.hpp>
@@ -38,6 +39,8 @@ public:
   std::set<BoundsKey> NeighbourParamMatch;
   // These are dataflow matches i.e., matches found by dataflow analysis
   std::set<BoundsKey> DataflowMatch;
+  // These are bounds keys for which the bounds are declared.
+  std::set<BoundsKey> DeclaredBounds;
   AVarBoundsStats() {
     clear();
   }
@@ -60,8 +63,12 @@ public:
   bool isNeighbourParamMatch(BoundsKey BK) {
     return NeighbourParamMatch.find(BK) != NeighbourParamMatch.end();
   }
-  void print(llvm::raw_ostream &O, bool JsonFormat = false) const;
-  void dump() const { print(llvm::errs()); }
+  void print(llvm::raw_ostream &O,
+             const std::set<BoundsKey> *InSrcArrs,
+             bool JsonFormat = false) const;
+  void dump(const std::set<BoundsKey> *InSrcArrs) const {
+    print(llvm::errs(), InSrcArrs);
+  }
 private:
   void clear() {
     NamePrefixMatch.clear();
@@ -69,6 +76,7 @@ private:
     VariableNameMatch.clear();
     NeighbourParamMatch.clear();
     DataflowMatch.clear();
+    DeclaredBounds.clear();
   }
 
 };
@@ -111,6 +119,7 @@ public:
   AVarBoundsInfo() {
     BCount = 1;
     PVarInfo.clear();
+    InProgramArrPtrBoundsKeys.clear();
     BInfo.clear();
     DeclVarMap.clear();
     ProgVarGraph.clear();
@@ -160,7 +169,9 @@ public:
   void dumpAVarGraph(const std::string &DFPath);
 
   // Print the stats about computed bounds information.
-  void print_stats(llvm::raw_ostream &O, bool JsonFormat = false) const;
+  void print_stats(llvm::raw_ostream &O,
+                   const CVarSet &SrcCVarSet,
+                   bool JsonFormat = false) const;
 
 private:
   friend class AvarBoundsInference;
@@ -181,6 +192,7 @@ private:
   std::set<BoundsKey> PointerBoundsKey;
   // Set of BoundsKey that correspond to array pointers.
   std::set<BoundsKey> ArrPointerBoundsKey;
+  std::set<BoundsKey> InProgramArrPtrBoundsKeys;
   // BiMap of Persistent source loc and BoundsKey of regular variables.
   DeclKeyBiMapType DeclVarMap;
   // BiMap of parameter keys and BoundsKey for function parameters.

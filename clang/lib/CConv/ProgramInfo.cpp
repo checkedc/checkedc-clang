@@ -219,6 +219,7 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
   }
   std::map<std::string, std::tuple<int, int, int, int, int>> FilesToVars;
   EnvironmentMap Env = CS.getVariables();
+  CVarSet InSrcCVars;
   unsigned int totC, totP, totNt, totA, totWi;
   totC = totP = totNt = totA = totWi = 0;
 
@@ -238,6 +239,7 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
 
       for (auto &C : I.second) {
         if (C->isForValidDecl()) {
+          InSrcCVars.insert(C);
           CAtoms FoundVars = getVarsFromConstraint(C);
 
           varC += FoundVars.size();
@@ -333,7 +335,7 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
     if (JsonFormat) {
       O << "\"BoundsStats\":";
     }
-    ArrBInfo.print_stats(O, JsonFormat);
+    ArrBInfo.print_stats(O, InSrcCVars, JsonFormat);
   }
 
   if (JsonFormat) {
@@ -833,12 +835,23 @@ ProgramInfo::computeInterimConstraintState(std::set<std::string> &FilePaths) {
   }
   // Make that into set, for efficiency.
   std::set<Atom *> ValidVarsS;
+  CVars ValidVarsKey;
   ValidVarsS.insert(ValidVarsVec.begin(), ValidVarsVec.end());
+
+  std::transform(ValidVarsS.begin() , ValidVarsS.end(),
+                 std::inserter(ValidVarsKey, ValidVarsKey.end()) ,
+                 [](const Atom *val){
+    if (const VarAtom *VA = dyn_cast<VarAtom>(val)) {
+      return VA->getLoc();
+    }
+    return (uint32_t)0;
+  });
 
   CState.Clear();
   auto &RCMap = CState.RCMap;
   auto &SrcWMap = CState.SrcWMap;
   auto &TotalNDirectWPtrs = CState.TotalNonDirectWildPointers;
+  auto &InSrInDirectWPtrs = CState.InSrcNonDirectWildPointers;
   CVars &WildPtrs = CState.AllWildPtrs;
   CVars &InSrcW = CState.InSrcWildPtrs;
   WildPtrs.clear();
@@ -869,6 +882,8 @@ ProgramInfo::computeInterimConstraintState(std::set<std::string> &FilePaths) {
       }
     }
   }
+
+  findIntersection(TotalNDirectWPtrs, ValidVarsKey, InSrInDirectWPtrs);
 
   auto &WildPtrsReason = CState.RealWildPtrsWithReasons;
 
@@ -940,7 +955,7 @@ bool ProgramInfo::hasTypeParamBindings(CallExpr *CE, ASTContext *C) {
   return TypeParamBindings.find(PSL) != TypeParamBindings.end();
 }
 
-ProgramInfo::CallTypeParamBindingsType
+ProgramInfo::CallTypeParamBindingsT
     &ProgramInfo::getTypeParamBindings(CallExpr *CE, ASTContext *C) {
   auto PSL = PersistentSourceLoc::mkPSL(CE, *C);
   assert("Type parameter bindings could not be found."

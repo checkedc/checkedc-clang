@@ -54,7 +54,7 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
         // Now we need to check the type of the arguments and corresponding
         // parameters to see, if any explicit casting is needed.
         if (FV) {
-          ProgramInfo::CallTypeParamBindingsType TypeVars;
+          ProgramInfo::CallTypeParamBindingsT TypeVars;
           if (Info.hasTypeParamBindings(CE, Context))
             TypeVars = Info.getTypeParamBindings(CE, Context);
           unsigned i = 0;
