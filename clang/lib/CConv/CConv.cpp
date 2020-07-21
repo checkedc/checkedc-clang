@@ -44,6 +44,8 @@ bool DumpStats;
 bool HandleVARARGS;
 bool EnablePropThruIType;
 bool ConsiderAllocUnsafe;
+std::string StatsOutputJson;
+std::string WildPtrInfoJson;
 bool AllTypes;
 std::string BaseDir;
 bool AddCheckedRegions;
@@ -159,9 +161,6 @@ void runSolver(ProgramInfo &Info,
   if (Verbose) {
     errs() << "Solver time:" << getTimeSpentInSeconds(StartTime) << "\n";
   }
-  if (DumpStats) {
-    Info.print_stats(SourceFiles, llvm::errs(), true);
-  }
 }
 
 CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
@@ -172,6 +171,8 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
   Verbose = CCopt.Verbose;
   OutputPostfix = CCopt.OutputPostfix;
   ConstraintOutputJson = CCopt.ConstraintOutputJson;
+  StatsOutputJson = CCopt.StatsOutputJson;
+  WildPtrInfoJson = CCopt.WildPtrInfoJson;
   DumpStats = CCopt.DumpStats;
   HandleVARARGS = CCopt.HandleVARARGS;
   EnablePropThruIType = CCopt.EnablePropThruIType;
@@ -260,7 +261,7 @@ bool CConvInterface::SolveConstraints(bool ComputeInterimState) {
     outs() << "Constraints solved\n";
 
   if (ComputeInterimState)
-    GlobalProgramInfo.computeInterimConstraintState();
+    GlobalProgramInfo.computeInterimConstraintState(FilePaths);
 
   if (DumpIntermediate)
     dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, GlobalProgramInfo);
@@ -290,6 +291,23 @@ bool CConvInterface::SolveConstraints(bool ComputeInterimState) {
 
     if (DebugArrSolver)
       GlobalProgramInfo.getABoundsInfo().dumpAVarGraph("arr_bounds_final.dot");
+  }
+
+  if (DumpStats) {
+    GlobalProgramInfo.print_stats(FilePaths, llvm::errs(), true);
+    std::error_code Ec;
+    llvm::raw_fd_ostream OutputJson(StatsOutputJson, Ec);
+    if (!OutputJson.has_error()) {
+      GlobalProgramInfo.print_stats(FilePaths, OutputJson, false, true);
+    }
+    OutputJson.close();
+
+    llvm::raw_fd_ostream WildPtrInfo(WildPtrInfoJson, Ec);
+    if (!WildPtrInfo.has_error()) {
+      GlobalProgramInfo.computeInterimConstraintState(FilePaths);
+      GlobalProgramInfo.getInterimConstraintState().print_stats(WildPtrInfo);
+    }
+    WildPtrInfo.close();
   }
 
   return true;
@@ -331,9 +349,6 @@ bool CConvInterface::WriteAllConvertedFilesToDisk() {
   else
     llvm_unreachable("No action");
 
-  if (DumpStats)
-    GlobalProgramInfo.dump_stats(FilePaths);
-
   return true;
 }
 
@@ -368,7 +383,7 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   runSolver(GlobalProgramInfo, FilePaths);
 
   // Compute new disjoint set.
-  GlobalProgramInfo.computeInterimConstraintState();
+  GlobalProgramInfo.computeInterimConstraintState(FilePaths);
 
   // Get new WILD pointers.
   CVars &NewWildPtrs = PtrDisjointSet.AllWildPtrs;
@@ -427,7 +442,7 @@ bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
   runSolver(GlobalProgramInfo, FilePaths);
 
   // Recompute the WILD pointer disjoint sets.
-  GlobalProgramInfo.computeInterimConstraintState();
+  GlobalProgramInfo.computeInterimConstraintState(FilePaths);
 
   // Computed the number of removed pointers.
   CVars &NewWildPtrs = PtrDisjointSet.AllWildPtrs;
