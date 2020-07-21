@@ -1,5 +1,5 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL" %s
-//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" %s
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 // RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 typedef unsigned long size_t;
@@ -11,8 +11,6 @@ extern _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte
 extern int printf(const char * restrict format : itype(restrict _Nt_array_ptr<const char>), ...);
 extern _Unchecked char *strcpy(char * restrict dest, const char * restrict src : itype(restrict _Nt_array_ptr<const char>));
 
-
-
 char *sus(int *x, int*y) {
   char *z = malloc(sizeof(char));
   *z = 1;
@@ -21,9 +19,8 @@ char *sus(int *x, int*y) {
   return z;
 }
 //CHECK_NOALL: char *sus(int *x, _Ptr<int> y) : itype(_Ptr<char>) {
-//CHECK_NOALL:   _Ptr<char> z =  malloc<char>(sizeof(char));
 //CHECK_ALL: char *sus(int *x : itype(_Array_ptr<int>), _Ptr<int> y) : itype(_Ptr<char>) {
-//CHECK_ALL:   _Ptr<char> z =  malloc<char>(sizeof(char));
+//CHECK:   _Ptr<char> z =  malloc<char>(sizeof(char));
 
 
 char* foo() {
@@ -32,14 +29,10 @@ char* foo() {
   *z = *z + 1;
   return z;
 }
-//CHECK_NOALL: char* foo() {
-//CHECK_NOALL: int *x = &sx;
-//CHECK_NOALL: _Ptr<int> y = &sy;
-//CHECK_NOALL:   char *z = (int *) sus(x, y);
-//CHECK_ALL: char* foo() {
-//CHECK_ALL: int *x = &sx;
-//CHECK_ALL: _Ptr<int> y = &sy;
-//CHECK_ALL:   char *z = (int *) sus(x, y);
+//CHECK: char * foo(void) {
+//CHECK: int *x = &sx;
+//CHECK: _Ptr<int> y = &sy;
+//CHECK:   char *z = (int *) sus(x, y);
 
 
 int* bar() {
@@ -47,11 +40,7 @@ int* bar() {
   int *z = sus(x, y);
   return z;
 }
-//CHECK_NOALL: int* bar() {
-//CHECK_NOALL: int *x = &sx;
-//CHECK_NOALL: _Ptr<int> y = &sy;
-//CHECK_NOALL:   int *z = sus(x, y);
-//CHECK_ALL: int* bar() {
-//CHECK_ALL: int *x = &sx;
-//CHECK_ALL: _Ptr<int> y = &sy;
-//CHECK_ALL:   int *z = sus(x, y);
+//CHECK: int * bar(void) {
+//CHECK: int *x = &sx;
+//CHECK: _Ptr<int> y = &sy;
+//CHECK:   int *z = sus(x, y);

@@ -1,5 +1,5 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL" %s
-//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" %s
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 // RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 typedef unsigned long size_t;
@@ -11,27 +11,25 @@ extern _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte
 extern int printf(const char * restrict format : itype(restrict _Nt_array_ptr<const char>), ...);
 extern _Unchecked char *strcpy(char * restrict dest, const char * restrict src : itype(restrict _Nt_array_ptr<const char>));
 
+
 struct np {
-  int x;
-  int y;
+    int x;
+    int y;
 };
 
 struct p {
-  int *x;
-  char *y;
+    int *x;
+    char *y;
 };
+//CHECK:     _Ptr<int> x;
+//CHECK:     _Ptr<char> y;
+
 
 struct r {
-  int data;
-  struct r *next;
+    int data;
+    struct r *next;
 };
-
-//CHECK_NOALL:   _Ptr<int> x;
-//CHECK_NOALL:   _Ptr<char> y;
-//CHECK_NOALL:   struct r *next;
-//CHECK_ALL:   _Ptr<int> x;
-//CHECK_ALL:   _Ptr<char> y;
-//CHECK_ALL:   struct r *next;
+//CHECK:     struct r *next;
 
 
 struct np *sus(struct r *, struct r *);
@@ -48,12 +46,9 @@ struct np *foo() {
   struct np *z = (struct r *) sus(x, y);
   return z;
 }
-//CHECK_NOALL: struct np *foo() {
-//CHECK_NOALL:   struct r *x, *y;
-//CHECK_NOALL:   struct np *z = (struct r *) sus(x, y);
-//CHECK_ALL: struct np *foo() {
-//CHECK_ALL:   struct r *x, *y;
-//CHECK_ALL:   struct np *z = (struct r *) sus(x, y);
+//CHECK: struct np * foo(void) {
+//CHECK:   struct r *x, *y;
+//CHECK:   struct np *z = (struct r *) sus(x, y);
 
 
 struct r *bar() {
@@ -65,12 +60,9 @@ struct r *bar() {
   struct r *z = sus(x, y);
   return z;
 }
-//CHECK_NOALL: struct r *bar() {
-//CHECK_NOALL:   struct r *x, *y;
-//CHECK_NOALL:   struct r *z = sus(x, y);
-//CHECK_ALL: struct r *bar() {
-//CHECK_ALL:   struct r *x, *y;
-//CHECK_ALL:   struct r *z = sus(x, y);
+//CHECK: struct r * bar(void) {
+//CHECK:   struct r *x, *y;
+//CHECK:   struct r *z = sus(x, y);
 
 
 struct np *sus(struct r *x, struct r *y) {
@@ -80,7 +72,5 @@ struct np *sus(struct r *x, struct r *y) {
   z->y = 0;
   return z;
 }
-//CHECK_NOALL: struct np *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct np>) {
-//CHECK_NOALL:   _Ptr<struct np> z =  malloc<struct np>(sizeof(struct np));
-//CHECK_ALL: struct np *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct np>) {
-//CHECK_ALL:   _Ptr<struct np> z =  malloc<struct np>(sizeof(struct np));
+//CHECK: struct np *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct np>) {
+//CHECK:   _Ptr<struct np> z =  malloc<struct np>(sizeof(struct np));
