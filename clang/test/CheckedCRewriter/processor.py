@@ -7,7 +7,7 @@ path_to_monorepo = "/Users/shilpa-roy/checkedc-clang/build/bin/"
 # Let's clear all the existing annotations to get a clean fresh file with only code
 def strip_existing_annotations(filename): 
     for line in fileinput.input(filename, inplace=1):
-        if "//" in line and ("CHECK" in line or "RUN" in line): 
+        if "//" in line: 
             line = "" 
         sys.stdout.write(line)
 
@@ -75,16 +75,21 @@ def process_file(file, alltypes, structs, susprotoc, susc, fooc, barc):
             proto_encountered = True
             insus = infoo = inbar = False
             insus = True
-            susc += "//" + check + ": " + line
+            if line in susc: 
+                susc.replace("CHECK_NOALL:" + line, "CHECK:" + line)
+            else: 
+                susc += "//" + check + ": " + line
 
         # annotate the definition for foo
         elif line.find("foo") != -1:
+            proto_encountered = True
             insus = infoo = inbar = False
             infoo = True 
             fooc += "//" + check + ": " + line  
 
         # annotate the definition for bar
         elif line.find("bar") != -1:  
+            proto_encountered = True
             insus = infoo = inbar = False
             inbar = True 
             barc += "//" + check + ": " + line  
@@ -129,8 +134,8 @@ def process(filename):
     os.system("rm {}".format(cnameALL))
 
     #TODO: Once Aaron's PR is merged, add the addcr flag here
-    run = "// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\" %s"
-    run += "\n//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\" %s"
+    run = "// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\",\"CHECK\" %s"
+    run += "\n//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" %s"
     run += "\n// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -"
 
     ctest = [run, header, structs, sus + "\n" + susc, foo + "\n" + fooc, bar + "\n" + barc] 
