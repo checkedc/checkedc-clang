@@ -36,7 +36,7 @@ public:
   void Clear();
   CVars &GetRCVars(ConstraintKey);
   CVars &GetSrcCVars(ConstraintKey);
-  unsigned getNumWildAffectedCKeys(const std::set<ConstraintKey> &DWKeys);
+  CVars getWildAffectedCKeys(const std::set<ConstraintKey> &DWKeys);
   void print_stats(llvm::raw_ostream &O);
 
   std::map<ConstraintKey, struct WildPointerInferenceInfo>
@@ -44,6 +44,7 @@ public:
   CVars AllWildPtrs;
   CVars InSrcWildPtrs;
   CVars TotalNonDirectWildPointers;
+  CVars InSrcNonDirectWildPointers;
   std::set<std::string> ValidSourceFiles;
   std::map<ConstraintKey, PersistentSourceLoc *> PtrSourceMap;
 

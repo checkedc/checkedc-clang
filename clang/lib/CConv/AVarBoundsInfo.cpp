@@ -15,21 +15,38 @@
 #include <boost/graph/breadth_first_search.hpp>
 #include <boost/graph/reverse_graph.hpp>
 
-void AVarBoundsStats::print(llvm::raw_ostream &O, bool JsonFormat) const {
+void AVarBoundsStats::print(llvm::raw_ostream &O,
+                            const std::set<BoundsKey> *InSrcArrs,
+                            bool JsonFormat) const {
+  std::set<BoundsKey> Tmp;
   if (!JsonFormat) {
     O << "Array Bounds Inference Stats:\n";
-    O << "NamePrefixMatch:" << NamePrefixMatch.size() << "\n";
-    O << "AllocatorMatch:" << AllocatorMatch.size() << "\n";
-    O << "VariableNameMatch:" << VariableNameMatch.size() << "\n";
-    O << "NeighbourParamMatch:" << NeighbourParamMatch.size() << "\n";
-    O << "DataflowMatch:" << DataflowMatch.size() << "\n";
+    findIntersection(NamePrefixMatch, *InSrcArrs, Tmp);
+    O << "NamePrefixMatch:" << Tmp.size() << "\n";
+    findIntersection(AllocatorMatch, *InSrcArrs, Tmp);
+    O << "AllocatorMatch:" << Tmp.size() << "\n";
+    findIntersection(VariableNameMatch, *InSrcArrs, Tmp);
+    O << "VariableNameMatch:" << Tmp.size() << "\n";
+    findIntersection(NeighbourParamMatch, *InSrcArrs, Tmp);
+    O << "NeighbourParamMatch:" << Tmp.size() << "\n";
+    findIntersection(DataflowMatch, *InSrcArrs, Tmp);
+    O << "DataflowMatch:" << Tmp.size() << "\n";
+    findIntersection(DeclaredBounds, *InSrcArrs, Tmp);
+    O << "Declared:" << Tmp.size() << "\n";
   } else {
     O << "\"ArrayBoundsInferenceStats\":{";
-    O << "\"NamePrefixMatch\":" << NamePrefixMatch.size() << ",\n";
-    O << "\"AllocatorMatch\":" << AllocatorMatch.size() << ",\n";
-    O << "\"VariableNameMatch\":" << VariableNameMatch.size() << ",\n";
-    O << "\"NeighbourParamMatch\":" << NeighbourParamMatch.size() << ",\n";
-    O << "\"DataflowMatch\":" << DataflowMatch.size() << ",\n";
+    findIntersection(NamePrefixMatch, *InSrcArrs, Tmp);
+    O << "\"NamePrefixMatch\":" << Tmp.size() << ",\n";
+    findIntersection(AllocatorMatch, *InSrcArrs, Tmp);
+    O << "\"AllocatorMatch\":" << Tmp.size() << ",\n";
+    findIntersection(VariableNameMatch, *InSrcArrs, Tmp);
+    O << "\"VariableNameMatch\":" << Tmp.size() << ",\n";
+    findIntersection(NeighbourParamMatch, *InSrcArrs, Tmp);
+    O << "\"NeighbourParamMatch\":" << Tmp.size() << ",\n";
+    findIntersection(DataflowMatch, *InSrcArrs, Tmp);
+    O << "\"DataflowMatch\":" << Tmp.size() << ",\n";
+    findIntersection(DeclaredBounds, *InSrcArrs, Tmp);
+    O << "\"Declared\":" << Tmp.size() << "\n";
     O << "}";
   }
 }
@@ -57,6 +74,7 @@ void AVarBoundsInfo::insertDeclaredBounds(clang::Decl *D, ABounds *B) {
       delete (BInfo[BK]);
     }
     BInfo[BK] = B;
+    BoundsInferStats.DeclaredBounds.insert(BK);
   } else {
     // Set bounds to be invalid.
     InvalidBounds.insert(BK);
@@ -310,6 +328,19 @@ bool hasArray(CVarSet &CSet, Constraints &CS) {
   return false;
 }
 
+bool isInSrcArray(CVarSet &CSet, Constraints &CS) {
+  auto &E = CS.getVariables();
+  for (auto *CK : CSet) {
+    if (PVConstraint *PV = dyn_cast<PVConstraint>(CK)) {
+      if ((PV->hasArr(E, 0) || PV->hasNtArr(E, 0)) &&
+          PV->isTopCvarUnsizedArr() && PV->isForValidDecl()) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 // This class picks variables that are in the same scope as the provided scope.
 class ScopeVisitor : public boost::default_bfs_visitor {
 public:
@@ -433,9 +464,7 @@ bool AvarBoundsInference::getRelevantBounds(std::set<BoundsKey> &RBKeys,
   std::set<BoundsKey> IncomingArrs;
   auto &ArrAtoms = BI->ArrPointerBoundsKey;
   // First, get all the related boundskeys that are arrays.
-  std::set_intersection(RBKeys.begin(), RBKeys.end(),
-                        ArrAtoms.begin(), ArrAtoms.end(),
-                        std::inserter(IncomingArrs, IncomingArrs.end()));
+  findIntersection(RBKeys, ArrAtoms, IncomingArrs);
 
   // Next, try to get their bounds.
   bool ValidB = true;
@@ -588,9 +617,7 @@ bool AVarBoundsInfo::performWorkListInference(std::set<BoundsKey> &ArrNeededBoun
       }
     }
     if (Changed) {
-      std::set_intersection(ArrNeededBounds.begin(), ArrNeededBounds.end(),
-                            NextIterArrs.begin(), NextIterArrs.end(),
-                            std::inserter(WorkList, WorkList.end()));
+      findIntersection(ArrNeededBounds, NextIterArrs, WorkList);
     }
   }
   return RetVal;
@@ -606,6 +633,10 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
       auto &PSL = BkeyToPSL.at(Bkey);
       if (hasArray(PI->getVarMap()[PSL], CS)) {
         ArrPointers.insert(Bkey);
+      }
+      // Does this array belongs to a valid program variable?
+      if (isInSrcArray(PI->getVarMap()[PSL], CS)) {
+        InProgramArrPtrBoundsKeys.insert(Bkey);
       }
       continue;
     }
@@ -626,6 +657,11 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
       if (hasArray(FV->getParamVar(ParmNum), CS)) {
         ArrPointers.insert(Bkey);
       }
+      // Does this array belongs to a valid program variable?
+      if (isInSrcArray(FV->getParamVar(ParmNum), CS)) {
+        InProgramArrPtrBoundsKeys.insert(Bkey);
+      }
+
       continue;
     }
   }
@@ -670,17 +706,29 @@ void AVarBoundsInfo::dumpAVarGraph(const std::string &DFPath) {
   ProgVarGraph.dumpCGDot(DFPath, this);
 }
 
-void AVarBoundsInfo::print_stats(llvm::raw_ostream &O, bool JsonFormat) const {
+void AVarBoundsInfo::print_stats(llvm::raw_ostream &O,
+                                 const CVarSet &SrcCVarSet,
+                                 bool JsonFormat) const {
+  std::set<BoundsKey> InSrcBKeys, InSrcArrBKeys, Tmp;
+  for (auto *C : SrcCVarSet) {
+    if (C->isForValidDecl() && C->hasBoundsKey())
+      InSrcBKeys.insert(C->getBoundsKey());
+  }
+  findIntersection(InProgramArrPtrBoundsKeys, InSrcBKeys, InSrcArrBKeys);
   if (!JsonFormat) {
-    O << "NumPointersNeedBounds:" << ArrPointerBoundsKey.size() << ",\n";
+    findIntersection(ArrPointerBoundsKey, InSrcArrBKeys, Tmp);
+    O << "NumPointersNeedBounds:" << Tmp.size() << ",\n";
     O << "Details:\n";
-    O << "Invalid:" << InvalidBounds.size() << "\n,BoundsFound:\n";
-    BoundsInferStats.print(O, JsonFormat);
+    findIntersection(InvalidBounds, InSrcArrBKeys, Tmp);
+    O << "Invalid:" << Tmp.size() << "\n,BoundsFound:\n";
+    BoundsInferStats.print(O, &InSrcArrBKeys, JsonFormat);
   } else {
-    O << "{\"NumPointersNeedBounds\":" << ArrPointerBoundsKey.size() << ",";
+    findIntersection(ArrPointerBoundsKey, InSrcArrBKeys, Tmp);
+    O << "{\"NumPointersNeedBounds\":" << Tmp.size() << ",";
     O << "\"Details\":{";
-    O << "\"Invalid\":" << InvalidBounds.size() << ",\"BoundsFound\":{";
-    BoundsInferStats.print(O, JsonFormat);
+    findIntersection(InvalidBounds, InSrcArrBKeys, Tmp);
+    O << "\"Invalid\":" << Tmp.size() << ",\"BoundsFound\":{";
+    BoundsInferStats.print(O, &InSrcArrBKeys, JsonFormat);
     O << "}";
     O << "}";
     O << "}";

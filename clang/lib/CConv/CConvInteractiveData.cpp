@@ -30,19 +30,21 @@ CVars &ConstraintsInfo::GetSrcCVars(ConstraintKey Ckey) {
   return SrcWMap[Ckey];
 }
 
-unsigned
-ConstraintsInfo::getNumWildAffectedCKeys(const CVars &DWKeys) {
+CVars
+ConstraintsInfo::getWildAffectedCKeys(const CVars &DWKeys) {
   CVars IndirectWKeys;
   for (auto CK : DWKeys) {
     auto &TK = GetSrcCVars(CK);
     IndirectWKeys.insert(TK.begin(), TK.end());
   }
-  return IndirectWKeys.size();
+  return IndirectWKeys;
 }
 
 void ConstraintsInfo::print_stats(llvm::raw_ostream &O) {
     O << "{\"WildPtrInfo\":{";
     O << "\"InDirectWildPtrNum\":" << TotalNonDirectWildPointers.size() << ",";
+    O << "\"InSrcInDirectWildPtrNum\":" <<
+        InSrcNonDirectWildPointers.size() << ",";
     O << "\"DirectWildPtrs\":{";
     O << "\"Num\":" << AllWildPtrs.size() << ",";
     O << "\"InSrcNum\":" << InSrcWildPtrs.size() << ",";
@@ -62,12 +64,13 @@ void ConstraintsInfo::print_stats(llvm::raw_ostream &O) {
       O << "{\"" << T.first << "\":{";
       O << "\"Num\":" << T.second.size() << ",";
       CVars TmpKeys;
-      TmpKeys.clear();
-      std::set_intersection(InSrcWildPtrs.begin(), InSrcWildPtrs.end(),
-                            T.second.begin(), T.second.end(),
-                            std::inserter(TmpKeys, TmpKeys.begin()));
+      findIntersection(InSrcWildPtrs, T.second, TmpKeys);
       O << "\"InSrcNum\":" << TmpKeys.size() << ",";
-      O << "\"TotalIndirect\":" << getNumWildAffectedCKeys(T.second);
+      CVars InDWild, Tmp;
+      InDWild = getWildAffectedCKeys(T.second);
+      findIntersection(InDWild, InSrcNonDirectWildPointers, Tmp);
+      O << "\"TotalIndirect\":" << InDWild.size() << ",";
+      O << "\"InSrcIndirect\":" << Tmp.size();
       O << "}}";
       AddComma = true;
     }
