@@ -3241,8 +3241,8 @@ namespace {
         BoundsExpr *IncDecResultBounds = SubExprTargetBounds;
 
         // Create the target of the implied assignment `e1 = e1 +/- 1`.
-        Expr *Target = CreateImplicitCast(SubExpr->getType(),
-                                            CK_LValueToRValue, SubExpr);
+        CastExpr *Target = CreateImplicitCast(SubExpr->getType(),
+                                              CK_LValueToRValue, SubExpr);
 
         // Only use the RHS `e1 +/1 ` of the implied assignment to update
         // the checking state if the integer constant 1 can be created, which
@@ -3262,8 +3262,12 @@ namespace {
           // Update SameValue to be the set of expressions that produce the
           // same value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateSameValue(E, State.SameValue, State.SameValue, RHS);
-          IncDecResultBounds = UpdateAfterAssignment(V, Target, RHS,
-                                                     IncDecResultBounds,
+          // The bounds of the RHS `e1 +/- 1` are the rvalue bounds of the
+          // rvalue cast `e1`.
+          BoundsExpr *RHSBounds = RValueCastBounds(Target, SubExprTargetBounds,
+                                                   SubExprLValueBounds,
+                                                   SubExprBounds, State);
+          IncDecResultBounds = UpdateAfterAssignment(V, Target, RHS, RHSBounds,
                                                      CSS, State, State);
         }
 
