@@ -21,16 +21,16 @@ struct p {
     int *x;
     char *y;
 };
-//CHECK_NOALL:     int *x;
-//CHECK_ALL:     _Array_ptr<int> x;
-//CHECK:     _Ptr<char> y;
+//CHECK_NOALL: int *x;
+//CHECK_ALL: _Array_ptr<int> x;
+//CHECK: _Ptr<char> y;
 
 
 struct r {
     int data;
     struct r *next;
 };
-//CHECK:     _Ptr<struct r> next;
+//CHECK: _Ptr<struct r> next;
 
 
 struct p sus(struct p x) {
@@ -39,7 +39,7 @@ struct p sus(struct p x) {
   return *n;
 }
 //CHECK: struct p sus(struct p x) {
-//CHECK:   _Ptr<struct p> n =  malloc<struct p>(sizeof(struct p));
+//CHECK: _Ptr<struct p> n =  malloc<struct p>(sizeof(struct p));
 
 
 struct p foo(void) {

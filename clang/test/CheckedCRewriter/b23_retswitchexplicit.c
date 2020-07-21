@@ -20,7 +20,7 @@ char *sus(int *x, int*y) {
 }
 //CHECK_NOALL: char * sus(int *x, _Ptr<int> y) {
 //CHECK_ALL: char * sus(int *x : itype(_Array_ptr<int>), _Ptr<int> y) {
-//CHECK:   int *z = malloc<int>(sizeof(int));
+//CHECK: int *z = malloc<int>(sizeof(int));
 
 
 char* foo() {
@@ -32,7 +32,7 @@ char* foo() {
 //CHECK: char * foo(void) {
 //CHECK: int *x = &sx;
 //CHECK: _Ptr<int> y = &sy;
-//CHECK:   char *z = (int *) sus(x, y);
+//CHECK: char *z = (int *) sus(x, y);
 
 
 int* bar() {
@@ -43,4 +43,4 @@ int* bar() {
 //CHECK: int * bar(void) {
 //CHECK: int *x = &sx;
 //CHECK: _Ptr<int> y = &sy;
-//CHECK:   int *z = (char *) (sus(x, y));
+//CHECK: int *z = (char *) (sus(x, y));

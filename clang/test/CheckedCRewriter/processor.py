@@ -94,80 +94,89 @@ def process_file(file, alltypes, structc, susprotoc, susc, fooc, barc):
         # annotate the prototype for sus
         elif line.find("sus") != -1 and line.find(";") != -1 and (not (infoo or inbar or insus)):
             indefs = inr = insus = infoo = inbar = False
+            line = line.strip()
             if line in susc:
-                susprotoc = susprotoc.replace("//CHECK_NOALL: " + line, "") 
-                susprotoc += "//CHECK: " + line
+                susprotoc = susprotoc.replace("//CHECK_NOALL: " + line + "\n", "") 
+                susprotoc += "//CHECK: " + line + "\n"
             else: 
-                susprotoc += "//" + check + ": " + line
+                susprotoc += "//" + check + ": " + line + "\n"
 
         # annotate the definition for sus
         elif line.find("sus") != -1 and line.find("{") != -1: 
             indefs = inr = insus = infoo = inbar = False
             insus = True
+            line = line.strip()
             if line in susc:
-                susc = susc.replace("//CHECK_NOALL: " + line, "") 
-                susc += "//CHECK: " + line
+                susc = susc.replace("//CHECK_NOALL: " + line + "\n", "") 
+                susc += "//CHECK: " + line + "\n"
             else: 
-                susc += "//" + check + ": " + line
+                susc += "//" + check + ": " + line + "\n"
 
         # annotate the definition for foo
         elif line.find("foo") != -1:
             indefs = inr = insus = infoo = inbar = False
             infoo = True 
+            line = line.strip()
             if line.rstrip() in fooc: 
-                fooc = fooc.replace("//CHECK_NOALL: " + line, "") 
-                fooc += "//CHECK: " + line
+                fooc = fooc.replace("//CHECK_NOALL: " + line + "\n", "") 
+                fooc += "//CHECK: " + line + "\n"
             else: 
-                fooc += "//" + check + ": " + line  
+                fooc += "//" + check + ": " + line + "\n"  
 
         # annotate the definition for bar
         elif line.find("bar") != -1:  
             indefs = inr = insus = infoo = inbar = False
             inbar = True 
+            line = line.strip()
             if line.rstrip() in barc: 
-                barc = barc.replace("//CHECK_NOALL: " + line, "") 
-                barc += "//CHECK: " + line
+                barc = barc.replace("//CHECK_NOALL: " + line + "\n", "") 
+                barc += "//CHECK: " + line + "\n"
             else: 
-                barc += "//" + check + ": " + line  
+                barc += "//" + check + ": " + line + "\n" 
 
         elif indefs: 
             if line.find("struct r {") != -1: 
                 inr = True
-            elif inr and ((any(substr in line for substr in keywords) and line.find("*") != -1) or any(substr in line for substr in ckeywords)): 
+            elif inr and ((any(substr in line for substr in keywords) and line.find("*") != -1) or any(substr in line for substr in ckeywords)):  
+                line = line.strip()
                 if ("//CHECK_NOALL: " + line) in structc[1]: 
-                    structc[1] = structc[1].replace("//CHECK_NOALL: " + line, "") 
-                    structc[1] += "//CHECK: " + line
+                    structc[1] = structc[1].replace("//CHECK_NOALL: " + line + "\n", "") 
+                    structc[1] += "//CHECK: " + line + "\n"
                 else: 
-                    structc[1] += "//" + check + ": " + line
+                    structc[1] += "//" + check + ": " + line + "\n"
             elif (any(substr in line for substr in keywords) and line.find("*") != -1) or any(substr in line for substr in ckeywords): 
+                line = line.strip()
                 if ("//CHECK_NOALL: " + line) in structc[0]: 
-                    structc[0] = structc[0].replace("//CHECK_NOALL: " + line, "") 
-                    structc[0] += "//CHECK: " + line
+                    structc[0] = structc[0].replace("//CHECK_NOALL: " + line + "\n", "") 
+                    structc[0] += "//CHECK: " + line + "\n"
                 else: 
-                    structc[0] += "//" + check + ": " + line
+                    structc[0] += "//" + check + ": " + line + "\n"
 
 
         elif insus: 
             if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
+                line = line.strip()
                 if line in susc: 
-                    susc = susc.replace("//CHECK_NOALL: " + line, "") 
-                    susc += "//CHECK: " + line
+                    susc = susc.replace("//CHECK_NOALL: " + line + "\n", "") 
+                    susc += "//CHECK: " + line + "\n"
                 else: 
-                    susc += "//" + check + ": " + line
+                    susc += "//" + check + ": " + line + "\n"
         elif infoo: 
-            if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
+            if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords): 
+                line = line.strip()
                 if line in fooc: 
-                    fooc = fooc.replace("//CHECK_NOALL: " + line, "") 
-                    fooc += "//CHECK: " + line
+                    fooc = fooc.replace("//CHECK_NOALL: " + line + "\n", "") 
+                    fooc += "//CHECK: " + line + "\n"
                 else: 
-                    fooc += "//" + check + ": " + line 
+                    fooc += "//" + check + ": " + line + "\n" 
         elif inbar: 
             if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
+                line = line.strip()
                 if line in barc: 
-                    barc = barc.replace("//CHECK_NOALL: " + line, "") 
-                    barc += "//CHECK: " + line
+                    barc = barc.replace("//CHECK_NOALL: " + line + "\n", "") 
+                    barc += "//CHECK: " + line + "\n"
                 else: 
-                    barc += "//" + check + ": " + line 
+                    barc += "//" + check + ": " + line + "\n" 
 
     return [structc, susprotoc, susc, fooc, barc]
 

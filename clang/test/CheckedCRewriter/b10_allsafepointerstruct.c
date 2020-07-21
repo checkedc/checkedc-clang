@@ -21,15 +21,15 @@ struct p {
     int *x;
     char *y;
 };
-//CHECK:     _Ptr<int> x;
-//CHECK:     char *y;
+//CHECK: _Ptr<int> x;
+//CHECK: char *y;
 
 
 struct r {
     int data;
     struct r *next;
 };
-//CHECK:     _Ptr<struct r> next;
+//CHECK: _Ptr<struct r> next;
 
 
 struct p *sus(struct p *x, struct p *y) {
@@ -38,7 +38,7 @@ struct p *sus(struct p *x, struct p *y) {
   return z;
 }
 //CHECK: _Ptr<struct p> sus(_Ptr<struct p> x, _Ptr<struct p> y) {
-//CHECK:   _Ptr<struct p> z =  malloc<struct p>(sizeof(struct p));
+//CHECK: _Ptr<struct p> z =  malloc<struct p>(sizeof(struct p));
 
 
 struct p *foo() {
@@ -52,9 +52,9 @@ struct p *foo() {
   return z;
 }
 //CHECK: _Ptr<struct p> foo(void) {
-//CHECK:  _Ptr<struct p> x = ((void *)0);
+//CHECK: _Ptr<struct p> x = ((void *)0);
 //CHECK: _Ptr<struct p> y = ((void *)0);
-//CHECK:   _Ptr<struct p> z =  (struct p *) sus(x, y);
+//CHECK: _Ptr<struct p> z =  (struct p *) sus(x, y);
 
 
 struct p *bar() {
@@ -68,6 +68,6 @@ struct p *bar() {
   return z;
 }
 //CHECK: _Ptr<struct p> bar(void) {
-//CHECK:  _Ptr<struct p> x = ((void *)0);
+//CHECK: _Ptr<struct p> x = ((void *)0);
 //CHECK: _Ptr<struct p> y = ((void *)0);
-//CHECK:   _Ptr<struct p> z =  (struct p *) sus(x, y);
+//CHECK: _Ptr<struct p> z =  (struct p *) sus(x, y);

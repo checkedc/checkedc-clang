@@ -21,15 +21,15 @@ struct p {
     int *x;
     char *y;
 };
-//CHECK:     _Ptr<int> x;
-//CHECK:     _Ptr<char> y;
+//CHECK: _Ptr<int> x;
+//CHECK: _Ptr<char> y;
 
 
 struct r {
     int data;
     struct r *next;
 };
-//CHECK:     struct r *next;
+//CHECK: struct r *next;
 
 
 struct r *sus(struct r x, struct r y) {
@@ -40,7 +40,7 @@ struct r *sus(struct r x, struct r y) {
   return z;
 }
 //CHECK: struct r *sus(struct r x, struct r y) : itype(_Ptr<struct r>) {
-//CHECK:   _Ptr<struct r> z =  malloc<struct r>(sizeof(struct r));
+//CHECK: _Ptr<struct r> z =  malloc<struct r>(sizeof(struct r));
 
 
 struct r *foo() {
@@ -53,7 +53,7 @@ struct r *foo() {
   return z;
 }
 //CHECK: _Ptr<struct r> foo(void) {
-//CHECK:   _Ptr<struct r> z =  (struct r *) sus(x, y);
+//CHECK: _Ptr<struct r> z =  (struct r *) sus(x, y);
 
 
 struct np *bar() {
@@ -66,4 +66,4 @@ struct np *bar() {
   return z;
 }
 //CHECK: struct np * bar(void) {
-//CHECK:   struct np *z = sus(x, y);
+//CHECK: struct np *z = sus(x, y);
