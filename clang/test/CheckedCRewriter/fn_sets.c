@@ -1,5 +1,5 @@
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-
+// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 // Tests relating to issue #86 Handling sets of functions
 
 // In the first test case, y WILD due to the  (int*)5 assignment. This

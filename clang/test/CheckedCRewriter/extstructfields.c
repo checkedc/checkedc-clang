@@ -1,4 +1,5 @@
 // RUN: CPATH=$CHECKED_CPATH:$CPATH cconv-standalone %s -- | FileCheck -match-full-lines %s
+// RUN: CPATH=$CHECKED_CPATH:$CPATH cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 #include <signal.h>
 
