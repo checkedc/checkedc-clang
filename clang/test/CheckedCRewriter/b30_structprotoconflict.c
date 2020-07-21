@@ -1,8 +1,6 @@
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL" %s
 //RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" %s
-//RUN: cconv-standalone -output-postfix=checkedNOALL %s
-//RUN: %clang -c %S/b30_structprotoconflict.checkedNOALL.c
-//RUN: rm %S/b30_structprotoconflict.checkedNOALL.c
+// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 typedef unsigned long size_t;
 #define NULL ((void*)0)
@@ -27,6 +25,14 @@ struct r {
   int data;
   struct r *next;
 };
+
+//CHECK_NOALL:   _Ptr<int> x;
+//CHECK_NOALL:   _Ptr<char> y;
+//CHECK_NOALL:   struct r *next;
+//CHECK_ALL:   _Ptr<int> x;
+//CHECK_ALL:   _Ptr<char> y;
+//CHECK_ALL:   struct r *next;
+
 
 struct r *sus(struct r *, struct r *);
 //CHECK_NOALL: struct r *sus(_Ptr<struct r> x, _Ptr<struct r> y) : itype(_Ptr<struct r>);

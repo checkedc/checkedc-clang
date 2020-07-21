@@ -49,7 +49,7 @@ def split_into_blocks(filename):
     return [header.strip(), susproto.strip(), sus.strip(), foo.strip(), bar.strip()] 
 
 # Add the annotations to the files 
-def process_file(file, alltypes, susprotoc, susc, fooc, barc): 
+def process_file(file, alltypes, structs, susprotoc, susc, fooc, barc): 
     check = "CHECK_NOALL"
     if alltypes: check = "CHECK_ALL"
 
@@ -58,7 +58,7 @@ def process_file(file, alltypes, susprotoc, susc, fooc, barc):
 
     # these boolean variables indicate which method definition we are in, so we know where to add
     # our checked annotations later
-    insus = infoo = inbar = False 
+    insus = infoo = inbar = proto_encountered = False 
 
     # generate the check annotations
     for line in file.readlines():   
@@ -66,11 +66,13 @@ def process_file(file, alltypes, susprotoc, susc, fooc, barc):
         
         # annotate the prototype for sus
         if line.find("sus") != -1 and line.find(";") != -1 and (not (infoo or inbar or insus)):
+            proto_encountered = True
             insus = infoo = inbar = False
             susprotoc += "//" + check + ": " + line
 
         # annotate the definition for sus
         elif line.find("sus") != -1 and line.find("{") != -1: 
+            proto_encountered = True
             insus = infoo = inbar = False
             insus = True
             susc += "//" + check + ": " + line
@@ -95,9 +97,13 @@ def process_file(file, alltypes, susprotoc, susc, fooc, barc):
                 fooc += "//" + check + ": " + line 
         elif inbar: 
             if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
-                barc += "//" + check + ": " + line
-    
-    return [susprotoc, susc, fooc, barc]
+                barc += "//" + check + ": " + line 
+
+        elif not proto_encountered: 
+            if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1 and linepre.find("extern") == -1) or (any(substr in line for substr in ckeywords) and linepre.find("extern") == -1):
+                structs += "//" + check + ": " + line 
+
+    return [structs, susprotoc, susc, fooc, barc]
 
 # main processing unit
 def process(filename): 
@@ -111,26 +117,24 @@ def process(filename):
     os.system("{}cconv-standalone -output-postfix=checkedNOALL {}".format(path_to_monorepo, filename))
     os.system("rm {}".format(filename))
 
-    susprotoc = susc = fooc = barc = ""
+    susprotoc = susc = fooc = barc = structs = ""
     file = open(cnameNOALL, "r") 
-    [susprotoc, susc, fooc, barc] = process_file(file, False, susprotoc, susc, fooc, barc)
+    [structs, susprotoc, susc, fooc, barc] = process_file(file, False, structs, susprotoc, susc, fooc, barc)
     file.close() 
     os.system("rm {}".format(cnameNOALL))
 
     file = open(cnameALL, "r") 
-    [susprotoc, susc, fooc, barc] = process_file(file, True, susprotoc, susc, fooc, barc)
+    [structs, susprotoc, susc, fooc, barc] = process_file(file, True, structs, susprotoc, susc, fooc, barc)
     file.close() 
     os.system("rm {}".format(cnameALL))
 
     #TODO: Once Aaron's PR is merged, add the addcr flag here
     run = "// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\" %s"
     run += "\n//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\" %s"
-    run += "\n//RUN: cconv-standalone -output-postfix=checkedNOALL %s" 
-    run += "\n//RUN: %clang -c %S/{}".format(cnameNOALL)
-    run += "\n//RUN: rm %S/{}".format(cnameNOALL) 
+    run += "\n// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -"
 
-    ctest = [run, header, sus + "\n" + susc, foo + "\n" + fooc, bar + "\n" + barc] 
-    if susproto != "": ctest = [run, header, susproto + "\n" + susprotoc, foo + "\n" + fooc, bar + "\n" + barc, sus + "\n" + susc] 
+    ctest = [run, header, structs, sus + "\n" + susc, foo + "\n" + fooc, bar + "\n" + barc] 
+    if susproto != "": ctest = [run, header, structs, susproto + "\n" + susprotoc, foo + "\n" + fooc, bar + "\n" + barc, sus + "\n" + susc] 
 
     file = open(filename, "w+") 
     file.write('\n\n'.join(ctest)) 

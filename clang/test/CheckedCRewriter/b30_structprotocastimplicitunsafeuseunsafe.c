@@ -1,8 +1,6 @@
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL" %s
 //RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" %s
-//RUN: cconv-standalone -output-postfix=checkedNOALL %s
-//RUN: %clang -c %S/b30_structprotocastimplicitunsafeuseunsafe.checkedNOALL.c
-//RUN: rm %S/b30_structprotocastimplicitunsafeuseunsafe.checkedNOALL.c
+// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 typedef unsigned long size_t;
 #define NULL ((void*)0)
@@ -28,9 +26,17 @@ struct r {
   struct r *next;
 };
 
+//CHECK_NOALL:   _Ptr<int> x;
+//CHECK_NOALL:   _Ptr<char> y;
+//CHECK_NOALL:   struct r *next;
+//CHECK_ALL:   _Ptr<int> x;
+//CHECK_ALL:   _Ptr<char> y;
+//CHECK_ALL:   struct r *next;
+
+
 struct r *sus(struct r *, struct r *);
 //CHECK_NOALL: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct r>);
-//CHECK_ALL: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct r>);
+//CHECK_ALL: struct r * sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>));
 
 
 struct r *foo() {
@@ -45,9 +51,9 @@ struct r *foo() {
 //CHECK_NOALL: _Ptr<struct r> foo(void) {
 //CHECK_NOALL:   struct r *x, *y;
 //CHECK_NOALL:   _Ptr<struct r> z =  (struct r *) sus(x, y);
-//CHECK_ALL: _Ptr<struct r> foo(void) {
+//CHECK_ALL: struct r *foo() {
 //CHECK_ALL:   struct r *x, *y;
-//CHECK_ALL:   _Ptr<struct r> z =  (struct r *) sus(x, y);
+//CHECK_ALL:   struct r *z = (struct r *) sus(x, y);
 
 
 struct np *bar() {
@@ -77,5 +83,5 @@ struct r *sus(struct r *x, struct r *y) {
 }
 //CHECK_NOALL: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct r>) {
 //CHECK_NOALL:   _Ptr<struct r> z =  malloc<struct r>(sizeof(struct r));
-//CHECK_ALL: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct r>) {
-//CHECK_ALL:   _Ptr<struct r> z =  malloc<struct r>(sizeof(struct r));
+//CHECK_ALL: struct r * sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) {
+//CHECK_ALL:   struct r *z = malloc<struct r>(sizeof(struct r));
