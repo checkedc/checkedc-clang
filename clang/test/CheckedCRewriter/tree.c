@@ -1,8 +1,10 @@
-// RUN: cconv-standalone -addcr -alltypes %s -- | FileCheck -match-full-lines %s
-// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" %s
+// RUN: cconv-standalone -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 #include <stdlib.h>
+typedef unsigned long size_t;
+extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 
 struct tree {
   int val;
@@ -13,21 +15,21 @@ struct tree {
 };
 
 //CHECK: _Ptr<struct tree> parent;
-//CHECK: _Array_ptr<_Ptr<struct tree>> children : count(len);
+//CHECK_ALL: _Array_ptr<_Ptr<struct tree>> children : count(len);
 //CHECK_NOALL: struct tree **children;
 
 struct tree *new_node(int val, unsigned int num_childs, struct tree *parent) {
-//CHECK: _Ptr<struct tree> new_node(int val, unsigned int num_childs, _Ptr<struct tree> parent) { 
+//CHECK_ALL: _Ptr<struct tree> new_node(int val, unsigned int num_childs, _Ptr<struct tree> parent) { 
 //CHECK_NOALL: _Ptr<struct tree> new_node(int val, unsigned int num_childs, _Ptr<struct tree> parent) {
 
-  struct tree *n = malloc(sizeof(struct tree)); /*Compilation error: type arguments supplied for non-generic function or expression*/
+  struct tree *n = malloc(sizeof(struct tree));
 
-  //CHECK: _Ptr<struct tree> n = malloc<struct tree>(sizeof(struct tree));
+  //CHECK_ALL: _Ptr<struct tree> n = malloc<struct tree>(sizeof(struct tree));
   //CHECK_NOALL: _Ptr<struct tree> n =  malloc<struct tree>(sizeof(struct tree));
   
-  struct tree **children; /*Compilation error: type arguments supplied for non-generic function or expression*/
+  struct tree **children;
 
-  //CHECK: _Array_ptr<_Ptr<struct tree>> children : count(num_childs) = ((void *)0); 
+  //CHECK_ALL: _Array_ptr<_Ptr<struct tree>> children : count(num_childs) = ((void *)0); 
   //CHECK_NOALL: struct tree **children;
   if (!n) return NULL;
   children = malloc(sizeof(struct tree *)*num_childs);
@@ -41,13 +43,13 @@ struct tree *new_node(int val, unsigned int num_childs, struct tree *parent) {
 }
 
 int add_child(struct tree *p, struct tree *c) {
-//CHECK:int add_child(_Ptr<struct tree> p, _Ptr<struct tree> c) _Checked {
+//CHECK_ALL: int add_child(_Ptr<struct tree> p, _Ptr<struct tree> c) _Checked {
 //CHECK_NOALL: int add_child(_Ptr<struct tree> p, struct tree *c) { 
 
   if (p->child_count >= p->len) {
     unsigned int len = p->len * 2;
     struct tree **children;
-    //CHECK:_Array_ptr<_Ptr<struct tree>> children : count(len) = ((void *)0);
+    //CHECK_ALL: _Array_ptr<_Ptr<struct tree>> children : count(len) = ((void *)0);
     //CHECK_NOALL: struct tree **children;
 
     //children = realloc(p->children,sizeof(struct tree)*len);
@@ -65,7 +67,7 @@ int add_child(struct tree *p, struct tree *c) {
 
 
 int sum(struct tree *p) {
-//CHECK:int sum(_Ptr<struct tree> p) _Checked {
+//CHECK_ALL: int sum(_Ptr<struct tree> p) _Checked {
 //CHECK_NOALL: int sum(struct tree *p : itype(_Ptr<struct tree>)) {
   int n = 0;
   if (!p) return 0;

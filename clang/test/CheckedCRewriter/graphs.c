@@ -7,7 +7,10 @@
 #include <stdlib.h>
 
 #define MAX_SIZE 40//Assume 40 nodes at max in graph
-#define INT_MIN 0
+#define INT_MIN 0 
+
+typedef unsigned long size_t;
+extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 
 //A vertex of the graph
 
@@ -331,6 +334,7 @@ struct Stack* createStack()
 	struct Stack* stack=malloc(sizeof(struct Stack));
 
 	stack->top=-1;
+    return stack;
 
 }
 //CHECK: _Ptr<struct Stack> createStack(void)

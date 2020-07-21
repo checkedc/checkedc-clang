@@ -6,6 +6,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef unsigned long size_t;
+extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
+extern _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
+extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
+
+
 void basic1() {
 	char data[] = "abcdefghijklmnop";
 
@@ -118,7 +124,7 @@ void basic_realloc(int count) {
     printf("Addresses of previously allocated memory: ");
 
     for(i = 0; i < n1; ++i)
-         printf("%u\n",ptr + i);
+         printf("%u\n",*(ptr + i));
     printf("\nEnter the new size: ");
     scanf("%d", &n2);
     ptr = realloc(ptr, n2 * sizeof(int));
@@ -126,7 +132,7 @@ void basic_realloc(int count) {
 
     for(i = 0; i < n2; ++i)
 
-         printf("%u\n", ptr + i);
+         printf("%u\n", *(ptr + i));
 
     free(ptr);
 }
