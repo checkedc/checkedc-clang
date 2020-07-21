@@ -2379,10 +2379,6 @@ namespace {
             // bounds for v (if any), or the declared bounds for v (if any).
             GetDeclaredBounds(this->S, BlockState.ObservedBounds, S);
 
-            // If any bounds are killed by statement S, reset their bounds
-            // to their declared bounds.
-            ResetKilledBounds(KilledBounds, S, BlockState);
-
             BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
             BlockState.Reset();
 
@@ -2402,6 +2398,13 @@ namespace {
             // declared bounds, the observed bounds for each variable should
             // be reset to their observed bounds from before checking S.
             BlockState.ObservedBounds = InitialObservedBounds;
+
+            // If the widened bounds of any variables are killed by statement
+            // S, reset their observed bounds to their declared bounds.
+            // Resetting the widened bounds killed by S should be the last
+            // thing done as part of traversing S.  The widened bounds of each
+            // variable should be in effect until the very end of traversing S.
+            ResetKilledBounds(KilledBounds, S, BlockState);
          }
        }
        if (Block->getBlockID() != Cfg->getEntry().getBlockID())
