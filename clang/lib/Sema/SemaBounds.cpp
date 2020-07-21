@@ -2087,6 +2087,12 @@ namespace {
                                    BoundsCheckKind CheckKind,
                                    CheckedScopeSpecifier CSS,
                                    EquivExprSets *EquivExprs) {
+
+      // If we are running to Checked C converter (AST only) tool, then disable
+      // bounds checking.
+      if (S.getLangOpts().CheckedCConverter)
+        return;
+
       ProofFailure Cause;
       ProofResult Result;
       ProofStmtKind ProofKind;
@@ -5390,6 +5396,9 @@ namespace {
       // We're only looking for casts to checked function ptr<>s.
       if (!ToType->isCheckedPointerPtrType() ||
         !ToType->isFunctionPointerType())
+        return;
+
+      if (S.getLangOpts().CheckedCConverter)
         return;
 
       // Skip lvalue-to-rvalue casts because they preserve types (except that
