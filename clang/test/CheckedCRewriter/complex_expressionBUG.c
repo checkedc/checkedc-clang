@@ -50,7 +50,7 @@ void baz(int *p) {
 
 void test() {
   int *a = (int*) 0;
-  int **b = (int**) 0;
+  int **b = (int**) 0; /* <-- causes compilation failure due to issue 160*/
 
   *b = (0, a);
 }
