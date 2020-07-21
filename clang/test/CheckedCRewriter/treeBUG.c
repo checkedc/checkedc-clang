@@ -1,6 +1,6 @@
 // RUN: cconv-standalone -addcr -alltypes %s -- | FileCheck -match-full-lines %s
 // RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" %s
-
+// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 #include <stdlib.h>
 

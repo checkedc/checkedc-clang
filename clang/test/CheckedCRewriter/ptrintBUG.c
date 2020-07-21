@@ -1,5 +1,6 @@
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 void baz(int *x, int *y, int *z) {
   int p;
@@ -16,7 +17,7 @@ void bar(int *x) {
 void foo(void) {
  int *p;
  int q = 0;
- p = q; // OK
+ p = q; // OK          <----- NOT OK, causes compilation error, please refer to iss160
  int *d = (int *)q;
 }
 //CHECK: int *p;
