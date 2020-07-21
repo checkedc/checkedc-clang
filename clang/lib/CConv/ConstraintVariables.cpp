@@ -1068,13 +1068,13 @@ bool PointerVariableConstraint::
   if (CV != nullptr) {
     if (PVConstraint *PV = dyn_cast<PVConstraint>(CV)) {
       auto &OthCVars = PV->vars;
-      if (vars.size() == OthCVars.size()) {
+      if (IsGeneric || PV->IsGeneric || vars.size() == OthCVars.size()) {
         Ret = true;
 
         // First compare Vars to see if they are same.
         CAtoms::iterator I = vars.begin();
         CAtoms::iterator J = OthCVars.begin();
-        while (I != vars.end()) {
+        while (I != vars.end() && J != OthCVars.end()) {
           if (CS.getAssignment(*I) != CS.getAssignment(*J)) {
             Ret = false;
             break;
