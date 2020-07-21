@@ -46,6 +46,19 @@ static cl::opt<std::string>
                          cl::init("constraint_output.json"),
                          cl::cat(ConvertCategory));
 
+static cl::opt<std::string>
+    OptStatsOutputJson("stats-output",
+                            cl::desc("Path to the file where all the stats "
+                                     "will be dumped as json"),
+                            cl::init("TotalConstraintStats.json"),
+                            cl::cat(ConvertCategory));
+static cl::opt<std::string>
+    OptWildPtrInfoJson("wildptrstats-output",
+                            cl::desc("Path to the file where all the info "
+                                     "related to WILD ptr will be dumped as json"),
+                            cl::init("WildPtrStats.json"),
+                            cl::cat(ConvertCategory));
+
 static cl::opt<bool> OptDumpStats("dump-stats", cl::desc("Dump statistics"),
                                cl::init(false),
                                cl::cat(ConvertCategory));
@@ -102,6 +115,8 @@ int main(int argc, const char **argv) {
   CcOptions.Verbose = OptVerbose;
   CcOptions.DumpIntermediate = OptDumpIntermediate;
   CcOptions.ConstraintOutputJson = OptConstraintOutputJson.getValue();
+  CcOptions.StatsOutputJson = OptStatsOutputJson.getValue();
+  CcOptions.WildPtrInfoJson = OptWildPtrInfoJson.getValue();
   CcOptions.AddCheckedRegions = OptAddCheckedRegions;
   CcOptions.EnableAllTypes = OptAllTypes;
 

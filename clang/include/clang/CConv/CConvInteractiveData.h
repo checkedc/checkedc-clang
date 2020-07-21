@@ -22,7 +22,8 @@ struct WildPointerInferenceInfo {
   std::string WildPtrReason = "";
   bool IsValid = false;
   unsigned LineNo = 0;
-  unsigned ColStart = 0;
+  unsigned ColStartS = 0;
+  unsigned ColStartE = 0;
 };
 
 // Constraints information.
@@ -35,10 +36,13 @@ public:
   void Clear();
   CVars &GetRCVars(ConstraintKey);
   CVars &GetSrcCVars(ConstraintKey);
+  unsigned getNumWildAffectedCKeys(const std::set<ConstraintKey> &DWKeys);
+  void print_stats(llvm::raw_ostream &O);
 
   std::map<ConstraintKey, struct WildPointerInferenceInfo>
       RealWildPtrsWithReasons;
   CVars AllWildPtrs;
+  CVars InSrcWildPtrs;
   CVars TotalNonDirectWildPointers;
   std::set<std::string> ValidSourceFiles;
   std::map<ConstraintKey, PersistentSourceLoc *> PtrSourceMap;

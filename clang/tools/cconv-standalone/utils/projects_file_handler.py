@@ -43,14 +43,20 @@ def restore_original_files(curr_files):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(__file__, description="Script that takes care of replacing files.")
+  parser.add_argument("-c", dest='backupc', action='store_true', default=False,
+                      help='Backup original sources with checked c headers')
   parser.add_argument("-b", dest='backup', action='store_true', default=False,
-                      help='Backup original sources')
+                      help='Backup original sources (even without checked c headers)')
   parser.add_argument("-d", dest='src_dir',
                       type=str, required=True,
                       help='Path to the source directory.')
   args = parser.parse_args()
-  if args.backup:
-    print("[*] Restoring backed-up files as original files.")
+  if args.backupc:
+    print("[*] Restoring backed-up files (with checked c headers) as original files.")
+    all_files = collect_all_files(args.src_dir, None, ".backc")
+    restore_original_files(all_files)
+  elif args.backup:
+    print("[*] Restoring backed-up files (without checked c headers) as original files.")
     all_files = collect_all_files(args.src_dir, None, ".orig")
     restore_original_files(all_files)
     print("[+] Restoring original files finished.")
