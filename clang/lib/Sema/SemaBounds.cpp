@@ -2405,7 +2405,8 @@ namespace {
 
             // For each variable v in ObservedBounds, check that the
             // observed bounds of v imply the declared bounds of v.
-            ValidateBoundsContext(S, BlockState, CSS);
+            ValidateBoundsContext(S, BlockState, WidenedBounds,
+                                  KilledBounds, CSS);
 
             // The observed bounds that were updated after checking S should
             // only be used to check that the updated observed bounds imply
@@ -3869,7 +3870,10 @@ namespace {
     // ValidateBoundsContext checks that, after checking a top-level CFG
     // statement S, for each variable v in the checking state observed bounds
     // context, the observed bounds of v imply the declared bounds of v.
-    void ValidateBoundsContext(Stmt *S, CheckingState State, CheckedScopeSpecifier CSS) {
+    void ValidateBoundsContext(Stmt *S, CheckingState State,
+                               BoundsMapTy WidenedBounds,
+                               StmtDeclSetTy KilledBounds,
+                               CheckedScopeSpecifier CSS) {
       // Construct a set of sets of equivalent expressions that contains all
       // the equality facts in State.EquivExprs, as well as any equality facts
       // implied by State.TargetSrcEquality.  These equality facts will only
@@ -3903,7 +3907,7 @@ namespace {
           DiagnoseUnknownObservedBounds(S, V, DeclaredBounds, State);
         else
           CheckObservedBounds(S, V, DeclaredBounds, ObservedBounds, State,
-                              &EquivExprs, CSS);
+                              &EquivExprs, WidenedBounds, KilledBounds, CSS);
       }
     }
 
@@ -3956,6 +3960,8 @@ namespace {
                              BoundsExpr *DeclaredBounds,
                              BoundsExpr *ObservedBounds, CheckingState State,
                              EquivExprSets *EquivExprs,
+                             BoundsMapTy WidenedBounds,
+                             StmtDeclSetTy KilledBounds,
                              CheckedScopeSpecifier CSS) {
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, ObservedBounds,
@@ -3963,18 +3969,24 @@ namespace {
       if (Result == ProofResult::True)
         return;
 
-      // If v currently has widened bounds, then the proof failure was caused
-      // by not being able to prove the widened bounds of v imply the declared
-      // bounds of v.  Diagnostics should not be emitted in this case.
-      // Otherwise, statements that make no changes to v or any variables used
-      // in the bounds of v would cause diagnostics to be emitted.
+      // If v currently has widened bounds and the widened bounds of v are not
+      // killed by the statement St, then the proof failure was caused by not
+      // being able to prove the widened bounds of v imply the declared bounds
+      // of v. Diagnostics should not be emitted in this case. Otherwise,
+      // statements that make no changes to v or any variables used in the
+      // bounds of v would cause diagnostics to be emitted.
       // For example, the widened bounds (p, (p + 0) + 1) do not provably imply
       // the declared bounds (p, p + 0) due to the left-associativity of the
       // observed upper bound (p + 0) + 1.
       // TODO: checkedc-clang issue #867: the widened bounds of a variable
       // should provably imply the declared bounds of a variable.
-      if (State.WidenedVariables.find(V) != State.WidenedVariables.end())
-        return;
+      if (WidenedBounds.find(V) != WidenedBounds.end()) {
+        auto I = KilledBounds.find(St);
+        if (I == KilledBounds.end())
+          return;
+        if (I->second.find(V) == I->second.end())
+          return;
+      }
 
       // For a declaration, the diagnostic message should start at the
       // location of v rather than the beginning of St.  If the message
