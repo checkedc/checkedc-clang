@@ -705,12 +705,6 @@ namespace {
       // user when diagnosing unknown bounds errors.
       llvm::DenseMap<const VarDecl *, SmallVector<Expr *, 4>> UnknownSrcBounds;
 
-      // WidenedVariables is a set of variables that currently have widened bounds.
-      //
-      // WidenedVariables is used to avoid spurious errors or warnings when
-      // validating the observed bounds context.
-      llvm::DenseSet<const VarDecl *> WidenedVariables;
-
       // TargetSrcEquality maps a target expression V to the most recent
       // expression Src that has been assigned to V within the current
       // top-level CFG statement.  When validating the bounds context,
@@ -2252,12 +2246,8 @@ namespace {
      // bounds are killed by each statement. Here we reset the bounds of all
      // variables killed by the statement S to the normalized declared bounds.
      for (const VarDecl *V : I->second) {
-       if (BoundsExpr *Bounds = S.NormalizeBounds(V)) {
+       if (BoundsExpr *Bounds = S.NormalizeBounds(V))
          State.ObservedBounds[V] = Bounds;
-         auto It = State.WidenedVariables.find(V);
-         if (It != State.WidenedVariables.end())
-           State.WidenedVariables.erase(It);
-       }
      }
    }
 
@@ -2292,7 +2282,6 @@ namespace {
            new (Context) RangeBoundsExpr(Lower, WidenedUpper,
                                          SourceLocation(), SourceLocation());
          State.ObservedBounds[V] = R;
-         State.WidenedVariables.insert(V);
        }
      }
    }
@@ -2352,8 +2341,7 @@ namespace {
        // Also get the bounds killed (if any) by each statement in the current
        // block.
        StmtDeclSetTy KilledBounds = BA.GetKilledBounds(Block);
-       // Update the Observed bounds with the widened bounds calculated above.
-       BlockState.WidenedVariables.clear();
+       // Update the observed bounds with the widened bounds calculated above.
        UpdateCtxWithWidenedBounds(WidenedBounds, BlockState);
 
        for (CFGElement Elem : *Block) {
