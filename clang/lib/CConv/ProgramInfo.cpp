@@ -940,7 +940,7 @@ bool ProgramInfo::hasTypeParamBindings(CallExpr *CE, ASTContext *C) {
   return TypeParamBindings.find(PSL) != TypeParamBindings.end();
 }
 
-ProgramInfo::CallTypeParamBindingsType
+ProgramInfo::CallTypeParamBindingsT
     &ProgramInfo::getTypeParamBindings(CallExpr *CE, ASTContext *C) {
   auto PSL = PersistentSourceLoc::mkPSL(CE, *C);
   assert("Type parameter bindings could not be found."

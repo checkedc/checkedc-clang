@@ -1425,7 +1425,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
             }
           // Unequal sizes means casting from (say) T** to T*; not safe.
           // unless assigning to a generic type.
-          } else if (!(PCLHS->GetIsGeneric() || PCRHS->GetIsGeneric())) {
+          } else if (!(PCLHS->getIsGeneric() || PCRHS->getIsGeneric())) {
             // Constrain both to be top.
             std::string Rsn = "Assigning from:" + PCRHS->getName() + " to " +
                               PCLHS->getName();

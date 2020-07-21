@@ -236,7 +236,9 @@ private:
   std::string BoundsAnnotationStr;
 
   // Does this variable represent a generic type?
-  // Generic types can be used with fewer restrictions.
+  // Generic types can be used with fewer restrictions, so this field is used
+  // stop assignments wth generic variables from forcing constraint variables
+  // to be wild.
   bool IsGeneric;
 
 public:
@@ -263,7 +265,7 @@ public:
   // Get bounds annotation.
   std::string getBoundsStr() { return BoundsAnnotationStr; }
 
-  bool GetIsGeneric(){ return IsGeneric; }
+  bool getIsGeneric(){ return IsGeneric; }
 
   bool solutionEqualTo(Constraints &CS, ConstraintVariable *CV);
 
