@@ -60,7 +60,7 @@ public:
   bool isNeighbourParamMatch(BoundsKey BK) {
     return NeighbourParamMatch.find(BK) != NeighbourParamMatch.end();
   }
-  void print(llvm::raw_ostream &O) const;
+  void print(llvm::raw_ostream &O, bool JsonFormat = false) const;
   void dump() const { print(llvm::errs()); }
 private:
   void clear() {
@@ -158,6 +158,9 @@ public:
 
   // Dump the AVar graph to the provided dot file.
   void dumpAVarGraph(const std::string &DFPath);
+
+  // Print the stats about computed bounds information.
+  void print_stats(llvm::raw_ostream &O, bool JsonFormat = false) const;
 
 private:
   friend class AvarBoundsInference;

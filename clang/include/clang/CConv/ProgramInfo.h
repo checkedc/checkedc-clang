@@ -45,7 +45,7 @@ public:
   void dump_json(llvm::raw_ostream &O) const;
   void dump_stats(std::set<std::string> &F) { print_stats(F, llvm::errs()); }
   void print_stats(std::set<std::string> &F, llvm::raw_ostream &O,
-                   bool OnlySummary =false);
+                   bool OnlySummary = false, bool JsonFormat = false);
 
   // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with
   // AST data structures that correspond do the data stored in PDMap and 
@@ -60,10 +60,10 @@ public:
   // For each pointer type in the declaration of D, add a variable to the 
   // constraint system for that pointer type.
   void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *astContext);
-  std::set<ConstraintVariable *>
+  CVarSet
       &getPersistentConstraintVars(Expr *E, ASTContext *AstContext);
   // Get constraint variable for the provided Decl
-  std::set<ConstraintVariable *> getVariable(clang::Decl *D,
+  CVarSet getVariable(clang::Decl *D,
                                              clang::ASTContext *C);
 
   // Retrieve a function's constraints by decl, or by name; nullptr if not found
@@ -90,7 +90,7 @@ public:
   ConstraintsInfo &getInterimConstraintState() {
     return CState;
   }
-  bool computeInterimConstraintState();
+  bool computeInterimConstraintState(std::set<std::string> &FilePaths);
 
   ExternalFunctionMapType &getExternFuncDefFVMap() {
     return ExternalFunctionFVCons;
@@ -103,9 +103,7 @@ public:
   void setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
                            ConstraintVariable *CV, ASTContext *C);
   bool hasTypeParamBindings(CallExpr *CE, ASTContext *C);
-  std::pair<CallTypeParamBindingsType::const_iterator,
-            CallTypeParamBindingsType::const_iterator>
-      getTypeParamBindings( CallExpr *CE, ASTContext *C);
+  CallTypeParamBindingsType &getTypeParamBindings(CallExpr *CE, ASTContext *C);
 
 private:
   // List of all constraint variables, indexed by their location in the source.
@@ -172,7 +170,7 @@ private:
   //   or global)
   std::set<FVConstraint *> *getFuncFVConstraints(FunctionDecl *FD,
                                                  ASTContext *C);
-  void constrainWildIfMacro(std::set<ConstraintVariable *> S,
+  void constrainWildIfMacro(CVarSet S,
                             SourceLocation Location);
 };
 

@@ -34,6 +34,10 @@ struct CConvertOptions {
 
   bool DumpStats;
 
+  std::string StatsOutputJson;
+
+  std::string WildPtrInfoJson;
+
   bool HandleVARARGS;
 
   bool EnablePropThruIType;

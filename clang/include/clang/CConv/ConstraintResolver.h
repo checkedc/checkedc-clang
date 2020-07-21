@@ -22,20 +22,18 @@ using namespace clang;
 class ConstraintResolver {
 
 public:
-  ConstraintResolver(ProgramInfo &I, ASTContext *C) : Info(I), Context(C) {
-    ExprTmpConstraints.clear();
-  }
+  ConstraintResolver(ProgramInfo &I, ASTContext *C) : Info(I), Context(C) { }
 
   virtual ~ConstraintResolver();
 
-  void constraintAllCVarsToWild(std::set<ConstraintVariable*> &CSet,
+  void constraintAllCVarsToWild(CVarSet &CSet,
                                 std::string rsn,
                                 Expr *AtExpr = nullptr);
 
   // Returns a set of ConstraintVariables which represent the result of
   // evaluating the expression E. Will explore E recursively, but will
   // ignore parts of it that do not contribute to the final result
-  std::set<ConstraintVariable *> getExprConstraintVars(Expr *E);
+  CVarSet getExprConstraintVars(Expr *E);
 
   // Handle assignment of RHS expression to LHS expression using the
   // given action.
@@ -47,39 +45,31 @@ public:
                             ConsAction CAction = Same_to_Same);
 
   // Check if the set contains any valid constraints.
-  bool containsValidCons(std::set<ConstraintVariable *> &CVs);
+  bool containsValidCons(CVarSet &CVs);
   // Try to get the bounds key from the constraint variable set.
-  bool resolveBoundsKey(std::set<ConstraintVariable *> &CVs, BoundsKey &BK);
+  bool resolveBoundsKey(CVarSet &CVs, BoundsKey &BK);
+
+  static bool canFunctionBeSkipped(const std::string &FN);
 
 private:
   ProgramInfo &Info;
   ASTContext *Context;
-  // These are temporary constraints, that will be created to handle various
-  // expressions
-  static std::set<ConstraintVariable *> TempConstraintVars;
-  // Map that stores temporary constraint variable copies created for the
-  // corresponding expression and constraint variable
-  std::map<std::pair<clang::Expr *, ConstraintVariable *>,
-           ConstraintVariable *> ExprTmpConstraints;
 
-  ConstraintVariable *getTemporaryConstraintVariable(clang::Expr *E,
-                                                     ConstraintVariable *CV);
+  CVarSet handleDeref(CVarSet T);
 
-  std::set<ConstraintVariable *> handleDeref(std::set<ConstraintVariable *> T);
+  CVarSet getInvalidCastPVCons(Expr *E);
 
   // Update a PVConstraint with one additional level of indirection
   PVConstraint *addAtom(PVConstraint *PVC, ConstAtom *NewA, Constraints &CS);
-  std::set<ConstraintVariable *> addAtomAll(std::set<ConstraintVariable *> CVS,
-                                            ConstAtom *PtrTyp, Constraints &CS);
-  std::set<ConstraintVariable *> getWildPVConstraint();
-  std::set<ConstraintVariable *> PVConstraintFromType(QualType TypE);
+  CVarSet addAtomAll(CVarSet CVS, ConstAtom *PtrTyp, Constraints &CS);
+  CVarSet getWildPVConstraint();
+  CVarSet PVConstraintFromType(QualType TypE);
 
-  std::set<ConstraintVariable *>
-      getAllSubExprConstraintVars(std::vector<Expr *> &Exprs);
-  std::set<ConstraintVariable *> getBaseVarPVConstraint(DeclRefExpr *Decl);
-  std::set<ConstraintVariable *>
-      getPersistentConstraints(clang::Expr *E,
-                               std::set<ConstraintVariable *> &Vars);
+  CVarSet getAllSubExprConstraintVars(std::vector<Expr *> &Exprs);
+  CVarSet getBaseVarPVConstraint(DeclRefExpr *Decl);
+  bool hasPersistentConstraints(clang::Expr *E);
+  CVarSet getPersistentConstraints(clang::Expr *E);
+  void storePersistentConstraints(clang::Expr *E, CVarSet &Vars);
 };
 
 #endif // _CONSTRAINTRESOLVER_H

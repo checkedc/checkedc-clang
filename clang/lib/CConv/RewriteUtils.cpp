@@ -497,7 +497,7 @@ std::set<unsigned int> TypeRewritingVisitor::getParamsForExtern(std::string E) {
 // Checks the bindings in the environment for all of the constraints
 // associated with C and returns true if any of those constraints
 // are WILD.
-bool TypeRewritingVisitor::anyTop(std::set<ConstraintVariable *> C) {
+bool TypeRewritingVisitor::anyTop(CVarSet C) {
   bool TopFound = false;
   Constraints &CS = Info.getConstraints();
   EnvironmentMap &env = CS.getVariables();
@@ -791,7 +791,7 @@ public:
     // When an compound literal was visited in constraint generation, a
     // constraint variable for it was stored in program info.  There should be
     // either zero or one of these.
-    std::set<ConstraintVariable *>
+    CVarSet
         CVSingleton = Info.getPersistentConstraintVars(CLE, Context);
     if (CVSingleton.empty())
       return true;
@@ -840,11 +840,10 @@ public:
         // Construct a string containing concatenation of all type arguments for
         // the function call.
         std::string TypeParamString;
-        auto Bindings = Info.getTypeParamBindings(CE, Context);
-        for (auto it = Bindings.first; it != Bindings.second; ++it)
-          if (it->second != nullptr) {
+        for (auto Entry : Info.getTypeParamBindings(CE, Context))
+          if (Entry.second != nullptr) {
             std::string TyStr =
-                it->second->mkString(Info.getConstraints().getVariables(),
+                Entry.second->mkString(Info.getConstraints().getVariables(),
                                      false, false, true);
             if (TyStr.back() == ' ')
               TyStr.pop_back();
@@ -1002,7 +1001,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
 
   for (const auto &V : Info.getVarMap()) {
     PersistentSourceLoc PLoc = V.first;
-    std::set<ConstraintVariable *> Vars = V.second;
+    CVarSet Vars = V.second;
     // I don't think it's important that Vars have any especial size, but
     // at one point I did so I'm keeping this comment here. It's possible
     // that what we really need to do is to ensure that when we work with

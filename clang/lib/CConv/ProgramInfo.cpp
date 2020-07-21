@@ -125,7 +125,7 @@ void ProgramInfo::print(raw_ostream &O) const {
   O << "Constraint Variables\n";
   for ( const auto &I : Variables ) {
     PersistentSourceLoc L = I.first;
-    const std::set<ConstraintVariable *> &S = I.second;
+    const CVarSet &S = I.second;
     L.print(O);
     O << "=>";
     for (const auto &J : S) {
@@ -153,7 +153,7 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
       O << ",\n";
     }
     PersistentSourceLoc L = I.first;
-    const std::set<ConstraintVariable *> &S = I.second;
+    const CVarSet &S = I.second;
 
     O << "{\"line\":\"";
     L.print(O);
@@ -186,21 +186,22 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
 // a function, then recurses on the return and parameter
 // constraints.
 static
-CAtoms getVarsFromConstraint(ConstraintVariable *V, CAtoms T) {
-  CAtoms R = T;
+CAtoms getVarsFromConstraint(ConstraintVariable *V) {
+  CAtoms R;
+  R.clear();
 
   if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
     R.insert(R.begin(), PVC->getCvars().begin(), PVC->getCvars().end());
    if (FVConstraint *FVC = PVC->getFV()) 
-     return getVarsFromConstraint(FVC, R);
+     return getVarsFromConstraint(FVC);
   } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(V)) {
     for (const auto &C : FVC->getReturnVars()) {
-      CAtoms tmp = getVarsFromConstraint(C, R);
+      CAtoms tmp = getVarsFromConstraint(C);
       R.insert(R.begin(), tmp.begin(), tmp.end());
     }
     for (unsigned i = 0; i < FVC->numParams(); i++) {
       for (const auto &C : FVC->getParamVar(i)) {
-        CAtoms tmp = getVarsFromConstraint(C, R);
+        CAtoms tmp = getVarsFromConstraint(C);
         R.insert(R.begin(), tmp.begin(), tmp.end());
       }
     }
@@ -211,8 +212,8 @@ CAtoms getVarsFromConstraint(ConstraintVariable *V, CAtoms T) {
 
 // Print out statistics of constraint variables on a per-file basis.
 void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
-                              bool OnlySummary) {
-  if (!OnlySummary) {
+                              bool OnlySummary, bool JsonFormat) {
+  if (!OnlySummary && !JsonFormat) {
     O << "Enable itype propagation:" << EnablePropThruIType << "\n";
     O << "Sound handling of var args functions:" << HandleVARARGS << "\n";
   }
@@ -235,34 +236,33 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
       if (J != FilesToVars.end())
         std::tie(varC, pC, ntAC, aC, wC) = J->second;
 
-      CAtoms FoundVars;
       for (auto &C : I.second) {
-        CAtoms tmp = getVarsFromConstraint(C, FoundVars);
-        FoundVars.insert(FoundVars.begin(), tmp.begin(), tmp.end());
-      }
+        if (C->isForValidDecl()) {
+          CAtoms FoundVars = getVarsFromConstraint(C);
 
-      varC += FoundVars.size();
-      for (const auto &N : FoundVars) {
-        ConstAtom *CA = CS.getAssignment(N);
-        switch (CA->getKind()) {
-          case Atom::A_Arr:
-            aC += 1;
-            break;
-          case Atom::A_NTArr:
-            ntAC += 1;
-            break;
-          case Atom::A_Ptr:
-            pC += 1;
-            break;
-          case Atom::A_Wild:
-            wC += 1;
-            break;
-          case Atom::A_Var:
-          case Atom::A_Const:
-            llvm_unreachable("bad constant in environment map");
+          varC += FoundVars.size();
+          for (const auto &N : FoundVars) {
+            ConstAtom *CA = CS.getAssignment(N);
+            switch (CA->getKind()) {
+              case Atom::A_Arr:
+                aC += 1;
+                break;
+              case Atom::A_NTArr:
+                ntAC += 1;
+                break;
+              case Atom::A_Ptr:
+                pC += 1;
+                break;
+              case Atom::A_Wild:
+                wC += 1;
+                break;
+              case Atom::A_Var:
+              case Atom::A_Const:
+                llvm_unreachable("bad constant in environment map");
+            }
+          }
         }
       }
-
       FilesToVars[FileName] = std::tuple<int, int, int, int, int>(varC, pC,
                                                                   ntAC, aC, wC);
     }
@@ -270,9 +270,18 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
 
   // Then, dump the map to output.
   // if not only summary then dump everything.
-  if (!OnlySummary) {
-    O << "file|#constraints|#ptr|#ntarr|#arr|#wild\n";
+  if (JsonFormat) {
+    O << "{\"Stats\":{";
+    O << "\"ConstraintStats\":{";
   }
+  if (!OnlySummary) {
+    if (JsonFormat) {
+      O << "\"Individual\":[";
+    } else {
+      O << "file|#constraints|#ptr|#ntarr|#arr|#wild\n";
+    }
+  }
+  bool AddComma = false;
   for (const auto &I : FilesToVars) {
     int v, p, nt, a, w;
     std::tie(v, p, nt, a, w) = I.second;
@@ -283,18 +292,53 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
     totA += a;
     totWi += w;
     if (!OnlySummary) {
-      O << I.first << "|" << v << "|" << p << "|" << nt << "|" << a << "|" << w;
-      O << "\n";
+      if (JsonFormat) {
+        if (AddComma) {
+          O << ",\n";
+        }
+        O << "{\"" << I.first << "\":{";
+        O << "\"constraints\":" << v << ",";
+        O << "\"ptr\":" << p << ",";
+        O << "\"ntarr\":" << nt << ",";
+        O << "\"arr\":" << a << ",";
+        O << "\"wild\":" << w;
+        O << "}}";
+        AddComma = true;
+      } else {
+        O << I.first << "|" << v << "|" << p << "|" << nt << "|" << a << "|"
+          << w;
+        O << "\n";
+      }
     }
   }
-
-  O << "Summary\nTotalConstraints|TotalPtrs|TotalNTArr|TotalArr|TotalWild\n";
-  O << totC << "|" << totP << "|" << totNt << "|" << totA << "|" << totWi << "\n";
-
-  if (AllTypes) {
-    ArrBInfo.getBStats().print(O);
+  if (!OnlySummary && JsonFormat) {
+    O << "],";
   }
 
+  if (!JsonFormat) {
+    O << "Summary\nTotalConstraints|TotalPtrs|TotalNTArr|TotalArr|TotalWild\n";
+    O << totC << "|" << totP << "|" << totNt << "|" << totA << "|" << totWi
+      << "\n";
+  } else {
+    O << "\"Summary\":{";
+    O << "\"TotalConstraints\":" << totC << ",";
+    O << "\"TotalPtrs\":" << totP << ",";
+    O << "\"TotalNTArr\":" << totNt << ",";
+    O << "\"TotalArr\":" << totA << ",";
+    O << "\"TotalWild\":" << totWi;
+    O << "}},\n";
+  }
+
+  if (AllTypes) {
+    if (JsonFormat) {
+      O << "\"BoundsStats\":";
+    }
+    ArrBInfo.print_stats(O, JsonFormat);
+  }
+
+  if (JsonFormat) {
+    O << "}";
+  }
 }
 
 bool ProgramInfo::isExternOkay(std::string Ext) {
@@ -520,12 +564,13 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
 
   // We only add a PVConstraint or an FVConstraint if the set at
   // Variables[PLoc] does not contain one already. TODO: Explain why would this happen
-  std::set<ConstraintVariable *> &S = Variables[PLoc];
+  CVarSet &S = Variables[PLoc];
   if (S.size()) return;
 
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     // Function Decls have FVConstraints.
     FVConstraint *F = new FVConstraint(D, *this, *astContext);
+    F->setValidDecl();
     std::set<FVConstraint *> NewFVars;
     /* Store the FVConstraint in the global and Variables maps */
     NewFVars.insert(F);
@@ -535,7 +580,10 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     // the parameters.
     for (unsigned i = 0; i < FD->getNumParams(); i++) {
       ParmVarDecl *PVD = FD->getParamDecl(i);
-      std::set<ConstraintVariable *> PS = F->getParamVar(i);
+      CVarSet PS = F->getParamVar(i);
+      for (auto *PV : PS) {
+        PV->setValidDecl();
+      }
       assert(PS.size());
       PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *astContext);
       Variables[PSL].insert(PS.begin(), PS.end());
@@ -546,6 +594,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     const Type *Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     if (Ty->isPointerType() || Ty->isArrayType()) {
       PVConstraint *P = new PVConstraint(D, *this, *astContext);
+      P->setValidDecl();
       S.insert(P);
       std::string VarName = VD->getName();
       if (VD->hasGlobalStorage()) {
@@ -566,6 +615,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     const Type *Ty = FlD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     if (Ty->isPointerType() || Ty->isArrayType()) {
       PVConstraint *P = new PVConstraint(D, *this, *astContext);
+      P->setValidDecl();
       S.insert(P);
       specialCaseVarIntros(D, astContext);
     }
@@ -575,7 +625,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
   constrainWildIfMacro(S, D->getLocation());
 }
 
-std::set<ConstraintVariable *>
+CVarSet
     &ProgramInfo::getPersistentConstraintVars(Expr *E,
                                               clang::ASTContext *AstContext){
   PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(E, *AstContext);
@@ -589,7 +639,7 @@ std::set<ConstraintVariable *>
 // If it was, we should constrain it to top. This is sad. Hopefully,
 // someday, the Rewriter will become less lame and let us re-write stuff
 // in macros.
-void ProgramInfo::constrainWildIfMacro(std::set<ConstraintVariable *> S,
+void ProgramInfo::constrainWildIfMacro(CVarSet S,
                                        SourceLocation Location) {
   std::string Rsn = "Pointer in Macro declaration.";
   if (!Rewriter::isRewritable(Location))
@@ -666,8 +716,7 @@ std::set<FVConstraint *> *ProgramInfo::getFuncFVConstraints(FunctionDecl *FD,
 }
 
 // Given a decl, return the variables for the constraints of the Decl.
-std::set<ConstraintVariable *> ProgramInfo::getVariable(clang::Decl *D,
-                                                        clang::ASTContext *C) {
+CVarSet ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C) {
   assert(!persisted);
 
   if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
@@ -688,7 +737,7 @@ std::set<ConstraintVariable *> ProgramInfo::getVariable(clang::Decl *D,
     // Get corresponding FVConstraint vars.
     std::set<FVConstraint *> *FunFVars = getFuncFVConstraints(FD, C);
     assert(FunFVars != nullptr && "Unable to find function constraints.");
-    std::set<ConstraintVariable *> ParameterCons;
+    CVarSet ParameterCons;
     ParameterCons.clear();
     for (auto fv : *FunFVars) {
       auto currParamConstraint = fv->getParamVar(PIdx);
@@ -713,7 +762,7 @@ std::set<ConstraintVariable *> ProgramInfo::getVariable(clang::Decl *D,
     if (I != Variables.end()) {
       return I->second;
     }
-    return std::set<ConstraintVariable *>();
+    return CVarSet();
   }
 }
 
@@ -765,27 +814,59 @@ public:
 // state that contains constraint vars which are directly assigned WILD and
 // other constraint vars that have been determined to be WILD because they
 // depend on other constraint vars that are directly assigned WILD.
-bool ProgramInfo::computeInterimConstraintState() {
+bool
+ProgramInfo::computeInterimConstraintState(std::set<std::string> &FilePaths) {
+
+  // Get all the valid vars of interest i.e., all the Vars that are present
+  // in one of the files being compiled.
+  CAtoms ValidVarsVec;
+  for (auto &I : Variables) {
+    std::string FileName = I.first.getFileName();
+    if (FilePaths.count(FileName)) {
+      for (auto &C : I.second) {
+        if (C->isForValidDecl()) {
+          CAtoms tmp = getVarsFromConstraint(C);
+          ValidVarsVec.insert(ValidVarsVec.begin(), tmp.begin(), tmp.end());
+        }
+      }
+    }
+  }
+  // Make that into set, for efficiency.
+  std::set<Atom *> ValidVarsS;
+  ValidVarsS.insert(ValidVarsVec.begin(), ValidVarsVec.end());
+
   CState.Clear();
   auto &RCMap = CState.RCMap;
   auto &SrcWMap = CState.SrcWMap;
   auto &TotalNDirectWPtrs = CState.TotalNonDirectWildPointers;
-  CVars &WildPtrs = CState.AllWildPtrs;;
+  CVars &WildPtrs = CState.AllWildPtrs;
+  CVars &InSrcW = CState.InSrcWildPtrs;
   WildPtrs.clear();
   std::set<Atom *> DirectWildVarAtoms;
   std::set<Atom *> IndirectWildAtoms;
   auto &ChkCG = CS.getChkCG();
   ChkCG.getNeighbors<VarAtom>(CS.getWild(), DirectWildVarAtoms, true);
 
+  CVars TmpCGrp;
   for (auto *DA : DirectWildVarAtoms) {
     if (VarAtom *VA = dyn_cast<VarAtom>(DA)) {
-      WildPtrs.insert(VA->getLoc());
-      CVars &CGrp = SrcWMap[VA->getLoc()];
-      ReachableVarVisitor TV(VA->getLoc(), CGrp,
+      TmpCGrp.clear();
+
+      ReachableVarVisitor TV(VA->getLoc(), TmpCGrp,
                              RCMap, DirectWildVarAtoms);
       auto Vidx = ChkCG.addVertex(DA);
       boost::breadth_first_search(ChkCG.CG, Vidx, boost::visitor(TV));
-      TotalNDirectWPtrs.insert(CGrp.begin(), CGrp.end());
+      TotalNDirectWPtrs.insert(TmpCGrp.begin(), TmpCGrp.end());
+      // We consider only pointers which with in the source files or external
+      // pointers that affected pointers within the source files.
+      if (!TmpCGrp.empty() || ValidVarsS.find(VA) != ValidVarsS.end()) {
+        if (ValidVarsS.find(VA) != ValidVarsS.end()) {
+          InSrcW.insert(VA->getLoc());
+        }
+        WildPtrs.insert(VA->getLoc());
+        CVars &CGrp = SrcWMap[VA->getLoc()];
+        CGrp.insert(TmpCGrp.begin(), TmpCGrp.end());
+      }
     }
   }
 
@@ -800,9 +881,9 @@ bool ProgramInfo::computeInterimConstraintState() {
           WildPtrsReason[VLhs->getLoc()].IsValid = true;
           WildPtrsReason[VLhs->getLoc()].SourceFileName = EC->FileName;
           WildPtrsReason[VLhs->getLoc()].LineNo = EC->LineNo;
-          WildPtrsReason[VLhs->getLoc()].ColStart = EC->ColStart;
+          WildPtrsReason[VLhs->getLoc()].ColStartS = EC->ColStart;
+          WildPtrsReason[VLhs->getLoc()].ColStartE = EC->ColEnd;
         }
-        WildPtrs.insert(VLhs->getLoc());
       }
     }
   }
@@ -815,7 +896,7 @@ bool ProgramInfo::computeInterimConstraintState() {
     } else {
       continue;
     }
-    const std::set<ConstraintVariable *> &S = I.second;
+    const CVarSet &S = I.second;
     for (auto *CV : S) {
       if (PVConstraint *PV = dyn_cast<PVConstraint>(CV)) {
         for (auto ck : PV->getCvars()) {
@@ -859,12 +940,10 @@ bool ProgramInfo::hasTypeParamBindings(CallExpr *CE, ASTContext *C) {
   return TypeParamBindings.find(PSL) != TypeParamBindings.end();
 }
 
-std::pair<ProgramInfo::CallTypeParamBindingsType::const_iterator,
-          ProgramInfo::CallTypeParamBindingsType::const_iterator>
-    ProgramInfo::getTypeParamBindings(CallExpr *CE, ASTContext *C) {
+ProgramInfo::CallTypeParamBindingsType
+    &ProgramInfo::getTypeParamBindings(CallExpr *CE, ASTContext *C) {
   auto PSL = PersistentSourceLoc::mkPSL(CE, *C);
   assert("Type parameter bindings could not be found."
              && TypeParamBindings.find(PSL) != TypeParamBindings.end());
-  return std::make_pair(TypeParamBindings[PSL].cbegin(),
-                        TypeParamBindings[PSL].cend());
+  return TypeParamBindings[PSL];
 }

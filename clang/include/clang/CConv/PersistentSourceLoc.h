@@ -27,24 +27,29 @@
 
 class PersistentSourceLoc {
 protected:
-  PersistentSourceLoc(std::string f, uint32_t l, uint32_t c) : FileName(f), LineNo(l), ColNo(c),
-                                                               isValid(true) {}
+  PersistentSourceLoc(std::string f, uint32_t l, uint32_t c, uint32_t e) :
+                      FileName(f), LineNo(l), ColNoS(c), ColNoE(e),
+                      isValid(true) {}
   
 public:
-  PersistentSourceLoc() : FileName(""), LineNo(0), ColNo(0),
+  PersistentSourceLoc() : FileName(""), LineNo(0), ColNoS(0), ColNoE(0),
                           isValid(false) {}
   std::string getFileName() const { return FileName; }
   uint32_t getLineNo() const { return LineNo; }
-  uint32_t getColNo() const { return ColNo; }
+  uint32_t getColSNo() const { return ColNoS; }
+  uint32_t getColENo() const { return ColNoE; }
   bool valid() { return isValid; }
 
   bool operator<(const PersistentSourceLoc &o) const {
     if (FileName == o.FileName)
       if (LineNo == o.LineNo)
-        if (ColNo == o.ColNo)
-          return false;
+        if (ColNoS == o.ColNoS)
+          if (ColNoE == o.ColNoE)
+            return false;
+          else
+            return ColNoE < o.ColNoE;
         else
-          return ColNo < o.ColNo;
+          return ColNoS < o.ColNoS;
       else
         return LineNo < o.LineNo;
     else
@@ -52,7 +57,7 @@ public:
   }
 
   void print(llvm::raw_ostream &O) const {
-    O << FileName << ":" << LineNo << ":" << ColNo;
+    O << FileName << ":" << LineNo << ":" << ColNoS << ":" << ColNoE;
   }
 
   void dump() const { print(llvm::errs()); }
@@ -70,9 +75,14 @@ private:
   PersistentSourceLoc mkPSL(clang::SourceRange SR,
                             clang::SourceLocation SL,
                             clang::ASTContext &Context);
+  // The source file name.
   std::string FileName;
+  // Starting line number.
   uint32_t LineNo;
-  uint32_t ColNo;
+  // Column number start.
+  uint32_t ColNoS;
+  // Column number end.
+  uint32_t ColNoE;
   bool isValid;
 };
 
