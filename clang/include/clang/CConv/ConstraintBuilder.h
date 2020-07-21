@@ -13,55 +13,7 @@
 #include "clang/AST/ASTConsumer.h"
 
 #include "ProgramInfo.h"
-
-class TypeVariableEntry {
-public:
-  // Note: does not initialize TyVarType!
-  TypeVariableEntry() :
-      IsConsistent(false) {}
-  TypeVariableEntry(QualType Ty, std::set<ConstraintVariable *> &CVs) {
-    if (isTypeAnonymous(Ty->getPointeeType())) {
-      IsConsistent = false;
-    } else {
-      IsConsistent = true;
-      TyVarType = Ty;
-      ArgConsVars = CVs;
-    }
-  }
-
-  bool getIsConsistent();
-  QualType getType();
-  std::set<ConstraintVariable *> &getConstraintVariables();
-  ConstraintVariable *getTypeParamConsVar();
-
-  void insertConstraintVariables(std::set<ConstraintVariable *> &CVs);
-  void setTypeParamConsVar(ConstraintVariable *CV);
-  void updateEntry(QualType Ty, set<ConstraintVariable *> &CVs);
-
-private:
-  // Is this type variable used consistently. True when all uses have the same
-  // type and false otherwise.
-  bool IsConsistent;
-
-  // The type that this type variable is used consistently as. The value of this
-  // field should considered undefined if IsConsistent is false (enforced in
-  // getter).
-  QualType TyVarType;
-
-  // Collection of constraint variables generated for all uses of the type
-  // variable. Also should not be used when IsConsistent is false.
-  std::set<ConstraintVariable *> ArgConsVars;
-
-  ConstraintVariable *TypeParamConsVar;
-};
-
-// Stores the concrete type that type variables are instantiated. This map has
-// an entry for every call expression where the callee is has a generically
-// typed parameter. The values in the map are another maps from type variable
-// index in the called function's parameter list to the type the type variable
-// becomes (or null if it is not used consistently).
-typedef std::map<CallExpr *, std::map<unsigned int, TypeVariableEntry>>
-    TypeVariableMapT;
+#include "TypeVariableAnalysis.h"
 
 class ConstraintBuilderConsumer : public clang::ASTConsumer {
 public:

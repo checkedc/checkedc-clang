@@ -30,6 +30,7 @@ if (LLVM_BOOST_FOUND)
           ProgramVar.cpp
           RewriteUtils.cpp
           StructInit.cpp
+          TypeVariableAnalysis.cpp
           Utils.cpp
           LINK_LIBS
           clangAST
