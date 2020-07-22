@@ -55,7 +55,7 @@ int main() {
   bp1 = funcdecl(ap1, bp1, cp1);
   return 0;
 }
-//CHECK: int main() {
+//CHECK: int main(void) {
 //CHECK-NEXT: int a, b, c;
 //CHECK-NEXT: _Ptr<int> ap =  0;
 //CHECK-NEXT: int *bp = 0;
