@@ -484,7 +484,7 @@ def process_file(file, cname, cname2, proto, alltypes, new_defs, new_defs2, susp
     if alltypes: check = "CHECK_ALL"
 
     keywords = "int char struct double float".split(" ") 
-    ckeywords = "_Ptr _Array_ptr _Nt_array_ptr".split(" ")
+    ckeywords = "_Ptr _Array_ptr _Nt_array_ptr _Checked _Unchecked".split(" ")
 
     # these boolean variables indicate which method definition we are in, so we know where to add
     # our checked annotations later
@@ -722,12 +722,12 @@ def annot_gen(prefix, proto, suffix):
     
     # run the porting tool on the file(s)
     if proto=="multi": 
-        os.system("{}cconv-standalone -alltypes -output-postfix=checkedALL {} {}".format(path_to_monorepo, name, name2))
-        os.system("{}cconv-standalone -output-postfix=checkedNOALL {} {}".format(path_to_monorepo, name, name2))
+        os.system("{}cconv-standalone -alltypes -addcr -output-postfix=checkedALL {} {}".format(path_to_monorepo, name, name2))
+        os.system("{}cconv-standalone -addcr -output-postfix=checkedNOALL {} {}".format(path_to_monorepo, name, name2))
         os.system("rm {} {}".format(name, name2))
     else: 
-        os.system("{}cconv-standalone -alltypes -output-postfix=checkedALL {}".format(path_to_monorepo, name))
-        os.system("{}cconv-standalone -output-postfix=checkedNOALL {}".format(path_to_monorepo, name))
+        os.system("{}cconv-standalone -addcr -alltypes -output-postfix=checkedALL {}".format(path_to_monorepo, name))
+        os.system("{}cconv-standalone -addcr -output-postfix=checkedNOALL {}".format(path_to_monorepo, name))
         os.system("rm {}".format(name))
     
     bug_generated = False
@@ -770,15 +770,15 @@ def annot_gen(prefix, proto, suffix):
         cname2 = prefix + suffix + proto + "2_BUG.checked.c"
         return
 
-    run = "// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\" %s"
-    run += "\n//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\" %s"
-    run += "\n//RUN: cconv-standalone -output-postfix=checkedNOALL %s" 
+    run = "// RUN: cconv-standalone -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\" %s"
+    run += "\n//RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\" %s"
+    run += "\n//RUN: cconv-standalone -addcr -output-postfix=checkedNOALL %s" 
     run += "\n//RUN: %clang -c %S/{}".format(cnameNOALL)
     run += "\n//RUN: rm %S/{}".format(cnameNOALL)
     run2 = ""
     if proto=="multi": 
-        run = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/" + name2  
-        run += "\n// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/" + name2 
+        run = "// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/" + name2  
+        run += "\n// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/" + name2 
         run += "\n//RUN: %clang -c %S/{} %S/{}".format(cnameNOALL, cname2NOALL)
         run += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\" --input-file %S/{} %s".format(cnameNOALL) 
         run += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\" --input-file %S/{} %s".format(cnameALL)
@@ -791,8 +791,8 @@ def annot_gen(prefix, proto, suffix):
         if bug_generated: 
             cname21 = prefix + suffix + proto + "1_BUG.checked2.c" 
             cname22 = prefix + suffix + proto + "2_BUG.checked2.c"
-        run2 = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %s %S/" + name  
-        run2 += "\n// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %s %S/" + name 
+        run2 = "// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL2 %s %S/" + name  
+        run2 += "\n// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL2 %s %S/" + name 
         run2 += "\n//RUN: %clang -c %S/{} %S/{}".format(cnameNOALL2, cname2NOALL2)
         run2 += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\" --input-file %S/{} %s".format(cname2NOALL2) 
         run2 += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\" --input-file %S/{} %s".format(cname2ALL2)
