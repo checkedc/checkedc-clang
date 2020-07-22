@@ -421,7 +421,6 @@ public:
       errs() << "Analyzing function " << D->getName() << "\n";
 
     if (FL.isValid()) { // TODO: When would this ever be false?
-      //Info.addVariable(D, Context);
       if (D->hasBody() && D->isThisDeclarationADefinition()) {
         Stmt *Body = D->getBody();
         FunctionVisitor FV = FunctionVisitor(Context, Info, D, TVInfo);
@@ -521,6 +520,10 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
   TranslationUnitDecl *TUD = C.getTranslationUnitDecl();
   // Generate constraints.
   for (const auto &D : TUD->decls()) {
+    // The order of these traversals cannot be changed because both the type
+    // variable and global visitor require that variables have been added to
+    // ProgramInfo, and the global visitor requires the type variable
+    // information gathered in the type variable traversal.
     VAV.TraverseDecl(D);
     TV.TraverseDecl(D);
     GV.TraverseDecl(D);

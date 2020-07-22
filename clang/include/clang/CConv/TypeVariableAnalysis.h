@@ -22,6 +22,8 @@ public:
   TypeVariableEntry() :
       IsConsistent(false) {}
   TypeVariableEntry(QualType Ty, std::set<ConstraintVariable *> &CVs) {
+    // We'll need a name to provide the type arguments during rewriting, so no
+    // anonymous types are allowed.
     if (isTypeAnonymous(Ty->getPointeeType())) {
       IsConsistent = false;
     } else {
@@ -41,13 +43,13 @@ public:
   void updateEntry(QualType Ty, std::set<ConstraintVariable *> &CVs);
 
 private:
-  // Is this type variable used consistently. True when all uses have the same
-  // type and false otherwise.
+  // Is this type variable instantiated consistently. True when all uses have
+  // the same type and false otherwise.
   bool IsConsistent;
 
-  // The type that this type variable is used consistently as. The value of this
-  // field should considered undefined if IsConsistent is false (enforced in
-  // getter).
+  // The type that this type variable is instantiated consistently as. The value
+  // of this field should considered undefined if IsConsistent is false
+  // (enforced in getter).
   QualType TyVarType;
 
   // Collection of constraint variables generated for all uses of the type
@@ -59,7 +61,7 @@ private:
   ConstraintVariable *TypeParamConsVar;
 };
 
-// Stores the concrete type that type variables are instantiated. This map has
+// Stores the instantiated type for each type variables. This map has
 // an entry for every call expression where the callee is has a generically
 // typed parameter. The values in the map are another maps from type variable
 // index in the called function's parameter list to the type the type variable
