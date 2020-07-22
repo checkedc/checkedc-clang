@@ -1,7 +1,3 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-
 typedef unsigned long size_t;
 #define NULL ((void*)0)
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
@@ -21,21 +17,15 @@ struct p {
     int *x;
     char *y;
 };
-//CHECK: _Ptr<int> x;
-//CHECK: _Ptr<char> y;
 
 
 struct r {
     int data;
     struct r *next;
 };
-//CHECK: struct r *next;
 
 
 struct np *sus(struct r *, struct r *);
-//CHECK_NOALL: struct np *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct np>);
-//CHECK_ALL: struct np *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct np>);
-
 
 struct np *foo() {
   struct r *x;
@@ -47,10 +37,6 @@ struct np *foo() {
   struct np *z = (struct r *) sus(x, y);
   return z;
 }
-//CHECK: struct np * foo(void) {
-//CHECK: struct r *x, *y;
-//CHECK: struct np *z = (struct r *) sus(x, y);
-
 
 struct r *bar() {
   struct r *x; 
@@ -62,10 +48,6 @@ struct r *bar() {
   struct r *z = sus(x, y);
   return z;
 }
-//CHECK: struct r * bar(void) {
-//CHECK: struct r *x, *y;
-//CHECK: struct r *z = sus(x, y);
-
 
 struct np *sus(struct r *x, struct r *y) {
   x->next += 1;
@@ -74,5 +56,3 @@ struct np *sus(struct r *x, struct r *y) {
   z->y = 0;
   return z;
 }
-//CHECK: struct np *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct np>) {
-//CHECK: _Ptr<struct np> z =  malloc<struct np>(sizeof(struct np));

@@ -1,7 +1,3 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-
 typedef unsigned long size_t;
 #define NULL ((void*)0)
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
@@ -21,22 +17,15 @@ struct p {
     int *x;
     char *y;
 };
-//CHECK: _Ptr<int> x;
-//CHECK: _Ptr<char> y;
 
 
 struct r {
     int data;
     struct r *next;
 };
-//CHECK_NOALL: struct r *next;
-//CHECK_ALL: _Array_ptr<struct r> next;
 
 
 struct np *sus(struct r *, struct r *);
-//CHECK_NOALL: struct np *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct np>);
-//CHECK_ALL: struct np *sus(_Ptr<struct r> x, _Ptr<struct r> y) : itype(_Ptr<struct np>);
-
 
 struct r *foo() {
   struct r *x; 
@@ -48,12 +37,6 @@ struct r *foo() {
   struct r *z = (struct r *) sus(x, y);
   return z;
 }
-//CHECK_NOALL: struct r *x, *y;
-//CHECK: struct r * foo(void) {
-//CHECK_ALL: _Array_ptr<struct r> x = ((void *)0);
-//CHECK_ALL: _Array_ptr<struct r> y = ((void *)0);
-//CHECK: struct r *z = (struct r *) sus(x, y);
-
 
 struct np *bar() {
   struct r *x;
@@ -65,12 +48,6 @@ struct np *bar() {
   struct np *z = sus(x, y);
   return z;
 }
-//CHECK_NOALL: struct r *x, *y;
-//CHECK: _Ptr<struct np> bar(void) {
-//CHECK_ALL: _Array_ptr<struct r> x = ((void *)0);
-//CHECK_ALL: _Array_ptr<struct r> y = ((void *)0);
-//CHECK: _Ptr<struct np> z =  sus(x, y);
-
 
 struct np *sus(struct r *x, struct r *y) {
   x->next += 1;
@@ -79,6 +56,3 @@ struct np *sus(struct r *x, struct r *y) {
   z->y = 0;
   return z;
 }
-//CHECK_NOALL: struct np *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct np>) {
-//CHECK_ALL: struct np *sus(_Ptr<struct r> x, _Ptr<struct r> y) : itype(_Ptr<struct np>) {
-//CHECK: _Ptr<struct np> z =  malloc<struct np>(sizeof(struct np));

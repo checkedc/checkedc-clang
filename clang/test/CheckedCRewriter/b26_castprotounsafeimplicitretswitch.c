@@ -1,7 +1,3 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-
 typedef unsigned long size_t;
 #define NULL ((void*)0)
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
@@ -12,9 +8,6 @@ extern int printf(const char * restrict format : itype(restrict _Nt_array_ptr<co
 extern _Unchecked char *strcpy(char * restrict dest, const char * restrict src : itype(restrict _Nt_array_ptr<const char>));
 
 char *sus(int *, int *);
-//CHECK_NOALL: char *sus(int *x, _Ptr<int> y) : itype(_Ptr<char>);
-//CHECK_ALL: char *sus(int *x : itype(_Array_ptr<int>), _Ptr<int> y) : itype(_Ptr<char>);
-
 
 char* foo() {
   int sx = 3, sy = 4; 
@@ -24,11 +17,6 @@ char* foo() {
   *z = *z + 1;
   return z;
 }
-//CHECK: char * foo(void) {
-//CHECK: int *x = &sx;
-//CHECK: _Ptr<int> y = &sy;
-//CHECK: char *z = (int *) sus(x, y);
-
 
 int* bar() {
   int sx = 3, sy = 4; 
@@ -37,11 +25,6 @@ int* bar() {
   int *z = (sus(x, y));
   return z;
 }
-//CHECK: int * bar(void) {
-//CHECK: int *x = &sx;
-//CHECK: _Ptr<int> y = &sy;
-//CHECK: int *z = (sus(x, y));
-
 
 char *sus(int *x, int*y) {
   char *z = malloc(sizeof(char));
@@ -50,6 +33,3 @@ char *sus(int *x, int*y) {
   *x = 2;
   return z;
 }
-//CHECK_NOALL: char *sus(int *x, _Ptr<int> y) : itype(_Ptr<char>) {
-//CHECK_ALL: char *sus(int *x : itype(_Array_ptr<int>), _Ptr<int> y) : itype(_Ptr<char>) {
-//CHECK: _Ptr<char> z =  malloc<char>(sizeof(char));
