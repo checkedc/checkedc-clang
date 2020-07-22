@@ -68,7 +68,7 @@ QualType TypeVariableEntry::getType() {
   return TyVarType;
 }
 
-bool TypeVariableEntry::getIsConsistent() {
+bool TypeVariableEntry::getIsConsistent() const {
   return IsConsistent;
 }
 
@@ -128,13 +128,14 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
         TVEntry.second.setTypeParamConsVar(P);
       }
   }
+  return true;
 }
 
 // Update the type variable map for a new use of a type variable. For each use
 // the exact type variable is identified by the call expression where it is
 // used and the index of the type variable type in the function declaration.
 void TypeVarVisitor::insertBinding(CallExpr *CE, const TypeVariableType *TyV,
-                                     clang::QualType Ty, CVarSet &CVs) {
+                                   clang::QualType Ty, CVarSet &CVs) {
   assert("Type param must go to pointer." && Ty->isPointerType());
 
   auto &CallTypeVarMap = TVMap[CE];
@@ -146,6 +147,18 @@ void TypeVarVisitor::insertBinding(CallExpr *CE, const TypeVariableType *TyV,
     // otherwise, update entry with new type and constraints
     CallTypeVarMap[TyV->GetIndex()].updateEntry(Ty, CVs);
   }
+}
+
+// Lookup the of type parameters for a CallExpr that are used consistently.
+// Type parameters are identified by their index in the type parameter list and
+// consistent parameters are added to the Types set reference.
+void TypeVarVisitor::getConsistentTypeParams(CallExpr *CE,
+                                             std::set<unsigned int> &Types) {
+  // Gather consistent TypeVariables into output set
+  auto &CallTypeVarBindings = TVMap[CE];
+  for (const auto &TVEntry : CallTypeVarBindings)
+    if (TVEntry.second.getIsConsistent())
+      Types.insert(TVEntry.first);
 }
 
 // Store type param bindings persistently in ProgramInfo so they are available

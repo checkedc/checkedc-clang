@@ -31,7 +31,7 @@ public:
     }
   }
 
-  bool getIsConsistent();
+  bool getIsConsistent() const;
   QualType getType();
   std::set<ConstraintVariable *> &getConstraintVariables();
   ConstraintVariable *getTypeParamConsVar();
@@ -65,8 +65,15 @@ private:
 typedef std::map<CallExpr *, std::map<unsigned int, TypeVariableEntry>>
 TypeVariableMapT;
 
-class TypeVarVisitor : public RecursiveASTVisitor<TypeVarVisitor> {
+class TypeVarInfo {
+public:
+  virtual void getConsistentTypeParams(CallExpr *CE,
+                                       std::set<unsigned int> &Types) = 0;
+  virtual void setProgramInfoTypeVars() = 0;
+};
 
+class TypeVarVisitor
+    : public RecursiveASTVisitor<TypeVarVisitor>, public TypeVarInfo {
 public:
   explicit TypeVarVisitor(ASTContext *C, ProgramInfo &I)
   : Context(C), Info(I), CR(Info, Context), TVMap() {}
@@ -74,8 +81,8 @@ public:
   bool VisitCastExpr(CastExpr *CE);
   bool VisitCallExpr(CallExpr *CE);
 
+  void getConsistentTypeParams(CallExpr *CE, std::set<unsigned int> &Types);
   void setProgramInfoTypeVars();
-
 private:
   ASTContext *Context;
   ProgramInfo &Info;

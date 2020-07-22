@@ -36,9 +36,7 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
         // We only want to re-write a record if it contains
         // any pointer types, to include array types.
         for (const auto &D : Definition->fields()) {
-          Info.getABoundsInfo().insertVariable(D);
           if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
-            Info.addVariable(D, Context);
             if(FL.isInSystemHeader() || Definition->isUnion()) {
               CVarSet C = Info.getVariable(D, Context);
               std::string Rsn = "External struct field or union encountered";
@@ -59,8 +57,9 @@ class FunctionVisitor : public RecursiveASTVisitor<FunctionVisitor> {
 public:
   explicit FunctionVisitor(ASTContext *C,
                            ProgramInfo &I,
-                           FunctionDecl *FD)
-      : Context(C), Info(I), Function(FD), CB(Info, Context) {}
+                           FunctionDecl *FD,
+                           TypeVarInfo &TVI)
+      : Context(C), Info(I), Function(FD), CB(Info, Context), TVInfo(TVI) {}
 
   // T x = e
   bool VisitDeclStmt(DeclStmt *S) {
@@ -71,13 +70,11 @@ public:
       }
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         if (VD->isLocalVarDecl()) {
-          Info.getABoundsInfo().insertVariable(VD);
           FullSourceLoc FL = Context->getFullLoc(VD->getBeginLoc());
           SourceRange SR = VD->getSourceRange();
           if (SR.isValid() && FL.isValid() &&
               (VD->getType()->isPointerType() ||
                VD->getType()->isArrayType())) {
-            Info.addVariable(VD, Context);
             if (lastRecordLocation == VD->getBeginLoc().getRawEncoding()) {
               CVarSet C = Info.getVariable(VD, Context);
               CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
@@ -166,10 +163,8 @@ public:
     // Collect type parameters for this function call that are
     // consistently instantiated as single type in this function call.
     std::set<unsigned int> consistentTypeParams;
-    // FIXME: give this class access to the type variable map so this lookup
-    //        can happen.
-    //if (TFD != nullptr)
-    //  getConsistentTypeParams(E, TFD, consistentTypeParams);
+    if (TFD != nullptr)
+      TVInfo.getConsistentTypeParams(E, consistentTypeParams);
 
     // Now do the call: Constrain arguments to parameters (but ignore returns)
     if (FVCons.empty()) {
@@ -373,21 +368,20 @@ private:
   ProgramInfo &Info;
   FunctionDecl *Function;
   ConstraintResolver CB;
+  TypeVarInfo &TVInfo;
 };
 
 // This class visits a global declaration, generating constraints
 //   for functions, variables, types, etc. that are visited
 class GlobalVisitor : public RecursiveASTVisitor<GlobalVisitor> {
 public:
-  explicit GlobalVisitor(ASTContext *Context, ProgramInfo &I)
-      : Context(Context), Info(I), CB(Info, Context) {}
+  explicit GlobalVisitor(ASTContext *Context, ProgramInfo &I, TypeVarInfo &TVI)
+      : Context(Context), Info(I), CB(Info, Context), TVInfo(TVI) {}
 
   bool VisitVarDecl(VarDecl *G) {
 
     if (G->hasGlobalStorage() &&
         (G->getType()->isPointerType() || G->getType()->isArrayType())) {
-      Info.getABoundsInfo().insertVariable(G);
-      Info.addVariable(G, Context);
       if (G->hasInit()) {
         CB.constrainLocalAssign(nullptr, G, G->getInit());
       }
@@ -427,10 +421,10 @@ public:
       errs() << "Analyzing function " << D->getName() << "\n";
 
     if (FL.isValid()) { // TODO: When would this ever be false?
-      Info.addVariable(D, Context);
+      //Info.addVariable(D, Context);
       if (D->hasBody() && D->isThisDeclarationADefinition()) {
         Stmt *Body = D->getBody();
-        FunctionVisitor FV = FunctionVisitor(Context, Info, D);
+        FunctionVisitor FV = FunctionVisitor(Context, Info, D, TVInfo);
         FV.TraverseStmt(Body);
         if (AllTypes) {
           // Only do this, if all types is enabled.
@@ -455,8 +449,58 @@ private:
   ASTContext *Context;
   ProgramInfo &Info;
   ConstraintResolver CB;
+  TypeVarInfo &TVInfo;
 };
 
+// Some information about variables in the program is required by the type
+// variable analysis and constraint building passes. This is gathered by this
+// visitor which is executed before both of the other visitors.
+class VariableAdderVisitor : public RecursiveASTVisitor<VariableAdderVisitor> {
+public:
+  explicit VariableAdderVisitor(ASTContext *Context, ProgramInfo &I)
+      : Context(Context), Info(I), CB(Info, Context) {}
+
+  bool VisitVarDecl(VarDecl *D) {
+    FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
+    if (FL.isValid() &&
+        (!isa<ParmVarDecl>(D) || D->getParentFunctionOrMethod() != nullptr))
+      addVariable(D);
+    return true;
+  }
+
+  bool VisitFunctionDecl(FunctionDecl *D) {
+    FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
+    if (FL.isValid())
+      Info.addVariable(D, Context);
+    return true;
+  }
+
+  bool VisitRecordDecl(RecordDecl *Declaration) {
+    if (RecordDecl *Definition = Declaration->getDefinition()) {
+      FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
+      if (FL.isValid()) {
+        SourceManager &SM = Context->getSourceManager();
+        FileID FID = FL.getFileID();
+        const FileEntry *FE = SM.getFileEntryForID(FID);
+        if (FE && FE->isValid())
+          for (auto *const D : Definition->fields())
+            addVariable(D);
+      }
+    }
+    return true;
+  }
+
+private:
+  ASTContext *Context;
+  ProgramInfo &Info;
+  ConstraintResolver CB;
+
+  void addVariable(DeclaratorDecl *D) {
+    Info.getABoundsInfo().insertVariable(D);
+    if (D->getType()->isPointerType() || D->getType()->isArrayType())
+      Info.addVariable(D, Context);
+  }
+};
 
 void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
   Info.enterCompilationUnit(C);
@@ -471,11 +515,13 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
   }
 
 
+  VariableAdderVisitor VAV = VariableAdderVisitor(&C, Info);
   TypeVarVisitor TV = TypeVarVisitor(&C, Info);
-  GlobalVisitor GV = GlobalVisitor(&C, Info);
+  GlobalVisitor GV = GlobalVisitor(&C, Info, TV);
   TranslationUnitDecl *TUD = C.getTranslationUnitDecl();
   // Generate constraints.
   for (const auto &D : TUD->decls()) {
+    VAV.TraverseDecl(D);
     TV.TraverseDecl(D);
     GV.TraverseDecl(D);
   }
