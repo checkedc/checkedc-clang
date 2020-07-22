@@ -88,133 +88,28 @@ def process_file_smart(name, cnameNOALL, cnameALL):
     
     # ensure all lines are the same length
     assert len(lines) == len(noall) == len(yeall), "fix file " + name
-    return
     # our keywords that indicate we should add an annotation
-    # keywords = "int char struct double float".split(" ") 
-    # ckeywords = "_Ptr _Array_ptr _Nt_array_ptr _Checked _Unchecked".split(" ") 
-
-    # for line in range(0, len(lines)): 
-    #     if (any(substr in lines[line] for substr in keywords) and lines[line].find("*") != -1) or any(substr in noall[line] for substr in ckeywords) or any(substr in all[line] for substr in ckeywords): 
-    #         if noall[line] == yeall[line]: 
-    #             lines[line] = line + "\n//CHECK: " + noall[line] 
-    #         else: 
-    #             lines[line] = line + "\nCHECK_NOALL: " + noall[line] + "/nCHECK_ALL: " + yeall[line]
-    
-    # file = open(name, "w+")
-    # file.write("\n".join(lines)) 
-    # return 
-
-            
-
-# Add the annotations to the files 
-def process_file(file, alltypes, structc, susprotoc, susc, fooc, barc): 
-    check = "CHECK_NOALL"
-    if alltypes: check = "CHECK_ALL"
-
     keywords = "int char struct double float".split(" ") 
-    ckeywords = "_Ptr _Array_ptr _Nt_array_ptr _Checked _Unchecked".split(" ")
+    ckeywords = "_Ptr _Array_ptr _Nt_array_ptr _Checked _Unchecked".split(" ") 
 
-    # these boolean variables indicate which method definition we are in, so we know where to add
-    # our checked annotations later
-    indefs = insus = infoo = inbar = False 
-    inr = False
-
-    # generate the check annotations
-    for line in file.readlines():   
-        linepre = line.split("=")[0]
-        
-        if line.find("struct np {") != -1: 
-            indefs = inr = insus = infoo = inbar = False 
-            indefs = True
-
-        # annotate the prototype for sus
-        elif line.find("sus") != -1 and line.find(";") != -1 and (not (infoo or inbar or insus)):
-            indefs = inr = insus = infoo = inbar = False
-            line = line.strip()
-            if line in susc:
-                susprotoc = susprotoc.replace("//CHECK_NOALL: " + line + "\n", "") 
-                susprotoc += "//CHECK: " + line + "\n"
+    for i in range(0, len(lines)): 
+        line = lines[i] 
+        noline = noall[i] 
+        yeline = yeall[i]
+        if line.find("extern") == -1 and ((any(substr in line for substr in keywords) and line.find("*") != -1) or any(substr in noline for substr in ckeywords) or any(substr in yeline for substr in ckeywords)): 
+            if noline == yeline: 
+                lines[i] = line + "\n\t//CHECK: " + noline.lstrip()
             else: 
-                susprotoc += "//" + check + ": " + line + "\n"
+                lines[i] = line + "\n\t//CHECK_NOALL: " + noline.lstrip() + "\n\t//CHECK_ALL: " + yeline
+    
+    run = "// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\",\"CHECK\" %s"
+    run += "\n//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" %s"
+    run += "\n// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -\n" 
 
-        # annotate the definition for sus
-        elif line.find("sus") != -1 and line.find("{") != -1: 
-            indefs = inr = insus = infoo = inbar = False
-            insus = True
-            line = line.strip()
-            if line in susc:
-                susc = susc.replace("//CHECK_NOALL: " + line + "\n", "") 
-                susc += "//CHECK: " + line + "\n"
-            else: 
-                susc += "//" + check + ": " + line + "\n"
-
-        # annotate the definition for foo
-        elif line.find("foo") != -1:
-            indefs = inr = insus = infoo = inbar = False
-            infoo = True 
-            line = line.strip()
-            if line.rstrip() in fooc: 
-                fooc = fooc.replace("//CHECK_NOALL: " + line + "\n", "") 
-                fooc += "//CHECK: " + line + "\n"
-            else: 
-                fooc += "//" + check + ": " + line + "\n"  
-
-        # annotate the definition for bar
-        elif line.find("bar") != -1:  
-            indefs = inr = insus = infoo = inbar = False
-            inbar = True 
-            line = line.strip()
-            if line.rstrip() in barc: 
-                barc = barc.replace("//CHECK_NOALL: " + line + "\n", "") 
-                barc += "//CHECK: " + line + "\n"
-            else: 
-                barc += "//" + check + ": " + line + "\n" 
-
-        elif indefs: 
-            if line.find("struct r {") != -1: 
-                inr = True
-            elif inr and ((any(substr in line for substr in keywords) and line.find("*") != -1) or any(substr in line for substr in ckeywords)):  
-                line = line.strip()
-                if ("//CHECK_NOALL: " + line) in structc[1]: 
-                    structc[1] = structc[1].replace("//CHECK_NOALL: " + line + "\n", "") 
-                    structc[1] += "//CHECK: " + line + "\n"
-                else: 
-                    structc[1] += "//" + check + ": " + line + "\n"
-            elif (any(substr in line for substr in keywords) and line.find("*") != -1) or any(substr in line for substr in ckeywords): 
-                line = line.strip()
-                if ("//CHECK_NOALL: " + line) in structc[0]: 
-                    structc[0] = structc[0].replace("//CHECK_NOALL: " + line + "\n", "") 
-                    structc[0] += "//CHECK: " + line + "\n"
-                else: 
-                    structc[0] += "//" + check + ": " + line + "\n"
-
-
-        elif insus: 
-            if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
-                line = line.strip()
-                if line in susc: 
-                    susc = susc.replace("//CHECK_NOALL: " + line + "\n", "") 
-                    susc += "//CHECK: " + line + "\n"
-                else: 
-                    susc += "//" + check + ": " + line + "\n"
-        elif infoo: 
-            if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords): 
-                line = line.strip()
-                if line in fooc: 
-                    fooc = fooc.replace("//CHECK_NOALL: " + line + "\n", "") 
-                    fooc += "//CHECK: " + line + "\n"
-                else: 
-                    fooc += "//" + check + ": " + line + "\n" 
-        elif inbar: 
-            if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
-                line = line.strip()
-                if line in barc: 
-                    barc = barc.replace("//CHECK_NOALL: " + line + "\n", "") 
-                    barc += "//CHECK: " + line + "\n"
-                else: 
-                    barc += "//" + check + ": " + line + "\n" 
-
-    return [structc, susprotoc, susc, fooc, barc]
+    file = open(name, "w+")
+    file.write(run + "\n".join(lines)) 
+    file.close()
+    return 
 
 def process_smart(filename): 
     strip_existing_annotations(filename) 
@@ -241,59 +136,6 @@ def process_smart(filename):
 
     process_file_smart(filename, cnameNOALL, cnameALL) 
     return
-
-# main processing unit
-def process(filename): 
-    strip_existing_annotations(filename) 
-    [header, susproto, sus, foo, bar] = split_into_blocks(filename) 
-
-    struct_needed = False 
-    if "struct" in susproto or "struct" in sus or "struct" in foo or "struct" in bar: 
-        struct_needed = True
-    
-    cnameNOALL = filename + "heckedNOALL.c" 
-    cnameALL = filename + "heckedALL.c"
-
-    test = [header, sus, foo, bar] 
-    if susproto != "" and struct_needed: test = [header, structs, susproto, foo, bar, sus] 
-    elif struct_needed: test = [header, structs, sus, foo, bar] 
-    elif susproto != "": test = [header, susproto, foo, bar, sus]
-
-    file = open(filename, "w+") 
-    file.write('\n\n'.join(test)) 
-    file.close()
-
-    os.system("{}cconv-standalone -alltypes -output-postfix=checkedALL {}".format(path_to_monorepo, filename))
-    os.system("{}cconv-standalone -output-postfix=checkedNOALL {}".format(path_to_monorepo, filename))
-    os.system("rm {}".format(filename))
-
-    susprotoc = susc = fooc = barc = "" 
-    structc = structs.split("\n\n\n")
-    structc[0] = structc[0] + "\n"
-    file = open(cnameNOALL, "r") 
-    [structc, susprotoc, susc, fooc, barc] = process_file(file, False, structc, susprotoc, susc, fooc, barc)
-    file.close() 
-    os.system("rm {}".format(cnameNOALL))
-
-    file = open(cnameALL, "r") 
-    [structc, susprotoc, susc, fooc, barc] = process_file(file, True, structc, susprotoc, susc, fooc, barc)
-    file.close() 
-    os.system("rm {}".format(cnameALL))
-
-    #TODO: Once Aaron's PR is merged, add the addcr flag here
-    run = "// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\",\"CHECK\" %s"
-    run += "\n//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" %s"
-    run += "\n// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -"
-
-    ctest = [run, header, sus + "\n" + susc, foo + "\n" + fooc, bar + "\n" + barc] 
-    if susproto != "" and struct_needed: ctest = [run, header, '\n\n'.join(structc), susproto + "\n" + susprotoc, foo + "\n" + fooc, bar + "\n" + barc, sus + "\n" + susc] 
-    elif struct_needed: ctest = [run, header, '\n\n'.join(structc), sus + "\n" + susc, foo + "\n" + fooc, bar + "\n" + barc] 
-    elif susproto != "": ctest = [run, header, susproto + "\n" + susprotoc, foo + "\n" + fooc, bar + "\n" + barc, sus + "\n" + susc]
-
-    file = open(filename, "w+") 
-    file.write('\n\n'.join(ctest)) 
-    file.close() 
-    return 
 
 
 b_tests = ['b10_allsafepointerstruct.c',
