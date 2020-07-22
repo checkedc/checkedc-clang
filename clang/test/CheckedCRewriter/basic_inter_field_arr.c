@@ -34,7 +34,7 @@ int main() {
   b = func(&a, wil);
   return 0;
 }
-//CHECK: int main(void) {
+//CHECK: int main() {
 //CHECK-NEXT: int a;
 //CHECK-NEXT: _Ptr<int> b =  0;
 //CHECK-NEXT: char *wil = 0;
