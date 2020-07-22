@@ -20,7 +20,7 @@ int *dumb(int *a){
 
 int *f(void) {
 // CHECK_ALL: _Array_ptr<int> f(void) { 
-// CHECK_NOALL: int * f(void) {
+// CHECK_NOALL: int *f(void) {
   int *p = (int*)0;
   // CHECK_ALL: _Array_ptr<int> p =  (int*)0; 
   // CHECK_NOALLL: int *p = (int*)0;
@@ -30,7 +30,7 @@ int *f(void) {
 
 int *foo(void) {
 // CHECK_ALL: _Array_ptr<int> foo(void) {
-// CHECK_NOALL: int * foo(void) {
+// CHECK_NOALL: int *foo(void) {
   int *q = f();
   // CHECK_ALL: _Array_ptr<int> q =  f();
   return q;

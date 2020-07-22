@@ -675,7 +675,8 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     s = s + ")";
   } else {
     s = s + "void)";
-    DidAny = true;
+    if (!FD->getType()->isFunctionProtoType())
+      DidAny = true;
   }
 
   if (EndStuff.size() > 0)
