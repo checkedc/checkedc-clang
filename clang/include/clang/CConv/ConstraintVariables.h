@@ -235,16 +235,21 @@ private:
   // String representing declared bounds expression.
   std::string BoundsAnnotationStr;
 
+  // Does this variable represent a generic type?
+  // Generic types can be used with fewer restrictions, so this field is used
+  // stop assignments wth generic variables from forcing constraint variables
+  // to be wild.
+  bool IsGeneric;
+
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
                             FunctionVariableConstraint *F, bool isArr,
-                            bool isItype, std::string is) :
+                            bool isItype, std::string is, bool Generic=false) :
           ConstraintVariable(PointerVariable, "" /*not used*/, Name),
-          BaseType(T),vars(V),FV(F),
-        ArrPresent(isArr), ItypeStr(is),
-           partOFFuncPrototype(false), Parent(nullptr),
-         BoundsAnnotationStr("") {}
+          BaseType(T),vars(V),FV(F), ArrPresent(isArr), ItypeStr(is),
+          partOFFuncPrototype(false), Parent(nullptr),
+          BoundsAnnotationStr(""), IsGeneric(Generic) {}
 
   std::string getTy() { return BaseType; }
   bool getArrPresent() { return ArrPresent; }
@@ -260,6 +265,8 @@ public:
   // Get bounds annotation.
   std::string getBoundsStr() { return BoundsAnnotationStr; }
 
+  bool getIsGeneric(){ return IsGeneric; }
+
   bool solutionEqualTo(Constraints &CS, ConstraintVariable *CV);
 
   // Constructor for when we have a Decl. K is the current free
@@ -274,7 +281,8 @@ public:
                             clang::DeclaratorDecl *D, std::string N,
                             ProgramInfo &I,
                             const clang::ASTContext &C,
-                            std::string *inFunc = nullptr);
+                            std::string *inFunc = nullptr,
+                            bool IsGeneric = false);
 
   const CAtoms &getCvars() const { return vars; }
 

@@ -11,7 +11,6 @@ extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_c
 extern _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 
-
 void basic1() {
 	char data[] = "abcdefghijklmnop";
 
