@@ -59,6 +59,7 @@ namespace clang {
 
   class PreorderAST {
   private:
+    Sema &S;
     ASTContext &Ctx;
     Lexicographic Lex;
     llvm::raw_ostream &OS;
@@ -114,8 +115,8 @@ namespace clang {
     DeclRefExpr *GetDeclOperand(Expr *E);
 
   public:
-    PreorderAST(ASTContext &Ctx, Expr *E) :
-      Ctx(Ctx), Lex(Lexicographic(Ctx, nullptr)), OS(llvm::outs()),
+    PreorderAST(Sema &S, ASTContext &Ctx, Expr *E) :
+      S(S), Ctx(Ctx), Lex(Lexicographic(Ctx, nullptr)), OS(llvm::outs()),
       Error(false), Root(nullptr) {
       Create(E);
     }

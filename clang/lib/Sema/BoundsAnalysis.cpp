@@ -367,7 +367,7 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
       continue;
     llvm::APSInt UpperOffset = UpperExprIntPair.second;
 
-    if (!Lex.CompareExprSemantically(DerefBase, UpperBase))
+    if (!Lex.CompareExprSemantically(S, DerefBase, UpperBase))
       continue;
 
     // We cannot widen the bounds if the offset in the deref expr is less than

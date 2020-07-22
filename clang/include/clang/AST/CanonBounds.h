@@ -41,6 +41,7 @@ namespace clang {
   class ASTContext;
   class Expr;
   class VarDecl;
+  class Sema;
 
   // List of sets of equivalent expressions.
   typedef SmallVector<SmallVector<Expr *, 4>, 4> EquivExprSets;
@@ -121,7 +122,7 @@ namespace clang {
     /// \brief Semantic comparison of expressions that can occur in
     /// bounds expressions. A return value of true indicates that the two
     /// expressions are equivalent semantically.
-    bool CompareExprSemantically(const Expr *E1, const Expr *E2);
+    bool CompareExprSemantically(Sema &S, const Expr *E1, const Expr *E2);
 
     /// \brief Compare declarations that may be used by expressions or
     /// or types.
