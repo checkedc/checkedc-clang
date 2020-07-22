@@ -13,6 +13,8 @@
 
 #include <set>
 #include "ConstraintVariables.h"
+#include "ConstraintResolver.h"
+#include "ProgramInfo.h"
 
 class TypeVariableEntry {
 public:
@@ -63,4 +65,24 @@ private:
 typedef std::map<CallExpr *, std::map<unsigned int, TypeVariableEntry>>
 TypeVariableMapT;
 
-#endif //LLVM_CLANG_LIB_CCONV_TYPEVARIABLEANALYSIS_H
+class TypeVarVisitor : public RecursiveASTVisitor<TypeVarVisitor> {
+
+public:
+  explicit TypeVarVisitor(ASTContext *C, ProgramInfo &I)
+  : Context(C), Info(I), CR(Info, Context), TVMap() {}
+
+  bool VisitCastExpr(CastExpr *CE);
+  bool VisitCallExpr(CallExpr *CE);
+
+  void setProgramInfoTypeVars();
+
+private:
+  ASTContext *Context;
+  ProgramInfo &Info;
+  ConstraintResolver CR;
+  TypeVariableMapT TVMap;
+
+  void insertBinding(CallExpr *CE, const TypeVariableType *TyV, QualType Ty,
+                     CVarSet &CVs);
+};
+#endif

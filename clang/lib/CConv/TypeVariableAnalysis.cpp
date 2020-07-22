@@ -10,6 +10,9 @@
 
 #include "clang/CConv/TypeVariableAnalysis.h"
 
+using namespace llvm;
+using namespace clang;
+
 std::set<ConstraintVariable *> &TypeVariableEntry::getConstraintVariables() {
   assert("Accessing ConstraintVariable set for inconsistent Type Variable." &&
       IsConsistent);
@@ -67,4 +70,103 @@ QualType TypeVariableEntry::getType() {
 
 bool TypeVariableEntry::getIsConsistent() {
   return IsConsistent;
+}
+
+bool TypeVarVisitor::VisitCastExpr(CastExpr *CE){
+  Expr *SubExpr = CE->getSubExpr();
+  if (CHKCBindTemporaryExpr *TempE = dyn_cast<CHKCBindTemporaryExpr>(SubExpr))
+    SubExpr = TempE->getSubExpr();
+
+  if (auto *Call = dyn_cast<CallExpr>(SubExpr))
+    if (auto *FD = dyn_cast_or_null<FunctionDecl>(Call->getCalleeDecl()))
+      if (const auto *TyVar = getTypeVariableType(FD)) {
+        clang::QualType Ty = CE->getType();
+        // FIXME: This is a problem. We can't call getExprConstraintVars before
+        // the variables referenced in the expression are added to ProgramInfo.
+        std::set<ConstraintVariable *>
+            CVs = CR.getExprConstraintVars(SubExpr);
+        insertBinding(Call, TyVar, Ty, CVs);
+      }
+  return true;
+}
+
+bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
+  if (FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(CE->getCalleeDecl())) {
+    // Visit each function argument, and if it use a type variable, insert it
+    // into the type variable binding map.
+    unsigned int I = 0;
+    for (auto *const A : CE->arguments()) {
+      // This can happen with varargs
+      if (I >= FD->getNumParams())
+        break;
+      if (const auto *TyVar = getTypeVariableType(FD->getParamDecl(I))) {
+        Expr *Uncast = A->IgnoreImpCasts();
+        // FIXME: this as well.
+        std::set<ConstraintVariable *> CVs = CR.getExprConstraintVars(Uncast);
+        insertBinding(CE, TyVar, Uncast->getType(), CVs);
+      }
+      ++I;
+    }
+
+    // For each type variable added above, make a new constraint variable to
+    // remember the solved pointer type.
+    for (auto &TVEntry : TVMap[CE])
+      if (TVEntry.second.getIsConsistent()) {
+        std::string Name =
+            FD->getNameAsString() + "_tyarg_" + std::to_string(TVEntry.first);
+        PVConstraint *P = new PVConstraint(TVEntry.second.getType(), nullptr,
+                                           Name, Info, *Context, nullptr);
+
+        // Constrain this variable GEQ the function arguments using the type
+        // variable so if any of them are wild, the type argument will also be
+        // an unchecked pointer.
+        std::set<ConstraintVariable *> CVs = {P};
+        constrainConsVarGeq(CVs, TVEntry.second.getConstraintVariables(),
+                            Info.getConstraints(), nullptr, Safe_to_Wild,
+                            false, &Info);
+
+        TVEntry.second.setTypeParamConsVar(P);
+      }
+  }
+}
+
+// Update the type variable map for a new use of a type variable. For each use
+// the exact type variable is identified by the call expression where it is
+// used and the index of the type variable type in the function declaration.
+void TypeVarVisitor::insertBinding(CallExpr *CE, const TypeVariableType *TyV,
+                                     clang::QualType Ty, CVarSet &CVs) {
+  assert("Type param must go to pointer." && Ty->isPointerType());
+
+  auto &CallTypeVarMap = TVMap[CE];
+  if (CallTypeVarMap.find(TyV->GetIndex()) == CallTypeVarMap.end()){
+    // If the type variable hasn't been seen before, add it to the map.
+    TypeVariableEntry TVEntry = TypeVariableEntry(Ty, CVs);
+    CallTypeVarMap[TyV->GetIndex()] = TVEntry;
+  } else {
+    // otherwise, update entry with new type and constraints
+    CallTypeVarMap[TyV->GetIndex()].updateEntry(Ty, CVs);
+  }
+}
+
+// Store type param bindings persistently in ProgramInfo so they are available
+// during rewriting.
+void TypeVarVisitor::setProgramInfoTypeVars() {
+  for (const auto &TVEntry : TVMap) {
+    bool AllInconsistent = true;
+    for (auto TVCallEntry : TVEntry.second)
+      AllInconsistent &= !TVCallEntry.second.getIsConsistent();
+    // If they're all inconsistent type variables, ignore the call expression
+    if (!AllInconsistent) {
+      // Add each type variable into the map in ProgramInfo. Inconsistent
+      // variables are mapped to null.
+      for (auto TVCallEntry : TVEntry.second)
+        if (TVCallEntry.second.getIsConsistent())
+          Info.setTypeParamBinding(TVEntry.first, TVCallEntry.first,
+                                   TVCallEntry.second.getTypeParamConsVar(),
+                                   Context);
+        else
+          Info.setTypeParamBinding(TVEntry.first, TVCallEntry.first, nullptr,
+                                   Context);
+    }
+  }
 }

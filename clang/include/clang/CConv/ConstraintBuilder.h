@@ -24,8 +24,6 @@ public:
 
 private:
   ProgramInfo &Info;
-  void SetProgramInfoTypeVars(TypeVariableMapT TypeVariableBindings,
-                              ASTContext &C);
 };
 
 #endif
