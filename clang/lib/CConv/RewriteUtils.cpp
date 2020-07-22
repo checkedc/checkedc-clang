@@ -675,7 +675,9 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     s = s + ")";
   } else {
     s = s + "void)";
-    if (!FD->getType()->isFunctionProtoType())
+    QualType ReturnTy = FD->getReturnType();
+    QualType Ty = FD->getType();
+    if (!Ty->isFunctionProtoType() && ReturnTy->isPointerType())
       DidAny = true;
   }
 
