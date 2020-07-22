@@ -14,43 +14,45 @@ struct np {
 };
 
 struct p {
-    int *x;
+    _Ptr<int> x;
     char *y;
 };
 
 
 struct r {
     int data;
-    struct r *next;
+    _Ptr<struct r> next;
 };
 
 
-struct p *sus(struct p *x, struct p *y) {
+_Ptr<struct p> sus(_Ptr<struct p> x, _Ptr<struct p> y) {
   x->y += 1;
-  struct p *z = malloc(sizeof(struct p));
+  _Ptr<struct p> z =  malloc<struct p>(sizeof(struct p));
   return z;
 }
 
-struct p *foo() {
+_Ptr<struct p> foo(void) {
   int ex1 = 2, ex2 = 3;
-  struct p *x;
-  struct p *y;
+ _Ptr<struct p> x = ((void *)0);
+_Ptr<struct p> y = ((void *)0);
+ 
   x->x = &ex1;
   y->x = &ex2;
   x->y = &ex2;
   y->y = &ex1;
-  struct p *z = (struct p *) sus(x, y);
+  _Ptr<struct p> z =  (struct p *) sus(x, y);
   return z;
 }
 
-struct p *bar() {
+_Ptr<struct p> bar(void) {
   int ex1 = 2, ex2 = 3;
-  struct p *x;
-  struct p *y;
+ _Ptr<struct p> x = ((void *)0);
+_Ptr<struct p> y = ((void *)0);
+ 
   x->x = &ex1;
   y->x = &ex2;
   x->y = &ex2;
   y->y = &ex1;
-  struct p *z = (struct p *) sus(x, y);
+  _Ptr<struct p> z =  (struct p *) sus(x, y);
   return z;
 }

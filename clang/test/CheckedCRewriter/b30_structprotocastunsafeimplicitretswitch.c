@@ -38,7 +38,8 @@ struct np *sus(struct r *, struct r *);
 
 
 struct np *foo() {
-  struct r *x, *y;
+  struct r *x;
+  struct r *y;
   x->data = 2;
   y->data = 1;
   x->next = &y;
@@ -52,7 +53,8 @@ struct np *foo() {
 
 
 struct r *bar() {
-  struct r *x, *y;
+  struct r *x; 
+  struct r *y;
   x->data = 2;
   y->data = 1;
   x->next = &y;

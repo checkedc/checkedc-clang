@@ -44,7 +44,8 @@ struct p *sus(struct p *x, struct p *y) {
 
 struct p *foo() {
   int ex1 = 2, ex2 = 3;
-  struct p *x, *y;
+  struct p *x; 
+  struct p *y;
   x->x = &ex1;
   y->x = &ex2;
   x->y = &ex2;
@@ -60,7 +61,8 @@ struct p *foo() {
 
 struct p *bar() {
   int ex1 = 2, ex2 = 3;
-  struct p *x, *y;
+  struct p *x; 
+  struct p *y;
   x->x = &ex1;
   y->x = &ex2;
   x->y = &ex2;

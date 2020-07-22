@@ -17,7 +17,9 @@ int *sus(int *, int *);
 
 
 int* foo() {
-  int sx = 3, sy = 4, *x = &sx, *y = &sy;
+  int sx = 3, sy = 4; 
+  int *x = &sx;
+  int *y = &sy;
   int *z = (int *) sus(x, y);
   *z = *z + 1;
   return z;
@@ -29,7 +31,9 @@ int* foo() {
 
 
 char* bar() {
-  int sx = 3, sy = 4, *x = &sx, *y = &sy;
+  int sx = 3, sy = 4; 
+  int *x = &sx;
+  int *y = &sy;
   char *z = (sus(x, y));
   return z;
 }

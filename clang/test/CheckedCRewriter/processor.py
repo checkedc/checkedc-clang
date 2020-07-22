@@ -68,7 +68,43 @@ def split_into_blocks(filename):
         elif inbar: 
             bar += line
 
-    return [header.strip(), susproto.strip(), sus.strip(), foo.strip(), bar.strip()] 
+    return [header.strip(), susproto.strip(), sus.strip(), foo.strip(), bar.strip()]  
+
+
+def process_file_smart(name, cnameNOALL, cnameALL): 
+    file = open(name, "r") 
+    noallfile = open(cnameNOALL, "r") 
+    allfile = open(cnameALL, "r") 
+
+    # gather all the lines
+    lines = str(file.read()).split("\n") 
+    noall = str(noallfile.read()).split("\n") 
+    yeall = str(allfile.read()).split("\n") 
+
+    file.close() 
+    noallfile.close() 
+    allfile.close() 
+    os.system("rm {} {}".format(cnameNOALL, cnameALL)) 
+    
+    # ensure all lines are the same length
+    assert len(lines) == len(noall) == len(yeall), "fix file " + name
+    return
+    # our keywords that indicate we should add an annotation
+    # keywords = "int char struct double float".split(" ") 
+    # ckeywords = "_Ptr _Array_ptr _Nt_array_ptr _Checked _Unchecked".split(" ") 
+
+    # for line in range(0, len(lines)): 
+    #     if (any(substr in lines[line] for substr in keywords) and lines[line].find("*") != -1) or any(substr in noall[line] for substr in ckeywords) or any(substr in all[line] for substr in ckeywords): 
+    #         if noall[line] == yeall[line]: 
+    #             lines[line] = line + "\n//CHECK: " + noall[line] 
+    #         else: 
+    #             lines[line] = line + "\nCHECK_NOALL: " + noall[line] + "/nCHECK_ALL: " + yeall[line]
+    
+    # file = open(name, "w+")
+    # file.write("\n".join(lines)) 
+    # return 
+
+            
 
 # Add the annotations to the files 
 def process_file(file, alltypes, structc, susprotoc, susc, fooc, barc): 
@@ -180,6 +216,32 @@ def process_file(file, alltypes, structc, susprotoc, susc, fooc, barc):
 
     return [structc, susprotoc, susc, fooc, barc]
 
+def process_smart(filename): 
+    strip_existing_annotations(filename) 
+    [header, susproto, sus, foo, bar] = split_into_blocks(filename) 
+
+    struct_needed = False 
+    if "struct" in susproto or "struct" in sus or "struct" in foo or "struct" in bar: 
+        struct_needed = True
+    
+    cnameNOALL = filename + "heckedNOALL.c" 
+    cnameALL = filename + "heckedALL.c"
+
+    test = [header, sus, foo, bar] 
+    if susproto != "" and struct_needed: test = [header, structs, susproto, foo, bar, sus] 
+    elif struct_needed: test = [header, structs, sus, foo, bar] 
+    elif susproto != "": test = [header, susproto, foo, bar, sus]
+
+    file = open(filename, "w+") 
+    file.write('\n\n'.join(test)) 
+    file.close()
+
+    os.system("{}cconv-standalone -alltypes -output-postfix=checkedALL {}".format(path_to_monorepo, filename))
+    os.system("{}cconv-standalone -output-postfix=checkedNOALL {}".format(path_to_monorepo, filename)) 
+
+    process_file_smart(filename, cnameNOALL, cnameALL) 
+    return
+
 # main processing unit
 def process(filename): 
     strip_existing_annotations(filename) 
@@ -279,4 +341,4 @@ b_tests = ['b10_allsafepointerstruct.c',
  'b9_allsafestructp.c'] 
 
 for i in b_tests: 
-    process(i)
+    process_smart(i)
