@@ -23,7 +23,7 @@ int *sus(int *x, int*y) {
 }
 
 int* foo() {
-	//CHECK: int* foo() {
+	//CHECK: int * foo(void) {
   int sx = 3, sy = 4; 
   int *x = &sx;
 	//CHECK: int *x = &sx;
@@ -36,7 +36,7 @@ int* foo() {
 }
 
 int* bar() {
-	//CHECK: int* bar() {
+	//CHECK: int * bar(void) {
   int sx = 3, sy = 4; 
   int *x = &sx;
 	//CHECK: int *x = &sx;

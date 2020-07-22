@@ -1,4 +1,4 @@
-// RUN: cconv-standalone %s | count 0
+// RUN: cconv-standalone %s | FileCheck -match-full-lines %s
 
 void foo(char *a);
 void bar(int *a);
@@ -16,3 +16,4 @@ void test() {
 
   bar(wild());
 }
+//CHECK: void test(void) {

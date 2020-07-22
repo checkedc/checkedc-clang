@@ -21,7 +21,7 @@ through invalid pointer arithmetic, an unsafe cast, etc.*/
 /*********************************************************************************/
 
 
-#define size_t int
+typedef unsigned long size_t;
 #define NULL 0
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
@@ -33,58 +33,41 @@ extern _Unchecked char *strcpy(char * restrict dest, const char * restrict src :
 struct general { 
     int data; 
     struct general *next;
+	//CHECK: struct general *next;
 };
-//CHECK_NOALL:     struct general *next;
-
-//CHECK_ALL:     struct general *next;
-
 
 struct warr { 
     int data1[5];
+	//CHECK_NOALL: int data1[5];
+	//CHECK_ALL: int data1 _Checked[5];
     char *name;
+	//CHECK: _Ptr<char> name;
 };
-//CHECK_NOALL:     int data1[5];
-//CHECK_NOALL:     _Ptr<char> name;
-
-//CHECK_ALL:     int data1 _Checked[5];
-//CHECK_ALL:     _Ptr<char> name;
-
 
 struct fptrarr { 
     int *values; 
+	//CHECK: _Ptr<int> values; 
     char *name;
+	//CHECK: _Ptr<char> name;
     int (*mapper)(int);
+	//CHECK: _Ptr<int (int )> mapper;
 };
-//CHECK_NOALL:     _Ptr<int> values; 
-//CHECK_NOALL:     _Ptr<char> name;
-//CHECK_NOALL:     _Ptr<int (int )> mapper;
-
-//CHECK_ALL:     _Ptr<int> values; 
-//CHECK_ALL:     _Ptr<char> name;
-//CHECK_ALL:     _Ptr<int (int )> mapper;
-
 
 struct fptr { 
     int *value; 
+	//CHECK: _Ptr<int> value; 
     int (*func)(int);
+	//CHECK: _Ptr<int (int )> func;
 };  
-//CHECK_NOALL:     _Ptr<int> value; 
-//CHECK_NOALL:     _Ptr<int (int )> func;
-
-//CHECK_ALL:     _Ptr<int> value; 
-//CHECK_ALL:     _Ptr<int (int )> func;
-
 
 struct arrfptr { 
     int args[5]; 
+	//CHECK_NOALL: int args[5]; 
+	//CHECK_ALL: int args _Checked[5]; 
     int (*funcs[5]) (int);
+	//CHECK_NOALL: int (*funcs[5]) (int);
+	//CHECK_ALL: _Ptr<int (int )> funcs _Checked[5];
 };
-//CHECK_NOALL:     int args[5]; 
-//CHECK_NOALL:     int (*funcs[5]) (int);
-
-//CHECK_ALL:     int args _Checked[5]; 
-//CHECK_ALL:     _Ptr<int (int )> funcs _Checked[5];
-
 
 int add1(int x) { 
     return x+1;
@@ -112,23 +95,23 @@ int zerohuh(int n) {
 }
 
 int *mul2(int *x) { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
     *x *= 2; 
     return x;
 }
 
-//CHECK_NOALL: _Ptr<int> mul2(_Ptr<int> x) { 
-
-//CHECK_ALL: _Ptr<int> mul2(_Ptr<int> x) { 
-
 struct general ** sus(struct general *, struct general *);
-//CHECK_NOALL: struct general ** sus(struct general *, struct general *);
-//CHECK_ALL: struct general ** sus(struct general *, struct general *);
+	//CHECK: struct general ** sus(struct general *, struct general *);
 
 struct general ** foo() {
+	//CHECK: struct general ** foo(void) {
         struct general * x = malloc(sizeof(struct general));
+	//CHECK: struct general * x = malloc<struct general>(sizeof(struct general));
         struct general * y = malloc(sizeof(struct general));
+	//CHECK: struct general * y = malloc<struct general>(sizeof(struct general));
         
         struct general *curr = y;
+	//CHECK: struct general *curr = y;
         int i;
         for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
@@ -136,23 +119,18 @@ struct general ** foo() {
             curr->next->data = i+1;
         }
         struct general ** z = sus(x, y);
+	//CHECK: struct general ** z = sus(x, y);
 return z; }
-//CHECK_NOALL: struct general ** foo() {
-//CHECK_NOALL:         struct general * x = malloc<struct general>(sizeof(struct general));
-//CHECK_NOALL:         struct general * y = malloc<struct general>(sizeof(struct general));
-//CHECK_NOALL:         struct general *curr = y;
-//CHECK_NOALL:         struct general ** z = sus(x, y);
-//CHECK_ALL: struct general ** foo() {
-//CHECK_ALL:         struct general * x = malloc<struct general>(sizeof(struct general));
-//CHECK_ALL:         struct general * y = malloc<struct general>(sizeof(struct general));
-//CHECK_ALL:         struct general *curr = y;
-//CHECK_ALL:         struct general ** z = sus(x, y);
 
 struct general ** bar() {
+	//CHECK: struct general ** bar(void) {
         struct general * x = malloc(sizeof(struct general));
+	//CHECK: struct general * x = malloc<struct general>(sizeof(struct general));
         struct general * y = malloc(sizeof(struct general));
+	//CHECK: struct general * y = malloc<struct general>(sizeof(struct general));
         
         struct general *curr = y;
+	//CHECK: struct general *curr = y;
         int i;
         for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
@@ -160,15 +138,6 @@ struct general ** bar() {
             curr->next->data = i+1;
         }
         struct general ** z = sus(x, y);
+	//CHECK: struct general ** z = sus(x, y);
 z += 2;
 return z; }
-//CHECK_NOALL: struct general ** bar() {
-//CHECK_NOALL:         struct general * x = malloc<struct general>(sizeof(struct general));
-//CHECK_NOALL:         struct general * y = malloc<struct general>(sizeof(struct general));
-//CHECK_NOALL:         struct general *curr = y;
-//CHECK_NOALL:         struct general ** z = sus(x, y);
-//CHECK_ALL: struct general ** bar() {
-//CHECK_ALL:         struct general * x = malloc<struct general>(sizeof(struct general));
-//CHECK_ALL:         struct general * y = malloc<struct general>(sizeof(struct general));
-//CHECK_ALL:         struct general *curr = y;
-//CHECK_ALL:         struct general ** z = sus(x, y);

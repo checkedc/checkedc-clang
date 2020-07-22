@@ -4,7 +4,7 @@
 
 int *a() {
 // CHECK_ALL: _Array_ptr<int> a(void) {
-// CHECK_NOALL: int *a() {
+// CHECK_NOALL: int * a(void) {
   int *a = 0;
   // CHECK_ALL: _Array_ptr<int> a =  0; 
   // CHECK_NOALL: int *a = 0;
@@ -41,7 +41,7 @@ extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_
 
 int *bar() {
 // CHECK_ALL: _Nt_array_ptr<int> bar(void) {
-// CHECK_NOALL: int *bar() {
+// CHECK_NOALL: int * bar(void) {
   int *z = calloc(2, sizeof(int));
   //CHECK_ALL: _Nt_array_ptr<int> z : count(2) =  calloc<int>(2, sizeof(int));
   z += 2;

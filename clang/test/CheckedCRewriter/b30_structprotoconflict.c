@@ -36,7 +36,7 @@ struct r *sus(struct r *, struct r *);
 	//CHECK: struct r *sus(_Ptr<struct r> x, _Ptr<struct r> y) : itype(_Ptr<struct r>);
 
 struct np *foo() {
-	//CHECK: struct np *foo() {
+	//CHECK: struct np * foo(void) {
   struct r x, y;
   x.data = 2;
   y.data = 1;

@@ -37,7 +37,7 @@ struct r *sus(struct r *, struct r *);
 
 struct r *foo() {
 	//CHECK_NOALL: _Ptr<struct r> foo(void) {
-	//CHECK_ALL: struct r *foo() {
+	//CHECK_ALL: struct r * foo(void) {
   struct r *x; 
 	//CHECK: struct r *x; 
   struct r *y;
@@ -53,7 +53,7 @@ struct r *foo() {
 }
 
 struct np *bar() {
-	//CHECK: struct np *bar() {
+	//CHECK: struct np * bar(void) {
   struct r *x; 
 	//CHECK: struct r *x; 
   struct r *y;

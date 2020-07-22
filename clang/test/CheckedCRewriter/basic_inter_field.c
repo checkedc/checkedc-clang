@@ -36,7 +36,7 @@ int main() {
   return 0;
 }
 
-//CHECK: int main() {
+//CHECK: int main(void) {
 //CHECK-NEXT: int a;
 //CHECK-NEXT: _Ptr<int> b =  0;
 
