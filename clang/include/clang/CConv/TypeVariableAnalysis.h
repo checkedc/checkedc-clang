@@ -54,6 +54,8 @@ private:
   // variable. Also should not be used when IsConsistent is false.
   std::set<ConstraintVariable *> ArgConsVars;
 
+  // A single constraint variable for solving the checked type of the type
+  // variable. It is constrained GEQ all elements of ArgConsVars.
   ConstraintVariable *TypeParamConsVar;
 };
 
@@ -65,6 +67,8 @@ private:
 typedef std::map<CallExpr *, std::map<unsigned int, TypeVariableEntry>>
 TypeVariableMapT;
 
+// Abstract class exposing methods for accessing the type variable map in a
+// TypeVarVisitor.
 class TypeVarInfo {
 public:
   virtual void getConsistentTypeParams(CallExpr *CE,

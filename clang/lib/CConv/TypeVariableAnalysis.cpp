@@ -72,7 +72,10 @@ bool TypeVariableEntry::getIsConsistent() const {
   return IsConsistent;
 }
 
-bool TypeVarVisitor::VisitCastExpr(CastExpr *CE){
+// Finds cast expression that contain function call to a generic function. If
+// the return type of the function uses a type variable, a binding for the
+// return is added to the type variable map.
+bool TypeVarVisitor::VisitCastExpr(CastExpr *CE) {
   Expr *SubExpr = CE->getSubExpr();
   if (CHKCBindTemporaryExpr *TempE = dyn_cast<CHKCBindTemporaryExpr>(SubExpr))
     SubExpr = TempE->getSubExpr();
@@ -81,8 +84,6 @@ bool TypeVarVisitor::VisitCastExpr(CastExpr *CE){
     if (auto *FD = dyn_cast_or_null<FunctionDecl>(Call->getCalleeDecl()))
       if (const auto *TyVar = getTypeVariableType(FD)) {
         clang::QualType Ty = CE->getType();
-        // FIXME: This is a problem. We can't call getExprConstraintVars before
-        // the variables referenced in the expression are added to ProgramInfo.
         std::set<ConstraintVariable *>
             CVs = CR.getExprConstraintVars(SubExpr);
         insertBinding(Call, TyVar, Ty, CVs);
@@ -101,7 +102,6 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
         break;
       if (const auto *TyVar = getTypeVariableType(FD->getParamDecl(I))) {
         Expr *Uncast = A->IgnoreImpCasts();
-        // FIXME: this as well.
         std::set<ConstraintVariable *> CVs = CR.getExprConstraintVars(Uncast);
         insertBinding(CE, TyVar, Uncast->getType(), CVs);
       }
@@ -144,7 +144,7 @@ void TypeVarVisitor::insertBinding(CallExpr *CE, const TypeVariableType *TyV,
     TypeVariableEntry TVEntry = TypeVariableEntry(Ty, CVs);
     CallTypeVarMap[TyV->GetIndex()] = TVEntry;
   } else {
-    // otherwise, update entry with new type and constraints
+    // Otherwise, update entry with new type and constraints
     CallTypeVarMap[TyV->GetIndex()].updateEntry(Ty, CVs);
   }
 }
