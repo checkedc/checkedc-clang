@@ -153,13 +153,6 @@ bool CheckedRegionFinder::hasUncheckedParameters(CompoundStmt *S) {
 }
 
 
-bool CheckedRegionFinder::VisitUnaryOperator(UnaryOperator *U) {
-  //TODO handle computing pointers
-  if (U->getOpcode() == UO_AddrOf) {
-    // wild++;
-  }
-  return true;
-}
 
 bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
   // First check if our parent is a compound statement

@@ -63,7 +63,6 @@ class CheckedRegionFinder : public RecursiveASTVisitor<CheckedRegionFinder>
     bool VisitCompoundStmt(CompoundStmt *S);
     bool VisitStmtExpr(StmtExpr *SE);
     bool VisitCStyleCastExpr(CStyleCastExpr *E);
-    bool VisitUnaryOperator(UnaryOperator *U);
     bool VisitCallExpr(CallExpr *C);
     bool VisitVarDecl(VarDecl *VD);
     bool VisitParmVarDecl(ParmVarDecl *PVD);
