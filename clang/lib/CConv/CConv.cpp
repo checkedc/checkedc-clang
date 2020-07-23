@@ -107,11 +107,13 @@ ArgumentsAdjuster getIgnoreCheckedPointerAdjuster() {
     for (size_t i = 0, e = Args.size(); i < e; ++i) {
       StringRef Arg = Args[i];
       AdjustedArgs.push_back(Args[i]);
-      if (Arg == "-fignore-checkedc-pointers")
+      if (Arg == "-fcheckedc-convert-tool") {
         HasAdjuster = true;
+        break;
+      }
     }
-    //if (!HasAdjuster)
-    //  AdjustedArgs.push_back("-fignore-checkedc-pointers");
+    if (!HasAdjuster)
+      AdjustedArgs.push_back("-fcheckedc-convert-tool");
     return AdjustedArgs;
   };
 }
