@@ -60,6 +60,7 @@ class CheckedRegionFinder : public RecursiveASTVisitor<CheckedRegionFinder>
     bool VisitWhileStmt(WhileStmt *S);
     bool VisitDoStmt(DoStmt *S);
     bool VisitCompoundStmt(CompoundStmt *S);
+    bool VisitStmtExpr(StmtExpr *SE);
     bool VisitCStyleCastExpr(CStyleCastExpr *E);
     bool VisitUnaryOperator(UnaryOperator *U);
     bool VisitCallExpr(CallExpr *C);
@@ -81,6 +82,7 @@ class CheckedRegionFinder : public RecursiveASTVisitor<CheckedRegionFinder>
     bool isUncheckedStruct(QualType Qt, std::set<std::string> &Seen);
     bool isFunctionBody(CompoundStmt *S);
     bool isWild(std::set<ConstraintVariable*>&);
+    bool isWild(std::set<FVConstraint*>*);
 
     ASTContext* Context;
     Rewriter& Writer;

@@ -108,6 +108,11 @@ bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
   return false;
 }
 
+bool CheckedRegionFinder::VisitStmtExpr(StmtExpr *SE) {
+  Nwild++;
+  return false;
+}
+
 bool CheckedRegionFinder::VisitCStyleCastExpr(CStyleCastExpr *E) {
   // TODO This is over cautious
   Nwild++;
