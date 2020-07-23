@@ -62,4 +62,7 @@ def updateProjectIncludes(project_dir, checkedc_header_dir):
         new_contents = [headerReplacer(line) for line in contents]
         with open(cfile, 'w') as f:
             f.writelines(new_contents)
+        backup_source_file = cfile + ".backc"
+        with open(backup_source_file, 'w') as f:
+            f.writelines(new_contents)
     logging.debug("Replaced header files in all the source files of the project.")

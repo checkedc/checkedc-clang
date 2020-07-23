@@ -151,6 +151,10 @@ def runCheckedCConvert(checkedc_bin, compile_commands_json, run_individual=False
     # run whole command
     if not run_individual:
         logging.info("Running:" + str(' '.join(args)))
-        subprocess.check_call(' '.join(args), shell=True)
+        # subprocess.check_call(' '.join(args), shell=True)
     logging.debug("Saved the total command into the file:" + TOTAL_COMMANDS_FILE)
+    os.system("cp " + TOTAL_COMMANDS_FILE + " " + os.path.join(compilation_base_dir, os.path.basename(TOTAL_COMMANDS_FILE)))
+    logging.debug("Saved to:" + os.path.join(compilation_base_dir, os.path.basename(TOTAL_COMMANDS_FILE)))
+    os.system("cp " + INDIVIDUAL_COMMANDS_FILE + " " + os.path.join(compilation_base_dir, os.path.basename(INDIVIDUAL_COMMANDS_FILE)))
+    logging.debug("Saved to:" + os.path.join(compilation_base_dir, os.path.basename(INDIVIDUAL_COMMANDS_FILE)))
     return
