@@ -39,9 +39,9 @@ namespace clang {
 
   struct Node {
     BinaryOperator::Opcode Opc;
-    std::vector<const VarDecl *> Vars;
+    llvm::SetVector<const VarDecl *> Vars;
     llvm::APSInt Const;
-    std::vector<const Expr *> Others;
+    llvm::SetVector<const Expr *> Others;
     bool HasConst;
     Node *Parent;
     llvm::SetVector<Node *> Children;

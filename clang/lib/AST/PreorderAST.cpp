@@ -39,7 +39,7 @@ void PreorderAST::Create(Expr *E, Node *N, Node *Parent) {
   // If E is a variable, store it in the variable list for the current node.
   if (DeclRefExpr *D = GetDeclOperand(E)) {
     if (const auto *V = dyn_cast_or_null<VarDecl>(D->getDecl())) {
-      N->Vars.push_back(V);
+      N->Vars.insert(V);
       return;
     }
   }
@@ -78,7 +78,7 @@ void PreorderAST::Create(Expr *E, Node *N, Node *Parent) {
   }
 
   // Store all other non-variable, non-constant expressions here.
-  N->Others.push_back(E);
+  N->Others.insert(E);
 }
 
 bool PreorderAST::ConstantFold(Node *N, llvm::APSInt Val) {
@@ -144,13 +144,11 @@ void PreorderAST::Coalesce(Node *N) {
   }
 
   // Move all the variables of the current node to the parent.
-  Parent->Vars.insert(Parent->Vars.end(),
-                      N->Vars.begin(),
+  Parent->Vars.insert(N->Vars.begin(),
                       N->Vars.end());
 
   // Move all other non-variable, non-constant expressions to the parent.
-  Parent->Others.insert(Parent->Others.end(),
-                        N->Others.begin(),
+  Parent->Others.insert(N->Others.begin(),
                         N->Others.end());
 
   // Move all children of the current node to the parent.
@@ -179,26 +177,27 @@ void PreorderAST::Sort(Node *N) {
   for (auto *Child : N->Children)
     Sort(Child);
 
+  // Note: We cannot sort a SetVector since it has a const iterator. So we sort
+  // the underlying vector, and copy back the sorted elements to the SetVector.
+
   // Sort the variables in the node lexicographically.
-  llvm::sort(N->Vars.begin(), N->Vars.end(),
+  std::vector<const VarDecl *> Vars = N->Vars.takeVector();
+  llvm::sort(Vars.begin(), Vars.end(),
              [&](const VarDecl *V1, const VarDecl *V2) {
                return Lex.CompareDecl(V1, V2) == Result::LessThan;
              });
+  N->Vars.insert(Vars.begin(), Vars.end());
 
   // Sort the other expressions in the node.
-  llvm::sort(N->Others.begin(), N->Others.end(),
+  std::vector<const Expr *> Others = N->Others.takeVector();
+  llvm::sort(Others.begin(), Others.end(),
              [&](const Expr *E1, const Expr *E2) {
                return Lex.CompareExpr(E1, E2) == Result::LessThan;
              });
+  N->Others.insert(Others.begin(), Others.end());
 
   // Sort the children nodes.
-  if (N->Children.size() < 2)
-    return;
-
-  // We cannot sort a SetVector since it has a const iterator. So we sort the
-  // underlying vector, and copy back the sorted elements to the SetVector.
   std::vector<Node *> Children = N->Children.takeVector();
-
   llvm::sort(Children.begin(), Children.end(),
     [&](Node *N1, Node *N2) {
       // There is no single criteria for sorting the nodes. So we do our best
@@ -241,8 +240,7 @@ void PreorderAST::Sort(Node *N) {
       return false;
     });
 
-  N->Children.insert(Children.begin(),
-                     Children.end());
+  N->Children.insert(Children.begin(), Children.end());
 }
 
 bool PreorderAST::IsEqual(Node *N1, Node *N2) {
