@@ -456,8 +456,8 @@ private:
 // visitor which is executed before both of the other visitors.
 class VariableAdderVisitor : public RecursiveASTVisitor<VariableAdderVisitor> {
 public:
-  explicit VariableAdderVisitor(ASTContext *Context, ProgramInfo &I)
-      : Context(Context), Info(I), CB(Info, Context) {}
+  explicit VariableAdderVisitor(ASTContext *Context, ProgramVariableAdder &VA)
+      : Context(Context), VarAdder(VA) {}
 
   bool VisitVarDecl(VarDecl *D) {
     FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
@@ -470,7 +470,7 @@ public:
   bool VisitFunctionDecl(FunctionDecl *D) {
     FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
     if (FL.isValid())
-      Info.addVariable(D, Context);
+      VarAdder.addVariable(D, Context);
     return true;
   }
 
@@ -491,13 +491,12 @@ public:
 
 private:
   ASTContext *Context;
-  ProgramInfo &Info;
-  ConstraintResolver CB;
+  ProgramVariableAdder &VarAdder;
 
   void addVariable(DeclaratorDecl *D) {
-    Info.getABoundsInfo().insertVariable(D);
+    VarAdder.addABoundsVariable(D);
     if (D->getType()->isPointerType() || D->getType()->isArrayType())
-      Info.addVariable(D, Context);
+      VarAdder.addVariable(D, Context);
   }
 };
 

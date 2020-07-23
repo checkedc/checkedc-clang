@@ -25,9 +25,18 @@
 #include "GatherTypes.h"
 
 
-class ProgramInfo;
+class ProgramVariableAdder {
+public:
+  virtual void addVariable(clang::DeclaratorDecl *D,
+                           clang::ASTContext *astContext) = 0;
+  void addABoundsVariable(clang::Decl *D) {
+    getABoundsInfo().insertVariable(D);
+  }
+protected:
+  virtual AVarBoundsInfo &getABoundsInfo() = 0;
+};
 
-class ProgramInfo {
+class ProgramInfo : public ProgramVariableAdder {
 public:
   // This map holds similar information as the type variable map in
   // ConstraintBuilder.cpp, but it is stored in a form that is usable during
@@ -60,9 +69,6 @@ public:
   // should all be empty. 
   void exitCompilationUnit();
 
-  // For each pointer type in the declaration of D, add a variable to the 
-  // constraint system for that pointer type.
-  void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *astContext);
   CVarSet
       &getPersistentConstraintVars(Expr *E, ASTContext *AstContext);
   // Get constraint variable for the provided Decl
@@ -175,6 +181,10 @@ private:
                                                  ASTContext *C);
   void constrainWildIfMacro(CVarSet S,
                             SourceLocation Location);
+
+  // For each pointer type in the declaration of D, add a variable to the
+  // constraint system for that pointer type.
+  void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *astContext);
 };
 
 #endif
