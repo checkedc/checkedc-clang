@@ -49,17 +49,21 @@ class VSCodeJsonWriter():
         fp.write("}")
         fp.close()
 
-def getCheckedCArgs(argument_list, work_dir):
+def getCheckedCArgs(argument_list, checkedc_include_dir, work_dir):
     """
       Convert the compilation arguments (include folder and #defines)
       to checked C format.
     :param argument_list: list of compiler argument.
+    :param checkedc_include_dir: Directory in which Checked C header files are located.
     :param work_dir: Path to the working directory from which
                      the compilation command was run.
     :return: checked c args
     """
     clang_x_args = []
-    for curr_arg in argument_list:
+    new_arg_list = []
+    new_arg_list.extend(argument_list)
+    new_arg_list.append("-I" + checkedc_include_dir)
+    for curr_arg in new_arg_list:
         if curr_arg.startswith("-D") or curr_arg.startswith("-I"):
             if curr_arg.startswith("-I"):
                 # if this is relative path,
@@ -85,7 +89,7 @@ def tryFixUp(s):
     return
 
 
-def runCheckedCConvert(checkedc_bin, compile_commands_json, run_individual=False):
+def runCheckedCConvert(checkedc_bin, compile_commands_json, checkedc_include_dir, run_individual=False):
     global INDIVIDUAL_COMMANDS_FILE
     global TOTAL_COMMANDS_FILE
     runs = 0
@@ -119,7 +123,7 @@ def runCheckedCConvert(checkedc_bin, compile_commands_json, run_individual=False
             # BEAR. Need to add directory.
             file_to_add = i['directory'] + SLASH + file_to_add
             # get the checked-c-convert and compiler arguments
-            compiler_x_args = getCheckedCArgs(i["arguments"], i['directory'])
+            compiler_x_args = getCheckedCArgs(i["arguments"], checkedc_include_dir, i['directory'])
             total_x_args.extend(compiler_x_args)
             # get the directory used during compilation.
             target_directory = i['directory']
