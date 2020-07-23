@@ -37,7 +37,7 @@ struct p *sus(struct p *, struct p *);
 
 struct p *foo() {
 	//CHECK_NOALL: _Ptr<struct p> foo(void) {
-	//CHECK_ALL: struct p *foo() {
+	//CHECK_ALL: struct p * foo(void) {
   int ex1 = 2, ex2 = 3;
   struct p *x;
 	//CHECK: _Ptr<struct p> x = ((void *)0);
@@ -54,7 +54,7 @@ struct p *foo() {
 }
 
 struct p *bar() {
-	//CHECK: struct p *bar() {
+	//CHECK: struct p * bar(void) {
   int ex1 = 2, ex2 = 3;
   struct p *x;
 	//CHECK: _Ptr<struct p> x = ((void *)0);

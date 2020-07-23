@@ -25,7 +25,7 @@ int *sus(int *x, int*y) {
 
 int* foo() {
 	//CHECK_NOALL: _Ptr<int> foo(void) {
-	//CHECK_ALL: int* foo() {
+	//CHECK_ALL: int * foo(void) {
   int sx = 3;
   int sy = 4;
   int *x = &sx; 
@@ -40,7 +40,7 @@ int* foo() {
 }
 
 int* bar() {
-	//CHECK: int* bar() {
+	//CHECK: int * bar(void) {
   int sx = 3;
   int sy = 4;
   int *x = &sx; 

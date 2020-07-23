@@ -54,7 +54,7 @@ struct r *foo() {
 }
 
 struct np *bar() {
-	//CHECK: struct np *bar() {
+	//CHECK: struct np * bar(void) {
   struct r x, y;
   x.data = 2;
   y.data = 1;

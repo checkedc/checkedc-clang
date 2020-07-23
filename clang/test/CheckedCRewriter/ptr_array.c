@@ -30,8 +30,8 @@ void test1(int *a) {
 
 // Example from from the issue
 int *foo() {
-// CHECK_NOALL: int *foo() {
-// CHECK_ALL:   int *foo() {
+// CHECK_NOALL: int * foo(void) {
+// CHECK_ALL:   int * foo(void) {
 
   int x = 1;
   int y = 2;
@@ -51,7 +51,7 @@ int *foo() {
 
 // Example from the issue, but everthing should check
 int *foo2() {
-// CHECK_NOALL: int *foo2() {
+// CHECK_NOALL: int * foo2(void) {
 // CHECK_ALL:   _Ptr<int> foo2(void) {
 
   int x = 1;
