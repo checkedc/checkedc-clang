@@ -38,7 +38,7 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
           if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
             Info.addVariable(D, Context);
             if(FL.isInSystemHeader() || Definition->isUnion()) {
-              std::set<ConstraintVariable *> C = Info.getVariable(D, Context);
+              CVarSet C = Info.getVariable(D, Context);
               std::string Rsn = "External struct field or union encountered";
               CB.constraintAllCVarsToWild(C, Rsn, nullptr);
             }
@@ -55,8 +55,12 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
 // and imposing constraints on variables it uses
 class FunctionVisitor : public RecursiveASTVisitor<FunctionVisitor> {
 public:
-  explicit FunctionVisitor(ASTContext *C, ProgramInfo &I, FunctionDecl *FD)
-      : Context(C), Info(I), Function(FD), CB(Info, Context) {}
+  explicit FunctionVisitor(ASTContext *C,
+                           ProgramInfo &I,
+                           FunctionDecl *FD,
+                           TypeVariableBindingsMapT &TVMap)
+      : Context(C), Info(I), Function(FD), CB(Info, Context),
+        TypeVariableBindings(TVMap) {}
 
   // T x = e
   bool VisitDeclStmt(DeclStmt *S) {
@@ -75,7 +79,7 @@ public:
                VD->getType()->isArrayType())) {
             Info.addVariable(VD, Context);
             if (lastRecordLocation == VD->getBeginLoc().getRawEncoding()) {
-              std::set<ConstraintVariable *> C = Info.getVariable(VD, Context);
+              CVarSet C = Info.getVariable(VD, Context);
               CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
             }
           }
@@ -102,6 +106,20 @@ public:
       auto CVs = CB.getExprConstraintVars(C->getSubExpr());
       CB.constraintAllCVarsToWild(CVs, "Casted to a different type.", C);
     }
+    return true;
+  }
+
+  // Cast expressions must be visited to find generic functions where the return
+  // can be given a concrete type.
+  bool VisitCastExpr(CastExpr *CE){
+    Expr *SubExpr = CE->getSubExpr();
+    if (CHKCBindTemporaryExpr *TempE = dyn_cast<CHKCBindTemporaryExpr>(SubExpr))
+      SubExpr = TempE->getSubExpr();
+
+    if (auto *Call = dyn_cast<CallExpr>(SubExpr))
+      if (auto *FD = dyn_cast_or_null<FunctionDecl>(Call->getCalleeDecl()))
+        if (const auto *TyVar = getTypeVariableType(FD))
+          insertTypeParamBinding(Call, TyVar, CE->getType().getTypePtr());
     return true;
   }
 
@@ -132,7 +150,7 @@ public:
     Decl *D = E->getCalleeDecl();
     PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
     auto &CS = Info.getConstraints();
-    std::set<ConstraintVariable *> FVCons;
+    CVarSet FVCons;
     std::string FuncName = "";
     FunctionDecl *TFD = nullptr;
 
@@ -163,7 +181,8 @@ public:
     if (FVCons.empty()) {
       // Don't know who we are calling; make args WILD
       constraintAllArgumentsToWild(E);
-    } else if (FuncName.compare("realloc") != 0) {
+    } else if (!ConstraintResolver::canFunctionBeSkipped(FuncName)) {
+      // FIXME: realloc comparison is still required. See issue #176.
       // If we are calling realloc, ignore it, so as not to constrain the first arg
       // Else, for each function we are calling ...
       for (auto *TmpC : FVCons) {
@@ -173,13 +192,31 @@ public:
         }
         // and for each arg to the function ...
         if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
+          // Collect type parameters for this function call that are
+          // consistently instantiated as single type in this function call.
+          std::set<unsigned int> consistentTypeParams;
+          if (TFD != nullptr)
+            getConsistentTypeParams(E, TFD, consistentTypeParams);
+
           unsigned i = 0;
           for (const auto &A : E->arguments()) {
-            std::set<ConstraintVariable *> ArgumentConstraints =
-                CB.getExprConstraintVars(A);
+            CVarSet ArgumentConstraints;
+            if(TFD != nullptr && i < TFD->getNumParams()) {
+              // Remove casts to void* on polymorphic types that are used
+              // consistently.
+              const auto *Ty = getTypeVariableType(TFD->getParamDecl(i));
+              if (Ty != nullptr && consistentTypeParams.find(Ty->GetIndex())
+                  != consistentTypeParams.end())
+                ArgumentConstraints =
+                    CB.getExprConstraintVars(A->IgnoreImpCasts());
+              else
+                ArgumentConstraints = CB.getExprConstraintVars(A);
+            } else
+              ArgumentConstraints = CB.getExprConstraintVars(A);
+
             // constrain the arg CV to the param CV
             if (i < TargetFV->numParams()) {
-              std::set<ConstraintVariable *> ParameterDC =
+              CVarSet ParameterDC =
                   TargetFV->getParamVar(i);
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
                                   Wild_to_Safe, false, &Info);
@@ -231,14 +268,14 @@ public:
     // Get function variable constraint of the body
     PersistentSourceLoc PL =
         PersistentSourceLoc::mkPSL(S, *Context);
-    std::set<ConstraintVariable *> Fun =
+    CVarSet Fun =
         Info.getVariable(Function, Context);
 
     // Constrain the value returned (if present) against the return value
     // of the function.
     Expr *RetExpr = S->getRetValue();
 
-    std::set<ConstraintVariable *> RconsVar = CB.getExprConstraintVars(RetExpr);
+    CVarSet RconsVar = CB.getExprConstraintVars(RetExpr);
     // Constrain the return type of the function
     // to the type of the return expression.
     for (const auto &F : Fun) {
@@ -293,7 +330,7 @@ private:
 
   // Constraint all the provided vars to be
   // equal to the provided type i.e., (V >= type).
-  void constrainVarsTo(std::set<ConstraintVariable *> &Vars,
+  void constrainVarsTo(CVarSet &Vars,
                        ConstAtom *CAtom) {
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Vars)
@@ -304,7 +341,7 @@ private:
 
   // Constraint helpers.
   void constraintInBodyVariable(Expr *e, ConstAtom *CAtom) {
-    std::set<ConstraintVariable *> Var = CB.getExprConstraintVars(e);
+    CVarSet Var = CB.getExprConstraintVars(e);
     constrainVarsTo(Var, CAtom);
   }
 
@@ -315,7 +352,7 @@ private:
     for (const auto &A : E->arguments()) {
       // Get constraint from within the function body
       // of the caller.
-      std::set<ConstraintVariable *> ParameterEC = CB.getExprConstraintVars(A);
+      CVarSet ParameterEC = CB.getExprConstraintVars(A);
 
       // Assign WILD to each of the constraint variables.
       FunctionDecl *FD = E->getDirectCallee();
@@ -336,7 +373,7 @@ private:
   // is WILD.
   void constraintPointerArithmetic(Expr *E) {
     if (E->getType()->isFunctionPointerType()) {
-      std::set<ConstraintVariable *> Var = CB.getExprConstraintVars(E);
+      CVarSet Var = CB.getExprConstraintVars(E);
       std::string Rsn = "Pointer arithmetic performed on a function pointer.";
       CB.constraintAllCVarsToWild(Var, Rsn, E);
     } else {
@@ -344,18 +381,77 @@ private:
     }
   }
 
+  // Collect the set of TypeVariableTypes that are always used for arguments
+  // with the same type. These are type variables that can be instantiated with
+  // a concrete type, so it is correct to remove casts to void* on their
+  // arguments.
+  void getConsistentTypeParams(CallExpr *CE,
+                               FunctionDecl *FD,
+                               std::set<unsigned int> &Types) {
+    assert("Must provide nonnull FunctionDecl." && FD);
+    // Construct a map from TypeVariables to a single type they are consistently
+    // used as. If there is no single consistent type for a variable, then it
+    // maps to nullptr.
+    unsigned int I = 0;
+    for (auto *const A : CE->arguments()) {
+      // This can happen with varargs
+      if (I >= FD->getNumParams())
+        break;
+      if (const auto *TyVar = getTypeVariableType(FD->getParamDecl(I))) {
+        const clang::Type *Ty = A->IgnoreImpCasts()->getType().getTypePtr();
+        insertTypeParamBinding(CE, TyVar, Ty);
+      }
+      ++I;
+    }
+
+    // Gather consistent TypeVariables into output set
+    auto &CallTypeVarBindings = TypeVariableBindings[CE];
+    for (const auto &TVEntry : CallTypeVarBindings)
+      if(TVEntry.second != nullptr)
+        Types.insert(TVEntry.first);
+  }
+
+  void insertTypeParamBinding(CallExpr *CE, const TypeVariableType *TyVar,
+                              const clang::Type *Ty) {
+    assert("Type param must go to pointer." && Ty->isPointerType());
+
+    auto &CallTypeVarBindings = TypeVariableBindings[CE];
+    QualType PointeeType = Ty->getPointeeType();
+    if (PointeeType->isRecordType() &&
+        !(PointeeType->getAsRecordDecl()->getIdentifier() ||
+            PointeeType->getAsRecordDecl()->getTypedefNameForAnonDecl())) {
+      // We'll need a name to provide the type arguments during rewriting, so
+      // no anonymous things here.
+      CallTypeVarBindings[TyVar->GetIndex()] = nullptr;
+    } if (CallTypeVarBindings.find(TyVar->GetIndex())
+        == CallTypeVarBindings.end()) {
+      // If the type variable hasn't been seen before, add it to the map.
+      CallTypeVarBindings[TyVar->GetIndex()] = Ty;
+    } else if (CallTypeVarBindings[TyVar->GetIndex()] != Ty) {
+      // If it has previously been instantiated as a different type, its use
+      // is not consistent.
+      CallTypeVarBindings[TyVar->GetIndex()] = nullptr;
+    }
+    // If neither branch is taken, then the type variable has been
+    // encountered before with the same type. Nothing needs to be done.
+  }
+
   ASTContext *Context;
   ProgramInfo &Info;
   FunctionDecl *Function;
   ConstraintResolver CB;
+  TypeVariableBindingsMapT &TypeVariableBindings;
 };
 
 // This class visits a global declaration, generating constraints
 //   for functions, variables, types, etc. that are visited
 class GlobalVisitor : public RecursiveASTVisitor<GlobalVisitor> {
 public:
-  explicit GlobalVisitor(ASTContext *Context, ProgramInfo &I)
-      : Context(Context), Info(I), CB(Info, Context) {}
+  explicit GlobalVisitor(ASTContext *Context,
+                         ProgramInfo &I,
+                         TypeVariableBindingsMapT &TVMap)
+      : Context(Context), Info(I), CB(Info, Context),
+        TypeVariableBindings(TVMap) {}
 
   bool VisitVarDecl(VarDecl *G) {
 
@@ -372,7 +468,7 @@ public:
       unsigned int BeginLoc = G->getBeginLoc().getRawEncoding();
       unsigned int EndLoc = G->getEndLoc().getRawEncoding();
       if (lastRecordLocation >= BeginLoc && lastRecordLocation <= EndLoc) {
-        std::set<ConstraintVariable *> C = Info.getVariable(G, Context);
+        CVarSet C = Info.getVariable(G, Context);
         CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
       }
     }
@@ -405,7 +501,8 @@ public:
       Info.addVariable(D, Context);
       if (D->hasBody() && D->isThisDeclarationADefinition()) {
         Stmt *Body = D->getBody();
-        FunctionVisitor FV = FunctionVisitor(Context, Info, D);
+        FunctionVisitor
+            FV = FunctionVisitor(Context, Info, D, TypeVariableBindings);
         FV.TraverseStmt(Body);
         if (AllTypes) {
           // Only do this, if all types is enabled.
@@ -430,7 +527,27 @@ private:
   ASTContext *Context;
   ProgramInfo &Info;
   ConstraintResolver CB;
+  TypeVariableBindingsMapT &TypeVariableBindings;
 };
+
+// Store type param bindings persistently in ProgramInfo so they are available
+// during rewriting.
+void ConstraintBuilderConsumer::SetProgramInfoTypeVars
+   (TypeVariableBindingsMapT TypeVariableBindings, ASTContext &C) {
+  for (const auto &TVEntry : TypeVariableBindings) {
+    bool AllNull = true;
+    for (auto TVCallEntry : TVEntry.second)
+      AllNull &= TVCallEntry.second == nullptr;
+    if (!AllNull) {
+      for (auto TVCallEntry : TVEntry.second)
+        if (TVCallEntry.second != nullptr) {
+          std::string TyStr = TVCallEntry.second->getPointeeType().getAsString();
+          Info.setTypeParamBinding(TVEntry.first, TVCallEntry.first, TyStr, &C);
+        } else
+          Info.setTypeParamBinding(TVEntry.first, TVCallEntry.first, "void", &C);
+    }
+  }
+}
 
 void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
   Info.enterCompilationUnit(C);
@@ -443,12 +560,15 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
     else
       errs() << "Analyzing\n";
   }
-  GlobalVisitor GV = GlobalVisitor(&C, Info);
+  TypeVariableBindingsMapT TypeVariableBindings;
+  GlobalVisitor GV = GlobalVisitor(&C, Info, TypeVariableBindings);
   TranslationUnitDecl *TUD = C.getTranslationUnitDecl();
   // Generate constraints.
   for (const auto &D : TUD->decls()) {
     GV.TraverseDecl(D);
   }
+
+  SetProgramInfoTypeVars(TypeVariableBindings, C);
 
   if (Verbose)
     outs() << "Done analyzing\n";

@@ -21,7 +21,7 @@ through invalid pointer arithmetic, an unsafe cast, etc.*/
 /*********************************************************************************/
 
 
-#define size_t int
+typedef unsigned long size_t;
 #define NULL 0
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
@@ -33,58 +33,41 @@ extern _Unchecked char *strcpy(char * restrict dest, const char * restrict src :
 struct general { 
     int data; 
     struct general *next;
+	//CHECK: _Ptr<struct general> next;
 };
-//CHECK_NOALL:     _Ptr<struct general> next;
-
-//CHECK_ALL:     _Ptr<struct general> next;
-
 
 struct warr { 
     int data1[5];
+	//CHECK_NOALL: int data1[5];
+	//CHECK_ALL: int data1 _Checked[5];
     char *name;
+	//CHECK: _Ptr<char> name;
 };
-//CHECK_NOALL:     int data1[5];
-//CHECK_NOALL:     _Ptr<char> name;
-
-//CHECK_ALL:     int data1 _Checked[5];
-//CHECK_ALL:     _Ptr<char> name;
-
 
 struct fptrarr { 
     int *values; 
+	//CHECK: _Ptr<int> values; 
     char *name;
+	//CHECK: _Ptr<char> name;
     int (*mapper)(int);
+	//CHECK: _Ptr<int (int )> mapper;
 };
-//CHECK_NOALL:     _Ptr<int> values; 
-//CHECK_NOALL:     _Ptr<char> name;
-//CHECK_NOALL:     _Ptr<int (int )> mapper;
-
-//CHECK_ALL:     _Ptr<int> values; 
-//CHECK_ALL:     _Ptr<char> name;
-//CHECK_ALL:     _Ptr<int (int )> mapper;
-
 
 struct fptr { 
     int *value; 
+	//CHECK: _Ptr<int> value; 
     int (*func)(int);
+	//CHECK: _Ptr<int (int )> func;
 };  
-//CHECK_NOALL:     _Ptr<int> value; 
-//CHECK_NOALL:     _Ptr<int (int )> func;
-
-//CHECK_ALL:     _Ptr<int> value; 
-//CHECK_ALL:     _Ptr<int (int )> func;
-
 
 struct arrfptr { 
     int args[5]; 
+	//CHECK_NOALL: int args[5]; 
+	//CHECK_ALL: int args _Checked[5]; 
     int (*funcs[5]) (int);
+	//CHECK_NOALL: int (*funcs[5]) (int);
+	//CHECK_ALL: _Ptr<int (int )> funcs _Checked[5];
 };
-//CHECK_NOALL:     int args[5]; 
-//CHECK_NOALL:     int (*funcs[5]) (int);
-
-//CHECK_ALL:     int args _Checked[5]; 
-//CHECK_ALL:     _Ptr<int (int )> funcs _Checked[5];
-
 
 int add1(int x) { 
     return x+1;
@@ -112,43 +95,36 @@ int zerohuh(int n) {
 }
 
 int *mul2(int *x) { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
     *x *= 2; 
     return x;
 }
 
-//CHECK_NOALL: _Ptr<int> mul2(_Ptr<int> x) { 
-
-//CHECK_ALL: _Ptr<int> mul2(_Ptr<int> x) { 
-
 int * sus(int *, int *);
-//CHECK_NOALL: int * sus(int *, _Ptr<int> y);
-//CHECK_ALL: _Nt_array_ptr<int> sus(int *, _Ptr<int> y);
+	//CHECK_NOALL: int * sus(int *, _Ptr<int> y);
+	//CHECK_ALL: _Nt_array_ptr<int> sus(int *, _Ptr<int> y);
 
 int * foo() {
+	//CHECK_NOALL: int * foo(void) {
+	//CHECK_ALL: _Nt_array_ptr<int> foo(void) {
         int * x = malloc(sizeof(int));
+	//CHECK: int * x = malloc<int>(sizeof(int));
         int * y = malloc(sizeof(int));
+	//CHECK: _Ptr<int> y =  malloc<int>(sizeof(int));
         int * z = sus(x, y);
+	//CHECK_NOALL: int * z = sus(x, y);
+	//CHECK_ALL: _Nt_array_ptr<int> z =  sus(x, y);
 return z; }
-//CHECK_NOALL: int * foo() {
-//CHECK_NOALL:         int * x = malloc<int>(sizeof(int));
-//CHECK_NOALL:         _Ptr<int> y =  malloc<int>(sizeof(int));
-//CHECK_NOALL:         int * z = sus(x, y);
-//CHECK_ALL: _Nt_array_ptr<int> foo(void) {
-//CHECK_ALL:         int * x = malloc<int>(sizeof(int));
-//CHECK_ALL:         _Ptr<int> y =  malloc<int>(sizeof(int));
-//CHECK_ALL:         _Nt_array_ptr<int> z =  sus(x, y);
 
 int * bar() {
+	//CHECK_NOALL: int * bar(void) {
+	//CHECK_ALL: _Nt_array_ptr<int> bar(void) {
         int * x = malloc(sizeof(int));
+	//CHECK: int * x = malloc<int>(sizeof(int));
         int * y = malloc(sizeof(int));
+	//CHECK: _Ptr<int> y =  malloc<int>(sizeof(int));
         int * z = sus(x, y);
+	//CHECK_NOALL: int * z = sus(x, y);
+	//CHECK_ALL: _Nt_array_ptr<int> z =  sus(x, y);
 z += 2;
 return z; }
-//CHECK_NOALL: int * bar() {
-//CHECK_NOALL:         int * x = malloc<int>(sizeof(int));
-//CHECK_NOALL:         _Ptr<int> y =  malloc<int>(sizeof(int));
-//CHECK_NOALL:         int * z = sus(x, y);
-//CHECK_ALL: _Nt_array_ptr<int> bar(void) {
-//CHECK_ALL:         int * x = malloc<int>(sizeof(int));
-//CHECK_ALL:         _Ptr<int> y =  malloc<int>(sizeof(int));
-//CHECK_ALL:         _Nt_array_ptr<int> z =  sus(x, y);

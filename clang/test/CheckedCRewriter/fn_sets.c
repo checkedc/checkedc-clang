@@ -1,5 +1,5 @@
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-
+// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 // Tests relating to issue #86 Handling sets of functions
 
 // In the first test case, y WILD due to the  (int*)5 assignment. This
@@ -46,23 +46,23 @@ void foo1(int *z) {
 // Testing Something with a larger set of functions
 
 int *a() {
-// CHECK: int *a() {
+// CHECK: int * a(void) {
   return 0;
 }
 int *b() {
-// CHECK: int *b() {
+// CHECK: int * b(void) {
   return 0;
 }
 int *c() {
-// CHECK: int *c() {
+// CHECK: int * c(void) {
   return 0;
 }
 int *d() {
-// CHECK: int *d() {
+// CHECK: int * d(void) {
   return 0;
 }
 int *e() {
-// CHECK: int *e() {
+// CHECK: int * e(void) {
   return (int*) 1;
 }
 int *i() {

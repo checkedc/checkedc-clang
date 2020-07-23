@@ -1,8 +1,7 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL" %s
-//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" %s
-//RUN: cconv-standalone -output-postfix=checkedNOALL %s
-//RUN: %clang -c %S/fptrarrstructprotosafe.checkedNOALL.c
-//RUN: rm %S/fptrarrstructprotosafe.checkedNOALL.c
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+
 
 
 /*********************************************************************************/
@@ -18,7 +17,7 @@ while the definition for sus appears below them*/
 /*********************************************************************************/
 
 
-#define size_t int
+typedef unsigned long size_t;
 #define NULL 0
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
@@ -30,58 +29,42 @@ extern _Unchecked char *strcpy(char * restrict dest, const char * restrict src :
 struct general { 
     int data; 
     struct general *next;
+	//CHECK: _Ptr<struct general> next;
 };
-//CHECK_NOALL:     _Ptr<struct general> next;
-
-//CHECK_ALL:     _Ptr<struct general> next;
-
 
 struct warr { 
     int data1[5];
+	//CHECK_NOALL: int data1[5];
+	//CHECK_ALL: int data1 _Checked[5];
     char *name;
+	//CHECK: _Ptr<char> name;
 };
-//CHECK_NOALL:     int data1[5];
-//CHECK_NOALL:     _Ptr<char> name;
-
-//CHECK_ALL:     int data1 _Checked[5];
-//CHECK_ALL:     _Ptr<char> name;
-
 
 struct fptrarr { 
     int *values; 
+	//CHECK_NOALL: int *values; 
+	//CHECK_ALL: _Array_ptr<int> values : count(5); 
     char *name;
+	//CHECK: char *name;
     int (*mapper)(int);
+	//CHECK: _Ptr<int (int )> mapper;
 };
-//CHECK_NOALL:     int *values; 
-//CHECK_NOALL:     char *name;
-//CHECK_NOALL:     _Ptr<int (int )> mapper;
-
-//CHECK_ALL:     _Array_ptr<int> values : count(5); 
-//CHECK_ALL:     char *name;
-//CHECK_ALL:     _Ptr<int (int )> mapper;
-
 
 struct fptr { 
     int *value; 
+	//CHECK: _Ptr<int> value; 
     int (*func)(int);
+	//CHECK: _Ptr<int (int )> func;
 };  
-//CHECK_NOALL:     _Ptr<int> value; 
-//CHECK_NOALL:     _Ptr<int (int )> func;
-
-//CHECK_ALL:     _Ptr<int> value; 
-//CHECK_ALL:     _Ptr<int (int )> func;
-
 
 struct arrfptr { 
     int args[5]; 
+	//CHECK_NOALL: int args[5]; 
+	//CHECK_ALL: int args _Checked[5]; 
     int (*funcs[5]) (int);
+	//CHECK_NOALL: int (*funcs[5]) (int);
+	//CHECK_ALL: _Ptr<int (int )> funcs _Checked[5];
 };
-//CHECK_NOALL:     int args[5]; 
-//CHECK_NOALL:     int (*funcs[5]) (int);
-
-//CHECK_ALL:     int args _Checked[5]; 
-//CHECK_ALL:     _Ptr<int (int )> funcs _Checked[5];
-
 
 int add1(int x) { 
     return x+1;
@@ -109,24 +92,25 @@ int zerohuh(int n) {
 }
 
 int *mul2(int *x) { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
     *x *= 2; 
     return x;
 }
 
-//CHECK_NOALL: _Ptr<int> mul2(_Ptr<int> x) { 
-
-//CHECK_ALL: _Ptr<int> mul2(_Ptr<int> x) { 
-
 struct fptrarr * sus(struct fptrarr *, struct fptrarr *);
-//CHECK_NOALL: _Ptr<struct fptrarr> sus(struct fptrarr *x, _Ptr<struct fptrarr> y);
-//CHECK_ALL: _Ptr<struct fptrarr> sus(struct fptrarr *x, _Ptr<struct fptrarr> y);
+	//CHECK: _Ptr<struct fptrarr> sus(struct fptrarr *x, _Ptr<struct fptrarr> y);
 
 struct fptrarr * foo() {
+	//CHECK: _Ptr<struct fptrarr> foo(void) {
  
         char name[20]; 
         struct fptrarr * x = malloc(sizeof(struct fptrarr));
+	//CHECK: struct fptrarr * x = malloc<struct fptrarr>(sizeof(struct fptrarr));
         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
+	//CHECK: _Ptr<struct fptrarr> y =   malloc<struct fptrarr>(sizeof(struct fptrarr));
         int *yvals = calloc(5, sizeof(int)); 
+	//CHECK_NOALL: int *yvals = calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> yvals : count(5) =  calloc<int>(5, sizeof(int)); 
         int i;
         for(i = 0; i < 5; i++) {
             yvals[i] = i+1; 
@@ -136,25 +120,21 @@ struct fptrarr * foo() {
         y->mapper = NULL;
         strcpy(y->name, "Example"); 
         struct fptrarr *z = sus(x, y);
+	//CHECK: _Ptr<struct fptrarr> z =  sus(x, y);
         
 return z; }
-//CHECK_NOALL: _Ptr<struct fptrarr> foo(void) {
-//CHECK_NOALL:         struct fptrarr * x = malloc<struct fptrarr>(sizeof(struct fptrarr));
-//CHECK_NOALL:         _Ptr<struct fptrarr> y =   malloc<struct fptrarr>(sizeof(struct fptrarr));
-//CHECK_NOALL:         int *yvals = calloc<int>(5, sizeof(int)); 
-//CHECK_NOALL:         _Ptr<struct fptrarr> z =  sus(x, y);
-//CHECK_ALL: _Ptr<struct fptrarr> foo(void) {
-//CHECK_ALL:         struct fptrarr * x = malloc<struct fptrarr>(sizeof(struct fptrarr));
-//CHECK_ALL:         _Ptr<struct fptrarr> y =   malloc<struct fptrarr>(sizeof(struct fptrarr));
-//CHECK_ALL:         _Array_ptr<int> yvals : count(5) =  calloc<int>(5, sizeof(int)); 
-//CHECK_ALL:         _Ptr<struct fptrarr> z =  sus(x, y);
 
 struct fptrarr * bar() {
+	//CHECK: _Ptr<struct fptrarr> bar(void) {
  
         char name[20]; 
         struct fptrarr * x = malloc(sizeof(struct fptrarr));
+	//CHECK: struct fptrarr * x = malloc<struct fptrarr>(sizeof(struct fptrarr));
         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
+	//CHECK: _Ptr<struct fptrarr> y =   malloc<struct fptrarr>(sizeof(struct fptrarr));
         int *yvals = calloc(5, sizeof(int)); 
+	//CHECK_NOALL: int *yvals = calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> yvals : count(5) =  calloc<int>(5, sizeof(int)); 
         int i;
         for(i = 0; i < 5; i++) {
             yvals[i] = i+1; 
@@ -164,24 +144,18 @@ struct fptrarr * bar() {
         y->mapper = NULL;
         strcpy(y->name, "Example"); 
         struct fptrarr *z = sus(x, y);
+	//CHECK: _Ptr<struct fptrarr> z =  sus(x, y);
         
 return z; }
-//CHECK_NOALL: _Ptr<struct fptrarr> bar(void) {
-//CHECK_NOALL:         struct fptrarr * x = malloc<struct fptrarr>(sizeof(struct fptrarr));
-//CHECK_NOALL:         _Ptr<struct fptrarr> y =   malloc<struct fptrarr>(sizeof(struct fptrarr));
-//CHECK_NOALL:         int *yvals = calloc<int>(5, sizeof(int)); 
-//CHECK_NOALL:         _Ptr<struct fptrarr> z =  sus(x, y);
-//CHECK_ALL: _Ptr<struct fptrarr> bar(void) {
-//CHECK_ALL:         struct fptrarr * x = malloc<struct fptrarr>(sizeof(struct fptrarr));
-//CHECK_ALL:         _Ptr<struct fptrarr> y =   malloc<struct fptrarr>(sizeof(struct fptrarr));
-//CHECK_ALL:         _Array_ptr<int> yvals : count(5) =  calloc<int>(5, sizeof(int)); 
-//CHECK_ALL:         _Ptr<struct fptrarr> z =  sus(x, y);
 
 struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
+	//CHECK: _Ptr<struct fptrarr> sus(struct fptrarr *x, _Ptr<struct fptrarr> y) {
  
         x = (struct fptrarr *) 5; 
+	//CHECK: x = (struct fptrarr *) 5; 
         char name[30]; 
         struct fptrarr *z = malloc(sizeof(struct fptrarr)); 
+	//CHECK: _Ptr<struct fptrarr> z =  malloc<struct fptrarr>(sizeof(struct fptrarr)); 
         z->values = y->values; 
         z->name = strcpy(name, "Hello World");
         z->mapper = fact; 
@@ -191,7 +165,3 @@ struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
         }
         
 return z; }
-//CHECK_NOALL: _Ptr<struct fptrarr> sus(struct fptrarr *x, _Ptr<struct fptrarr> y) {
-//CHECK_NOALL:         _Ptr<struct fptrarr> z =  malloc<struct fptrarr>(sizeof(struct fptrarr)); 
-//CHECK_ALL: _Ptr<struct fptrarr> sus(struct fptrarr *x, _Ptr<struct fptrarr> y) {
-//CHECK_ALL:         _Ptr<struct fptrarr> z =  malloc<struct fptrarr>(sizeof(struct fptrarr)); 

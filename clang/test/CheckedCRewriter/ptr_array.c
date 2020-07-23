@@ -1,5 +1,6 @@
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines --check-prefixes="CHECK_NOALL" %s
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL" %s
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL" %s 
+// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 // Tests for issue 60. Array initialization had not been implemented, so wild
 // pointer inside and array initializer did not cause the array to be an array
@@ -29,8 +30,8 @@ void test1(int *a) {
 
 // Example from from the issue
 int *foo() {
-// CHECK_NOALL: int *foo() {
-// CHECK_ALL:   int *foo() {
+// CHECK_NOALL: int * foo(void) {
+// CHECK_ALL:   int * foo(void) {
 
   int x = 1;
   int y = 2;
@@ -50,7 +51,7 @@ int *foo() {
 
 // Example from the issue, but everthing should check
 int *foo2() {
-// CHECK_NOALL: int *foo2() {
+// CHECK_NOALL: int * foo2(void) {
 // CHECK_ALL:   _Ptr<int> foo2(void) {
 
   int x = 1;

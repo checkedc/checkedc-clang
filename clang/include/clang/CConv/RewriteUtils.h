@@ -169,7 +169,7 @@ private:
   // if there is no declaration of the function,
   // it will try to get it from the definition.
   std::string getExistingIType(ConstraintVariable *DeclC);
-  bool anyTop(std::set<ConstraintVariable *>);
+  bool anyTop(CVarSet);
   ASTContext            *Context;
   ProgramInfo           &Info;
   RSet                  &rewriteThese;

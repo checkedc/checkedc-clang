@@ -30,13 +30,17 @@ bool CConvertDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line
   std::lock_guard<std::mutex> Lock(DiagMutex);
   std::set<ConstraintKey> ProcessedCKeys;
   ProcessedCKeys.clear();
-  auto GetLocRange = [](uint32_t Line, uint32_t ColNo) -> Range {
+  auto GetLocRange = [](uint32_t Line, uint32_t ColNoS, uint32_t ColNoE) -> Range {
     Range nRange;
     Line--;
     nRange.start.line = Line;
     nRange.end.line = Line;
-    nRange.start.character = ColNo;
-    nRange.end.character = ColNo + DEFAULT_PTRSIZE;
+    nRange.start.character = ColNoS;
+    if (ColNoE > 0) {
+      nRange.end.character = ColNoE;
+    } else {
+      nRange.end.character = ColNoS + DEFAULT_PTRSIZE;
+    }
     return nRange;
   };
 
@@ -51,7 +55,8 @@ bool CConvertDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line
       ProcessedCKeys.insert(WReason.first);
 
       Diag NewDiag;
-      NewDiag.Range = GetLocRange(PsInfo->getLineNo(), PsInfo->getColNo());
+      NewDiag.Range = GetLocRange(PsInfo->getLineNo(), PsInfo->getColSNo(),
+                                  PsInfo->getColENo());
       NewDiag.Source = Diag::CConvMain;
       NewDiag.Severity = DiagnosticsEngine::Level::Error;
       NewDiag.code = std::to_string(WReason.first);
@@ -63,7 +68,8 @@ bool CConvertDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line
         Note DiagNote;
         DiagNote.AbsFile = WReason.second.SourceFileName;
         DiagNote.Range =
-            GetLocRange(WReason.second.LineNo, WReason.second.ColStart);
+            GetLocRange(WReason.second.LineNo, WReason.second.ColStartS,
+                        WReason.second.ColStartE);
         DiagNote.Message = "Go here to know the root cause for this.";
         NewDiag.Notes.push_back(DiagNote);
       }
@@ -84,7 +90,8 @@ bool CConvertDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line
 
         ProcessedCKeys.insert(NonWildCk);
         Diag NewDiag;
-        NewDiag.Range = GetLocRange(PsInfo->getLineNo(), PsInfo->getColNo());
+        NewDiag.Range = GetLocRange(PsInfo->getLineNo(), PsInfo->getColSNo(),
+                                    PsInfo->getColENo());
 
         NewDiag.code = std::to_string(NonWildCk);
         NewDiag.Source = Diag::CConvSec;
@@ -104,7 +111,8 @@ bool CConvertDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line
             FilePath = PsInfo->getFileName();
             DiagNote.AbsFile = FilePath;
             DiagNote.Range =
-                GetLocRange(PsInfo->getLineNo(), PsInfo->getColNo());
+                GetLocRange(PsInfo->getLineNo(), PsInfo->getColSNo(),
+                            PsInfo->getColENo());
             MaxPtrReasons--;
             DiagNote.Message = Line.RealWildPtrsWithReasons[tC].WildPtrReason;
             if (MaxPtrReasons <= 1)

@@ -48,7 +48,7 @@ for e in it.product(prefixes, addendums, suffixes):
 
 # header that should top every file
 header = """
-#define size_t int
+typedef unsigned long size_t;
 #define NULL 0
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
@@ -127,7 +127,8 @@ def method_gen(prefix, proto, suffix):
         arg_type = "int *" 
         susbody = """
         int *z = calloc(5, sizeof(int)); 
-        int i, *p, fac;
+        int i, fac;
+        int *p;
         for(i = 0, p = z, fac = 1; i < 5; ++i, p++, fac *= i) 
         { *p = fac; }"""
     elif prefix=="arrstruct":
@@ -321,7 +322,7 @@ def method_gen(prefix, proto, suffix):
         for(i = 0; i < 5; i++) { 
             y[i] = i+1;
         } 
-        int *z = sus(x, y);
+        int **z = sus(x, y);
         """
     elif prefix=="arrOFfptr":
         sus = "\nint (**sus(int *x, int *y)) (int) { \n"
@@ -477,185 +478,10 @@ def method_gen(prefix, proto, suffix):
     foobody += "\nreturn z; }\n" 
     barbody += "\nreturn z; }\n"
 
-    return [susproto, sus+susbody, foo+foobody, bar+barbody] 
+    return [susproto, sus+susbody, foo+foobody, bar+barbody]  
 
-def process_file(file, cname, cname2, proto, alltypes, new_defs, new_defs2, susprotoc, susc, fooc, barc): 
-    check = "CHECK_NOALL"
-    if alltypes: check = "CHECK_ALL"
-
-    keywords = "int char struct double float".split(" ") 
-    ckeywords = "_Ptr _Array_ptr _Nt_array_ptr".split(" ")
-
-    # these boolean variables indicate which method definition we are in, so we know where to add
-    # our checked annotations later
-    indefs = insus = infoo = inbar = False 
-    inwarr = infptrarr = infptr = inarrfptr = False
-
-    # generate the check annotations
-    for line in file.readlines():   
-        linepre = line.split("=")[0]
-        # this indicates that we've reached the definitions
-        if line.find("struct general {") != -1: 
-            indefs = insus = infoo = inbar = False 
-            indefs = True
-
-        # annotate the prototype for sus
-        elif proto != "" and line.find("sus") != -1 and line.find("=") == -1 and line.find(";") != -1: 
-           indefs = insus = infoo = inbar = False
-           susprotoc += "//" + check + ": " + line
-
-        # annotate the definition for sus
-        elif proto != "multi" and line.find("sus") != -1 and line.find("{") != -1: 
-            indefs = insus = infoo = inbar = False
-            insus = True
-            susc += "//" + check + ": " + line
-
-        # annotate the definition for foo
-        elif line.find("foo") != -1:
-            indefs = insus = infoo = inbar = False
-            infoo = True 
-            fooc += "//" + check + ": " + line  
-
-        # annotate the definition for bar
-        elif line.find("bar") != -1:  
-            indefs = insus = infoo = inbar = False
-            inbar = True 
-            barc += "//" + check + ": " + line  
-
-        elif indefs: 
-            # struct general
-            if line.find("general") != -1 and line.find(";") != -1: 
-                new_defs[0] += "\n//" + check + ": " + line
-
-            # struct warr
-            elif line.find("struct warr {") != -1: 
-                inwarr = True
-            elif line.find("data1") != -1 and inwarr: 
-                new_defs[1] += "\n//" + check + ": " + line 
-            elif line.find("name") != -1 and inwarr: 
-                inwarr = False 
-                new_defs[1] += "//" + check + ": " + line 
-
-            # struct fptrarr
-            elif line.find("struct fptrarr {") != -1: 
-                infptrarr = True
-            elif line.find("values") != -1 and infptrarr: 
-                new_defs[2] += "\n//" + check + ": " + line 
-            elif line.find("name") != -1 and infptrarr: 
-                new_defs[2] += "//" + check + ": " + line
-            elif line.find("mapper") != -1 and infptrarr: 
-                infptrarr = False 
-                new_defs[2] += "//" + check + ": " + line
-            
-            # struct fptr
-            elif line.find("struct fptr {") != -1: 
-                infptr = True
-            elif line.find("value") != -1 and infptr: 
-                new_defs[3] += "\n//" + check + ": " + line 
-            elif line.find("func") != -1 and infptr: 
-                infptr = False 
-                new_defs[3] += "//" + check + ": " + line
-
-            # struct arrfptr
-            elif line.find("struct arrfptr {") != -1: 
-                inarrfptr = True
-            elif line.find("args") != -1 and inarrfptr: 
-                new_defs[4] += "\n//" + check + ": " + line 
-            elif line.find("funcs") != -1 and inarrfptr: 
-                inarrfptr = False 
-                new_defs[4] += "//" + check + ": " + line
-                 
-            # mul2
-            elif line.find("mul2") != -1:
-                indefs = False
-                new_defs[-1] += "\n//" + check + ": " + line 
-        
-        elif insus: 
-            if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
-                susc += "//" + check + ": " + line
-        elif infoo: 
-            if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
-                fooc += "//" + check + ": " + line 
-        elif inbar: 
-            if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
-                barc += "//" + check + ": " + line
+def process_file_smart(prefix, proto, suffix, name, cnameNOALL, cnameALL, name2, cname2NOALL, cname2ALL): 
     
-    if proto=="multi": 
-        file2 = open(cname2, "r")
-
-        for line in file2.readlines():  
-            linepre = line.split("=")[0] 
-            # this indicates that we've reached the definitions
-            if line.find("struct general {") != -1: 
-                indefs = insus = infoo = inbar = False 
-                indefs = True
-
-            # annotate the definition for sus
-            elif line.find("sus") != -1 and line.find("{") != -1: 
-                indefs = insus = infoo = inbar = False
-                insus = True
-                susc += "//" + check + ": " + line
-
-            elif insus: 
-                if (any(substr in linepre for substr in keywords) and linepre.find("*") != -1) or any(substr in line for substr in ckeywords):
-                    susc += "//" + check + ": " + line
-
-            elif indefs: 
-                # struct general
-                if line.find("general") != -1 and line.find(";") != -1: 
-                    new_defs2[0] += "\n//" + check + ": " + line
-
-                # struct warr
-                elif line.find("struct warr {") != -1: 
-                    inwarr = True
-                elif line.find("data1") != -1 and inwarr: 
-                    new_defs2[1] += "\n//" + check + ": " + line 
-                elif line.find("name") != -1 and inwarr: 
-                    inwarr = False 
-                    new_defs2[1] += "//" + check + ": " + line 
-
-                # struct fptrarr
-                elif line.find("struct fptrarr {") != -1: 
-                    infptrarr = True
-                elif line.find("values") != -1 and infptrarr: 
-                    new_defs2[2] += "\n//" + check + ": " + line 
-                elif line.find("name") != -1 and infptrarr: 
-                    new_defs2[2] += "//" + check + ": " + line
-                elif line.find("mapper") != -1 and infptrarr: 
-                    infptrarr = False 
-                    new_defs2[2] += "//" + check + ": " + line
-            
-                # struct fptr
-                elif line.find("struct fptr {") != -1: 
-                    infptr = True
-                elif line.find("value") != -1 and infptr: 
-                    new_defs2[3] += "\n//" + check + ": " + line 
-                elif line.find("func") != -1 and infptr: 
-                    infptr = False 
-                    new_defs2[3] += "//" + check + ": " + line
-
-                # struct arrfptr
-                elif line.find("struct arrfptr {") != -1: 
-                    inarrfptr = True
-                elif line.find("args") != -1 and inarrfptr: 
-                    new_defs2[4] += "\n//" + check + ": " + line 
-                elif line.find("funcs") != -1 and inarrfptr: 
-                    inarrfptr = False 
-                    new_defs2[4] += "//" + check + ": " + line
-                 
-                # mul2
-                elif line.find("mul2") != -1:
-                    indefs = False
-                    new_defs2[-1] += "\n//" + check + ": " + line 
-            
-        file2.close() 
-    return [new_defs, new_defs2, susprotoc, susc, fooc, barc]
-
-# this function will generate a C file using method_gen(), 
-# run the porting tool on that C file, and generate a new
-# C file that contains the annotations for llvm-lit
-def annot_gen(prefix, proto, suffix):  
- 
     # generate a descriptive comment that describes what the test will do: 
     comm_general = "/*This file tests three functions: two callers bar and foo, and a callee sus*/\n" 
     comm_prefix = "/*In particular, this file tests: "
@@ -686,9 +512,110 @@ def annot_gen(prefix, proto, suffix):
     comm_dec = "\n\n/*********************************************************************************/\n\n" 
 
     comment = ''.join(["\n", comm_dec, comm_general, comm_prefix, comm_proto, comm_suffix, comm_dec])
+    
+    file = open(name, "r") 
+    noallfile = open(cnameNOALL, "r") 
+    allfile = open(cnameALL, "r") 
+
+    # gather all the lines
+    lines = str(file.read()).split("\n") 
+    noall = str(noallfile.read()).split("\n") 
+    yeall = str(allfile.read()).split("\n") 
+
+    file.close() 
+    noallfile.close() 
+    allfile.close() 
+    os.system("rm {} {}".format(cnameNOALL, cnameALL)) 
+    
+    # ensure all lines are the same length
+    assert len(lines) == len(noall) == len(yeall), "fix file " + name 
+
+
+    if proto=="multi": 
+        file2 = open(name2, "r") 
+        noallfile2 = open(cname2NOALL, "r") 
+        allfile2 = open(cname2ALL, "r") 
+        
+        # gather all the lines
+        lines2 = str(file2.read()).split("\n") 
+        noall2 = str(noallfile2.read()).split("\n") 
+        yeall2 = str(allfile2.read()).split("\n")
+        file2.close() 
+        noallfile2.close() 
+        allfile2.close() 
+        os.system("rm {} {}".format(cname2NOALL, cname2ALL)) 
+    
+        # ensure all lines are the same length
+        assert len(lines2) == len(noall2) == len(yeall2), "fix file " + name 
+
+    # our keywords that indicate we should add an annotation
+    keywords = "int char struct double float".split(" ") 
+    ckeywords = "_Ptr _Array_ptr _Nt_array_ptr _Checked _Unchecked".split(" ") 
+
+    for i in range(0, len(lines)): 
+        line = lines[i] 
+        noline = noall[i] 
+        yeline = yeall[i]
+        if line.find("extern") == -1 and ((any(substr in line for substr in keywords) and line.find("*") != -1) or any(substr in noline for substr in ckeywords) or any(substr in yeline for substr in ckeywords)): 
+            if noline == yeline: 
+                lines[i] = line + "\n\t//CHECK: " + noline.lstrip()
+            else: 
+                lines[i] = line + "\n\t//CHECK_NOALL: " + noline.lstrip() + "\n\t//CHECK_ALL: " + yeline.lstrip()
+
+    if proto=="multi": 
+        for i in range(0, len(lines2)): 
+            line = lines2[i] 
+            noline = noall2[i] 
+            yeline = yeall2[i]
+            if line.find("extern") == -1 and ((any(substr in line for substr in keywords) and line.find("*") != -1) or any(substr in noline for substr in ckeywords) or any(substr in yeline for substr in ckeywords)): 
+                if noline == yeline: 
+                    lines2[i] = line + "\n\t//CHECK: " + noline.lstrip()
+                else: 
+                    lines2[i] = line + "\n\t//CHECK_NOALL: " + noline.lstrip() + "\n\t//CHECK_ALL: " + yeline.lstrip()
+    
+    run = "// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\",\"CHECK\" %s"
+    run += "\n//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" %s"
+    run += "\n// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -\n"
+    run2 = ""
+    if proto=="multi": 
+        run = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/" + name2  
+        run += "\n// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/" + name2 
+        run += "\n//RUN: %clang -c %S/{} %S/{}".format(cnameNOALL, cname2NOALL)
+        run += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\" --input-file %S/{} %s".format(cnameNOALL) 
+        run += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\" --input-file %S/{} %s".format(cnameALL)
+        run += "\n//RUN: rm %S/{} %S/{}".format(cnameALL, cname2ALL)
+        run += "\n//RUN: rm %S/{} %S/{}".format(cnameNOALL, cname2NOALL)
+        cnameNOALL2 = prefix + suffix + proto + "1.checkedNOALL2.c"  
+        cnameALL2 = prefix + suffix + proto + "1.checkedALL2.c"
+        cname2NOALL2 = prefix + suffix + proto + "2.checkedNOALL2.c"  
+        cname2ALL2 = prefix + suffix + proto + "2.checkedALL2.c"
+        # uncomment the following lines if we ever decide we want to generate buggy tests that don't compile
+        # if bug_generated: 
+        #     cname21 = prefix + suffix + proto + "1_BUG.checked2.c" 
+        #     cname22 = prefix + suffix + proto + "2_BUG.checked2.c"
+        run2 = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %s %S/" + name  
+        run2 += "\n// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %s %S/" + name 
+        run2 += "\n//RUN: %clang -c %S/{} %S/{}".format(cnameNOALL2, cname2NOALL2)
+        run2 += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\" --input-file %S/{} %s".format(cname2NOALL2) 
+        run2 += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\" --input-file %S/{} %s".format(cname2ALL2)
+        run2 += "\n//RUN: rm %S/{} %S/{}".format(cnameALL2, cname2ALL2)
+        run2 += "\n//RUN: rm %S/{} %S/{}".format(cnameNOALL2, cname2NOALL2)
+
+    file = open(name, "w+")
+    file.write(run + comment + "\n".join(lines)) 
+    file.close()
+
+    if proto=="multi": 
+        file = open(name2, "w+") 
+        file.write(run2 + comment + "\n".join(lines2)) 
+        file.close()
+    return  
+
+def annot_gen_smart(prefix, proto, suffix):
 
     # generate the body of the file
     [susproto, sus, foo, bar] = method_gen(prefix, proto, suffix) 
+
     name = prefix + proto + suffix + ".c"
     cnameNOALL = prefix + proto + suffix + ".checkedNOALL.c"  
     cnameALL = prefix + proto + suffix + ".checkedALL.c"
@@ -724,12 +651,11 @@ def annot_gen(prefix, proto, suffix):
     if proto=="multi": 
         os.system("{}cconv-standalone -alltypes -output-postfix=checkedALL {} {}".format(path_to_monorepo, name, name2))
         os.system("{}cconv-standalone -output-postfix=checkedNOALL {} {}".format(path_to_monorepo, name, name2))
-        os.system("rm {} {}".format(name, name2))
     else: 
         os.system("{}cconv-standalone -alltypes -output-postfix=checkedALL {}".format(path_to_monorepo, name))
         os.system("{}cconv-standalone -output-postfix=checkedNOALL {}".format(path_to_monorepo, name))
-        os.system("rm {}".format(name))
     
+    # compile the files and if it doesn't compile, then let's indicate that a bug was generated for this file
     bug_generated = False
     if proto != "multi":
         out = subprocess.Popen(['{}clang'.format(path_to_monorepo), '-c', cnameNOALL], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) 
@@ -737,89 +663,31 @@ def annot_gen(prefix, proto, suffix):
         stdout = str(stdout) 
         if "error:" in stdout: 
             bug_generated = True
-            name = prefix + proto + suffix + "_BUG.c" 
+            # name = prefix + proto + suffix + "_BUG.c" 
     else: 
         out = subprocess.Popen(['{}clang'.format(path_to_monorepo), '-c', cnameNOALL, cname2NOALL], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) 
         stdout, stderr = out.communicate()
         stdout = str(stdout) 
         if "error:" in stdout: 
             bug_generated = True
-            name = prefix + suffix + proto + "1_BUG.c"
-            name2 = prefix + suffix + proto + "2_BUG.c"
-    
-    # read the checked generated file for new types
-    # isolate the definitions (at the top of the file) into more bitesize chunks  
-    # this will make adding checked annotations to them much easier
-    new_defs = definitions.split("\n\n")
-    new_defs2 = definitions.split("\n\n") 
-    susprotoc = susc = fooc = barc = ""
-    file = open(cnameNOALL, "r") 
-    [new_defs, new_defs2, susprotoc, susc, fooc, barc] = process_file(file, cnameNOALL, cname2NOALL, proto, False, new_defs, new_defs2, susprotoc, susc, fooc, barc)
-    file.close() 
-    os.system("rm {}".format(cnameNOALL))
-    if proto=="multi": os.system("rm {}".format(cname2NOALL)) 
-
-    file = open(cnameALL, "r") 
-    [new_defs, new_defs2, susprotoc, susc, fooc, barc] = process_file(file, cnameALL, cname2ALL, proto, True, new_defs, new_defs2, susprotoc, susc, fooc, barc)
-    file.close() 
-    os.system("rm {}".format(cnameALL))
-    if proto=="multi": os.system("rm {}".format(cname2ALL)) 
+            # name = prefix + suffix + proto + "1_BUG.c"
+            # name2 = prefix + suffix + proto + "2_BUG.c" 
 
     if bug_generated: 
-        cname = prefix + suffix + proto + "1_BUG.checked.c"
-        cname2 = prefix + suffix + proto + "2_BUG.checked.c"
+        # uncomment the following lines if we ever want to generate buggy tests that do not compile
+        # cname = prefix + suffix + proto + "1_BUG.checked.c"
+        # cname2 = prefix + suffix + proto + "2_BUG.checked.c"
+        os.system("rm {}".format(name)) 
+        if proto=="multi": os.system("rm {}".format(name2))
         return
 
-    run = "// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\" %s"
-    run += "\n//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\" %s"
-    run += "\n//RUN: cconv-standalone -output-postfix=checkedNOALL %s" 
-    run += "\n//RUN: %clang -c %S/{}".format(cnameNOALL)
-    run += "\n//RUN: rm %S/{}".format(cnameNOALL)
-    run2 = ""
-    if proto=="multi": 
-        run = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/" + name2  
-        run += "\n// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/" + name2 
-        run += "\n//RUN: %clang -c %S/{} %S/{}".format(cnameNOALL, cname2NOALL)
-        run += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\" --input-file %S/{} %s".format(cnameNOALL) 
-        run += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\" --input-file %S/{} %s".format(cnameALL)
-        run += "\n//RUN: rm %S/{} %S/{}".format(cnameALL, cname2ALL)
-        run += "\n//RUN: rm %S/{} %S/{}".format(cnameNOALL, cname2NOALL)
-        cnameNOALL2 = prefix + suffix + proto + "1.checkedNOALL2.c"  
-        cnameALL2 = prefix + suffix + proto + "1.checkedALL2.c"
-        cname2NOALL2 = prefix + suffix + proto + "2.checkedNOALL2.c"  
-        cname2ALL2 = prefix + suffix + proto + "2.checkedALL2.c"
-        if bug_generated: 
-            cname21 = prefix + suffix + proto + "1_BUG.checked2.c" 
-            cname22 = prefix + suffix + proto + "2_BUG.checked2.c"
-        run2 = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %s %S/" + name  
-        run2 += "\n// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %s %S/" + name 
-        run2 += "\n//RUN: %clang -c %S/{} %S/{}".format(cnameNOALL2, cname2NOALL2)
-        run2 += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\" --input-file %S/{} %s".format(cname2NOALL2) 
-        run2 += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\" --input-file %S/{} %s".format(cname2ALL2)
-        run2 += "\n//RUN: rm %S/{} %S/{}".format(cnameALL2, cname2ALL2)
-        run2 += "\n//RUN: rm %S/{} %S/{}".format(cnameNOALL2, cname2NOALL2)
-
-    # generate the final file with all annotations
-    ctest = run + comment + header + '\n\n'.join(new_defs) + sus + susc + foo + fooc + bar + barc
-    if proto == "proto": 
-        ctest = run + comment + header + '\n\n'.join(new_defs) + susproto + susprotoc + foo + fooc + bar + barc + sus + susc
-    elif proto == "multi": 
-        ctest = run + comment + header + '\n\n'.join(new_defs) + susproto + susprotoc + foo + fooc + bar + barc
-        ctest2 = run2 + comment + header + '\n\n'.join(new_defs2) + sus + susc
+    process_file_smart(prefix, proto, suffix, name, cnameNOALL, cnameALL, name2, cname2NOALL, cname2ALL) 
     
-    file = open(name, "w+") 
-    file.write(ctest) 
-    file.close() 
-    if proto=="multi": 
-        file = open(name2, "w+") 
-        file.write(ctest2) 
-        file.close()
-
     return
 
 #arr, arrinstruct, arrofstruct
 if __name__ == "__main__": 
     os.system("rm *.checked*")
     for skeleton in testnames: 
-        annot_gen(skeleton[0], skeleton[1], skeleton[2])
+        annot_gen_smart(skeleton[0], skeleton[1], skeleton[2])
     os.system("rm *.checked*")
