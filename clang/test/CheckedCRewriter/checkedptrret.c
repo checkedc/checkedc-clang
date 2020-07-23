@@ -15,7 +15,7 @@ int *bar() {
     // CHECK:  _Ptr<int> c = ((void *)0);
     int a = 1;
     if (1) {
-    // CHECK: if (1) _Checked {
+    // CHECK: if (1) {
       c = foo();
     }
     return c;

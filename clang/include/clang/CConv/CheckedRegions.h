@@ -36,6 +36,7 @@ class CheckedRegionAdder : public RecursiveASTVisitor<CheckedRegionAdder>
       : Context(_C), Writer(_R), Map(M) {}
 
     bool VisitCompoundStmt(CompoundStmt *S);
+    bool VisitIfStmt(IfStmt *IS);
 
   private:
     ASTContext* Context;

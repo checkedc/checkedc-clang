@@ -19,7 +19,7 @@ int bar(int *x) {
 }
 
 //CHECK: int bar(_Ptr<int> x) _Checked { 
-//CHECK: for(i = 0; i<2; i++) _Checked { 
+//CHECK: for(i = 0; i<2; i++) { 
 
 int gar(int *x) { 
   x = (int*) 4;

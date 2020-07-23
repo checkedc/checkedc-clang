@@ -35,12 +35,22 @@ bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
     case IS_CHECKED:   
                         auto Loc = S->getBeginLoc();
                         Writer.InsertTextBefore(Loc, "_Checked ");
-                        return true;
+                        return false;
   }
 
   llvm_unreachable("Bad flag in CheckedRegionAdder");
 }
 
+bool CheckedRegionAdder::VisitIfStmt(IfStmt *IS) {
+  CheckedRegionAdder Then_v(Context, Writer, Map);
+  CheckedRegionAdder Else_v(Context, Writer, Map);
+  Then_v.TraverseStmt(IS->getThen());
+  Else_v.TraverseStmt(IS->getElse());
+
+
+
+  return false;
+}
 // CheckedRegionFinder
 
 bool CheckedRegionFinder::VisitForStmt(ForStmt *S) {
@@ -319,7 +329,6 @@ bool CheckedRegionFinder::isUncheckedPtrAcc(QualType Qt, std::set<std::string> &
 
 
 // Iterate through all fields of the struct and find unchecked types.
-// TODO doesn't handle recursive structs correctly
 bool CheckedRegionFinder::isUncheckedStruct(QualType Qt, std::set<std::string> &Seen) {
   auto RcdTy = dyn_cast<RecordType>(Qt);
   if (RcdTy) {
