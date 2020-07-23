@@ -44,10 +44,9 @@ bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
 bool CheckedRegionAdder::VisitIfStmt(IfStmt *IS) {
   CheckedRegionAdder Then_v(Context, Writer, Map);
   CheckedRegionAdder Else_v(Context, Writer, Map);
+
   Then_v.TraverseStmt(IS->getThen());
   Else_v.TraverseStmt(IS->getElse());
-
-
 
   return false;
 }
@@ -245,8 +244,8 @@ bool CheckedRegionFinder::isWild(std::set<ConstraintVariable*> &S) {
   return false;
 }
 
-bool CheckedRegionFinder::isWild(std::set<FVConstraint*> *S) { 
-  for (auto Fv : *S) 
+bool CheckedRegionFinder::isWild(std::set<FVConstraint*> *S) {
+  for (auto Fv : *S)
     if (Fv->hasWild(Info.getConstraints().getVariables()))
       return true;
   return false;
@@ -256,9 +255,7 @@ bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) {
   auto T = DR->getType();
   auto D = DR->getDecl();
   auto var = Info.getVariable(D, Context);
-
   bool IW = isWild(var) || isUncheckedPtr(T);
-
 
   if (auto FD = dyn_cast<FunctionDecl>(D)) { 
     auto FV = Info.getFuncConstraints(FD, Context);
