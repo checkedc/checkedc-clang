@@ -111,7 +111,7 @@ void f2(_Array_ptr<struct S> arr : count(1), struct S s) {
 
   // Target LHS bounds: bounds(arr, arr + 1)
   // Inferred RHS bounds: invalid
-  arr = &(struct S){ 0 }; // expected-error {{expression has unknown bounds, right-hand side of assignment expected to have bounds because the left-hand side has bounds}}
+  arr = &(struct S){ 0 }; // expected-error {{inferred bounds for 'arr' are unknown after statement}}
   // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<struct S>' '='
   // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'arr' '_Array_ptr<struct S>'
   // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <BitCast>
