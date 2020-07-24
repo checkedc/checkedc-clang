@@ -26,7 +26,7 @@ using namespace clang;
 
 bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
   Decl *D = CE->getCalleeDecl();
-  if (D) {
+  if (Rewriter::isRewritable(CE->getExprLoc()) && D) {
     PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CE, *Context);
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       // Get the constraint variable for the function.

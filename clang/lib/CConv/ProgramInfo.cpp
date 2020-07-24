@@ -641,7 +641,7 @@ CVarSet
 // If it was, we should constrain it to top. This is sad. Hopefully,
 // someday, the Rewriter will become less lame and let us re-write stuff
 // in macros.
-void ProgramInfo::constrainWildIfMacro(CVarSet S,
+void ProgramInfo::constrainWildIfMacro(CVarSet &S,
                                        SourceLocation Location) {
   std::string Rsn = "Pointer in Macro declaration.";
   if (!Rewriter::isRewritable(Location))

@@ -29,14 +29,14 @@ void structs() {
 
   int d;
   int *faz = (int*)0;
-  // CHECK: _Ptr<int> faz = (int*)0;
+  // CHECK: _Ptr<int> faz = (_Ptr<int> )0;
   faz = (&(struct b){&d, (int*) 1})->a;
   int *fuz = (int*)0;
   // CHECK: int *fuz = (int*)0;
   fuz = (&(struct b){&d, &d})->b;
 
   int *f = (int*) 0;
-  // CHECK: _Array_ptr<int> f = (int*) 0;
+  // CHECK: _Array_ptr<int> f = (_Array_ptr<int> ) 0;
   ((&(struct c){f})->a)++;
 }
 

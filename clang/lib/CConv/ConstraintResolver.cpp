@@ -214,7 +214,10 @@ CVarSet
         return PVConstraintFromType(TypE);
       }
       // NULL
-    } else if (isNULLExpression(E, *Context)) {
+      // Special handling for casts of null is required to enable rewriting
+      // statements such as int *x = (int*) 0. If this was handled as a
+      // normal null expression, the cast would never be visited.
+    } else if (!isa<ExplicitCastExpr>(E) && isNULLExpression(E, *Context)) {
       return EmptyCSet;
       // Implicit cast, e.g., T* from T[] or int (*)(int) from int (int),
       //   but also weird int->int * conversions (and back)
@@ -254,14 +257,29 @@ CVarSet
       CVarSet Ret = EmptyCSet;
       if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(E)) {
         assert(ECE->getType() == TypE);
-        // Is cast internally safe? Return WILD if not
         Expr *TmpE = ECE->getSubExpr();
-        if (TypE->isPointerType() && !isCastSafe(TypE, TmpE->getType()))
+        // Is cast internally safe? Return WILD if not.
+        // If the cast is NULL, it will otherwise seem invalid, but we want to
+        // handle it as usual so the type in the cast can be rewritten.
+        if (!isNULLExpression(ECE, *Context) && TypE->isPointerType()
+            && !isCastSafe(TypE, TmpE->getType())) {
           Ret = getInvalidCastPVCons(E);
           // NB: Expression ECE itself handled in
           // ConstraintBuilder::FunctionVisitor
-        else
-          Ret = getExprConstraintVars(TmpE);
+        } else {
+          CVarSet Vars = getExprConstraintVars(TmpE);
+          // PVConstraint introduced for explicit cast so they can be rewritten.
+          // Pretty much the same idea as CompoundLiteralExpr.
+          PVConstraint *P = getRewritablePVConstraint(ECE);
+          Ret = {P};
+          // ConstraintVars for TmpE when ECE is NULL will be WILD, so
+          // constraining GEQ these vars would be the cast always be WILD.
+          if (!isNULLExpression(ECE, *Context)) {
+            PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(ECE, *Context);
+            constrainConsVarGeq(Ret, Vars, Info.getConstraints(), &PL,
+                                Same_to_Same, false, &Info);
+          }
+        }
       }
         // x = y, x+y, x+=y, etc.
       else if (BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
@@ -520,9 +538,7 @@ CVarSet
         CVarSet T;
         CVarSet Vars = getExprConstraintVars(CLE->getInitializer());
 
-        PVConstraint *P =
-            new PVConstraint(CLE->getType(), nullptr, CLE->getStmtClassName(),
-                             Info, *Context, nullptr);
+        PVConstraint *P = getRewritablePVConstraint(CLE);
         T = {P};
 
         PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CLE, *Context);
@@ -581,11 +597,12 @@ CVarSet
   return Persist;
 }
 
+
 void ConstraintResolver::storePersistentConstraints(clang::Expr *E,
                                                     CVarSet &Vars) {
-  auto PSL = PersistentSourceLoc::mkPSL(E, *Context);
   // Store only if the PSL is valid.
-  if (PSL.valid()) {
+  auto PSL = PersistentSourceLoc::mkPSL(E, *Context);
+  if (PSL.valid() && Rewriter::isRewritable(E->getBeginLoc())){
     CVarSet &Persist = Info.getPersistentConstraintVars(E, Context);
     Persist.insert(Vars.begin(), Vars.end());
   }
@@ -677,6 +694,18 @@ CVarSet ConstraintResolver::getBaseVarPVConstraint(DeclRefExpr *Decl) {
   Ret.insert(PVConstraint::getNamedNonPtrPVConstraint(DN,
                                                       Info.getConstraints()));
   return Ret;
+}
+
+// Construct a PVConstraint for an expression that can safely be used when
+// rewriting the expression later on. This is done by making the constraint WILD
+// if the expression is inside a macro.
+PVConstraint *ConstraintResolver::getRewritablePVConstraint(Expr *E) {
+  PVConstraint *P = new PVConstraint(E->getType(), nullptr,
+                                     E->getStmtClassName(), Info, *Context,
+                                     nullptr);
+  CVarSet Tmp = {P};
+  Info.constrainWildIfMacro(Tmp, E->getExprLoc());
+  return P;
 }
 
 bool
