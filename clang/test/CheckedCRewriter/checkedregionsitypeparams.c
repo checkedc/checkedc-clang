@@ -10,6 +10,7 @@ int foo(struct A *a) {
 }
 
 int bar(struct A *a) { 
+//CHECK: int bar(struct A *a) {
   a = (struct A*) 5;
   if(1) { 
     // CHECK:if(1) _Unchecked {
