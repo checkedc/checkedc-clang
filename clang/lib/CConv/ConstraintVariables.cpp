@@ -1427,8 +1427,9 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
           // unless assigning to a generic type.
           } else if (!(PCLHS->getIsGeneric() || PCRHS->getIsGeneric())) {
             // Constrain both to be top.
-            std::string Rsn = "Assigning from:" + PCRHS->getName() + " to " +
-                              PCLHS->getName();
+            std::string Rsn = "Assigning from:" + std::to_string(CRHS.size())
+                              + " depth pointer to " +
+                              std::to_string(CLHS.size()) + " depth pointer.";
             PCLHS->constrainToWild(CS, Rsn, PL);
             PCRHS->constrainToWild(CS, Rsn, PL);
           }
