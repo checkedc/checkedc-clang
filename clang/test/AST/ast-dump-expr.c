@@ -262,6 +262,7 @@ void PostfixOperators(int *a, struct S b, struct S *c) {
 
   (int [4]){1, 2, 3, 4, };
   // CHECK: ImplicitCastExpr
+  // CHECK: CHKCBindTemporaryExpr 0x{{[^ ]*}} <col:3, col:25> 'int [4]' lvalue
   // CHECK: CompoundLiteralExpr 0x{{[^ ]*}} <col:3, col:25> 'int [4]' lvalue
   // CHECK-NEXT: InitListExpr 0x{{[^ ]*}} <col:12, col:25> 'int [4]'
   // CHECK-NEXT: IntegerLiteral 0x{{[^ ]*}} <col:13> 'int' 1

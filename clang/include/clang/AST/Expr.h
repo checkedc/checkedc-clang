@@ -862,6 +862,15 @@ public:
     return const_cast<Expr *>(this)->ignoreParenBaseCasts();
   }
 
+  /// Skip past any parentheses and Checked C expression temporaries until
+  /// reaching a fixed point. Skips:
+  /// * What IgnoreParens() skips
+  /// * What IgnoreExprTmp() skips (CHKCBindTemporaryExpr)
+  Expr *IgnoreParenTmp() LLVM_READONLY;
+  const Expr* IgnoreParenTmp() const LLVM_READONLY {
+    return const_cast<Expr *>(this)->IgnoreParenTmp();
+  }
+
   /// Ignore Checked C expression temporaries (CHCKBindTemporaryExpr).
   Expr *IgnoreExprTmp() LLVM_READONLY;
 

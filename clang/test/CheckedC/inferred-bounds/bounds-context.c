@@ -25,9 +25,10 @@ void declared1(array_ptr<int> arr : count(len), int len, int size) {
   // CHECK-NEXT:   VarDecl {{.*}} a
   // CHECK-NEXT:     CountBoundsExpr
   // CHECK-NEXT:       IntegerLiteral {{.*}} 5
-  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int _Checked[1]'
-  // CHECK-NEXT:       InitListExpr {{.*}} 'int _Checked[1]'
-  // CHECK-NEXT:         IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:     CHKCBindTemporaryExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:       CompoundLiteralExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:         InitListExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:           IntegerLiteral {{.*}} 0
   // CHECK-NEXT: Observed bounds context after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: Variable:
@@ -66,9 +67,10 @@ void declared1(array_ptr<int> arr : count(len), int len, int size) {
   // CHECK-NEXT:     CountBoundsExpr
   // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'size'
-  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int _Checked[1]'
-  // CHECK-NEXT:       InitListExpr {{.*}} 'int _Checked[1]'
-  // CHECK-NEXT:         IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:     CHKCBindTemporaryExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:       CompoundLiteralExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:         InitListExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:           IntegerLiteral {{.*}} 0
   // CHECK-NEXT: Observed bounds context after checking S:
   // CHECK-NEXT: {
   // CHECK: Variable:
@@ -124,9 +126,10 @@ void declared2(int flag, int x, int y) {
   // CHECK-NEXT:     CountBoundsExpr
   // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'x'
-  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int _Checked[1]'
-  // CHECK-NEXT:       InitListExpr {{.*}} 'int _Checked[1]'
-  // CHECK-NEXT:         IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:     CHKCBindTemporaryExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:       CompoundLiteralExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:         InitListExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:           IntegerLiteral {{.*}} 0
   // CHECK-NEXT: Observed bounds context after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: Variable:
@@ -154,9 +157,10 @@ void declared2(int flag, int x, int y) {
     // CHECK-NEXT:     CountBoundsExpr
     // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:         DeclRefExpr {{.*}} 'y'
-    // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int _Checked[1]'
-    // CHECK-NEXT:       InitListExpr {{.*}} 'int _Checked[1]'
-    // CHECK-NEXT:         IntegerLiteral {{.*}} 0
+    // CHECK-NEXT:     CHKCBindTemporaryExpr {{.*}} 'int _Checked[1]'
+    // CHECK-NEXT:       CompoundLiteralExpr {{.*}} 'int _Checked[1]'
+    // CHECK-NEXT:         InitListExpr {{.*}} 'int _Checked[1]'
+    // CHECK-NEXT:           IntegerLiteral {{.*}} 0
     // CHECK-NEXT: Observed bounds context after checking S:
     // CHECK-NEXT: {
     // CHECK-NEXT: Variable:
@@ -197,9 +201,10 @@ void declared2(int flag, int x, int y) {
     // CHECK-NEXT:     CountBoundsExpr
     // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
     // CHECK-NEXT:         DeclRefExpr {{.*}} 'y'
-    // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int _Checked[1]'
-    // CHECK-NEXT:       InitListExpr {{.*}} 'int _Checked[1]'
-    // CHECK-NEXT:         IntegerLiteral {{.*}} 0
+    // CHECK-NEXT:     CHKCBindTemporaryExpr {{.*}} 'int _Checked[1]'
+    // CHECK-NEXT:       CompoundLiteralExpr {{.*}} 'int _Checked[1]'
+    // CHECK-NEXT:         InitListExpr {{.*}} 'int _Checked[1]'
+    // CHECK-NEXT:           IntegerLiteral {{.*}} 0
     // CHECK-NEXT: Observed bounds context after checking S:
     // CHECK-NEXT: {
     // CHECK-NEXT: Variable:
@@ -255,9 +260,10 @@ void declared2(int flag, int x, int y) {
   // CHECK-NEXT:     CountBoundsExpr
   // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'x'
-  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int _Checked[1]'
-  // CHECK-NEXT:       InitListExpr {{.*}} 'int _Checked[1]'
-  // CHECK-NEXT:         IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:     CHKCBindTemporaryExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:       CompoundLiteralExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:         InitListExpr {{.*}} 'int _Checked[1]'
+  // CHECK-NEXT:           IntegerLiteral {{.*}} 0
   // CHECK-NEXT: Observed bounds context after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: Variable:
@@ -843,11 +849,12 @@ void source_bounds2(void) {
   // CHECK-NEXT:   VarDecl {{.*}} arr
   // CHECK-NEXT:     CountBoundsExpr {{.*}} Element
   // CHECK-NEXT:       IntegerLiteral {{.*}} 1
-  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'int _Checked[3]'
-  // CHECK-NEXT:       InitListExpr {{.*}} 'int _Checked[3]'
-  // CHECK-NEXT:         IntegerLiteral {{.*}} 0
-  // CHECK-NEXT:         IntegerLiteral {{.*}} 1
-  // CHECK-NEXT:         IntegerLiteral {{.*}} 2
+  // CHECK-NEXT:     CHKCBindTemporaryExpr {{.*}} 'int _Checked[3]'
+  // CHECK-NEXT:       CompoundLiteralExpr {{.*}} 'int _Checked[3]'
+  // CHECK-NEXT:         InitListExpr {{.*}} 'int _Checked[3]'
+  // CHECK-NEXT:           IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:           IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:           IntegerLiteral {{.*}} 2
   // CHECK-NEXT: Observed bounds context after checking S:
   // CHECK-NEXT: {
   // CHECK-NEXT: Variable:
