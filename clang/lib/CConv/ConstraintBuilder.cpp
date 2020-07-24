@@ -373,9 +373,9 @@ private:
 
 // This class visits a global declaration, generating constraints
 //   for functions, variables, types, etc. that are visited
-class GlobalVisitor : public RecursiveASTVisitor<GlobalVisitor> {
+class ConstraintGenVisitor : public RecursiveASTVisitor<ConstraintGenVisitor> {
 public:
-  explicit GlobalVisitor(ASTContext *Context, ProgramInfo &I, TypeVarInfo &TVI)
+  explicit ConstraintGenVisitor(ASTContext *Context, ProgramInfo &I, TypeVarInfo &TVI)
       : Context(Context), Info(I), CB(Info, Context), TVInfo(TVI) {}
 
   bool VisitVarDecl(VarDecl *G) {
@@ -515,14 +515,14 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
 
   VariableAdderVisitor VAV = VariableAdderVisitor(&C, Info);
   TypeVarVisitor TV = TypeVarVisitor(&C, Info);
-  GlobalVisitor GV = GlobalVisitor(&C, Info, TV);
+  ConstraintGenVisitor GV = ConstraintGenVisitor(&C, Info, TV);
   TranslationUnitDecl *TUD = C.getTranslationUnitDecl();
   // Generate constraints.
   for (const auto &D : TUD->decls()) {
     // The order of these traversals cannot be changed because both the type
-    // variable and global visitor require that variables have been added to
-    // ProgramInfo, and the global visitor requires the type variable
-    // information gathered in the type variable traversal.
+    // variable and constraint gen visitor require that variables have been
+    // added to ProgramInfo, and the constraint gen visitor requires the type
+    // variable information gathered in the type variable traversal.
     VAV.TraverseDecl(D);
     TV.TraverseDecl(D);
     GV.TraverseDecl(D);
