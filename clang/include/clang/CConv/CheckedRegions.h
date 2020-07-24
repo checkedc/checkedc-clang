@@ -51,9 +51,7 @@ class CheckedRegionFinder : public RecursiveASTVisitor<CheckedRegionFinder>
                                 std::set<FoldingSetNodeID> &S,
                                 std::map<FoldingSetNodeID, AnnotationNeeded> &M)
       : Context(_C), Writer(_R), Info(_I), Seen(S), Map(M) {}
-    int Nwild = 0;
-    int Nchecked = 0;
-    int Ndecls = 0;
+    bool Nwild = false;
 
     bool VisitForStmt(ForStmt *S);
     bool VisitSwitchStmt(SwitchStmt *S);

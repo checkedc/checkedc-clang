@@ -78,27 +78,22 @@ bool CheckedRegionFinder::VisitDoStmt(DoStmt *S) {
 }
 
 void CheckedRegionFinder::handleChildren(const Stmt::child_range &Stmts) { 
-  int Localwild = 0;
-
   for (const auto &SubStmt : Stmts) {
     CheckedRegionFinder Sub(Context, Writer, Info, Seen, Map);
     Sub.TraverseStmt(SubStmt);
-    Localwild += Sub.Nwild;
+    Nwild |= Sub.Nwild;
   }
-  Nwild += Localwild;
 }
 
 
 
 bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
   // Visit all subblocks, find all unchecked types
-  int Localwild = 0;
+  bool Localwild = 0;
   for (const auto &SubStmt : S->children()) {
     CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
     Sub.TraverseStmt(SubStmt);
-    Localwild += Sub.Nwild;
-    Nchecked += Sub.Nchecked;
-    Ndecls += Sub.Ndecls;
+    Localwild |= Sub.Nwild;
   }
 
   addUncheckedAnnotation(S, Localwild);
@@ -106,7 +101,7 @@ bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
   // Compound Statements are always considered to have 0 wild types
   // This is because a compound statement marked w/ _Unchecked can live
   // inside a _Checked region.
-  Nwild = 0;
+  Nwild = false;
 
   llvm::FoldingSetNodeID Id;
   S->Profile(Id, *Context, true);
@@ -118,13 +113,13 @@ bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
 }
 
 bool CheckedRegionFinder::VisitStmtExpr(StmtExpr *SE) {
-  Nwild++;
+  Nwild = true;
   return false;
 }
 
 bool CheckedRegionFinder::VisitCStyleCastExpr(CStyleCastExpr *E) {
   // TODO This is over cautious
-  Nwild++;
+  Nwild = true;
   return true;
 }
 
@@ -141,14 +136,14 @@ bool CheckedRegionFinder::hasUncheckedParameters(CompoundStmt *S) {
     return false;
   }
 
-  int Localwild = 0;
+  int Localwild = false;
   for (auto Child : Parent->parameters()) {
     CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
     Sub.TraverseParmVarDecl(Child);
-    Localwild += Sub.Nwild;
+    Localwild |= Sub.Nwild;
   }
 
-  return Localwild != 0 || Parent->isVariadic();
+  return Localwild || Parent->isVariadic();
 }
 
 
@@ -188,20 +183,18 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
       Writer.InsertTextAfterToken(End, "; }");
     } else {
       // Call is inside an epxression, mark WILD.
-      Nwild++;
+      Nwild = false;
     }
   }
   if (FD) {
-    if(!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody()))
-      Nwild++;
     auto type = FD->getReturnType();
-    if (isUncheckedPtr(type))
-      Nwild++;
-    if (any_of(FD->param_begin(), FD->param_end(), [this] (Decl *param) {
-          auto var = Info.getVariable(param, Context);
-          return isWild(var);
-          }))
-        Nwild++;
+
+    Nwild = (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody()))
+      || isUncheckedPtr(type)
+      || (any_of(FD->param_begin(), FD->param_end(), [this] (Decl *param) {
+            auto var = Info.getVariable(param, Context);
+            return isWild(var);
+          }));
   }
   handleChildren(C->children());
   return false;
@@ -212,27 +205,15 @@ bool CheckedRegionFinder::VisitVarDecl(VarDecl *VD) {
   // Check if the variable is WILD.
   auto CVSet = Info.getVariable(VD, Context);
   isWild(CVSet);
-
-
   // Check if the variable contains an unchecked type.
-  if (isUncheckedPtr(VD->getType()))
-    Nwild++;
-  Ndecls++;
+  Nwild = isUncheckedPtr(VD->getType());
   return true;
 }
 
 bool CheckedRegionFinder::VisitParmVarDecl(ParmVarDecl *PVD) {
   // Check if the variable is WILD.
   auto V = Info.getVariable(PVD, Context);
-  bool FoundWild = isWild(V);
-
-  if (FoundWild)
-    Nwild++;
-
-  // Check if the variable is a void*.
-  if (isUncheckedPtr(PVD->getType()))
-    Nwild++;
-  Ndecls++;
+  Nwild |= isWild(V) | isUncheckedPtr(PVD->getType());
   return true;
 }
 
@@ -266,8 +247,7 @@ bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) {
     }
   }
 
-  if (IW) 
-    Nwild++;
+  Nwild |= IW ;
 
   return true;
 }
@@ -373,21 +353,16 @@ bool CheckedRegionFinder::VisitMemberExpr(MemberExpr *E){
   ValueDecl *VD = E->getMemberDecl();
   if (VD) {
     // Check if the variable is WILD.
-    bool FoundWild = false;
     std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context);
     for (auto Cv : CVSet) {
       if (Cv->hasWild(Info.getConstraints().getVariables())) {
-        FoundWild = true;
+        Nwild = true;
       }
     }
 
-    if (FoundWild)
-      Nwild++;
 
     // Check if the variable is a void*.
-    if (isUncheckedPtr(VD->getType()))
-      Nwild++;
-    Ndecls++;
+    Nwild |= isUncheckedPtr(VD->getType());
   }
   return true;
 }
