@@ -1433,7 +1433,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
             PCLHS->constrainToWild(CS, Rsn, PL);
             PCRHS->constrainToWild(CS, Rsn, PL);
           }
-          // Equate the corresponding FunctionContraint.
+          // Equate the corresponding FunctionConstraint.
           constrainConsVarGeq(PCLHS->getFV(), PCRHS->getFV(), CS, PL, CA,
                               doEqType, Info);
         }
