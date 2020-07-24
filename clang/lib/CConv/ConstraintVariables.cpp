@@ -574,7 +574,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
           if (FV) {
             Ss << FV->mkString(E);
           } else {
-            Ss << BaseType << "*";
+            Ss << BaseType << " *";
           }
         }
 

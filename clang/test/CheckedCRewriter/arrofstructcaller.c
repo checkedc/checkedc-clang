@@ -99,7 +99,7 @@ struct general ** sus(struct general * x, struct general * y) {
 x = (struct general *) 5; 
 	//CHECK: x = (struct general *) 5; 
         struct general **z = calloc(5, sizeof(struct general *));
-	//CHECK: struct general **z = calloc<struct general*>(5, sizeof(struct general *));
+	//CHECK: struct general **z = calloc<struct general *>(5, sizeof(struct general *));
         struct general *curr = y;
 	//CHECK: struct general *curr = y;
         int i;

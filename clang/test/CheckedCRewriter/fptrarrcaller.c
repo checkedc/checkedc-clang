@@ -100,9 +100,9 @@ int ** sus(int *x, int *y) {
         x = (int *) 5;
 	//CHECK: x = (int *) 5;
         int **z = calloc(5, sizeof(int *)); 
-	//CHECK: int **z = calloc<int*>(5, sizeof(int *)); 
+	//CHECK: int **z = calloc<int *>(5, sizeof(int *)); 
         int * (*mul2ptr) (int *) = mul2;
-	//CHECK: _Ptr<int* (int *)> mul2ptr =  mul2;
+	//CHECK: _Ptr<int * (int *)> mul2ptr =  mul2;
         int i;
         for(i = 0; i < 5; i++) { 
             z[i] = mul2ptr(&y[i]);

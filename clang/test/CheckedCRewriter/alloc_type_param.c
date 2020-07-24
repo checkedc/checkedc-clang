@@ -35,7 +35,7 @@ void bar() {
 
   // It's also fine if the pointer is unchecked
   int **b = malloc(sizeof(int*));
-  // CHECK: _Ptr<int*> b = malloc<int*>(sizeof(int*));
+  // CHECK: _Ptr<int *> b = malloc<int *>(sizeof(int*));
   *b = (int*) 1;
 }
 
