@@ -102,9 +102,14 @@ public:
   // (T)e
   bool VisitCStyleCastExpr(CStyleCastExpr *C) {
     // Is cast compatible with LHS type?
-    if (!isCastSafe(C->getType(), C->getSubExpr()->getType())) {
+    QualType SrcT = C->getSubExpr()->getType();
+    QualType DstT = C->getType();
+    if (!isCastSafe(DstT, SrcT)) {
       auto CVs = CB.getExprConstraintVars(C->getSubExpr());
-      CB.constraintAllCVarsToWild(CVs, "Casted to a different type.", C);
+      std::string Rsn = "Casted from " +
+                        SrcT.getAsString() +  " to " +
+                        DstT.getAsString();
+      CB.constraintAllCVarsToWild(CVs, Rsn, C);
     }
     return true;
   }

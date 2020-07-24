@@ -873,16 +873,13 @@ ProgramInfo::computeInterimConstraintState(std::set<std::string> &FilePaths) {
       // We consider only pointers which with in the source files or external
       // pointers that affected pointers within the source files.
       if (!TmpCGrp.empty() || ValidVarsS.find(VA) != ValidVarsS.end()) {
-        if (ValidVarsS.find(VA) != ValidVarsS.end()) {
-          InSrcW.insert(VA->getLoc());
-        }
         WildPtrs.insert(VA->getLoc());
         CVars &CGrp = SrcWMap[VA->getLoc()];
         CGrp.insert(TmpCGrp.begin(), TmpCGrp.end());
       }
     }
   }
-
+  findIntersection(WildPtrs, ValidVarsKey, InSrcW);
   findIntersection(TotalNDirectWPtrs, ValidVarsKey, InSrInDirectWPtrs);
 
   auto &WildPtrsReason = CState.RealWildPtrsWithReasons;
