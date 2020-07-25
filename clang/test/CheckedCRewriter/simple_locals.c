@@ -133,14 +133,9 @@ int arrcheck(int *a, int b) {
 int badcall(int *a, int b) {
   return arrcheck(a, b);
 }
-<<<<<<< HEAD
-//CHECK: int badcall(_Ptr<int> a, int b) {
-//CHECK-NEXT: return arrcheck(((int *)a), b); 
-=======
 //CHECK_ALL: int badcall(_Array_ptr<int> a : count(b), int b) {
 //CHECK_NOALL: int badcall(int *a, int b) {
 //CHECK: return arrcheck(a, b); 
->>>>>>> origin/BigRefactor
 //CHECK-NEXT: }
 
 void pullit(char *base, char *out, int *index) {
@@ -264,10 +259,5 @@ void ptrarr(void) {
   return;
 }
 //CHECK: void ptrarr(void) { 
-<<<<<<< HEAD
-//CHECK-NEXT: _Ptr<int> vals _Checked[4] =  { 0 };
-
-=======
 //CHECK_NOALL: int *vals[4] = { 0 };
 //CHECK_ALL: _Ptr<int> vals _Checked[4] =  { 0 };
->>>>>>> origin/BigRefactor
