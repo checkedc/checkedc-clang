@@ -332,6 +332,12 @@ static llvm::cl::opt<std::string>
                        llvm::cl::init("WildPtrStats.json"),
                        llvm::cl::cat(ConvertCategory));
 
+static llvm::cl::opt<bool> 
+    OptDiableCCTypeChecker("disccty",
+                           llvm::cl::desc("Do not disable checked c type checker."),
+                           llvm::cl::init(false),
+                           llvm::cl::cat(ConvertCategory));
+
 static llvm::cl::opt<bool>
     HandleVARARGS("handle-varargs",
                   llvm::cl::desc("Enable handling of varargs "
@@ -456,6 +462,7 @@ int main(int argc, char *argv[]) {
   CcOptions.StatsOutputJson = OptStatsOutputJson.getValue();
   CcOptions.AddCheckedRegions = AddCheckedRegions;
   CcOptions.EnableAllTypes = AllTypes;
+  CcOptions.DisableCCTypeChecker = OptDiableCCTypeChecker;
 
   CConvInterface CCInterface(CcOptions,
                              OptionsParser.getSourcePathList(),

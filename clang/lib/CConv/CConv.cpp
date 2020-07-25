@@ -49,6 +49,7 @@ std::string WildPtrInfoJson;
 bool AllTypes;
 std::string BaseDir;
 bool AddCheckedRegions;
+bool DisableCCTypeChecker;
 std::set<std::string> FilePaths;
 
 static ClangTool *GlobalCTool = nullptr;
@@ -114,7 +115,7 @@ ArgumentsAdjuster getIgnoreCheckedPointerAdjuster() {
         break;
       }
     }
-    if (!HasAdjuster)
+    if (!DisableCCTypeChecker && !HasAdjuster)
       AdjustedArgs.push_back("-fcheckedc-convert-tool");
     return AdjustedArgs;
   };
@@ -181,6 +182,7 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
   BaseDir = CCopt.BaseDir;
   AllTypes = CCopt.EnableAllTypes;
   AddCheckedRegions = CCopt.AddCheckedRegions;
+  DisableCCTypeChecker = CCopt.DisableCCTypeChecker;
 
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();
