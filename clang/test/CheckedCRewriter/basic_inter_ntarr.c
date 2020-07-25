@@ -33,11 +33,7 @@ int func(int *ptr, int *iptr, int *wild) {
   wild = (int*)0xdeadbeef;
   return 0;
 }
-<<<<<<< HEAD
-//CHECK: int func(_Array_ptr<int> ptr, int *iptr : itype(_Ptr<int>), int *wild) {
-=======
 //CHECK: int func(int *ptr : itype(_Array_ptr<int>), int *iptr : itype(_Ptr<int>), int *wild) {
->>>>>>> origin/BigRefactor
 
 int main() {
   int a, b, c;
@@ -70,11 +66,7 @@ int main() {
 }
 //CHECK: int main() {
 //CHECK-NEXT: int a, b, c;
-<<<<<<< HEAD
-//CHECK-NEXT: _Array_ptr<int> ap = 0;
-=======
 //CHECK-NEXT: int *ap =  0;
->>>>>>> origin/BigRefactor
 //CHECK-NEXT: int *bp = 0;
 //CHECK-NEXT: int *cp = 0;
 //CHECK-NEXT: char *ap1 = 0;

@@ -2,14 +2,9 @@
 //
 // Checks properties of functions.
 //
-<<<<<<< HEAD
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-// RUN: cconv-standalone %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
-=======
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK","CHECK_NOALL","CHECK-NEXT" %s
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK","CHECK_ALL","CHECK-NEXT" %s
 // RUN: cconv-standalone %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
->>>>>>> origin/BigRefactor
 // expected-no-diagnostics
 void what(const char *s, int q); 
 //CHECK_NOALL: void what(const char *s, int q);

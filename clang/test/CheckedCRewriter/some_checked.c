@@ -1,11 +1,7 @@
 // Tests for the Checked C rewriter tool.
 //
 // RUN: cconv-standalone %s -- -fcheckedc-extension | FileCheck -match-full-lines %s
-<<<<<<< HEAD
-// RUN: cconv-standalone %s -- -fcheckedc-extension | %clang_cc1 -verify -fcheckedc-extension -x c -
-=======
 // RUN: cconv-standalone %s -- -fcheckedc-extension | %clang_cc1  -verify -fcheckedc-extension -x c -
->>>>>>> origin/BigRefactor
 // expected-no-diagnostics
 //
 

@@ -3,11 +3,7 @@
 // Checks for conversions involving const-qualified types.
 //
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-<<<<<<< HEAD
-// RUN: cconv-standalone %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
-=======
 // RUN: cconv-standalone %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
->>>>>>> origin/BigRefactor
 // expected-no-diagnostics
 
 void cst1(const int *a) {

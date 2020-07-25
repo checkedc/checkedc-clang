@@ -5,10 +5,7 @@
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
 //
 
-<<<<<<< HEAD
-=======
 unsigned long strlen(const char *s : itype(_Nt_array_ptr<const char>)) ;
->>>>>>> origin/BigRefactor
 char *strstr(const char *s1 : itype(_Nt_array_ptr<const char>),
              const char *s2 : itype(_Nt_array_ptr<const char>)) : itype(_Nt_array_ptr<char>);
 // This tests the propagation of constraints

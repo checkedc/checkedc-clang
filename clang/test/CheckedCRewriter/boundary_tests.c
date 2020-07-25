@@ -1,11 +1,7 @@
 // Tests for Checked C rewriter tool.
 //
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-<<<<<<< HEAD
-// RUN: cconv-standalone %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
-=======
 // RUN: cconv-standalone %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
->>>>>>> origin/BigRefactor
 // expected-no-diagnostics
 
 void do_something(int *a, int b) {

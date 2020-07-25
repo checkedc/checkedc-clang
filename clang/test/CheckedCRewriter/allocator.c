@@ -3,11 +3,7 @@
 // Tests for malloc and friends. 
 //
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-<<<<<<< HEAD
-// RUN: cconv-standalone %s -- | %clang_cc1 -fno-builtin -verify -fcheckedc-extension -x c -
-=======
 // RUN: cconv-standalone %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
->>>>>>> origin/BigRefactor
 // expected-no-diagnostics
 //
 typedef __SIZE_TYPE__ size_t;
