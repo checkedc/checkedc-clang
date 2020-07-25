@@ -6,7 +6,7 @@
 <<<<<<< HEAD
 // RUN: cconv-standalone %s -- | %clang_cc1 -fno-builtin -verify -fcheckedc-extension -x c -
 =======
-// RUN: cconv-standalone %s -- | %clang_cc1 -fignore-checkedc-pointers -fno-builtin -verify -fcheckedc-extension -x c -
+// RUN: cconv-standalone %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
 >>>>>>> origin/BigRefactor
 // expected-no-diagnostics
 //

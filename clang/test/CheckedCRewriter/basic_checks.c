@@ -9,7 +9,7 @@
 =======
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK","CHECK_NEXT" %s
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK","CHECK-NEXT" %s
-// RUN: cconv-standalone %s -- | %clang_cc1 -fignore-checkedc-pointers -verify -fcheckedc-extension -x c -
+// RUN: cconv-standalone %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
 >>>>>>> origin/BigRefactor
 // expected-no-diagnostics
 //
