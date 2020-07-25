@@ -42,18 +42,18 @@ public:
 
   // Helper methods for adding bounds information to various
   // declaration objects.
-  bool addBoundsInformation(FieldDecl *ArrFD, FieldDecl *LenFD);
-  bool addBoundsInformation(FieldDecl *ArrFD, Expr *E);
-  bool addBoundsInformation(FieldDecl *ArrFD, BOUNDSINFOTYPE Binfo);
+  bool addBoundsInformation(FieldDecl *ArrFd, FieldDecl *LenFD);
+  bool addBoundsInformation(FieldDecl *ArrFd, Expr *E);
+  bool addBoundsInformation(FieldDecl *ArrFd, BOUNDSINFOTYPE Binfo);
 
   // For function parameters.
-  bool addBoundsInformation(ParmVarDecl *ArrFD, ParmVarDecl *LenFD);
-  bool addBoundsInformation(ParmVarDecl *ArrFD, BOUNDSINFOTYPE Binfo);
+  bool addBoundsInformation(ParmVarDecl *ArrFd, ParmVarDecl *LenFd);
+  bool addBoundsInformation(ParmVarDecl *ArrFd, BOUNDSINFOTYPE Binfo);
 
   // For local variables.
-  bool addBoundsInformation(VarDecl *ArrFD, VarDecl *LenFD);
-  bool addBoundsInformation(VarDecl *ArrFD, Expr *E);
-  bool addBoundsInformation(VarDecl *ArrFD, BOUNDSINFOTYPE Binfo);
+  bool addBoundsInformation(VarDecl *ArrFd, VarDecl *LenFd);
+  bool addBoundsInformation(VarDecl *ArrFd, Expr *E);
+  bool addBoundsInformation(VarDecl *ArrFd, BOUNDSINFOTYPE Binfo);
 
   // Remove all the bounds information for the provided declaration.
   bool removeBoundsInformation(Decl *D);
@@ -77,14 +77,13 @@ public:
                                    std::string OpStr);
 
 private:
-  // Get the constraint key of the top level pointer of provided declaration.
-  ConstraintKey getTopLevelConstraintVar(Decl *D);
 
   // Check if the provided bounds kind is valid for a field.
   bool isValidBoundKindForField(BoundsKind BoundsKind);
 
-  // Map that contains the bounds information.
-  std::map<ConstraintKey, std::set<BOUNDSINFOTYPE>> BoundsInfo;
+  // Map that contains the bounds information of pointers w.r.t
+  // their source loc.
+  std::map<PersistentSourceLoc, std::set<BOUNDSINFOTYPE>> BoundsInfo;
   ProgramInfo &Info;
 };
 

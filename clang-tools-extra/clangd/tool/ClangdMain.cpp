@@ -299,13 +299,6 @@ static llvm::cl::opt<bool> Verbose("verbose",
                                    llvm::cl::init(false),
                                    llvm::cl::cat(ConvertCategory));
 
-static llvm::cl::opt<bool>
-    SeperateMultipleFuncDecls("seperatefds",
-                              llvm::cl::desc("Do not merge multiple "
-                                             "declarations of functions."),
-                              llvm::cl::init(false),
-                              llvm::cl::cat(ConvertCategory));
-
 static llvm::cl::opt<std::string>
     OutputPostfix("output-postfix",
                   llvm::cl::desc("Postfix to add to the names of "
@@ -325,6 +318,20 @@ static llvm::cl::opt<bool> DumpStats("dump-stats",
                                      llvm::cl::init(false),
                                      llvm::cl::cat(ConvertCategory));
 
+static llvm::cl::opt<std::string>
+    OptStatsOutputJson("stats-output",
+                       llvm::cl::desc("Path to the file where all the stats "
+                                "will be dumped as json"),
+                       llvm::cl::init("TotalConstraintStats.json"),
+                       llvm::cl::cat(ConvertCategory));
+
+static llvm::cl::opt<std::string>
+    OptWildPtrInfoJson("wildptrstats-output",
+                       llvm::cl::desc("Path to the file where all the info "
+                                "related to WILD ptr will be dumped as json"),
+                       llvm::cl::init("WildPtrStats.json"),
+                       llvm::cl::cat(ConvertCategory));
+
 static llvm::cl::opt<bool>
     HandleVARARGS("handle-varargs",
                   llvm::cl::desc("Enable handling of varargs "
@@ -341,12 +348,7 @@ static llvm::cl::opt<bool>
                         llvm::cl::init(false),
                         llvm::cl::cat(ConvertCategory));
 
-static llvm::cl::opt<bool>
-    ConsiderAllocUnsafe("alloc-unsafe",
-                        llvm::cl::desc("Consider the allocators "
-                                       "(i.e., malloc/calloc) as unsafe."),
-                        llvm::cl::init(false),
-                        llvm::cl::cat(ConvertCategory));
+
 static llvm::cl::opt<bool>
     AllTypes("alltypes",
              llvm::cl::desc("Consider all Checked C types for "
@@ -434,6 +436,7 @@ int main(int argc, char *argv[]) {
     OS << clang::getClangToolFullVersion("clangd") << "\n";
   });
 
+
 #ifdef INTERACTIVECCCONV
   tooling::CommonOptionsParser OptionsParser(argc,
                                              (const char**)(argv),
@@ -442,7 +445,6 @@ int main(int argc, char *argv[]) {
   // Setup options.
   struct CConvertOptions CcOptions;
   CcOptions.BaseDir = BaseDir.getValue();
-  CcOptions.ConsiderAllocUnsafe = ConsiderAllocUnsafe;
   CcOptions.EnablePropThruIType = EnablePropThruIType;
   CcOptions.HandleVARARGS = HandleVARARGS;
   CcOptions.DumpStats = DumpStats;
@@ -450,7 +452,8 @@ int main(int argc, char *argv[]) {
   CcOptions.Verbose = Verbose;
   CcOptions.DumpIntermediate = DumpIntermediate;
   CcOptions.ConstraintOutputJson = ConstraintOutputJson.getValue();
-  CcOptions.SeperateMultipleFuncDecls = SeperateMultipleFuncDecls;
+  CcOptions.WildPtrInfoJson = OptWildPtrInfoJson.getValue();
+  CcOptions.StatsOutputJson = OptStatsOutputJson.getValue();
   CcOptions.AddCheckedRegions = AddCheckedRegions;
   CcOptions.EnableAllTypes = AllTypes;
 

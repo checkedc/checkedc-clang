@@ -3,34 +3,49 @@ set( LLVM_LINK_COMPONENTS
         Option
         Support
         )
-
-if (MSVC)
-  set_source_files_properties(RewriteUtils.cpp PROPERTIES COMPILE_FLAGS /bigobj)	
+if (LLVM_BOOST_FOUND)
+    if(NOT LLVM_ENABLE_RTTI)
+        message(ERROR "Linking Boost requires enabling rtti. Please use -DLLVM_ENABLE_RTTI=ON in cmake.")
+    else()
+        # This is to populate the boost link libraries.
+        add_clang_library(CConv
+          ABounds.cpp
+          AVarBoundsInfo.cpp
+          AVarGraph.cpp
+          ArrayBoundsInferenceConsumer.cpp
+          ArrayBoundsInformation.cpp
+          CastPlacement.cpp
+          CConv.cpp
+          CConvInteractiveData.cpp
+          CheckedRegions.cpp
+          ConstraintBuilder.cpp
+          ConstraintResolver.cpp
+          Constraints.cpp
+          ConstraintsGraph.cpp
+          ConstraintVariables.cpp
+          GatherTool.cpp
+          MappingVisitor.cpp
+          PersistentSourceLoc.cpp
+          ProgramInfo.cpp
+          ProgramVar.cpp
+          RewriteUtils.cpp
+          StructInit.cpp
+          Utils.cpp
+          LINK_LIBS
+          clangAST
+          clangAnalysis
+          clangBasic
+          clangDriver
+          clangFrontend
+          clangRewriteFrontend
+          clangStaticAnalyzerFrontend
+          clangTooling
+          clangToolingRefactoring
+          ${Boost_LIBRARIES}
+        )
+        add_subdirectory(unittests)
+	target_include_directories(obj.CConv PUBLIC ${Boost_INCLUDE_DIRS})
+    endif()
 endif()
 
-add_clang_library(CConv
-  ArrayBoundsInferenceConsumer.cpp
-  ArrayBoundsInformation.cpp
-  CConv.cpp
-  CConvInteractiveData.cpp
-  ConstraintBuilder.cpp
-  ConstraintVariables.cpp
-  Constraints.cpp
-  GatherTool.cpp
-  IterativeItypeHelper.cpp
-  MappingVisitor.cpp
-  PersistentSourceLoc.cpp
-  ProgramInfo.cpp
-  RewriteUtils.cpp
-  Utils.cpp
-  LINK_LIBS
-  clangAST
-  clangBasic
-  clangDriver
-  clangFrontend
-  clangRewriteFrontend
-  clangStaticAnalyzerFrontend
-  clangTooling
-)
 
-add_subdirectory(unittests)

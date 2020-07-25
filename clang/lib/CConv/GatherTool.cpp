@@ -9,8 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/RecursiveASTVisitor.h"
-
-#include "clang/AST/Type.h"
+#include "clang/CConv/ArrayBoundsInferenceConsumer.h"
 #include "clang/CConv/GatherTool.h"
 
 using namespace llvm;
@@ -31,8 +30,8 @@ public:
       auto &CS = Info.getConstraints();
       for (auto &Param : FD->parameters()) {
         bool IsWild = false;
-        std::set<ConstraintVariable *> Cvs = Info.getVariable(Param,
-                                                              Context, FD, Pi);
+        //std::set<ConstraintVariable *> Cvs = Info.getVariable(Context, FD, Pi);
+        std::set<ConstraintVariable *> Cvs = Info.getVariable(Param, Context);
         for (auto Cv : Cvs) {
           IsWild |= Cv->hasWild(CS.getVariables());
           // If this an extern function, then check if there is
@@ -40,7 +39,7 @@ public:
           if (AnExternFunction && !IsWild) {
             if (PVConstraint *PV = dyn_cast<PVConstraint>(Cv)) {
               for (auto cKey : PV->getCvars()) {
-                if (PV->canConstraintCKey(CS, cKey, CS.getWild(), true)) {
+                if (CS.getAssignment(cKey) == CS.getWild()) {
                   IsWild = true;
                   break;
                 }
@@ -65,6 +64,7 @@ private:
 
 void ArgGatherer::HandleTranslationUnit(ASTContext &Context) {
   Info.enterCompilationUnit(Context);
+  HandleArrayVariablesBoundsDetection(&Context, Info);
   ParameterGatherer PG(&Context, Info, MF);
   for (auto &D : Context.getTranslationUnitDecl()->decls()) {
     PG.TraverseDecl(D);

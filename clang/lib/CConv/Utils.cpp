@@ -28,26 +28,6 @@ const clang::Type *getNextTy(const clang::Type *Ty) {
     return Ty;
 }
 
-ConstraintVariable *getHighest(std::set<ConstraintVariable *> Vs,
-                               ProgramInfo &Info) {
-  if (Vs.size() == 0)
-    return nullptr;
-
-  ConstraintVariable *V = nullptr;
-
-  for (auto &P : Vs) {
-    if (V) {
-      if (V->isLt(*P, Info))
-        V = P;
-    } else {
-      V = P;
-    }
-  }
-
-  return V;
-}
-
-
 // Walk the list of declarations and find a declaration that is NOT
 // a definition and does NOT have a body.
 FunctionDecl *getDeclaration(FunctionDecl *FD) {
@@ -157,15 +137,10 @@ std::string getStorageQualifierString(Decl *D) {
 }
 
 bool isNULLExpression(clang::Expr *E, ASTContext &C) {
-  // This checks if the expression is NULL. Specifically, (void*)0
-  if (CStyleCastExpr *CS = dyn_cast<CStyleCastExpr>(E)) {
-    Expr *SE = CS->getSubExpr();
-
-    return SE->isIntegerConstantExpr(C) &&
-           SE->isNullPointerConstant(C,
-                                     Expr::NPC_ValueDependentIsNotNull);
-  }
-  return false;
+  QualType Typ = E->getType();
+  E = removeAuxillaryCasts(E);
+  return Typ->isPointerType() && E->isIntegerConstantExpr(C) &&
+         E->isNullPointerConstant(C,Expr::NPC_ValueDependentIsNotNull);
 }
 
 bool getAbsoluteFilePath(std::string FileName, std::string &AbsoluteFp) {
@@ -223,6 +198,20 @@ Expr *removeAuxillaryCasts(Expr *E) {
   return E;
 }
 
+//Expr *getNormalizedExpr(Expr *CE) {
+//  while (true) {
+//    if (CHKCBindTemporaryExpr *E = dyn_cast<CHKCBindTemporaryExpr>(CE)) {
+//      CE = E->getSubExpr();
+//      continue;
+//    }
+//    if (ParenExpr *E = dyn_cast <ParenExpr>(CE)) {
+//      CE = E->getSubExpr();
+//      continue;
+//    }
+//    break;
+//  }
+//  return CE;
+//}
 
 bool isTypeHasVoid(clang::QualType QT) {
   const clang::Type *CurrType = QT.getTypePtrOrNull();
@@ -249,6 +238,80 @@ bool hasVoidType(clang::ValueDecl *D) {
   return isTypeHasVoid(D->getType());
 }
 
+//// Check the equality of VTy and UTy. There are some specific rules that
+//// fire, and a general check is yet to be implemented.
+//bool checkStructuralEquality(std::set<ConstraintVariable *> V,
+//                                          std::set<ConstraintVariable *> U,
+//                                          QualType VTy,
+//                                          QualType UTy)
+//{
+//  // First specific rule: Are these types directly equal?
+//  if (VTy == UTy) {
+//    return true;
+//  } else {
+//    // Further structural checking is TODO.
+//    return false;
+//  }
+//}
+//
+//bool checkStructuralEquality(QualType D, QualType S) {
+//  if (D == S)
+//    return true;
+//
+//  return D->isPointerType() == S->isPointerType();
+//}
+
+static bool CastCheck(clang::QualType DstType,
+                      clang::QualType SrcType) {
+
+  // Check if both types are same.
+  if (SrcType == DstType)
+    return true;
+
+  const clang::Type *SrcTypePtr = SrcType.getCanonicalType().getTypePtr();
+  const clang::Type *DstTypePtr = DstType.getCanonicalType().getTypePtr();
+
+  const clang::PointerType *SrcPtrTypePtr =
+      dyn_cast<clang::PointerType>(SrcTypePtr);
+  const clang::PointerType *DstPtrTypePtr =
+      dyn_cast<clang::PointerType>(DstTypePtr);
+
+  // Both are pointers? check their pointee
+  if (SrcPtrTypePtr && DstPtrTypePtr) {
+    return (SrcPtrTypePtr->isVoidPointerType()) ||
+        CastCheck(DstPtrTypePtr->getPointeeType(),
+                  SrcPtrTypePtr->getPointeeType());
+  }
+
+  if (SrcPtrTypePtr || DstPtrTypePtr)
+    return false;
+
+  // If both are not scalar types? Then the types must be exactly same.
+  if (!(SrcTypePtr->isScalarType() && DstTypePtr->isScalarType()))
+    return SrcTypePtr == DstTypePtr;
+
+  // Check if both types are compatible.
+  bool BothNotChar = SrcTypePtr->isCharType() ^ DstTypePtr->isCharType();
+  bool BothNotInt =
+      (SrcTypePtr->isIntegerType() && SrcTypePtr->isUnsignedIntegerType())
+      ^ (DstTypePtr->isIntegerType() && DstTypePtr->isUnsignedIntegerType());
+  bool BothNotFloat =
+      SrcTypePtr->isFloatingType() ^ DstTypePtr->isFloatingType();
+
+  return !(BothNotChar || BothNotInt || BothNotFloat);
+}
+
+bool isCastSafe(clang::QualType DstType,
+                clang::QualType SrcType) {
+  const clang::Type *DstTypePtr = DstType.getTypePtr();
+  const clang::PointerType *DstPtrTypePtr =
+      dyn_cast<clang::PointerType>(DstTypePtr);
+  if (!DstPtrTypePtr) // Safe to cast to a non-pointer.
+    return true;
+  else
+    return CastCheck(DstType,SrcType);
+}
+
 bool canWrite(const std::string &FilePath) {
   // Was this file explicitly provided on the command line?
   if (FilePaths.count(FilePath) > 0)
@@ -259,51 +322,48 @@ bool canWrite(const std::string &FilePath) {
   getAbsoluteFilePath(FilePath, fileAbsPath);
   return fileAbsPath.rfind(BaseDir, 0) == 0;
 }
-#define MAX_VAR_LEN 35
 
-static int
-lcsMemoization(std::string Str1, std::string Str2, int Str1Len,
-               int Str2Len, int Mem[][MAX_VAR_LEN]) {
-  // base case
-  if (Str1Len == 0 || Str2Len == 0)
-    return 0;
-
-  // if the same state has already been
-  // computed
-  if (Mem[Str1Len - 1][Str2Len - 1] != -1)
-    return Mem[Str1Len - 1][Str2Len - 1];
-
-  // if equal, then we store the value of the
-  // function call
-  if (Str1[Str1Len - 1] == Str2[Str2Len - 1]) {
-    // store it in arr to avoid further repetitive
-    // work in future function calls
-    Mem[Str1Len - 1][Str2Len - 1] =
-        1 + lcsMemoization(Str1, Str2, Str1Len - 1, Str2Len - 1, Mem);
-
-    return Mem[Str1Len - 1][Str2Len - 1];
-  } else {
-
-    // store it in arr to avoid further repetitive
-    // work in future function calls
-    Mem[Str1Len - 1][Str2Len - 1] =
-        std::max(lcsMemoization(Str1, Str2, Str1Len, Str2Len - 1, Mem),
-                 lcsMemoization(Str1, Str2, Str1Len - 1, Str2Len, Mem));
-
-    return Mem[Str1Len - 1][Str2Len - 1];
+bool isInSysHeader(clang::Decl *D) {
+  if (D != nullptr) {
+    auto &C = D->getASTContext();
+    FullSourceLoc FL = C.getFullLoc(D->getBeginLoc());
+    return FL.isInSystemHeader();
   }
+  return false;
+}
+
+std::string getSourceText(const clang::SourceRange &SR,
+                          const clang::ASTContext &C) {
+  assert(SR.isValid() && "Invalid Source Range requested.");
+  auto &SM = C.getSourceManager();
+  auto LO = C.getLangOpts();
+  llvm::StringRef Srctxt =
+      Lexer::getSourceText(CharSourceRange::getTokenRange(SR), SM, LO);
+  return Srctxt.str();
 }
 
 unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
-                                  unsigned Str1Len, unsigned Str2Len) {
-  int Mem[MAX_VAR_LEN][MAX_VAR_LEN];
+                                  unsigned long Str1Len, unsigned long Str2Len) {
+  if (Str1Len == 0 || Str2Len == 0)
+    return 0;
+  if (Str1[Str1Len - 1] == Str2[Str2Len - 1])
+    return 1 + longestCommonSubsequence(Str1, Str2, Str1Len - 1, Str2Len - 1);
+  else
+    return std::max(longestCommonSubsequence(Str1, Str2, Str1Len, Str2Len - 1),
+                    longestCommonSubsequence(Str1, Str2, Str1Len - 1, Str2Len));
+}
 
-  // assign -1 to all positions
-  memset(Mem, -1, sizeof(Mem));
-
-  // We expect the variable
-  assert(Str1Len < MAX_VAR_LEN &&
-         Str2Len < MAX_VAR_LEN && "Insufficient memory");
-
-  return lcsMemoization(Str1, Str2, Str1Len, Str2Len, Mem);
+// Get the type variable used in a parameter declaration, or return null if no
+// type variable is used.
+const TypeVariableType *getTypeVariableType(DeclaratorDecl *Decl){
+  // This makes a lot of assumptions about how the AST will look.
+  if (auto *ITy = Decl->getInteropTypeExpr()){
+    const auto *Ty = ITy->getType().getTypePtr();
+    if (Ty && Ty->isPointerType()) {
+      auto *PtrTy = Ty->getPointeeType().getTypePtr();
+      if (auto *TypdefTy = dyn_cast_or_null<TypedefType>(PtrTy))
+        return dyn_cast<TypeVariableType>(TypdefTy->desugar());
+    }
+  }
+  return nullptr;
 }

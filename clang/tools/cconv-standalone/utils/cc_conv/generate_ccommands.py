@@ -15,6 +15,8 @@ INDIVIDUAL_COMMANDS_FILE = os.path.realpath("convert_individual.sh")
 # file in which the total commands will be stored.
 TOTAL_COMMANDS_FILE = os.path.realpath("convert_all.sh")
 
+VSCODE_SETTINGS_JSON = os.path.realpath("settings.json")
+
 # to separate multiple commands in a line
 CMD_SEP = " &"
 DEFAULT_ARGS = ["-dump-stats", "-output-postfix=checked", "-dump-intermediate"]
@@ -22,18 +24,46 @@ if os.name == "nt":
     DEFAULT_ARGS.append("-extra-arg-before=--driver-mode=cl")
     CMD_SEP = " ;"
 
+class VSCodeJsonWriter():
+    def __init__(self):
+        self.clangd_path = ""
+        self.args = []
 
-def getCheckedCArgs(argument_list, work_dir):
+    def setClangdPath(self, cdpath):
+        self.clangd_path = cdpath
+
+    def addClangdArg(self, arg):
+        if isinstance(arg, list):
+            self.args.extend(arg)
+        else:
+            self.args.append(arg)
+
+    def writeJsonFile(self, outputF):
+        fp = open(outputF, "w")
+        fp.write("{\"clangd.path\":\"" + self.clangd_path + "\",\n")
+        fp.write("\"clangd.arguments\": [\n")
+        argsstrs = map(lambda x : "\"" + x + "\"", self.args)
+        argsstrs = ",\n".join(argsstrs)
+        fp.write(argsstrs)
+        fp.write("]\n")
+        fp.write("}")
+        fp.close()
+
+def getCheckedCArgs(argument_list, checkedc_include_dir, work_dir):
     """
       Convert the compilation arguments (include folder and #defines)
       to checked C format.
     :param argument_list: list of compiler argument.
+    :param checkedc_include_dir: Directory in which Checked C header files are located.
     :param work_dir: Path to the working directory from which
                      the compilation command was run.
     :return: checked c args
     """
     clang_x_args = []
-    for curr_arg in argument_list:
+    new_arg_list = []
+    new_arg_list.extend(argument_list)
+    new_arg_list.append("-I" + checkedc_include_dir)
+    for curr_arg in new_arg_list:
         if curr_arg.startswith("-D") or curr_arg.startswith("-I"):
             if curr_arg.startswith("-I"):
                 # if this is relative path,
@@ -59,7 +89,7 @@ def tryFixUp(s):
     return
 
 
-def runCheckedCConvert(checkedc_bin, compile_commands_json, run_individual=False):
+def runCheckedCConvert(checkedc_bin, compile_commands_json, checkedc_include_dir, run_individual=False):
     global INDIVIDUAL_COMMANDS_FILE
     global TOTAL_COMMANDS_FILE
     runs = 0
@@ -93,7 +123,7 @@ def runCheckedCConvert(checkedc_bin, compile_commands_json, run_individual=False
             # BEAR. Need to add directory.
             file_to_add = i['directory'] + SLASH + file_to_add
             # get the checked-c-convert and compiler arguments
-            compiler_x_args = getCheckedCArgs(i["arguments"], i['directory'])
+            compiler_x_args = getCheckedCArgs(i["arguments"], checkedc_include_dir, i['directory'])
             total_x_args.extend(compiler_x_args)
             # get the directory used during compilation.
             target_directory = i['directory']
@@ -139,12 +169,21 @@ def runCheckedCConvert(checkedc_bin, compile_commands_json, run_individual=False
     f.close()
     logging.debug("Saved all the individual commands into the file:" + INDIVIDUAL_COMMANDS_FILE)
 
+    vcodewriter = VSCodeJsonWriter()
+    # get path to icconv
+    vcodewriter.setClangdPath(os.path.join(os.path.dirname(prog_name), "icconv"))
     args = []
     args.append(prog_name)
     args.extend(DEFAULT_ARGS)
     args.extend(list(set(total_x_args)))
+    vcodewriter.addClangdArg("-log=verbose")
+    vcodewriter.addClangdArg(args[1:])
     args.append('-base-dir="' + compilation_base_dir + '"')
+    vcodewriter.addClangdArg('-base-dir=' + compilation_base_dir)
     args.extend(list(set(all_files)))
+    vcodewriter.addClangdArg(list(set(all_files)))
+    vcodewriter.writeJsonFile(VSCODE_SETTINGS_JSON)
+
     f = open(TOTAL_COMMANDS_FILE, 'w')
     f.write(" \\\n".join(args))
     f.close()
@@ -153,4 +192,9 @@ def runCheckedCConvert(checkedc_bin, compile_commands_json, run_individual=False
         logging.info("Running:" + str(' '.join(args)))
         subprocess.check_call(' '.join(args), shell=True)
     logging.debug("Saved the total command into the file:" + TOTAL_COMMANDS_FILE)
+    os.system("cp " + TOTAL_COMMANDS_FILE + " " + os.path.join(compilation_base_dir, os.path.basename(TOTAL_COMMANDS_FILE)))
+    logging.debug("Saved to:" + os.path.join(compilation_base_dir, os.path.basename(TOTAL_COMMANDS_FILE)))
+    os.system("cp " + INDIVIDUAL_COMMANDS_FILE + " " + os.path.join(compilation_base_dir, os.path.basename(INDIVIDUAL_COMMANDS_FILE)))
+    logging.debug("Saved to:" + os.path.join(compilation_base_dir, os.path.basename(INDIVIDUAL_COMMANDS_FILE)))
+    logging.debug("VSCode Settings json saved to:" + VSCODE_SETTINGS_JSON)
     return

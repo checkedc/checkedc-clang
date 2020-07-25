@@ -90,7 +90,7 @@ if __name__ == "__main__":
     logging.info("Finished updating project files.")
 
     logging.info("Trying to convert all the source files to header files")
-    runCheckedCConvert(progArgs.prog_name, compileCmdsJson)
+    runCheckedCConvert(progArgs.prog_name, compileCmdsJson, progArgs.includeDir)
     logging.info("Finished converting all the files to checkedc files.")
 
 
