@@ -68,7 +68,7 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
               const TypeVariableType
                   *TyVar = getTypeVariableType(FD->getParamDecl(i));
               if (TyVar && TypeVars.find(TyVar->GetIndex()) != TypeVars.end()
-                  && TypeVars[TyVar->GetIndex()] != "void")
+                  && TypeVars[TyVar->GetIndex()] != nullptr)
                 ArgumentConstraints =
                     CR.getExprConstraintVars(A->IgnoreImpCasts());
               else

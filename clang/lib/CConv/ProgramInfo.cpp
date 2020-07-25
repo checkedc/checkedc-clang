@@ -937,14 +937,14 @@ ProgramInfo::computeInterimConstraintState(std::set<std::string> &FilePaths) {
 }
 
 void ProgramInfo::setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
-                                      std::string TyStr, ASTContext *C) {
+                                      ConstraintVariable *CV, ASTContext *C) {
 
   auto PSL = PersistentSourceLoc::mkPSL(CE, *C);
   auto CallMap = TypeParamBindings[PSL];
   assert("Attempting to overwrite type param binding in ProgramInfo."
              && CallMap.find(TypeVarIdx) == CallMap.end());
 
-  TypeParamBindings[PSL][TypeVarIdx] = TyStr;
+  TypeParamBindings[PSL][TypeVarIdx] = CV;
 }
 
 bool ProgramInfo::hasTypeParamBindings(CallExpr *CE, ASTContext *C) {

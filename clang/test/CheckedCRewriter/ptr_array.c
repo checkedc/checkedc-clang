@@ -25,7 +25,7 @@ void test1(int *a) {
 
   int *b[1] = {a};
   // CHECK_NOALL: int *b[1] = {a};
-  // CHECK_ALL:   int* b _Checked[1] =  {a};
+  // CHECK_ALL:   int * b _Checked[1] =  {a};
 }
 
 // Example from from the issue
@@ -38,7 +38,7 @@ int *foo() {
   int z = 3;
   int *ptrs[4] = { &x, &y, &z, (int *)5 };
   // CHECK_NOALL: int *ptrs[4] = { &x, &y, &z, (int *)5 };
-  // CHECK_ALL:   int* ptrs _Checked[4] =  { &x, &y, &z, (int *)5 };
+  // CHECK_ALL:   int * ptrs _Checked[4] =  { &x, &y, &z, (int *)5 };
   int *ret;
   // CHECK_NOALL: int *ret;
   // CHECK_ALL:   int *ret;

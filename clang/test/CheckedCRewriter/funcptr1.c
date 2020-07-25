@@ -6,7 +6,7 @@ void f(int *(*fp)(int *)) {
   int *z = (int *)5;
   z = fp(x);
 }
-//CHECK: void f(_Ptr<int* (int *)> fp) {
+//CHECK: void f(_Ptr<int * (int *)> fp) {
 
 int *g(int *x) {
   x = (int *)5;
