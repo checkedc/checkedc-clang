@@ -131,7 +131,6 @@ void rewrite( VarDecl               *VD,
 // of turning a single line declaration into a multi-line declaration.
 void rewrite( Rewriter              &R,
               RSet                  &ToRewrite,
-              RSet                  &Skip,
               SourceManager         &S,
               ASTContext            &A,
               std::set<FileID>      &Files,
@@ -159,17 +158,14 @@ public:
           : Context(C), Info(I), rewriteThese(DR), VisitedSet(V),
             ModifiedFuncSignatures(newFuncSig), ABRewriter(ArrRewriter) {}
 
-  bool VisitCallExpr(CallExpr *);
   bool VisitFunctionDecl(FunctionDecl *);
   bool isFunctionVisited(std::string FuncName);
 private:
-  std::set<unsigned int> getParamsForExtern(std::string);
   // Get existing itype string from constraint variables.
   // if tries to get the string from declaration, however,
   // if there is no declaration of the function,
   // it will try to get it from the definition.
   std::string getExistingIType(ConstraintVariable *DeclC);
-  bool anyTop(CVarSet);
   ASTContext            *Context;
   ProgramInfo           &Info;
   RSet                  &rewriteThese;
@@ -181,8 +177,7 @@ private:
 
 class RewriteConsumer : public ASTConsumer {
 public:
-  explicit RewriteConsumer(ProgramInfo &I, ASTContext *Context,
-                           std::string &OPostfix) :
+  explicit RewriteConsumer(ProgramInfo &I, std::string &OPostfix) :
                            Info(I), OutputPostfix(OPostfix) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context);

@@ -10,7 +10,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/CConv/ArrayBoundsInferenceConsumer.h"
 #include "clang/CConv/CastPlacement.h"
 #include "clang/CConv/CCGlobalOptions.h"
 #include "clang/CConv/CheckedRegions.h"
@@ -31,7 +30,7 @@ SourceRange DComp::getWholeSR(SourceRange Orig, DAndReplace Dr) const {
 
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(Dr.Declaration)) {
     newSourceRange.setEnd(getFunctionDeclarationEnd(FD, SM));
-    if (Dr.fullDecl == false)
+    if (!Dr.fullDecl)
       newSourceRange = FD->getReturnTypeSourceRange();
   }
 
@@ -127,14 +126,13 @@ bool DComp::operator()(const DAndReplace Lhs, const DAndReplace Rhs) const {
 void GlobalVariableGroups::addGlobalDecl(VarDecl *VD,
                                          std::set<VarDecl *> *VDSet) {
   if (VD && globVarGroups.find(VD) == globVarGroups.end()) {
-    if (VDSet == nullptr) {
+    if (VDSet == nullptr)
       VDSet = new std::set<VarDecl *>();
-    }
     VDSet->insert(VD);
     globVarGroups[VD] = VDSet;
     // Process the next decl.
     Decl *NDecl = VD->getNextDeclInContext();
-    if (NDecl && dyn_cast<VarDecl>(NDecl)) {
+    if (isa_and_nonnull<VarDecl>(NDecl)) {
       PresumedLoc OrigDeclLoc =
           SM.getPresumedLoc(VD->getSourceRange().getBegin());
       PresumedLoc NewDeclLoc =
@@ -150,7 +148,8 @@ void GlobalVariableGroups::addGlobalDecl(VarDecl *VD,
 
 std::set<VarDecl *> &GlobalVariableGroups::getVarsOnSameLine(VarDecl *VD) {
   assert (globVarGroups.find(VD) != globVarGroups.end() &&
-         "Expected to find the group."); return *(globVarGroups[VD]);
+         "Expected to find the group.");
+  return *(globVarGroups[VD]);
 }
 
 GlobalVariableGroups::~GlobalVariableGroups() {
@@ -174,6 +173,18 @@ static bool canRewrite(Rewriter &R, SourceRange &SR) {
   return SR.isValid() && (R.getRangeSize(SR) != -1);
 }
 
+unsigned int getParameterIndex(ParmVarDecl *PV, FunctionDecl *FD) {
+  // This is kind of hacky, maybe we should record the index of the
+  // parameter when we find it, instead of re-discovering it here.
+  unsigned int PIdx = 0;
+  for (const auto &I : FD->parameters()) {
+    if (I == PV)
+      return PIdx;
+    PIdx++;
+  }
+  llvm_unreachable("Parameter declaration not found in function declaration.");
+}
+
 void rewrite(ParmVarDecl *PV, Rewriter &R, std::string SRewrite) {
   // First, find all the declarations of the containing function.
   DeclContext *DF = PV->getParentFunctionOrMethod();
@@ -183,34 +194,18 @@ void rewrite(ParmVarDecl *PV, Rewriter &R, std::string SRewrite) {
   // For each function, determine which parameter in the declaration
   // matches PV, then, get the type location of that parameter
   // declaration and re-write.
+  unsigned int PIdx = getParameterIndex(PV, FD);
 
-  // This is kind of hacky, maybe we should record the index of the
-  // parameter when we find it, instead of re-discovering it here.
-  int PIdx = -1;
-  int c = 0;
-  for (const auto &I : FD->parameters()) {
-    if (I == PV) {
-      PIdx = c;
-      break;
-    }
-    c++;
-  }
-  assert(PIdx >= 0);
-
-  for (FunctionDecl *toRewrite = FD; toRewrite != nullptr;
-       toRewrite = toRewrite->getPreviousDecl()) {
-    int U = toRewrite->getNumParams();
-    if (PIdx < U) {
-      // TODO these declarations could get us into deeper
-      // Header files.
-      ParmVarDecl *Rewrite = toRewrite->getParamDecl(PIdx);
+  for (auto *CurFD = FD; CurFD != nullptr; CurFD = CurFD->getPreviousDecl())
+    if (PIdx < CurFD->getNumParams()) {
+      // TODO these declarations could get us into deeper header files.
+      ParmVarDecl *Rewrite = CurFD->getParamDecl(PIdx);
       assert(Rewrite != nullptr);
       SourceRange TR = Rewrite->getSourceRange();
 
       if (canRewrite(R, TR))
         R.ReplaceText(TR, SRewrite);
     }
-  }
 }
 
 bool areDeclarationsOnSameLine(VarDecl *VD1, DeclStmt *Stmt1, VarDecl *VD2,
@@ -239,12 +234,11 @@ bool isSingleDeclaration(VarDecl *VD, DeclStmt *Stmt, GlobalVariableGroups &GP) 
 
 void getDeclsOnSameLine(VarDecl *VD, DeclStmt *Stmt, GlobalVariableGroups &GP,
                         std::set<Decl *> &Decls) {
-  if (Stmt != nullptr) {
+  if (Stmt != nullptr)
     Decls.insert(Stmt->decls().begin(), Stmt->decls().end());
-  } else {
+  else
     Decls.insert(GP.getVarsOnSameLine(VD).begin(),
                  GP.getVarsOnSameLine(VD).end());
-  }
 }
 
 SourceLocation deleteAllDeclarationsOnLine(VarDecl *VD, DeclStmt *Stmt,
@@ -258,7 +252,7 @@ SourceLocation deleteAllDeclarationsOnLine(VarDecl *VD, DeclStmt *Stmt,
     SourceLocation BLoc;
     SourceManager &SM = R.getSourceMgr();
     // Remove all vars on the line.
-    for (auto D : GP.getVarsOnSameLine(VD)) {
+    for (auto *D : GP.getVarsOnSameLine(VD)) {
       SourceRange ToDel = D->getSourceRange();
       if (BLoc.isInvalid() ||
           SM.isBeforeInTranslationUnit(ToDel.getBegin(), BLoc))
@@ -485,30 +479,6 @@ void rewrite( Rewriter              &R,
   }
 }
 
-
-// For a given function name, what are the argument positions for that function
-// that we would want to treat specially and insert a cast into?
-std::set<unsigned int> TypeRewritingVisitor::getParamsForExtern(std::string E) {
-  return StringSwitch<std::set<unsigned int>>(E)
-          .Case("free", {0})
-          .Default(std::set<unsigned int>());
-}
-
-// Checks the bindings in the environment for all of the constraints
-// associated with C and returns true if any of those constraints
-// are WILD.
-bool TypeRewritingVisitor::anyTop(CVarSet C) {
-  bool TopFound = false;
-  Constraints &CS = Info.getConstraints();
-  EnvironmentMap &env = CS.getVariables();
-  for (ConstraintVariable *c : C) {
-    if (PointerVariableConstraint *pvc = dyn_cast<PointerVariableConstraint>(c)) {
-      TopFound = pvc->hasWild(env);
-    }
-  }
-  return TopFound;
-}
-
 std::string TypeRewritingVisitor::getExistingIType(ConstraintVariable *DeclC) {
   std::string Ret = "";
   ConstraintVariable *T = DeclC;
@@ -569,7 +539,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   std::vector<std::string> ParmStrs;
   // Compare parameters.
   for (unsigned i = 0; i < Defnc->numParams(); ++i) {
-    auto Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getParamVar(i)));
+    auto *Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getParamVar(i)));
     assert(Defn);
     bool ParameterHandled = false;
 
@@ -686,7 +656,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
   if (DidAny) {
     // Do all of the declarations.
-    for (const auto &RD : Definition->redecls())
+    for (auto *const RD : Definition->redecls())
       rewriteThese.insert(DAndReplace(RD, s, true));
     // Save the modified function signature.
     if(isStatic) { 
@@ -699,10 +669,6 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     }
   }
 
-  return true;
-}
-
-bool TypeRewritingVisitor::VisitCallExpr(CallExpr *E) {
   return true;
 }
 
@@ -795,8 +761,7 @@ public:
     // When an compound literal was visited in constraint generation, a
     // constraint variable for it was stored in program info.  There should be
     // either zero or one of these.
-    CVarSet
-        CVSingleton = Info.getPersistentConstraintVars(CLE, Context);
+    CVarSet CVSingleton = Info.getPersistentConstraintVars(CLE, Context);
     if (CVSingleton.empty())
       return true;
     ConstraintVariable *CV = getOnly(CVSingleton);
@@ -973,10 +938,9 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   SourceToDeclMapType PSLMap;
   VariableDecltoStmtMap VDLToStmtMap;
 
-  RSet skip(DComp(Context.getSourceManager()));
-  MappingVisitor V(keys, Context);
+  MappingVisitor MV(keys, Context);
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
-  StructVariableInitializer FV =
+  StructVariableInitializer SVI =
       StructVariableInitializer(&Context, Info, RewriteThese);
   GlobalVariableGroups GVG(R.getSourceMgr());
   std::set<llvm::FoldingSetNodeID> seen;
@@ -986,9 +950,9 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   CastPlacementVisitor ECPV(&Context, Info, R);
   CompoundLiteralRewriter CLR(&Context, Info, R);
   TypeArgumentAdder TPA(&Context, Info, R);
-  for (auto &D : TUD->decls()) {
-    V.TraverseDecl(D);
-    FV.TraverseDecl(D);
+  for (const auto &D : TUD->decls()) {
+    MV.TraverseDecl(D);
+    SVI.TraverseDecl(D);
     ECPV.TraverseDecl(D);
     if (AddCheckedRegions) {
       // Adding checked regions enabled!?
@@ -1001,7 +965,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
     TPA.TraverseDecl(D);
   }
 
-  std::tie(PSLMap, VDLToStmtMap) = V.getResults();
+  std::tie(PSLMap, VDLToStmtMap) = MV.getResults();
 
   for (const auto &V : Info.getVarMap()) {
     PersistentSourceLoc PLoc = V.first;
@@ -1062,7 +1026,8 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
     }
   }
 
-  rewrite(R, RewriteThese, skip, Context.getSourceManager(),
+  RSet Skip(DComp(Context.getSourceManager()));
+  rewrite(R, RewriteThese, Skip, Context.getSourceManager(),
           Context, Files, GVG);
 
   // Output files.
