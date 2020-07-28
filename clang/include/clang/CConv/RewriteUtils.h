@@ -109,33 +109,6 @@ private:
   std::map<VarDecl *, std::set<VarDecl *>*> globVarGroups;
 };
 
-void rewrite(ParmVarDecl *PV, Rewriter &R, std::string SRewrite);
-
-void rewrite( VarDecl               *VD,
-              Rewriter              &R,
-              std::string SRewrite,
-              Stmt                  *WhereStmt,
-              RSet                  &skip,
-              const DAndReplace     &N,
-              RSet                  &ToRewrite,
-              ASTContext            &A,
-              GlobalVariableGroups  &GP);
-
-// Visit each Decl in toRewrite and apply the appropriate pointer type
-// to that Decl. The state of the rewrite is contained within R, which
-// is both input and output. R is initialized to point to the 'main'
-// source file for this transformation. toRewrite contains the set of
-// declarations to rewrite. S is passed for source-level information
-// about the current compilation unit. skip indicates some rewrites that
-// we should skip because we already applied them, for example, as part
-// of turning a single line declaration into a multi-line declaration.
-void rewrite( Rewriter              &R,
-              RSet                  &ToRewrite,
-              SourceManager         &S,
-              ASTContext            &A,
-              std::set<FileID>      &Files,
-              GlobalVariableGroups  &GP);
-
 // Class that handles rewriting bounds information for all the
 // detected array variables.
 class ArrayBoundsRewriter {
@@ -147,6 +120,7 @@ private:
   ASTContext *Context;
   ProgramInfo &Info;
 };
+
 
 // Class for visiting declarations of variables and adding type annotations
 class TypeRewritingVisitor : public RecursiveASTVisitor<TypeRewritingVisitor> {
@@ -191,5 +165,7 @@ private:
   static std::map<std::string, std::string> ModifiedFuncSignatures;
   std::string &OutputPostfix;
 };
+
+bool canRewrite(Rewriter &R, SourceRange &SR);
 
 #endif //_REWRITEUTILS_H

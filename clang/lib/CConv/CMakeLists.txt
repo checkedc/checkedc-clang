@@ -23,6 +23,7 @@ if (LLVM_BOOST_FOUND)
           Constraints.cpp
           ConstraintsGraph.cpp
           ConstraintVariables.cpp
+          DeclRewriter.cpp
           GatherTool.cpp
           MappingVisitor.cpp
           PersistentSourceLoc.cpp
