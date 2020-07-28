@@ -21,11 +21,8 @@
 #include "Utils.h"
 #include "PersistentSourceLoc.h"
 
-// TODO: It's possible the Type field in this tuple isn't needed.
-
-typedef std::tuple<clang::Stmt*, clang::Decl*, clang::Type*>
-        StmtDeclOrType;
-typedef std::map<PersistentSourceLoc, StmtDeclOrType> SourceToDeclMapType;
+typedef std::tuple<clang::Stmt*, clang::Decl*> StmtDecl;
+typedef std::map<PersistentSourceLoc, StmtDecl> SourceToDeclMapType;
 typedef std::pair<SourceToDeclMapType,
         VariableDecltoStmtMap> MappingResultsType;
 
@@ -40,7 +37,7 @@ public:
   bool VisitDecl(clang::Decl *D);
 
   MappingResultsType getResults() {
-    return std::pair<std::map<PersistentSourceLoc, StmtDeclOrType>, 
+    return std::pair<std::map<PersistentSourceLoc, StmtDecl>,
       VariableDecltoStmtMap>(PSLtoSDT, DeclToDeclStmt);
   }
 

@@ -987,9 +987,8 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
     Stmt *S = nullptr;
     Decl *D = nullptr;
     DeclStmt *DS = nullptr;
-    clang::Type *T = nullptr;
 
-    std::tie(S, D, T) = PSLMap[PLoc];
+    std::tie(S, D) = PSLMap[PLoc];
 
     if (D) {
       // We might have one Decl for multiple Vars, however, one will be a
