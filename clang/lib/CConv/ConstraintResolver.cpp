@@ -547,6 +547,14 @@ CVarSet
         T = {P};
 
         Ret = T;
+      } else if (StmtExpr *SE = dyn_cast<StmtExpr>(E)) {
+        CVarSet T;
+        // retrieve the last "thing" returned by the block
+        Stmt *Res = SE->getSubStmt()->getStmtExprResult();
+        if(Expr *ESE = dyn_cast<Expr>(Res)) {
+          ESE = ESE->IgnoreParens();
+          return getExprConstraintVars(ESE);
+        }
       } else {
         if (Verbose) {
           llvm::errs() << "WARNING! Initialization expression ignored: ";
