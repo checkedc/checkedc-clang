@@ -610,7 +610,6 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   ArrayBoundsRewriter ABRewriter(&Context, Info);
 
   Rewriter R(Context.getSourceManager(), Context.getLangOpts());
-  std::set<FileID> Files;
 
   std::set<std::string> v;
   RSet RewriteThese(DComp(Context.getSourceManager()));
@@ -721,11 +720,11 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   }
 
   DeclRewriter DeclR(R, Context, GVG);
-  RSet Skip(DComp(Context.getSourceManager()));
-  DeclR.rewrite(RewriteThese, Skip, Files);
+  std::set<FileID> TouchedFiles;
+  DeclR.rewrite(RewriteThese, TouchedFiles);
 
   // Output files.
-  emit(R, Context, Files, OutputPostfix);
+  emit(R, Context, TouchedFiles, OutputPostfix);
 
   Info.exitCompilationUnit();
   return;

@@ -23,24 +23,26 @@ using namespace clang;
 class DeclRewriter {
 public:
   DeclRewriter(Rewriter &R, ASTContext &A, GlobalVariableGroups &GP)
-      : R(R), A(A), GP(GP) {}
+      : R(R), A(A), GP(GP), Skip(DComp(A.getSourceManager())) {}
 
   // Visit each Decl in toRewrite and apply the appropriate pointer type
   // to that Decl. The state of the rewrite is contained within R, which
   // is both input and output. R is initialized to point to the 'main'
   // source file for this transformation. toRewrite contains the set of
   // declarations to rewrite. S is passed for source-level information
-  // about the current compilation unit. skip indicates some rewrites that
-  // we should skip because we already applied them, for example, as part
-  // of turning a single line declaration into a multi-line declaration.
-  void rewrite(RSet &ToRewrite, RSet &Skip, std::set<FileID> &Files);
+  // about the current compilation unit.
+  void rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles);
 
 private:
   Rewriter &R;
   ASTContext &A;
   GlobalVariableGroups &GP;
+  // Skip indicates some rewrites that
+  // we should skip because we already applied them, for example, as part
+  // of turning a single line declaration into a multi-line declaration.
+  RSet Skip;
 
-  void rewrite(VarDecl *VD, std::string SRewrite, Stmt *WhereStmt, RSet &skip,
+  void rewrite(VarDecl *VD, std::string SRewrite, Stmt *WhereStmt,
                const DAndReplace &N, RSet &ToRewrite);
   void rewrite(ParmVarDecl *PV, std::string SRewrite);
   unsigned int getParameterIndex(ParmVarDecl *PV, FunctionDecl *FD);

@@ -112,7 +112,7 @@ SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(VarDecl *VD,
 }
 
 void DeclRewriter::rewrite(VarDecl *VD, std::string SRewrite, Stmt *WhereStmt,
-                           RSet &skip, const DAndReplace &N, RSet &ToRewrite) {
+                           const DAndReplace &N, RSet &ToRewrite) {
   DeclStmt *Where = dyn_cast_or_null<DeclStmt>(WhereStmt);
 
   if (Verbose) {
@@ -166,8 +166,7 @@ void DeclRewriter::rewrite(VarDecl *VD, std::string SRewrite, Stmt *WhereStmt,
         }
       }
     }
-  } else if (!isSingleDeclaration(VD, Where) &&
-      skip.find(N) == skip.end()) {
+  } else if (!isSingleDeclaration(VD, Where) && Skip.find(N) == Skip.end()) {
     // Hack time!
     // Sometimes, like in the case of a decl on a single line, we'll need to
     // do multiple NewTyps at once. In that case, in the inner loop, we'll
@@ -248,7 +247,7 @@ void DeclRewriter::rewrite(VarDecl *VD, std::string SRewrite, Stmt *WhereStmt,
     //         skip set.
 
     for (const auto &TN : RewritesForThisDecl)
-      skip.insert(TN);
+      Skip.insert(TN);
   } else {
     if (Verbose) {
       errs() << "Don't know how to re-write VarDecl\n";
@@ -261,8 +260,7 @@ void DeclRewriter::rewrite(VarDecl *VD, std::string SRewrite, Stmt *WhereStmt,
   }
 }
 
-void DeclRewriter::rewrite(RSet &ToRewrite, RSet &Skip,
-                           std::set<FileID> &Files) {
+void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
   for (const auto &N : ToRewrite) {
     Decl *D = N.Declaration;
     DeclStmt *Where = dyn_cast_or_null<DeclStmt>(N.Statement);
@@ -278,14 +276,14 @@ void DeclRewriter::rewrite(RSet &ToRewrite, RSet &Skip,
     // list of file ID's we've touched.
     SourceRange tTR = D->getSourceRange();
     FullSourceLoc tFSL(tTR.getBegin(), A.getSourceManager());
-    Files.insert(tFSL.getFileID());
+    TouchedFiles.insert(tFSL.getFileID());
 
     // Is it a parameter type?
     if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) {
       assert(Where == nullptr);
       rewrite(PV, N.Replacement);
     } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-      rewrite(VD, N.Replacement, Where, Skip, N, ToRewrite);
+      rewrite(VD, N.Replacement, Where, N, ToRewrite);
     } else if (FunctionDecl *UD = dyn_cast<FunctionDecl>(D)) {
       // TODO: If the return type is a fully-specified function pointer,
       //       then clang will give back an invalid source range for the
