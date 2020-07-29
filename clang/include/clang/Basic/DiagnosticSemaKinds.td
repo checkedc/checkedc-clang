@@ -10164,17 +10164,17 @@ def err_bounds_type_annotation_lost_checking : Error<
 
   def warn_bounds_declaration_invalid : Warning<
     "cannot prove declared bounds for %1 are valid after "
-    "%select{assignment|initialization|statement}0">,
+    "%select{assignment|initialization|statement|increment|decrement}0">,
     InGroup<CheckBoundsDeclsUnchecked>;
 
   def warn_checked_scope_bounds_declaration_invalid : Warning<
     "cannot prove declared bounds for %1 are valid after "
-    "%select{assignment|initialization|statement}0">,
+    "%select{assignment|initialization|statement|increment|decrement}0">,
     InGroup<CheckBoundsDeclsChecked>;
 
   def error_bounds_declaration_invalid : Error<
     "declared bounds for %1 are invalid after "
-    "%select{assignment|initialization|statement}0">;
+    "%select{assignment|initialization|statement|increment|decrement}0">;
 
   def err_unknown_inferred_bounds : Error<
     "inferred bounds for %0 are unknown after statement">;

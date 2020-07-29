@@ -535,7 +535,7 @@ void assign6(array_ptr<int> a : count(len), int len) { // expected-note {{(expan
   // Observed bounds context before assignment: { a => bounds(a, a + len) }
   // Original value of len: null
   // Observed bounds context after assignment:  { a => bounds(unknown) }
-  len = len * 2; // expected-error {{inferred bounds for 'a' are unknown after statement}} \
+  len = len * 2; // expected-error {{inferred bounds for 'a' are unknown after assignment}} \
                  // expected-note {{lost the value of the variable 'len' which is used in the (expanded) inferred bounds 'bounds(a, a + len)' of 'a'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
@@ -1428,7 +1428,7 @@ void multiple_assign2(
 
 // Multiple assignments involving constant-sized bounds that may result in memory access-related errors
 void multiple_assign3(
-  array_ptr<int> a : count(2), 
+  array_ptr<int> a : count(2),
   array_ptr<int> b : count(1)
 ) {
   // Observed bounds of a at memory access a[1]: bounds(b, b + 1)
@@ -1606,7 +1606,7 @@ void nested_assign2(
   nt_array_ptr<int> a : count(0),
   nt_array_ptr<int> b : count(0),
   ptr<nt_array_ptr<int>> p
-) {                                                                                                  
+) {
   // Observed bounds context after all assignments: { a => bounds(*p, *p + 0), b => bounds(*p, *p + 0) }
   a = (b = *p);
   // CHECK: Statement S:
@@ -2099,7 +2099,7 @@ void inc_dec_bounds5(nt_array_ptr<int> *p, struct S s, array_ptr<int> a) {
   // CHECK-NEXT:     DeclRefExpr {{.*}} 's'
   // CHECK-NEXT: Observed bounds context after checking S:
   // CHECK-NEXT: { }
-  
+
   // Observed bounds context after increment:  { }
   a--;
   // CHECK: Statement S:

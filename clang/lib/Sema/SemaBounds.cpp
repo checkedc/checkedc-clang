@@ -705,6 +705,13 @@ namespace {
       // user when diagnosing unknown bounds errors.
       llvm::DenseMap<const VarDecl *, SmallVector<Expr *, 4>> UnknownSrcBounds;
 
+      // BlameExprs maps a variable declaration V to the expression that last
+      // updates the observed bounds of V.
+      //
+      // BlameExprs is used to blame the last invalid assignment in the current
+      // top-level CFG statement.
+      llvm::DenseMap<const VarDecl *, Expr *> BlameExprs;
+
       // TargetSrcEquality maps a target expression V to the most recent
       // expression Src that has been assigned to V within the current
       // top-level CFG statement.  When validating the bounds context,
@@ -718,6 +725,7 @@ namespace {
         SameValue.clear();
         LostVariables.clear();
         UnknownSrcBounds.clear();
+        BlameExprs.clear();
         TargetSrcEquality.clear();
       }
   };
@@ -2819,8 +2827,8 @@ namespace {
         // Update the checking state and result bounds for assignments to `e1`
         // where `e1` is a variable.
         if (LHSVar)
-          ResultBounds = UpdateAfterAssignment(LHSVar, Target, Src, ResultBounds,
-                                               CSS, State, State);
+          ResultBounds = UpdateAfterAssignment(LHSVar, E, Target, Src,
+                                               ResultBounds, CSS, State, State);
         // Update EquivExprs and SameValue for assignments where `e1` is not
         // a variable.
         else
@@ -3265,8 +3273,8 @@ namespace {
           BoundsExpr *RHSBounds = RValueCastBounds(Target, SubExprTargetBounds,
                                                    SubExprLValueBounds,
                                                    SubExprBounds, State);
-          IncDecResultBounds = UpdateAfterAssignment(V, Target, RHS, RHSBounds,
-                                                     CSS, State, State);
+          IncDecResultBounds = UpdateAfterAssignment(
+              V, E, Target, RHS, IncDecResultBounds, CSS, State, State);
         }
 
         // Update the set SameValue of expressions that produce the same
@@ -3998,17 +4006,46 @@ namespace {
       // starts at the beginning of a declaration T v = e, then extra
       // diagnostics may be emitted for T.
       SourceLocation Loc = St->getBeginLoc();
-      if (isa<DeclStmt>(St))
+      auto BDCType = Sema::BoundsDeclarationCheck::BDC_Statement;
+      if (isa<DeclStmt>(St)) {
         Loc = V->getLocation();
+        BDCType = Sema::BoundsDeclarationCheck::BDC_Initialization;
+      }
+
+      // Find the last assignment BlameExpr to v to blame.  Target the source
+      // location and range of BlameExpr in the diagnostic message.
+      SourceRange SrcRange = St->getSourceRange();
+      auto BlameExprOfV = State.BlameExprs.find(V);
+      if (BlameExprOfV != State.BlameExprs.end()) {
+        Expr *BlameExpr = BlameExprOfV->second;
+        Loc = BlameExpr->getBeginLoc();
+        SrcRange = BlameExpr->getSourceRange();
+
+        // Print 'assignment' for assignment expressions; 'decrement'
+        // (or 'increment') for post/pre-decrement (increment, respectively).
+        BDCType = Sema::BoundsDeclarationCheck::BDC_Assignment;
+        if (UnaryOperator *UO = dyn_cast<UnaryOperator>(BlameExpr)) {
+          switch (UO->getOpcode()) {
+          case UnaryOperatorKind::UO_PreDec:
+          case UnaryOperatorKind::UO_PostDec:
+            BDCType = Sema::BoundsDeclarationCheck::BDC_Decrement;
+            break;
+          case UnaryOperatorKind::UO_PreInc:
+          case UnaryOperatorKind::UO_PostInc:
+            BDCType = Sema::BoundsDeclarationCheck::BDC_Increment;
+            break;
+          default:
+            break;
+          }
+        }
+      }
 
       unsigned DiagId = (Result == ProofResult::False) ?
         diag::error_bounds_declaration_invalid :
         (CSS != CheckedScopeSpecifier::CSS_Unchecked?
           diag::warn_checked_scope_bounds_declaration_invalid :
           diag::warn_bounds_declaration_invalid);
-      S.Diag(Loc, DiagId)
-        << Sema::BoundsDeclarationCheck::BDC_Statement << V
-        << St->getSourceRange() << St->getSourceRange();
+      S.Diag(Loc, DiagId) << BDCType << V << SrcRange << SrcRange;
       if (Result == ProofResult::False)
         ExplainProofFailure(Loc, Cause, ProofStmtKind::BoundsDeclaration);
       S.Diag(V->getLocation(), diag::note_declared_bounds)
@@ -4020,8 +4057,8 @@ namespace {
     // Methods to update the checking state.
 
     // UpdateAfterAssignment updates the checking state after a variable V
-    // is updated in an assignment Target = Src, based on the state before
-    // the assignment.  It also returns updated bounds for Src.
+    // is updated in an assignment E of the form Target = Src, based on the
+    // state before the assignment.  It also returns updated bounds for Src.
     //
     // If V has an original value, the original value is substituted for
     // any uses of the value of V in the bounds in ObservedBounds and the
@@ -4034,8 +4071,8 @@ namespace {
     // SrcBounds are the original bounds for the source of the assignment.
     //
     // PrevState is the checking state that was true before the assignment.
-    BoundsExpr *UpdateAfterAssignment(DeclRefExpr *V, Expr *Target, Expr *Src,
-                                      BoundsExpr *SrcBounds,
+    BoundsExpr *UpdateAfterAssignment(DeclRefExpr *V, Expr *E, Expr *Target,
+                                      Expr *Src, BoundsExpr *SrcBounds,
                                       CheckedScopeSpecifier CSS,
                                       const CheckingState PrevState,
                                       CheckingState &State) {
@@ -4079,6 +4116,9 @@ namespace {
       BoundsExpr *AdjustedSrcBounds = ReplaceVariableInBounds(SrcBounds, V, OriginalValue, CSS);
       if (DeclaredBounds)
         State.ObservedBounds[VariableDecl] = AdjustedSrcBounds;
+
+      if (DeclaredBounds)
+        State.BlameExprs[VariableDecl] = E;
 
       // If the initial source bounds were not unknown, but they are unknown
       // after replacing uses of V, then the assignment to V caused the
