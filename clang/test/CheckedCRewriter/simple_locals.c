@@ -61,7 +61,8 @@ void partialhelp(int *a, int b, int c) {
 //CHECK-NEXT: }
 
 void g(void) {
-    int a = 0, *b = &a;
+    int a = 0;
+    int *b = &a;
     *b = 1;
 }
 //CHECK: void g(void) {
@@ -69,7 +70,9 @@ void g(void) {
 //CHECK-NEXT: _Ptr<int> b = &a;
 
 void gg(void) {
-  int a = 0, *b = &a, **c = &b;
+  int a = 0;
+  int *b = &a;
+  int **c = &b;
 
   *b = 1;
   **c = 2;
