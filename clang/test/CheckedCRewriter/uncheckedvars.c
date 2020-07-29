@@ -8,9 +8,11 @@ void b() {
 }
 
 void c() {
+//CHECK: void c() {
     int *b = (int*)1;
+    //CHECK: int *b = (int*)1;
     { b; }
-    //CHECK: _Unchecked { b; }
+    //CHECK: { b; }
 }
 
 // Dummy

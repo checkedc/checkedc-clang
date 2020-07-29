@@ -9,6 +9,7 @@
 // classes of CheckedRegions.h
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/ASTTypeTraits.h"
 #include "clang/CConv/ConstraintResolver.h"
 #include "clang/CConv/RewriteUtils.h"
 #include "clang/CConv/Utils.h"
@@ -31,14 +32,51 @@ bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
   llvm::FoldingSetNodeID Id;
   S->Profile(Id, *Context, true);
   switch (Map[Id]) {
-    case IS_UNCHECKED: return true;
-    case IS_CHECKED:   
+    case IS_UNCHECKED:
+      if(isParentChecked(S) && !isFunctionBody(S)) {
+        auto Loc = S->getBeginLoc();
+        Writer.InsertTextBefore(Loc, "_Unchecked ");
+      }
+      break;
+    case IS_CHECKED:
+      if(!isParentChecked(S)) {
                         auto Loc = S->getBeginLoc();
                         Writer.InsertTextBefore(Loc, "_Checked ");
-                        return false;
+      }
+      break;
+    default: llvm_unreachable("Bad flag in CheckedRegionAdder");
   }
 
-  llvm_unreachable("Bad flag in CheckedRegionAdder");
+  return true;
+}
+
+typedef std::pair<const CompoundStmt*, int> StmtPair;
+
+StmtPair
+CheckedRegionAdder::findParentCompound(const ast_type_traits::DynTypedNode &N) {
+  return findParentCompound(N, 1);
+}
+
+StmtPair
+CheckedRegionAdder::findParentCompound(const ast_type_traits::DynTypedNode &N, int distance)  {
+  auto parents = Context->getParents(N);
+  if (parents.empty())
+    return std::make_pair(nullptr, INT_MAX);
+  else {
+    std::vector<StmtPair> results;
+    results.reserve(parents.size());
+    for (auto Parent : parents)
+      if (auto S = Parent.get<CompoundStmt>())
+        results.push_back(std::make_pair(S, distance));
+      else
+        results.push_back(findParentCompound(Parent, distance + 1));
+
+    auto min = min_element(results.begin(), results.end(),
+                           [] (const StmtPair &A, const StmtPair &B) {
+                             return A.second < B.second;
+                           });
+    return *min;
+  }
 }
 
 bool CheckedRegionAdder::VisitIfStmt(IfStmt *IS) {
@@ -50,6 +88,28 @@ bool CheckedRegionAdder::VisitIfStmt(IfStmt *IS) {
 
   return false;
 }
+
+bool CheckedRegionAdder::isFunctionBody(CompoundStmt *S) {
+  const auto &Parents = Context->getParents(*S);
+  if (Parents.empty()) {
+    return false;
+  }
+  return Parents[0].get<FunctionDecl>();
+}
+
+bool CheckedRegionAdder::isParentChecked(CompoundStmt *S) {
+  ast_type_traits::DynTypedNode DTN = ast_type_traits::DynTypedNode::create(*S);
+  if (auto Parent = findParentCompound(DTN).first) {
+    llvm::FoldingSetNodeID ID;
+    Parent->Profile(ID, *Context, true);
+    return Map[ID] == IS_CHECKED;
+  } else {
+    return false;
+  }
+}
+
+
+
 // CheckedRegionFinder
 
 bool CheckedRegionFinder::VisitForStmt(ForStmt *S) {
@@ -81,7 +141,7 @@ void CheckedRegionFinder::handleChildren(const Stmt::child_range &Stmts) {
   for (const auto &SubStmt : Stmts) {
     CheckedRegionFinder Sub(Context, Writer, Info, Seen, Map);
     Sub.TraverseStmt(SubStmt);
-    Nwild |= Sub.Nwild;
+    Wild |= Sub.Wild;
   }
 }
 
@@ -93,7 +153,7 @@ bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
   for (const auto &SubStmt : S->children()) {
     CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
     Sub.TraverseStmt(SubStmt);
-    Localwild |= Sub.Nwild;
+    Localwild |= Sub.Wild;
   }
 
   addUncheckedAnnotation(S, Localwild);
@@ -101,7 +161,7 @@ bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
   // Compound Statements are always considered to have 0 wild types
   // This is because a compound statement marked w/ _Unchecked can live
   // inside a _Checked region.
-  Nwild = false;
+  Wild = false;
 
   llvm::FoldingSetNodeID Id;
   S->Profile(Id, *Context, true);
@@ -113,13 +173,13 @@ bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
 }
 
 bool CheckedRegionFinder::VisitStmtExpr(StmtExpr *SE) {
-  Nwild = true;
+  Wild = true;
   return false;
 }
 
 bool CheckedRegionFinder::VisitCStyleCastExpr(CStyleCastExpr *E) {
   // TODO This is over cautious
-  Nwild = true;
+  Wild = true;
   return true;
 }
 
@@ -140,7 +200,7 @@ bool CheckedRegionFinder::hasUncheckedParameters(CompoundStmt *S) {
   for (auto Child : Parent->parameters()) {
     CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
     Sub.TraverseParmVarDecl(Child);
-    Localwild |= Sub.Nwild;
+    Localwild |= Sub.Wild;
   }
 
   return Localwild || Parent->isVariadic();
@@ -183,13 +243,13 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
       Writer.InsertTextAfterToken(End, "; }");
     } else {
       // Call is inside an epxression, mark WILD.
-      Nwild = false;
+      Wild = false;
     }
   }
   if (FD) {
     auto type = FD->getReturnType();
 
-    Nwild = (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody()))
+    Wild = (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody()))
       || isUncheckedPtr(type)
       || (any_of(FD->param_begin(), FD->param_end(), [this] (Decl *param) {
             auto var = Info.getVariable(param, Context);
@@ -206,14 +266,14 @@ bool CheckedRegionFinder::VisitVarDecl(VarDecl *VD) {
   auto CVSet = Info.getVariable(VD, Context);
   isWild(CVSet);
   // Check if the variable contains an unchecked type.
-  Nwild = isUncheckedPtr(VD->getType());
+  Wild = isUncheckedPtr(VD->getType());
   return true;
 }
 
 bool CheckedRegionFinder::VisitParmVarDecl(ParmVarDecl *PVD) {
   // Check if the variable is WILD.
   auto V = Info.getVariable(PVD, Context);
-  Nwild |= isWild(V) | isUncheckedPtr(PVD->getType());
+  Wild |= isWild(V) | isUncheckedPtr(PVD->getType());
   return true;
 }
 
@@ -247,7 +307,7 @@ bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) {
     }
   }
 
-  Nwild |= IW ;
+  Wild |= IW ;
 
   return true;
 }
@@ -323,6 +383,7 @@ bool CheckedRegionFinder::isUncheckedStruct(QualType Qt, std::set<std::string> &
   }
 }
 
+
 void CheckedRegionFinder::addUncheckedAnnotation(CompoundStmt *S, int Localwild) {
   auto Cur = S->getWrittenCheckedSpecifier();
   llvm::FoldingSetNodeID Id;
@@ -336,17 +397,10 @@ void CheckedRegionFinder::addUncheckedAnnotation(CompoundStmt *S, int Localwild)
   Map[Id] = IsChecked ? IS_CHECKED : IS_UNCHECKED;
 
   // Don't add _Unchecked to top level functions.
-  if ((!IsChecked && !isFunctionBody(S)))
-    Writer.InsertTextBefore(Loc, "_Unchecked ");
+  //if ((!IsChecked && !isFunctionBody(S)))
+    //Writer.InsertTextBefore(Loc, "_Unchecked ");
 }
 
-bool CheckedRegionFinder::isFunctionBody(CompoundStmt *S) {
-  const auto &Parents = Context->getParents(*S);
-  if (Parents.empty()) {
-    return false;
-  }
-  return Parents[0].get<FunctionDecl>();
-}
 
 
 bool CheckedRegionFinder::VisitMemberExpr(MemberExpr *E){
@@ -356,13 +410,13 @@ bool CheckedRegionFinder::VisitMemberExpr(MemberExpr *E){
     std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context);
     for (auto Cv : CVSet) {
       if (Cv->hasWild(Info.getConstraints().getVariables())) {
-        Nwild = true;
+        Wild = true;
       }
     }
 
 
     // Check if the variable is a void*.
-    Nwild |= isUncheckedPtr(VD->getType());
+    Wild |= isUncheckedPtr(VD->getType());
   }
   return true;
 }
