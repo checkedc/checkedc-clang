@@ -175,14 +175,10 @@ bool canRewrite(Rewriter &R, SourceRange &SR) {
 }
 
 std::string TypeRewritingVisitor::getExistingIType(ConstraintVariable *DeclC) {
-  std::string Ret = "";
-  ConstraintVariable *T = DeclC;
-  if (PVConstraint *PVC = dyn_cast<PVConstraint>(T)) {
-    if (PVC->hasItype()) {
-      Ret = " : " + PVC->getItype();
-    }
-  }
-  return Ret;
+  auto *PVC = dyn_cast<PVConstraint>(DeclC);
+  if (PVC != nullptr && PVC->hasItype())
+    return " : " + PVC->getItype();
+  return "";
 }
 
 // This function checks how to re-write a function declaration.
@@ -200,10 +196,6 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   // that we shouldn't make one of these visits again.
 
   auto FuncName = FD->getNameAsString();
-  auto isStatic = FD->isStatic();
-
-  
-
   auto &CS = Info.getConstraints();
 
   // Do we have a definition for this function?
@@ -213,7 +205,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
   // Make sure we haven't visited this function name before, and that we
   // only visit it once.
-  if (VisitedSet.find(FuncName) != VisitedSet.end())
+  if (isFunctionVisited(FuncName))
     return true;
   else
     VisitedSet.insert(FuncName);
@@ -225,12 +217,11 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   // If this is an external function. The no need to rewrite this declaration.
   // Because, we cannot and should not change the signature of
   // external functions.
-  if (!Defnc->hasBody()) {
+  if (!Defnc->hasBody())
     return true;
-  }
 
   bool DidAny = Defnc->numParams() > 0;
-  std::string s = "";
+  std::string NewSig = "";
   std::vector<std::string> ParmStrs;
   // Compare parameters.
   for (unsigned i = 0; i < Defnc->numParams(); ++i) {
@@ -242,10 +233,8 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       // If this holds, then we want to insert a bounds safe interface.
       bool Constrained = Defn->anyChanges(CS.getVariables());
       if (Constrained) {
-        // If the definition already has itype or there is no
-        // argument which is WILD.
-        if (Defn->hasItype() ||
-            !Defn->anyArgumentIsWild(CS.getVariables())) {
+        // If the definition already has itype or there are no WILD arguments.
+        if (Defn->hasItype() || !Defn->anyArgumentIsWild(CS.getVariables())) {
           // Here we should emit a checked type, with an itype (if exists)
           std::string PtypeS =
               Defn->mkString(Info.getConstraints().getVariables());
@@ -261,12 +250,12 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           // is WILD.
           std::string PtypeS =
               Defn->mkString(Info.getConstraints().getVariables(), false, true);
-          std::string bi =
+          std::string Bi =
               Defn->getRewritableOriginalTy() + Defn->getName() + " : itype(" +
                   PtypeS + ")" +
                   ABRewriter.getBoundsString(Defn,
                                          Definition->getParamDecl(i), true);
-          ParmStrs.push_back(bi);
+          ParmStrs.push_back(Bi);
         }
         ParameterHandled = true;
       }
@@ -281,7 +270,7 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   }
 
   // Compare returns.
-  auto Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getReturnVars()));
+  auto *Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getReturnVars()));
 
   std::string ReturnVar = "";
   std::string EndStuff = "";
@@ -318,50 +307,45 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     // If we used to implement a bounds-safe interface, continue to do that.
     ReturnVar = Defn->getOriginalTy() + " ";
     EndStuff = getExistingIType(Defn);
-    if (!EndStuff.empty()) {
+    if (!EndStuff.empty())
       DidAny = true;
-    }
   }
 
-  s = getStorageQualifierString(Definition) + ReturnVar + Defnc->getName() +
-      "(";
-  if (ParmStrs.size() > 0) {
-    std::ostringstream ss;
-
+  NewSig = getStorageQualifierString(Definition) + ReturnVar + Defnc->getName()
+      + "(";
+  if (!ParmStrs.empty()) {
+    // Gather individual parameter strings into a single buffer
+    std::ostringstream ConcatParamStr;
     std::copy(ParmStrs.begin(), ParmStrs.end() - 1,
-              std::ostream_iterator<std::string>(ss, ", "));
-    ss << ParmStrs.back();
+              std::ostream_iterator<std::string>(ConcatParamStr, ", "));
+    ConcatParamStr << ParmStrs.back();
 
-    s = s + ss.str();
+    NewSig = NewSig + ConcatParamStr.str();
     // Add varargs.
-    if (functionHasVarArgs(Definition)) {
-      s = s + ", ...";
-    }
-    s = s + ")";
+    if (functionHasVarArgs(Definition))
+      NewSig = NewSig + ", ...";
+    NewSig = NewSig + ")";
   } else {
-    s = s + "void)";
+    NewSig = NewSig + "void)";
     QualType ReturnTy = FD->getReturnType();
     QualType Ty = FD->getType();
     if (!Ty->isFunctionProtoType() && ReturnTy->isPointerType())
       DidAny = true;
   }
 
-  if (EndStuff.size() > 0)
-    s = s + EndStuff;
+  if (!EndStuff.empty())
+    NewSig = NewSig + EndStuff;
 
   if (DidAny) {
     // Do all of the declarations.
     for (auto *const RD : Definition->redecls())
-      rewriteThese.insert(DAndReplace(RD, s, true));
+      RewriteThese.insert(DAndReplace(RD, NewSig, true));
     // Save the modified function signature.
-    if(isStatic) { 
-  	auto psl = PersistentSourceLoc::mkPSL(FD, *Context);
-	auto fileName = psl.getFileName();
-  	auto qualifiedName = fileName + "::" + FuncName;
-    	ModifiedFuncSignatures[qualifiedName] = s;
-    } else {
-    	ModifiedFuncSignatures[FuncName] = s;
+    if(FD->isStatic()) {
+      auto FileName = PersistentSourceLoc::mkPSL(FD, *Context).getFileName();
+	  FuncName = FileName + "::" + FuncName;
     }
+    ModifiedFuncSignatures[FuncName] = NewSig;
   }
 
   return true;
@@ -371,7 +355,6 @@ bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 bool TypeRewritingVisitor::isFunctionVisited(std::string FuncName) {
   return VisitedSet.find(FuncName) != VisitedSet.end();
 }
-
 
 static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
                  std::string &OutputPostfix) {
@@ -611,14 +594,12 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
 
   Rewriter R(Context.getSourceManager(), Context.getLangOpts());
 
-  std::set<std::string> v;
   RSet RewriteThese(DComp(Context.getSourceManager()));
   // Unification is done, so visit and see if we need to place any casts
-  // in the program.
-  TypeRewritingVisitor TRV = TypeRewritingVisitor(&Context, Info, RewriteThese, v,
-                                                  RewriteConsumer::
-                                                      ModifiedFuncSignatures,
-                                                  ABRewriter);
+  TypeRewritingVisitor TRV =
+      TypeRewritingVisitor(&Context, Info, RewriteThese,
+                           RewriteConsumer::ModifiedFuncSignatures, ABRewriter);
+
   for (const auto &D : Context.getTranslationUnitDecl()->decls())
     TRV.TraverseDecl(D);
 

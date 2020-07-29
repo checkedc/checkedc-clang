@@ -126,11 +126,11 @@ private:
 class TypeRewritingVisitor : public RecursiveASTVisitor<TypeRewritingVisitor> {
 public:
   explicit TypeRewritingVisitor(ASTContext *C, ProgramInfo &I,
-                                RSet &DR, std::set<std::string> &V,
-                                std::map<std::string, std::string> &newFuncSig,
+                                RSet &DR,
+                                std::map<std::string, std::string> &NewFuncSig,
                                 ArrayBoundsRewriter &ArrRewriter)
-          : Context(C), Info(I), rewriteThese(DR), VisitedSet(V),
-            ModifiedFuncSignatures(newFuncSig), ABRewriter(ArrRewriter) {}
+      : Context(C), Info(I), RewriteThese(DR), ABRewriter(ArrRewriter),
+        VisitedSet(), ModifiedFuncSignatures(NewFuncSig) {}
 
   bool VisitFunctionDecl(FunctionDecl *);
   bool isFunctionVisited(std::string FuncName);
@@ -140,12 +140,19 @@ private:
   // if there is no declaration of the function,
   // it will try to get it from the definition.
   std::string getExistingIType(ConstraintVariable *DeclC);
+
   ASTContext            *Context;
   ProgramInfo           &Info;
-  RSet                  &rewriteThese;
-  std::set<std::string> &VisitedSet;
-  std::map<std::string, std::string> &ModifiedFuncSignatures;
+  RSet                  &RewriteThese;
   ArrayBoundsRewriter   &ABRewriter;
+
+  // Set containing the names of all functions visited in the AST traversal.
+  // Used to ensure the new signature is only computed once for each function.
+  std::set<std::string> VisitedSet;
+
+  // This is a map from functions (the string representation of their names) to
+  // their function signature in the rewritten program.
+  std::map<std::string, std::string> &ModifiedFuncSignatures;
 };
 
 
