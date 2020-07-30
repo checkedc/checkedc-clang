@@ -13,6 +13,8 @@
 #ifndef _CHECKEDREGIONS_H
 #define _CHECKEDREGIONS_H
 
+#include <utility>
+
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/ASTContext.h"
@@ -39,6 +41,12 @@ class CheckedRegionAdder : public RecursiveASTVisitor<CheckedRegionAdder>
     bool VisitIfStmt(IfStmt *IS);
 
   private:
+    std::pair<const CompoundStmt*, int>
+        findParentCompound(const ast_type_traits::DynTypedNode &N);
+    std::pair<const CompoundStmt*, int>
+        findParentCompound(const ast_type_traits::DynTypedNode &N, int);
+    bool isParentChecked(CompoundStmt *S);
+    bool isFunctionBody(CompoundStmt *S);
     ASTContext* Context;
     Rewriter& Writer;
     std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &Map;
@@ -51,7 +59,7 @@ class CheckedRegionFinder : public RecursiveASTVisitor<CheckedRegionFinder>
                                 std::set<FoldingSetNodeID> &S,
                                 std::map<FoldingSetNodeID, AnnotationNeeded> &M)
       : Context(_C), Writer(_R), Info(_I), Seen(S), Map(M) {}
-    bool Nwild = false;
+    bool Wild = false;
 
     bool VisitForStmt(ForStmt *S);
     bool VisitSwitchStmt(SwitchStmt *S);
@@ -78,7 +86,6 @@ class CheckedRegionFinder : public RecursiveASTVisitor<CheckedRegionFinder>
     bool isUncheckedPtr(QualType Qt);
     bool isUncheckedPtrAcc(QualType Qt, std::set<std::string> &Seen);
     bool isUncheckedStruct(QualType Qt, std::set<std::string> &Seen);
-    bool isFunctionBody(CompoundStmt *S);
     bool isWild(std::set<ConstraintVariable*>&);
     bool isWild(std::set<FVConstraint*>*);
 
