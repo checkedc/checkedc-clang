@@ -49,6 +49,7 @@ private:
 
   void rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite);
   void rewriteParmVarDecl(const DAndReplace &N);
+  void rewriteFunctionDecl(const DAndReplace &N);
 
   unsigned int getParameterIndex(ParmVarDecl *PV, FunctionDecl *FD);
   SourceLocation deleteAllDeclarationsOnLine(VarDecl *VD, DeclStmt *Stmt);

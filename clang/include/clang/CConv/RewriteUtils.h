@@ -55,15 +55,17 @@ struct DAndReplace
     template<typename T>
     bool hasDeclType() const {
       static_assert(std::is_same<T, VarDecl>() || std::is_same<T, ParmVarDecl>()
-                        || std::is_same<T, FunctionDecl>(),
-                    "Type is not supported Decl type.");
+                        || std::is_same<T, FunctionDecl>()
+                        || std::is_same<T, FieldDecl>(),
+          "Type is not supported Decl type.");
       return isa<T>(Declaration);
     }
 
     template<typename T>
     T *getDecl() const {
       static_assert(std::is_same<T, VarDecl>() || std::is_same<T, ParmVarDecl>()
-                        || std::is_same<T, FunctionDecl>(),
+                        || std::is_same<T, FunctionDecl>()
+                        || std::is_same<T, FieldDecl>(),
                     "Type is not supported Decl type.");
       return dyn_cast<T>(Declaration);
     }

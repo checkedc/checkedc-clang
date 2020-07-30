@@ -263,6 +263,27 @@ void DeclRewriter::rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite) {
   }
 }
 
+void DeclRewriter::rewriteFunctionDecl(const DAndReplace &N) {
+  // TODO: If the return type is a fully-specified function pointer,
+  //       then clang will give back an invalid source range for the
+  //       return type source range. For now, check that the source
+  //       range is valid.
+  //       Additionally, a source range can be (mis) identified as
+  //       spanning multiple files. We don't know how to re-write that,
+  //       so don't.
+
+  FunctionDecl *UD = N.getDecl<FunctionDecl>();
+  SourceRange SR;
+  if (N.FullDecl) {
+    SR = UD->getSourceRange();
+    SR.setEnd(getFunctionDeclarationEnd(UD, A.getSourceManager()));
+  } else {
+    SR = UD->getReturnTypeSourceRange();
+  }
+  if (canRewrite(R, SR))
+    R.ReplaceText(SR, N.Replacement);
+}
+
 void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
   for (const auto &N : ToRewrite) {
     assert(N.Declaration != nullptr);
@@ -279,39 +300,19 @@ void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
     FullSourceLoc tFSL(tTR.getBegin(), A.getSourceManager());
     TouchedFiles.insert(tFSL.getFileID());
 
-    // Is it a parameter type?
+    // Exact rewriting procedure depends on declaration type
     if (N.hasDeclType<ParmVarDecl>()) {
       // TODO: why is this asserted?
       assert(N.Statement == nullptr);
       rewriteParmVarDecl(N);
     } else if (N.hasDeclType<VarDecl>()) {
       rewriteVarDecl(N, ToRewrite);
-    } else if (FunctionDecl *UD = dyn_cast<FunctionDecl>(N.Declaration)) {
-      // TODO: If the return type is a fully-specified function pointer,
-      //       then clang will give back an invalid source range for the
-      //       return type source range. For now, check that the source
-      //       range is valid.
-      //       Additionally, a source range can be (mis) identified as
-      //       spanning multiple files. We don't know how to re-write that,
-      //       so don't.
-
-      if (N.FullDecl) {
-        SourceRange SR = UD->getSourceRange();
-        SR.setEnd(getFunctionDeclarationEnd(UD, A.getSourceManager()));
-
-        if (canRewrite(R, SR))
-          R.ReplaceText(SR, N.Replacement);
-      } else {
-        SourceRange SR = UD->getReturnTypeSourceRange();
-        if (canRewrite(R, SR))
-          R.ReplaceText(SR, N.Replacement);
-      }
-    } else if (FieldDecl *FD = dyn_cast<FieldDecl>(N.Declaration)) {
-      SourceRange SR = FD->getSourceRange();
-      std::string SRewrite = N.Replacement;
-
+    } else if (N.hasDeclType<FunctionDecl>()) {
+      rewriteFunctionDecl(N);
+    } else if (N.hasDeclType<FieldDecl>()) {
+      SourceRange SR = N.getDecl<FieldDecl>()->getSourceRange();
       if (canRewrite(R, SR))
-        R.ReplaceText(SR, SRewrite);
+        R.ReplaceText(SR, N.Replacement);
     }
   }
 }
