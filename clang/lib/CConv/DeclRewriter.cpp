@@ -293,7 +293,7 @@ void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
       //       spanning multiple files. We don't know how to re-write that,
       //       so don't.
 
-      if (N.fullDecl) {
+      if (N.FullDecl) {
         SourceRange SR = UD->getSourceRange();
         SR.setEnd(getFunctionDeclarationEnd(UD, A.getSourceManager()));
 

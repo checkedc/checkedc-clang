@@ -31,7 +31,7 @@ SourceRange DComp::getWholeSR(SourceRange Orig, DAndReplace Dr) const {
 
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(Dr.Declaration)) {
     newSourceRange.setEnd(getFunctionDeclarationEnd(FD, SM));
-    if (!Dr.fullDecl)
+    if (!Dr.FullDecl)
       newSourceRange = FD->getReturnTypeSourceRange();
   }
 
@@ -126,11 +126,11 @@ bool DComp::operator()(const DAndReplace Lhs, const DAndReplace Rhs) const {
 
 void GlobalVariableGroups::addGlobalDecl(VarDecl *VD,
                                          std::set<VarDecl *> *VDSet) {
-  if (VD && globVarGroups.find(VD) == globVarGroups.end()) {
+  if (VD && GlobVarGroups.find(VD) == GlobVarGroups.end()) {
     if (VDSet == nullptr)
       VDSet = new std::set<VarDecl *>();
     VDSet->insert(VD);
-    globVarGroups[VD] = VDSet;
+    GlobVarGroups[VD] = VDSet;
     // Process the next decl.
     Decl *NDecl = VD->getNextDeclInContext();
     if (isa_and_nonnull<VarDecl>(NDecl)) {
@@ -148,22 +148,22 @@ void GlobalVariableGroups::addGlobalDecl(VarDecl *VD,
 }
 
 std::set<VarDecl *> &GlobalVariableGroups::getVarsOnSameLine(VarDecl *VD) {
-  assert (globVarGroups.find(VD) != globVarGroups.end() &&
+  assert (GlobVarGroups.find(VD) != GlobVarGroups.end() &&
          "Expected to find the group.");
-  return *(globVarGroups[VD]);
+  return *(GlobVarGroups[VD]);
 }
 
 GlobalVariableGroups::~GlobalVariableGroups() {
   std::set<std::set<VarDecl *> *> Visited;
   // Free each of the group.
-  for (auto &currV : globVarGroups) {
+  for (auto &currV : GlobVarGroups) {
     // Avoid double free by caching deleted sets.
     if (Visited.find(currV.second) != Visited.end())
       continue;
     Visited.insert(currV.second);
     delete (currV.second);
   }
-  globVarGroups.clear();
+  GlobVarGroups.clear();
 }
 
 // Test to see if we can rewrite a given SourceRange.
@@ -564,6 +564,7 @@ std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
   auto &ABInfo = Info.getABoundsInfo();
   BoundsKey DK;
   bool ValidBKey = true;
+  // For itype we do not need ":".
   std::string Pfix = Isitype ? " " : " : ";
   if (PV->hasBoundsKey()) {
     DK = PV->getBoundsKey();
@@ -574,10 +575,8 @@ std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
     ABounds *ArrB = ABInfo.getBounds(DK);
     if (ArrB != nullptr) {
       BString = ArrB->mkString(&ABInfo);
-      if (!BString.empty()) {
-        // For itype we do not need ":".
+      if (!BString.empty())
         BString = Pfix + BString;
-      }
     }
   }
   if (BString.empty() && PV->hasBoundsStr()) {

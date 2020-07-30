@@ -28,29 +28,29 @@ struct DAndReplace
     Decl        *Declaration; // The declaration to replace.
     Stmt        *Statement;   // The Stmt, if it exists.
     std::string Replacement;  // The string to replace the declaration with.
-    bool        fullDecl;     // If the declaration is a function, true if
+    bool        FullDecl;     // If the declaration is a function, true if
     // Replace the entire declaration or just the
     // return declaration.
     DAndReplace() : Declaration(nullptr),
                     Statement(nullptr),
                     Replacement(""),
-                    fullDecl(false) { }
+                    FullDecl(false) { }
 
     DAndReplace(Decl *D, std::string R) : Declaration(D),
                                           Statement(nullptr),
                                           Replacement(R),
-                                          fullDecl(false) {}
+                                          FullDecl(false) {}
 
     DAndReplace(Decl *D, std::string R, bool F) : Declaration(D),
                                                   Statement(nullptr),
                                                   Replacement(R),
-                                                  fullDecl(F) {}
+                                                  FullDecl(F) {}
 
 
-    DAndReplace(Decl *D, Stmt *S, std::string R) :  Declaration(D),
-                                                    Statement(S),
-                                                    Replacement(R),
-                                                    fullDecl(false) { }
+    DAndReplace(Decl *D, Stmt *S, std::string R) : Declaration(D),
+                                                   Statement(S),
+                                                   Replacement(R),
+                                                   FullDecl(false) { }
 };
 
 // Compare two DAndReplace values. The algorithm for comparing them relates
@@ -106,7 +106,7 @@ public:
 
 private:
   SourceManager &SM;
-  std::map<VarDecl *, std::set<VarDecl *>*> globVarGroups;
+  std::map<VarDecl *, std::set<VarDecl *>*> GlobVarGroups;
 };
 
 // Class that handles rewriting bounds information for all the
