@@ -365,20 +365,9 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
     // of the type specifier, since we want where the text is printed before
     // the variable name, not the typedef or #define that creates the
     // name of the type.
-
-    Stmt *S = nullptr;
-    Decl *D = nullptr;
-    DeclStmt *DS = nullptr;
-
-    std::tie(S, D) = PSLMap[PLoc];
-
-    if (D) {
+    if (Decl *D = std::get<1>(PSLMap[PLoc])) {
       // We might have one Decl for multiple Vars, however, one will be a
       // PointerVar so we'll use that.
-      VariableDecltoStmtMap::iterator K = VDLToStmtMap.find(D);
-      if (K != VDLToStmtMap.end())
-        DS = K->second;
-
       PVConstraint *PV = nullptr;
       FVConstraint *FV = nullptr;
       for (const auto &V : Vars) {
@@ -391,6 +380,10 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
       if (PV && PV->anyChanges(Info.getConstraints().getVariables()) &&
           !PV->isPartOfFunctionPrototype()) {
         // Rewrite a declaration, only if it is not part of function prototype.
+        DeclStmt *DS = nullptr;
+        if (VDLToStmtMap.find(D) != VDLToStmtMap.end())
+          DS = VDLToStmtMap[D];
+
         std::string newTy = getStorageQualifierString(D) +
             PV->mkString(Info.getConstraints().getVariables()) +
             ABRewriter.getBoundsString(PV, D);
@@ -399,8 +392,8 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
                     && !TRV.isFunctionVisited(FV->getName())) {
         // If this function already has a modified signature? and it is not
         // visited by our cast placement visitor then rewrite it.
-        std::string newSig = NewFuncSig[FV->getName()];
-        RewriteThese.insert(DAndReplace(D, newSig, true));
+        std::string NewSig = NewFuncSig[FV->getName()];
+        RewriteThese.insert(DAndReplace(D, NewSig, true));
       }
     }
   }
