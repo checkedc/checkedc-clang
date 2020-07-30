@@ -47,9 +47,9 @@ private:
   // about the current compilation unit.
   void rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles);
 
-  void rewrite(VarDecl *VD, std::string SRewrite, Stmt *WhereStmt,
-               const DAndReplace &N, RSet &ToRewrite);
-  void rewrite(ParmVarDecl *PV, std::string SRewrite);
+  void rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite);
+  void rewriteParmVarDecl(const DAndReplace &N);
+
   unsigned int getParameterIndex(ParmVarDecl *PV, FunctionDecl *FD);
   SourceLocation deleteAllDeclarationsOnLine(VarDecl *VD, DeclStmt *Stmt);
   void getDeclsOnSameLine(VarDecl *VD, DeclStmt *Stmt, std::set<Decl *> &Decls);

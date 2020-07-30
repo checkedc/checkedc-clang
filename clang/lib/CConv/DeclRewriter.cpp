@@ -36,7 +36,9 @@ unsigned int DeclRewriter::getParameterIndex(ParmVarDecl *PV,
   llvm_unreachable("Parameter declaration not found in function declaration.");
 }
 
-void DeclRewriter::rewrite(ParmVarDecl *PV, std::string SRewrite) {
+void DeclRewriter::rewriteParmVarDecl(const DAndReplace &N) {
+  ParmVarDecl *PV = N.getDecl<ParmVarDecl>();
+
   // First, find all the declarations of the containing function.
   DeclContext *DF = PV->getParentFunctionOrMethod();
   assert(DF != nullptr && "no parent function or method for decl");
@@ -55,7 +57,7 @@ void DeclRewriter::rewrite(ParmVarDecl *PV, std::string SRewrite) {
       SourceRange TR = Rewrite->getSourceRange();
 
       if (canRewrite(R, TR))
-        R.ReplaceText(TR, SRewrite);
+        R.ReplaceText(TR, N.Replacement);
     }
 }
 
@@ -113,14 +115,13 @@ SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(VarDecl *VD,
   }
 }
 
-void DeclRewriter::rewrite(VarDecl *VD, std::string SRewrite, Stmt *WhereStmt,
-                           const DAndReplace &N, RSet &ToRewrite) {
-  DeclStmt *Where = dyn_cast_or_null<DeclStmt>(WhereStmt);
-
+void DeclRewriter::rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite) {
+  VarDecl *VD = N.getDecl<VarDecl>();
+  std::string SRewrite = N.Replacement;
   if (Verbose) {
     errs() << "VarDecl at:\n";
-    if (Where)
-      Where->dump();
+    if (N.Statement)
+      N.Statement->dump();
   }
   SourceRange TR = VD->getSourceRange();
 
@@ -142,7 +143,7 @@ void DeclRewriter::rewrite(VarDecl *VD, std::string SRewrite, Stmt *WhereStmt,
 
   // Is it a variable type? This is the easy case, we can re-write it
   // locally, at the site of the declaration.
-  if (isSingleDeclaration(VD, Where)) {
+  if (isSingleDeclaration(VD, N.Statement)) {
     if (canRewrite(R, TR)) {
       R.ReplaceText(TR, SRewrite);
     } else {
@@ -162,13 +163,14 @@ void DeclRewriter::rewrite(VarDecl *VD, std::string SRewrite, Stmt *WhereStmt,
           errs() << "Still don't know how to re-write VarDecl\n";
           VD->dump();
           errs() << "at\n";
-          if (Where)
-            Where->dump();
+          if (N.Statement)
+            N.Statement->dump();
           errs() << "with " << SRewrite << "\n";
         }
       }
     }
-  } else if (!isSingleDeclaration(VD, Where) && Skip.find(N) == Skip.end()) {
+  } else if (!isSingleDeclaration(VD, N.Statement) &&
+             Skip.find(N) == Skip.end()) {
     // Hack time!
     // Sometimes, like in the case of a decl on a single line, we'll need to
     // do multiple NewTyps at once. In that case, in the inner loop, we'll
@@ -180,17 +182,16 @@ void DeclRewriter::rewrite(VarDecl *VD, std::string SRewrite, Stmt *WhereStmt,
     RSet RewritesForThisDecl(DComp(R.getSourceMgr()));
     auto I = ToRewrite.find(N);
     while (I != ToRewrite.end()) {
-      DAndReplace tmp = *I;
-      if (areDeclarationsOnSameLine(VD,
-                                    Where,
-                                    dyn_cast<VarDecl>(tmp.Declaration),
-                                    dyn_cast_or_null<DeclStmt>(tmp.Statement)))
-        RewritesForThisDecl.insert(tmp);
+      DAndReplace Tmp = *I;
+      if (areDeclarationsOnSameLine(VD, N.Statement,
+                                    dyn_cast<VarDecl>(Tmp.Declaration),
+                                    Tmp.Statement))
+        RewritesForThisDecl.insert(Tmp);
       ++I;
     }
 
     // Step 2: Remove the original line from the program.
-    SourceLocation EndOfLine = deleteAllDeclarationsOnLine(VD, Where);
+    SourceLocation EndOfLine = deleteAllDeclarationsOnLine(VD, N.Statement);
 
     // Step 3: For each decl in the original, build up a new string
     //         and if the original decl was re-written, write that
@@ -198,10 +199,10 @@ void DeclRewriter::rewrite(VarDecl *VD, std::string SRewrite, Stmt *WhereStmt,
     std::string NewMultiLineDeclS = "";
     raw_string_ostream NewMlDecl(NewMultiLineDeclS);
     std::set<Decl *> SameLineDecls;
-    getDeclsOnSameLine(VD, Where, SameLineDecls);
+    getDeclsOnSameLine(VD, N.Statement, SameLineDecls);
 
     for (const auto &DL : SameLineDecls) {
-      DAndReplace N;
+      DAndReplace SameLineReplacement;
       bool Found = false;
       VarDecl *VDL = dyn_cast<VarDecl>(DL);
       if (VDL == nullptr) {
@@ -220,13 +221,13 @@ void DeclRewriter::rewrite(VarDecl *VD, std::string SRewrite, Stmt *WhereStmt,
 
       for (const auto &NLT : RewritesForThisDecl)
         if (NLT.Declaration == DL) {
-          N = NLT;
+          SameLineReplacement = NLT;
           Found = true;
           break;
         }
 
       if (Found) {
-        NewMlDecl << N.Replacement;
+        NewMlDecl << SameLineReplacement.Replacement;
         if (Expr *E = VDL->getInit()) {
           NewMlDecl << " = ";
           E->printPretty(NewMlDecl, nullptr, A.getPrintingPolicy());
@@ -255,8 +256,8 @@ void DeclRewriter::rewrite(VarDecl *VD, std::string SRewrite, Stmt *WhereStmt,
       errs() << "Don't know how to re-write VarDecl\n";
       VD->dump();
       errs() << "at\n";
-      if (Where)
-        Where->dump();
+      if (N.Statement)
+        N.Statement->dump();
       errs() << "with " << N.Replacement << "\n";
     }
   }
@@ -264,29 +265,28 @@ void DeclRewriter::rewrite(VarDecl *VD, std::string SRewrite, Stmt *WhereStmt,
 
 void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
   for (const auto &N : ToRewrite) {
-    Decl *D = N.Declaration;
-    DeclStmt *Where = dyn_cast_or_null<DeclStmt>(N.Statement);
-    assert(D != nullptr);
+    assert(N.Declaration != nullptr);
 
     if (Verbose) {
       errs() << "Replacing type of decl:\n";
-      D->dump();
+      N.Declaration->dump();
       errs() << "with " << N.Replacement << "\n";
     }
 
     // Get a FullSourceLoc for the start location and add it to the
     // list of file ID's we've touched.
-    SourceRange tTR = D->getSourceRange();
+    SourceRange tTR = N.Declaration->getSourceRange();
     FullSourceLoc tFSL(tTR.getBegin(), A.getSourceManager());
     TouchedFiles.insert(tFSL.getFileID());
 
     // Is it a parameter type?
-    if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) {
-      assert(Where == nullptr);
-      rewrite(PV, N.Replacement);
-    } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-      rewrite(VD, N.Replacement, Where, N, ToRewrite);
-    } else if (FunctionDecl *UD = dyn_cast<FunctionDecl>(D)) {
+    if (N.hasDeclType<ParmVarDecl>()) {
+      // TODO: why is this asserted?
+      assert(N.Statement == nullptr);
+      rewriteParmVarDecl(N);
+    } else if (N.hasDeclType<VarDecl>()) {
+      rewriteVarDecl(N, ToRewrite);
+    } else if (FunctionDecl *UD = dyn_cast<FunctionDecl>(N.Declaration)) {
       // TODO: If the return type is a fully-specified function pointer,
       //       then clang will give back an invalid source range for the
       //       return type source range. For now, check that the source
@@ -306,7 +306,7 @@ void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
         if (canRewrite(R, SR))
           R.ReplaceText(SR, N.Replacement);
       }
-    } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
+    } else if (FieldDecl *FD = dyn_cast<FieldDecl>(N.Declaration)) {
       SourceRange SR = FD->getSourceRange();
       std::string SRewrite = N.Replacement;
 

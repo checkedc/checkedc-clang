@@ -52,7 +52,7 @@ bool DComp::operator()(const DAndReplace Lhs, const DAndReplace Rhs) const {
 
   // Also take into account whether or not there is a multi-statement
   // decl, because the generated ranges will overlap.
-  DeclStmt *St = dyn_cast_or_null<DeclStmt>(Lhs.Statement);
+  DeclStmt *St = Lhs.Statement;
 
   if (St && !St->isSingleDecl()) {
     SourceLocation NewBegin =
@@ -71,7 +71,7 @@ bool DComp::operator()(const DAndReplace Lhs, const DAndReplace Rhs) const {
     SrLhs.setEnd(SrLhs.getEnd().getLocWithOffset(-1));
   }
 
-  DeclStmt *RhStmt = dyn_cast_or_null<DeclStmt>(Rhs.Statement);
+  DeclStmt *RhStmt = Rhs.Statement;
   if (RhStmt && !RhStmt->isSingleDecl()) {
     SourceLocation NewBegin =
         (*RhStmt->decls().begin())->getSourceRange().getBegin();

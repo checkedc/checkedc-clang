@@ -26,7 +26,7 @@ using namespace clang;
 struct DAndReplace
 {
     Decl        *Declaration; // The declaration to replace.
-    Stmt        *Statement;   // The Stmt, if it exists.
+    DeclStmt    *Statement;   // The Stmt, if it exists.
     std::string Replacement;  // The string to replace the declaration with.
     bool        FullDecl;     // If the declaration is a function, true if
     // Replace the entire declaration or just the
@@ -47,10 +47,26 @@ struct DAndReplace
                                                   FullDecl(F) {}
 
 
-    DAndReplace(Decl *D, Stmt *S, std::string R) : Declaration(D),
-                                                   Statement(S),
-                                                   Replacement(R),
-                                                   FullDecl(false) { }
+    DAndReplace(Decl *D, DeclStmt *S, std::string R) : Declaration(D),
+                                                       Statement(S),
+                                                       Replacement(R),
+                                                       FullDecl(false) { }
+
+    template<typename T>
+    bool hasDeclType() const {
+      static_assert(std::is_same<T, VarDecl>() || std::is_same<T, ParmVarDecl>()
+                        || std::is_same<T, FunctionDecl>(),
+                    "Type is not supported Decl type.");
+      return isa<T>(Declaration);
+    }
+
+    template<typename T>
+    T *getDecl() const {
+      static_assert(std::is_same<T, VarDecl>() || std::is_same<T, ParmVarDecl>()
+                        || std::is_same<T, FunctionDecl>(),
+                    "Type is not supported Decl type.");
+      return dyn_cast<T>(Declaration);
+    }
 };
 
 // Compare two DAndReplace values. The algorithm for comparing them relates
