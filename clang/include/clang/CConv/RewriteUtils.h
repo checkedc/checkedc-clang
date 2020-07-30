@@ -164,10 +164,6 @@ public:
   virtual void HandleTranslationUnit(ASTContext &Context);
 
 private:
-  // Functions to handle modified signatures and ensuring that
-  // we always use the latest signature.
-  static std::string getModifiedFuncSignature(std::string FuncName);
-  static bool hasModifiedSignature(std::string FuncName);
   ProgramInfo &Info;
   static std::map<std::string, std::string> ModifiedFuncSignatures;
   std::string &OutputPostfix;

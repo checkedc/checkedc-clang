@@ -542,20 +542,6 @@ private:
   }
 };
 
-std::map<std::string, std::string> RewriteConsumer::ModifiedFuncSignatures;
-
-std::string RewriteConsumer::getModifiedFuncSignature(std::string FuncName) {
-  if (RewriteConsumer::ModifiedFuncSignatures.find(FuncName) !=
-      RewriteConsumer::ModifiedFuncSignatures.end()) {
-    return RewriteConsumer::ModifiedFuncSignatures[FuncName];
-  }
-  return "";
-}
-
-bool RewriteConsumer::hasModifiedSignature(std::string FuncName) {
-  return RewriteConsumer::ModifiedFuncSignatures.find(FuncName) !=
-         RewriteConsumer::ModifiedFuncSignatures.end();
-}
 
 std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
                                                  Decl *D, bool Isitype) {
@@ -588,120 +574,32 @@ std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
 void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   Info.enterCompilationUnit(Context);
 
-  // Compute the bounds information for all the array variables.
-  ArrayBoundsRewriter ABRewriter(&Context, Info);
-
+  // Rewrite Variable declarations
   Rewriter R(Context.getSourceManager(), Context.getLangOpts());
+  std::set<FileID> TouchedFiles;
+  DeclRewriter::rewriteDecls(Context, Info, R, TouchedFiles);
 
-  RSet RewriteThese(DComp(Context.getSourceManager()));
-  // Unification is done, so visit and see if we need to place any casts
-  TypeRewritingVisitor TRV =
-      TypeRewritingVisitor(&Context, Info, RewriteThese,
-                           RewriteConsumer::ModifiedFuncSignatures, ABRewriter);
-
-  for (const auto &D : Context.getTranslationUnitDecl()->decls())
-    TRV.TraverseDecl(D);
-
-  // Build a map of all of the PersistentSourceLoc's back to some kind of
-  // Stmt, Decl, or Type.
-  VariableMap &VarMap = Info.getVarMap();
-  std::set<PersistentSourceLoc> keys;
-
-  for (const auto &I : VarMap)
-    keys.insert(I.first);
-  SourceToDeclMapType PSLMap;
-  VariableDecltoStmtMap VDLToStmtMap;
-
-  MappingVisitor MV(keys, Context);
-  TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
-  StructVariableInitializer SVI =
-      StructVariableInitializer(&Context, Info, RewriteThese);
-  GlobalVariableGroups GVG(R.getSourceMgr());
-  std::set<llvm::FoldingSetNodeID> seen;
-  std::map<llvm::FoldingSetNodeID, AnnotationNeeded> nodeMap;
-  CheckedRegionFinder CRF(&Context, R, Info, seen, nodeMap);
-  CheckedRegionAdder CRA(&Context, R, nodeMap);
+  // Take care of some other rewriting tasks
+  std::set<llvm::FoldingSetNodeID> Seen;
+  std::map<llvm::FoldingSetNodeID, AnnotationNeeded> NodeMap;
+  CheckedRegionFinder CRF(&Context, R, Info, Seen, NodeMap);
+  CheckedRegionAdder CRA(&Context, R, NodeMap);
   CastPlacementVisitor ECPV(&Context, Info, R);
   CompoundLiteralRewriter CLR(&Context, Info, R);
   TypeArgumentAdder TPA(&Context, Info, R);
+  TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   for (const auto &D : TUD->decls()) {
-    MV.TraverseDecl(D);
-    SVI.TraverseDecl(D);
     ECPV.TraverseDecl(D);
     if (AddCheckedRegions) {
       // Adding checked regions enabled!?
+      // TODO: Should checked region finding happen somewhere else? This is
+      //       supposed to be rewriting.
       CRF.TraverseDecl(D);
       CRA.TraverseDecl(D);
     }
-
-    GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
     CLR.TraverseDecl(D);
     TPA.TraverseDecl(D);
   }
-
-  std::tie(PSLMap, VDLToStmtMap) = MV.getResults();
-
-  for (const auto &V : Info.getVarMap()) {
-    PersistentSourceLoc PLoc = V.first;
-    CVarSet Vars = V.second;
-    // I don't think it's important that Vars have any especial size, but
-    // at one point I did so I'm keeping this comment here. It's possible
-    // that what we really need to do is to ensure that when we work with
-    // either PV or FV below, that they are the LUB of what is in Vars.
-    // assert(Vars.size() > 0 && Vars.size() <= 2);
-
-    // PLoc specifies the location of the variable whose type it is to
-    // re-write, but not where the actual type storage is. To get that, we
-    // need to turn PLoc into a Decl and then get the SourceRange for the
-    // type of the Decl. Note that what we need to get is the ExpansionLoc
-    // of the type specifier, since we want where the text is printed before
-    // the variable name, not the typedef or #define that creates the
-    // name of the type.
-
-    Stmt *S = nullptr;
-    Decl *D = nullptr;
-    DeclStmt *DS = nullptr;
-
-    std::tie(S, D) = PSLMap[PLoc];
-
-    if (D) {
-      // We might have one Decl for multiple Vars, however, one will be a
-      // PointerVar so we'll use that.
-      VariableDecltoStmtMap::iterator K = VDLToStmtMap.find(D);
-      if (K != VDLToStmtMap.end())
-        DS = K->second;
-
-      PVConstraint *PV = nullptr;
-      FVConstraint *FV = nullptr;
-      for (const auto &V : Vars) {
-        if (PVConstraint *T = dyn_cast<PVConstraint>(V))
-          PV = T;
-        else if (FVConstraint *T = dyn_cast<FVConstraint>(V))
-          FV = T;
-      }
-
-
-      if (PV && PV->anyChanges(Info.getConstraints().getVariables()) &&
-          !PV->isPartOfFunctionPrototype()) {
-        // Rewrite a declaration, only if it is not part of function prototype.
-        std::string newTy = getStorageQualifierString(D) +
-                            PV->mkString(Info.getConstraints().getVariables()) +
-                            ABRewriter.getBoundsString(PV, D);
-        RewriteThese.insert(DAndReplace(D, DS, newTy));
-      } else if (FV && RewriteConsumer::hasModifiedSignature(FV->getName()) &&
-                 !TRV.isFunctionVisited(FV->getName())) {
-        // If this function already has a modified signature? and it is not
-        // visited by our cast placement visitor then rewrite it.
-        std::string newSig =
-            RewriteConsumer::getModifiedFuncSignature(FV->getName());
-        RewriteThese.insert(DAndReplace(D, newSig, true));
-      }
-    }
-  }
-
-  DeclRewriter DeclR(R, Context, GVG);
-  std::set<FileID> TouchedFiles;
-  DeclR.rewrite(RewriteThese, TouchedFiles);
 
   // Output files.
   emit(R, Context, TouchedFiles, OutputPostfix);

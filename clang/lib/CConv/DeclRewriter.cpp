@@ -17,6 +17,8 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/Rewrite/Core/Rewriter.h"
 #include <sstream>
+#include "clang/CConv/StructInit.h"
+#include "clang/CConv/MappingVisitor.h"
 
 using namespace llvm;
 using namespace clang;
@@ -312,4 +314,103 @@ void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
         R.ReplaceText(SR, SRewrite);
     }
   }
+}
+
+std::map<std::string, std::string> DeclRewriter::NewFuncSig;
+
+void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
+                                Rewriter &R, std::set<FileID> &TouchedFiles) {
+  // Compute the bounds information for all the array variables.
+  ArrayBoundsRewriter ABRewriter(&Context, Info);
+
+  // Collect function and record declarations that need to be rewritten in a set
+  // as well as their rewriten types in a map.
+  RSet RewriteThese(DComp(Context.getSourceManager()));
+  TypeRewritingVisitor TRV = TypeRewritingVisitor(&Context, Info, RewriteThese,
+                                                  NewFuncSig, ABRewriter);
+  StructVariableInitializer SVI = StructVariableInitializer(&Context, Info,
+                                                            RewriteThese);
+  for (const auto &D : Context.getTranslationUnitDecl()->decls()) {
+    TRV.TraverseDecl(D);
+    SVI.TraverseDecl(D);
+  }
+
+  // Build a map of all of the PersistentSourceLoc's back to some kind of
+  // Stmt, Decl, or Type.
+  TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
+  std::set<PersistentSourceLoc> Keys;
+  for (const auto &I : Info.getVarMap())
+    Keys.insert(I.first);
+  MappingVisitor MV(Keys, Context);
+  for (const auto &D : TUD->decls())
+    MV.TraverseDecl(D);
+  SourceToDeclMapType PSLMap;
+  VariableDecltoStmtMap VDLToStmtMap;
+  std::tie(PSLMap, VDLToStmtMap) = MV.getResults();
+
+  // Add declarations from this map into the rewriting set
+  for (const auto &V : Info.getVarMap()) {
+    PersistentSourceLoc PLoc = V.first;
+    CVarSet Vars = V.second;
+    // I don't think it's important that Vars have any especial size, but
+    // at one point I did so I'm keeping this comment here. It's possible
+    // that what we really need to do is to ensure that when we work with
+    // either PV or FV below, that they are the LUB of what is in Vars.
+    // assert(Vars.size() > 0 && Vars.size() <= 2);
+
+    // PLoc specifies the location of the variable whose type it is to
+    // re-write, but not where the actual type storage is. To get that, we
+    // need to turn PLoc into a Decl and then get the SourceRange for the
+    // type of the Decl. Note that what we need to get is the ExpansionLoc
+    // of the type specifier, since we want where the text is printed before
+    // the variable name, not the typedef or #define that creates the
+    // name of the type.
+
+    Stmt *S = nullptr;
+    Decl *D = nullptr;
+    DeclStmt *DS = nullptr;
+
+    std::tie(S, D) = PSLMap[PLoc];
+
+    if (D) {
+      // We might have one Decl for multiple Vars, however, one will be a
+      // PointerVar so we'll use that.
+      VariableDecltoStmtMap::iterator K = VDLToStmtMap.find(D);
+      if (K != VDLToStmtMap.end())
+        DS = K->second;
+
+      PVConstraint *PV = nullptr;
+      FVConstraint *FV = nullptr;
+      for (const auto &V : Vars) {
+        if (PVConstraint *T = dyn_cast<PVConstraint>(V))
+          PV = T;
+        else if (FVConstraint *T = dyn_cast<FVConstraint>(V))
+          FV = T;
+      }
+
+      if (PV && PV->anyChanges(Info.getConstraints().getVariables()) &&
+          !PV->isPartOfFunctionPrototype()) {
+        // Rewrite a declaration, only if it is not part of function prototype.
+        std::string newTy = getStorageQualifierString(D) +
+            PV->mkString(Info.getConstraints().getVariables()) +
+            ABRewriter.getBoundsString(PV, D);
+        RewriteThese.insert(DAndReplace(D, DS, newTy));
+      } else if (FV && NewFuncSig.find(FV->getName()) != NewFuncSig.end()
+                    && !TRV.isFunctionVisited(FV->getName())) {
+        // If this function already has a modified signature? and it is not
+        // visited by our cast placement visitor then rewrite it.
+        std::string newSig = NewFuncSig[FV->getName()];
+        RewriteThese.insert(DAndReplace(D, newSig, true));
+      }
+    }
+  }
+
+  // TODO: why do we need to do this?
+  GlobalVariableGroups GVG(R.getSourceMgr());
+  for (const auto &D : TUD->decls())
+    GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
+
+  // Do the declaration rewriting
+  DeclRewriter DeclR(R, Context, GVG);
+  DeclR.rewrite(RewriteThese, TouchedFiles);
 }
