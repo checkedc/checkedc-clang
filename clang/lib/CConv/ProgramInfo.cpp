@@ -339,7 +339,7 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
   }
 
   if (JsonFormat) {
-    O << "}";
+    O << "}}";
   }
 }
 
