@@ -30,6 +30,7 @@ using namespace clang;
 
 bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) { 
   llvm::FoldingSetNodeID Id;
+
   S->Profile(Id, *Context, true);
   switch (Map[Id]) {
     case IS_UNCHECKED:
@@ -40,14 +41,30 @@ bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
       break;
     case IS_CHECKED:
       if(!isParentChecked(S)) {
-                        auto Loc = S->getBeginLoc();
-                        Writer.InsertTextBefore(Loc, "_Checked ");
+        auto Loc = S->getBeginLoc();
+        Writer.InsertTextBefore(Loc, "_Checked ");
       }
       break;
     default: llvm_unreachable("Bad flag in CheckedRegionAdder");
   }
 
-  return true;
+  for(const auto C : S->children()) {
+    CheckedRegionAdder SV(Context, Writer, Map);
+    SV.TraverseStmt(C);
+  }
+
+  return false;
+}
+
+
+bool CheckedRegionAdder::VisitIfStmt(IfStmt *IS) {
+  CheckedRegionAdder Then_v(Context, Writer, Map);
+  CheckedRegionAdder Else_v(Context, Writer, Map);
+
+  Then_v.TraverseStmt(IS->getThen());
+  Else_v.TraverseStmt(IS->getElse());
+
+  return false;
 }
 
 typedef std::pair<const CompoundStmt*, int> StmtPair;
@@ -79,15 +96,6 @@ CheckedRegionAdder::findParentCompound(const ast_type_traits::DynTypedNode &N, i
   }
 }
 
-bool CheckedRegionAdder::VisitIfStmt(IfStmt *IS) {
-  CheckedRegionAdder Then_v(Context, Writer, Map);
-  CheckedRegionAdder Else_v(Context, Writer, Map);
-
-  Then_v.TraverseStmt(IS->getThen());
-  Else_v.TraverseStmt(IS->getElse());
-
-  return false;
-}
 
 bool CheckedRegionAdder::isFunctionBody(CompoundStmt *S) {
   const auto &Parents = Context->getParents(*S);
