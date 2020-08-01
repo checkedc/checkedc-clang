@@ -10177,7 +10177,8 @@ def err_bounds_type_annotation_lost_checking : Error<
     "%select{assignment|initialization|statement|increment|decrement}0">;
 
   def err_unknown_inferred_bounds : Error<
-    "inferred bounds for %0 are unknown after statement">;
+    "inferred bounds for %1 are unknown after "
+    "%select{assignment|initialization|statement|increment|decrement}0">;
 
   def note_declared_bounds : Note<
     "(expanded) declared bounds are '%0'">;
