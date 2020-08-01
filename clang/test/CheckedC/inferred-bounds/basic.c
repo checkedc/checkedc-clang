@@ -131,7 +131,7 @@ void f5(void) {
 // CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Any
 
 void f6(_Array_ptr<int> a : bounds(a, a + 5)) {
-  a = (_Array_ptr<int>) 5; // expected-error {{inferred bounds for 'a' are unknown after statement}}
+  a = (_Array_ptr<int>) 5; // expected-error {{inferred bounds for 'a' are unknown after assignment}}
 }
 
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
@@ -260,7 +260,7 @@ void f20(_Array_ptr<int> a : count(len),
 
 void f21(_Array_ptr<int> a : count(5),
          _Array_ptr<int> b) {
-  a = b;  // expected-error {{inferred bounds for 'a' are unknown after statement}}
+  a = b;  // expected-error {{inferred bounds for 'a' are unknown after assignment}}
 }
 
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='

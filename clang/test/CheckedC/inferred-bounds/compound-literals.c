@@ -113,7 +113,7 @@ void f2(_Array_ptr<struct S> arr : count(1), struct S s) {
   // Inferred RHS bounds: invalid
   // TODO: checkedc-clang issue #870: once struct-typed compound literals are bound to temporaries,
   // the inferred RHS bounds should be bounds(&temp((struct S){ 0 }), &temp((struct S){ 0 }) + 1)
-  arr = &(struct S){ 0 }; // expected-error {{inferred bounds for 'arr' are unknown after statement}}
+  arr = &(struct S){ 0 }; // expected-error {{inferred bounds for 'arr' are unknown after assignment}}
   // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<struct S>' '='
   // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'arr' '_Array_ptr<struct S>'
   // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <BitCast>

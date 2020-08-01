@@ -13,7 +13,7 @@ void f1() {
   {}
 
   if (*p) {
-    p++; // expected-warning {{cannot prove declared bounds for 'p' are valid after statement}}
+    p++; // expected-warning {{cannot prove declared bounds for 'p' are valid after increment}}
     if (*(p + 1)) // expected-error {{out-of-bounds memory access}}
     {}
   }
