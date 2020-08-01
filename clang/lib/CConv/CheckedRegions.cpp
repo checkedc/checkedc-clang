@@ -259,7 +259,7 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
     auto type = FD->getReturnType();
 
     Wild |= (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody()))
-      || isUncheckedPtr(type)
+      || containsUncheckedPtr(type)
       || (any_of(FD->param_begin(), FD->param_end(), [this] (Decl *param) {
             auto var = Info.getVariable(param, Context);
             return isWild(var);
@@ -275,14 +275,14 @@ bool CheckedRegionFinder::VisitVarDecl(VarDecl *VD) {
   auto CVSet = Info.getVariable(VD, Context);
   isWild(CVSet);
   // Check if the variable contains an unchecked type.
-  Wild = isUncheckedPtr(VD->getType());
+  Wild = containsUncheckedPtr(VD->getType());
   return true;
 }
 
 bool CheckedRegionFinder::VisitParmVarDecl(ParmVarDecl *PVD) {
   // Check if the variable is WILD.
   auto V = Info.getVariable(PVD, Context);
-  Wild |= isWild(V) | isUncheckedPtr(PVD->getType());
+  Wild |= isWild(V) | containsUncheckedPtr(PVD->getType());
   return true;
 }
 
@@ -305,7 +305,7 @@ bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) {
   auto T = DR->getType();
   auto D = DR->getDecl();
   auto var = Info.getVariable(D, Context);
-  bool IW = isWild(var) || isUncheckedPtr(T);
+  bool IW = isWild(var) || containsUncheckedPtr(T);
 
   if (auto FD = dyn_cast<FunctionDecl>(D)) { 
     auto FV = Info.getFuncConstraints(FD, Context);
@@ -321,14 +321,14 @@ bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) {
   return true;
 }
 
-bool CheckedRegionFinder::isUncheckedPtr(QualType Qt) {
+bool CheckedRegionFinder::containsUncheckedPtr(QualType Qt) {
   // TODO does a more efficient representation exist?
   std::set<std::string> Seen;
-  return isUncheckedPtrAcc(Qt, Seen);
+  return containsUncheckedPtrAcc(Qt, Seen);
 }
 
 // Recursively determine if a type is unchecked.
-bool CheckedRegionFinder::isUncheckedPtrAcc(QualType Qt, std::set<std::string> &Seen) {
+bool CheckedRegionFinder::containsUncheckedPtrAcc(QualType Qt, std::set<std::string> &Seen) {
   auto Ct = Qt.getCanonicalType();
   auto TyStr = Ct.getAsString();
   bool isSeen;
@@ -343,8 +343,8 @@ bool CheckedRegionFinder::isUncheckedPtrAcc(QualType Qt, std::set<std::string> &
     if (auto FPT = dyn_cast<FunctionProtoType>(Ct->getPointeeType())) { 
       auto PTs = FPT->getParamTypes();
       bool params = any_of(PTs.begin(), PTs.end(), 
-          [this, &Seen] (QualType QT) { return isUncheckedPtrAcc(QT, Seen); });
-      return isUncheckedPtrAcc(FPT->getReturnType(), Seen) || params;
+          [this, &Seen] (QualType QT) { return containsUncheckedPtrAcc(QT, Seen); });
+      return containsUncheckedPtrAcc(FPT->getReturnType(), Seen) || params;
     } else { 
       return false;
     }
@@ -353,7 +353,7 @@ bool CheckedRegionFinder::isUncheckedPtrAcc(QualType Qt, std::set<std::string> &
   } else if (Ct->isVoidType()) {
     return true;
   } if (Ct->isPointerType()) {
-    return isUncheckedPtrAcc(Ct->getPointeeType(), Seen);
+    return containsUncheckedPtrAcc(Ct->getPointeeType(), Seen);
   } else if (Ct->isRecordType()) {
     if (isSeen) {
       return false;
@@ -376,7 +376,7 @@ bool CheckedRegionFinder::isUncheckedStruct(QualType Qt, std::set<std::string> &
       bool Unsafe = false;
       for (auto const &Fld : D->fields()) {
         auto Ftype = Fld->getType();
-        Unsafe |= isUncheckedPtrAcc(Ftype, Seen);
+        Unsafe |= containsUncheckedPtrAcc(Ftype, Seen);
         std::set<ConstraintVariable *> CVSet =
             Info.getVariable(Fld, Context);
         for (auto Cv : CVSet) {
@@ -418,7 +418,7 @@ bool CheckedRegionFinder::VisitMemberExpr(MemberExpr *E){
     }
 
     // Check if the variable is a void*.
-    Wild |= isUncheckedPtr(VD->getType());
+    Wild |= containsUncheckedPtr(VD->getType());
   }
   return true;
 }
