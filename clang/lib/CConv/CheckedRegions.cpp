@@ -398,16 +398,10 @@ void CheckedRegionFinder::addUncheckedAnnotation(CompoundStmt *S, int Localwild)
   llvm::FoldingSetNodeID Id;
   S->Profile(Id, *Context, true);
 
-
-  auto Loc = S->getBeginLoc();
   bool IsChecked = !hasUncheckedParameters(S) &&
     Cur == CheckedScopeSpecifier::CSS_None && Localwild == 0;
 
   Map[Id] = IsChecked ? IS_CHECKED : IS_UNCHECKED;
-
-  // Don't add _Unchecked to top level functions.
-  //if ((!IsChecked && !isFunctionBody(S)))
-    //Writer.InsertTextBefore(Loc, "_Unchecked ");
 }
 
 
@@ -422,7 +416,6 @@ bool CheckedRegionFinder::VisitMemberExpr(MemberExpr *E){
         Wild = true;
       }
     }
-
 
     // Check if the variable is a void*.
     Wild |= isUncheckedPtr(VD->getType());

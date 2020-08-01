@@ -22,78 +22,76 @@
 
 #include "ProgramInfo.h"
 
-using namespace clang;
-using namespace llvm;
 
 typedef enum { 
   IS_UNCHECKED,
   IS_CHECKED,
 } AnnotationNeeded;
 
-class CheckedRegionAdder : public RecursiveASTVisitor<CheckedRegionAdder>
+class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 {
   public:
-    explicit CheckedRegionAdder(ASTContext *_C, Rewriter &_R,
+    explicit CheckedRegionAdder(clang::ASTContext *_C, clang::Rewriter &_R,
         std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &M)
       : Context(_C), Writer(_R), Map(M) {}
 
-    bool VisitCompoundStmt(CompoundStmt *S);
-    bool VisitIfStmt(IfStmt *IS);
+    bool VisitCompoundStmt(clang::CompoundStmt *S);
+    bool VisitIfStmt(clang::IfStmt *IS);
 
   private:
-    std::pair<const CompoundStmt*, int>
-        findParentCompound(const ast_type_traits::DynTypedNode &N);
-    std::pair<const CompoundStmt*, int>
-        findParentCompound(const ast_type_traits::DynTypedNode &N, int);
-    bool isParentChecked(CompoundStmt *S);
-    bool isFunctionBody(CompoundStmt *S);
-    ASTContext* Context;
-    Rewriter& Writer;
+    std::pair<const clang::CompoundStmt*, int>
+        findParentCompound(const clang::ast_type_traits::DynTypedNode &N);
+    std::pair<const clang::CompoundStmt*, int>
+        findParentCompound(const clang::ast_type_traits::DynTypedNode &N, int);
+    bool isParentChecked(clang::CompoundStmt *S);
+    bool isFunctionBody(clang::CompoundStmt *S);
+    clang::ASTContext* Context;
+    clang::Rewriter& Writer;
     std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &Map;
 };
 
-class CheckedRegionFinder : public RecursiveASTVisitor<CheckedRegionFinder>
+class CheckedRegionFinder : public clang::RecursiveASTVisitor<CheckedRegionFinder>
 {
   public:
-    explicit CheckedRegionFinder(ASTContext *_C, Rewriter &_R, ProgramInfo &_I,
-                                std::set<FoldingSetNodeID> &S,
-                                std::map<FoldingSetNodeID, AnnotationNeeded> &M)
+    explicit CheckedRegionFinder(clang::ASTContext *_C, clang::Rewriter &_R, ProgramInfo &_I,
+                                std::set<llvm::FoldingSetNodeID> &S,
+                                std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &M)
       : Context(_C), Writer(_R), Info(_I), Seen(S), Map(M) {}
     bool Wild = false;
 
-    bool VisitForStmt(ForStmt *S);
-    bool VisitSwitchStmt(SwitchStmt *S);
-    bool VisitIfStmt(IfStmt *S);
-    bool VisitWhileStmt(WhileStmt *S);
-    bool VisitDoStmt(DoStmt *S);
-    bool VisitCompoundStmt(CompoundStmt *S);
-    bool VisitStmtExpr(StmtExpr *SE);
-    bool VisitCStyleCastExpr(CStyleCastExpr *E);
-    bool VisitCallExpr(CallExpr *C);
-    bool VisitVarDecl(VarDecl *VD);
-    bool VisitParmVarDecl(ParmVarDecl *PVD);
-    bool VisitMemberExpr(MemberExpr *E);
-    bool VisitDeclRefExpr(DeclRefExpr*);
+    bool VisitForStmt(clang::ForStmt *S);
+    bool VisitSwitchStmt(clang::SwitchStmt *S);
+    bool VisitIfStmt(clang::IfStmt *S);
+    bool VisitWhileStmt(clang::WhileStmt *S);
+    bool VisitDoStmt(clang::DoStmt *S);
+    bool VisitCompoundStmt(clang::CompoundStmt *S);
+    bool VisitStmtExpr(clang::StmtExpr *SE);
+    bool VisitCStyleCastExpr(clang::CStyleCastExpr *E);
+    bool VisitCallExpr(clang::CallExpr *C);
+    bool VisitVarDecl(clang::VarDecl *VD);
+    bool VisitParmVarDecl(clang::ParmVarDecl *PVD);
+    bool VisitMemberExpr(clang::MemberExpr *E);
+    bool VisitDeclRefExpr(clang::DeclRefExpr*);
 
 
 
 
   private:
-    void handleChildren(const Stmt::child_range &Stmts);
-    void addUncheckedAnnotation(CompoundStmt *S, int LocalWild);
-    bool isInStatementPosition(CallExpr *C);
-    bool hasUncheckedParameters(CompoundStmt *S);
-    bool isUncheckedPtr(QualType Qt);
-    bool isUncheckedPtrAcc(QualType Qt, std::set<std::string> &Seen);
-    bool isUncheckedStruct(QualType Qt, std::set<std::string> &Seen);
+    void handleChildren(const clang::Stmt::child_range &Stmts);
+    void addUncheckedAnnotation(clang::CompoundStmt *S, int LocalWild);
+    bool isInStatementPosition(clang::CallExpr *C);
+    bool hasUncheckedParameters(clang::CompoundStmt *S);
+    bool isUncheckedPtr(clang::QualType Qt);
+    bool isUncheckedPtrAcc(clang::QualType Qt, std::set<std::string> &Seen);
+    bool isUncheckedStruct(clang::QualType Qt, std::set<std::string> &Seen);
     bool isWild(std::set<ConstraintVariable*>&);
     bool isWild(std::set<FVConstraint*>*);
 
-    ASTContext* Context;
-    Rewriter& Writer;
+    clang::ASTContext* Context;
+    clang::Rewriter& Writer;
     ProgramInfo& Info;
-    std::set<FoldingSetNodeID>& Seen;
-    std::map<FoldingSetNodeID, AnnotationNeeded>& Map;
+    std::set<llvm::FoldingSetNodeID>& Seen;
+    std::map<llvm::FoldingSetNodeID, AnnotationNeeded>& Map;
 
 };
 
