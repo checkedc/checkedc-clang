@@ -243,6 +243,7 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
     // an unsafe block and avoid polluting the entire block as unsafe.
     // If it's not (as in it is used in an expression) then we fall back to
     // reporting an WILD value.
+    errs() << "Hit!\n";
     if (isInStatementPosition(C)) {
       // Insert an _Unchecked block around the call
       auto Begin = C->getBeginLoc();
@@ -251,13 +252,13 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
       Writer.InsertTextAfterToken(End, "; }");
     } else {
       // Call is inside an epxression, mark WILD.
-      Wild = false;
+      Wild = true;
     }
   }
   if (FD) {
     auto type = FD->getReturnType();
 
-    Wild = (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody()))
+    Wild |= (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody()))
       || isUncheckedPtr(type)
       || (any_of(FD->param_begin(), FD->param_end(), [this] (Decl *param) {
             auto var = Info.getVariable(param, Context);
