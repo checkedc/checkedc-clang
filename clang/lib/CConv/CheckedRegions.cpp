@@ -243,7 +243,6 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
     // an unsafe block and avoid polluting the entire block as unsafe.
     // If it's not (as in it is used in an expression) then we fall back to
     // reporting an WILD value.
-    errs() << "Hit!\n";
     if (isInStatementPosition(C)) {
       // Insert an _Unchecked block around the call
       auto Begin = C->getBeginLoc();
