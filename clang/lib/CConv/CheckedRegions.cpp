@@ -237,7 +237,11 @@ bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
 }
 
 bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
+  // TODO this should really be moved to the other visitor
+  // both for clarity and because it will allow it take advantage of
+  // redundancy checks
   auto FD = C->getDirectCallee();
+  bool contained = false;
   if (FD && FD->isVariadic()) {
     // If this variadic call is in statement positon, we can wrap in it
     // an unsafe block and avoid polluting the entire block as unsafe.
@@ -249,22 +253,27 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
       Writer.InsertTextBefore(Begin, "_Unchecked { ");
       auto End = C->getEndLoc();
       Writer.InsertTextAfterToken(End, "; }");
+      contained = true;
     } else {
       // Call is inside an epxression, mark WILD.
       Wild = true;
     }
   }
-  if (FD) {
-    auto type = FD->getReturnType();
-
-    Wild |= (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody()))
-      || containsUncheckedPtr(type)
-      || (any_of(FD->param_begin(), FD->param_end(), [this] (Decl *param) {
-            auto var = Info.getVariable(param, Context);
-            return isWild(var);
-          }));
+  if (contained)
+    Wild = false;
+  else {
+    if (FD) {
+      auto type = FD->getReturnType();
+      Wild |= (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody()))
+        || containsUncheckedPtr(type)
+        || (any_of(FD->param_begin(), FD->param_end(), [this] (Decl *param) {
+              auto var = Info.getVariable(param, Context);
+              return isWild(var);
+            }));
+    }
+    handleChildren(C->children());
   }
-  handleChildren(C->children());
+
   return false;
 }
 
