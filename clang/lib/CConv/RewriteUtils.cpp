@@ -783,38 +783,26 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 
 
 
-// Visit every array compound literal expression (i.e., (int*[2]){&a, &b}) and
-// replace the type name with a new type based on constraint solution.
-class CompoundLiteralRewriter
-    : public clang::RecursiveASTVisitor<CompoundLiteralRewriter> {
+// Rewrites types that inside other expressions. This includes cast expression
+// and compound literal expressions.
+class TypeExprRewriter
+    : public clang::RecursiveASTVisitor<TypeExprRewriter> {
 public:
-  explicit CompoundLiteralRewriter(ASTContext *C, ProgramInfo &I, Rewriter &R)
+  explicit TypeExprRewriter(ASTContext *C, ProgramInfo &I, Rewriter &R)
       : Context(C), Info(I) , Writer(R) {}
 
   bool VisitCompoundLiteralExpr(CompoundLiteralExpr *CLE) {
-    // When an compound literal was visited in constraint generation, a
-    // constraint variable for it was stored in program info.  There should be
-    // either zero or one of these.
-    CVarSet
-        CVSingleton = Info.getPersistentConstraintVars(CLE, Context);
-    if (CVSingleton.empty())
-      return true;
-    ConstraintVariable *CV = getOnly(CVSingleton);
+    SourceRange TypeSrcRange(CLE->getBeginLoc().getLocWithOffset(1),
+         CLE->getTypeSourceInfo()->getTypeLoc().getEndLoc());
+    rewriteType(CLE, TypeSrcRange);
+    return true;
+  }
 
-    // Only rewrite if the type has changed.
-    if(CV->anyChanges(Info.getConstraints().getVariables())){
-      // The constraint variable is able to tell us what the new type string
-      // should be.
-      std::string NewType = CV->mkString(Info.getConstraints().getVariables(),false);
-
-      // Replace the original type with this new one
-      SourceRange *TypeSrcRange =
-          new SourceRange(CLE->getBeginLoc().getLocWithOffset(1),
-                          CLE->getTypeSourceInfo()->getTypeLoc().getEndLoc());
-
-      if(canRewrite(Writer, *TypeSrcRange))
-        Writer.ReplaceText(*TypeSrcRange, NewType);
-    }
+  bool VisitCStyleCastExpr(CStyleCastExpr *ECE) {
+    SourceRange TypeSrcRange
+        (ECE->getBeginLoc().getLocWithOffset(1),
+          ECE->getTypeInfoAsWritten()->getTypeLoc().getEndLoc());
+    rewriteType(ECE, TypeSrcRange);
     return true;
   }
 
@@ -822,6 +810,25 @@ private:
   ASTContext *Context;
   ProgramInfo &Info;
   Rewriter &Writer;
+
+  void rewriteType(Expr *E, SourceRange &Range) {
+    CVarSet CVSingleton = Info.getPersistentConstraintVars(E, Context);
+    if (CVSingleton.empty())
+      return;
+    ConstraintVariable *CV = getOnly(CVSingleton);
+
+    // Only rewrite if the type has changed.
+    if (CV->anyChanges(Info.getConstraints().getVariables())){
+      // The constraint variable is able to tell us what the new type string
+      // should be.
+      std::string
+          NewType = CV->mkString(Info.getConstraints().getVariables(), false);
+
+      // Replace the original type with this new one
+      if (canRewrite(Writer, Range))
+        Writer.ReplaceText(Range, NewType);
+    }
+  }
 };
 
 // Adds type parameters to calls to alloc functions.
@@ -984,7 +991,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   CheckedRegionFinder CRF(&Context, R, Info, seen, nodeMap);
   CheckedRegionAdder CRA(&Context, R, nodeMap);
   CastPlacementVisitor ECPV(&Context, Info, R);
-  CompoundLiteralRewriter CLR(&Context, Info, R);
+  TypeExprRewriter TER(&Context, Info, R);
   TypeArgumentAdder TPA(&Context, Info, R);
   for (auto &D : TUD->decls()) {
     V.TraverseDecl(D);
@@ -997,7 +1004,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
     }
 
     GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
-    CLR.TraverseDecl(D);
+    TER.TraverseDecl(D);
     TPA.TraverseDecl(D);
   }
 

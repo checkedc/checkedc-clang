@@ -70,6 +70,7 @@ private:
   bool hasPersistentConstraints(clang::Expr *E);
   CVarSet getPersistentConstraints(clang::Expr *E);
   void storePersistentConstraints(clang::Expr *E, CVarSet &Vars);
+  PVConstraint *getRewritablePVConstraint(Expr *E);
 };
 
 #endif // _CONSTRAINTRESOLVER_H
