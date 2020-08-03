@@ -705,12 +705,20 @@ namespace {
       // user when diagnosing unknown bounds errors.
       llvm::DenseMap<const VarDecl *, SmallVector<Expr *, 4>> UnknownSrcBounds;
 
-      // BlameExprs maps a variable declaration V to the expression that last
-      // updates the observed bounds of V.
+      // BlameAssignments maps a variable declaration V to an expression in a
+      // top-level CFG statement that last updates any variable used in the
+      // declared bounds of V.
       //
-      // BlameExprs is used to blame the last invalid assignment in the current
-      // top-level CFG statement.
-      llvm::DenseMap<const VarDecl *, Expr *> BlameExprs;
+      // BlameAssignments is used to provide more context for two types of
+      // diagnostic messages:
+      //   1. The compiler cannot prove or can disprove the declared bounds for
+      //   V are valid after an assignment to V; and
+      //   2. The inferred bounds of V become unknown after an assignment to a
+      //   variable used in the declared bounds for V.
+      //
+      // BlameAssignments is updated in UpdateAfterAssignments and reset after
+      // checking each top-level CFG statement.
+      llvm::DenseMap<const VarDecl *, Expr *> BlameAssignments;
 
       // TargetSrcEquality maps a target expression V to the most recent
       // expression Src that has been assigned to V within the current
@@ -725,7 +733,7 @@ namespace {
         SameValue.clear();
         LostVariables.clear();
         UnknownSrcBounds.clear();
-        BlameExprs.clear();
+        BlameAssignments.clear();
         TargetSrcEquality.clear();
       }
   };
@@ -3928,16 +3936,19 @@ namespace {
     // whose observed bounds are unknown after checking the top-level CFG
     // statement St.
     //
-    // State contians information that is used to provide more context in
+    // State contains information that is used to provide more context in
     // the diagnostic messages.
     void DiagnoseUnknownObservedBounds(Stmt *St, const VarDecl *V,
                                        BoundsExpr *DeclaredBounds,
                                        CheckingState State) {
+      // Blame the assignment in St that causes V's observed bounds to be
+      // unknown if we can find it in map BlameAssignments.  Otherwise, blame
+      // the whole St in the error message.
       SourceLocation Loc = St->getBeginLoc();
       SourceRange SrcRange = St->getSourceRange();
       auto BDCType = Sema::BoundsDeclarationCheck::BDC_Statement;
-      auto It = State.BlameExprs.find(V);
-      if (It != State.BlameExprs.end()) {
+      auto It = State.BlameAssignments.find(V);
+      if (It != State.BlameAssignments.end()) {
         Expr *BlameExpr = It->second;
         Loc = BlameExpr->getBeginLoc();
         SrcRange = BlameExpr->getSourceRange();
@@ -4023,10 +4034,10 @@ namespace {
         BDCType = Sema::BoundsDeclarationCheck::BDC_Initialization;
       }
 
-      // Find the last assignment BlameExpr to v to blame.  Target the source
-      // location and range of BlameExpr in the diagnostic message.
-      auto It = State.BlameExprs.find(V);
-      if (It != State.BlameExprs.end()) {
+      // Find the last assignment to V to blame in the diagnostic message if it
+      // exists.
+      auto It = State.BlameAssignments.find(V);
+      if (It != State.BlameAssignments.end()) {
         Expr *BlameExpr = It->second;
         Loc = BlameExpr->getBeginLoc();
         SrcRange = BlameExpr->getSourceRange();
@@ -4047,7 +4058,8 @@ namespace {
         << ObservedBounds << ObservedBounds->getSourceRange();
     }
 
-    // Returns keyword used in diagnostic messages to a modifying expression.
+    // Returns the type of assignment E to show in the diagnostic messages:
+    // assignment (=), decrement (--) or increment (++).
     Sema::BoundsDeclarationCheck GetBDCTypeFromExpr(Expr *E) const {
       if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
         switch (UO->getOpcode()) {
@@ -4062,8 +4074,9 @@ namespace {
         default:
           break;
         }
-      } else if (BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
-        // Must be an assignment or a compounds assignment
+      } else if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
+        // Must be an assignment or a compounds assignment, because E is
+        // modifying.
         return Sema::BoundsDeclarationCheck::BDC_Assignment;
       }
       return Sema::BoundsDeclarationCheck::BDC_Statement;
@@ -4122,7 +4135,7 @@ namespace {
         BoundsExpr *Bounds = Pair.second;
         BoundsExpr *AdjustedBounds = ReplaceVariableInBounds(Bounds, V, OriginalValue, CSS);
         if (!Pair.second->isUnknown() && AdjustedBounds->isUnknown()) {
-          State.BlameExprs[W] = E;
+          State.BlameAssignments[W] = E;
           State.LostVariables[W] = std::make_pair(Bounds, V);
         }
         State.ObservedBounds[W] = AdjustedBounds;
@@ -4134,8 +4147,9 @@ namespace {
       if (DeclaredBounds)
         State.ObservedBounds[VariableDecl] = AdjustedSrcBounds;
 
+      // Record that E updates the observed bounds of VariableDecl.
       if (DeclaredBounds)
-        State.BlameExprs[VariableDecl] = E;
+        State.BlameAssignments[VariableDecl] = E;
 
       // If the initial source bounds were not unknown, but they are unknown
       // after replacing uses of V, then the assignment to V caused the
