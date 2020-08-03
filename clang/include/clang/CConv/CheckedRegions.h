@@ -37,7 +37,6 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       : Context(_C), Writer(_R), Map(M) {}
 
     bool VisitCompoundStmt(clang::CompoundStmt *S);
-    bool VisitIfStmt(clang::IfStmt *IS);
     bool VisitCallExpr(clang::CallExpr *C);
 
   private:

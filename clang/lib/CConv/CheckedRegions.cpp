@@ -49,24 +49,9 @@ bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
     default: llvm_unreachable("Bad flag in CheckedRegionAdder");
   }
 
-  for(const auto C : S->children()) {
-    CheckedRegionAdder SV(Context, Writer, Map);
-    SV.TraverseStmt(C);
-  }
-
-  return false;
+  return true;
 }
 
-
-bool CheckedRegionAdder::VisitIfStmt(IfStmt *IS) {
-  CheckedRegionAdder Then_v(Context, Writer, Map);
-  CheckedRegionAdder Else_v(Context, Writer, Map);
-
-  Then_v.TraverseStmt(IS->getThen());
-  Else_v.TraverseStmt(IS->getElse());
-
-  return false;
-}
 
 
 bool CheckedRegionAdder::VisitCallExpr(CallExpr *C) {
