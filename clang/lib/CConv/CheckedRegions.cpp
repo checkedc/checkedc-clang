@@ -73,13 +73,9 @@ bool CheckedRegionAdder::VisitCallExpr(CallExpr *C) {
 
 typedef std::pair<const CompoundStmt*, int> StmtPair;
 
-StmtPair
-CheckedRegionAdder::findParentCompound(const ast_type_traits::DynTypedNode &N) {
-  return findParentCompound(N, 1);
-}
 
 StmtPair
-CheckedRegionAdder::findParentCompound(const ast_type_traits::DynTypedNode &N, int distance)  {
+CheckedRegionAdder::findParentCompound(const ast_type_traits::DynTypedNode &N, int distance = 1)  {
   auto parents = Context->getParents(N);
   if (parents.empty())
     return std::make_pair(nullptr, INT_MAX);
