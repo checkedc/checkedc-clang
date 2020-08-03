@@ -47,7 +47,7 @@ int bar(int *ptr) {
   //CHECK: int bar(int *ptr) { 
   *ptr += 2;
   bad_sum(&ptr,1,2,3);
-  //CHECK: _Unchecked { bad_sum(((int **)&ptr),1,2,3); };
+  //CHECK: bad_sum(((int **)&ptr),1,2,3);
   return *ptr;
 }
 

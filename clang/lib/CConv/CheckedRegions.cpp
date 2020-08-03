@@ -30,17 +30,18 @@ using namespace clang;
 
 bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) { 
   llvm::FoldingSetNodeID Id;
+  ast_type_traits::DynTypedNode DTN = ast_type_traits::DynTypedNode::create(*S);
 
   S->Profile(Id, *Context, true);
   switch (Map[Id]) {
     case IS_UNCHECKED:
-      if(isParentChecked(S) && !isFunctionBody(S)) {
+      if(isParentChecked(DTN) && !isFunctionBody(S)) {
         auto Loc = S->getBeginLoc();
         Writer.InsertTextBefore(Loc, "_Unchecked ");
       }
       break;
     case IS_CHECKED:
-      if(!isParentChecked(S)) {
+      if(!isParentChecked(DTN)) {
         auto Loc = S->getBeginLoc();
         Writer.InsertTextBefore(Loc, "_Checked ");
       }
@@ -65,6 +66,24 @@ bool CheckedRegionAdder::VisitIfStmt(IfStmt *IS) {
   Else_v.TraverseStmt(IS->getElse());
 
   return false;
+}
+
+
+bool CheckedRegionAdder::VisitCallExpr(CallExpr *C) {
+  auto FD = C->getDirectCallee();
+  FoldingSetNodeID ID;
+  ast_type_traits::DynTypedNode DTN = ast_type_traits::DynTypedNode::create(*C);
+
+  C->Profile(ID, *Context, true);
+  if (FD && FD->isVariadic() &&
+      Map[ID] == IS_CONTAINED && isParentChecked(DTN)) {
+    auto Begin = C->getBeginLoc();
+    Writer.InsertTextBefore(Begin, "_Unchecked { ");
+    auto End = C->getEndLoc();
+    Writer.InsertTextAfterToken(End, "; }");
+  }
+
+  return true;
 }
 
 typedef std::pair<const CompoundStmt*, int> StmtPair;
@@ -105,8 +124,7 @@ bool CheckedRegionAdder::isFunctionBody(CompoundStmt *S) {
   return Parents[0].get<FunctionDecl>();
 }
 
-bool CheckedRegionAdder::isParentChecked(CompoundStmt *S) {
-  ast_type_traits::DynTypedNode DTN = ast_type_traits::DynTypedNode::create(*S);
+bool CheckedRegionAdder::isParentChecked(const ast_type_traits::DynTypedNode &DTN) {
   if (auto Parent = findParentCompound(DTN).first) {
     llvm::FoldingSetNodeID ID;
     Parent->Profile(ID, *Context, true);
@@ -241,27 +259,11 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
   // both for clarity and because it will allow it take advantage of
   // redundancy checks
   auto FD = C->getDirectCallee();
-  bool contained = false;
+  FoldingSetNodeID ID;
+  C->Profile(ID, *Context, true);
   if (FD && FD->isVariadic()) {
-    // If this variadic call is in statement positon, we can wrap in it
-    // an unsafe block and avoid polluting the entire block as unsafe.
-    // If it's not (as in it is used in an expression) then we fall back to
-    // reporting an WILD value.
-    if (isInStatementPosition(C)) {
-      // Insert an _Unchecked block around the call
-      auto Begin = C->getBeginLoc();
-      Writer.InsertTextBefore(Begin, "_Unchecked { ");
-      auto End = C->getEndLoc();
-      Writer.InsertTextAfterToken(End, "; }");
-      contained = true;
-    } else {
-      // Call is inside an epxression, mark WILD.
-      Wild = true;
-    }
-  }
-  if (contained)
-    Wild = false;
-  else {
+    Wild = true;
+  } else {
     if (FD) {
       auto type = FD->getReturnType();
       Wild |= (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody()))
@@ -272,6 +274,7 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
             }));
     }
     handleChildren(C->children());
+    Map[ID] = Wild ? IS_UNCHECKED : IS_CHECKED;
   }
 
   return false;

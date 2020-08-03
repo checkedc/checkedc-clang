@@ -26,6 +26,7 @@
 typedef enum { 
   IS_UNCHECKED,
   IS_CHECKED,
+  IS_CONTAINED,
 } AnnotationNeeded;
 
 class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
@@ -37,13 +38,14 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 
     bool VisitCompoundStmt(clang::CompoundStmt *S);
     bool VisitIfStmt(clang::IfStmt *IS);
+    bool VisitCallExpr(clang::CallExpr *C);
 
   private:
     std::pair<const clang::CompoundStmt*, int>
         findParentCompound(const clang::ast_type_traits::DynTypedNode &N);
     std::pair<const clang::CompoundStmt*, int>
         findParentCompound(const clang::ast_type_traits::DynTypedNode &N, int);
-    bool isParentChecked(clang::CompoundStmt *S);
+    bool isParentChecked(const clang::ast_type_traits::DynTypedNode &N);
     bool isFunctionBody(clang::CompoundStmt *S);
     clang::ASTContext* Context;
     clang::Rewriter& Writer;
