@@ -4074,7 +4074,7 @@ namespace {
         default:
           break;
         }
-      } else if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
+      } else if (dyn_cast<BinaryOperator>(E)) {
         // Must be an assignment or a compounds assignment, because E is
         // modifying.
         return Sema::BoundsDeclarationCheck::BDC_Assignment;
