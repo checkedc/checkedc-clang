@@ -712,9 +712,9 @@ namespace {
       // BlameAssignments is used to provide more context for two types of
       // diagnostic messages:
       //   1. The compiler cannot prove or can disprove the declared bounds for
-      //   V are valid after an assignment to V; and
+      //   V are valid after an assignment to a variable in the bounds of V; and
       //   2. The inferred bounds of V become unknown after an assignment to a
-      //   variable used in the declared bounds for V.
+      //   variable in the bounds of V.
       //
       // BlameAssignments is updated in UpdateAfterAssignments and reset after
       // checking each top-level CFG statement.
@@ -4034,8 +4034,7 @@ namespace {
         BDCType = Sema::BoundsDeclarationCheck::BDC_Initialization;
       }
 
-      // Find the last assignment to V to blame in the diagnostic message if it
-      // exists.
+      // Find the assignment (if it exists) to blame for the error or warning.
       auto It = State.BlameAssignments.find(V);
       if (It != State.BlameAssignments.end()) {
         Expr *BlameExpr = It->second;
@@ -4062,20 +4061,12 @@ namespace {
     // assignment (=), decrement (--) or increment (++).
     Sema::BoundsDeclarationCheck GetBDCTypeFromExpr(Expr *E) const {
       if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
-        switch (UO->getOpcode()) {
-        case UnaryOperatorKind::UO_PreDec:
-        case UnaryOperatorKind::UO_PostDec:
-          return Sema::BoundsDeclarationCheck::BDC_Decrement;
-          break;
-        case UnaryOperatorKind::UO_PreInc:
-        case UnaryOperatorKind::UO_PostInc:
+        if (UO->isIncrementOp())
           return Sema::BoundsDeclarationCheck::BDC_Increment;
-          break;
-        default:
-          break;
-        }
-      } else if (dyn_cast<BinaryOperator>(E)) {
-        // Must be an assignment or a compounds assignment, because E is
+        else if (UO->isDecrementOp())
+          return Sema::BoundsDeclarationCheck::BDC_Decrement;
+      } else if (isa<BinaryOperator>(E)) {
+        // Must be an assignment or a compound assignment, because E is
         // modifying.
         return Sema::BoundsDeclarationCheck::BDC_Assignment;
       }
@@ -4134,10 +4125,15 @@ namespace {
         const VarDecl *W = Pair.first;
         BoundsExpr *Bounds = Pair.second;
         BoundsExpr *AdjustedBounds = ReplaceVariableInBounds(Bounds, V, OriginalValue, CSS);
-        if (!Pair.second->isUnknown() && AdjustedBounds->isUnknown()) {
-          State.BlameAssignments[W] = E;
+        if (!Pair.second->isUnknown() && AdjustedBounds->isUnknown())
           State.LostVariables[W] = std::make_pair(Bounds, V);
-        }
+
+        // If E modifies the bounds of W, add the pair to BlameAssignments.  We
+        // can check this cheaply by comparing the pointer values of
+        // AdjustedBounds and Bounds because ReplaceVariableInBounds returns
+        // Bounds as AdjustedBounds if Bounds is not adjusted.
+        if (AdjustedBounds != Bounds)
+          State.BlameAssignments[W] = E;
         State.ObservedBounds[W] = AdjustedBounds;
       }
 
