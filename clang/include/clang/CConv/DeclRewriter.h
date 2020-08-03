@@ -5,7 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
+// This file contains the DeclRewriter class which is used to rewrite variable
+// declarations in a program using the checked pointers types solved for by the
+// the conversion tool.
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CLANG_LIB_CCONV_DECLREWRITER_H
@@ -25,6 +27,9 @@ public:
   DeclRewriter(Rewriter &R, ASTContext &A, GlobalVariableGroups &GP)
       : R(R), A(A), GP(GP), Skip(DComp(A.getSourceManager())) {}
 
+  // The publicly accessible interface for performing declaration rewritting.
+  // All declaration for variables with checked types in the variable map of
+  // Info are rewritten.
   static void rewriteDecls(ASTContext &Context, ProgramInfo &Info, Rewriter &R,
                            std::set<FileID> &TouchedFiles);
 private:
@@ -47,6 +52,9 @@ private:
   // about the current compilation unit.
   void rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles);
 
+  // Rewrite a specific variable declaration using the replacement string in the
+  // DAndReplace structure. Each of these functions is specialized to handling
+  // one subclass of declarations.
   void rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite);
   void rewriteParmVarDecl(const DAndReplace &N);
   void rewriteFunctionDecl(const DAndReplace &N);
