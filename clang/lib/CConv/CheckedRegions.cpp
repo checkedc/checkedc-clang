@@ -165,9 +165,6 @@ bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
 
   addUncheckedAnnotation(S, Localwild);
 
-  // Compound Statements are always considered to have 0 wild types
-  // This is because a compound statement marked w/ _Unchecked can live
-  // inside a _Checked region.
   Wild = false;
 
   llvm::FoldingSetNodeID Id;
