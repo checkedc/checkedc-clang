@@ -852,7 +852,18 @@ public:
         // the function call.
         std::string TypeParamString;
         for (auto Entry : Info.getTypeParamBindings(CE, Context))
-          TypeParamString += Entry.second + ",";
+          if (Entry.second != nullptr) {
+            std::string TyStr =
+                Entry.second->mkString(Info.getConstraints().getVariables(),
+                                     false, false, true);
+            if (TyStr.back() == ' ')
+              TyStr.pop_back();
+            TypeParamString += TyStr + ",";
+          } else {
+            // If it's null, then the type variable was not used consistently,
+            // so we can only put void here instead of useful type.
+            TypeParamString += "void,";
+          }
         TypeParamString.pop_back();
 
         SourceLocation TypeParamLoc = getTypeArgLocation(CE);

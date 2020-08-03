@@ -339,7 +339,7 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
   }
 
   if (JsonFormat) {
-    O << "}";
+    O << "}}";
   }
 }
 
@@ -873,16 +873,13 @@ ProgramInfo::computeInterimConstraintState(std::set<std::string> &FilePaths) {
       // We consider only pointers which with in the source files or external
       // pointers that affected pointers within the source files.
       if (!TmpCGrp.empty() || ValidVarsS.find(VA) != ValidVarsS.end()) {
-        if (ValidVarsS.find(VA) != ValidVarsS.end()) {
-          InSrcW.insert(VA->getLoc());
-        }
         WildPtrs.insert(VA->getLoc());
         CVars &CGrp = SrcWMap[VA->getLoc()];
         CGrp.insert(TmpCGrp.begin(), TmpCGrp.end());
       }
     }
   }
-
+  findIntersection(WildPtrs, ValidVarsKey, InSrcW);
   findIntersection(TotalNDirectWPtrs, ValidVarsKey, InSrInDirectWPtrs);
 
   auto &WildPtrsReason = CState.RealWildPtrsWithReasons;
@@ -940,14 +937,14 @@ ProgramInfo::computeInterimConstraintState(std::set<std::string> &FilePaths) {
 }
 
 void ProgramInfo::setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
-                                      std::string TyStr, ASTContext *C) {
+                                      ConstraintVariable *CV, ASTContext *C) {
 
   auto PSL = PersistentSourceLoc::mkPSL(CE, *C);
   auto CallMap = TypeParamBindings[PSL];
   assert("Attempting to overwrite type param binding in ProgramInfo."
              && CallMap.find(TypeVarIdx) == CallMap.end());
 
-  TypeParamBindings[PSL][TypeVarIdx] = TyStr;
+  TypeParamBindings[PSL][TypeVarIdx] = CV;
 }
 
 bool ProgramInfo::hasTypeParamBindings(CallExpr *CE, ASTContext *C) {

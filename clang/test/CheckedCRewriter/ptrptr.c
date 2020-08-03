@@ -30,10 +30,10 @@ void g() {
   // CHECK_NOALL: int y[5];
   int **p = &x;
   // CHECK_ALL:  _Ptr<_Array_ptr<int>> p =  &x;
-  // CHECK_NOALL: _Ptr<int*> p =  &x;
+  // CHECK_NOALL: _Ptr<int *> p =  &x;
   int **r = 0;
   // CHECK_ALL:  _Ptr<_Array_ptr<int>> r =  0;
-  // CHECK_NOALL: _Ptr<int*> r =  0;
+  // CHECK_NOALL: _Ptr<int *> r =  0;
   *p = y;
   (*p)[0] = 1;
   r = p;
@@ -59,4 +59,4 @@ void foo(void) {
   p2 = (int *)5;
   int **q2 = &p2;
 }
-// CHECK:  _Ptr<int*> q2 = &p2;
+// CHECK:  _Ptr<int *> q2 = &p2;

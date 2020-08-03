@@ -55,7 +55,7 @@ void lists() {
   // CHECK: _Ptr<int> c0 = c[0];
 
   int *d[2] = (int*[2]){&x, (int*)1};
-  // CHECK: int* d _Checked[2] = (int* _Checked[2]){&x, (int*)1};
+  // CHECK: int * d _Checked[2] = (int * _Checked[2]){&x, (int*)1};
   int *d0 = d[0];
   // CHECK: int *d0 = d[0];
 
@@ -63,7 +63,7 @@ void lists() {
   // CHECK _Ptr<int> e = (_Ptr<int> _Checked[1]){&x}[0]
 
   int *f = (int*[1]){(int*)1}[0];
-  // CHECK int *e = (int* _Checked[1]){&x}[0]
+  // CHECK int *e = (int * _Checked[1]){&x}[0]
 }
 
 

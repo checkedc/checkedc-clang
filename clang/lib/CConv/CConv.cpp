@@ -299,15 +299,15 @@ bool CConvInterface::SolveConstraints(bool ComputeInterimState) {
     llvm::raw_fd_ostream OutputJson(StatsOutputJson, Ec);
     if (!OutputJson.has_error()) {
       GlobalProgramInfo.print_stats(FilePaths, OutputJson, false, true);
+      OutputJson.close();
     }
-    OutputJson.close();
 
     llvm::raw_fd_ostream WildPtrInfo(WildPtrInfoJson, Ec);
     if (!WildPtrInfo.has_error()) {
       GlobalProgramInfo.computeInterimConstraintState(FilePaths);
       GlobalProgramInfo.getInterimConstraintState().print_stats(WildPtrInfo);
+      WildPtrInfo.close();
     }
-    WildPtrInfo.close();
   }
 
   return true;

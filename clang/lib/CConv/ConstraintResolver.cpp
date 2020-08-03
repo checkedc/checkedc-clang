@@ -231,7 +231,10 @@ CVarSet
           !(SubTypE->isFunctionType() || SubTypE->isArrayType() ||
             SubTypE->isVoidPointerType()) &&
           !isCastSafe(TypE, SubTypE)) {
-        constraintAllCVarsToWild(CVs, "Casted to a different type.", IE);
+        std::string Rsn = "Casted from " +
+                          SubTypE.getAsString() +  " to " +
+                          TypE.getAsString();
+        constraintAllCVarsToWild(CVs, Rsn, IE);
         return getInvalidCastPVCons(E);
       }
       // else, return sub-expression's result
