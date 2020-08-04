@@ -1,4 +1,5 @@
 // RUN: cconv-standalone -addcr  %s -- | FileCheck -match-full-lines --check-prefixes="CHECK" %s
+
 #include "dummy.h"
 // Dummy to cause output
 void f(int *x) {}
