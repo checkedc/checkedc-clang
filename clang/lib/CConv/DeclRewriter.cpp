@@ -317,8 +317,11 @@ void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
   }
 }
 
+// Note: This is variable declared static in the header file in order to pass
+// information between different invocations on different translation units.
 std::map<std::string, std::string> DeclRewriter::NewFuncSig;
 
+// This function is the public entry point for declaration rewriting.
 void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
                                 Rewriter &R, std::set<FileID> &TouchedFiles) {
   // Compute the bounds information for all the array variables.
@@ -353,12 +356,6 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
   for (const auto &V : Info.getVarMap()) {
     PersistentSourceLoc PLoc = V.first;
     CVarSet Vars = V.second;
-    // I don't think it's important that Vars have any especial size, but
-    // at one point I did so I'm keeping this comment here. It's possible
-    // that what we really need to do is to ensure that when we work with
-    // either PV or FV below, that they are the LUB of what is in Vars.
-    // assert(Vars.size() > 0 && Vars.size() <= 2);
-
     // PLoc specifies the location of the variable whose type it is to
     // re-write, but not where the actual type storage is. To get that, we
     // need to turn PLoc into a Decl and then get the SourceRange for the

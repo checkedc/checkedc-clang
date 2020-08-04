@@ -27,29 +27,31 @@ public:
   DeclRewriter(Rewriter &R, ASTContext &A, GlobalVariableGroups &GP)
       : R(R), A(A), GP(GP), Skip(DComp(A.getSourceManager())) {}
 
-  // The publicly accessible interface for performing declaration rewritting.
-  // All declaration for variables with checked types in the variable map of
-  // Info are rewritten.
+  // The publicly accessible interface for performing declaration rewriting.
+  // All declarations for variables with checked types in the variable map of
+  // Info parameter are rewritten.
   static void rewriteDecls(ASTContext &Context, ProgramInfo &Info, Rewriter &R,
                            std::set<FileID> &TouchedFiles);
 private:
   Rewriter &R;
   ASTContext &A;
   GlobalVariableGroups &GP;
-  // Skip indicates some rewrites that
-  // we should skip because we already applied them, for example, as part
-  // of turning a single line declaration into a multi-line declaration.
+  // Skip indicates some rewrites that we should skip because they have already
+  // been applied. This is used when rewriting a single declaration that
+  // declares multiple variables into multiple declarations that each declare
+  // one variable.
   RSet Skip;
 
-  // TODO: I don't like having this be static.
+  // TODO: I don't like having this be static, but it needs to be static in
+  //       order to pass information between different translation units. A
+  //       new instance of this class (and the RewriteConsumer class) is created
+  //       for each translation unit.
   static std::map<std::string, std::string> NewFuncSig;
 
-  // Visit each Decl in toRewrite and apply the appropriate pointer type
-  // to that Decl. The state of the rewrite is contained within R, which
-  // is both input and output. R is initialized to point to the 'main'
-  // source file for this transformation. toRewrite contains the set of
-  // declarations to rewrite. S is passed for source-level information
-  // about the current compilation unit.
+  // Visit each Decl in ToRewrite and apply the appropriate pointer type
+  // to that Decl. ToRewrite is the set of all declarations to rewrite.
+  // TouchedFiles is used to collect and return the set of FileId's that have
+  // edited. This is later used to know which files need to be updated.
   void rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles);
 
   // Rewrite a specific variable declaration using the replacement string in the
