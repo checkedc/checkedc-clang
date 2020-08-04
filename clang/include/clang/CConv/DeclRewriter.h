@@ -18,6 +18,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/Rewrite/Core/Rewriter.h"
 #include "clang/CConv/RewriteUtils.h"
+#include "RewriteUtils.h"
 
 using namespace llvm;
 using namespace clang;
@@ -67,5 +68,40 @@ private:
   bool isSingleDeclaration(VarDecl *VD, DeclStmt *Stmt);
   bool areDeclarationsOnSameLine(VarDecl *VD1, DeclStmt *Stmt1, VarDecl *VD2,
                                  DeclStmt *Stmt2);
+};
+
+// Visits function declarations and adds the rewritten function declarations
+// into the NewFunSig map. NewFuncSig is a map from function names to their
+// final rewritten declaration.
+class FunctionDeclBuilder : public RecursiveASTVisitor<FunctionDeclBuilder> {
+public:
+  explicit FunctionDeclBuilder(ASTContext *C, ProgramInfo &I,
+                               RSet &DR, map<string, string> &NewFuncSig,
+                               ArrayBoundsRewriter &ArrRewriter)
+      : Context(C), Info(I), RewriteThese(DR), ABRewriter(ArrRewriter),
+        VisitedSet(), ModifiedFuncSignatures(NewFuncSig) {}
+
+  bool VisitFunctionDecl(FunctionDecl *);
+  bool isFunctionVisited(std::string FuncName);
+private:
+
+  ASTContext            *Context;
+  ProgramInfo           &Info;
+  RSet                  &RewriteThese;
+
+  // Get existing itype string from constraint variables.
+  // if tries to get the string from declaration, however,
+  // if there is no declaration of the function,
+  // it will try to get it from the definition.
+  string getExistingIType(ConstraintVariable *DeclC);
+  ArrayBoundsRewriter   &ABRewriter;
+
+  // Set containing the names of all functions visited in the AST traversal.
+  // Used to ensure the new signature is only computed once for each function.
+  set<std::string> VisitedSet;
+
+  // This is a map from functions (the string representation of their names) to
+  // their function signature in the rewritten program.
+  map<std::string, std::string> &ModifiedFuncSignatures;
 };
 #endif //LLVM_CLANG_LIB_CCONV_DECLREWRITER_H

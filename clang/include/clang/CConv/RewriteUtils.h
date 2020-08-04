@@ -139,41 +139,6 @@ private:
   ProgramInfo &Info;
 };
 
-
-// Class for visiting declarations of variables and adding type annotations
-class TypeRewritingVisitor : public RecursiveASTVisitor<TypeRewritingVisitor> {
-public:
-  explicit TypeRewritingVisitor(ASTContext *C, ProgramInfo &I,
-                                RSet &DR,
-                                std::map<std::string, std::string> &NewFuncSig,
-                                ArrayBoundsRewriter &ArrRewriter)
-      : Context(C), Info(I), RewriteThese(DR), ABRewriter(ArrRewriter),
-        VisitedSet(), ModifiedFuncSignatures(NewFuncSig) {}
-
-  bool VisitFunctionDecl(FunctionDecl *);
-  bool isFunctionVisited(std::string FuncName);
-private:
-  // Get existing itype string from constraint variables.
-  // if tries to get the string from declaration, however,
-  // if there is no declaration of the function,
-  // it will try to get it from the definition.
-  std::string getExistingIType(ConstraintVariable *DeclC);
-
-  ASTContext            *Context;
-  ProgramInfo           &Info;
-  RSet                  &RewriteThese;
-  ArrayBoundsRewriter   &ABRewriter;
-
-  // Set containing the names of all functions visited in the AST traversal.
-  // Used to ensure the new signature is only computed once for each function.
-  std::set<std::string> VisitedSet;
-
-  // This is a map from functions (the string representation of their names) to
-  // their function signature in the rewritten program.
-  std::map<std::string, std::string> &ModifiedFuncSignatures;
-};
-
-
 class RewriteConsumer : public ASTConsumer {
 public:
   explicit RewriteConsumer(ProgramInfo &I, std::string &OPostfix) :

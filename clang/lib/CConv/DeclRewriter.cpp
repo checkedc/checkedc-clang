@@ -330,8 +330,8 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
   // Collect function and record declarations that need to be rewritten in a set
   // as well as their rewriten types in a map.
   RSet RewriteThese(DComp(Context.getSourceManager()));
-  TypeRewritingVisitor TRV = TypeRewritingVisitor(&Context, Info, RewriteThese,
-                                                  NewFuncSig, ABRewriter);
+  FunctionDeclBuilder TRV = FunctionDeclBuilder(&Context, Info, RewriteThese,
+                                                NewFuncSig, ABRewriter);
   StructVariableInitializer SVI = StructVariableInitializer(&Context, Info,
                                                             RewriteThese);
   for (const auto &D : Context.getTranslationUnitDecl()->decls()) {
@@ -404,4 +404,187 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
   // Do the declaration rewriting
   DeclRewriter DeclR(R, Context, GVG);
   DeclR.rewrite(RewriteThese, TouchedFiles);
+}
+
+
+// This function checks how to re-write a function declaration.
+bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
+
+  // Get the constraint variable for the function.
+  // For the return value and each of the parameters, do the following:
+  //   1. Get a constraint variable representing the definition (def) and the
+  //      uses ("arguments").
+  //   2. If arguments could be wild but def is not, we insert a bounds-safe
+  //      interface.
+  // If we don't have a definition in scope, we can assert that all of
+  // the constraint variables are equal.
+  // Finally, we need to note that we've visited this particular function, and
+  // that we shouldn't make one of these visits again.
+
+  auto FuncName = FD->getNameAsString();
+  auto &CS = Info.getConstraints();
+
+  // Do we have a definition for this function?
+  FunctionDecl *Definition = getDefinition(FD);
+  if (Definition == nullptr)
+    Definition = FD;
+
+  // Make sure we haven't visited this function name before, and that we
+  // only visit it once.
+  if (isFunctionVisited(FuncName))
+    return true;
+  else
+    VisitedSet.insert(FuncName);
+
+  auto &DefFVars = *(Info.getFuncConstraints(Definition, Context));
+  FVConstraint *Defnc = getOnly(DefFVars);
+  assert(Defnc != nullptr);
+
+  // If this is an external function. The no need to rewrite this declaration.
+  // Because, we cannot and should not change the signature of
+  // external functions.
+  if (!Defnc->hasBody())
+    return true;
+
+  bool DidAny = Defnc->numParams() > 0;
+  string NewSig = "";
+  vector<string> ParmStrs;
+  // Compare parameters.
+  for (unsigned i = 0; i < Defnc->numParams(); ++i) {
+    auto *Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getParamVar(i)));
+    assert(Defn);
+    bool ParameterHandled = false;
+
+    if (isAValidPVConstraint(Defn)) {
+      // If this holds, then we want to insert a bounds safe interface.
+      bool Constrained = Defn->anyChanges(CS.getVariables());
+      if (Constrained) {
+        // If the definition already has itype or there are no WILD arguments.
+        if (Defn->hasItype() || !Defn->anyArgumentIsWild(CS.getVariables())) {
+          // Here we should emit a checked type, with an itype (if exists)
+          string PtypeS =
+              Defn->mkString(Info.getConstraints().getVariables());
+
+          // If there is no declaration?
+          // check the itype in definition.
+          PtypeS = PtypeS + getExistingIType(Defn) +
+              ABRewriter.getBoundsString(Defn, Definition->getParamDecl(i));
+
+          ParmStrs.push_back(PtypeS);
+        } else {
+          // Here, definition is checked type but at least one of the arguments
+          // is WILD.
+          string PtypeS =
+              Defn->mkString(Info.getConstraints().getVariables(), false, true);
+          string Bi =
+              Defn->getRewritableOriginalTy() + Defn->getName() + " : itype(" +
+                  PtypeS + ")" +
+                  ABRewriter.getBoundsString(Defn,
+                                         Definition->getParamDecl(i), true);
+          ParmStrs.push_back(Bi);
+        }
+        ParameterHandled = true;
+      }
+    }
+    // If the parameter has no changes? Just dump the original declaration.
+    if (!ParameterHandled) {
+      string Scratch = "";
+      raw_string_ostream DeclText(Scratch);
+      Definition->getParamDecl(i)->print(DeclText);
+      ParmStrs.push_back(DeclText.str());
+    }
+  }
+
+  // Compare returns.
+  auto *Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getReturnVars()));
+
+  string ReturnVar = "";
+  string EndStuff = "";
+  bool ReturnHandled = false;
+
+  if (isAValidPVConstraint(Defn)) {
+    // Insert a bounds safe interface for the return.
+    bool anyConstrained = Defn->anyChanges(CS.getVariables());
+    if (anyConstrained) {
+      // This means we were able to infer that return type
+      // is a checked type.
+      ReturnHandled = true;
+      DidAny = true;
+      string Ctype = "";
+      // If the definition has itype or there is no argument which is WILD?
+      if (Defn->hasItype() ||
+          !Defn->anyArgumentIsWild(CS.getVariables())) {
+        // Just get the checked itype
+        ReturnVar = Defn->mkString(Info.getConstraints().getVariables());
+        EndStuff = getExistingIType(Defn);
+      } else {
+        // One of the argument is WILD, emit an itype.
+        Ctype =
+            Defn->mkString(Info.getConstraints().getVariables(), true, true);
+        ReturnVar = Defn->getRewritableOriginalTy();
+        EndStuff = " : itype(" + Ctype + ")";
+      }
+    }
+  }
+
+  // This means inside the function, the return value is WILD
+  // so the return type is what was originally declared.
+  if (!ReturnHandled) {
+    // If we used to implement a bounds-safe interface, continue to do that.
+    ReturnVar = Defn->getOriginalTy() + " ";
+    EndStuff = getExistingIType(Defn);
+    if (!EndStuff.empty())
+      DidAny = true;
+  }
+
+  NewSig = getStorageQualifierString(Definition) + ReturnVar + Defnc->getName()
+      + "(";
+  if (!ParmStrs.empty()) {
+    // Gather individual parameter strings into a single buffer
+    ostringstream ConcatParamStr;
+    copy(ParmStrs.begin(), ParmStrs.end() - 1,
+              ostream_iterator<string>(ConcatParamStr, ", "));
+    ConcatParamStr << ParmStrs.back();
+
+    NewSig = NewSig + ConcatParamStr.str();
+    // Add varargs.
+    if (functionHasVarArgs(Definition))
+      NewSig = NewSig + ", ...";
+    NewSig = NewSig + ")";
+  } else {
+    NewSig = NewSig + "void)";
+    QualType ReturnTy = FD->getReturnType();
+    QualType Ty = FD->getType();
+    if (!Ty->isFunctionProtoType() && ReturnTy->isPointerType())
+      DidAny = true;
+  }
+
+  if (!EndStuff.empty())
+    NewSig = NewSig + EndStuff;
+
+  if (DidAny) {
+    // Do all of the declarations.
+    for (auto *const RD : Definition->redecls())
+      RewriteThese.insert(DAndReplace(RD, NewSig, true));
+    // Save the modified function signature.
+    if(FD->isStatic()) {
+      auto FileName = PersistentSourceLoc::mkPSL(FD, *Context).getFileName();
+	  FuncName = FileName + "::" + FuncName;
+    }
+    ModifiedFuncSignatures[FuncName] = NewSig;
+  }
+
+  return true;
+}
+
+std::string FunctionDeclBuilder::getExistingIType(ConstraintVariable *DeclC) {
+  auto *PVC = dyn_cast<PVConstraint>(DeclC);
+  if (PVC != nullptr && PVC->hasItype())
+    return " : " + PVC->getItype();
+  return "";
+}
+
+// Check if the function is handled by this visitor.
+bool FunctionDeclBuilder::isFunctionVisited(string FuncName) {
+  return VisitedSet.find(FuncName) != VisitedSet.end();
 }
