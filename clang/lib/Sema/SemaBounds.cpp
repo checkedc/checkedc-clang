@@ -239,7 +239,7 @@ namespace {
 
 bool Sema::AbstractForFunctionType(
   BoundsAnnotations &Annots,
-  ArrayRef<DeclaratorChunk::ParamInfo> Params) {
+  ArrayRef<DeclaratorChunk::ParamInfo> Params) {  
 
   BoundsExpr *Expr = Annots.getBoundsExpr();
   // If there is no bounds expression, the itype does not change
@@ -1510,7 +1510,7 @@ namespace {
     // 5. If OP signs are not equivalent in both, return false.
     // 6. If ConstantParts are not equal, return false.
     // If the expressions pass all the above tests, then return true.
-    //      
+    //
     // Note that in all steps involving in checking the equality of the types or values of offsets, parentheses and
     // casts are ignored.
     static bool EqualExtended(ASTContext &Ctx, Expr *Base1, Expr *Base2, Expr *Offset1, Expr *Offset2, EquivExprSets *EquivExprs) {
@@ -1526,7 +1526,7 @@ namespace {
 
       bool CreatedStdForm1 = CreateStandardForm(Ctx, Base1, Offset1, ConstantPart1, IsOpSigned1, VariablePart1);
       bool CreatedStdForm2 = CreateStandardForm(Ctx, Base2, Offset2, ConstantPart2, IsOpSigned2, VariablePart2);
-
+      
       if (!CreatedStdForm1 || !CreatedStdForm2)
         return false;
       if (!EqualValue(Ctx, VariablePart1, VariablePart2, EquivExprs))
@@ -2726,7 +2726,7 @@ namespace {
       SubExprSameValueSets[RHS] = State.SameValue;
 
       BinaryOperatorKind Op = E->getOpcode();
-      
+
       // Bounds of the binary operator.
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
@@ -2742,7 +2742,7 @@ namespace {
       // are RValues.
       else if (Op == BinaryOperatorKind::BO_Comma)
         ResultBounds = RHSBounds;
-
+      
       else {
         // Compound Assignments function like assignments mostly,
         // except the LHS is an L-Value, so we'll use its lvalue target bounds
@@ -5231,7 +5231,7 @@ namespace {
                                       /*IsInteropTypeAnnotation=*/true);
         return cast<BoundsExpr>(PruneTemporaryBindings(S, B, CSS));
       }
-      
+            
       if (!B)
         return CreateBoundsAlwaysUnknown();
 
@@ -5281,7 +5281,7 @@ namespace {
       } else if (Ty->isCheckedPointerNtArrayType()) {
         BE = Context.getPrebuiltCountZero();
       }
-      
+    
       if (!BE)
         return CreateBoundsEmpty();
 
@@ -5335,7 +5335,7 @@ namespace {
           if (DeclRefExpr *V = GetRValueVariable(E)) {
             if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
               auto It = State.ObservedBounds.find(D);
-              if (It != State.ObservedBounds.end()) 
+              if (It != State.ObservedBounds.end())
                 return It->second;
             }
           }
@@ -5385,7 +5385,7 @@ namespace {
       }
       else {
         // Get the function prototype, where the abstract function return
-        // bounds are kept.  The callee (if it exists)
+        // bounds are kept.  The callee (if it exists) 
         // is always a function pointer.
         const PointerType *PtrTy =
           CE->getCallee()->getType()->getAs<PointerType>();
