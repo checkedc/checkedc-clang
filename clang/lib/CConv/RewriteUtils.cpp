@@ -436,10 +436,6 @@ public:
       : Context(C), Info(I) , Writer(R) {}
 
   bool VisitCompoundLiteralExpr(CompoundLiteralExpr *CLE) {
-    // When an compound literal was visited in constraint generation, a
-    // constraint variable for it was stored in program info.  There should be
-    // either zero or one of these.
-    CVarSet CVSingleton = Info.getPersistentConstraintVars(CLE, Context);
     SourceRange TypeSrcRange(CLE->getBeginLoc().getLocWithOffset(1),
          CLE->getTypeSourceInfo()->getTypeLoc().getEndLoc());
     rewriteType(CLE, TypeSrcRange);
