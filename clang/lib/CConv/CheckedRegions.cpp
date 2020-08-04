@@ -175,14 +175,12 @@ bool CheckedRegionFinder::VisitCStyleCastExpr(CStyleCastExpr *E) {
 }
 
 bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
-  // TODO this should really be moved to the other visitor
-  // both for clarity and because it will allow it take advantage of
-  // redundancy checks
   auto FD = C->getDirectCallee();
   FoldingSetNodeID ID;
   C->Profile(ID, *Context, true);
   if (FD && FD->isVariadic()) {
     Wild = true;
+    Map[ID] = IS_UNCHECKED;
   } else {
     if (FD) {
       auto type = FD->getReturnType();
@@ -201,9 +199,7 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
 }
 
 bool CheckedRegionFinder::VisitVarDecl(VarDecl *VD) {
-  // Check if the variable is WILD.
   auto CVSet = Info.getVariable(VD, Context);
-  // Check if the variable contains an unchecked type.
   Wild = isWild(CVSet) || containsUncheckedPtr(VD->getType());
   return true;
 }
@@ -225,7 +221,7 @@ bool CheckedRegionFinder::VisitMemberExpr(MemberExpr *E){
         Wild = true;
       }
     }
-    // Check if the variable is a void*.
+    // Check if the variable contains unchecked types.
     Wild |= containsUncheckedPtr(VD->getType());
   }
   return true;
@@ -335,12 +331,12 @@ bool CheckedRegionFinder::containsUncheckedPtrAcc(QualType Qt, std::set<std::str
   }
 
   if (Ct->isFunctionPointerType()) {
-    if (auto FPT = dyn_cast<FunctionProtoType>(Ct->getPointeeType())) { 
+    if (auto FPT = dyn_cast<FunctionProtoType>(Ct->getPointeeType())) {
       auto PTs = FPT->getParamTypes();
-      bool params = any_of(PTs.begin(), PTs.end(), 
+      bool params = any_of(PTs.begin(), PTs.end(),
           [this, &Seen] (QualType QT) { return containsUncheckedPtrAcc(QT, Seen); });
       return containsUncheckedPtrAcc(FPT->getReturnType(), Seen) || params;
-    } else { 
+    } else {
       return false;
     }
   } else if (Ct->isVoidPointerType()) {

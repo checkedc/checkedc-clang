@@ -1,5 +1,5 @@
 // RUN: cconv-standalone -addcr  %s -- | FileCheck -match-full-lines --check-prefixes="CHECK" %s
-// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 
 int* foo() {
