@@ -5281,7 +5281,7 @@ namespace {
       } else if (Ty->isCheckedPointerNtArrayType()) {
         BE = Context.getPrebuiltCountZero();
       }
-     
+   
       if (!BE)
         return CreateBoundsEmpty();
 
