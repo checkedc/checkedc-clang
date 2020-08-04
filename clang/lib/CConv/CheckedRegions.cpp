@@ -326,7 +326,7 @@ bool CheckedRegionFinder::containsUncheckedPtr(QualType Qt) {
 bool CheckedRegionFinder::containsUncheckedPtrAcc(QualType Qt, std::set<std::string> &Seen) {
   auto Ct = Qt.getCanonicalType();
   auto TyStr = Ct.getAsString();
-  bool isSeen;
+  bool isSeen = false;
   auto Search = Seen.find(TyStr);
   if (Search == Seen.end()) {
     Seen.insert(TyStr);
@@ -372,17 +372,14 @@ bool CheckedRegionFinder::isUncheckedStruct(QualType Qt, std::set<std::string> &
         Unsafe |= containsUncheckedPtrAcc(Ftype, Seen);
         std::set<ConstraintVariable *> CVSet =
             Info.getVariable(Fld, Context);
-        for (auto Cv : CVSet) {
+        for (auto Cv : CVSet)
           Unsafe |= Cv->hasWild(Info.getConstraints().getVariables());
-        }
       }
       return Unsafe;
-    } else {
-      return true;
     }
-  } else {
-    return false;
   }
+
+  return false;
 }
 
 // Mark the given compound statement with
