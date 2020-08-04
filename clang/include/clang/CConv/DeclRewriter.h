@@ -62,7 +62,6 @@ private:
   void rewriteParmVarDecl(const DAndReplace &N);
   void rewriteFunctionDecl(const DAndReplace &N);
 
-  unsigned int getParameterIndex(ParmVarDecl *PV, FunctionDecl *FD);
   SourceLocation deleteAllDeclarationsOnLine(VarDecl *VD, DeclStmt *Stmt);
   void getDeclsOnSameLine(VarDecl *VD, DeclStmt *Stmt, std::set<Decl *> &Decls);
   bool isSingleDeclaration(VarDecl *VD, DeclStmt *Stmt);

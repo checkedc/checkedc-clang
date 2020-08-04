@@ -12,6 +12,7 @@
 #include "clang/CConv/ConstraintsGraph.h"
 #include "clang/CConv/CCGlobalOptions.h"
 #include "clang/CConv/MappingVisitor.h"
+#include "clang/CConv/Utils.h"
 
 #include <boost/graph/breadth_first_search.hpp>
 #include <sstream>
@@ -722,20 +723,13 @@ CVarSet ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C) {
   assert(!persisted);
 
   if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
-    int PIdx = -1;
     DeclContext *DC = PD->getParentFunctionOrMethod();
     // This can fail for extern definitions
     if(!DC)
       return std::set<ConstraintVariable*>();
     FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
     // Get the parameter index with in the function.
-    for (unsigned i = 0; i < FD->getNumParams(); i++) {
-      const ParmVarDecl *tmp = FD->getParamDecl(i);
-      if (tmp == D) {
-        PIdx = i;
-        break;
-      }
-    }
+    unsigned int PIdx = getParameterIndex(PD, FD);
     // Get corresponding FVConstraint vars.
     std::set<FVConstraint *> *FunFVars = getFuncFVConstraints(FD, C);
     assert(FunFVars != nullptr && "Unable to find function constraints.");
