@@ -1,6 +1,6 @@
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
 // RUN: cconv-standalone -alltypes %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// RUN: cconv-standalone -alltypes %s -- | %clang_cc1 -fignore-checkedc-pointers -fno-builtin -verify -fcheckedc-extension -x c -
+// RUN: cconv-standalone -alltypes %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 
 struct foo {
