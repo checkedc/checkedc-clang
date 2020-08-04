@@ -356,12 +356,11 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
       // PointerVar so we'll use that.
       PVConstraint *PV = nullptr;
       FVConstraint *FV = nullptr;
-      for (const auto &V : Vars) {
+      for (const auto &V : Vars)
         if (PVConstraint *T = dyn_cast<PVConstraint>(V))
           PV = T;
         else if (FVConstraint *T = dyn_cast<FVConstraint>(V))
           FV = T;
-      }
 
       if (PV && PV->anyChanges(Info.getConstraints().getVariables()) &&
           !PV->isPartOfFunctionPrototype()) {
@@ -386,8 +385,8 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
     }
   }
 
-  // TODO: Why do we need to do this? It's something to do with detecting if
-  //       two declarations are on the same line I think.
+  // Build sets of variables that are declared in the same statement so we can
+  // rewrite things like int x, *y, **z;
   GlobalVariableGroups GVG(R.getSourceMgr());
   for (const auto &D : TUD->decls())
     GVG.addGlobalDecl(dyn_cast<VarDecl>(D));

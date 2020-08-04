@@ -11,31 +11,23 @@
 
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/CConv/CastPlacement.h"
-#include "clang/CConv/CCGlobalOptions.h"
 #include "clang/CConv/CheckedRegions.h"
-#include "clang/CConv/ConstraintResolver.h"
 #include "clang/CConv/DeclRewriter.h"
-#include "clang/CConv/MappingVisitor.h"
-#include "clang/CConv/RewriteUtils.h"
-#include "clang/CConv/StructInit.h"
-#include "clang/CConv/Utils.h"
 #include "clang/Tooling/Refactoring/SourceCode.h"
-#include "llvm/Support/raw_ostream.h"
-#include <sstream>
 
 using namespace llvm;
 using namespace clang;
 
 SourceRange DComp::getWholeSR(SourceRange Orig, DAndReplace Dr) const {
-  SourceRange newSourceRange(Orig);
+  SourceRange NewSourceRange(Orig);
 
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(Dr.Declaration)) {
-    newSourceRange.setEnd(getFunctionDeclarationEnd(FD, SM));
+    NewSourceRange.setEnd(getFunctionDeclarationEnd(FD, SM));
     if (!Dr.FullDecl)
-      newSourceRange = FD->getReturnTypeSourceRange();
+      NewSourceRange = FD->getReturnTypeSourceRange();
   }
 
-  return newSourceRange;
+  return NewSourceRange;
 }
 
 bool DComp::operator()(const DAndReplace Lhs, const DAndReplace Rhs) const {
@@ -57,7 +49,7 @@ bool DComp::operator()(const DAndReplace Lhs, const DAndReplace Rhs) const {
   if (St && !St->isSingleDecl()) {
     SourceLocation NewBegin =
         (*St->decls().begin())->getSourceRange().getBegin();
-    bool Found;
+    bool Found = false;
     for (const auto &DT : St->decls()) {
       if (DT == Lhs.Declaration) {
         Found = true;
@@ -75,7 +67,7 @@ bool DComp::operator()(const DAndReplace Lhs, const DAndReplace Rhs) const {
   if (RhStmt && !RhStmt->isSingleDecl()) {
     SourceLocation NewBegin =
         (*RhStmt->decls().begin())->getSourceRange().getBegin();
-    bool Found;
+    bool Found = false;
     for (const auto &DT : RhStmt->decls()) {
       if (DT == Rhs.Declaration) {
         Found = true;
@@ -182,14 +174,6 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
   if (Verbose)
     errs() << "Writing files out\n";
 
-  SmallString<254> BaseAbs(BaseDir);
-  std::string BaseDirFp;
-  if (getAbsoluteFilePath(BaseDir, BaseDirFp)) {
-    BaseAbs = BaseDirFp;
-  }
-  sys::path::remove_filename(BaseAbs);
-  std::string base = BaseAbs.str();
-
   SourceManager &SM = C.getSourceManager();
   if (OutputPostfix == "-") {
     if (const RewriteBuffer *B = R.getRewriteBufferFor(SM.getMainFileID()))
@@ -206,34 +190,33 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
           // For example \foo\bar\a.c should become \foo\bar\a.checked.c
           // if the OutputPostfix parameter is "checked" .
 
-          std::string pfName = sys::path::filename(FE->getName()).str();
-          std::string dirName = sys::path::parent_path(FE->getName()).str();
-          std::string fileName = sys::path::remove_leading_dotslash(pfName).str();
-          std::string ext = sys::path::extension(fileName).str();
-          std::string stem = sys::path::stem(fileName).str();
-          std::string nFileName = stem + "." + OutputPostfix + ext;
-          std::string nFile = nFileName;
-          if (dirName.size() > 0)
-            nFile = dirName + sys::path::get_separator().str() + nFileName;
+          std::string PfName = sys::path::filename(FE->getName()).str();
+          std::string DirName = sys::path::parent_path(FE->getName()).str();
+          std::string FileName = sys::path::remove_leading_dotslash(PfName).str();
+          std::string Ext = sys::path::extension(FileName).str();
+          std::string Stem = sys::path::stem(FileName).str();
+          std::string NFile = Stem + "." + OutputPostfix + Ext;
+          if (!DirName.empty())
+            NFile = DirName + sys::path::get_separator().str() + NFile;
 
           // Write this file out if it was specified as a file on the command
           // line.
-          std::string feAbsS = "";
-          if (getAbsoluteFilePath(FE->getName(), feAbsS)) {
-            feAbsS = sys::path::remove_leading_dotslash(feAbsS);
+          std::string FeAbsS = "";
+          if (getAbsoluteFilePath(FE->getName(), FeAbsS)) {
+            FeAbsS = sys::path::remove_leading_dotslash(FeAbsS);
           }
 
-          if (canWrite(feAbsS)) {
+          if (canWrite(FeAbsS)) {
             std::error_code EC;
-            raw_fd_ostream out(nFile, EC, sys::fs::F_None);
+            raw_fd_ostream out(NFile, EC, sys::fs::F_None);
 
             if (!EC) {
               if (Verbose)
-                outs() << "writing out " << nFile << "\n";
+                outs() << "writing out " << NFile << "\n";
               B->write(out);
             }
             else
-              errs() << "could not open file " << nFile << "\n";
+              errs() << "could not open file " << NFile << "\n";
             // This is awkward. What to do? Since we're iterating,
             // we could have created other files successfully. Do we go back
             // and erase them? Is that surprising? For now, let's just keep
@@ -241,9 +224,6 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
           }
         }
 }
-
-
-
 
 // Rewrites types that inside other expressions. This includes cast expression
 // and compound literal expressions.
@@ -371,18 +351,21 @@ private:
 
 std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
                                                  Decl *D, bool Isitype) {
-  std::string BString = "";
-  std::string BVarString = "";
   auto &ABInfo = Info.getABoundsInfo();
+
+  // Try to find a bounds key for the constraint variable. If we can't,
+  // ValidBKey is set to false, indicating that DK has not been initialized.
   BoundsKey DK;
   bool ValidBKey = true;
-  // For itype we do not need ":".
-  std::string Pfix = Isitype ? " " : " : ";
-  if (PV->hasBoundsKey()) {
+  if (PV->hasBoundsKey())
     DK = PV->getBoundsKey();
-  } else if(!ABInfo.tryGetVariable(D, DK)){
+  else if(!ABInfo.tryGetVariable(D, DK))
     ValidBKey = false;
-  }
+
+  std::string BString = "";
+  // For itype we do not want to add a second ":".
+  std::string Pfix = Isitype ? " " : " : ";
+
   if (ValidBKey) {
     ABounds *ArrB = ABInfo.getBounds(DK);
     if (ArrB != nullptr) {
