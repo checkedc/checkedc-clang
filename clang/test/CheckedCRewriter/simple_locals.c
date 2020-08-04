@@ -3,7 +3,7 @@
 // Checks very simple inference properties for local variables.
 //
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone %s -- | %clang_cc1 -fignore-checkedc-pointers -verify -fcheckedc-extension -x c -
+// RUN: cconv-standalone %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // expected-no-diagnostics
 

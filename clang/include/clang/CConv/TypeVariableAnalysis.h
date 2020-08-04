@@ -20,8 +20,9 @@ class TypeVariableEntry {
 public:
   // Note: does not initialize TyVarType!
   TypeVariableEntry() :
-      IsConsistent(false) {}
-  TypeVariableEntry(QualType Ty, std::set<ConstraintVariable *> &CVs) {
+      IsConsistent(false), TypeParamConsVar(nullptr) {}
+  TypeVariableEntry(QualType Ty, std::set<ConstraintVariable *> &CVs) :
+      TypeParamConsVar(nullptr) {
     // We'll need a name to provide the type arguments during rewriting, so no
     // anonymous types are allowed.
     if (isTypeAnonymous(Ty->getPointeeType())) {
