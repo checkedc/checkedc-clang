@@ -14,10 +14,3 @@ void foo2(int *x) {
     //CHECK_NOALL: p = ({int *q = malloc<int>(3*sizeof(int)); q[2] = 1; q;});
     p[1] = 3;
 } 
-
-/*ideally, q would also be marked as checked, but when the decl and init are on the same, the rewriter fails*/
-void foo() {
-  int *p = ({int *q = malloc(3*sizeof(int)); q[2] = 1; q;});
-  //CHECK_ALL: _Array_ptr<int> p : count(3) =  ({int *q = malloc<int>(3*sizeof(int)); q[2] = 1; q;});
-  p[1] = 3;
-}
