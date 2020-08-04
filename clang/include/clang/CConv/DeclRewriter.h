@@ -70,13 +70,12 @@ private:
                                  DeclStmt *Stmt2);
 };
 
-// Visits function declarations and adds the rewritten function declarations
-// into the NewFunSig map. NewFuncSig is a map from function names to their
-// final rewritten declaration.
+// Visits function declarations and adds entries with their new rewritten
+// declaration to the RSet RewriteThese.
 class FunctionDeclBuilder : public RecursiveASTVisitor<FunctionDeclBuilder> {
 public:
-  explicit FunctionDeclBuilder(ASTContext *C, ProgramInfo &I,
-                               RSet &DR, map<string, string> &NewFuncSig,
+  explicit FunctionDeclBuilder(ASTContext *C, ProgramInfo &I, RSet &DR,
+                               std::map<string, string> &NewFuncSig,
                                ArrayBoundsRewriter &ArrRewriter)
       : Context(C), Info(I), RewriteThese(DR), ABRewriter(ArrRewriter),
         VisitedSet(), ModifiedFuncSignatures(NewFuncSig) {}
@@ -88,20 +87,17 @@ private:
   ASTContext            *Context;
   ProgramInfo           &Info;
   RSet                  &RewriteThese;
-
-  // Get existing itype string from constraint variables.
-  // if tries to get the string from declaration, however,
-  // if there is no declaration of the function,
-  // it will try to get it from the definition.
-  string getExistingIType(ConstraintVariable *DeclC);
   ArrayBoundsRewriter   &ABRewriter;
 
   // Set containing the names of all functions visited in the AST traversal.
   // Used to ensure the new signature is only computed once for each function.
-  set<std::string> VisitedSet;
+  std::set<std::string> VisitedSet;
 
   // This is a map from functions (the string representation of their names) to
   // their function signature in the rewritten program.
-  map<std::string, std::string> &ModifiedFuncSignatures;
+  std::map<std::string, std::string> &ModifiedFuncSignatures;
+
+  // Get existing itype string from constraint variables.
+  std::string getExistingIType(ConstraintVariable *DeclC);
 };
 #endif //LLVM_CLANG_LIB_CCONV_DECLREWRITER_H
