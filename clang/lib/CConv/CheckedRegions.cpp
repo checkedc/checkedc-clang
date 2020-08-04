@@ -52,8 +52,6 @@ bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
   return true;
 }
 
-
-
 bool CheckedRegionAdder::VisitCallExpr(CallExpr *C) {
   auto FD = C->getDirectCallee();
   FoldingSetNodeID ID;
@@ -72,7 +70,6 @@ bool CheckedRegionAdder::VisitCallExpr(CallExpr *C) {
 }
 
 typedef std::pair<const CompoundStmt*, int> StmtPair;
-
 
 StmtPair
 CheckedRegionAdder::findParentCompound(const ast_type_traits::DynTypedNode &N, int distance = 1)  {
@@ -144,16 +141,6 @@ bool CheckedRegionFinder::VisitDoStmt(DoStmt *S) {
   return false;
 }
 
-void CheckedRegionFinder::handleChildren(const Stmt::child_range &Stmts) { 
-  for (const auto &SubStmt : Stmts) {
-    CheckedRegionFinder Sub(Context, Writer, Info, Seen, Map);
-    Sub.TraverseStmt(SubStmt);
-    Wild |= Sub.Wild;
-  }
-}
-
-
-
 bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
   // Visit all subblocks, find all unchecked types
   bool Localwild = 0;
@@ -187,51 +174,6 @@ bool CheckedRegionFinder::VisitCStyleCastExpr(CStyleCastExpr *E) {
   return true;
 }
 
-// Check if this compound statement is the body
-// to a function with unsafe parameters.
-bool CheckedRegionFinder::hasUncheckedParameters(CompoundStmt *S) {
-  const auto &Parents = Context->getParents(*S);
-  if (Parents.empty()) {
-    return false;
-  }
-
-  auto Parent = Parents[0].get<FunctionDecl>();
-  if (!Parent) {
-    return false;
-  }
-
-  int Localwild = false;
-  for (auto Child : Parent->parameters()) {
-    CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
-    Sub.TraverseParmVarDecl(Child);
-    Localwild |= Sub.Wild;
-  }
-
-  return Localwild || Parent->isVariadic();
-}
-
-
-
-bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
-  // First check if our parent is a compound statement
-  const auto &Parents = Context->getParents(*C);
-  if (Parents.empty()) {
-    return false; // This case shouldn't happen,
-                  // but if it does play it safe and mark WILD.
-  }
-  auto Parent = Parents[0].get<CompoundStmt>();
-  if (Parent) {
-    //Check if we are the only child
-    auto childs = Parent->children();
-    int NumChilds = std::distance(childs.begin(), childs.end());
-    return NumChilds > 1;
-  } else {
-    //TODO there are other statement positions
-    //     besides child of compound stmt
-    return false;
-  }
-}
-
 bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
   // TODO this should really be moved to the other visitor
   // both for clarity and because it will allow it take advantage of
@@ -258,7 +200,6 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
   return false;
 }
 
-
 bool CheckedRegionFinder::VisitVarDecl(VarDecl *VD) {
   // Check if the variable is WILD.
   auto CVSet = Info.getVariable(VD, Context);
@@ -274,6 +215,92 @@ bool CheckedRegionFinder::VisitParmVarDecl(ParmVarDecl *PVD) {
   return true;
 }
 
+bool CheckedRegionFinder::VisitMemberExpr(MemberExpr *E){
+  ValueDecl *VD = E->getMemberDecl();
+  if (VD) {
+    // Check if the variable is WILD.
+    std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context);
+    for (auto Cv : CVSet) {
+      if (Cv->hasWild(Info.getConstraints().getVariables())) {
+        Wild = true;
+      }
+    }
+    // Check if the variable is a void*.
+    Wild |= containsUncheckedPtr(VD->getType());
+  }
+  return true;
+}
+
+bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) {
+  auto T = DR->getType();
+  auto D = DR->getDecl();
+  auto CVSet = Info.getVariable(D, Context);
+  bool IW = isWild(CVSet ) || containsUncheckedPtr(T);
+
+  if (auto FD = dyn_cast<FunctionDecl>(D)) {
+    auto FV = Info.getFuncConstraints(FD, Context);
+    IW |= isWild(FV);
+    for (const auto& param: FD->parameters()) {
+      auto CVSet = Info.getVariable(param, Context);
+      IW |= isWild(CVSet);
+    }
+  }
+
+  Wild |= IW ;
+  return true;
+}
+
+void CheckedRegionFinder::handleChildren(const Stmt::child_range &Stmts) {
+  for (const auto &SubStmt : Stmts) {
+    CheckedRegionFinder Sub(Context, Writer, Info, Seen, Map);
+    Sub.TraverseStmt(SubStmt);
+    Wild |= Sub.Wild;
+  }
+}
+
+// Check if this compound statement is the body
+// to a function with unsafe parameters.
+bool CheckedRegionFinder::hasUncheckedParameters(CompoundStmt *S) {
+  const auto &Parents = Context->getParents(*S);
+  if (Parents.empty()) {
+    return false;
+  }
+
+  auto Parent = Parents[0].get<FunctionDecl>();
+  if (!Parent) {
+    return false;
+  }
+
+  int Localwild = false;
+  for (auto Child : Parent->parameters()) {
+    CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
+    Sub.TraverseParmVarDecl(Child);
+    Localwild |= Sub.Wild;
+  }
+
+  return Localwild || Parent->isVariadic();
+}
+
+bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
+  // First check if our parent is a compound statement
+  const auto &Parents = Context->getParents(*C);
+  if (Parents.empty()) {
+    return false; // This case shouldn't happen,
+                  // but if it does play it safe and mark WILD.
+  }
+  auto Parent = Parents[0].get<CompoundStmt>();
+  if (Parent) {
+    //Check if we are the only child
+    auto childs = Parent->children();
+    int NumChilds = std::distance(childs.begin(), childs.end());
+    return NumChilds > 1;
+  } else {
+    //TODO there are other statement positions
+    //     besides child of compound stmt
+    return false;
+  }
+}
+
 bool CheckedRegionFinder::isWild(std::set<ConstraintVariable*> &S) { 
   for (auto Cv : S) 
     if (Cv->hasWild(Info.getConstraints().getVariables()))
@@ -287,26 +314,6 @@ bool CheckedRegionFinder::isWild(std::set<FVConstraint*> *S) {
     if (Fv->hasWild(Info.getConstraints().getVariables()))
       return true;
   return false;
-}
-
-bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) { 
-  auto T = DR->getType();
-  auto D = DR->getDecl();
-  auto CVSet = Info.getVariable(D, Context);
-  bool IW = isWild(CVSet ) || containsUncheckedPtr(T);
-
-  if (auto FD = dyn_cast<FunctionDecl>(D)) { 
-    auto FV = Info.getFuncConstraints(FD, Context);
-    IW |= isWild(FV);
-    for (const auto& param: FD->parameters()) { 
-      auto CVSet = Info.getVariable(param, Context);
-      IW |= isWild(CVSet);
-    }
-  }
-
-  Wild |= IW ;
-
-  return true;
 }
 
 bool CheckedRegionFinder::containsUncheckedPtr(QualType Qt) {
@@ -353,8 +360,6 @@ bool CheckedRegionFinder::containsUncheckedPtrAcc(QualType Qt, std::set<std::str
   }
 }
 
-
-
 // Iterate through all fields of the struct and find unchecked types.
 bool CheckedRegionFinder::isUncheckedStruct(QualType Qt, std::set<std::string> &Seen) {
   auto RcdTy = dyn_cast<RecordType>(Qt);
@@ -380,7 +385,6 @@ bool CheckedRegionFinder::isUncheckedStruct(QualType Qt, std::set<std::string> &
   }
 }
 
-
 // Mark the given compound statement with
 // whether or not it is checked
 void CheckedRegionFinder::markChecked(CompoundStmt *S, int Localwild) {
@@ -392,23 +396,4 @@ void CheckedRegionFinder::markChecked(CompoundStmt *S, int Localwild) {
     Cur == CheckedScopeSpecifier::CSS_None && Localwild == 0;
 
   Map[Id] = IsChecked ? IS_CHECKED : IS_UNCHECKED;
-}
-
-
-
-bool CheckedRegionFinder::VisitMemberExpr(MemberExpr *E){
-  ValueDecl *VD = E->getMemberDecl();
-  if (VD) {
-    // Check if the variable is WILD.
-    std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context);
-    for (auto Cv : CVSet) {
-      if (Cv->hasWild(Info.getConstraints().getVariables())) {
-        Wild = true;
-      }
-    }
-
-    // Check if the variable is a void*.
-    Wild |= containsUncheckedPtr(VD->getType());
-  }
-  return true;
 }
