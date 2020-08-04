@@ -29,7 +29,7 @@ int* foo() {
   int *y = &sy;
 	//CHECK: _Ptr<int> y =  &sy;
   int *z = (int *) sus(x, y);
-	//CHECK: _Ptr<int> z =  (int *) sus(x, y);
+	//CHECK: _Ptr<int> z =  (_Ptr<int> ) sus(x, y);
   *z = *z + 1;
   return z;
 }

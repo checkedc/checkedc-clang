@@ -114,6 +114,8 @@ public:
   bool hasTypeParamBindings(CallExpr *CE, ASTContext *C);
   CallTypeParamBindingsT &getTypeParamBindings(CallExpr *CE, ASTContext *C);
 
+  void constrainWildIfMacro(CVarSet &S, SourceLocation Location);
+
 private:
   // List of all constraint variables, indexed by their location in the source.
   // This information persists across invocations of the constraint analysis
@@ -179,9 +181,6 @@ private:
   //   or global)
   std::set<FVConstraint *> *getFuncFVConstraints(FunctionDecl *FD,
                                                  ASTContext *C);
-  void constrainWildIfMacro(CVarSet S,
-                            SourceLocation Location);
-
   // For each pointer type in the declaration of D, add a variable to the
   // constraint system for that pointer type.
   void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *astContext);

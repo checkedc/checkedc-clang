@@ -55,7 +55,7 @@ struct r *bar() {
   x.next = &y;
   y.next = &x;
   struct r *z = (struct r *) sus(&x, &y);
-	//CHECK: _Ptr<struct r> z =  (struct r *) sus(&x, &y);
+	//CHECK: _Ptr<struct r> z =  (_Ptr<struct r> ) sus(&x, &y);
   return z;
 }
 
