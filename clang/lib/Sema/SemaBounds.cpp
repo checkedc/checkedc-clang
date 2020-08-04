@@ -503,35 +503,35 @@ namespace {
 }
 #endif
 
-// Convert all temporary bindings in an expression to uses of the values
-// produced by a binding.   This should be done for bounds expressions that
-// are used in runtime checks.  That way we don't try to recompute a
-// temporary multiple times in an expression.
-namespace {
-  class PruneTemporaryHelper : public TreeTransform<PruneTemporaryHelper> {
-    typedef TreeTransform<PruneTemporaryHelper> BaseTransform;
+// Convert all temporary bindings in an expression to uses of the values	
+// produced by a binding.   This should be done for bounds expressions that	
+// are used in runtime checks.  That way we don't try to recompute a	
+// temporary multiple times in an expression.	
+namespace {	
+  class PruneTemporaryHelper : public TreeTransform<PruneTemporaryHelper> {	
+    typedef TreeTransform<PruneTemporaryHelper> BaseTransform;	
 
 
-  public:
-    PruneTemporaryHelper(Sema &SemaRef) :
-      BaseTransform(SemaRef) { }
+  public:	
+    PruneTemporaryHelper(Sema &SemaRef) :	
+      BaseTransform(SemaRef) { }	
 
-    ExprResult TransformCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
-      return new (SemaRef.Context) BoundsValueExpr(SourceLocation(), E);
-    }
-  };
+    ExprResult TransformCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {	
+      return new (SemaRef.Context) BoundsValueExpr(SourceLocation(), E);	
+    }	
+  };	
 
-  Expr *PruneTemporaryBindings(Sema &SemaRef, Expr *E, CheckedScopeSpecifier CSS) {
+  Expr *PruneTemporaryBindings(Sema &SemaRef, Expr *E, CheckedScopeSpecifier CSS) {	
     // Account for checked scope information when transforming the expression.
     Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
 
-    Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics
-    ExprResult R = PruneTemporaryHelper(SemaRef).TransformExpr(E);
+    Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics	
+    ExprResult R = PruneTemporaryHelper(SemaRef).TransformExpr(E);	
     if (R.isInvalid())
       return SemaRef.Context.getPrebuiltBoundsUnknown();
     else
       return R.get();
-  }
+  }	
 }
 
 namespace {
@@ -752,7 +752,7 @@ namespace {
 
       // If a variable declaration has declared bounds, modify BoundsContextRef
       // to map the variable declaration to the normalized declared bounds.
-      //
+      // 
       // Returns true if visiting the variable declaration did not terminate
       // early.  Visiting variable declarations in DeclaredBoundsHelper should
       // never terminate early.
@@ -1510,7 +1510,7 @@ namespace {
     // 5. If OP signs are not equivalent in both, return false.
     // 6. If ConstantParts are not equal, return false.
     // If the expressions pass all the above tests, then return true.
-    //
+    //      
     // Note that in all steps involving in checking the equality of the types or values of offsets, parentheses and
     // casts are ignored.
     static bool EqualExtended(ASTContext &Ctx, Expr *Base1, Expr *Base2, Expr *Offset1, Expr *Offset2, EquivExprSets *EquivExprs) {
@@ -2008,7 +2008,7 @@ namespace {
                                       CheckedScopeSpecifier CSS) {
       // Record expression equality implied by initialization (see
       // CheckBoundsDeclAtAssignment).
-
+      
       // Record equivalence between expressions implied by initializion.
       // If D declares a variable V, and
       // 1. Src binds a temporary variable T, record equivalence
@@ -2726,7 +2726,7 @@ namespace {
       SubExprSameValueSets[RHS] = State.SameValue;
 
       BinaryOperatorKind Op = E->getOpcode();
-
+      
       // Bounds of the binary operator.
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
@@ -3187,7 +3187,7 @@ namespace {
 
         if (DumpBounds)
           DumpBoundsCastBounds(llvm::outs(), E, DeclaredBounds, NormalizedBounds, SubExprBounds);
-
+        
         return ExpandToRange(SubExprAtNewType, E->getBoundsExpr());
       }
 
@@ -3444,7 +3444,7 @@ namespace {
       if (!ReturnBounds)
         return ResultBounds;
 
-      // TODO: Actually check that the return expression bounds imply the
+      // TODO: Actually check that the return expression bounds imply the 
       // return bounds.
       // TODO: Also check that any parameters used in the return bounds are
       // unmodified.
@@ -3672,7 +3672,7 @@ namespace {
                                 BoundsExpr *&OutTargetBounds,
                                 CheckingState &State) {
       // An LValueBitCast adjusts the type of the lvalue.  The bounds are not
-      // changed, except that their relative alignment may change (the bounds
+      // changed, except that their relative alignment may change (the bounds 
       // may only cover a partial object).  TODO: When we add relative
       // alignment support to the compiler, adjust the relative alignment.
       if (E->getCastKind() == CastKind::CK_LValueBitCast)
@@ -4378,7 +4378,7 @@ namespace {
       // value is either some variable w != v in EQ, or it is null.  In either
       // case, the original value cannot use the value of v.
       OriginalValueUsesV = false;
-
+      
       // Check EQ for a variable w != v that produces the same value as v.
       Expr *ValuePreservingV = nullptr;
       EqualExprTy F = GetEqualExprSetContainingExpr(Target, EQ, ValuePreservingV);
@@ -4488,7 +4488,7 @@ namespace {
 
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
-
+      
       // Addition and subtraction operations must be for checked pointer
       // arithmetic or unsigned integer arithmetic.
       if (Op == BinaryOperatorKind::BO_Add || Op == BinaryOperatorKind::BO_Sub) {
@@ -4599,7 +4599,7 @@ namespace {
     Expr *UnaryOperatorInverse(DeclRefExpr *X, Expr *F, UnaryOperator *E) {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
       UnaryOperatorKind Op = E->getOpcode();
-
+      
       if (Op == UnaryOperatorKind::UO_AddrOf) {
         // Inverse(f, &*e1) = Inverse(f, e1)
         if (UnaryOperator *UnarySubExpr = dyn_cast<UnaryOperator>(SubExpr)) {
@@ -5231,7 +5231,7 @@ namespace {
                                       /*IsInteropTypeAnnotation=*/true);
         return cast<BoundsExpr>(PruneTemporaryBindings(S, B, CSS));
       }
-
+      
       if (!B)
         return CreateBoundsAlwaysUnknown();
 
@@ -5281,7 +5281,7 @@ namespace {
       } else if (Ty->isCheckedPointerNtArrayType()) {
         BE = Context.getPrebuiltCountZero();
       }
-
+      
       if (!BE)
         return CreateBoundsEmpty();
 
@@ -5335,7 +5335,7 @@ namespace {
           if (DeclRefExpr *V = GetRValueVariable(E)) {
             if (const VarDecl *D = dyn_cast_or_null<VarDecl>(V->getDecl())) {
               auto It = State.ObservedBounds.find(D);
-              if (It != State.ObservedBounds.end())
+              if (It != State.ObservedBounds.end()) 
                 return It->second;
             }
           }
@@ -5511,7 +5511,7 @@ namespace {
 
         // If we've found a cast expression...
         if (const CastExpr *NeedleCast = dyn_cast<CastExpr>(Needle)) {
-          if (const ImplicitCastExpr *ICE =
+          if (const ImplicitCastExpr *ICE = 
                 dyn_cast<ImplicitCastExpr>(NeedleCast))
             // Stop at lvalue-to-ravlue casts.
             if (ICE->getCastKind() == CK_LValueToRValue)
@@ -5590,14 +5590,14 @@ namespace {
             // is that the source is an unchecked pointer type.
             if (E->getCastKind() == CastKind::CK_AssumePtrBounds)
               return;
-            S.Diag(Needle->getExprLoc(),
+            S.Diag(Needle->getExprLoc(), 
                    diag::err_cast_to_checked_fn_ptr_from_unchecked_fn_ptr) <<
               ToType << E->getSourceRange();
             return;
           }
         }
 
-        S.Diag(Needle->getExprLoc(),
+        S.Diag(Needle->getExprLoc(), 
                diag::err_cast_to_checked_fn_ptr_from_incompatible_type)
           << ToType << NeedleTy << NeedleTy->isCheckedPointerPtrType()
           << E->getSourceRange();
@@ -5812,7 +5812,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   }
   else {
     // A CFG couldn't be constructed.  CFG construction doesn't support
-    // __finally or may encounter a malformed AST.  Fall back on to non-flow
+    // __finally or may encounter a malformed AST.  Fall back on to non-flow 
     // based analysis.  The CSS parameter is ignored because the checked
     // scope information is obtained from Body, which is a compound statement.
     Checker.Check(Body, CheckedScopeSpecifier::CSS_Unchecked);
