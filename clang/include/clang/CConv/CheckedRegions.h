@@ -77,7 +77,7 @@ class CheckedRegionFinder : public clang::RecursiveASTVisitor<CheckedRegionFinde
 
   private:
     void handleChildren(const clang::Stmt::child_range &Stmts);
-    void addUncheckedAnnotation(clang::CompoundStmt *S, int LocalWild);
+    void markChecked(clang::CompoundStmt *S, int LocalWild);
     bool isInStatementPosition(clang::CallExpr *C);
     bool hasUncheckedParameters(clang::CompoundStmt *S);
     bool containsUncheckedPtr(clang::QualType Qt);

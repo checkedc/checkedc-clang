@@ -163,7 +163,7 @@ bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
     Localwild |= Sub.Wild;
   }
 
-  addUncheckedAnnotation(S, Localwild);
+  markChecked(S, Localwild);
 
   Wild = false;
 
@@ -381,7 +381,9 @@ bool CheckedRegionFinder::isUncheckedStruct(QualType Qt, std::set<std::string> &
 }
 
 
-void CheckedRegionFinder::addUncheckedAnnotation(CompoundStmt *S, int Localwild) {
+// Mark the given compound statement with
+// whether or not it is checked
+void CheckedRegionFinder::markChecked(CompoundStmt *S, int Localwild) {
   auto Cur = S->getWrittenCheckedSpecifier();
   llvm::FoldingSetNodeID Id;
   S->Profile(Id, *Context, true);
