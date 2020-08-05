@@ -3941,21 +3941,8 @@ namespace {
     void DiagnoseUnknownObservedBounds(Stmt *St, const VarDecl *V,
                                        BoundsExpr *DeclaredBounds,
                                        CheckingState State) {
-      // Blame the assignment in St that causes V's observed bounds to be
-      // unknown if we can find it in map BlameAssignments.  Otherwise, blame
-      // the whole St in the error message.
-      SourceLocation Loc = St->getBeginLoc();
-      SourceRange SrcRange = St->getSourceRange();
-      auto BDCType = Sema::BoundsDeclarationCheck::BDC_Statement;
-      auto It = State.BlameAssignments.find(V);
-      if (It != State.BlameAssignments.end()) {
-        Expr *BlameExpr = It->second;
-        Loc = BlameExpr->getBeginLoc();
-        SrcRange = BlameExpr->getSourceRange();
-        BDCType = GetBDCTypeFromExpr(BlameExpr);
-      }
-      S.Diag(Loc, diag::err_unknown_inferred_bounds)
-        << BDCType << V << SrcRange;
+      BlameAssignmentWithinStmt(St, V, State,
+                                diag::err_unknown_inferred_bounds);
       S.Diag(V->getLocation(), diag::note_declared_bounds)
         << DeclaredBounds << DeclaredBounds->getSourceRange();
 
@@ -4022,13 +4009,35 @@ namespace {
           return;
       }
 
+      unsigned DiagId = (Result == ProofResult::False) ?
+        diag::error_bounds_declaration_invalid :
+        (CSS != CheckedScopeSpecifier::CSS_Unchecked?
+          diag::warn_checked_scope_bounds_declaration_invalid :
+          diag::warn_bounds_declaration_invalid);
+      SourceLocation Loc = BlameAssignmentWithinStmt(St, V, State, DiagId);
+      if (Result == ProofResult::False)
+        ExplainProofFailure(Loc, Cause, ProofStmtKind::BoundsDeclaration);
+      S.Diag(V->getLocation(), diag::note_declared_bounds)
+        << DeclaredBounds << DeclaredBounds->getSourceRange();
+      S.Diag(Loc, diag::note_expanded_inferred_bounds)
+        << ObservedBounds << ObservedBounds->getSourceRange();
+    }
+
+    // BlameAssignmentWithinStmt prints a diagnostic message that highlights the
+    // assignment expression in St that causes V's observed bounds to be unknown
+    // or invalid.  If St is a DeclStmt, St itself and V are highlighted.
+    // BlameAssignmentWithinStmt returns the source location of the blamed
+    // assignment.
+    SourceLocation BlameAssignmentWithinStmt(Stmt *St, 
+                 const VarDecl *V, CheckingState State, unsigned DiagId) const {
+      SourceRange SrcRange = St->getSourceRange();
+      auto BDCType = Sema::BoundsDeclarationCheck::BDC_Statement;
+      
       // For a declaration, the diagnostic message should start at the
       // location of v rather than the beginning of St.  If the message
       // starts at the beginning of a declaration T v = e, then extra
       // diagnostics may be emitted for T.
       SourceLocation Loc = St->getBeginLoc();
-      SourceRange SrcRange = St->getSourceRange();
-      auto BDCType = Sema::BoundsDeclarationCheck::BDC_Statement;
       if (isa<DeclStmt>(St)) {
         Loc = V->getLocation();
         BDCType = Sema::BoundsDeclarationCheck::BDC_Initialization;
@@ -4040,37 +4049,22 @@ namespace {
         Expr *BlameExpr = It->second;
         Loc = BlameExpr->getBeginLoc();
         SrcRange = BlameExpr->getSourceRange();
-        BDCType = GetBDCTypeFromExpr(BlameExpr);
+        
+        // Choose the type of assignment E to show in the diagnostic messages:
+        // assignment (=), decrement (--) or increment (++).
+        if (UnaryOperator *UO = dyn_cast<UnaryOperator>(BlameExpr)) {
+          if (UO->isIncrementOp())
+            BDCType = Sema::BoundsDeclarationCheck::BDC_Increment;
+          else if (UO->isDecrementOp())
+            BDCType = Sema::BoundsDeclarationCheck::BDC_Decrement;
+        } else if (isa<BinaryOperator>(BlameExpr)) {
+          // Must be an assignment or a compound assignment, because E is
+          // modifying.
+          BDCType = Sema::BoundsDeclarationCheck::BDC_Assignment;
+        }
       }
-
-      unsigned DiagId = (Result == ProofResult::False) ?
-        diag::error_bounds_declaration_invalid :
-        (CSS != CheckedScopeSpecifier::CSS_Unchecked?
-          diag::warn_checked_scope_bounds_declaration_invalid :
-          diag::warn_bounds_declaration_invalid);
       S.Diag(Loc, DiagId) << BDCType << V << SrcRange << SrcRange;
-      if (Result == ProofResult::False)
-        ExplainProofFailure(Loc, Cause, ProofStmtKind::BoundsDeclaration);
-      S.Diag(V->getLocation(), diag::note_declared_bounds)
-        << DeclaredBounds << DeclaredBounds->getSourceRange();
-      S.Diag(Loc, diag::note_expanded_inferred_bounds)
-        << ObservedBounds << ObservedBounds->getSourceRange();
-    }
-
-    // Returns the type of assignment E to show in the diagnostic messages:
-    // assignment (=), decrement (--) or increment (++).
-    Sema::BoundsDeclarationCheck GetBDCTypeFromExpr(Expr *E) const {
-      if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
-        if (UO->isIncrementOp())
-          return Sema::BoundsDeclarationCheck::BDC_Increment;
-        else if (UO->isDecrementOp())
-          return Sema::BoundsDeclarationCheck::BDC_Decrement;
-      } else if (isa<BinaryOperator>(E)) {
-        // Must be an assignment or a compound assignment, because E is
-        // modifying.
-        return Sema::BoundsDeclarationCheck::BDC_Assignment;
-      }
-      return Sema::BoundsDeclarationCheck::BDC_Statement;
+      return Loc;
     }
 
     // Methods to update the checking state.
