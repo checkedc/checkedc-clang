@@ -293,13 +293,15 @@ static bool do_solve(ConstraintsGraph &CG,
               new Geq(Cbound, VA, str, doLeastSolution);
           Conflicts.insert(failedConstraint);
           // Failure case.
-          errs() << "Unsolvable constraints: ";
-          VA->print(errs());
-          errs() << "=";
-          Csol->print(errs());
-          errs() << (doLeastSolution? "<" : ">");
-          Cbound->print(errs());
-          errs() << " var will be made WILD\n";
+          if (Verbose) {
+            errs() << "Unsolvable constraints: ";
+            VA->print(errs());
+            errs() << "=";
+            Csol->print(errs());
+            errs() << (doLeastSolution? "<" : ">");
+            Cbound->print(errs());
+            errs() << " var will be made WILD\n";
+          }
         }
       }
     }
