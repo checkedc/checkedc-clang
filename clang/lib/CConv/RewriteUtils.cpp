@@ -163,7 +163,8 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 
           std::string PfName = sys::path::filename(FE->getName()).str();
           std::string DirName = sys::path::parent_path(FE->getName()).str();
-          std::string FileName = sys::path::remove_leading_dotslash(PfName).str();
+          std::string
+              FileName = sys::path::remove_leading_dotslash(PfName).str();
           std::string Ext = sys::path::extension(FileName).str();
           std::string Stem = sys::path::stem(FileName).str();
           std::string NFile = Stem + "." + OutputPostfix + Ext;
