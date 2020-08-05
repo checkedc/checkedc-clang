@@ -57,14 +57,15 @@ private:
   // Rewrite a specific variable declaration using the replacement string in the
   // DAndReplace structure. Each of these functions is specialized to handling
   // one subclass of declarations.
-  void rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite);
-  void rewriteParmVarDecl(const DAndReplace &N);
-  void rewriteFunctionDecl(const DAndReplace &N);
+  void rewriteVarDecl(VarDeclReplacement *N, RSet &ToRewrite);
+  void rewriteParmVarDecl(ParmVarDeclReplacement *N);
+  void rewriteFunctionDecl(FunctionDeclReplacement *N);
 
-  SourceLocation deleteAllDeclarationsOnLine(const DAndReplace &N);
-  void getDeclsOnSameLine(const DAndReplace &N, std::set<Decl *> &Decls);
-  bool isSingleDeclaration(const DAndReplace &N);
-  bool areDeclarationsOnSameLine(const DAndReplace &N1, const DAndReplace &N2);
+  SourceLocation deleteAllDeclarationsOnLine(VarDeclReplacement *N);
+  void getDeclsOnSameLine(VarDeclReplacement *N, std::set<Decl *> &Decls);
+  bool isSingleDeclaration(VarDeclReplacement *N);
+  bool areDeclarationsOnSameLine(VarDeclReplacement *N1,
+                                 VarDeclReplacement *N2);
 };
 
 // Visits function declarations and adds entries with their new rewritten

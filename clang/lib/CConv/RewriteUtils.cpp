@@ -18,40 +18,23 @@
 using namespace llvm;
 using namespace clang;
 
-SourceRange DComp::getWholeSR(SourceRange Orig, const DAndReplace &Dr) const {
-  SourceRange NewSourceRange(Orig);
-
-  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(Dr.Declaration)) {
-    NewSourceRange.setEnd(getFunctionDeclarationEnd(FD, SM));
-    if (!Dr.FullDecl)
-      NewSourceRange = FD->getReturnTypeSourceRange();
-  }
-
-  return NewSourceRange;
-}
-
-SourceLocation DComp::getDeclBegin(const DAndReplace &D) const {
+SourceLocation DComp::getDeclBegin(DeclReplacement *D) const {
   SourceLocation Begin =
-      (*D.Statement->decls().begin())->getSourceRange().getBegin();
-  for (const auto &DT : D.Statement->decls()) {
-    if (DT == D.Declaration)
+      (*D->getStatement()->decls().begin())->getSourceRange().getBegin();
+  for (const auto &DT : D->getStatement()->decls()) {
+    if (DT == D->getDecl())
       return Begin;
     Begin = DT->getSourceRange().getEnd();
   }
   llvm_unreachable("Declaration not found in DeclStmt.");
 }
 
-SourceRange DComp::getReplacementSourceRange(const DAndReplace &D) const {
-  SourceRange Range = D.Declaration->getSourceRange();
-
-  // Take into account whether or not a FunctionDeclaration specifies
-  // the "whole" declaration or not. If it does not, it just specifies
-  // the return position.
-  Range = getWholeSR(Range, D);
+SourceRange DComp::getReplacementSourceRange(DeclReplacement *D) const {
+  SourceRange Range = D->getSourceRange(SM);
 
   // Also take into account whether or not there is a multi-statement
   // decl, because the generated ranges will overlap.
-  DeclStmt *LhStmt = D.Statement;
+  DeclStmt *LhStmt = D->getStatement();
   if (LhStmt && !LhStmt->isSingleDecl()) {
     SourceLocation NewBegin = getDeclBegin(D);
     Range.setBegin(NewBegin);
@@ -62,7 +45,8 @@ SourceRange DComp::getReplacementSourceRange(const DAndReplace &D) const {
   return Range;
 }
 
-bool DComp::operator()(const DAndReplace &Lhs, const DAndReplace &Rhs) const {
+bool DComp::operator()(DeclReplacement *Lhs,
+                       DeclReplacement *Rhs) const {
   // Does the source location of the Decl in lhs overlap at all with
   // the source location of rhs?
   SourceRange SrLhs = getReplacementSourceRange(Lhs);
@@ -73,7 +57,7 @@ bool DComp::operator()(const DAndReplace &Lhs, const DAndReplace &Rhs) const {
   SourceLocation Y1 = SrRhs.getBegin();
   SourceLocation Y2 = SrRhs.getEnd();
 
-  if (Lhs.Statement == nullptr && Rhs.Statement == nullptr) {
+  if (Lhs->getStatement() == nullptr && Rhs->getStatement() == nullptr) {
     // These are global declarations. Get the source location
     // and compare them lexicographically.
     PresumedLoc LHsPLocB = SM.getPresumedLoc(X2);

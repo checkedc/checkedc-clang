@@ -50,7 +50,7 @@ void StructVariableInitializer::insertVarDecl(VarDecl *VD, DeclStmt *S) {
       // Create replacement declaration text with an initializer.
       const clang::Type *Ty = VD->getType().getTypePtr();
       std::string ToReplace = tyToStr(Ty) + " " + VD->getName().str() + " = {}";
-      RewriteThese.insert(DAndReplace(VD, S, ToReplace));
+      RewriteThese.insert(new VarDeclReplacement(VD, S, ToReplace));
     }
   }
 }

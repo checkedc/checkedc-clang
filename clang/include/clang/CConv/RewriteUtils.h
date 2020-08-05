@@ -16,77 +16,92 @@
 #include "clang/AST/Stmt.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Rewrite/Core/Rewriter.h"
-
 #include "ProgramInfo.h"
 
 using namespace clang;
 
-// A Declaration, optional DeclStmt, and a replacement string
-// for that Declaration.
-struct DAndReplace
-{
-    Decl        *Declaration; // The declaration to replace.
-    DeclStmt    *Statement;   // The Stmt, if it exists.
-    std::string Replacement;  // The string to replace the declaration with.
-    bool        FullDecl;     // If the declaration is a function, true if
-    // Replace the entire declaration or just the
-    // return declaration.
-    DAndReplace() : Declaration(nullptr),
-                    Statement(nullptr),
-                    Replacement(""),
-                    FullDecl(false) { }
+class DeclReplacement {
+public:
+  virtual Decl *getDecl() const = 0;
 
-    DAndReplace(Decl *D, std::string R) : Declaration(D),
-                                          Statement(nullptr),
-                                          Replacement(R),
-                                          FullDecl(false) {}
+  DeclStmt *getStatement() const { return Statement; }
 
-    DAndReplace(Decl *D, std::string R, bool F) : Declaration(D),
-                                                  Statement(nullptr),
-                                                  Replacement(R),
-                                                  FullDecl(F) {}
+  std::string getReplacement() const { return Replacement; }
 
+  virtual SourceRange getSourceRange(SourceManager &SR) const {
+    return getDecl()->getSourceRange();
+  }
 
-    DAndReplace(Decl *D, DeclStmt *S, std::string R) : Declaration(D),
-                                                       Statement(S),
-                                                       Replacement(R),
-                                                       FullDecl(false) { }
+  virtual ~DeclReplacement() {}
+protected:
+  explicit DeclReplacement(DeclStmt *S, std::string R)
+      : Statement(S), Replacement(R) {}
 
-    template<typename T>
-    bool hasDeclType() const {
-      static_assert(std::is_same<T, VarDecl>() || std::is_same<T, ParmVarDecl>()
-                        || std::is_same<T, FunctionDecl>()
-                        || std::is_same<T, FieldDecl>(),
-          "Type is not supported Decl type.");
-      return isa<T>(Declaration);
-    }
+  // The Stmt, if it exists (may be nullptr).
+  DeclStmt *Statement;
 
-    template<typename T>
-    T *getDecl() const {
-      static_assert(std::is_same<T, VarDecl>() || std::is_same<T, ParmVarDecl>()
-                        || std::is_same<T, FunctionDecl>()
-                        || std::is_same<T, FieldDecl>(),
-                    "Type is not supported Decl type.");
-      return dyn_cast<T>(Declaration);
-    }
+  // The string to replace the declaration with.
+  std::string Replacement;
 };
 
-// Compare two DAndReplace values. The algorithm for comparing them relates
-// their source positions. If two DAndReplace values refer to overlapping
+template<typename DeclT>
+class DeclReplacementTempl : public DeclReplacement {
+public:
+  DeclT *getDecl() const override {
+    return Decl;
+  }
+
+  explicit DeclReplacementTempl(DeclT *D, DeclStmt *DS, std::string R)
+      : DeclReplacement(DS, R), Decl(D) {}
+
+protected:
+  DeclT *Decl;
+};
+
+typedef DeclReplacementTempl<VarDecl> VarDeclReplacement;
+typedef DeclReplacementTempl<ParmVarDecl> ParmVarDeclReplacement;
+typedef DeclReplacementTempl<FieldDecl> FieldDeclReplacement;
+
+class FunctionDeclReplacement : public DeclReplacementTempl<FunctionDecl> {
+public:
+  explicit FunctionDeclReplacement(FunctionDecl *D, std::string R, bool Full)
+      : DeclReplacementTempl<FunctionDecl>(D, nullptr, R),
+        FullDecl(Full) {}
+
+  SourceRange getSourceRange(SourceManager &SM) const override {
+    if (FullDecl) {
+      SourceRange Range = Decl->getSourceRange();
+      Range.setEnd(getFunctionDeclarationEnd(Decl, SM));
+      return Range;
+    } else
+      return Decl->getReturnTypeSourceRange();
+  }
+
+  bool isFullDecl() const {
+    return FullDecl;
+  }
+
+private:
+  // This determines if the full declaration or the return will be replaced.
+  bool FullDecl;
+};
+
+// Compare two DeclReplacement values. The algorithm for comparing them relates
+// their source positions. If two DeclReplacement values refer to overlapping
 // source positions, then they are the same. Otherwise, they are ordered
 // by their placement in the input file.
 //
 // There are two special cases: Function declarations, and DeclStmts. In turn:
 //
-//  - Function declarations might either be a DAndReplace describing the entire
-//    declaration, i.e. replacing "int *foo(void)"
+//  - Function declarations might either be a DeclReplacement describing the
+//    entire declaration, i.e. replacing "int *foo(void)"
 //    with "int *foo(void) : itype(_Ptr<int>)". Or, it might describe just
 //    replacing only the return type, i.e. "_Ptr<int> foo(void)". This is
-//    discriminated against with the 'fullDecl' field of the DAndReplace type
-//    and the comparison function first checks if the operands are
+//    discriminated against with the 'fullDecl' field of the DeclReplacement
+//    type and the comparison function first checks if the operands are
 //    FunctionDecls and if the 'fullDecl' field is set.
 //  - A DeclStmt of mupltiple Decls, i.e. 'int *a = 0, *b = 0'. In this case,
-//    we want the DAndReplace to refer only to the specific sub-region that
+//    we want the DeclReplacement to refer only to the specific sub-region that
 //    would be replaced, i.e. '*a = 0' and '*b = 0'. To do that, we traverse
 //    the Decls contained in a DeclStmt and figure out what the appropriate
 //    source locations are to describe the positions of the independent
@@ -95,17 +110,16 @@ class DComp {
 public:
   DComp(SourceManager &S) : SM(S) { }
 
-  bool operator()(const DAndReplace &Lhs, const DAndReplace &Rhs) const;
+  bool operator()(DeclReplacement *Lhs, DeclReplacement *Rhs) const;
 
 private:
   SourceManager &SM;
 
-  SourceRange getWholeSR(SourceRange Orig, const DAndReplace &Dr) const;
-  SourceRange getReplacementSourceRange(const DAndReplace &D) const;
-  SourceLocation getDeclBegin(const DAndReplace &D) const;
+  SourceRange getReplacementSourceRange(DeclReplacement *D) const;
+  SourceLocation getDeclBegin(DeclReplacement *D) const;
 };
 
-typedef std::set<DAndReplace, DComp> RSet;
+typedef std::set<DeclReplacement *, DComp> RSet;
 
 // Class that maintains global variables according to the line numbers
 // this groups global variables according to the line numbers in source files.

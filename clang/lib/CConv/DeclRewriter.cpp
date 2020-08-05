@@ -86,15 +86,23 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
         std::string newTy = getStorageQualifierString(D) +
             PV->mkString(Info.getConstraints().getVariables()) +
             ABRewriter.getBoundsString(PV, D);
-        RewriteThese.insert(DAndReplace(D, DS, newTy));
+        if (auto *VD = dyn_cast<VarDecl>(D))
+          RewriteThese.insert(new VarDeclReplacement(VD, DS, newTy));
+        else if (auto *FD = dyn_cast<FieldDecl>(D))
+          RewriteThese.insert(new FieldDeclReplacement(FD, DS, newTy));
+        else if (auto *PD = dyn_cast<ParmVarDecl>(D))
+          RewriteThese.insert(new ParmVarDeclReplacement(PD, DS, newTy));
+        else
+          llvm_unreachable("Unrecognized declaration type.");
       } else if (FV && NewFuncSig.find(FV->getName()) != NewFuncSig.end()
           && !TRV.isFunctionVisited(FV->getName())) {
+        auto *FD = cast<FunctionDecl>(D);
         // TODO: I don't think this branch is ever reached. Either remove it or
         //       add a test case that reaches it.
         // If this function already has a modified signature? and it is not
         // visited by our cast placement visitor then rewrite it.
         std::string NewSig = NewFuncSig[FV->getName()];
-        RewriteThese.insert(DAndReplace(D, NewSig, true));
+        RewriteThese.insert(new FunctionDeclReplacement(FD, NewSig, true));
       }
     }
   }
@@ -108,52 +116,53 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
   // Do the declaration rewriting
   DeclRewriter DeclR(R, Context, GVG);
   DeclR.rewrite(RewriteThese, TouchedFiles);
+
+  for (const auto *R : RewriteThese)
+    delete R;
 }
 
 void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
-  for (const auto &N : ToRewrite) {
-    assert(N.Declaration != nullptr);
+  for (auto *const N : ToRewrite) {
+    assert(N->getDecl() != nullptr);
 
     if (Verbose) {
       errs() << "Replacing type of decl:\n";
-      N.Declaration->dump();
-      errs() << "with " << N.Replacement << "\n";
+      N->getDecl()->dump();
+      errs() << "with " << N->getReplacement() << "\n";
     }
 
     // Get a FullSourceLoc for the start location and add it to the
     // list of file ID's we've touched.
-    SourceRange tTR = N.Declaration->getSourceRange();
+    SourceRange tTR = N->getDecl()->getSourceRange();
     FullSourceLoc tFSL(tTR.getBegin(), A.getSourceManager());
     TouchedFiles.insert(tFSL.getFileID());
 
     // Exact rewriting procedure depends on declaration type
-    if (N.hasDeclType<ParmVarDecl>()) {
-      assert(N.Statement == nullptr);
-      rewriteParmVarDecl(N);
-    } else if (N.hasDeclType<VarDecl>()) {
-      rewriteVarDecl(N, ToRewrite);
-    } else if (N.hasDeclType<FunctionDecl>()) {
-      rewriteFunctionDecl(N);
-    } else if (N.hasDeclType<FieldDecl>()) {
-      SourceRange SR = N.getDecl<FieldDecl>()->getSourceRange();
+    if (auto *PVR = dynamic_cast<ParmVarDeclReplacement*>(N)) {
+      assert(N->getStatement() == nullptr);
+      rewriteParmVarDecl(PVR);
+    } else if (auto *VR = dynamic_cast<VarDeclReplacement*>(N)) {
+      rewriteVarDecl(VR, ToRewrite);
+    } else if (auto *FR = dynamic_cast<FunctionDeclReplacement*>(N)) {
+      rewriteFunctionDecl(FR);
+    } else if (auto *FdR = dynamic_cast<FieldDeclReplacement*>(N)) {
+      SourceRange SR = FdR->getDecl()->getSourceRange();
       if (canRewrite(R, SR))
-        R.ReplaceText(SR, N.Replacement);
+        R.ReplaceText(SR, FdR->getReplacement());
     }
   }
 }
 
-void DeclRewriter::rewriteParmVarDecl(const DAndReplace &N) {
-  ParmVarDecl *PV = N.getDecl<ParmVarDecl>();
-
+void DeclRewriter::rewriteParmVarDecl(ParmVarDeclReplacement *N) {
   // First, find all the declarations of the containing function.
-  DeclContext *DF = PV->getParentFunctionOrMethod();
+  DeclContext *DF = N->getDecl()->getParentFunctionOrMethod();
   assert(DF != nullptr && "no parent function or method for decl");
   FunctionDecl *FD = cast<FunctionDecl>(DF);
 
   // For each function, determine which parameter in the declaration
   // matches PV, then, get the type location of that parameter
   // declaration and re-write.
-  unsigned int PIdx = getParameterIndex(PV, FD);
+  unsigned int PIdx = getParameterIndex(N->getDecl(), FD);
 
   for (auto *CurFD = FD; CurFD != nullptr; CurFD = CurFD->getPreviousDecl())
     if (PIdx < CurFD->getNumParams()) {
@@ -162,18 +171,17 @@ void DeclRewriter::rewriteParmVarDecl(const DAndReplace &N) {
       SourceRange TR = Rewrite->getSourceRange();
 
       if (canRewrite(R, TR))
-        R.ReplaceText(TR, N.Replacement);
+        R.ReplaceText(TR, N->getReplacement());
     }
 }
 
-
-void DeclRewriter::rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite) {
-  VarDecl *VD = N.getDecl<VarDecl>();
-  std::string SRewrite = N.Replacement;
+void DeclRewriter::rewriteVarDecl(VarDeclReplacement *N, RSet &ToRewrite) {
+  VarDecl *VD = N->getDecl();
+  std::string SRewrite = N->getReplacement();
   if (Verbose) {
     errs() << "VarDecl at:\n";
-    if (N.Statement)
-      N.Statement->dump();
+    if (N->getStatement())
+      N->getStatement()->dump();
   }
   SourceRange TR = VD->getSourceRange();
 
@@ -215,8 +223,8 @@ void DeclRewriter::rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite) {
           errs() << "Still don't know how to re-write VarDecl\n";
           VD->dump();
           errs() << "at\n";
-          if (N.Statement)
-            N.Statement->dump();
+          if (N->getStatement())
+            N->getStatement()->dump();
           errs() << "with " << SRewrite << "\n";
         }
       }
@@ -234,8 +242,8 @@ void DeclRewriter::rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite) {
     RSet RewritesForThisDecl(DComp(R.getSourceMgr()));
     auto I = ToRewrite.find(N);
     while (I != ToRewrite.end()) {
-      DAndReplace Tmp = *I;
-      if (areDeclarationsOnSameLine(N, Tmp))
+      auto *Tmp = dynamic_cast<VarDeclReplacement *>(*I);
+      if (Tmp != nullptr && areDeclarationsOnSameLine(N, Tmp))
         RewritesForThisDecl.insert(Tmp);
       ++I;
     }
@@ -267,17 +275,17 @@ void DeclRewriter::rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite) {
       }
       assert(VDL != nullptr);
 
-      DAndReplace SameLineReplacement;
+      DeclReplacement *SameLineReplacement;
       bool Found = false;
       for (const auto &NLT : RewritesForThisDecl)
-        if (NLT.Declaration == DL) {
+        if (NLT->getDecl() == DL) {
           SameLineReplacement = NLT;
           Found = true;
           break;
         }
 
       if (Found) {
-        NewMlDecl << SameLineReplacement.Replacement;
+        NewMlDecl << SameLineReplacement->getReplacement();
         if (Expr *E = VDL->getInit()) {
           NewMlDecl << " = ";
           E->printPretty(NewMlDecl, nullptr, A.getPrintingPolicy());
@@ -306,14 +314,14 @@ void DeclRewriter::rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite) {
       errs() << "Don't know how to re-write VarDecl\n";
       VD->dump();
       errs() << "at\n";
-      if (N.Statement)
-        N.Statement->dump();
-      errs() << "with " << N.Replacement << "\n";
+      if (N->getStatement())
+        N->getStatement()->dump();
+      errs() << "with " << N->getReplacement() << "\n";
     }
   }
 }
 
-void DeclRewriter::rewriteFunctionDecl(const DAndReplace &N) {
+void DeclRewriter::rewriteFunctionDecl(FunctionDeclReplacement *N) {
   // TODO: If the return type is a fully-specified function pointer,
   //       then clang will give back an invalid source range for the
   //       return type source range. For now, check that the source
@@ -321,25 +329,18 @@ void DeclRewriter::rewriteFunctionDecl(const DAndReplace &N) {
   //       Additionally, a source range can be (mis) identified as
   //       spanning multiple files. We don't know how to re-write that,
   //       so don't.
-
-  FunctionDecl *UD = N.getDecl<FunctionDecl>();
-  SourceRange SR;
-  if (N.FullDecl) {
-    SR = UD->getSourceRange();
-    SR.setEnd(getFunctionDeclarationEnd(UD, A.getSourceManager()));
-  } else {
-    SR = UD->getReturnTypeSourceRange();
-  }
+  SourceRange SR = N->getSourceRange(A.getSourceManager());
   if (canRewrite(R, SR))
-    R.ReplaceText(SR, N.Replacement);
+    R.ReplaceText(SR, N->getReplacement());
 }
 
-bool DeclRewriter::areDeclarationsOnSameLine(const DAndReplace &N1, const DAndReplace &N2) {
-  VarDecl *VD1 = N1.getDecl<VarDecl>();
-  VarDecl *VD2 = N2.getDecl<VarDecl>();
+bool DeclRewriter::areDeclarationsOnSameLine(VarDeclReplacement *N1,
+                                             VarDeclReplacement *N2) {
+  VarDecl *VD1 = N1->getDecl();
+  VarDecl *VD2 = N2->getDecl();
   if (VD1 && VD2) {
-    DeclStmt *Stmt1 = N1.Statement;
-    DeclStmt *Stmt2 = N2.Statement;
+    DeclStmt *Stmt1 = N1->getStatement();
+    DeclStmt *Stmt2 = N2->getStatement();
     if (Stmt1 == nullptr && Stmt2 == nullptr) {
       auto &VDGroup = GP.getVarsOnSameLine(VD1);
       return VDGroup.find(VD2) != VDGroup.end();
@@ -352,27 +353,28 @@ bool DeclRewriter::areDeclarationsOnSameLine(const DAndReplace &N1, const DAndRe
   return false;
 }
 
-bool DeclRewriter::isSingleDeclaration(const DAndReplace &N) {
-  DeclStmt *Stmt = N.Statement;
+bool DeclRewriter::isSingleDeclaration(VarDeclReplacement *N) {
+  DeclStmt *Stmt = N->getStatement();
   if (Stmt == nullptr) {
-    auto &VDGroup = GP.getVarsOnSameLine(N.getDecl<VarDecl>());
+    auto &VDGroup = GP.getVarsOnSameLine(N->getDecl());
     return VDGroup.size() == 1;
   } else {
     return Stmt->isSingleDecl();
   }
 }
 
-void DeclRewriter::getDeclsOnSameLine(const DAndReplace &D,
+void DeclRewriter::getDeclsOnSameLine(VarDeclReplacement *D,
                                       std::set<Decl *> &Decls) {
-  if (D.Statement != nullptr)
-    Decls.insert(D.Statement->decls().begin(), D.Statement->decls().end());
+  if (D->getStatement() != nullptr)
+    Decls.insert(D->getStatement()->decls().begin(), D->getStatement()->decls().end());
   else
-    Decls.insert(GP.getVarsOnSameLine(D.getDecl<VarDecl>()).begin(),
-                 GP.getVarsOnSameLine(D.getDecl<VarDecl>()).end());
+    Decls.insert(GP.getVarsOnSameLine(D->getDecl()).begin(),
+                 GP.getVarsOnSameLine(D->getDecl()).end());
 }
 
-SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(const DAndReplace &DR) {
-  if (DeclStmt *Stmt = DR.Statement) {
+SourceLocation DeclRewriter::deleteAllDeclarationsOnLine
+    (VarDeclReplacement *DR) {
+  if (DeclStmt *Stmt = DR->getStatement()) {
     // If there is a statement, delete the entire statement.
     R.RemoveText(Stmt->getSourceRange());
     return Stmt->getSourceRange().getEnd();
@@ -380,7 +382,7 @@ SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(const DAndReplace &DR) 
     SourceLocation BLoc;
     SourceManager &SM = R.getSourceMgr();
     // Remove all vars on the line.
-    for (auto *D : GP.getVarsOnSameLine(DR.getDecl<VarDecl>())) {
+    for (auto *D : GP.getVarsOnSameLine(DR->getDecl())) {
       SourceRange ToDel = D->getSourceRange();
       if (BLoc.isInvalid() ||
           SM.isBeforeInTranslationUnit(ToDel.getBegin(), BLoc))
@@ -540,7 +542,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   // Add new declarations to RewriteThese if it has changed
   if (DidAny) {
     for (auto *const RD : Definition->redecls())
-      RewriteThese.insert(DAndReplace(RD, NewSig, true));
+      RewriteThese.insert(new FunctionDeclReplacement(RD, NewSig, true));
     // Save the modified function signature.
     if(FD->isStatic()) {
       auto FileName = PersistentSourceLoc::mkPSL(FD, *Context).getFileName();
