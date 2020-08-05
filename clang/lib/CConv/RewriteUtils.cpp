@@ -18,7 +18,7 @@
 using namespace llvm;
 using namespace clang;
 
-SourceRange DComp::getWholeSR(SourceRange Orig, DAndReplace Dr) const {
+SourceRange DComp::getWholeSR(SourceRange Orig, const DAndReplace &Dr) const {
   SourceRange NewSourceRange(Orig);
 
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(Dr.Declaration)) {
@@ -30,63 +30,50 @@ SourceRange DComp::getWholeSR(SourceRange Orig, DAndReplace Dr) const {
   return NewSourceRange;
 }
 
-bool DComp::operator()(const DAndReplace Lhs, const DAndReplace Rhs) const {
-  // Does the source location of the Decl in lhs overlap at all with
-  // the source location of rhs?
-  SourceRange SrLhs = Lhs.Declaration->getSourceRange();
-  SourceRange SrRhs = Rhs.Declaration->getSourceRange();
+SourceLocation DComp::getDeclBegin(const DAndReplace &D) const {
+  SourceLocation Begin =
+      (*D.Statement->decls().begin())->getSourceRange().getBegin();
+  for (const auto &DT : D.Statement->decls()) {
+    if (DT == D.Declaration)
+      return Begin;
+    Begin = DT->getSourceRange().getEnd();
+  }
+  llvm_unreachable("Declaration not found in DeclStmt.");
+}
+
+SourceRange DComp::getReplacementSourceRange(const DAndReplace &D) const {
+  SourceRange Range = D.Declaration->getSourceRange();
 
   // Take into account whether or not a FunctionDeclaration specifies
   // the "whole" declaration or not. If it does not, it just specifies
   // the return position.
-  SrLhs = getWholeSR(SrLhs, Lhs);
-  SrRhs = getWholeSR(SrRhs, Rhs);
+  Range = getWholeSR(Range, D);
 
   // Also take into account whether or not there is a multi-statement
   // decl, because the generated ranges will overlap.
-  DeclStmt *St = Lhs.Statement;
-
-  if (St && !St->isSingleDecl()) {
-    SourceLocation NewBegin =
-        (*St->decls().begin())->getSourceRange().getBegin();
-    bool Found = false;
-    for (const auto &DT : St->decls()) {
-      if (DT == Lhs.Declaration) {
-        Found = true;
-        break;
-      }
-      NewBegin = DT->getSourceRange().getEnd();
-    }
-    assert (Found);
-    SrLhs.setBegin(NewBegin);
+  DeclStmt *LhStmt = D.Statement;
+  if (LhStmt && !LhStmt->isSingleDecl()) {
+    SourceLocation NewBegin = getDeclBegin(D);
+    Range.setBegin(NewBegin);
     // This is needed to make the subsequent test inclusive.
-    SrLhs.setEnd(SrLhs.getEnd().getLocWithOffset(-1));
+    Range.setEnd(Range.getEnd().getLocWithOffset(-1));
   }
 
-  DeclStmt *RhStmt = Rhs.Statement;
-  if (RhStmt && !RhStmt->isSingleDecl()) {
-    SourceLocation NewBegin =
-        (*RhStmt->decls().begin())->getSourceRange().getBegin();
-    bool Found = false;
-    for (const auto &DT : RhStmt->decls()) {
-      if (DT == Rhs.Declaration) {
-        Found = true;
-        break;
-      }
-      NewBegin = DT->getSourceRange().getEnd();
-    }
-    assert (Found);
-    SrRhs.setBegin(NewBegin);
-    // This is needed to make the subsequent test inclusive.
-    SrRhs.setEnd(SrRhs.getEnd().getLocWithOffset(-1));
-  }
+  return Range;
+}
+
+bool DComp::operator()(const DAndReplace &Lhs, const DAndReplace &Rhs) const {
+  // Does the source location of the Decl in lhs overlap at all with
+  // the source location of rhs?
+  SourceRange SrLhs = getReplacementSourceRange(Lhs);
+  SourceRange SrRhs = getReplacementSourceRange(Rhs);
 
   SourceLocation X1 = SrLhs.getBegin();
   SourceLocation X2 = SrLhs.getEnd();
   SourceLocation Y1 = SrRhs.getBegin();
   SourceLocation Y2 = SrRhs.getEnd();
 
-  if (St == nullptr && RhStmt == nullptr) {
+  if (Lhs.Statement == nullptr && Rhs.Statement == nullptr) {
     // These are global declarations. Get the source location
     // and compare them lexicographically.
     PresumedLoc LHsPLocB = SM.getPresumedLoc(X2);

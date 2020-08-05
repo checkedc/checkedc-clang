@@ -91,14 +91,18 @@ struct DAndReplace
 //    the Decls contained in a DeclStmt and figure out what the appropriate
 //    source locations are to describe the positions of the independent
 //    declarations.
-struct DComp
-{
-    SourceManager &SM;
-    DComp(SourceManager &S) : SM(S) { }
+class DComp {
+public:
+  DComp(SourceManager &S) : SM(S) { }
 
-    SourceRange getWholeSR(SourceRange Orig, DAndReplace Dr) const;
+  bool operator()(const DAndReplace &Lhs, const DAndReplace &Rhs) const;
 
-    bool operator()(const DAndReplace Lhs, const DAndReplace Rhs) const;
+private:
+  SourceManager &SM;
+
+  SourceRange getWholeSR(SourceRange Orig, const DAndReplace &Dr) const;
+  SourceRange getReplacementSourceRange(const DAndReplace &D) const;
+  SourceLocation getDeclBegin(const DAndReplace &D) const;
 };
 
 typedef std::set<DAndReplace, DComp> RSet;
