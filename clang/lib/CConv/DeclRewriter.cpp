@@ -128,7 +128,6 @@ void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
 
     // Exact rewriting procedure depends on declaration type
     if (N.hasDeclType<ParmVarDecl>()) {
-      // TODO: why is this asserted?
       assert(N.Statement == nullptr);
       rewriteParmVarDecl(N);
     } else if (N.hasDeclType<VarDecl>()) {
@@ -158,7 +157,6 @@ void DeclRewriter::rewriteParmVarDecl(const DAndReplace &N) {
 
   for (auto *CurFD = FD; CurFD != nullptr; CurFD = CurFD->getPreviousDecl())
     if (PIdx < CurFD->getNumParams()) {
-      // TODO these declarations could get us into deeper header files.
       ParmVarDecl *Rewrite = CurFD->getParamDecl(PIdx);
       assert(Rewrite != nullptr);
       SourceRange TR = Rewrite->getSourceRange();
