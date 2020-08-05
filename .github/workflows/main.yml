@@ -1,0 +1,80 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Nightly tests
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  schedule:
+    - cron: "35 6 * * *"
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    env:
+      builddir: "b/ninja"
+      vsftpddir: "vsftpd_testing"
+      vsftpdurl: "https://security.appspot.com/downloads/vsftpd-3.0.3.tar.gz"
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - name: Checkout our repository
+      uses: actions/checkout@v2
+      with:
+        ref: BigRefactor
+      
+    # Install all the required dependencies  
+    - name: Install dependencies
+      run : |
+        sudo apt-get update
+        sudo apt-get install libboost-all-dev git python cmake build-essential wget tar
+        
+    # clone and install bear
+    # Needed for generating compile_commands.json    
+    - name: Clone Bear
+      uses: actions/checkout@v2
+      with:
+        repository: rizsotto/Bear
+        path: depsfolder/bear
+    - name: Install Bear
+      run: |
+        mkdir -p ${{runner.workspace}}/depsfolder/bear
+        cd ${{runner.workspace}}/depsfolder/bear
+        cmake ${{github.workspace}}/depsfolder/bear
+        make all
+        sudo make install
+
+    # clone Checked C headers
+    - name: Clone Checked C headers
+      uses: actions/checkout@v2
+      with:
+        repository: microsoft/checkedc
+        path: llvm/projects/checkedc-wrapper/checkedc
+      
+    # Build cconv-standadlone
+    - name: Build cconv-standalone
+      uses: lukka/run-cmake@v2
+      with:
+        cmakeListsOrSettingsJson: CMakeListsTxtAdvanced
+        cmakeListsTxtPath: '${{github.workspace}}/llvm/CMakeLists.txt'
+        buildDirectory: '${{runner.workspace}}/${{env.builddir}}'
+        cmakeAppendedArgs: '-G Ninja -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_ENABLE_RTTI=ON -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra"'
+        buildWithCMakeArgs: '-- cconv-standalone'
+    
+    - name: Build vsftpd
+      run: |
+        mkdir ${{runner.workspace}}/${{env.vsftpddir}}
+        wget ${{env.vsftpdurl}}
+        tar -xvzf vsftpd-3.0.3.tar.gz
+        cd vsftpd-3.0.3
+        bear make
+        ls compile_commands.json
+        
+    - name: Testing vsftpd
+      run: |
+        cd ${{github.workspace}}/clang/tools/cconv-standalone/utils/cc_conv
+        python convert_project.py --includeDir ${{github.workspace}}/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/cconv-standalone -pr ${{runner.workspace}}/${{env.vsftpddir}}/vsftpd-3.0.3
