@@ -190,8 +190,6 @@ void DeclRewriter::rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite) {
     getDeclsOnSameLine(VD, N.Statement, SameLineDecls);
 
     for (const auto &DL : SameLineDecls) {
-      DAndReplace SameLineReplacement;
-      bool Found = false;
       VarDecl *VDL = dyn_cast<VarDecl>(DL);
       if (VDL == nullptr) {
         // Example:
@@ -207,6 +205,8 @@ void DeclRewriter::rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite) {
       }
       assert(VDL != nullptr);
 
+      DAndReplace SameLineReplacement;
+      bool Found = false;
       for (const auto &NLT : RewritesForThisDecl)
         if (NLT.Declaration == DL) {
           SameLineReplacement = NLT;
@@ -438,7 +438,6 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   bool DidAny = Defnc->numParams() > 0;
 
   // Get rewritten parameter variable declarations
-  string NewSig = "";
   vector<string> ParmStrs;
   for (unsigned i = 0; i < Defnc->numParams(); ++i) {
     auto *Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getParamVar(i)));
@@ -483,8 +482,8 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   // Get rewritten return variable
   auto *Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getReturnVars()));
 
-  string ReturnVar = "";
-  string ItypeStr = "";
+  std::string ReturnVar = "";
+  std::string ItypeStr = "";
 
   // Insert a bounds safe interface for the return.
   if (isAValidPVConstraint(Defn) && Defn->anyChanges(CS.getVariables())) {
@@ -514,8 +513,9 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
 
   // Combine parameter and return variables rewritings into a single rewriting
   // for the entire function declaration.
-  NewSig = getStorageQualifierString(Definition) + ReturnVar + Defnc->getName()
-      + "(";
+  std::string NewSig =
+      getStorageQualifierString(Definition) + ReturnVar + Defnc->getName()
+          + "(";
   if (!ParmStrs.empty()) {
     // Gather individual parameter strings into a single buffer
     ostringstream ConcatParamStr;
