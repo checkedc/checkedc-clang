@@ -24,7 +24,7 @@ jobs:
       uses: actions/checkout@v2
     
     - name: Run Microsoft's DevSkim
-      uses: Machiry/DevSkim-Action
+      uses: Machiry/DevSkim-Action@v2
       with:
         directory-to-scan: ${{github.workspace}}/clang/lib/CConv
         should-scan-archives: false
