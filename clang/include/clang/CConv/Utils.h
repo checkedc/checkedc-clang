@@ -125,4 +125,7 @@ unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
 const clang::TypeVariableType *getTypeVariableType(clang::DeclaratorDecl *Decl);
 
 bool isTypeAnonymous(clang::QualType T);
+
+// Find the index of parameter PV in the parameter list of function FD.
+unsigned int getParameterIndex(clang::ParmVarDecl *PV, clang::FunctionDecl *FD);
 #endif

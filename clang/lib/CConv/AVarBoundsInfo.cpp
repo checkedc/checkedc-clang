@@ -208,19 +208,11 @@ BoundsKey AVarBoundsInfo::getVariable(clang::VarDecl *VD) {
 BoundsKey AVarBoundsInfo::getVariable(clang::ParmVarDecl *PVD) {
   assert(isValidBoundVariable(PVD) && "Not a valid bound declaration.");
   FunctionDecl *FD = dyn_cast<FunctionDecl>(PVD->getDeclContext());
-  int ParamIdx = -1;
-  // Get parameter index.
-  for (unsigned i=0; i<FD->getNumParams(); i++) {
-    if (FD->getParamDecl(i) == PVD) {
-      ParamIdx = i;
-      break;
-    }
-  }
+  unsigned int ParamIdx = getParameterIndex(PVD, FD);
   auto Psl = PersistentSourceLoc::mkPSL(FD, FD->getASTContext());
   std::string FileName = Psl.getFileName();
   auto ParamKey = std::make_tuple(FD->getNameAsString(), FileName,
                                   FD->isStatic(), ParamIdx);
-  assert(ParamIdx >= 0 && "Unable to find parameter.");
   if (ParamDeclVarMap.left.find(ParamKey) == ParamDeclVarMap.left.end()) {
     BoundsKey NK = ++BCount;
     FunctionParamScope *FPS =

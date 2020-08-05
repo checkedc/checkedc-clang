@@ -26,8 +26,7 @@ using namespace clang;
 
 class ArgGatherer : public ASTConsumer {
 public:
-  explicit ArgGatherer(ProgramInfo &I, ASTContext *Context,
-                       std::string &OPostfix)
+  explicit ArgGatherer(ProgramInfo &I, std::string &OPostfix)
       : Info(I), OutputPostfix(OPostfix) {}
   virtual void HandleTranslationUnit(ASTContext &Context);
   ParameterMap getMF();

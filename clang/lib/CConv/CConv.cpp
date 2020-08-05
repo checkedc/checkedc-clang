@@ -78,7 +78,7 @@ public:
   virtual std::unique_ptr<ASTConsumer>
   CreateASTConsumer(CompilerInstance &Compiler, StringRef InFile) {
     return std::unique_ptr<ASTConsumer>
-        (new T(Info, &Compiler.getASTContext(), OutputPostfix));
+        (new T(Info, OutputPostfix));
   }
 
 private:

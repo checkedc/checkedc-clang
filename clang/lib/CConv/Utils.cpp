@@ -372,3 +372,15 @@ bool isTypeAnonymous(QualType T) {
   return T->isRecordType() && !(T->getAsRecordDecl()->getIdentifier()
       || T->getAsRecordDecl()->getTypedefNameForAnonDecl());
 }
+
+unsigned int getParameterIndex(ParmVarDecl *PV, FunctionDecl *FD) {
+  // This is kind of hacky, maybe we should record the index of the
+  // parameter when we find it, instead of re-discovering it here.
+  unsigned int PIdx = 0;
+  for (const auto &I : FD->parameters()) {
+    if (I == PV)
+      return PIdx;
+    PIdx++;
+  }
+  llvm_unreachable("Parameter declaration not found in function declaration.");
+}
