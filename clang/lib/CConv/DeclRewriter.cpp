@@ -195,7 +195,7 @@ void DeclRewriter::rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite) {
 
   // Is it a variable type? This is the easy case, we can re-write it
   // locally, at the site of the declaration.
-  if (isSingleDeclaration(VD, N.Statement)) {
+  if (isSingleDeclaration(N)) {
     if (canRewrite(R, TR)) {
       R.ReplaceText(TR, SRewrite);
     } else {
@@ -221,7 +221,7 @@ void DeclRewriter::rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite) {
         }
       }
     }
-  } else if (!isSingleDeclaration(VD, N.Statement) &&
+  } else if (!isSingleDeclaration(N) &&
              Skip.find(N) == Skip.end()) {
     // Hack time!
     // Sometimes, like in the case of a decl on a single line, we'll need to
@@ -235,15 +235,13 @@ void DeclRewriter::rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite) {
     auto I = ToRewrite.find(N);
     while (I != ToRewrite.end()) {
       DAndReplace Tmp = *I;
-      if (areDeclarationsOnSameLine(VD, N.Statement,
-                                    dyn_cast<VarDecl>(Tmp.Declaration),
-                                    Tmp.Statement))
+      if (areDeclarationsOnSameLine(N, Tmp))
         RewritesForThisDecl.insert(Tmp);
       ++I;
     }
 
     // Step 2: Remove the original line from the program.
-    SourceLocation EndOfLine = deleteAllDeclarationsOnLine(VD, N.Statement);
+    SourceLocation EndOfLine = deleteAllDeclarationsOnLine(N);
 
     // Step 3: For each decl in the original, build up a new string
     //         and if the original decl was re-written, write that
@@ -251,7 +249,7 @@ void DeclRewriter::rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite) {
     std::string NewMultiLineDeclS = "";
     raw_string_ostream NewMlDecl(NewMultiLineDeclS);
     std::set<Decl *> SameLineDecls;
-    getDeclsOnSameLine(VD, N.Statement, SameLineDecls);
+    getDeclsOnSameLine(N, SameLineDecls);
 
     for (const auto &DL : SameLineDecls) {
       VarDecl *VDL = dyn_cast<VarDecl>(DL);
@@ -336,9 +334,12 @@ void DeclRewriter::rewriteFunctionDecl(const DAndReplace &N) {
     R.ReplaceText(SR, N.Replacement);
 }
 
-bool DeclRewriter::areDeclarationsOnSameLine(VarDecl *VD1, DeclStmt *Stmt1,
-                                             VarDecl *VD2, DeclStmt *Stmt2) {
+bool DeclRewriter::areDeclarationsOnSameLine(const DAndReplace &N1, const DAndReplace &N2) {
+  VarDecl *VD1 = N1.getDecl<VarDecl>();
+  VarDecl *VD2 = N2.getDecl<VarDecl>();
   if (VD1 && VD2) {
+    DeclStmt *Stmt1 = N1.Statement;
+    DeclStmt *Stmt2 = N2.Statement;
     if (Stmt1 == nullptr && Stmt2 == nullptr) {
       auto &VDGroup = GP.getVarsOnSameLine(VD1);
       return VDGroup.find(VD2) != VDGroup.end();
@@ -351,27 +352,27 @@ bool DeclRewriter::areDeclarationsOnSameLine(VarDecl *VD1, DeclStmt *Stmt1,
   return false;
 }
 
-bool DeclRewriter::isSingleDeclaration(VarDecl *VD, DeclStmt *Stmt) {
+bool DeclRewriter::isSingleDeclaration(const DAndReplace &N) {
+  DeclStmt *Stmt = N.Statement;
   if (Stmt == nullptr) {
-    auto &VDGroup = GP.getVarsOnSameLine(VD);
+    auto &VDGroup = GP.getVarsOnSameLine(N.getDecl<VarDecl>());
     return VDGroup.size() == 1;
   } else {
     return Stmt->isSingleDecl();
   }
 }
 
-void DeclRewriter::getDeclsOnSameLine(VarDecl *VD, DeclStmt *Stmt,
+void DeclRewriter::getDeclsOnSameLine(const DAndReplace &D,
                                       std::set<Decl *> &Decls) {
-  if (Stmt != nullptr)
-    Decls.insert(Stmt->decls().begin(), Stmt->decls().end());
+  if (D.Statement != nullptr)
+    Decls.insert(D.Statement->decls().begin(), D.Statement->decls().end());
   else
-    Decls.insert(GP.getVarsOnSameLine(VD).begin(),
-                 GP.getVarsOnSameLine(VD).end());
+    Decls.insert(GP.getVarsOnSameLine(D.getDecl<VarDecl>()).begin(),
+                 GP.getVarsOnSameLine(D.getDecl<VarDecl>()).end());
 }
 
-SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(VarDecl *VD,
-                                                         DeclStmt *Stmt) {
-  if (Stmt != nullptr) {
+SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(const DAndReplace &DR) {
+  if (DeclStmt *Stmt = DR.Statement) {
     // If there is a statement, delete the entire statement.
     R.RemoveText(Stmt->getSourceRange());
     return Stmt->getSourceRange().getEnd();
@@ -379,7 +380,7 @@ SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(VarDecl *VD,
     SourceLocation BLoc;
     SourceManager &SM = R.getSourceMgr();
     // Remove all vars on the line.
-    for (auto *D : GP.getVarsOnSameLine(VD)) {
+    for (auto *D : GP.getVarsOnSameLine(DR.getDecl<VarDecl>())) {
       SourceRange ToDel = D->getSourceRange();
       if (BLoc.isInvalid() ||
           SM.isBeforeInTranslationUnit(ToDel.getBegin(), BLoc))

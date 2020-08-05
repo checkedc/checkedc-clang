@@ -61,11 +61,10 @@ private:
   void rewriteParmVarDecl(const DAndReplace &N);
   void rewriteFunctionDecl(const DAndReplace &N);
 
-  SourceLocation deleteAllDeclarationsOnLine(VarDecl *VD, DeclStmt *Stmt);
-  void getDeclsOnSameLine(VarDecl *VD, DeclStmt *Stmt, std::set<Decl *> &Decls);
-  bool isSingleDeclaration(VarDecl *VD, DeclStmt *Stmt);
-  bool areDeclarationsOnSameLine(VarDecl *VD1, DeclStmt *Stmt1, VarDecl *VD2,
-                                 DeclStmt *Stmt2);
+  SourceLocation deleteAllDeclarationsOnLine(const DAndReplace &N);
+  void getDeclsOnSameLine(const DAndReplace &N, std::set<Decl *> &Decls);
+  bool isSingleDeclaration(const DAndReplace &N);
+  bool areDeclarationsOnSameLine(const DAndReplace &N1, const DAndReplace &N2);
 };
 
 // Visits function declarations and adds entries with their new rewritten
