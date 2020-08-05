@@ -1,4 +1,5 @@
 // RUN: cconv-standalone -addcr  %s -- | FileCheck -match-full-lines --check-prefixes="CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 #define VSFTP_COMMAND_FD 1
 
 struct vsf_sysutil_statbuf { 
@@ -6,7 +7,7 @@ struct vsf_sysutil_statbuf {
 };
 
 void vsf_sysutil_fstat(int fd, struct vsf_sysutil_statbuf** ptr) { 
-  //CHECK: void vsf_sysutil_fstat(int fd, _Ptr<struct vsf_sysutil_statbuf*> ptr) {
+  //CHECK: void vsf_sysutil_fstat(int fd, _Ptr<struct vsf_sysutil_statbuf *> ptr) {
   *ptr = (struct vsf_sysutil_statbuf*) 3;
 }
 
