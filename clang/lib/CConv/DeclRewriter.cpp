@@ -23,6 +23,125 @@
 using namespace llvm;
 using namespace clang;
 
+// This function is the public entry point for declaration rewriting.
+void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
+                                Rewriter &R, std::set<FileID> &TouchedFiles) {
+  // Compute the bounds information for all the array variables.
+  ArrayBoundsRewriter ABRewriter(&Context, Info);
+
+  // Collect function and record declarations that need to be rewritten in a set
+  // as well as their rewriten types in a map.
+  RSet RewriteThese(DComp(Context.getSourceManager()));
+  FunctionDeclBuilder TRV = FunctionDeclBuilder(&Context, Info, RewriteThese,
+                                                NewFuncSig, ABRewriter);
+  StructVariableInitializer SVI = StructVariableInitializer(&Context, Info,
+                                                            RewriteThese);
+  for (const auto &D : Context.getTranslationUnitDecl()->decls()) {
+    TRV.TraverseDecl(D);
+    SVI.TraverseDecl(D);
+  }
+
+  // Build a map of all of the PersistentSourceLoc's back to some kind of
+  // Stmt, Decl, or Type.
+  TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
+  std::set<PersistentSourceLoc> Keys;
+  for (const auto &I : Info.getVarMap())
+    Keys.insert(I.first);
+  MappingVisitor MV(Keys, Context);
+  for (const auto &D : TUD->decls())
+    MV.TraverseDecl(D);
+  SourceToDeclMapType PSLMap;
+  VariableDecltoStmtMap VDLToStmtMap;
+  std::tie(PSLMap, VDLToStmtMap) = MV.getResults();
+
+  // Add declarations from this map into the rewriting set
+  for (const auto &V : Info.getVarMap()) {
+    PersistentSourceLoc PLoc = V.first;
+    CVarSet Vars = V.second;
+    // PLoc specifies the location of the variable whose type it is to
+    // re-write, but not where the actual type storage is. To get that, we
+    // need to turn PLoc into a Decl and then get the SourceRange for the
+    // type of the Decl. Note that what we need to get is the ExpansionLoc
+    // of the type specifier, since we want where the text is printed before
+    // the variable name, not the typedef or #define that creates the
+    // name of the type.
+    if (Decl *D = std::get<1>(PSLMap[PLoc])) {
+      // We might have one Decl for multiple Vars, however, one will be a
+      // PointerVar so we'll use that.
+      PVConstraint *PV = nullptr;
+      FVConstraint *FV = nullptr;
+      for (const auto &V : Vars)
+        if (PVConstraint *T = dyn_cast<PVConstraint>(V))
+          PV = T;
+        else if (FVConstraint *T = dyn_cast<FVConstraint>(V))
+          FV = T;
+
+      if (PV && PV->anyChanges(Info.getConstraints().getVariables()) &&
+          !PV->isPartOfFunctionPrototype()) {
+        // Rewrite a declaration, only if it is not part of function prototype.
+        DeclStmt *DS = nullptr;
+        if (VDLToStmtMap.find(D) != VDLToStmtMap.end())
+          DS = VDLToStmtMap[D];
+
+        std::string newTy = getStorageQualifierString(D) +
+            PV->mkString(Info.getConstraints().getVariables()) +
+            ABRewriter.getBoundsString(PV, D);
+        RewriteThese.insert(DAndReplace(D, DS, newTy));
+      } else if (FV && NewFuncSig.find(FV->getName()) != NewFuncSig.end()
+          && !TRV.isFunctionVisited(FV->getName())) {
+        // TODO: I don't think this branch is ever reached. Either remove it or
+        //       add a test case that reaches it.
+        // If this function already has a modified signature? and it is not
+        // visited by our cast placement visitor then rewrite it.
+        std::string NewSig = NewFuncSig[FV->getName()];
+        RewriteThese.insert(DAndReplace(D, NewSig, true));
+      }
+    }
+  }
+
+  // Build sets of variables that are declared in the same statement so we can
+  // rewrite things like int x, *y, **z;
+  GlobalVariableGroups GVG(R.getSourceMgr());
+  for (const auto &D : TUD->decls())
+    GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
+
+  // Do the declaration rewriting
+  DeclRewriter DeclR(R, Context, GVG);
+  DeclR.rewrite(RewriteThese, TouchedFiles);
+}
+
+void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
+  for (const auto &N : ToRewrite) {
+    assert(N.Declaration != nullptr);
+
+    if (Verbose) {
+      errs() << "Replacing type of decl:\n";
+      N.Declaration->dump();
+      errs() << "with " << N.Replacement << "\n";
+    }
+
+    // Get a FullSourceLoc for the start location and add it to the
+    // list of file ID's we've touched.
+    SourceRange tTR = N.Declaration->getSourceRange();
+    FullSourceLoc tFSL(tTR.getBegin(), A.getSourceManager());
+    TouchedFiles.insert(tFSL.getFileID());
+
+    // Exact rewriting procedure depends on declaration type
+    if (N.hasDeclType<ParmVarDecl>()) {
+      // TODO: why is this asserted?
+      assert(N.Statement == nullptr);
+      rewriteParmVarDecl(N);
+    } else if (N.hasDeclType<VarDecl>()) {
+      rewriteVarDecl(N, ToRewrite);
+    } else if (N.hasDeclType<FunctionDecl>()) {
+      rewriteFunctionDecl(N);
+    } else if (N.hasDeclType<FieldDecl>()) {
+      SourceRange SR = N.getDecl<FieldDecl>()->getSourceRange();
+      if (canRewrite(R, SR))
+        R.ReplaceText(SR, N.Replacement);
+    }
+  }
+}
 
 void DeclRewriter::rewriteParmVarDecl(const DAndReplace &N) {
   ParmVarDecl *PV = N.getDecl<ParmVarDecl>();
@@ -49,59 +168,6 @@ void DeclRewriter::rewriteParmVarDecl(const DAndReplace &N) {
     }
 }
 
-bool DeclRewriter::areDeclarationsOnSameLine(VarDecl *VD1, DeclStmt *Stmt1,
-                                             VarDecl *VD2, DeclStmt *Stmt2) {
-  if (VD1 && VD2) {
-    if (Stmt1 == nullptr && Stmt2 == nullptr) {
-      auto &VDGroup = GP.getVarsOnSameLine(VD1);
-      return VDGroup.find(VD2) != VDGroup.end();
-    } else if (Stmt1 == nullptr || Stmt2 == nullptr) {
-      return false;
-    } else {
-      return Stmt1 == Stmt2;
-    }
-  }
-  return false;
-}
-
-bool DeclRewriter::isSingleDeclaration(VarDecl *VD, DeclStmt *Stmt) {
-  if (Stmt == nullptr) {
-    auto &VDGroup = GP.getVarsOnSameLine(VD);
-    return VDGroup.size() == 1;
-  } else {
-    return Stmt->isSingleDecl();
-  }
-}
-
-void DeclRewriter::getDeclsOnSameLine(VarDecl *VD, DeclStmt *Stmt,
-                                      std::set<Decl *> &Decls) {
-  if (Stmt != nullptr)
-    Decls.insert(Stmt->decls().begin(), Stmt->decls().end());
-  else
-    Decls.insert(GP.getVarsOnSameLine(VD).begin(),
-                 GP.getVarsOnSameLine(VD).end());
-}
-
-SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(VarDecl *VD,
-                                                         DeclStmt *Stmt) {
-  if (Stmt != nullptr) {
-    // If there is a statement, delete the entire statement.
-    R.RemoveText(Stmt->getSourceRange());
-    return Stmt->getSourceRange().getEnd();
-  } else {
-    SourceLocation BLoc;
-    SourceManager &SM = R.getSourceMgr();
-    // Remove all vars on the line.
-    for (auto *D : GP.getVarsOnSameLine(VD)) {
-      SourceRange ToDel = D->getSourceRange();
-      if (BLoc.isInvalid() ||
-          SM.isBeforeInTranslationUnit(ToDel.getBegin(), BLoc))
-        BLoc = ToDel.getBegin();
-      R.RemoveText(D->getSourceRange());
-    }
-    return BLoc;
-  }
-}
 
 void DeclRewriter::rewriteVarDecl(const DAndReplace &N, RSet &ToRewrite) {
   VarDecl *VD = N.getDecl<VarDecl>();
@@ -272,129 +338,63 @@ void DeclRewriter::rewriteFunctionDecl(const DAndReplace &N) {
     R.ReplaceText(SR, N.Replacement);
 }
 
-void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
-  for (const auto &N : ToRewrite) {
-    assert(N.Declaration != nullptr);
-
-    if (Verbose) {
-      errs() << "Replacing type of decl:\n";
-      N.Declaration->dump();
-      errs() << "with " << N.Replacement << "\n";
+bool DeclRewriter::areDeclarationsOnSameLine(VarDecl *VD1, DeclStmt *Stmt1,
+                                             VarDecl *VD2, DeclStmt *Stmt2) {
+  if (VD1 && VD2) {
+    if (Stmt1 == nullptr && Stmt2 == nullptr) {
+      auto &VDGroup = GP.getVarsOnSameLine(VD1);
+      return VDGroup.find(VD2) != VDGroup.end();
+    } else if (Stmt1 == nullptr || Stmt2 == nullptr) {
+      return false;
+    } else {
+      return Stmt1 == Stmt2;
     }
+  }
+  return false;
+}
 
-    // Get a FullSourceLoc for the start location and add it to the
-    // list of file ID's we've touched.
-    SourceRange tTR = N.Declaration->getSourceRange();
-    FullSourceLoc tFSL(tTR.getBegin(), A.getSourceManager());
-    TouchedFiles.insert(tFSL.getFileID());
+bool DeclRewriter::isSingleDeclaration(VarDecl *VD, DeclStmt *Stmt) {
+  if (Stmt == nullptr) {
+    auto &VDGroup = GP.getVarsOnSameLine(VD);
+    return VDGroup.size() == 1;
+  } else {
+    return Stmt->isSingleDecl();
+  }
+}
 
-    // Exact rewriting procedure depends on declaration type
-    if (N.hasDeclType<ParmVarDecl>()) {
-      // TODO: why is this asserted?
-      assert(N.Statement == nullptr);
-      rewriteParmVarDecl(N);
-    } else if (N.hasDeclType<VarDecl>()) {
-      rewriteVarDecl(N, ToRewrite);
-    } else if (N.hasDeclType<FunctionDecl>()) {
-      rewriteFunctionDecl(N);
-    } else if (N.hasDeclType<FieldDecl>()) {
-      SourceRange SR = N.getDecl<FieldDecl>()->getSourceRange();
-      if (canRewrite(R, SR))
-        R.ReplaceText(SR, N.Replacement);
+void DeclRewriter::getDeclsOnSameLine(VarDecl *VD, DeclStmt *Stmt,
+                                      std::set<Decl *> &Decls) {
+  if (Stmt != nullptr)
+    Decls.insert(Stmt->decls().begin(), Stmt->decls().end());
+  else
+    Decls.insert(GP.getVarsOnSameLine(VD).begin(),
+                 GP.getVarsOnSameLine(VD).end());
+}
+
+SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(VarDecl *VD,
+                                                         DeclStmt *Stmt) {
+  if (Stmt != nullptr) {
+    // If there is a statement, delete the entire statement.
+    R.RemoveText(Stmt->getSourceRange());
+    return Stmt->getSourceRange().getEnd();
+  } else {
+    SourceLocation BLoc;
+    SourceManager &SM = R.getSourceMgr();
+    // Remove all vars on the line.
+    for (auto *D : GP.getVarsOnSameLine(VD)) {
+      SourceRange ToDel = D->getSourceRange();
+      if (BLoc.isInvalid() ||
+          SM.isBeforeInTranslationUnit(ToDel.getBegin(), BLoc))
+        BLoc = ToDel.getBegin();
+      R.RemoveText(D->getSourceRange());
     }
+    return BLoc;
   }
 }
 
 // Note: This is variable declared static in the header file in order to pass
 // information between different invocations on different translation units.
 std::map<std::string, std::string> DeclRewriter::NewFuncSig;
-
-// This function is the public entry point for declaration rewriting.
-void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
-                                Rewriter &R, std::set<FileID> &TouchedFiles) {
-  // Compute the bounds information for all the array variables.
-  ArrayBoundsRewriter ABRewriter(&Context, Info);
-
-  // Collect function and record declarations that need to be rewritten in a set
-  // as well as their rewriten types in a map.
-  RSet RewriteThese(DComp(Context.getSourceManager()));
-  FunctionDeclBuilder TRV = FunctionDeclBuilder(&Context, Info, RewriteThese,
-                                                NewFuncSig, ABRewriter);
-  StructVariableInitializer SVI = StructVariableInitializer(&Context, Info,
-                                                            RewriteThese);
-  for (const auto &D : Context.getTranslationUnitDecl()->decls()) {
-    TRV.TraverseDecl(D);
-    SVI.TraverseDecl(D);
-  }
-
-  // Build a map of all of the PersistentSourceLoc's back to some kind of
-  // Stmt, Decl, or Type.
-  TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
-  std::set<PersistentSourceLoc> Keys;
-  for (const auto &I : Info.getVarMap())
-    Keys.insert(I.first);
-  MappingVisitor MV(Keys, Context);
-  for (const auto &D : TUD->decls())
-    MV.TraverseDecl(D);
-  SourceToDeclMapType PSLMap;
-  VariableDecltoStmtMap VDLToStmtMap;
-  std::tie(PSLMap, VDLToStmtMap) = MV.getResults();
-
-  // Add declarations from this map into the rewriting set
-  for (const auto &V : Info.getVarMap()) {
-    PersistentSourceLoc PLoc = V.first;
-    CVarSet Vars = V.second;
-    // PLoc specifies the location of the variable whose type it is to
-    // re-write, but not where the actual type storage is. To get that, we
-    // need to turn PLoc into a Decl and then get the SourceRange for the
-    // type of the Decl. Note that what we need to get is the ExpansionLoc
-    // of the type specifier, since we want where the text is printed before
-    // the variable name, not the typedef or #define that creates the
-    // name of the type.
-    if (Decl *D = std::get<1>(PSLMap[PLoc])) {
-      // We might have one Decl for multiple Vars, however, one will be a
-      // PointerVar so we'll use that.
-      PVConstraint *PV = nullptr;
-      FVConstraint *FV = nullptr;
-      for (const auto &V : Vars)
-        if (PVConstraint *T = dyn_cast<PVConstraint>(V))
-          PV = T;
-        else if (FVConstraint *T = dyn_cast<FVConstraint>(V))
-          FV = T;
-
-      if (PV && PV->anyChanges(Info.getConstraints().getVariables()) &&
-          !PV->isPartOfFunctionPrototype()) {
-        // Rewrite a declaration, only if it is not part of function prototype.
-        DeclStmt *DS = nullptr;
-        if (VDLToStmtMap.find(D) != VDLToStmtMap.end())
-          DS = VDLToStmtMap[D];
-
-        std::string newTy = getStorageQualifierString(D) +
-            PV->mkString(Info.getConstraints().getVariables()) +
-            ABRewriter.getBoundsString(PV, D);
-        RewriteThese.insert(DAndReplace(D, DS, newTy));
-      } else if (FV && NewFuncSig.find(FV->getName()) != NewFuncSig.end()
-                    && !TRV.isFunctionVisited(FV->getName())) {
-        // TODO: I don't think this branch is ever reached. Either remove it or
-        //       add a test case that reaches it.
-        // If this function already has a modified signature? and it is not
-        // visited by our cast placement visitor then rewrite it.
-        std::string NewSig = NewFuncSig[FV->getName()];
-        RewriteThese.insert(DAndReplace(D, NewSig, true));
-      }
-    }
-  }
-
-  // Build sets of variables that are declared in the same statement so we can
-  // rewrite things like int x, *y, **z;
-  GlobalVariableGroups GVG(R.getSourceMgr());
-  for (const auto &D : TUD->decls())
-    GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
-
-  // Do the declaration rewriting
-  DeclRewriter DeclR(R, Context, GVG);
-  DeclR.rewrite(RewriteThese, TouchedFiles);
-}
 
 // This function checks how to re-write a function declaration.
 bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
