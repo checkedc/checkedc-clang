@@ -540,11 +540,11 @@ bool LocalVarABVisitor::VisitBinaryOperator(BinaryOperator *BO) {
     BinaryOperator::Opcode BOpcode = BO->getOpcode();
     if (BOpcode == BinaryOperator::Opcode::BO_EQ ||
         BOpcode == BinaryOperator::Opcode::BO_NE) {
-        addUsedParmVarDecl(BO->getLHS());
-        addUsedParmVarDecl(BO->getRHS());
+      addUsedParmVarDecl(BO->getLHS());
+      addUsedParmVarDecl(BO->getRHS());
     }
     if (BOpcode == BinaryOperator::Opcode::BO_Assign) {
-        HandleBinAssign(BO);
+      HandleBinAssign(BO);
     }
     return true;
 }
