@@ -462,16 +462,19 @@ void DeclRewriter::rewriteFunctionDecl(FunctionDeclReplacement *N) {
     R.ReplaceText(SR, N->getReplacement());
 }
 
-bool DeclRewriter::areDeclarationsOnSameLine(VarDeclReplacement *N1,
-                                             VarDeclReplacement *N2) {
-  VarDecl *VD1 = N1->getDecl();
-  VarDecl *VD2 = N2->getDecl();
-  if (VD1 && VD2) {
+template <typename D>
+bool DeclRewriter::areDeclarationsOnSameLine(DeclReplacementTempl<D> *N1,
+                                             DeclReplacementTempl<D> *N2) {
+  Decl *D1 = N1->getDecl();
+  Decl *D2 = N2->getDecl();
+  if (D1 && D2) {
+    // In the event that this is a FieldDecl,
+    // these statements will always be null
     DeclStmt *Stmt1 = N1->getStatement();
     DeclStmt *Stmt2 = N2->getStatement();
     if (Stmt1 == nullptr && Stmt2 == nullptr) {
-      auto &VDGroup = GP.getVarsOnSameLine(VD1);
-      return VDGroup.find(VD2) != VDGroup.end();
+      auto &DGroup = GP.getVarsOnSameLine(D1);
+      return DGroup.find(D2) != DGroup.end();
     } else if (Stmt1 == nullptr || Stmt2 == nullptr) {
       return false;
     } else {
@@ -481,18 +484,8 @@ bool DeclRewriter::areDeclarationsOnSameLine(VarDeclReplacement *N1,
   return false;
 }
 
-bool DeclRewriter::areDeclarationsOnSameLine(FieldDeclReplacement *N1,
-                                             FieldDeclReplacement *N2) {
-  FieldDecl *FD1 = N1->getDecl();
-  FieldDecl *FD2 = N2->getDecl();
-  if(FD1 && FD2) {
-    auto &FDGroup = GP.getFieldsOnSameLine(FD2);
-    return FDGroup.find(FD2) != FDGroup.end();
-  }
-  return false;
-}
-
-bool DeclRewriter::isSingleDeclaration(VarDeclReplacement *N) {
+template<typename D>
+bool DeclRewriter::isSingleDeclaration(DeclReplacementTempl<D> *N) {
   DeclStmt *Stmt = N->getStatement();
   if (Stmt == nullptr) {
     auto &VDGroup = GP.getVarsOnSameLine(N->getDecl());
@@ -502,45 +495,21 @@ bool DeclRewriter::isSingleDeclaration(VarDeclReplacement *N) {
   }
 }
 
-bool DeclRewriter::isSingleDeclaration(FieldDeclReplacement *N) {
-  auto &FDGroup = GP.getFieldsOnSameLine(N->getDecl());
-  return FDGroup.size() == 1;
-}
 
-void DeclRewriter::getDeclsOnSameLine(FieldDeclReplacement *D,
-                                      std::set<Decl *> &Decls) {
-  Decls.insert(GP.getFieldsOnSameLine(D->getDecl()).begin(),
-               GP.getFieldsOnSameLine(D->getDecl()).end());
-  return;
-}
 
-void DeclRewriter::getDeclsOnSameLine(VarDeclReplacement *D,
+template<typename D>
+void DeclRewriter::getDeclsOnSameLine(DeclReplacementTempl<D> *N,
                                       std::set<Decl *> &Decls) {
-  if (D->getStatement() != nullptr)
-    Decls.insert(D->getStatement()->decls().begin(),
-                 D->getStatement()->decls().end());
+  if (N->getStatement() != nullptr)
+    Decls.insert(N->getStatement()->decls().begin(),
+                 N->getStatement()->decls().end());
   else
-    Decls.insert(GP.getVarsOnSameLine(D->getDecl()).begin(),
-                 GP.getVarsOnSameLine(D->getDecl()).end());
+    Decls.insert(GP.getVarsOnSameLine(N->getDecl()).begin(),
+                 GP.getVarsOnSameLine(N->getDecl()).end());
 }
 
-SourceLocation
-DeclRewriter::deleteAllDeclarationsOnLine(FieldDeclReplacement *DR)
-{
-  SourceLocation BLoc;
-  SourceManager &SM = R.getSourceMgr();
-  // Remove all fields on the line
-  for (auto *D : GP.getFieldsOnSameLine(DR->getDecl())) {
-    SourceRange ToDel = D->getSourceRange();
-    if (BLoc.isInvalid() ||
-        SM.isBeforeInTranslationUnit(ToDel.getBegin(), BLoc))
-      BLoc = ToDel.getBegin();
-    R.RemoveText(D->getSourceRange());
-  }
-  return BLoc;
-}
-
-SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(VarDeclReplacement *DR)
+template<typename D>
+SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(DeclReplacementTempl<D> *DR)
 {
   if (DeclStmt *Stmt = DR->getStatement()) {
     // If there is a statement, delete the entire statement.
@@ -550,12 +519,12 @@ SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(VarDeclReplacement *DR)
     SourceLocation BLoc;
     SourceManager &SM = R.getSourceMgr();
     // Remove all vars on the line.
-    for (auto *D : GP.getVarsOnSameLine(DR->getDecl())) {
-      SourceRange ToDel = D->getSourceRange();
+    for (auto *SD : GP.getVarsOnSameLine(DR->getDecl())) {
+      SourceRange ToDel = SD->getSourceRange();
       if (BLoc.isInvalid() ||
           SM.isBeforeInTranslationUnit(ToDel.getBegin(), BLoc))
         BLoc = ToDel.getBegin();
-      R.RemoveText(D->getSourceRange());
+      R.RemoveText(SD->getSourceRange());
     }
     return BLoc;
   }
@@ -735,6 +704,6 @@ bool FunctionDeclBuilder::isFunctionVisited(string FuncName) {
 }
 
 bool FieldFinder::VisitFieldDecl(FieldDecl *FD) {
-  GVG.addGlobalFieldDecl(FD);
+  GVG.addGlobalDecl(FD);
   return true;
 }

@@ -87,16 +87,16 @@ bool DComp::operator()(DeclReplacement *Lhs,
     return SM.isBeforeInTranslationUnit(X2, Y1);
 }
 
-void GlobalVariableGroups::addGlobalDecl(VarDecl *VD,
-                                         std::set<VarDecl *> *VDSet) {
+void GlobalVariableGroups::addGlobalDecl(Decl *VD,
+                                         std::set<Decl *> *VDSet) {
   if (VD && GlobVarGroups.find(VD) == GlobVarGroups.end()) {
     if (VDSet == nullptr)
-      VDSet = new std::set<VarDecl *>();
+      VDSet = new std::set<Decl *>();
     VDSet->insert(VD);
     GlobVarGroups[VD] = VDSet;
     // Process the next decl.
     Decl *NDecl = VD->getNextDeclInContext();
-    if (isa_and_nonnull<VarDecl>(NDecl)) {
+    if (isa_and_nonnull<VarDecl>(NDecl) || isa_and_nonnull<FieldDecl>(NDecl)) {
       PresumedLoc OrigDeclLoc =
           SM.getPresumedLoc(VD->getSourceRange().getBegin());
       PresumedLoc NewDeclLoc =
@@ -105,49 +105,21 @@ void GlobalVariableGroups::addGlobalDecl(VarDecl *VD,
       if (OrigDeclLoc.isValid() && NewDeclLoc.isValid() &&
           !strcmp(OrigDeclLoc.getFilename(), NewDeclLoc.getFilename()) &&
           OrigDeclLoc.getLine() == NewDeclLoc.getLine())
-        addGlobalDecl(dyn_cast<VarDecl>(NDecl), VDSet);
+        addGlobalDecl(dyn_cast<Decl>(NDecl), VDSet);
     }
   }
 }
 
-void GlobalVariableGroups::addGlobalFieldDecl(FieldDecl *FD,
-                                              std::set<FieldDecl *> *FDSet) {
-  if (FD && GlobFieldGroups.find(FD) == GlobFieldGroups.end()) {
-    if (FDSet == nullptr)
-      FDSet = new std::set<FieldDecl *>();
-    FDSet->insert(FD);
-    GlobFieldGroups[FD] = FDSet;
-    // Process the next decl.
-    Decl *NDecl = FD->getNextDeclInContext();
-    if (isa_and_nonnull<FieldDecl>(NDecl)) {
-      PresumedLoc OrigDeclLoc =
-          SM.getPresumedLoc(FD->getSourceRange().getBegin());
-      PresumedLoc NewDeclLoc =
-          SM.getPresumedLoc(NDecl->getSourceRange().getBegin());
-      // Check if both declarations are on the same line.
-      if (OrigDeclLoc.isValid() && NewDeclLoc.isValid() &&
-          !strcmp(OrigDeclLoc.getFilename(), NewDeclLoc.getFilename()) &&
-          OrigDeclLoc.getLine() == NewDeclLoc.getLine())
-        addGlobalFieldDecl(dyn_cast<FieldDecl>(NDecl), FDSet);
-    }
-  }
+
+std::set<Decl *> &GlobalVariableGroups::getVarsOnSameLine(Decl *D) {
+  assert (GlobVarGroups.find(D) != GlobVarGroups.end() &&
+         "Expected to find the group.");
+  return *(GlobVarGroups[D]);
 }
 
-std::set<VarDecl *> &GlobalVariableGroups::getVarsOnSameLine(VarDecl *VD) {
-  assert (GlobVarGroups.find(VD) != GlobVarGroups.end() &&
-         "Expected to find the group.");
-  return *(GlobVarGroups[VD]);
-}
-
-std::set<FieldDecl *> &GlobalVariableGroups::getFieldsOnSameLine(FieldDecl *FD) {
-  assert (GlobFieldGroups.find(FD) != GlobFieldGroups.end() &&
-         "Expected to find the group.");
-  return *(GlobFieldGroups[FD]);
-}
 
 GlobalVariableGroups::~GlobalVariableGroups() {
-  std::set<std::set<VarDecl *> *> VVisited;
-  std::set<std::set<FieldDecl *> *> FVisited;
+  std::set<std::set<Decl *> *> VVisited;
   // Free each of the group.
   for (auto &currV : GlobVarGroups) {
     // Avoid double free by caching deleted sets.
@@ -158,14 +130,6 @@ GlobalVariableGroups::~GlobalVariableGroups() {
   }
   GlobVarGroups.clear();
 
-  for (auto &currF : GlobFieldGroups) {
-    // Avoid double free by caching deleted sets.
-    if (FVisited.find(currF.second) != FVisited.end())
-      continue;
-    FVisited.insert(currF.second);
-    delete (currF.second);
-  }
-  GlobFieldGroups.clear();
 }
 
 // Test to see if we can rewrite a given SourceRange.

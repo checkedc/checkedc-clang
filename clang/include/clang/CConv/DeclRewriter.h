@@ -63,16 +63,16 @@ private:
   void rewriteParmVarDecl(ParmVarDeclReplacement *N);
   void rewriteFunctionDecl(FunctionDeclReplacement *N);
 
-  SourceLocation deleteAllDeclarationsOnLine(VarDeclReplacement *N);
-  SourceLocation deleteAllDeclarationsOnLine(FieldDeclReplacement *N);
-  void getDeclsOnSameLine(VarDeclReplacement *N, std::set<Decl *> &Decls);
-  void getDeclsOnSameLine(FieldDeclReplacement *N, std::set<Decl *> &Decls);
-  bool isSingleDeclaration(VarDeclReplacement *N);
-  bool isSingleDeclaration(FieldDeclReplacement *N);
-  bool areDeclarationsOnSameLine(VarDeclReplacement *N1,
-                                 VarDeclReplacement *N2);
-  bool areDeclarationsOnSameLine(FieldDeclReplacement *N1,
-                                 FieldDeclReplacement *N2);
+    template<typename D>
+  SourceLocation deleteAllDeclarationsOnLine(DeclReplacementTempl<D> *N);
+    template<typename D>
+  void getDeclsOnSameLine(DeclReplacementTempl<D> *N, std::set<Decl *> &Decls);
+  // void getDeclsOnSameLine(FieldDeclReplacement *N, std::set<Decl *> &Decls);
+    template<typename D>
+  bool isSingleDeclaration(DeclReplacementTempl<D> *N);
+    template<typename D>
+  bool areDeclarationsOnSameLine(DeclReplacementTempl<D> *N1,
+                                 DeclReplacementTempl<D> *N2);
 };
 
 // Visits function declarations and adds entries with their new rewritten

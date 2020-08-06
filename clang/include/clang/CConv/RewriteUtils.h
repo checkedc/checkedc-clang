@@ -61,6 +61,7 @@ protected:
 typedef DeclReplacementTempl<VarDecl> VarDeclReplacement;
 typedef DeclReplacementTempl<ParmVarDecl> ParmVarDeclReplacement;
 typedef DeclReplacementTempl<FieldDecl> FieldDeclReplacement;
+typedef DeclReplacementTempl<Decl> DynDeclReplacement;
 
 class FunctionDeclReplacement : public DeclReplacementTempl<FunctionDecl> {
 public:
@@ -134,18 +135,15 @@ typedef std::set<DeclReplacement *, DComp> RSet;
 class GlobalVariableGroups {
 public:
   GlobalVariableGroups(SourceManager &SourceMgr) : SM(SourceMgr) { }
-  void addGlobalDecl(VarDecl *VD, std::set<VarDecl *> *VDSet = nullptr);
-  void addGlobalFieldDecl(FieldDecl *VD, std::set<FieldDecl *> *VDSet = nullptr);
+  void addGlobalDecl(Decl *VD, std::set<Decl *> *VDSet = nullptr);
 
-  std::set<VarDecl *> &getVarsOnSameLine(VarDecl *VD);
-  std::set<FieldDecl *> &getFieldsOnSameLine(FieldDecl *FD);
+  std::set<Decl *> &getVarsOnSameLine(Decl *VD);
 
   virtual ~GlobalVariableGroups();
 
 private:
   SourceManager &SM;
-  std::map<VarDecl *, std::set<VarDecl *>*> GlobVarGroups;
-  std::map<FieldDecl *, std::set<FieldDecl *>*> GlobFieldGroups;
+  std::map<Decl *, std::set<Decl *>*> GlobVarGroups;
 };
 
 // Class that handles rewriting bounds information for all the
