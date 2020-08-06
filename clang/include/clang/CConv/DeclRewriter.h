@@ -59,20 +59,19 @@ private:
   // DAndReplace structure. Each of these functions is specialized to handling
   // one subclass of declarations.
   void rewriteParmVarDecl(ParmVarDeclReplacement *N);
-  template<typename D>
-  void rewriteMultiDecl(DeclReplacementTempl<D> *N, RSet &ToRewrite);
+  template<typename DT>
+  void rewriteMultiDecl(DeclReplacementTempl<DT> *N, RSet &ToRewrite);
   void rewriteFunctionDecl(FunctionDeclReplacement *N);
 
-    template<typename D>
-  SourceLocation deleteAllDeclarationsOnLine(DeclReplacementTempl<D> *N);
-    template<typename D>
-  void getDeclsOnSameLine(DeclReplacementTempl<D> *N, std::set<Decl *> &Decls);
-  // void getDeclsOnSameLine(FieldDeclReplacement *N, std::set<Decl *> &Decls);
-    template<typename D>
-  bool isSingleDeclaration(DeclReplacementTempl<D> *N);
-    template<typename D>
-  bool areDeclarationsOnSameLine(DeclReplacementTempl<D> *N1,
-                                 DeclReplacementTempl<D> *N2);
+
+  SourceLocation deleteAllDeclarationsOnLine(DeclReplacement *N);
+
+  void getDeclsOnSameLine(DeclReplacement *N, std::set<Decl *> &Decls);
+
+  bool isSingleDeclaration(DeclReplacement *N);
+   
+  bool areDeclarationsOnSameLine(DeclReplacement *N1,
+                                 DeclReplacement *N2);
 };
 
 // Visits function declarations and adds entries with their new rewritten

@@ -343,9 +343,8 @@ void DeclRewriter::rewriteFunctionDecl(FunctionDeclReplacement *N) {
     R.ReplaceText(SR, N->getReplacement());
 }
 
-template <typename D>
-bool DeclRewriter::areDeclarationsOnSameLine(DeclReplacementTempl<D> *N1,
-                                             DeclReplacementTempl<D> *N2) {
+bool DeclRewriter::areDeclarationsOnSameLine(DeclReplacement *N1,
+                                             DeclReplacement *N2) {
   Decl *D1 = N1->getDecl();
   Decl *D2 = N2->getDecl();
   if (D1 && D2) {
@@ -365,8 +364,8 @@ bool DeclRewriter::areDeclarationsOnSameLine(DeclReplacementTempl<D> *N1,
   return false;
 }
 
-template<typename D>
-bool DeclRewriter::isSingleDeclaration(DeclReplacementTempl<D> *N) {
+
+bool DeclRewriter::isSingleDeclaration(DeclReplacement *N) {
   DeclStmt *Stmt = N->getStatement();
   if (Stmt == nullptr) {
     auto &VDGroup = GP.getVarsOnSameLine(N->getDecl());
@@ -378,8 +377,8 @@ bool DeclRewriter::isSingleDeclaration(DeclReplacementTempl<D> *N) {
 
 
 
-template<typename D>
-void DeclRewriter::getDeclsOnSameLine(DeclReplacementTempl<D> *N,
+
+void DeclRewriter::getDeclsOnSameLine(DeclReplacement *N,
                                       std::set<Decl *> &Decls) {
   if (N->getStatement() != nullptr)
     Decls.insert(N->getStatement()->decls().begin(),
@@ -389,9 +388,9 @@ void DeclRewriter::getDeclsOnSameLine(DeclReplacementTempl<D> *N,
                  GP.getVarsOnSameLine(N->getDecl()).end());
 }
 
-template<typename D>
+
 SourceLocation
-DeclRewriter::deleteAllDeclarationsOnLine(DeclReplacementTempl<D> *DR)
+DeclRewriter::deleteAllDeclarationsOnLine(DeclReplacement *DR)
 {
   if (DeclStmt *Stmt = DR->getStatement()) {
     // If there is a statement, delete the entire statement.
