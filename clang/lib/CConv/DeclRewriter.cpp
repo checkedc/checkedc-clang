@@ -524,7 +524,8 @@ void DeclRewriter::getDeclsOnSameLine(VarDeclReplacement *D,
                  GP.getVarsOnSameLine(D->getDecl()).end());
 }
 
-SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(FieldDeclReplacement *DR)
+SourceLocation
+DeclRewriter::deleteAllDeclarationsOnLine(FieldDeclReplacement *DR)
 {
   SourceLocation BLoc;
   SourceManager &SM = R.getSourceMgr();
