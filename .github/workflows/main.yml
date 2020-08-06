@@ -26,13 +26,15 @@ jobs:
     - name: Checkout our repository
       uses: actions/checkout@v2
       with:
+        repository: plum-umd/checkedc-clang
         ref: BigRefactor
+        path: depsfolder/checkedc-clang
       
     # Install all the required dependencies  
     - name: Install dependencies
       run : |
         sudo apt-get update
-        sudo apt-get install libboost-all-dev git python cmake build-essential wget tar
+        sudo apt-get install libboost-all-dev git python cmake build-essential wget tar ninja-build
         
     # clone and install bear
     # Needed for generating compile_commands.json    
@@ -54,28 +56,32 @@ jobs:
       uses: actions/checkout@v2
       with:
         repository: microsoft/checkedc
-        path: llvm/projects/checkedc-wrapper/checkedc
+        path: ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc
       
+    - name: Check Checked C headers
+      run: |
+        ls ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc
+        
     # Build cconv-standadlone
     - name: Build cconv-standalone
-      uses: lukka/run-cmake@v2
-      with:
-        cmakeListsOrSettingsJson: CMakeListsTxtAdvanced
-        cmakeListsTxtPath: '${{github.workspace}}/llvm/CMakeLists.txt'
-        buildDirectory: '${{runner.workspace}}/${{env.builddir}}'
-        cmakeAppendedArgs: '-G Ninja -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_ENABLE_RTTI=ON -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra"'
-        buildWithCMakeArgs: '-- cconv-standalone'
-    
+      run: |
+        mkdir -p ${{runner.workspace}}/${{env.builddir}}
+        cd ${{runner.workspace}}/${{env.builddir}}
+        cmake -G Ninja -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_ENABLE_RTTI=ON -DCMAKE_BUILD_TYPE=Debug -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" ${{github.workspace}}/depsfolder/checkedc-clang/llvm
+        ninja cconv-standalone
+
     - name: Build vsftpd
       run: |
         mkdir ${{runner.workspace}}/${{env.vsftpddir}}
+        cd ${{runner.workspace}}/${{env.vsftpddir}}
         wget ${{env.vsftpdurl}}
         tar -xvzf vsftpd-3.0.3.tar.gz
         cd vsftpd-3.0.3
         bear make
         ls compile_commands.json
+        pwd
         
     - name: Testing vsftpd
       run: |
-        cd ${{github.workspace}}/clang/tools/cconv-standalone/utils/cc_conv
-        python convert_project.py --includeDir ${{github.workspace}}/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/cconv-standalone -pr ${{runner.workspace}}/${{env.vsftpddir}}/vsftpd-3.0.3
+        cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils/cc_conv
+        python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/cconv-standalone -pr ${{runner.workspace}}/${{env.vsftpddir}}/vsftpd-3.0.3
