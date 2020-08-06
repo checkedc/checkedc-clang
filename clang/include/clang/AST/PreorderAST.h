@@ -21,31 +21,30 @@
 #include "clang/AST/Expr.h"
 
 namespace clang {
-
   using Result = Lexicographic::Result;
 
-  // Each binary operator of an expression results in a new node of the
-  // PreorderAST. Each node contains the following fields:
+  class Node {
+  public:
+    enum class NodeKind { BinaryNode, LeafExprNode };
 
-  // Opc: The opcode of the operator.
-  // Vars: A list of variables in the sub expression.
-  // Const: Constants of the sub expression are folded.
-  // HasConst: Indicates whether there is a constant in the node. It is used to
-  // differentiate between the absence of a constant and a constant value of 0.
-  // Parent: A link to the parent node of the current node.
-  // Children: The preorder AST is an n-ary tree. Children is a list of all the
-  // child nodes of the current node.
-
-  struct Node {
-    BinaryOperator::Opcode Opc;
-    std::vector<const VarDecl *> Vars;
-    llvm::APSInt Const;
-    bool HasConst;
     Node *Parent;
     llvm::SmallVector<Node *, 2> Children;
+    NodeKind Kind;
 
-    Node(Node *Parent) :
-      Opc(BO_Add), HasConst(false), Parent(Parent) {}
+    Node(Node *Parent, NodeKind Kind) :
+      Parent(Parent), Kind(Kind) {}
+  };
+
+  class BinaryNode : public Node {
+  public:
+    BinaryOperator::Opcode Opc;
+
+    BinaryNode(Node *Parent, BinaryOperator::Opcode Opc) :
+      Node(Parent, NodeKind::BinaryNode), Opc(Opc) {}
+
+    static bool classof(const Node *N) {
+      return N->Kind == NodeKind::BinaryNode;
+    }
 
     // Is the operator commutative and associative?
     bool IsOpCommutativeAndAssociative() {
@@ -53,6 +52,21 @@ namespace clang {
     }
   };
 
+  class LeafExprNode : public Node {
+  public:
+    llvm::SmallVector<Expr *, 2> Exp;
+
+    LeafExprNode(Node *Parent) :
+      Node(Parent, NodeKind::LeafExprNode) {}
+
+    static bool classof(const Node *N) {
+      return N->Kind == NodeKind::LeafExprNode;
+    }
+  };
+
+} // end namespace clang
+
+namespace clang {
   class PreorderAST {
   private:
     ASTContext &Ctx;
@@ -63,9 +77,8 @@ namespace clang {
 
     // Create a PreorderAST for the expression E.
     // @param[in] E is the sub expression which needs to be added to N.
-    // @param[in] N is the current node of the AST.
     // @param[in] Parent is the parent node for N.
-    void Create(Expr *E, Node *N = nullptr, Node *Parent = nullptr);
+    void Create(Expr *E, Node *Parent = nullptr);
 
     // Sort the variables in a node of the AST.
     // @param[in] N is current node of the AST.
