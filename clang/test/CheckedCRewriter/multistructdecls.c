@@ -6,9 +6,7 @@ struct foo {
     int *r, *l;
 };
 
-//CHECK: _Ptr<int> r;
-//CHECK: _Ptr<int> l;
-//CHECK: ;
+//CHECK: _Ptr<int> r; _Ptr<int> l; ; 
 
 void bar(void) {
     struct foo *p = 0;

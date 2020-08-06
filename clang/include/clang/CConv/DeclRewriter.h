@@ -58,9 +58,9 @@ private:
   // Rewrite a specific variable declaration using the replacement string in the
   // DAndReplace structure. Each of these functions is specialized to handling
   // one subclass of declarations.
-  void rewriteVarDecl(VarDeclReplacement *N, RSet &ToRewrite);
-  void rewriteFieldDecl(FieldDeclReplacement *N, RSet &ToRewrite);
   void rewriteParmVarDecl(ParmVarDeclReplacement *N);
+  template<typename D>
+  void rewriteMultiDecl(DeclReplacementTempl<D> *N, RSet &ToRewrite);
   void rewriteFunctionDecl(FunctionDeclReplacement *N);
 
     template<typename D>
