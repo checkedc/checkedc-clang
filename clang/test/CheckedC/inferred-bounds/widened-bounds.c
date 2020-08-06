@@ -1,8 +1,9 @@
 // Tests for datafow analysis for bounds widening of _Nt_array_ptr's.
 //
-// RUN: %clang_cc1 -fdump-widened-bounds -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s 2>&1 | FileCheck %s
+// RUN: %clang_cc1 -fdump-widened-bounds -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s | FileCheck %s
 
 #include <limits.h>
+#include <stdint.h>
 
 void f1() {
   _Nt_array_ptr<char> p : count(0) = "a";
@@ -20,8 +21,8 @@ void f2() {
   _Nt_array_ptr<char> p : count(0) = "ab";
 
   if (*p)
-    if (*(p + 1))   // expected-error {{out-of-bounds memory access}}
-      if (*(p + 2)) // expected-error {{out-of-bounds memory access}}
+    if (*(p + 1))
+      if (*(p + 2))
   {}
 
 // CHECK: In function: f2
@@ -83,8 +84,8 @@ void f5() {
   char p _Nt_checked[] : count(0) = "abc";
 
   if (p[0])
-    if (p[1])   // expected-error {{out-of-bounds memory access}}
-      if (p[2]) // expected-error {{out-of-bounds memory access}}
+    if (p[1])
+      if (p[2])
   {}
 
 // CHECK: In function: f5
@@ -104,7 +105,7 @@ void f6(int i) {
   char p _Nt_checked[] : bounds(p + i, p)  = "abc";
 
   if (p[0]) {
-    i = 0;
+    i = 0; // expected-error {{inferred bounds for 'p' are unknown after statement}}
     if (p[1]) {}
   }
 
@@ -148,7 +149,7 @@ void f8() {
   if (*p)
     if (*(p + 1))
       if (*(p + 2))
-        if (*(p + 3)) // expected-error {{out-of-bounds memory access}}
+        if (*(p + 3))
   {}
 
 // CHECK: In function: f8
@@ -211,7 +212,7 @@ void f11(int i, int j) {
   _Nt_array_ptr<char> p : bounds(p + i, p + j) = "a";
 
   if (*(p + j)) {
-    i = 0;
+    i = 0; // expected-error {{inferred bounds for 'p' are unknown after statement}}
     if (*(p + j + 1)) {}
   }
 
@@ -226,7 +227,7 @@ void f11(int i, int j) {
 // CHECK-NOT: upper_bound(p)
 
   if (*(p + j)) {
-    j = 0;
+    j = 0; // expected-error {{inferred bounds for 'p' are unknown after statement}}
     if (*(p + j + 1)) {}
   }
 
@@ -266,8 +267,8 @@ void f13() {
 
   if (p[0])
     if (1[p])
-      if (p[2])   // expected-error {{out-of-bounds memory access}}
-        if (3[p]) // expected-error {{out-of-bounds memory access}}
+      if (p[2])
+        if (3[p])
   {}
 
 // CHECK: In function: f13
@@ -318,7 +319,7 @@ void f15(int i) {
 
   _Nt_array_ptr<char> q : count(0) = "a";
   if (*q)
-    if (*(q - 1)) // expected-error {{out-of-bounds memory access}}
+    if (*(q - 1))
   {}
 
 // CHECK:  [B7]
@@ -354,7 +355,7 @@ void f16(_Nt_array_ptr<char> p : bounds(p, p)) {
   _Nt_array_ptr<char> r : bounds(p, p + 1) = "a";
 
   if (*(p))
-    if (*(p + 1)) // expected-error {{out-of-bounds memory access}}
+    if (*(p + 1))
   {}
 
 // CHECK: In function: f16
@@ -446,9 +447,9 @@ void f19() {
   _Nt_array_ptr<char> p : count(0) = "a";
 
   if (*p)
-    if (*(p + 1))     // expected-error {{out-of-bounds memory access}}
-      if (*(p + 3))   // expected-error {{out-of-bounds memory access}}
-        if (*(p + 2)) // expected-error {{out-of-bounds memory access}}
+    if (*(p + 1))
+      if (*(p + 3))
+        if (*(p + 2))
   {}
 
 // CHECK: In function: f19
@@ -469,7 +470,7 @@ void f19() {
 
 void f20() {
   // Declared bounds and deref offset are both INT_MAX. Valid widening.
-  _Nt_array_ptr<char> p : count(INT_MAX) = "";      // expected-error {{declared bounds for 'p' are invalid after initialization}}
+  _Nt_array_ptr<char> p : count(INT_MAX) = "";      // expected-error {{declared bounds for 'p' are invalid after statement}}
   if (*(p + INT_MAX))
   {}
 
@@ -525,7 +526,7 @@ void f20() {
 // CHECK: upper_bound(t) = 1
 
   // Declared bounds and deref offset are both (INT_MIN + -1). Integer underflow. No widening.
-  _Nt_array_ptr<char> u : count(INT_MIN + -1) = ""; // expected-error {{declared bounds for 'u' are invalid after initialization}}
+  _Nt_array_ptr<char> u : count(INT_MIN + -1) = ""; // expected-error {{declared bounds for 'u' are invalid after statement}}
   if (*(u + INT_MIN + -1))
   {}
 
@@ -539,8 +540,8 @@ void f21() {
   char p _Nt_checked[] : count(0) = "abc";
 
   while (p[0])
-    while (p[1])   // expected-error {{out-of-bounds memory access}}
-      while (p[2]) // expected-error {{out-of-bounds memory access}}
+    while (p[1])
+      while (p[2])
   {}
 
 // CHECK: In function: f21
@@ -564,8 +565,8 @@ void f22() {
   _Nt_array_ptr<char> p : count(0) = "a";
 
   if (*p)
-    while (*(p + 1))   // expected-error {{out-of-bounds memory access}}
-      if (*(p + 2)) // expected-error {{out-of-bounds memory access}}
+    while (*(p + 1))
+      if (*(p + 2))
   {}
 
 // CHECK: In function: f22
@@ -614,7 +615,7 @@ B:  p;
 
   while (*p) {
     p;
-    while (*(p + 1)) { // expected-error {{out-of-bounds memory access}}
+    while (*(p + 1)) {
 C:    p;
     }
   }
@@ -673,9 +674,9 @@ void f25() {
 
   for (; *p; ) {
     i = 0;
-    for (; *(p + 1); ) { // expected-error {{out-of-bounds memory access}}
+    for (; *(p + 1); ) {
       i = 1;
-      for (; *(p + 2); ) { // expected-error {{out-of-bounds memory access}}
+      for (; *(p + 2); ) {
         i = 2;
       }
     }
@@ -750,5 +751,482 @@ D:  p;
 // CHECK:    T: for
 // CHECK:  [B3]
 // CHECK:    1: p
+// CHECK-NOT: upper_bound(p)
+}
+
+void f26() {
+  _Nt_array_ptr<char> p : count(0) = "";
+
+// CHECK: In function: f26
+
+  switch (*p) {
+  default: break;
+// CHECK:   default:
+// CHECK-NOT: upper_bound(p)
+  case 'a': break;
+// CHECK:   case 'a':
+// CHECK: upper_bound(p) = 1
+  case 'b': break;
+// CHECK:   case 'b':
+// CHECK: upper_bound(p) = 1
+  }
+
+  switch (*p) {
+  case 'a':
+// CHECK:   case 'a':
+// CHECK: upper_bound(p) = 1
+  default:
+// CHECK:   default:
+// CHECK-NOT: upper_bound(p)
+  case 'b': break;
+// CHECK:   case 'b':
+// CHECK-NOT: upper_bound(p)
+  }
+
+  switch (*p) {
+  case 'a': break;
+// CHECK:   case 'a':
+// CHECK: upper_bound(p) = 1
+  default:
+// CHECK:   default:
+// CHECK-NOT: upper_bound(p)
+  case 'b': break;
+// CHECK:   case 'b':
+// CHECK-NOT: upper_bound(p)
+  }
+
+  switch (*p) {
+  default: break;
+// CHECK:   default:
+// CHECK: upper_bound(p) = 1
+  case '\0': break;
+// CHECK:   case '\x00':
+// CHECK-NOT: upper_bound(p)
+  case 'a': break;
+// CHECK:   case 'a':
+// CHECK: upper_bound(p) = 1
+  }
+
+  switch (*p) {
+  case '\0':
+// CHECK:   case 'a':
+// CHECK-NOT: upper_bound(p)
+  case 'a': break;
+// CHECK:   case '\x00':
+// CHECK-NOT: upper_bound(p)
+  default: break;
+// CHECK:   default:
+// CHECK: upper_bound(p) = 1
+  }
+}
+
+void f27() {
+  _Nt_array_ptr<char> p : count(0) = "";
+  const char a = '\0';
+  const int b = '0';
+  const char c = '1';
+  const int d = '2';
+
+// CHECK: In function: f27
+
+  switch (*p) {
+  default: break;
+// CHECK:   default:
+// CHECK: upper_bound(p) = 1
+
+  case a: break;
+// CHECK:   case a:
+// CHECK-NOT: upper_bound(p)
+
+  case b: break;
+// CHECK:   case b:
+// CHECK: upper_bound(p) = 1
+
+  case c: break;
+// CHECK:   case c:
+// CHECK: upper_bound(p) = 1
+
+  case d: break;
+// CHECK:   case d:
+// CHECK: upper_bound(p) = 1
+  }
+
+  enum {e1, e2};
+  switch (*p) {
+  case e1: break;
+// CHECK:   case e1:
+// CHECK-NOT: upper_bound(p)
+
+  case e2: break;
+// CHECK:   case e2:
+// CHECK: upper_bound(p) = 1
+
+  default: break;
+// CHECK:   default:
+// CHECK: upper_bound(p) = 1
+  }
+}
+
+void f28() {
+  _Nt_array_ptr<char> p : count(0) = "";
+  int a;
+
+// CHECK: In function: f28
+
+  switch (*p) {
+  default: break;
+// CHECK:   default:
+// CHECK: upper_bound(p) = 1
+
+  case 0:
+    switch (*p) {
+      default: break;
+// CHECK:   default:
+// CHECK-NOT: upper_bound(p)
+
+      case 1: break;
+    }
+// CHECK:  [B11]
+// CHECK:   case 1:
+// CHECK: upper_bound(p) = 1
+// CHECK:  [B10]
+// CHECK:   case 0:
+// CHECK-NOT: upper_bound(p)
+  }
+
+  switch (*p) {
+  case 1:
+    switch (*(p + 1)) {
+      case 2: break;
+    }
+// CHECK:  [B8]
+// CHECK:   case 2:
+// CHECK:    T: break;
+// CHECK: upper_bound(p) = 2
+// CHECK:  [B7]
+// CHECK:   case 1:
+// CHECK:    1: *(p + 1)
+// CHECK:    T: switch
+// CHECK: upper_bound(p) = 1
+  }
+
+  switch (*p) {
+  case 1: do { a;
+          } while (a);
+  }
+// CHECK:  [B5]
+// CHECK:   case 1:
+// CHECK: upper_bound(p) = 1
+// CHECK:  [B4]
+// CHECK: upper_bound(p) = 1
+// CHECK:  [B3]
+// CHECK:    1: a
+// CHECK: upper_bound(p) = 1
+// CHECK:  [B2]
+// CHECK:    1: a
+// CHECK:    T: do ... while
+// CHECK: upper_bound(p) = 1
+}
+
+void f29() {
+  _Nt_array_ptr<char> p : count(0) = "";
+  int i;
+
+// CHECK: In function: f29
+
+  switch (*p) {
+  case 'a':
+// CHECK:   case 'a':
+// CHECK: upper_bound(p) = 1
+
+    if (*(p + 1)) {
+      i = 0;
+// CHECK:    1: i = 0
+// CHECK: upper_bound(p) = 2
+
+      for (;*(p + 2);) {
+        i = 1;
+// CHECK:    1: i = 1
+// CHECK: upper_bound(p) = 3
+
+        while (*(p + 3)) {
+          i = 2;
+// CHECK:    1: i = 2
+// CHECK: upper_bound(p) = 4
+        }
+
+        i = 3;
+// CHECK:    1: i = 3
+// CHECK: upper_bound(p) = 3
+      }
+
+      i = 4;
+// CHECK:    1: i = 4
+// CHECK: upper_bound(p) = 2
+    }
+
+    i = 5;
+// CHECK:    1: i = 5
+// CHECK: upper_bound(p) = 1
+
+    break;
+  }
+}
+
+void f30() {
+// CHECK: In function: f30
+
+  _Nt_array_ptr<char> p : count(0) = "";
+  const int i = -1;
+  const int j = 1;
+
+  switch (*p) {
+  case i ... j: break;
+// CHECK:   case i ... j:
+// CHECK-NOT: upper_bound(p)
+  }
+
+  switch (*p) {
+  case 1 ... -1: break;
+// CHECK:   case 1 ... -1:
+// CHECK-NOT: upper_bound(p)
+
+  case 1 ... 0: break;
+// CHECK:   case 1 ... 0:
+// CHECK-NOT: upper_bound(p)
+
+  case -2 ... -1: break;
+// CHECK:   case -2 ... -1:
+// CHECK: upper_bound(p) = 1
+  }
+
+  switch (*p) {
+  case -1 ... 1: break;
+// CHECK:   case -1 ... 1:
+// CHECK-NOT: upper_bound(p)
+  }
+
+  switch (*p) {
+  case 0 ... 1: break;
+// CHECK:   case 0 ... 1:
+// CHECK-NOT: upper_bound(p)
+  }
+
+  switch (*p) {
+  case 1 ... 2: break;
+// CHECK:   case 1 ... 2:
+// CHECK: upper_bound(p) = 1
+  }
+}
+
+void f31() {
+// CHECK: In function: f31
+
+  _Nt_array_ptr<char> p : count(0) = "";
+  const int i = 'abc';
+  const char c = 'xyz';
+  const unsigned u = UINT_MAX;
+
+  switch (*p) {
+  case 999999999999999999999999999: break; // expected-error {{integer literal is too large to be represented in any integer type}}
+// CHECK: case {{.*}}
+// CHECK: upper_bound(p) = 1
+
+  case 00000000000000000000000000000000000: break;
+// CHECK: case 0:
+// CHECK-NOT: upper_bound(p)
+
+  case 00000000000000000000000000000000001: break;
+// CHECK: case 1:
+// CHECK: upper_bound(p) = 1
+
+  case '00000000000000000000000000000000000': break;
+// CHECK: case {{.*}}
+// CHECK: upper_bound(p) = 1
+
+  case i: break;
+// CHECK: case i:
+// CHECK: upper_bound(p) = 1
+
+  case c: break;
+// CHECK: case c:
+// CHECK: upper_bound(p) = 1
+
+  case u: break;
+// CHECK: case u:
+// CHECK: upper_bound(p) = 1
+  }
+
+  switch (*p) {
+  case INT_MAX: break;
+// CHECK: case {{.*}}
+// CHECK: upper_bound(p) = 1
+
+  case INT_MIN: break;
+// CHECK: case {{.*}}
+// CHECK: upper_bound(p) = 1
+
+  case INT_MAX + INT_MAX: break;
+// CHECK: case {{.*}}
+// CHECK: upper_bound(p) = 1
+
+  case INT_MAX - INT_MAX: break;
+// CHECK: case {{.*}}
+// CHECK-NOT: upper_bound(p)
+
+  case INT_MAX + INT_MIN: break;
+// CHECK: case {{.*}}
+// CHECK: upper_bound(p) = 1
+  }
+
+  switch (*p) {
+  case INT_MIN - INT_MIN: break;
+// CHECK: case {{.*}}
+// CHECK-NOT: upper_bound(p)
+
+  case INT_MAX - INT_MIN: break;
+// CHECK: case {{.*}}
+// CHECK: upper_bound(p) = 1
+  }
+
+  switch (*p) {
+  // Note: This does not widen the bounds as the value of the expression is
+  // computed to 0 and we have the warning: overflow in expression; result is 0
+  // with type 'int'.
+  case INT_MIN + INT_MIN: break;
+// CHECK: case {{.*}}
+// CHECK-NOT: upper_bound(p)
+
+  case UINT_MAX: break;
+// CHECK: case {{.*}}
+// CHECK: upper_bound(p) = 1
+  }
+
+  _Nt_array_ptr<uint64_t> q : count(0) = 0;
+  const uint64_t x = 0x0000444400004444LL;
+
+  switch (*p) {
+    case ULLONG_MAX: break;
+// CHECK: case {{.*}}
+// CHECK: upper_bound(p) = 1
+
+    case x: break;
+// CHECK: case x:
+// CHECK: upper_bound(p) = 1
+  }
+}
+
+void f32() {
+// CHECK: In function: f32
+
+  _Nt_array_ptr<char> p : count(0) = "";
+
+  switch(*p) {
+    default: f1(); break;
+    case 0: {
+      switch(*p) {
+        default: f2(); break;
+        case 'a': break;
+      }
+      break;
+    }
+  }
+
+// CHECK:   default:
+// CHECK:    1: f1()
+// CHECK: upper_bound(p) = 1
+// CHECK:   default:
+// CHECK:    1: f2()
+// CHECK-NOT: upper_bound(p)
+// CHECK:   case 'a':
+// CHECK: upper_bound(p) = 1
+// CHECK:   case 0:
+// CHECK-NOT: upper_bound(p)
+
+  switch(*p) {
+    default: f1(); break;
+    case 0: {
+      switch(*p) {
+        default: f2(); break;
+        case '\0': break;
+      }
+      break;
+    }
+  }
+
+// CHECK:   default:
+// CHECK:    1: f1()
+// CHECK: upper_bound(p) = 1
+// CHECK:   default:
+// CHECK:    1: f2()
+// CHECK: upper_bound(p) = 1
+// CHECK:   case '\x00':
+// CHECK-NOT: upper_bound(p)
+// CHECK:   case 0:
+// CHECK-NOT: upper_bound(p)
+
+  switch(*p) {
+    default: f1(); break;
+    case 'b': {
+      switch(*(p+1)) {
+        default: f2(); break;
+        case 'a': break;
+      }
+      break;
+    }
+  }
+
+// CHECK:   default:
+// CHECK:    1: f1()
+// CHECK-NOT: upper_bound(p)
+// CHECK:   default:
+// CHECK:    1: f2()
+// CHECK: upper_bound(p) = 1
+// CHECK:   case 'a':
+// CHECK: upper_bound(p) = 2
+// CHECK:   case 'b':
+// CHECK: upper_bound(p) = 1
+
+  switch(*p) {
+    default: f1(); break;
+    case 'b': {
+      switch(*(p+1)) {
+        default: f2(); break;
+        case '\0': break;
+      }
+      break;
+    }
+  }
+
+// CHECK:   default:
+// CHECK:    1: f1()
+// CHECK-NOT: upper_bound(p)
+// CHECK:   default:
+// CHECK:    1: f2()
+// CHECK: upper_bound(p) = 2
+// CHECK:   case '\x00':
+// CHECK: upper_bound(p) = 1
+// CHECK:   case 'b':
+// CHECK: upper_bound(p) = 1
+
+  switch(*p) {
+    default: {
+      switch(*(p+1)) {
+        default: f2(); break;
+        case '\0': break;
+      }
+      break;
+    }
+    case 0: break;
+  }
+
+// CHECK:   default:
+// CHECK:    1: f2()
+// CHECK: upper_bound(p) = 2
+// CHECK:   case '\x00':
+// CHECK: upper_bound(p) = 1
+// CHECK:   default:
+// CHECK: upper_bound(p) = 1
+// CHECK:   case 0:
 // CHECK-NOT: upper_bound(p)
 }

@@ -82,3 +82,7 @@ void f6(_Array_ptr<int> p : count(0)) {
   int i = *p;  // expected-error {{out-of-bounds memory access}}  
   *p = i;  // expected-error {{out-of-bounds memory access}}  
 }
+
+void f7(_Array_ptr<int> p : count(2), _Array_ptr<int> q : count(1), _Array_ptr<int> r : count(3), int i) {
+  p = q, i = p[1], p = r; // expected-error {{out-of-bounds memory access}}
+}

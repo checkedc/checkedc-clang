@@ -512,7 +512,7 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
       // change the array-to-pointer decay cast in checked scopes to make the
       // target type completely checked.
       if (IsCheckedScope() && Ty->isOrContainsUncheckedType()) {
-        QualType InteropType = GetCheckedCInteropType(E->IgnoreParenCasts());
+        QualType InteropType = GetCheckedCLValueInteropType(E->IgnoreParenCasts());
         if (!InteropType.isNull()) {
           Ty = RewriteBoundsSafeInterfaceTypes(InteropType);
           isBoundsSafeInterfaceCast = true;
@@ -4786,7 +4786,8 @@ Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
     BaseExpr = LHSExp;
     IndexExpr = RHSExp;
     // Array subscripting not allowed on ptr<T> values
-    if (PTy->getKind() == CheckedPointerKind::Ptr) {
+    if (PTy->getKind() == CheckedPointerKind::Ptr &&
+        !getLangOpts().CheckedCConverter) {
         return ExprError(Diag(LLoc, diag::err_typecheck_ptr_subscript)
             << LHSTy << LHSExp->getSourceRange() << RHSExp->getSourceRange());
     }
@@ -4808,7 +4809,8 @@ Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
     BaseExpr = RHSExp;
     IndexExpr = LHSExp;
     // Array subscripting not allowed on ptr<T> values
-    if (PTy->getKind() == CheckedPointerKind::Ptr) {
+    if (PTy->getKind() == CheckedPointerKind::Ptr &&
+        !getLangOpts().CheckedCConverter) {
         return ExprError(Diag(LLoc, diag::err_typecheck_ptr_subscript)
             << RHSTy << LHSExp->getSourceRange() << RHSExp->getSourceRange());
     }
@@ -7161,7 +7163,7 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
        incompatibleCheckedPointer = resultKind != CheckedPointerKind::Unchecked && CompositeTy.isNull();
      }
      else if (lhsKind == CheckedPointerKind::Unchecked) {
-       // The rhs must be a checked ponter type. The least upper bound is determined
+       // The rhs must be a checked pointer type. The least upper bound is determined
        // as follows:
        //    Unchecked ^ Array =  Array
        //    Unchecked ^ NtArray = Array
@@ -7199,7 +7201,7 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
        // Must have different kinds of checked pointers (_Ptr vs.
        // _Array_ptr or _Nt_Array_ptr). Implicit conversions between these
        // kinds of pointers are not allowed.
-       incompatibleCheckedPointer = true;
+       incompatibleCheckedPointer = !S.getLangOpts().CheckedCConverter;
        // _Array_ptr is less likely to cause spurious downstream warnings.
        resultKind = CheckedPointerKind::Array;
      }
@@ -7363,7 +7365,7 @@ static bool checkUncheckedPointerIntegerMismatch(Sema &S, ExprResult &Int,
     return false;
 
   const PointerType *ptrTy = PointerExpr->getType()->getAs<PointerType>();
-  if (ptrTy->isChecked()) {
+  if (ptrTy->isChecked() && !S.getLangOpts().CheckedCConverter) {
      return false;
   }
 
@@ -8263,13 +8265,15 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // - Allow implicit conversions from any kind of pointer to _Ptr 
   //   or _Array_ptr
 
-  if (rhkind != CheckedPointerKind::Unchecked &&
-      lhkind == CheckedPointerKind::Unchecked)
-    return Sema::Incompatible;
+  if (!S.getLangOpts().CheckedCConverter) {
+    if (rhkind != CheckedPointerKind::Unchecked &&
+        lhkind == CheckedPointerKind::Unchecked)
+      return Sema::Incompatible;
 
-  if (lhkind == CheckedPointerKind::NtArray &&
-      rhkind != CheckedPointerKind::NtArray)
-    return Sema::Incompatible;
+    if (lhkind == CheckedPointerKind::NtArray &&
+        rhkind != CheckedPointerKind::NtArray)
+      return Sema::Incompatible;
+  }
 
   // C99 6.5.16.1p1 (constraint 3): both operands are pointers to qualified or
   // unqualified versions of compatible types, ...
@@ -8277,8 +8281,13 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   if (!S.Context.pointeeTypesAreAssignable(ltrans, rtrans)) {
      // None of the language extensions below are allowed for pointers
      // that are checked pointers or that contain checked types.
-     if (LHSType->isOrContainsCheckedType() || RHSType->isOrContainsCheckedType())
-         return Sema::Incompatible;
+     if (LHSType->isOrContainsCheckedType() ||
+         RHSType->isOrContainsCheckedType()) {
+       // If ignoring checked pointers are enabled then assignments containing
+       // checked pointers is always compatible.
+       return S.getLangOpts().CheckedCConverter ? Sema::Compatible :
+                                                  Sema::Incompatible;
+     }
 
     // Check if the pointee types are compatible ignoring the sign.
     // We explicitly check for char so that we catch "char" vs
@@ -8478,6 +8487,17 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
   // them.
   LHSType = Context.getCanonicalType(LHSType).getUnqualifiedType();
   RHSType = Context.getCanonicalType(RHSType).getUnqualifiedType();
+
+  // If the LHS has type nt_array_ptr<T> and the RHS is an unchecked pointer
+  // or array with bounds-safe interface type nt_array_ptr<U>, use the RHS
+  // bounds-safe interface type nt_array_ptr<U> to check the types.
+  if (LHSType->isCheckedPointerNtArrayType() &&
+      (RHSType->isUncheckedPointerType() ||
+        RHSType->isUncheckedArrayType())) {
+    QualType RHSInteropType = GetCheckedCRValueInteropType(RHS);
+    if (!RHSInteropType.isNull())
+      RHSType = RHSInteropType;
+  }
 
   // Common case: no conversion required.
   if (LHSType == RHSType) {
@@ -9100,8 +9120,9 @@ struct OriginalOperand {
 /// Get the bounds-safe interface type for the left-hand side of an assignment,
 /// if the left-hand side has a bounds-safe interface. Return a null QualType
 /// otherwise.  For the left-hand sides of assignments, only global variables,
-/// parameters, and members of structures/unions have bounds-safe interfaces.
-QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
+/// parameters, members of structures/unions, pointer dereferences, and array
+/// subscripts have bounds-safe interfaces.
+QualType Sema::GetCheckedCLValueInteropType(ExprResult LHS) {
   bool IsParam = false;
   DeclaratorDecl *D = nullptr;
   if (!LHS.isInvalid()) {
@@ -9116,12 +9137,64 @@ QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
         IsParam = isa<ParmVarDecl>(Var);
       }
     }
+    // If `e` has a bounds-safe interface type that is a pointer to T, then
+    // `*e` has bounds-safe interface type T.
+    else if (UnaryOperator *Unary = dyn_cast<UnaryOperator>(LHSExpr)) { 
+      if (Unary->getOpcode() == UnaryOperatorKind::UO_Deref) {
+        QualType T = GetCheckedCRValueInteropType(Unary->getSubExpr());
+        if (!T.isNull())
+          return QualType(T->getPointeeOrArrayElementType(), 0);
+      }
+    }
+    // If `e1` has a bounds-safe interface type that is a pointer to T and
+    // `e2` is an integer, then `e1[e2]` and `e2[e1]` have bounds-safe
+    // interface type T.
+    else if (ArraySubscriptExpr *Array = dyn_cast<ArraySubscriptExpr>(LHSExpr)) {
+      QualType T = GetCheckedCRValueInteropType(Array->getBase());
+      if (!T.isNull())
+        return QualType(T->getPointeeOrArrayElementType(), 0);
+    }
   }
 
   if (D)
     return Context.getInteropTypeAndAdjust(D->getInteropTypeExpr(), IsParam);
   else
     return QualType();
+}
+
+/// Get the bounds-safe interface type for an rvalue expression, if the
+/// rvalue expression has a bounds-safe interface. Return a null QualType
+/// otherwise.  The rvalue expression may appear as part of the left-hand
+/// side of an assignment - for example, as the subexpression of a pointer
+/// deference or an array subscript.  For rvalue expressions appearing as
+/// part of the left-hand side of an assignment, only lvalue-to-rvalue casts
+/// and pointer arithmetic have bounds-safe interfaces.
+QualType Sema::GetCheckedCRValueInteropType(ExprResult RHS) {
+  if (!RHS.isInvalid()) {
+    Expr *RHSExpr = RHS.get()->IgnoreParens();
+    // If `e` has bounds-safe interface type T, then `LValueToRValue(e)`
+    // has bounds-safe interface type T.
+    if (CastExpr *Cast = dyn_cast<CastExpr>(RHSExpr)) {
+      if (Cast->getCastKind() == CastKind::CK_LValueToRValue)
+        return GetCheckedCLValueInteropType(Cast->getSubExpr());
+    }
+    // If `p` is a pointer with bounds-safe interface type T and `i` is an
+    // integer, then `p +/- i` and `i +/- p` have bounds-safe interface type T.
+    else if (BinaryOperator *Binary = dyn_cast<BinaryOperator>(RHSExpr)) {
+      if (BinaryOperator::isAdditiveOp(Binary->getOpcode())) {
+        Expr *Left = Binary->getLHS();
+        Expr *Right = Binary->getRHS();
+        if (Left->getType()->isPointerType() &&
+            Right->getType()->isIntegerType())
+          return GetCheckedCRValueInteropType(Left);
+        else if (Right->getType()->isPointerType() &&
+                 Left->getType()->isIntegerType())
+          return GetCheckedCRValueInteropType(Right);
+      }
+    }
+  }
+
+  return QualType();
 }
 
 QualType Sema::InvalidOperands(SourceLocation Loc, ExprResult &LHS,
@@ -9708,19 +9781,21 @@ QualType Sema::CheckRemainderOperands(
 /// Diagnose invalid arithmetic on two void pointers.
 static void diagnoseArithmeticOnTwoVoidPointers(Sema &S, SourceLocation Loc,
                                                 Expr *LHSExpr, Expr *RHSExpr) {
-  bool isCheckedPointerType = LHSExpr->getType()->isCheckedPointerType() ||
-    RHSExpr->getType()->isCheckedPointerType();
-  S.Diag(Loc, S.getLangOpts().CPlusPlus || isCheckedPointerType
-                ? diag::err_typecheck_pointer_arith_void_type
-                : diag::ext_gnu_void_ptr)
-    << 1 /* two pointers */ << LHSExpr->getSourceRange()
-                            << RHSExpr->getSourceRange();
+  bool isCheckedPointerType = (LHSExpr->getType()->isCheckedPointerType() ||
+                               RHSExpr->getType()->isCheckedPointerType()) &&
+                              !S.getLangOpts().CheckedCConverter;
+    S.Diag(Loc, S.getLangOpts().CPlusPlus || isCheckedPointerType
+                    ? diag::err_typecheck_pointer_arith_void_type
+                    : diag::ext_gnu_void_ptr)
+        << 1 /* two pointers */ << LHSExpr->getSourceRange()
+        << RHSExpr->getSourceRange();
 }
 
 /// Diagnose invalid arithmetic on a void pointer.
 static void diagnoseArithmeticOnVoidPointer(Sema &S, SourceLocation Loc,
                                             Expr *Pointer) {
-  bool isCheckedPointerType = Pointer->getType()->isCheckedPointerType();
+  bool isCheckedPointerType = Pointer->getType()->isCheckedPointerType() &&
+                              !S.getLangOpts().CheckedCConverter;
   S.Diag(Loc, S.getLangOpts().CPlusPlus || isCheckedPointerType
                 ? diag::err_typecheck_pointer_arith_void_type
                 : diag::ext_gnu_void_ptr)
@@ -9816,7 +9891,7 @@ static bool checkArithmeticOpPointerOperand(Sema &S, SourceLocation Loc,
 
   if (!ResType->isAnyPointerType()) return true;
 
-  if (ResType->isCheckedPointerPtrType()) {
+  if (ResType->isCheckedPointerPtrType() && !S.getLangOpts().CheckedCConverter) {
      diagnoseArithmeticOnPtrPointerType(S, Loc, Operand);
      return false;
   }
@@ -9878,8 +9953,9 @@ static bool checkArithmeticBinOpPointerOperands(Sema &S, SourceLocation Loc,
     else diagnoseArithmeticOnTwoVoidPointers(S, Loc, LHSExpr, RHSExpr);
 
     return !(S.getLangOpts().CPlusPlus ||
-             LHSExpr->getType()->isCheckedPointerType() ||
-             RHSExpr->getType()->isCheckedPointerType());
+            ((LHSExpr->getType()->isCheckedPointerType() ||
+             RHSExpr->getType()->isCheckedPointerType()) &&
+             !S.getLangOpts().CheckedCConverter));
   }
 
   bool isLHSFuncPtr = isLHSPointer && LHSPointeeTy->isFunctionType();
@@ -9891,7 +9967,7 @@ static bool checkArithmeticBinOpPointerOperands(Sema &S, SourceLocation Loc,
     else diagnoseArithmeticOnTwoFunctionPointers(S, Loc, LHSExpr, RHSExpr);
 
     // We don't have to check if the function pointers are checked. Only _Ptrs to
-    // function types are allowd and arithmetic on _Ptrs is covered by another
+    // function types are allowed and arithmetic on _Ptrs is covered by another
     // diagnostic.
     return !S.getLangOpts().CPlusPlus;
   }
@@ -12170,7 +12246,7 @@ QualType Sema::CheckAssignmentOperands(Expr *LHSExpr, ExprResult &RHS,
     QualType LHSTy(LHSType);
     QualType LHSInteropType;
     if (getLangOpts().CheckedC && LHSTy->isUncheckedPointerType())
-      LHSInteropType = GetCheckedCInteropType(LHSExpr);
+      LHSInteropType = GetCheckedCLValueInteropType(LHSExpr);
     ConvTy = CheckSingleAssignmentConstraints(LHSTy, RHS, /*Diagnose=*/true,
                                               /*DiagnoseCFAudited=*/false,
                                               /*ConvertRHS=*/true,

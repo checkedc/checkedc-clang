@@ -96,6 +96,9 @@ namespace clang {
   // 2. any variable used in the bounds expr of V is assigned to in S.
   using StmtDeclSetTy = llvm::DenseMap<const Stmt *, DeclSetTy>;
 
+  // StmtSet denotes a set of Stmts.
+  using StmtSet = llvm::SmallPtrSet<const Stmt *, 16>;
+
   class BoundsAnalysis {
   private:
     Sema &S;
@@ -115,6 +118,30 @@ namespace clang {
       // The set of all variables used in bounds expr for each ntptr in the
       // block.
       BoundsVarTy BoundsVars;
+
+      // To compute In[B] we compute the intersection of Out[B*->B], where B*
+      // are all preds of B. When there is a back edge from block B' to B (for
+      // example in loops), the Out set for block B' will be empty when we
+      // first enter B. As a result, the intersection operation would always
+      // result in an empty In set for B.
+
+      // So to handle this, we consider the In and Out sets for all blocks to
+      // have a default value of "Top" which indicates a set of all members of
+      // the Gen set. In this way we ensure that the intersection does not
+      // result in an empty set even if the Out set for a block is actually
+      // empty.
+
+      // But we also need to handle the case where there is an unconditional
+      // jump into a block (for example, as a result of a goto). In this case,
+      // we cannot widen the bounds because we would not have checked for the
+      // ptr dereference. So in this case we want the intersection to result in
+      // an empty set.
+
+      // So we mark the In and Out sets of the Entry block as "empty".
+      // IsInSetEmpty and IsOutSetEmpty indicate whether the In and Out sets
+      // for a block have been marked as "empty".
+      bool IsInSetEmpty;
+      llvm::DenseMap<const CFGBlock *, bool> IsOutSetEmpty;
 
       ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
     };
@@ -160,7 +187,9 @@ namespace clang {
 
     // Run the dataflow analysis to widen bounds for ntptr's.
     // @param[in] FD is the current function.
-    void WidenBounds(FunctionDecl *FD);
+    // @param[in] NestedStmts is a set of top-level statements that are
+    // nested in another top-level statement.
+    void WidenBounds(FunctionDecl *FD, StmtSet NestedStmts);
 
     // Get the widened bounds for block B.
     // @param[in] B is the block for which the widened bounds are needed.
@@ -179,7 +208,7 @@ namespace clang {
     // @param[in] B is the current CFGBlock.
     // return A mapping of Stmts to variables whose bounds are killed by the
     // Stmt.
-    StmtDeclSetTy GetKillSet(const clang::CFGBlock *B);
+    StmtDeclSetTy GetKilledBounds(const clang::CFGBlock *B);
 
   private:
     // Compute Gen set for each edge in the CFG. If there is an edge B1->B2 and
@@ -190,7 +219,9 @@ namespace clang {
     // Compute Kill set for each block in BlockMap. For a block B, if a
     // variable V is assigned to in B by Stmt S, then the pair S:V is added to
     // the Kill set for the block.
-    void ComputeKillSets();
+    // @param[in] NestedStmts is a set of top-level statements that are
+    // nested in another top-level statement.
+    void ComputeKillSets(StmtSet NestedStmts);
 
     // Compute In set for each block in BlockMap. In[B1] = n Out[B*->B1], where
     // B* are all preds of B1.
@@ -290,14 +321,20 @@ namespace clang {
     // @param[in] FD is the current function.
     void CollectNtPtrsInScope(FunctionDecl *FD);
 
-    // If variable V is killed by Stmt S in Block B, add S:V pair to EB->Kill.
+    // If variable V is killed by Stmt S in Block B, add TopLevelStmt:V pair
+    // to EB->Kill, where TopLevelStmt is the top-level Stmt that contains S.
     // @param[in] EB is the ElevatedCFGBlock for the current block.
+    // @param[in] TopLevelStmt is the top-level Stmt in the block.
     // @param[in] S is the current Stmt in the block.
-    void FillKillSet(ElevatedCFGBlock *EB, const Stmt *S);
+    void FillKillSet(ElevatedCFGBlock *EB, const Stmt *TopLevelStmt, const Stmt *S);
 
     // Initialize the In and Out sets for all blocks, except the Entry block,
     // as Top.
     void InitInOutSets();
+
+    // Check if the switch case label is null.
+    // @param[in] EB is the ElevatedCFGBlock for the current block.
+    bool CheckIsSwitchCaseNull(ElevatedCFGBlock *EB);
 
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
