@@ -78,7 +78,7 @@ bool functionHasVarArgs(clang::FunctionDecl *FD);
 bool isFunctionAllocator(std::string FuncName);
 
 // Is the given variable built  in type?
-bool isPointerType(clang::VarDecl *VD);
+bool isPointerType(clang::ValueDecl *VD);
 
 // Check if provided type is a var arg type?
 bool isVarArgType(const std::string &TypeName);

@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 //
-//===----------------------------------------------------------------------===//
 #include "clang/CConv/CCGlobalOptions.h"
 #include "clang/CConv/RewriteUtils.h"
 #include "clang/CConv/Utils.h"
@@ -19,9 +18,11 @@
 #include <sstream>
 #include "clang/CConv/StructInit.h"
 #include "clang/CConv/MappingVisitor.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 
 using namespace llvm;
 using namespace clang;
+
 
 // This function is the public entry point for declaration rewriting.
 void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
@@ -110,8 +111,10 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
   // Build sets of variables that are declared in the same statement so we can
   // rewrite things like int x, *y, **z;
   GlobalVariableGroups GVG(R.getSourceMgr());
+  FieldFinder FF(GVG);
   for (const auto &D : TUD->decls())
-    GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
+    GVG.addGlobalDecl(dyn_cast<VarDecl>(D)),
+      FF.TraverseDecl(D);
 
   // Do the declaration rewriting
   DeclRewriter DeclR(R, Context, GVG);
@@ -146,9 +149,10 @@ void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
     } else if (auto *FR = dynamic_cast<FunctionDeclReplacement*>(N)) {
       rewriteFunctionDecl(FR);
     } else if (auto *FdR = dynamic_cast<FieldDeclReplacement*>(N)) {
-      SourceRange SR = FdR->getDecl()->getSourceRange();
-      if (canRewrite(R, SR))
-        R.ReplaceText(SR, FdR->getReplacement());
+      rewriteFieldDecl(FdR, ToRewrite);
+      // SourceRange SR = FdR->getDecl()->getSourceRange();
+      // if (canRewrite(R, SR))
+      //   R.ReplaceText(SR, FdR->getReplacement());
     }
   }
 }
@@ -173,6 +177,130 @@ void DeclRewriter::rewriteParmVarDecl(ParmVarDeclReplacement *N) {
       if (canRewrite(R, TR))
         R.ReplaceText(TR, N->getReplacement());
     }
+}
+
+void DeclRewriter::rewriteFieldDecl(FieldDeclReplacement *N, RSet &ToRewrite) {
+  FieldDecl *FD = N->getDecl();
+  std::string SRewrite = N->getReplacement();
+  if (Verbose) {
+    errs() << "FieldDecl at:\n";
+    if (FD->getParent())
+      FD->getParent()->dump();
+  }
+  SourceRange TR = FD->getSourceRange();
+
+  // Is it a variable type? This is the easy case, we can re-write it
+  // locally, at the site of the declaration.
+  if (isSingleDeclaration(N)) {
+    if (canRewrite(R, TR)) {
+      R.ReplaceText(TR, SRewrite);
+    } else {
+      // This can happen if SR is within a macro. If that is the case,
+      // maybe there is still something we can do because Decl refers
+      // to a non-macro line.
+
+      SourceRange Possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()),
+                           FD->getLocation());
+
+      if (canRewrite(R, Possible)) {
+        R.ReplaceText(Possible, SRewrite);
+        std::string NewStr = " " + FD->getName().str();
+        R.InsertTextAfter(FD->getLocation(), NewStr);
+      } else {
+        if (Verbose) {
+          errs() << "Still don't know how to re-write VarDecl\n";
+          FD->dump();
+          errs() << "at\n";
+          //TODO ad debug info
+          errs() << "with " << SRewrite << "\n";
+        }
+      }
+    }
+  } else if (!isSingleDeclaration(N) &&
+             Skip.find(N) == Skip.end()) {
+    // Hack time!
+    // Sometimes, like in the case of a decl on a single line, we'll need to
+    // do multiple NewTyps at once. In that case, in the inner loop, we'll
+    // re-scan and find all of the NewTyps related to that line and do
+    // everything at once. That means sometimes we'll get NewTyps that
+    // we don't want to process twice. We'll skip them here.
+   
+    // Step 1: get the re-written types.
+    RSet RewritesForThisDecl(DComp(R.getSourceMgr()));
+    auto I = ToRewrite.find(N);
+    while (I != ToRewrite.end()) {
+      auto *Tmp = dynamic_cast<FieldDeclReplacement *>(*I);
+      if (Tmp != nullptr && areDeclarationsOnSameLine(N, Tmp))
+        RewritesForThisDecl.insert(Tmp);
+      ++I;
+    }
+
+    // Step 2: Remove the original line from the program.
+    SourceLocation EndOfLine = deleteAllDeclarationsOnLine(N);
+
+    // Step 3: For each decl in the original, build up a new string
+    //         and if the original decl was re-written, write that
+    //         out instead (WITH the initializer).
+    std::string NewMultiLineDeclS = "";
+    raw_string_ostream NewMlDecl(NewMultiLineDeclS);
+    std::set<Decl *> SameLineDecls;
+    getDeclsOnSameLine(N, SameLineDecls);
+
+    for (const auto &DL : SameLineDecls) {
+      FieldDecl *FDL = dyn_cast<FieldDecl>(DL);
+      if (FDL == nullptr) {
+        // Example:
+        //        struct {
+        //           const wchar_t *start;
+        //            const wchar_t *end;
+        //        } field[6], name;
+        // we cannot handle this.
+        errs()
+            << "Expected a variable declaration but got an invalid AST node\n";
+        DL->dump();
+        continue;
+      }
+      assert(FDL != nullptr);
+
+      DeclReplacement *SameLineReplacement;
+      bool Found = false;
+      for (const auto &NLT : RewritesForThisDecl)
+        if (NLT->getDecl() == DL) {
+          SameLineReplacement = NLT;
+          Found = true;
+          break;
+        }
+
+      if (Found) {
+        NewMlDecl << SameLineReplacement->getReplacement();
+        NewMlDecl << ";\n";
+      } else {
+        DL->print(NewMlDecl);
+        NewMlDecl << ";\n";
+      }
+    }
+
+    // Step 4: Write out the string built up in step 3.
+    R.InsertTextAfter(EndOfLine, NewMlDecl.str());
+
+    // Step 5: Be sure and skip all of the NewTyps that we dealt with
+    //         during this time of hacking, by adding them to the
+    //         skip set.
+
+    for (const auto &TN : RewritesForThisDecl)
+      Skip.insert(TN);
+  } else {
+    if (Verbose) {
+      errs() << "Don't know how to re-write VarDecl\n";
+      FD->dump();
+      errs() << "at\n";
+      if (N->getStatement())
+        N->getStatement()->dump();
+      errs() << "with " << N->getReplacement() << "\n";
+    }
+  }
+
+  return;
 }
 
 void DeclRewriter::rewriteVarDecl(VarDeclReplacement *N, RSet &ToRewrite) {
@@ -353,6 +481,18 @@ bool DeclRewriter::areDeclarationsOnSameLine(VarDeclReplacement *N1,
   return false;
 }
 
+bool DeclRewriter::areDeclarationsOnSameLine(FieldDeclReplacement *N1,
+                                             FieldDeclReplacement *N2) {
+  //TODO stub
+  FieldDecl *FD1 = N1->getDecl();
+  FieldDecl *FD2 = N2->getDecl();
+  if(FD1 && FD2) {
+    auto &FDGroup = GP.getFieldsOnSameLine(FD2);
+    return FDGroup.find(FD2) != FDGroup.end();
+  }
+  return false;
+}
+
 bool DeclRewriter::isSingleDeclaration(VarDeclReplacement *N) {
   DeclStmt *Stmt = N->getStatement();
   if (Stmt == nullptr) {
@@ -363,6 +503,20 @@ bool DeclRewriter::isSingleDeclaration(VarDeclReplacement *N) {
   }
 }
 
+bool DeclRewriter::isSingleDeclaration(FieldDeclReplacement *N) {
+  //TODO stub
+  auto &FDGroup = GP.getFieldsOnSameLine(N->getDecl());
+  return FDGroup.size() == 1;
+}
+
+void DeclRewriter::getDeclsOnSameLine(FieldDeclReplacement *D,
+                                      std::set<Decl *> &Decls) {
+  //TODO stub
+  Decls.insert(GP.getFieldsOnSameLine(D->getDecl()).begin(),
+               GP.getFieldsOnSameLine(D->getDecl()).end());
+  return;
+}
+
 void DeclRewriter::getDeclsOnSameLine(VarDeclReplacement *D,
                                       std::set<Decl *> &Decls) {
   if (D->getStatement() != nullptr)
@@ -370,6 +524,22 @@ void DeclRewriter::getDeclsOnSameLine(VarDeclReplacement *D,
   else
     Decls.insert(GP.getVarsOnSameLine(D->getDecl()).begin(),
                  GP.getVarsOnSameLine(D->getDecl()).end());
+}
+
+SourceLocation DeclRewriter::deleteAllDeclarationsOnLine
+    (FieldDeclReplacement *DR) {
+  //TODO stub
+  SourceLocation BLoc;
+  SourceManager &SM = R.getSourceMgr();
+  // Remove all fields on the line
+  for (auto *D : GP.getFieldsOnSameLine(DR->getDecl())) {
+    SourceRange ToDel = D->getSourceRange();
+    if (BLoc.isInvalid() ||
+        SM.isBeforeInTranslationUnit(ToDel.getBegin(), BLoc))
+      BLoc = ToDel.getBegin();
+    R.RemoveText(D->getSourceRange());
+  }
+  return BLoc;
 }
 
 SourceLocation DeclRewriter::deleteAllDeclarationsOnLine
@@ -546,7 +716,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     // Save the modified function signature.
     if(FD->isStatic()) {
       auto FileName = PersistentSourceLoc::mkPSL(FD, *Context).getFileName();
-	  FuncName = FileName + "::" + FuncName;
+      FuncName = FileName + "::" + FuncName;
     }
     ModifiedFuncSignatures[FuncName] = NewSig;
   }
@@ -564,4 +734,9 @@ std::string FunctionDeclBuilder::getExistingIType(ConstraintVariable *DeclC) {
 // Check if the function is handled by this visitor.
 bool FunctionDeclBuilder::isFunctionVisited(string FuncName) {
   return VisitedSet.find(FuncName) != VisitedSet.end();
+}
+
+bool FieldFinder::VisitFieldDecl(FieldDecl *FD) {
+  GVG.addGlobalFieldDecl(FD);
+  return true;
 }

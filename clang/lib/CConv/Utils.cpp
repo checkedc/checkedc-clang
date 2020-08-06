@@ -171,7 +171,7 @@ float getTimeSpentInSeconds(clock_t StartTime) {
   return float(clock() - StartTime)/CLOCKS_PER_SEC;
 }
 
-bool isPointerType(clang::VarDecl *VD) {
+bool isPointerType(clang::ValueDecl *VD) {
   return VD->getType().getTypePtr()->isPointerType();
 }
 

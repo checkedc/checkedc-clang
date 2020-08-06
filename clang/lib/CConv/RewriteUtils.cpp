@@ -110,23 +110,62 @@ void GlobalVariableGroups::addGlobalDecl(VarDecl *VD,
   }
 }
 
+void GlobalVariableGroups::addGlobalFieldDecl(FieldDecl *FD,
+                                              std::set<FieldDecl *> *FDSet) {
+  if (FD && GlobFieldGroups.find(FD) == GlobFieldGroups.end()) {
+    if (FDSet == nullptr)
+      FDSet = new std::set<FieldDecl *>();
+    FDSet->insert(FD);
+    GlobFieldGroups[FD] = FDSet;
+    // Process the next decl.
+    Decl *NDecl = FD->getNextDeclInContext();
+    if (isa_and_nonnull<FieldDecl>(NDecl)) {
+      PresumedLoc OrigDeclLoc =
+          SM.getPresumedLoc(FD->getSourceRange().getBegin());
+      PresumedLoc NewDeclLoc =
+          SM.getPresumedLoc(NDecl->getSourceRange().getBegin());
+      // Check if both declarations are on the same line.
+      if (OrigDeclLoc.isValid() && NewDeclLoc.isValid() &&
+          !strcmp(OrigDeclLoc.getFilename(), NewDeclLoc.getFilename()) &&
+          OrigDeclLoc.getLine() == NewDeclLoc.getLine())
+        addGlobalFieldDecl(dyn_cast<FieldDecl>(NDecl), FDSet);
+    }
+  }
+}
+
 std::set<VarDecl *> &GlobalVariableGroups::getVarsOnSameLine(VarDecl *VD) {
   assert (GlobVarGroups.find(VD) != GlobVarGroups.end() &&
          "Expected to find the group.");
   return *(GlobVarGroups[VD]);
 }
 
+std::set<FieldDecl *> &GlobalVariableGroups::getFieldsOnSameLine(FieldDecl *FD) {
+  assert (GlobFieldGroups.find(FD) != GlobFieldGroups.end() &&
+         "Expected to find the group.");
+  return *(GlobFieldGroups[FD]);
+}
+
 GlobalVariableGroups::~GlobalVariableGroups() {
-  std::set<std::set<VarDecl *> *> Visited;
+  std::set<std::set<VarDecl *> *> VVisited;
+  std::set<std::set<FieldDecl *> *> FVisited;
   // Free each of the group.
   for (auto &currV : GlobVarGroups) {
     // Avoid double free by caching deleted sets.
-    if (Visited.find(currV.second) != Visited.end())
+    if (VVisited.find(currV.second) != VVisited.end())
       continue;
-    Visited.insert(currV.second);
+    VVisited.insert(currV.second);
     delete (currV.second);
   }
   GlobVarGroups.clear();
+
+  for (auto &currF : GlobFieldGroups) {
+    // Avoid double free by caching deleted sets.
+    if (FVisited.find(currF.second) != FVisited.end())
+      continue;
+    FVisited.insert(currF.second);
+    delete (currF.second);
+  }
+  GlobFieldGroups.clear();
 }
 
 // Test to see if we can rewrite a given SourceRange.

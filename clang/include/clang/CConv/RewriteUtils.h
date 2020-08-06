@@ -135,14 +135,17 @@ class GlobalVariableGroups {
 public:
   GlobalVariableGroups(SourceManager &SourceMgr) : SM(SourceMgr) { }
   void addGlobalDecl(VarDecl *VD, std::set<VarDecl *> *VDSet = nullptr);
+  void addGlobalFieldDecl(FieldDecl *VD, std::set<FieldDecl *> *VDSet = nullptr);
 
   std::set<VarDecl *> &getVarsOnSameLine(VarDecl *VD);
+  std::set<FieldDecl *> &getFieldsOnSameLine(FieldDecl *FD);
 
   virtual ~GlobalVariableGroups();
 
 private:
   SourceManager &SM;
   std::map<VarDecl *, std::set<VarDecl *>*> GlobVarGroups;
+  std::map<FieldDecl *, std::set<FieldDecl *>*> GlobFieldGroups;
 };
 
 // Class that handles rewriting bounds information for all the
