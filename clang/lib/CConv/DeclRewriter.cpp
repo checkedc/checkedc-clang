@@ -520,14 +520,15 @@ void DeclRewriter::getDeclsOnSameLine(FieldDeclReplacement *D,
 void DeclRewriter::getDeclsOnSameLine(VarDeclReplacement *D,
                                       std::set<Decl *> &Decls) {
   if (D->getStatement() != nullptr)
-    Decls.insert(D->getStatement()->decls().begin(), D->getStatement()->decls().end());
+    Decls.insert(D->getStatement()->decls().begin(),
+                 D->getStatement()->decls().end());
   else
     Decls.insert(GP.getVarsOnSameLine(D->getDecl()).begin(),
                  GP.getVarsOnSameLine(D->getDecl()).end());
 }
 
-SourceLocation DeclRewriter::deleteAllDeclarationsOnLine
-    (FieldDeclReplacement *DR) {
+SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(FieldDeclReplacement *DR)
+{
   //TODO stub
   SourceLocation BLoc;
   SourceManager &SM = R.getSourceMgr();
@@ -542,8 +543,8 @@ SourceLocation DeclRewriter::deleteAllDeclarationsOnLine
   return BLoc;
 }
 
-SourceLocation DeclRewriter::deleteAllDeclarationsOnLine
-    (VarDeclReplacement *DR) {
+SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(VarDeclReplacement *DR)
+{
   if (DeclStmt *Stmt = DR->getStatement()) {
     // If there is a statement, delete the entire statement.
     R.RemoveText(Stmt->getSourceRange());
