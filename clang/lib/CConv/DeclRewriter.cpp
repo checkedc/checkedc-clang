@@ -112,9 +112,10 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
   // rewrite things like int x, *y, **z;
   GlobalVariableGroups GVG(R.getSourceMgr());
   FieldFinder FF(GVG);
-  for (const auto &D : TUD->decls())
-    GVG.addGlobalDecl(dyn_cast<VarDecl>(D)),
-      FF.TraverseDecl(D);
+  for (const auto &D : TUD->decls()) {
+    GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
+    FF.TraverseDecl(D);
+  }
 
   // Do the declaration rewriting
   DeclRewriter DeclR(R, Context, GVG);
@@ -389,7 +390,8 @@ void DeclRewriter::getDeclsOnSameLine(DeclReplacementTempl<D> *N,
 }
 
 template<typename D>
-SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(DeclReplacementTempl<D> *DR)
+SourceLocation
+DeclRewriter::deleteAllDeclarationsOnLine(DeclReplacementTempl<D> *DR)
 {
   if (DeclStmt *Stmt = DR->getStatement()) {
     // If there is a statement, delete the entire statement.
@@ -404,7 +406,16 @@ SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(DeclReplacementTempl<D>
       if (BLoc.isInvalid() ||
           SM.isBeforeInTranslationUnit(ToDel.getBegin(), BLoc))
         BLoc = ToDel.getBegin();
-      R.RemoveText(SD->getSourceRange());
+      if(dyn_cast<VarDecl>(DR->getDecl())) {
+        R.RemoveText(SD->getSourceRange());
+      } else if (dyn_cast<FieldDecl>(DR->getDecl())) {
+        // If it's a FielDecl make sure to grab the end semicolon
+        auto end = Lexer::getLocForEndOfToken(SD->getEndLoc(), 0,
+                                              SM, A.getLangOpts());
+        R.RemoveText(SourceRange(SD->getBeginLoc(), end));
+      } else {
+        llvm_unreachable("Only VarDecls or FieldDecls should be passed here");
+      }
     }
     return BLoc;
   }
