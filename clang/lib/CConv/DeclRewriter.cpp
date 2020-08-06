@@ -111,10 +111,10 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
   // Build sets of variables that are declared in the same statement so we can
   // rewrite things like int x, *y, **z;
   GlobalVariableGroups GVG(R.getSourceMgr());
-  FieldFinder FF(GVG);
   for (const auto &D : TUD->decls()) {
     GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
-    FF.TraverseDecl(D);
+    //Search through the AST for fields that occur on the same line
+    FieldFinder::gatherSameLineFields(GVG, D);
   }
 
   // Do the declaration rewriting
@@ -596,4 +596,9 @@ bool FunctionDeclBuilder::isFunctionVisited(string FuncName) {
 bool FieldFinder::VisitFieldDecl(FieldDecl *FD) {
   GVG.addGlobalDecl(FD);
   return true;
+}
+
+void FieldFinder::gatherSameLineFields(GlobalVariableGroups &GVG, Decl *D) {
+  FieldFinder FF(GVG);
+  FF.TraverseDecl(D);
 }

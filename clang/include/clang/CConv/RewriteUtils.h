@@ -61,7 +61,6 @@ protected:
 typedef DeclReplacementTempl<VarDecl> VarDeclReplacement;
 typedef DeclReplacementTempl<ParmVarDecl> ParmVarDeclReplacement;
 typedef DeclReplacementTempl<FieldDecl> FieldDeclReplacement;
-typedef DeclReplacementTempl<Decl> DynDeclReplacement;
 
 class FunctionDeclReplacement : public DeclReplacementTempl<FunctionDecl> {
 public:

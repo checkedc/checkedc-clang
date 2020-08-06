@@ -106,6 +106,8 @@ class FieldFinder : public RecursiveASTVisitor<FieldFinder> {
 
     bool VisitFieldDecl(FieldDecl *FD);
 
+    static void gatherSameLineFields(GlobalVariableGroups &GVG, Decl* D);
+
   private:
     GlobalVariableGroups &GVG;
 };
