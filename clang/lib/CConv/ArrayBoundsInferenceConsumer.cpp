@@ -509,7 +509,7 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 }
 
 
-bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
+bool LocalVarABVisitor::HandleBinAssign(BinaryOperator *O) {
   Expr *LHS = O->getLHS()->IgnoreParenCasts();
   Expr *RHS = O->getRHS()->IgnoreParenCasts();
   ConstraintResolver CR(Info, Context);
@@ -536,16 +536,17 @@ void LocalVarABVisitor::addUsedParmVarDecl(Expr *CE) {
       NonLengthParameters.insert(PVD);
 }
 
-bool LocalVarABVisitor::VisitIfStmt(IfStmt *IFS) {
-  if (BinaryOperator *BO = dyn_cast<BinaryOperator>(IFS->getCond())) {
+bool LocalVarABVisitor::VisitBinaryOperator(BinaryOperator *BO) {
     BinaryOperator::Opcode BOpcode = BO->getOpcode();
     if (BOpcode == BinaryOperator::Opcode::BO_EQ ||
         BOpcode == BinaryOperator::Opcode::BO_NE) {
       addUsedParmVarDecl(BO->getLHS());
       addUsedParmVarDecl(BO->getRHS());
     }
-  }
-  return true;
+    if (BOpcode == BinaryOperator::Opcode::BO_Assign) {
+      HandleBinAssign(BO);
+    }
+    return true;
 }
 
 bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
