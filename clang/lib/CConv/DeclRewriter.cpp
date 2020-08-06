@@ -208,10 +208,10 @@ void DeclRewriter::rewriteFieldDecl(FieldDeclReplacement *N, RSet &ToRewrite) {
         R.InsertTextAfter(FD->getLocation(), NewStr);
       } else {
         if (Verbose) {
-          errs() << "Still don't know how to re-write VarDecl\n";
+          errs() << "Still don't know how to re-write FieldDecl\n";
           FD->dump();
           errs() << "at\n";
-          //TODO ad debug info
+          FD->getParent()->dump();
           errs() << "with " << SRewrite << "\n";
         }
       }
@@ -483,7 +483,6 @@ bool DeclRewriter::areDeclarationsOnSameLine(VarDeclReplacement *N1,
 
 bool DeclRewriter::areDeclarationsOnSameLine(FieldDeclReplacement *N1,
                                              FieldDeclReplacement *N2) {
-  //TODO stub
   FieldDecl *FD1 = N1->getDecl();
   FieldDecl *FD2 = N2->getDecl();
   if(FD1 && FD2) {
@@ -504,14 +503,12 @@ bool DeclRewriter::isSingleDeclaration(VarDeclReplacement *N) {
 }
 
 bool DeclRewriter::isSingleDeclaration(FieldDeclReplacement *N) {
-  //TODO stub
   auto &FDGroup = GP.getFieldsOnSameLine(N->getDecl());
   return FDGroup.size() == 1;
 }
 
 void DeclRewriter::getDeclsOnSameLine(FieldDeclReplacement *D,
                                       std::set<Decl *> &Decls) {
-  //TODO stub
   Decls.insert(GP.getFieldsOnSameLine(D->getDecl()).begin(),
                GP.getFieldsOnSameLine(D->getDecl()).end());
   return;
@@ -529,7 +526,6 @@ void DeclRewriter::getDeclsOnSameLine(VarDeclReplacement *D,
 
 SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(FieldDeclReplacement *DR)
 {
-  //TODO stub
   SourceLocation BLoc;
   SourceManager &SM = R.getSourceMgr();
   // Remove all fields on the line
