@@ -16,6 +16,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Rewrite/Core/Rewriter.h"
 #include "clang/CConv/RewriteUtils.h"
 
@@ -57,15 +58,15 @@ private:
   // Rewrite a specific variable declaration using the replacement string in the
   // DAndReplace structure. Each of these functions is specialized to handling
   // one subclass of declarations.
-  void rewriteVarDecl(VarDeclReplacement *N, RSet &ToRewrite);
   void rewriteParmVarDecl(ParmVarDeclReplacement *N);
+  template<typename DT>
+  void rewriteMultiDecl(DeclReplacementTempl<DT> *N, RSet &ToRewrite);
   void rewriteFunctionDecl(FunctionDeclReplacement *N);
-
-  SourceLocation deleteAllDeclarationsOnLine(VarDeclReplacement *N);
-  void getDeclsOnSameLine(VarDeclReplacement *N, std::set<Decl *> &Decls);
-  bool isSingleDeclaration(VarDeclReplacement *N);
-  bool areDeclarationsOnSameLine(VarDeclReplacement *N1,
-                                 VarDeclReplacement *N2);
+  SourceLocation deleteAllDeclarationsOnLine(DeclReplacement *N);
+  void getDeclsOnSameLine(DeclReplacement *N, std::set<Decl *> &Decls);
+  bool isSingleDeclaration(DeclReplacement *N);
+  bool areDeclarationsOnSameLine(DeclReplacement *N1,
+                                 DeclReplacement *N2);
 };
 
 // Visits function declarations and adds entries with their new rewritten
@@ -97,5 +98,17 @@ private:
 
   // Get existing itype string from constraint variables.
   std::string getExistingIType(ConstraintVariable *DeclC);
+};
+
+class FieldFinder : public RecursiveASTVisitor<FieldFinder> {
+  public:
+    FieldFinder(GlobalVariableGroups &GVG) : GVG(GVG) { }
+
+    bool VisitFieldDecl(FieldDecl *FD);
+
+    static void gatherSameLineFields(GlobalVariableGroups &GVG, Decl* D);
+
+  private:
+    GlobalVariableGroups &GVG;
 };
 #endif //LLVM_CLANG_LIB_CCONV_DECLREWRITER_H

@@ -134,15 +134,15 @@ typedef std::set<DeclReplacement *, DComp> RSet;
 class GlobalVariableGroups {
 public:
   GlobalVariableGroups(SourceManager &SourceMgr) : SM(SourceMgr) { }
-  void addGlobalDecl(VarDecl *VD, std::set<VarDecl *> *VDSet = nullptr);
+  void addGlobalDecl(Decl *VD, std::set<Decl *> *VDSet = nullptr);
 
-  std::set<VarDecl *> &getVarsOnSameLine(VarDecl *VD);
+  std::set<Decl *> &getVarsOnSameLine(Decl *VD);
 
   virtual ~GlobalVariableGroups();
 
 private:
   SourceManager &SM;
-  std::map<VarDecl *, std::set<VarDecl *>*> GlobVarGroups;
+  std::map<Decl *, std::set<Decl *>*> GlobVarGroups;
 };
 
 // Class that handles rewriting bounds information for all the

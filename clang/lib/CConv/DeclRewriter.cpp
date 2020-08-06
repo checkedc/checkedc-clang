@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 //
-//===----------------------------------------------------------------------===//
 #include "clang/CConv/CCGlobalOptions.h"
 #include "clang/CConv/RewriteUtils.h"
 #include "clang/CConv/Utils.h"
@@ -19,9 +18,11 @@
 #include <sstream>
 #include "clang/CConv/StructInit.h"
 #include "clang/CConv/MappingVisitor.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 
 using namespace llvm;
 using namespace clang;
+
 
 // This function is the public entry point for declaration rewriting.
 void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
@@ -110,8 +111,11 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
   // Build sets of variables that are declared in the same statement so we can
   // rewrite things like int x, *y, **z;
   GlobalVariableGroups GVG(R.getSourceMgr());
-  for (const auto &D : TUD->decls())
+  for (const auto &D : TUD->decls()) {
     GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
+    //Search through the AST for fields that occur on the same line
+    FieldFinder::gatherSameLineFields(GVG, D);
+  }
 
   // Do the declaration rewriting
   DeclRewriter DeclR(R, Context, GVG);
@@ -142,13 +146,11 @@ void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
       assert(N->getStatement() == nullptr);
       rewriteParmVarDecl(PVR);
     } else if (auto *VR = dynamic_cast<VarDeclReplacement*>(N)) {
-      rewriteVarDecl(VR, ToRewrite);
+      rewriteMultiDecl(VR, ToRewrite);
     } else if (auto *FR = dynamic_cast<FunctionDeclReplacement*>(N)) {
       rewriteFunctionDecl(FR);
     } else if (auto *FdR = dynamic_cast<FieldDeclReplacement*>(N)) {
-      SourceRange SR = FdR->getDecl()->getSourceRange();
-      if (canRewrite(R, SR))
-        R.ReplaceText(SR, FdR->getReplacement());
+      rewriteMultiDecl(FdR, ToRewrite);
     }
   }
 }
@@ -175,30 +177,35 @@ void DeclRewriter::rewriteParmVarDecl(ParmVarDeclReplacement *N) {
     }
 }
 
-void DeclRewriter::rewriteVarDecl(VarDeclReplacement *N, RSet &ToRewrite) {
-  VarDecl *VD = N->getDecl();
+
+template <typename DT>
+void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT> *N, RSet &ToRewrite) {
+  DT *D = N->getDecl();
   std::string SRewrite = N->getReplacement();
   if (Verbose) {
-    errs() << "VarDecl at:\n";
+    errs() << "Decl at:\n";
     if (N->getStatement())
       N->getStatement()->dump();
   }
-  SourceRange TR = VD->getSourceRange();
+  SourceRange TR = D->getSourceRange();
 
   // Is there an initializer? If there is, change TR so that it points
   // to the START of the SourceRange of the initializer text, and drop
   // an '=' token into sRewrite.
-  if (VD->hasInit()) {
-    SourceLocation EqLoc = VD->getInitializerStartLoc();
-    TR.setEnd(EqLoc);
-    SRewrite = SRewrite + " = ";
-  } else {
-    // There is no initializer, lets add it.
-    if (isPointerType(VD) &&
-        (VD->getStorageClass() != StorageClass::SC_Extern))
-      SRewrite = SRewrite + " = ((void *)0)";
-    //MWH -- Solves issue 43. Should make it so we insert NULL if
-    // stdlib.h or stdlib_checked.h is included
+  // Only Vardecls can have initializers
+  if(auto VD = dyn_cast<VarDecl>(D)) {
+    if (VD->hasInit()) {
+      SourceLocation EqLoc = VD->getInitializerStartLoc();
+      TR.setEnd(EqLoc);
+      SRewrite = SRewrite + " = ";
+    } else {
+      // There is no initializer, lets add it.
+      if (isPointerType(VD) &&
+          (VD->getStorageClass() != StorageClass::SC_Extern))
+        SRewrite = SRewrite + " = ((void *)0)";
+      //MWH -- Solves issue 43. Should make it so we insert NULL if
+      // stdlib.h or stdlib_checked.h is included
+    }
   }
 
   // Is it a variable type? This is the easy case, we can re-write it
@@ -212,16 +219,16 @@ void DeclRewriter::rewriteVarDecl(VarDeclReplacement *N, RSet &ToRewrite) {
       // to a non-macro line.
 
       SourceRange Possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()),
-                           VD->getLocation());
+                           D->getLocation());
 
       if (canRewrite(R, Possible)) {
         R.ReplaceText(Possible, SRewrite);
-        std::string NewStr = " " + VD->getName().str();
-        R.InsertTextAfter(VD->getLocation(), NewStr);
+        std::string NewStr = " " + D->getName().str();
+        R.InsertTextAfter(D->getLocation(), NewStr);
       } else {
         if (Verbose) {
           errs() << "Still don't know how to re-write VarDecl\n";
-          VD->dump();
+          D->dump();
           errs() << "at\n";
           if (N->getStatement())
             N->getStatement()->dump();
@@ -242,7 +249,7 @@ void DeclRewriter::rewriteVarDecl(VarDeclReplacement *N, RSet &ToRewrite) {
     RSet RewritesForThisDecl(DComp(R.getSourceMgr()));
     auto I = ToRewrite.find(N);
     while (I != ToRewrite.end()) {
-      auto *Tmp = dynamic_cast<VarDeclReplacement *>(*I);
+      auto *Tmp = dynamic_cast<DeclReplacementTempl<DT> *>(*I);
       if (Tmp != nullptr && areDeclarationsOnSameLine(N, Tmp))
         RewritesForThisDecl.insert(Tmp);
       ++I;
@@ -260,8 +267,8 @@ void DeclRewriter::rewriteVarDecl(VarDeclReplacement *N, RSet &ToRewrite) {
     getDeclsOnSameLine(N, SameLineDecls);
 
     for (const auto &DL : SameLineDecls) {
-      VarDecl *VDL = dyn_cast<VarDecl>(DL);
-      if (VDL == nullptr) {
+      DT *SDL = dyn_cast<DT>(DL);
+      if (SDL == nullptr) {
         // Example:
         //        struct {
         //           const wchar_t *start;
@@ -273,7 +280,7 @@ void DeclRewriter::rewriteVarDecl(VarDeclReplacement *N, RSet &ToRewrite) {
         DL->dump();
         continue;
       }
-      assert(VDL != nullptr);
+      assert(SDL != nullptr);
 
       DeclReplacement *SameLineReplacement;
       bool Found = false;
@@ -286,17 +293,19 @@ void DeclRewriter::rewriteVarDecl(VarDeclReplacement *N, RSet &ToRewrite) {
 
       if (Found) {
         NewMlDecl << SameLineReplacement->getReplacement();
-        if (Expr *E = VDL->getInit()) {
-          NewMlDecl << " = ";
-          E->printPretty(NewMlDecl, nullptr, A.getPrintingPolicy());
-        } else {
-          if (isPointerType(VDL))
-            NewMlDecl << " = ((void *)0)";
+        if (auto VDL = dyn_cast<VarDecl>(SDL)) {
+          if (Expr *E = VDL->getInit()) {
+            NewMlDecl << " = ";
+            E->printPretty(NewMlDecl, nullptr, A.getPrintingPolicy());
+          } else {
+            if (isPointerType(VDL))
+              NewMlDecl << " = ((void *)0)";
+          }
         }
-        NewMlDecl << ";\n";
+        NewMlDecl << (dyn_cast<VarDecl>(SDL) ? ";\n" : "; ");
       } else {
         DL->print(NewMlDecl);
-        NewMlDecl << ";\n";
+        NewMlDecl << (dyn_cast<VarDecl>(SDL) ? ";\n" : "; ");
       }
     }
 
@@ -312,7 +321,7 @@ void DeclRewriter::rewriteVarDecl(VarDeclReplacement *N, RSet &ToRewrite) {
   } else {
     if (Verbose) {
       errs() << "Don't know how to re-write VarDecl\n";
-      VD->dump();
+      D->dump();
       errs() << "at\n";
       if (N->getStatement())
         N->getStatement()->dump();
@@ -334,16 +343,18 @@ void DeclRewriter::rewriteFunctionDecl(FunctionDeclReplacement *N) {
     R.ReplaceText(SR, N->getReplacement());
 }
 
-bool DeclRewriter::areDeclarationsOnSameLine(VarDeclReplacement *N1,
-                                             VarDeclReplacement *N2) {
-  VarDecl *VD1 = N1->getDecl();
-  VarDecl *VD2 = N2->getDecl();
-  if (VD1 && VD2) {
+bool DeclRewriter::areDeclarationsOnSameLine(DeclReplacement *N1,
+                                             DeclReplacement *N2) {
+  Decl *D1 = N1->getDecl();
+  Decl *D2 = N2->getDecl();
+  if (D1 && D2) {
+    // In the event that this is a FieldDecl,
+    // these statements will always be null
     DeclStmt *Stmt1 = N1->getStatement();
     DeclStmt *Stmt2 = N2->getStatement();
     if (Stmt1 == nullptr && Stmt2 == nullptr) {
-      auto &VDGroup = GP.getVarsOnSameLine(VD1);
-      return VDGroup.find(VD2) != VDGroup.end();
+      auto &DGroup = GP.getVarsOnSameLine(D1);
+      return DGroup.find(D2) != DGroup.end();
     } else if (Stmt1 == nullptr || Stmt2 == nullptr) {
       return false;
     } else {
@@ -353,7 +364,8 @@ bool DeclRewriter::areDeclarationsOnSameLine(VarDeclReplacement *N1,
   return false;
 }
 
-bool DeclRewriter::isSingleDeclaration(VarDeclReplacement *N) {
+
+bool DeclRewriter::isSingleDeclaration(DeclReplacement *N) {
   DeclStmt *Stmt = N->getStatement();
   if (Stmt == nullptr) {
     auto &VDGroup = GP.getVarsOnSameLine(N->getDecl());
@@ -363,17 +375,22 @@ bool DeclRewriter::isSingleDeclaration(VarDeclReplacement *N) {
   }
 }
 
-void DeclRewriter::getDeclsOnSameLine(VarDeclReplacement *D,
+
+
+
+void DeclRewriter::getDeclsOnSameLine(DeclReplacement *N,
                                       std::set<Decl *> &Decls) {
-  if (D->getStatement() != nullptr)
-    Decls.insert(D->getStatement()->decls().begin(),
-                 D->getStatement()->decls().end());
+  if (N->getStatement() != nullptr)
+    Decls.insert(N->getStatement()->decls().begin(),
+                 N->getStatement()->decls().end());
   else
-    Decls.insert(GP.getVarsOnSameLine(D->getDecl()).begin(),
-                 GP.getVarsOnSameLine(D->getDecl()).end());
+    Decls.insert(GP.getVarsOnSameLine(N->getDecl()).begin(),
+                 GP.getVarsOnSameLine(N->getDecl()).end());
 }
 
-SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(VarDeclReplacement *DR)
+
+SourceLocation
+DeclRewriter::deleteAllDeclarationsOnLine(DeclReplacement *DR)
 {
   if (DeclStmt *Stmt = DR->getStatement()) {
     // If there is a statement, delete the entire statement.
@@ -383,12 +400,21 @@ SourceLocation DeclRewriter::deleteAllDeclarationsOnLine(VarDeclReplacement *DR)
     SourceLocation BLoc;
     SourceManager &SM = R.getSourceMgr();
     // Remove all vars on the line.
-    for (auto *D : GP.getVarsOnSameLine(DR->getDecl())) {
-      SourceRange ToDel = D->getSourceRange();
+    for (auto *SD : GP.getVarsOnSameLine(DR->getDecl())) {
+      SourceRange ToDel = SD->getSourceRange();
       if (BLoc.isInvalid() ||
           SM.isBeforeInTranslationUnit(ToDel.getBegin(), BLoc))
         BLoc = ToDel.getBegin();
-      R.RemoveText(D->getSourceRange());
+      if(dyn_cast<VarDecl>(DR->getDecl())) {
+        R.RemoveText(SD->getSourceRange());
+      } else if (dyn_cast<FieldDecl>(DR->getDecl())) {
+        // If it's a FielDecl make sure to grab the end semicolon
+        auto end = Lexer::getLocForEndOfToken(SD->getEndLoc(), 0,
+                                              SM, A.getLangOpts());
+        R.RemoveText(SourceRange(SD->getBeginLoc(), end));
+      } else {
+        llvm_unreachable("Only VarDecls or FieldDecls should be passed here");
+      }
     }
     return BLoc;
   }
@@ -547,7 +573,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     // Save the modified function signature.
     if(FD->isStatic()) {
       auto FileName = PersistentSourceLoc::mkPSL(FD, *Context).getFileName();
-	  FuncName = FileName + "::" + FuncName;
+      FuncName = FileName + "::" + FuncName;
     }
     ModifiedFuncSignatures[FuncName] = NewSig;
   }
@@ -565,4 +591,14 @@ std::string FunctionDeclBuilder::getExistingIType(ConstraintVariable *DeclC) {
 // Check if the function is handled by this visitor.
 bool FunctionDeclBuilder::isFunctionVisited(string FuncName) {
   return VisitedSet.find(FuncName) != VisitedSet.end();
+}
+
+bool FieldFinder::VisitFieldDecl(FieldDecl *FD) {
+  GVG.addGlobalDecl(FD);
+  return true;
+}
+
+void FieldFinder::gatherSameLineFields(GlobalVariableGroups &GVG, Decl *D) {
+  FieldFinder FF(GVG);
+  FF.TraverseDecl(D);
 }
