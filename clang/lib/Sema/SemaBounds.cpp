@@ -4025,25 +4025,29 @@ namespace {
 
     // BlameAssignmentWithinStmt prints a diagnostic message that highlights the
     // assignment expression in St that causes V's observed bounds to be unknown
-    // or invalid.  If St is a DeclStmt, St itself and V are highlighted.
-    // BlameAssignmentWithinStmt returns the source location of the blamed
-    // assignment.
-    SourceLocation BlameAssignmentWithinStmt(Stmt *St, 
-                 const VarDecl *V, CheckingState State, unsigned DiagId) const {
+    // or not provably valid.  If St is a DeclStmt, St itself and V are
+    // highlighted.  BlameAssignmentWithinStmt returns the source location of
+    // the blamed assignment.
+    SourceLocation BlameAssignmentWithinStmt(Stmt *St, const VarDecl *V,
+                                             CheckingState State,
+                                             unsigned DiagId) const {
       SourceRange SrcRange = St->getSourceRange();
       auto BDCType = Sema::BoundsDeclarationCheck::BDC_Statement;
-      
-      // For a declaration, the diagnostic message should start at the
-      // location of v rather than the beginning of St.  If the message
-      // starts at the beginning of a declaration T v = e, then extra
+
+      // For a declaration, show the diagnostic message that starts at the
+      // location of v rather than the beginning of St and return.  If the
+      // message starts at the beginning of a declaration T v = e, then extra
       // diagnostics may be emitted for T.
       SourceLocation Loc = St->getBeginLoc();
       if (isa<DeclStmt>(St)) {
         Loc = V->getLocation();
         BDCType = Sema::BoundsDeclarationCheck::BDC_Initialization;
+        S.Diag(Loc, DiagId) << BDCType << V << SrcRange << SrcRange;
+        return Loc;
       }
 
-      // Find the assignment (if it exists) to blame for the error or warning.
+      // If not a declaration, find the assignment (if it exists) in St to blame
+      // for the error or warning.
       auto It = State.BlameAssignments.find(V);
       if (It != State.BlameAssignments.end()) {
         Expr *BlameExpr = It->second;
