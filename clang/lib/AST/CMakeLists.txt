@@ -56,6 +56,7 @@ add_clang_library(clangAST
   OSLog.cpp
   OpenMPClause.cpp
   ParentMap.cpp
+  PreorderAST.cpp
   PrintfFormatString.cpp
   QualTypeNames.cpp
   RawCommentList.cpp

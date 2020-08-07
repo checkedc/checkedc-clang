@@ -6,7 +6,6 @@
 //have any yet.  Add comments where diagnostics will be expected.
 //
 // RUN: %clang_cc1 -Wcheck-bounds-decls -verify -verify-ignore-unexpected=warning -verify-ignore-unexpected=note %s
-// expected-no-diagnostics
 
 //
 // Test bounds declarations involving global variables.
@@ -97,7 +96,7 @@ void f20(int len, _Array_ptr<int> p : count(len), int i) {
 
 void f21(int len, _Array_ptr<int> p : byte_count(len), int i) {
   len = i * sizeof(int), p = alloc(i * sizeof(int)); // correct
-  len = 10;                                          // incorrect
+  len = 10;                                          // expected-error {{inferred bounds for 'p' are unknown after statement}}
 }
 
 void f22(_Array_ptr<int> p : bounds(low, high), _Array_ptr<int> low,
@@ -111,7 +110,8 @@ void f23(int len, _Array_ptr<int> p : count(len)) {
   {
      // Declare a bounds declaration that goes out of scope.
      _Array_ptr<int> t : count(len) = alloc(len * sizeof(int)); // correct
-     len = 5; // incorrect for t and p.
+     len = 5; // expected-error {{inferred bounds for 'p' are unknown after statement}} \
+              // expected-error {{inferred bounds for 't' are unknown after statement}}
   }
 }
 
@@ -123,7 +123,7 @@ void f24(int len, _Array_ptr<int> p : count(len)) {
   {
      int mylen = 0;
      _Array_ptr<int> p : count(mylen) = 0;
-     len = 5;   // incorrect
+     len = 5;   // expected-error {{inferred bounds for 'p' are unknown after statement}}
   }
 }
 
@@ -152,7 +152,7 @@ void f41(int i) {
   int len = 0;
    _Array_ptr<int> p : byte_count(len) = 0;
   len = i * sizeof(int), p = alloc(i * sizeof(int)); // correct
-  len = 10;                                          // incorrect
+  len = 10;                                          // expected-error {{inferred bounds for 'p' are unknown after statement}}
 }
 
 void f42(void) {
@@ -170,7 +170,8 @@ void f43(void)  {
   {
      // Declare a bounds declaration that goes out of scope.
      _Array_ptr<int> t : count(len) = alloc(len * sizeof(int)); // correct
-     len = 5; // incorrect for t and p.
+     len = 5; // expected-error {{inferred bounds for 'p' are unknown after statement}} \
+              // expected-error {{inferred bounds for 't' are unknown after statement}}
   }
 }
 
@@ -181,7 +182,7 @@ void f44(void) {
  {
     int mylen = 0;
     _Array_ptr<int> p : count(mylen) = 0;
-     len = 5;   // incorrect
+     len = 5;   // expected-error {{inferred bounds for 'p' are unknown after statement}}
   }
 }
 
@@ -198,17 +199,17 @@ void f45(int i) {
 
 void f100(int len, _Array_ptr<int> p : count(len), int i) {
   if (len > 1)
-    len--;
+    len--; // expected-error {{inferred bounds for 'p' are unknown after statement}}
 }
 
 void f101(int len, _Array_ptr<int> p : count(len), int i) {
   if (len > 1)
-    --len;
+    --len; // expected-error {{inferred bounds for 'p' are unknown after statement}}
 }
 
 void f102(int len, _Array_ptr<int> p : count(len), int i) {
   if (len > 1)
-    len -= 1;
+    len -= 1; // expected-error {{inferred bounds for 'p' are unknown after statement}}
 }
 
 void f103(int len, _Array_ptr<int> p : count(len), int i) {

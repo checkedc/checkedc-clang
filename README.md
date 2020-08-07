@@ -41,15 +41,6 @@ script to cherry-pick your existing patches to the new monorepo.
 6. Make sure to set the following CMake flag to enable clang in your builds:
   `-DLLVM_ENABLE_PROJECTS=clang`
 
-## We are hiring.
-
-We have positions available for a [Principal Software
-Engineer](https://careers.microsoft.com/us/en/job/725522/Principal-Software-Engineer)
-and a [Senior Software
-Engineer](https://careers.microsoft.com/us/en/job/731826/Senior-Software-Engineer).
-We are looking for an engineer who has production compiler development
-experience and who values shipping software.
-
 ## Trying out Checked C
 
 Programmers are welcome to use Checked C as it is being implemented.  We have

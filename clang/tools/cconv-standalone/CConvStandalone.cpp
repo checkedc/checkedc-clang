@@ -88,6 +88,11 @@ static cl::opt<bool> OptAddCheckedRegions("addcr", cl::desc("Add Checked "
                                        cl::init(false),
                                        cl::cat(ConvertCategory));
 
+static cl::opt<bool> OptDiableCCTypeChecker("disccty",
+                              cl::desc("Do not disable checked c type checker."),
+                              cl::init(false),
+                              cl::cat(ConvertCategory));
+
 static cl::opt<std::string>
     OptBaseDir("base-dir",
             cl::desc("Base directory for the code we're translating"),
@@ -119,6 +124,7 @@ int main(int argc, const char **argv) {
   CcOptions.WildPtrInfoJson = OptWildPtrInfoJson.getValue();
   CcOptions.AddCheckedRegions = OptAddCheckedRegions;
   CcOptions.EnableAllTypes = OptAllTypes;
+  CcOptions.DisableCCTypeChecker = OptDiableCCTypeChecker;
 
   // Create CConv Interface.
   CConvInterface CCInterface(CcOptions,

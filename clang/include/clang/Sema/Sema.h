@@ -5186,7 +5186,8 @@ public:
 
   enum BoundsDeclarationCheck {
       BDC_Assignment,
-      BDC_Initialization
+      BDC_Initialization,
+      BDC_Statement
   };
 
   /// \brief Check that address=of operation is not taking the
@@ -5212,6 +5213,12 @@ public:
   // WarnDynamicCheckAlwaysFails - Adds a warning if an explicit dynamic check
   // will always fail.
   void WarnDynamicCheckAlwaysFails(const Expr *Condition);
+
+  // If the VarDecl D has a byte_count or count bounds expression,
+  // NormalizeBounds expands it to a range bounds expression.  The expanded
+  // range bounds are attached to the VarDecl D to avoid recomputing the
+  // normalized bounds for D.
+  BoundsExpr *NormalizeBounds(const VarDecl *D);
 
   // This is wrapper around CheckBoundsDeclaration::ExpandToRange. This
   // provides an easy way to invoke this function from outside the class. Given
@@ -10563,7 +10570,11 @@ public:
 
   /// \brief Get the bounds-safe interface type for LHS.
   /// Returns a null QualType if there isn't one.
-  QualType GetCheckedCInteropType(ExprResult LHS);
+  QualType GetCheckedCLValueInteropType(ExprResult LHS);
+
+  /// \brief Get the bounds-safe interface type for RHS.
+  /// Returns a null QualType if there isn't one.
+  QualType GetCheckedCRValueInteropType(ExprResult RHS);
 
   /// \brief If T is an array type, create a checked array type version of T.
   /// This includes propagating the checked property to nested array types. If

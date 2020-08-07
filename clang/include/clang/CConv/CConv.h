@@ -47,6 +47,8 @@ struct CConvertOptions {
   bool EnableAllTypes;
 
   bool AddCheckedRegions;
+
+  bool DisableCCTypeChecker;
 };
 
 // The main interface exposed by the CConv to interact with the tool.
