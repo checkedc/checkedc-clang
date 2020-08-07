@@ -37,12 +37,13 @@ void TypeVariableEntry::setTypeParamConsVar(ConstraintVariable *CV) {
 
 void TypeVariableEntry::updateEntry(QualType Ty,
                                     std::set<ConstraintVariable *> &CVs) {
-  QualType PointeeType = Ty->getPointeeType();
-  if (isTypeAnonymous(PointeeType)) {
+  const clang::Type *PtrTy = Ty->getPointeeOrArrayElementType();
+  if (isTypeAnonymous(PtrTy)) {
     // We'll need a name to provide the type arguments during rewriting, so
     // no anonymous things here.
     IsConsistent = false;
-  } else if (IsConsistent && getType() != Ty) {
+  } else if (IsConsistent
+      && getType()->getPointeeOrArrayElementType() != PtrTy) {
     // If it has previously been instantiated as a different type, its use
     // is not consistent.
     IsConsistent = false;
@@ -136,7 +137,8 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
 // used and the index of the type variable type in the function declaration.
 void TypeVarVisitor::insertBinding(CallExpr *CE, const TypeVariableType *TyV,
                                    clang::QualType Ty, CVarSet &CVs) {
-  assert("Type param must go to pointer." && Ty->isPointerType());
+  assert("Type param must go to pointer or array type."
+             && (Ty->isPointerType() || Ty->isArrayType()));
 
   auto &CallTypeVarMap = TVMap[CE];
   if (CallTypeVarMap.find(TyV->GetIndex()) == CallTypeVarMap.end()){
