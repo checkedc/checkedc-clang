@@ -660,7 +660,7 @@ public:
   explicit ComparisionVisitor(ProgramInfo &In, ASTContext *AC,
                      BoundsKey I, std::set<BoundsKey> &PossB) : I(In),
                                     C(AC),
-                                    IndxBKey(I), PB(PossB), CS(nullptr) {
+                                    IndxBKey(I), PB(PossB), CurrStmt(nullptr) {
     CR = new ConstraintResolver(In, AC);
   }
   virtual ~ComparisionVisitor() {
