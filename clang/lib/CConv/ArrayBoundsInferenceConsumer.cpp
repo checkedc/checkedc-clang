@@ -670,8 +670,14 @@ public:
     }
   }
 
+  // Here, we save the most recent statement we have visited.
+  // This is a way to keep track of the statement to which currently
+  // processing expression belongs.
+  // This is okay, because RecursiveASTVisitor traverses the AST in
+  // pre-order, so we always visit the parent i.e., the statement
+  // before visiting the subexpressions under it.
   bool VisitStmt(Stmt *S) {
-    CS = S;
+    CurrStmt = S;
     return true;
   }
 
@@ -710,7 +716,7 @@ public:
             //     return -1;
             //  }
             //  arr[i] = ..
-            IsRKeyBound &= (CS != nullptr && isa<IfStmt>(CS));
+            IsRKeyBound &= (CurrStmt != nullptr && isa<IfStmt>(CurrStmt));
           }
 
           if (IsRKeyBound)
@@ -731,7 +737,7 @@ private:
   ConstraintResolver *CR;
   // Current statement: The statement to which the processing
   // node belongs. This is to avoid walking the AST.
-  Stmt *CS;
+  Stmt *CurrStmt;
 };
 
 LengthVarInference::LengthVarInference(ProgramInfo &In,
