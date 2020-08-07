@@ -55,6 +55,9 @@ def parseTheArg():
     parser.add_argument("-pr", "--project_path", dest='project_path', type=str, required=True,
                         help='Path to the folder containing all project sources.')
 
+    parser.add_argument("--skip", dest='skip_paths', action='append', type=str, default=[],
+                        help='Relative path to source files that should be skipped.')
+
     args = parser.parse_args()
 
     if not args.prog_name or not os.path.isfile(args.prog_name):
@@ -90,7 +93,7 @@ if __name__ == "__main__":
     logging.info("Finished updating project files.")
 
     logging.info("Trying to convert all the source files to header files")
-    runCheckedCConvert(progArgs.prog_name, compileCmdsJson, progArgs.includeDir)
+    runCheckedCConvert(progArgs.prog_name, compileCmdsJson, progArgs.includeDir, progArgs.skip_paths)
     logging.info("Finished converting all the files to checkedc files.")
 
 
