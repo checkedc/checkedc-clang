@@ -112,12 +112,22 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, ConstAtom *PtrTyp,
   return TmpPV;
 }
 
+static bool getSizeOfArg(Expr *Arg, QualType &ArgTy) {
+  if (auto *SizeOf = dyn_cast<UnaryExprOrTypeTraitExpr>(Arg))
+    if (SizeOf->getKind() == UETT_SizeOf){
+      ArgTy = SizeOf->getTypeOfArgument();
+      return true;
+    }
+  return false;
+}
+
 // Processes E from malloc(E) to discern the pointer type this will be
 static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS,
                                    QualType &ArgTy, std::string FuncName,
                                    ASTContext *Context) {
   if (FuncName.compare("calloc") == 0) {
-    ArgTy = CE->getArg(1)->getType();
+    if (!getSizeOfArg(CE->getArg(1), ArgTy))
+      return nullptr;
     // Check if first argument to calloc is 1
     Expr *E = CE->getArg(0);
     Expr::EvalResult ER;
@@ -151,13 +161,9 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS,
     Exprs.insert(E);
 
   // Look for sizeof(X); return Arr or Ptr if found
-  for (Expr *Ex: Exprs) {
-    UnaryExprOrTypeTraitExpr *Arg = dyn_cast<UnaryExprOrTypeTraitExpr>(Ex);
-    if (Arg && Arg->getKind() == UETT_SizeOf) {
-      ArgTy = Arg->getTypeOfArgument();
+  for (Expr *Ex: Exprs)
+    if (getSizeOfArg(Ex, ArgTy))
       return Ret;
-    }
-  }
   return nullptr;
 }
 
