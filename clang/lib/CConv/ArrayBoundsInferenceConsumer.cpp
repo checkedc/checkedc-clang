@@ -536,10 +536,33 @@ void LocalVarABVisitor::addUsedParmVarDecl(Expr *CE) {
       NonLengthParameters.insert(PVD);
 }
 
+bool isValidBinOpForLen(BinaryOperator::Opcode COP) {
+  bool Valid = true;
+  switch (COP) {
+    // Invalid BinOPs
+    // ==, !=, &, &=, &&, |, |=, ^, ^=
+    case BinaryOperator::Opcode::BO_EQ:
+    case BinaryOperator::Opcode::BO_NE:
+    case BinaryOperator::Opcode::BO_And:
+    case BinaryOperator::Opcode::BO_AndAssign:
+    case BinaryOperator::Opcode::BO_LAnd:
+    case BinaryOperator::Opcode::BO_Or:
+    case BinaryOperator::Opcode::BO_OrAssign:
+    case BinaryOperator::Opcode::BO_LOr:
+    case BinaryOperator::Opcode::BO_Xor:
+    case BinaryOperator::Opcode::BO_XorAssign:
+      Valid = false;
+      break;
+    // Rest all Ops are okay.
+    default: break;
+  }
+  return Valid;
+}
+
 bool LocalVarABVisitor::VisitBinaryOperator(BinaryOperator *BO) {
     BinaryOperator::Opcode BOpcode = BO->getOpcode();
-    if (BOpcode == BinaryOperator::Opcode::BO_EQ ||
-        BOpcode == BinaryOperator::Opcode::BO_NE) {
+    // Is this not a valid bin op for a potential length parameter?
+    if (!isValidBinOpForLen(BOpcode)) {
       addUsedParmVarDecl(BO->getLHS());
       addUsedParmVarDecl(BO->getRHS());
     }
@@ -547,6 +570,11 @@ bool LocalVarABVisitor::VisitBinaryOperator(BinaryOperator *BO) {
       HandleBinAssign(BO);
     }
     return true;
+}
+
+bool LocalVarABVisitor::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
+  addUsedParmVarDecl(E->getIdx());
+  return true;
 }
 
 bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
@@ -632,7 +660,7 @@ public:
   explicit ComparisionVisitor(ProgramInfo &In, ASTContext *AC,
                      BoundsKey I, std::set<BoundsKey> &PossB) : I(In),
                                     C(AC),
-                                    IndxBKey(I), PB(PossB) {
+                                    IndxBKey(I), PB(PossB), CS(nullptr) {
     CR = new ConstraintResolver(In, AC);
   }
   virtual ~ComparisionVisitor() {
@@ -640,6 +668,17 @@ public:
       delete (CR);
       CR = nullptr;
     }
+  }
+
+  // Here, we save the most recent statement we have visited.
+  // This is a way to keep track of the statement to which currently
+  // processing expression belongs.
+  // This is okay, because RecursiveASTVisitor traverses the AST in
+  // pre-order, so we always visit the parent i.e., the statement
+  // before visiting the subexpressions under it.
+  bool VisitStmt(Stmt *S) {
+    CurrStmt = S;
+    return true;
   }
 
   bool VisitBinaryOperator(BinaryOperator *BO) {
@@ -658,12 +697,30 @@ public:
             ABI.tryGetVariable(LHS, *C, LKey)) &&
             (CR->resolveBoundsKey(RHSCVars, RKey) ||
              ABI.tryGetVariable(RHS, *C, RKey))) {
-          // If this the left hand side of a < comparision and the LHS is the
-          // index used in array indexing operation? Then add the RHS to the
-          // possible bounds key.
-          if (LKey == IndxBKey) {
-            PB.insert(RKey);
+
+          // If this the left hand side of a < comparison and
+          // the LHS is the index used in array indexing operation?
+          // Then add the RHS to the possible bounds key.
+          bool IsRKeyBound = (LKey == IndxBKey);
+          if (BO->getOpcode() == BO_GE) {
+            // If we have: x >= y, then this has to be an IfStmt to
+            // consider Y as upper bound.
+            // Why? This is to distinguish between following cases:
+            // In the following case, we should not
+            // consider y as the bound.
+            // for (i=n-1; i >= y; i--) {
+            //      arr[i] = ..
+            // }
+            // Where as the following is a valid case. MAX_LEN is the bound.
+            // if (i >= MAX_LEN) {
+            //     return -1;
+            //  }
+            //  arr[i] = ..
+            IsRKeyBound &= (CurrStmt != nullptr && isa<IfStmt>(CurrStmt));
           }
+
+          if (IsRKeyBound)
+            PB.insert(RKey);
         }
       }
     }
@@ -678,6 +735,9 @@ private:
   std::set<BoundsKey> &PB;
   // Helper objects.
   ConstraintResolver *CR;
+  // Current statement: The statement to which the processing
+  // node belongs. This is to avoid walking the AST.
+  Stmt *CurrStmt;
 };
 
 LengthVarInference::LengthVarInference(ProgramInfo &In,

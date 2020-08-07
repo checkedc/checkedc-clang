@@ -58,6 +58,7 @@ public:
   bool VisitDeclStmt(DeclStmt *S);
   bool VisitSwitchStmt(SwitchStmt *S);
   bool VisitBinaryOperator(BinaryOperator *O);
+  bool VisitArraySubscriptExpr(ArraySubscriptExpr *E);
   bool isNonLengthParameter(ParmVarDecl *PVD);
 
 private:
