@@ -7,7 +7,7 @@
 /* multiple complex realloc calls                         */
 /**********************************************************/
 
-#define size_t int
+typedef unsigned long size_t;
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 extern _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
 

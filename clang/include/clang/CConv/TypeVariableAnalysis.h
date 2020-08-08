@@ -25,7 +25,7 @@ public:
       TypeParamConsVar(nullptr) {
     // We'll need a name to provide the type arguments during rewriting, so no
     // anonymous types are allowed.
-    if (isTypeAnonymous(Ty->getPointeeType())) {
+    if (isTypeAnonymous(Ty->getPointeeOrArrayElementType())) {
       IsConsistent = false;
     } else {
       IsConsistent = true;

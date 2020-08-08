@@ -77,7 +77,18 @@ _Itype_for_any(T) void *memcpy(void * restrict dest : itype(restrict _Array_ptr<
 
 void foo(int *p2) {
     int *p = malloc(2*sizeof(int));
-    //CHECK_ALL: _Array_ptr<int> p =  malloc<int>(2*sizeof(int));
+    //CHECK_ALL: _Array_ptr<int> p : count(2) =  malloc<int>(2*sizeof(int));
     memcpy(p, p2, sizeof(int));
     //CHECK: memcpy<int>(p, p2, sizeof(int));
+}
+
+// Array types can be used to instantiate type params
+void arrs() {
+  int *p = malloc(10*sizeof(int));
+  // CHECK_ALL: _Array_ptr<int> p : count(10) =  malloc<int>(10*sizeof(int));
+  int q[10];
+  // CHECK_ALL: int q _Checked[10];
+
+  memcpy(p, q, 10*sizeof(int));
+  // CHECK: memcpy<int>(p, q, 10*sizeof(int));
 }

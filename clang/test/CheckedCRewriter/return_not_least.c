@@ -36,7 +36,7 @@ int *foo(void) {
   return q;
 }
 
-#define size_t int
+typedef unsigned long size_t;
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 
 int *bar() {
