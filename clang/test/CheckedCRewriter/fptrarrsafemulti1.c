@@ -94,42 +94,50 @@ int zerohuh(int n) {
 }
 
 int *mul2(int *x) { 
-	//CHECK: int * mul2(int *x) { 
+	//CHECK_NOALL: int * mul2(int *x) { 
+	//CHECK_ALL: _Array_ptr<int> mul2(_Array_ptr<int> x) { 
     *x *= 2; 
     return x;
 }
 
 int ** sus(int *, int *);
-	//CHECK: int ** sus(int *, int *);
+	//CHECK_NOALL: int ** sus(int *, int *);
+	//CHECK_ALL: _Nt_array_ptr<_Array_ptr<int>> sus(int *, _Array_ptr<int> y);
 
 int ** foo() {
-	//CHECK: int ** foo(void) {
+	//CHECK_NOALL: int ** foo(void) {
+	//CHECK_ALL: _Nt_array_ptr<_Array_ptr<int>> foo(void) {
 
         int *x = malloc(sizeof(int)); 
 	//CHECK: int *x = malloc<int>(sizeof(int)); 
         int *y = calloc(5, sizeof(int)); 
-	//CHECK: int *y = calloc<int>(5, sizeof(int)); 
+	//CHECK_NOALL: int *y = calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> y : count(5) =  calloc<int>(5, sizeof(int)); 
         int i;
         for(i = 0; i < 5; i++) { 
             y[i] = i+1;
         } 
         int **z = sus(x, y);
-	//CHECK: int **z = sus(x, y);
+	//CHECK_NOALL: int **z = sus(x, y);
+	//CHECK_ALL: _Nt_array_ptr<_Array_ptr<int>> z =  sus(x, y);
         
 return z; }
 
 int ** bar() {
-	//CHECK: int ** bar(void) {
+	//CHECK_NOALL: int ** bar(void) {
+	//CHECK_ALL: _Nt_array_ptr<_Array_ptr<int>> bar(void) {
 
         int *x = malloc(sizeof(int)); 
 	//CHECK: int *x = malloc<int>(sizeof(int)); 
         int *y = calloc(5, sizeof(int)); 
-	//CHECK: int *y = calloc<int>(5, sizeof(int)); 
+	//CHECK_NOALL: int *y = calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> y : count(5) =  calloc<int>(5, sizeof(int)); 
         int i;
         for(i = 0; i < 5; i++) { 
             y[i] = i+1;
         } 
         int **z = sus(x, y);
-	//CHECK: int **z = sus(x, y);
+	//CHECK_NOALL: int **z = sus(x, y);
+	//CHECK_ALL: _Nt_array_ptr<_Array_ptr<int>> z =  sus(x, y);
         
 return z; }
