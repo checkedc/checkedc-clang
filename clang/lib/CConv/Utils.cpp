@@ -368,7 +368,7 @@ const TypeVariableType *getTypeVariableType(DeclaratorDecl *Decl){
   return nullptr;
 }
 
-bool isTypeAnonymous(QualType T) {
+bool isTypeAnonymous(const clang::Type *T) {
   return T->isRecordType() && !(T->getAsRecordDecl()->getIdentifier()
       || T->getAsRecordDecl()->getTypedefNameForAnonDecl());
 }
