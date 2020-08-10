@@ -1,5 +1,5 @@
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
-
+// XFAIL: *
 
 /*
 Various array bounds tests.

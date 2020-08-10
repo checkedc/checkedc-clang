@@ -1,8 +1,8 @@
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/arrofstructsafemulti2.c
 // RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/arrofstructsafemulti2.c
 //RUN: %clang -c %S/arrofstructsafemulti1.checkedNOALL.c %S/arrofstructsafemulti2.checkedNOALL.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/arrofstructsafemulti1.checkedNOALL.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/arrofstructsafemulti1.checkedALL.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrofstructsafemulti1.checkedNOALL.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrofstructsafemulti1.checkedALL.c %s
 //RUN: rm %S/arrofstructsafemulti1.checkedALL.c %S/arrofstructsafemulti2.checkedALL.c
 //RUN: rm %S/arrofstructsafemulti1.checkedNOALL.c %S/arrofstructsafemulti2.checkedNOALL.c
 
