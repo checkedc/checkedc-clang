@@ -20,6 +20,17 @@ extern void *memset(void * dest : byte_count(n),
 extern int memcmp(const void *src1 : byte_count(n), const void *src2 : byte_count(n),
            size_t n);
 
+_Itype_for_any(T) void
+vsf_sysutil_memclr(void* p_dest : itype(_Array_ptr<T>) byte_count(size), unsigned int size)
+{
+  /* Safety */
+  if (size == 0)
+  {
+    return;
+  }
+  memset(p_dest, '\0', size);
+}
+
 typedef unsigned int (*hashfunc_t)(unsigned int, void*);
 
 struct hash* hash_alloc(unsigned int buckets, unsigned int key_size,
@@ -78,8 +89,7 @@ hash_alloc(unsigned int buckets, unsigned int key_size,
   //p_hash->p_nodes = malloc(size);
   p_hash->p_nodes = malloc(sizeof(struct hash_node*) * buckets);
 //CHECK_ALL:  p_hash->p_nodes = malloc<_Ptr<struct hash_node>>(sizeof(struct hash_node*) * buckets);
-  //FIX soon:
-  //memset(p_hash->p_nodes, '\0', size);
+  vsf_sysutil_memclr(p_hash->p_nodes, size);
   return p_hash;
 }
 
