@@ -1,8 +1,8 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %s %S/arrbothmulti1.c
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %s %S/arrbothmulti1.c
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %S/arrbothmulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %S/arrbothmulti1.c %s
 //RUN: %clang -c %S/arrbothmulti1.checkedNOALL2.c %S/arrbothmulti2.checkedNOALL2.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/arrbothmulti2.checkedNOALL2.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/arrbothmulti2.checkedALL2.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrbothmulti2.checkedNOALL2.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrbothmulti2.checkedALL2.c %s
 //RUN: rm %S/arrbothmulti1.checkedALL2.c %S/arrbothmulti2.checkedALL2.c
 //RUN: rm %S/arrbothmulti1.checkedNOALL2.c %S/arrbothmulti2.checkedNOALL2.c
 

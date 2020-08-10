@@ -1,8 +1,8 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %s %S/fptrarrcallermulti1.c
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %s %S/fptrarrcallermulti1.c
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %S/fptrarrcallermulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %S/fptrarrcallermulti1.c %s
 //RUN: %clang -c %S/fptrarrcallermulti1.checkedNOALL2.c %S/fptrarrcallermulti2.checkedNOALL2.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/fptrarrcallermulti2.checkedNOALL2.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/fptrarrcallermulti2.checkedALL2.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrarrcallermulti2.checkedNOALL2.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrarrcallermulti2.checkedALL2.c %s
 //RUN: rm %S/fptrarrcallermulti1.checkedALL2.c %S/fptrarrcallermulti2.checkedALL2.c
 //RUN: rm %S/fptrarrcallermulti1.checkedNOALL2.c %S/fptrarrcallermulti2.checkedNOALL2.c
 

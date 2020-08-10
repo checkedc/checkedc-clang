@@ -1,5 +1,6 @@
 // RUN: cconv-standalone -addcr  %s -- | FileCheck -match-full-lines --check-prefixes="CHECK" %s
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// XFAIL: *
 
 #include <stdarg.h>
 #define NULL ((void*) 0x0)
