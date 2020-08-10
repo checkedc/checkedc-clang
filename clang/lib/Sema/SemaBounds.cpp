@@ -4031,6 +4031,7 @@ namespace {
     SourceLocation BlameAssignmentWithinStmt(Stmt *St, const VarDecl *V,
                                              CheckingState State,
                                              unsigned DiagId) const {
+      assert(St);
       SourceRange SrcRange = St->getSourceRange();
       auto BDCType = Sema::BoundsDeclarationCheck::BDC_Statement;
 
@@ -4053,9 +4054,10 @@ namespace {
         Expr *BlameExpr = It->second;
         Loc = BlameExpr->getBeginLoc();
         SrcRange = BlameExpr->getSourceRange();
-        
-        // Choose the type of assignment E to show in the diagnostic messages:
-        // assignment (=), decrement (--) or increment (++).
+
+        // Choose the type of assignment E to show in the diagnostic messages
+        // from: assignment (=), decrement (--) or increment (++). These are all
+        // modifying operators that can update observed bounds.
         if (UnaryOperator *UO = dyn_cast<UnaryOperator>(BlameExpr)) {
           if (UO->isIncrementOp())
             BDCType = Sema::BoundsDeclarationCheck::BDC_Increment;
