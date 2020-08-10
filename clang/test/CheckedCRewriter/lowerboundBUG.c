@@ -1,6 +1,6 @@
 // Generates graph q0 --> ARR --> q1, to confirm that bound bound
 //   constraints are properly solved
-//
+// The following test is supposed to fail with the current tool.
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
 //
 
