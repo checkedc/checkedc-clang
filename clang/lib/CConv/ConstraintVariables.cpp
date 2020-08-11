@@ -307,15 +307,13 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   // but our constraint system does not allow this. To enable converting calls
   // to functions with types similar to free, size 0 array pointers are made PTR
   // instead of ARR.
+  IsZeroWidthArray = false;
   if (D && D->hasBoundsExpr() && !vars.empty() && vars[0] == CS.getArr())
-    if (BoundsExpr *BE = D->getBoundsExpr()) {
+    if (BoundsExpr *BE = D->getBoundsExpr())
       if (isZeroBoundsExpr(BE, C)) {
         IsZeroWidthArray = true;
         vars[0] = CS.getPtr();
-      } else {
-        IsZeroWidthArray = false;
       }
-    }
 
   // If, after boiling off the pointer-ness from this type, we hit a
   // function, then create a base-level FVConstraint that we carry
