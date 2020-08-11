@@ -63,7 +63,7 @@ struct hash
   hashfunc_t hash_func;
   struct hash_node** p_nodes;
 //CHECK_ALL:  _Ptr<unsigned int (unsigned int , void *)> hash_func;
-//CHECK_ALL:  _Array_ptr<_Ptr<struct hash_node>> p_nodes : count(buckets);
+//CHECK_ALL:  _Array_ptr<_Ptr<struct hash_node>> p_nodes;
 };
 
 /* Internal functions */
