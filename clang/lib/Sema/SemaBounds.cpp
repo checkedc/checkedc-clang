@@ -705,6 +705,18 @@ namespace {
       // user when diagnosing unknown bounds errors.
       llvm::DenseMap<const VarDecl *, SmallVector<Expr *, 4>> UnknownSrcBounds;
 
+      // WidenedVariables is a set of variables that currently have widened bounds.
+      //
+      // WidenedVariables is used to avoid spurious errors or warnings when
+      // validating the observed bounds context.
+      //
+      // WidenedVariables is currently needed to track which variables have
+      // widened bounds since not all modifying expressions currently kill
+      // widened bounds. For example, modifying expressions within a
+      // conditional operator will not kill widened bounds
+      // (checkedc-clang issue #895).
+      llvm::DenseSet<const VarDecl *> WidenedVariables;
+
       // TargetSrcEquality maps a target expression V to the most recent
       // expression Src that has been assigned to V within the current
       // top-level CFG statement.  When validating the bounds context,
@@ -2288,6 +2300,7 @@ namespace {
            new (Context) RangeBoundsExpr(Lower, WidenedUpper,
                                          SourceLocation(), SourceLocation());
          State.ObservedBounds[V] = R;
+         State.WidenedVariables.insert(V);
        }
      }
    }
@@ -2386,6 +2399,7 @@ namespace {
             GetDeclaredBounds(this->S, BlockState.ObservedBounds, S);
 
             BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
+            DeclSetTy InitialWidenedVariables = BlockState.WidenedVariables;
             BlockState.Reset();
 
             Check(S, CSS, BlockState);
@@ -2395,8 +2409,7 @@ namespace {
 
             // For each variable v in ObservedBounds, check that the
             // observed bounds of v imply the declared bounds of v.
-            ValidateBoundsContext(S, BlockState, WidenedBounds,
-                                  KilledBounds, CSS);
+            ValidateBoundsContext(S, BlockState, CSS);
 
             // The observed bounds that were updated after checking S should
             // only be used to check that the updated observed bounds imply
@@ -2404,6 +2417,15 @@ namespace {
             // declared bounds, the observed bounds for each variable should
             // be reset to their observed bounds from before checking S.
             BlockState.ObservedBounds = InitialObservedBounds;
+
+            // The widened variables that were updated after checking S should
+            // only be used to validate the updated observed bounds context.
+            // If an expression within S killed the widened bounds of a
+            // variable V, V may still have widened observed bounds.
+            // For example, the statement 1 ? i++ : i may not kill the widened
+            // bounds of a variable p with declared bounds (p, p + i).
+            // (See checkedc-clang issue #895).
+            BlockState.WidenedVariables = InitialWidenedVariables;
 
             // If the widened bounds of any variables are killed by statement
             // S, reset their observed bounds to their declared bounds.
@@ -3876,8 +3898,6 @@ namespace {
     // statement S, for each variable v in the checking state observed bounds
     // context, the observed bounds of v imply the declared bounds of v.
     void ValidateBoundsContext(Stmt *S, CheckingState State,
-                               BoundsMapTy WidenedBounds,
-                               StmtDeclSetTy KilledBounds,
                                CheckedScopeSpecifier CSS) {
       // Construct a set of sets of equivalent expressions that contains all
       // the equality facts in State.EquivExprs, as well as any equality facts
@@ -3912,7 +3932,7 @@ namespace {
           DiagnoseUnknownObservedBounds(S, V, DeclaredBounds, State);
         else
           CheckObservedBounds(S, V, DeclaredBounds, ObservedBounds, State,
-                              &EquivExprs, WidenedBounds, KilledBounds, CSS);
+                              &EquivExprs, CSS);
       }
     }
 
@@ -3965,8 +3985,6 @@ namespace {
                              BoundsExpr *DeclaredBounds,
                              BoundsExpr *ObservedBounds, CheckingState State,
                              EquivExprSets *EquivExprs,
-                             BoundsMapTy WidenedBounds,
-                             StmtDeclSetTy KilledBounds,
                              CheckedScopeSpecifier CSS) {
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, ObservedBounds,
@@ -3985,13 +4003,8 @@ namespace {
       // observed upper bound (p + 0) + 1.
       // TODO: checkedc-clang issue #867: the widened bounds of a variable
       // should provably imply the declared bounds of a variable.
-      if (WidenedBounds.find(V) != WidenedBounds.end()) {
-        auto I = KilledBounds.find(St);
-        if (I == KilledBounds.end())
-          return;
-        if (I->second.find(V) == I->second.end())
-          return;
-      }
+      if (State.WidenedVariables.find(V) != State.WidenedVariables.end())
+        return;
 
       // For a declaration, the diagnostic message should start at the
       // location of v rather than the beginning of St.  If the message
@@ -4069,9 +4082,17 @@ namespace {
         const VarDecl *W = Pair.first;
         BoundsExpr *Bounds = Pair.second;
         BoundsExpr *AdjustedBounds = ReplaceVariableInBounds(Bounds, V, OriginalValue, CSS);
-        if (!Pair.second->isUnknown() && AdjustedBounds->isUnknown())
+        if (!Bounds->isUnknown() && AdjustedBounds->isUnknown())
           State.LostVariables[W] = std::make_pair(Bounds, V);
         State.ObservedBounds[W] = AdjustedBounds;
+
+        // If the assignment to V changed the bounds of W, then W no longer
+        // has widened bounds.
+        if (Bounds != AdjustedBounds) {
+          auto It = State.WidenedVariables.find(W);
+          if (It != State.WidenedVariables.end())
+            State.WidenedVariables.erase(It);
+        }
       }
 
       // Adjust SrcBounds to account for any uses of V and, if V has declared
