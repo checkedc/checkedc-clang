@@ -243,6 +243,12 @@ BoundsKey AVarBoundsInfo::getVariable(clang::FieldDecl *FD) {
   return getVarKey(PSL);
 }
 
+BoundsKey AVarBoundsInfo::getRandomBKey() {
+  BoundsKey Ret = ++BCount;
+  TmpBoundsKey.insert(Ret);
+  return Ret;
+}
+
 bool AVarBoundsInfo::addAssignment(clang::Decl *L, clang::Decl *R) {
   BoundsKey BL, BR;
   if (tryGetVariable(L, BL) && tryGetVariable(R, BR)) {
@@ -454,9 +460,15 @@ bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
 bool AvarBoundsInference::getRelevantBounds(std::set<BoundsKey> &RBKeys,
                                             std::set<ABounds *> &ResBounds) {
   std::set<BoundsKey> IncomingArrs;
-  auto &ArrAtoms = BI->ArrPointerBoundsKey;
-  // First, get all the related boundskeys that are arrays.
-  findIntersection(RBKeys, ArrAtoms, IncomingArrs);
+  std::set<BoundsKey> TmpIncomingKeys;
+
+  // First, get all the related bounds keys that are arrays.
+  findIntersection(RBKeys, BI->ArrPointerBoundsKey, IncomingArrs);
+  // Also get all the temporary bounds keys.
+  findIntersection(RBKeys, BI->TmpBoundsKey, TmpIncomingKeys);
+
+  // Consider the tmp keys as incoming arrays.
+  IncomingArrs.insert(TmpIncomingKeys.begin(), TmpIncomingKeys.end());
 
   // Next, try to get their bounds.
   bool ValidB = true;

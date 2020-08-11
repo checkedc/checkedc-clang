@@ -279,20 +279,41 @@ static void handleAllocatorCall(QualType LHSType, BoundsKey LK, Expr *E,
       // If we found BoundsKey from the allocate expression?
       auto *PrgLVar = AVarBInfo.getProgramVar(LK);
       auto *PrgRVar = AVarBInfo.getProgramVar(RK);
+      ABounds *LBounds = nullptr;
+      if (IsByteBound) {
+        LBounds = new ByteBound(RK);
+      } else {
+        LBounds = new CountBound(RK);
+      }
+
       // Either both should be in same scope or the RHS should be constant.
       if (*(PrgLVar->getScope()) == *(PrgRVar->getScope()) ||
           PrgRVar->IsNumConstant()) {
-        ABounds *LBounds = nullptr;
-        if (IsByteBound) {
-          LBounds = new ByteBound(RK);
-        } else {
-          LBounds = new CountBound(RK);
-        }
         if (!AVarBInfo.mergeBounds(LK, LBounds)) {
           delete (LBounds);
         } else {
           ABStats.AllocatorMatch.insert(LK);
         }
+      } else if (*(PrgLVar->getScope()) != *(PrgRVar->getScope())) {
+        // This means we are using a variable in allocator that is not
+        // in the same scope of LHS.
+        // We do a little indirection trick here:
+        // We create a temporary key and create bounds for it.
+        // and then we mimic the assignment between temporary key
+        // and the LHS.
+        // Example:
+        // int count;
+        // ...
+        // p->arr = malloc(sizeof(int)*count);
+        // --- which gets translated to:
+        // tmp <- bounds(count)
+        // p->arr <- tmp
+        BoundsKey TmpKey = AVarBInfo.getRandomBKey();
+        AVarBInfo.replaceBounds(TmpKey, LBounds);
+        AVarBInfo.addAssignment(LK, TmpKey);
+      } else {
+        assert (LBounds != nullptr && "LBounds cannot be nullptr here.");
+        delete (LBounds);
       }
     }
   }

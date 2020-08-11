@@ -123,6 +123,7 @@ public:
     BInfo.clear();
     DeclVarMap.clear();
     ProgVarGraph.clear();
+    TmpBoundsKey.clear();
   }
 
   // Checks if the given declaration is a valid bounds variable.
@@ -150,6 +151,9 @@ public:
   BoundsKey getVariable(clang::ParmVarDecl *PVD);
   BoundsKey getVariable(clang::FieldDecl *FD);
   BoundsKey getConstKey(uint64_t value);
+
+  // Generate a random bounds key to be used for inference.
+  BoundsKey getRandomBKey();
 
   // Add Assignments between variables. These methods will add edges between
   // corresponding BoundsKeys
@@ -193,6 +197,9 @@ private:
   // Set of BoundsKey that correspond to array pointers.
   std::set<BoundsKey> ArrPointerBoundsKey;
   std::set<BoundsKey> InProgramArrPtrBoundsKeys;
+  // These are temporary bound keys generated during inference.
+  // They do not correspond to any bounds variable.
+  std::set<BoundsKey> TmpBoundsKey;
   // BiMap of Persistent source loc and BoundsKey of regular variables.
   DeclKeyBiMapType DeclVarMap;
   // BiMap of parameter keys and BoundsKey for function parameters.
