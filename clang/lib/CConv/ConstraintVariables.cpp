@@ -104,6 +104,7 @@ PointerVariableConstraint::
   }
   this->Parent = Ot;
   this->IsGeneric = Ot->IsGeneric;
+  this->IsZeroWidthArray = Ot->IsZeroWidthArray;
   // We need not initialize other members.
 }
 
@@ -308,8 +309,11 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   // instead of ARR.
   if (D && D->hasBoundsExpr() && !vars.empty() && vars[0] == CS.getArr())
     if (BoundsExpr *BE = D->getBoundsExpr())
-      if (isZeroBoundsExpr(BE, C))
+      if (isZeroBoundsExpr(BE, C)) {
+        IsZeroWidthArray = true;
         vars[0] = CS.getPtr();
+      } else
+        IsZeroWidthArray = false;
 
   // If, after boiling off the pointer-ness from this type, we hit a
   // function, then create a base-level FVConstraint that we carry
@@ -1080,13 +1084,24 @@ bool PointerVariableConstraint::
       if (IsGeneric || PV->IsGeneric || vars.size() == OthCVars.size()) {
         Ret = true;
 
-        // First compare Vars to see if they are same.
         CAtoms::iterator I = vars.begin();
         CAtoms::iterator J = OthCVars.begin();
-        while (I != vars.end() && J != OthCVars.end()) {
-          ConstAtom *IA = CS.getAssignment(*I);
-          ConstAtom *JA = CS.getAssignment(*J);
-          if (!(IA == CS.getPtr() && JA != CS.getWild()) && IA != JA) {
+        // Special handling for zero width arrays so they can compare equal to
+        // ARR or PTR.
+        if (IsZeroWidthArray) {
+          assert(I != vars.end() && "Zero width array cannot be base type.");
+          assert("Zero width arrays should be encoded as PTR."
+                     && CS.getAssignment(*I) == CS.getPtr());
+          ConstAtom *JAtom = CS.getAssignment(*J);
+          // Zero width array can compare as either ARR or PTR
+          if (JAtom != CS.getArr() && JAtom != CS.getPtr())
+            Ret = false;
+          ++I;
+          ++J;
+        }
+        // Compare Vars to see if they are same.
+        while (Ret && I != vars.end() && J != OthCVars.end()) {
+          if (CS.getAssignment(*I) != CS.getAssignment(*J)) {
             Ret = false;
             break;
           }
