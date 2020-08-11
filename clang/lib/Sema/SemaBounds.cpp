@@ -3485,12 +3485,76 @@ namespace {
     }
 
     // CheckConditionalOperator returns the bounds for the value produced by e.
-    // e is an rvalue.
+    // e is an rvalue of the form `e1 ? e2 : e3`.
     BoundsExpr *CheckConditionalOperator(AbstractConditionalOperator *E,
                                          CheckedScopeSpecifier CSS,
                                          CheckingState &State) {
-      CheckChildren(E, CSS, State);
-      // TODO: infer correct bounds for conditional operators
+      // Check the condition `e1`.
+      Check(E->getCond(), CSS, State);
+      BoundsContextTy ConditionObservedBounds = State.ObservedBounds;
+
+      // Check the "true" arm `e2`.
+      // TODO: save the rvalue bounds from checking `e2`.  These bounds will
+      // be used to determine the rvalue bounds of `e`.
+      CheckingState StateTrueArm;
+      StateTrueArm.EquivExprs = State.EquivExprs;
+      StateTrueArm.ObservedBounds = State.ObservedBounds;
+      StateTrueArm.WidenedVariables = State.WidenedVariables;
+      Check(E->getTrueExpr(), CSS, StateTrueArm);
+
+      // Check the "false" arm `e3`.
+      // TODO: save the rvalue bounds from checking `e3`.  These bounds will
+      // be used to determine the rvalue bounds of `e`.
+      CheckingState StateFalseArm;
+      StateFalseArm.EquivExprs = State.EquivExprs;
+      StateFalseArm.ObservedBounds = State.ObservedBounds;
+      StateFalseArm.WidenedVariables = State.WidenedVariables;
+      Check(E->getFalseExpr(), CSS, StateFalseArm);
+
+      // TODO: handle uses of temporaries bounds in only one arm.
+
+      if (EqualContexts(StateTrueArm.ObservedBounds,
+                        StateFalseArm.ObservedBounds)) {
+        // If checking each arm produces two identical bounds contexts,
+        // the final context is the context from checking the true arm.
+        State.ObservedBounds = StateTrueArm.ObservedBounds;
+
+        // Ensure that any variables whose widened bounds were killed in
+        // the true arm do not have widened bounds after checking `e`.
+        State.WidenedVariables = IntersectDeclSets(State.WidenedVariables,
+                                                   StateTrueArm.WidenedVariables);
+      } else {
+        // If checking each arm produces two different bounds contexts,
+        // validate each arm's context separately.
+
+        // Validate the variables whose bounds were updated in the true arm.
+        BoundsContextTy TrueUpdatedBounds = ContextDifference(
+                                              StateTrueArm.ObservedBounds,
+                                              State.ObservedBounds);
+        StateTrueArm.ObservedBounds = TrueUpdatedBounds;
+        ValidateBoundsContext(E->getTrueExpr(), StateTrueArm, CSS);
+
+        // Validate the variables whose bounds were updated in the false arm.
+        BoundsContextTy FalseUpdatedBounds = ContextDifference(
+                                               StateFalseArm.ObservedBounds,
+                                               State.ObservedBounds);
+        StateFalseArm.ObservedBounds = FalseUpdatedBounds;
+        ValidateBoundsContext(E->getFalseExpr(), StateFalseArm, CSS);
+      }
+
+      State.EquivExprs = IntersectEquivExprs(StateTrueArm.EquivExprs,
+                                             StateFalseArm.EquivExprs);
+
+      State.SameValue = IntersectExprSets(StateTrueArm.SameValue,
+                                          StateFalseArm.SameValue);
+      if (!CreatesNewObject(E) && CheckIsNonModifying(E) &&
+          !EqualExprsContainsExpr(State.SameValue, E))
+        State.SameValue.push_back(E);
+      
+      // TODO: infer correct bounds for conditional operators.
+      // The rvalue bounds for a conditional operator `e1 ? e2 : e3` is the
+      // greatest lower bound of the rvalue bounds of `e2` and the rvalue
+      // bounds of `e3`.
       return CreateBoundsAllowedButNotComputed();
     }
 
@@ -4702,6 +4766,39 @@ namespace {
       return BlockState;
     }
 
+    // ContextDifference returns a bounds context containing all variables
+    // v in Context1 where Context1[v] != Context2[v].
+    BoundsContextTy ContextDifference(BoundsContextTy Context1,
+                                      BoundsContextTy Context2) {
+      BoundsContextTy Difference;
+      for (const auto &Pair : Context1) {
+        const VarDecl *V = Pair.first;
+        BoundsExpr *B = Pair.second;
+        auto It = Context2.find(V);
+        if (It == Context2.end() || !EqualValue(Context, B, It->second, nullptr)) {
+          Difference[V] = B;
+        }
+      }
+      return Difference;
+    }
+
+    // EqualContexts returns true if Context1 and Context2 contain the same
+    // sets of variables, and for each variable v, Context1[v] == Context2[v].
+    bool EqualContexts(BoundsContextTy Context1, BoundsContextTy Context2) {
+      if (Context1.size() != Context2.size())
+        return false;
+
+      for (const auto &Pair : Context1) {
+        auto It = Context2.find(Pair.first);
+        if (It == Context2.end())
+          return false;
+        if (!EqualValue(Context, Pair.second, It->second, nullptr))
+          return false;
+      }
+
+      return true;
+    }
+
     // IntersectBoundsContexts returns a bounds context resulting from taking
     // the intersection of the contexts Context1 and Context2.
     //
@@ -4744,7 +4841,7 @@ namespace {
 
     // IntersectExprSets returns the intersection of two sets of expressions.
     EqualExprTy IntersectExprSets(const EqualExprTy Set1,
-                                       const EqualExprTy Set2) {
+                                  const EqualExprTy Set2) {
       EqualExprTy IntersectedSet;
       for (auto I = Set1.begin(); I != Set1.end(); ++I) {
         Expr *E1 = *I;
@@ -4752,6 +4849,18 @@ namespace {
           IntersectedSet.push_back(E1);
       }
       return IntersectedSet;
+    }
+
+    // IntersectDeclSets returns the intersection of Set1 and Set2.
+    DeclSetTy IntersectDeclSets(DeclSetTy Set1, DeclSetTy Set2) {
+      DeclSetTy Intersection;
+      for (auto I = Set1.begin(), E = Set1.end(); I != E; ++I) {
+        const VarDecl *V = *I;
+        if (Set2.find(V) != Set2.end()) {
+          Intersection.insert(V);
+        }
+      }
+      return Intersection;
     }
 
     // GetEqualExprSetContainingExpr returns the set F in EQ that contains e
