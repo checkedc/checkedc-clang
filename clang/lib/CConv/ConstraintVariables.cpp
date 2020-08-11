@@ -304,7 +304,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
   // In CheckedC, a pointer can be freely converted to a size 0 array pointer,
   // but our constraint system does not allow this. To enable converting calls
-  // functions with similar to free, size zero array pointers are made PTR
+  // to functions with types similar to free, size 0 array pointers are made PTR
   // instead of ARR.
   if (D && D->hasBoundsExpr() && !vars.empty() && vars[0] == CS.getArr())
     if (BoundsExpr *BE = D->getBoundsExpr())
