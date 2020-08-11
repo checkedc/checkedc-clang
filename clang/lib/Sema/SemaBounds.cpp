@@ -687,6 +687,39 @@ namespace {
       //
       // SameValue is named G in the Checked C spec.
       EqualExprTy SameValue;
+
+      // LostVariables maps a variable declaration V whose observed bounds
+      // are unknown to a pair <B, W>, where the initial observed bounds B
+      // of V have been set to unknown due to an assignment to the variable W,
+      // where W had no original value.
+      //
+      // LostVariables is used to emit notes to provide more context to the
+      // user when diagnosing unknown bounds errors.
+      llvm::DenseMap<const VarDecl *, std::pair<BoundsExpr *, DeclRefExpr *>> LostVariables;
+
+      // UnknownSrcBounds maps a variable declaration V whose observed bounds
+      // are unknown to a set of expressions with unknown bounds that have
+      // been assigned to V.
+      //
+      // UnknownSrcBounds is used to emit notes to provide more context to the
+      // user when diagnosing unknown bounds errors.
+      llvm::DenseMap<const VarDecl *, SmallVector<Expr *, 4>> UnknownSrcBounds;
+
+      // TargetSrcEquality maps a target expression V to the most recent
+      // expression Src that has been assigned to V within the current
+      // top-level CFG statement.  When validating the bounds context,
+      // each pair <V, Src> should be included in a set EQ that contains
+      // all equality facts in the EquivExprs state set.  The set EQ will
+      // then be used to validate the bounds context.
+      llvm::DenseMap<Expr *, Expr *> TargetSrcEquality;
+
+      // Resets the checking state after checking a top-level CFG statement.
+      void Reset() {
+        SameValue.clear();
+        LostVariables.clear();
+        UnknownSrcBounds.clear();
+        TargetSrcEquality.clear();
+      }
   };
 }
 
@@ -858,7 +891,7 @@ namespace {
         // then by location in order to guarantee a deterministic output
         // so that printing the bounds context can be tested.
         std::vector<const VarDecl *> OrderedDecls;
-        for (auto Pair : Context)
+        for (auto const &Pair : Context)
           OrderedDecls.push_back(Pair.first);
         llvm::sort(OrderedDecls.begin(), OrderedDecls.end(),
              [] (const VarDecl *A, const VarDecl *B) {
@@ -912,7 +945,7 @@ namespace {
     };
 
     bool AddBoundsCheck(Expr *E, OperationKind OpKind, CheckedScopeSpecifier CSS,
-                        BoundsExpr *LValueBounds) {
+                        EquivExprSets *EquivExprs, BoundsExpr *LValueBounds) {
       assert(E->isLValue());
       bool NeedsBoundsCheck = false;
       QualType PtrType;
@@ -933,7 +966,7 @@ namespace {
           S.Diag(E->getBeginLoc(), diag::err_expected_bounds) << E->getSourceRange();
           LValueBounds = S.CreateInvalidBoundsExpr();
         } else {
-          CheckBoundsAtMemoryAccess(Deref, LValueBounds, Kind, CSS);
+          CheckBoundsAtMemoryAccess(Deref, LValueBounds, Kind, CSS, EquivExprs);
         }
         if (UnaryOperator *UO = dyn_cast<UnaryOperator>(Deref)) {
           assert(!UO->hasBoundsExpr());
@@ -955,6 +988,7 @@ namespace {
     // always need bounds checks, even though their lvalues are only used for an
     // address computation.
     bool AddMemberBaseBoundsCheck(MemberExpr *E, CheckedScopeSpecifier CSS,
+                                  EquivExprSets *EquivExprs,
                                   BoundsExpr *BaseLValueBounds,
                                   BoundsExpr *BaseBounds) {
       Expr *Base = E->getBase();
@@ -963,7 +997,7 @@ namespace {
         // The base expression only needs a bounds check if it is an lvalue.
         if (Base->isLValue())
           return AddBoundsCheck(Base, OperationKind::Other, CSS,
-                                BaseLValueBounds);
+                                EquivExprs, BaseLValueBounds);
         return false;
       }
 
@@ -974,7 +1008,7 @@ namespace {
           S.Diag(Base->getBeginLoc(), diag::err_expected_bounds) << Base->getSourceRange();
           Bounds = S.CreateInvalidBoundsExpr();
         } else {
-          CheckBoundsAtMemoryAccess(E, Bounds, BCK_Normal, CSS);
+          CheckBoundsAtMemoryAccess(E, Bounds, BCK_Normal, CSS, EquivExprs);
         }
         E->setBoundsExpr(Bounds);
         return true;
@@ -1676,7 +1710,8 @@ namespace {
     // Try to prove that PtrBase + Offset is within Bounds, where PtrBase has pointer type.
     // Offset is optional and may be a nullptr.
     ProofResult ProveMemoryAccessInRange(Expr *PtrBase, Expr *Offset, BoundsExpr *Bounds,
-                                         BoundsCheckKind Kind, ProofFailure &Cause) {
+                                         BoundsCheckKind Kind, EquivExprSets *EquivExprs,
+                                         ProofFailure &Cause) {
 #ifdef TRACE_RANGE
       llvm::outs() << "Examining:\nPtrBase\n";
       PtrBase->dump(llvm::outs());
@@ -1756,7 +1791,7 @@ namespace {
         return ProofResult::False;
       }
       std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-      ProofResult R = ValidRange.InRange(MemoryAccessRange, Cause, nullptr, EmptyFacts);
+      ProofResult R = ValidRange.InRange(MemoryAccessRange, Cause, EquivExprs, EmptyFacts);
       if (R == ProofResult::True)
         return R;
       if (R == ProofResult::False || R == ProofResult::Maybe) {
@@ -1824,6 +1859,10 @@ namespace {
     // Given an assignment target = e, where target has declared bounds
     // DeclaredBounds and and e has inferred bounds SrcBounds, make sure
     // that SrcBounds implies that DeclaredBounds are provably true.
+    //
+    // CheckBoundsDeclAtAssignment is currently used only to check the bounds
+    // for assignments to non-variable target expressions.  Variable bounds
+    // are checked after each top-level statement in ValidateBoundsContext.
     void CheckBoundsDeclAtAssignment(SourceLocation ExprLoc, Expr *Target,
                                      BoundsExpr *DeclaredBounds, Expr *Src,
                                      BoundsExpr *SrcBounds,
@@ -2046,7 +2085,14 @@ namespace {
 
     void CheckBoundsAtMemoryAccess(Expr *Deref, BoundsExpr *ValidRange,
                                    BoundsCheckKind CheckKind,
-                                   CheckedScopeSpecifier CSS) {
+                                   CheckedScopeSpecifier CSS,
+                                   EquivExprSets *EquivExprs) {
+
+      // If we are running to Checked C converter (AST only) tool, then disable
+      // bounds checking.
+      if (S.getLangOpts().CheckedCConverter)
+        return;
+
       ProofFailure Cause;
       ProofResult Result;
       ProofStmtKind ProofKind;
@@ -2058,15 +2104,15 @@ namespace {
       if (UnaryOperator *UO = dyn_cast<UnaryOperator>(Deref)) {
         ProofKind = ProofStmtKind::MemoryAccess;
         Result = ProveMemoryAccessInRange(UO->getSubExpr(), nullptr, ValidRange,
-                                          CheckKind, Cause);
+                                          CheckKind, EquivExprs, Cause);
       } else if (ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(Deref)) {
         ProofKind = ProofStmtKind::MemoryAccess;
         Result = ProveMemoryAccessInRange(AS->getBase(), AS->getIdx(),
-                                          ValidRange, CheckKind, Cause);
+                                          ValidRange, CheckKind, EquivExprs, Cause);
       } else if (MemberExpr *ME = dyn_cast<MemberExpr>(Deref)) {
         assert(ME->isArrow());
         ProofKind = ProofStmtKind::MemberArrowBase;
-        Result = ProveMemoryAccessInRange(ME->getBase(), nullptr, ValidRange, CheckKind, Cause);
+        Result = ProveMemoryAccessInRange(ME->getBase(), nullptr, ValidRange, CheckKind, EquivExprs, Cause);
       } else {
         llvm_unreachable("unexpected expression kind");
       }
@@ -2197,7 +2243,7 @@ namespace {
    }
 
    void ResetKilledBounds(StmtDeclSetTy &KilledBounds, Stmt *St,
-                          BoundsContextTy &ObservedBounds) {
+                          CheckingState &State) {
      auto I = KilledBounds.find(St);
      if (I == KilledBounds.end())
        return;
@@ -2207,12 +2253,12 @@ namespace {
      // variables killed by the statement S to the normalized declared bounds.
      for (const VarDecl *V : I->second) {
        if (BoundsExpr *Bounds = S.NormalizeBounds(V))
-         ObservedBounds[V] = Bounds;
+         State.ObservedBounds[V] = Bounds;
      }
    }
 
    void UpdateCtxWithWidenedBounds(BoundsMapTy &WidenedBounds,
-                                   BoundsContextTy &ObservedBounds) {
+                                   CheckingState &State) {
      // WidenedBounds contains the mapping from _Nt_array_ptr to the offset by
      // which its declared bounds should be widened. In this function we apply
      // the offset to the declared bounds of the _Nt_array_ptr and update its
@@ -2241,7 +2287,7 @@ namespace {
          RangeBoundsExpr *R =
            new (Context) RangeBoundsExpr(Lower, WidenedUpper,
                                          SourceLocation(), SourceLocation());
-         ObservedBounds[V] = R;
+         State.ObservedBounds[V] = R;
        }
      }
    }
@@ -2301,8 +2347,8 @@ namespace {
        // Also get the bounds killed (if any) by each statement in the current
        // block.
        StmtDeclSetTy KilledBounds = BA.GetKilledBounds(Block);
-       // Update the Observed bounds with the widened bounds calculated above.
-       UpdateCtxWithWidenedBounds(WidenedBounds, BlockState.ObservedBounds);
+       // Update the observed bounds with the widened bounds calculated above.
+       UpdateCtxWithWidenedBounds(WidenedBounds, BlockState);
 
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
@@ -2339,20 +2385,18 @@ namespace {
             // bounds for v (if any), or the declared bounds for v (if any).
             GetDeclaredBounds(this->S, BlockState.ObservedBounds, S);
 
-            // If any bounds are killed by statement S, reset their bounds
-            // to their declared bounds.
-            ResetKilledBounds(KilledBounds, S, BlockState.ObservedBounds);
-
             BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
-            BlockState.SameValue.clear();
+            BlockState.Reset();
 
             Check(S, CSS, BlockState);
 
             if (DumpState)
               DumpCheckingState(llvm::outs(), S, BlockState);
 
-            // TODO: for each variable v in ObservedBounds, check that the
+            // For each variable v in ObservedBounds, check that the
             // observed bounds of v imply the declared bounds of v.
+            ValidateBoundsContext(S, BlockState, WidenedBounds,
+                                  KilledBounds, CSS);
 
             // The observed bounds that were updated after checking S should
             // only be used to check that the updated observed bounds imply
@@ -2360,6 +2404,13 @@ namespace {
             // declared bounds, the observed bounds for each variable should
             // be reset to their observed bounds from before checking S.
             BlockState.ObservedBounds = InitialObservedBounds;
+
+            // If the widened bounds of any variables are killed by statement
+            // S, reset their observed bounds to their declared bounds.
+            // Resetting the widened bounds killed by S should be the last
+            // thing done as part of traversing S.  The widened bounds of each
+            // variable should be in effect until the very end of traversing S.
+            ResetKilledBounds(KilledBounds, S, BlockState);
          }
        }
        if (Block->getBlockID() != Cfg->getEntry().getBlockID())
@@ -2506,14 +2557,6 @@ namespace {
       }
 
       if (Expr *E = dyn_cast<Expr>(S)) {
-        // Bounds expressions are not null ptrs.
-        if (isa<BoundsExpr>(E))
-          return ResultBounds;
-
-        // Temporary bindings are not null ptrs.
-        if (isa<CHKCBindTemporaryExpr>(E))
-          return ResultBounds;
-
         // Null ptrs always have bounds(any).
         // This is the correct way to detect all the different ways that
         // C can make a null ptr.
@@ -2624,7 +2667,7 @@ namespace {
     void TraverseTopLevelVarDecl(VarDecl *VD, CheckedScopeSpecifier CSS) {
       ResetFacts();
       CheckingState State;
-      CheckVarDecl(VD, CSS, State);
+      CheckVarDecl(VD, CSS, State, /*CheckBounds=*/true);
     }
 
     void ResetFacts() {
@@ -2752,6 +2795,9 @@ namespace {
         }
       }
 
+      // Determine whether the assignment is to a variable.
+      DeclRefExpr *LHSVar = GetLValueVariable(LHS);
+
       // Update the checking state.  The result bounds may also be updated
       // for assignments to a variable.
       if (E->isAssignmentOp()) {
@@ -2772,31 +2818,31 @@ namespace {
 
         // Update the checking state and result bounds for assignments to `e1`
         // where `e1` is a variable.
-        if (DeclRefExpr *V = GetLValueVariable(LHS)) {
-          ResultBounds = UpdateAfterAssignment(V, Target, Src, ResultBounds,
+        if (LHSVar)
+          ResultBounds = UpdateAfterAssignment(LHSVar, Target, Src, ResultBounds,
                                                CSS, State, State);
-        }
         // Update EquivExprs and SameValue for assignments where `e1` is not
         // a variable.
-        else {
+        else
           // SameValue is empty for assignments to a non-variable.  This
           // conservative approach avoids recording false equality facts for
           // assignments where the LHS appears on the RHS, e.g. *p = *p + 1.
           State.SameValue.clear();
-        }
       } else if (BinaryOperator::isLogicalOp(Op)) {
         // TODO: update State for logical operators `e1 && e2` and `e1 || e2`.
       } else if (Op == BinaryOperatorKind::BO_Comma) {
         // Do nothing for comma operators `e1, e2`. State already contains the
         // the correct EquivExprs and SameValue sets as a result of checking
         // `e1` and `e2`.
-      } else {
+      } else
         // For all other binary operators `e1 @ e2`, use the SameValue sets for
         // `e1` and `e2` stored in SubExprSameValueSets to update
         // State.SameValue for `e1 @ e2`.
         UpdateSameValue(E, SubExprSameValueSets, State.SameValue);
-      }
 
+      // TODO: checkedc-clang issue #873: combine this E->isAssignmentOp()
+      // block with the earlier E->isAssignmentOp() block for updating the
+      // checking state.
       if (E->isAssignmentOp()) {
         QualType LHSType = LHS->getType();
         // Bounds of the right-hand side of the assignment
@@ -2819,15 +2865,30 @@ namespace {
             else
               RightBounds = S.CheckNonModifyingBounds(ResultBounds, RHS);
 
-            if (RightBounds->isUnknown()) {
-                S.Diag(RHS->getBeginLoc(),
-                      diag::err_expected_bounds_for_assignment)
-                      << RHS->getSourceRange();
-                RightBounds = S.CreateInvalidBoundsExpr();
+            // If RightBounds are invalid bounds, it is because the bounds for
+            // the RHS contained a modifying expression. Update the variable's
+            // observed bounds to be InvalidBounds to avoid extraneous errors
+            // during bounds declaration validation.
+            if (LHSVar && RightBounds->isInvalid()) {
+              VarDecl *V = dyn_cast_or_null<VarDecl>(LHSVar->getDecl());
+              if (V)
+                State.ObservedBounds[V] = RightBounds;
             }
 
-            CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
-                                        RHS, RightBounds, State.EquivExprs, CSS);
+            // Check bounds declarations for assignments to a non-variable.
+            // Assignments to variables will be checked after checking the
+            // current top-level CFG statement.
+            if (!LHSVar) {
+              if (RightBounds->isUnknown()) {
+                S.Diag(RHS->getBeginLoc(),
+                       diag::err_expected_bounds_for_assignment)
+                    << RHS->getSourceRange();
+                RightBounds = S.CreateInvalidBoundsExpr();
+              }
+              CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
+                                          RHS, RightBounds, State.EquivExprs,
+                                          CSS);
+            }
           }
         }
 
@@ -2836,10 +2897,15 @@ namespace {
         bool LHSNeedsBoundsCheck = false;
         OperationKind OpKind = (E->getOpcode() == BO_Assign) ?
           OperationKind::Assign : OperationKind::Other;
-        LHSNeedsBoundsCheck = AddBoundsCheck(LHS, OpKind, CSS, LHSLValueBounds);
+        LHSNeedsBoundsCheck = AddBoundsCheck(LHS, OpKind, CSS,
+                                             &State.EquivExprs,
+                                             LHSLValueBounds);
         if (DumpBounds && (LHSNeedsBoundsCheck ||
-                            (LHSTargetBounds && !LHSTargetBounds->isUnknown())))
+                            (LHSTargetBounds && !LHSTargetBounds->isUnknown()))) {
+          if (RightBounds && RightBounds->isUnknown())
+            RightBounds = S.CreateInvalidBoundsExpr();
           DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RightBounds);
+        }
       }
 
       return ResultBounds;
@@ -3059,7 +3125,8 @@ namespace {
 
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
         bool NeedsBoundsCheck = AddBoundsCheck(SubExpr, OperationKind::Read,
-                                               CSS, SubExprLValueBounds);
+                                               CSS, &State.EquivExprs,
+                                               SubExprLValueBounds);
         if (NeedsBoundsCheck && DumpBounds)
           DumpExpression(llvm::outs(), E);
         return ResultBounds;
@@ -3153,7 +3220,8 @@ namespace {
 
       if (E->isIncrementDecrementOp()) {
         bool NeedsBoundsCheck = AddBoundsCheck(SubExpr, OperationKind::Other,
-                                               CSS, SubExprLValueBounds);
+                                               CSS, &State.EquivExprs,
+                                               SubExprLValueBounds);
         if (NeedsBoundsCheck && DumpBounds)
           DumpExpression(llvm::outs(), E);
       }
@@ -3171,8 +3239,8 @@ namespace {
         BoundsExpr *IncDecResultBounds = SubExprTargetBounds;
 
         // Create the target of the implied assignment `e1 = e1 +/- 1`.
-        Expr *Target = CreateImplicitCast(SubExpr->getType(),
-                                            CK_LValueToRValue, SubExpr);
+        CastExpr *Target = CreateImplicitCast(SubExpr->getType(),
+                                              CK_LValueToRValue, SubExpr);
 
         // Only use the RHS `e1 +/1 ` of the implied assignment to update
         // the checking state if the integer constant 1 can be created, which
@@ -3192,32 +3260,13 @@ namespace {
           // Update SameValue to be the set of expressions that produce the
           // same value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateSameValue(E, State.SameValue, State.SameValue, RHS);
-          IncDecResultBounds = UpdateAfterAssignment(V, Target, RHS,
-                                                     IncDecResultBounds,
+          // The bounds of the RHS `e1 +/- 1` are the rvalue bounds of the
+          // rvalue cast `e1`.
+          BoundsExpr *RHSBounds = RValueCastBounds(Target, SubExprTargetBounds,
+                                                   SubExprLValueBounds,
+                                                   SubExprBounds, State);
+          IncDecResultBounds = UpdateAfterAssignment(V, Target, RHS, RHSBounds,
                                                      CSS, State, State);
-
-          // Check that the updated IncDecResultBounds imply the target bounds
-          // for the variable `e1`.
-          QualType SubExprType = SubExpr->getType();
-          // Source bounds used to check the inc/dec operator.
-          BoundsExpr *SrcBounds = nullptr;
-          if (SubExprType->isCheckedPointerType() || SubExprType->isIntegerType()) {
-            // Check that the source `e1 +/- 1` has bounds if the lvalue
-            // subexpression `e1` has bounds.
-            SubExprTargetBounds = S.CheckNonModifyingBounds(SubExprTargetBounds, E);
-            if (!SubExprTargetBounds->isUnknown()) {
-              SrcBounds = S.CheckNonModifyingBounds(IncDecResultBounds, E);
-              if (SrcBounds->isUnknown()) {
-                  S.Diag(E->getBeginLoc(),
-                        diag::err_expected_bounds_for_assignment)
-                        << E->getSourceRange();
-                  SrcBounds = S.CreateInvalidBoundsExpr();
-              }
-
-              CheckBoundsDeclAtIncrementDecrement(E, SubExprTargetBounds,
-                SrcBounds, State.EquivExprs, CSS);
-            }
-          }
         }
 
         // Update the set SameValue of expressions that produce the same
@@ -3282,7 +3331,7 @@ namespace {
 
     // CheckVarDecl returns empty bounds.
     BoundsExpr *CheckVarDecl(VarDecl *D, CheckedScopeSpecifier CSS,
-                             CheckingState &State) {
+                             CheckingState &State, bool CheckBounds = false) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
       Expr *Init = D->getInit();
@@ -3312,7 +3361,7 @@ namespace {
         Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
 
         // Record equality between the target and initializer.
-        RecordEqualityWithTarget(TargetExpr, State);
+        RecordEqualityWithTarget(TargetExpr, Init, State);
       }
 
       if (D->isInvalidDecl())
@@ -3345,11 +3394,12 @@ namespace {
         InitBounds = S.CheckNonModifyingBounds(InitBounds, Init);
         State.ObservedBounds[D] = InitBounds;
         if (InitBounds->isUnknown()) {
-          // TODO: need some place to record the initializer bounds
-          S.Diag(Init->getBeginLoc(), diag::err_expected_bounds_for_initializer)
-              << Init->getSourceRange();
+          if (CheckBounds)
+            // TODO: need some place to record the initializer bounds
+            S.Diag(Init->getBeginLoc(), diag::err_expected_bounds_for_initializer)
+                << Init->getSourceRange();
           InitBounds = S.CreateInvalidBoundsExpr();
-        } else {
+        } else if (CheckBounds) {
           BoundsExpr *NormalizedDeclaredBounds = ExpandToRange(D, DeclaredBounds);
           CheckBoundsDeclAtInitializer(D->getLocation(), D, NormalizedDeclaredBounds,
             Init, InitBounds, State.EquivExprs, CSS);
@@ -3591,6 +3641,7 @@ namespace {
       State.SameValue.clear();
 
       bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS,
+                                                       &State.EquivExprs,
                                                        BaseLValueBounds,
                                                        BaseBounds);
       if (NeedsBoundsCheck && DumpBounds)
@@ -3636,6 +3687,8 @@ namespace {
         // Only expressions with array or function type can have a decayed
         // type, which is used to create the lvalue bounds.  Compound literals
         // with non-array, non-function types do not have lvalue bounds.
+        // TODO: checkedc-clang issue #870: bind all compound literals to
+        // temporaries and infer lvalue bounds for struct compound literals.
         if (!(E->getType()->isArrayType() || E->getType()->isFunctionType()))
           return CreateBoundsAlwaysUnknown();
 
@@ -3817,6 +3870,153 @@ namespace {
         RValueBounds = Check(E, CSS, State);
     }
 
+    // Methods to validate observed and declared bounds.
+
+    // ValidateBoundsContext checks that, after checking a top-level CFG
+    // statement S, for each variable v in the checking state observed bounds
+    // context, the observed bounds of v imply the declared bounds of v.
+    void ValidateBoundsContext(Stmt *S, CheckingState State,
+                               BoundsMapTy WidenedBounds,
+                               StmtDeclSetTy KilledBounds,
+                               CheckedScopeSpecifier CSS) {
+      // Construct a set of sets of equivalent expressions that contains all
+      // the equality facts in State.EquivExprs, as well as any equality facts
+      // implied by State.TargetSrcEquality.  These equality facts will only
+      // be used to validate the bounds context and will not persist across
+      // CFG statements.  The source expressions in State.TargetSrcEquality
+      // do not meet the criteria for persistent inclusion in State.EquivExprs:
+      // for example, they may create new objects or read memory via pointers.
+      EquivExprSets EquivExprs = State.EquivExprs;
+      for (auto const &Pair : State.TargetSrcEquality) {
+        Expr *Target = Pair.first;
+        Expr *Src = Pair.second;
+        bool FoundTarget = false;
+        for (auto I = EquivExprs.begin(); I != EquivExprs.end(); ++I) {
+          if (EqualExprsContainsExpr(*I, Target)) {
+            FoundTarget = true;
+            I->push_back(Src);
+            break;
+          }
+        }
+        if (!FoundTarget)
+          EquivExprs.push_back({Target, Src});
+      }
+
+      for (auto const &Pair : State.ObservedBounds) {
+        const VarDecl *V = Pair.first;
+        BoundsExpr *ObservedBounds = Pair.second;
+        BoundsExpr *DeclaredBounds = this->S.NormalizeBounds(V);
+        if (!DeclaredBounds || DeclaredBounds->isUnknown())
+          continue;
+        if (ObservedBounds->isUnknown())
+          DiagnoseUnknownObservedBounds(S, V, DeclaredBounds, State);
+        else
+          CheckObservedBounds(S, V, DeclaredBounds, ObservedBounds, State,
+                              &EquivExprs, WidenedBounds, KilledBounds, CSS);
+      }
+    }
+
+    // DiagnoseUnknownObservedBounds emits an error message for a variable v
+    // whose observed bounds are unknown after checking the top-level CFG
+    // statement St.
+    //
+    // State contians information that is used to provide more context in
+    // the diagnostic messages.
+    void DiagnoseUnknownObservedBounds(Stmt *St, const VarDecl *V,
+                                       BoundsExpr *DeclaredBounds,
+                                       CheckingState State) {
+      S.Diag(St->getBeginLoc(), diag::err_unknown_inferred_bounds)
+        << V << St->getSourceRange();
+      S.Diag(V->getLocation(), diag::note_declared_bounds)
+        << DeclaredBounds << DeclaredBounds->getSourceRange();
+
+      // The observed bounds of v are unknown because the original observed
+      // bounds B of v used a variable w, and there was an assignment to w
+      // where w had no original value.
+      auto LostVarIt = State.LostVariables.find(V);
+      if (LostVarIt != State.LostVariables.end()) {
+        std::pair<BoundsExpr *, DeclRefExpr *> Lost = LostVarIt->second;
+        BoundsExpr *InitialObservedBounds = Lost.first;
+        DeclRefExpr *LostVar = Lost.second;
+        S.Diag(LostVar->getLocation(), diag::note_lost_variable)
+          << LostVar << InitialObservedBounds << V << LostVar->getSourceRange();
+      }
+
+      // The observed bounds of v are unknown because at least one expression
+      // e with unknown bounds was assigned to v.
+      auto BlameSrcIt = State.UnknownSrcBounds.find(V);
+      if (BlameSrcIt != State.UnknownSrcBounds.end()) {
+        SmallVector<Expr *, 4> UnknownSources = BlameSrcIt->second;
+        for (auto I = UnknownSources.begin(); I != UnknownSources.end(); ++I) {
+          Expr *Src = *I;
+          S.Diag(Src->getBeginLoc(), diag::note_unknown_source_bounds)
+            << Src << V << Src->getSourceRange();
+        }
+      }
+    }
+
+    // CheckObservedBounds checks that the observed bounds for a variable v
+    // imply that the declared bounds for v are provably true after checking
+    // the top-level CFG statement St.
+    //
+    // EquivExprs contains all equality facts contained in State.EquivExprs,
+    // as well as any equality facts implied by State.TargetSrcEquality.
+    void CheckObservedBounds(Stmt *St, const VarDecl *V,
+                             BoundsExpr *DeclaredBounds,
+                             BoundsExpr *ObservedBounds, CheckingState State,
+                             EquivExprSets *EquivExprs,
+                             BoundsMapTy WidenedBounds,
+                             StmtDeclSetTy KilledBounds,
+                             CheckedScopeSpecifier CSS) {
+      ProofFailure Cause;
+      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, ObservedBounds,
+                                                   Cause, EquivExprs);
+      if (Result == ProofResult::True)
+        return;
+
+      // If v currently has widened bounds and the widened bounds of v are not
+      // killed by the statement St, then the proof failure was caused by not
+      // being able to prove the widened bounds of v imply the declared bounds
+      // of v. Diagnostics should not be emitted in this case. Otherwise,
+      // statements that make no changes to v or any variables used in the
+      // bounds of v would cause diagnostics to be emitted.
+      // For example, the widened bounds (p, (p + 0) + 1) do not provably imply
+      // the declared bounds (p, p + 0) due to the left-associativity of the
+      // observed upper bound (p + 0) + 1.
+      // TODO: checkedc-clang issue #867: the widened bounds of a variable
+      // should provably imply the declared bounds of a variable.
+      if (WidenedBounds.find(V) != WidenedBounds.end()) {
+        auto I = KilledBounds.find(St);
+        if (I == KilledBounds.end())
+          return;
+        if (I->second.find(V) == I->second.end())
+          return;
+      }
+
+      // For a declaration, the diagnostic message should start at the
+      // location of v rather than the beginning of St.  If the message
+      // starts at the beginning of a declaration T v = e, then extra
+      // diagnostics may be emitted for T.
+      SourceLocation Loc = St->getBeginLoc();
+      if (isa<DeclStmt>(St))
+        Loc = V->getLocation();
+
+      unsigned DiagId = (Result == ProofResult::False) ?
+        diag::error_bounds_declaration_invalid :
+        (CSS != CheckedScopeSpecifier::CSS_Unchecked?
+          diag::warn_checked_scope_bounds_declaration_invalid :
+          diag::warn_bounds_declaration_invalid);
+      S.Diag(Loc, DiagId)
+        << Sema::BoundsDeclarationCheck::BDC_Statement << V
+        << St->getSourceRange() << St->getSourceRange();
+      if (Result == ProofResult::False)
+        ExplainProofFailure(Loc, Cause, ProofStmtKind::BoundsDeclaration);
+      S.Diag(V->getLocation(), diag::note_declared_bounds)
+        << DeclaredBounds << DeclaredBounds->getSourceRange();
+      S.Diag(Loc, diag::note_expanded_inferred_bounds)
+        << ObservedBounds << ObservedBounds->getSourceRange();
+    }
+
     // Methods to update the checking state.
 
     // UpdateAfterAssignment updates the checking state after a variable V
@@ -3856,16 +4056,37 @@ namespace {
       if (DeclaredBounds)
         State.ObservedBounds[VariableDecl] = SrcBounds;
 
+      // If Src initially has unknown bounds (before making any variable
+      // replacements), use Src to explain bounds checking errors that
+      // can occur when validating the bounds context.
+      if (DeclaredBounds) {
+        if (SrcBounds->isUnknown())
+          State.UnknownSrcBounds[VariableDecl].push_back(Src);
+      }
+
       // Adjust ObservedBounds to account for any uses of V in the bounds.
-      for (auto Pair : State.ObservedBounds)
-        State.ObservedBounds[Pair.first] =
-          ReplaceVariableInBounds(Pair.second, V, OriginalValue, CSS);
+      for (auto const &Pair : State.ObservedBounds) {
+        const VarDecl *W = Pair.first;
+        BoundsExpr *Bounds = Pair.second;
+        BoundsExpr *AdjustedBounds = ReplaceVariableInBounds(Bounds, V, OriginalValue, CSS);
+        if (!Pair.second->isUnknown() && AdjustedBounds->isUnknown())
+          State.LostVariables[W] = std::make_pair(Bounds, V);
+        State.ObservedBounds[W] = AdjustedBounds;
+      }
 
       // Adjust SrcBounds to account for any uses of V and, if V has declared
       // bounds, record the updated observed bounds for V.
-      SrcBounds = ReplaceVariableInBounds(SrcBounds, V, OriginalValue, CSS);
+      BoundsExpr *AdjustedSrcBounds = ReplaceVariableInBounds(SrcBounds, V, OriginalValue, CSS);
       if (DeclaredBounds)
-        State.ObservedBounds[VariableDecl] = SrcBounds;
+        State.ObservedBounds[VariableDecl] = AdjustedSrcBounds;
+
+      // If the initial source bounds were not unknown, but they are unknown
+      // after replacing uses of V, then the assignment to V caused the
+      // source bounds (which are the observed bounds for V) to be unknown.
+      if (DeclaredBounds) {
+        if (!SrcBounds->isUnknown() && AdjustedSrcBounds->isUnknown())
+          State.LostVariables[VariableDecl] = std::make_pair(SrcBounds, V);
+      }
 
       // Adjust EquivExprs to account for any uses of V in PrevState.EquivExprs.
       State.EquivExprs.clear();
@@ -3901,8 +4122,8 @@ namespace {
           State.SameValue.push_back(AdjustedE);
       }
 
-      RecordEqualityWithTarget(Target, State);
-      return SrcBounds;
+      RecordEqualityWithTarget(Target, Src, State);
+      return AdjustedSrcBounds;
     }
 
     // RecordEqualityWithTarget updates the checking state to record equality
@@ -3911,7 +4132,7 @@ namespace {
     //
     // State.SameValue is assumed to contain expressions that produce the same
     // value as the source of the assignment.
-    void RecordEqualityWithTarget(Expr *Target, CheckingState &State) {
+    void RecordEqualityWithTarget(Expr *Target, Expr *Src, CheckingState &State) {
       // If EquivExprs contains a set F of expressions that produce the same
       // value as the source, add the target to F.  This prevents EquivExprs
       // from growing too large and containing redundant equality information.
@@ -3931,6 +4152,17 @@ namespace {
             return;
           }
         }
+      }
+
+      // If the source will not be included in State.EquivExprs, record
+      // equality between the target and source that will be used to validate
+      // the bounds context after checking the current top-level CFG statement.
+      if (Src && State.SameValue.size() == 0) {
+        CHKCBindTemporaryExpr *Temp = GetTempBinding(Src);
+        if (Temp)
+          State.TargetSrcEquality[Target] = CreateTemporaryUse(Temp);
+        else if (CheckIsNonModifying(Src))
+          State.TargetSrcEquality[Target] = Src;
       }
 
       // Avoid adding sets with duplicate expressions such as { e, e }
@@ -4454,7 +4686,7 @@ namespace {
     BoundsContextTy IntersectBoundsContexts(BoundsContextTy Context1,
                                             BoundsContextTy Context2) {
       BoundsContextTy IntersectedContext;
-      for (auto Pair : Context1) {
+      for (auto const &Pair : Context1) {
         const VarDecl *D = Pair.first;
         if (!Pair.second || !Context2.count(D))
           continue;
@@ -5174,6 +5406,9 @@ namespace {
         !ToType->isFunctionPointerType())
         return;
 
+      if (S.getLangOpts().CheckedCConverter)
+        return;
+
       // Skip lvalue-to-rvalue casts because they preserve types (except that
       // qualifers are removed).  The lvalue type should be a checked pointer
       // type too.
@@ -5283,6 +5518,11 @@ namespace {
                                            ToPtrType->getPointeeType(),
                                            /*CompareUnqualifed=*/false,
                                            /*IgnoreBounds=*/false)) {
+            // An _Assume_bounds_cast can be used to cast an unchecked function
+            // pointer to a checked function pointer, if the only difference
+            // is that the source is an unchecked pointer type.
+            if (E->getCastKind() == CastKind::CK_AssumePtrBounds)
+              return;
             S.Diag(Needle->getExprLoc(), 
                    diag::err_cast_to_checked_fn_ptr_from_unchecked_fn_ptr) <<
               ToType << E->getSourceRange();
@@ -5311,6 +5551,10 @@ namespace {
       case CK_FunctionToPointerDecay:
       case CK_BitCast:
       case CK_LValueBitCast:
+      // An _Assume_bounds_cast can be used to cast an unchecked function
+      // pointer to a checked pointer, and should therefore be considered
+      // value-preserving for a function-pointer cast.
+      case CK_AssumePtrBounds:
         return true;
       default:
         S.Diag(E->getExprLoc(), diag::err_cast_to_checked_fn_ptr_not_value_preserving)

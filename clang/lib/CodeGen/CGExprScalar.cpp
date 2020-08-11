@@ -2172,7 +2172,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     llvm_unreachable("scalar cast to non-scalar value");
 
   case CK_LValueToRValue:
-    assert(CGF.getContext().hasSameUnqualifiedType(E->getType(), DestTy));
+    assert(CGF.getContext().hasSameUnqualifiedUncheckedType(E->getType(), DestTy));
     assert(E->isGLValue() && "lvalue-to-rvalue applied to r-value!");
     return Visit(const_cast<Expr*>(E));
 
