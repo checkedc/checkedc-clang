@@ -233,7 +233,6 @@ void f11(int i, int j) {
 
 // CHECK:  [B3]
 // CHECK:    1: *(p + j)
-// CHECK:    T: if [B3.1]
 // CHECK:  [B2]
 // CHECK:    1: j = 0
 // CHECK:    2: *(p + j + 1)
@@ -1240,5 +1239,23 @@ void f33() {
 // CHECK: [B2]
 // CHECK:   2: *(((p + 1)))
 // CHECK: [B1]
+// CHECK: upper_bound(p) = 1
+}
+
+void f34(_Nt_array_ptr<char> p : bounds(p, p + i), int i, int flag) {
+  flag ? i++ : i;  // expected-error {{inferred bounds for 'p' are unknown after statement}}
+  if (*(p + i))
+  {}
+
+// CHECK: In function: f34
+// CHECK:  [B5]
+// CHECK:    1: flag
+// CHECK:  [B4]
+// CHECK:    1: i
+// CHECK:  [B3]
+// CHECK:    1: i++
+// CHECK:  [B2]
+// CHECK:    2: *(p + i)
+// CHECK:  [B1]
 // CHECK: upper_bound(p) = 1
 }
