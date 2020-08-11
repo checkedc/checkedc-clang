@@ -465,7 +465,10 @@ bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
         boost::breadth_first_search(VarG.CG, Vidx, boost::visitor(TV));
       }
 
-      RetVal = intersectBounds(PotentialB, BKind, EB);
+      // Are there are other in-scope variables where the bounds variable
+      // has been assigned to?
+      if (!PotentialB.empty())
+        RetVal = intersectBounds(PotentialB, BKind, EB);
     }
   }
 
