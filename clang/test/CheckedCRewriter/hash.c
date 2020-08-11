@@ -168,8 +168,7 @@ hash_free_entry(struct hash* p_hash, void* p_key)
   {
     p_node->p_next->p_prev = p_node->p_prev;
   }
-  //FIX soon:
-  //  free(p_node);
+  free(p_node);
 }
 
 struct hash_node**

@@ -302,6 +302,15 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   }
   insertQualType(TypeIdx, QTy);
 
+  // In CheckedC, a pointer can be freely converted to a size 0 array pointer,
+  // but our constraint system does not allow this. To enable converting calls
+  // functions with similar to free, size zero array pointers are made PTR
+  // instead of ARR.
+  if (D && D->hasBoundsExpr() && !vars.empty() && vars[0] == CS.getArr())
+    if (BoundsExpr *BE = D->getBoundsExpr())
+      if (isZeroBoundsExpr(BE, C))
+        vars[0] = CS.getPtr();
+
   // If, after boiling off the pointer-ness from this type, we hit a
   // function, then create a base-level FVConstraint that we carry
   // around too.
@@ -1075,7 +1084,9 @@ bool PointerVariableConstraint::
         CAtoms::iterator I = vars.begin();
         CAtoms::iterator J = OthCVars.begin();
         while (I != vars.end() && J != OthCVars.end()) {
-          if (CS.getAssignment(*I) != CS.getAssignment(*J)) {
+          ConstAtom *IA = CS.getAssignment(*I);
+          ConstAtom *JA = CS.getAssignment(*J);
+          if (!(IA == CS.getPtr() && JA != CS.getWild()) && IA != JA) {
             Ret = false;
             break;
           }

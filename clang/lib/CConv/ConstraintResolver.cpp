@@ -129,11 +129,8 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS,
     if (!getSizeOfArg(CE->getArg(1), ArgTy))
       return nullptr;
     // Check if first argument to calloc is 1
-    Expr *E = CE->getArg(0);
-    Expr::EvalResult ER;
-    E->EvaluateAsInt(ER, *Context,
-                     clang::Expr::SE_NoSideEffects, false);
-    if (ER.Val.isInt() && ER.Val.getInt().getExtValue() == 1)
+    int Result;
+    if (evaluateToInt(CE->getArg(0), *Context, Result) && Result == 1)
       return CS.getPtr();
     else
       return CS.getNTArr();
