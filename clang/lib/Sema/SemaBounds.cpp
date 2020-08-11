@@ -1066,13 +1066,22 @@ namespace {
       DstEmpty = 0x10,      // The destination bounds are empty (LB == UB).
       DstInvalid = 0x20,    // The destination bounds are invalid (LB > UB).
       Width = 0x40,         // The source bounds are narrower than the destination bounds.
-      PartialOverlap = 0x80 // There was only partial overlap of the destination bounds with
+      PartialOverlap = 0x80, // There was only partial overlap of the destination bounds with
                             // the source bounds.
+      BasesUnequal = 0x100,
+      LowerOffsetsUnequal = 0x200,
+      UpperOffsetsUnequal = 0x400,
     };
 
     enum class DiagnosticNameForTarget {
       Destination = 0x0,
       Target = 0x1
+    };
+
+    enum class DiagnosticNameForBoundsComponent {
+      Base,
+      Lower,
+      Upper
     };
 
     // Combine proof failure codes.
@@ -1129,8 +1138,8 @@ namespace {
 
     public:
       BaseRange(Sema &S) : S(S), Base(nullptr), LowerOffsetConstant(1, true),
-        UpperOffsetConstant(1, true), LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr) {
-      }
+            UpperOffsetConstant(1, true), LowerOffsetVariable(nullptr),
+            UpperOffsetVariable(nullptr) {}
 
       BaseRange(Sema &S, Expr *Base,
                          llvm::APSInt &LowerOffsetConstant,
@@ -1144,6 +1153,30 @@ namespace {
                          Expr *UpperOffsetVariable) :
         S(S), Base(Base), LowerOffsetConstant(1, true), UpperOffsetConstant(1, true),
         LowerOffsetVariable(LowerOffsetVariable), UpperOffsetVariable(UpperOffsetVariable) {
+      }
+
+      Expr *GetBase() const {
+        return Base;
+      }
+
+      SmallString<12> GetLowerOffsetConstantStr() const {
+        SmallString<12> Str;
+        LowerOffsetConstant.toString(Str);
+        return Str;
+      }
+
+      SmallString<12> GetUpperOffsetConstantStr() const {
+        SmallString<12> Str;
+        UpperOffsetConstant.toString(Str);
+        return Str;
+      }
+
+      Expr *GetLowerOffsetVariable() const {
+        return LowerOffsetVariable;
+      }
+
+      Expr *GetUpperOffsetVariable() const {
+        return UpperOffsetVariable;
       }
 
       // Is R a subrange of this range?
@@ -1168,6 +1201,8 @@ namespace {
           if (LowerBoundsResult == ProofResult::False ||
               UpperBoundsResult == ProofResult::False)
             return ProofResult::False;
+        } else {
+          Cause = CombineFailures(Cause, ProofFailure::BasesUnequal);
         }
         return ProofResult::Maybe;
       }
@@ -1202,6 +1237,7 @@ namespace {
             R.LowerOffsetVariable->getType()->isUnsignedIntegerType() && LowerOffsetConstant.getExtValue() == 0)
           return ProofResult::True;
 
+        Cause = CombineFailures(Cause, ProofFailure::LowerOffsetsUnequal);
         return ProofResult::Maybe;
       }
 
@@ -1235,6 +1271,7 @@ namespace {
             UpperOffsetVariable->getType()->isUnsignedIntegerType() && R.UpperOffsetConstant.getExtValue() == 0)
           return ProofResult::True;
 
+        Cause = CombineFailures(Cause, ProofFailure::UpperOffsetsUnequal);
         return ProofResult::Maybe;
       }
 
@@ -1659,6 +1696,8 @@ namespace {
                                         const BoundsExpr *SrcBounds,
                                         ProofFailure &Cause,
                                         EquivExprSets *EquivExprs,
+                                        BaseRange &DeclaredRange,
+                                        BaseRange &SrcRange,
                                         ProofStmtKind Kind =
                                           ProofStmtKind::BoundsDeclaration) {
       assert(BoundsUtil::IsStandardForm(DeclaredBounds) &&
@@ -1681,9 +1720,6 @@ namespace {
 
       if (S.Context.EquivalentBounds(DeclaredBounds, SrcBounds, EquivExprs))
         return ProofResult::True;
-
-      BaseRange DeclaredRange(S);
-      BaseRange SrcRange(S);
 
       if (CreateBaseRange(DeclaredBounds, &DeclaredRange, EquivExprs) &&
           CreateBaseRange(SrcBounds, &SrcRange, EquivExprs)) {
@@ -1860,6 +1896,60 @@ namespace {
         S.Diag(Loc, diag::note_upper_out_of_bounds) << (unsigned) Kind;
     }
 
+    void ExplainBoundsProofFailure(SourceLocation Loc, ProofFailure Cause,
+                                   BoundsExpr *DeclaredBounds,
+                                   BoundsExpr *ObservedBounds,
+                                   BaseRange *DeclaredRange,
+                                   BaseRange *SrcRange) {
+      assert(DeclaredBounds);
+      assert(ObservedBounds);
+      assert(DeclaredRange);
+      assert(SrcRange);
+
+      if (TestFailure(Cause, ProofFailure::LowerOffsetsUnequal)) {
+        DiagnosticBuilder DB =
+            S.Diag(Loc, diag::note_bounds_base_or_offset_unequal)
+                << (unsigned)DiagnosticNameForBoundsComponent::Lower
+                << ObservedBounds << DeclaredBounds;
+        if (SrcRange->GetLowerOffsetVariable())
+          DB << SrcRange->GetLowerOffsetVariable();
+        else {
+          DB << SrcRange->GetLowerOffsetConstantStr();
+        }
+
+        if (DeclaredRange->GetLowerOffsetVariable())
+          DB << DeclaredRange->GetLowerOffsetVariable();
+        else {
+          DB << DeclaredRange->GetLowerOffsetConstantStr();
+        }
+      }
+
+      if (TestFailure(Cause, ProofFailure::UpperOffsetsUnequal)) {
+        DiagnosticBuilder DB =
+            S.Diag(Loc, diag::note_bounds_base_or_offset_unequal)
+                << (unsigned)DiagnosticNameForBoundsComponent::Upper
+                << ObservedBounds << DeclaredBounds;
+        if (SrcRange->GetUpperOffsetVariable())
+          DB << SrcRange->GetUpperOffsetVariable();
+        else {
+          DB << SrcRange->GetUpperOffsetConstantStr();
+        }
+
+        if (DeclaredRange->GetUpperOffsetVariable())
+          DB << DeclaredRange->GetUpperOffsetVariable();
+        else {
+          DB << DeclaredRange->GetUpperOffsetConstantStr();
+        }
+      }
+
+      if (TestFailure(Cause, ProofFailure::BasesUnequal)) {
+        S.Diag(Loc, diag::note_bounds_base_or_offset_unequal)
+            << (unsigned)DiagnosticNameForBoundsComponent::Base
+            << ObservedBounds << DeclaredBounds << SrcRange->GetBase()
+            << DeclaredRange->GetBase();
+      }
+    }
+
     CHKCBindTemporaryExpr *GetTempBinding(Expr *E) {
       // Bounds casts should always have a temporary binding.
       if (BoundsCastExpr *BCE = dyn_cast<BoundsCastExpr>(E)) {
@@ -1914,8 +2004,11 @@ namespace {
       }
 
       ProofFailure Cause;
-      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds,
-                                                   Cause, &EquivExprs);
+      BaseRange DeclaredRange(S);
+      BaseRange SrcRange(S);
+      ProofResult Result =
+          ProveBoundsDeclValidity(DeclaredBounds, SrcBounds, Cause, &EquivExprs,
+                                  DeclaredRange, SrcRange);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -1947,8 +2040,11 @@ namespace {
         return;
 
       ProofFailure Cause;
-      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds,
-                                                   Cause, &EquivExprs);
+      BaseRange DeclaredRange(S);
+      BaseRange SrcRange(S);
+      ProofResult Result =
+          ProveBoundsDeclValidity(DeclaredBounds, SrcBounds, Cause, &EquivExprs,
+                                  DeclaredRange, SrcRange);
 
       if (Result != ProofResult::True) {
         Expr *Target = E->getSubExpr();
@@ -1981,8 +2077,11 @@ namespace {
                                   EquivExprSets EquivExprs) {
       SourceLocation ArgLoc = Arg->getBeginLoc();
       ProofFailure Cause;
-      ProofResult Result = ProveBoundsDeclValidity(ExpectedArgBounds,
-                                                   ArgBounds, Cause, &EquivExprs);
+      BaseRange DeclaredRange(S);
+      BaseRange SrcRange(S);
+      ProofResult Result =
+          ProveBoundsDeclValidity(ExpectedArgBounds, ArgBounds, Cause,
+                                  &EquivExprs, DeclaredRange, SrcRange);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_argument_bounds_invalid :
@@ -2047,8 +2146,12 @@ namespace {
         */
       }
       ProofFailure Cause;
-      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds,
-                                                   SrcBounds, Cause, &EquivExprs);
+      BaseRange DeclaredRange(S);
+      BaseRange SrcRange(S);
+      ProofResult Result =
+          ProveBoundsDeclValidity(DeclaredBounds, SrcBounds, Cause, &EquivExprs,
+                                  DeclaredRange, SrcRange);
+
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -2077,12 +2180,15 @@ namespace {
                                         BoundsExpr *SrcBounds,
                                         CheckedScopeSpecifier CSS) {
       ProofFailure Cause;
+      BaseRange DeclaredRange(S);
+      BaseRange SrcRange(S);
       bool IsStaticPtrCast = (Src->getType()->isCheckedPointerPtrType() &&
                               Cast->getType()->isCheckedPointerPtrType());
       ProofStmtKind Kind = IsStaticPtrCast ? ProofStmtKind::StaticBoundsCast :
                              ProofStmtKind::BoundsDeclaration;
       ProofResult Result =
-        ProveBoundsDeclValidity(TargetBounds, SrcBounds, Cause, nullptr, Kind);
+          ProveBoundsDeclValidity(TargetBounds, SrcBounds, Cause, nullptr,
+                                  DeclaredRange, SrcRange, Kind);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_static_cast_bounds_invalid :
@@ -3985,8 +4091,11 @@ namespace {
                              StmtDeclSetTy KilledBounds,
                              CheckedScopeSpecifier CSS) {
       ProofFailure Cause;
-      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, ObservedBounds,
-                                                   Cause, EquivExprs);
+      BaseRange DeclaredRange(S);
+      BaseRange SrcRange(S);
+      ProofResult Result =
+          ProveBoundsDeclValidity(DeclaredBounds, ObservedBounds, Cause,
+                                  EquivExprs, DeclaredRange, SrcRange);
       if (Result == ProofResult::True)
         return;
 
@@ -4015,8 +4124,11 @@ namespace {
           diag::warn_checked_scope_bounds_declaration_invalid :
           diag::warn_bounds_declaration_invalid);
       SourceLocation Loc = BlameAssignmentWithinStmt(St, V, State, DiagId);
-      if (Result == ProofResult::False)
+      if (Cause != ProofFailure::None) {
         ExplainProofFailure(Loc, Cause, ProofStmtKind::BoundsDeclaration);
+        ExplainBoundsProofFailure(Loc, Cause, DeclaredBounds, ObservedBounds,
+                                  &DeclaredRange, &SrcRange);
+      }
       S.Diag(V->getLocation(), diag::note_declared_bounds)
         << DeclaredBounds << DeclaredBounds->getSourceRange();
       S.Diag(Loc, diag::note_expanded_inferred_bounds)
