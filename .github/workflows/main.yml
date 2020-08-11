@@ -70,13 +70,6 @@ jobs:
           ninja cconv-standalone
           ninja clang
 
-      # Run units tests
-      - name: Run Unit Tests
-        run: |
-          cd ${{runner.workspace}}/${{env.builddir}}
-          cp ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils/rununittests.py ./
-          ./rununittests.py ${{github.workspace}}/depsfolder/checkedc-clang/clang/test/
-
       # Upload the built cconv-standalone and clang
       - name: Upload Build files
         uses: actions/upload-artifact@v2
@@ -90,6 +83,36 @@ jobs:
         with:
           name: cconvscripts
           path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils
+
+
+  unittests:
+    name: Run Unit tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install git python3.7 cmake build-essential wget tar ninja-build liblzma-dev libreadline-dev
+
+      - name: Download build files
+        uses: action/download-artifact@v2
+        with:
+          name: cconvbuild
+          path: ${{runner.workspace}}/${{env.builddir}}
+
+      - name: Clone checked c headers
+        uses: actions/checkout@v2
+        with:
+          repository: microsoft/checkedc
+          path: ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc
+
+      # Run units tests
+      - name: Run Unit Tests
+        run: |
+          cd ${{runner.workspace}}/${{env.builddir}}
+          cp ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils/rununittests.py ./
+          ./rununittests.py ${{github.workspace}}/depsfolder/checkedc-clang/clang/test/
 
   testvsftpd:
     name: Build and test vsftpd
