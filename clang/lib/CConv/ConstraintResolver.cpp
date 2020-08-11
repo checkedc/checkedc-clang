@@ -132,8 +132,12 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS,
     int Result;
     if (evaluateToInt(CE->getArg(0), *Context, Result) && Result == 1)
       return CS.getPtr();
-    else
-      return CS.getNTArr();
+    else {
+      // While calloc can be thought of as returning NT_ARR because it
+      // initializes the allocated memory to zero, its type in the checked
+      // header file is ARR so, we cannot safely return NT_ARR here.
+      return CS.getArr();
+    }
   }
 
   ConstAtom *Ret = CS.getPtr();
