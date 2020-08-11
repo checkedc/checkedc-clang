@@ -4162,12 +4162,19 @@ namespace {
       // should contain { 1, x, y } rather than { 1, x } and { 1, x, y }.
       if (State.SameValue.size() > 0) {
         for (auto F = State.EquivExprs.begin(); F != State.EquivExprs.end(); ++F) {
-          if (IsEqualExprsSubset(State.SameValue, *F)) {
+          if (DoExprSetsIntersect(*F, State.SameValue)) {
+            // Add all expressions in SameValue to F that are not already in F.
+            // Any expressions in SameValue that are not already in F must be
+            // at the end of SameValue. For example, F may be { 0, x, y } and
+            // SameValue may be { 0, x, y, i ? x : y }.
+            for (auto i = F->size(), SameValueSize = State.SameValue.size(); i < SameValueSize; ++i)
+              F->push_back(State.SameValue[i]);
+
+            // Add the target to F if necessary.
             if (!EqualExprsContainsExpr(*F, Target))
               F->push_back(Target);
 
-            // Add the target to SameValue if SameValue does not already
-            // contain the target.
+            // Add the target to SameValue if necessary.
             if (!EqualExprsContainsExpr(State.SameValue, Target))
               State.SameValue.push_back(Target);
             return;
@@ -4791,6 +4798,18 @@ namespace {
           return false;
       }
       return true;
+    }
+
+    // DoExprSetsIntersect returns true if the intersection of Exprs1 and
+    // Exprs2 is nonempty.
+    bool DoExprSetsIntersect(const EqualExprTy Exprs1,
+                             const EqualExprTy Exprs2) {
+      for (auto I = Exprs1.begin(); I != Exprs1.end(); ++I) {
+        Expr *E = *I;
+        if (EqualExprsContainsExpr(Exprs2, E))
+          return true;
+      }
+      return false;
     }
 
     // EqualExprsContainsExpr returns true if the set Exprs contains E.
