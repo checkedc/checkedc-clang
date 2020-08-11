@@ -55,8 +55,9 @@ bool AVarBoundsInfo::isValidBoundVariable(clang::Decl *D) {
   if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
     return !VD->getNameAsString().empty();
   }
-  if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
-    return !PD->getNameAsString().empty();
+  if (isa<ParmVarDecl>(D)) {
+    // All parameters are valid bound variables.
+    return true;
   }
   if(FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
     return !FD->getNameAsString().empty();
@@ -218,7 +219,13 @@ BoundsKey AVarBoundsInfo::getVariable(clang::ParmVarDecl *PVD) {
     FunctionParamScope *FPS =
         FunctionParamScope::getFunctionParamScope(FD->getNameAsString(),
                                                   FD->isStatic());
-    auto *PVar = new ProgramVar(NK, PVD->getNameAsString(), FPS);
+    std::string ParamName = PVD->getNameAsString();
+    // If this is a parameter without name!?
+    // Just get the name from argument number.
+    if (ParamName.empty())
+      ParamName = "NONAMEPARAM_" + std::to_string(ParamIdx);
+
+    auto *PVar = new ProgramVar(NK, ParamName, FPS);
     insertProgramVar(NK, PVar);
     ParamDeclVarMap.insert(ParmMapItemType(ParamKey, NK));
     if (PVD->getType()->isPointerType())
@@ -273,6 +280,14 @@ ProgramVar *AVarBoundsInfo::getProgramVar(BoundsKey VK) {
     Ret = PVarInfo[VK];
   }
   return Ret;
+}
+
+void AVarBoundsInfo::brainTransplant(BoundsKey NewBK, BoundsKey OldBK) {
+  // Here, we use the ProgramVar of NewBK and use it for OldBK.
+  if (NewBK != OldBK) {
+    ProgramVar *NewPVar = getProgramVar(NewBK);
+    insertProgramVar(OldBK, NewPVar);
+  }
 }
 
 bool AVarBoundsInfo::hasVarKey(PersistentSourceLoc &PSL) {

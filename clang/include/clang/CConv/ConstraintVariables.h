@@ -126,7 +126,7 @@ public:
   virtual void equateArgumentConstraints(ProgramInfo &I) = 0;
 
   // Update this CV with information from duplicate declaration CVs
-  virtual void brainTransplant(ConstraintVariable *) = 0;
+  virtual void brainTransplant(ConstraintVariable *, ProgramInfo &) = 0;
   virtual void mergeDeclaration(ConstraintVariable *) = 0;
 
   std::string getOriginalTy() { return OriginalType; }
@@ -287,7 +287,7 @@ public:
 
   const CAtoms &getCvars() const { return vars; }
 
-  void brainTransplant(ConstraintVariable *From);
+  void brainTransplant(ConstraintVariable *From, ProgramInfo &I);
   void mergeDeclaration(ConstraintVariable *From);
 
   static bool classof(const ConstraintVariable *S) {
@@ -380,7 +380,7 @@ public:
     return S->getKind() == FunctionVariable;
   }
 
-  void brainTransplant(ConstraintVariable *From);
+  void brainTransplant(ConstraintVariable *From, ProgramInfo &I);
   void mergeDeclaration(ConstraintVariable *FromCV);
 
   std::set<ConstraintVariable *> &

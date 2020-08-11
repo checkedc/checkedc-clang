@@ -1499,19 +1499,27 @@ bool isAValidPVConstraint(ConstraintVariable *C) {
 }
 
 // Replace CVars and argumentConstraints with those in [FromCV].
-void PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
+void PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
+                                                ProgramInfo &I) {
   PVConstraint *From = dyn_cast<PVConstraint>(FromCV);
   assert (From != nullptr);
   CAtoms CFrom = From->getCvars();
   assert (vars.size() == CFrom.size());
-  ValidBoundsKey = From->hasBoundsKey();
-  if (From->hasBoundsKey())
+  if (From->hasBoundsKey()) {
+    // If this has bounds key!? Then do brain transplant of
+    // bound keys as well.
+    if (hasBoundsKey())
+      I.getABoundsInfo().brainTransplant(getBoundsKey(),
+                                         From->getBoundsKey());
+
+    ValidBoundsKey = From->hasBoundsKey();
     BKey = From->getBoundsKey();
+  }
   vars = CFrom; // FIXME: structural copy? By reference?
   argumentConstraints = From->getArgumentConstraints();
   if (FV) {
     assert(From->FV);
-    FV->brainTransplant(From->FV);
+    FV->brainTransplant(From->FV, I);
   }
 }
 
@@ -1557,13 +1565,14 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
 }
 
 // Brain Transplant params and returns in [FromCV], recursively.
-void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
+void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
+                                                 ProgramInfo &I) {
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert (From != nullptr);
   // Transplant returns.
   auto FromRetVar = getOnly(From->getReturnVars());
   auto RetVar = getOnly(returnVars);
-  RetVar->brainTransplant(FromRetVar);
+  RetVar->brainTransplant(FromRetVar, I);
   // Transplant params.
   assert(From->numParams() == numParams());
   for (unsigned i = 0; i < From->numParams(); i++) {
@@ -1571,7 +1580,7 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV) {
     CVarSet &P = getParamVar(i);
     auto FromVar = getOnly(FromP);
     auto Var = getOnly(P);
-    Var->brainTransplant(FromVar);
+    Var->brainTransplant(FromVar, I);
   }
 }
 

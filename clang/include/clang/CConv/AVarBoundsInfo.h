@@ -164,6 +164,10 @@ public:
   // Get the ProgramVar for the provided VarKey.
   ProgramVar *getProgramVar(BoundsKey VK);
 
+  // Function that does brain transplant of the provided bounds key (NewBK)
+  // with existing bounds key (OldBK).
+  void brainTransplant(BoundsKey NewBK, BoundsKey OldBK);
+
   // Propagate the array bounds information for all array ptrs.
   bool performFlowAnalysis(ProgramInfo *PI);
 

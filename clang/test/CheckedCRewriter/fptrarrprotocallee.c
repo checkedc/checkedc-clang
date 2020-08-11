@@ -100,7 +100,7 @@ int *mul2(int *x) {
 
 int ** sus(int *, int *);
 	//CHECK_NOALL: int ** sus(int *x, int *y);
-	//CHECK_ALL: _Nt_array_ptr<_Array_ptr<int>> sus(int *x, _Array_ptr<int> y);
+	//CHECK_ALL: _Nt_array_ptr<_Array_ptr<int>> sus(int *x, _Array_ptr<int> y : count(5));
 
 int ** foo() {
 	//CHECK_NOALL: int ** foo(void) {
@@ -142,7 +142,7 @@ return z; }
 
 int ** sus(int *x, int *y) {
 	//CHECK_NOALL: int ** sus(int *x, int *y) {
-	//CHECK_ALL: _Nt_array_ptr<_Array_ptr<int>> sus(int *x, _Array_ptr<int> y) {
+	//CHECK_ALL: _Nt_array_ptr<_Array_ptr<int>> sus(int *x, _Array_ptr<int> y : count(5)) {
 
         x = (int *) 5;
 	//CHECK: x = (int *) 5;
