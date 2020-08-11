@@ -2877,3 +2877,356 @@ void control_flow5(int flag, int i, int j) {
   // CHECK-NEXT: }
   // CHECK-NEXT: }
 }
+
+///////////////////////////
+// Conditional operators //
+///////////////////////////
+
+void conditional1(int x, int y, int z) {
+  // No assignments in either arm
+  // Updated EquivExprs: { { y, x } }
+  (x = y) ? 1 : 2;
+  // CHECK: Statement S:
+  // CHECK-NEXT: ConditionalOperator
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     BinaryOperator {{.*}} '='
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   IntegerLiteral {{.*}} 2
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+
+  // Different assignments in each arm
+  // Updated EquivExprs: { { 1, x } }
+  (x = 1) ? (y = 2) : (z = 3);
+  // CHECK: Statement S:
+  // CHECK-NEXT: ConditionalOperator
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     BinaryOperator {{.*}} '='
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     BinaryOperator {{.*}} '='
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 2
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     BinaryOperator {{.*}} '='
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'z'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 3
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT: }
+
+  // Same assignments in each arm
+  // Updated EquivExprs: { { 1, x, y }, { 2, z } }
+  (x = 1) ? (y = 1, z = 2) : (z = 2, y = 1);
+  // CHECK: Statement S:
+  // CHECK-NEXT: ConditionalOperator
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     BinaryOperator {{.*}} '='
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     BinaryOperator {{.*}} ','
+  // CHECK-NEXT:       BinaryOperator {{.*}} '='
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:       BinaryOperator {{.*}} '='
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'z'
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 2
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     BinaryOperator {{.*}} ','
+  // CHECK-NEXT:       BinaryOperator {{.*}} '='
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'z'
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 2
+  // CHECK-NEXT:       BinaryOperator {{.*}} '='
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT:         IntegerLiteral {{.*}} 1
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:    DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'z'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+}
+
+// Variables are overwritten in each conditional arm
+void conditional2(int x) {
+  // Overwritten with the same value
+  // Updated EquivExprs: { 2, x }
+  (x = 1) ? (x = 2) : (x = 2);
+  // CHECK: Statement S:
+  // CHECK-NEXT: ConditionalOperator
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     BinaryOperator {{.*}} '='
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     BinaryOperator {{.*}} '='
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 2
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     BinaryOperator {{.*}} '='
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 2
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 2
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+
+  // Overwritten with different values
+  // Updated EquivExprs: { }
+  (x = 1) ? (x = 2) : (x = 3);
+  // CHECK: Statement S:
+  // CHECK-NEXT: ConditionalOperator
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     BinaryOperator {{.*}} '='
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     BinaryOperator {{.*}} '='
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 2
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     BinaryOperator {{.*}} '='
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 3
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: { }
+}
+
+// Conditional operators are added to the correct set in EquivExprs
+void conditional3(int flag, int x, int y, int z) {
+  int i = 0;
+  int a = 1;
+  x = 1;
+  y = 1;
+
+  // Updated EquivExprs: { { 0, i }, { 1, a, x, y, flag ? x : y, v } }
+  int v = flag ? x : y;
+  // CHECK: Statement S:
+  // CHECK: DeclStmt
+  // CHECK: VarDecl {{.*}} v
+  // CHECK-NEXT: ConditionalOperator
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'flag'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'y'
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT: ConditionalOperator
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'flag'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'v'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+}
+
+// Nested conditional expressions
+void conditional4(int a, int b, int x, int i) {
+  int y = 0;
+  int z = 0;
+  int j = 0;
+  int k = 0;
+
+  // Updated EquivExprs: { { 0, y, z, j, k, b ? (x ? y : z) : (i ? j : k), a } }
+  a = (b ? (x ? y : z) : (i ? j : k));
+  // CHECK: Statement S:
+  // CHECK: BinaryOperator {{.*}} '='
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: ParenExpr
+  // CHECK-NEXT:   ConditionalOperator
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:     ParenExpr {{.*}}
+  // CHECK-NEXT:       ConditionalOperator
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'z'
+  // CHECK-NEXT:     ParenExpr
+  // CHECK-NEXT:       ConditionalOperator
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'j'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'k'
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'z'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'j'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'k'
+  // CHECK-NEXT: ConditionalOperator
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:   ParenExpr {{.*}}
+  // CHECK-NEXT:     ConditionalOperator
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'z'
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     ConditionalOperator
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'j'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'k'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+
+  y = 1, z = 1;
+
+  // Original value of y and z: j
+  // Updated EquivExprs: { { 0, j, k, b ? (x ? j : j) : (i ? j : k) }, 
+  //                       { 1, y, z, x ? y : z, b ? (x ? y : z) : (x ? y : z), a } }
+  a = (b ? (x ? y : z) : (x ? y : z));
+  // CHECK: Statement S:
+  // CHECK: BinaryOperator {{.*}} '='
+  // CHECK:      DeclRefExpr {{.*}} 'a'
+  // CHECK:      ParenExpr
+  // CHECK-NEXT:   ConditionalOperator
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:       DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:     ParenExpr {{.*}}
+  // CHECK-NEXT:       ConditionalOperator
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'z'
+  // CHECK-NEXT:     ParenExpr
+  // CHECK-NEXT:       ConditionalOperator
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT:         ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:           DeclRefExpr {{.*}} 'z'
+  // CHECK: Sets of equivalent expressions after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 0
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'j'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'k'
+  // CHECK-NEXT: ConditionalOperator
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:   ParenExpr {{.*}}
+  // CHECK-NEXT:     ConditionalOperator
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'j'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'j'
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     ConditionalOperator
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'i'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'j'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'k'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: {
+  // CHECK-NEXT: IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'z'
+  // CHECK-NEXT: ConditionalOperator
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'z'
+  // CHECK-NEXT: ConditionalOperator
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:     DeclRefExpr {{.*}} 'b'
+  // CHECK-NEXT:   ParenExpr {{.*}}
+  // CHECK-NEXT:     ConditionalOperator
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'z'
+  // CHECK-NEXT:   ParenExpr
+  // CHECK-NEXT:     ConditionalOperator
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'x'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'y'
+  // CHECK-NEXT:       ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:         DeclRefExpr {{.*}} 'z'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'a'
+  // CHECK-NEXT: }
+  // CHECK-NEXT: }
+}
