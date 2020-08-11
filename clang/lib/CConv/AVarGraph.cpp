@@ -15,6 +15,8 @@
 #include <boost/graph/graphviz.hpp>
 #include <iostream>
 
+using namespace boost;
+
 void AVarGraph::addEdge(BoundsKey L, BoundsKey R, bool BD) {
   auto V1 = addVertex(L);
   auto V2 = addVertex(R);

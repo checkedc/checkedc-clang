@@ -13,6 +13,8 @@
 #include <iostream>
 #include <boost/graph/graphviz.hpp>
 
+using namespace boost;
+
 // This has to be included to avoid linking errors with boost libraries.
 #define BOOST_NO_EXCEPTIONS
 #include <boost/throw_exception.hpp>

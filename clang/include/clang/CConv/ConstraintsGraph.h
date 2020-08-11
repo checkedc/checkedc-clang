@@ -16,7 +16,6 @@
 #include <boost/graph/adjacency_list.hpp>
 #include "clang/CConv/Constraints.h"
 
-using namespace boost;
 using namespace std;
 
 template<class G>
@@ -38,9 +37,11 @@ protected:
 };
 
 class ConstraintsGraph
-    : public BaseGraph<adjacency_list<setS, vecS, bidirectionalS, Atom *>> {
+    : public BaseGraph<boost::adjacency_list<boost::setS, boost::vecS,
+                                             boost::bidirectionalS, Atom *>> {
 public:
-  typedef adjacency_list<setS, vecS, bidirectionalS, Atom*> DirectedGraphType;
+  typedef boost::adjacency_list<boost::setS, boost::vecS,
+                                boost::bidirectionalS, Atom*> DirectedGraphType;
 
   ConstraintsGraph() {
     AllConstAtoms.clear();
@@ -66,8 +67,9 @@ public:
     auto Vidx = addVertex(A);
     Atoms.clear();
     if (Succs) {
-      typename graph_traits<DirectedGraphType>::out_edge_iterator ei, ei_end;
-      for (boost::tie(ei, ei_end) = out_edges(Vidx, CG); ei != ei_end; ++ei) {
+      typename boost::graph_traits<DirectedGraphType>::out_edge_iterator ei, ei_end;
+      for (boost::tie(ei, ei_end) = out_edges(Vidx, CG);
+           ei != ei_end; ++ei) {
         auto source = boost::source(*ei, CG);
         auto target = boost::target(*ei, CG);
         assert(CG[source] == A && "Source has to be the given node.");
@@ -76,8 +78,9 @@ public:
         }
       }
     } else {
-      typename graph_traits <DirectedGraphType>::in_edge_iterator ei, ei_end;
-      for (boost::tie(ei, ei_end) = in_edges(Vidx, CG); ei != ei_end; ++ei) {
+      typename boost::graph_traits <DirectedGraphType>::in_edge_iterator ei, ei_end;
+      for (boost::tie(ei, ei_end) = in_edges(Vidx, CG);
+           ei != ei_end; ++ei) {
         auto source = boost::source ( *ei, CG );
         auto target = boost::target ( *ei, CG );
         assert(CG[target] == A && "Target has to be the given node.");
@@ -109,9 +112,11 @@ public:
 
 class GraphVizOutputGraph
     : public BaseGraph<
-          adjacency_list<vecS, vecS, bidirectionalS, Atom *, EdgeProperties *>> {
+        boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS,
+                                Atom *, EdgeProperties *>> {
 public:
-  typedef adjacency_list<vecS, vecS, bidirectionalS, Atom *, EdgeProperties *>
+  typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS,
+                                Atom *, EdgeProperties *>
       DirectedGraphType;
 
   void mergeConstraintGraph(const ConstraintsGraph &Graph, EdgeType EdgeType);

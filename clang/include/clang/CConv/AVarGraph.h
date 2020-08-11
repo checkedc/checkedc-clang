@@ -17,7 +17,6 @@
 #include <boost/graph/graph_traits.hpp>
 #include "ProgramVar.h"
 
-using namespace boost;
 using namespace std;
 class AVarBoundsInfo;
 
@@ -42,11 +41,12 @@ protected:
 
 // Graph that keeps tracks of direct assignments between various variables.
 class AVarGraph
-    : public AVarBaseGraph<adjacency_list<setS, vecS,
-                                          bidirectionalS, BoundsKey>> {
+    : public AVarBaseGraph<boost::adjacency_list<boost::setS, boost::vecS,
+        boost::bidirectionalS, BoundsKey>> {
 public:
-  typedef adjacency_list<setS, vecS,
-                         bidirectionalS, BoundsKey> DirectedGraphType;
+  typedef boost::adjacency_list<boost::setS, boost::vecS,
+                                boost::bidirectionalS, BoundsKey>
+      DirectedGraphType;
 
   AVarGraph() {
     clear();
