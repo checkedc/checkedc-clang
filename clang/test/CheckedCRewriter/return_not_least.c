@@ -40,10 +40,10 @@ typedef unsigned long size_t;
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 
 int *bar() {
-// CHECK_ALL: _Nt_array_ptr<int> bar(void) {
+// CHECK_ALL: _Array_ptr<int> bar(void) {
 // CHECK_NOALL: int * bar(void) {
   int *z = calloc(2, sizeof(int));
-  //CHECK_ALL: _Nt_array_ptr<int> z : count(2) =  calloc<int>(2, sizeof(int));
+  //CHECK_ALL: _Array_ptr<int> z : count(2) =  calloc<int>(2, sizeof(int));
   z += 2;
   return z;
 }
