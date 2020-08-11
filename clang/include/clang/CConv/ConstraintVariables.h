@@ -242,6 +242,12 @@ private:
   // to be wild.
   bool IsGeneric;
 
+  // Empty array pointers are represented the same as standard pointers. This
+  // lets pointers be passed to functions expecting a zero width array. This
+  // flag is used to discriminate between standard pointer and zero width array
+  // pointers.
+  bool IsZeroWidthArray;
+
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,

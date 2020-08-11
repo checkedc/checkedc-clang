@@ -25,7 +25,7 @@ void foo(void) {
   return;
 }
 //CHECK: void foo(void) {
-//CHECK-NEXT: int *a = (int *) malloc<int>(sizeof(int));
+//CHECK-NEXT: _Ptr<int> a = (_Ptr<int> ) malloc<int>(sizeof(int));
 
 typedef struct _listelt {
   struct _listelt *next;

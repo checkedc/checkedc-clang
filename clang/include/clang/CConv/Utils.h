@@ -128,4 +128,13 @@ bool isTypeAnonymous(const clang::Type *T);
 
 // Find the index of parameter PV in the parameter list of function FD.
 unsigned int getParameterIndex(clang::ParmVarDecl *PV, clang::FunctionDecl *FD);
+
+// If E can be evaluated to a constant integer, the result is stored in Result,
+// and true is returned. Otherwise, Result is not modified and, false is
+// returned.
+bool evaluateToInt(clang::Expr *E, const clang::ASTContext &C, int &Result);
+
+// Check if the bounds expression BE is zero width. Arrays with zero width bounds
+// can be treated as pointers.
+bool isZeroBoundsExpr(clang::BoundsExpr *BE, const clang::ASTContext &C);
 #endif

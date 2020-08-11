@@ -384,3 +384,27 @@ unsigned int getParameterIndex(ParmVarDecl *PV, FunctionDecl *FD) {
   }
   llvm_unreachable("Parameter declaration not found in function declaration.");
 }
+
+bool evaluateToInt(Expr *E, const ASTContext &C, int &Result) {
+  Expr::EvalResult ER;
+  E->EvaluateAsInt(ER, C, clang::Expr::SE_NoSideEffects, false);
+  if (ER.Val.isInt()) {
+    Result = ER.Val.getInt().getExtValue();
+    return  true;
+  }
+  return false;
+}
+
+bool isZeroBoundsExpr(BoundsExpr *BE, const ASTContext &C) {
+  if (auto *CBE = dyn_cast<CountBoundsExpr>(BE)){
+    // count(0) and byte_count(0)
+    Expr *E = CBE->getCountExpr();
+    int Result;
+    if (evaluateToInt(E, C, Result))
+      return Result == 0;
+  }
+  // Range bounds and empty bounds are ignored. I suppose range bounds could be
+  // size zero bounds, but checking this would be considerably more complicated
+  // and it seems unlikely to show up in real code.
+  return false;
+}
