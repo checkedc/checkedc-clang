@@ -142,7 +142,8 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS,
 
   ConstAtom *Ret = CS.getPtr();
   Expr *E;
-  if (FunctionAllocs.find(FuncName) != FunctionAllocs.end()
+  if (std::find(AllocatorFunctions.begin(), AllocatorFunctions.end(),
+                FuncName) != AllocatorFunctions.end()
       || FuncName.compare("malloc") == 0)
     E = CE->getArg(0);
   else {

@@ -14,7 +14,6 @@
 #define _CCGLOBALOPTIONS_H
 
 #include "llvm/Support/CommandLine.h"
-#include <set>
 
 extern bool Verbose;
 extern bool DumpIntermediate;
@@ -25,7 +24,7 @@ extern bool ConsiderAllocUnsafe;
 extern bool AllTypes;
 extern bool NewSolver;
 extern std::string BaseDir;
-extern std::set<std::string> FunctionAllocs;
+extern std::vector<std::string> AllocatorFunctions;
 extern bool AddCheckedRegions;
 
 #endif //_CCGLOBALOPTIONS_H

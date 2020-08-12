@@ -41,7 +41,7 @@ bool Verbose;
 std::string OutputPostfix;
 std::string ConstraintOutputJson;
 std::string Malloc;
-std::set<std::string> FunctionAllocs;
+std::vector<std::string> AllocatorFunctions;
 bool DumpStats;
 bool HandleVARARGS;
 bool EnablePropThruIType;
@@ -185,7 +185,7 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
   AllTypes = CCopt.EnableAllTypes;
   AddCheckedRegions = CCopt.AddCheckedRegions;
   DisableCCTypeChecker = CCopt.DisableCCTypeChecker;
-  FunctionAllocs = CCopt.FunctionAllocs;
+  AllocatorFunctions = CCopt.AllocatorFunctions;
 
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();

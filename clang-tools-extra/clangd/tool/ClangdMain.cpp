@@ -34,6 +34,8 @@
 #include <thread>
 #ifdef INTERACTIVECCCONV
 #include "clang/CConv/CConv.h"
+#include <boost/algorithm/string/classification.hpp>
+#include <boost/algorithm/string/split.hpp>
 #endif
 
 namespace clang {
@@ -306,6 +308,12 @@ static llvm::cl::opt<std::string>
                                  "STDOUT"),
                   llvm::cl::init("-"), llvm::cl::cat(ConvertCategory));
 
+static llvm::cl::opt<std::string>
+    Malloc("use-malloc",
+                     llvm::cl::desc("Allows for the usage of user-specified "
+                              "versions of function allocators"),
+                     llvm::cl::init(""), llvm::cl::cat(ConvertCategory));
+
 static llvm::cl::opt<std::string> ConstraintOutputJson(
     "constraint-output",
     llvm::cl::desc("Path to the file where all the analysis "
@@ -463,6 +471,11 @@ int main(int argc, char *argv[]) {
   CcOptions.AddCheckedRegions = AddCheckedRegions;
   CcOptions.EnableAllTypes = AllTypes;
   CcOptions.DisableCCTypeChecker = OptDiableCCTypeChecker;
+  std::string Malloc = OptMalloc.getValue();
+  if (!Malloc.empty())
+    boost::split(CcOptions.AllocatorFunctions, Malloc, boost::is_any_of(","));
+  else
+    CcOptions.AllocatorFunctions = {};
 
   CConvInterface CCInterface(CcOptions,
                              OptionsParser.getSourcePathList(),
