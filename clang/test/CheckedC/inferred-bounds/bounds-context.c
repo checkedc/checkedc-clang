@@ -1072,6 +1072,70 @@ void source_bounds4(array_ptr<int> arr : count(1)) {
   // CHECK-NEXT: }
 }
 
+// Assignments to variables set the observed bounds to the source bounds
+// where the source is an array-typed compound literal
+void source_bounds5(array_ptr<int> arr_array_literal : count(2)) {
+  // Observed bounds context: { arr_array_literal => bounds(value(temp((int checked[2]){ 0, 1 })), value(temp((int checked[2]){ 0, 1 })) + 2) }
+  arr_array_literal = (int checked[2]){0, 1};
+  // CHECK: Statement S:
+  // CHECK-NEXT: BinaryOperator {{.*}} '='
+  // CHECK-NEXT:   DeclRefExpr {{.*}} 'arr_array_literal'
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:     CHKCBindTemporaryExpr {{.*}} 'int _Checked[2]' lvalue
+  // CHECK-NEXT:       CompoundLiteralExpr {{.*}} 'int _Checked[2]' lvalue
+  // CHECK-NEXT:         InitListExpr {{.*}} 'int _Checked[2]'
+  // CHECK-NEXT:           IntegerLiteral {{.*}} 0
+  // CHECK-NEXT:           IntegerLiteral {{.*}} 1
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: ParmVarDecl {{.*}} arr_array_literal
+  // CHECK:      Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:     BoundsValueExpr {{.*}} 'int _Checked[2]' lvalue
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
+  // CHECK-NEXT:       BoundsValueExpr {{.*}} 'int _Checked[2]' lvalue
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 'int' 2
+  // CHECK-NEXT: }
+}
+
+struct a {
+  int f;
+};
+
+// Assignments to variables set the observed bounds to the source bounds
+// where the source is a struct-typed compound literal
+void source_bounds6() {
+  // Observed bounds context: { arr_struct_literal => bounds(&value(temp((struct a){ 0 })), &value(temp((struct a){ 0 })) + 1) }
+  array_ptr<struct a> arr_struct_literal : count(1) = &(struct a){0};
+  // CHECK: Statement S:
+  // CHECK-NEXT: DeclStmt
+  // CHECK-NEXT:   VarDecl {{.*}} a
+  // CHECK-NEXT:     CountBoundsExpr {{.*}} Element
+  // CHECK-NEXT:       IntegerLiteral {{.*}} 1
+  // CHECK-NEXT:   ImplicitCastExpr {{.*}} <BitCast>
+  // CHECK-NEXT:     UnaryOperator {{.*}} prefix '&'
+  // CHECK-NEXT:       CHKCBindTemporaryExpr {{.*}} 'struct a':'struct a' lvalue
+  // CHECK-NEXT:         CompoundLiteralExpr {{.*}} 'struct a':'struct a' lvalue
+  // CHECK-NEXT:           InitListExpr {{.*}} 'struct a':'struct a'
+  // CHECK-NEXT:             IntegerLiteral {{.*}} 'int' 0
+  // CHECK-NEXT: Observed bounds context after checking S:
+  // CHECK-NEXT: {
+  // CHECK-NEXT: Variable:
+  // CHECK-NEXT: VarDecl {{.*}} arr_struct_literal
+  // CHECK:      Bounds:
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT:   UnaryOperator {{.*}} prefix '&'
+  // CHECK-NEXT:     BoundsValueExpr {{.*}} 'struct a':'struct a' lvalue
+  // CHECK-NEXT:   BinaryOperator {{.*}} '+'
+  // CHECK-NEXT:     UnaryOperator {{.*}} prefix '&'
+  // CHECK-NEXT:       BoundsValueExpr {{.*}} 'struct a':'struct a' lvalue
+  // CHECK-NEXT:     IntegerLiteral {{.*}} 'int' 1
+  // CHECK-NEXT: }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Multiple assignments within one expression that can affect bounds checking //
 ////////////////////////////////////////////////////////////////////////////////
