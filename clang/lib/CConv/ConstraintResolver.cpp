@@ -142,7 +142,8 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS,
 
   ConstAtom *Ret = CS.getPtr();
   Expr *E;
-  if (FuncName.compare(Malloc) == 0)
+  if (FunctionAllocs.find(FuncName) != FunctionAllocs.end()
+      || FuncName.compare("malloc") == 0)
     E = CE->getArg(0);
   else {
     assert(FuncName.compare("realloc") == 0);
@@ -444,8 +445,7 @@ CVarSet
           }
         } else if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
           /* Allocator call */
-          if (isFunctionAllocator(FD->getName())
-              || FD->getName().compare(Malloc) == 0) {
+          if (isFunctionAllocator(FD->getName())) {
             bool didInsert = false;
             if (CE->getNumArgs() > 0) {
               QualType ArgTy;

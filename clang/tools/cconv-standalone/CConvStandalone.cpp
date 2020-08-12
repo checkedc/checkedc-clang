@@ -41,9 +41,9 @@ static cl::opt<std::string>
 
 static cl::opt<std::string>
     OptMalloc("use-malloc",
-                     cl::desc("Allows for the usage of a user-specified "
-                              "version of malloc"),
-                     cl::init("malloc"), cl::cat(ConvertCategory));
+                     cl::desc("Allows for the usage of user-specified "
+                              "versions of function allocators"),
+                     cl::init(""), cl::cat(ConvertCategory));
 
 static cl::opt<std::string>
     OptConstraintOutputJson("constraint-output",
@@ -123,7 +123,6 @@ int main(int argc, const char **argv) {
   CcOptions.HandleVARARGS = OptHandleVARARGS;
   CcOptions.DumpStats = OptDumpStats;
   CcOptions.OutputPostfix = OptOutputPostfix.getValue();
-  CcOptions.Malloc = OptMalloc.getValue();
   CcOptions.Verbose = OptVerbose;
   CcOptions.DumpIntermediate = OptDumpIntermediate;
   CcOptions.ConstraintOutputJson = OptConstraintOutputJson.getValue();
@@ -132,6 +131,18 @@ int main(int argc, const char **argv) {
   CcOptions.AddCheckedRegions = OptAddCheckedRegions;
   CcOptions.EnableAllTypes = OptAllTypes;
   CcOptions.DisableCCTypeChecker = OptDiableCCTypeChecker;
+  //Add user specified function allocators
+  std::string Malloc = OptMalloc.getValue();
+  std::string delimiter = ",";
+  size_t pos = 0;
+  std::string token;
+  while ((pos = Malloc.find(delimiter)) != std::string::npos) {
+    token = Malloc.substr(0, pos);
+    CcOptions.FunctionAllocs.insert(token);
+    Malloc.erase(0, pos + delimiter.length());
+  }
+  token = Malloc;
+  CcOptions.FunctionAllocs.insert(token);
 
   // Create CConv Interface.
   CConvInterface CCInterface(CcOptions,

@@ -146,6 +146,7 @@ static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C,
 // Map that contains association of allocator functions and indexes of
 // parameters that correspond to the size of the object being assigned.
 static std::map<std::string, std::set<unsigned>> AllocatorSizeAssoc = {
+                                                {"malloc", {0}},
                                                 {"calloc", {0, 1}}};
 
 
@@ -878,7 +879,9 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
 
 void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {
   // Run array bounds
-  AllocatorSizeAssoc[Malloc] = {0};
+  for (auto FuncName : FunctionAllocs) {
+    AllocatorSizeAssoc[FuncName] = {0};
+  }
   GlobalABVisitor GlobABV(C, I);
   TranslationUnitDecl *TUD = C->getTranslationUnitDecl();
   LocalVarABVisitor LFV = LocalVarABVisitor(C, I);

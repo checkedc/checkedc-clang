@@ -38,7 +38,7 @@ struct CConvertOptions {
 
   std::string WildPtrInfoJson;
 
-  std::string Malloc;
+  std::set<std::string> FunctionAllocs;
 
   bool HandleVARARGS;
 
