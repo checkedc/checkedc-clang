@@ -460,6 +460,11 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   if (!Defnc->hasBody())
     return true;
 
+  // If a function had a checked type in the input program, we don't want to
+  // mess with the existing type.
+  if (Defnc->getIsOriginallyChecked())
+    return true;
+
   // DidAny tracks if we have made any changes to this function declaration.
   // If no changes are made, then there is no need to rewrite anything, and the
   // declaration is not added to RewriteThese.

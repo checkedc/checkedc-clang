@@ -105,6 +105,7 @@ PointerVariableConstraint::
   this->Parent = Ot;
   this->IsGeneric = Ot->IsGeneric;
   this->IsZeroWidthArray = Ot->IsZeroWidthArray;
+  this->OriginallyChecked = Ot->OriginallyChecked;
   // We need not initialize other members.
 }
 
@@ -206,6 +207,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   bool VarCreated = false;
   bool IsArr = false;
   bool IsIncompleteArr = false;
+  OriginallyChecked = false;
   uint32_t TypeIdx = 0;
   std::string Npre = inFunc ? ((*inFunc)+":") : "";
   VarAtom::VarKind VK =
@@ -223,6 +225,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     }
 
     if (Ty->isCheckedPointerType()) {
+      OriginallyChecked = true;
       ConstAtom *CAtom = nullptr;
       if (Ty->isCheckedPointerNtArrayType()) {
         // This is an NT array type.
@@ -973,7 +976,7 @@ void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C,
 
 bool PointerVariableConstraint::anyArgumentIsWild(EnvironmentMap &E) {
   for (auto *ArgVal : argumentConstraints) {
-    if (!(ArgVal->anyChanges(E))) {
+    if (!ArgVal->anyChanges(E)) {
       return true;
     }
   }
