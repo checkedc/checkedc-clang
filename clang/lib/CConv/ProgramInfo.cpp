@@ -423,15 +423,20 @@ bool ProgramInfo::link() {
       const std::set<FVConstraint *> &Gs = (*FuncDeclFVIterator).second;
 
       for (const auto GIterator : Gs) {
-        auto G = GIterator;
+        auto *G = GIterator;
         for (const auto &R : G->getReturnVars()) {
+          if (R->getIsOriginallyChecked())
+            continue;
           std::string Rsn = "Return value of an external function:" + FuncName;
           R->constrainToWild(CS, Rsn);
         }
         std::string rsn = "Inner pointer of a parameter to external function.";
         for (unsigned i = 0; i < G->numParams(); i++)
-          for (const auto &PVar : G->getParamVar(i))
+          for (const auto &PVar : G->getParamVar(i)) {
+            if (PVar->getIsOriginallyChecked())
+              continue;
             PVar->constrainToWild(CS, rsn);
+          }
       }
     }
   }
@@ -542,7 +547,11 @@ ProgramInfo::insertNewFVConstraints(FunctionDecl *FD,
 
 void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context) {
   // Special-case for va_list, constrain to wild.
-  if (isVarArgType(D->getType().getAsString()) || hasVoidType(D)) {
+  bool IsGeneric = false;
+  if (auto *PVD = dyn_cast<ParmVarDecl>(D))
+    IsGeneric = getTypeVariableType(PVD) != nullptr;
+  if (isVarArgType(D->getType().getAsString()) ||
+      (hasVoidType(D) && !IsGeneric)) {
     // set the reason for making this variable WILD.
     std::string Rsn = "Variable type void.";
     PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(D, *Context);

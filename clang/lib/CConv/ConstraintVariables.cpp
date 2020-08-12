@@ -334,7 +334,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
   BaseType = tyToStr(Ty);
 
-  bool IsWild = isVarArgType(BaseType) || isTypeHasVoid(QT);
+  bool IsWild = !IsGeneric && (isVarArgType(BaseType) || isTypeHasVoid(QT));
   if (IsWild) {
     std::string Rsn = "Default Var arg list type.";
     if (D && hasVoidType(D))
@@ -1444,25 +1444,26 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
 
         // Only generate constraint if LHS is not a base type.
         if (CLHS.size() != 0) {
-          if (CLHS.size() == CRHS.size()) {
-            int n = 0;
-            CAtoms::iterator I = CLHS.begin();
-            CAtoms::iterator J = CRHS.begin();
-            while (I != CLHS.end()) {
+          if (CLHS.size() == CRHS.size()
+              || PCLHS->getIsGeneric() || PCRHS->getIsGeneric()) {
+            unsigned Max = std::max(CLHS.size(), CRHS.size());
+            for (unsigned N = 0; N < Max; N++) {
+              Atom *IAtom = PCLHS->getAtom(N, CS);
+              Atom *JAtom = PCRHS->getAtom(N, CS);
+              if (IAtom == nullptr || JAtom == nullptr)
+                break;
+
               // Get outermost pointer first, using current ConsAction.
-              if (n == 0)
-                createAtomGeq(CS, *I, *J, Rsn, PL, CA, doEqType);
+              if (N == 0)
+                createAtomGeq(CS, IAtom, JAtom, Rsn, PL, CA, doEqType);
               else {
                 // Now constrain the inner ones as equal.
-                createAtomGeq(CS, *I, *J, Rsn, PL, CA, true);
+                createAtomGeq(CS, IAtom, JAtom, Rsn, PL, CA, true);
               }
-              ++I;
-              ++J;
-              n++;
             }
           // Unequal sizes means casting from (say) T** to T*; not safe.
           // unless assigning to a generic type.
-          } else if (!(PCLHS->getIsGeneric() || PCRHS->getIsGeneric())) {
+          } else {
             // Constrain both to be top.
             std::string Rsn = "Assigning from:" + std::to_string(CRHS.size())
                               + " depth pointer to " +
@@ -1590,6 +1591,21 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
     assert(From->FV);
     FV->mergeDeclaration(From->FV);
   }
+}
+
+Atom *PointerVariableConstraint::getAtom(unsigned AtomIdx, Constraints &CS) {
+  if (AtomIdx < vars.size()) {
+    // If index is in bounds, just return the atom.
+    return vars[AtomIdx];
+  } else if (IsGeneric && AtomIdx == vars.size()) {
+    // Polymorphic types don't know how "deep" their pointers are beforehand so,
+    // we need to create new atoms for new pointer levels on the fly.
+    std::string Stars(vars.size(), '*');
+    Atom *A = CS.getFreshVar(Name + Stars, VarAtom::V_Other);
+    vars.push_back(A);
+    return A;
+  }
+  return nullptr;
 }
 
 // Brain Transplant params and returns in [FromCV], recursively.
