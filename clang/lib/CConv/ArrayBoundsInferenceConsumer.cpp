@@ -14,6 +14,7 @@
 #include "clang/Analysis/Analyses/Dominators.h"
 #include "clang/CConv/ArrayBoundsInferenceConsumer.h"
 #include "clang/CConv/ConstraintResolver.h"
+#include "clang/CConv/CCGlobalOptions.h"
 #include <sstream>
 
 static std::set<std::string> LengthVarNamesPrefixes = {"len", "count",
@@ -145,7 +146,6 @@ static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C,
 // Map that contains association of allocator functions and indexes of
 // parameters that correspond to the size of the object being assigned.
 static std::map<std::string, std::set<unsigned>> AllocatorSizeAssoc = {
-                                                {"malloc", {0}},
                                                 {"calloc", {0, 1}}};
 
 
@@ -878,6 +878,7 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
 
 void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {
   // Run array bounds
+  AllocatorSizeAssoc[Malloc] = {0};
   GlobalABVisitor GlobABV(C, I);
   TranslationUnitDecl *TUD = C->getTranslationUnitDecl();
   LocalVarABVisitor LFV = LocalVarABVisitor(C, I);

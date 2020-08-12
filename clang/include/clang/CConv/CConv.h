@@ -38,6 +38,8 @@ struct CConvertOptions {
 
   std::string WildPtrInfoJson;
 
+  std::string Malloc;
+
   bool HandleVARARGS;
 
   bool EnablePropThruIType;

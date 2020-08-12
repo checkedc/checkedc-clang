@@ -40,6 +40,7 @@ bool DumpIntermediate;
 bool Verbose;
 std::string OutputPostfix;
 std::string ConstraintOutputJson;
+std::string Malloc;
 bool DumpStats;
 bool HandleVARARGS;
 bool EnablePropThruIType;
@@ -173,6 +174,7 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
   DumpIntermediate = CCopt.DumpIntermediate;
   Verbose = CCopt.Verbose;
   OutputPostfix = CCopt.OutputPostfix;
+  Malloc = CCopt.Malloc;
   ConstraintOutputJson = CCopt.ConstraintOutputJson;
   StatsOutputJson = CCopt.StatsOutputJson;
   WildPtrInfoJson = CCopt.WildPtrInfoJson;

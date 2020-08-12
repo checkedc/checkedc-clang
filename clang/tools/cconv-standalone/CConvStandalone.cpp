@@ -40,6 +40,12 @@ static cl::opt<std::string>
                   cl::init("-"), cl::cat(ConvertCategory));
 
 static cl::opt<std::string>
+    OptMalloc("use-malloc",
+                     cl::desc("Allows for the usage of a user-specified "
+                              "version of malloc"),
+                     cl::init("malloc"), cl::cat(ConvertCategory));
+
+static cl::opt<std::string>
     OptConstraintOutputJson("constraint-output",
                          cl::desc("Path to the file where all the analysis "
                                   "information will be dumped as json"),
@@ -117,6 +123,7 @@ int main(int argc, const char **argv) {
   CcOptions.HandleVARARGS = OptHandleVARARGS;
   CcOptions.DumpStats = OptDumpStats;
   CcOptions.OutputPostfix = OptOutputPostfix.getValue();
+  CcOptions.Malloc = OptMalloc.getValue();
   CcOptions.Verbose = OptVerbose;
   CcOptions.DumpIntermediate = OptDumpIntermediate;
   CcOptions.ConstraintOutputJson = OptConstraintOutputJson.getValue();
