@@ -1242,7 +1242,7 @@ void f33() {
 // CHECK: upper_bound(p) = 1
 }
 
-void f34(_Nt_array_ptr<char> p : bounds(p, p + i), int i, int flag) {
+void f34(_Nt_array_ptr<char> p : count(i), int i, int flag) {
   if (*(p + i)) {
     flag ? i++ : i;  // expected-error {{inferred bounds for 'p' are unknown after statement}}
 
