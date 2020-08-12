@@ -489,7 +489,7 @@ void f20() {
 // CHECK:  [B9]
 // CHECK: upper_bound(q) = 1
 
-  // Declared bounds (INT_MIN) and deref offset (INT_MAX - 1). No sequential deref tests. No widening.
+  // Declared bounds
   _Nt_array_ptr<char> r : count(INT_MIN) = "";
   // TODO: Windows X86 Debug build fails to display the error "out-of-bounds
   // memory access". This seems to happen only at *(p + INT_MAX). So for now, I
@@ -504,7 +504,7 @@ void f20() {
 // CHECK:  [B7]
 // CHECK-NOT: upper_bound(r)
 
-  // Declared bounds and deref offset are both (INT_MAX + 1). Integer overflow. No widening.
+  // Declared bounds and deref offset are both
   _Nt_array_ptr<char> s : count(INT_MAX + 1) = "";
   if (*(s + INT_MAX + 1))                           // expected-error {{out-of-bounds memory access}}
   {}
@@ -514,7 +514,7 @@ void f20() {
 // CHECK:  [B5]
 // CHECK-NOT: upper_bound(s)
 
-  // Declared bounds and deref offset are both (INT_MIN + 1). Valid widening.
+  // Declared bounds and deref offset are both
   _Nt_array_ptr<char> t : count(INT_MIN + 1) = "";
   if (*(t + INT_MIN + 1))                           // expected-error {{out-of-bounds memory access}}
   {}
@@ -524,7 +524,7 @@ void f20() {
 // CHECK:  [B3]
 // CHECK: upper_bound(t) = 1
 
-  // Declared bounds and deref offset are both (INT_MIN + -1). Integer underflow. No widening.
+  // Declared bounds and deref offset are both
   _Nt_array_ptr<char> u : count(INT_MIN + -1) = ""; // expected-error {{declared bounds for 'u' are invalid after statement}}
   if (*(u + INT_MIN + -1))
   {}
@@ -1243,19 +1243,26 @@ void f33() {
 }
 
 void f34(_Nt_array_ptr<char> p : bounds(p, p + i), int i, int flag) {
-  flag ? i++ : i;  // expected-error {{inferred bounds for 'p' are unknown after statement}}
-  if (*(p + i))
-  {}
+  if (*(p + i)) {
+    flag ? i++ : i;  // expected-error {{inferred bounds for 'p' are unknown after statement}}
+
+    if (*(p + i + 1))
+    {}
+  }
 
 // CHECK: In function: f34
+// CHECK:  [B6]
+// CHECK:    1: *(p + i)
 // CHECK:  [B5]
 // CHECK:    1: flag
+// CHECK: upper_bound(p) = 1
 // CHECK:  [B4]
 // CHECK:    1: i
+// CHECK: upper_bound(p) = 1
 // CHECK:  [B3]
 // CHECK:    1: i++
+// CHECK: upper_bound(p) = 1
 // CHECK:  [B2]
-// CHECK:    2: *(p + i)
-// CHECK:  [B1]
+// CHECK:    2: *(p + i + 1)
 // CHECK: upper_bound(p) = 1
 }
