@@ -206,6 +206,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   bool VarCreated = false;
   bool IsArr = false;
   bool IsIncompleteArr = false;
+  OriginallyChecked = false;
   uint32_t TypeIdx = 0;
   std::string Npre = inFunc ? ((*inFunc)+":") : "";
   VarAtom::VarKind VK =
@@ -223,6 +224,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     }
 
     if (Ty->isCheckedPointerType()) {
+      OriginallyChecked = true;
       ConstAtom *CAtom = nullptr;
       if (Ty->isCheckedPointerNtArrayType()) {
         // This is an NT array type.

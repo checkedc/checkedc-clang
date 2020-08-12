@@ -145,6 +145,8 @@ public:
   // Sometimes, constraint variables can be produced that are empty. This
   // tests for the existence of those constraint variables.
   virtual bool isEmpty(void) const = 0;
+
+  virtual bool getIsOriginallyChecked() = 0;
 };
 
 typedef std::set<ConstraintVariable *> CVarSet;
@@ -248,6 +250,12 @@ private:
   // pointers.
   bool IsZeroWidthArray;
 
+  // Was this variable a checked pointer in the input program?
+  // This is important for two reasons: (1) externs that are checked should be
+  // kept that way during solving, (2) nothing that was originally checked
+  // should be modified during rewriting.
+  bool OriginallyChecked;
+
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
@@ -273,6 +281,8 @@ public:
   std::string getBoundsStr() { return BoundsAnnotationStr; }
 
   bool getIsGeneric(){ return IsGeneric; }
+
+  bool getIsOriginallyChecked(){ return OriginallyChecked; }
 
   bool solutionEqualTo(Constraints &CS, ConstraintVariable *CV);
 
@@ -428,6 +438,19 @@ public:
           return false;
 
     return true;
+  }
+
+  bool getIsOriginallyChecked() {
+    for (const auto &R : returnVars)
+      if (R->getIsOriginallyChecked())
+        return true;
+
+    for (const auto &PS : paramVars)
+      for (const auto &P : PS)
+        if (P->getIsOriginallyChecked())
+          return true;
+
+    return false;
   }
 
   virtual ~FunctionVariableConstraint() {};
