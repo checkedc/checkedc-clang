@@ -1078,10 +1078,10 @@ namespace {
       Target = 0x1
     };
 
-    enum class DiagnosticNameForBoundsComponent {
-      Base,
-      Lower,
-      Upper
+    enum class DiagnosticComparatorName {
+      LE,
+      GE,
+      NE
     };
 
     // Combine proof failure codes.
@@ -1905,12 +1905,13 @@ namespace {
       assert(ObservedBounds);
       assert(DeclaredRange);
       assert(SrcRange);
+      S.Diag(Loc, diag::note_bounds_may_not_in_range)
+          << ObservedBounds << DeclaredBounds;
 
       if (TestFailure(Cause, ProofFailure::LowerOffsetsUnequal)) {
-        DiagnosticBuilder DB =
-            S.Diag(Loc, diag::note_bounds_base_or_offset_unequal)
-                << (unsigned)DiagnosticNameForBoundsComponent::Lower
-                << ObservedBounds << DeclaredBounds;
+        DiagnosticBuilder DB = S.Diag(Loc, diag::note_cannot_prove_inequality)
+            << (unsigned)DiagnosticComparatorName::LE;
+
         if (SrcRange->GetLowerOffsetVariable())
           DB << SrcRange->GetLowerOffsetVariable();
         else {
@@ -1925,27 +1926,26 @@ namespace {
       }
 
       if (TestFailure(Cause, ProofFailure::UpperOffsetsUnequal)) {
-        DiagnosticBuilder DB =
-            S.Diag(Loc, diag::note_bounds_base_or_offset_unequal)
-                << (unsigned)DiagnosticNameForBoundsComponent::Upper
-                << ObservedBounds << DeclaredBounds;
+        DiagnosticBuilder DB = S.Diag(Loc, diag::note_cannot_prove_inequality)
+            << (unsigned)DiagnosticComparatorName::LE;
+
+        if (DeclaredRange->GetUpperOffsetVariable()) {
+          DB << DeclaredRange->GetUpperOffsetVariable();
+        } else {
+          DB << DeclaredRange->GetUpperOffsetConstantStr();
+        }
+
         if (SrcRange->GetUpperOffsetVariable())
           DB << SrcRange->GetUpperOffsetVariable();
         else {
           DB << SrcRange->GetUpperOffsetConstantStr();
         }
-
-        if (DeclaredRange->GetUpperOffsetVariable())
-          DB << DeclaredRange->GetUpperOffsetVariable();
-        else {
-          DB << DeclaredRange->GetUpperOffsetConstantStr();
-        }
       }
 
       if (TestFailure(Cause, ProofFailure::BasesUnequal)) {
-        S.Diag(Loc, diag::note_bounds_base_or_offset_unequal)
-            << (unsigned)DiagnosticNameForBoundsComponent::Base
-            << ObservedBounds << DeclaredBounds << SrcRange->GetBase()
+        S.Diag(Loc, diag::note_cannot_prove_inequality)
+            << (unsigned)DiagnosticComparatorName::NE
+            << SrcRange->GetBase()
             << DeclaredRange->GetBase();
       }
     }
