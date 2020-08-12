@@ -23,6 +23,7 @@
 #include <boost/bimap.hpp>
 
 class ProgramInfo;
+class ConstraintResolver;
 
 // Class that maintains stats about how the bounds of various variables is
 // computed.
@@ -86,6 +87,9 @@ typedef DeclKeyBiMapType::value_type DeclMapItemType;
 typedef boost::bimap<std::tuple<std::string, string, bool, unsigned>,
                      BoundsKey> ParmKeyBiMapType;
 typedef ParmKeyBiMapType::value_type ParmMapItemType;
+typedef boost::bimap<std::tuple<std::string, string, bool>,
+                     BoundsKey> FuncKeyBiMapType;
+typedef FuncKeyBiMapType::value_type FuncMapItemType;
 
 class AVarBoundsInfo;
 
@@ -150,6 +154,7 @@ public:
   BoundsKey getVariable(clang::VarDecl *VD);
   BoundsKey getVariable(clang::ParmVarDecl *PVD);
   BoundsKey getVariable(clang::FieldDecl *FD);
+  BoundsKey getVariable(clang::FunctionDecl *FD);
   BoundsKey getConstKey(uint64_t value);
 
   // Generate a random bounds key to be used for inference.
@@ -160,6 +165,12 @@ public:
   bool addAssignment(clang::Decl *L, clang::Decl *R);
   bool addAssignment(clang::DeclRefExpr *L, clang::DeclRefExpr *R);
   bool addAssignment(BoundsKey L, BoundsKey R);
+  bool handleAssignment(clang::Expr *L, CVarSet &LCVars,
+                        clang::Expr *R, CVarSet &RCVars,
+                        ASTContext *C, ConstraintResolver *CR);
+  bool handleAssignment(clang::Decl *L, CVarSet &LCVars,
+                        clang::Expr *R, CVarSet &RCVars,
+                        ASTContext *C, ConstraintResolver *CR);
 
   // Get the ProgramVar for the provided VarKey.
   ProgramVar *getProgramVar(BoundsKey VK);
@@ -208,6 +219,8 @@ private:
   DeclKeyBiMapType DeclVarMap;
   // BiMap of parameter keys and BoundsKey for function parameters.
   ParmKeyBiMapType ParamDeclVarMap;
+  // BiMap of function keys and BoundsKey for function return values.
+  FuncKeyBiMapType FuncDeclVarMap;
   // Graph of all program variables.
   AVarGraph ProgVarGraph;
   // Stats on techniques used to find length for various variables.
@@ -227,6 +240,9 @@ private:
   void insertVarKey(PersistentSourceLoc &PSL, BoundsKey NK);
 
   void insertProgramVar(BoundsKey NK, ProgramVar *PV);
+
+  // Of all teh pointer bounds key, find arr pointers.
+  void computerArrPointers(ProgramInfo *PI, std::set<BoundsKey> &Ret);
 
   // Perform worklist based inference on the requested array variables.
   // The flag FromPB requests the algorithm to use potential length variables.

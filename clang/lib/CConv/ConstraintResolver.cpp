@@ -657,14 +657,8 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
   // the assignment.
   if (AllTypes && !containsValidCons(L) &&
       !containsValidCons(R)) {
-    BoundsKey LKey, RKey;
     auto &ABI = Info.getABoundsInfo();
-    if ((resolveBoundsKey(L, LKey) ||
-        ABI.tryGetVariable(LHS, *Context, LKey)) &&
-        (resolveBoundsKey(R, RKey) ||
-        ABI.tryGetVariable(RHS, *Context, RKey))) {
-      ABI.addAssignment(LKey, RKey);
-    }
+    ABI.handleAssignment(LHS, L, RHS, R, Context, this);
   }
 }
 
@@ -682,15 +676,10 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
   constrainConsVarGeq(V, RHSCons, Info.getConstraints(), PLPtr, CAction, false,
                       &Info);
 
-  if (AllTypes && !containsValidCons(V) && !containsValidCons(RHSCons)) {
-    BoundsKey LKey, RKey;
+  if (AllTypes && !containsValidCons(V) &&
+      !containsValidCons(RHSCons)) {
     auto &ABI = Info.getABoundsInfo();
-    if ((resolveBoundsKey(V, LKey) ||
-         ABI.tryGetVariable(D, LKey)) &&
-        (resolveBoundsKey(RHSCons, RKey) ||
-         ABI.tryGetVariable(RHS, *Context, RKey))) {
-      ABI.addAssignment(LKey, RKey);
-    }
+    ABI.handleAssignment(D, V, RHS, RHSCons, Context, this);
   }
 }
 

@@ -12,6 +12,7 @@
 
 #include "clang/CConv/AVarBoundsInfo.h"
 #include "clang/CConv/ProgramInfo.h"
+#include "clang/CConv/ConstraintResolver.h"
 #include <boost/graph/breadth_first_search.hpp>
 #include <boost/graph/reverse_graph.hpp>
 
@@ -55,8 +56,8 @@ bool AVarBoundsInfo::isValidBoundVariable(clang::Decl *D) {
   if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
     return !VD->getNameAsString().empty();
   }
-  if (isa<ParmVarDecl>(D)) {
-    // All parameters are valid bound variables.
+  if (isa<ParmVarDecl>(D) || isa<FunctionDecl>(D)) {
+    // All parameters and return values are valid bound variables.
     return true;
   }
   if(FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
@@ -91,6 +92,9 @@ bool AVarBoundsInfo::tryGetVariable(clang::Decl *D, BoundsKey &R) {
       R = getVariable(PD);
     }
     if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
+      R = getVariable(FD);
+    }
+    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       R = getVariable(FD);
     }
     return true;
@@ -234,6 +238,27 @@ BoundsKey AVarBoundsInfo::getVariable(clang::ParmVarDecl *PVD) {
   return ParamDeclVarMap.left.at(ParamKey);
 }
 
+BoundsKey AVarBoundsInfo::getVariable(clang::FunctionDecl *FD) {
+  assert(isValidBoundVariable(FD) && "Not a valid bound declaration.");
+  auto Psl = PersistentSourceLoc::mkPSL(FD, FD->getASTContext());
+  std::string FileName = Psl.getFileName();
+  auto FuncKey = std::make_tuple(FD->getNameAsString(), FileName,
+                                 FD->isStatic());
+  if (FuncDeclVarMap.left.find(FuncKey) == FuncDeclVarMap.left.end()) {
+    BoundsKey NK = ++BCount;
+    FunctionParamScope *FPS =
+        FunctionParamScope::getFunctionParamScope(FD->getNameAsString(),
+                                                  FD->isStatic());
+
+    auto *PVar = new ProgramVar(NK, FD->getNameAsString(), FPS);
+    insertProgramVar(NK, PVar);
+    FuncDeclVarMap.insert(FuncMapItemType(FuncKey, NK));
+    if (FD->getReturnType()->isPointerType())
+      PointerBoundsKey.insert(NK);
+  }
+  return FuncDeclVarMap.left.at(FuncKey);
+}
+
 BoundsKey AVarBoundsInfo::getVariable(clang::FieldDecl *FD) {
   assert(isValidBoundVariable(FD) && "Not a valid bound declaration.");
   PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(FD, FD->getASTContext());
@@ -267,6 +292,32 @@ bool AVarBoundsInfo::addAssignment(clang::Decl *L, clang::Decl *R) {
 bool AVarBoundsInfo::addAssignment(clang::DeclRefExpr *L,
                                    clang::DeclRefExpr *R) {
   return addAssignment(L->getDecl(), R->getDecl());
+}
+
+bool AVarBoundsInfo::handleAssignment(clang::Expr *L, CVarSet &LCVars,
+                                      clang::Expr *R, CVarSet &RCVars,
+                                      ASTContext *C, ConstraintResolver *CR) {
+  BoundsKey LKey, RKey;
+  if ((CR->resolveBoundsKey(LCVars, LKey) ||
+      tryGetVariable(L, *C, LKey)) &&
+      (CR->resolveBoundsKey(RCVars, RKey) ||
+       tryGetVariable(R, *C, RKey))) {
+    return addAssignment(LKey, RKey);
+  }
+  return false;
+}
+
+bool AVarBoundsInfo::handleAssignment(clang::Decl *L, CVarSet &LCVars,
+                                      clang::Expr *R, CVarSet &RCVars,
+                                      ASTContext *C, ConstraintResolver *CR) {
+  BoundsKey LKey, RKey;
+  if ((CR->resolveBoundsKey(LCVars, LKey) ||
+      tryGetVariable(L, LKey)) &&
+      (CR->resolveBoundsKey(RCVars, RKey) ||
+          tryGetVariable(R, *C, RKey))) {
+    return addAssignment(LKey, RKey);
+  }
+  return false;
 }
 
 bool AVarBoundsInfo::addAssignment(BoundsKey L, BoundsKey R) {
@@ -644,12 +695,12 @@ bool AVarBoundsInfo::performWorkListInference(std::set<BoundsKey> &ArrNeededBoun
   }
   return RetVal;
 }
-bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
-  bool RetVal = false;
+
+void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
+                                         std::set<BoundsKey> &ArrPointers) {
   auto &CS = PI->getConstraints();
-  // First get all the pointer vars which are ARRs
-  std::set<BoundsKey> ArrPointers;
   for (auto Bkey : PointerBoundsKey) {
+    // Regular variables.
     auto &BkeyToPSL = DeclVarMap.right;
     if (BkeyToPSL.find(Bkey) != BkeyToPSL.end()) {
       auto &PSL = BkeyToPSL.at(Bkey);
@@ -662,6 +713,7 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
       }
       continue;
     }
+    // Function parameters
     auto &ParmBkeyToPSL = ParamDeclVarMap.right;
     if (ParmBkeyToPSL.find(Bkey) != ParmBkeyToPSL.end()) {
       auto &ParmTup = ParmBkeyToPSL.at(Bkey);
@@ -686,7 +738,37 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
 
       continue;
     }
+    // Function returns.
+    auto &FuncKeyToPSL = FuncDeclVarMap.right;
+    if (FuncKeyToPSL.find(Bkey) != FuncKeyToPSL.end()) {
+      auto &FuncRet = FuncKeyToPSL.at(Bkey);
+      std::string FuncName = std::get<0>(FuncRet);
+      std::string FileName = std::get<1>(FuncRet);
+      bool IsStatic = std::get<2>(FuncRet);
+      FVConstraint *FV = nullptr;
+      if (IsStatic || !PI->getExtFuncDefnConstraintSet(FuncName)) {
+        FV = getOnly(*(PI->getStaticFuncConstraintSet(FuncName, FileName)));
+      } else {
+        FV = getOnly(*(PI->getExtFuncDefnConstraintSet(FuncName)));
+      }
+
+      if (hasArray(FV->getReturnVars(), CS)) {
+        ArrPointers.insert(Bkey);
+      }
+      // Does this array belongs to a valid program variable?
+      if (isInSrcArray(FV->getReturnVars(), CS)) {
+        InProgramArrPtrBoundsKeys.insert(Bkey);
+      }
+      continue;
+    }
   }
+}
+
+bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
+  bool RetVal = false;
+  // First get all the pointer vars which are ARRs
+  std::set<BoundsKey> ArrPointers;
+  computerArrPointers(PI, ArrPointers);
 
   // Repopulate array bounds key.
   ArrPointerBoundsKey.clear();

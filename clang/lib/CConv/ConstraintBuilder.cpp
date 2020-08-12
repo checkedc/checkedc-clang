@@ -213,13 +213,8 @@ public:
                   !CB.containsValidCons(ArgumentConstraints)) {
                 auto *PVD = TFD->getParamDecl(i);
                 auto &ABI = Info.getABoundsInfo();
-                BoundsKey PVKey, AGKey;
-                if ((CB.resolveBoundsKey(ParameterDC, PVKey) ||
-                     ABI.tryGetVariable(PVD, PVKey)) &&
-                    (CB.resolveBoundsKey(ArgumentConstraints, AGKey) ||
-                     ABI.tryGetVariable(A, *Context, AGKey))) {
-                  ABI.addAssignment(PVKey, AGKey);
-                }
+                ABI.handleAssignment(PVD, ParameterDC, A,
+                                     ArgumentConstraints, Context, &CB);
               }
             } else {
               // The argument passed to a function ith varargs; make it wild
