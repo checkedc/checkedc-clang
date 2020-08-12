@@ -1159,15 +1159,26 @@ namespace {
         return Base;
       }
 
+      llvm::APInt GetOffsetConstantCount(const llvm::APSInt &Offset) const {
+        llvm::APSInt ElemSize;
+        BoundsUtil::getReferentSizeInChars(S.Context, Base->getType(),
+                                           ElemSize);
+        return Offset.sdiv(ElemSize);
+      }
+
       SmallString<12> GetLowerOffsetConstantStr() const {
         SmallString<12> Str;
-        LowerOffsetConstant.toString(Str);
+        llvm::APInt LowerOffSetCnt =
+            GetOffsetConstantCount(LowerOffsetConstant);
+        LowerOffSetCnt.toStringSigned(Str);
         return Str;
       }
 
       SmallString<12> GetUpperOffsetConstantStr() const {
         SmallString<12> Str;
-        UpperOffsetConstant.toString(Str);
+        llvm::APInt UpperOffSetCnt =
+            GetOffsetConstantCount(UpperOffsetConstant);
+        UpperOffSetCnt.toStringSigned(Str);
         return Str;
       }
 
