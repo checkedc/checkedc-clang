@@ -7,8 +7,7 @@ extern _Itype_for_any(T) void *my_malloc(size_t size) : itype(_Array_ptr<T>) byt
 
 int * foo(void) {
   int *p = my_malloc(sizeof(int));
-  //CHECK_ALL: _Array_ptr<int> p =  my_malloc<int>(sizeof(int));
-  //CHECK_NOALL: int *p = my_malloc<int>(sizeof(int));
+  //CHECK: _Ptr<int> p =  my_malloc<int>(sizeof(int));
   *p = 1;
   int *q = my_malloc(sizeof(int)*5);
   //CHECK_ALL: _Array_ptr<int> q : count(5) =  my_malloc<int>(sizeof(int)*5); 
