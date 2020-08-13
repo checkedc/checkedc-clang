@@ -10172,6 +10172,11 @@ def err_bounds_type_annotation_lost_checking : Error<
     "%select{assignment|decrement|increment|initialization|statement}0">,
     InGroup<CheckBoundsDeclsChecked>;
 
+  def error_bounds_declaration_unprovable : Error<
+    "it is impossible to prove that the inferred bounds of '%1' "
+    "imply the declared bounds of '%2' after "
+    "%select{assignment|decrement|increment|initialization|statement}0">;
+
   def error_bounds_declaration_invalid : Error<
     "declared bounds for %1 are invalid after "
     "%select{assignment|decrement|increment|initialization|statement}0">;
@@ -10254,11 +10259,9 @@ def err_bounds_type_annotation_lost_checking : Error<
     "accesses memory at or|base value is}0 "
     "above %select{source|source|the|its}0 upper bound">;
 
-  def note_bounds_may_not_in_range : Note<
-    "cannot prove (inferred) '%0' are as wide as (declared) '%1'">;
-
   def note_cannot_prove_inequality : Note<
-    "cannot prove '%1 %select{<=|>=|!=}0 %2'">;
+    "cannot prove '%1 %select{<=|>=|!=}0 %2'; "
+    "no relation is known between '%1' and '%2'">;
 
    def note_bounds_partially_overlap : Note<
     "%select{||accesses memory that|struct/union pointed to by base value}0 is "
