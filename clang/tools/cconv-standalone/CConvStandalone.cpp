@@ -14,8 +14,6 @@
 #include "llvm/Support/TargetSelect.h"
 
 #include "clang/CConv/CConv.h"
-#include <boost/algorithm/string/classification.hpp>
-#include <boost/algorithm/string/split.hpp>
 
 using namespace clang::driver;
 using namespace clang::tooling;
@@ -135,8 +133,14 @@ int main(int argc, const char **argv) {
   CcOptions.DisableCCTypeChecker = OptDiableCCTypeChecker;
   //Add user specified function allocators
   std::string Malloc = OptMalloc.getValue();
-  if (!Malloc.empty())
-    boost::split(CcOptions.AllocatorFunctions, Malloc, boost::is_any_of(","));
+  if (!Malloc.empty()) {
+    char *as_chr = strdup(Malloc.c_str());
+    char *tok = strtok(as_chr, ",");
+    while (tok != nullptr) {
+      CcOptions.AllocatorFunctions.push_back(tok);
+      tok = strtok(nullptr, ",");
+    }
+  }
   else
     CcOptions.AllocatorFunctions = {};
 
