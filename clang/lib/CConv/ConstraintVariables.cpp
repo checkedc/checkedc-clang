@@ -32,6 +32,9 @@ std::string ConstraintVariable::getRewritableOriginalTy() {
   }
   return OrigTyString;
 }
+bool ConstraintVariable::isChecked(EnvironmentMap &E) {
+  return getIsOriginallyChecked() || anyChanges(E);
+}
 
 PointerVariableConstraint *
 PointerVariableConstraint::getWildPVConstraint(Constraints &CS) {
@@ -105,6 +108,7 @@ PointerVariableConstraint::
   this->Parent = Ot;
   this->IsGeneric = Ot->IsGeneric;
   this->IsZeroWidthArray = Ot->IsZeroWidthArray;
+  this->OriginallyChecked = Ot->OriginallyChecked;
   // We need not initialize other members.
 }
 
@@ -206,6 +210,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   bool VarCreated = false;
   bool IsArr = false;
   bool IsIncompleteArr = false;
+  OriginallyChecked = false;
   uint32_t TypeIdx = 0;
   std::string Npre = inFunc ? ((*inFunc)+":") : "";
   VarAtom::VarKind VK =
@@ -223,6 +228,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     }
 
     if (Ty->isCheckedPointerType()) {
+      OriginallyChecked = true;
       ConstAtom *CAtom = nullptr;
       if (Ty->isCheckedPointerNtArrayType()) {
         // This is an NT array type.
@@ -307,15 +313,13 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   // but our constraint system does not allow this. To enable converting calls
   // to functions with types similar to free, size 0 array pointers are made PTR
   // instead of ARR.
+  IsZeroWidthArray = false;
   if (D && D->hasBoundsExpr() && !vars.empty() && vars[0] == CS.getArr())
-    if (BoundsExpr *BE = D->getBoundsExpr()) {
+    if (BoundsExpr *BE = D->getBoundsExpr())
       if (isZeroBoundsExpr(BE, C)) {
         IsZeroWidthArray = true;
         vars[0] = CS.getPtr();
-      } else {
-        IsZeroWidthArray = false;
       }
-    }
 
   // If, after boiling off the pointer-ness from this type, we hit a
   // function, then create a base-level FVConstraint that we carry
@@ -975,7 +979,7 @@ void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C,
 
 bool PointerVariableConstraint::anyArgumentIsWild(EnvironmentMap &E) {
   for (auto *ArgVal : argumentConstraints) {
-    if (!(ArgVal->anyChanges(E))) {
+    if (!ArgVal->isChecked(E)) {
       return true;
     }
   }
@@ -983,6 +987,13 @@ bool PointerVariableConstraint::anyArgumentIsWild(EnvironmentMap &E) {
 }
 
 bool PointerVariableConstraint::anyChanges(EnvironmentMap &E) {
+  // If a pointer variable was checked in the input program, it will have the
+  // same checked type in the output, so it cannot have changed.
+  if (OriginallyChecked)
+    return false;
+
+  // If it was not checked in the input, then it has changed if it now has a
+  // checked type.
   bool Ret = false;
 
   // Are there any non-WILD pointers?
@@ -1630,3 +1641,9 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
   }
 }
 
+bool FunctionVariableConstraint::getIsOriginallyChecked() {
+  for (const auto &R : returnVars)
+    if (R->getIsOriginallyChecked())
+      return true;
+  return false;
+}
