@@ -208,13 +208,13 @@ public:
                   TargetFV->getParamVar(i);
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
                                   Wild_to_Safe, false, &Info);
-              if (AllTypes && TFD != nullptr &&
-                  !CB.containsValidCons(ParameterDC) &&
-                  !CB.containsValidCons(ArgumentConstraints)) {
+              if (AllTypes && TFD != nullptr) {
                 auto *PVD = TFD->getParamDecl(i);
                 auto &ABI = Info.getABoundsInfo();
-                ABI.handleAssignment(PVD, ParameterDC, A,
-                                     ArgumentConstraints, Context, &CB);
+                // Here, we need to handle context-sensitive assignment.
+                ABI.handleContextSensitiveAssignment(E, PVD, ParameterDC, A,
+                                                  ArgumentConstraints,
+                                                     Context, &CB);
               }
             } else {
               // The argument passed to a function ith varargs; make it wild
@@ -515,15 +515,19 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
 
   VariableAdderVisitor VAV = VariableAdderVisitor(&C, Info);
   TypeVarVisitor TV = TypeVarVisitor(&C, Info);
+  ConstraintResolver CSResolver(Info, &C);
+  ContextSensitiveBoundsKeyVisitor CSBV =
+      ContextSensitiveBoundsKeyVisitor(&C, Info, &CSResolver);
   ConstraintGenVisitor GV = ConstraintGenVisitor(&C, Info, TV);
   TranslationUnitDecl *TUD = C.getTranslationUnitDecl();
   // Generate constraints.
   for (const auto &D : TUD->decls()) {
-    // The order of these traversals cannot be changed because both the type
+    // The order of these traversals CANNOT be changed because both the type
     // variable and constraint gen visitor require that variables have been
     // added to ProgramInfo, and the constraint gen visitor requires the type
     // variable information gathered in the type variable traversal.
     VAV.TraverseDecl(D);
+    CSBV.TraverseDecl(D);
     TV.TraverseDecl(D);
     GV.TraverseDecl(D);
   }

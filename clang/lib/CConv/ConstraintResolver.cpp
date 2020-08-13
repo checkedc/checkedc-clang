@@ -504,6 +504,14 @@ CVarSet
         CVarSet TmpCVs;
         for (ConstraintVariable *CV : ReturnCVs) {
           ConstraintVariable *NewCV = CV->getCopy(CS);
+          // Make the bounds key context sensitive.
+          if (NewCV->hasBoundsKey()) {
+            auto &ABInfo = Info.getABoundsInfo();
+            auto CSensBKey =
+                ABInfo.getContextSensitiveBoundsKey(CE,
+                                                    NewCV->getBoundsKey());
+            NewCV->setBoundsKey(CSensBKey);
+          }
           // Important: Do Safe_to_Wild from returnvar in this copy, which then
           //   might be assigned otherwise (Same_to_Same) to LHS
           constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false,

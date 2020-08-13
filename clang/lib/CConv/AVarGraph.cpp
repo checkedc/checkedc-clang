@@ -68,8 +68,10 @@ void AVarGraph::dumpCGDot(const std::string &GraphDotFile,
                      return;
                    }
                    std::string ClrStr = IsPtr ? "red" : "blue";
-                   std::string LblStr =
-                       ABInfo->getProgramVar(CG[v])->verboseStr();
+                   ProgramVar *Tmp = ABInfo->getProgramVar(CG[v]);
+                   std::string LblStr = "Temp";
+                   if (Tmp != nullptr)
+                       LblStr = Tmp->verboseStr();
                    std::string ShapeStr = "oval";
                    if (IsArrPtr) {
                      ClrStr = "green";

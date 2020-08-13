@@ -320,6 +320,40 @@ bool AVarBoundsInfo::handleAssignment(clang::Decl *L, CVarSet &LCVars,
   return false;
 }
 
+bool AVarBoundsInfo::handleContextSensitiveAssignment(CallExpr *CE,
+                                                      clang::Decl *L,
+                                                      CVarSet &LCVars,
+                                                      clang::Expr *R,
+                                                      CVarSet &RCVars,
+                                                      ASTContext *C,
+                                                      ConstraintResolver *CR) {
+  // If these are pointer variable then directly get the context-sensitive
+  // bounds key.
+  if(CR->containsValidCons(LCVars) && CR->containsValidCons(RCVars)) {
+    for (auto *L : LCVars) {
+      for (auto *R : RCVars) {
+        if (L->hasBoundsKey() && R->hasBoundsKey()) {
+          BoundsKey NewL = getContextSensitiveBoundsKey(CE, L->getBoundsKey());
+          BoundsKey NewR = getContextSensitiveBoundsKey(CE, R->getBoundsKey());
+          addAssignment(NewL, NewR);
+        }
+      }
+    }
+  } else {
+    // This is the assignment of regular variables.
+    BoundsKey LKey, RKey;
+    if ((CR->resolveBoundsKey(LCVars, LKey) ||
+        tryGetVariable(L, LKey)) &&
+        (CR->resolveBoundsKey(RCVars, RKey) ||
+            tryGetVariable(R, *C, RKey))) {
+      BoundsKey NewL = getContextSensitiveBoundsKey(CE, LKey);
+      BoundsKey NewR = getContextSensitiveBoundsKey(CE, RKey);
+      addAssignment(NewL, NewR);
+    }
+  }
+  return true;
+}
+
 bool AVarBoundsInfo::addAssignment(BoundsKey L, BoundsKey R) {
   ProgVarGraph.addEdge(L, R, true);
   return true;
@@ -483,6 +517,38 @@ bool AvarBoundsInference::intersectBounds(std::set<ProgramVar *> &ProgVars,
   return !CurrB.empty();
 }
 
+void
+AvarBoundsInference::
+    mergeReachableProgramVars(std::set<ProgramVar *> &AllVars) {
+  if (AllVars.size() > 1) {
+    ProgramVar *BVar = nullptr;
+    // We want to merge all bounds vars. We give preference to
+    // non-constants if there are multiple non-constant variables,
+    // we give up.
+    for (auto *TmpB : AllVars) {
+      if (BVar == nullptr) {
+        BVar = TmpB;
+      } else if (BVar->IsNumConstant()) {
+        if (!TmpB->IsNumConstant()) {
+          // We give preference to non-constant lengths.
+          BVar = TmpB;
+        } else if (BVar->getKey() != TmpB->getKey()) {
+          // If both are different constants?
+          BVar = nullptr;
+          break;
+        }
+      } else if (!TmpB->IsNumConstant() && BVar->getKey() != TmpB->getKey()) {
+        // If they are different variables?
+        BVar = nullptr;
+        break;
+      }
+    }
+    AllVars.clear();
+    if (BVar)
+      AllVars.insert(BVar);
+  }
+}
+
 bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
                                               std::set<ABounds *> &EB) {
   bool RetVal = false;
@@ -516,6 +582,8 @@ bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
         boost::breadth_first_search(VarG.CG, Vidx, boost::visitor(TV));
       }
 
+      mergeReachableProgramVars(PotentialB);
+
       // Are there are other in-scope variables where the bounds variable
       // has been assigned to?
       if (!PotentialB.empty())
@@ -528,20 +596,9 @@ bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
 
 bool AvarBoundsInference::getRelevantBounds(std::set<BoundsKey> &RBKeys,
                                             std::set<ABounds *> &ResBounds) {
-  std::set<BoundsKey> IncomingArrs;
-  std::set<BoundsKey> TmpIncomingKeys;
-
-  // First, get all the related bounds keys that are arrays.
-  findIntersection(RBKeys, BI->ArrPointerBoundsKey, IncomingArrs);
-  // Also get all the temporary bounds keys.
-  findIntersection(RBKeys, BI->TmpBoundsKey, TmpIncomingKeys);
-
-  // Consider the tmp keys as incoming arrays.
-  IncomingArrs.insert(TmpIncomingKeys.begin(), TmpIncomingKeys.end());
-
-  // Next, try to get their bounds.
+  // Try to get the bounds of all RBKeys.
   bool ValidB = true;
-  for (auto PrevBKey : IncomingArrs) {
+  for (auto PrevBKey : RBKeys) {
     auto *PrevBounds = BI->getBounds(PrevBKey);
     // Does the parent arr has bounds?
     if (PrevBounds != nullptr)
@@ -614,34 +671,12 @@ bool AvarBoundsInference::inferBounds(BoundsKey K, bool FromPB) {
             PotentialB.insert(TKVar);
           }
         }
-        if (!PotentialB.empty()) {
-          ProgramVar *BVar = nullptr;
-          // We want to merge all bounds vars. We give preference to
-          // non-constants if there are multiple non-constant variables,
-          // we give up.
-          for (auto *TmpB : PotentialB) {
-            if (BVar == nullptr) {
-              BVar = TmpB;
-            } else if (BVar->IsNumConstant()) {
-              if (!TmpB->IsNumConstant()) {
-                // We give preference to non-constant lengths.
-                BVar = TmpB;
-              } else if (BVar->getKey() != TmpB->getKey()) {
-                // If both are different constants?
-                BVar = nullptr;
-                break;
-              }
-            } else if (!TmpB->IsNumConstant() &&
-                       BVar->getKey() != TmpB->getKey()) {
-              // If they are different variables?
-              BVar = nullptr;
-              break;
-            }
-          }
-          if (BVar != nullptr) {
-            KB = new CountBound(BVar->getKey());
-          }
-        }
+        ProgramVar *BVar = nullptr;
+        mergeReachableProgramVars(PotentialB);
+        if (!PotentialB.empty())
+          BVar = *(PotentialB.begin());
+        if (BVar != nullptr)
+          KB = new CountBound(BVar->getKey());
       }
     } else {
       // Infer from the flow-graph.
@@ -694,6 +729,77 @@ bool AVarBoundsInfo::performWorkListInference(std::set<BoundsKey> &ArrNeededBoun
     }
   }
   return RetVal;
+}
+
+// Here, we create a new BoundsKey for every BoundsKey var that is related to
+// any ConstraintVariable in CSet and store the information by the
+// corresponding call expression (CE).
+// Here, we only care about variables that have bounds declaration
+// or that are used in a bounds declaration.
+bool
+AVarBoundsInfo::contextualizeCVar(CallExpr *CE, const CVarSet &CSet) {
+  for (auto *CV : CSet) {
+    // If this is a FV Constraint the contextualize its returns and
+    // parameters.
+    if (FVConstraint *FV = dyn_cast_or_null<FVConstraint>(CV)) {
+      contextualizeCVar(CE, FV->getReturnVars());
+      for (unsigned i = 0; i < FV->numParams(); i++) {
+        contextualizeCVar(CE, FV->getParamVar(i));
+      }
+    }
+
+    if (PVConstraint *PV = dyn_cast_or_null<PVConstraint>(CV)) {
+      if (PV->hasBoundsKey()) {
+        // First duplicate the bounds key.
+        BoundsKey CK = PV->getBoundsKey();
+        // Either this is a regular variable and used in a bounds declaration
+        // or a pointer that has bounds declaration? Then we need to
+        // contextualize it.
+        // If this is just a regular pointer or variable without declared
+        // bounds. We ignore it.
+        if((PV->getCvars().empty() && !ABounds::isKeyUsedInBounds(CK)) ||
+            !PV->hasBoundsStr())
+          continue;
+
+        ProgramVar *CKVar = getProgramVar(CK);
+        auto &BKeyMap = CSBoundsKey[CE];
+        if (BKeyMap.find(CK) == BKeyMap.end()) {
+          BoundsKey NK = ++BCount;
+          insertProgramVar(NK, CKVar->makeCopy(NK));
+          BKeyMap[CK] = NK;
+          // Next duplicate the Bounds information.
+          ABounds *CKBounds = getBounds(CK);
+          if (CKBounds != nullptr) {
+            BoundsKey NBK = CKBounds->getBKey();
+            ProgramVar *NBKVar = getProgramVar(CK);
+            if (BKeyMap.find(NBK) == BKeyMap.end()) {
+              BoundsKey TmpBK = ++BCount;
+              BKeyMap[NBK] = TmpBK;
+              insertProgramVar(TmpBK, NBKVar->makeCopy(TmpBK));
+            }
+            CKBounds = CKBounds->makeCopy(BKeyMap[NBK]);
+            replaceBounds(NK, CKBounds);
+          }
+        }
+      }
+    }
+  }
+  return true;
+}
+
+void AVarBoundsInfo::resetContextSensitiveBoundsKey() {
+  CSBoundsKey.clear();
+}
+
+BoundsKey AVarBoundsInfo::getContextSensitiveBoundsKey(CallExpr *CE,
+                                                       BoundsKey BK) {
+  if (CSBoundsKey.find(CE) != CSBoundsKey.end()) {
+    auto &TmpMap = CSBoundsKey[CE];
+    if (TmpMap.find(BK) != TmpMap.end()) {
+      return TmpMap[BK];
+    }
+  }
+  return BK;
 }
 
 void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
@@ -837,4 +943,28 @@ void AVarBoundsInfo::print_stats(llvm::raw_ostream &O,
     O << "}";
     O << "}";
   }
+}
+
+ContextSensitiveBoundsKeyVisitor::ContextSensitiveBoundsKeyVisitor(ASTContext *C,
+                                                                   ProgramInfo &I,
+                                                  ConstraintResolver *CResolver)
+: Context(C), Info(I), CR(CResolver) {
+  Info.getABoundsInfo().resetContextSensitiveBoundsKey();
+}
+
+ContextSensitiveBoundsKeyVisitor::~ContextSensitiveBoundsKeyVisitor() {
+  // Reset the context sensitive bounds.
+  // This is to ensure that we store pointers to the AST objects
+  // when we are with in the corresponding compilation unit.
+  Info.getABoundsInfo().resetContextSensitiveBoundsKey();
+}
+
+bool ContextSensitiveBoundsKeyVisitor::VisitCallExpr(CallExpr *CE) {
+  if (FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(CE->getCalleeDecl())) {
+    // Contextualize the function at this call-site.
+    for (auto *CFV : Info.getVariable(FD, Context)) {
+      Info.getABoundsInfo().contextualizeCVar(CE, {CFV});
+    }
+  }
+  return true;
 }

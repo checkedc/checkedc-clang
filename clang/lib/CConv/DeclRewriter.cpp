@@ -512,6 +512,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
 
   std::string ReturnVar = "";
   std::string ItypeStr = "";
+  bool GeneratedRetIType = false;
 
   // Insert a bounds safe interface for the return.
   if (isAValidPVConstraint(Defn) && Defn->anyChanges(CS.getVariables())) {
@@ -528,6 +529,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
           Defn->mkString(Info.getConstraints().getVariables(), true, true);
       ReturnVar = Defn->getRewritableOriginalTy();
       ItypeStr = " : itype(" + Itype + ")";
+      GeneratedRetIType = true;
     }
   } else {
     // This means inside the function, the return value is WILD so the return
@@ -565,6 +567,10 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   }
   if (!ItypeStr.empty())
     NewSig = NewSig + ItypeStr;
+
+  if (ItypeStr.empty() || GeneratedRetIType) {
+    NewSig = NewSig + ABRewriter.getBoundsString(Defn, FD, GeneratedRetIType);
+  }
 
   // Add new declarations to RewriteThese if it has changed
   if (DidAny) {

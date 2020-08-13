@@ -220,7 +220,9 @@ public:
   BoundsKey getKey() { return K; }
   bool IsNumConstant() { return IsConstant; }
   std::string mkString(bool GetKey = false);
+  std::string getVarName() { return VarName; }
   std::string verboseStr();
+  ProgramVar *makeCopy(BoundsKey NK);
   virtual ~ProgramVar() { }
 private:
   BoundsKey K;

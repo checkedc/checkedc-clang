@@ -115,6 +115,9 @@ private:
   bool predictBounds(BoundsKey K, std::set<BoundsKey> &Neighbours,
                      ABounds **KB);
 
+
+  void mergeReachableProgramVars(std::set<ProgramVar *> &AllVars);
+
   AVarBoundsInfo *BI;
 };
 
@@ -128,6 +131,7 @@ public:
     DeclVarMap.clear();
     ProgVarGraph.clear();
     TmpBoundsKey.clear();
+    CSBoundsKey.clear();
   }
 
   // Checks if the given declaration is a valid bounds variable.
@@ -171,6 +175,11 @@ public:
   bool handleAssignment(clang::Decl *L, CVarSet &LCVars,
                         clang::Expr *R, CVarSet &RCVars,
                         ASTContext *C, ConstraintResolver *CR);
+  // Handle context sensitive assignment.
+  bool handleContextSensitiveAssignment(CallExpr *CE, clang::Decl *L,
+                                        CVarSet &LCVars,
+                                        clang::Expr *R, CVarSet &RCVars,
+                                        ASTContext *C, ConstraintResolver *CR);
 
   // Get the ProgramVar for the provided VarKey.
   ProgramVar *getProgramVar(BoundsKey VK);
@@ -181,6 +190,17 @@ public:
 
   // Propagate the array bounds information for all array ptrs.
   bool performFlowAnalysis(ProgramInfo *PI);
+
+  // Reset (i.e., clear) the context sensitive bounds information.
+  void resetContextSensitiveBoundsKey();
+  // Create context sensitive BoundsKey variables for the given set of
+  // ConstraintVariables.
+  bool contextualizeCVar(CallExpr *CE,
+                         const std::set<ConstraintVariable *> &CV);
+  // Get the context sensitive BoundsKey for the given key.
+  // If there exists no context-sensitive bounds key, we just return
+  // the provided key.
+  BoundsKey getContextSensitiveBoundsKey(CallExpr *CE, BoundsKey BK);
 
   AVarBoundsStats &getBStats() { return BoundsInferStats; }
 
@@ -229,6 +249,12 @@ private:
   // which can be the count bounds.
   std::map<BoundsKey, std::set<BoundsKey>> PotentialCntBounds;
 
+  // Context sensitive bounds key.
+  // For each call-site a map of original bounds key and the bounds key
+  // specific to this call-site.
+  // Note: This map is only active for the compilation unit being parsed.
+  std::map<CallExpr *, std::map<BoundsKey, BoundsKey>> CSBoundsKey;
+
   // BoundsKey helper function: These functions help in getting bounds key from
   // various artifacts.
   bool hasVarKey(PersistentSourceLoc &PSL);
@@ -249,6 +275,41 @@ private:
   bool performWorkListInference(std::set<BoundsKey> &ArrNeededBounds,
                                 bool FromPB = false);
 
+};
+
+// This class creates context sensitive bounds key information that is
+// useful to resolve certain bounds information.
+// Consider the following example:
+// _Arry_ptr<int> foo(unsigned int s) : count(s);
+// ....
+// int *a, *c;
+// unsigned b, d;
+// a = foo(b);
+// c = foo(d);
+// ...
+// Here, when we do our analysis we do not know whether b or d is the bounds
+// of a.
+// The reason for this is because we maintain a single bounds variable for foo,
+// consequently, when we do our flow analysis we see that b and d both propagate
+// to s (which is the bounds of the return value of foo).
+// However, if we maintain context sensitive bounds keys, then we know that
+// at a = foo(b), it is b that is passed to s and there by helps us infer that
+// the bounds of a should be b i.e., _Array_ptr<a> : count(b).
+// This class helps in maintaining the context sensitive bounds information.
+class ContextSensitiveBoundsKeyVisitor :
+    public RecursiveASTVisitor<ContextSensitiveBoundsKeyVisitor> {
+public:
+  explicit ContextSensitiveBoundsKeyVisitor(ASTContext *C, ProgramInfo &I,
+                                            ConstraintResolver *CResolver);
+
+  virtual ~ContextSensitiveBoundsKeyVisitor();
+
+  bool VisitCallExpr(CallExpr *CE);
+
+private:
+  ASTContext *Context;
+  ProgramInfo &Info;
+  ConstraintResolver *CR;
 };
 
 #endif // _AVARBOUNDSINFO_H
