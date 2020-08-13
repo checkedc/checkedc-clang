@@ -40,7 +40,6 @@ bool DumpIntermediate;
 bool Verbose;
 std::string OutputPostfix;
 std::string ConstraintOutputJson;
-std::string Malloc;
 std::vector<std::string> AllocatorFunctions;
 bool DumpStats;
 bool HandleVARARGS;
