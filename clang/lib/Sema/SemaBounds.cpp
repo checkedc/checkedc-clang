@@ -1908,16 +1908,10 @@ namespace {
     }
 
     void ExplainBoundsProofFailure(SourceLocation Loc, ProofFailure Cause,
-                                   BoundsExpr *DeclaredBounds,
-                                   BoundsExpr *ObservedBounds,
                                    BaseRange *DeclaredRange,
                                    BaseRange *SrcRange) {
-      assert(DeclaredBounds);
-      assert(ObservedBounds);
       assert(DeclaredRange);
       assert(SrcRange);
-      S.Diag(Loc, diag::note_bounds_may_not_in_range)
-          << ObservedBounds << DeclaredBounds;
 
       if (TestFailure(Cause, ProofFailure::LowerOffsetsUnequal)) {
         DiagnosticBuilder DB = S.Diag(Loc, diag::note_cannot_prove_inequality)
@@ -4137,8 +4131,7 @@ namespace {
       SourceLocation Loc = BlameAssignmentWithinStmt(St, V, State, DiagId);
       if (Cause != ProofFailure::None) {
         ExplainProofFailure(Loc, Cause, ProofStmtKind::BoundsDeclaration);
-        ExplainBoundsProofFailure(Loc, Cause, DeclaredBounds, ObservedBounds,
-                                  &DeclaredRange, &SrcRange);
+        ExplainBoundsProofFailure(Loc, Cause, &DeclaredRange, &SrcRange);
       }
       S.Diag(V->getLocation(), diag::note_declared_bounds)
         << DeclaredBounds << DeclaredBounds->getSourceRange();
