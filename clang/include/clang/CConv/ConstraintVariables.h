@@ -115,7 +115,15 @@ public:
   // have a binding in E other than top. E should be the EnvironmentMap that
   // results from running unification on the set of constraints and the
   // environment.
+  bool isChecked(EnvironmentMap &E);
+
+  // Returns true if this constraint variable has a different checked type after
+  // running unification. Note that if the constraint variable had a checked
+  // type in the input program, it will have the same checked type after solving
+  // so, the type will not have changed. To test if the type is checked, use
+  // isChecked instead.
   virtual bool anyChanges(EnvironmentMap &E) = 0;
+
   // Here, AIdx is the pointer level which needs to be checked.
   // By default, we check for all pointer levels (or VarAtoms)
   virtual bool hasWild(EnvironmentMap &E, int AIdx = -1) = 0;
@@ -264,7 +272,8 @@ public:
           ConstraintVariable(PointerVariable, "" /*not used*/, Name),
           BaseType(T),vars(V),FV(F), ArrPresent(isArr), ItypeStr(is),
           partOFFuncPrototype(false), Parent(nullptr),
-          BoundsAnnotationStr(""), IsGeneric(Generic) {}
+          BoundsAnnotationStr(""), IsGeneric(Generic), IsZeroWidthArray(false),
+          OriginallyChecked(false) {}
 
   std::string getTy() { return BaseType; }
   bool getArrPresent() { return ArrPresent; }
@@ -282,7 +291,7 @@ public:
 
   bool getIsGeneric(){ return IsGeneric; }
 
-  bool getIsOriginallyChecked(){ return OriginallyChecked; }
+  bool getIsOriginallyChecked() override { return OriginallyChecked; }
 
   bool solutionEqualTo(Constraints &CS, ConstraintVariable *CV);
 
@@ -445,18 +454,7 @@ public:
     return true;
   }
 
-  bool getIsOriginallyChecked() {
-    for (const auto &R : returnVars)
-      if (R->getIsOriginallyChecked())
-        return true;
-
-    for (const auto &PS : paramVars)
-      for (const auto &P : PS)
-        if (P->getIsOriginallyChecked())
-          return true;
-
-    return false;
-  }
+  bool getIsOriginallyChecked() override;
 
   virtual ~FunctionVariableConstraint() {};
 };
