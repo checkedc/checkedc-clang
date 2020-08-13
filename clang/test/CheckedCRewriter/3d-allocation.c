@@ -36,7 +36,7 @@ int ***malloc3d(int y, int x, int z) {
 	return t;
 
 }
-//CHECK: int *** malloc3d(int y, int x, int z) {
+//CHECK: int ***malloc3d(int y, int x, int z) {
 //CHECK: int ***t;
 
 

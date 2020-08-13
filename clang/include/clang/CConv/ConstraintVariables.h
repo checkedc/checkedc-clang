@@ -115,6 +115,13 @@ public:
   // have a binding in E other than top. E should be the EnvironmentMap that
   // results from running unification on the set of constraints and the
   // environment.
+  bool isChecked(EnvironmentMap &E);
+
+  // Returns true if this constraint variable has a different checked type after
+  // running unification. Note that if the constraint variable had a checked
+  // type in the input program, it will have the same checked type after solving
+  // so, the type will not have changed. To test if the type is checked, use
+  // isChecked instead.
   virtual bool anyChanges(EnvironmentMap &E) = 0;
 
   // Here, AIdx is the pointer level which needs to be checked.
@@ -442,18 +449,7 @@ public:
     return true;
   }
 
-  bool getIsOriginallyChecked() override {
-    for (const auto &R : returnVars)
-      if (R->getIsOriginallyChecked())
-        return true;
-
-    for (const auto &PS : paramVars)
-      for (const auto &P : PS)
-        if (P->getIsOriginallyChecked())
-          return true;
-
-    return false;
-  }
+  bool getIsOriginallyChecked() override;
 
   virtual ~FunctionVariableConstraint() {};
 };

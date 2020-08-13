@@ -460,15 +460,10 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   if (!Defnc->hasBody())
     return true;
 
-  // If a function had a checked type in the input program, we don't want to
-  // mess with the existing type.
-  if (Defnc->getIsOriginallyChecked())
-    return true;
-
   // DidAny tracks if we have made any changes to this function declaration.
   // If no changes are made, then there is no need to rewrite anything, and the
   // declaration is not added to RewriteThese.
-  bool DidAny = Defnc->numParams() > 0;
+  bool DidAny = false;
 
   // Get rewritten parameter variable declarations
   vector<string> ParmStrs;
@@ -479,6 +474,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     if (isAValidPVConstraint(Defn) && Defn->anyChanges(CS.getVariables())) {
       // This means Defn has a checked type, so we should rewrite to use this
       // type with an itype if applicable.
+      DidAny = true;
 
       if (Defn->hasItype() || !Defn->anyArgumentIsWild(CS.getVariables())) {
         // If the definition already has itype or there are no WILD arguments.
@@ -540,8 +536,6 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     ReturnVar = Defn->getOriginalTy() + " ";
     // If this there is already a bounds safe interface, keep using it.
     ItypeStr = getExistingIType(Defn);
-    if (!ItypeStr.empty())
-      DidAny = true;
   }
 
   // Combine parameter and return variables rewritings into a single rewriting

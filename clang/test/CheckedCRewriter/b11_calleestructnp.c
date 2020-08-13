@@ -32,7 +32,7 @@ struct r {
 
 
 struct np *sus(struct p x, struct p y) {
-	//CHECK: struct np * sus(struct p x, struct p y) {
+	//CHECK: struct np *sus(struct p x, struct p y) {
   struct np *z = malloc(sizeof(struct np));
 	//CHECK: struct np *z = malloc<struct np>(sizeof(struct np));
   z->x = 1;

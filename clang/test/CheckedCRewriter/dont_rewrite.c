@@ -14,6 +14,15 @@ _Itype_for_any(T) void vsf_sysutil_memclr(void* p_dest : itype(_Array_ptr<T>) by
   memset(p_dest, '\0', size);
 }
 
-// included just so output is procduced
-int *a;
 
+int *foo( _Ptr<int> q) {
+// CHECK: _Ptr<int> foo(_Ptr<int> q) _Checked {
+  return q;
+}
+void bar(void) {
+// CHECK: void bar(void) _Checked {
+  int *x = 0;
+  // CHECK: _Ptr<int> x = 0;
+  int *y = foo(x);
+  // CHECK: _Ptr<int> y = foo(x);
+}

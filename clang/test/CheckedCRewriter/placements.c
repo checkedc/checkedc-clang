@@ -35,3 +35,6 @@ void bar(int *a : itype(_Ptr<int>) ) {
 
 extern int* baz(void) : itype(_Ptr<int>);
 //CHECK: extern int*  baz(void) : itype(_Ptr<int>);
+
+// force output
+int *p;

@@ -97,7 +97,7 @@ int *mul2(int *x) {
 }
 
 int * sus(struct general *, struct general *);
-	//CHECK: int * sus(struct general *x, struct general *y);
+	//CHECK: int * sus(struct general *, struct general *);
 
 int * foo() {
 	//CHECK: int * foo(void) {
