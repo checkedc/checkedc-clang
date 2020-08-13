@@ -307,7 +307,7 @@ static llvm::cl::opt<std::string>
                   llvm::cl::init("-"), llvm::cl::cat(ConvertCategory));
 
 static llvm::cl::opt<std::string>
-    Malloc("use-malloc",
+    OptMalloc("use-malloc",
                      llvm::cl::desc("Allows for the usage of user-specified "
                               "versions of function allocators"),
                      llvm::cl::init(""), llvm::cl::cat(ConvertCategory));
