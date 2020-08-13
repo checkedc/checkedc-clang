@@ -95,7 +95,6 @@ private:
   std::unique_ptr<CFG> Cfg;
 };
 
-void SeedLocalBoundsInformation(ASTContext *C, ProgramInfo &I);
 void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I);
 
 // Add constraints based on heuristics to the parameters of the
