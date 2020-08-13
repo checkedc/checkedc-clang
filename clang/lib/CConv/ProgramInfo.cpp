@@ -422,8 +422,10 @@ bool ProgramInfo::link() {
       assert(FuncDeclFVIterator != ExternalFunctionFVCons.end());
       const std::set<FVConstraint *> &Gs = (*FuncDeclFVIterator).second;
 
-      for (const auto GIterator : Gs) {
-        auto *G = GIterator;
+      // If there was a checked type on a variable in the input program, it
+      // should stay that way. Otherwise, we shouldn't be adding a checked type
+      // to an extern function.
+      for (auto *const G : Gs) {
         for (const auto &R : G->getReturnVars()) {
           if (R->getIsOriginallyChecked())
             continue;
