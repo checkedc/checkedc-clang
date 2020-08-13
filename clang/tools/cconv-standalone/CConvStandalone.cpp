@@ -134,12 +134,16 @@ int main(int argc, const char **argv) {
   //Add user specified function allocators
   std::string Malloc = OptMalloc.getValue();
   if (!Malloc.empty()) {
-    char *as_chr = strdup(Malloc.c_str());
-    char *tok = strtok(as_chr, ",");
-    while (tok != nullptr) {
-      CcOptions.AllocatorFunctions.push_back(tok);
-      tok = strtok(nullptr, ",");
+    std::string delimiter = ",";
+    size_t pos = 0;
+    std::string token;
+    while ((pos = Malloc.find(delimiter)) != std::string::npos) {
+      token = Malloc.substr(0, pos);
+      CcOptions.AllocatorFunctions.push_back(token);
+      Malloc.erase(0, pos + delimiter.length());
     }
+    token = Malloc;
+    CcOptions.AllocatorFunctions.push_back(token);
   }
   else
     CcOptions.AllocatorFunctions = {};
