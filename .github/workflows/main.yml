@@ -112,7 +112,6 @@ jobs:
       - name: Run Unit Tests
         run: |
           cd ${{runner.workspace}}/${{env.builddir}}
-          cp ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils/rununittests.py ./
           export CPATH=${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include
           ! ./llvm-lit ${{github.workspace}}/deps/folder/checkedc-clang/clang/test/CheckedCRewriter/*.c | grep -e "^FAIL"
 
