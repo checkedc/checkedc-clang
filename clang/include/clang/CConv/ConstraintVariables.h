@@ -115,7 +115,15 @@ public:
   // have a binding in E other than top. E should be the EnvironmentMap that
   // results from running unification on the set of constraints and the
   // environment.
+  bool isChecked(EnvironmentMap &E);
+
+  // Returns true if this constraint variable has a different checked type after
+  // running unification. Note that if the constraint variable had a checked
+  // type in the input program, it will have the same checked type after solving
+  // so, the type will not have changed. To test if the type is checked, use
+  // isChecked instead.
   virtual bool anyChanges(EnvironmentMap &E) = 0;
+
   // Here, AIdx is the pointer level which needs to be checked.
   // By default, we check for all pointer levels (or VarAtoms)
   virtual bool hasWild(EnvironmentMap &E, int AIdx = -1) = 0;
@@ -145,6 +153,8 @@ public:
   // Sometimes, constraint variables can be produced that are empty. This
   // tests for the existence of those constraint variables.
   virtual bool isEmpty(void) const = 0;
+
+  virtual bool getIsOriginallyChecked() = 0;
 };
 
 typedef std::set<ConstraintVariable *> CVarSet;
@@ -248,6 +258,12 @@ private:
   // pointers.
   bool IsZeroWidthArray;
 
+  // Was this variable a checked pointer in the input program?
+  // This is important for two reasons: (1) externs that are checked should be
+  // kept that way during solving, (2) nothing that was originally checked
+  // should be modified during rewriting.
+  bool OriginallyChecked;
+
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
@@ -256,7 +272,8 @@ public:
           ConstraintVariable(PointerVariable, "" /*not used*/, Name),
           BaseType(T),vars(V),FV(F), ArrPresent(isArr), ItypeStr(is),
           partOFFuncPrototype(false), Parent(nullptr),
-          BoundsAnnotationStr(""), IsGeneric(Generic) {}
+          BoundsAnnotationStr(""), IsGeneric(Generic), IsZeroWidthArray(false),
+          OriginallyChecked(false) {}
 
   std::string getTy() { return BaseType; }
   bool getArrPresent() { return ArrPresent; }
@@ -273,6 +290,8 @@ public:
   std::string getBoundsStr() { return BoundsAnnotationStr; }
 
   bool getIsGeneric(){ return IsGeneric; }
+
+  bool getIsOriginallyChecked() override { return OriginallyChecked; }
 
   bool solutionEqualTo(Constraints &CS, ConstraintVariable *CV);
 
@@ -429,6 +448,8 @@ public:
 
     return true;
   }
+
+  bool getIsOriginallyChecked() override;
 
   virtual ~FunctionVariableConstraint() {};
 };
