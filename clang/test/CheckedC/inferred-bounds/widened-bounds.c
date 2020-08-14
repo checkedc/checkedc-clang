@@ -489,7 +489,8 @@ void f20() {
 // CHECK:  [B9]
 // CHECK: upper_bound(q) = 1
 
-  // Declared bounds
+  // Declared bounds (INT_MIN) and deref offset (INT_MAX - 1). No sequential
+  // deref tests. No widening.
   _Nt_array_ptr<char> r : count(INT_MIN) = "";
   // TODO: Windows X86 Debug build fails to display the error "out-of-bounds
   // memory access". This seems to happen only at *(p + INT_MAX). So for now, I
@@ -504,7 +505,8 @@ void f20() {
 // CHECK:  [B7]
 // CHECK-NOT: upper_bound(r)
 
-  // Declared bounds and deref offset are both
+  // Declared bounds and deref offset are both (INT_MAX + 1). Integer overflow.
+  // No widening.
   _Nt_array_ptr<char> s : count(INT_MAX + 1) = "";
   if (*(s + INT_MAX + 1))                           // expected-error {{out-of-bounds memory access}}
   {}
@@ -514,7 +516,7 @@ void f20() {
 // CHECK:  [B5]
 // CHECK-NOT: upper_bound(s)
 
-  // Declared bounds and deref offset are both
+  // Declared bounds and deref offset are both (INT_MIN + 1). Valid widening.
   _Nt_array_ptr<char> t : count(INT_MIN + 1) = "";
   if (*(t + INT_MIN + 1))                           // expected-error {{out-of-bounds memory access}}
   {}
@@ -524,7 +526,8 @@ void f20() {
 // CHECK:  [B3]
 // CHECK: upper_bound(t) = 1
 
-  // Declared bounds and deref offset are both
+  // Declared bounds and deref offset are both (INT_MIN + -1). Integer
+  // underflow. No widening.
   _Nt_array_ptr<char> u : count(INT_MIN + -1) = ""; // expected-error {{declared bounds for 'u' are invalid after statement}}
   if (*(u + INT_MIN + -1))
   {}

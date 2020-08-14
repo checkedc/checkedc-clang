@@ -243,12 +243,13 @@ void BoundsAnalysis::CollectNtPtrsInScope(FunctionDecl *FD) {
 
   assert(FD && "invalid function");
 
-  std::vector<const VarDecl *> VarList;
-
   // Collect ntptrs passed as parameters to the current function.
+  // Note: NtPtrsInScope is a mapping from ntptr to variables used in the
+  // declared bounds of the ntptr. In this function we store an empty set for
+  // the bounds variables. This will later be filled in FillGenSetForEdge.
   for (const ParmVarDecl *PD : FD->parameters()) {
     if (IsNtArrayType(PD))
-      VarList.push_back(PD);
+      NtPtrsInScope[PD] = DeclSetTy();
   }
 
   // Collect all ntptrs defined in the current function. BlockMap contains all
@@ -268,22 +269,15 @@ void BoundsAnalysis::CollectNtPtrsInScope(FunctionDecl *FD) {
         for (const Decl *D : DS->decls())
           if (const auto *V = dyn_cast<VarDecl>(D))
             if (IsNtArrayType(V))
-              VarList.push_back(V);
+              NtPtrsInScope[V] = DeclSetTy();
       }
     }
-  }
-
-  // Collect the variables used in the declared bounds expr for each ntptr.
-  for (const VarDecl *V : VarList) {
-    DeclSetTy BoundsVars;
-    CollectBoundsVars(S.NormalizeBounds(V), BoundsVars);
-    NtPtrsInScope[V] = BoundsVars;
   }
 }
 
 void BoundsAnalysis::FillGenSetForEdge(const Expr *E,
-                                                ElevatedCFGBlock *EB,
-                                                ElevatedCFGBlock *SuccEB) {
+                                       ElevatedCFGBlock *EB,
+                                       ElevatedCFGBlock *SuccEB) {
 
   // TODO: Handle accesses of the form:
   // "if (*(p + i) && *(p + j) && *(p + k))"
@@ -333,9 +327,19 @@ void BoundsAnalysis::FillGenSetForEdge(const Expr *E,
     const VarDecl *V = item.first;
 
     BoundsExpr *NormalizedBounds = S.NormalizeBounds(V);
+    if (!NormalizedBounds)
+      continue;
+
     const auto *RBE = dyn_cast<RangeBoundsExpr>(NormalizedBounds);
     if (!RBE)
       continue;
+
+    // Collect all variables involved in the upper and lower bounds exprs for
+    // the ntptr. An assignment to any such variable would kill the widenend
+    // bounds for the ntptr.
+    DeclSetTy BoundsVars;
+    CollectBoundsVars(NormalizedBounds, BoundsVars);
+    NtPtrsInScope[V] = BoundsVars;
 
     // Update the bounds of p on the edge EB->SuccEB only if we haven't already
     // updated them.
@@ -644,11 +648,11 @@ void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB,
 
           for (auto item : NtPtrsInScope) {
             const VarDecl *NtPtr = item.first;
-            DeclSetTy Vars = item.second;
+            DeclSetTy BoundsVars = item.second;
 
             // If the variable exists in the bounds declaration for the ntptr,
             // then add the Stmt:ntptr pair to the Kill set for the block.
-            if (Vars.count(V))
+            if (BoundsVars.count(V))
               EB->Kill[TopLevelStmt].insert(NtPtr);
           }
         }
