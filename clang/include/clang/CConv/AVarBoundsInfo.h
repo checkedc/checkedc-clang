@@ -82,6 +82,15 @@ private:
 
 };
 
+// Priority for bounds.
+enum BoundsPriority {
+  Declared = 1, // Highest priority: These are declared by the user.
+  Allocator, // Second priority: allocator based bounds.
+  FlowInferred, // Flow based bounds.
+  Heuristics, // Least-priority, based on heuristics.
+  Invalid // Invalid priority type.
+};
+
 typedef boost::bimap<PersistentSourceLoc, BoundsKey> DeclKeyBiMapType;
 typedef DeclKeyBiMapType::value_type DeclMapItemType;
 typedef boost::bimap<std::tuple<std::string, string, bool, unsigned>,
@@ -138,10 +147,12 @@ public:
   bool isValidBoundVariable(clang::Decl *D);
 
   void insertDeclaredBounds(clang::Decl *D, ABounds *B);
-  bool mergeBounds(BoundsKey L, ABounds *B);
-  bool removeBounds(BoundsKey L);
-  bool replaceBounds(BoundsKey L, ABounds *B);
-  ABounds *getBounds(BoundsKey L);
+  bool mergeBounds(BoundsKey L, BoundsPriority P, ABounds *B);
+  bool removeBounds(BoundsKey L, BoundsPriority P = Invalid);
+  bool replaceBounds(BoundsKey L, BoundsPriority P, ABounds *B);
+  ABounds *getBounds(BoundsKey L,
+                     BoundsPriority ReqP = Invalid,
+                     BoundsPriority *RetP = nullptr);
   bool updatePotentialCountBounds(BoundsKey BK, std::set<BoundsKey> &CntBK);
 
   // Try and get BoundsKey, into R, for the given declaration. If the declaration
@@ -215,22 +226,27 @@ public:
 private:
   friend class AvarBoundsInference;
   friend class AVarGraph;
-    // Variable that is used to generate new bound keys.
+  // List of bounds priority in descending order of priorities.
+  static std::vector<BoundsPriority> PrioList;
+  // Variable that is used to generate new bound keys.
   BoundsKey BCount;
   // Map of VarKeys and corresponding program variables.
   std::map<BoundsKey, ProgramVar *> PVarInfo;
   // Map of APSInt (constants) and corresponding VarKeys.
   std::map<uint64_t, BoundsKey> ConstVarKeys;
-  // Map of BoundsKey and  corresponding bounds information.
+  // Map of BoundsKey and corresponding prioritized bounds information.
   // Note that although each PSL could have multiple ConstraintKeys Ex: **p.
   // Only the outer most pointer can have bounds.
-  std::map<BoundsKey, ABounds *> BInfo;
+  std::map<BoundsKey, std::map<BoundsPriority, ABounds *>> BInfo;
   // Set that contains BoundsKeys of variables which have invalid bounds.
   std::set<BoundsKey> InvalidBounds;
   // Set of BoundsKeys that correspond to pointers.
   std::set<BoundsKey> PointerBoundsKey;
   // Set of BoundsKey that correspond to array pointers.
   std::set<BoundsKey> ArrPointerBoundsKey;
+  // Set of BoundsKey that correspond to array pointers with in the program
+  // being compiled i.e., it does not include array pointers that belong
+  // to libraries.
   std::set<BoundsKey> InProgramArrPtrBoundsKeys;
   // These are temporary bound keys generated during inference.
   // They do not correspond to any bounds variable.
@@ -269,6 +285,10 @@ private:
 
   // Of all teh pointer bounds key, find arr pointers.
   void computerArrPointers(ProgramInfo *PI, std::set<BoundsKey> &Ret);
+
+  // Keep only highest priority bounds for all the provided BoundsKeys
+  // returns true if any thing changed, else false.
+  bool keepHighestPriorityBounds(std::set<BoundsKey> &ArrPtrs);
 
   // Perform worklist based inference on the requested array variables.
   // The flag FromPB requests the algorithm to use potential length variables.

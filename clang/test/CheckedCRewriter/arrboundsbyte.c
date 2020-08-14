@@ -21,4 +21,4 @@ void bar(int *x, int c) {
   memcpy(q,f.y,c);
 }
 //CHECK: void bar(_Array_ptr<int> x : byte_count(c), int c) {
-//CHECK: _Array_ptr<int> q =  malloc<int>(sizeof(int)*c);
+//CHECK: _Array_ptr<int> q : count(c) =  malloc<int>(sizeof(int)*c);

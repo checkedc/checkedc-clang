@@ -16,6 +16,9 @@
 #include <boost/graph/breadth_first_search.hpp>
 #include <boost/graph/reverse_graph.hpp>
 
+std::vector<BoundsPriority>
+    AVarBoundsInfo::PrioList {Declared, Allocator, FlowInferred, Heuristics};
+
 void AVarBoundsStats::print(llvm::raw_ostream &O,
                             const std::set<BoundsKey> *InSrcArrs,
                             bool JsonFormat) const {
@@ -72,10 +75,8 @@ void AVarBoundsInfo::insertDeclaredBounds(clang::Decl *D, ABounds *B) {
   tryGetVariable(D, BK);
   if (B != nullptr) {
     // If there is already bounds information, release it.
-    if (BInfo.find(BK) != BInfo.end()) {
-      delete (BInfo[BK]);
-    }
-    BInfo[BK] = B;
+    removeBounds(BK);
+    BInfo[BK][Declared] = B;
     BoundsInferStats.DeclaredBounds.insert(BK);
   } else {
     // Set bounds to be invalid.
@@ -129,41 +130,73 @@ bool AVarBoundsInfo::tryGetVariable(clang::Expr *E,
   return Ret;
 }
 
-bool AVarBoundsInfo::mergeBounds(BoundsKey L, ABounds *B) {
+bool AVarBoundsInfo::mergeBounds(BoundsKey L, BoundsPriority P, ABounds *B) {
   bool RetVal = false;
-  if (BInfo.find(L) != BInfo.end()) {
+  if (BInfo.find(L) != BInfo.end() && BInfo[L].find(P) != BInfo[L].end()) {
     // If previous computed bounds are not same? Then release the old bounds.
-    if (!BInfo[L]->areSame(B)) {
+    if (!BInfo[L][P]->areSame(B)) {
       InvalidBounds.insert(L);
-      delete (BInfo[L]);
-      BInfo.erase(L);
+      // TODO: Should we keep bounds for other priorities?
+      removeBounds(L);
     }
   } else {
-    BInfo[L] = B;
+    BInfo[L][P] = B;
     RetVal = true;
   }
   return RetVal;
 }
 
-bool AVarBoundsInfo::removeBounds(BoundsKey L) {
+bool AVarBoundsInfo::removeBounds(BoundsKey L, BoundsPriority P) {
   bool RetVal = false;
   if (BInfo.find(L) != BInfo.end()) {
-    delete (BInfo[L]);
-    BInfo.erase(L);
-    RetVal = true;
+    auto &PriBInfo = BInfo[L];
+    if (P == Invalid) {
+      // Delete bounds for all priorities.
+      for (auto &T : PriBInfo) {
+        delete (T.second);
+      }
+      BInfo.erase(L);
+      RetVal = true;
+    } else {
+      // Delete bounds for only the given priority.
+      if (PriBInfo.find(P) != PriBInfo.end()) {
+        delete (PriBInfo[P]);
+        PriBInfo.erase(P);
+        RetVal = true;
+      }
+      // If there are no other bounds then remove the key.
+      if (BInfo[L].empty()) {
+        BInfo.erase(L);
+        RetVal = true;
+      }
+    }
   }
   return RetVal;
 }
 
-bool AVarBoundsInfo::replaceBounds(BoundsKey L, ABounds *B) {
+bool AVarBoundsInfo::replaceBounds(BoundsKey L, BoundsPriority P, ABounds *B) {
   removeBounds(L);
-  return mergeBounds(L, B);
+  return mergeBounds(L, P, B);
 }
 
-ABounds *AVarBoundsInfo::getBounds(BoundsKey L) {
+ABounds *AVarBoundsInfo::getBounds(BoundsKey L, BoundsPriority ReqP,
+                                   BoundsPriority *RetP) {
   if (InvalidBounds.find(L) == InvalidBounds.end() &&
       BInfo.find(L) != BInfo.end()) {
-    return BInfo[L];
+    auto &PriBInfo = BInfo[L];
+    if (ReqP == Invalid) {
+      // Fetch bounds by priority i.e., give the highest priority bounds.
+      for (BoundsPriority P : PrioList) {
+        if (PriBInfo.find(P) != PriBInfo.end()) {
+          if (RetP != nullptr)
+            *RetP = P;
+          return PriBInfo[P];
+        }
+      }
+      assert(false && "Bounds present but has invalid priority.");
+    } else if (PriBInfo.find(ReqP) != PriBInfo.end()) {
+      return PriBInfo[ReqP];
+    }
   }
   return nullptr;
 }
@@ -689,7 +722,7 @@ bool AvarBoundsInference::inferBounds(BoundsKey K, bool FromPB) {
     }
 
     if (KB != nullptr) {
-      BI->replaceBounds(K, KB);
+      BI->replaceBounds(K, FlowInferred, KB);
       IsChanged = true;
     }
   }
@@ -768,7 +801,8 @@ AVarBoundsInfo::contextualizeCVar(CallExpr *CE, const CVarSet &CSet) {
           insertProgramVar(NK, CKVar->makeCopy(NK));
           BKeyMap[CK] = NK;
           // Next duplicate the Bounds information.
-          ABounds *CKBounds = getBounds(CK);
+          BoundsPriority TP = Invalid;
+          ABounds *CKBounds = getBounds(CK, Invalid, &TP);
           if (CKBounds != nullptr) {
             BoundsKey NBK = CKBounds->getBKey();
             ProgramVar *NBKVar = getProgramVar(CK);
@@ -778,7 +812,7 @@ AVarBoundsInfo::contextualizeCVar(CallExpr *CE, const CVarSet &CSet) {
               insertProgramVar(TmpBK, NBKVar->makeCopy(TmpBK));
             }
             CKBounds = CKBounds->makeCopy(BKeyMap[NBK]);
-            replaceBounds(NK, CKBounds);
+            replaceBounds(NK, TP, CKBounds);
           }
         }
       }
@@ -880,9 +914,17 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
   ArrPointerBoundsKey.clear();
   ArrPointerBoundsKey.insert(ArrPointers.begin(), ArrPointers.end());
 
+  // Keep only highest priority bounds.
+  // Any thing changed? which means bounds of a variable changed
+  // Which means we need to recompute the flow based bounds for
+  // all arrays that have flow based bounds.
+  if (keepHighestPriorityBounds(ArrPointerBoundsKey)) {
+    // Remove flow inferred bounds, if exist for all the array pointers.
+    for (auto TBK : ArrPointerBoundsKey)
+      removeBounds(TBK, FlowInferred);
+  }
 
   // Next, get the ARR pointers that has bounds.
-
   // These are pointers with bounds.
   std::set<BoundsKey> ArrWithBounds;
   for (auto &T : BInfo) {
@@ -910,6 +952,23 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
   }
 
   return RetVal;
+}
+
+bool AVarBoundsInfo::keepHighestPriorityBounds(std::set<BoundsKey> &ArrPtrs) {
+  bool FoundBounds = false;
+  bool HasChanged = false;
+  for (auto BK : ArrPtrs) {
+    FoundBounds = false;
+    for (BoundsPriority P : PrioList) {
+      if (FoundBounds) {
+        // We already found bounds. So delete these bounds.
+        HasChanged = removeBounds(BK, P) || HasChanged;
+      } else if (getBounds(BK, P) != nullptr) {
+        FoundBounds = true;
+      }
+    }
+  }
+  return HasChanged;
 }
 
 void AVarBoundsInfo::dumpAVarGraph(const std::string &DFPath) {
