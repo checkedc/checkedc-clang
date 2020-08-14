@@ -55,12 +55,12 @@ public:
 
   ConstraintVariableKind getKind() const { return Kind; }
 
+  std::string Name; // TODO move back to protected
 private:
   ConstraintVariableKind Kind;
 protected:
   std::string OriginalType;
   // Underlying name of the C variable this ConstraintVariable represents.
-  std::string Name;
   // Set of constraint variables that have been constrained due to a
   // bounds-safe interface (itype). They are remembered as being constrained
   // so that later on we do not introduce a spurious constraint
@@ -349,6 +349,8 @@ private:
   // A vector of K sets of N constraints on the parameter values, for
   // K parameters accepted by the function.
   std::vector<std::set<ConstraintVariable *>> paramVars;
+  // Storing of parameters in the case of untyped prototypes
+  std::vector<std::vector<std::reference_wrapper<CVarSet>>> defferedParams;
   // File name in which this declaration is found.
   std::string FileName;
   bool Hasproto;
@@ -375,6 +377,10 @@ public:
 
   std::set<ConstraintVariable *> &
   getReturnVars() { return returnVars; }
+
+  std::vector<std::vector<std::reference_wrapper<CVarSet>>> &getDefferedParams()
+    { return defferedParams; }
+  void addDefferedParams(std::vector<std::reference_wrapper<CVarSet>> P);
 
   size_t numParams() { return paramVars.size(); }
 

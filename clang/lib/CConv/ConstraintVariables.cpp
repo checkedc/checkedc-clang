@@ -1590,6 +1590,9 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
   }
 }
 
+void handle_params(FVConstraint *From, FVConstraint *To,
+                   std::function<void(ConstraintVariable*,ConstraintVariable*) > f);
+
 // Brain Transplant params and returns in [FromCV], recursively.
 void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
                                                  ProgramInfo &I) {
@@ -1600,15 +1603,11 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
   auto RetVar = getOnly(returnVars);
   RetVar->brainTransplant(FromRetVar, I);
   // Transplant params.
-  assert(From->numParams() == numParams());
-  for (unsigned i = 0; i < From->numParams(); i++) {
-    CVarSet &FromP = From->getParamVar(i);
-    CVarSet &P = getParamVar(i);
-    auto FromVar = getOnly(FromP);
-    auto Var = getOnly(P);
-    Var->brainTransplant(FromVar, I);
-  }
+  handle_params(From, this,
+                [&I](ConstraintVariable *F, ConstraintVariable *T)
+                { T->brainTransplant(F, I); });
 }
+
 
 void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
@@ -1618,13 +1617,48 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
   auto RetVar = getOnly(returnVars);
   RetVar->mergeDeclaration(FromRetVar);
   // Transplant params.
-  assert(From->numParams() == numParams());
-  for (unsigned i = 0; i < From->numParams(); i++) {
-    CVarSet &FromP = From->getParamVar(i);
-    CVarSet &P = getParamVar(i);
-    auto FromVar = getOnly(FromP);
-    auto Var = getOnly(P);
-    Var->mergeDeclaration(FromVar);
+  handle_params(From, this,
+                [](ConstraintVariable *F, ConstraintVariable *T)
+                { T->mergeDeclaration(F); });
+}
+
+void handle_params(FVConstraint *From, FVConstraint *To,
+                   std::function<void(ConstraintVariable*,ConstraintVariable*)> f) {
+  bool fromEmpty = From->numParams() == 0;
+  bool toEmpty = To->numParams() == 0;
+  bool paramsEq = From->numParams() == To->numParams();
+  assert(fromEmpty || toEmpty || paramsEq);
+  if (paramsEq) {
+    for (unsigned i = 0; i < From->numParams(); i++) {
+      CVarSet &FromP = From->getParamVar(i);
+      CVarSet &P = To->getParamVar(i);
+      auto FromVar = getOnly(FromP);
+      auto Var = getOnly(P);
+      f(FromVar, Var);
+    }
+  } else { // Dealing with an untyped prototype
+    FVConstraint *Empty = fromEmpty ? From : To;
+    FVConstraint *Typed = fromEmpty ? To : From;
+
+    for (auto deferred : Empty->getDefferedParams()) {
+      assert(Typed->numParams() == deferred.size());
+      for (unsigned i = 0; i < deferred.size(); i++) {
+        CVarSet &P = deferred[i];
+        CVarSet &TypedP = Typed->getParamVar(i);
+        auto TypedV = getOnly(TypedP);
+        for (auto V : P) {
+          f(V, TypedV);
+        }
+      }
+    }
   }
 }
 
+
+void
+FunctionVariableConstraint::addDefferedParams
+  (std::vector<std::reference_wrapper<CVarSet>> P)
+{
+  defferedParams.push_back(P);
+  return;
+}

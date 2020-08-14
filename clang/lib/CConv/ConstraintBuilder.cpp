@@ -187,6 +187,9 @@ public:
         // and for each arg to the function ...
         if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
           unsigned i = 0;
+          bool callUntyped = E->getNumArgs() != 0 && TargetFV->numParams() == 0;
+          std::vector<std::reference_wrapper<CVarSet>> deffered;
+          llvm::errs() << "calltountyped: " << callUntyped << "\n";
           for (const auto &A : E->arguments()) {
             CVarSet ArgumentConstraints;
             if(TFD != nullptr && i < TFD->getNumParams()) {
@@ -201,6 +204,9 @@ public:
                 ArgumentConstraints = CB.getExprConstraintVars(A);
             } else
               ArgumentConstraints = CB.getExprConstraintVars(A);
+
+            if (callUntyped)
+              deffered.push_back(ArgumentConstraints);
 
             // constrain the arg CV to the param CV
             if (i < TargetFV->numParams()) {
@@ -238,6 +244,9 @@ public:
             }
             i++;
           }
+          if (callUntyped)
+            TargetFV->addDefferedParams(deffered);
+
         }
       }
     }
