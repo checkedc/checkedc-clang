@@ -92,3 +92,39 @@ void arrs() {
   memcpy(p, q, 10*sizeof(int));
   // CHECK: memcpy<int>(p, q, 10*sizeof(int));
 }
+
+_Itype_for_any(T) void *test1(void * t : itype(_Ptr<T>)) : itype(_Ptr<T>);
+_Itype_for_any(T) void *test2(void) : itype(_Ptr<T>);
+
+void f0() {
+  int **a = test2();
+  // CHECK: _Ptr<int *> a =  test2<int *>();
+  *a = (int*)1;
+}
+
+void f1(int **a, float **b) {
+// CHECK: void f1(_Ptr<_Ptr<int>> a, _Ptr<_Ptr<float>> b) {
+  int **c = test1(a);
+  float **d = test1(b);
+  // CHECK: _Ptr<_Ptr<int>> c =  test1<_Ptr<int>>(a);
+  // CHECK: _Ptr<_Ptr<float>> d =  test1<_Ptr<float>>(b);
+}
+
+void f2(int **a, int **c) {
+// CHECK: void f2(_Ptr<_Ptr<int>> a, int **c) {
+  int **b = test1(a);
+  // CHECK: _Ptr<_Ptr<int>> b =  test1<_Ptr<int>>(a);
+  int *d = test1(c);
+  // CHECK: int *d = test1(c);
+}
+
+void deep(int ****v, int ****w, int ****x, int ****y, int ****z) {
+  // CHECK: void deep(_Ptr<_Ptr<_Ptr<int *>>> v, _Ptr<_Ptr<_Ptr<int *>>> w, _Ptr<_Ptr<_Ptr<int *>>> x, _Ptr<_Ptr<_Ptr<int *>>> y, _Ptr<_Ptr<_Ptr<int *>>> z) {
+  int ****u = test_many(v, w, x, y, z);
+  // CHECK: _Ptr<_Ptr<_Ptr<int *>>> u =  test_many<_Ptr<_Ptr<int *>>>(v, w, x, y, z);
+  ***w = (int*) 1;
+
+  int ******a = malloc(sizeof(int*****));
+  // CHECK: _Ptr<_Ptr<_Ptr<_Ptr<int **>>>> a =  malloc<_Ptr<_Ptr<_Ptr<int **>>>>(sizeof(int*****));
+  ****a = (int**) 1;
+}

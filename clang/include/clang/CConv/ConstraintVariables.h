@@ -350,6 +350,11 @@ public:
 
   ConstraintVariable *getCopy(Constraints &CS);
 
+  // Retrieve the atom at the specified index. This function includes special
+  // handling for generic constraint variables to create deeper pointers as
+  // they are needed.
+  Atom *getAtom(unsigned int AtomIdx, Constraints &CS);
+
   virtual ~PointerVariableConstraint() {};
 };
 
