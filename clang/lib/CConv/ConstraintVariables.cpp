@@ -1655,7 +1655,7 @@ void FunctionVariableConstraint::handle_params
 void
 FunctionVariableConstraint::addDeferredParams
 (PersistentSourceLoc PL,
- std::vector<std::reference_wrapper<CVarSet>> Ps,
+ std::vector<CVarSet> Ps,
  ProgramInfo &I)
 {
   ParamDeferment P = { PL, Ps, I };

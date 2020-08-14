@@ -340,7 +340,7 @@ typedef PointerVariableConstraint PVConstraint;
 
 typedef struct {
   PersistentSourceLoc PL;
-  std::vector<std::reference_wrapper<CVarSet>> PS;
+  std::vector<CVarSet> PS;
   ProgramInfo &I;
 } ParamDeferment;
 
@@ -389,7 +389,7 @@ public:
     { return deferredParams; }
 
   void addDeferredParams(PersistentSourceLoc PL,
-                         std::vector<std::reference_wrapper<CVarSet>> Ps,
+                         std::vector<CVarSet> Ps,
                          ProgramInfo &I);
 
   //TODO this should probably be private
