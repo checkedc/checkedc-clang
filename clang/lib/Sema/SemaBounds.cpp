@@ -566,6 +566,47 @@ namespace {
 }
 
 namespace {
+using EqualExprTy = SmallVector<Expr *, 4>;
+
+// EqualExprsContainsExpr returns true if the set Exprs contains E.
+bool EqualExprsContainsExpr(Sema &S, const EqualExprTy Exprs, Expr *E,
+                            const EquivExprSets *EquivExprs) {
+  for (auto I = Exprs.begin(); I != Exprs.end(); ++I) {
+    if (Lexicographic(S.Context, EquivExprs).CompareExpr(*I, E) ==
+        Lexicographic::Result::Equal)
+      return true;
+  }
+  return false;
+}
+
+class CollectVariableSetHelper
+    : public RecursiveASTVisitor<CollectVariableSetHelper> {
+private:
+  EqualExprTy VariableList;
+  const EquivExprSets *EquivExprs;
+  Sema &SemaRef;
+
+public:
+  CollectVariableSetHelper(Sema &SemaRef, const EquivExprSets *EquivExprs)
+      : VariableList(), EquivExprs(EquivExprs), SemaRef(SemaRef) {}
+
+  const EqualExprTy &GetVariableList() const { return VariableList; }
+
+  bool VisitDeclRefExpr(DeclRefExpr *E) {
+    if (!EqualExprsContainsExpr(SemaRef, VariableList, E, EquivExprs))
+      VariableList.push_back(E);
+    return true;
+  }
+};
+
+EqualExprTy CollectVariableSet(Sema &SemaRef, Expr *E, const EquivExprSets *EquivExprs) {
+  CollectVariableSetHelper Helper(SemaRef, EquivExprs);
+  Helper.TraverseStmt(E);
+  return Helper.GetVariableList();
+}
+}
+
+namespace {
   class ReplaceVariableHelper : public TreeTransform<ReplaceVariableHelper> {
     typedef TreeTransform<ReplaceVariableHelper> BaseTransform;
     private:
@@ -1286,27 +1327,27 @@ namespace {
         return ProofResult::Maybe;
       }
 
-      bool IsConstantSizedRange() {
+      bool IsConstantSizedRange() const {
         return IsLowerOffsetConstant() && IsUpperOffsetConstant();
       }
 
-      bool IsVariableSizedRange() {
+      bool IsVariableSizedRange() const {
         return IsLowerOffsetVariable() || IsUpperOffsetVariable();
       }
 
-      bool IsLowerOffsetConstant() {
+      bool IsLowerOffsetConstant() const {
         return !LowerOffsetVariable;
       }
 
-      bool IsLowerOffsetVariable() {
+      bool IsLowerOffsetVariable() const {
         return LowerOffsetVariable;
       }
 
-      bool IsUpperOffsetConstant() {
+      bool IsUpperOffsetConstant() const {
         return !UpperOffsetVariable;
       }
 
-      bool IsUpperOffsetVariable() {
+      bool IsUpperOffsetVariable() const {
         return UpperOffsetVariable;
       }
 
@@ -1645,7 +1686,7 @@ namespace {
       return ExistsIn && !ExistsKill;
     }
 
-    static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs) {
+    static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, const EquivExprSets *EquivExprs) {
       Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareExpr(E1, E2);
       return R == Lexicographic::Result::Equal;
     }
@@ -1908,8 +1949,9 @@ namespace {
     }
 
     void ExplainBoundsProofFailure(SourceLocation Loc, ProofFailure Cause,
-                                   BaseRange *DeclaredRange,
-                                   BaseRange *SrcRange) {
+                                   const BaseRange *DeclaredRange,
+                                   const BaseRange *SrcRange,
+                                   const EquivExprSets *EquivExprs) {
       assert(DeclaredRange);
       assert(SrcRange);
 
@@ -1931,20 +1973,41 @@ namespace {
       }
 
       if (TestFailure(Cause, ProofFailure::UpperOffsetsUnequal)) {
+        EqualExprTy SrcVariables, DeclVariables;
+        if (!SrcRange->IsUpperOffsetConstant()) {
+          SrcVariables = CollectVariableSet(
+              S, SrcRange->GetUpperOffsetVariable(), EquivExprs);
+        }
+        if (!DeclaredRange->IsUpperOffsetConstant()) {
+          DeclVariables = CollectVariableSet(
+              S, DeclaredRange->GetUpperOffsetVariable(), EquivExprs);
+        }
+
+        for (const auto &SrcV : SrcVariables) {
+          bool ShouldBlame = true;
+          for (const auto &DeclV : DeclVariables) {
+            if (EqualValue(S.Context, SrcV, DeclV, EquivExprs)) {
+              ShouldBlame = false;
+              break;
+            }
+          }
+          if (ShouldBlame) {
+            SrcV->dump();
+          }
+        }
+
         DiagnosticBuilder DB = S.Diag(Loc, diag::note_cannot_prove_inequality)
             << (unsigned)DiagnosticComparatorName::LE;
 
-        if (DeclaredRange->GetUpperOffsetVariable()) {
+        if (DeclaredRange->GetUpperOffsetVariable())
           DB << DeclaredRange->GetUpperOffsetVariable();
-        } else {
+        else
           DB << DeclaredRange->GetUpperOffsetConstantStr();
-        }
 
         if (SrcRange->GetUpperOffsetVariable())
           DB << SrcRange->GetUpperOffsetVariable();
-        else {
+        else
           DB << SrcRange->GetUpperOffsetConstantStr();
-        }
       }
 
       if (TestFailure(Cause, ProofFailure::BasesUnequal)) {
@@ -1953,6 +2016,10 @@ namespace {
             << SrcRange->GetBase()
             << DeclaredRange->GetBase();
       }
+    }
+
+    void GetFreeVariables(Expr *SrcExpr, Expr *DeclExpr) {
+
     }
 
     CHKCBindTemporaryExpr *GetTempBinding(Expr *E) {
@@ -4131,7 +4198,8 @@ namespace {
       SourceLocation Loc = BlameAssignmentWithinStmt(St, V, State, DiagId);
       if (Cause != ProofFailure::None) {
         ExplainProofFailure(Loc, Cause, ProofStmtKind::BoundsDeclaration);
-        ExplainBoundsProofFailure(Loc, Cause, &DeclaredRange, &SrcRange);
+        ExplainBoundsProofFailure(Loc, Cause, &DeclaredRange, &SrcRange,
+                                  &State.EquivExprs);
       }
       S.Diag(V->getLocation(), diag::note_declared_bounds)
         << DeclaredBounds << DeclaredBounds->getSourceRange();
@@ -4955,13 +5023,8 @@ namespace {
       return true;
     }
 
-    // EqualExprsContainsExpr returns true if the set Exprs contains E.
     bool EqualExprsContainsExpr(const EqualExprTy Exprs, Expr *E) {
-      for (auto I = Exprs.begin(); I != Exprs.end(); ++I) {
-        if (EqualValue(S.Context, E, *I, nullptr))
-          return true;
-      }
-      return false;
+      return ::EqualExprsContainsExpr(S, Exprs, E, nullptr);
     }
 
     // If E is a possibly parenthesized lvalue variable V,
