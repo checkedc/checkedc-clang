@@ -55,12 +55,12 @@ public:
 
   ConstraintVariableKind getKind() const { return Kind; }
 
-  std::string Name; // TODO move back to protected
 private:
   ConstraintVariableKind Kind;
 protected:
   std::string OriginalType;
   // Underlying name of the C variable this ConstraintVariable represents.
+  std::string Name;
   // Set of constraint variables that have been constrained due to a
   // bounds-safe interface (itype). They are remembered as being constrained
   // so that later on we do not introduce a spurious constraint
@@ -338,6 +338,13 @@ typedef PointerVariableConstraint PVConstraint;
 // Name for function return, for debugging
 #define RETVAR "$ret"
 
+typedef struct {
+  PersistentSourceLoc PL;
+  std::vector<std::reference_wrapper<CVarSet>> PS;
+  ProgramInfo &I;
+} ParamDeferment;
+
+
 // Constraints on a function type. Also contains a 'name' parameter for
 // when a re-write of a function pointer is needed.
 class FunctionVariableConstraint : public ConstraintVariable {
@@ -350,7 +357,7 @@ private:
   // K parameters accepted by the function.
   std::vector<std::set<ConstraintVariable *>> paramVars;
   // Storing of parameters in the case of untyped prototypes
-  std::vector<std::vector<std::reference_wrapper<CVarSet>>> defferedParams;
+  std::vector<ParamDeferment> deferredParams;
   // File name in which this declaration is found.
   std::string FileName;
   bool Hasproto;
@@ -378,9 +385,17 @@ public:
   std::set<ConstraintVariable *> &
   getReturnVars() { return returnVars; }
 
-  std::vector<std::vector<std::reference_wrapper<CVarSet>>> &getDefferedParams()
-    { return defferedParams; }
-  void addDefferedParams(std::vector<std::reference_wrapper<CVarSet>> P);
+  std::vector<ParamDeferment> &getDeferredParams()
+    { return deferredParams; }
+
+  void addDeferredParams(PersistentSourceLoc PL,
+                         std::vector<std::reference_wrapper<CVarSet>> Ps,
+                         ProgramInfo &I);
+
+  //TODO this should probably be private
+  void handle_params(FunctionVariableConstraint *From,
+                     FunctionVariableConstraint *To,
+                     std::function<void(ConstraintVariable*,ConstraintVariable*) > f);
 
   size_t numParams() { return paramVars.size(); }
 

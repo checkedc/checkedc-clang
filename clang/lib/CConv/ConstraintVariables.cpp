@@ -1590,8 +1590,6 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
   }
 }
 
-void handle_params(FVConstraint *From, FVConstraint *To,
-                   std::function<void(ConstraintVariable*,ConstraintVariable*) > f);
 
 // Brain Transplant params and returns in [FromCV], recursively.
 void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
@@ -1622,8 +1620,9 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
                 { T->mergeDeclaration(F); });
 }
 
-void handle_params(FVConstraint *From, FVConstraint *To,
-                   std::function<void(ConstraintVariable*,ConstraintVariable*)> f) {
+void FunctionVariableConstraint::handle_params
+(FVConstraint *From, FVConstraint *To,
+ std::function<void(ConstraintVariable*,ConstraintVariable*)> f) {
   bool fromEmpty = From->numParams() == 0;
   bool toEmpty = To->numParams() == 0;
   bool paramsEq = From->numParams() == To->numParams();
@@ -1639,16 +1638,14 @@ void handle_params(FVConstraint *From, FVConstraint *To,
   } else { // Dealing with an untyped prototype
     FVConstraint *Empty = fromEmpty ? From : To;
     FVConstraint *Typed = fromEmpty ? To : From;
-
-    for (auto deferred : Empty->getDefferedParams()) {
-      assert(Typed->numParams() == deferred.size());
-      for (unsigned i = 0; i < deferred.size(); i++) {
-        CVarSet &P = deferred[i];
-        CVarSet &TypedP = Typed->getParamVar(i);
-        auto TypedV = getOnly(TypedP);
-        for (auto V : P) {
-          f(V, TypedV);
-        }
+    for (auto deferred : Empty->getDeferredParams()) {
+      assert(Typed->numParams() == deferred.PS.size());
+      for(unsigned i = 0; i < deferred.PS.size(); i++) {
+        CVarSet ParamDC = Typed->getParamVar(i);
+        CVarSet ArgDC = deferred.PS[i];
+        ProgramInfo &Info = deferred.I;
+        auto &CS = Info.getConstraints();
+        constrainConsVarGeq(ParamDC, ArgDC, CS, &(deferred.PL), Wild_to_Safe, false, &Info);
       }
     }
   }
@@ -1656,9 +1653,12 @@ void handle_params(FVConstraint *From, FVConstraint *To,
 
 
 void
-FunctionVariableConstraint::addDefferedParams
-  (std::vector<std::reference_wrapper<CVarSet>> P)
+FunctionVariableConstraint::addDeferredParams
+(PersistentSourceLoc PL,
+ std::vector<std::reference_wrapper<CVarSet>> Ps,
+ ProgramInfo &I)
 {
-  defferedParams.push_back(P);
+  ParamDeferment P = { PL, Ps, I };
+  deferredParams.push_back(P);
   return;
 }
