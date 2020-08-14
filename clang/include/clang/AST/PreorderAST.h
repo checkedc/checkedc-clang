@@ -92,10 +92,12 @@ namespace clang {
     // @param[in] Parent is the parent of the node to be coalesced.
     void CoalesceNode(BinaryNode *B, BinaryNode *Parent);
 
-    // Coalesce binary nodes having the same commutative and associative
-    // operator.
+    // Recursively coalesce binary nodes having the same commutative and
+    // associative operator.
     // @param[in] N is current node of the AST. Initial value is Root.
-    void Coalesce(Node *N);
+    // @param[in] Changed indicates whether a node was coalesced. We need this
+    // to control when to stop recursive coalescing.
+    void Coalesce(Node *N, bool &Changed);
 
     // Sort the children expressions in a binary node of the AST.
     // @param[in] N is current node of the AST. Initial value is Root.

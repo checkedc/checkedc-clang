@@ -40,8 +40,10 @@ void PreorderAST::CoalesceNode(BinaryNode *B, BinaryNode *Parent) {
   }
 
   // Move all children of the current node to its parent.
-  std::move(B->Children.begin(), B->Children.end(),
-            std::back_inserter(Parent->Children));
+  for (auto *Child : B->Children) {
+    Child->Parent = Parent;
+    Parent->Children.push_back(Child);
+  }
 
   // Delete the current node.
   delete B;
@@ -66,7 +68,7 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
   }
 }
 
-void PreorderAST::Coalesce(Node *N) {
+void PreorderAST::Coalesce(Node *N, bool &Changed) {
   auto *B = dyn_cast_or_null<BinaryNode>(N);
   if (!B)
     return;
@@ -74,7 +76,7 @@ void PreorderAST::Coalesce(Node *N) {
   // Coalesce the children first.
   for (auto *Child : B->Children)
     if (isa<BinaryNode>(Child))
-      Coalesce(Child);
+      Coalesce(Child, Changed);
 
   // We can only coalesce if the operator is commutative and associative.
   if (!B->IsOpCommutativeAndAssociative())
@@ -90,6 +92,7 @@ void PreorderAST::Coalesce(Node *N) {
     return;
 
   CoalesceNode(B, Parent);
+  Changed = true;
 }
 
 void PreorderAST::Sort(Node *N) {
@@ -184,8 +187,14 @@ void PreorderAST::Normalize() {
   // TODO: Perform simple arithmetic optimizations/transformations on the
   // constants in the nodes.
 
-  Coalesce(Root);
+  bool Changed = true;
+  while (Changed) {
+    Changed = false;
+    Coalesce(Root, Changed);
+  }
+
   Sort(Root);
+  PrettyPrint(Root);
 }
 
 void PreorderAST::PrettyPrint(Node *N) {
