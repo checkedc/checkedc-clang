@@ -40,6 +40,7 @@ bool DumpIntermediate;
 bool Verbose;
 std::string OutputPostfix;
 std::string ConstraintOutputJson;
+std::vector<std::string> AllocatorFunctions;
 bool DumpStats;
 bool HandleVARARGS;
 bool EnablePropThruIType;
@@ -183,6 +184,7 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
   AllTypes = CCopt.EnableAllTypes;
   AddCheckedRegions = CCopt.AddCheckedRegions;
   DisableCCTypeChecker = CCopt.DisableCCTypeChecker;
+  AllocatorFunctions = CCopt.AllocatorFunctions;
 
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();

@@ -14,6 +14,7 @@
 #include "clang/Analysis/Analyses/Dominators.h"
 #include "clang/CConv/ArrayBoundsInferenceConsumer.h"
 #include "clang/CConv/ConstraintResolver.h"
+#include "clang/CConv/CCGlobalOptions.h"
 #include <sstream>
 
 static std::set<std::string> LengthVarNamesPrefixes = {"len", "count",
@@ -878,6 +879,9 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
 
 void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {
   // Run array bounds
+  for (auto FuncName : AllocatorFunctions) {
+    AllocatorSizeAssoc[FuncName] = {0};
+  }
   GlobalABVisitor GlobABV(C, I);
   TranslationUnitDecl *TUD = C->getTranslationUnitDecl();
   LocalVarABVisitor LFV = LocalVarABVisitor(C, I);

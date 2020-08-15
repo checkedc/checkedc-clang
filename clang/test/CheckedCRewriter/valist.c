@@ -11,7 +11,7 @@ extern const char *luaO_pushvfstring (lua_State *L, const char *fmt, va_list arg
 const char *lua_pushfstring (lua_State *L, const char *fmt, ...) {
   const char *ret;
   va_list argp;
-//CHECK: const char * lua_pushfstring(lua_State *L, const char *fmt, ...) {
+//CHECK: const char *lua_pushfstring (lua_State *L, const char *fmt, ...) {
 //CHECK-NEXT:  const char *ret;
 //CHECK-NEXT:  va_list argp;
   lua_lock(L);
@@ -22,3 +22,5 @@ const char *lua_pushfstring (lua_State *L, const char *fmt, ...) {
   lua_unlock(L);
   return ret;
 }
+//force output
+int *p;

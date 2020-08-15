@@ -28,7 +28,7 @@ bool StructVariableInitializer::VariableNeedsInitializer(VarDecl *VD) {
         CVarSet FieldConsVars = I.getVariable(D, Context);
         for (auto *CV : FieldConsVars) {
           PVConstraint *PV = dyn_cast<PVConstraint>(CV);
-          if (PV && PV->anyChanges(I.getConstraints().getVariables())) {
+          if (PV && PV->isChecked(I.getConstraints().getVariables())) {
             // Ok this contains a pointer that is checked. Store it.
             RecordsWithCPointers.insert(Definition);
             return true;

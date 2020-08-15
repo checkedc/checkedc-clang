@@ -50,7 +50,7 @@ int *bar() {
 
 int *baz(int *a) {
   // CHECK_ALL: _Array_ptr<int> baz(_Array_ptr<int> a) {
-  // CHECK_NOALL: int * baz(int *a) {
+  // CHECK_NOALL: int *baz(int *a) {
   a++;
 
   int *b = (int*) 0;
@@ -65,7 +65,7 @@ int *baz(int *a) {
 
 int *buz(int *a) {
   // CHECK_ALL: _Ptr<int> buz(_Array_ptr<int> a) { 
-  // CHECK_NOALL: int * buz(int *a) {
+  // CHECK_NOALL: int *buz(int *a) {
   a++;
 
   int *b = (int*) 0;
