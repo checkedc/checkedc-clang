@@ -103,6 +103,7 @@ public:
     return BKey;
   }
   void setBoundsKey(BoundsKey NK) {
+    ValidBoundsKey = true;
     BKey = NK;
   }
 
