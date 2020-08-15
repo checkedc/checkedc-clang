@@ -92,14 +92,14 @@ int zerohuh(int n) {
 }
 
 int *mul2(int *x) { 
-	//CHECK_NOALL: int * mul2(int *x) { 
+	//CHECK_NOALL: int *mul2(int *x) { 
 	//CHECK_ALL: _Array_ptr<int> mul2(_Array_ptr<int> x) { 
     *x *= 2; 
     return x;
 }
 
 int ** sus(int *, int *);
-	//CHECK_NOALL: int ** sus(int *x, int *y);
+	//CHECK_NOALL: int ** sus(int *, int *);
 	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> sus(int *x, _Array_ptr<int> y : count(5));
 
 int ** foo() {

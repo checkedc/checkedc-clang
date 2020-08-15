@@ -95,8 +95,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install git python3.7 cmake build-essential wget tar ninja-build liblzma-dev libreadline-dev
 
-      - name: Download build files
-        uses: action/download-artifact@v2
+      # Download the built cconv-standalone and clang
+      - name: Download Build files
+        uses: actions/download-artifact@v2
         with:
           name: cconvbuild
           path: ${{runner.workspace}}/${{env.builddir}}
@@ -111,8 +112,8 @@ jobs:
       - name: Run Unit Tests
         run: |
           cd ${{runner.workspace}}/${{env.builddir}}
-          cp ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils/rununittests.py ./
-          ./rununittests.py ${{github.workspace}}/depsfolder/checkedc-clang/clang/test/
+          export CPATH=${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include
+          ! ./llvm-lit ${{github.workspace}}/deps/folder/checkedc-clang/clang/test/CheckedCRewriter/*.c | grep -e "^FAIL"
 
   testvsftpd:
     name: Build and test vsftpd

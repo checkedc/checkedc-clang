@@ -24,6 +24,7 @@ extern bool ConsiderAllocUnsafe;
 extern bool AllTypes;
 extern bool NewSolver;
 extern std::string BaseDir;
+extern std::vector<std::string> AllocatorFunctions;
 extern bool AddCheckedRegions;
 
 #endif //_CCGLOBALOPTIONS_H

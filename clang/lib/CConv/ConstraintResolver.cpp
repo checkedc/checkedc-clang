@@ -142,7 +142,9 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS,
 
   ConstAtom *Ret = CS.getPtr();
   Expr *E;
-  if (FuncName.compare("malloc") == 0)
+  if (std::find(AllocatorFunctions.begin(), AllocatorFunctions.end(),
+                FuncName) != AllocatorFunctions.end()
+      || FuncName.compare("malloc") == 0)
     E = CE->getArg(0);
   else {
     assert(FuncName.compare("realloc") == 0);
@@ -456,7 +458,7 @@ CVarSet
                 N = "&" + N;
                 ExprType = Context->getPointerType(ArgTy);
                 PVConstraint *PVC =
-                    new PVConstraint(ExprType, nullptr, N, Info, *Context);
+                    new PVConstraint(ExprType, nullptr, N, Info, *Context, nullptr, true);
                 PVC->constrainOuterTo(CS, A, true);
                 ReturnCVs.insert(PVC);
                 didInsert = true;
@@ -503,7 +505,23 @@ CVarSet
         // ConstraintVariables.
         CVarSet TmpCVs;
         for (ConstraintVariable *CV : ReturnCVs) {
-          ConstraintVariable *NewCV = CV->getCopy(CS);
+          ConstraintVariable *NewCV;
+          auto *PCV = dyn_cast<PVConstraint>(CV);
+          if (PCV && PCV->getIsOriginallyChecked()) {
+            // Copying needs to be done differently if the constraint variable
+            // had a checked type in the input program because these constraint
+            // variables contain constant atoms that are reused by the copy
+            // constructor.
+            NewCV = new PVConstraint(CE->getType(), nullptr, PCV->getName(),
+                                     Info, *Context, nullptr,
+                                     PCV->getIsGeneric());
+            if (PCV->hasBoundsKey())
+              NewCV->setBoundsKey(PCV->getBoundsKey());
+              
+          } else {
+            NewCV = CV->getCopy(CS);
+          }
+          
           // Make the bounds key context sensitive.
           if (NewCV->hasBoundsKey()) {
             auto &ABInfo = Info.getABoundsInfo();
@@ -512,6 +530,7 @@ CVarSet
                                                     NewCV->getBoundsKey());
             NewCV->setBoundsKey(CSensBKey);
           }
+          
           // Important: Do Safe_to_Wild from returnvar in this copy, which then
           //   might be assigned otherwise (Same_to_Same) to LHS
           constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false,

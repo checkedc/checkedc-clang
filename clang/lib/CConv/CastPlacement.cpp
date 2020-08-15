@@ -110,7 +110,7 @@ bool CastPlacementVisitor::needCasting(ConstraintVariable *Src,
                                        ConstraintVariable *Dst,
                                        IsChecked Dinfo) {
   auto &E = Info.getConstraints().getVariables();
-  auto SrcChecked = Src->anyChanges(E);
+  auto SrcChecked = Src->isChecked(E);
   // Check if the src is a checked type.
   if (SrcChecked) {
     // Check if Dst is an itype, if yes then
@@ -120,7 +120,7 @@ bool CastPlacementVisitor::needCasting(ConstraintVariable *Src,
     }
 
     // Is Dst Wild?
-    if (!Dst->anyChanges(E) || Dinfo == WILD) {
+    if (!Dst->isChecked(E) || Dinfo == WILD) {
       return true;
     }
 

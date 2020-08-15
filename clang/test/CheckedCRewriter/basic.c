@@ -54,7 +54,7 @@ char* basic2(int temp) {
 		return 0;
 	}
 }
-//CHECK: char * basic2(int temp) {
+//CHECK: char* basic2(int temp) {
 //CHECK_ALL: char data _Nt_checked[17] =  "abcdefghijklmnop";
 //CHECK_ALL: char data2 _Nt_checked[65] =  "abcdefghijklmnopabcdefghijklmnopabcdefghijklmnopabcdefghijklmnop";
 //CHECK: char *buffer = malloc<char>(8);
