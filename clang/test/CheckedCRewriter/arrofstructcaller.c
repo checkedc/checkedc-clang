@@ -139,7 +139,7 @@ return z; }
 
 struct general ** bar() {
 	//CHECK_NOALL: struct general ** bar(void) {
-	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> bar(void) : count(5) {
+	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> bar(void) {
         struct general * x = malloc(sizeof(struct general));
 	//CHECK: struct general * x = malloc<struct general>(sizeof(struct general));
         struct general * y = malloc(sizeof(struct general));
@@ -157,6 +157,6 @@ struct general ** bar() {
         }
         struct general ** z = sus(x, y);
 	//CHECK_NOALL: struct general ** z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> z : count(5) =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> z =  sus(x, y);
 z += 2;
 return z; }

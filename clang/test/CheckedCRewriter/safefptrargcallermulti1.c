@@ -120,7 +120,7 @@ return z; }
 
 int * bar() {
 	//CHECK_NOALL: int * bar(void) {
-	//CHECK_ALL: _Array_ptr<int> bar(void) : count(5) {
+	//CHECK_ALL: _Array_ptr<int> bar(void) {
  
         int (*x)(int) = add1; 
 	//CHECK: int (*x)(int) = add1; 
@@ -128,7 +128,7 @@ int * bar() {
 	//CHECK: _Ptr<int (int )> y =  sub1; 
         int *z = sus(x, y);
 	//CHECK_NOALL: int *z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z : count(5) =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
         
 z += 2;
 return z; }

@@ -100,11 +100,11 @@ int *mul2(int *x) {
 
 int ** sus(int *, int *);
 	//CHECK_NOALL: int ** sus(int *x, int *y);
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> sus(int *x, _Array_ptr<int> y : count(5)) : count(5);
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> sus(int *x, _Array_ptr<int> y : count(5));
 
 int ** foo() {
 	//CHECK_NOALL: int ** foo(void) {
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> foo(void) : count(5) {
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> foo(void) {
 
         int *x = malloc(sizeof(int)); 
 	//CHECK: int *x = malloc<int>(sizeof(int)); 
@@ -117,13 +117,13 @@ int ** foo() {
         } 
         int **z = sus(x, y);
 	//CHECK_NOALL: int **z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z : count(5) =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z =  sus(x, y);
         
 return z; }
 
 int ** bar() {
 	//CHECK_NOALL: int ** bar(void) {
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> bar(void) : count(5) {
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> bar(void) {
 
         int *x = malloc(sizeof(int)); 
 	//CHECK: int *x = malloc<int>(sizeof(int)); 
@@ -136,19 +136,19 @@ int ** bar() {
         } 
         int **z = sus(x, y);
 	//CHECK_NOALL: int **z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z : count(5) =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z =  sus(x, y);
         
 return z; }
 
 int ** sus(int *x, int *y) {
 	//CHECK_NOALL: int ** sus(int *x, int *y) {
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> sus(int *x, _Array_ptr<int> y : count(5)) : count(5) {
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> sus(int *x, _Array_ptr<int> y : count(5)) {
 
         x = (int *) 5;
 	//CHECK: x = (int *) 5;
         int **z = calloc(5, sizeof(int *)); 
 	//CHECK_NOALL: int **z = calloc<int *>(5, sizeof(int *)); 
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z : count(5) =  calloc<_Array_ptr<int>>(5, sizeof(int *)); 
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z =  calloc<_Array_ptr<int>>(5, sizeof(int *)); 
         int * (*mul2ptr) (int *) = mul2;
 	//CHECK_NOALL: _Ptr<int * (int *)> mul2ptr =  mul2;
 	//CHECK_ALL: _Ptr<_Array_ptr<int> (_Array_ptr<int> )> mul2ptr =  mul2;

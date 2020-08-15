@@ -116,7 +116,7 @@ public:
     switch(O->getOpcode()) {
     case BO_AddAssign:
     case BO_SubAssign:
-      arithBinop(O);
+      arithBinop(O, true);
       break;
     // rest shouldn't happen on pointers, so we ignore
     default:
@@ -346,20 +346,24 @@ private:
     }
   }
 
-  void arithBinop(BinaryOperator *O) {
-      constraintPointerArithmetic(O->getLHS());
-      constraintPointerArithmetic(O->getRHS());
+  // Here the flag, ModifyingExpr indicates if the arithmetic operation
+  // is modifying any variable.
+  void arithBinop(BinaryOperator *O, bool ModifyingExpr = false) {
+      constraintPointerArithmetic(O->getLHS(), ModifyingExpr);
+      constraintPointerArithmetic(O->getRHS(), ModifyingExpr);
   }
 
   // Pointer arithmetic constrains the expression to be at least ARR,
   // unless it is on a function pointer. In this case the function pointer
   // is WILD.
-  void constraintPointerArithmetic(Expr *E) {
+  void constraintPointerArithmetic(Expr *E, bool ModifyingExpr = true) {
     if (E->getType()->isFunctionPointerType()) {
       CVarSet Var = CB.getExprConstraintVars(E);
       std::string Rsn = "Pointer arithmetic performed on a function pointer.";
       CB.constraintAllCVarsToWild(Var, Rsn, E);
     } else {
+      if (ModifyingExpr)
+        Info.getABoundsInfo().recordArithmeticOperation(E, &CB);
       constraintInBodyVariable(E, Info.getConstraints().getArr());
     }
   }

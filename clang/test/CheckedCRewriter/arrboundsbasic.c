@@ -27,8 +27,8 @@ int foo(int *arr, unsigned len) {
     struct bar a;
     char *arr1 = malloc(n*sizeof(char));
     char *arr2 = calloc(n, sizeof(char));
-    arr1++;
-    arr2++;
+    arr1[0] = 0;
+    arr2[0] = 0;
     for (i=0; i<len; i++) {
         arr[i] = 0;
     }

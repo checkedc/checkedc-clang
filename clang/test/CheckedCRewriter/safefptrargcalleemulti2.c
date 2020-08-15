@@ -102,13 +102,13 @@ int *mul2(int *x) {
 
 int * sus(int (*x) (int), int (*y) (int)) {
 	//CHECK_NOALL: int * sus(int (*x)(int), _Ptr<int (int )> y) {
-	//CHECK_ALL: _Array_ptr<int> sus(int (*x)(int), _Ptr<int (int )> y) : count(5) {
+	//CHECK_ALL: _Array_ptr<int> sus(int (*x)(int), _Ptr<int (int )> y) {
  
         x = (int (*) (int)) 5;
 	//CHECK: x = (int (*) (int)) 5;
         int *z = calloc(5, sizeof(int));
 	//CHECK_NOALL: int *z = calloc<int>(5, sizeof(int));
-	//CHECK_ALL: _Array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int));
+	//CHECK_ALL: _Array_ptr<int> z =  calloc<int>(5, sizeof(int));
         int i;
         for(i = 0; i < 5; i++) { 
             z[i] = y(i);

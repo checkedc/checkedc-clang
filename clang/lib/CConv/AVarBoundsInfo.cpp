@@ -388,8 +388,99 @@ bool AVarBoundsInfo::handleContextSensitiveAssignment(CallExpr *CE,
 }
 
 bool AVarBoundsInfo::addAssignment(BoundsKey L, BoundsKey R) {
-  ProgVarGraph.addEdge(L, R, true);
+  // If we are adding to function return, do not add bi-directional edges.
+  if (isFunctionReturn(L) || isFunctionReturn(R)) {
+    // Do not assign edge from return to itself.
+    // This is because while inferring bounds of return value, we expect
+    // all the variables used in return values to have bounds.
+    // So, if we create a edge from return to itself then we create a cyclic
+    // dependency and never will be able to find the bounds for the return
+    // value.
+    if (L != R)
+      ProgVarGraph.addEdge(L, R, false);
+  } else {
+    ProgVarGraph.addEdge(L, R, true);
+  }
   return true;
+}
+
+// Visitor to collect all the variables that are used during the life-time
+// of the visitor.
+// This class also has a flag that gets set when a variable is observed
+// more than once.
+class CollectDeclsVisitor : public RecursiveASTVisitor<CollectDeclsVisitor> {
+public:
+
+  std::set<VarDecl*> ObservedDecls;
+  std::set<std::string> StructAccess;
+
+  explicit CollectDeclsVisitor(ASTContext *Ctx) : C(Ctx) {
+    ObservedDecls.clear();
+    StructAccess.clear();
+  }
+  virtual ~CollectDeclsVisitor() {
+    ObservedDecls.clear();
+  }
+
+  bool VisitDeclRefExpr(DeclRefExpr *DRE) {
+    VarDecl *VD = dyn_cast_or_null<VarDecl>(DRE->getDecl());
+    if (VD != nullptr) {
+      ObservedDecls.insert(VD);
+    }
+    return true;
+  }
+
+  // For a->b; We need to get `a->b`
+  bool VisitMemberExpr(MemberExpr *ME) {
+    std::string MAccess = getSourceText(ME->getSourceRange(), *C);
+    if (!MAccess.empty()) {
+      StructAccess.insert(MAccess);
+    }
+    return false;
+  }
+
+private:
+  ASTContext *C;
+};
+
+bool
+AVarBoundsInfo::handlePointerAssignment(clang::Stmt *St, clang::Expr *L,
+                                        clang::Expr *R,
+                                        ASTContext *C,
+                                        ConstraintResolver *CR) {
+  CollectDeclsVisitor LVarVis(C);
+  LVarVis.TraverseStmt(L->getExprStmt());
+
+  CollectDeclsVisitor RVarVis(C);
+  RVarVis.TraverseStmt(R->getExprStmt());
+
+  std::set<VarDecl *> CommonVars;
+  std::set<std::string> CommonStVars;
+  findIntersection(LVarVis.ObservedDecls, RVarVis.ObservedDecls, CommonVars);
+  findIntersection(LVarVis.StructAccess, RVarVis.StructAccess, CommonStVars);
+
+  if (!CommonVars.empty() || CommonStVars.empty()) {
+    for (auto *LHSCVar : CR->getExprConstraintVars(L)) {
+      if (LHSCVar->hasBoundsKey())
+        ArrPointerBoundsKey.insert(LHSCVar->getBoundsKey());
+    }
+  }
+
+  return true;
+}
+
+void
+AVarBoundsInfo::recordArithmeticOperation(clang::Expr *E,
+                                          ConstraintResolver *CR) {
+  CVarSet CSet = CR->getExprConstraintVars(E);
+  for (auto *CV : CSet) {
+    if (CV->hasBoundsKey())
+      ArrPointersWithArithmetic.insert(CV->getBoundsKey());
+  }
+}
+
+bool AVarBoundsInfo::hasPointerArithmetic(BoundsKey BK) {
+  return ArrPointersWithArithmetic.find(BK) != ArrPointersWithArithmetic.end();
 }
 
 ProgramVar *AVarBoundsInfo::getProgramVar(BoundsKey VK) {
@@ -632,6 +723,11 @@ bool AvarBoundsInference::getRelevantBounds(std::set<BoundsKey> &RBKeys,
   // Try to get the bounds of all RBKeys.
   bool ValidB = true;
   for (auto PrevBKey : RBKeys) {
+    // If this pointer is used in pointer arithmetic then there
+    // are no relevant bounds for this pointer.
+    if (BI->hasPointerArithmetic(PrevBKey)) {
+      continue;
+    }
     auto *PrevBounds = BI->getBounds(PrevBKey);
     // Does the parent arr has bounds?
     if (PrevBounds != nullptr)
@@ -646,20 +742,29 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
   std::set<ABounds *> ResBounds;
   std::set<ABounds *> KBounds;
   *KB = nullptr;
-  bool IsValid = true;
+  bool IsValid = false;
   // Get all the relevant bounds from the neighbour ARRs
   if (getRelevantBounds(Neighbours, ResBounds)) {
+    bool IsFuncRet = BI->isFunctionReturn(K);
+    // For function returns, we want all the predecessors to have bounds.
+    if (IsFuncRet && ResBounds.size() != Neighbours.size()) {
+      return IsValid;
+    }
     if (!ResBounds.empty()) {
+      IsValid = true;
       // Find the intersection?
       for (auto *B : ResBounds) {
-        inferPossibleBounds(K, B, KBounds);
         //TODO: check this
         // This is stricter version i.e., there should be at least one common
         // bounds information from an incoming ARR.
-        /*if (!inferPossibleBounds(K, B, KBounds)) {
-          ValidB = false;
+        // Should we follow same for all the pointers?
+
+        // For function returns we should have atleast one common bound
+        // from all the return values.
+        if (!inferPossibleBounds(K, B, KBounds) && IsFuncRet) {
+          IsValid = false;
           break;
-        }*/
+        }
       }
       // If we converge to single bounds information? We found the bounds.
       if (KBounds.size() == 1) {
@@ -714,8 +819,8 @@ bool AvarBoundsInference::inferBounds(BoundsKey K, bool FromPB) {
     } else {
       // Infer from the flow-graph.
       std::set<BoundsKey> TmpBkeys;
-      // Try to predict bounds from successors.
-      BI->ProgVarGraph.getSuccessors(K, TmpBkeys);
+      // Try to predict bounds from predecessors.
+      BI->ProgVarGraph.getPredecessors(K, TmpBkeys);
       if (!predictBounds(K, TmpBkeys, &KB)) {
         KB = nullptr;
       }
@@ -973,6 +1078,10 @@ bool AVarBoundsInfo::keepHighestPriorityBounds(std::set<BoundsKey> &ArrPtrs) {
 
 void AVarBoundsInfo::dumpAVarGraph(const std::string &DFPath) {
   ProgVarGraph.dumpCGDot(DFPath, this);
+}
+
+bool AVarBoundsInfo::isFunctionReturn(BoundsKey BK) {
+  return (FuncDeclVarMap.right.find(BK) != FuncDeclVarMap.right.end());
 }
 
 void AVarBoundsInfo::print_stats(llvm::raw_ostream &O,

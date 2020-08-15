@@ -141,6 +141,7 @@ public:
     ProgVarGraph.clear();
     TmpBoundsKey.clear();
     CSBoundsKey.clear();
+    ArrPointersWithArithmetic.clear();
   }
 
   // Checks if the given declaration is a valid bounds variable.
@@ -180,6 +181,10 @@ public:
   bool addAssignment(clang::Decl *L, clang::Decl *R);
   bool addAssignment(clang::DeclRefExpr *L, clang::DeclRefExpr *R);
   bool addAssignment(BoundsKey L, BoundsKey R);
+  bool handlePointerAssignment(clang::Stmt *St, clang::Expr *L,
+                               clang::Expr *R,
+                               ASTContext *C,
+                               ConstraintResolver *CR);
   bool handleAssignment(clang::Expr *L, CVarSet &LCVars,
                         clang::Expr *R, CVarSet &RCVars,
                         ASTContext *C, ConstraintResolver *CR);
@@ -191,6 +196,13 @@ public:
                                         CVarSet &LCVars,
                                         clang::Expr *R, CVarSet &RCVars,
                                         ASTContext *C, ConstraintResolver *CR);
+
+  // Handle the arithmetic expression. This is required to adjust bounds
+  // for pointers that has pointer arithmetic performed on them.
+  void recordArithmeticOperation(clang::Expr *E, ConstraintResolver *CR);
+
+  // Check if the given bounds key has a pointer arithmetic done on it.
+  bool hasPointerArithmetic(BoundsKey BK);
 
   // Get the ProgramVar for the provided VarKey.
   ProgramVar *getProgramVar(BoundsKey VK);
@@ -240,6 +252,9 @@ private:
   std::map<BoundsKey, std::map<BoundsPriority, ABounds *>> BInfo;
   // Set that contains BoundsKeys of variables which have invalid bounds.
   std::set<BoundsKey> InvalidBounds;
+  // These are the bounds key of the pointers that has arithmetic operations
+  // performed on them.
+  std::set<BoundsKey> ArrPointersWithArithmetic;
   // Set of BoundsKeys that correspond to pointers.
   std::set<BoundsKey> PointerBoundsKey;
   // Set of BoundsKey that correspond to array pointers.
@@ -282,6 +297,9 @@ private:
   void insertVarKey(PersistentSourceLoc &PSL, BoundsKey NK);
 
   void insertProgramVar(BoundsKey NK, ProgramVar *PV);
+
+  // Check if the provided bounds key corresponds to function return.
+  bool isFunctionReturn(BoundsKey BK);
 
   // Of all teh pointer bounds key, find arr pointers.
   void computerArrPointers(ProgramInfo *PI, std::set<BoundsKey> &Ret);

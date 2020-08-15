@@ -115,14 +115,14 @@ return z; }
 
 int * bar() {
 	//CHECK_NOALL: int * bar(void) {
-	//CHECK_ALL: _Array_ptr<int> bar(void) : count(5) {
+	//CHECK_ALL: _Array_ptr<int> bar(void) {
         int * x = malloc(sizeof(int));
 	//CHECK: int * x = malloc<int>(sizeof(int));
         int * y = malloc(sizeof(int));
 	//CHECK: _Ptr<int> y =  malloc<int>(sizeof(int));
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z : count(5) =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
 z += 2;
 return z; }
 
@@ -137,7 +137,7 @@ x = (int *) 5;
         int i, fac;
         int *p;
 	//CHECK_NOALL: int *p;
-	//CHECK_ALL: _Array_ptr<int> p : count(5) = ((void *)0);
+	//CHECK_ALL: _Array_ptr<int> p = ((void *)0);
         for(i = 0, p = z, fac = 1; i < 5; ++i, p++, fac *= i) 
         { *p = fac; }
 return z; }

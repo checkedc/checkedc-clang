@@ -661,11 +661,14 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
   CVarSet R = getExprConstraintVars(RHS);
   constrainConsVarGeq(L, R, Info.getConstraints(), &PL, CAction, false, &Info);
 
+  // Handle pointer arithmetic.
+  auto &ABI = Info.getABoundsInfo();
+  ABI.handlePointerAssignment(TSt, LHS, RHS, Context,this);
+
   // Only if all types are enabled and these are not pointers, then track
   // the assignment.
   if (AllTypes && !containsValidCons(L) &&
       !containsValidCons(R)) {
-    auto &ABI = Info.getABoundsInfo();
     ABI.handleAssignment(LHS, L, RHS, R, Context, this);
   }
 }
