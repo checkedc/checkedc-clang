@@ -12,8 +12,6 @@
 
 #include "clang/CConv/AVarBoundsInfo.h"
 #include "clang/CConv/ProgramInfo.h"
-#include <boost/graph/breadth_first_search.hpp>
-#include <boost/graph/reverse_graph.hpp>
 
 void AVarBoundsStats::print(llvm::raw_ostream &O,
                             const std::set<BoundsKey> *InSrcArrs,
@@ -221,18 +219,18 @@ BoundsKey AVarBoundsInfo::getVariable(clang::ParmVarDecl *PVD) {
   auto ParamKey = std::make_tuple(FD->getNameAsString(), FileName,
                                   FD->isStatic(), ParamIdx);
   assert(ParamIdx >= 0 && "Unable to find parameter.");
-  if (ParamDeclVarMap.left.find(ParamKey) == ParamDeclVarMap.left.end()) {
+  if (ParamDeclVarMap.find(ParamKey) == ParamDeclVarMap.end()) {
     BoundsKey NK = ++BCount;
     FunctionParamScope *FPS =
         FunctionParamScope::getFunctionParamScope(FD->getNameAsString(),
                                                   FD->isStatic());
     auto *PVar = new ProgramVar(NK, PVD->getNameAsString(), FPS);
     insertProgramVar(NK, PVar);
-    ParamDeclVarMap.insert(ParmMapItemType(ParamKey, NK));
+    insertParamKey(ParamKey, NK);
     if (PVD->getType()->isPointerType())
       PointerBoundsKey.insert(NK);
   }
-  return ParamDeclVarMap.left.at(ParamKey);
+  return ParamDeclVarMap[ParamKey];
 }
 
 BoundsKey AVarBoundsInfo::getVariable(clang::FieldDecl *FD) {
@@ -278,12 +276,12 @@ ProgramVar *AVarBoundsInfo::getProgramVar(BoundsKey VK) {
 }
 
 bool AVarBoundsInfo::hasVarKey(PersistentSourceLoc &PSL) {
-  return DeclVarMap.left.find(PSL) != DeclVarMap.left.end();
+  return DeclVarMap.find(PSL) != DeclVarMap.end();
 }
 
 BoundsKey AVarBoundsInfo::getVarKey(PersistentSourceLoc &PSL) {
   assert (hasVarKey(PSL) && "VarKey doesn't exist");
-  return DeclVarMap.left.at(PSL);
+  return DeclVarMap[PSL];
 }
 
 BoundsKey AVarBoundsInfo::getConstKey(uint64_t value) {
@@ -303,7 +301,14 @@ BoundsKey AVarBoundsInfo::getVarKey(llvm::APSInt &API) {
 }
 
 void AVarBoundsInfo::insertVarKey(PersistentSourceLoc &PSL, BoundsKey NK) {
-  DeclVarMap.insert(DeclMapItemType(PSL, NK));
+  DeclVarMap[PSL] = NK;
+  VarDeclMap[NK] = PSL;
+}
+
+void AVarBoundsInfo::insertParamKey(AVarBoundsInfo::ParamDeclType ParamDecl,
+                                    BoundsKey NK) {
+  ParamDeclVarMap[ParamDecl] = NK;
+  VarParamDeclMap[NK] = ParamDecl;
 }
 
 void AVarBoundsInfo::insertProgramVar(BoundsKey NK, ProgramVar *PV) {
@@ -342,15 +347,13 @@ bool isInSrcArray(CVarSet &CSet, Constraints &CS) {
 }
 
 // This class picks variables that are in the same scope as the provided scope.
-class ScopeVisitor : public boost::default_bfs_visitor {
+class ScopeVisitor {
 public:
   ScopeVisitor(ProgramVarScope *S, std::set<ProgramVar *> &R,
                std::map<BoundsKey, ProgramVar *> &VarM,
                std::set<BoundsKey> &P): TS(S), Res(R), VM(VarM)
                , PtrAtoms(P) { }
-  template < typename Vertex, typename Graph >
-  void discover_vertex(Vertex u, const Graph &g) const {
-    BoundsKey V = g[u];
+  void vistBoundsKey(BoundsKey V) const {
     // If the variable is non-pointer?
     if (VM.find(V) != VM.end() && PtrAtoms.find(V) == PtrAtoms.end()) {
       auto *S = VM[V];
@@ -444,12 +447,13 @@ bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
       if (SBVar->IsNumConstant()) {
         PotentialB.insert(SBVar);
       } else {
-        ScopeVisitor TV(Kvar->getScope(), PotentialB, BI->PVarInfo,
-                        BI->PointerBoundsKey);
-        auto Vidx = VarG.addVertex(SBKey);
         // Find all the in scope variables reachable from the current
         // bounds variable.
-        boost::breadth_first_search(VarG.CG, Vidx, boost::visitor(TV));
+        ScopeVisitor TV(Kvar->getScope(), PotentialB, BI->PVarInfo,
+                        BI->PointerBoundsKey);
+        VarG.breadthFirstSearch(SBKey, [&TV](BoundsKey BK) {
+          TV.vistBoundsKey(BK);
+        });
       }
 
       RetVal = intersectBounds(PotentialB, BKind, EB);
@@ -531,12 +535,13 @@ bool AvarBoundsInference::inferBounds(BoundsKey K, bool FromPB) {
           // If the count var is of different scope? Then try to find variables
           // that are in scope.
           if (*Kvar->getScope() != *TKVar->getScope()) {
-            ScopeVisitor TV(Kvar->getScope(), PotentialB, BI->PVarInfo,
-                            BI->PointerBoundsKey);
-            auto Vidx = VarG.addVertex(TK);
             // Find all the in scope variables reachable from the current
             // bounds variable.
-            boost::breadth_first_search(VarG.CG, Vidx, boost::visitor(TV));
+            ScopeVisitor TV(Kvar->getScope(), PotentialB, BI->PVarInfo,
+                            BI->PointerBoundsKey);
+            VarG.breadthFirstSearch(TK, [&TV](BoundsKey BK) {
+              TV.vistBoundsKey(BK);
+            });
           } else {
             PotentialB.insert(TKVar);
           }
@@ -628,9 +633,8 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
   // First get all the pointer vars which are ARRs
   std::set<BoundsKey> ArrPointers;
   for (auto Bkey : PointerBoundsKey) {
-    auto &BkeyToPSL = DeclVarMap.right;
-    if (BkeyToPSL.find(Bkey) != BkeyToPSL.end()) {
-      auto &PSL = BkeyToPSL.at(Bkey);
+    if (VarDeclMap.find(Bkey) != VarDeclMap.end()) {
+      auto &PSL = VarDeclMap.at(Bkey);
       if (hasArray(PI->getVarMap()[PSL], CS)) {
         ArrPointers.insert(Bkey);
       }
@@ -640,9 +644,8 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
       }
       continue;
     }
-    auto &ParmBkeyToPSL = ParamDeclVarMap.right;
-    if (ParmBkeyToPSL.find(Bkey) != ParmBkeyToPSL.end()) {
-      auto &ParmTup = ParmBkeyToPSL.at(Bkey);
+    if (VarParamDeclMap.find(Bkey) != VarParamDeclMap.end()) {
+      auto &ParmTup = VarParamDeclMap.at(Bkey);
       std::string FuncName = std::get<0>(ParmTup);
       std::string FileName = std::get<1>(ParmTup);
       bool IsStatic = std::get<2>(ParmTup);
@@ -703,7 +706,8 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
 }
 
 void AVarBoundsInfo::dumpAVarGraph(const std::string &DFPath) {
-  ProgVarGraph.dumpCGDot(DFPath, this);
+  // FIXME
+  //ProgVarGraph.dumpCGDot(DFPath, this);
 }
 
 void AVarBoundsInfo::print_stats(llvm::raw_ostream &O,

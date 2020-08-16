@@ -19,9 +19,6 @@
 #include "clang/CConv/PersistentSourceLoc.h"
 #include "clang/CConv/ConstraintVariables.h"
 
-#include <boost/config.hpp>
-#include <boost/bimap.hpp>
-
 class ProgramInfo;
 
 // Class that maintains stats about how the bounds of various variables is
@@ -81,11 +78,6 @@ private:
 
 };
 
-typedef boost::bimap<PersistentSourceLoc, BoundsKey> DeclKeyBiMapType;
-typedef DeclKeyBiMapType::value_type DeclMapItemType;
-typedef boost::bimap<std::tuple<std::string, string, bool, unsigned>,
-                     BoundsKey> ParmKeyBiMapType;
-typedef ParmKeyBiMapType::value_type ParmMapItemType;
 
 class AVarBoundsInfo;
 
@@ -122,8 +114,9 @@ public:
     InProgramArrPtrBoundsKeys.clear();
     BInfo.clear();
     DeclVarMap.clear();
-    ProgVarGraph.clear();
   }
+
+  typedef std::tuple<std::string, std::string, bool, unsigned> ParamDeclType;
 
   // Checks if the given declaration is a valid bounds variable.
   bool isValidBoundVariable(clang::Decl *D);
@@ -193,10 +186,15 @@ private:
   // Set of BoundsKey that correspond to array pointers.
   std::set<BoundsKey> ArrPointerBoundsKey;
   std::set<BoundsKey> InProgramArrPtrBoundsKeys;
+
   // BiMap of Persistent source loc and BoundsKey of regular variables.
-  DeclKeyBiMapType DeclVarMap;
+  std::map<PersistentSourceLoc, BoundsKey> DeclVarMap;
+  std::map<BoundsKey, PersistentSourceLoc> VarDeclMap;
+
   // BiMap of parameter keys and BoundsKey for function parameters.
-  ParmKeyBiMapType ParamDeclVarMap;
+  std::map<ParamDeclType, BoundsKey> ParamDeclVarMap;
+  std::map<BoundsKey, ParamDeclType> VarParamDeclMap;
+
   // Graph of all program variables.
   AVarGraph ProgVarGraph;
   // Stats on techniques used to find length for various variables.
@@ -222,6 +220,7 @@ private:
   bool performWorkListInference(std::set<BoundsKey> &ArrNeededBounds,
                                 bool FromPB = false);
 
+  void insertParamKey(ParamDeclType ParamDecl, BoundsKey NK);
 };
 
 #endif // _AVARBOUNDSINFO_H
