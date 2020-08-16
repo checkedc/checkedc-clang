@@ -189,7 +189,6 @@ public:
           unsigned i = 0;
           bool callUntyped = E->getNumArgs() != 0 && TargetFV->numParams() == 0;
           std::vector<CVarSet> deferred;
-          llvm::errs() << "calltountyped: " << callUntyped << "\n";
           for (const auto &A : E->arguments()) {
             CVarSet ArgumentConstraints;
             if(TFD != nullptr && i < TFD->getNumParams()) {
