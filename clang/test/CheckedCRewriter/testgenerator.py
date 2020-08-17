@@ -601,7 +601,7 @@ def process_file_smart(prefix, proto, suffix, name, cnameNOALL, cnameALL, name2,
         cname2NOALL2 = prefix + suffix + proto + "2.checkedNOALL2.c"  
         cname2ALL2 = prefix + suffix + proto + "2.checkedALL2.c"
         cname = name + "hecked2.c" 
-        cname2 = name + "hecked2.c"
+        cname2 = name2 + "hecked2.c"
         cnameALLtwice1 = cname + "onvert_again.c" 
         cnameALLtwice2 = cname2 + "onvert_again.c"
         # uncomment the following lines if we ever decide we want to generate buggy tests that don't compile

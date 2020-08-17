@@ -3,8 +3,13 @@
 // RUN: %clang -c %S/fptrarrinstructsafemulti1.checkedNOALL2.c %S/fptrarrinstructsafemulti2.checkedNOALL2.c
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrarrinstructsafemulti2.checkedNOALL2.c %s
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrarrinstructsafemulti2.checkedALL2.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/fptrarrinstructsafemulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrarrinstructsafemulti1.checked2.c %S/fptrarrinstructsafemulti2.checked2.c
+// RUN: diff %S/fptrarrinstructsafemulti1.checked2.convert_again.c %S/fptrarrinstructsafemulti1.checked2.c
+// RUN: diff %S/fptrarrinstructsafemulti2.checked2.convert_again.c %S/fptrarrinstructsafemulti2.checked2.c
 // RUN: rm %S/fptrarrinstructsafemulti1.checkedALL2.c %S/fptrarrinstructsafemulti2.checkedALL2.c
 // RUN: rm %S/fptrarrinstructsafemulti1.checkedNOALL2.c %S/fptrarrinstructsafemulti2.checkedNOALL2.c
+// RUN: rm %S/fptrarrinstructsafemulti1.checked2.c %S/fptrarrinstructsafemulti2.checked2.c %S/fptrarrinstructsafemulti1.checked2.convert_again.c %S/fptrarrinstructsafemulti2.checked2.convert_again.c
 
 
 /*********************************************************************************/

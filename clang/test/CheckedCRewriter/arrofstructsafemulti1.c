@@ -3,8 +3,13 @@
 // RUN: %clang -c %S/arrofstructsafemulti1.checkedNOALL.c %S/arrofstructsafemulti2.checkedNOALL.c
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrofstructsafemulti1.checkedNOALL.c %s
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrofstructsafemulti1.checkedALL.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %S/arrofstructsafemulti2.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/arrofstructsafemulti1.checked.c %S/arrofstructsafemulti2.checked.c
+// RUN: diff %S/arrofstructsafemulti1.checked.convert_again.c %S/arrofstructsafemulti1.checked.c
+// RUN: diff %S/arrofstructsafemulti2.checked.convert_again.c %S/arrofstructsafemulti2.checked.c
 // RUN: rm %S/arrofstructsafemulti1.checkedALL.c %S/arrofstructsafemulti2.checkedALL.c
 // RUN: rm %S/arrofstructsafemulti1.checkedNOALL.c %S/arrofstructsafemulti2.checkedNOALL.c
+// RUN: rm %S/arrofstructsafemulti1.checked.c %S/arrofstructsafemulti2.checked.c %S/arrofstructsafemulti1.checked.convert_again.c %S/arrofstructsafemulti2.checked.convert_again.c
 
 
 /*********************************************************************************/

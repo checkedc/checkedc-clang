@@ -3,8 +3,13 @@
 // RUN: %clang -c %S/arrofstructcalleemulti1.checkedNOALL2.c %S/arrofstructcalleemulti2.checkedNOALL2.c
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrofstructcalleemulti2.checkedNOALL2.c %s
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrofstructcalleemulti2.checkedALL2.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/arrofstructcalleemulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/arrofstructcalleemulti1.checked2.c %S/arrofstructcalleemulti2.checked2.c
+// RUN: diff %S/arrofstructcalleemulti1.checked2.convert_again.c %S/arrofstructcalleemulti1.checked2.c
+// RUN: diff %S/arrofstructcalleemulti2.checked2.convert_again.c %S/arrofstructcalleemulti2.checked2.c
 // RUN: rm %S/arrofstructcalleemulti1.checkedALL2.c %S/arrofstructcalleemulti2.checkedALL2.c
 // RUN: rm %S/arrofstructcalleemulti1.checkedNOALL2.c %S/arrofstructcalleemulti2.checkedNOALL2.c
+// RUN: rm %S/arrofstructcalleemulti1.checked2.c %S/arrofstructcalleemulti2.checked2.c %S/arrofstructcalleemulti1.checked2.convert_again.c %S/arrofstructcalleemulti2.checked2.convert_again.c
 
 
 /*********************************************************************************/
