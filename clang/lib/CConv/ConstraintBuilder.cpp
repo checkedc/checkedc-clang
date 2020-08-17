@@ -212,11 +212,8 @@ public:
 
             if (callUntyped) {
               deferred.push_back(ArgumentConstraints);
-              continue;
-            }
-
+            } else if (i < TargetFV->numParams()) {
             // constrain the arg CV to the param CV
-            if (i < TargetFV->numParams()) {
               CVarSet ParameterDC =
                   TargetFV->getParamVar(i);
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
