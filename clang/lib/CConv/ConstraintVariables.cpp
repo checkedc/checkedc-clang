@@ -16,6 +16,7 @@
 #include "clang/CConv/ConstraintVariables.h"
 #include "clang/CConv/ProgramInfo.h"
 #include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/ConstraintResolver.h"
 
 using namespace clang;
 
@@ -131,7 +132,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
         IsGeneric(Generic)
 {
   QualType QTy = QT;
-  const Type *Ty = QTy.getTypePtr();
+  const clang::Type *Ty = QTy.getTypePtr();
   auto &CS = I.getConstraints();
   // If the type is a decayed type, then maybe this is the result of
   // decaying an array to a pointer. If the original type is some
@@ -183,7 +184,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       // function return types.
       bool AnalyzeITypeExpr = isDeclTy;
       if (!AnalyzeITypeExpr) {
-        const Type *OrigType = Ty;
+        const clang::Type *OrigType = Ty;
         if (isa<FunctionDecl>(D)) {
           FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
           OrigType = FD->getType().getTypePtr();
@@ -266,12 +267,10 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       }
 
       // Iterate.
-      if (const ArrayType *ArrTy = dyn_cast<ArrayType>(Ty)) {
+      if (const clang::ArrayType *ArrTy = dyn_cast<clang::ArrayType>(Ty)) {
         QTy = ArrTy->getElementType();
         Ty = QTy.getTypePtr();
       } else {
-        Ty->dump();
-        D->dump();
         llvm_unreachable("unknown array type");
       }
     } else {
@@ -701,7 +700,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
                                         D->getName() : ""), I, C)
 { }
 
-FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
+FunctionVariableConstraint::FunctionVariableConstraint(const clang::Type *Ty,
                                                        DeclaratorDecl *D,
                                                        std::string N,
                                                        ProgramInfo &I,
@@ -1659,7 +1658,13 @@ void FunctionVariableConstraint::handle_params
   bool toEmpty = To->numParams() == 0;
   bool paramsEq = From->numParams() == To->numParams();
   assert(fromEmpty || toEmpty || paramsEq);
-  if (paramsEq) {
+  // If the parameters are equal, we know it's a type call
+  // (even if both are zero)
+  // The only case where the params are not equal, and it's not
+  // an untype call, is a variadic call. Variadic calls wil not
+  // generate deferments.
+  if (paramsEq && To->getDeferredParams().size() == 0
+      && From->getDeferredParams().size() == 0 ) {
     for (unsigned i = 0; i < From->numParams(); i++) {
       CVarSet &FromP = From->getParamVar(i);
       CVarSet &P = To->getParamVar(i);
@@ -1672,11 +1677,28 @@ void FunctionVariableConstraint::handle_params
     FVConstraint *Typed = fromEmpty ? To : From;
     auto &CS = I.getConstraints();
     for (auto deferred : Empty->getDeferredParams()) {
+      ConstraintResolver CB(I, deferred.C);
       assert(Typed->numParams() == deferred.PS.size());
       for(unsigned i = 0; i < deferred.PS.size(); i++) {
         CVarSet ParamDC = Typed->getParamVar(i);
-        CVarSet ArgDC = deferred.PS[i];
+        CVarSet ArgDC = deferred.PS[i].first;
+        Empty->paramVars.push_back(ParamDC);
+        auto TFD = deferred.TFD;
         constrainConsVarGeq(ParamDC, ArgDC, CS, &(deferred.PL), Wild_to_Safe, false, &I);
+        if (AllTypes && TFD != nullptr &&
+            !CB.containsValidCons(ParamDC) &&
+            !CB.containsValidCons(ArgDC)) {
+          auto *PVD = TFD->getParamDecl(i);
+          auto &ABI = I.getABoundsInfo();
+          BoundsKey PVKey, AGKey;
+          if ((CB.resolveBoundsKey(ParamDC, PVKey) ||
+               ABI.tryGetVariable(PVD, PVKey)) &&
+              (CB.resolveBoundsKey(ArgDC, AGKey) ||
+               ABI.tryGetVariable(deferred.PS[i].second,
+                                  *(deferred.C), AGKey))) {
+            ABI.addAssignment(PVKey, AGKey);
+          }
+        }
       }
     }
   }
@@ -1686,9 +1708,11 @@ void FunctionVariableConstraint::handle_params
 void
 FunctionVariableConstraint::addDeferredParams
 (PersistentSourceLoc PL,
- std::vector<CVarSet> Ps)
+ ASTContext *C,
+ FunctionDecl *TFD,
+ std::vector<std::pair<CVarSet, Expr*>> Ps)
 {
-  ParamDeferment P = { PL, Ps };
+  ParamDeferment P = { PL, C, TFD, Ps };
   deferredParams.push_back(P);
   return;
 }

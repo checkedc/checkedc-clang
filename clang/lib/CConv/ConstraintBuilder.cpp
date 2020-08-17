@@ -194,7 +194,7 @@ public:
             :
               false;
 
-          std::vector<CVarSet> deferred;
+          std::vector<std::pair<CVarSet, Expr*>> deferred;
           for (const auto &A : E->arguments()) {
             CVarSet ArgumentConstraints;
             if(TFD != nullptr && i < TFD->getNumParams()) {
@@ -210,8 +210,9 @@ public:
             } else
               ArgumentConstraints = CB.getExprConstraintVars(A);
 
+
             if (callUntyped) {
-              deferred.push_back(ArgumentConstraints);
+              deferred.push_back(make_pair(ArgumentConstraints, A));
             } else if (i < TargetFV->numParams()) {
             // constrain the arg CV to the param CV
               CVarSet ParameterDC =
@@ -249,7 +250,7 @@ public:
             i++;
           }
           if (callUntyped)
-            TargetFV->addDeferredParams(PL, deferred);
+            TargetFV->addDeferredParams(PL, Context, TFD, deferred);
 
         }
       }
@@ -389,6 +390,7 @@ private:
   ConstraintResolver CB;
   TypeVarInfo &TVInfo;
 };
+
 
 // This class visits a global declaration, generating constraints
 //   for functions, variables, types, etc. that are visited
