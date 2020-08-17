@@ -393,6 +393,10 @@ private:
 
   void equateFVConstraintVars(std::set<ConstraintVariable *> &Cset,
                               ProgramInfo &Info);
+
+  void handle_params(FunctionVariableConstraint *From,
+                     FunctionVariableConstraint *To,
+                     std::function<void(ConstraintVariable*,ConstraintVariable*) > f);
 public:
   FunctionVariableConstraint() :
           ConstraintVariable(FunctionVariable, "", ""),
@@ -415,11 +419,6 @@ public:
   void addDeferredParams(PersistentSourceLoc PL,
                          std::vector<CVarSet> Ps,
                          ProgramInfo &I);
-
-  //TODO this should probably be private
-  void handle_params(FunctionVariableConstraint *From,
-                     FunctionVariableConstraint *To,
-                     std::function<void(ConstraintVariable*,ConstraintVariable*) > f);
 
   size_t numParams() { return paramVars.size(); }
 
