@@ -32,6 +32,9 @@ std::string ConstraintVariable::getRewritableOriginalTy() {
   }
   return OrigTyString;
 }
+bool ConstraintVariable::isChecked(EnvironmentMap &E) {
+  return getIsOriginallyChecked() || anyChanges(E);
+}
 
 PointerVariableConstraint *
 PointerVariableConstraint::getWildPVConstraint(Constraints &CS) {
@@ -105,6 +108,7 @@ PointerVariableConstraint::
   this->Parent = Ot;
   this->IsGeneric = Ot->IsGeneric;
   this->IsZeroWidthArray = Ot->IsZeroWidthArray;
+  this->OriginallyChecked = Ot->OriginallyChecked;
   // We need not initialize other members.
 }
 
@@ -206,6 +210,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   bool VarCreated = false;
   bool IsArr = false;
   bool IsIncompleteArr = false;
+  OriginallyChecked = false;
   uint32_t TypeIdx = 0;
   std::string Npre = inFunc ? ((*inFunc)+":") : "";
   VarAtom::VarKind VK =
@@ -223,6 +228,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     }
 
     if (Ty->isCheckedPointerType()) {
+      OriginallyChecked = true;
       ConstAtom *CAtom = nullptr;
       if (Ty->isCheckedPointerNtArrayType()) {
         // This is an NT array type.
@@ -334,7 +340,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
   BaseType = tyToStr(Ty);
 
-  bool IsWild = isVarArgType(BaseType) || isTypeHasVoid(QT);
+  bool IsWild = !IsGeneric && (isVarArgType(BaseType) || isTypeHasVoid(QT));
   if (IsWild) {
     std::string Rsn = "Default Var arg list type.";
     if (D && hasVoidType(D))
@@ -975,7 +981,7 @@ void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C,
 
 bool PointerVariableConstraint::anyArgumentIsWild(EnvironmentMap &E) {
   for (auto *ArgVal : argumentConstraints) {
-    if (!(ArgVal->anyChanges(E))) {
+    if (!ArgVal->isChecked(E)) {
       return true;
     }
   }
@@ -983,6 +989,13 @@ bool PointerVariableConstraint::anyArgumentIsWild(EnvironmentMap &E) {
 }
 
 bool PointerVariableConstraint::anyChanges(EnvironmentMap &E) {
+  // If a pointer variable was checked in the input program, it will have the
+  // same checked type in the output, so it cannot have changed.
+  if (OriginallyChecked)
+    return false;
+
+  // If it was not checked in the input, then it has changed if it now has a
+  // checked type.
   bool Ret = false;
 
   // Are there any non-WILD pointers?
@@ -1444,25 +1457,26 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
 
         // Only generate constraint if LHS is not a base type.
         if (CLHS.size() != 0) {
-          if (CLHS.size() == CRHS.size()) {
-            int n = 0;
-            CAtoms::iterator I = CLHS.begin();
-            CAtoms::iterator J = CRHS.begin();
-            while (I != CLHS.end()) {
+          if (CLHS.size() == CRHS.size()
+              || PCLHS->getIsGeneric() || PCRHS->getIsGeneric()) {
+            unsigned Max = std::max(CLHS.size(), CRHS.size());
+            for (unsigned N = 0; N < Max; N++) {
+              Atom *IAtom = PCLHS->getAtom(N, CS);
+              Atom *JAtom = PCRHS->getAtom(N, CS);
+              if (IAtom == nullptr || JAtom == nullptr)
+                break;
+
               // Get outermost pointer first, using current ConsAction.
-              if (n == 0)
-                createAtomGeq(CS, *I, *J, Rsn, PL, CA, doEqType);
+              if (N == 0)
+                createAtomGeq(CS, IAtom, JAtom, Rsn, PL, CA, doEqType);
               else {
                 // Now constrain the inner ones as equal.
-                createAtomGeq(CS, *I, *J, Rsn, PL, CA, true);
+                createAtomGeq(CS, IAtom, JAtom, Rsn, PL, CA, true);
               }
-              ++I;
-              ++J;
-              n++;
             }
           // Unequal sizes means casting from (say) T** to T*; not safe.
           // unless assigning to a generic type.
-          } else if (!(PCLHS->getIsGeneric() || PCRHS->getIsGeneric())) {
+          } else {
             // Constrain both to be top.
             std::string Rsn = "Assigning from:" + std::to_string(CRHS.size())
                               + " depth pointer to " +
@@ -1592,6 +1606,20 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
   }
 }
 
+Atom *PointerVariableConstraint::getAtom(unsigned AtomIdx, Constraints &CS) {
+  if (AtomIdx < vars.size()) {
+    // If index is in bounds, just return the atom.
+    return vars[AtomIdx];
+  } else if (IsGeneric && AtomIdx == vars.size()) {
+    // Polymorphic types don't know how "deep" their pointers are beforehand so,
+    // we need to create new atoms for new pointer levels on the fly.
+    std::string Stars(vars.size(), '*');
+    Atom *A = CS.getFreshVar(Name + Stars, VarAtom::V_Other);
+    vars.push_back(A);
+    return A;
+  }
+  return nullptr;
+}
 
 // Brain Transplant params and returns in [FromCV], recursively.
 void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
@@ -1663,4 +1691,11 @@ FunctionVariableConstraint::addDeferredParams
   ParamDeferment P = { PL, Ps, I };
   deferredParams.push_back(P);
   return;
+}
+
+bool FunctionVariableConstraint::getIsOriginallyChecked() {
+  for (const auto &R : returnVars)
+    if (R->getIsOriginallyChecked())
+      return true;
+  return false;
 }

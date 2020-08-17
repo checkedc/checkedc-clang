@@ -95,7 +95,7 @@ int zerohuh(int n) {
 }
 
 int *mul2(int *x) { 
-	//CHECK_NOALL: int * mul2(int *x) { 
+	//CHECK_NOALL: int *mul2(int *x) { 
 	//CHECK_ALL: _Array_ptr<int> mul2(_Array_ptr<int> x) { 
     *x *= 2; 
     return x;

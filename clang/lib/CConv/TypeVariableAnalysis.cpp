@@ -14,15 +14,11 @@ using namespace llvm;
 using namespace clang;
 
 std::set<ConstraintVariable *> &TypeVariableEntry::getConstraintVariables() {
-  assert("Accessing ConstraintVariable set for inconsistent Type Variable." &&
-      IsConsistent);
   return ArgConsVars;
 }
 
 void TypeVariableEntry::insertConstraintVariables
     (std::set<ConstraintVariable *> &CVs) {
-  assert("Accessing ConstraintVariable set for inconsistent Type Variable." &&
-      IsConsistent);
   ArgConsVars.insert(CVs.begin(), CVs.end());
 }
 
@@ -37,23 +33,16 @@ void TypeVariableEntry::setTypeParamConsVar(ConstraintVariable *CV) {
 
 void TypeVariableEntry::updateEntry(QualType Ty,
                                     std::set<ConstraintVariable *> &CVs) {
+  // If the type has previously been instantiated as a different type, its use
+  // is not consistent. We also make it inconsistent if the type is anonymous
+  // since we'll need a name to fill the type arguments during rewriting.
   const clang::Type *PtrTy = Ty->getPointeeOrArrayElementType();
-  if (isTypeAnonymous(PtrTy)) {
-    // We'll need a name to provide the type arguments during rewriting, so
-    // no anonymous things here.
+  if (IsConsistent && (isTypeAnonymous(PtrTy)
+      || getType()->getPointeeOrArrayElementType() != PtrTy))
     IsConsistent = false;
-  } else if (IsConsistent
-      && getType()->getPointeeOrArrayElementType() != PtrTy) {
-    // If it has previously been instantiated as a different type, its use
-    // is not consistent.
-    IsConsistent = false;
-  } else if (IsConsistent) {
-    // Type variable has been encountered before with the same type. Insert
-    // new constraint variables.
-    insertConstraintVariables(CVs);
-  }
-  // If none of the above branches are hit, then this was already inconsistent,
-  // so there's no need to update anything.
+  // Record new constraints for the entry. These are used even when the variable
+  // is not consistent.
+  insertConstraintVariables(CVs);
 }
 
 ConstraintVariable *TypeVariableEntry::getTypeParamConsVar() {
@@ -127,6 +116,10 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
                             false, &Info);
 
         TVEntry.second.setTypeParamConsVar(P);
+      } else {
+        // TODO: This might be too cautious.
+        CR.constraintAllCVarsToWild(TVEntry.second.getConstraintVariables(),
+                                    "Used with inconsistent type variable.");
       }
   }
   return true;
