@@ -1,6 +1,9 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -output-postfix=checked -alltypes %s
+// RUN: cconv-standalone -alltypes %S/b30_structprotoconflictbodyconvert.checked.c -- | count 0
+// RUN: rm %S/b30_structprotoconflictbodyconvert.checked.c
 typedef unsigned long size_t;
 #define NULL ((void*)0)
 typedef unsigned long size_t;
@@ -55,7 +58,8 @@ struct r *foo() {
 }
 
 struct np *bar() {
-	//CHECK: _Ptr<struct np> bar(void) {
+	//CHECK_NOALL: _Ptr<struct np> bar(void) {
+	//CHECK_ALL: _Ptr<struct np> bar(void) _Checked {
   struct r *x;
 	//CHECK_NOALL: struct r *x;
 	//CHECK_ALL:   _Array_ptr<struct r> x = ((void *)0);

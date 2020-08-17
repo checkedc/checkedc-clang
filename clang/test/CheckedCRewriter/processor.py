@@ -106,7 +106,7 @@ def process_file_smart(name, cnameNOALL, cnameALL):
     run += "\n// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" %s"
     run += "\n// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -" 
     run += "\n// RUN: cconv-standalone -output-postfix=checked -alltypes %s"
-    run += "\n// RUN: cconv-standalone -alltypes %S/{} -- | diff %S/{} -".format(name + "hecked.c", name + "hecked.c") 
+    run += "\n// RUN: cconv-standalone -alltypes %S/{} -- | count 0".format(name + "hecked.c", name + "hecked.c") 
     run += "\n// RUN: rm %S/{}\n".format(name + "hecked.c")
 
     file = open(name, "w+")
