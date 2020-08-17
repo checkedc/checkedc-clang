@@ -592,7 +592,7 @@ public:
 
   const EqualExprTy &GetVariableList() const { return VariableList; }
 
-  bool VisitDeclRefExpr(DeclRefExpr *E) {
+  bool VisitImplicitCastExpr(ImplicitCastExpr *E) {
     if (!EqualExprsContainsExpr(SemaRef, VariableList, E, EquivExprs))
       VariableList.push_back(E);
     return true;
@@ -1691,17 +1691,6 @@ namespace {
       return R == Lexicographic::Result::Equal;
     }
 
-    static bool EqualVariable(ASTContext &Ctx, Expr *E1,
-                              Expr *E2,
-                              const EquivExprSets *EquivExprs) {
-      DeclRefExpr *V1 = dyn_cast<DeclRefExpr>(E1);
-      DeclRefExpr *V2 = dyn_cast<DeclRefExpr>(E2);
-      if (!V1 || !V2)
-        return false;
-      Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareDecl(V1->getFoundDecl(), V2->getFoundDecl());
-      return R == Lexicographic::Result::Equal;
-    }
-
     // Convert the bounds expression `Bounds` to a range `R`. This function returns true
     // if the conversion is successful, and false otherwise.
     // Currently, this function only performs the conversion for bounds expression of
@@ -2007,7 +1996,7 @@ namespace {
       for (const auto &SrcV : SrcVariables) {
         auto It = DeclVariables.begin();
         for (; It != DeclVariables.end(); It++) {
-          if (EqualVariable(S.Context, SrcV, *It, EquivExprs))
+          if (EqualValue(S.Context, SrcV, *It, EquivExprs))
             break;
         }
  
