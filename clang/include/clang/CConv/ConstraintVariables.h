@@ -135,7 +135,7 @@ public:
 
   // Update this CV with information from duplicate declaration CVs
   virtual void brainTransplant(ConstraintVariable *, ProgramInfo &) = 0;
-  virtual void mergeDeclaration(ConstraintVariable *) = 0;
+  virtual void mergeDeclaration(ConstraintVariable *, ProgramInfo &) = 0;
 
   std::string getOriginalTy() { return OriginalType; }
   // Get the original type string that can be directly
@@ -313,7 +313,7 @@ public:
   const CAtoms &getCvars() const { return vars; }
 
   void brainTransplant(ConstraintVariable *From, ProgramInfo &I);
-  void mergeDeclaration(ConstraintVariable *From);
+  void mergeDeclaration(ConstraintVariable *From, ProgramInfo &I);
 
   static bool classof(const ConstraintVariable *S) {
     return S->getKind() == PointerVariable;
@@ -365,7 +365,6 @@ typedef PointerVariableConstraint PVConstraint;
 typedef struct {
   PersistentSourceLoc PL;
   std::vector<CVarSet> PS;
-  ProgramInfo &I;
 } ParamDeferment;
 
 
@@ -396,6 +395,7 @@ private:
 
   void handle_params(FunctionVariableConstraint *From,
                      FunctionVariableConstraint *To,
+                     ProgramInfo &I,
                      std::function<void(ConstraintVariable*,ConstraintVariable*) > f);
 public:
   FunctionVariableConstraint() :
@@ -417,8 +417,7 @@ public:
     { return deferredParams; }
 
   void addDeferredParams(PersistentSourceLoc PL,
-                         std::vector<CVarSet> Ps,
-                         ProgramInfo &I);
+                         std::vector<CVarSet> Ps);
 
   size_t numParams() { return paramVars.size(); }
 
@@ -431,7 +430,7 @@ public:
   }
 
   void brainTransplant(ConstraintVariable *From, ProgramInfo &I);
-  void mergeDeclaration(ConstraintVariable *FromCV);
+  void mergeDeclaration(ConstraintVariable *FromCV, ProgramInfo &I);
 
   std::set<ConstraintVariable *> &
   getParamVar(unsigned i) {

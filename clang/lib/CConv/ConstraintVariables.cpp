@@ -1565,7 +1565,8 @@ void PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
   }
 }
 
-void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
+void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
+                                                 ProgramInfo &Info) {
   PVConstraint *From = dyn_cast<PVConstraint>(FromCV);
   std::vector<Atom *> NewVatoms;
   CAtoms CFrom = From->getCvars();
@@ -1602,7 +1603,7 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
     ItypeStr = From->ItypeStr;
   if (FV) {
     assert(From->FV);
-    FV->mergeDeclaration(From->FV);
+    FV->mergeDeclaration(From->FV, Info);
   }
 }
 
@@ -1631,27 +1632,28 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
   auto RetVar = getOnly(returnVars);
   RetVar->brainTransplant(FromRetVar, I);
   // Transplant params.
-  handle_params(From, this,
+  handle_params(From, this, I,
                 [&I](ConstraintVariable *F, ConstraintVariable *T)
                 { T->brainTransplant(F, I); });
 }
 
 
-void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
+void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
+                                                  ProgramInfo &I) {
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert (From != nullptr);
   // Transplant returns.
   auto FromRetVar = getOnly(From->getReturnVars());
   auto RetVar = getOnly(returnVars);
-  RetVar->mergeDeclaration(FromRetVar);
+  RetVar->mergeDeclaration(FromRetVar, I);
   // Transplant params.
-  handle_params(From, this,
-                [](ConstraintVariable *F, ConstraintVariable *T)
-                { T->mergeDeclaration(F); });
+  handle_params(From, this, I,
+                [&I](ConstraintVariable *F, ConstraintVariable *T)
+                { T->mergeDeclaration(F, I); });
 }
 
 void FunctionVariableConstraint::handle_params
-(FVConstraint *From, FVConstraint *To,
+(FVConstraint *From, FVConstraint *To, ProgramInfo &I,
  std::function<void(ConstraintVariable*,ConstraintVariable*)> f) {
   bool fromEmpty = From->numParams() == 0;
   bool toEmpty = To->numParams() == 0;
@@ -1668,14 +1670,13 @@ void FunctionVariableConstraint::handle_params
   } else { // Dealing with an untyped prototype
     FVConstraint *Empty = fromEmpty ? From : To;
     FVConstraint *Typed = fromEmpty ? To : From;
+    auto &CS = I.getConstraints();
     for (auto deferred : Empty->getDeferredParams()) {
       assert(Typed->numParams() == deferred.PS.size());
       for(unsigned i = 0; i < deferred.PS.size(); i++) {
         CVarSet ParamDC = Typed->getParamVar(i);
         CVarSet ArgDC = deferred.PS[i];
-        ProgramInfo &Info = deferred.I;
-        auto &CS = Info.getConstraints();
-        constrainConsVarGeq(ParamDC, ArgDC, CS, &(deferred.PL), Wild_to_Safe, false, &Info);
+        constrainConsVarGeq(ParamDC, ArgDC, CS, &(deferred.PL), Wild_to_Safe, false, &I);
       }
     }
   }
@@ -1685,10 +1686,9 @@ void FunctionVariableConstraint::handle_params
 void
 FunctionVariableConstraint::addDeferredParams
 (PersistentSourceLoc PL,
- std::vector<CVarSet> Ps,
- ProgramInfo &I)
+ std::vector<CVarSet> Ps)
 {
-  ParamDeferment P = { PL, Ps, I };
+  ParamDeferment P = { PL, Ps };
   deferredParams.push_back(P);
   return;
 }

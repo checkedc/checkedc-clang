@@ -499,7 +499,7 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
     } else if (!oldC->hasBody()) {
       // if the current FV constraint is not a definition?
       // then merge.
-      oldC->mergeDeclaration(newC);
+      oldC->mergeDeclaration(newC, *this);
     }
   }
   return RetVal;
