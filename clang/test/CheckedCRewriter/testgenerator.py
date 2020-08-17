@@ -585,12 +585,25 @@ def process_file_smart(prefix, proto, suffix, name, cnameNOALL, cnameALL, name2,
         run += "\n// RUN: %clang -c %S/{} %S/{}".format(cnameNOALL, cname2NOALL)
         run += "\n// RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" --input-file %S/{} %s".format(cnameNOALL) 
         run += "\n// RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\",\"CHECK\" --input-file %S/{} %s".format(cnameALL)
+        run += "\n// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %S/{} %s".format(name2)
+        cname = name + "hecked.c" 
+        cname2 = name2 + "hecked.c"
+        run += "\n// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/{} %S/{}".format(cname, cname2)
+        cnameALLtwice1 = cname + "onvert_again.c" 
+        cnameALLtwice2 = cname2 + "onvert_again.c"
+        run += "\n// RUN: diff %S/{} %S/{}".format(cnameALLtwice1, cname)
+        run += "\n// RUN: diff %S/{} %S/{}".format(cnameALLtwice2, cname2)
         run += "\n// RUN: rm %S/{} %S/{}".format(cnameALL, cname2ALL)
         run += "\n// RUN: rm %S/{} %S/{}".format(cnameNOALL, cname2NOALL)
+        run += "\n// RUN: rm %S/{} %S/{} %S/{} %S/{}".format(cname, cname2, cnameALLtwice1, cnameALLtwice2)
         cnameNOALL2 = prefix + suffix + proto + "1.checkedNOALL2.c"  
         cnameALL2 = prefix + suffix + proto + "1.checkedALL2.c"
         cname2NOALL2 = prefix + suffix + proto + "2.checkedNOALL2.c"  
         cname2ALL2 = prefix + suffix + proto + "2.checkedALL2.c"
+        cname = name + "hecked2.c" 
+        cname2 = name + "hecked2.c"
+        cnameALLtwice1 = cname + "onvert_again.c" 
+        cnameALLtwice2 = cname2 + "onvert_again.c"
         # uncomment the following lines if we ever decide we want to generate buggy tests that don't compile
         # if bug_generated: 
         #     cname21 = prefix + suffix + proto + "1_BUG.checked2.c" 
@@ -600,8 +613,13 @@ def process_file_smart(prefix, proto, suffix, name, cnameNOALL, cnameALL, name2,
         run2 += "\n// RUN: %clang -c %S/{} %S/{}".format(cnameNOALL2, cname2NOALL2)
         run2 += "\n// RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" --input-file %S/{} %s".format(cname2NOALL2) 
         run2 += "\n// RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\",\"CHECK\" --input-file %S/{} %s".format(cname2ALL2)
+        run2 += "\n// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/{} %s".format(name)
+        run2 += "\n// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/{} %S/{}".format(cname, cname2)
+        run2 += "\n// RUN: diff %S/{} %S/{}".format(cnameALLtwice1, cname)
+        run2 += "\n// RUN: diff %S/{} %S/{}".format(cnameALLtwice2, cname2)
         run2 += "\n// RUN: rm %S/{} %S/{}".format(cnameALL2, cname2ALL2)
         run2 += "\n// RUN: rm %S/{} %S/{}".format(cnameNOALL2, cname2NOALL2)
+        run2 += "\n// RUN: rm %S/{} %S/{} %S/{} %S/{}".format(cname, cname2, cnameALLtwice1, cnameALLtwice2)
 
     file = open(name, "w+")
     file.write(run + comment + "\n".join(lines)) 
