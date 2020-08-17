@@ -178,6 +178,8 @@ static void updateGNUCompoundLiteralRValue(Expr *E) {
       E = GSE->getResultExpr();
     } else if (ChooseExpr *CE = dyn_cast<ChooseExpr>(E)) {
       E = CE->getChosenSubExpr();
+    } else if (CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(E)) {
+      E = Temp->getSubExpr();
     } else {
       llvm_unreachable("unexpected expr in array compound literal init");
     }
@@ -5607,7 +5609,7 @@ void InitializationSequence::InitializeFrom(Sema &S,
     // array from a compound literal that creates an array of the same
     // type, so long as the initializer has no side effects.
     if (!S.getLangOpts().CPlusPlus && Initializer &&
-        isa<CompoundLiteralExpr>(Initializer->IgnoreParens()) &&
+        isa<CompoundLiteralExpr>(Initializer->IgnoreParenTmp()) &&
         Initializer->getType()->isArrayType()) {
       const ArrayType *SourceAT
         = Context.getAsArrayType(Initializer->getType());
