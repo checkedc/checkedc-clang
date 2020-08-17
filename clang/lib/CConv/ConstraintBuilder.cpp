@@ -187,7 +187,13 @@ public:
         // and for each arg to the function ...
         if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
           unsigned i = 0;
-          bool callUntyped = E->getNumArgs() != 0 && TargetFV->numParams() == 0;
+          bool callUntyped =
+            TFD ?
+              TFD->getType()->isFunctionNoProtoType() &&
+              E->getNumArgs() != 0 && TargetFV->numParams() == 0
+            :
+              false;
+
           std::vector<CVarSet> deferred;
           for (const auto &A : E->arguments()) {
             CVarSet ArgumentConstraints;
@@ -253,6 +259,7 @@ public:
     }
     return true;
   }
+
 
   // e1[e2]
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {

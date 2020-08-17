@@ -264,6 +264,8 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
         QTy = ArrTy->getElementType();
         Ty = QTy.getTypePtr();
       } else {
+        Ty->dump();
+        D->dump();
         llvm_unreachable("unknown array type");
       }
     } else {
