@@ -579,6 +579,7 @@ bool EqualExprsContainsExpr(Sema &S, const EqualExprTy Exprs, Expr *E,
   return false;
 }
 
+// Helper class for collecting a vector of unique variables from an expression.
 class CollectVariableSetHelper
     : public RecursiveASTVisitor<CollectVariableSetHelper> {
 private:
@@ -1721,10 +1722,12 @@ namespace {
     //
     // If Kind is StaticBoundsCast, check whether a static cast between Ptr
     // types from SrcBounds to DestBounds is legal.
-    ProofResult ProveBoundsDeclValidity(
-        const BoundsExpr *DeclaredBounds, const BoundsExpr *SrcBounds,
-        ProofFailure &Cause, EquivExprSets *EquivExprs,
-        ProofStmtKind Kind = ProofStmtKind::BoundsDeclaration) {
+    ProofResult ProveBoundsDeclValidity(const BoundsExpr *DeclaredBounds,
+                                        const BoundsExpr *SrcBounds,
+                                        ProofFailure &Cause,
+                                        EquivExprSets *EquivExprs,
+                                        ProofStmtKind Kind =
+                                          ProofStmtKind::BoundsDeclaration) {
       BaseRange DeclaredRange(S);
       BaseRange SrcRange(S);
       return ProveBoundsDeclValidityImpl(DeclaredBounds, SrcBounds, Cause,
@@ -1775,7 +1778,6 @@ namespace {
         llvm::outs() << "\nSource range:";
         SrcRange.Dump(llvm::outs());
 #endif
-
         ProofResult R = SrcRange.InRange(DeclaredRange, Cause, EquivExprs, Facts);
         if (R == ProofResult::True)
           return R;
@@ -1821,7 +1823,7 @@ namespace {
                                          EquivExprs);
 
       return (BaseFreeVars.size() > 0 || LowerFreeVars.size() > 0 ||
-          UpperFreeVars.size() > 0);
+              UpperFreeVars.size() > 0);
     }
 
 
@@ -1962,6 +1964,7 @@ namespace {
         S.Diag(Loc, diag::note_upper_out_of_bounds) << (unsigned) Kind;
     }
 
+    // Prints a note for each free variable at Loc.
     void DiagnoseFreeVariables(SourceLocation Loc, EqualExprTy &BaseFreeVars,
                                EqualExprTy &LowerFreeVars, EqualExprTy UpperFreeVars) {
       for (const auto &V : BaseFreeVars) {
@@ -1978,6 +1981,8 @@ namespace {
       }
     }
 
+    // For each variable in SrcExpr, check if it has an equivalent variable in Decl
+    // using EquivExprs.  Returns a vector of free variables in SrcExpr.
     EqualExprTy GetFreeVariables(Expr *SrcExpr, Expr *DeclExpr,
                                  EquivExprSets *EquivExprs) {
       EqualExprTy SrcVariables = CollectVariableSet(S, SrcExpr, EquivExprs);
@@ -2052,7 +2057,7 @@ namespace {
       }
 
       ProofFailure Cause;
-      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds, 
+      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds,
                                                    Cause, &EquivExprs);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
@@ -2085,7 +2090,7 @@ namespace {
         return;
 
       ProofFailure Cause;
-      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds, 
+      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds,
                                                    Cause, &EquivExprs);
 
       if (Result != ProofResult::True) {
@@ -2119,7 +2124,7 @@ namespace {
                                   EquivExprSets EquivExprs) {
       SourceLocation ArgLoc = Arg->getBeginLoc();
       ProofFailure Cause;
-      ProofResult Result = ProveBoundsDeclValidity(ExpectedArgBounds, 
+      ProofResult Result = ProveBoundsDeclValidity(ExpectedArgBounds,
                                                    ArgBounds, Cause, &EquivExprs);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
@@ -2187,7 +2192,6 @@ namespace {
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds,
                                                    SrcBounds, Cause, &EquivExprs);
-
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -4154,7 +4158,9 @@ namespace {
       bool HasFreeVariables =
           CheckFreeVariables(SrcRange, DeclaredRange, Cause, EquivExprs,
                              BaseFreeVars, LowerFreeVars, UpperFreeVars);
-
+      
+      // If proof result is Maybe but SrcRange has free variables, emit an error
+      // rather than a warning.
       unsigned DiagId =
           (Result == ProofResult::False)
               ? diag::error_bounds_declaration_invalid
