@@ -1,18 +1,30 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
-//
+// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -output-postfix=checked -alltypes %s
+// RUN: cconv-standalone -alltypes %S/subtyp.checked.c -- | count 0
+// RUN: rm %S/subtyp.checked.c
 
 void take(int *p : itype(_Nt_array_ptr<int>));
+	//CHECK: void take(int *p : itype(_Nt_array_ptr<int>));
 int *foo(int *x) {
+	//CHECK_NOALL: int *foo(int *x) {
+	//CHECK_ALL: _Nt_array_ptr<int> foo(int *x : itype(_Nt_array_ptr<int>)) {
   take(x);
   return x;
 }
-// CHECK: _Nt_array_ptr<int> foo(int *x : itype(_Nt_array_ptr<int>)) {
 void bar() {
+	//CHECK_NOALL: void bar() {
+	//CHECK_ALL: void bar() _Checked {
   int *x = 0;
+	//CHECK_NOALL: int *x = 0;
+	//CHECK_ALL:   _Nt_array_ptr<int> x =  0;
   foo(x);
 }
-// CHECK: _Nt_array_ptr<int> x =  0;
 void baz() {
   int *x = (int *)5;
+	//CHECK: int *x = (int *)5;
   foo(x);
-}
+} 
+void force(int *x){}
+	//CHECK: void force(_Ptr<int> x)_Checked {}

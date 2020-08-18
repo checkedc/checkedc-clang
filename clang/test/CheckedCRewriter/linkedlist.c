@@ -1,6 +1,9 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -output-postfix=checked -alltypes %s
+// RUN: cconv-standalone -alltypes %S/linkedlist.checked.c -- | count 0
+// RUN: rm %S/linkedlist.checked.c
 
 #include <stdio.h>
 
@@ -12,17 +15,16 @@ extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_c
 typedef struct node Node;
 typedef struct list List;
 List * makelist();
+	//CHECK: _Ptr<List> makelist(void);
 void add(int data, List * list);
+	//CHECK: void add(int data, _Ptr<List> list);
 void delete(int data, List * list);
+	//CHECK: void delete(int data, _Ptr<List> list);
 void display(List * list);
+	//CHECK: void display(_Ptr<List> list);
 void reverse(List * list);
+	//CHECK: void reverse(_Ptr<List> list);
 void destroy(List * list);
-//CHECK: _Ptr<List> makelist(void);
-//CHECK-NEXT: void add(int data, _Ptr<List> list);
-//CHECK-NEXT: void delete(int data, _Ptr<List> list);
-//CHECK-NEXT: void display(_Ptr<List> list);
-//CHECK-NEXT: void reverse(_Ptr<List> list);
-//CHECK-NEXT: void destroy(List * list);
 
 
 struct node {
@@ -30,9 +32,9 @@ struct node {
   int data;
 
   struct node * next;
+	//CHECK: struct node * next;
 
 };
-//CHECK: struct node * next;
 
 
 struct list {
@@ -44,13 +46,15 @@ struct list {
 
 
 Node * createnode(int data);
-//CHECK: Node *createnode(int data) : itype(_Ptr<Node>);
+	//CHECK: Node *createnode(int data) : itype(_Ptr<Node>);
 
 
 
 Node * createnode(int data){
+	//CHECK: Node *createnode(int data) : itype(_Ptr<Node>){
 
   Node * newNode = malloc(sizeof(Node));
+	//CHECK: _Ptr<Node> newNode =  malloc<Node>(sizeof(Node));
 
   if (!newNode) {
 
@@ -65,14 +69,14 @@ Node * createnode(int data){
   return newNode;
 
 }
-//CHECK: Node *createnode(int data) : itype(_Ptr<Node>){
-//CHECK: _Ptr<Node> newNode =  malloc<Node>(sizeof(Node));
 
 
 
 List * makelist(){
+	//CHECK: _Ptr<List> makelist(void){
 
   List * list = malloc(sizeof(List));
+	//CHECK: _Ptr<List> list =  malloc<List>(sizeof(List));
 
   if (!list) {
 
@@ -85,12 +89,11 @@ List * makelist(){
   return list;
 
 }
-//CHECK: _Ptr<List> makelist(void){
-//CHECK: _Ptr<List> list =  malloc<List>(sizeof(List));
 
 
 
 void display(List * list) {
+	//CHECK: void display(_Ptr<List> list) {
 
   Node * current = list->head;
 
@@ -107,11 +110,10 @@ void display(List * list) {
   }
 
 }
-//CHECK: void display(_Ptr<List> list) {
-//CHECK: Node * current = list->head;
 
 
 void add(int data, List * list){
+	//CHECK: void add(int data, _Ptr<List> list){
 
   Node * current = NULL;
 
@@ -136,11 +138,10 @@ void add(int data, List * list){
   }
 
 }
-//CHECK: void add(int data, _Ptr<List> list){
-//CHECK: Node * current = NULL;
 
 
 void delete(int data, List * list){
+	//CHECK: void delete(int data, _Ptr<List> list){
 
   Node * current = list->head;
 
@@ -170,10 +171,10 @@ void delete(int data, List * list){
 
 }
 
-//CHECK: void delete(int data, _Ptr<List> list){
 
 
 void reverse(List * list){
+	//CHECK: void reverse(_Ptr<List> list){
 
   Node * reversed = NULL;
 
@@ -196,7 +197,6 @@ void reverse(List * list){
   list->head = reversed;
 
 }
-//CHECK: void reverse(_Ptr<List> list){
 
 
 
@@ -214,6 +214,3 @@ void destroy(List * list){
 
   free(list);
 }
-//CHECK: void destroy(List * list){
-//CHECK: Node * current = list->head;
-//CHECK: Node * next = current;

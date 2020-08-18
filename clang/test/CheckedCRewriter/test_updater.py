@@ -30,7 +30,7 @@ def strip_existing_annotations(filename):
         sys.stdout.write(line)
 
 
-def process_file_smart(name, cnameNOALL, cnameALL): 
+def process_file_smart(name, cnameNOALL, cnameALL, diff): 
     file = open(name, "r") 
     noallfile = open(cnameNOALL, "r") 
     allfile = open(cnameALL, "r") 
@@ -65,7 +65,10 @@ def process_file_smart(name, cnameNOALL, cnameALL):
     run += "\n// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" %s"
     run += "\n// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -" 
     run += "\n// RUN: cconv-standalone -output-postfix=checked -alltypes %s"
-    run += "\n// RUN: cconv-standalone -alltypes %S/{} -- | count 0".format(name + "hecked.c") 
+    if not diff: 
+        run += "\n// RUN: cconv-standalone -alltypes %S/{} -- | count 0".format(name + "hecked.c") 
+    else: 
+        run += "\n// RUN: cconv-standalone -alltypes %S/{} -- | diff -w %S/{} -".format(name + "hecked.c", name + "hecked.c") 
     run += "\n// RUN: rm %S/{}\n".format(name + "hecked.c")
 
     file = open(name, "w+")
@@ -73,7 +76,7 @@ def process_file_smart(name, cnameNOALL, cnameALL):
     file.close()
     return 
 
-def process_smart(filename): 
+def process_smart(filename, diff): 
     strip_existing_annotations(filename) 
     
     cnameNOALL = filename + "heckedNOALL.c" 
@@ -82,7 +85,7 @@ def process_smart(filename):
     os.system("{}cconv-standalone -alltypes -addcr -output-postfix=checkedALL {}".format(path_to_monorepo, filename))
     os.system("{}cconv-standalone -addcr -output-postfix=checkedNOALL {}".format(path_to_monorepo, filename)) 
 
-    process_file_smart(filename, cnameNOALL, cnameALL) 
+    process_file_smart(filename, cnameNOALL, cnameALL, diff) 
     return
 
 
@@ -115,8 +118,6 @@ manual_tests = ['3d-allocation.c',
  'inlinestructinfunc.c',
  'linkedlist.c',
  'malloc_array.c',
- 'ptr_array.c',
- 'ptrptr.c',
  'realloc.c',
  'realloc_complex.c',
  'refarrsubscript.c',
@@ -126,8 +127,12 @@ manual_tests = ['3d-allocation.c',
  'unsafeunion.c',
  'unsigned_signed_cast.c',
  'valist.c',
- 'cast.c', 
- 'compound_literal.c'] 
+ 'cast.c'] 
+
+need_diff = ['compound_literal.c', 
+'graphs.c',
+'ptr_array.c',
+'ptrptr.c'] 
 
 b_tests = ['b10_allsafepointerstruct.c',
  'b11_calleestructnp.c',
@@ -174,4 +179,6 @@ b_tests = ['b10_allsafepointerstruct.c',
  'b9_allsafestructp.c']
 
 for i in manual_tests: 
-    process_smart(i)
+    process_smart(i, False) 
+for i in need_diff: 
+    process_smart(i, True)
