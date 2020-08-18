@@ -1721,12 +1721,25 @@ namespace {
     //
     // If Kind is StaticBoundsCast, check whether a static cast between Ptr
     // types from SrcBounds to DestBounds is legal.
-    ProofResult ProveBoundsDeclValidity(const BoundsExpr *DeclaredBounds, 
-                                        const BoundsExpr *SrcBounds,
-                                        ProofFailure &Cause, 
-                                        EquivExprSets *EquivExprs,
-                                        ProofStmtKind Kind =
-                                          ProofStmtKind::BoundsDeclaration) {
+    ProofResult ProveBoundsDeclValidity(
+        const BoundsExpr *DeclaredBounds, const BoundsExpr *SrcBounds,
+        ProofFailure &Cause, EquivExprSets *EquivExprs,
+        ProofStmtKind Kind = ProofStmtKind::BoundsDeclaration) {
+      BaseRange DeclaredRange(S);
+      BaseRange SrcRange(S);
+      return ProveBoundsDeclValidityImpl(DeclaredBounds, SrcBounds, Cause,
+                                         EquivExprs, DeclaredRange, SrcRange,
+                                         Kind);
+    }
+
+    ProofResult ProveBoundsDeclValidityImpl(const BoundsExpr *DeclaredBounds,
+                                            const BoundsExpr *SrcBounds,
+                                            ProofFailure &Cause,
+                                            EquivExprSets *EquivExprs,
+                                            BaseRange &DeclaredRange,
+                                            BaseRange &SrcRange,
+                                            ProofStmtKind Kind =
+                                              ProofStmtKind::BoundsDeclaration) {
       assert(BoundsUtil::IsStandardForm(DeclaredBounds) &&
         "declared bounds not in standard form");
       assert(BoundsUtil::IsStandardForm(SrcBounds) &&
@@ -1748,9 +1761,6 @@ namespace {
       if (S.Context.EquivalentBounds(DeclaredBounds, SrcBounds, EquivExprs))
         return ProofResult::True;
 
-      BaseRange DeclaredRange(S);
-      BaseRange SrcRange(S);
-
       if (CreateBaseRange(DeclaredBounds, &DeclaredRange, EquivExprs) &&
           CreateBaseRange(SrcBounds, &SrcRange, EquivExprs)) {
 
@@ -1765,6 +1775,7 @@ namespace {
         llvm::outs() << "\nSource range:";
         SrcRange.Dump(llvm::outs());
 #endif
+
         ProofResult R = SrcRange.InRange(DeclaredRange, Cause, EquivExprs, Facts);
         if (R == ProofResult::True)
           return R;
@@ -1773,8 +1784,7 @@ namespace {
             Cause = CombineFailures(Cause, ProofFailure::SrcEmpty);
           if (SrcRange.IsInvalid())
             Cause = CombineFailures(Cause, ProofFailure::SrcInvalid);
-          if (DeclaredRange.IsConstantSizedRange() &&
-              SrcRange.IsConstantSizedRange()) {
+          if (DeclaredRange.IsConstantSizedRange() && SrcRange.IsConstantSizedRange()) {
             if (DeclaredRange.GetWidth() > SrcRange.GetWidth()) {
               Cause = CombineFailures(Cause, ProofFailure::Width);
               R = ProofResult::False;
@@ -1791,11 +1801,11 @@ namespace {
     }
 
     bool CheckFreeVariables(BaseRange &SrcRange, BaseRange &DeclRange,
-                                   ProofFailure &Cause,
-                                   EquivExprSets *EquivExprs,
-                                   EqualExprTy &BaseFreeVars,
-                                   EqualExprTy &LowerFreeVars,
-                                   EqualExprTy &UpperFreeVars) {
+                            ProofFailure &Cause,
+                            EquivExprSets *EquivExprs,
+                            EqualExprTy &BaseFreeVars,
+                            EqualExprTy &LowerFreeVars,
+                            EqualExprTy &UpperFreeVars) {
       if (TestFailure(Cause, ProofFailure::BasesUnequal)) 
         BaseFreeVars = GetFreeVariables(SrcRange.GetBase(), DeclRange.GetBase(),
                                         EquivExprs);
@@ -2075,8 +2085,8 @@ namespace {
         return;
 
       ProofFailure Cause;
-      ProofResult Result =
-          ProveBoundsDeclValidity(DeclaredBounds, SrcBounds, Cause, &EquivExprs);
+      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds, 
+                                                   Cause, &EquivExprs);
 
       if (Result != ProofResult::True) {
         Expr *Target = E->getSubExpr();
@@ -2109,9 +2119,8 @@ namespace {
                                   EquivExprSets EquivExprs) {
       SourceLocation ArgLoc = Arg->getBeginLoc();
       ProofFailure Cause;
-      ProofResult Result =
-          ProveBoundsDeclValidity(ExpectedArgBounds, ArgBounds, Cause,
-                                  &EquivExprs);
+      ProofResult Result = ProveBoundsDeclValidity(ExpectedArgBounds, 
+                                                   ArgBounds, Cause, &EquivExprs);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_argument_bounds_invalid :
@@ -2176,8 +2185,8 @@ namespace {
         */
       }
       ProofFailure Cause;
-      ProofResult Result =
-          ProveBoundsDeclValidity(DeclaredBounds, SrcBounds, Cause, &EquivExprs);
+      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds,
+                                                   SrcBounds, Cause, &EquivExprs);
 
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
@@ -2212,7 +2221,7 @@ namespace {
       ProofStmtKind Kind = IsStaticPtrCast ? ProofStmtKind::StaticBoundsCast :
                              ProofStmtKind::BoundsDeclaration;
       ProofResult Result =
-          ProveBoundsDeclValidity(TargetBounds, SrcBounds, Cause, nullptr, Kind);
+        ProveBoundsDeclValidity(TargetBounds, SrcBounds, Cause, nullptr, Kind);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_static_cast_bounds_invalid :
@@ -4117,9 +4126,8 @@ namespace {
       ProofFailure Cause;
       BaseRange DeclaredRange(S);
       BaseRange SrcRange(S);
-      ProofResult Result =
-          ProveBoundsDeclValidity(DeclaredBounds, ObservedBounds, Cause,
-                                  EquivExprs);
+      ProofResult Result = ProveBoundsDeclValidityImpl(
+          DeclaredBounds, ObservedBounds, Cause, EquivExprs, DeclaredRange, SrcRange);
       if (Result == ProofResult::True)
         return;
 
@@ -4143,24 +4151,26 @@ namespace {
       }
 
       EqualExprTy BaseFreeVars, LowerFreeVars, UpperFreeVars;
-      bool HasFreeVariable =
+      bool HasFreeVariables =
           CheckFreeVariables(SrcRange, DeclaredRange, Cause, EquivExprs,
                              BaseFreeVars, LowerFreeVars, UpperFreeVars);
 
       unsigned DiagId =
           (Result == ProofResult::False)
               ? diag::error_bounds_declaration_invalid
-              : (HasFreeVariable 
+              : (HasFreeVariables 
                   ? diag::error_bounds_declaration_unprovable
                   : (CSS != CheckedScopeSpecifier::CSS_Unchecked
                      ? diag::warn_checked_scope_bounds_declaration_invalid
                      : diag::warn_bounds_declaration_invalid));
 
       SourceLocation Loc = BlameAssignmentWithinStmt(St, V, State, DiagId);
-      if (Cause != ProofFailure::None) {
+      if (Result == ProofResult::False)
         ExplainProofFailure(Loc, Cause, ProofStmtKind::BoundsDeclaration);
+      
+      if (HasFreeVariables)
         DiagnoseFreeVariables(Loc, BaseFreeVars, LowerFreeVars, UpperFreeVars);
-      }
+
       S.Diag(V->getLocation(), diag::note_declared_bounds)
         << DeclaredBounds << DeclaredBounds->getSourceRange();
       S.Diag(Loc, diag::note_expanded_inferred_bounds)
