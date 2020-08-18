@@ -1721,11 +1721,12 @@ namespace {
     //
     // If Kind is StaticBoundsCast, check whether a static cast between Ptr
     // types from SrcBounds to DestBounds is legal.
-    ProofResult ProveBoundsDeclValidity(
-        const BoundsExpr *DeclaredBounds, const BoundsExpr *SrcBounds,
-        ProofFailure &Cause, EquivExprSets *EquivExprs,
-        BaseRange &DeclaredRange, BaseRange &SrcRange,
-        ProofStmtKind Kind = ProofStmtKind::BoundsDeclaration) {
+    ProofResult ProveBoundsDeclValidity(const BoundsExpr *DeclaredBounds, 
+                                        const BoundsExpr *SrcBounds,
+                                        ProofFailure &Cause, 
+                                        EquivExprSets *EquivExprs,
+                                        ProofStmtKind Kind =
+                                          ProofStmtKind::BoundsDeclaration) {
       assert(BoundsUtil::IsStandardForm(DeclaredBounds) &&
         "declared bounds not in standard form");
       assert(BoundsUtil::IsStandardForm(SrcBounds) &&
@@ -1746,6 +1747,9 @@ namespace {
 
       if (S.Context.EquivalentBounds(DeclaredBounds, SrcBounds, EquivExprs))
         return ProofResult::True;
+
+      BaseRange DeclaredRange(S);
+      BaseRange SrcRange(S);
 
       if (CreateBaseRange(DeclaredBounds, &DeclaredRange, EquivExprs) &&
           CreateBaseRange(SrcBounds, &SrcRange, EquivExprs)) {
@@ -1781,6 +1785,7 @@ namespace {
             }
           }
         }
+        return R;
       }
       return ProofResult::Maybe;
     }
@@ -2037,11 +2042,8 @@ namespace {
       }
 
       ProofFailure Cause;
-      BaseRange DeclaredRange(S);
-      BaseRange SrcRange(S);
-      ProofResult Result =
-          ProveBoundsDeclValidity(DeclaredBounds, SrcBounds, Cause, &EquivExprs,
-                                  DeclaredRange, SrcRange);
+      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds, 
+                                                   Cause, &EquivExprs);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -2073,11 +2075,8 @@ namespace {
         return;
 
       ProofFailure Cause;
-      BaseRange DeclaredRange(S);
-      BaseRange SrcRange(S);
       ProofResult Result =
-          ProveBoundsDeclValidity(DeclaredBounds, SrcBounds, Cause, &EquivExprs,
-                                  DeclaredRange, SrcRange);
+          ProveBoundsDeclValidity(DeclaredBounds, SrcBounds, Cause, &EquivExprs);
 
       if (Result != ProofResult::True) {
         Expr *Target = E->getSubExpr();
@@ -2110,11 +2109,9 @@ namespace {
                                   EquivExprSets EquivExprs) {
       SourceLocation ArgLoc = Arg->getBeginLoc();
       ProofFailure Cause;
-      BaseRange DeclaredRange(S);
-      BaseRange SrcRange(S);
       ProofResult Result =
           ProveBoundsDeclValidity(ExpectedArgBounds, ArgBounds, Cause,
-                                  &EquivExprs, DeclaredRange, SrcRange);
+                                  &EquivExprs);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_argument_bounds_invalid :
@@ -2179,11 +2176,8 @@ namespace {
         */
       }
       ProofFailure Cause;
-      BaseRange DeclaredRange(S);
-      BaseRange SrcRange(S);
       ProofResult Result =
-          ProveBoundsDeclValidity(DeclaredBounds, SrcBounds, Cause, &EquivExprs,
-                                  DeclaredRange, SrcRange);
+          ProveBoundsDeclValidity(DeclaredBounds, SrcBounds, Cause, &EquivExprs);
 
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
@@ -2213,15 +2207,12 @@ namespace {
                                         BoundsExpr *SrcBounds,
                                         CheckedScopeSpecifier CSS) {
       ProofFailure Cause;
-      BaseRange DeclaredRange(S);
-      BaseRange SrcRange(S);
       bool IsStaticPtrCast = (Src->getType()->isCheckedPointerPtrType() &&
                               Cast->getType()->isCheckedPointerPtrType());
       ProofStmtKind Kind = IsStaticPtrCast ? ProofStmtKind::StaticBoundsCast :
                              ProofStmtKind::BoundsDeclaration;
       ProofResult Result =
-          ProveBoundsDeclValidity(TargetBounds, SrcBounds, Cause, nullptr,
-                                  DeclaredRange, SrcRange, Kind);
+          ProveBoundsDeclValidity(TargetBounds, SrcBounds, Cause, nullptr, Kind);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_static_cast_bounds_invalid :
@@ -4128,7 +4119,7 @@ namespace {
       BaseRange SrcRange(S);
       ProofResult Result =
           ProveBoundsDeclValidity(DeclaredBounds, ObservedBounds, Cause,
-                                  EquivExprs, DeclaredRange, SrcRange);
+                                  EquivExprs);
       if (Result == ProofResult::True)
         return;
 
