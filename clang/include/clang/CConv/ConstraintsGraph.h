@@ -19,116 +19,169 @@
 #include <queue>
 #include "clang/CConv/Constraints.h"
 #include "llvm/ADT/DirectedGraph.h"
+template<class DataType> struct BaseEdge;
 
-template<class EdgeType>
-class CGNode : public llvm::DGNode<CGNode<EdgeType>, EdgeType> {
+template<typename DataType>
+class BaseNode : public llvm::DGNode<BaseNode<DataType>, BaseEdge<DataType>> {
 public:
-  CGNode() = delete;
-  CGNode(Atom *A, EdgeType &E) : llvm::DGNode<CGNode<EdgeType>, EdgeType>(E),
-                                 A(A) {}
-  CGNode(Atom *A) : llvm::DGNode<CGNode<EdgeType>, EdgeType>(), A(A) {}
-  CGNode(const CGNode &N) : llvm::DGNode<CGNode<EdgeType>, EdgeType>(N),
-                            A(N.A) {}
-  CGNode(const CGNode &&N)
-      : llvm::DGNode<CGNode<EdgeType>, EdgeType>(std::move(N)), A(N.A) {}
+  typedef BaseEdge<DataType> EdgeType;
+  typedef BaseNode<DataType> NodeType;
+  typedef llvm::DGNode<NodeType, EdgeType> SuperType;
 
-  ~CGNode() {}
+  BaseNode() = delete;
+  BaseNode(DataType D, EdgeType &E) : SuperType(E), Data(D) {}
+  BaseNode(DataType D) : SuperType(), Data(D) {}
+  BaseNode(const BaseNode &N) : SuperType(N), Data(N.Data) {}
+  BaseNode(const BaseNode &&N) : SuperType(std::move(N)), Data(N.Data) {}
 
-  CGNode &operator=(const CGNode &N) {
-    CGNode::operator=(N);
-    A = N.A;
+  ~BaseNode() {}
+
+  BaseNode &operator=(const BaseNode &N) {
+    SuperType::operator=(N);
+    Data = N.Data;
     return *this;
   }
 
-  CGNode &operator=(CGNode &&N) {
-    CGNode::operator=(std::move(N));
-    A = N.A;
+  BaseNode &operator=(BaseNode &&N) {
+    SuperType::operator=(std::move(N));
+    Data = N.Data;
     return *this;
   }
 
-  Atom *getAtom() const { return A; }
+  DataType getData() const { return Data; }
 
-  bool isEqualTo(const CGNode<EdgeType> &N) const { return this->A == N.A; }
+  bool isEqualTo(const BaseNode &N) const { return this->Data == N.Data; }
 
 private:
-  Atom *A;
-
+  DataType Data;
 };
 
-struct ConstraintEdge : llvm::DGEdge<CGNode<ConstraintEdge>, ConstraintEdge> {
-  explicit ConstraintEdge(CGNode<ConstraintEdge> &Node) : DGEdge(Node) {}
-  explicit ConstraintEdge(const ConstraintEdge &E) : DGEdge(E) {}
+template<class DataType>
+struct BaseEdge : public llvm::DGEdge<BaseNode<DataType>, BaseEdge<DataType>> {
+  typedef llvm::DGEdge<BaseNode<DataType>, BaseEdge<DataType>> SuperType;
 
-  bool isEqualTo(const ConstraintEdge &E) const {
+  explicit BaseEdge(BaseNode<DataType> &Node) : SuperType(Node) {}
+  explicit BaseEdge(const BaseEdge &E) : SuperType(E) {}
+
+  bool isEqualTo(const BaseEdge &E) const {
     return this->getTargetNode() == E.getTargetNode();
   }
 };
 
-class ConstraintsGraph : public llvm::DirectedGraph<CGNode<ConstraintEdge>,
-                                                    ConstraintEdge> {
+template<typename Data>
+class BaseGraph : public llvm::DirectedGraph<BaseNode<Data>, BaseEdge<Data>> {
 public:
-  ~ConstraintsGraph();
+  virtual ~BaseGraph() {
+    for (auto *N : this->Nodes) {
+      for (auto *E : N->getEdges())
+        delete E;
+      N->getEdges().clear();
+      delete N;
+      N = nullptr;
+    }
+    this->Nodes.clear();
+  }
 
-  void addConstraint(Geq *C, const Constraints &CS);
+  void forEachEdge(llvm::function_ref<void(Data,Data)> fn) const {
+    for (auto *N : this->Nodes)
+      for (auto *E : N->getEdges())
+        fn(N->getData(), E->getTargetNode().getData());
+  }
 
-  std::set<ConstAtom*> &getAllConstAtoms();
-  void forEachEdge(llvm::function_ref<void(Atom*,Atom*)>) const;
-  void removeEdge(Atom *Src, Atom *Dst);
+  void removeEdge(Data Src, Data Dst) {
+    auto *NSrc = this->findNode(BaseNode<Data>(Src));
+    auto *NDst = this->findNode(BaseNode<Data>(Dst));
+    assert(NSrc != this->end() && NDst != this->end());
+    llvm::SmallVector<BaseEdge<Data>*, 10> Edges;
+    (*NDst)->findEdgesTo(**NSrc, Edges);
+    for (BaseEdge<Data> *E : Edges) {
+      (*NDst)->removeEdge(*E);
+      delete E;
+    }
+  }
+
+  void addEdge(Data L, Data R, bool BD) {
+    BaseNode<Data> *BL = this->addVertex(L);
+    BaseNode<Data> *BR = this->addVertex(R);
+
+    BaseEdge<Data> *BRL = new BaseEdge<Data>(*BL);
+    this->connect(*BR, *BL, *BRL);
+    if (BD) {
+      BaseEdge<Data> *BLR = new BaseEdge<Data>(*BR);
+      this->connect(*BL, *BR, *BLR);
+    }
+  }
 
   // Get all successors of a given Atom which are of particular type.
-  template <typename AtomType>
-  bool getNeighbors(Atom *A, std::set<AtomType*> &Atoms, bool Succs) {
-    auto *N = findNode(CGNode<ConstraintEdge>(A));
-    if (N == end())
+  bool getNeighbors(Data D, std::set<Data> &DataSet, bool Succs) {
+    auto *N = this->findNode(BaseNode<Data>(D));
+    if (N == this->end())
       return false;
-    Atoms.clear();
+    DataSet.clear();
     if (Succs) {
       const auto ES = (*N)->getEdges();
       for (auto *E : ES) {
-        Atom *NAtom = E->getTargetNode().getAtom();
-        if (auto *AType = clang::dyn_cast<AtomType>(NAtom))
-          Atoms.insert(AType);
+        Data NodeData = E->getTargetNode().getData();
+        DataSet.insert(NodeData);
       }
     } else {
-      for (auto *Neighbor : Nodes) {
+      for (auto *Neighbor : this->Nodes) {
         if (Neighbor == *N)
           continue;
         if (Neighbor->hasEdgeTo(**N)) {
-          Atom *NAtom = Neighbor->getAtom();
-          if (auto *AType = clang::dyn_cast<AtomType>(NAtom))
-            Atoms.insert(AType);
+          Data NodeData = Neighbor->getData();
+          DataSet.insert(NodeData);
         }
       }
     }
-    return !Atoms.empty();
+    return !DataSet.empty();
   }
 
-  template <typename AtomType>
-  void breadthFirstSearch(Atom *start, llvm::function_ref<void(AtomType*)> Fn) {
-    std::queue<CGNode<ConstraintEdge>*> SearchQueue;
-    std::set<CGNode<ConstraintEdge>*> VisitedSet;
-    auto *N = findNode(CGNode<ConstraintEdge>(start));
-    if (N == end())
+  void breadthFirstSearch(Data Start, llvm::function_ref<void(Data)> Fn) {
+    std::queue<BaseNode<Data>*> SearchQueue;
+    std::set<BaseNode<Data>*> VisitedSet;
+    auto *N = this->findNode(BaseNode<Data>(Start));
+    if (N == this->end())
       return;
     SearchQueue.push(*N);
     while (!SearchQueue.empty()) {
-      CGNode<ConstraintEdge> *Node = SearchQueue.front();
+      BaseNode<Data> *Node = SearchQueue.front();
       SearchQueue.pop();
       if (VisitedSet.find(Node) != VisitedSet.end())
         continue;
       VisitedSet.insert(Node);
-      Atom *A = Node->getAtom();
-      if (auto *C = llvm::dyn_cast<AtomType>(A))
-        Fn(C);
+      Data D = Node->getData();
+      Fn(D);
       for (auto *E : Node->getEdges())
         SearchQueue.push(&E->getTargetNode());
     }
   }
 
+protected:
+  virtual BaseNode<Data> *addVertex(Data D) {
+    auto *N = new BaseNode<Data>(D);
+    auto *OldN = this->findNode(*N);
+    if (OldN != this->end()) {
+      delete N;
+      return *OldN;
+    }
+    this->addNode(*N);
+    return N;
+  }
+};
+
+typedef BaseNode<Atom *> CGNode;
+typedef BaseEdge<Atom *> CGEdge;
+
+class ConstraintsGraph : public BaseGraph<Atom *> {
+public:
+  void addConstraint(Geq *C, const Constraints &CS);
+  std::set<ConstAtom*> &getAllConstAtoms();
+
+protected:
+  CGNode *addVertex(Atom *A) override;
 private:
   std::set<ConstAtom*> AllConstAtoms;
-
-  CGNode<ConstraintEdge> *addVertex(Atom *A);
 };
 
 // Used during debugging to create a single graph that contains edges and nodes

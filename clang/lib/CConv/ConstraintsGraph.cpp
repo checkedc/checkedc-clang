@@ -13,67 +13,27 @@
 #include <iostream>
 #include <llvm/Support/raw_ostream.h>
 
-CGNode<ConstraintEdge> *ConstraintsGraph::addVertex(Atom *A) {
+CGNode *ConstraintsGraph::addVertex(Atom *A) {
   // Save all the const atoms.
-  if (ConstAtom *CA = clang::dyn_cast<ConstAtom>(A))
+  if (auto *CA = clang::dyn_cast<ConstAtom>(A))
     AllConstAtoms.insert(CA);
-  auto *N = new CGNode<ConstraintEdge>(A);
-  auto *OldN = findNode(*N);
-  if (OldN != end()) {
-    delete N;
-    return *OldN;
-  }
-  addNode(*N);
-  return N;
+  return BaseGraph<Atom *>::addVertex(A);
 }
 
 std::set<ConstAtom*> &ConstraintsGraph::getAllConstAtoms() {
   return AllConstAtoms;
 }
 
-void
-ConstraintsGraph::forEachEdge(llvm::function_ref<void(Atom*,Atom*)> fn) const {
-  for (auto *N : Nodes)
-    for (auto *E : N->getEdges())
-      fn(N->getAtom(), E->getTargetNode().getAtom());
-}
-
 void ConstraintsGraph::addConstraint(Geq *C, const Constraints &CS) {
   Atom *A1 = C->getLHS();
-  if (VarAtom *VA1 = clang::dyn_cast<VarAtom>(A1)) {
+  if (auto *VA1 = clang::dyn_cast<VarAtom>(A1))
     assert(CS.getVar(VA1->getLoc()) == VA1);
-  }
+
   Atom *A2 = C->getRHS();
-  if (VarAtom *VA2 = clang::dyn_cast<VarAtom>(A2)) {
+  if (auto *VA2 = clang::dyn_cast<VarAtom>(A2))
     assert(CS.getVar(VA2->getLoc()) == VA2);
-  }
-  CGNode<ConstraintEdge> *V1 = addVertex(A1);
-  CGNode<ConstraintEdge> *V2 = addVertex(A2);
-  ConstraintEdge *E = new ConstraintEdge(*V1);
-  connect(*V2, *V1, *E);
-}
 
-void ConstraintsGraph::removeEdge(Atom *Src, Atom *Dst) {
-  auto *NSrc = findNode(CGNode<ConstraintEdge>(Src));
-  auto *NDst = findNode(CGNode<ConstraintEdge>(Dst));
-  assert(NSrc != end() && NDst != end());
-  EdgeListTy Edges;
-  (*NDst)->findEdgesTo(**NSrc, Edges);
-  for (ConstraintEdge *E : Edges) {
-    (*NDst)->removeEdge(*E);
-    delete E;
-  }
-}
-
-ConstraintsGraph::~ConstraintsGraph() {
-  for (auto *N : Nodes) {
-    for (auto *E : N->getEdges())
-      delete E;
-    N->getEdges().clear();
-    delete N;
-    N = nullptr;
-  }
-  Nodes.clear();
+  addEdge(A1, A2, false);
 }
 
 //void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph &Graph,

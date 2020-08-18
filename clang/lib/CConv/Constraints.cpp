@@ -216,21 +216,23 @@ static bool do_solve(ConstraintsGraph &CG,
       ConstAtom *CurrSol = env.getAssignment(Curr);
 
       // get its neighbors.
-      std::set<VarAtom *> Neighbors;
-      CG.getNeighbors<VarAtom>(Curr, Neighbors, doLeastSolution);
+      std::set<Atom *> Neighbors;
+      CG.getNeighbors(Curr, Neighbors, doLeastSolution);
       // update each successor's solution.
-      for (auto *Neighbor : Neighbors) {
+      for (auto *NeighborA : Neighbors) {
         bool Changed = false;
-        ConstAtom *NghSol = env.getAssignment(Neighbor);
-        // update solution if doing so would change it
-        // checked? --- if sol(Neighbor) <> (sol(Neighbor) JOIN Cur)
-        //   else   --- if sol(Neighbor) <> (sol(Neighbor) MEET Cur)
-        if ((doLeastSolution && *NghSol < *CurrSol) ||
-            (!doLeastSolution && *CurrSol < *NghSol)) {
-          // ---- set sol(k) := (sol(k) JOIN/MEET Q)
-          Changed = env.assign(Neighbor, CurrSol);
-          assert (Changed);
-          WorkList.push_back(Neighbor);
+        if (VarAtom *Neighbor = dyn_cast<VarAtom>(NeighborA)) {
+          ConstAtom *NghSol = env.getAssignment(Neighbor);
+          // update solution if doing so would change it
+          // checked? --- if sol(Neighbor) <> (sol(Neighbor) JOIN Cur)
+          //   else   --- if sol(Neighbor) <> (sol(Neighbor) MEET Cur)
+          if ((doLeastSolution && *NghSol < *CurrSol) ||
+              (!doLeastSolution && *CurrSol < *NghSol)) {
+            // ---- set sol(k) := (sol(k) JOIN/MEET Q)
+            Changed = env.assign(Neighbor, CurrSol);
+            assert (Changed);
+            WorkList.push_back(Neighbor);
+          }
         } // ignore ConstAtoms for now; will confirm solution below
       }
     }
@@ -260,11 +262,13 @@ static bool do_solve(ConstraintsGraph &CG,
   } while (!FiredImplies.empty());
 
   // Check Upper/lower bounds hold; collect failures in conflicts set.
-  std::set<VarAtom *> Neighbors;
+  std::set<Atom *> Neighbors;
   bool ok = true;
   for (ConstAtom *Cbound : CG.getAllConstAtoms()) {
-    if (CG.getNeighbors<VarAtom>(Cbound, Neighbors, !doLeastSolution)) {
-      for (Atom *VA : Neighbors) {
+    if (CG.getNeighbors(Cbound, Neighbors, !doLeastSolution)) {
+      for (Atom *A : Neighbors) {
+        VarAtom *VA = dyn_cast<VarAtom>(A);
+        assert(VA != nullptr && "bogus vertex");
         ConstAtom *Csol = env.getAssignment(VA);
         if ((doLeastSolution && *Cbound < *Csol) ||
             (!doLeastSolution && *Csol < *Cbound)) {
@@ -350,10 +354,11 @@ static std::set<VarAtom *> findBounded(ConstraintsGraph &CG,
     auto *Curr = *(Open.begin());
     Open.erase(Open.begin());
 
-    std::set<VarAtom *> Neighbors;
-    if (CG.getNeighbors<VarAtom>(Curr, Neighbors, Succs)) {
-      for (VarAtom *VA : Neighbors) {
-        if (Bounded.find(VA) == Bounded.end()) {
+    std::set<Atom *> Neighbors;
+    if (CG.getNeighbors(Curr, Neighbors, Succs)) {
+      for (Atom *A : Neighbors) {
+        VarAtom *VA = dyn_cast<VarAtom>(A);
+        if (VA && Bounded.find(VA) == Bounded.end()) {
           Open.insert(VA);
           Bounded.insert(VA);
         }

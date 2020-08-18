@@ -168,8 +168,7 @@ public:
 
 private:
   friend class AvarBoundsInference;
-  friend class AVarGraph;
-    // Variable that is used to generate new bound keys.
+  // Variable that is used to generate new bound keys.
   BoundsKey BCount;
   // Map of VarKeys and corresponding program variables.
   std::map<BoundsKey, ProgramVar *> PVarInfo;

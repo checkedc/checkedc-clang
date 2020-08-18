@@ -579,7 +579,7 @@ bool AvarBoundsInference::inferBounds(BoundsKey K, bool FromPB) {
       // Infer from the flow-graph.
       std::set<BoundsKey> TmpBkeys;
       // Try to predict bounds from successors.
-      BI->ProgVarGraph.getSuccessors(K, TmpBkeys);
+      BI->ProgVarGraph.getNeighbors(K, TmpBkeys, true);
       if (!predictBounds(K, TmpBkeys, &KB)) {
         KB = nullptr;
       }
@@ -618,7 +618,7 @@ bool AVarBoundsInfo::performWorkListInference(std::set<BoundsKey> &ArrNeededBoun
         RetVal = true;
         Changed = true;
         // Get all the successors of the ARR whose bounds we just found.
-        ProgVarGraph.getSuccessors(CurrArrKey, NextIterArrs);
+        ProgVarGraph.getNeighbors(CurrArrKey, NextIterArrs, true);
       }
     }
     if (Changed) {

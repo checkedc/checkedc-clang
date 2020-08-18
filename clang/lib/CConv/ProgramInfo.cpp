@@ -830,18 +830,23 @@ ProgramInfo::computeInterimConstraintState(std::set<std::string> &FilePaths) {
   CVars &WildPtrs = CState.AllWildPtrs;
   CVars &InSrcW = CState.InSrcWildPtrs;
   WildPtrs.clear();
-  std::set<VarAtom *> DirectWildVarAtoms;
+  std::set<Atom *> DirectWildVarAtoms;
   std::set<Atom *> IndirectWildAtoms;
   auto &ChkCG = CS.getChkCG();
-  ChkCG.getNeighbors<VarAtom>(CS.getWild(), DirectWildVarAtoms, true);
+  ChkCG.getNeighbors(CS.getWild(), DirectWildVarAtoms, true);
 
   CVars TmpCGrp;
-  for (auto *VA : DirectWildVarAtoms) {
-    TmpCGrp.clear();
+  for (auto *A : DirectWildVarAtoms) {
+    auto *VA = dyn_cast<VarAtom>(A);
+    if (VA == nullptr)
+      continue;
 
-    ChkCG.breadthFirstSearch<VarAtom>(VA,
-      [VA, &DirectWildVarAtoms, &RCMap, &TmpCGrp](VarAtom *SearchVA) {
-        if (DirectWildVarAtoms.find(SearchVA) == DirectWildVarAtoms.end()) {
+    TmpCGrp.clear();
+    ChkCG.breadthFirstSearch(VA,
+      [VA, &DirectWildVarAtoms, &RCMap, &TmpCGrp](Atom *SearchAtom) {
+        auto *SearchVA = dyn_cast<VarAtom>(SearchAtom);
+        if (SearchVA != nullptr &&
+              DirectWildVarAtoms.find(SearchVA) == DirectWildVarAtoms.end()) {
           RCMap[SearchVA->getLoc()].insert(VA->getLoc());
           TmpCGrp.insert(SearchVA->getLoc());
         }
