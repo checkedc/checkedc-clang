@@ -387,19 +387,6 @@ option(LLVM_ENABLE_LLD "Use lld as C and C++ linker." OFF)
 option(LLVM_ENABLE_PEDANTIC "Compile with pedantic enabled." ON)
 option(LLVM_ENABLE_WERROR "Fail and stop if a warning is triggered." OFF)
 
-# Check for existence of boost library
-set(Boost_USE_STATIC_LIBS OFF)
-set(Boost_USE_MULTITHREADED ON)
-set(Boost_USE_STATIC_RUNTIME OFF)
-set(Boost_NO_BOOST_CMAKE ON)
-find_package(Boost 1.50 REQUIRED COMPONENTS graph)
-if(Boost_FOUND)
-  message(STATUS "Boost version: ${Boost_VERSION}")
-  set(LLVM_BOOST_FOUND "${Boost_FOUND}")
-else()
-  message(STATUS "Boost Libraries not found.")
-endif()
-
 option(LLVM_ENABLE_DUMP "Enable dump functions even when assertions are disabled" OFF)
 
 if( NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG" )
