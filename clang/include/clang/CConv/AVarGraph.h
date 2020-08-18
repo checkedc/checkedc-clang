@@ -16,6 +16,6 @@
 #include "ConstraintsGraph.h"
 
 // Graph that keeps tracks of direct assignments between various variables.
-typedef BaseGraph<BoundsKey> AVarGraph;
+typedef DataGraph<BoundsKey> AVarGraph;
 
 #endif // _AVARGRAPH_H
