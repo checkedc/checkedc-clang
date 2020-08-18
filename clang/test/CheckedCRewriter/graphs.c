@@ -51,7 +51,7 @@ struct Graph
 
 };
 //CHECK_ALL: _Array_ptr<int> visited : count(numVertices);
-//CHECK_ALL: _Array_ptr<_Ptr<struct node>> adjLists : count(numVertices); // we need int** to store a two dimensional array. Similary, we need struct node** to store an array of Linked lists 
+//CHECK_ALL: _Array_ptr<_Ptr<struct node>> adjLists : count(numVertices); /* we need int** to store a two dimensional array. Similary, we need struct node** to store an array of Linked lists */
 
 /*Structure to create a stack, necessary for topological sorting*/
 

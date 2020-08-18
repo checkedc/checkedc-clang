@@ -86,7 +86,7 @@ def process_smart(filename):
     return
 
 
-manual_tests = ['3dallocation.c ',
+manual_tests = ['3d-allocation.c',
  'alloc_type_param.c',
  'amper.c',
  'anonstruct.c',
@@ -173,5 +173,5 @@ b_tests = ['b10_allsafepointerstruct.c',
  'b8_allsafestructnp.c',
  'b9_allsafestructp.c']
 
-for i in b_tests: 
+for i in manual_tests: 
     process_smart(i)
