@@ -21,4 +21,5 @@ void bar(void) {
 	//CHECK: char *c = (char *)b;
   int *d = (int *)5;
 	//CHECK: int *d = (int *)5;
+  /*int *e = (int *)(a+5);*/
 }
