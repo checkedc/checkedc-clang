@@ -449,7 +449,7 @@ bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
         // bounds variable.
         ScopeVisitor TV(Kvar->getScope(), PotentialB, BI->PVarInfo,
                         BI->PointerBoundsKey);
-        VarG.breadthFirstSearch(SBKey, [&TV](BoundsKey BK) {
+        VarG.visitBreadthFirst(SBKey, [&TV](BoundsKey BK) {
           TV.vistBoundsKey(BK);
         });
       }
@@ -537,7 +537,7 @@ bool AvarBoundsInference::inferBounds(BoundsKey K, bool FromPB) {
             // bounds variable.
             ScopeVisitor TV(Kvar->getScope(), PotentialB, BI->PVarInfo,
                             BI->PointerBoundsKey);
-            VarG.breadthFirstSearch(TK, [&TV](BoundsKey BK) {
+            VarG.visitBreadthFirst(TK, [&TV](BoundsKey BK) {
               TV.vistBoundsKey(BK);
             });
           } else {

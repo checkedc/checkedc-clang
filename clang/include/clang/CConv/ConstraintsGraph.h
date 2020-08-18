@@ -15,10 +15,9 @@
 #include <queue>
 #include "clang/CConv/Constraints.h"
 #include "llvm/ADT/DirectedGraph.h"
+#include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/BreadthFirstIterator.h"
 
-#include <queue>
-#include "clang/CConv/Constraints.h"
-#include "llvm/ADT/DirectedGraph.h"
 template<class DataType> struct BaseEdge;
 
 template<typename DataType>
@@ -36,24 +35,33 @@ public:
 
   ~BaseNode() {}
 
-  BaseNode &operator=(const BaseNode &N) {
-    SuperType::operator=(N);
-    Data = N.Data;
-    return *this;
-  }
-
-  BaseNode &operator=(BaseNode &&N) {
-    SuperType::operator=(std::move(N));
-    Data = N.Data;
-    return *this;
-  }
-
   DataType getData() const { return Data; }
 
   bool isEqualTo(const BaseNode &N) const { return this->Data == N.Data; }
 
 private:
   DataType Data;
+};
+
+template <typename Data> struct llvm::GraphTraits<BaseNode<Data> *> {
+  using NodeRef = BaseNode<Data> *;
+
+  static BaseNode<Data> *GetTargetNode(BaseEdge<Data> *P) {
+    return &P->getTargetNode();
+  }
+
+  // Provide a mapped iterator so that the GraphTrait-based implementations can
+  // find the target nodes without having to explicitly go through the edges.
+  using ChildIteratorType =
+  mapped_iterator<typename BaseNode<Data>::iterator, decltype(&GetTargetNode)>;
+
+  static NodeRef getEntryNode(NodeRef N) { return N; }
+  static ChildIteratorType child_begin(NodeRef N) {
+    return ChildIteratorType(N->begin(), &GetTargetNode);
+  }
+  static ChildIteratorType child_end(NodeRef N) {
+    return ChildIteratorType(N->end(), &GetTargetNode);
+  }
 };
 
 template<class DataType>
@@ -137,24 +145,12 @@ public:
     return !DataSet.empty();
   }
 
-  void breadthFirstSearch(Data Start, llvm::function_ref<void(Data)> Fn) {
-    std::queue<BaseNode<Data>*> SearchQueue;
-    std::set<BaseNode<Data>*> VisitedSet;
+  void visitBreadthFirst(Data Start, llvm::function_ref<void(Data)> Fn) {
     auto *N = this->findNode(BaseNode<Data>(Start));
     if (N == this->end())
       return;
-    SearchQueue.push(*N);
-    while (!SearchQueue.empty()) {
-      BaseNode<Data> *Node = SearchQueue.front();
-      SearchQueue.pop();
-      if (VisitedSet.find(Node) != VisitedSet.end())
-        continue;
-      VisitedSet.insert(Node);
-      Data D = Node->getData();
-      Fn(D);
-      for (auto *E : Node->getEdges())
-        SearchQueue.push(&E->getTargetNode());
-    }
+    for (auto TNode : llvm::breadth_first(*N))
+      Fn(TNode->getData());
   }
 
 protected:
@@ -183,6 +179,7 @@ protected:
 private:
   std::set<ConstAtom*> AllConstAtoms;
 };
+
 
 // Used during debugging to create a single graph that contains edges and nodes
 // from all constraint graphs. This single graph can then be printed to a file

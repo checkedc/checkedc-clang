@@ -842,7 +842,7 @@ ProgramInfo::computeInterimConstraintState(std::set<std::string> &FilePaths) {
       continue;
 
     TmpCGrp.clear();
-    ChkCG.breadthFirstSearch(VA,
+    ChkCG.visitBreadthFirst(VA,
       [VA, &DirectWildVarAtoms, &RCMap, &TmpCGrp](Atom *SearchAtom) {
         auto *SearchVA = dyn_cast<VarAtom>(SearchAtom);
         if (SearchVA != nullptr &&
