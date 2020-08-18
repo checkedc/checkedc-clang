@@ -1110,9 +1110,9 @@ namespace {
       Width = 0x40,         // The source bounds are narrower than the destination bounds.
       PartialOverlap = 0x80, // There was only partial overlap of the destination bounds with
                             // the source bounds.
-      BasesUnequal = 0x100,
-      LowerOffsetsUnequal = 0x200,
-      UpperOffsetsUnequal = 0x400,
+      BasesUnequal = 0x100, // Source and destination have unequal bases.
+      LowerOffsetsUnequal = 0x200, // Source and destination have unequal lower bounds.
+      UpperOffsetsUnequal = 0x400, // Source and destination have unequal upper bounds.
     };
 
     enum class DiagnosticNameForTarget {
@@ -1996,7 +1996,8 @@ namespace {
           if (EqualValue(S.Context, SrcV, *It, EquivExprs))
             break;
         }
- 
+        
+        // We searched all declared variables and found no match for SrcV.
         if (It == DeclVariables.end())
           FreeVariables.push_back(SrcV);
       }
@@ -4131,7 +4132,8 @@ namespace {
       BaseRange DeclaredRange(S);
       BaseRange SrcRange(S);
       ProofResult Result = ProveBoundsDeclValidityImpl(
-          DeclaredBounds, ObservedBounds, Cause, EquivExprs, DeclaredRange, SrcRange);
+          DeclaredBounds, ObservedBounds, Cause, EquivExprs,
+          DeclaredRange, SrcRange);
       if (Result == ProofResult::True)
         return;
 
