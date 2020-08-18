@@ -394,11 +394,9 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
     }
   }
 
-  if (DebugSolver) {
-//    GraphVizOutputGraph::dumpConstraintGraphs(
-//        "initial_constraints_graph.dot",
-//                                              SolChkCG, SolPtrTypCG);
-  }
+  if (DebugSolver)
+    GraphVizOutputGraph::dumpConstraintGraphs("initial_constraints_graph.dot",
+                                              SolChkCG, SolPtrTypCG);
 
   // Solve Checked/unchecked constraints first.
   env.doCheckedSolve(true);
@@ -498,10 +496,9 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
     env.mergePtrTypes();
   }
 
-  if (DebugSolver) {
-//    GraphVizOutputGraph::dumpConstraintGraphs(
-//        "implication_constraints_graph.dot", SolChkCG, SolPtrTypCG);
-  }
+  if (DebugSolver)
+    GraphVizOutputGraph::dumpConstraintGraphs(
+        "implication_constraints_graph.dot", SolChkCG, SolPtrTypCG);
 
   return res;
 }

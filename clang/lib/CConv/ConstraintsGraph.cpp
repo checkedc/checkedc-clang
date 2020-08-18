@@ -35,59 +35,75 @@ void ConstraintsGraph::addConstraint(Geq *C, const Constraints &CS) {
 
   addEdge(A2, A1);
 }
+
+std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getNodeLabel
+    (const DataNode<Atom*,GraphvizEdge> *Node, const GraphVizOutputGraph &CG) {
+  return Node->getData()->getStr();
 }
 
-//void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph &Graph,
-//                                               EdgeType EdgeType) {
-//  Graph.forEachEdge( [this, EdgeType] (Atom* S, Atom* T) {
-//    auto SVertex = addVertex(S);
-//    auto TVertex = addVertex(T);
-//
-//    // If an edge of the same type exists oriented the other direction, update
-//    // the properties of that edge to indicate that it should be drawn as
-//    // bidirectional.
-//    auto OldEdge = edge(TVertex, SVertex, CG);
-//    if (OldEdge.second) {
-//      EdgeProperties *OldProps =  CG[OldEdge.first];
-//      if(OldProps->Type == EdgeType) {
-//        OldProps->IsBidirectional = true;
-//        return;
-//      }
-//    }
-//
-//    // Otherwise, create a new edge that is not bidirectional.
-//    EdgeProperties *EProps = new EdgeProperties(EdgeType, false);
-//    add_edge(SVertex, TVertex, EProps, CG);
-//  });
-//}
-//
-//void GraphVizOutputGraph::dumpCGDot(const std::string &GraphDotFile) {
-//   std::ofstream DotFile;
-//   DotFile.open(GraphDotFile);
-//   write_graphviz(DotFile, CG,
-//     [&] (std::ostream &out, unsigned v) {
-//       out << "[label=\"" << CG[v]->getStr() << "\"]";
-//     },
-//     [&] (std::ostream &out,
-//              boost::detail::edge_desc_impl<boost::bidirectional_tag,
-//                                            long unsigned int> e)  {
-//       EdgeProperties *EProps = CG[e];
-//       std::string Color = EdgeTypeColors[EProps->Type];
-//       std::string Dir = EdgeDirections[EProps->IsBidirectional];
-//       out << "[color=\"" << Color << "\" " << "dir=\"" << Dir <<"\"]";
-//     });
-//   DotFile.close();
-//}
-//
-//void GraphVizOutputGraph::dumpConstraintGraphs(const std::string &GraphDotFile,
-//                                               const ConstraintsGraph &Chk,
-//                                               const ConstraintsGraph &Pty) {
-//  GraphVizOutputGraph OutGraph;
-//  OutGraph.mergeConstraintGraph(Chk, Checked);
-//  OutGraph.mergeConstraintGraph(Pty,Ptype);
-//  OutGraph.dumpCGDot(GraphDotFile);
-//}
-//
-//EdgeProperties::EdgeProperties(EdgeType Type, bool IsBidirectional)
-//    : Type(Type), IsBidirectional(IsBidirectional) {}
-//
+std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getEdgeAttributes
+    (const DataNode<Atom *, GraphvizEdge> *Node, ChildIteratorType T,
+     const GraphVizOutputGraph &CG) {
+  static const std::string EdgeTypeColors[2] = {"red", "blue" };
+  static const std::string EdgeDirections[2] = { "forward", "both" };
+
+  llvm::SmallVector<GraphvizEdge*, 2> Edges;
+  Node->findEdgesTo(**T, Edges);
+  assert(Edges.size() == 1 || Edges.size() == 2);
+
+  // I've used a bit of a hack here because I can't find a clean way to
+  // differentiate between multiple edges between the same pair of nodes.
+  GraphvizEdge *GE = nullptr;
+  auto EPair = std::make_pair(Node->getData(), (*T)->getData());
+  for (auto *E : Edges) {
+    if (E->Properties.Kind == EK_Checked
+        && CG.DoneChecked.find(EPair) == CG.DoneChecked.end()) {
+      GE = E;
+    } else if (E->Properties.Kind == EK_Ptype
+               && CG.DonePtyp.find(EPair) == CG.DonePtyp.end()) {
+      GE = E;
+    }
+  }
+  assert(GE != nullptr);
+  if (GE->Properties.Kind == EK_Checked)
+    CG.DoneChecked.insert(EPair);
+  else if (GE->Properties.Kind == EK_Ptype)
+    CG.DonePtyp.insert(EPair);
+
+  return "color=" + EdgeTypeColors[GE->Properties.Kind] + ","
+      + "dir=" + EdgeDirections[GE->Properties.IsBidirectional];
+}
+
+void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph &Graph,
+                                               EdgeKind EK) {
+  for (auto *N : Graph.Nodes) {
+    auto *S = addVertex(N->getData());
+    for (auto *E : N->getEdges()) {
+      Atom *TargetData = E->getTargetNode().getData();
+      auto *D = addVertex(TargetData);
+      if (D->hasEdgeTo(*S)) {
+        llvm::SmallVector<GraphvizEdge*, 2> Edges;
+        D->findEdgesTo(*S, Edges);
+        for (auto *OldE : Edges)
+          if (OldE->Properties.Kind == EK)
+            OldE->Properties.IsBidirectional = true;
+      } else {
+        GraphvizEdge *GE = new GraphvizEdge(*D, EK);
+        connect(*S, *D, *GE);
+      }
+    }
+  }
+}
+
+void GraphVizOutputGraph::dumpConstraintGraphs(const std::string &GraphDotFile,
+                                               const ConstraintsGraph &Chk,
+                                               const ConstraintsGraph &Pty) {
+  GraphVizOutputGraph OutGraph;
+  OutGraph.mergeConstraintGraph(Chk, EK_Checked);
+  OutGraph.mergeConstraintGraph(Pty, EK_Ptype);
+
+  std::error_code Err;
+  llvm::raw_fd_ostream DotFile(GraphDotFile, Err);
+  llvm::WriteGraph(DotFile, OutGraph);
+  DotFile.close();
+}

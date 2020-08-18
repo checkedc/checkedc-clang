@@ -15,38 +15,41 @@
 #include <queue>
 #include "clang/CConv/Constraints.h"
 #include "llvm/ADT/DirectedGraph.h"
+#include "llvm/Support/GraphWriter.h"
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/BreadthFirstIterator.h"
 
-template<class DataType> struct BaseEdge;
-
-template<typename DataType>
-class BaseNode : public llvm::DGNode<BaseNode<DataType>, BaseEdge<DataType>> {
+template<typename DataType, typename EdgeType>
+class DataNode : public llvm::DGNode<DataNode<DataType, EdgeType>, EdgeType> {
 public:
-  typedef BaseEdge<DataType> EdgeType;
-  typedef BaseNode<DataType> NodeType;
+  typedef DataNode<DataType, EdgeType> NodeType;
   typedef llvm::DGNode<NodeType, EdgeType> SuperType;
 
-  BaseNode() = delete;
-  BaseNode(DataType D, EdgeType &E) : SuperType(E), Data(D) {}
-  BaseNode(DataType D) : SuperType(), Data(D) {}
-  BaseNode(const BaseNode &N) : SuperType(N), Data(N.Data) {}
-  BaseNode(const BaseNode &&N) : SuperType(std::move(N)), Data(N.Data) {}
+  DataNode() = delete;
+  DataNode(DataType D, EdgeType &E) : SuperType(E), Data(D) {}
+  DataNode(DataType D) : SuperType(), Data(D) {}
+  DataNode(const DataNode &N) : SuperType(N), Data(N.Data) {}
+  DataNode(const DataNode &&N) : SuperType(std::move(N)), Data(N.Data) {}
 
-  ~BaseNode() {}
+  ~DataNode() {}
 
   DataType getData() const { return Data; }
 
   void addPred(EdgeType &E){ PredEdges.insert(&E); }
   const llvm::SetVector<EdgeType *> &getPreds() { return PredEdges; }
 
-  bool isEqualTo(const BaseNode &N) const { return this->Data == N.Data; }
+  bool isEqualTo(const DataNode &N) const { return this->Data == N.Data; }
 
 private:
   DataType Data;
 
   llvm::SetVector<EdgeType *> PredEdges;
 };
+
+template<class DataType> struct BaseEdge;
+
+template<typename DataType>
+using BaseNode = DataNode<DataType, BaseEdge<DataType>>;
 
 template <typename Data> struct llvm::GraphTraits<BaseNode<Data> *> {
   using NodeRef = BaseNode<Data> *;
@@ -81,10 +84,13 @@ struct BaseEdge : public llvm::DGEdge<BaseNode<DataType>, BaseEdge<DataType>> {
   }
 };
 
-template<typename Data>
-class BaseGraph : public llvm::DirectedGraph<BaseNode<Data>, BaseEdge<Data>> {
+template<typename Data, typename EdgeType>
+class DataGraph :
+    public llvm::DirectedGraph<DataNode<Data, EdgeType>, EdgeType> {
 public:
-  virtual ~BaseGraph() {
+  typedef DataNode<Data, EdgeType> NodeType;
+
+  virtual ~DataGraph() {
     for (auto *N : this->Nodes) {
       for (auto *E : N->getEdges())
         delete E;
@@ -102,10 +108,10 @@ public:
   }
 
   void removeEdge(Data Src, Data Dst) {
-    auto *NSrc = this->findNode(BaseNode<Data>(Src));
-    auto *NDst = this->findNode(BaseNode<Data>(Dst));
+    auto *NSrc = this->findNode(NodeType(Src));
+    auto *NDst = this->findNode(NodeType(Dst));
     assert(NSrc != this->end() && NDst != this->end());
-    llvm::SmallVector<BaseEdge<Data>*, 10> Edges;
+    llvm::SmallVector<EdgeType*, 10> Edges;
     (*NDst)->findEdgesTo(**NSrc, Edges);
     for (BaseEdge<Data> *E : Edges) {
       (*NDst)->removeEdge(*E);
@@ -114,21 +120,21 @@ public:
   }
 
   void addEdge(Data L, Data R) {
-    BaseNode<Data> *BL = this->addVertex(L);
-    BaseNode<Data> *BR = this->addVertex(R);
+    NodeType *BL = this->addVertex(L);
+    NodeType *BR = this->addVertex(R);
 
-    BaseEdge<Data> *BLR = new BaseEdge<Data>(*BR);
+    EdgeType *BLR = new EdgeType(*BR);
     BL->addEdge(*BLR);
-    BaseEdge<Data> *BRL = new BaseEdge<Data>(*BL);
+    EdgeType *BRL = new EdgeType(*BL);
     BR->addPred(*BRL);
   }
 
   bool getNeighbors(Data D, std::set<Data> &DataSet, bool Succ){
-    auto *N = this->findNode(BaseNode<Data>(D));
+    auto *N = this->findNode(NodeType(D));
     if (N == this->end())
       return false;
     DataSet.clear();
-    llvm::SetVector<BaseEdge<Data> *> Edges;
+    llvm::SetVector<EdgeType *> Edges;
     if (Succ)
       Edges = (*N)->getEdges();
     else
@@ -147,7 +153,7 @@ public:
   }
 
   void visitBreadthFirst(Data Start, llvm::function_ref<void(Data)> Fn) {
-    auto *N = this->findNode(BaseNode<Data>(Start));
+    auto *N = this->findNode(NodeType(Start));
     if (N == this->end())
       return;
     for (auto TNode : llvm::breadth_first(*N))
@@ -155,8 +161,8 @@ public:
   }
 
 protected:
-  virtual BaseNode<Data> *addVertex(Data D) {
-    auto *N = new BaseNode<Data>(D);
+  virtual NodeType *addVertex(Data D) {
+    NodeType *N = new NodeType(D);
     auto *OldN = this->findNode(*N);
     if (OldN != this->end()) {
       delete N;
@@ -166,6 +172,9 @@ protected:
     return N;
   }
 };
+
+template<typename Data>
+using BaseGraph = DataGraph<Data, BaseEdge<Data>>;
 
 typedef BaseNode<Atom *> CGNode;
 typedef BaseEdge<Atom *> CGEdge;
@@ -178,42 +187,84 @@ public:
 protected:
   CGNode *addVertex(Atom *A) override;
 private:
+  friend class GraphVizOutputGraph;
   std::set<ConstAtom*> AllConstAtoms;
 };
 
+enum EdgeKind { EK_Checked, EK_Ptype };
+class EdgeProperties {
+public:
+  EdgeProperties(EdgeKind Kind, bool IsBidirectional)
+      : Kind(Kind), IsBidirectional(IsBidirectional) {}
 
-// Used during debugging to create a single graph that contains edges and nodes
-// from all constraint graphs. This single graph can then be printed to a file
-// in graphviz format.
-//enum EdgeType { Checked, Ptype };
-//class EdgeProperties {
-//public:
-//  EdgeProperties(EdgeType Type, bool IsBidirectional);
-//  EdgeType Type;
-//  bool IsBidirectional;
-//};
-//
-//class GraphVizOutputGraph
-//    : public BaseGraph<
-//        boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS,
-//                                Atom *, EdgeProperties *>> {
-//public:
-//  typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS,
-//                                Atom *, EdgeProperties *>
-//      DirectedGraphType;
-//
-//  void mergeConstraintGraph(const ConstraintsGraph &Graph, EdgeType EdgeType);
-//
-//  // Dump the graph to stdout in a dot format.
-//  void dumpCGDot(const std::string& GraphDotFile);
-//
-//  static void dumpConstraintGraphs(const std::string &GraphDotFile,
-//                                   const ConstraintsGraph &Chk,
-//                                   const ConstraintsGraph &Pty);
-//
-//private:
-//  const std::string EdgeTypeColors[2] = { "red", "blue" };
-//  const std::string EdgeDirections[2] = { "forward", "both" };
-//};
+  EdgeKind Kind;
+  bool IsBidirectional;
+};
+
+class GraphvizEdge :
+    public llvm::DGEdge<DataNode<Atom*, GraphvizEdge>, GraphvizEdge> {
+public:
+  explicit GraphvizEdge(DataNode<Atom*, GraphvizEdge> &Node, EdgeKind Type)
+      : DGEdge(Node), Properties(Type, false) {}
+  explicit GraphvizEdge(const GraphvizEdge &E)
+      : DGEdge(E), Properties(E.Properties) {}
+  EdgeProperties Properties;
+};
+
+class GraphVizOutputGraph : public DataGraph<Atom*,GraphvizEdge> {
+public:
+  static void dumpConstraintGraphs(const std::string &GraphDotFile,
+                                   const ConstraintsGraph &Chk,
+                                   const ConstraintsGraph &Pty);
+  mutable std::set<std::pair<Atom *,Atom *>> DoneChecked;
+  mutable std::set<std::pair<Atom *,Atom *>> DonePtyp;
+private:
+  void mergeConstraintGraph(const ConstraintsGraph &Graph, EdgeKind EdgeType);
+  friend struct llvm::GraphTraits<GraphVizOutputGraph>;
+
+};
+
+template<> struct llvm::GraphTraits<GraphVizOutputGraph> {
+  using NodeRef = DataNode<Atom*,GraphvizEdge> *;
+  using nodes_iterator = GraphVizOutputGraph::iterator;
+
+  static NodeRef GetTargetNode(GraphvizEdge *P) {
+    return &P->getTargetNode();
+  }
+
+  using ChildIteratorType =
+  mapped_iterator<typename DataNode<Atom *, GraphvizEdge>::iterator,
+                  decltype(&GetTargetNode)>;
+
+  static nodes_iterator nodes_begin(const GraphVizOutputGraph &G) {
+    return const_cast<GraphVizOutputGraph&>(G).Nodes.begin();
+  }
+
+  static nodes_iterator nodes_end(const GraphVizOutputGraph &G) {
+    return const_cast<GraphVizOutputGraph&>(G).Nodes.end();
+  }
+
+  static ChildIteratorType child_begin(NodeRef N) {
+    return ChildIteratorType(N->begin(), &GetTargetNode);
+  }
+
+  static ChildIteratorType child_end(NodeRef N) {
+    return ChildIteratorType(N->end(), &GetTargetNode);
+  }
+};
+
+template<> struct llvm::DOTGraphTraits<GraphVizOutputGraph>
+    : public llvm::DefaultDOTGraphTraits,
+             llvm::GraphTraits<GraphVizOutputGraph> {
+  DOTGraphTraits(bool simple = false) : DefaultDOTGraphTraits(simple) {}
+
+  std::string getNodeLabel(const DataNode<Atom *, GraphvizEdge> *Node,
+                           const GraphVizOutputGraph &CG);
+
+
+  static std::string getEdgeAttributes
+      (const DataNode<Atom *, GraphvizEdge> *Node, ChildIteratorType T,
+       const GraphVizOutputGraph &CG);
+};
 
 #endif // _CONSTRAINTSGRAPH_H
