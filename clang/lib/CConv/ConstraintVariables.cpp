@@ -1624,7 +1624,6 @@ Atom *PointerVariableConstraint::getAtom(unsigned AtomIdx, Constraints &CS) {
 // Brain Transplant params and returns in [FromCV], recursively.
 void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
                                                  ProgramInfo &I) {
-  llvm::errs() << "Brain Transplanting\n";
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert (From != nullptr);
   // Transplant returns.
@@ -1640,7 +1639,6 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
 
 void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
                                                   ProgramInfo &I) {
-  llvm::errs() << "Merging\n";
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert (From != nullptr);
   // Transplant returns.
