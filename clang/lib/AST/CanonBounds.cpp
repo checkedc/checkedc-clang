@@ -52,7 +52,7 @@ namespace {
   }
 }
 
-Lexicographic::Lexicographic(ASTContext &Ctx, const EquivExprSets *EquivExprs) :
+Lexicographic::Lexicographic(ASTContext &Ctx, EquivExprSets *EquivExprs) :
   Context(Ctx), EquivExprs(EquivExprs), Trace(false) {
 }
 

@@ -570,7 +570,7 @@ using EqualExprTy = SmallVector<Expr *, 4>;
 
 // EqualExprsContainsExpr returns true if the set Exprs contains E.
 bool EqualExprsContainsExpr(Sema &S, const EqualExprTy Exprs, Expr *E,
-                            const EquivExprSets *EquivExprs) {
+                            EquivExprSets *EquivExprs) {
   for (auto I = Exprs.begin(); I != Exprs.end(); ++I) {
     if (Lexicographic(S.Context, EquivExprs).CompareExpr(*I, E) ==
         Lexicographic::Result::Equal)
@@ -583,11 +583,11 @@ class CollectVariableSetHelper
     : public RecursiveASTVisitor<CollectVariableSetHelper> {
 private:
   EqualExprTy VariableList;
-  const EquivExprSets *EquivExprs;
+  EquivExprSets *EquivExprs;
   Sema &SemaRef;
 
 public:
-  CollectVariableSetHelper(Sema &SemaRef, const EquivExprSets *EquivExprs)
+  CollectVariableSetHelper(Sema &SemaRef, EquivExprSets *EquivExprs)
       : VariableList(), EquivExprs(EquivExprs), SemaRef(SemaRef) {}
 
   const EqualExprTy &GetVariableList() const { return VariableList; }
@@ -599,7 +599,7 @@ public:
   }
 };
 
-EqualExprTy CollectVariableSet(Sema &SemaRef, Expr *E, const EquivExprSets *EquivExprs) {
+EqualExprTy CollectVariableSet(Sema &SemaRef, Expr *E, EquivExprSets *EquivExprs) {
   CollectVariableSetHelper Helper(SemaRef, EquivExprs);
   Helper.TraverseStmt(E);
   return Helper.GetVariableList();
@@ -1179,8 +1179,8 @@ namespace {
 
     public:
       BaseRange(Sema &S) : S(S), Base(nullptr), LowerOffsetConstant(1, true),
-            UpperOffsetConstant(1, true), LowerOffsetVariable(nullptr),
-            UpperOffsetVariable(nullptr) {}
+        UpperOffsetConstant(1, true), LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr) {
+      }
 
       BaseRange(Sema &S, Expr *Base,
                          llvm::APSInt &LowerOffsetConstant,
@@ -1198,29 +1198,6 @@ namespace {
 
       Expr *GetBase() const {
         return Base;
-      }
-
-      llvm::APInt GetOffsetConstantCount(const llvm::APSInt &Offset) const {
-        llvm::APSInt ElemSize;
-        BoundsUtil::getReferentSizeInChars(S.Context, Base->getType(),
-                                           ElemSize);
-        return Offset.sdiv(ElemSize);
-      }
-
-      SmallString<12> GetLowerOffsetConstantStr() const {
-        SmallString<12> Str;
-        llvm::APInt LowerOffSetCnt =
-            GetOffsetConstantCount(LowerOffsetConstant);
-        LowerOffSetCnt.toStringSigned(Str);
-        return Str;
-      }
-
-      SmallString<12> GetUpperOffsetConstantStr() const {
-        SmallString<12> Str;
-        llvm::APInt UpperOffSetCnt =
-            GetOffsetConstantCount(UpperOffsetConstant);
-        UpperOffSetCnt.toStringSigned(Str);
-        return Str;
       }
 
       Expr *GetLowerOffsetVariable() const {
@@ -1327,27 +1304,27 @@ namespace {
         return ProofResult::Maybe;
       }
 
-      bool IsConstantSizedRange() const {
+      bool IsConstantSizedRange() {
         return IsLowerOffsetConstant() && IsUpperOffsetConstant();
       }
 
-      bool IsVariableSizedRange() const {
+      bool IsVariableSizedRange() {
         return IsLowerOffsetVariable() || IsUpperOffsetVariable();
       }
 
-      bool IsLowerOffsetConstant() const {
+      bool IsLowerOffsetConstant() {
         return !LowerOffsetVariable;
       }
 
-      bool IsLowerOffsetVariable() const {
+      bool IsLowerOffsetVariable() {
         return LowerOffsetVariable;
       }
 
-      bool IsUpperOffsetConstant() const {
+      bool IsUpperOffsetConstant() {
         return !UpperOffsetVariable;
       }
 
-      bool IsUpperOffsetVariable() const {
+      bool IsUpperOffsetVariable() {
         return UpperOffsetVariable;
       }
 
@@ -1686,7 +1663,7 @@ namespace {
       return ExistsIn && !ExistsKill;
     }
 
-    static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, const EquivExprSets *EquivExprs) {
+    static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs) {
       Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareExpr(E1, E2);
       return R == Lexicographic::Result::Equal;
     }
@@ -1787,21 +1764,21 @@ namespace {
         ProofResult R = SrcRange.InRange(DeclaredRange, Cause, EquivExprs, Facts);
         if (R == ProofResult::True)
           return R;
-        
-        // R is either Maybe or False.
-        if (R == ProofResult::False && SrcRange.IsEmpty())
-          Cause = CombineFailures(Cause, ProofFailure::SrcEmpty);
-        if (SrcRange.IsInvalid())
-          Cause = CombineFailures(Cause, ProofFailure::SrcInvalid);
-        if (DeclaredRange.IsConstantSizedRange() &&
-            SrcRange.IsConstantSizedRange()) {
-          if (DeclaredRange.GetWidth() > SrcRange.GetWidth()) {
-            Cause = CombineFailures(Cause, ProofFailure::Width);
-            R = ProofResult::False;
-          } else if (Kind == ProofStmtKind::StaticBoundsCast) {
-            // For checking static casts between Ptr types, we only need to
-            // prove that the declared width <= the source width.
-            return ProofResult::True;
+        if (R == ProofResult::False || R == ProofResult::Maybe) {
+          if (R == ProofResult::False && SrcRange.IsEmpty())
+            Cause = CombineFailures(Cause, ProofFailure::SrcEmpty);
+          if (SrcRange.IsInvalid())
+            Cause = CombineFailures(Cause, ProofFailure::SrcInvalid);
+          if (DeclaredRange.IsConstantSizedRange() &&
+              SrcRange.IsConstantSizedRange()) {
+            if (DeclaredRange.GetWidth() > SrcRange.GetWidth()) {
+              Cause = CombineFailures(Cause, ProofFailure::Width);
+              R = ProofResult::False;
+            } else if (Kind == ProofStmtKind::StaticBoundsCast) {
+              // For checking static casts between Ptr types, we only need to
+              // prove that the declared width <= the source width.
+              return ProofResult::True;
+            }
           }
         }
       }
@@ -1810,7 +1787,7 @@ namespace {
 
     bool CheckFreeVariables(BaseRange &SrcRange, BaseRange &DeclRange,
                                    ProofFailure &Cause,
-                                   const EquivExprSets *EquivExprs,
+                                   EquivExprSets *EquivExprs,
                                    EqualExprTy &BaseFreeVars,
                                    EqualExprTy &LowerFreeVars,
                                    EqualExprTy &UpperFreeVars) {
@@ -1987,7 +1964,7 @@ namespace {
     }
 
     EqualExprTy GetFreeVariables(Expr *SrcExpr, Expr *DeclExpr,
-                                 const EquivExprSets *EquivExprs) {
+                                 EquivExprSets *EquivExprs) {
       EqualExprTy SrcVariables = CollectVariableSet(S, SrcExpr, EquivExprs);
       EqualExprTy DeclVariables = CollectVariableSet(S, DeclExpr, EquivExprs);
 

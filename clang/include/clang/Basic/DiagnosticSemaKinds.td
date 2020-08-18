@@ -10265,10 +10265,6 @@ def err_bounds_type_annotation_lost_checking : Error<
     "accesses memory at or|base value is}0 "
     "above %select{source|source|the|its}0 upper bound">;
 
-  def note_cannot_prove_inequality : Note<
-    "cannot prove '%1 %select{<=|>=|!=}0 %2'; "
-    "no relation is known between '%1' and '%2'">;
-
    def note_bounds_partially_overlap : Note<
     "%select{||accesses memory that|struct/union pointed to by base value}0 is "
     "only partially in bounds">;

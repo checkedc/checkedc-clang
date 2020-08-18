@@ -55,7 +55,7 @@ namespace clang {
 
   private:
     ASTContext &Context;
-    const EquivExprSets *EquivExprs;
+    EquivExprSets *EquivExprs;
     bool Trace;
 
     template <typename T>
@@ -113,7 +113,7 @@ namespace clang {
 
 
   public:
-    Lexicographic(ASTContext &Ctx, const EquivExprSets *EquivExprs);
+    Lexicographic(ASTContext &Ctx, EquivExprSets *EquivExprs);
 
     /// \brief Lexicographic comparison of expressions that can occur in
     /// bounds expressions.
