@@ -1663,8 +1663,7 @@ void FunctionVariableConstraint::handle_params
   // The only case where the params are not equal, and it's not
   // an untype call, is a variadic call. Variadic calls wil not
   // generate deferments.
-  if (paramsEq || (To->getDeferredParams().size() == 0
-                   && From->getDeferredParams().size() == 0 )) {
+  if  (paramsEq) {
     for (unsigned i = 0; i < From->numParams(); i++) {
       CVarSet &FromP = From->getParamVar(i);
       CVarSet &P = To->getParamVar(i);
@@ -1673,6 +1672,9 @@ void FunctionVariableConstraint::handle_params
       f(FromVar, Var);
     }
   } else { // Dealing with an untyped prototype
+    vector<ParamDeferment> defers = From->getDeferredParams();
+    defers.insert(defers.end(), To->getDeferredParams().begin(),
+                  To->getDeferredParams().end());
     FVConstraint *Empty = fromEmpty ? From : To;
     FVConstraint *Typed = fromEmpty ? To : From;
     auto &CS = I.getConstraints();
@@ -1688,7 +1690,7 @@ void FunctionVariableConstraint::handle_params
       constrainConsVarGeq(EmptyP, TypedP, CS, nullptr, Wild_to_Safe, false, &I);
     }
     // Constraint the deffered parameters
-    for (auto deferred : Empty->getDeferredParams()) {
+    for (auto deferred : defers) {
       assert(Typed->numParams() == deferred.PS.size());
       for(unsigned i = 0; i < deferred.PS.size(); i++) {
         CVarSet ParamDC = Typed->getParamVar(i);
