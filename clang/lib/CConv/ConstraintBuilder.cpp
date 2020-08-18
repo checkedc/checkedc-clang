@@ -194,7 +194,7 @@ public:
             :
               false;
 
-          std::vector<std::pair<CVarSet, Expr*>> deferred;
+          std::vector<CVarSet> deferred;
           for (const auto &A : E->arguments()) {
             CVarSet ArgumentConstraints;
             if(TFD != nullptr && i < TFD->getNumParams()) {
@@ -212,7 +212,7 @@ public:
 
 
             if (callUntyped) {
-              deferred.push_back(make_pair(ArgumentConstraints, A));
+              deferred.push_back(ArgumentConstraints);
             } else if (i < TargetFV->numParams()) {
             // constrain the arg CV to the param CV
               CVarSet ParameterDC =
@@ -250,7 +250,7 @@ public:
             i++;
           }
           if (callUntyped)
-            TargetFV->addDeferredParams(PL, Context, TFD, deferred);
+            TargetFV->addDeferredParams(PL, deferred);
 
         }
       }

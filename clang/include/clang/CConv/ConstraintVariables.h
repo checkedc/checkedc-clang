@@ -364,9 +364,7 @@ typedef PointerVariableConstraint PVConstraint;
 
 typedef struct {
   PersistentSourceLoc PL;
-  ASTContext *C;
-  FunctionDecl *TFD;
-  std::vector<std::pair<CVarSet, Expr*>> PS;
+  std::vector<CVarSet> PS;
 } ParamDeferment;
 
 
@@ -419,9 +417,7 @@ public:
     { return deferredParams; }
 
   void addDeferredParams(PersistentSourceLoc PL,
-                         ASTContext *C,
-                         FunctionDecl *TFD,
-                         std::vector<std::pair<CVarSet, Expr*>> Ps);
+                         std::vector<CVarSet> Ps);
 
   size_t numParams() { return paramVars.size(); }
 

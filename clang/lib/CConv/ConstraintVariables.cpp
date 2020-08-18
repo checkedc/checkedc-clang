@@ -1624,6 +1624,7 @@ Atom *PointerVariableConstraint::getAtom(unsigned AtomIdx, Constraints &CS) {
 // Brain Transplant params and returns in [FromCV], recursively.
 void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
                                                  ProgramInfo &I) {
+  llvm::errs() << "Brain Transplanting\n";
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert (From != nullptr);
   // Transplant returns.
@@ -1639,6 +1640,7 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
 
 void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
                                                   ProgramInfo &I) {
+  llvm::errs() << "Merging\n";
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert (From != nullptr);
   // Transplant returns.
@@ -1663,8 +1665,8 @@ void FunctionVariableConstraint::handle_params
   // The only case where the params are not equal, and it's not
   // an untype call, is a variadic call. Variadic calls wil not
   // generate deferments.
-  if (paramsEq && To->getDeferredParams().size() == 0
-      && From->getDeferredParams().size() == 0 ) {
+  if (paramsEq || (To->getDeferredParams().size() == 0
+                   && From->getDeferredParams().size() == 0 )) {
     for (unsigned i = 0; i < From->numParams(); i++) {
       CVarSet &FromP = From->getParamVar(i);
       CVarSet &P = To->getParamVar(i);
@@ -1676,29 +1678,24 @@ void FunctionVariableConstraint::handle_params
     FVConstraint *Empty = fromEmpty ? From : To;
     FVConstraint *Typed = fromEmpty ? To : From;
     auto &CS = I.getConstraints();
+    // Copy constraint variables over the empty declaration
+    for(unsigned i = 0; i < Typed->numParams(); i++) {
+      CVarSet &TypedP = Typed->getParamVar(i);
+      auto TypedV = getOnly(TypedP);
+      CVarSet EmptyP;
+      ConstraintVariable *NewV = TypedV->getCopy(CS);
+      f(TypedV, NewV);
+      EmptyP.insert(NewV);
+      Empty->paramVars.push_back(EmptyP);
+      constrainConsVarGeq(EmptyP, TypedP, CS, nullptr, Wild_to_Safe, false, &I);
+    }
+    // Constraint the deffered parameters
     for (auto deferred : Empty->getDeferredParams()) {
-      ConstraintResolver CB(I, deferred.C);
       assert(Typed->numParams() == deferred.PS.size());
       for(unsigned i = 0; i < deferred.PS.size(); i++) {
         CVarSet ParamDC = Typed->getParamVar(i);
-        CVarSet ArgDC = deferred.PS[i].first;
-        Empty->paramVars.push_back(ParamDC);
-        auto TFD = deferred.TFD;
+        CVarSet ArgDC = deferred.PS[i];
         constrainConsVarGeq(ParamDC, ArgDC, CS, &(deferred.PL), Wild_to_Safe, false, &I);
-        if (AllTypes && TFD != nullptr &&
-            !CB.containsValidCons(ParamDC) &&
-            !CB.containsValidCons(ArgDC)) {
-          auto *PVD = TFD->getParamDecl(i);
-          auto &ABI = I.getABoundsInfo();
-          BoundsKey PVKey, AGKey;
-          if ((CB.resolveBoundsKey(ParamDC, PVKey) ||
-               ABI.tryGetVariable(PVD, PVKey)) &&
-              (CB.resolveBoundsKey(ArgDC, AGKey) ||
-               ABI.tryGetVariable(deferred.PS[i].second,
-                                  *(deferred.C), AGKey))) {
-            ABI.addAssignment(PVKey, AGKey);
-          }
-        }
       }
     }
   }
@@ -1708,11 +1705,9 @@ void FunctionVariableConstraint::handle_params
 void
 FunctionVariableConstraint::addDeferredParams
 (PersistentSourceLoc PL,
- ASTContext *C,
- FunctionDecl *TFD,
- std::vector<std::pair<CVarSet, Expr*>> Ps)
+ std::vector<CVarSet> Ps)
 {
-  ParamDeferment P = { PL, C, TFD, Ps };
+  ParamDeferment P = { PL, Ps };
   deferredParams.push_back(P);
   return;
 }
