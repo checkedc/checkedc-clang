@@ -219,7 +219,7 @@ BoundsKey AVarBoundsInfo::getVariable(clang::ParmVarDecl *PVD) {
   auto ParamKey = std::make_tuple(FD->getNameAsString(), FileName,
                                   FD->isStatic(), ParamIdx);
   assert(ParamIdx >= 0 && "Unable to find parameter.");
-  if (ParamDeclVarMap.find(ParamKey) == ParamDeclVarMap.end()) {
+  if (ParamDeclVarMap.left().find(ParamKey) == ParamDeclVarMap.left().end()) {
     BoundsKey NK = ++BCount;
     FunctionParamScope *FPS =
         FunctionParamScope::getFunctionParamScope(FD->getNameAsString(),
@@ -230,7 +230,7 @@ BoundsKey AVarBoundsInfo::getVariable(clang::ParmVarDecl *PVD) {
     if (PVD->getType()->isPointerType())
       PointerBoundsKey.insert(NK);
   }
-  return ParamDeclVarMap[ParamKey];
+  return ParamDeclVarMap.left().at(ParamKey);
 }
 
 BoundsKey AVarBoundsInfo::getVariable(clang::FieldDecl *FD) {
@@ -281,7 +281,7 @@ bool AVarBoundsInfo::hasVarKey(PersistentSourceLoc &PSL) {
 
 BoundsKey AVarBoundsInfo::getVarKey(PersistentSourceLoc &PSL) {
   assert (hasVarKey(PSL) && "VarKey doesn't exist");
-  return DeclVarMap[PSL];
+  return DeclVarMap.left().at(PSL);
 }
 
 BoundsKey AVarBoundsInfo::getConstKey(uint64_t value) {
@@ -301,14 +301,12 @@ BoundsKey AVarBoundsInfo::getVarKey(llvm::APSInt &API) {
 }
 
 void AVarBoundsInfo::insertVarKey(PersistentSourceLoc &PSL, BoundsKey NK) {
-  DeclVarMap[PSL] = NK;
-  VarDeclMap[NK] = PSL;
+  DeclVarMap.insert(PSL, NK);
 }
 
 void AVarBoundsInfo::insertParamKey(AVarBoundsInfo::ParamDeclType ParamDecl,
                                     BoundsKey NK) {
-  ParamDeclVarMap[ParamDecl] = NK;
-  VarParamDeclMap[NK] = ParamDecl;
+  ParamDeclVarMap.insert(ParamDecl, NK);
 }
 
 void AVarBoundsInfo::insertProgramVar(BoundsKey NK, ProgramVar *PV) {
@@ -633,8 +631,8 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
   // First get all the pointer vars which are ARRs
   std::set<BoundsKey> ArrPointers;
   for (auto Bkey : PointerBoundsKey) {
-    if (VarDeclMap.find(Bkey) != VarDeclMap.end()) {
-      auto &PSL = VarDeclMap.at(Bkey);
+    if (DeclVarMap.right().find(Bkey) != DeclVarMap.right().end()) {
+      auto &PSL = DeclVarMap.right().at(Bkey);
       if (hasArray(PI->getVarMap()[PSL], CS)) {
         ArrPointers.insert(Bkey);
       }
@@ -644,8 +642,8 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
       }
       continue;
     }
-    if (VarParamDeclMap.find(Bkey) != VarParamDeclMap.end()) {
-      auto &ParmTup = VarParamDeclMap.at(Bkey);
+    if (ParamDeclVarMap.right().find(Bkey) != ParamDeclVarMap.right().end()) {
+      auto &ParmTup = ParamDeclVarMap.right().at(Bkey);
       std::string FuncName = std::get<0>(ParmTup);
       std::string FileName = std::get<1>(ParmTup);
       bool IsStatic = std::get<2>(ParmTup);

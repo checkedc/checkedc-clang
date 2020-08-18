@@ -187,12 +187,9 @@ private:
   std::set<BoundsKey> InProgramArrPtrBoundsKeys;
 
   // BiMap of Persistent source loc and BoundsKey of regular variables.
-  std::map<PersistentSourceLoc, BoundsKey> DeclVarMap;
-  std::map<BoundsKey, PersistentSourceLoc> VarDeclMap;
-
+  BiMap<PersistentSourceLoc, BoundsKey> DeclVarMap;
   // BiMap of parameter keys and BoundsKey for function parameters.
-  std::map<ParamDeclType, BoundsKey> ParamDeclVarMap;
-  std::map<BoundsKey, ParamDeclType> VarParamDeclMap;
+  BiMap<ParamDeclType, BoundsKey> ParamDeclVarMap;
 
   // Graph of all program variables.
   AVarGraph ProgVarGraph;

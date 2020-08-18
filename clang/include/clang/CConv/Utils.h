@@ -32,7 +32,44 @@ typedef std::map<PersistentSourceLoc,
 // Maps a Decl to the DeclStmt that defines the Decl.
 typedef std::map<clang::Decl *, clang::DeclStmt *> VariableDecltoStmtMap;
 
+// Replacement for boost:bimap. A wrapper class around two std::maps to enable
+// map lookup in from key to value or from value to key.
+template <typename KeyT, typename ValueT>
+class BiMap {
+public:
+  BiMap() { }
+  ~BiMap() { KtoVal.clear(); ValToK.clear();}
 
+  void insert(KeyT KO, ValueT VO) {
+    KtoVal[KO] = VO;
+    ValToK[VO] = KO;
+  }
+
+  typename std::map<KeyT, ValueT>::const_iterator find(const KeyT &K) {
+    return KtoVal.find(K);
+  }
+
+  typename std::map<KeyT, ValueT>::const_iterator end() {
+    return KtoVal.end();
+  }
+
+  const std::map<KeyT, ValueT> &left() {
+    return KtoVal;
+  }
+
+  const std::map<ValueT, KeyT> &right() {
+    return ValToK;
+  }
+
+  void clear() {
+    KtoVal.clear();
+    ValToK.clear();
+  }
+
+private:
+  std::map<KeyT, ValueT> KtoVal;
+  std::map<ValueT, KeyT> ValToK;
+};
 
 extern std::set<std::string> FilePaths;
 
