@@ -3,7 +3,7 @@
 // RUN: cconv-standalone -alltypes %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 
-// Examples from issue #58
+/* Examples from issue #58 */
 
 void f(int *p) {
   int *x = (int *)p;
@@ -17,7 +17,7 @@ void g(int p[]) {
   // CHECK_All: _Ptr<int> x = (_Ptr<int> )p;
 }
 
-// A very similar issue with function pointers
+/* A very similar issue with function pointers */
 
 int add1(int a){
   return a + 1;

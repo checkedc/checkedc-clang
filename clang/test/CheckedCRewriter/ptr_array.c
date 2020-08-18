@@ -2,11 +2,11 @@
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL" %s 
 // RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
-// Tests for issue 60. Array initialization had not been implemented, so wild
-// pointer inside and array initializer did not cause the array to be an array
-// of wild pointer.
+/* Tests for issue 60. Array initialization had not been implemented, so wild
+ pointer inside and array initializer did not cause the array to be an array
+ of wild pointer. */
 
-// A checked pointer should allow the array to be checked.
+/* A checked pointer should allow the array to be checked. */
 void test0(int *a) {
 // CHECK_NOALL: void test0(int *a) {
 // CHECK_ALL:   void test0(_Ptr<int> a) {
@@ -16,7 +16,7 @@ void test0(int *a) {
   // CHECK_ALL:   _Ptr<int> b _Checked[1] =  {a};
 }
 
-// An unchecked pointer should cause the array to be unchecked.
+/* An unchecked pointer should cause the array to be unchecked. */
 void test1(int *a) {
 // CHECK_NOALL: void test1(int *a) {
 // CHECK_ALL:   void test1(int *a) {
@@ -28,7 +28,7 @@ void test1(int *a) {
   // CHECK_ALL:   int * b _Checked[1] =  {a};
 }
 
-// Example from from the issue
+/* Example from from the issue */
 int *foo() {
 // CHECK_NOALL: int * foo(void) {
 // CHECK_ALL:   int * foo(void) {
@@ -49,7 +49,7 @@ int *foo() {
   return ret;
 }
 
-// Example from the issue, but everthing should check
+/* Example from the issue, but everthing should check */
 int *foo2() {
 // CHECK_NOALL: int * foo2(void) {
 // CHECK_ALL:   _Ptr<int> foo2(void) {

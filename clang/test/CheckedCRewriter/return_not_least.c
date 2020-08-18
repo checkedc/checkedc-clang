@@ -72,8 +72,8 @@ int *buz(int *a) {
   // CHECK_ALL: _Array_ptr<int> b = (_Array_ptr<int> ) 0;
   a = b;
 
-  // The current implementation does not propagate array constraint to c and d, but
-  // if this test starts failing because it does, that's probably OK.
+  /* The current implementation does not propagate array constraint to c and d, but
+   if this test starts failing because it does, that's probably OK. */
 
   int *c = b;
   // CHECK_ALL: _Ptr<int>  c = b;

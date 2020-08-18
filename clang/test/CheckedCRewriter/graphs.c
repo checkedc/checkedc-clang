@@ -13,13 +13,13 @@ _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
 
-#define MAX_SIZE 40//Assume 40 nodes at max in graph
+#define MAX_SIZE 40/*Assume 40 nodes at max in graph*/
 #define INT_MIN 0 
 
 typedef unsigned long size_t;
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 
-//A vertex of the graph
+/*A vertex of the graph*/
 
 struct node
 
@@ -33,7 +33,7 @@ struct node
 //CHECK_NOALL: struct node* next;
 //CHECK_ALL: _Ptr<struct node> next;
 
-//Some declarations
+/*Some declarations*/
 
 struct node* createNode(int v);
 //CHECK_NOALL: struct node *createNode(int v) : itype(_Ptr<struct node>);
@@ -47,13 +47,13 @@ struct Graph
 
     int* visited;
 
-    struct node** adjLists; // we need int** to store a two dimensional array. Similary, we need struct node** to store an array of Linked lists
+    struct node** adjLists; /* we need int** to store a two dimensional array. Similary, we need struct node** to store an array of Linked lists */
 
 };
 //CHECK_ALL: _Array_ptr<int> visited : count(numVertices);
 //CHECK_ALL: _Array_ptr<_Ptr<struct node>> adjLists : count(numVertices); // we need int** to store a two dimensional array. Similary, we need struct node** to store an array of Linked lists 
 
-//Structure to create a stack, necessary for topological sorting
+/*Structure to create a stack, necessary for topological sorting*/
 
 struct Stack
 
@@ -134,7 +134,7 @@ int main()
 
 
 
-	//Uncomment below part to get a ready-made example
+	/*Uncomment below part to get a ready-made example*/
 
     struct Graph* graph2 = createGraph(4);
 
@@ -169,7 +169,7 @@ void topologicalSortHelper(int vertex, struct Graph* graph, struct Stack* stack)
 
     struct node* temp = adjList;
 
-    //First add all dependents (that is, children) to stack
+    /*First add all dependents (that is, children) to stack*/
 
     while(temp!=NULL) {
 
@@ -185,7 +185,7 @@ void topologicalSortHelper(int vertex, struct Graph* graph, struct Stack* stack)
 
     }
 
-    //and then add itself
+    /*and then add itself*/
 
     push(stack,vertex);
 
@@ -196,7 +196,7 @@ void topologicalSortHelper(int vertex, struct Graph* graph, struct Stack* stack)
 //CHECK_ALL: _Ptr<struct node> adjList =  graph->adjLists[vertex];
 
 
-//Recursive topologial sort approach
+/*Recursive topologial sort approach*/
 
 void topologicalSort(struct Graph* graph)
 
@@ -210,7 +210,7 @@ void topologicalSort(struct Graph* graph)
 
 	{
 
-		//Execute topological sort on all elements
+		/*Execute topological sort on all elements*/
 
 		if(graph->visited[i]==0)
 
@@ -232,7 +232,7 @@ void topologicalSort(struct Graph* graph)
 //CHECK: _Ptr<struct Stack> stack = createStack();
 
 
-//Allocate memory for a node
+/*Allocate memory for a node*/
 
 struct node* createNode(int v)
 
@@ -251,7 +251,7 @@ struct node* createNode(int v)
 //CHECK_ALL: _Ptr<struct node> createNode(int v)
 //CHECK: _Ptr<struct node> newNode =  malloc<struct node>(sizeof(struct node));
 
-//Allocate memory for the entire graph structure
+/*Allocate memory for the entire graph structure*/
 
 struct Graph* createGraph(int vertices)
 
@@ -282,13 +282,13 @@ struct Graph* createGraph(int vertices)
 }
 //CHECK: _Ptr<struct Graph> createGraph(int vertices)
 
-//Creates a unidirectional graph
+/*Creates a unidirectional graph*/
 
 void addEdge(struct Graph* graph, int src, int dest)
 
 {
 
-    // Add edge from src to dest
+    /* Add edge from src to dest*/
 
     struct node* newNode = createNode(dest);
 
@@ -299,7 +299,7 @@ void addEdge(struct Graph* graph, int src, int dest)
 }
 //CHECK: void addEdge(_Ptr<struct Graph> graph, int src, int dest)
 
-//Utility function to see state of graph at a given time
+/*Utility function to see state of graph at a given time*/
 
 void printGraph(struct Graph* graph)
 
@@ -332,7 +332,7 @@ void printGraph(struct Graph* graph)
 }
 //CHECK: void printGraph(_Ptr<struct Graph> graph)
 
-//Creates a stack
+/*Creates a stack*/
 
 struct Stack* createStack()
 
@@ -347,18 +347,18 @@ struct Stack* createStack()
 //CHECK: _Ptr<struct Stack> createStack(void)
 //CHECK: _Ptr<struct Stack> stack = malloc<struct Stack>(sizeof(struct Stack));
 
-//Pushes element into stack
+/*Pushes element into stack*/
 
 void push(struct Stack* stack,int element)
 
 {
 
-	stack->arr[++stack->top]=element;//Increment then add, as we start from -1
+	stack->arr[++stack->top]=element;/*Increment then add, as we start from -1*/
 
 }
 //CHECK: void push(_Ptr<struct Stack> stack, int element) 
 
-//Removes element from stack, or returns INT_MIN if stack empty
+/*Removes element from stack, or returns INT_MIN if stack empty*/
 
 int pop(struct Stack* stack)
 

@@ -1,9 +1,9 @@
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
 // RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// Tests relating to issue #86 Handling sets of functions
+/* Tests relating to issue #86 Handling sets of functions */
 
-// In the first test case, y WILD due to the  (int*)5 assignment. This
-// propagates to everything else.
+/* In the first test case, y WILD due to the  (int*)5 assignment. This
+ propagates to everything else. */
 
 int * f(int *x) {
 // CHECK: int * f(int *x) {
@@ -23,8 +23,8 @@ void foo(int *z) {
 }
 
 
-// The second case verifies that the pointer are still marked checked in the
-// absence of anything weird.
+/* The second case verifies that the pointer are still marked checked in the
+ absence of anything weird. */
 
 int * f1(int *x) {
 // CHECK: _Ptr<int> f1(_Ptr<int> x) {
@@ -43,7 +43,7 @@ void foo1(int *z) {
 }
 
 
-// Testing Something with a larger set of functions
+/* Testing Something with a larger set of functions */
 
 int *a() {
 // CHECK: int * a(void) {

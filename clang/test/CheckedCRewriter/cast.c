@@ -4,7 +4,7 @@
 
 int foo(int* p) {
   *p = 5;
-  int x = (int)p; // cast is safe
+  int x = (int)p; /* cast is safe */
   return x;
 }
 //CHECK: int foo(_Ptr<int> p) {

@@ -22,5 +22,5 @@ const char *lua_pushfstring (lua_State *L, const char *fmt, ...) {
   lua_unlock(L);
   return ret;
 }
-//force output
+/*force output*/
 int *p;
