@@ -265,33 +265,33 @@ static bool do_solve(ConstraintsGraph &CG,
   std::set<Atom *> Neighbors;
   bool ok = true;
   for (ConstAtom *Cbound : CG.getAllConstAtoms()) {
-    if (CG.getNeighbors(Cbound, Neighbors, !doLeastSolution)) {
-      for (Atom *A : Neighbors) {
-        VarAtom *VA = dyn_cast<VarAtom>(A);
-        assert(VA != nullptr && "bogus vertex");
-        ConstAtom *Csol = env.getAssignment(VA);
-        if ((doLeastSolution && *Cbound < *Csol) ||
-            (!doLeastSolution && *Csol < *Cbound)) {
-          ok = false;
-          // Failed. Make a constraint to represent it.
-          std::string str;
-          llvm::raw_string_ostream os(str);
-          os << "Bad solution: "; Csol->print(os);
-          os.flush();
-          Geq *failedConstraint =
-              doLeastSolution ?
-              new Geq(VA, Cbound, str, doLeastSolution) :
-              new Geq(Cbound, VA, str, doLeastSolution);
-          Conflicts.insert(failedConstraint);
-          // Failure case.
-          errs() << "Unsolvable constraints: ";
-          VA->print(errs());
-          errs() << "=";
-          Csol->print(errs());
-          errs() << (doLeastSolution? "<" : ">");
-          Cbound->print(errs());
-          errs() << " var will be made WILD\n";
-        }
+    CG.getNeighbors(Cbound, Neighbors, !doLeastSolution);
+    for (Atom *A : Neighbors) {
+      VarAtom *VA = dyn_cast<VarAtom>(A);
+      if (VA == nullptr)
+        continue;
+      ConstAtom *Csol = env.getAssignment(VA);
+      if ((doLeastSolution && *Cbound < *Csol) ||
+          (!doLeastSolution && *Csol < *Cbound)) {
+        ok = false;
+        // Failed. Make a constraint to represent it.
+        std::string str;
+        llvm::raw_string_ostream os(str);
+        os << "Bad solution: "; Csol->print(os);
+        os.flush();
+        Geq *failedConstraint =
+            doLeastSolution ?
+            new Geq(VA, Cbound, str, doLeastSolution) :
+            new Geq(Cbound, VA, str, doLeastSolution);
+        Conflicts.insert(failedConstraint);
+        // Failure case.
+        errs() << "Unsolvable constraints: ";
+        VA->print(errs());
+        errs() << "=";
+        Csol->print(errs());
+        errs() << (doLeastSolution? "<" : ">");
+        Cbound->print(errs());
+        errs() << " var will be made WILD\n";
       }
     }
   }
@@ -355,13 +355,12 @@ static std::set<VarAtom *> findBounded(ConstraintsGraph &CG,
     Open.erase(Open.begin());
 
     std::set<Atom *> Neighbors;
-    if (CG.getNeighbors(Curr, Neighbors, Succs)) {
-      for (Atom *A : Neighbors) {
-        VarAtom *VA = dyn_cast<VarAtom>(A);
-        if (VA && Bounded.find(VA) == Bounded.end()) {
-          Open.insert(VA);
-          Bounded.insert(VA);
-        }
+    CG.getNeighbors(Curr, Neighbors, Succs);
+    for (Atom *A : Neighbors) {
+      VarAtom *VA = dyn_cast<VarAtom>(A);
+      if (VA && Bounded.find(VA) == Bounded.end()) {
+        Open.insert(VA);
+        Bounded.insert(VA);
       }
     }
   }

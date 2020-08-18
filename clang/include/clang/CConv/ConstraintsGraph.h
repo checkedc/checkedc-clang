@@ -37,10 +37,15 @@ public:
 
   DataType getData() const { return Data; }
 
+  void addPred(EdgeType &E){ PredEdges.insert(&E); }
+  const llvm::SetVector<EdgeType *> &getPreds() { return PredEdges; }
+
   bool isEqualTo(const BaseNode &N) const { return this->Data == N.Data; }
 
 private:
   DataType Data;
+
+  llvm::SetVector<EdgeType *> PredEdges;
 };
 
 template <typename Data> struct llvm::GraphTraits<BaseNode<Data> *> {
@@ -108,41 +113,37 @@ public:
     }
   }
 
-  void addEdge(Data L, Data R, bool BD) {
+  void addEdge(Data L, Data R) {
     BaseNode<Data> *BL = this->addVertex(L);
     BaseNode<Data> *BR = this->addVertex(R);
 
+    BaseEdge<Data> *BLR = new BaseEdge<Data>(*BR);
+    BL->addEdge(*BLR);
     BaseEdge<Data> *BRL = new BaseEdge<Data>(*BL);
-    this->connect(*BR, *BL, *BRL);
-    if (BD) {
-      BaseEdge<Data> *BLR = new BaseEdge<Data>(*BR);
-      this->connect(*BL, *BR, *BLR);
-    }
+    BR->addPred(*BRL);
   }
 
-  // Get all successors of a given Atom which are of particular type.
-  bool getNeighbors(Data D, std::set<Data> &DataSet, bool Succs) {
+  bool getNeighbors(Data D, std::set<Data> &DataSet, bool Succ){
     auto *N = this->findNode(BaseNode<Data>(D));
     if (N == this->end())
       return false;
     DataSet.clear();
-    if (Succs) {
-      const auto ES = (*N)->getEdges();
-      for (auto *E : ES) {
-        Data NodeData = E->getTargetNode().getData();
-        DataSet.insert(NodeData);
-      }
-    } else {
-      for (auto *Neighbor : this->Nodes) {
-        if (Neighbor == *N)
-          continue;
-        if (Neighbor->hasEdgeTo(**N)) {
-          Data NodeData = Neighbor->getData();
-          DataSet.insert(NodeData);
-        }
-      }
-    }
+    llvm::SetVector<BaseEdge<Data> *> Edges;
+    if (Succ)
+      Edges = (*N)->getEdges();
+    else
+      Edges = (*N)->getPreds();
+    for (auto *E : Edges)
+      DataSet.insert(E->getTargetNode().getData());
     return !DataSet.empty();
+  }
+
+  bool getSuccessors(Data D, std::set<Data> &DataSet) {
+    return getNeighbors(D, DataSet, true);
+  }
+
+  bool getPredecessors(Data D, std::set<Data> &DataSet) {
+    return getNeighbors(D, DataSet, false);
   }
 
   void visitBreadthFirst(Data Start, llvm::function_ref<void(Data)> Fn) {

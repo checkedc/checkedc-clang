@@ -263,7 +263,8 @@ bool AVarBoundsInfo::addAssignment(clang::DeclRefExpr *L,
 }
 
 bool AVarBoundsInfo::addAssignment(BoundsKey L, BoundsKey R) {
-  ProgVarGraph.addEdge(L, R, true);
+  ProgVarGraph.addEdge(L, R);
+  ProgVarGraph.addEdge(R, L);
   return true;
 }
 
@@ -577,7 +578,7 @@ bool AvarBoundsInference::inferBounds(BoundsKey K, bool FromPB) {
       // Infer from the flow-graph.
       std::set<BoundsKey> TmpBkeys;
       // Try to predict bounds from successors.
-      BI->ProgVarGraph.getNeighbors(K, TmpBkeys, true);
+      BI->ProgVarGraph.getSuccessors(K, TmpBkeys);
       if (!predictBounds(K, TmpBkeys, &KB)) {
         KB = nullptr;
       }
@@ -616,7 +617,7 @@ bool AVarBoundsInfo::performWorkListInference(std::set<BoundsKey> &ArrNeededBoun
         RetVal = true;
         Changed = true;
         // Get all the successors of the ARR whose bounds we just found.
-        ProgVarGraph.getNeighbors(CurrArrKey, NextIterArrs, true);
+        ProgVarGraph.getSuccessors(CurrArrKey, NextIterArrs);
       }
     }
     if (Changed) {

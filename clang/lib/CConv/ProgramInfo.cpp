@@ -833,7 +833,7 @@ ProgramInfo::computeInterimConstraintState(std::set<std::string> &FilePaths) {
   std::set<Atom *> DirectWildVarAtoms;
   std::set<Atom *> IndirectWildAtoms;
   auto &ChkCG = CS.getChkCG();
-  ChkCG.getNeighbors(CS.getWild(), DirectWildVarAtoms, true);
+  ChkCG.getSuccessors(CS.getWild(), DirectWildVarAtoms);
 
   CVars TmpCGrp;
   for (auto *A : DirectWildVarAtoms) {
