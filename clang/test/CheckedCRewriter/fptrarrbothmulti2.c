@@ -1,10 +1,15 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %S/fptrarrbothmulti1.c %s
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %S/fptrarrbothmulti1.c %s
-//RUN: %clang -c %S/fptrarrbothmulti1.checkedNOALL2.c %S/fptrarrbothmulti2.checkedNOALL2.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrarrbothmulti2.checkedNOALL2.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrarrbothmulti2.checkedALL2.c %s
-//RUN: rm %S/fptrarrbothmulti1.checkedALL2.c %S/fptrarrbothmulti2.checkedALL2.c
-//RUN: rm %S/fptrarrbothmulti1.checkedNOALL2.c %S/fptrarrbothmulti2.checkedNOALL2.c
+// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL2 %S/fptrarrbothmulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL2 %S/fptrarrbothmulti1.c %s
+// RUN: %clang -c %S/fptrarrbothmulti1.checkedNOALL2.c %S/fptrarrbothmulti2.checkedNOALL2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrarrbothmulti2.checkedNOALL2.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrarrbothmulti2.checkedALL2.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/fptrarrbothmulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrarrbothmulti1.checked2.c %S/fptrarrbothmulti2.checked2.c
+// RUN: diff %S/fptrarrbothmulti1.checked2.convert_again.c %S/fptrarrbothmulti1.checked2.c
+// RUN: diff %S/fptrarrbothmulti2.checked2.convert_again.c %S/fptrarrbothmulti2.checked2.c
+// RUN: rm %S/fptrarrbothmulti1.checkedALL2.c %S/fptrarrbothmulti2.checkedALL2.c
+// RUN: rm %S/fptrarrbothmulti1.checkedNOALL2.c %S/fptrarrbothmulti2.checkedNOALL2.c
+// RUN: rm %S/fptrarrbothmulti1.checked2.c %S/fptrarrbothmulti2.checked2.c %S/fptrarrbothmulti1.checked2.convert_again.c %S/fptrarrbothmulti2.checked2.convert_again.c
 
 
 /*********************************************************************************/
@@ -70,14 +75,17 @@ struct arrfptr {
 };
 
 int add1(int x) { 
+	//CHECK: int add1(int x) _Checked { 
     return x+1;
 } 
 
 int sub1(int x) { 
+	//CHECK: int sub1(int x) _Checked { 
     return x-1; 
 } 
 
 int fact(int n) { 
+	//CHECK: int fact(int n) _Checked { 
     if(n==0) { 
         return 1;
     } 
@@ -85,18 +93,20 @@ int fact(int n) {
 } 
 
 int fib(int n) { 
+	//CHECK: int fib(int n) _Checked { 
     if(n==0) { return 0; } 
     if(n==1) { return 1; } 
     return fib(n-1) + fib(n-2);
 } 
 
 int zerohuh(int n) { 
+	//CHECK: int zerohuh(int n) _Checked { 
     return !n;
 }
 
 int *mul2(int *x) { 
 	//CHECK_NOALL: int *mul2(int *x) { 
-	//CHECK_ALL: _Array_ptr<int> mul2(_Array_ptr<int> x) { 
+	//CHECK_ALL: _Array_ptr<int> mul2(_Array_ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }
@@ -115,6 +125,8 @@ int ** sus(int *x, int *y) {
 	//CHECK_ALL: _Ptr<_Array_ptr<int> (_Array_ptr<int> )> mul2ptr =  mul2;
         int i;
         for(i = 0; i < 5; i++) { 
+	//CHECK_NOALL: for(i = 0; i < 5; i++) { 
+	//CHECK_ALL: for(i = 0; i < 5; i++) _Checked { 
             z[i] = mul2ptr(&y[i]);
         } 
         
