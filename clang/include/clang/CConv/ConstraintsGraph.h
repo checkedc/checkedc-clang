@@ -12,7 +12,6 @@
 #ifndef _CONSTRAINTSGRAPH_H
 #define _CONSTRAINTSGRAPH_H
 
-#include <queue>
 #include "clang/CConv/Constraints.h"
 #include "llvm/ADT/DirectedGraph.h"
 #include "llvm/Support/GraphWriter.h"
@@ -29,11 +28,11 @@ public:
 
   DataNode() = delete;
   DataNode(DataType D, EdgeType &E) : SuperType(E), Data(D) {}
-  DataNode(DataType D) : SuperType(), Data(D) {}
+  explicit DataNode(DataType D) : SuperType(), Data(D) {}
   DataNode(const DataNode &N) : SuperType(N), Data(N.Data) {}
   DataNode(const DataNode &&N) : SuperType(std::move(N)), Data(N.Data) {}
 
-  ~DataNode() {}
+  ~DataNode() = default;
 
   DataType getData() const { return Data; }
 
@@ -72,7 +71,7 @@ template<class DataType>
 struct DataEdge : public llvm::DGEdge<DataNode<DataType>, DataEdge<DataType>> {
   typedef llvm::DGEdge<DataNode<DataType>, DataEdge<DataType>> SuperType;
   explicit DataEdge(DataNode<DataType> &Node) : SuperType(Node) {}
-  explicit DataEdge(const DataEdge &E) : SuperType(E) {}
+  DataEdge(const DataEdge &E) : SuperType(E) {}
 };
 
 class GraphVizOutputGraph;
@@ -114,9 +113,9 @@ public:
     NodeType *BL = this->addVertex(L);
     NodeType *BR = this->addVertex(R);
 
-    EdgeType *BLR = new EdgeType(*BR);
+    auto *BLR = new EdgeType(*BR);
     BL->addEdge(*BLR);
-    EdgeType *BRL = new EdgeType(*BL);
+    auto *BRL = new EdgeType(*BL);
     BR->addPred(*BRL);
   }
 
@@ -202,7 +201,7 @@ public:
   enum EdgeKind { EK_Checked, EK_Ptype };
   explicit GraphVizEdge(DataNode<Atom *, GraphVizEdge> &Node, EdgeKind Kind)
       : DGEdge(Node), Kind(Kind), IsBidirectional(false) {}
-  explicit GraphVizEdge(const GraphVizEdge &E)
+  GraphVizEdge(const GraphVizEdge &E)
       : DGEdge(E), Kind(E.Kind), IsBidirectional(E.IsBidirectional) {}
 
   EdgeKind Kind;
@@ -258,11 +257,11 @@ template<> struct llvm::GraphTraits<GraphVizOutputGraph> {
   }
 
   static ChildIteratorType child_begin(NodeRef N) {
-    return ChildIteratorType(N->begin(), &GetTargetNode);
+    return {N->begin(), &GetTargetNode};
   }
 
   static ChildIteratorType child_end(NodeRef N) {
-    return ChildIteratorType(N->end(), &GetTargetNode);
+    return {N->end(), &GetTargetNode};
   }
 };
 
@@ -273,7 +272,6 @@ template<> struct llvm::DOTGraphTraits<GraphVizOutputGraph>
 
   std::string getNodeLabel(const DataNode<Atom *, GraphVizEdge> *Node,
                            const GraphVizOutputGraph &CG);
-
   static std::string getEdgeAttributes
       (const DataNode<Atom *, GraphVizEdge> *Node, ChildIteratorType T,
        const GraphVizOutputGraph &CG);

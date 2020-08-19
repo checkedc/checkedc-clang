@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/CConv/AVarBoundsInfo.h"
-#include "clang/CConv/AVarGraph.h"
 #include <iostream>
 
 std::string llvm::DOTGraphTraits<AVarGraph>::getNodeAttributes

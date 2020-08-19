@@ -11,7 +11,6 @@
 
 #include "clang/CConv/ConstraintsGraph.h"
 #include <iostream>
-#include <llvm/Support/raw_ostream.h>
 
 ConstraintsGraph::NodeType *ConstraintsGraph::addVertex(Atom *A) {
   // Save all the const atoms.
