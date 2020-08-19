@@ -128,3 +128,25 @@ void deep(int ****v, int ****w, int ****x, int ****y, int ****z) {
   // CHECK: _Ptr<_Ptr<_Ptr<_Ptr<int **>>>> a =  malloc<_Ptr<_Ptr<_Ptr<int **>>>>(sizeof(int*****));
   ****a = (int**) 1;
 }
+
+// Issue #233. Void type paramters were not being detect hy typeArgsProvidedCheck
+
+_Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
+
+// void provided
+void *example0(void * ptr, unsigned int size) {
+// CHECK: void *example0(void * ptr, unsigned int size) {
+    void *ret;
+    ret = realloc<void>(ptr, size);
+    // CHECK: ret = realloc<void>(ptr, size);
+    return ret;
+}
+
+// nothing provided
+void *example1(void * ptr, unsigned int size) {
+// CHECK: void *example1(void * ptr, unsigned int size) {
+    void *ret;
+    ret = realloc(ptr, size);
+    // CHECK: ret = realloc<void>(ptr, size);
+    return ret;
+}
