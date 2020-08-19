@@ -76,6 +76,7 @@ protected:
   // Is this Constraint Variable for a declaration?
   bool IsForDecl;
 
+
   // Only subclasses should call this
   ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) :
       Kind(K),OriginalType(T),Name(N), HasEqArgumentConstraints(false),
@@ -90,6 +91,7 @@ public:
   virtual std::string mkString(EnvironmentMap &E,
                                bool emitName=true, bool forItype=false,
                                bool emitPointee=false) = 0;
+
 
   // Debug printing of the constraint variable.
   virtual void print(llvm::raw_ostream &O) const = 0;
@@ -393,10 +395,6 @@ private:
   void equateFVConstraintVars(std::set<ConstraintVariable *> &Cset,
                               ProgramInfo &Info);
 
-  void handle_params(FunctionVariableConstraint *From,
-                     FunctionVariableConstraint *To,
-                     ProgramInfo &I,
-                     std::function<void(ConstraintVariable*,ConstraintVariable*) > f);
 public:
   FunctionVariableConstraint() :
           ConstraintVariable(FunctionVariable, "", ""),
@@ -410,6 +408,8 @@ public:
                              clang::DeclaratorDecl *D, std::string N,
                              ProgramInfo &I, const clang::ASTContext &C);
 
+    //TODO Perhaps should be private?
+  void mergeDefers(FunctionVariableConstraint *Other);
   std::set<ConstraintVariable *> &
   getReturnVars() { return returnVars; }
 
