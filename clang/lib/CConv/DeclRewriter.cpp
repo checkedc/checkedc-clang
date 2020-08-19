@@ -222,8 +222,6 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
 
       if (canRewrite(R, Possible)) {
         R.ReplaceText(Possible, SRewrite);
-        std::string NewStr = " " + D->getName().str();
-        R.InsertTextAfter(D->getLocation(), NewStr);
       } else {
         if (Verbose) {
           errs() << "Still don't know how to re-write VarDecl\n";
