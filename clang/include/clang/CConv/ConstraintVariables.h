@@ -408,8 +408,6 @@ public:
                              clang::DeclaratorDecl *D, std::string N,
                              ProgramInfo &I, const clang::ASTContext &C);
 
-    //TODO Perhaps should be private?
-  void mergeDefers(FunctionVariableConstraint *Other);
   std::set<ConstraintVariable *> &
   getReturnVars() { return returnVars; }
 

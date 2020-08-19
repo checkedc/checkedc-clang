@@ -1703,14 +1703,6 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
   }
 }
 
-void FunctionVariableConstraint::mergeDefers(FVConstraint *Other) {
-  // Make sure both ConstraintVars have all the defers
-  vector<ParamDeferment> copy = deferredParams;
-  vector<ParamDeferment> &others = Other->getDeferredParams();
-  copy.insert(copy.end(), others.begin(), others.end());
-  deferredParams = copy;
-  Other->deferredParams = copy;
-}
 
 void FunctionVariableConstraint::addDeferredParams
 (PersistentSourceLoc PL, vector<CVarSet> Ps) {
