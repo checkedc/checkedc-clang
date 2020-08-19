@@ -67,6 +67,13 @@ void t7(int *a, int *b, int *c, int *d, int *e) {
   //CHECK: test_many(a, b, &f, d, e);
 }
 
+void unsafe(int *a) {
+// CHECK: void unsafe(int *a) {
+  int b = 0;
+  test_single(a, b);
+  // CHECK: test_single(a, b);
+}
+
 // Example issue 153
 
 typedef unsigned long size_t;
