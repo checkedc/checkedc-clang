@@ -30,7 +30,6 @@ void foo() {
 }
 
 /* Allocating pointers to pointers */
-	//CHECK: /* Allocating pointers to pointers */
 void bar() {
   int **a = malloc(sizeof(int*));
 	//CHECK: _Ptr<_Ptr<int>> a =  malloc<_Ptr<int>>(sizeof(int*));
@@ -38,7 +37,6 @@ void bar() {
 	//CHECK: *a = malloc<int>(sizeof(int));
 
   /* It's also fine if the pointer is unchecked */
-	//CHECK: /* It's also fine if the pointer is unchecked */
   int **b = malloc(sizeof(int*));
 	//CHECK: _Ptr<int *> b =  malloc<int *>(sizeof(int*));
   *b = (int*) 1;
@@ -46,7 +44,6 @@ void bar() {
 }
 
 /* No conversion is done for void pointers, but this should just test that they
-	//CHECK: /* No conversion is done for void pointers, but this should just test that they
  convert and compile without crashing. We could insert void as the type
  parameter if there is anything to be gained from that. */
 void baz() {
@@ -59,7 +56,6 @@ void buz() {
 	//CHECK: struct {int a;} *b = malloc(10);
 
   /* Inline structs work just fine as long as they've been named.
-	//CHECK: /* Inline structs work just fine as long as they've been named.
    Note that c isn't made checked due to limitation in how inline structs are converted.
    If this test fails because it's made checked, that's great. */
   struct test {int a;} *c = malloc(sizeof(struct test));

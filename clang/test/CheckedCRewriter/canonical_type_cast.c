@@ -23,7 +23,6 @@ void g(int p[]) {
 }
 
 /* A very similar issue with function pointers */
-	//CHECK: /* A very similar issue with function pointers */
 
 int add1(int a){
 	//CHECK: int add1(int a)_Checked {

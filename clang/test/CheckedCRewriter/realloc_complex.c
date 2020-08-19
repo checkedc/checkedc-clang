@@ -26,7 +26,6 @@ void foo(int *count) {
     a[2] = 2;
 
     /*using b as a pointer here*/
-	//CHECK: /*using b as a pointer here*/
     int *b = malloc(sizeof(int));  
 	//CHECK: int *b = malloc<int>(sizeof(int));  
     *b = 3;

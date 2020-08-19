@@ -11,7 +11,6 @@
 	//CHECK: of wild pointer. */
 
 /* A checked pointer should allow the array to be checked. */
-	//CHECK: /* A checked pointer should allow the array to be checked. */
 void test0(int *a) {
 	//CHECK_NOALL: void test0(int *a) {
 	//CHECK_ALL: void test0(_Ptr<int> a) _Checked {
@@ -22,7 +21,6 @@ void test0(int *a) {
 }
 
 /* An unchecked pointer should cause the array to be unchecked. */
-	//CHECK: /* An unchecked pointer should cause the array to be unchecked. */
 void test1(int *a) {
 	//CHECK: void test1(int *a) {
 

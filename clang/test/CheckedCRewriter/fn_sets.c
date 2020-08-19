@@ -7,7 +7,6 @@
 /* Tests relating to issue #86 Handling sets of functions */
 
 /* In the first test case, y WILD due to the  (int*)5 assignment. This
-	//CHECK: /* In the first test case, y WILD due to the  (int*)5 assignment. This
  propagates to everything else. */
 
 int * f(int *x) {
@@ -30,7 +29,6 @@ void foo(int *z) {
 
 
 /* The second case verifies that the pointer are still marked checked in the
-	//CHECK: /* The second case verifies that the pointer are still marked checked in the
  absence of anything weird. */
 
 int * f1(int *x) {

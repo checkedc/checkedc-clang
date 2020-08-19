@@ -9,7 +9,6 @@ int foo(int* p) {
 	//CHECK: int foo(_Ptr<int> p) {
   *p = 5;
   int x = (int)p; /* cast is safe */
-	//CHECK: int x = (int)p; /* cast is safe */
   return x;
 }
 

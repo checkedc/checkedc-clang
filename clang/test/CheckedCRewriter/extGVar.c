@@ -6,7 +6,6 @@
 // RUN: rm %S/extGVar.checked.c
 
 /*what we're interested in*/ 
-	//CHECK: /*what we're interested in*/ 
 extern int *x; 
 
 /*safe filler to ensure that conversion happens*/ 

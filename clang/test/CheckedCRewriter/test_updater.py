@@ -55,7 +55,7 @@ def process_file_smart(name, cnameNOALL, cnameALL, diff):
         line = lines[i] 
         noline = noall[i] 
         yeline = yeall[i]
-        if line.find("extern") == -1 and ((any(substr in line for substr in keywords) and line.find("*") != -1) or any(substr in noline for substr in ckeywords) or any(substr in yeline for substr in ckeywords)): 
+        if line.find("extern") == -1 and line.find("/*") == -1 and ((any(substr in line for substr in keywords) and line.find("*") != -1) or any(substr in noline for substr in ckeywords) or any(substr in yeline for substr in ckeywords)): 
             if noline == yeline: 
                 lines[i] = line + "\n\t//CHECK: " + noline.lstrip()
             else: 

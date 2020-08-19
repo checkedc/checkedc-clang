@@ -81,7 +81,6 @@ int *buz(int *a) {
   a = b;
 
   /* The current implementation does not propagate array constraint to c and d, but
-	//CHECK: /* The current implementation does not propagate array constraint to c and d, but
    if this test starts failing because it does, that's probably OK. */
 
   int *c = b;

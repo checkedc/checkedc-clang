@@ -19,7 +19,6 @@ union foo {
 void bar(int *x) {
 	//CHECK: void bar(_Ptr<int> x) {
   /*but pointers to unions can be*/
-	//CHECK: /*but pointers to unions can be*/
   union foo *g = (void *) 0;
 	//CHECK: _Ptr<union foo> g =  (void *) 0;
   union foo *h = calloc(5, sizeof(union foo)); 

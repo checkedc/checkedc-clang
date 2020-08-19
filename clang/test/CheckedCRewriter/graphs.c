@@ -56,9 +56,10 @@ struct Graph
 	//CHECK_NOALL: int* visited;
 	//CHECK_ALL:     _Array_ptr<int> visited : count(numVertices);
 
-    struct node** adjLists; /* we need int** to store a two dimensional array. Similary, we need struct node** to store an array of Linked lists */
-	//CHECK_NOALL: struct node** adjLists; /* we need int** to store a two dimensional array. Similary, we need struct node** to store an array of Linked lists */
-	//CHECK_ALL:     _Array_ptr<_Ptr<struct node>> adjLists : count(numVertices); /* we need int** to store a two dimensional array. Similary, we need struct node** to store an array of Linked lists */
+	/* we need int** to store a two dimensional array. Similary, we need struct node** to store an array of Linked lists */
+    struct node** adjLists;
+	//CHECK_NOALL: struct node** adjLists;
+	//CHECK_ALL:     _Array_ptr<_Ptr<struct node>> adjLists : count(numVertices);
 
 };
 
@@ -271,7 +272,6 @@ struct node* createNode(int v)
 }
 
 /*Allocate memory for the entire graph structure*/
-	//CHECK: /*Allocate memory for the entire graph structure*/
 
 struct Graph* createGraph(int vertices)
 	//CHECK: _Ptr<struct Graph> createGraph(int vertices)
@@ -384,7 +384,6 @@ struct Stack* createStack()
 }
 
 /*Pushes element into stack*/
-	//CHECK: /*Pushes element into stack*/
 
 void push(struct Stack* stack,int element)
 	//CHECK: void push(_Ptr<struct Stack> stack, int element)

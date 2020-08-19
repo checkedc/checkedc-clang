@@ -31,7 +31,6 @@ struct Graph{
 
 
 /*Constructs a graph with V vertices and E edges*/
-	//CHECK: /*Constructs a graph with V vertices and E edges*/
 
 void createGraph(struct Graph* G,int V){
 	//CHECK: void createGraph(_Ptr<struct Graph> G, int V){

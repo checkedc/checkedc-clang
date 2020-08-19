@@ -6,14 +6,12 @@
 // RUN: rm %S/fp_arith.checked.c
 
 /* Tests for the error outlined in issue 74. Pointer arithmetic on function
-	//CHECK: /* Tests for the error outlined in issue 74. Pointer arithmetic on function
  pointers with -alltypes active causes the pointers be ARR pointers, but
  this operation is not defined. */
 
 int add(int,int);
 
 /* Baseline check of the behavior of function pointers. A function pointer
-	//CHECK: /* Baseline check of the behavior of function pointers. A function pointer
  before pointer arithmetic is used should be a checked pointer regardless of
  alltypes flag. */
 void basic_fn_ptr() {
@@ -23,7 +21,6 @@ void basic_fn_ptr() {
 }
 
 /* Tests of bad Pointer arithmetic that should result in WILD pointers.
-	//CHECK: /* Tests of bad Pointer arithmetic that should result in WILD pointers.
  As described in issue #74, these are rewritten as ARR pointers when
  alltypes is active. */
 void bad_ptr_arith() {

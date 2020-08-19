@@ -6,7 +6,6 @@
 // RUN: rm %S/unsigned_signed_cast.checked.c
 
 /*unsigned integer cast*/
-	//CHECK: /*unsigned integer cast*/
 
 unsigned int *foo = 0;
 	//CHECK: unsigned int *foo = 0;
@@ -15,7 +14,6 @@ int *bar = 0;
 
 
 /*unsigned characters cast*/
-	//CHECK: /*unsigned characters cast*/
 
 unsigned char *yoo = 0; 
 	//CHECK: unsigned char *yoo = 0; 
@@ -24,7 +22,6 @@ char *yar = 0;
 
 
 /*C does not support unsigned floats, so we don't have to worry about that case*/
-	//CHECK: /*C does not support unsigned floats, so we don't have to worry about that case*/
 
 /*ensure trivial conversion with parameter*/
 void test(int *x) {
