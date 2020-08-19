@@ -1640,10 +1640,8 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
     }
   } else if (numParams() != 0 && From->numParams() == 0) {
     auto &CS = I.getConstraints();
-    vector<ParamDeferment> defers = From->getDeferredParams();
-    defers.insert(defers.end(),
-                  getDeferredParams().begin(), getDeferredParams().end());
-
+    vector<ParamDeferment> &defers = From->getDeferredParams();
+    assert(getDeferredParams().size() == 0);
     for(auto deferred : defers ) {
       assert(numParams() == deferred.PS.size());
       for(unsigned i = 0; i < deferred.PS.size(); i++) {
