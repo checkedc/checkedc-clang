@@ -1657,8 +1657,11 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
 
 void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
                                                   ProgramInfo &I) {
+  // `this`: is the declaration the tool saw first
+  // `FromCV`: is the declaration seen second, it cannot have defered constraints
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert (From != nullptr);
+  assert(From->getDeferredParams().size() == 0);
   // Transplant returns.
   auto FromRetVar = getOnly(From->getReturnVars());
   auto RetVar = getOnly(returnVars);
@@ -1669,34 +1672,22 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
   bool dealingWithUntyped = isEmpty && numParams() != From->numParams();
   auto &CS = I.getConstraints();
 
-  for (unsigned i = 0; i < From->numParams(); i++) {
-    CVarSet &FromP = From->getParamVar(i);
-    auto FromVar = getOnly(FromP);
-    if (dealingWithUntyped) {
-      CVarSet New;
-      auto NewV = FromVar->getCopy(CS);
-      New.insert(NewV);
-      paramVars.push_back(New);
-      //mergeDeclaration(FromVar, I);
-    } else {
+  if(From->numParams() == 0) {
+    // From is an untyped declaration, and adds no information
+    return;
+  } else if (this->numParams() == 0) {
+    // This is an untyped declaration, we need to perform a transplant
+    From->brainTransplant(this, I);
+    //brainTransplant(From, I);
+  } else {
+    // Standard merge
+    assert(this->numParams() == From->numParams());
+    for (unsigned i = 0; i < From->numParams(); i++) {
+      CVarSet &FromP = From->getParamVar(i);
+      auto FromVar = getOnly(FromP);
       CVarSet &P = getParamVar(i);
       auto Var = getOnly(P);
       Var->mergeDeclaration(FromVar, I);
-    }
-  }
-  if (dealingWithUntyped) {
-    vector<ParamDeferment> defers = From->getDeferredParams();
-    defers.insert(defers.end(),
-                  getDeferredParams().begin(), getDeferredParams().end());
-
-    for(auto deferred : defers ) {
-      assert(numParams() == deferred.PS.size());
-      for(unsigned i = 0; i < deferred.PS.size(); i++) {
-        CVarSet ParamDC = getParamVar(i);
-        CVarSet ArgDC = deferred.PS[i];
-        llvm::errs() << "Hit\n";
-        constrainConsVarGeq(ParamDC, ArgDC, CS, &(deferred.PL), Wild_to_Safe, false, &I);
-      }
     }
   }
 }
