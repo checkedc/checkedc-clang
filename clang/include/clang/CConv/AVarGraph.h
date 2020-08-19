@@ -16,6 +16,52 @@
 #include "ConstraintsGraph.h"
 
 // Graph that keeps tracks of direct assignments between various variables.
-typedef DataGraph<BoundsKey> AVarGraph;
+class AVarGraph : public DataGraph<BoundsKey> {
+public:
+  AVarGraph(AVarBoundsInfo *ABInfo) : DataGraph(), ABInfo(ABInfo) {}
+private:
+  friend struct llvm::DOTGraphTraits<AVarGraph>;
+  AVarBoundsInfo *ABInfo;
+};
 
+template<> struct llvm::GraphTraits<AVarGraph> {
+  using NodeRef = DataNode<BoundsKey> *;
+  using EdgeType = DataEdge<BoundsKey> *;
+  using nodes_iterator = AVarGraph::iterator;
+
+  static NodeRef GetTargetNode(EdgeType P) {
+    return &P->getTargetNode();
+  }
+
+  using ChildIteratorType =
+  mapped_iterator<typename DataNode<BoundsKey>::iterator,
+                  decltype(&GetTargetNode)>;
+
+  static nodes_iterator nodes_begin(const AVarGraph &G) {
+    return const_cast<AVarGraph&>(G).Nodes.begin();
+  }
+
+  static nodes_iterator nodes_end(const AVarGraph &G) {
+    return const_cast<AVarGraph&>(G).Nodes.end();
+  }
+
+  static ChildIteratorType child_begin(NodeRef N) {
+    return ChildIteratorType(N->begin(), &GetTargetNode);
+  }
+
+  static ChildIteratorType child_end(NodeRef N) {
+    return ChildIteratorType(N->end(), &GetTargetNode);
+  }
+};
+
+template<> struct llvm::DOTGraphTraits<AVarGraph> :
+    public llvm::DefaultDOTGraphTraits, llvm::GraphTraits<GraphVizOutputGraph> {
+  DOTGraphTraits(bool simple = false) : DefaultDOTGraphTraits(simple) {}
+
+
+  std::string getNodeAttributes(const DataNode<BoundsKey> *Node,
+                                const AVarGraph &CG);
+  std::string getNodeLabel(const DataNode<BoundsKey> *Node,
+                           const AVarGraph &G);
+};
 #endif // _AVARGRAPH_H

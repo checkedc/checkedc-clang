@@ -75,6 +75,8 @@ struct DataEdge : public llvm::DGEdge<DataNode<DataType>, DataEdge<DataType>> {
   explicit DataEdge(const DataEdge &E) : SuperType(E) {}
 };
 
+class GraphVizOutputGraph;
+
 // Define a general purpose extension to the llvm provided graph class that
 // stores some data at each node in the graph. This is used by the checked and
 // pointer type constraint graphs (which store atoms at each node) as well as
@@ -159,6 +161,11 @@ protected:
     this->addNode(*NewN);
     return NewN;
   }
+
+private:
+  template <typename G>
+  friend struct llvm::GraphTraits;
+  friend class GraphVizOutputGraph;
 };
 
 // Specialize the graph for the checked and pointer type constraint graphs. This
@@ -178,7 +185,6 @@ protected:
   // so that getAllConstAtoms can efficiently retrieve them.
   NodeType *addVertex(Atom *A) override;
 private:
-  friend class GraphVizOutputGraph;
   std::set<ConstAtom*> AllConstAtoms;
 };
 
@@ -226,7 +232,6 @@ public:
 private:
   void mergeConstraintGraph(const ConstraintsGraph &Graph,
                             GraphVizEdge::EdgeKind EdgeType);
-  friend struct llvm::GraphTraits<GraphVizOutputGraph>;
 };
 
 // Below this is boiler plate needed to work with the llvm graphviz output
@@ -268,7 +273,6 @@ template<> struct llvm::DOTGraphTraits<GraphVizOutputGraph>
 
   std::string getNodeLabel(const DataNode<Atom *, GraphVizEdge> *Node,
                            const GraphVizOutputGraph &CG);
-
 
   static std::string getEdgeAttributes
       (const DataNode<Atom *, GraphVizEdge> *Node, ChildIteratorType T,

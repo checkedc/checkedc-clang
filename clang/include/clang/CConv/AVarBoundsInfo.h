@@ -108,7 +108,7 @@ private:
 
 class AVarBoundsInfo {
 public:
-  AVarBoundsInfo() {
+  AVarBoundsInfo() : ProgVarGraph(this) {
     BCount = 1;
     PVarInfo.clear();
     InProgramArrPtrBoundsKeys.clear();
@@ -168,6 +168,8 @@ public:
 
 private:
   friend class AvarBoundsInference;
+  friend struct llvm::DOTGraphTraits<AVarGraph>;
+
   // Variable that is used to generate new bound keys.
   BoundsKey BCount;
   // Map of VarKeys and corresponding program variables.

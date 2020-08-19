@@ -705,8 +705,10 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
 }
 
 void AVarBoundsInfo::dumpAVarGraph(const std::string &DFPath) {
-  // FIXME
-  //ProgVarGraph.dumpCGDot(DFPath, this);
+  std::error_code Err;
+  llvm::raw_fd_ostream DotFile(DFPath, Err);
+  llvm::WriteGraph(DotFile, ProgVarGraph);
+  DotFile.close();
 }
 
 void AVarBoundsInfo::print_stats(llvm::raw_ostream &O,
