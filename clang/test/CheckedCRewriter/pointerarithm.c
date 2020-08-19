@@ -1,4 +1,7 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone -addcr -alltypes -output-postfix=checked %s 
+// RUN: cconv-standalone -addcr -alltypes %S/pointerarithm.checked.c -- | count 0
+// RUN: rm %S/pointerarithm.checked.c
 
 #define NULL ((void*)0)
 typedef unsigned long size_t;
