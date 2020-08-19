@@ -18,13 +18,10 @@ void t1(int *a, int *b){
   //CHECK: test_single(a, &c);
 }
 
-// BUG: This does not compile when converted because the correct checked type
-// is not inserted for the type argument. Not fixing here because this is
-// resolved in PR #187.
 void t10(int **a, int **b) {
-//COM: void t10(_Ptr<_Ptr<int>> a, _Ptr<_Ptr<int>> b) {
-  // test_single(a, b);
-  //COM: test_single<int *>(a, b);
+//CHECK: void t10(_Ptr<_Ptr<int>> a, _Ptr<_Ptr<int>> b) {
+  test_single(a, b);
+  //CHECK: test_single<_Ptr<int>>(a, b);
 }
 
 _Itype_for_any(T,U) void *test_double(void *a : itype(_Ptr<T>), void *b : itype(_Ptr<T>), void *c : itype(_Ptr<U>), void *d : itype(_Ptr<U>)) : itype(_Ptr<T>);
@@ -80,7 +77,54 @@ _Itype_for_any(T) void *memcpy(void * restrict dest : itype(restrict _Array_ptr<
 
 void foo(int *p2) {
     int *p = malloc(2*sizeof(int));
-    //CHECK_ALL: _Array_ptr<int> p =  malloc<int>(2*sizeof(int));
+    //CHECK_ALL: _Array_ptr<int> p : count(2) =  malloc<int>(2*sizeof(int));
     memcpy(p, p2, sizeof(int));
     //CHECK: memcpy<int>(p, p2, sizeof(int));
+}
+
+// Array types can be used to instantiate type params
+void arrs() {
+  int *p = malloc(10*sizeof(int));
+  // CHECK_ALL: _Array_ptr<int> p : count(10) =  malloc<int>(10*sizeof(int));
+  int q[10];
+  // CHECK_ALL: int q _Checked[10];
+
+  memcpy(p, q, 10*sizeof(int));
+  // CHECK: memcpy<int>(p, q, 10*sizeof(int));
+}
+
+_Itype_for_any(T) void *test1(void * t : itype(_Ptr<T>)) : itype(_Ptr<T>);
+_Itype_for_any(T) void *test2(void) : itype(_Ptr<T>);
+
+void f0() {
+  int **a = test2();
+  // CHECK: _Ptr<int *> a =  test2<int *>();
+  *a = (int*)1;
+}
+
+void f1(int **a, float **b) {
+// CHECK: void f1(_Ptr<_Ptr<int>> a, _Ptr<_Ptr<float>> b) {
+  int **c = test1(a);
+  float **d = test1(b);
+  // CHECK: _Ptr<_Ptr<int>> c =  test1<_Ptr<int>>(a);
+  // CHECK: _Ptr<_Ptr<float>> d =  test1<_Ptr<float>>(b);
+}
+
+void f2(int **a, int **c) {
+// CHECK: void f2(_Ptr<_Ptr<int>> a, int **c) {
+  int **b = test1(a);
+  // CHECK: _Ptr<_Ptr<int>> b =  test1<_Ptr<int>>(a);
+  int *d = test1(c);
+  // CHECK: int *d = test1(c);
+}
+
+void deep(int ****v, int ****w, int ****x, int ****y, int ****z) {
+  // CHECK: void deep(_Ptr<_Ptr<_Ptr<int *>>> v, _Ptr<_Ptr<_Ptr<int *>>> w, _Ptr<_Ptr<_Ptr<int *>>> x, _Ptr<_Ptr<_Ptr<int *>>> y, _Ptr<_Ptr<_Ptr<int *>>> z) {
+  int ****u = test_many(v, w, x, y, z);
+  // CHECK: _Ptr<_Ptr<_Ptr<int *>>> u =  test_many<_Ptr<_Ptr<int *>>>(v, w, x, y, z);
+  ***w = (int*) 1;
+
+  int ******a = malloc(sizeof(int*****));
+  // CHECK: _Ptr<_Ptr<_Ptr<_Ptr<int **>>>> a =  malloc<_Ptr<_Ptr<_Ptr<int **>>>>(sizeof(int*****));
+  ****a = (int**) 1;
 }

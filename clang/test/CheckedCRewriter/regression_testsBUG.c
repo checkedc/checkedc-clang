@@ -5,7 +5,8 @@
 // The following test is supposed to fail with the current tool.
 // XFAIL: *
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
-//
+// 
+// XFAIL: *
 
 #define NULL ((void *)0)
 typedef unsigned long size_t;

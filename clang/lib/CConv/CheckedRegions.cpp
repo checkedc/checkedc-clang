@@ -9,6 +9,7 @@
 // classes of CheckedRegions.h
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/ASTTypeTraits.h"
 #include "clang/CConv/ConstraintResolver.h"
 #include "clang/CConv/RewriteUtils.h"
 #include "clang/CConv/Utils.h"
@@ -20,6 +21,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "clang/Tooling/Refactoring/SourceCode.h"
 #include <sstream>
+#include <algorithm>
 
 using namespace llvm;
 using namespace clang;
@@ -28,17 +30,89 @@ using namespace clang;
 
 bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) { 
   llvm::FoldingSetNodeID Id;
+  ast_type_traits::DynTypedNode DTN = ast_type_traits::DynTypedNode::create(*S);
+
   S->Profile(Id, *Context, true);
   switch (Map[Id]) {
-    case IS_UNCHECKED: return true;
-    case IS_CHECKED:   
-                        auto Loc = S->getBeginLoc();
-                        Writer.InsertTextBefore(Loc, "_Checked ");
-                        return false;
+    case IS_UNCHECKED:
+      if(isParentChecked(DTN) && !isFunctionBody(S)) {
+        auto Loc = S->getBeginLoc();
+        Writer.InsertTextBefore(Loc, "_Unchecked ");
+      }
+      break;
+    case IS_CHECKED:
+      if(!isParentChecked(DTN)) {
+        auto Loc = S->getBeginLoc();
+        Writer.InsertTextBefore(Loc, "_Checked ");
+      }
+      break;
+    default: llvm_unreachable("Bad flag in CheckedRegionAdder");
   }
 
-  llvm_unreachable("Bad flag in CheckedRegionAdder");
+  return true;
 }
+
+bool CheckedRegionAdder::VisitCallExpr(CallExpr *C) {
+  auto FD = C->getDirectCallee();
+  FoldingSetNodeID ID;
+  ast_type_traits::DynTypedNode DTN = ast_type_traits::DynTypedNode::create(*C);
+
+  C->Profile(ID, *Context, true);
+  if (FD && FD->isVariadic() &&
+      Map[ID] == IS_CONTAINED && isParentChecked(DTN)) {
+    auto Begin = C->getBeginLoc();
+    Writer.InsertTextBefore(Begin, "_Unchecked { ");
+    auto End = C->getEndLoc();
+    Writer.InsertTextAfterToken(End, "; }");
+  }
+
+  return true;
+}
+
+typedef std::pair<const CompoundStmt*, int> StmtPair;
+
+StmtPair
+CheckedRegionAdder::findParentCompound(const ast_type_traits::DynTypedNode &N, int distance = 1)  {
+  auto parents = Context->getParents(N);
+  if (parents.empty())
+    return std::make_pair(nullptr, INT_MAX);
+  else {
+    std::vector<StmtPair> results;
+    results.reserve(parents.size());
+    for (auto Parent : parents)
+      if (auto S = Parent.get<CompoundStmt>())
+        results.push_back(std::make_pair(S, distance));
+      else
+        results.push_back(findParentCompound(Parent, distance + 1));
+
+    auto min = min_element(results.begin(), results.end(),
+                           [] (const StmtPair &A, const StmtPair &B) {
+                             return A.second < B.second;
+                           });
+    return *min;
+  }
+}
+
+
+bool CheckedRegionAdder::isFunctionBody(CompoundStmt *S) {
+  const auto &Parents = Context->getParents(*S);
+  if (Parents.empty()) {
+    return false;
+  }
+  return Parents[0].get<FunctionDecl>();
+}
+
+bool CheckedRegionAdder::isParentChecked(const ast_type_traits::DynTypedNode &DTN) {
+  if (auto Parent = findParentCompound(DTN).first) {
+    llvm::FoldingSetNodeID ID;
+    Parent->Profile(ID, *Context, true);
+    return Map[ID] == IS_CHECKED;
+  } else {
+    return false;
+  }
+}
+
+
 
 // CheckedRegionFinder
 
@@ -67,36 +141,18 @@ bool CheckedRegionFinder::VisitDoStmt(DoStmt *S) {
   return false;
 }
 
-void CheckedRegionFinder::handleChildren(const Stmt::child_range &Stmts) { 
-  int Localwild = 0;
-
-  for (const auto &SubStmt : Stmts) {
-    CheckedRegionFinder Sub(Context, Writer, Info, Seen, Map);
-    Sub.TraverseStmt(SubStmt);
-    Localwild += Sub.Nwild;
-  }
-  Nwild += Localwild;
-}
-
-
-
 bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
   // Visit all subblocks, find all unchecked types
-  int Localwild = 0;
+  bool Localwild = 0;
   for (const auto &SubStmt : S->children()) {
     CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
     Sub.TraverseStmt(SubStmt);
-    Localwild += Sub.Nwild;
-    Nchecked += Sub.Nchecked;
-    Ndecls += Sub.Ndecls;
+    Localwild |= Sub.Wild;
   }
 
-  addUncheckedAnnotation(S, Localwild);
+  markChecked(S, Localwild);
 
-  // Compound Statements are always considered to have 0 wild types
-  // This is because a compound statement marked w/ _Unchecked can live
-  // inside a _Checked region.
-  Nwild = 0;
+  Wild = false;
 
   llvm::FoldingSetNodeID Id;
   S->Profile(Id, *Context, true);
@@ -107,10 +163,96 @@ bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
   return false;
 }
 
+bool CheckedRegionFinder::VisitStmtExpr(StmtExpr *SE) {
+  Wild = true;
+  return false;
+}
+
 bool CheckedRegionFinder::VisitCStyleCastExpr(CStyleCastExpr *E) {
   // TODO This is over cautious
-  Nwild++;
+  Wild = true;
   return true;
+}
+
+bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
+  auto FD = C->getDirectCallee();
+  FoldingSetNodeID ID;
+  C->Profile(ID, *Context, true);
+  if (FD && FD->isVariadic()) {
+    Wild = true;
+    Map[ID] = IS_UNCHECKED;
+  } else {
+    if (FD) {
+      auto type = FD->getReturnType();
+      Wild |= (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody()))
+        || containsUncheckedPtr(type)
+        || (std::any_of(FD->param_begin(), FD->param_end(),
+           [this] (Decl *param) {
+              auto CVSet = Info.getVariable(param, Context);
+              return isWild(CVSet );
+            }));
+    }
+    handleChildren(C->children());
+    Map[ID] = Wild ? IS_UNCHECKED : IS_CHECKED;
+  }
+
+  return false;
+}
+
+bool CheckedRegionFinder::VisitVarDecl(VarDecl *VD) {
+  auto CVSet = Info.getVariable(VD, Context);
+  Wild = isWild(CVSet) || containsUncheckedPtr(VD->getType());
+  return true;
+}
+
+bool CheckedRegionFinder::VisitParmVarDecl(ParmVarDecl *PVD) {
+  // Check if the variable is WILD.
+  auto CVSet = Info.getVariable(PVD, Context);
+  Wild |= isWild(CVSet) | containsUncheckedPtr(PVD->getType());
+  return true;
+}
+
+bool CheckedRegionFinder::VisitMemberExpr(MemberExpr *E){
+  ValueDecl *VD = E->getMemberDecl();
+  if (VD) {
+    // Check if the variable is WILD.
+    std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context);
+    for (auto Cv : CVSet) {
+      if (Cv->hasWild(Info.getConstraints().getVariables())) {
+        Wild = true;
+      }
+    }
+    // Check if the variable contains unchecked types.
+    Wild |= containsUncheckedPtr(VD->getType());
+  }
+  return true;
+}
+
+bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) {
+  auto T = DR->getType();
+  auto D = DR->getDecl();
+  auto CVSet = Info.getVariable(D, Context);
+  bool IW = isWild(CVSet ) || containsUncheckedPtr(T);
+
+  if (auto FD = dyn_cast<FunctionDecl>(D)) {
+    auto FV = Info.getFuncConstraints(FD, Context);
+    IW |= isWild(FV);
+    for (const auto& param: FD->parameters()) {
+      auto CVSet = Info.getVariable(param, Context);
+      IW |= isWild(CVSet);
+    }
+  }
+
+  Wild |= IW ;
+  return true;
+}
+
+void CheckedRegionFinder::handleChildren(const Stmt::child_range &Stmts) {
+  for (const auto &SubStmt : Stmts) {
+    CheckedRegionFinder Sub(Context, Writer, Info, Seen, Map);
+    Sub.TraverseStmt(SubStmt);
+    Wild |= Sub.Wild;
+  }
 }
 
 // Check if this compound statement is the body
@@ -126,23 +268,14 @@ bool CheckedRegionFinder::hasUncheckedParameters(CompoundStmt *S) {
     return false;
   }
 
-  int Localwild = 0;
+  int Localwild = false;
   for (auto Child : Parent->parameters()) {
     CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
     Sub.TraverseParmVarDecl(Child);
-    Localwild += Sub.Nwild;
+    Localwild |= Sub.Wild;
   }
 
-  return Localwild != 0 || Parent->isVariadic();
-}
-
-
-bool CheckedRegionFinder::VisitUnaryOperator(UnaryOperator *U) {
-  //TODO handle computing pointers
-  if (U->getOpcode() == UO_AddrOf) {
-    // wild++;
-  }
-  return true;
+  return Localwild || Parent->isVariadic();
 }
 
 bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
@@ -155,10 +288,8 @@ bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
   auto Parent = Parents[0].get<CompoundStmt>();
   if (Parent) {
     //Check if we are the only child
-    int NumChilds = 0;
-    for (const auto &child : Parent->children()) {
-      NumChilds++;
-    }
+    auto childs = Parent->children();
+    int NumChilds = std::distance(childs.begin(), childs.end());
     return NumChilds > 1;
   } else {
     //TODO there are other statement positions
@@ -167,106 +298,66 @@ bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
   }
 }
 
-bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
-  auto FD = C->getDirectCallee();
-  if (FD && FD->isVariadic()) {
-    // If this variadic call is in statement positon, we can wrap in it
-    // an unsafe block and avoid polluting the entire block as unsafe.
-    // If it's not (as in it is used in an expression) then we fall back to
-    // reporting an WILD value.
-    if (isInStatementPosition(C)) {
-      // Insert an _Unchecked block around the call
-      auto Begin = C->getBeginLoc();
-      Writer.InsertTextBefore(Begin, "_Unchecked { ");
-      auto End = C->getEndLoc();
-      Writer.InsertTextAfterToken(End, "; }");
-    } else {
-      // Call is inside an epxression, mark WILD.
-      Nwild++;
-    }
-  }
-  if (FD) {
-    auto type = FD->getReturnType();
-    if (type->isPointerType())
-      Nwild++;
-  }
-  return true;
+bool CheckedRegionFinder::isWild(std::set<ConstraintVariable*> &S) { 
+  for (auto Cv : S) 
+    if (Cv->hasWild(Info.getConstraints().getVariables()))
+      return true;
+
+  return false;
 }
 
-
-bool CheckedRegionFinder::VisitVarDecl(VarDecl *VD) {
-  // Check if the variable is WILD.
-  bool FoundWild = false;
-  std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context);
-  for (auto Cv : CVSet) {
-    if (Cv->hasWild(Info.getConstraints().getVariables())) {
-      FoundWild = true;
-    }
-  }
-
-  if (FoundWild)
-    Nwild++;
-
-
-  // Check if the variable contains an unchecked type.
-  if (isUncheckedPtr(VD->getType()))
-    Nwild++;
-  Ndecls++;
-  return true;
+bool CheckedRegionFinder::isWild(std::set<FVConstraint*> *S) {
+  for (auto Fv : *S)
+    if (Fv->hasWild(Info.getConstraints().getVariables()))
+      return true;
+  return false;
 }
 
-bool CheckedRegionFinder::VisitParmVarDecl(ParmVarDecl *PVD) {
-  // Check if the variable is WILD.
-  bool FoundWild = false;
-  std::set<ConstraintVariable *> CVSet = Info.getVariable(PVD, Context);
-  for (auto Cv : CVSet) {
-    if (Cv->hasWild(Info.getConstraints().getVariables())) {
-      FoundWild = true;
-    }
-  }
-
-  if (FoundWild)
-    Nwild++;
-
-  // Check if the variable is a void*.
-  if (isUncheckedPtr(PVD->getType()))
-    Nwild++;
-  Ndecls++;
-  return true;
-}
-
-bool CheckedRegionFinder::isUncheckedPtr(QualType Qt) {
+bool CheckedRegionFinder::containsUncheckedPtr(QualType Qt) {
   // TODO does a more efficient representation exist?
   std::set<std::string> Seen;
-  return isUncheckedPtrAcc(Qt, Seen);
+  return containsUncheckedPtrAcc(Qt, Seen);
 }
 
 // Recursively determine if a type is unchecked.
-bool CheckedRegionFinder::isUncheckedPtrAcc(QualType Qt, std::set<std::string> &Seen) {
+bool CheckedRegionFinder::containsUncheckedPtrAcc(QualType Qt, std::set<std::string> &Seen) {
   auto Ct = Qt.getCanonicalType();
   auto TyStr = Ct.getAsString();
+  bool isSeen = false;
   auto Search = Seen.find(TyStr);
   if (Search == Seen.end()) {
     Seen.insert(TyStr);
   } else {
-    return false;
+    isSeen = true;
   }
 
-  if (Ct->isVoidPointerType()) {
+  if (Ct->isFunctionPointerType()) {
+    if (auto FPT = dyn_cast<FunctionProtoType>(Ct->getPointeeType())) {
+      auto PTs = FPT->getParamTypes();
+      bool params = std::any_of(PTs.begin(), PTs.end(),
+          [this, &Seen] (QualType QT) { return containsUncheckedPtrAcc(QT, Seen); });
+      return containsUncheckedPtrAcc(FPT->getReturnType(), Seen) || params;
+    } else {
+      return false;
+    }
+  } else if (Ct->isVoidPointerType()) {
     return true;
   } else if (Ct->isVoidType()) {
     return true;
   } if (Ct->isPointerType()) {
-    return isUncheckedPtrAcc(Ct->getPointeeType(), Seen);
+    return containsUncheckedPtrAcc(Ct->getPointeeType(), Seen);
   } else if (Ct->isRecordType()) {
-    return isUncheckedStruct(Ct, Seen);
+    if (isSeen) {
+      return false;
+    } else {
+      return isUncheckedStruct(Ct, Seen);
+    }
   } else {
     return false;
   }
 }
 
 // Iterate through all fields of the struct and find unchecked types.
-// TODO doesn't handle recursive structs correctly
 bool CheckedRegionFinder::isUncheckedStruct(QualType Qt, std::set<std::string> &Seen) {
   auto RcdTy = dyn_cast<RecordType>(Qt);
   if (RcdTy) {
@@ -275,71 +366,28 @@ bool CheckedRegionFinder::isUncheckedStruct(QualType Qt, std::set<std::string> &
       bool Unsafe = false;
       for (auto const &Fld : D->fields()) {
         auto Ftype = Fld->getType();
-        Unsafe |= isUncheckedPtrAcc(Ftype, Seen);
+        Unsafe |= containsUncheckedPtrAcc(Ftype, Seen);
         std::set<ConstraintVariable *> CVSet =
             Info.getVariable(Fld, Context);
-        for (auto Cv : CVSet) {
+        for (auto Cv : CVSet)
           Unsafe |= Cv->hasWild(Info.getConstraints().getVariables());
-        }
       }
       return Unsafe;
-    } else {
-      return true;
     }
-  } else {
-    return false;
   }
+
+  return false;
 }
 
-void CheckedRegionFinder::addUncheckedAnnotation(CompoundStmt *S, int Localwild) {
+// Mark the given compound statement with
+// whether or not it is checked
+void CheckedRegionFinder::markChecked(CompoundStmt *S, int Localwild) {
   auto Cur = S->getWrittenCheckedSpecifier();
-
   llvm::FoldingSetNodeID Id;
   S->Profile(Id, *Context, true);
-  auto Search = Seen.find(Id);
 
-  if (Search == Seen.end()) {
-    auto Loc = S->getBeginLoc();
-    bool IsChecked = !hasUncheckedParameters(S) &&
-                   Cur == CheckedScopeSpecifier::CSS_None && Localwild == 0;
+  bool IsChecked = !hasUncheckedParameters(S) &&
+    Cur == CheckedScopeSpecifier::CSS_None && Localwild == 0;
 
-    Map[Id] = IsChecked ? IS_CHECKED : IS_UNCHECKED;
-
-    // Don't add _Unchecked to top level functions.
-    if ((!IsChecked && !isFunctionBody(S))) {
-      Writer.InsertTextBefore(Loc, "_Unchecked ");
-    }
-  }
-}
-
-bool CheckedRegionFinder::isFunctionBody(CompoundStmt *S) {
-  const auto &Parents = Context->getParents(*S);
-  if (Parents.empty()) {
-    return false;
-  }
-  return Parents[0].get<FunctionDecl>();
-}
-
-
-bool CheckedRegionFinder::VisitMemberExpr(MemberExpr *E){
-  ValueDecl *VD = E->getMemberDecl();
-  if (VD) {
-    // Check if the variable is WILD.
-    bool FoundWild = false;
-    std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context);
-    for (auto Cv : CVSet) {
-      if (Cv->hasWild(Info.getConstraints().getVariables())) {
-        FoundWild = true;
-      }
-    }
-
-    if (FoundWild)
-      Nwild++;
-
-    // Check if the variable is a void*.
-    if (isUncheckedPtr(VD->getType()))
-      Nwild++;
-    Ndecls++;
-  }
-  return true;
+  Map[Id] = IsChecked ? IS_CHECKED : IS_UNCHECKED;
 }

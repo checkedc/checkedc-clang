@@ -35,8 +35,8 @@ int func(void) {
 //CHECK: _Ptr<int (const int *, _Ptr<const int> )> fptr1 = ((void *)0);
 //CHECK-NEXT: _Ptr<int (_Ptr<const int> , _Ptr<const int> )> fptr2 = ((void *)0);
 //CHECK: _Ptr<_Ptr<int>> fp1 = ((void *)0);
-//CHECK-NEXT: _Ptr<int*> fp2 = ((void *)0);
-//CHECK-NEXT: _Ptr<int*> bp1 = ((void *)0);
+//CHECK-NEXT: _Ptr<int *> fp2 = ((void *)0);
+//CHECK-NEXT: _Ptr<int *> bp1 = ((void *)0);
 //CHECK-NEXT: int **bp2;
 //CHECK: foo(fp1);
 //CHECK-NEXT: foo(((int **)fp2));

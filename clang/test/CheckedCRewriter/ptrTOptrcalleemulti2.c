@@ -1,8 +1,8 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %s %S/ptrTOptrcalleemulti1.c
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %s %S/ptrTOptrcalleemulti1.c
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %S/ptrTOptrcalleemulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %S/ptrTOptrcalleemulti1.c %s
 //RUN: %clang -c %S/ptrTOptrcalleemulti1.checkedNOALL2.c %S/ptrTOptrcalleemulti2.checkedNOALL2.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/ptrTOptrcalleemulti2.checkedNOALL2.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/ptrTOptrcalleemulti2.checkedALL2.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/ptrTOptrcalleemulti2.checkedNOALL2.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/ptrTOptrcalleemulti2.checkedALL2.c %s
 //RUN: rm %S/ptrTOptrcalleemulti1.checkedALL2.c %S/ptrTOptrcalleemulti2.checkedALL2.c
 //RUN: rm %S/ptrTOptrcalleemulti1.checkedNOALL2.c %S/ptrTOptrcalleemulti2.checkedNOALL2.c
 
@@ -101,7 +101,7 @@ int *mul2(int *x) {
 
 char *** sus(char * * * x, char * * * y) {
 	//CHECK_NOALL: char *** sus(char ***x, _Ptr<_Ptr<_Ptr<char>>> y) {
-	//CHECK_ALL: _Ptr<_Array_ptr<char*>> sus(char ***x, _Ptr<_Ptr<_Ptr<char>>> y) {
+	//CHECK_ALL: _Ptr<_Array_ptr<char *>> sus(char ***x, _Ptr<_Ptr<_Ptr<char>>> y) {
 x = (char * * *) 5;
 	//CHECK: x = (char * * *) 5;
         char *ch = malloc(sizeof(char)); 
@@ -109,7 +109,7 @@ x = (char * * *) 5;
         *ch = 'A'; /*Capital A*/
         char *** z = malloc(5*sizeof(char**)); 
 	//CHECK_NOALL: char *** z = malloc<char **>(5*sizeof(char**)); 
-	//CHECK_ALL: _Array_ptr<_Array_ptr<char*>> z : count(5) =  malloc<char **>(5*sizeof(char**)); 
+	//CHECK_ALL: _Array_ptr<_Array_ptr<char *>> z : count(5) =  malloc<_Array_ptr<char *>>(5*sizeof(char**)); 
         for(int i = 0; i < 5; i++) { 
             z[i] = malloc(5*sizeof(char *)); 
 	//CHECK: z[i] = malloc<char *>(5*sizeof(char *)); 

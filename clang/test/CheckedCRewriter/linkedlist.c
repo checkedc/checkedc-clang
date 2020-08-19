@@ -22,7 +22,7 @@ void destroy(List * list);
 //CHECK-NEXT: void delete(int data, _Ptr<List> list);
 //CHECK-NEXT: void display(_Ptr<List> list);
 //CHECK-NEXT: void reverse(_Ptr<List> list);
-//CHECK-NEXT: void destroy(List *list);
+//CHECK-NEXT: void destroy(List * list);
 
 
 struct node {
@@ -214,6 +214,6 @@ void destroy(List * list){
 
   free(list);
 }
-//CHECK: void destroy(List *list){
+//CHECK: void destroy(List * list){
 //CHECK: Node * current = list->head;
 //CHECK: Node * next = current;

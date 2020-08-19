@@ -19,24 +19,23 @@ void foo() {
   // Explicit casts work fine also
 
   int *d = (int*) malloc(sizeof(int));
-  // CHECK: _Ptr<int> d = (int*) malloc<int>(sizeof(int));
+  // CHECK: _Ptr<int> d = (_Ptr<int> ) malloc<int>(sizeof(int));
   int *e = (int*) calloc(1, sizeof(int));
-  // CHECK: _Ptr<int> e = (int*) calloc<int>(1, sizeof(int));
+  // CHECK: _Ptr<int> e = (_Ptr<int> ) calloc<int>(1, sizeof(int));
   int *f = (int*) realloc(d, sizeof(int));
-  // CHECK: _Ptr<int> f = (int*) realloc<int>(d, sizeof(int));
+  // CHECK: _Ptr<int> f = (_Ptr<int> ) realloc<int>(d, sizeof(int));
 }
 
 // Allocating pointers to pointers
 void bar() {
-  // The type parameter doesn't need to be _Ptr<int> even though it is checked
   int **a = malloc(sizeof(int*));
-  // CHECK: _Ptr<_Ptr<int>> a = malloc<int *>(sizeof(int*));
+  // CHECK: _Ptr<_Ptr<int>> a = malloc<_Ptr<int>>(sizeof(int*));
   *a = malloc(sizeof(int));
   // CHECK: *a = malloc<int>(sizeof(int));
 
   // It's also fine if the pointer is unchecked
   int **b = malloc(sizeof(int*));
-  // CHECK: _Ptr<int*> b = malloc<int *>(sizeof(int*));
+  // CHECK: _Ptr<int *> b = malloc<int *>(sizeof(int*));
   *b = (int*) 1;
 }
 

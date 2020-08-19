@@ -12,6 +12,7 @@
 #include "clang/CConv/ConstraintsGraph.h"
 #include "clang/CConv/CCGlobalOptions.h"
 #include "clang/CConv/MappingVisitor.h"
+#include "clang/CConv/Utils.h"
 
 #include <sstream>
 
@@ -338,7 +339,7 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O,
   }
 
   if (JsonFormat) {
-    O << "}";
+    O << "}}";
   }
 }
 
@@ -420,16 +421,23 @@ bool ProgramInfo::link() {
       assert(FuncDeclFVIterator != ExternalFunctionFVCons.end());
       const std::set<FVConstraint *> &Gs = (*FuncDeclFVIterator).second;
 
-      for (const auto GIterator : Gs) {
-        auto G = GIterator;
+      // If there was a checked type on a variable in the input program, it
+      // should stay that way. Otherwise, we shouldn't be adding a checked type
+      // to an extern function.
+      for (auto *const G : Gs) {
         for (const auto &R : G->getReturnVars()) {
+          if (R->getIsOriginallyChecked())
+            continue;
           std::string Rsn = "Return value of an external function:" + FuncName;
           R->constrainToWild(CS, Rsn);
         }
         std::string rsn = "Inner pointer of a parameter to external function.";
         for (unsigned i = 0; i < G->numParams(); i++)
-          for (const auto &PVar : G->getParamVar(i))
+          for (const auto &PVar : G->getParamVar(i)) {
+            if (PVar->getIsOriginallyChecked())
+              continue;
             PVar->constrainToWild(CS, rsn);
+          }
       }
     }
   }
@@ -484,7 +492,7 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
     auto *oldC = getOnly(oldS);
     bool isDef = newC->hasBody();
     if (isDef) {
-      newC->brainTransplant(oldC);
+      newC->brainTransplant(oldC, *this);
       Map[FuncName] = ToIns;
       RetVal = true;
     } else if (!oldC->hasBody()) {
@@ -540,7 +548,11 @@ ProgramInfo::insertNewFVConstraints(FunctionDecl *FD,
 
 void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context) {
   // Special-case for va_list, constrain to wild.
-  if (isVarArgType(D->getType().getAsString()) || hasVoidType(D)) {
+  bool IsGeneric = false;
+  if (auto *PVD = dyn_cast<ParmVarDecl>(D))
+    IsGeneric = getTypeVariableType(PVD) != nullptr;
+  if (isVarArgType(D->getType().getAsString()) ||
+      (hasVoidType(D) && !IsGeneric)) {
     // set the reason for making this variable WILD.
     std::string Rsn = "Variable type void.";
     PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(D, *Context);
@@ -640,7 +652,7 @@ CVarSet
 // If it was, we should constrain it to top. This is sad. Hopefully,
 // someday, the Rewriter will become less lame and let us re-write stuff
 // in macros.
-void ProgramInfo::constrainWildIfMacro(CVarSet S,
+void ProgramInfo::constrainWildIfMacro(CVarSet &S,
                                        SourceLocation Location) {
   std::string Rsn = "Pointer in Macro declaration.";
   if (!Rewriter::isRewritable(Location))
@@ -721,20 +733,13 @@ CVarSet ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C) {
   assert(!persisted);
 
   if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
-    int PIdx = -1;
     DeclContext *DC = PD->getParentFunctionOrMethod();
     // This can fail for extern definitions
     if(!DC)
       return std::set<ConstraintVariable*>();
     FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
     // Get the parameter index with in the function.
-    for (unsigned i = 0; i < FD->getNumParams(); i++) {
-      const ParmVarDecl *tmp = FD->getParamDecl(i);
-      if (tmp == D) {
-        PIdx = i;
-        break;
-      }
-    }
+    unsigned int PIdx = getParameterIndex(PD, FD);
     // Get corresponding FVConstraint vars.
     std::set<FVConstraint *> *FunFVars = getFuncFVConstraints(FD, C);
     assert(FunFVars != nullptr && "Unable to find function constraints.");
@@ -919,14 +924,14 @@ ProgramInfo::computeInterimConstraintState(std::set<std::string> &FilePaths) {
 }
 
 void ProgramInfo::setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
-                                      std::string TyStr, ASTContext *C) {
+                                      ConstraintVariable *CV, ASTContext *C) {
 
   auto PSL = PersistentSourceLoc::mkPSL(CE, *C);
   auto CallMap = TypeParamBindings[PSL];
   assert("Attempting to overwrite type param binding in ProgramInfo."
              && CallMap.find(TypeVarIdx) == CallMap.end());
 
-  TypeParamBindings[PSL][TypeVarIdx] = TyStr;
+  TypeParamBindings[PSL][TypeVarIdx] = CV;
 }
 
 bool ProgramInfo::hasTypeParamBindings(CallExpr *CE, ASTContext *C) {

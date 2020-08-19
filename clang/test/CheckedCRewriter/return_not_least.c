@@ -22,7 +22,7 @@ int *f(void) {
 // CHECK_ALL: _Array_ptr<int> f(void) { 
 // CHECK_NOALL: int *f(void) {
   int *p = (int*)0;
-  // CHECK_ALL: _Array_ptr<int> p =  (int*)0; 
+  // CHECK_ALL: _Array_ptr<int> p =  (_Array_ptr<int> )0; 
   // CHECK_NOALLL: int *p = (int*)0;
   p++;
   return p;
@@ -36,25 +36,25 @@ int *foo(void) {
   return q;
 }
 
-#define size_t int
+typedef unsigned long size_t;
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 
 int *bar() {
-// CHECK_ALL: _Nt_array_ptr<int> bar(void) {
+// CHECK_ALL: _Array_ptr<int> bar(void) {
 // CHECK_NOALL: int * bar(void) {
   int *z = calloc(2, sizeof(int));
-  //CHECK_ALL: _Nt_array_ptr<int> z : count(2) =  calloc<int>(2, sizeof(int));
+  //CHECK_ALL: _Array_ptr<int> z : count(2) =  calloc<int>(2, sizeof(int));
   z += 2;
   return z;
 }
 
 int *baz(int *a) {
   // CHECK_ALL: _Array_ptr<int> baz(_Array_ptr<int> a) {
-  // CHECK_NOALL: int * baz(int *a) {
+  // CHECK_NOALL: int *baz(int *a) {
   a++;
 
   int *b = (int*) 0;
-  // CHECK_ALL: _Array_ptr<int> b = (int*) 0;
+  // CHECK_ALL: _Array_ptr<int> b = (_Array_ptr<int> ) 0;
   a = b;
 
   int *c = b;
@@ -65,11 +65,11 @@ int *baz(int *a) {
 
 int *buz(int *a) {
   // CHECK_ALL: _Ptr<int> buz(_Array_ptr<int> a) { 
-  // CHECK_NOALL: int * buz(int *a) {
+  // CHECK_NOALL: int *buz(int *a) {
   a++;
 
   int *b = (int*) 0;
-  // CHECK_ALL: _Array_ptr<int> b = (int*) 0;
+  // CHECK_ALL: _Array_ptr<int> b = (_Array_ptr<int> ) 0;
   a = b;
 
   // The current implementation does not propagate array constraint to c and d, but
@@ -80,7 +80,7 @@ int *buz(int *a) {
   // CHECK_NOALL: int *c = b;
 
   int *d = (int*) 0;
-  // CHECK_ALL: _Ptr<int> d = (int*) 0;
+  // CHECK_ALL: _Ptr<int> d = (_Ptr<int> ) 0;
   c = d;
 
   return d;

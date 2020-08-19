@@ -1,8 +1,8 @@
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/arrstructsafemulti2.c
 // RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/arrstructsafemulti2.c
 //RUN: %clang -c %S/arrstructsafemulti1.checkedNOALL.c %S/arrstructsafemulti2.checkedNOALL.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/arrstructsafemulti1.checkedNOALL.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/arrstructsafemulti1.checkedALL.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrstructsafemulti1.checkedNOALL.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrstructsafemulti1.checkedALL.c %s
 //RUN: rm %S/arrstructsafemulti1.checkedALL.c %S/arrstructsafemulti2.checkedALL.c
 //RUN: rm %S/arrstructsafemulti1.checkedNOALL.c %S/arrstructsafemulti2.checkedNOALL.c
 
@@ -101,11 +101,11 @@ int *mul2(int *x) {
 
 int * sus(struct general *, struct general *);
 	//CHECK_NOALL: int * sus(struct general *, _Ptr<struct general> y);
-	//CHECK_ALL: _Nt_array_ptr<int> sus(struct general *, _Ptr<struct general> y);
+	//CHECK_ALL: _Array_ptr<int> sus(struct general *, _Ptr<struct general> y);
 
 int * foo() {
 	//CHECK_NOALL: int * foo(void) {
-	//CHECK_ALL: _Nt_array_ptr<int> foo(void) {
+	//CHECK_ALL: _Array_ptr<int> foo(void) {
         struct general * x = malloc(sizeof(struct general));
 	//CHECK: struct general * x = malloc<struct general>(sizeof(struct general));
         struct general * y = malloc(sizeof(struct general));
@@ -121,12 +121,12 @@ int * foo() {
         }
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Nt_array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
 return z; }
 
 int * bar() {
 	//CHECK_NOALL: int * bar(void) {
-	//CHECK_ALL: _Nt_array_ptr<int> bar(void) {
+	//CHECK_ALL: _Array_ptr<int> bar(void) {
         struct general * x = malloc(sizeof(struct general));
 	//CHECK: struct general * x = malloc<struct general>(sizeof(struct general));
         struct general * y = malloc(sizeof(struct general));
@@ -142,5 +142,5 @@ int * bar() {
         }
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Nt_array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
 return z; }

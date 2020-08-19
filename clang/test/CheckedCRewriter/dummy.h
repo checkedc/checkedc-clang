@@ -1,0 +1,2 @@
+
+void unsafe(void *);

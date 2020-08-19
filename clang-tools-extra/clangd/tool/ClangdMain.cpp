@@ -306,6 +306,12 @@ static llvm::cl::opt<std::string>
                                  "STDOUT"),
                   llvm::cl::init("-"), llvm::cl::cat(ConvertCategory));
 
+static llvm::cl::opt<std::string>
+    OptMalloc("use-malloc",
+                     llvm::cl::desc("Allows for the usage of user-specified "
+                              "versions of function allocators"),
+                     llvm::cl::init(""), llvm::cl::cat(ConvertCategory));
+
 static llvm::cl::opt<std::string> ConstraintOutputJson(
     "constraint-output",
     llvm::cl::desc("Path to the file where all the analysis "
@@ -463,6 +469,21 @@ int main(int argc, char *argv[]) {
   CcOptions.AddCheckedRegions = AddCheckedRegions;
   CcOptions.EnableAllTypes = AllTypes;
   CcOptions.DisableCCTypeChecker = OptDiableCCTypeChecker;
+  std::string Malloc = OptMalloc.getValue();
+  if (!Malloc.empty()) {
+    std::string delimiter = ",";
+    size_t pos = 0;
+    std::string token;
+    while ((pos = Malloc.find(delimiter)) != std::string::npos) {
+      token = Malloc.substr(0, pos);
+      CcOptions.AllocatorFunctions.push_back(token);
+      Malloc.erase(0, pos + delimiter.length());
+    }
+    token = Malloc;
+    CcOptions.AllocatorFunctions.push_back(token);
+  }
+  else
+    CcOptions.AllocatorFunctions = {};
 
   CConvInterface CCInterface(CcOptions,
                              OptionsParser.getSourcePathList(),

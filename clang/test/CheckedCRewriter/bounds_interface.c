@@ -19,7 +19,7 @@ void foo(int *p : itype(_Ptr<int>)) {
 	*p = 0;
 	return;
 }
-//CHECK: void foo(int* p : itype(_Ptr<int>)) {
+//CHECK: void foo(int *p : itype(_Ptr<int>)) {
 
 int foo2(int *j) {
 	int *a = baz();

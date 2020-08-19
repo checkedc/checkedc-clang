@@ -40,6 +40,7 @@ bool DumpIntermediate;
 bool Verbose;
 std::string OutputPostfix;
 std::string ConstraintOutputJson;
+std::vector<std::string> AllocatorFunctions;
 bool DumpStats;
 bool HandleVARARGS;
 bool EnablePropThruIType;
@@ -79,7 +80,7 @@ public:
   virtual std::unique_ptr<ASTConsumer>
   CreateASTConsumer(CompilerInstance &Compiler, StringRef InFile) {
     return std::unique_ptr<ASTConsumer>
-        (new T(Info, &Compiler.getASTContext(), OutputPostfix));
+        (new T(Info, OutputPostfix));
   }
 
 private:
@@ -183,6 +184,7 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
   AllTypes = CCopt.EnableAllTypes;
   AddCheckedRegions = CCopt.AddCheckedRegions;
   DisableCCTypeChecker = CCopt.DisableCCTypeChecker;
+  AllocatorFunctions = CCopt.AllocatorFunctions;
 
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();

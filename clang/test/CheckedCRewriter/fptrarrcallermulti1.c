@@ -1,8 +1,8 @@
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/fptrarrcallermulti2.c
 // RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/fptrarrcallermulti2.c
 //RUN: %clang -c %S/fptrarrcallermulti1.checkedNOALL.c %S/fptrarrcallermulti2.checkedNOALL.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/fptrarrcallermulti1.checkedNOALL.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/fptrarrcallermulti1.checkedALL.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrarrcallermulti1.checkedNOALL.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrarrcallermulti1.checkedALL.c %s
 //RUN: rm %S/fptrarrcallermulti1.checkedALL.c %S/fptrarrcallermulti2.checkedALL.c
 //RUN: rm %S/fptrarrcallermulti1.checkedNOALL.c %S/fptrarrcallermulti2.checkedNOALL.c
 
@@ -95,43 +95,51 @@ int zerohuh(int n) {
 }
 
 int *mul2(int *x) { 
-	//CHECK: int * mul2(int *x) { 
+	//CHECK_NOALL: int *mul2(int *x) { 
+	//CHECK_ALL: _Array_ptr<int> mul2(_Array_ptr<int> x) { 
     *x *= 2; 
     return x;
 }
 
 int ** sus(int *, int *);
-	//CHECK: int ** sus(int *, int *);
+	//CHECK_NOALL: int ** sus(int *, int *);
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> sus(int *, _Array_ptr<int> y : count(5));
 
 int ** foo() {
-	//CHECK: int ** foo(void) {
+	//CHECK_NOALL: int ** foo(void) {
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> foo(void) {
 
         int *x = malloc(sizeof(int)); 
 	//CHECK: int *x = malloc<int>(sizeof(int)); 
         int *y = calloc(5, sizeof(int)); 
-	//CHECK: int *y = calloc<int>(5, sizeof(int)); 
+	//CHECK_NOALL: int *y = calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> y : count(5) =  calloc<int>(5, sizeof(int)); 
         int i;
         for(i = 0; i < 5; i++) { 
             y[i] = i+1;
         } 
         int **z = sus(x, y);
-	//CHECK: int **z = sus(x, y);
+	//CHECK_NOALL: int **z = sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z =  sus(x, y);
         
 return z; }
 
 int ** bar() {
-	//CHECK: int ** bar(void) {
+	//CHECK_NOALL: int ** bar(void) {
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> bar(void) {
 
         int *x = malloc(sizeof(int)); 
 	//CHECK: int *x = malloc<int>(sizeof(int)); 
         int *y = calloc(5, sizeof(int)); 
-	//CHECK: int *y = calloc<int>(5, sizeof(int)); 
+	//CHECK_NOALL: int *y = calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> y : count(5) =  calloc<int>(5, sizeof(int)); 
         int i;
         for(i = 0; i < 5; i++) { 
             y[i] = i+1;
         } 
         int **z = sus(x, y);
-	//CHECK: int **z = sus(x, y);
+	//CHECK_NOALL: int **z = sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z =  sus(x, y);
         
 z += 2;
 return z; }

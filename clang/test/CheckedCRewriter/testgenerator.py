@@ -581,8 +581,8 @@ def process_file_smart(prefix, proto, suffix, name, cnameNOALL, cnameALL, name2,
         run = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/" + name2  
         run += "\n// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/" + name2 
         run += "\n//RUN: %clang -c %S/{} %S/{}".format(cnameNOALL, cname2NOALL)
-        run += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\" --input-file %S/{} %s".format(cnameNOALL) 
-        run += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\" --input-file %S/{} %s".format(cnameALL)
+        run += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" --input-file %S/{} %s".format(cnameNOALL) 
+        run += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\",\"CHECK\" --input-file %S/{} %s".format(cnameALL)
         run += "\n//RUN: rm %S/{} %S/{}".format(cnameALL, cname2ALL)
         run += "\n//RUN: rm %S/{} %S/{}".format(cnameNOALL, cname2NOALL)
         cnameNOALL2 = prefix + suffix + proto + "1.checkedNOALL2.c"  
@@ -593,11 +593,11 @@ def process_file_smart(prefix, proto, suffix, name, cnameNOALL, cnameALL, name2,
         # if bug_generated: 
         #     cname21 = prefix + suffix + proto + "1_BUG.checked2.c" 
         #     cname22 = prefix + suffix + proto + "2_BUG.checked2.c"
-        run2 = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %s %S/" + name  
-        run2 += "\n// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %s %S/" + name 
+        run2 = "// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %S/{} %s".format(name) 
+        run2 += "\n// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %S/{} %s".format(name)
         run2 += "\n//RUN: %clang -c %S/{} %S/{}".format(cnameNOALL2, cname2NOALL2)
-        run2 += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\" --input-file %S/{} %s".format(cname2NOALL2) 
-        run2 += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\" --input-file %S/{} %s".format(cname2ALL2)
+        run2 += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" --input-file %S/{} %s".format(cname2NOALL2) 
+        run2 += "\n//RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\",\"CHECK\" --input-file %S/{} %s".format(cname2ALL2)
         run2 += "\n//RUN: rm %S/{} %S/{}".format(cnameALL2, cname2ALL2)
         run2 += "\n//RUN: rm %S/{} %S/{}".format(cnameNOALL2, cname2NOALL2)
 
@@ -651,6 +651,7 @@ def annot_gen_smart(prefix, proto, suffix):
     if proto=="multi": 
         os.system("{}cconv-standalone -alltypes -output-postfix=checkedALL {} {}".format(path_to_monorepo, name, name2))
         os.system("{}cconv-standalone -output-postfix=checkedNOALL {} {}".format(path_to_monorepo, name, name2))
+        print("{}cconv-standalone -alltypes -output-postfix=checkedALL {} {}".format(path_to_monorepo, name, name2))
     else: 
         os.system("{}cconv-standalone -alltypes -output-postfix=checkedALL {}".format(path_to_monorepo, name))
         os.system("{}cconv-standalone -output-postfix=checkedNOALL {}".format(path_to_monorepo, name))

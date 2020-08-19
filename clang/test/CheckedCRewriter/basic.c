@@ -13,6 +13,16 @@ extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_c
 extern _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 
+// From string_checked.h
+#if _FORTIFY_SOURCE == 0 || !defined(strcpy)
+#undef strcpy
+// Dest is left unchecked intentionally. There is no bound on dest, so this
+// is always an unchecked function
+_Unchecked
+char *strcpy(char * restrict dest,
+              const char * restrict src : itype(restrict _Nt_array_ptr<const char>));
+#endif
+
 void basic1() {
 	char data[] = "abcdefghijklmnop";
 
@@ -24,7 +34,7 @@ void basic1() {
 }
 
 //CHECK_NOALL: char data[] = "abcdefghijklmnop";
-//CHECK_ALL: char data _Checked[17] =  "abcdefghijklmnop";
+//CHECK_ALL: char data _Nt_checked[17] =  "abcdefghijklmnop";
 //CHECK: char *buffer = malloc<char>(50);
 
 char* basic2(int temp) {
@@ -46,9 +56,9 @@ char* basic2(int temp) {
 		return 0;
 	}
 }
-//CHECK: char * basic2(int temp) {
-//CHECK_ALL: char data _Checked[17] =  "abcdefghijklmnop";
-//CHECK_ALL: char data2 _Checked[65] =  "abcdefghijklmnopabcdefghijklmnopabcdefghijklmnopabcdefghijklmnop";
+//CHECK: char* basic2(int temp) {
+//CHECK_ALL: char data _Nt_checked[17] =  "abcdefghijklmnop";
+//CHECK_ALL: char data2 _Nt_checked[65] =  "abcdefghijklmnopabcdefghijklmnopabcdefghijklmnopabcdefghijklmnop";
 //CHECK: char *buffer = malloc<char>(8);
 //CHECK: char *buffer = malloc<char>(1024);
 
@@ -183,7 +193,7 @@ void basic_struct(int count) {
 
 }
 //CHECK_NOALL: struct student *pstd=(struct student*)malloc<struct student>(n*sizeof(struct student));
-//CHECK_ALL:  _Array_ptr<struct student> pstd : count(n) = (struct student*)malloc<struct student>(n*sizeof(struct student)); 
+//CHECK_ALL:  _Array_ptr<struct student> pstd : count(n) = (_Array_ptr<struct student> )malloc<struct student>(n*sizeof(struct student)); 
 
 struct student * new_student() {
 		char name[] = "Bilbo Baggins";
@@ -195,7 +205,7 @@ struct student * new_student() {
 }
 //CHECK: _Ptr<struct student> new_student(void) {
 //CHECK_NOALL: char name[] = "Bilbo Baggins";
-//CHECK_ALL: char name _Checked[14] =  "Bilbo Baggins";
+//CHECK_ALL: char name _Nt_checked[14] =  "Bilbo Baggins";
 //CHECK: _Ptr<struct student> new_s =  malloc<struct student>(sizeof(struct student));
 
 int main() {

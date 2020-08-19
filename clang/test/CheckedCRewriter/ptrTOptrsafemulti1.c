@@ -1,8 +1,8 @@
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/ptrTOptrsafemulti2.c
 // RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/ptrTOptrsafemulti2.c
 //RUN: %clang -c %S/ptrTOptrsafemulti1.checkedNOALL.c %S/ptrTOptrsafemulti2.checkedNOALL.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/ptrTOptrsafemulti1.checkedNOALL.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/ptrTOptrsafemulti1.checkedALL.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/ptrTOptrsafemulti1.checkedNOALL.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/ptrTOptrsafemulti1.checkedALL.c %s
 //RUN: rm %S/ptrTOptrsafemulti1.checkedALL.c %S/ptrTOptrsafemulti2.checkedALL.c
 //RUN: rm %S/ptrTOptrsafemulti1.checkedNOALL.c %S/ptrTOptrsafemulti2.checkedNOALL.c
 
@@ -100,28 +100,28 @@ int *mul2(int *x) {
 
 char *** sus(char * * *, char * * *);
 	//CHECK_NOALL: char *** sus(char ***, _Ptr<_Ptr<_Ptr<char>>> y);
-	//CHECK_ALL: _Ptr<_Array_ptr<char*>> sus(char ***, _Ptr<_Ptr<_Ptr<char>>> y);
+	//CHECK_ALL: _Ptr<_Array_ptr<char *>> sus(char ***, _Ptr<_Ptr<_Ptr<char>>> y);
 
 char *** foo() {
 	//CHECK_NOALL: char *** foo(void) {
-	//CHECK_ALL: _Ptr<_Array_ptr<char*>> foo(void) {
+	//CHECK_ALL: _Ptr<_Array_ptr<char *>> foo(void) {
         char * * * x = malloc(sizeof(char * *));
 	//CHECK: char * * * x = malloc<char **>(sizeof(char * *));
         char * * * y = malloc(sizeof(char * *));
-	//CHECK: _Ptr<_Ptr<_Ptr<char>>> y =  malloc<char **>(sizeof(char * *));
+	//CHECK: _Ptr<_Ptr<_Ptr<char>>> y =  malloc<_Ptr<_Ptr<char>>>(sizeof(char * *));
         char *** z = sus(x, y);
 	//CHECK_NOALL: char *** z = sus(x, y);
-	//CHECK_ALL: _Ptr<_Array_ptr<char*>> z =  sus(x, y);
+	//CHECK_ALL: _Ptr<_Array_ptr<char *>> z =  sus(x, y);
 return z; }
 
 char *** bar() {
 	//CHECK_NOALL: char *** bar(void) {
-	//CHECK_ALL: _Ptr<_Array_ptr<char*>> bar(void) {
+	//CHECK_ALL: _Ptr<_Array_ptr<char *>> bar(void) {
         char * * * x = malloc(sizeof(char * *));
 	//CHECK: char * * * x = malloc<char **>(sizeof(char * *));
         char * * * y = malloc(sizeof(char * *));
-	//CHECK: _Ptr<_Ptr<_Ptr<char>>> y =  malloc<char **>(sizeof(char * *));
+	//CHECK: _Ptr<_Ptr<_Ptr<char>>> y =  malloc<_Ptr<_Ptr<char>>>(sizeof(char * *));
         char *** z = sus(x, y);
 	//CHECK_NOALL: char *** z = sus(x, y);
-	//CHECK_ALL: _Ptr<_Array_ptr<char*>> z =  sus(x, y);
+	//CHECK_ALL: _Ptr<_Array_ptr<char *>> z =  sus(x, y);
 return z; }

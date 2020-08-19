@@ -54,7 +54,7 @@ struct p *foo() {
   x->y = &ex2;
   y->y = &ex1;
   struct p *z = (struct p *) sus(x, y);
-	//CHECK_NOALL: _Ptr<struct p> z =  (struct p *) sus(x, y);
+	//CHECK_NOALL: _Ptr<struct p> z =  (_Ptr<struct p> ) sus(x, y);
 	//CHECK_ALL:   struct p *z = (struct p *) sus(x, y);
   return z;
 }

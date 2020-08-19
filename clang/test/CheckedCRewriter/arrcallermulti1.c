@@ -1,8 +1,8 @@
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/arrcallermulti2.c
 // RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/arrcallermulti2.c
 //RUN: %clang -c %S/arrcallermulti1.checkedNOALL.c %S/arrcallermulti2.checkedNOALL.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/arrcallermulti1.checkedNOALL.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/arrcallermulti1.checkedALL.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrcallermulti1.checkedNOALL.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrcallermulti1.checkedALL.c %s
 //RUN: rm %S/arrcallermulti1.checkedALL.c %S/arrcallermulti2.checkedALL.c
 //RUN: rm %S/arrcallermulti1.checkedNOALL.c %S/arrcallermulti2.checkedNOALL.c
 
@@ -102,29 +102,29 @@ int *mul2(int *x) {
 
 int * sus(int *, int *);
 	//CHECK_NOALL: int * sus(int *, _Ptr<int> y);
-	//CHECK_ALL: _Nt_array_ptr<int> sus(int *, _Ptr<int> y);
+	//CHECK_ALL: _Array_ptr<int> sus(int *, _Ptr<int> y);
 
 int * foo() {
 	//CHECK_NOALL: int * foo(void) {
-	//CHECK_ALL: _Nt_array_ptr<int> foo(void) {
+	//CHECK_ALL: _Array_ptr<int> foo(void) {
         int * x = malloc(sizeof(int));
 	//CHECK: int * x = malloc<int>(sizeof(int));
         int * y = malloc(sizeof(int));
 	//CHECK: _Ptr<int> y =  malloc<int>(sizeof(int));
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Nt_array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
 return z; }
 
 int * bar() {
 	//CHECK_NOALL: int * bar(void) {
-	//CHECK_ALL: _Nt_array_ptr<int> bar(void) {
+	//CHECK_ALL: _Array_ptr<int> bar(void) {
         int * x = malloc(sizeof(int));
 	//CHECK: int * x = malloc<int>(sizeof(int));
         int * y = malloc(sizeof(int));
 	//CHECK: _Ptr<int> y =  malloc<int>(sizeof(int));
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Nt_array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
 z += 2;
 return z; }

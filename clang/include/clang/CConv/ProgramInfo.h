@@ -25,16 +25,23 @@
 #include "GatherTypes.h"
 
 
-class ProgramInfo;
-
-class ProgramInfo {
+class ProgramVariableAdder {
 public:
+  virtual void addVariable(clang::DeclaratorDecl *D,
+                           clang::ASTContext *astContext) = 0;
+  void addABoundsVariable(clang::Decl *D) {
+    getABoundsInfo().insertVariable(D);
+  }
+protected:
+  virtual AVarBoundsInfo &getABoundsInfo() = 0;
+};
 
+class ProgramInfo : public ProgramVariableAdder {
+public:
   // This map holds similar information as the type variable map in
   // ConstraintBuilder.cpp, but it is stored in a form that is usable during
-  // rewriting. This means storing a PersistentSourceLoc instead of CallExpr,
-  // and a string instead of Type*.
-  typedef std::map<unsigned int, std::string> CallTypeParamBindingsT;
+  // rewriting.
+  typedef std::map<unsigned int, ConstraintVariable *> CallTypeParamBindingsT;
   typedef std::map<PersistentSourceLoc, CallTypeParamBindingsT>
       TypeParamBindingsT;
 
@@ -62,9 +69,6 @@ public:
   // should all be empty. 
   void exitCompilationUnit();
 
-  // For each pointer type in the declaration of D, add a variable to the 
-  // constraint system for that pointer type.
-  void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *astContext);
   CVarSet
       &getPersistentConstraintVars(Expr *E, ASTContext *AstContext);
   // Get constraint variable for the provided Decl
@@ -106,9 +110,11 @@ public:
   }
 
   void setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
-                           std::string TyStr, ASTContext *C);
+                           ConstraintVariable *CV, ASTContext *C);
   bool hasTypeParamBindings(CallExpr *CE, ASTContext *C);
   CallTypeParamBindingsT &getTypeParamBindings(CallExpr *CE, ASTContext *C);
+
+  void constrainWildIfMacro(CVarSet &S, SourceLocation Location);
 
 private:
   // List of all constraint variables, indexed by their location in the source.
@@ -175,8 +181,9 @@ private:
   //   or global)
   std::set<FVConstraint *> *getFuncFVConstraints(FunctionDecl *FD,
                                                  ASTContext *C);
-  void constrainWildIfMacro(CVarSet S,
-                            SourceLocation Location);
+  // For each pointer type in the declaration of D, add a variable to the
+  // constraint system for that pointer type.
+  void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *astContext);
 };
 
 #endif

@@ -1,8 +1,8 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %s %S/arrstructcalleemulti1.c
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %s %S/arrstructcalleemulti1.c
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %S/arrstructcalleemulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %S/arrstructcalleemulti1.c %s
 //RUN: %clang -c %S/arrstructcalleemulti1.checkedNOALL2.c %S/arrstructcalleemulti2.checkedNOALL2.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/arrstructcalleemulti2.checkedNOALL2.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/arrstructcalleemulti2.checkedALL2.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrstructcalleemulti2.checkedNOALL2.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrstructcalleemulti2.checkedALL2.c %s
 //RUN: rm %S/arrstructcalleemulti1.checkedALL2.c %S/arrstructcalleemulti2.checkedALL2.c
 //RUN: rm %S/arrstructcalleemulti1.checkedNOALL2.c %S/arrstructcalleemulti2.checkedNOALL2.c
 
@@ -102,12 +102,12 @@ int *mul2(int *x) {
 
 int * sus(struct general * x, struct general * y) {
 	//CHECK_NOALL: int * sus(struct general *x, _Ptr<struct general> y) {
-	//CHECK_ALL: _Nt_array_ptr<int> sus(struct general *x, _Ptr<struct general> y) {
+	//CHECK_ALL: _Array_ptr<int> sus(struct general *x, _Ptr<struct general> y) {
 x = (struct general *) 5;
 	//CHECK: x = (struct general *) 5;
         int *z = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *z = calloc<int>(5, sizeof(int)); 
-	//CHECK_ALL: _Nt_array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int)); 
         struct general *p = y;
 	//CHECK: _Ptr<struct general> p =  y;
         int i;

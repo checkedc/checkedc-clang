@@ -51,7 +51,7 @@ struct p *foo() {
   x->y = &ex2;
   y->y = &ex1;
   struct p *z = (struct p *) sus(x, y);
-	//CHECK: _Ptr<struct p> z =  (struct p *) sus(x, y);
+	//CHECK: _Ptr<struct p> z =  (_Ptr<struct p> ) sus(x, y);
   return z;
 }
 
@@ -67,6 +67,6 @@ struct p *bar() {
   x->y = &ex2;
   y->y = &ex1;
   struct p *z = (struct p *) sus(x, y);
-	//CHECK: _Ptr<struct p> z =  (struct p *) sus(x, y);
+	//CHECK: _Ptr<struct p> z =  (_Ptr<struct p> ) sus(x, y);
   return z;
 }

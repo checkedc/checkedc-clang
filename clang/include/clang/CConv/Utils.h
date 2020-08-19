@@ -115,7 +115,7 @@ bool functionHasVarArgs(clang::FunctionDecl *FD);
 bool isFunctionAllocator(std::string FuncName);
 
 // Is the given variable built  in type?
-bool isPointerType(clang::VarDecl *VD);
+bool isPointerType(clang::ValueDecl *VD);
 
 // Check if provided type is a var arg type?
 bool isVarArgType(const std::string &TypeName);
@@ -160,4 +160,18 @@ unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
                                   unsigned long Str1Len, unsigned long Str2Len);
 
 const clang::TypeVariableType *getTypeVariableType(clang::DeclaratorDecl *Decl);
+
+bool isTypeAnonymous(const clang::Type *T);
+
+// Find the index of parameter PV in the parameter list of function FD.
+unsigned int getParameterIndex(clang::ParmVarDecl *PV, clang::FunctionDecl *FD);
+
+// If E can be evaluated to a constant integer, the result is stored in Result,
+// and true is returned. Otherwise, Result is not modified and, false is
+// returned.
+bool evaluateToInt(clang::Expr *E, const clang::ASTContext &C, int &Result);
+
+// Check if the bounds expression BE is zero width. Arrays with zero width bounds
+// can be treated as pointers.
+bool isZeroBoundsExpr(clang::BoundsExpr *BE, const clang::ASTContext &C);
 #endif

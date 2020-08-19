@@ -1,8 +1,8 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %s %S/arrofstructbothmulti1.c
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %s %S/arrofstructbothmulti1.c
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %S/arrofstructbothmulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %S/arrofstructbothmulti1.c %s
 //RUN: %clang -c %S/arrofstructbothmulti1.checkedNOALL2.c %S/arrofstructbothmulti2.checkedNOALL2.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/arrofstructbothmulti2.checkedNOALL2.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/arrofstructbothmulti2.checkedALL2.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrofstructbothmulti2.checkedNOALL2.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrofstructbothmulti2.checkedALL2.c %s
 //RUN: rm %S/arrofstructbothmulti1.checkedALL2.c %S/arrofstructbothmulti2.checkedALL2.c
 //RUN: rm %S/arrofstructbothmulti1.checkedNOALL2.c %S/arrofstructbothmulti2.checkedNOALL2.c
 
@@ -33,7 +33,8 @@ extern _Unchecked char *strcpy(char * restrict dest, const char * restrict src :
 struct general { 
     int data; 
     struct general *next;
-	//CHECK: struct general *next;
+	//CHECK_NOALL: struct general *next;
+	//CHECK_ALL: _Ptr<struct general> next;
 };
 
 struct warr { 
@@ -101,13 +102,16 @@ int *mul2(int *x) {
 }
 
 struct general ** sus(struct general * x, struct general * y) {
-	//CHECK: struct general ** sus(struct general *x, struct general *y) {
+	//CHECK_NOALL: struct general ** sus(struct general * x, struct general * y) {
+	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> sus(struct general *x, _Ptr<struct general> y) {
 x = (struct general *) 5; 
 	//CHECK: x = (struct general *) 5; 
         struct general **z = calloc(5, sizeof(struct general *));
-	//CHECK: struct general **z = calloc<struct general *>(5, sizeof(struct general *));
+	//CHECK_NOALL: struct general **z = calloc<struct general *>(5, sizeof(struct general *));
+	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> z : count(5) =  calloc<_Ptr<struct general>>(5, sizeof(struct general *));
         struct general *curr = y;
-	//CHECK: struct general *curr = y;
+	//CHECK_NOALL: struct general *curr = y;
+	//CHECK_ALL: _Ptr<struct general> curr =  y;
         int i;
         for(i = 0; i < 5; i++) { 
             z[i] = curr; 

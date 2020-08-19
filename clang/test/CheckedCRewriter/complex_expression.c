@@ -51,9 +51,9 @@ void baz(int *p) {
 
 void test() {
   int *a = (int*) 0;
-  int **b = (int**) 0; /* <-- causes compilation failure due to issue 160*/
+  int **b = (int**) 0;
 
   *b = (0, a);
 }
-//CHECK: _Ptr<int> a = (int*) 0;
-//CHECK: _Ptr<_Ptr<int>> b = (int**) 0;
+//CHECK: _Ptr<int> a = (_Ptr<int> ) 0;
+//CHECK: _Ptr<_Ptr<int>> b = (_Ptr<_Ptr<int>> ) 0;

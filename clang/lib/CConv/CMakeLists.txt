@@ -18,6 +18,7 @@ set( LLVM_LINK_COMPONENTS
           Constraints.cpp
           ConstraintsGraph.cpp
           ConstraintVariables.cpp
+          DeclRewriter.cpp
           GatherTool.cpp
           MappingVisitor.cpp
           PersistentSourceLoc.cpp
@@ -25,6 +26,7 @@ set( LLVM_LINK_COMPONENTS
           ProgramVar.cpp
           RewriteUtils.cpp
           StructInit.cpp
+          TypeVariableAnalysis.cpp
           Utils.cpp
           LINK_LIBS
           clangAST

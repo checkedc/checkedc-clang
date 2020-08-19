@@ -88,7 +88,8 @@ public:
   // The 'forIType' parameter is true when the generated string is expected
   // to be used inside an itype
   virtual std::string mkString(EnvironmentMap &E,
-                               bool emitName=true, bool forItype=false) = 0;
+                               bool emitName=true, bool forItype=false,
+                               bool emitPointee=false) = 0;
 
   // Debug printing of the constraint variable.
   virtual void print(llvm::raw_ostream &O) const = 0;
@@ -114,7 +115,15 @@ public:
   // have a binding in E other than top. E should be the EnvironmentMap that
   // results from running unification on the set of constraints and the
   // environment.
+  bool isChecked(EnvironmentMap &E);
+
+  // Returns true if this constraint variable has a different checked type after
+  // running unification. Note that if the constraint variable had a checked
+  // type in the input program, it will have the same checked type after solving
+  // so, the type will not have changed. To test if the type is checked, use
+  // isChecked instead.
   virtual bool anyChanges(EnvironmentMap &E) = 0;
+
   // Here, AIdx is the pointer level which needs to be checked.
   // By default, we check for all pointer levels (or VarAtoms)
   virtual bool hasWild(EnvironmentMap &E, int AIdx = -1) = 0;
@@ -125,7 +134,7 @@ public:
   virtual void equateArgumentConstraints(ProgramInfo &I) = 0;
 
   // Update this CV with information from duplicate declaration CVs
-  virtual void brainTransplant(ConstraintVariable *) = 0;
+  virtual void brainTransplant(ConstraintVariable *, ProgramInfo &) = 0;
   virtual void mergeDeclaration(ConstraintVariable *) = 0;
 
   std::string getOriginalTy() { return OriginalType; }
@@ -144,6 +153,8 @@ public:
   // Sometimes, constraint variables can be produced that are empty. This
   // tests for the existence of those constraint variables.
   virtual bool isEmpty(void) const = 0;
+
+  virtual bool getIsOriginallyChecked() = 0;
 };
 
 typedef std::set<ConstraintVariable *> CVarSet;
@@ -241,6 +252,18 @@ private:
   // to be wild.
   bool IsGeneric;
 
+  // Empty array pointers are represented the same as standard pointers. This
+  // lets pointers be passed to functions expecting a zero width array. This
+  // flag is used to discriminate between standard pointer and zero width array
+  // pointers.
+  bool IsZeroWidthArray;
+
+  // Was this variable a checked pointer in the input program?
+  // This is important for two reasons: (1) externs that are checked should be
+  // kept that way during solving, (2) nothing that was originally checked
+  // should be modified during rewriting.
+  bool OriginallyChecked;
+
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
@@ -249,7 +272,8 @@ public:
           ConstraintVariable(PointerVariable, "" /*not used*/, Name),
           BaseType(T),vars(V),FV(F), ArrPresent(isArr), ItypeStr(is),
           partOFFuncPrototype(false), Parent(nullptr),
-          BoundsAnnotationStr(""), IsGeneric(Generic) {}
+          BoundsAnnotationStr(""), IsGeneric(Generic), IsZeroWidthArray(false),
+          OriginallyChecked(false) {}
 
   std::string getTy() { return BaseType; }
   bool getArrPresent() { return ArrPresent; }
@@ -266,6 +290,8 @@ public:
   std::string getBoundsStr() { return BoundsAnnotationStr; }
 
   bool getIsGeneric(){ return IsGeneric; }
+
+  bool getIsOriginallyChecked() override { return OriginallyChecked; }
 
   bool solutionEqualTo(Constraints &CS, ConstraintVariable *CV);
 
@@ -286,7 +312,7 @@ public:
 
   const CAtoms &getCvars() const { return vars; }
 
-  void brainTransplant(ConstraintVariable *From);
+  void brainTransplant(ConstraintVariable *From, ProgramInfo &I);
   void mergeDeclaration(ConstraintVariable *From);
 
   static bool classof(const ConstraintVariable *S) {
@@ -294,7 +320,7 @@ public:
   }
 
   std::string mkString(EnvironmentMap &E, bool EmitName =true,
-                       bool ForItype =false);
+                       bool ForItype =false, bool EmitPointee = false);
 
   FunctionVariableConstraint *getFV() { return FV; }
 
@@ -323,6 +349,11 @@ public:
   bool isEmpty(void) const { return vars.size() == 0; }
 
   ConstraintVariable *getCopy(Constraints &CS);
+
+  // Retrieve the atom at the specified index. This function includes special
+  // handling for generic constraint variables to create deeper pointers as
+  // they are needed.
+  Atom *getAtom(unsigned int AtomIdx, Constraints &CS);
 
   virtual ~PointerVariableConstraint() {};
 };
@@ -379,7 +410,7 @@ public:
     return S->getKind() == FunctionVariable;
   }
 
-  void brainTransplant(ConstraintVariable *From);
+  void brainTransplant(ConstraintVariable *From, ProgramInfo &I);
   void mergeDeclaration(ConstraintVariable *FromCV);
 
   std::set<ConstraintVariable *> &
@@ -392,7 +423,7 @@ public:
   bool solutionEqualTo(Constraints &CS, ConstraintVariable *CV);
 
   std::string mkString(EnvironmentMap &E, bool EmitName =true,
-                       bool ForItype =false);
+                       bool ForItype =false, bool EmitPointee=false);
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const;
@@ -422,6 +453,8 @@ public:
 
     return true;
   }
+
+  bool getIsOriginallyChecked() override;
 
   virtual ~FunctionVariableConstraint() {};
 };

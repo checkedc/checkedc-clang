@@ -43,16 +43,22 @@ private:
 };
 
 // This class handles determining bounds of function-local array variables.
+// This class also keeps tracks of variables that are most-likely cannot be lengths.
+// For example:
+// Consider the expression: (x & y)
+// Here, it is unlikely that variables x and y cannot be length variables
+// because it is hard to imaging a variable used as length used in a bitwise AND.
 class LocalVarABVisitor : public clang::RecursiveASTVisitor<LocalVarABVisitor> {
 
 public:
   explicit LocalVarABVisitor(ASTContext *C, ProgramInfo &I)
   : Context(C), Info(I) {}
 
-  bool VisitBinAssign(BinaryOperator *O);
+  bool HandleBinAssign(BinaryOperator *O);
   bool VisitDeclStmt(DeclStmt *S);
   bool VisitSwitchStmt(SwitchStmt *S);
-  bool VisitIfStmt(IfStmt *IFS);
+  bool VisitBinaryOperator(BinaryOperator *O);
+  bool VisitArraySubscriptExpr(ArraySubscriptExpr *E);
   bool isNonLengthParameter(ParmVarDecl *PVD);
 
 private:

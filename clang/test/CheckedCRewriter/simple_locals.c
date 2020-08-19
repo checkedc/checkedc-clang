@@ -227,7 +227,7 @@ void dknbhd(void) {
 //CHECK: void dknbhd(void) {
 //CHECK-NEXT: int a = 0;
 //CHECK-NEXT: int *b = &a;
-//CHECK-NEXT: _Ptr<int*> c = &b;
+//CHECK-NEXT: _Ptr<int *> c = &b;
 //CHECK-NEXT: int *d = *c;
 
 extern void dfefwefrw(int **);

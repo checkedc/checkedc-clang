@@ -114,6 +114,7 @@ public:
     InProgramArrPtrBoundsKeys.clear();
     BInfo.clear();
     DeclVarMap.clear();
+    TmpBoundsKey.clear();
   }
 
   typedef std::tuple<std::string, std::string, bool, unsigned> ParamDeclType;
@@ -144,6 +145,9 @@ public:
   BoundsKey getVariable(clang::FieldDecl *FD);
   BoundsKey getConstKey(uint64_t value);
 
+  // Generate a random bounds key to be used for inference.
+  BoundsKey getRandomBKey();
+
   // Add Assignments between variables. These methods will add edges between
   // corresponding BoundsKeys
   bool addAssignment(clang::Decl *L, clang::Decl *R);
@@ -152,6 +156,10 @@ public:
 
   // Get the ProgramVar for the provided VarKey.
   ProgramVar *getProgramVar(BoundsKey VK);
+
+  // Function that does brain transplant of the provided bounds key (NewBK)
+  // with existing bounds key (OldBK).
+  void brainTransplant(BoundsKey NewBK, BoundsKey OldBK);
 
   // Propagate the array bounds information for all array ptrs.
   bool performFlowAnalysis(ProgramInfo *PI);
@@ -187,6 +195,10 @@ private:
   // Set of BoundsKey that correspond to array pointers.
   std::set<BoundsKey> ArrPointerBoundsKey;
   std::set<BoundsKey> InProgramArrPtrBoundsKeys;
+
+  // These are temporary bound keys generated during inference.
+  // They do not correspond to any bounds variable.
+  std::set<BoundsKey> TmpBoundsKey;
 
   // BiMap of Persistent source loc and BoundsKey of regular variables.
   BiMap<PersistentSourceLoc, BoundsKey> DeclVarMap;

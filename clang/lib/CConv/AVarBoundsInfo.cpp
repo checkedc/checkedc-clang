@@ -53,8 +53,9 @@ bool AVarBoundsInfo::isValidBoundVariable(clang::Decl *D) {
   if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
     return !VD->getNameAsString().empty();
   }
-  if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
-    return !PD->getNameAsString().empty();
+  if (isa<ParmVarDecl>(D)) {
+    // All parameters are valid bound variables.
+    return true;
   }
   if(FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
     return !FD->getNameAsString().empty();
@@ -206,14 +207,7 @@ BoundsKey AVarBoundsInfo::getVariable(clang::VarDecl *VD) {
 BoundsKey AVarBoundsInfo::getVariable(clang::ParmVarDecl *PVD) {
   assert(isValidBoundVariable(PVD) && "Not a valid bound declaration.");
   FunctionDecl *FD = dyn_cast<FunctionDecl>(PVD->getDeclContext());
-  int ParamIdx = -1;
-  // Get parameter index.
-  for (unsigned i=0; i<FD->getNumParams(); i++) {
-    if (FD->getParamDecl(i) == PVD) {
-      ParamIdx = i;
-      break;
-    }
-  }
+  unsigned int ParamIdx = getParameterIndex(PVD, FD);
   auto Psl = PersistentSourceLoc::mkPSL(FD, FD->getASTContext());
   std::string FileName = Psl.getFileName();
   auto ParamKey = std::make_tuple(FD->getNameAsString(), FileName,
@@ -224,7 +218,13 @@ BoundsKey AVarBoundsInfo::getVariable(clang::ParmVarDecl *PVD) {
     FunctionParamScope *FPS =
         FunctionParamScope::getFunctionParamScope(FD->getNameAsString(),
                                                   FD->isStatic());
-    auto *PVar = new ProgramVar(NK, PVD->getNameAsString(), FPS);
+    std::string ParamName = PVD->getNameAsString();
+    // If this is a parameter without name!?
+    // Just get the name from argument number.
+    if (ParamName.empty())
+      ParamName = "NONAMEPARAM_" + std::to_string(ParamIdx);
+
+    auto *PVar = new ProgramVar(NK, ParamName, FPS);
     insertProgramVar(NK, PVar);
     insertParamKey(ParamKey, NK);
     if (PVD->getType()->isPointerType())
@@ -247,6 +247,12 @@ BoundsKey AVarBoundsInfo::getVariable(clang::FieldDecl *FD) {
       PointerBoundsKey.insert(NK);
   }
   return getVarKey(PSL);
+}
+
+BoundsKey AVarBoundsInfo::getRandomBKey() {
+  BoundsKey Ret = ++BCount;
+  TmpBoundsKey.insert(Ret);
+  return Ret;
 }
 
 bool AVarBoundsInfo::addAssignment(clang::Decl *L, clang::Decl *R) {
@@ -274,6 +280,14 @@ ProgramVar *AVarBoundsInfo::getProgramVar(BoundsKey VK) {
     Ret = PVarInfo[VK];
   }
   return Ret;
+}
+
+void AVarBoundsInfo::brainTransplant(BoundsKey NewBK, BoundsKey OldBK) {
+  // Here, we use the ProgramVar of NewBK and use it for OldBK.
+  if (NewBK != OldBK) {
+    ProgramVar *NewPVar = getProgramVar(NewBK);
+    insertProgramVar(OldBK, NewPVar);
+  }
 }
 
 bool AVarBoundsInfo::hasVarKey(PersistentSourceLoc &PSL) {
@@ -455,7 +469,10 @@ bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
         });
       }
 
-      RetVal = intersectBounds(PotentialB, BKind, EB);
+      // Are there are other in-scope variables where the bounds variable
+      // has been assigned to?
+      if (!PotentialB.empty())
+        RetVal = intersectBounds(PotentialB, BKind, EB);
     }
   }
 
@@ -465,9 +482,15 @@ bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
 bool AvarBoundsInference::getRelevantBounds(std::set<BoundsKey> &RBKeys,
                                             std::set<ABounds *> &ResBounds) {
   std::set<BoundsKey> IncomingArrs;
-  auto &ArrAtoms = BI->ArrPointerBoundsKey;
-  // First, get all the related boundskeys that are arrays.
-  findIntersection(RBKeys, ArrAtoms, IncomingArrs);
+  std::set<BoundsKey> TmpIncomingKeys;
+
+  // First, get all the related bounds keys that are arrays.
+  findIntersection(RBKeys, BI->ArrPointerBoundsKey, IncomingArrs);
+  // Also get all the temporary bounds keys.
+  findIntersection(RBKeys, BI->TmpBoundsKey, TmpIncomingKeys);
+
+  // Consider the tmp keys as incoming arrays.
+  IncomingArrs.insert(TmpIncomingKeys.begin(), TmpIncomingKeys.end());
 
   // Next, try to get their bounds.
   bool ValidB = true;

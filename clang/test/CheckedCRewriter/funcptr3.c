@@ -4,7 +4,7 @@
 void f(int *(*fp)(int *)) {
   fp(0);
 }
-//CHECK: void f(_Ptr<int* (int *)> fp) {
+//CHECK: void f(_Ptr<int * (int *)> fp) {
 int *g2(int *x) {
   return x;
 }

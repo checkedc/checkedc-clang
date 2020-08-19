@@ -31,7 +31,10 @@ void foo2(_Ptr<int> a) {
 void bar(int *a : itype(_Ptr<int>) ) {
   *a = 0;
 }
-//CHECK: void bar(int* a : itype(_Ptr<int>)) {
+//CHECK: void bar(int *a : itype(_Ptr<int>) ) {
 
 extern int* baz(void) : itype(_Ptr<int>);
 //CHECK: extern int*  baz(void) : itype(_Ptr<int>);
+
+// force output
+int *p;

@@ -162,16 +162,18 @@ bool functionHasVarArgs(clang::FunctionDecl *FD) {
 }
 
 bool isFunctionAllocator(std::string FuncName) {
-  return llvm::StringSwitch<bool>(FuncName)
-    .Cases("malloc", "calloc", "realloc", true)
-    .Default(false);
+  return std::find(AllocatorFunctions.begin(), AllocatorFunctions.end(),
+                   FuncName) != AllocatorFunctions.end()
+         || llvm::StringSwitch<bool>(FuncName)
+             .Cases("malloc", "calloc", "realloc", true)
+             .Default(false);
 }
 
 float getTimeSpentInSeconds(clock_t StartTime) {
   return float(clock() - StartTime)/CLOCKS_PER_SEC;
 }
 
-bool isPointerType(clang::VarDecl *VD) {
+bool isPointerType(clang::ValueDecl *VD) {
   return VD->getType().getTypePtr()->isPointerType();
 }
 
@@ -366,4 +368,45 @@ const TypeVariableType *getTypeVariableType(DeclaratorDecl *Decl){
     }
   }
   return nullptr;
+}
+
+bool isTypeAnonymous(const clang::Type *T) {
+  return T->isRecordType() && !(T->getAsRecordDecl()->getIdentifier()
+      || T->getAsRecordDecl()->getTypedefNameForAnonDecl());
+}
+
+unsigned int getParameterIndex(ParmVarDecl *PV, FunctionDecl *FD) {
+  // This is kind of hacky, maybe we should record the index of the
+  // parameter when we find it, instead of re-discovering it here.
+  unsigned int PIdx = 0;
+  for (const auto &I : FD->parameters()) {
+    if (I == PV)
+      return PIdx;
+    PIdx++;
+  }
+  llvm_unreachable("Parameter declaration not found in function declaration.");
+}
+
+bool evaluateToInt(Expr *E, const ASTContext &C, int &Result) {
+  Expr::EvalResult ER;
+  E->EvaluateAsInt(ER, C, clang::Expr::SE_NoSideEffects, false);
+  if (ER.Val.isInt()) {
+    Result = ER.Val.getInt().getExtValue();
+    return  true;
+  }
+  return false;
+}
+
+bool isZeroBoundsExpr(BoundsExpr *BE, const ASTContext &C) {
+  if (auto *CBE = dyn_cast<CountBoundsExpr>(BE)){
+    // count(0) and byte_count(0)
+    Expr *E = CBE->getCountExpr();
+    int Result;
+    if (evaluateToInt(E, C, Result))
+      return Result == 0;
+  }
+  // Range bounds and empty bounds are ignored. I suppose range bounds could be
+  // size zero bounds, but checking this would be considerably more complicated
+  // and it seems unlikely to show up in real code.
+  return false;
 }

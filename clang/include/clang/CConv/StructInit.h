@@ -29,26 +29,20 @@ using namespace clang;
 using namespace llvm;
 
 class StructVariableInitializer 
-  : public RecursiveASTVisitor<StructVariableInitializer>
-{
-  public:
-    explicit StructVariableInitializer(ASTContext *_C, ProgramInfo &_I, RSet &R)
-           : Context(_C), I(_I), RewriteThese(R)
-             { RecordsWithCPointers.clear(); }
-    bool VisitDeclStmt(DeclStmt *S);
+  : public RecursiveASTVisitor<StructVariableInitializer> {
+public:
+  explicit StructVariableInitializer(ASTContext *_C, ProgramInfo &_I, RSet &R)
+      : Context(_C), I(_I), RewriteThese(R), RecordsWithCPointers() {}
 
+  bool VisitDeclStmt(DeclStmt *S);
 
-  private:
+private:
+  bool VariableNeedsInitializer(VarDecl *VD);
+  void insertVarDecl(VarDecl *VD, DeclStmt *S);
 
-
-    bool VariableNeedsInitializer(VarDecl *VD, DeclStmt *S);
-
-    ASTContext* Context;
-    ProgramInfo& I;
-    RSet& RewriteThese;
-    std::set<RecordDecl*> RecordsWithCPointers;
-
-
+  ASTContext* Context;
+  ProgramInfo& I;
+  RSet& RewriteThese;
+  std::set<RecordDecl*> RecordsWithCPointers;
 };
-
 #endif

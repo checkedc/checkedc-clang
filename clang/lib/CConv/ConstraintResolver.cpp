@@ -112,26 +112,39 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, ConstAtom *PtrTyp,
   return TmpPV;
 }
 
+static bool getSizeOfArg(Expr *Arg, QualType &ArgTy) {
+  if (auto *SizeOf = dyn_cast<UnaryExprOrTypeTraitExpr>(Arg))
+    if (SizeOf->getKind() == UETT_SizeOf){
+      ArgTy = SizeOf->getTypeOfArgument();
+      return true;
+    }
+  return false;
+}
+
 // Processes E from malloc(E) to discern the pointer type this will be
 static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS,
                                    QualType &ArgTy, std::string FuncName,
                                    ASTContext *Context) {
   if (FuncName.compare("calloc") == 0) {
-    ArgTy = CE->getArg(1)->getType();
+    if (!getSizeOfArg(CE->getArg(1), ArgTy))
+      return nullptr;
     // Check if first argument to calloc is 1
-    Expr *E = CE->getArg(0);
-    Expr::EvalResult ER;
-    E->EvaluateAsInt(ER, *Context,
-                     clang::Expr::SE_NoSideEffects, false);
-    if (ER.Val.isInt() && ER.Val.getInt().getExtValue() == 1)
+    int Result;
+    if (evaluateToInt(CE->getArg(0), *Context, Result) && Result == 1)
       return CS.getPtr();
-    else
-      return CS.getNTArr();
+    else {
+      // While calloc can be thought of as returning NT_ARR because it
+      // initializes the allocated memory to zero, its type in the checked
+      // header file is ARR so, we cannot safely return NT_ARR here.
+      return CS.getArr();
+    }
   }
 
   ConstAtom *Ret = CS.getPtr();
   Expr *E;
-  if (FuncName.compare("malloc") == 0)
+  if (std::find(AllocatorFunctions.begin(), AllocatorFunctions.end(),
+                FuncName) != AllocatorFunctions.end()
+      || FuncName.compare("malloc") == 0)
     E = CE->getArg(0);
   else {
     assert(FuncName.compare("realloc") == 0);
@@ -151,13 +164,9 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS,
     Exprs.insert(E);
 
   // Look for sizeof(X); return Arr or Ptr if found
-  for (Expr *Ex: Exprs) {
-    UnaryExprOrTypeTraitExpr *Arg = dyn_cast<UnaryExprOrTypeTraitExpr>(Ex);
-    if (Arg && Arg->getKind() == UETT_SizeOf) {
-      ArgTy = Arg->getTypeOfArgument();
+  for (Expr *Ex: Exprs)
+    if (getSizeOfArg(Ex, ArgTy))
       return Ret;
-    }
-  }
   return nullptr;
 }
 
@@ -214,7 +223,10 @@ CVarSet
         return PVConstraintFromType(TypE);
       }
       // NULL
-    } else if (isNULLExpression(E, *Context)) {
+      // Special handling for casts of null is required to enable rewriting
+      // statements such as int *x = (int*) 0. If this was handled as a
+      // normal null expression, the cast would never be visited.
+    } else if (!isa<ExplicitCastExpr>(E) && isNULLExpression(E, *Context)) {
       return EmptyCSet;
       // Implicit cast, e.g., T* from T[] or int (*)(int) from int (int),
       //   but also weird int->int * conversions (and back)
@@ -257,14 +269,29 @@ CVarSet
       CVarSet Ret = EmptyCSet;
       if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(E)) {
         assert(ECE->getType() == TypE);
-        // Is cast internally safe? Return WILD if not
         Expr *TmpE = ECE->getSubExpr();
-        if (TypE->isPointerType() && !isCastSafe(TypE, TmpE->getType()))
+        // Is cast internally safe? Return WILD if not.
+        // If the cast is NULL, it will otherwise seem invalid, but we want to
+        // handle it as usual so the type in the cast can be rewritten.
+        if (!isNULLExpression(ECE, *Context) && TypE->isPointerType()
+            && !isCastSafe(TypE, TmpE->getType())) {
           Ret = getInvalidCastPVCons(E);
           // NB: Expression ECE itself handled in
           // ConstraintBuilder::FunctionVisitor
-        else
-          Ret = getExprConstraintVars(TmpE);
+        } else {
+          CVarSet Vars = getExprConstraintVars(TmpE);
+          // PVConstraint introduced for explicit cast so they can be rewritten.
+          // Pretty much the same idea as CompoundLiteralExpr.
+          PVConstraint *P = getRewritablePVConstraint(ECE);
+          Ret = {P};
+          // ConstraintVars for TmpE when ECE is NULL will be WILD, so
+          // constraining GEQ these vars would be the cast always be WILD.
+          if (!isNULLExpression(ECE, *Context)) {
+            PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(ECE, *Context);
+            constrainConsVarGeq(Ret, Vars, Info.getConstraints(), &PL,
+                                Same_to_Same, false, &Info);
+          }
+        }
       }
         // x = y, x+y, x+=y, etc.
       else if (BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
@@ -431,7 +458,7 @@ CVarSet
                 N = "&" + N;
                 ExprType = Context->getPointerType(ArgTy);
                 PVConstraint *PVC =
-                    new PVConstraint(ExprType, nullptr, N, Info, *Context);
+                    new PVConstraint(ExprType, nullptr, N, Info, *Context, nullptr, true);
                 PVC->constrainOuterTo(CS, A, true);
                 ReturnCVs.insert(PVC);
                 didInsert = true;
@@ -478,7 +505,20 @@ CVarSet
         // ConstraintVariables.
         CVarSet TmpCVs;
         for (ConstraintVariable *CV : ReturnCVs) {
-          ConstraintVariable *NewCV = CV->getCopy(CS);
+          ConstraintVariable *NewCV;
+          auto *PCV = dyn_cast<PVConstraint>(CV);
+          if (PCV && PCV->getIsOriginallyChecked()) {
+            // Copying needs to be done differently if the constraint variable
+            // had a checked type in the input program because these constraint
+            // variables contain constant atoms that are reused by the copy
+            // constructor.
+            NewCV = new PVConstraint(CE->getType(), nullptr, PCV->getName(),
+                                     Info, *Context, nullptr,
+                                     PCV->getIsGeneric());
+          } else {
+            NewCV = CV->getCopy(CS);
+          }
+
           // Important: Do Safe_to_Wild from returnvar in this copy, which then
           //   might be assigned otherwise (Same_to_Same) to LHS
           constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false,
@@ -523,9 +563,7 @@ CVarSet
         CVarSet T;
         CVarSet Vars = getExprConstraintVars(CLE->getInitializer());
 
-        PVConstraint *P =
-            new PVConstraint(CLE->getType(), nullptr, CLE->getStmtClassName(),
-                             Info, *Context, nullptr);
+        PVConstraint *P = getRewritablePVConstraint(CLE);
         T = {P};
 
         PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CLE, *Context);
@@ -547,6 +585,13 @@ CVarSet
         T = {P};
 
         Ret = T;
+      } else if (StmtExpr *SE = dyn_cast<StmtExpr>(E)) {
+        CVarSet T;
+        // retrieve the last "thing" returned by the block
+        Stmt *Res = SE->getSubStmt()->getStmtExprResult();
+        if(Expr *ESE = dyn_cast<Expr>(Res)) {
+          return getExprConstraintVars(ESE);
+        }
       } else {
         if (Verbose) {
           llvm::errs() << "WARNING! Initialization expression ignored: ";
@@ -584,11 +629,19 @@ CVarSet
   return Persist;
 }
 
+
 void ConstraintResolver::storePersistentConstraints(clang::Expr *E,
                                                     CVarSet &Vars) {
-  auto PSL = PersistentSourceLoc::mkPSL(E, *Context);
   // Store only if the PSL is valid.
-  if (PSL.valid()) {
+  auto PSL = PersistentSourceLoc::mkPSL(E, *Context);
+  // The check Rewrite::isRewritable is needed here to ensure that the
+  // expression is not inside a macro. If the expression is in a macro, then it
+  // is possible for there to be multiple expressions that map to the same PSL.
+  // This could make it look like the constraint variables for an expression
+  // have been computed and cached when the expression has not in fact been
+  // visited before. To avoid this, the expression is not cached and instead is
+  // recomputed each time it's needed.
+  if (PSL.valid() && Rewriter::isRewritable(E->getBeginLoc())){
     CVarSet &Persist = Info.getPersistentConstraintVars(E, Context);
     Persist.insert(Vars.begin(), Vars.end());
   }
@@ -680,6 +733,18 @@ CVarSet ConstraintResolver::getBaseVarPVConstraint(DeclRefExpr *Decl) {
   Ret.insert(PVConstraint::getNamedNonPtrPVConstraint(DN,
                                                       Info.getConstraints()));
   return Ret;
+}
+
+// Construct a PVConstraint for an expression that can safely be used when
+// rewriting the expression later on. This is done by making the constraint WILD
+// if the expression is inside a macro.
+PVConstraint *ConstraintResolver::getRewritablePVConstraint(Expr *E) {
+  PVConstraint *P = new PVConstraint(E->getType(), nullptr,
+                                     E->getStmtClassName(), Info, *Context,
+                                     nullptr);
+  CVarSet Tmp = {P};
+  Info.constrainWildIfMacro(Tmp, E->getExprLoc());
+  return P;
 }
 
 bool

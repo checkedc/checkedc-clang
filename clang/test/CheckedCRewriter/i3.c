@@ -7,3 +7,5 @@ static int * f(int *x) {
   return x;
 }
 //CHECK: static int * f(int *x) {
+// force output
+int *p;

@@ -1,8 +1,8 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %s %S/safefptrargsafemulti1.c
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %s %S/safefptrargsafemulti1.c
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %S/safefptrargsafemulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %S/safefptrargsafemulti1.c %s
 //RUN: %clang -c %S/safefptrargsafemulti1.checkedNOALL2.c %S/safefptrargsafemulti2.checkedNOALL2.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/safefptrargsafemulti2.checkedNOALL2.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/safefptrargsafemulti2.checkedALL2.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/safefptrargsafemulti2.checkedNOALL2.c %s
+//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/safefptrargsafemulti2.checkedALL2.c %s
 //RUN: rm %S/safefptrargsafemulti1.checkedALL2.c %S/safefptrargsafemulti2.checkedALL2.c
 //RUN: rm %S/safefptrargsafemulti1.checkedNOALL2.c %S/safefptrargsafemulti2.checkedNOALL2.c
 
@@ -101,13 +101,13 @@ int *mul2(int *x) {
 
 int * sus(int (*x) (int), int (*y) (int)) {
 	//CHECK_NOALL: int * sus(int (*x)(int), _Ptr<int (int )> y) {
-	//CHECK_ALL: _Nt_array_ptr<int> sus(int (*x)(int), _Ptr<int (int )> y) {
+	//CHECK_ALL: _Array_ptr<int> sus(int (*x)(int), _Ptr<int (int )> y) {
  
         x = (int (*) (int)) 5;
 	//CHECK: x = (int (*) (int)) 5;
         int *z = calloc(5, sizeof(int));
 	//CHECK_NOALL: int *z = calloc<int>(5, sizeof(int));
-	//CHECK_ALL: _Nt_array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int));
+	//CHECK_ALL: _Array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int));
         int i;
         for(i = 0; i < 5; i++) { 
             z[i] = y(i);

@@ -99,11 +99,11 @@ int *mul2(int *x) {
 
 int * sus(struct general *, struct general *);
 	//CHECK_NOALL: int * sus(struct general *x, _Ptr<struct general> y);
-	//CHECK_ALL: _Nt_array_ptr<int> sus(struct general *x, _Ptr<struct general> y);
+	//CHECK_ALL: _Array_ptr<int> sus(struct general *x, _Ptr<struct general> y);
 
 int * foo() {
 	//CHECK_NOALL: int * foo(void) {
-	//CHECK_ALL: _Nt_array_ptr<int> foo(void) {
+	//CHECK_ALL: _Array_ptr<int> foo(void) {
 
         struct general *x = malloc(sizeof(struct general)); 
 	//CHECK: struct general *x = malloc<struct general>(sizeof(struct general)); 
@@ -118,17 +118,17 @@ int * foo() {
             curr->next->data = i+1;
         }
         int * (*sus_ptr)(struct general *, struct general *) = sus;   
-	//CHECK_NOALL: _Ptr<int* (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
-	//CHECK_ALL: _Ptr<_Nt_array_ptr<int> (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
+	//CHECK_NOALL: _Ptr<int * (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
+	//CHECK_ALL: _Ptr<_Array_ptr<int> (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
         int *z = sus_ptr(x, y);
 	//CHECK_NOALL: int *z = sus_ptr(x, y);
-	//CHECK_ALL: _Nt_array_ptr<int> z =  sus_ptr(x, y);
+	//CHECK_ALL: _Array_ptr<int> z =  sus_ptr(x, y);
         
 return z; }
 
 int * bar() {
 	//CHECK_NOALL: int * bar(void) {
-	//CHECK_ALL: _Nt_array_ptr<int> bar(void) {
+	//CHECK_ALL: _Array_ptr<int> bar(void) {
 
         struct general *x = malloc(sizeof(struct general)); 
 	//CHECK: struct general *x = malloc<struct general>(sizeof(struct general)); 
@@ -143,23 +143,23 @@ int * bar() {
             curr->next->data = i+1;
         }
         int * (*sus_ptr)(struct general *, struct general *) = sus;   
-	//CHECK_NOALL: _Ptr<int* (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
-	//CHECK_ALL: _Ptr<_Nt_array_ptr<int> (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
+	//CHECK_NOALL: _Ptr<int * (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
+	//CHECK_ALL: _Ptr<_Array_ptr<int> (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
         int *z = sus_ptr(x, y);
 	//CHECK_NOALL: int *z = sus_ptr(x, y);
-	//CHECK_ALL: _Nt_array_ptr<int> z =  sus_ptr(x, y);
+	//CHECK_ALL: _Array_ptr<int> z =  sus_ptr(x, y);
         
 return z; }
 
 int * sus(struct general *x, struct general *y) {
 	//CHECK_NOALL: int * sus(struct general *x, _Ptr<struct general> y) {
-	//CHECK_ALL: _Nt_array_ptr<int> sus(struct general *x, _Ptr<struct general> y) {
+	//CHECK_ALL: _Array_ptr<int> sus(struct general *x, _Ptr<struct general> y) {
 
         x = (struct general *) 5;
 	//CHECK: x = (struct general *) 5;
         int *z = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *z = calloc<int>(5, sizeof(int)); 
-	//CHECK_ALL: _Nt_array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int)); 
         struct general *p = y;
 	//CHECK: _Ptr<struct general> p =  y;
         int i;
