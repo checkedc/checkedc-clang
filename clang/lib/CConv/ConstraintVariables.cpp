@@ -1642,7 +1642,7 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
     auto &CS = I.getConstraints();
     vector<ParamDeferment> &defers = From->getDeferredParams();
     assert(getDeferredParams().size() == 0);
-    for(auto deferred : defers ) {
+    for (auto deferred : defers ) {
       assert(numParams() == deferred.PS.size());
       for(unsigned i = 0; i < deferred.PS.size(); i++) {
         CVarSet ParamDC = getParamVar(i);
@@ -1660,19 +1660,14 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
   // `this`: is the declaration the tool saw first
   // `FromCV`: is the declaration seen second, it cannot have defered constraints
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
-  assert (From != nullptr);
+  assert(From != nullptr);
   assert(From->getDeferredParams().size() == 0);
   // Transplant returns.
   auto FromRetVar = getOnly(From->getReturnVars());
   auto RetVar = getOnly(returnVars);
   RetVar->mergeDeclaration(FromRetVar, I);
-  bool isEmpty = numParams() == 0;
-  // Transplant params.
 
-  bool dealingWithUntyped = isEmpty && numParams() != From->numParams();
-  auto &CS = I.getConstraints();
-
-  if(From->numParams() == 0) {
+  if (From->numParams() == 0) {
     // From is an untyped declaration, and adds no information
     return;
   } else if (this->numParams() == 0) {
