@@ -1683,11 +1683,8 @@ void FunctionVariableConstraint::handle_params
       CVarSet &TypedP = Typed->getParamVar(i);
       auto TypedV = getOnly(TypedP);
       CVarSet EmptyP;
-      ConstraintVariable *NewV = TypedV->getCopy(CS);
-      f(TypedV, NewV);
-      EmptyP.insert(NewV);
+      EmptyP.insert(TypedV);
       Empty->paramVars.push_back(EmptyP);
-      constrainConsVarGeq(EmptyP, TypedP, CS, nullptr, Wild_to_Safe, false, &I);
     }
     // Constraint the deffered parameters
     for (auto deferred : defers) {
