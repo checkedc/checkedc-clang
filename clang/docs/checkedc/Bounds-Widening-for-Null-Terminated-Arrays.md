@@ -42,8 +42,9 @@ edge `Bi->Bj` is denoted as `Out[Bi][Bj]` and the `Gen` set is denoted as
 ### In[B]
 `In[B]` stores the mapping between an `_Nt_array_ptr` and its widened bounds
 inside block `B`. For example, given `_Nt_array_ptr V` with declared bounds
-`(low, high)`, `In[B]` would store the mapping `{V:i}`, where `i` is an unsigned
-integer implying that the bounds of `V` should be widened to `(low, high + i)`.
+`(V + low, V + high)`, `In[B]` would store the mapping `{V:i}`, where `i` is an
+unsigned integer implying that the bounds of `V` should be widened to
+`(V + low, V + high + i)`.
 
 Dataflow equation:
 `In[B] = ∩ Out[B*][B], where B* ∈ pred(B)`.
@@ -57,19 +58,19 @@ Thus, `Kill[B]` stores the mapping between a statement `S` and `_Nt_array_ptr's`
 whose bounds are killed in `S`.
 
 ### Gen[Bi][Bj]
-Given `_Nt_array_ptr V` with declared bounds `(low, high)`, the bounds of `V`
-can be widened by 1 if `V` is dereferenced at its current upper bound. This
-means that if there is an edge `Bi->Bj` whose edge condition is of the form `if
-(*(V + high + i))`, where `i` is an unsigned integer offset, the widened bounds
-`{V:i+1}` can be added to `Gen[Bi][Bj]`, provided we have already tested for
-pointer access of the form `if (*(V + high + i - 1))`.
+Given `_Nt_array_ptr V` with declared bounds `(V + low, V + high)`, the bounds
+of `V` can be widened by 1 if `V` is dereferenced at its current upper bound.
+This means that if there is an edge `Bi->Bj` whose edge condition is of the
+form `if (*(V + high + i))`, where `i` is an unsigned integer offset, the
+widened bounds `{V:i+1}` can be added to `Gen[Bi][Bj]`, provided we have
+already tested for pointer access of the form `if (*(V + high + (i - 1)))`.
 
 For example:
 ```
-_Nt_array_ptr<T> V : bounds (low, high);
+_Nt_array_ptr<T> V : bounds (V + low, V + high);
 if (*V) { // Ptr dereference is NOT at the current upper bound. No bounds widening.
-  if (*(V + high)) { // Ptr dereference is at the current upper bound. Widen bounds by 1. New bounds for V are (low, high + 1).
-    if (*(V + high + 1)) { // Ptr dereference is at the current upper bound. Widen bounds by 1. New bounds for V are (low, high + 2).
+  if (*(V + high)) { // Ptr dereference is at the current upper bound. Widen bounds by 1. New bounds for V are (V + low, V + high + 1).
+    if (*(V + high + 1)) { // Ptr dereference is at the current upper bound. Widen bounds by 1. New bounds for V are (V + low, V + high + 2).
       if (*(V + high + 3)) { // Ptr dereference is NOT at the current upper bound. No bounds widening. Flag an error!
 ```
 
