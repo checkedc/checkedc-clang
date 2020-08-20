@@ -29,49 +29,8 @@ def strip_existing_annotations(filename):
             line = "" 
         sys.stdout.write(line)
 
-# Now split the file into clear processing units
-def split_into_blocks(filename): 
-    susproto = sus = foo = bar = header = "" 
-    file = open(filename, "r")
-    insus = infoo = inbar = strcpy = prot_encountered = False 
-    for line in file.readlines(): 
-        if line.find("sus") != -1 and line.find(";") != -1 and (not (infoo or inbar or insus)):
-            prot_encountered = True
-            susproto = line 
-        elif line.find("sus") != -1 and line.find("{") != -1: 
-            prot_encountered = True
-            insus = infoo = inbar = False
-            insus = True
 
-        # annotate the definition for foo
-        elif line.find("foo") != -1: 
-            prot_encountered = True
-            insus = infoo = inbar = False
-            infoo = True 
-
-        # annotate the definition for bar
-        elif line.find("bar") != -1: 
-            prot_encountered = True  
-            insus = infoo = inbar = False
-            inbar = True 
-        elif not prot_encountered and "strcpy" in line: 
-            header += line 
-            strcpy = True
-        
-        elif not prot_encountered and not strcpy: 
-            header += line
-        
-        if insus: 
-            sus += line 
-        elif infoo: 
-            foo += line 
-        elif inbar: 
-            bar += line
-
-    return [header.strip(), susproto.strip(), sus.strip(), foo.strip(), bar.strip()]  
-
-
-def process_file_smart(name, cnameNOALL, cnameALL): 
+def process_file_smart(name, cnameNOALL, cnameALL, diff): 
     file = open(name, "r") 
     noallfile = open(cnameNOALL, "r") 
     allfile = open(cnameALL, "r") 
@@ -96,7 +55,7 @@ def process_file_smart(name, cnameNOALL, cnameALL):
         line = lines[i] 
         noline = noall[i] 
         yeline = yeall[i]
-        if line.find("extern") == -1 and ((any(substr in line for substr in keywords) and line.find("*") != -1) or any(substr in noline for substr in ckeywords) or any(substr in yeline for substr in ckeywords)): 
+        if line.find("extern") == -1 and line.find("/*") == -1 and ((any(substr in line for substr in keywords) and line.find("*") != -1) or any(substr in noline for substr in ckeywords) or any(substr in yeline for substr in ckeywords)): 
             if noline == yeline: 
                 lines[i] = line + "\n\t//CHECK: " + noline.lstrip()
             else: 
@@ -106,7 +65,10 @@ def process_file_smart(name, cnameNOALL, cnameALL):
     run += "\n// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" %s"
     run += "\n// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -" 
     run += "\n// RUN: cconv-standalone -output-postfix=checked -alltypes %s"
-    run += "\n// RUN: cconv-standalone -alltypes %S/{} -- | count 0".format(name + "hecked.c", name + "hecked.c") 
+    if not diff: 
+        run += "\n// RUN: cconv-standalone -alltypes %S/{} -- | count 0".format(name + "hecked.c") 
+    else: 
+        run += "\n// RUN: cconv-standalone -alltypes %S/{} -- | diff -w %S/{} -".format(name + "hecked.c", name + "hecked.c") 
     run += "\n// RUN: rm %S/{}\n".format(name + "hecked.c")
 
     file = open(name, "w+")
@@ -114,32 +76,63 @@ def process_file_smart(name, cnameNOALL, cnameALL):
     file.close()
     return 
 
-def process_smart(filename): 
+def process_smart(filename, diff): 
     strip_existing_annotations(filename) 
-    [header, susproto, sus, foo, bar] = split_into_blocks(filename) 
-
-    struct_needed = False 
-    if "struct" in susproto or "struct" in sus or "struct" in foo or "struct" in bar: 
-        struct_needed = True
     
     cnameNOALL = filename + "heckedNOALL.c" 
     cnameALL = filename + "heckedALL.c"
 
-    test = [header, sus, foo, bar] 
-    if susproto != "" and struct_needed: test = [header, structs, susproto, foo, bar, sus] 
-    elif struct_needed: test = [header, structs, sus, foo, bar] 
-    elif susproto != "": test = [header, susproto, foo, bar, sus]
-
-    file = open(filename, "w+") 
-    file.write('\n\n'.join(test)) 
-    file.close()
-
     os.system("{}cconv-standalone -alltypes -addcr -output-postfix=checkedALL {}".format(path_to_monorepo, filename))
     os.system("{}cconv-standalone -addcr -output-postfix=checkedNOALL {}".format(path_to_monorepo, filename)) 
 
-    process_file_smart(filename, cnameNOALL, cnameALL) 
+    process_file_smart(filename, cnameNOALL, cnameALL, diff) 
     return
 
+
+manual_tests = ['3d-allocation.c',
+ 'alloc_type_param.c',
+ 'amper.c',
+ 'anonstruct.c',
+ 'arrinlinestruct.c',
+ 'calloc.c',
+ 'canonical_type_cast.c',
+ 'checkedregions.c',
+ 'complexinlinestruct.c',
+ 'ex1.c',
+ 'extGVar.c',
+ 'extstructfields.c',
+ 'fn_sets.c',
+ 'fp.c',
+ 'fp_arith.c',
+ 'funcptr1.c',
+ 'funcptr2.c',
+ 'funcptr3.c',
+ 'funcptr4.c',
+ 'graphs.c',
+ 'graphs2.c',
+ 'gvar.c',
+ 'i1.c',
+ 'i2.c',
+ 'i3.c',
+ 'inlinestruct_difflocs.c',
+ 'inlinestructinfunc.c',
+ 'linkedlist.c',
+ 'malloc_array.c',
+ 'realloc.c',
+ 'realloc_complex.c',
+ 'refarrsubscript.c',
+ 'return_not_least.c',
+ 'single_ptr_calloc.c',
+ 'subtyp.c',
+ 'unsafeunion.c',
+ 'unsigned_signed_cast.c',
+ 'valist.c',
+ 'cast.c'] 
+
+need_diff = ['compound_literal.c', 
+'graphs.c',
+'ptr_array.c',
+'ptrptr.c'] 
 
 b_tests = ['b10_allsafepointerstruct.c',
  'b11_calleestructnp.c',
@@ -183,7 +176,9 @@ b_tests = ['b10_allsafepointerstruct.c',
  'b6_callerunsafeproto.c',
  'b7_allsafeproto.c',
  'b8_allsafestructnp.c',
- 'b9_allsafestructp.c'] 
+ 'b9_allsafestructp.c']
 
-for i in b_tests: 
-    process_smart(i)
+for i in manual_tests: 
+    process_smart(i, False) 
+for i in need_diff: 
+    process_smart(i, True)

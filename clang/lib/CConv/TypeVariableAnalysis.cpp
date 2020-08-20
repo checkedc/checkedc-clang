@@ -31,15 +31,20 @@ void TypeVariableEntry::setTypeParamConsVar(ConstraintVariable *CV) {
   TypeParamConsVar = CV;
 }
 
-void TypeVariableEntry::updateEntry(QualType Ty,
-                                    std::set<ConstraintVariable *> &CVs) {
-  // If the type has previously been instantiated as a different type, its use
-  // is not consistent. We also make it inconsistent if the type is anonymous
-  // since we'll need a name to fill the type arguments during rewriting.
-  const clang::Type *PtrTy = Ty->getPointeeOrArrayElementType();
-  if (IsConsistent && (isTypeAnonymous(PtrTy)
-      || getType()->getPointeeOrArrayElementType() != PtrTy))
+void TypeVariableEntry::updateEntry(QualType Ty, CVarSet &CVs) {
+  if (!(Ty->isArrayType() || Ty->isPointerType())) {
+    // We need to have a pointer or an array type for an instantiation to make
+    // sense. Anything else is treated as inconsistent.
     IsConsistent = false;
+  } else {
+    // If the type has previously been instantiated as a different type, its use
+    // is not consistent. We also make it inconsistent if the type is anonymous
+    // since we'll need a name to fill the type arguments during rewriting.
+    const clang::Type *PtrTy = Ty->getPointeeOrArrayElementType();
+    if (IsConsistent && (isTypeAnonymous(PtrTy)
+        || getType()->getPointeeOrArrayElementType() != PtrTy))
+      IsConsistent = false;
+  }
   // Record new constraints for the entry. These are used even when the variable
   // is not consistent.
   insertConstraintVariables(CVs);
@@ -130,9 +135,6 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
 // used and the index of the type variable type in the function declaration.
 void TypeVarVisitor::insertBinding(CallExpr *CE, const TypeVariableType *TyV,
                                    clang::QualType Ty, CVarSet &CVs) {
-  assert("Type param must go to pointer or array type."
-             && (Ty->isPointerType() || Ty->isArrayType()));
-
   auto &CallTypeVarMap = TVMap[CE];
   if (CallTypeVarMap.find(TyV->GetIndex()) == CallTypeVarMap.end()){
     // If the type variable hasn't been seen before, add it to the map.

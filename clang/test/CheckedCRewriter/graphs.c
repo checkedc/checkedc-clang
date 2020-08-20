@@ -1,6 +1,9 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -output-postfix=checked -alltypes %s
+// RUN: cconv-standalone -alltypes %S/graphs.checked.c -- | diff -w %S/graphs.checked.c -
+// RUN: rm %S/graphs.checked.c
 
 #include <stdio.h>
 
@@ -9,17 +12,21 @@
 #define NULL 0
 typedef unsigned long size_t;
 _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
+	//CHECK: _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
+	//CHECK: _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
+	//CHECK: _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
+	//CHECK: _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
 
-#define MAX_SIZE 40//Assume 40 nodes at max in graph
+#define MAX_SIZE 40/*Assume 40 nodes at max in graph*/
 #define INT_MIN 0 
 
 typedef unsigned long size_t;
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 
-//A vertex of the graph
+/*A vertex of the graph*/
 
 struct node
 
@@ -28,16 +35,16 @@ struct node
     int vertex;
 
     struct node* next;
+	//CHECK_NOALL: struct node* next;
+	//CHECK_ALL:     _Ptr<struct node> next;
 
 };
-//CHECK_NOALL: struct node* next;
-//CHECK_ALL: _Ptr<struct node> next;
 
-//Some declarations
+/*Some declarations*/
 
 struct node* createNode(int v);
-//CHECK_NOALL: struct node *createNode(int v) : itype(_Ptr<struct node>);
-//CHECK_ALL: _Ptr<struct node> createNode(int v);
+	//CHECK_NOALL: struct node *createNode(int v) : itype(_Ptr<struct node>);
+	//CHECK_ALL: _Ptr<struct node> createNode(int v);
 
 struct Graph
 
@@ -46,51 +53,54 @@ struct Graph
     int numVertices;
 
     int* visited;
+	//CHECK_NOALL: int* visited;
+	//CHECK_ALL:     _Array_ptr<int> visited : count(numVertices);
 
-    struct node** adjLists; // we need int** to store a two dimensional array. Similary, we need struct node** to store an array of Linked lists
+	/* we need int** to store a two dimensional array. Similary, we need struct node** to store an array of Linked lists */
+    struct node** adjLists;
+	//CHECK_NOALL: struct node** adjLists;
+	//CHECK_ALL:     _Array_ptr<_Ptr<struct node>> adjLists : count(numVertices);
 
 };
-//CHECK_ALL: _Array_ptr<int> visited : count(numVertices);
-//CHECK_ALL: _Array_ptr<_Ptr<struct node>> adjLists : count(numVertices); // we need int** to store a two dimensional array. Similary, we need struct node** to store an array of Linked lists 
 
-//Structure to create a stack, necessary for topological sorting
+/*Structure to create a stack, necessary for topological sorting*/
 
 struct Stack
 
 {
 
 	int arr[MAX_SIZE];
+	//CHECK_NOALL: int arr[MAX_SIZE];
+	//CHECK_ALL: 	int arr _Checked[40];
 
 	int top;
 
 };
-//CHECK_NOALL: int arr[MAX_SIZE];
-//CHECK_ALL: int arr _Checked[40];
 
 struct Graph* createGraph(int);
+	//CHECK: _Ptr<struct Graph> createGraph(int vertices);
 
 void addEdge(struct Graph*, int, int);
+	//CHECK: void addEdge(_Ptr<struct Graph> graph, int src, int dest);
 
 void printGraph(struct Graph*);
+	//CHECK: void printGraph(_Ptr<struct Graph> graph);
 
 void topologicalSortHelper(int,struct Graph*, struct Stack*);
+	//CHECK: void topologicalSortHelper(int vertex, _Ptr<struct Graph> graph, _Ptr<struct Stack> stack);
 
 void topologicalSort(struct Graph*);
+	//CHECK: void topologicalSort(_Ptr<struct Graph> graph);
 
 struct Stack* createStack();
+	//CHECK: _Ptr<struct Stack> createStack(void);
 
 void push(struct Stack*, int);
+	//CHECK: void push(_Ptr<struct Stack> stack, int element);
 
 int pop(struct Stack*);
+	//CHECK: int pop(_Ptr<struct Stack> stack);
 
-//CHECK: _Ptr<struct Graph> createGraph(int vertices);
-//CHECK: void addEdge(_Ptr<struct Graph> graph, int src, int dest);
-//CHECK: void printGraph(_Ptr<struct Graph> graph);
-//CHECK: void topologicalSortHelper(int vertex, _Ptr<struct Graph> graph, _Ptr<struct Stack> stack);
-//CHECK: void topologicalSort(_Ptr<struct Graph> graph);
-//CHECK: _Ptr<struct Stack> createStack(void);
-//CHECK: void push(_Ptr<struct Stack> stack, int element);
-//CHECK: int pop(_Ptr<struct Stack> stack);
 
 
 
@@ -105,6 +115,7 @@ int main()
 	scanf("%d",&vertices);
 
 	struct Graph* graph = createGraph(vertices);
+	//CHECK: _Ptr<struct Graph> graph =  createGraph(vertices);
 
 	printf("Enter the number of edges\n");
 
@@ -134,9 +145,10 @@ int main()
 
 
 
-	//Uncomment below part to get a ready-made example
+	/*Uncomment below part to get a ready-made example*/
 
     struct Graph* graph2 = createGraph(4);
+	//CHECK: _Ptr<struct Graph> graph2 =  createGraph(4);
 
     addEdge(graph2, 0, 1);
 
@@ -155,27 +167,34 @@ int main()
     return 0;
 
 }
-//CHECK: _Ptr<struct Graph> graph =  createGraph(vertices);
-//CHECK: _Ptr<struct Graph> graph2 =  createGraph(4);
 
 
 void topologicalSortHelper(int vertex, struct Graph* graph, struct Stack* stack)
+	//CHECK: void topologicalSortHelper(int vertex, _Ptr<struct Graph> graph, _Ptr<struct Stack> stack)
 
 {
 
 	graph->visited[vertex]=1;
 
 	struct node* adjList = graph->adjLists[vertex];
+	//CHECK_NOALL: struct node* adjList = graph->adjLists[vertex];
+	//CHECK_ALL: 	_Ptr<struct node> adjList =  graph->adjLists[vertex];
 
     struct node* temp = adjList;
+	//CHECK_NOALL: struct node* temp = adjList;
+	//CHECK_ALL:     _Ptr<struct node> temp =  adjList;
 
-    //First add all dependents (that is, children) to stack
+    /*First add all dependents (that is, children) to stack*/
 
     while(temp!=NULL) {
+	//CHECK_NOALL: while(temp!=NULL) {
+	//CHECK_ALL:     while(temp!=NULL) _Checked {
 
         int connectedVertex = temp->vertex;
 
         if(graph->visited[connectedVertex] == 0) {
+	//CHECK_NOALL: if(graph->visited[connectedVertex] == 0) {
+	//CHECK_ALL:         if(graph->visited[connectedVertex] == 0) _Unchecked {
 
                topologicalSortHelper(connectedVertex, graph, stack);
 
@@ -185,36 +204,39 @@ void topologicalSortHelper(int vertex, struct Graph* graph, struct Stack* stack)
 
     }
 
-    //and then add itself
+    /*and then add itself*/
 
     push(stack,vertex);
 
 }
 
-//CHECK: void topologicalSortHelper(int vertex, _Ptr<struct Graph> graph, _Ptr<struct Stack> stack)
-//CHECK_NOALL: struct node* adjList = graph->adjLists[vertex];
-//CHECK_ALL: _Ptr<struct node> adjList =  graph->adjLists[vertex];
 
 
-//Recursive topologial sort approach
+/*Recursive topologial sort approach*/
 
 void topologicalSort(struct Graph* graph)
+	//CHECK: void topologicalSort(_Ptr<struct Graph> graph)
 
 {
 
 	struct Stack* stack=createStack();
+	//CHECK: _Ptr<struct Stack> stack = createStack();
 
 	int i=0;
 
 	for(i=0;i<graph->numVertices;i++)
 
 	{
+	//CHECK_NOALL: {
+	//CHECK_ALL: 	_Checked {
 
-		//Execute topological sort on all elements
+		/*Execute topological sort on all elements*/
 
 		if(graph->visited[i]==0)
 
 		{
+	//CHECK_NOALL: {
+	//CHECK_ALL: 		_Unchecked {
 
 			topologicalSortHelper(i,graph,stack);
 
@@ -228,17 +250,18 @@ void topologicalSort(struct Graph* graph)
 
 }
 
-//CHECK: void topologicalSort(_Ptr<struct Graph> graph)
-//CHECK: _Ptr<struct Stack> stack = createStack();
 
 
-//Allocate memory for a node
+/*Allocate memory for a node*/
 
 struct node* createNode(int v)
+	//CHECK_NOALL: struct node *createNode(int v) : itype(_Ptr<struct node>)
+	//CHECK_ALL: _Ptr<struct node> createNode(int v)
 
 {
 
     struct node* newNode = malloc(sizeof(struct node));
+	//CHECK: _Ptr<struct node> newNode =  malloc<struct node>(sizeof(struct node));
 
     newNode->vertex = v;
 
@@ -247,29 +270,33 @@ struct node* createNode(int v)
     return newNode;
 
 }
-//CHECK_NOALL: struct node *createNode(int v) : itype(_Ptr<struct node>)
-//CHECK_ALL: _Ptr<struct node> createNode(int v)
-//CHECK: _Ptr<struct node> newNode =  malloc<struct node>(sizeof(struct node));
 
-//Allocate memory for the entire graph structure
+/*Allocate memory for the entire graph structure*/
 
 struct Graph* createGraph(int vertices)
+	//CHECK: _Ptr<struct Graph> createGraph(int vertices)
 
 {
 
     struct Graph* graph = malloc(sizeof(struct Graph));
+	//CHECK: _Ptr<struct Graph> graph =  malloc<struct Graph>(sizeof(struct Graph));
 
     graph->numVertices = vertices;
 
     graph->adjLists = malloc(vertices * sizeof(struct node*));
+	//CHECK_NOALL: graph->adjLists = malloc<struct node *>(vertices * sizeof(struct node*));
+	//CHECK_ALL:     graph->adjLists = malloc<_Ptr<struct node>>(vertices * sizeof(struct node*));
 
     graph->visited = malloc(vertices * sizeof(int));
+	//CHECK: graph->visited = malloc<int>(vertices * sizeof(int));
 
 
 
     int i;
 
     for (i = 0; i < vertices; i++) {
+	//CHECK_NOALL: for (i = 0; i < vertices; i++) {
+	//CHECK_ALL:     for (i = 0; i < vertices; i++) _Checked {
 
         graph->adjLists[i] = NULL;
 
@@ -280,38 +307,48 @@ struct Graph* createGraph(int vertices)
     return graph;
 
 }
-//CHECK: _Ptr<struct Graph> createGraph(int vertices)
 
-//Creates a unidirectional graph
+/*Creates a unidirectional graph*/
 
 void addEdge(struct Graph* graph, int src, int dest)
+	//CHECK: void addEdge(_Ptr<struct Graph> graph, int src, int dest)
 
 {
+	//CHECK_NOALL: {
+	//CHECK_ALL: _Checked {
 
-    // Add edge from src to dest
+    /* Add edge from src to dest*/
 
     struct node* newNode = createNode(dest);
+	//CHECK_NOALL: struct node* newNode = createNode(dest);
+	//CHECK_ALL:     _Ptr<struct node> newNode =  createNode(dest);
 
     newNode->next = graph->adjLists[src];
 
     graph->adjLists[src] = newNode;
 
 }
-//CHECK: void addEdge(_Ptr<struct Graph> graph, int src, int dest)
 
-//Utility function to see state of graph at a given time
+/*Utility function to see state of graph at a given time*/
 
 void printGraph(struct Graph* graph)
+	//CHECK: void printGraph(_Ptr<struct Graph> graph)
 
 {
+	//CHECK_NOALL: {
+	//CHECK_ALL: _Checked {
 
     int v;
 
     for (v = 0; v < graph->numVertices; v++)
 
     {
+	//CHECK_NOALL: {
+	//CHECK_ALL:     _Unchecked {
 
         struct node* temp = graph->adjLists[v];
+	//CHECK_NOALL: struct node* temp = graph->adjLists[v];
+	//CHECK_ALL:         _Ptr<struct node> temp =  graph->adjLists[v];
 
         printf("\n Adjacency list of vertex %d\n ", v);
 
@@ -330,39 +367,43 @@ void printGraph(struct Graph* graph)
     }
 
 }
-//CHECK: void printGraph(_Ptr<struct Graph> graph)
 
-//Creates a stack
+/*Creates a stack*/
 
 struct Stack* createStack()
+	//CHECK: _Ptr<struct Stack> createStack(void)
 
 {
 
 	struct Stack* stack=malloc(sizeof(struct Stack));
+	//CHECK: _Ptr<struct Stack> stack = malloc<struct Stack>(sizeof(struct Stack));
 
 	stack->top=-1;
     return stack;
 
 }
-//CHECK: _Ptr<struct Stack> createStack(void)
-//CHECK: _Ptr<struct Stack> stack = malloc<struct Stack>(sizeof(struct Stack));
 
-//Pushes element into stack
+/*Pushes element into stack*/
 
 void push(struct Stack* stack,int element)
+	//CHECK: void push(_Ptr<struct Stack> stack, int element)
 
 {
+	//CHECK_NOALL: {
+	//CHECK_ALL: _Checked {
 
-	stack->arr[++stack->top]=element;//Increment then add, as we start from -1
+	stack->arr[++stack->top]=element;/*Increment then add, as we start from -1*/
 
 }
-//CHECK: void push(_Ptr<struct Stack> stack, int element) 
 
-//Removes element from stack, or returns INT_MIN if stack empty
+/*Removes element from stack, or returns INT_MIN if stack empty*/
 
 int pop(struct Stack* stack)
+	//CHECK: int pop(_Ptr<struct Stack> stack)
 
 {
+	//CHECK_NOALL: {
+	//CHECK_ALL: _Checked {
 
 	if(stack->top==-1)
 
@@ -373,4 +414,3 @@ int pop(struct Stack* stack)
 		return stack->arr[stack->top--];
 
 }
-//CHECK: int pop(_Ptr<struct Stack> stack) 

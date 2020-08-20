@@ -1,10 +1,15 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %S/safefptrargbothmulti1.c %s
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %S/safefptrargbothmulti1.c %s
-//RUN: %clang -c %S/safefptrargbothmulti1.checkedNOALL2.c %S/safefptrargbothmulti2.checkedNOALL2.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/safefptrargbothmulti2.checkedNOALL2.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/safefptrargbothmulti2.checkedALL2.c %s
-//RUN: rm %S/safefptrargbothmulti1.checkedALL2.c %S/safefptrargbothmulti2.checkedALL2.c
-//RUN: rm %S/safefptrargbothmulti1.checkedNOALL2.c %S/safefptrargbothmulti2.checkedNOALL2.c
+// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL2 %S/safefptrargbothmulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL2 %S/safefptrargbothmulti1.c %s
+// RUN: %clang -c %S/safefptrargbothmulti1.checkedNOALL2.c %S/safefptrargbothmulti2.checkedNOALL2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/safefptrargbothmulti2.checkedNOALL2.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/safefptrargbothmulti2.checkedALL2.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/safefptrargbothmulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/safefptrargbothmulti1.checked2.c %S/safefptrargbothmulti2.checked2.c
+// RUN: diff %S/safefptrargbothmulti1.checked2.convert_again.c %S/safefptrargbothmulti1.checked2.c
+// RUN: diff %S/safefptrargbothmulti2.checked2.convert_again.c %S/safefptrargbothmulti2.checked2.c
+// RUN: rm %S/safefptrargbothmulti1.checkedALL2.c %S/safefptrargbothmulti2.checkedALL2.c
+// RUN: rm %S/safefptrargbothmulti1.checkedNOALL2.c %S/safefptrargbothmulti2.checkedNOALL2.c
+// RUN: rm %S/safefptrargbothmulti1.checked2.c %S/safefptrargbothmulti2.checked2.c %S/safefptrargbothmulti1.checked2.convert_again.c %S/safefptrargbothmulti2.checked2.convert_again.c
 
 
 /*********************************************************************************/
@@ -70,14 +75,17 @@ struct arrfptr {
 };
 
 int add1(int x) { 
+	//CHECK: int add1(int x) _Checked { 
     return x+1;
 } 
 
 int sub1(int x) { 
+	//CHECK: int sub1(int x) _Checked { 
     return x-1; 
 } 
 
 int fact(int n) { 
+	//CHECK: int fact(int n) _Checked { 
     if(n==0) { 
         return 1;
     } 
@@ -85,17 +93,19 @@ int fact(int n) {
 } 
 
 int fib(int n) { 
+	//CHECK: int fib(int n) _Checked { 
     if(n==0) { return 0; } 
     if(n==1) { return 1; } 
     return fib(n-1) + fib(n-2);
 } 
 
 int zerohuh(int n) { 
+	//CHECK: int zerohuh(int n) _Checked { 
     return !n;
 }
 
 int *mul2(int *x) { 
-	//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }
@@ -111,6 +121,8 @@ int * sus(int (*x) (int), int (*y) (int)) {
 	//CHECK_ALL: _Array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int));
         int i;
         for(i = 0; i < 5; i++) { 
+	//CHECK_NOALL: for(i = 0; i < 5; i++) { 
+	//CHECK_ALL: for(i = 0; i < 5; i++) _Checked { 
             z[i] = y(i);
         }
         
