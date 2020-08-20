@@ -1651,7 +1651,7 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
       }
     }
   } else {
-    llvm_unreachable("Brain transplanting to function w/ empty param vars");
+    llvm_unreachable("Brain Transplant on empty params");
   }
 }
 
@@ -1673,7 +1673,6 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
   } else if (this->numParams() == 0) {
     // This is an untyped declaration, we need to perform a transplant
     From->brainTransplant(this, I);
-    //brainTransplant(From, I);
   } else {
     // Standard merge
     assert(this->numParams() == From->numParams());
