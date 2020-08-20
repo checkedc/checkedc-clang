@@ -705,18 +705,6 @@ namespace {
       // user when diagnosing unknown bounds errors.
       llvm::DenseMap<const VarDecl *, SmallVector<Expr *, 4>> UnknownSrcBounds;
 
-      // WidenedVariables is a set of variables that currently have widened bounds.
-      //
-      // WidenedVariables is used to avoid spurious errors or warnings when
-      // validating the observed bounds context.
-      //
-      // WidenedVariables is currently needed to track which variables have
-      // widened bounds since not all modifying expressions currently kill
-      // widened bounds. For example, modifying expressions within a
-      // conditional operator will not kill widened bounds
-      // (checkedc-clang issue #895).
-      llvm::DenseSet<const VarDecl *> WidenedVariables;
-
       // TargetSrcEquality maps a target expression V to the most recent
       // expression Src that has been assigned to V within the current
       // top-level CFG statement.  When validating the bounds context,
@@ -2300,7 +2288,6 @@ namespace {
            new (Context) RangeBoundsExpr(Lower, WidenedUpper,
                                          SourceLocation(), SourceLocation());
          State.ObservedBounds[V] = R;
-         State.WidenedVariables.insert(V);
        }
      }
    }
@@ -2399,7 +2386,6 @@ namespace {
             GetDeclaredBounds(this->S, BlockState.ObservedBounds, S);
 
             BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
-            DeclSetTy InitialWidenedVariables = BlockState.WidenedVariables;
             BlockState.Reset();
 
             Check(S, CSS, BlockState);
@@ -2418,15 +2404,6 @@ namespace {
             // declared bounds, the observed bounds for each variable should
             // be reset to their observed bounds from before checking S.
             BlockState.ObservedBounds = InitialObservedBounds;
-
-            // The widened variables that were updated after checking S should
-            // only be used to validate the updated observed bounds context.
-            // If an expression within S killed the widened bounds of a
-            // variable V, V may still have widened observed bounds.
-            // For example, the statement 1 ? i++ : i may not kill the widened
-            // bounds of a variable p with declared bounds (p, p + i).
-            // (See checkedc-clang issue #895).
-            BlockState.WidenedVariables = InitialWidenedVariables;
 
             // If the widened bounds of any variables are killed by statement
             // S, reset their observed bounds to their declared bounds.
@@ -3500,7 +3477,6 @@ namespace {
       CheckingState StateTrueArm;
       StateTrueArm.EquivExprs = State.EquivExprs;
       StateTrueArm.ObservedBounds = State.ObservedBounds;
-      StateTrueArm.WidenedVariables = State.WidenedVariables;
       Check(E->getTrueExpr(), CSS, StateTrueArm);
 
       // Check the "false" arm `e3`.
@@ -3509,7 +3485,6 @@ namespace {
       CheckingState StateFalseArm;
       StateFalseArm.EquivExprs = State.EquivExprs;
       StateFalseArm.ObservedBounds = State.ObservedBounds;
-      StateFalseArm.WidenedVariables = State.WidenedVariables;
       Check(E->getFalseExpr(), CSS, StateFalseArm);
 
       // TODO: handle uses of temporaries bounds in only one arm.
@@ -3519,11 +3494,6 @@ namespace {
         // If checking each arm produces two identical bounds contexts,
         // the final context is the context from checking the true arm.
         State.ObservedBounds = StateTrueArm.ObservedBounds;
-
-        // Ensure that any variables whose widened bounds were killed in
-        // the true arm do not have widened bounds after checking `e`.
-        State.WidenedVariables = IntersectDeclSets(State.WidenedVariables,
-                                                   StateTrueArm.WidenedVariables);
       } else {
         // If checking each arm produces two different bounds contexts,
         // validate each arm's context separately.
@@ -4165,14 +4135,6 @@ namespace {
         if (!Bounds->isUnknown() && AdjustedBounds->isUnknown())
           State.LostVariables[W] = std::make_pair(Bounds, V);
         State.ObservedBounds[W] = AdjustedBounds;
-
-        // If the assignment to V changed the bounds of W, then W no longer
-        // has widened bounds.
-        if (Bounds != AdjustedBounds) {
-          auto It = State.WidenedVariables.find(W);
-          if (It != State.WidenedVariables.end())
-            State.WidenedVariables.erase(It);
-        }
       }
 
       // Adjust SrcBounds to account for any uses of V and, if V has declared
