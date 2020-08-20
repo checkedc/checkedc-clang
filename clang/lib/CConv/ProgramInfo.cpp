@@ -13,7 +13,6 @@
 #include "clang/CConv/CCGlobalOptions.h"
 #include "clang/CConv/MappingVisitor.h"
 
-#include <boost/graph/breadth_first_search.hpp>
 #include <sstream>
 
 using namespace clang;
@@ -787,31 +786,6 @@ ProgramInfo::getStaticFuncConstraintSet(std::string FuncName,
   return nullptr;
 }
 
-// Compute all CVars reachable from a given CVar i.e., SrcWAtom that are
-// not directly assigned WILD.
-class ReachableVarVisitor : public boost::default_bfs_visitor {
-public:
-  ReachableVarVisitor(const ConstraintKey &SrcWAtom,
-                      CVars &T,
-                      std::map<ConstraintKey, CVars> &RCMap,
-                      std::set<Atom *> &AllDWild):  SrcA(SrcWAtom),
-                      RootCauseMap(RCMap), VisitedCVars(T),
-                      AllDirectWild(AllDWild) { }
-  template < typename Vertex, typename Graph >
-  void discover_vertex(Vertex u, const Graph &g) const {
-    Atom *V = g[u];
-    VarAtom *VA = dyn_cast<VarAtom>(V);
-    if (VA != nullptr && AllDirectWild.find(VA) == AllDirectWild.end()) {
-      RootCauseMap[VA->getLoc()].insert(SrcA);
-      VisitedCVars.insert(VA->getLoc());
-    }
-  }
-  const ConstraintKey &SrcA;
-  std::map<ConstraintKey, CVars> &RootCauseMap;
-  CVars &VisitedCVars;
-  std::set<Atom *> &AllDirectWild;
-};
-
 // From the given constraint graph, this method computes the interim constraint
 // state that contains constraint vars which are directly assigned WILD and
 // other constraint vars that have been determined to be WILD because they
@@ -848,6 +822,7 @@ ProgramInfo::computeInterimConstraintState(std::set<std::string> &FilePaths) {
   });
 
   CState.Clear();
+
   auto &RCMap = CState.RCMap;
   auto &SrcWMap = CState.SrcWMap;
   auto &TotalNDirectWPtrs = CState.TotalNonDirectWildPointers;
@@ -858,25 +833,32 @@ ProgramInfo::computeInterimConstraintState(std::set<std::string> &FilePaths) {
   std::set<Atom *> DirectWildVarAtoms;
   std::set<Atom *> IndirectWildAtoms;
   auto &ChkCG = CS.getChkCG();
-  ChkCG.getNeighbors<VarAtom>(CS.getWild(), DirectWildVarAtoms, true);
+  ChkCG.getSuccessors(CS.getWild(), DirectWildVarAtoms);
 
   CVars TmpCGrp;
-  for (auto *DA : DirectWildVarAtoms) {
-    if (VarAtom *VA = dyn_cast<VarAtom>(DA)) {
-      TmpCGrp.clear();
+  for (auto *A : DirectWildVarAtoms) {
+    auto *VA = dyn_cast<VarAtom>(A);
+    if (VA == nullptr)
+      continue;
 
-      ReachableVarVisitor TV(VA->getLoc(), TmpCGrp,
-                             RCMap, DirectWildVarAtoms);
-      auto Vidx = ChkCG.addVertex(DA);
-      boost::breadth_first_search(ChkCG.CG, Vidx, boost::visitor(TV));
-      TotalNDirectWPtrs.insert(TmpCGrp.begin(), TmpCGrp.end());
-      // We consider only pointers which with in the source files or external
-      // pointers that affected pointers within the source files.
-      if (!TmpCGrp.empty() || ValidVarsS.find(VA) != ValidVarsS.end()) {
-        WildPtrs.insert(VA->getLoc());
-        CVars &CGrp = SrcWMap[VA->getLoc()];
-        CGrp.insert(TmpCGrp.begin(), TmpCGrp.end());
-      }
+    TmpCGrp.clear();
+    ChkCG.visitBreadthFirst(VA,
+      [VA, &DirectWildVarAtoms, &RCMap, &TmpCGrp](Atom *SearchAtom) {
+        auto *SearchVA = dyn_cast<VarAtom>(SearchAtom);
+        if (SearchVA != nullptr &&
+              DirectWildVarAtoms.find(SearchVA) == DirectWildVarAtoms.end()) {
+          RCMap[SearchVA->getLoc()].insert(VA->getLoc());
+          TmpCGrp.insert(SearchVA->getLoc());
+        }
+      });
+
+    TotalNDirectWPtrs.insert(TmpCGrp.begin(), TmpCGrp.end());
+    // We consider only pointers which with in the source files or external
+    // pointers that affected pointers within the source files.
+    if (!TmpCGrp.empty() || ValidVarsS.find(VA) != ValidVarsS.end()) {
+      WildPtrs.insert(VA->getLoc());
+      CVars &CGrp = SrcWMap[VA->getLoc()];
+      CGrp.insert(TmpCGrp.begin(), TmpCGrp.end());
     }
   }
   findIntersection(WildPtrs, ValidVarsKey, InSrcW);
