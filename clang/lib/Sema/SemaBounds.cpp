@@ -2409,7 +2409,8 @@ namespace {
 
             // For each variable v in ObservedBounds, check that the
             // observed bounds of v imply the declared bounds of v.
-            ValidateBoundsContext(S, BlockState, CSS);
+            ValidateBoundsContext(S, BlockState, WidenedBounds,
+                                  KilledBounds, CSS);
 
             // The observed bounds that were updated after checking S should
             // only be used to check that the updated observed bounds imply
@@ -3527,19 +3528,25 @@ namespace {
         // If checking each arm produces two different bounds contexts,
         // validate each arm's context separately.
 
+        BoundsMapTy WidenedBounds;
+        StmtDeclSetTy KilledBounds;
+
         // Validate the variables whose bounds were updated in the true arm.
         BoundsContextTy TrueUpdatedBounds = ContextDifference(
                                               StateTrueArm.ObservedBounds,
                                               State.ObservedBounds);
         StateTrueArm.ObservedBounds = TrueUpdatedBounds;
-        ValidateBoundsContext(E->getTrueExpr(), StateTrueArm, CSS);
+        ValidateBoundsContext(E->getTrueExpr(), StateTrueArm, WidenedBounds,
+                              KilledBounds, CSS);
 
         // Validate the variables whose bounds were updated in the false arm.
         BoundsContextTy FalseUpdatedBounds = ContextDifference(
                                                StateFalseArm.ObservedBounds,
                                                State.ObservedBounds);
         StateFalseArm.ObservedBounds = FalseUpdatedBounds;
-        ValidateBoundsContext(E->getFalseExpr(), StateFalseArm, CSS);
+        ValidateBoundsContext(E->getFalseExpr(), StateFalseArm, WidenedBounds,
+                              KilledBounds, CSS);
+
       }
 
       State.EquivExprs = IntersectEquivExprs(StateTrueArm.EquivExprs,
@@ -3962,6 +3969,8 @@ namespace {
     // statement S, for each variable v in the checking state observed bounds
     // context, the observed bounds of v imply the declared bounds of v.
     void ValidateBoundsContext(Stmt *S, CheckingState State,
+                               BoundsMapTy WidenedBounds,
+                               StmtDeclSetTy KilledBounds,
                                CheckedScopeSpecifier CSS) {
       // Construct a set of sets of equivalent expressions that contains all
       // the equality facts in State.EquivExprs, as well as any equality facts
@@ -3996,7 +4005,7 @@ namespace {
           DiagnoseUnknownObservedBounds(S, V, DeclaredBounds, State);
         else
           CheckObservedBounds(S, V, DeclaredBounds, ObservedBounds, State,
-                              &EquivExprs, CSS);
+                              &EquivExprs, WidenedBounds, KilledBounds, CSS);
       }
     }
 
@@ -4049,6 +4058,8 @@ namespace {
                              BoundsExpr *DeclaredBounds,
                              BoundsExpr *ObservedBounds, CheckingState State,
                              EquivExprSets *EquivExprs,
+                             BoundsMapTy WidenedBounds,
+                             StmtDeclSetTy KilledBounds,
                              CheckedScopeSpecifier CSS) {
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, ObservedBounds,
@@ -4067,8 +4078,13 @@ namespace {
       // observed upper bound (p + 0) + 1.
       // TODO: checkedc-clang issue #867: the widened bounds of a variable
       // should provably imply the declared bounds of a variable.
-      if (State.WidenedVariables.find(V) != State.WidenedVariables.end())
-        return;
+      if (WidenedBounds.find(V) != WidenedBounds.end()) {
+        auto I = KilledBounds.find(St);
+        if (I == KilledBounds.end())
+          return;
+        if (I->second.find(V) == I->second.end())
+          return;
+      }
 
       // For a declaration, the diagnostic message should start at the
       // location of v rather than the beginning of St.  If the message
