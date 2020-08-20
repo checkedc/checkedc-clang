@@ -74,7 +74,7 @@ private:
 class FunctionDeclBuilder : public RecursiveASTVisitor<FunctionDeclBuilder> {
 public:
   explicit FunctionDeclBuilder(ASTContext *C, ProgramInfo &I, RSet &DR,
-                               std::map<string, string> &NewFuncSig,
+                               std::map<std::string, std::string> &NewFuncSig,
                                ArrayBoundsRewriter &ArrRewriter)
       : Context(C), Info(I), RewriteThese(DR), ABRewriter(ArrRewriter),
         VisitedSet(), ModifiedFuncSignatures(NewFuncSig) {}

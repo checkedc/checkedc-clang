@@ -28,14 +28,9 @@ void PreorderAST::Create(Expr *E, Node *N, Node *Parent) {
   if (!Root)
     Root = N;
 
-  // If the parent is non-null, make sure that the current node is marked as a
-  // child of the parent. As a convention, we create left children first.
-  if (Parent) {
-    if (!Parent->Left)
-      Parent->Left = N;
-    else
-      Parent->Right = N;
-  }
+  // If the parent is non-null add the current node to its list of children.
+  if (Parent)
+    Parent->Children.push_back(N);
 
   E = Lex.IgnoreValuePreservingOperations(Ctx, E);
 
@@ -64,15 +59,15 @@ void PreorderAST::Create(Expr *E, Node *N, Node *Parent) {
     Expr *RHS = BO->getRHS()->IgnoreParens();
   
     if (isa<BinaryOperator>(LHS))
-      // Create the LHS as the left child of the current node.
-      Create(LHS, N->Left, N);
+      // Create the LHS as a child of the current node.
+      Create(LHS, nullptr, N);
     else
       // Create the LHS in the current node.
       Create(LHS, N);
   
     if (isa<BinaryOperator>(RHS))
-      // Create the RHS as the right child of the current node.
-      Create(RHS, N->Right, N);
+      // Create the RHS as a child of the current node.
+      Create(RHS, nullptr, N);
     else
       // Create the RHS in the current node.
       Create(RHS, N);
@@ -105,8 +100,8 @@ void PreorderAST::Sort(Node *N) {
                return Lex.CompareDecl(V1, V2) == Result::LessThan;
              });
 
-  Sort(N->Left);
-  Sort(N->Right);
+  for (auto *Child : N->Children)
+    Sort(Child);
 }
 
 bool PreorderAST::IsEqual(Node *N1, Node *N2) {
@@ -130,6 +125,10 @@ bool PreorderAST::IsEqual(Node *N1, Node *N2) {
   if (llvm::APSInt::compareValues(N1->Const, N2->Const) != 0)
     return false;
 
+  // If the number of children of the two nodes mismatch.
+  if (N1->Children.size() != N2->Children.size())
+    return false;
+
   // Match each variable occurring in the two nodes.
   for (size_t I = 0; I != N1->Vars.size(); ++I) {
     auto &V1 = N1->Vars[I];
@@ -140,9 +139,16 @@ bool PreorderAST::IsEqual(Node *N1, Node *N2) {
       return false;
   }
 
-  // Recursively match the left and the right subtrees of the AST.
-  return IsEqual(N1->Left, N2->Left) &&
-         IsEqual(N1->Right, N2->Right);
+  // Match each child of the two nodes.
+  for (size_t I = 0; I != N1->Children.size(); ++I) {
+    auto *Child1 = N1->Children[I];
+    auto *Child2 = N2->Children[I];
+
+    // If any child differs between the two nodes.
+    if (!IsEqual(Child1, Child2))
+      return false;
+  }
+  return true;
 }
 
 void PreorderAST::Normalize() {
@@ -183,16 +189,16 @@ void PreorderAST::PrettyPrint(Node *N) {
   if (N->HasConst)
     OS << " [const:" << N->Const << "]\n";
 
-  PrettyPrint(N->Left);
-  PrettyPrint(N->Right);
+  for (auto *Child : N->Children)
+    PrettyPrint(Child);
 }
 
 void PreorderAST::Cleanup(Node *N) {
   if (!N)
     return;
 
-  Cleanup(N->Left);
-  Cleanup(N->Right);
+  for (auto *Child : N->Children)
+    Cleanup(Child);
 
   delete N;
 }

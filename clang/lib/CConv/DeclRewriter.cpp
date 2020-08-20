@@ -466,7 +466,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   bool DidAny = false;
 
   // Get rewritten parameter variable declarations
-  vector<string> ParmStrs;
+  std::vector<std::string> ParmStrs;
   for (unsigned i = 0; i < Defnc->numParams(); ++i) {
     auto *Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getParamVar(i)));
     assert(Defn);
@@ -489,9 +489,9 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
         // Here, definition is checked type but at least one of the arguments
         // is WILD. We use the original type for the parameter, but also add an
         // itype.
-        string PtypeS =
+        std::string PtypeS =
             Defn->mkString(Info.getConstraints().getVariables(), false, true);
-        string Bi =
+        std::string Bi =
             Defn->getRewritableOriginalTy() + Defn->getName() + " : itype(" +
                 PtypeS + ")" +
                 ABRewriter.getBoundsString(Defn,
@@ -501,7 +501,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     } else {
       // If the parameter isn't checked, we can just dump the original
       // declaration.
-      string Scratch = "";
+      std::string Scratch = "";
       raw_string_ostream DeclText(Scratch);
       Definition->getParamDecl(i)->print(DeclText);
       ParmStrs.push_back(DeclText.str());
@@ -545,9 +545,9 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
           + "(";
   if (!ParmStrs.empty()) {
     // Gather individual parameter strings into a single buffer
-    ostringstream ConcatParamStr;
+    std::ostringstream ConcatParamStr;
     copy(ParmStrs.begin(), ParmStrs.end() - 1,
-              ostream_iterator<string>(ConcatParamStr, ", "));
+              std::ostream_iterator<std::string>(ConcatParamStr, ", "));
     ConcatParamStr << ParmStrs.back();
 
     NewSig = NewSig + ConcatParamStr.str();
@@ -588,7 +588,7 @@ std::string FunctionDeclBuilder::getExistingIType(ConstraintVariable *DeclC) {
 }
 
 // Check if the function is handled by this visitor.
-bool FunctionDeclBuilder::isFunctionVisited(string FuncName) {
+bool FunctionDeclBuilder::isFunctionVisited(std::string FuncName) {
   return VisitedSet.find(FuncName) != VisitedSet.end();
 }
 
