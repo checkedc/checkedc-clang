@@ -51,23 +51,23 @@ void foo1(int *z) {
 /* Testing Something with a larger set of functions */
 
 int *a() {
-	//CHECK: int * a(void) _Checked {
+	//CHECK: int *a(void) _Checked {
   return 0;
 }
 int *b() {
-	//CHECK: int * b(void) _Checked {
+	//CHECK: int *b(void) _Checked {
   return 0;
 }
 int *c() {
-	//CHECK: int * c(void) _Checked {
+	//CHECK: int *c(void) _Checked {
   return 0;
 }
 int *d() {
-	//CHECK: int * d(void) _Checked {
+	//CHECK: int *d(void) _Checked {
   return 0;
 }
 int *e() {
-	//CHECK: int * e(void) {
+	//CHECK: int *e(void) {
   return (int*) 1;
 	//CHECK: return (int*) 1;
 }

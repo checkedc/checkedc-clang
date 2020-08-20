@@ -19,10 +19,20 @@ DescribeChannel(void)
 {
     ulong	col;
     TOP = (ulong *)malloc((channelColumns+1) * sizeof(ulong));
-    // CHECK_ALL: TOP = (_Array_ptr<unsigned long> )malloc<unsigned long>((channelColumns+1) * sizeof(ulong));
+    // CHECK_ALL: TOP = (_Array_ptr<unsigned long>)malloc<unsigned long>((channelColumns+1) * sizeof(ulong));
     // CHECK_NOALL: TOP = (ulong *)malloc<unsigned long>((channelColumns+1) * sizeof(ulong));
     TOP[col] = 0;
 }
 
-int *a = 0;
-// CHECK: _Ptr<int> a = 0;
+
+#define integer int
+integer foo(int *p, int l) {
+// CHECK_ALL: integer foo(_Array_ptr<int> p : count(l), int l)  _Checked {
+// CHECK_NOALL: integer foo(int *p, int l) {
+   return p[l-1];
+}
+
+int *bar(integer p, integer i) {
+// CHECK: _Ptr<int> bar(integer p, integer i) _Checked {
+  return 0;
+}

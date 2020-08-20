@@ -7,7 +7,7 @@
 
 /*nothing in this file, save the trivially converted w, should be converted*/
 int *foo(int *w) {
-	//CHECK: int * foo(_Ptr<int> w) {
+	//CHECK: int *foo(_Ptr<int> w) {
   int x = 1;
   int y = 2;
   int z = 3;
