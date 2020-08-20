@@ -277,7 +277,7 @@ ProgramVar *AVarBoundsInfo::getProgramVar(BoundsKey VK) {
 }
 
 bool AVarBoundsInfo::hasVarKey(PersistentSourceLoc &PSL) {
-  return DeclVarMap.find(PSL) != DeclVarMap.end();
+  return DeclVarMap.left().find(PSL) != DeclVarMap.left().end();
 }
 
 BoundsKey AVarBoundsInfo::getVarKey(PersistentSourceLoc &PSL) {

@@ -12,11 +12,11 @@
 #include "clang/CConv/ConstraintsGraph.h"
 #include <iostream>
 
-ConstraintsGraph::NodeType *ConstraintsGraph::addVertex(Atom *A) {
+ConstraintsGraph::NodeType *ConstraintsGraph::findOrCreateNode(Atom *A) {
   // Save all the const atoms.
   if (auto *CA = clang::dyn_cast<ConstAtom>(A))
     AllConstAtoms.insert(CA);
-  return DataGraph::addVertex(A);
+  return DataGraph::findOrCreateNode(A);
 }
 
 std::set<ConstAtom*> &ConstraintsGraph::getAllConstAtoms() {
@@ -76,10 +76,10 @@ std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getEdgeAttributes
 void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph &Graph,
                                                GraphVizEdge::EdgeKind EK) {
   for (auto *N : Graph.Nodes) {
-    auto *S = addVertex(N->getData());
+    auto *S = findOrCreateNode(N->getData());
     for (auto *E : N->getEdges()) {
       Atom *TargetData = E->getTargetNode().getData();
-      auto *D = addVertex(TargetData);
+      auto *D = findOrCreateNode(TargetData);
       if (D->hasEdgeTo(*S)) {
         llvm::SmallVector<GraphVizEdge*, 2> Edges;
         D->findEdgesTo(*S, Edges);

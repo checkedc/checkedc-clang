@@ -36,17 +36,34 @@ public:
 
   DataType getData() const { return Data; }
 
-  void addPred(EdgeType &E){ PredEdges.insert(&E); }
-  const llvm::SetVector<EdgeType *> &getPreds() { return PredEdges; }
+  void connectTo(NodeType &Other) {
+    auto *BLR = new EdgeType(Other);
+    this->addEdge(*BLR);
+    auto *BRL = new EdgeType(*this);
+    Other.addPredecessor(*BRL);
+  }
 
+  const llvm::SetVector<EdgeType *> &getPredecessors() {
+    return PredecessorEdges;
+  }
+
+  // Nodes are defined exactly by the data they contain, not by their
+  // connections to other nodes.
   bool isEqualTo(const DataNode &N) const { return this->Data == N.Data; }
 
 private:
+  // Data element stored in each node. This is used by isEqualTo to discriminate
+  // between nodes.
   DataType Data;
 
-  llvm::SetVector<EdgeType *> PredEdges;
+  // While the constraint graph is directed, we want to efficiently traverse
+  // edges in the opposite direction. This set contains an edge entry pointing
+  // back to every node that has an edge to this node.
+  llvm::SetVector<EdgeType *> PredecessorEdges;
+  void addPredecessor(EdgeType &E){ PredecessorEdges.insert(&E); }
 };
 
+// Boilerplate template specialization
 template<typename Data, typename EdgeType>
 struct llvm::GraphTraits<DataNode<Data, EdgeType> *> {
   using NodeRef = DataNode<Data, EdgeType> *;
@@ -110,13 +127,9 @@ public:
   }
 
   void addEdge(Data L, Data R) {
-    NodeType *BL = this->addVertex(L);
-    NodeType *BR = this->addVertex(R);
-
-    auto *BLR = new EdgeType(*BR);
-    BL->addEdge(*BLR);
-    auto *BRL = new EdgeType(*BL);
-    BR->addPred(*BRL);
+    NodeType *BL = this->findOrCreateNode(L);
+    NodeType *BR = this->findOrCreateNode(R);
+    BL->connectTo(*BR);
   }
 
   bool getNeighbors(Data D, std::set<Data> &DataSet, bool Succ){
@@ -128,7 +141,7 @@ public:
     if (Succ)
       Edges = (*N)->getEdges();
     else
-      Edges = (*N)->getPreds();
+      Edges = (*N)->getPredecessors();
     for (auto *E : Edges)
       DataSet.insert(E->getTargetNode().getData());
     return !DataSet.empty();
@@ -151,7 +164,10 @@ public:
   }
 
 protected:
-  virtual NodeType *addVertex(Data D) {
+  // Finds the node containing the Data if it exists, otherwise a new Node
+  // is allocated. Node equality is defined only by the data stored in a node,
+  // so if any node already contains the data, this node will be found.
+  virtual NodeType *findOrCreateNode(Data D) {
     auto *OldN = this->findNode(NodeType(D));
     if (OldN != this->end())
       return *OldN;
@@ -182,7 +198,7 @@ public:
 protected:
   // Add vertex is overridden to save const atoms as they are added to the graph
   // so that getAllConstAtoms can efficiently retrieve them.
-  NodeType *addVertex(Atom *A) override;
+  NodeType *findOrCreateNode(Atom *A) override;
 private:
   std::set<ConstAtom*> AllConstAtoms;
 };
