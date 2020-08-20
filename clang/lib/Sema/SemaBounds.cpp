@@ -3469,7 +3469,6 @@ namespace {
                                          CheckingState &State) {
       // Check the condition `e1`.
       Check(E->getCond(), CSS, State);
-      BoundsContextTy ConditionObservedBounds = State.ObservedBounds;
 
       // Check the "true" arm `e2`.
       // TODO: save the rvalue bounds from checking `e2`.  These bounds will
@@ -3502,21 +3501,31 @@ namespace {
         StmtDeclSetTy KilledBounds;
 
         // Validate the variables whose bounds were updated in the true arm.
-        BoundsContextTy TrueUpdatedBounds = ContextDifference(
-                                              StateTrueArm.ObservedBounds,
-                                              State.ObservedBounds);
-        StateTrueArm.ObservedBounds = TrueUpdatedBounds;
+        StateTrueArm.ObservedBounds = ContextDifference(
+                                        StateTrueArm.ObservedBounds,
+                                        State.ObservedBounds);
         ValidateBoundsContext(E->getTrueExpr(), StateTrueArm, WidenedBounds,
                               KilledBounds, CSS);
 
         // Validate the variables whose bounds were updated in the false arm.
-        BoundsContextTy FalseUpdatedBounds = ContextDifference(
-                                               StateFalseArm.ObservedBounds,
-                                               State.ObservedBounds);
-        StateFalseArm.ObservedBounds = FalseUpdatedBounds;
+        StateFalseArm.ObservedBounds = ContextDifference(
+                                          StateFalseArm.ObservedBounds,
+                                          State.ObservedBounds);
         ValidateBoundsContext(E->getFalseExpr(), StateFalseArm, WidenedBounds,
                               KilledBounds, CSS);
 
+        // For each variable v whose bounds were updated in the true or false arm,
+        // reset the observed bounds of v to the declared bounds of v.
+        for (const auto &Pair : StateTrueArm.ObservedBounds) {
+          const VarDecl *V = Pair.first;
+          BoundsExpr *DeclaredBounds = S.NormalizeBounds(V);
+          State.ObservedBounds[V] = DeclaredBounds;
+        }
+        for (const auto &Pair : StateFalseArm.ObservedBounds) {
+          const VarDecl *V = Pair.first;
+          BoundsExpr *DeclaredBounds = S.NormalizeBounds(V);
+          State.ObservedBounds[V] = DeclaredBounds;
+        }
       }
 
       State.EquivExprs = IntersectEquivExprs(StateTrueArm.EquivExprs,
