@@ -81,12 +81,26 @@ void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph &Graph,
       Atom *TargetData = E->getTargetNode().getData();
       auto *D = findOrCreateNode(TargetData);
       if (D->hasEdgeTo(*S)) {
+        // If an edge of the same type exists in the opposite direction, then
+        // make the edge bidirectional instead of creating a new edge.
         llvm::SmallVector<GraphVizEdge*, 2> Edges;
         D->findEdgesTo(*S, Edges);
         for (auto *OldE : Edges)
           if (OldE->Kind == EK)
             OldE->IsBidirectional = true;
       } else {
+        if (S->hasEdgeTo(*D)) {
+          // If an edge of the same type exists in the same direction, don't
+          // change anything. This happens when implication constraints add a
+          // WILD constraint on top of what already exists.
+          llvm::SmallVector<GraphVizEdge *, 2> Edges;
+          S->findEdgesTo(*D, Edges);
+          for (auto *OldE : Edges)
+            if (OldE->Kind == EK)
+              return;
+        }
+
+        // Otherwise, we actually need to create a new edge.
         GraphVizEdge *GE = new GraphVizEdge(*D, EK);
         connect(*S, *D, *GE);
       }
