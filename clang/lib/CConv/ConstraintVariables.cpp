@@ -1640,7 +1640,7 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
     }
   } else if (numParams() != 0 && From->numParams() == 0) {
     auto &CS = I.getConstraints();
-    vector<ParamDeferment> &defers = From->getDeferredParams();
+    std::vector<ParamDeferment> &defers = From->getDeferredParams();
     assert(getDeferredParams().size() == 0);
     for (auto deferred : defers ) {
       assert(numParams() == deferred.PS.size());
@@ -1688,7 +1688,7 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
 
 
 void FunctionVariableConstraint::addDeferredParams
-(PersistentSourceLoc PL, vector<CVarSet> Ps) {
+(PersistentSourceLoc PL, std::vector<CVarSet> Ps) {
   ParamDeferment P = { PL, Ps };
   deferredParams.push_back(P);
 }
