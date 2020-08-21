@@ -490,10 +490,9 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
     auto oldS = Map[FuncName];
     auto *newC = getOnly(ToIns);
     auto *oldC = getOnly(oldS);
-    bool isDef = !oldC->hasBody() && (newC->hasBody() || (oldC->numParams() == 0 && newC->numParams() != 0));
-    // bool isDef = newC->hasBody() ||
-    //   (!oldC->hasBody() && oldC->numParams() == 0 && newC->numParams() != 0);
-    if (isDef) {
+    if (!oldC->hasBody() &&
+        (newC->hasBody() ||
+         (oldC->numParams() == 0 && newC->numParams() != 0))) {
       newC->brainTransplant(oldC, *this);
       Map[FuncName] = ToIns;
       RetVal = true;
