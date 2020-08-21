@@ -63,9 +63,10 @@ private:
   void addPredecessor(EdgeType &E){ PredecessorEdges.insert(&E); }
 };
 
+namespace llvm {
 // Boilerplate template specialization
 template<typename Data, typename EdgeType>
-struct llvm::GraphTraits<DataNode<Data, EdgeType> *> {
+struct GraphTraits<DataNode<Data, EdgeType> *> {
   using NodeRef = DataNode<Data, EdgeType> *;
 
   static NodeRef GetTargetNode(EdgeType *P) {
@@ -83,6 +84,7 @@ struct llvm::GraphTraits<DataNode<Data, EdgeType> *> {
     return ChildIteratorType(N->end(), &GetTargetNode);
   }
 };
+}
 
 template<class DataType>
 struct DataEdge : public llvm::DGEdge<DataNode<DataType>, DataEdge<DataType>> {
@@ -252,7 +254,8 @@ private:
 // Below this is boiler plate needed to work with the llvm graphviz output
 // functions.
 
-template<> struct llvm::GraphTraits<GraphVizOutputGraph> {
+namespace llvm {
+template<> struct GraphTraits<GraphVizOutputGraph> {
   using NodeRef = DataNode<Atom*, GraphVizEdge> *;
   using nodes_iterator = GraphVizOutputGraph::iterator;
 
@@ -281,7 +284,7 @@ template<> struct llvm::GraphTraits<GraphVizOutputGraph> {
   }
 };
 
-template<> struct llvm::DOTGraphTraits<GraphVizOutputGraph>
+template<> struct DOTGraphTraits<GraphVizOutputGraph>
     : public llvm::DefaultDOTGraphTraits,
              llvm::GraphTraits<GraphVizOutputGraph> {
   DOTGraphTraits(bool simple = false) : DefaultDOTGraphTraits(simple) {}
@@ -292,5 +295,6 @@ template<> struct llvm::DOTGraphTraits<GraphVizOutputGraph>
       (const DataNode<Atom *, GraphVizEdge> *Node, ChildIteratorType T,
        const GraphVizOutputGraph &CG);
 };
+} // namespace llvm
 
 #endif // _CONSTRAINTSGRAPH_H
