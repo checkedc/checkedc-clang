@@ -217,12 +217,10 @@ static bool do_solve(ConstraintsGraph &CG,
 
       // get its neighbors.
       std::set<Atom *> Neighbors;
-      CG.getNeighbors<VarAtom>(Curr, Neighbors, doLeastSolution);
+      CG.getNeighbors(Curr, Neighbors, doLeastSolution);
       // update each successor's solution.
       for (auto *NeighborA : Neighbors) {
         bool Changed = false;
-        /*llvm::errs() << "Neighbor:" << NeighborA->getStr()
-                     << " of " << Curr->getStr() << "\n";*/
         if (VarAtom *Neighbor = dyn_cast<VarAtom>(NeighborA)) {
           ConstAtom *NghSol = env.getAssignment(Neighbor);
           // update solution if doing so would change it
@@ -234,10 +232,6 @@ static bool do_solve(ConstraintsGraph &CG,
             Changed = env.assign(Neighbor, CurrSol);
             assert (Changed);
             WorkList.push_back(Neighbor);
-            /*if (Changed) {
-              llvm::s()err << "Trying to assign:" << CurrSol->getStr() << " to "
-                           << K->getStr() << "\n";
-            }*/
           }
         } // ignore ConstAtoms for now; will confirm solution below
       }
@@ -254,9 +248,6 @@ static bool do_solve(ConstraintsGraph &CG,
         ConstAtom *Cva = env.getAssignment(Pre->getLHS());
         // Premise is true, so fire the conclusion.
         if (*Cca < *Cva || *Cca == *Cva) {
-          /*llvm::errs() << "Firing Conclusion:";
-          Con->print(llvm::errs());
-          llvm::errs() << "\n";*/
           CG.addConstraint(Con, *CS);
           // Keep track of fired constraints, so that we can delete them.
           FiredImplies.insert(Imp);
@@ -274,10 +265,11 @@ static bool do_solve(ConstraintsGraph &CG,
   std::set<Atom *> Neighbors;
   bool ok = true;
   for (ConstAtom *Cbound : CG.getAllConstAtoms()) {
-    if (CG.getNeighbors<VarAtom>(Cbound, Neighbors, !doLeastSolution)) {
+    if (CG.getNeighbors(Cbound, Neighbors, !doLeastSolution)) {
       for (Atom *A : Neighbors) {
         VarAtom *VA = dyn_cast<VarAtom>(A);
-        assert (VA != nullptr && "bogus vertex");
+        if (VA == nullptr)
+          continue;
         ConstAtom *Csol = env.getAssignment(VA);
         if ((doLeastSolution && *Cbound < *Csol) ||
             (!doLeastSolution && *Csol < *Cbound)) {
@@ -366,14 +358,12 @@ static std::set<VarAtom *> findBounded(ConstraintsGraph &CG,
     Open.erase(Open.begin());
 
     std::set<Atom *> Neighbors;
-    if (CG.getNeighbors<VarAtom>(Curr, Neighbors, Succs)) {
-      for (Atom *N : Neighbors) {
-        if (VarAtom *VA = dyn_cast<VarAtom>(N)) {
-          if (Bounded.find(VA) == Bounded.end()) {
-            Open.insert(VA);
-            Bounded.insert(VA);
-          }
-        }
+    CG.getNeighbors(Curr, Neighbors, Succs);
+    for (Atom *A : Neighbors) {
+      VarAtom *VA = dyn_cast<VarAtom>(A);
+      if (VA && Bounded.find(VA) == Bounded.end()) {
+        Open.insert(VA);
+        Bounded.insert(VA);
       }
     }
   }
@@ -407,11 +397,9 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
     }
   }
 
-  if (DebugSolver) {
-    GraphVizOutputGraph::dumpConstraintGraphs(
-        "initial_constraints_graph.dot",
+  if (DebugSolver)
+    GraphVizOutputGraph::dumpConstraintGraphs("initial_constraints_graph.dot",
                                               SolChkCG, SolPtrTypCG);
-  }
 
   // Solve Checked/unchecked constraints first.
   env.doCheckedSolve(true);
@@ -511,10 +499,9 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
     env.mergePtrTypes();
   }
 
-  if (DebugSolver) {
+  if (DebugSolver)
     GraphVizOutputGraph::dumpConstraintGraphs(
         "implication_constraints_graph.dot", SolChkCG, SolPtrTypCG);
-  }
 
   return res;
 }

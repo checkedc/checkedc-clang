@@ -2,7 +2,7 @@
 
 ## Null-terminated Arrays
 A null-terminated array is a sequence of elements in memory that ends with a
-null terminator. Checked C adds the type `nt_array_ptr<T>` to represent
+null terminator. Checked C adds the type `_Nt_array_ptr<T>` to represent
 pointers to these kinds of arrays. These arrays can be divided into two parts:
 a prefix with bounds and a sequence of additional elements that ends with a
 null terminator.
@@ -40,8 +40,8 @@ edge `Bi->Bj` is denoted as `Out[Bi][Bj]` and the Gen set is denoted as
 `Gen[Bi][Bj]`.
 
 ### In[B]
-`In[B]` stores the mapping between an `nt_array_ptr` and its widened bounds
-inside block `B`. For example, given `nt_array_ptr V` with declared bounds
+`In[B]` stores the mapping between an `_Nt_array_ptr` and its widened bounds
+inside block `B`. For example, given `_Nt_array_ptr V` with declared bounds
 `(low, high)`, `In[B]` would store the mapping `{V:i}`, where `i` is an unsigned
 integer and the bounds of `V` should be widened to `(low, high + i)`.
 
@@ -49,29 +49,28 @@ Dataflow equation:
 `In[B] = ∩ Out[B*][B], where B* ∈ pred(B)`.
 
 ### Kill[B]
-In block `B`, the bounds for an `nt_array_ptr V` are said to be killed by a
+In block `B`, the bounds for an `_Nt_array_ptr V` are said to be killed by a
 statement `S` if:
 1. `V` is assigned to in `S`, or
 2. a variable used in the declared bounds of `V` is assigned to in `S`.
-Thus, `Kill[B]` stores the mapping between a statement `S` and `nt_array_ptr's`
+Thus, `Kill[B]` stores the mapping between a statement `S` and `_Nt_array_ptr's`
 whose bounds are killed in `S`.
 
 ### Gen[Bi][Bj]
-Given `nt_array_ptr V` with declared bounds `(low, high)`, the bounds of `V`
-can be widened by 1 if `V` is derefenced at the upper bound. This means that if
-there is an edge `Bi->Bj` whose edge condition is of the form `if (*(V + high +
-i))`, where `i` is an unsigned integer offset, the widened bounds `{V:i+1}` can
-be added to `Gen[Bi][Bj]`, provided we have already tested for pointer access
-of the form `if (*(V + high + i - 1))`.
+Given `_Nt_array_ptr V` with declared bounds `(low, high)`, the bounds of `V`
+can be widened by 1 if `V` is dereferenced at the upper bound. This means that
+if there is an edge `Bi->Bj` whose edge condition is of the form `if (*(V +
+high + i))`, where `i` is an unsigned integer offset, the widened bounds
+`{V:i+1}` can be added to `Gen[Bi][Bj]`, provided we have already tested for
+pointer access of the form `if (*(V + high + i - 1))`.
 
 For example:
 ```
-nt_array_ptr<T> V : bounds (low, high);
+_Nt_array_ptr<T> V : bounds (low, high);
 if (*V) { // Ptr dereference is NOT at the current upper bound. No bounds widening.
   if (*(V + high)) { // Ptr dereference is at the current upper bound. Widen bounds by 1. New bounds for V are (low, high + 1).
     if (*(V + high + 1)) { // Ptr dereference is at the current upper bound. Widen bounds by 1. New bounds for V are (low, high + 2).
-
-      if (*(V + high + 2)) { // Ptr dereference is at the current upper bound. Widen bounds by 1. New bounds for V are (low, high + 3).
+      if (*(V + high + 3)) { // Ptr dereference is *not* at the current upper bound. No bounds widening. Flag an error!.
 ```
 
 ### Out[Bi][Bj]
@@ -142,13 +141,13 @@ reach a fixed point i.e.: as long as the Out sets for the blocks keep changing.
 2.    For each basic block B in the reverse post-order for F:
 3.      Compute the Kill set for B
 4.      For each predecessor B' of B:
-5.        Compute the Gen set on edge B'>B
+5.        Compute the Gen set on edge B'->B
 6.      Add B to a queue called WorkList
 
 7.    For each basic block in WorkList:
 8.      Compute the In set for B
 9.      For each successor B' of B:
-10.       Store the current out set Out[B][B'] as OldOut
+10.       Store the current Out set Out[B][B'] as OldOut
 11.       Compute the new Out set on edge B->B'
 12.       Add B' to WorkList if Out[B][B'] != OldOut
 ```
@@ -156,5 +155,5 @@ reach a fixed point i.e.: as long as the Out sets for the blocks keep changing.
 ## Debugging the Analysis
 In order to debug the bounds widening anlaysis, you can use the clang flag
 `-fdump-widened-bounds`. This will dump the function name, the basic blocks
-sorted by block ID, and for each `nt_array_ptr` in the block the variable name
+sorted by block ID, and for each `_Nt_array_ptr` in the block the variable name
 and its widened bounds, if applicable.

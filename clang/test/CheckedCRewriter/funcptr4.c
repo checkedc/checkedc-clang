@@ -1,22 +1,26 @@
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -output-postfix=checked -alltypes %s
+// RUN: cconv-standalone -alltypes %S/funcptr4.checked.c -- | count 0
+// RUN: rm %S/funcptr4.checked.c
 
 void f(int *(*fp)(int *)) {
+	//CHECK: void f(_Ptr<_Ptr<int> (_Ptr<int> )> fp) _Checked {
   fp(0);
 }
-//CHECK: void f(_Ptr<_Ptr<int> (_Ptr<int> )> fp) {
 int *g2(int *x) {
+	//CHECK: _Ptr<int> g2(_Ptr<int> x) _Checked {
   return x;
 }
-//CHECK: _Ptr<int> g2(_Ptr<int> x) {
 int *g(int *x) {
+	//CHECK: _Ptr<int> g(_Ptr<int> x) _Checked {
   return 0;
 }
-//CHECK: _Ptr<int> g(_Ptr<int> x) {
 void h() {
   int *(*fp)(int *) = g;
+	//CHECK: _Ptr<_Ptr<int> (_Ptr<int> )> fp =  g;
   f(g);
   f(g2);
   g(0);
 }
-//CHECK: _Ptr<_Ptr<int> (_Ptr<int> )> fp =  g;

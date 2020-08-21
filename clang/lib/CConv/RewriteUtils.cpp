@@ -311,11 +311,20 @@ private:
   bool typeArgsProvided(CallExpr *Call) {
     Expr *Callee = Call->getCallee()->IgnoreImpCasts();
     if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(Callee)) {
-      // ArgInfo is null if there are no type arguments in the program
+      // ArgInfo is null if there are no type arguments anywhere in the program
       if (auto *ArgInfo = DRE->GetTypeArgumentInfo())
-        for (auto TypeArg : ArgInfo->typeArgumentss())
-          if (!TypeArg.typeName->isVoidType())
+        for (auto Arg : ArgInfo->typeArgumentss()) {
+          if (!Arg.typeName->isVoidType()) {
+            // Found a non-void type argument. No doubt type args are provided.
             return true;
+          } else if (Arg.sourceInfo->getTypeLoc().getSourceRange().isValid()) {
+            // The type argument is void, but with a valid source range. This
+            // means an explict void type argument was provided.
+            return true;
+          }
+          // A void type argument without a source location. The type argument
+          // is implicit so, we're good to insert a new one.
+        }
       return false;
     }
     // We only handle direct calls, so there must be a DeclRefExpr.

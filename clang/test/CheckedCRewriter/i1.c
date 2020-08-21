@@ -1,16 +1,22 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -output-postfix=checked -alltypes %s
+// RUN: cconv-standalone -alltypes %S/i1.checked.c -- | count 0
+// RUN: rm %S/i1.checked.c
 
 /*nothing in this file, save the trivially converted w, should be converted*/
 int *foo(int *w) {
-  //CHECK: int * foo(_Ptr<int> w) {
+	//CHECK: int * foo(_Ptr<int> w) {
   int x = 1;
   int y = 2;
   int z = 3;
   int *ret;
+	//CHECK: int *ret;
   for (int i = 0; i < 4; i++) {
+	//CHECK: for (int i = 0; i < 4; i++) _Checked {
     switch(i) {
+	//CHECK: switch(i) _Unchecked {
     case 0:
       ret = &x;
       break;
@@ -22,6 +28,7 @@ int *foo(int *w) {
       break;
     case 3:
       ret = (int *)5;
+	//CHECK: ret = (int *)5;
       break;
     }
   }

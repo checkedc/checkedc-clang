@@ -186,7 +186,8 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
       auto type = FD->getReturnType();
       Wild |= (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody()))
         || containsUncheckedPtr(type)
-        || (any_of(FD->param_begin(), FD->param_end(), [this] (Decl *param) {
+        || (std::any_of(FD->param_begin(), FD->param_end(),
+           [this] (Decl *param) {
               auto CVSet = Info.getVariable(param, Context);
               return isWild(CVSet );
             }));
@@ -333,7 +334,7 @@ bool CheckedRegionFinder::containsUncheckedPtrAcc(QualType Qt, std::set<std::str
   if (Ct->isFunctionPointerType()) {
     if (auto FPT = dyn_cast<FunctionProtoType>(Ct->getPointeeType())) {
       auto PTs = FPT->getParamTypes();
-      bool params = any_of(PTs.begin(), PTs.end(),
+      bool params = std::any_of(PTs.begin(), PTs.end(),
           [this, &Seen] (QualType QT) { return containsUncheckedPtrAcc(QT, Seen); });
       return containsUncheckedPtrAcc(FPT->getReturnType(), Seen) || params;
     } else {

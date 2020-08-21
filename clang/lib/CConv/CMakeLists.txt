@@ -3,11 +3,6 @@ set( LLVM_LINK_COMPONENTS
         Option
         Support
         )
-if (LLVM_BOOST_FOUND)
-    if(NOT LLVM_ENABLE_RTTI)
-        message(ERROR "Linking Boost requires enabling rtti. Please use -DLLVM_ENABLE_RTTI=ON in cmake.")
-    else()
-        # This is to populate the boost link libraries.
         add_clang_library(CConv
           ABounds.cpp
           AVarBoundsInfo.cpp
@@ -43,11 +38,6 @@ if (LLVM_BOOST_FOUND)
           clangStaticAnalyzerFrontend
           clangTooling
           clangToolingRefactoring
-          ${Boost_LIBRARIES}
         )
         add_subdirectory(unittests)
-	target_include_directories(obj.CConv PUBLIC ${Boost_INCLUDE_DIRS})
-    endif()
-endif()
-
-
+	target_include_directories(obj.CConv PUBLIC)

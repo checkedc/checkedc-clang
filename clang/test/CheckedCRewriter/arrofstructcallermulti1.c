@@ -1,10 +1,15 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/arrofstructcallermulti2.c
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/arrofstructcallermulti2.c
-//RUN: %clang -c %S/arrofstructcallermulti1.checkedNOALL.c %S/arrofstructcallermulti2.checkedNOALL.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrofstructcallermulti1.checkedNOALL.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrofstructcallermulti1.checkedALL.c %s
-//RUN: rm %S/arrofstructcallermulti1.checkedALL.c %S/arrofstructcallermulti2.checkedALL.c
-//RUN: rm %S/arrofstructcallermulti1.checkedNOALL.c %S/arrofstructcallermulti2.checkedNOALL.c
+// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/arrofstructcallermulti2.c
+// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/arrofstructcallermulti2.c
+// RUN: %clang -c %S/arrofstructcallermulti1.checkedNOALL.c %S/arrofstructcallermulti2.checkedNOALL.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrofstructcallermulti1.checkedNOALL.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrofstructcallermulti1.checkedALL.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %S/arrofstructcallermulti2.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/arrofstructcallermulti1.checked.c %S/arrofstructcallermulti2.checked.c
+// RUN: diff %S/arrofstructcallermulti1.checked.convert_again.c %S/arrofstructcallermulti1.checked.c
+// RUN: diff %S/arrofstructcallermulti2.checked.convert_again.c %S/arrofstructcallermulti2.checked.c
+// RUN: rm %S/arrofstructcallermulti1.checkedALL.c %S/arrofstructcallermulti2.checkedALL.c
+// RUN: rm %S/arrofstructcallermulti1.checkedNOALL.c %S/arrofstructcallermulti2.checkedNOALL.c
+// RUN: rm %S/arrofstructcallermulti1.checked.c %S/arrofstructcallermulti2.checked.c %S/arrofstructcallermulti1.checked.convert_again.c %S/arrofstructcallermulti2.checked.convert_again.c
 
 
 /*********************************************************************************/
@@ -71,14 +76,17 @@ struct arrfptr {
 };
 
 int add1(int x) { 
+	//CHECK: int add1(int x) _Checked { 
     return x+1;
 } 
 
 int sub1(int x) { 
+	//CHECK: int sub1(int x) _Checked { 
     return x-1; 
 } 
 
 int fact(int n) { 
+	//CHECK: int fact(int n) _Checked { 
     if(n==0) { 
         return 1;
     } 
@@ -86,17 +94,19 @@ int fact(int n) {
 } 
 
 int fib(int n) { 
+	//CHECK: int fib(int n) _Checked { 
     if(n==0) { return 0; } 
     if(n==1) { return 1; } 
     return fib(n-1) + fib(n-2);
 } 
 
 int zerohuh(int n) { 
+	//CHECK: int zerohuh(int n) _Checked { 
     return !n;
 }
 
 int *mul2(int *x) { 
-	//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }

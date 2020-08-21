@@ -69,6 +69,11 @@ jobs:
           cmake -G Ninja -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_ENABLE_RTTI=ON -DCMAKE_BUILD_TYPE="MinSizeRel" -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" ${{github.workspace}}/depsfolder/checkedc-clang/llvm
           ninja cconv-standalone
           ninja clang
+          ninja llvm-config
+          ninja FileCheck
+          ninja not
+          ninja count
+
 
       # Upload the built cconv-standalone and clang
       - name: Upload Build files
@@ -111,7 +116,8 @@ jobs:
       # Run units tests
       - name: Run Unit Tests
         run: |
-          cd ${{runner.workspace}}/${{env.builddir}}
+          cd ${{runner.workspace}}/${{env.builddir}}/bin
+          chmod 700 *
           export CPATH=${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include
           ! ./llvm-lit ${{github.workspace}}/deps/folder/checkedc-clang/clang/test/CheckedCRewriter/*.c | grep -e "^FAIL"
 

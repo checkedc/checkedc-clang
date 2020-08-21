@@ -19,9 +19,6 @@
 #include "clang/CConv/PersistentSourceLoc.h"
 #include "clang/CConv/ConstraintVariables.h"
 
-#include <boost/config.hpp>
-#include <boost/bimap.hpp>
-
 class ProgramInfo;
 class ConstraintResolver;
 
@@ -91,15 +88,6 @@ enum BoundsPriority {
   Invalid // Invalid priority type.
 };
 
-typedef boost::bimap<PersistentSourceLoc, BoundsKey> DeclKeyBiMapType;
-typedef DeclKeyBiMapType::value_type DeclMapItemType;
-typedef boost::bimap<std::tuple<std::string, string, bool, unsigned>,
-                     BoundsKey> ParmKeyBiMapType;
-typedef ParmKeyBiMapType::value_type ParmMapItemType;
-typedef boost::bimap<std::tuple<std::string, string, bool>,
-                     BoundsKey> FuncKeyBiMapType;
-typedef FuncKeyBiMapType::value_type FuncMapItemType;
-
 class AVarBoundsInfo;
 
 // The main class that handles figuring out bounds of arr variables.
@@ -132,17 +120,18 @@ private:
 
 class AVarBoundsInfo {
 public:
-  AVarBoundsInfo() {
+  AVarBoundsInfo() : ProgVarGraph(this) {
     BCount = 1;
     PVarInfo.clear();
     InProgramArrPtrBoundsKeys.clear();
     BInfo.clear();
     DeclVarMap.clear();
-    ProgVarGraph.clear();
     TmpBoundsKey.clear();
     CSBoundsKey.clear();
     ArrPointersWithArithmetic.clear();
   }
+
+  typedef std::tuple<std::string, std::string, bool, unsigned> ParamDeclType;
 
   // Checks if the given declaration is a valid bounds variable.
   bool isValidBoundVariable(clang::Decl *D);
@@ -237,9 +226,11 @@ public:
 
 private:
   friend class AvarBoundsInference;
-  friend class AVarGraph;
+  
+  friend struct llvm::DOTGraphTraits<AVarGraph>;
   // List of bounds priority in descending order of priorities.
   static std::vector<BoundsPriority> PrioList;
+
   // Variable that is used to generate new bound keys.
   BoundsKey BCount;
   // Map of VarKeys and corresponding program variables.
@@ -263,15 +254,19 @@ private:
   // being compiled i.e., it does not include array pointers that belong
   // to libraries.
   std::set<BoundsKey> InProgramArrPtrBoundsKeys;
+
   // These are temporary bound keys generated during inference.
   // They do not correspond to any bounds variable.
   std::set<BoundsKey> TmpBoundsKey;
+
   // BiMap of Persistent source loc and BoundsKey of regular variables.
-  DeclKeyBiMapType DeclVarMap;
+  BiMap<PersistentSourceLoc, BoundsKey> DeclVarMap;
   // BiMap of parameter keys and BoundsKey for function parameters.
-  ParmKeyBiMapType ParamDeclVarMap;
+  BiMap<ParamDeclType, BoundsKey> ParamDeclVarMap;
   // BiMap of function keys and BoundsKey for function return values.
-  FuncKeyBiMapType FuncDeclVarMap;
+  Bimap<std::tuple<std::string, string, bool>,
+                     BoundsKey> FuncKeyBiMapType;
+
   // Graph of all program variables.
   AVarGraph ProgVarGraph;
   // Stats on techniques used to find length for various variables.
@@ -313,6 +308,7 @@ private:
   bool performWorkListInference(std::set<BoundsKey> &ArrNeededBounds,
                                 bool FromPB = false);
 
+  void insertParamKey(ParamDeclType ParamDecl, BoundsKey NK);
 };
 
 // This class creates context sensitive bounds key information that is

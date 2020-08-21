@@ -474,14 +474,23 @@ Result Lexicographic::CheckEquivExprs(Result Current, const Expr *E1, const Expr
 
 
 Result
+Lexicographic::CompareTypeLexicographically(QualType QT1, QualType QT2) const {
+  assert(QT1 != QT2);
+
+  std::string S1 = QT1.getAsString();
+  std::string S2 = QT2.getAsString();
+  if (S1.compare(S2) < 0)
+    return Result::LessThan;
+  return Result::GreaterThan;
+}
+
+Result
 Lexicographic::CompareType(QualType QT1, QualType QT2) const {
   QT1 = QT1.getCanonicalType();
   QT2 = QT2.getCanonicalType();
   if (QT1 == QT2)
     return Result::Equal;
-  else
-    // TODO: fill this in
-    return Result::LessThan;
+  return CompareTypeLexicographically(QT1, QT2);
 }
 
 Result
@@ -490,9 +499,7 @@ Lexicographic::CompareTypeIgnoreCheckedness(QualType QT1, QualType QT2) const {
   QT2 = QT2.getCanonicalType();
   if (Context.isEqualIgnoringChecked(QT1, QT2))
     return Result::Equal;
-  else
-    // TODO: fill this in
-    return Result::LessThan;
+  return CompareTypeLexicographically(QT1, QT2);
 }
 
 Result
