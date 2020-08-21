@@ -187,6 +187,14 @@ public:
         // and for each arg to the function ...
         if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
           unsigned i = 0;
+          bool callUntyped =
+            TFD ?
+              TFD->getType()->isFunctionNoProtoType() &&
+              E->getNumArgs() != 0 && TargetFV->numParams() == 0
+            :
+              false;
+
+          std::vector<CVarSet> deferred;
           for (const auto &A : E->arguments()) {
             CVarSet ArgumentConstraints;
             if(TFD != nullptr && i < TFD->getNumParams()) {
@@ -202,8 +210,11 @@ public:
             } else
               ArgumentConstraints = CB.getExprConstraintVars(A);
 
+
+            if (callUntyped) {
+              deferred.push_back(ArgumentConstraints);
+            } else if (i < TargetFV->numParams()) {
             // constrain the arg CV to the param CV
-            if (i < TargetFV->numParams()) {
               CVarSet ParameterDC =
                   TargetFV->getParamVar(i);
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
@@ -238,11 +249,15 @@ public:
             }
             i++;
           }
+          if (callUntyped)
+            TargetFV->addDeferredParams(PL, deferred);
+
         }
       }
     }
     return true;
   }
+
 
   // e1[e2]
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
@@ -375,6 +390,7 @@ private:
   ConstraintResolver CB;
   TypeVarInfo &TVInfo;
 };
+
 
 // This class visits a global declaration, generating constraints
 //   for functions, variables, types, etc. that are visited

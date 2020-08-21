@@ -1563,7 +1563,8 @@ void PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
   }
 }
 
-void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
+void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
+                                                 ProgramInfo &Info) {
   PVConstraint *From = dyn_cast<PVConstraint>(FromCV);
   std::vector<Atom *> NewVatoms;
   CAtoms CFrom = From->getCvars();
@@ -1600,7 +1601,7 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
     ItypeStr = From->ItypeStr;
   if (FV) {
     assert(From->FV);
-    FV->mergeDeclaration(From->FV);
+    FV->mergeDeclaration(From->FV, Info);
   }
 }
 
@@ -1629,33 +1630,69 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
   auto RetVar = getOnly(returnVars);
   RetVar->brainTransplant(FromRetVar, I);
   // Transplant params.
-  assert(From->numParams() == numParams());
-  for (unsigned i = 0; i < From->numParams(); i++) {
-    CVarSet &FromP = From->getParamVar(i);
-    CVarSet &P = getParamVar(i);
-    auto FromVar = getOnly(FromP);
-    auto Var = getOnly(P);
-    Var->brainTransplant(FromVar, I);
+  if (numParams() == From->numParams()) {
+    for (unsigned i = 0; i < From->numParams(); i++) {
+      CVarSet &FromP = From->getParamVar(i);
+      CVarSet &P = getParamVar(i);
+      auto FromVar = getOnly(FromP);
+      auto Var = getOnly(P);
+      Var->brainTransplant(FromVar, I);
+    }
+  } else if (numParams() != 0 && From->numParams() == 0) {
+    auto &CS = I.getConstraints();
+    std::vector<ParamDeferment> &defers = From->getDeferredParams();
+    assert(getDeferredParams().size() == 0);
+    for (auto deferred : defers ) {
+      assert(numParams() == deferred.PS.size());
+      for(unsigned i = 0; i < deferred.PS.size(); i++) {
+        CVarSet ParamDC = getParamVar(i);
+        CVarSet ArgDC = deferred.PS[i];
+        constrainConsVarGeq(ParamDC, ArgDC, CS, &(deferred.PL), Wild_to_Safe, false, &I);
+      }
+    }
+  } else {
+    llvm_unreachable("Brain Transplant on empty params");
   }
 }
 
-void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV) {
+void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
+                                                  ProgramInfo &I) {
+  // `this`: is the declaration the tool saw first
+  // `FromCV`: is the declaration seen second, it cannot have defered constraints
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
-  assert (From != nullptr);
+  assert(From != nullptr);
+  assert(From->getDeferredParams().size() == 0);
   // Transplant returns.
   auto FromRetVar = getOnly(From->getReturnVars());
   auto RetVar = getOnly(returnVars);
-  RetVar->mergeDeclaration(FromRetVar);
-  // Transplant params.
-  assert(From->numParams() == numParams());
-  for (unsigned i = 0; i < From->numParams(); i++) {
-    CVarSet &FromP = From->getParamVar(i);
-    CVarSet &P = getParamVar(i);
-    auto FromVar = getOnly(FromP);
-    auto Var = getOnly(P);
-    Var->mergeDeclaration(FromVar);
+  RetVar->mergeDeclaration(FromRetVar, I);
+
+  if (From->numParams() == 0) {
+    // From is an untyped declaration, and adds no information
+    return;
+  } else if (this->numParams() == 0) {
+    // This is an untyped declaration, we need to perform a transplant
+    From->brainTransplant(this, I);
+  } else {
+    // Standard merge
+    assert(this->numParams() == From->numParams());
+    for (unsigned i = 0; i < From->numParams(); i++) {
+      CVarSet &FromP = From->getParamVar(i);
+      auto FromVar = getOnly(FromP);
+      CVarSet &P = getParamVar(i);
+      auto Var = getOnly(P);
+      Var->mergeDeclaration(FromVar, I);
+    }
   }
 }
+
+
+void FunctionVariableConstraint::addDeferredParams
+(PersistentSourceLoc PL, std::vector<CVarSet> Ps) {
+  ParamDeferment P = { PL, Ps };
+  deferredParams.push_back(P);
+}
+
 
 bool FunctionVariableConstraint::getIsOriginallyChecked() {
   for (const auto &R : returnVars)

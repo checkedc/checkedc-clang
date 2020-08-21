@@ -76,6 +76,7 @@ protected:
   // Is this Constraint Variable for a declaration?
   bool IsForDecl;
 
+
   // Only subclasses should call this
   ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) :
       Kind(K),OriginalType(T),Name(N), HasEqArgumentConstraints(false),
@@ -90,6 +91,7 @@ public:
   virtual std::string mkString(EnvironmentMap &E,
                                bool emitName=true, bool forItype=false,
                                bool emitPointee=false) = 0;
+
 
   // Debug printing of the constraint variable.
   virtual void print(llvm::raw_ostream &O) const = 0;
@@ -135,7 +137,7 @@ public:
 
   // Update this CV with information from duplicate declaration CVs
   virtual void brainTransplant(ConstraintVariable *, ProgramInfo &) = 0;
-  virtual void mergeDeclaration(ConstraintVariable *) = 0;
+  virtual void mergeDeclaration(ConstraintVariable *, ProgramInfo &) = 0;
 
   std::string getOriginalTy() { return OriginalType; }
   // Get the original type string that can be directly
@@ -313,7 +315,7 @@ public:
   const CAtoms &getCvars() const { return vars; }
 
   void brainTransplant(ConstraintVariable *From, ProgramInfo &I);
-  void mergeDeclaration(ConstraintVariable *From);
+  void mergeDeclaration(ConstraintVariable *From, ProgramInfo &I);
 
   static bool classof(const ConstraintVariable *S) {
     return S->getKind() == PointerVariable;
@@ -362,6 +364,12 @@ typedef PointerVariableConstraint PVConstraint;
 // Name for function return, for debugging
 #define RETVAR "$ret"
 
+typedef struct {
+  PersistentSourceLoc PL;
+  std::vector<CVarSet> PS;
+} ParamDeferment;
+
+
 // Constraints on a function type. Also contains a 'name' parameter for
 // when a re-write of a function pointer is needed.
 class FunctionVariableConstraint : public ConstraintVariable {
@@ -373,6 +381,8 @@ private:
   // A vector of K sets of N constraints on the parameter values, for
   // K parameters accepted by the function.
   std::vector<std::set<ConstraintVariable *>> paramVars;
+  // Storing of parameters in the case of untyped prototypes
+  std::vector<ParamDeferment> deferredParams;
   // File name in which this declaration is found.
   std::string FileName;
   bool Hasproto;
@@ -384,6 +394,7 @@ private:
 
   void equateFVConstraintVars(std::set<ConstraintVariable *> &Cset,
                               ProgramInfo &Info);
+
 public:
   FunctionVariableConstraint() :
           ConstraintVariable(FunctionVariable, "", ""),
@@ -400,6 +411,12 @@ public:
   std::set<ConstraintVariable *> &
   getReturnVars() { return returnVars; }
 
+  std::vector<ParamDeferment> &getDeferredParams()
+    { return deferredParams; }
+
+  void addDeferredParams(PersistentSourceLoc PL,
+                         std::vector<CVarSet> Ps);
+
   size_t numParams() { return paramVars.size(); }
 
   bool hasProtoType() { return Hasproto; }
@@ -411,7 +428,7 @@ public:
   }
 
   void brainTransplant(ConstraintVariable *From, ProgramInfo &I);
-  void mergeDeclaration(ConstraintVariable *FromCV);
+  void mergeDeclaration(ConstraintVariable *FromCV, ProgramInfo &I);
 
   std::set<ConstraintVariable *> &
   getParamVar(unsigned i) {
