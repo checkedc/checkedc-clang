@@ -475,7 +475,7 @@ jobs:
           chmod -R 777 ${{github.workspace}}/depsfolder
           chmod -R 777 ${{runner.workspace}}/${{env.builddir}}
           cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils/cc_conv
-          python convert_project.py --skip '/.*/tif_stream.cxx' --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/cconv-standalone -pr ${{runner.workspace}}/depsfolder/libtiff.obj
+          python convert_project.py --skip '/.*/tif_stream.cxx' --skip '.*/test/.*\.c' --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/cconv-standalone -pr ${{runner.workspace}}/depsfolder/libtiff.obj
 
   buildandtestzlib:
     name: Build and test zlib
