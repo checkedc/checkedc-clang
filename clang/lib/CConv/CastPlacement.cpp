@@ -106,12 +106,17 @@ std::string CastPlacementVisitor::getCastString(ConstraintVariable *Src,
                                                 ConstraintVariable *Dst,
                                                 IsChecked Dinfo) {
   assert(needCasting(Src, Dst, Dinfo) && "No casting needed.");
-  return "((" + Dst->getRewritableOriginalTy() + ")";
+  return "(" + Dst->getRewritableOriginalTy() + ")";
 }
 
 void CastPlacementVisitor::surroundByCast(const std::string &CastPrefix,
                                           Expr *E) {
-  if (Writer.InsertTextAfterToken(E->getEndLoc(), ")")) {
+  // If E is already a cast expression, we will try to rewrite the cast instead
+  // adding a new expression.
+  if (auto *CE = dyn_cast<CStyleCastExpr>(E->IgnoreParens())) {
+    SourceRange CastTypeRange(CE->getLParenLoc(), CE->getRParenLoc());
+    Writer.ReplaceText(CastTypeRange, CastPrefix);
+  } else if (Writer.InsertTextAfterToken(E->getEndLoc(), ")")) {
     // This means we failed to insert the text at the end of the RHS.
     // This can happen because of Macro expansion.
     // We will see if this is a single expression statement?
@@ -123,8 +128,8 @@ void CastPlacementVisitor::surroundByCast(const std::string &CastPrefix,
     std::string SrcText = clang::tooling::getText(CRA, *Context);
     // Only insert if there is anything to write.
     if (!SrcText.empty())
-      Writer.ReplaceText(NewCRA, CastPrefix + SrcText + ")");
+      Writer.ReplaceText(NewCRA, "(" + CastPrefix + SrcText + ")");
   } else {
-    Writer.InsertTextBefore(E->getBeginLoc(), CastPrefix);
+    Writer.InsertTextBefore(E->getBeginLoc(), "(" + CastPrefix);
   }
 }
