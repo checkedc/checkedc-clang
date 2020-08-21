@@ -25,24 +25,27 @@ namespace clang {
   using Result = Lexicographic::Result;
 
   // Each binary operator of an expression results in a new node of the
-  // PreorderAST. Each node contains 3 fields:
+  // PreorderAST. Each node contains the following fields:
+
   // Opc: The opcode of the operator.
   // Vars: A list of variables in the sub expression.
   // Const: Constants of the sub expression are folded.
+  // HasConst: Indicates whether there is a constant in the node. It is used to
+  // differentiate between the absence of a constant and a constant value of 0.
+  // Parent: A link to the parent node of the current node.
+  // Children: The preorder AST is an n-ary tree. Children is a list of all the
+  // child nodes of the current node.
 
   struct Node {
     BinaryOperator::Opcode Opc;
     std::vector<const VarDecl *> Vars;
     llvm::APSInt Const;
-    // HasConst indicates whether there is a constant in the node. This is used
-    // to differentiate between an absence of a constant and a constant of value
-    // 0.
     bool HasConst;
-    Node *Parent, *Left, *Right;
+    Node *Parent;
+    llvm::SmallVector<Node *, 2> Children;
 
     Node(Node *Parent) :
-      Opc(BO_Add), HasConst(false),
-      Parent(Parent), Left(nullptr), Right(nullptr) {}
+      Opc(BO_Add), HasConst(false), Parent(Parent) {}
 
     // Is the operator commutative and associative?
     bool IsOpCommutativeAndAssociative() {

@@ -142,14 +142,14 @@ void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
     TouchedFiles.insert(tFSL.getFileID());
 
     // Exact rewriting procedure depends on declaration type
-    if (auto *PVR = dynamic_cast<ParmVarDeclReplacement*>(N)) {
+    if (auto *PVR = dyn_cast<ParmVarDeclReplacement>(N)) {
       assert(N->getStatement() == nullptr);
       rewriteParmVarDecl(PVR);
-    } else if (auto *VR = dynamic_cast<VarDeclReplacement*>(N)) {
+    } else if (auto *VR = dyn_cast<VarDeclReplacement>(N)) {
       rewriteMultiDecl(VR, ToRewrite);
-    } else if (auto *FR = dynamic_cast<FunctionDeclReplacement*>(N)) {
+    } else if (auto *FR = dyn_cast<FunctionDeclReplacement>(N)) {
       rewriteFunctionDecl(FR);
-    } else if (auto *FdR = dynamic_cast<FieldDeclReplacement*>(N)) {
+    } else if (auto *FdR = dyn_cast<FieldDeclReplacement>(N)) {
       rewriteMultiDecl(FdR, ToRewrite);
     }
   }
@@ -178,8 +178,9 @@ void DeclRewriter::rewriteParmVarDecl(ParmVarDeclReplacement *N) {
 }
 
 
-template <typename DT>
-void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT> *N, RSet &ToRewrite) {
+template <typename DT, DeclReplacement::DRKind DK>
+void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
+                                    RSet &ToRewrite) {
   DT *D = N->getDecl();
   std::string SRewrite = N->getReplacement();
   if (Verbose) {
@@ -249,7 +250,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT> *N, RSet &ToRewrite
     RSet RewritesForThisDecl(DComp(R.getSourceMgr()));
     auto I = ToRewrite.find(N);
     while (I != ToRewrite.end()) {
-      auto *Tmp = dynamic_cast<DeclReplacementTempl<DT> *>(*I);
+      auto *Tmp = dyn_cast<DeclReplacementTempl<DT, DK>>(*I);
       if (Tmp != nullptr && areDeclarationsOnSameLine(N, Tmp))
         RewritesForThisDecl.insert(Tmp);
       ++I;
@@ -466,7 +467,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   bool DidAny = false;
 
   // Get rewritten parameter variable declarations
-  vector<string> ParmStrs;
+  std::vector<std::string> ParmStrs;
   for (unsigned i = 0; i < Defnc->numParams(); ++i) {
     auto *Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getParamVar(i)));
     assert(Defn);
@@ -489,9 +490,9 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
         // Here, definition is checked type but at least one of the arguments
         // is WILD. We use the original type for the parameter, but also add an
         // itype.
-        string PtypeS =
+        std::string PtypeS =
             Defn->mkString(Info.getConstraints().getVariables(), false, true);
-        string Bi =
+        std::string Bi =
             Defn->getRewritableOriginalTy() + Defn->getName() + " : itype(" +
                 PtypeS + ")" +
                 ABRewriter.getBoundsString(Defn,
@@ -501,7 +502,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     } else {
       // If the parameter isn't checked, we can just dump the original
       // declaration.
-      string Scratch = "";
+      std::string Scratch = "";
       raw_string_ostream DeclText(Scratch);
       Definition->getParamDecl(i)->print(DeclText);
       ParmStrs.push_back(DeclText.str());
@@ -545,9 +546,9 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
           + "(";
   if (!ParmStrs.empty()) {
     // Gather individual parameter strings into a single buffer
-    ostringstream ConcatParamStr;
+    std::ostringstream ConcatParamStr;
     copy(ParmStrs.begin(), ParmStrs.end() - 1,
-              ostream_iterator<string>(ConcatParamStr, ", "));
+              std::ostream_iterator<std::string>(ConcatParamStr, ", "));
     ConcatParamStr << ParmStrs.back();
 
     NewSig = NewSig + ConcatParamStr.str();
@@ -588,7 +589,7 @@ std::string FunctionDeclBuilder::getExistingIType(ConstraintVariable *DeclC) {
 }
 
 // Check if the function is handled by this visitor.
-bool FunctionDeclBuilder::isFunctionVisited(string FuncName) {
+bool FunctionDeclBuilder::isFunctionVisited(std::string FuncName) {
   return VisitedSet.find(FuncName) != VisitedSet.end();
 }
 

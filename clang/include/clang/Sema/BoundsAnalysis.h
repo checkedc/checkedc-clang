@@ -105,6 +105,7 @@ namespace clang {
     CFG *Cfg;
     ASTContext &Ctx;
     Lexicographic Lex;
+    llvm::raw_ostream &OS;
 
     class ElevatedCFGBlock {
     public:
@@ -183,7 +184,7 @@ namespace clang {
   public:
     BoundsAnalysis(Sema &S, CFG *Cfg) :
       S(S), Cfg(Cfg), Ctx(S.Context),
-      Lex(Lexicographic(Ctx, nullptr)) {}
+      Lex(Lexicographic(Ctx, nullptr)), OS(llvm::outs()) {}
 
     // Run the dataflow analysis to widen bounds for ntptr's.
     // @param[in] FD is the current function.

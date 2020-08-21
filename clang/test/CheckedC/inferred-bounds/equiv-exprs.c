@@ -289,9 +289,10 @@ void f8(void) {
   &(double []){ 2.72 };
   // CHECK: Statement S:
   // CHECK-NEXT: UnaryOperator {{.*}} prefix '&'
-  // CHECK-NEXT:   CompoundLiteralExpr {{.*}} 'double [1]'
-  // CHECK-NEXT:     InitListExpr {{.*}} 'double [1]'
-  // CHECK-NEXT:       FloatingLiteral 0{{.*}} 'double' 2.72
+  // CHECK-NEXT:   CHKCBindTemporaryExpr {{.*}} 'double [1]'
+  // CHECK-NEXT:     CompoundLiteralExpr {{.*}} 'double [1]'
+  // CHECK-NEXT:       InitListExpr {{.*}} 'double [1]'
+  // CHECK-NEXT:         FloatingLiteral 0{{.*}} 'double' 2.72
   // CHECK: Expressions that produce the same value as S:
   // CHECK-NEXT: { }
 }

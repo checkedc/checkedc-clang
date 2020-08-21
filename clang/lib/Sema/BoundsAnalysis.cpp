@@ -423,18 +423,20 @@ ExprIntPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   llvm::APSInt Zero (Ctx.getTypeSize(Ctx.IntTy), 0);
 
   if (!E)
-    return std::make_pair(nullptr, Zero);;
+    return std::make_pair(nullptr, Zero);
+
+  E = E->IgnoreParens();
 
   if (IsDeclOperand(E))
     return std::make_pair(GetDeclOperand(E), Zero);
 
   if (!isa<BinaryOperator>(E))
-    return std::make_pair(nullptr, Zero);;
+    return std::make_pair(nullptr, Zero);
 
   const BinaryOperator *BO = dyn_cast<BinaryOperator>(E);
   // TODO: Currently we only handle exprs containing additive operations.
   if (BO->getOpcode() != BO_Add)
-    return std::make_pair(nullptr, Zero);;
+    return std::make_pair(nullptr, Zero);
 
   Expr *LHS = BO->getLHS()->IgnoreParens();
   Expr *RHS = BO->getRHS()->IgnoreParens();
@@ -472,7 +474,7 @@ ExprIntPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   // was a BinaryOperator, or because the RHS was a BinaryOperator and was
   // swapped with the LHS.
   if (!isa<BinaryOperator>(LHS))
-    return std::make_pair(nullptr, Zero);;
+    return std::make_pair(nullptr, Zero);
 
   // If we reach here, the expr is one of these:
   // Case 4: (p + q) + i
@@ -878,25 +880,26 @@ OrderedBlocksTy BoundsAnalysis::GetOrderedBlocks() {
 }
 
 void BoundsAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
-  llvm::outs() << "--------------------------------------\n";
-  llvm::outs() << "In function: " << FD->getName() << "\n";
+  OS << "--------------------------------------\n";
+  OS << "In function: " << FD->getName() << "\n";
 
   for (const CFGBlock *B : GetOrderedBlocks()) {
-    llvm::outs() << "--------------------------------------";
-    B->print(llvm::outs(), Cfg, S.getLangOpts(), /* ShowColors */ true);
+    OS << "--------------------------------------";
+    B->print(OS, Cfg, S.getLangOpts(), /* ShowColors */ true);
 
     BoundsMapTy Vars = GetWidenedBounds(B);
     using VarPairTy = std::pair<const VarDecl *, unsigned>;
 
-    std::sort(Vars.begin(), Vars.end(), [](VarPairTy A, VarPairTy B) {
-                return A.first->getQualifiedNameAsString().compare(
-                       B.first->getQualifiedNameAsString()) < 0;
-              });
+    llvm::sort(Vars.begin(), Vars.end(),
+               [](VarPairTy A, VarPairTy B) {
+                 return A.first->getQualifiedNameAsString().compare(
+                        B.first->getQualifiedNameAsString()) < 0;
+               });
 
     for (auto item : Vars) {
-      llvm::outs() << "upper_bound("
-                   << item.first->getQualifiedNameAsString() << ") = "
-                   << item.second << "\n";
+      OS << "upper_bound("
+         << item.first->getQualifiedNameAsString() << ") = "
+         << item.second << "\n";
     }
   }
 }

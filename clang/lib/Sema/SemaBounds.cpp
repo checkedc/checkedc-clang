@@ -705,12 +705,6 @@ namespace {
       // user when diagnosing unknown bounds errors.
       llvm::DenseMap<const VarDecl *, SmallVector<Expr *, 4>> UnknownSrcBounds;
 
-      // WidenedVariables is a set of variables that currently have widened bounds.
-      //
-      // WidenedVariables is used to avoid spurious errors or warnings when
-      // validating the observed bounds context.
-      llvm::DenseSet<const VarDecl *> WidenedVariables;
-
       // TargetSrcEquality maps a target expression V to the most recent
       // expression Src that has been assigned to V within the current
       // top-level CFG statement.  When validating the bounds context,
@@ -2258,12 +2252,8 @@ namespace {
      // bounds are killed by each statement. Here we reset the bounds of all
      // variables killed by the statement S to the normalized declared bounds.
      for (const VarDecl *V : I->second) {
-       if (BoundsExpr *Bounds = S.NormalizeBounds(V)) {
+       if (BoundsExpr *Bounds = S.NormalizeBounds(V))
          State.ObservedBounds[V] = Bounds;
-         auto It = State.WidenedVariables.find(V);
-         if (It != State.WidenedVariables.end())
-           State.WidenedVariables.erase(It);
-       }
      }
    }
 
@@ -2298,7 +2288,6 @@ namespace {
            new (Context) RangeBoundsExpr(Lower, WidenedUpper,
                                          SourceLocation(), SourceLocation());
          State.ObservedBounds[V] = R;
-         State.WidenedVariables.insert(V);
        }
      }
    }
@@ -2358,8 +2347,7 @@ namespace {
        // Also get the bounds killed (if any) by each statement in the current
        // block.
        StmtDeclSetTy KilledBounds = BA.GetKilledBounds(Block);
-       // Update the Observed bounds with the widened bounds calculated above.
-       BlockState.WidenedVariables.clear();
+       // Update the observed bounds with the widened bounds calculated above.
        UpdateCtxWithWidenedBounds(WidenedBounds, BlockState);
 
        for (CFGElement Elem : *Block) {
@@ -2397,10 +2385,6 @@ namespace {
             // bounds for v (if any), or the declared bounds for v (if any).
             GetDeclaredBounds(this->S, BlockState.ObservedBounds, S);
 
-            // If any bounds are killed by statement S, reset their bounds
-            // to their declared bounds.
-            ResetKilledBounds(KilledBounds, S, BlockState);
-
             BoundsContextTy InitialObservedBounds = BlockState.ObservedBounds;
             BlockState.Reset();
 
@@ -2411,7 +2395,8 @@ namespace {
 
             // For each variable v in ObservedBounds, check that the
             // observed bounds of v imply the declared bounds of v.
-            ValidateBoundsContext(S, BlockState, CSS);
+            ValidateBoundsContext(S, BlockState, WidenedBounds,
+                                  KilledBounds, CSS);
 
             // The observed bounds that were updated after checking S should
             // only be used to check that the updated observed bounds imply
@@ -2419,6 +2404,13 @@ namespace {
             // declared bounds, the observed bounds for each variable should
             // be reset to their observed bounds from before checking S.
             BlockState.ObservedBounds = InitialObservedBounds;
+
+            // If the widened bounds of any variables are killed by statement
+            // S, reset their observed bounds to their declared bounds.
+            // Resetting the widened bounds killed by S should be the last
+            // thing done as part of traversing S.  The widened bounds of each
+            // variable should be in effect until the very end of traversing S.
+            ResetKilledBounds(KilledBounds, S, BlockState);
          }
        }
        if (Block->getBlockID() != Cfg->getEntry().getBlockID())
@@ -3247,8 +3239,8 @@ namespace {
         BoundsExpr *IncDecResultBounds = SubExprTargetBounds;
 
         // Create the target of the implied assignment `e1 = e1 +/- 1`.
-        Expr *Target = CreateImplicitCast(SubExpr->getType(),
-                                            CK_LValueToRValue, SubExpr);
+        CastExpr *Target = CreateImplicitCast(SubExpr->getType(),
+                                              CK_LValueToRValue, SubExpr);
 
         // Only use the RHS `e1 +/1 ` of the implied assignment to update
         // the checking state if the integer constant 1 can be created, which
@@ -3268,8 +3260,12 @@ namespace {
           // Update SameValue to be the set of expressions that produce the
           // same value as the RHS `e1 +/- 1` (if the RHS could be created).
           UpdateSameValue(E, State.SameValue, State.SameValue, RHS);
-          IncDecResultBounds = UpdateAfterAssignment(V, Target, RHS,
-                                                     IncDecResultBounds,
+          // The bounds of the RHS `e1 +/- 1` are the rvalue bounds of the
+          // rvalue cast `e1`.
+          BoundsExpr *RHSBounds = RValueCastBounds(Target, SubExprTargetBounds,
+                                                   SubExprLValueBounds,
+                                                   SubExprBounds, State);
+          IncDecResultBounds = UpdateAfterAssignment(V, Target, RHS, RHSBounds,
                                                      CSS, State, State);
         }
 
@@ -3688,6 +3684,14 @@ namespace {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
 
       if (isa<CompoundLiteralExpr>(SubExpr)) {
+        // Only expressions with array or function type can have a decayed
+        // type, which is used to create the lvalue bounds.  Compound literals
+        // with non-array, non-function types do not have lvalue bounds.
+        // TODO: checkedc-clang issue #870: bind all compound literals to
+        // temporaries and infer lvalue bounds for struct compound literals.
+        if (!(E->getType()->isArrayType() || E->getType()->isFunctionType()))
+          return CreateBoundsAlwaysUnknown();
+
         BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
         QualType PtrType = Context.getDecayedType(E->getType());
         Expr *ArrLValue = CreateTemporaryUse(E);
@@ -3871,7 +3875,10 @@ namespace {
     // ValidateBoundsContext checks that, after checking a top-level CFG
     // statement S, for each variable v in the checking state observed bounds
     // context, the observed bounds of v imply the declared bounds of v.
-    void ValidateBoundsContext(Stmt *S, CheckingState State, CheckedScopeSpecifier CSS) {
+    void ValidateBoundsContext(Stmt *S, CheckingState State,
+                               BoundsMapTy WidenedBounds,
+                               StmtDeclSetTy KilledBounds,
+                               CheckedScopeSpecifier CSS) {
       // Construct a set of sets of equivalent expressions that contains all
       // the equality facts in State.EquivExprs, as well as any equality facts
       // implied by State.TargetSrcEquality.  These equality facts will only
@@ -3905,7 +3912,7 @@ namespace {
           DiagnoseUnknownObservedBounds(S, V, DeclaredBounds, State);
         else
           CheckObservedBounds(S, V, DeclaredBounds, ObservedBounds, State,
-                              &EquivExprs, CSS);
+                              &EquivExprs, WidenedBounds, KilledBounds, CSS);
       }
     }
 
@@ -3958,6 +3965,8 @@ namespace {
                              BoundsExpr *DeclaredBounds,
                              BoundsExpr *ObservedBounds, CheckingState State,
                              EquivExprSets *EquivExprs,
+                             BoundsMapTy WidenedBounds,
+                             StmtDeclSetTy KilledBounds,
                              CheckedScopeSpecifier CSS) {
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, ObservedBounds,
@@ -3965,18 +3974,24 @@ namespace {
       if (Result == ProofResult::True)
         return;
 
-      // If v currently has widened bounds, then the proof failure was caused
-      // by not being able to prove the widened bounds of v imply the declared
-      // bounds of v.  Diagnostics should not be emitted in this case.
-      // Otherwise, statements that make no changes to v or any variables used
-      // in the bounds of v would cause diagnostics to be emitted.
+      // If v currently has widened bounds and the widened bounds of v are not
+      // killed by the statement St, then the proof failure was caused by not
+      // being able to prove the widened bounds of v imply the declared bounds
+      // of v. Diagnostics should not be emitted in this case. Otherwise,
+      // statements that make no changes to v or any variables used in the
+      // bounds of v would cause diagnostics to be emitted.
       // For example, the widened bounds (p, (p + 0) + 1) do not provably imply
       // the declared bounds (p, p + 0) due to the left-associativity of the
       // observed upper bound (p + 0) + 1.
       // TODO: checkedc-clang issue #867: the widened bounds of a variable
       // should provably imply the declared bounds of a variable.
-      if (State.WidenedVariables.find(V) != State.WidenedVariables.end())
-        return;
+      if (WidenedBounds.find(V) != WidenedBounds.end()) {
+        auto I = KilledBounds.find(St);
+        if (I == KilledBounds.end())
+          return;
+        if (I->second.find(V) == I->second.end())
+          return;
+      }
 
       // For a declaration, the diagnostic message should start at the
       // location of v rather than the beginning of St.  If the message
@@ -5635,6 +5650,10 @@ Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
       if (IC->getCastKind() == CK_LValueBitCast)
         return GetArrayPtrDereference(IC->getSubExpr(), Result);
       return nullptr;
+    }
+    case Expr::CHKCBindTemporaryExprClass: {
+      CHKCBindTemporaryExpr *Temp = cast<CHKCBindTemporaryExpr>(E);
+      return GetArrayPtrDereference(Temp->getSubExpr(), Result);
     }
     default: {
       llvm_unreachable("unexpected lvalue expression");

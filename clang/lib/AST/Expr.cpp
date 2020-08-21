@@ -3044,6 +3044,10 @@ Expr *Expr::IgnoreParenNoopCasts(const ASTContext &Ctx) {
   });
 }
 
+Expr* Expr::IgnoreParenTmp() {
+  return this->IgnoreParens()->IgnoreExprTmp()->IgnoreParens();
+}
+
 Expr *Expr::IgnoreExprTmp() {
   Expr *E = this;
   if (CHKCBindTemporaryExpr *Binding = dyn_cast<CHKCBindTemporaryExpr>(E))
