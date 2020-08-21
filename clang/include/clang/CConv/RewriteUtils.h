@@ -32,41 +32,61 @@ public:
     return getDecl()->getSourceRange();
   }
 
+  // Discriminator for LLVM-style RTTI (dyn_cast<> et al.)
+  enum DRKind {
+    DRK_VarDecl,
+    DRK_ParmVarDecl,
+    DRK_FunctionDecl,
+    DRK_FieldDecl
+  };
+
+  DRKind getKind() const { return Kind; }
+
   virtual ~DeclReplacement() {}
 protected:
-  explicit DeclReplacement(DeclStmt *S, std::string R)
-      : Statement(S), Replacement(R) {}
+  explicit DeclReplacement(DeclStmt *S, std::string R, DRKind K)
+      : Statement(S), Replacement(R), Kind(K) {}
 
   // The Stmt, if it exists (may be nullptr).
   DeclStmt *Statement;
 
   // The string to replace the declaration with.
   std::string Replacement;
+
+private:
+  const DRKind Kind;
 };
 
-template<typename DeclT>
+template<typename DeclT, DeclReplacement::DRKind K>
 class DeclReplacementTempl : public DeclReplacement {
 public:
+  explicit DeclReplacementTempl(DeclT *D, DeclStmt *DS, std::string R)
+      : DeclReplacement(DS, R, K), Decl(D) {}
+
   DeclT *getDecl() const override {
     return Decl;
   }
 
-  explicit DeclReplacementTempl(DeclT *D, DeclStmt *DS, std::string R)
-      : DeclReplacement(DS, R), Decl(D) {}
-
+  static bool classof(const DeclReplacement *S) {
+    return S->getKind() == K;
+  }
 protected:
   DeclT *Decl;
 };
 
-typedef DeclReplacementTempl<VarDecl> VarDeclReplacement;
-typedef DeclReplacementTempl<ParmVarDecl> ParmVarDeclReplacement;
-typedef DeclReplacementTempl<FieldDecl> FieldDeclReplacement;
+typedef DeclReplacementTempl<VarDecl, DeclReplacement::DRK_VarDecl>
+    VarDeclReplacement;
+typedef DeclReplacementTempl<ParmVarDecl, DeclReplacement::DRK_ParmVarDecl>
+    ParmVarDeclReplacement;
+typedef DeclReplacementTempl<FieldDecl, DeclReplacement::DRK_FieldDecl>
+    FieldDeclReplacement;
 
-class FunctionDeclReplacement : public DeclReplacementTempl<FunctionDecl> {
+class FunctionDeclReplacement :
+    public DeclReplacementTempl<FunctionDecl,
+                                DeclReplacement::DRK_FunctionDecl> {
 public:
   explicit FunctionDeclReplacement(FunctionDecl *D, std::string R, bool Full)
-      : DeclReplacementTempl<FunctionDecl>(D, nullptr, R),
-        FullDecl(Full) {}
+      : DeclReplacementTempl(D, nullptr, R), FullDecl(Full) {}
 
   SourceRange getSourceRange(SourceManager &SM) const override {
     if (FullDecl) {
@@ -80,7 +100,6 @@ public:
   bool isFullDecl() const {
     return FullDecl;
   }
-
 private:
   // This determines if the full declaration or the return will be replaced.
   bool FullDecl;
