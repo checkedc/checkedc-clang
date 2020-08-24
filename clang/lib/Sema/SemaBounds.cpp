@@ -583,25 +583,25 @@ bool EqualExprsContainsExpr(Sema &S, const EqualExprTy Exprs, Expr *E,
 class CollectVariableSetHelper
     : public RecursiveASTVisitor<CollectVariableSetHelper> {
 private:
-  EqualExprTy VariableList;
-  EquivExprSets *EquivExprs;
   Sema &SemaRef;
+  EqualExprTy VariableList;
 
 public:
-  CollectVariableSetHelper(Sema &SemaRef, EquivExprSets *EquivExprs)
-      : VariableList(), EquivExprs(EquivExprs), SemaRef(SemaRef) {}
+  CollectVariableSetHelper(Sema &SemaRef)
+      : SemaRef(SemaRef), VariableList() {}
 
   const EqualExprTy &GetVariableList() const { return VariableList; }
 
   bool VisitImplicitCastExpr(ImplicitCastExpr *E) {
-    if (!EqualExprsContainsExpr(SemaRef, VariableList, E, EquivExprs))
+    if (isa<DeclRefExpr>(E->getSubExpr()) &&
+        !EqualExprsContainsExpr(SemaRef, VariableList, E, nullptr))
       VariableList.push_back(E);
     return true;
   }
 };
 
-EqualExprTy CollectVariableSet(Sema &SemaRef, Expr *E, EquivExprSets *EquivExprs) {
-  CollectVariableSetHelper Helper(SemaRef, EquivExprs);
+EqualExprTy CollectVariableSet(Sema &SemaRef, Expr *E) {
+  CollectVariableSetHelper Helper(SemaRef);
   Helper.TraverseStmt(E);
   return Helper.GetVariableList();
 }
@@ -1985,8 +1985,8 @@ namespace {
     // using EquivExprs.  Returns a vector of free variables in SrcExpr.
     EqualExprTy GetFreeVariables(Expr *SrcExpr, Expr *DeclExpr,
                                  EquivExprSets *EquivExprs) {
-      EqualExprTy SrcVariables = CollectVariableSet(S, SrcExpr, EquivExprs);
-      EqualExprTy DeclVariables = CollectVariableSet(S, DeclExpr, EquivExprs);
+      EqualExprTy SrcVariables = CollectVariableSet(S, SrcExpr);
+      EqualExprTy DeclVariables = CollectVariableSet(S, DeclExpr);
 
       // Gather free variables.
       EqualExprTy FreeVariables;
