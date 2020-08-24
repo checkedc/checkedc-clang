@@ -24,7 +24,8 @@ private:
   AVarBoundsInfo *ABInfo;
 };
 
-template<> struct llvm::GraphTraits<AVarGraph> {
+namespace llvm {
+template<> struct GraphTraits<AVarGraph> {
   using NodeRef = DataNode<BoundsKey> *;
   using EdgeType = DataEdge<BoundsKey> *;
   using nodes_iterator = AVarGraph::iterator;
@@ -54,7 +55,7 @@ template<> struct llvm::GraphTraits<AVarGraph> {
   }
 };
 
-template<> struct llvm::DOTGraphTraits<AVarGraph> :
+template<> struct DOTGraphTraits<AVarGraph> :
     public llvm::DefaultDOTGraphTraits, llvm::GraphTraits<GraphVizOutputGraph> {
   DOTGraphTraits(bool simple = false) : DefaultDOTGraphTraits(simple) {}
 
@@ -64,4 +65,5 @@ template<> struct llvm::DOTGraphTraits<AVarGraph> :
   std::string getNodeLabel(const DataNode<BoundsKey> *Node,
                            const AVarGraph &G);
 };
+} // namespace llvm
 #endif // _AVARGRAPH_H
