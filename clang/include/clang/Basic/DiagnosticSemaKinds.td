@@ -10178,10 +10178,14 @@ def err_bounds_type_annotation_lost_checking : Error<
     "%select{assignment|decrement|increment|initialization|statement}0">;
 
   def note_free_variable_in_inferred_bounds : Note<
-    "the %select{base component|lower component|upper component}0 of the "
-    "inferred bounds uses the value of the variable '%1', and "
-    "there is no relational information between '%1' and any of the variables "
-    "used by that component of the declared bounds">;
+    "the inferred %select{lower|upper}0 bounds use the value of the variable '%1', "
+    "and there is no relational information between '%1' and any of the variables "
+    "used by the declared %select{lower|upper}0 bounds">;
+
+  def note_free_variable_in_declared_bounds : Note<
+    "the declared %select{lower|upper}0 bounds use the value of the variable '%1', "
+    "and there is no relational information between '%1' and any of the variables "
+    "used by the inferred %select{lower|upper}0 bounds">;
 
   def error_bounds_declaration_invalid : Error<
     "declared bounds for %1 are invalid after "

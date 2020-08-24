@@ -1121,7 +1121,6 @@ namespace {
     };
 
     enum class BoundsComponent {
-      Base,
       Lower,
       Upper
     };
@@ -1802,28 +1801,34 @@ namespace {
       return ProofResult::Maybe;
     }
 
-    bool CheckFreeVariables(BaseRange &SrcRange, BaseRange &DeclRange,
+    bool CheckFreeVariables(BoundsExpr *DeclaredBounds, BoundsExpr *SrcBounds,
                             ProofFailure &Cause,
                             EquivExprSets *EquivExprs,
-                            EqualExprTy &BaseFreeVars,
-                            EqualExprTy &LowerFreeVars,
-                            EqualExprTy &UpperFreeVars) {
-      if (TestFailure(Cause, ProofFailure::BasesUnequal)) 
-        BaseFreeVars = GetFreeVariables(SrcRange.GetBase(), DeclRange.GetBase(),
-                                        EquivExprs);
+                            EqualExprTy &LowerFreeVarsObserved,
+                            EqualExprTy &UpperFreeVarsObserved,
+                            EqualExprTy &LowerFreeVarsDeclared,
+                            EqualExprTy &UpperFreeVarsDeclared) {
+      RangeBoundsExpr *SrcBR = dyn_cast<RangeBoundsExpr>(SrcBounds);
+      RangeBoundsExpr *DeclBR = dyn_cast<RangeBoundsExpr>(DeclaredBounds);
 
-      if (TestFailure(Cause, ProofFailure::LowerOffsetsUnequal))
-        LowerFreeVars = GetFreeVariables(SrcRange.GetLowerOffsetVariable(), 
-                                         DeclRange.GetLowerOffsetVariable(),
-                                         EquivExprs);
+      if (!SrcBR || !DeclBR)
+        return false;
 
-      if(TestFailure(Cause, ProofFailure::UpperOffsetsUnequal))
-        UpperFreeVars = GetFreeVariables(SrcRange.GetUpperOffsetVariable(), 
-                                         DeclRange.GetUpperOffsetVariable(), 
-                                         EquivExprs);
-
-      return (BaseFreeVars.size() > 0 || LowerFreeVars.size() > 0 ||
-              UpperFreeVars.size() > 0);
+      bool HasFreeVariables = false;
+      HasFreeVariables |=
+          GetFreeVariables(SrcBR->getLowerExpr(), DeclBR->getLowerExpr(),
+                           EquivExprs, LowerFreeVarsObserved);
+      HasFreeVariables |=
+          GetFreeVariables(SrcBR->getUpperExpr(), DeclBR->getUpperExpr(),
+                           EquivExprs, UpperFreeVarsObserved);
+      HasFreeVariables |=
+          GetFreeVariables(DeclBR->getLowerExpr(), SrcBR->getLowerExpr(),
+                           EquivExprs, LowerFreeVarsDeclared);
+      HasFreeVariables |=
+          GetFreeVariables(DeclBR->getUpperExpr(), SrcBR->getUpperExpr(),
+                           EquivExprs, UpperFreeVarsDeclared);
+      
+      return HasFreeVariables;
     }
 
 
@@ -1965,43 +1970,77 @@ namespace {
     }
 
     // Prints a note for each free variable at Loc.
-    void DiagnoseFreeVariables(SourceLocation Loc, EqualExprTy &BaseFreeVars,
-                               EqualExprTy &LowerFreeVars, EqualExprTy UpperFreeVars) {
-      for (const auto &V : BaseFreeVars) {
-        S.Diag(Loc, diag::note_free_variable_in_inferred_bounds)
-            << (unsigned)BoundsComponent::Base << V;
-      }
-      for (const auto &V : LowerFreeVars) {
+    void DiagnoseFreeVariables(SourceLocation Loc,
+                               EqualExprTy &LowerFreeVarsObserved, 
+                               EqualExprTy &UpperFreeVarsObserved,
+                               EqualExprTy &LowerFreeVarsDeclared,
+                               EqualExprTy &UpperFreeVarsDeclared) {
+      for (const auto &V : LowerFreeVarsObserved) {
         S.Diag(Loc, diag::note_free_variable_in_inferred_bounds)
             << (unsigned)BoundsComponent::Lower << V;
       }
-      for (const auto &V : UpperFreeVars) {
+      for (const auto &V : UpperFreeVarsObserved) {
         S.Diag(Loc, diag::note_free_variable_in_inferred_bounds)
+            << (unsigned)BoundsComponent::Upper << V;
+      }
+      for (const auto &V : LowerFreeVarsDeclared) {
+        S.Diag(Loc, diag::note_free_variable_in_declared_bounds)
+            << (unsigned)BoundsComponent::Lower << V;
+      }
+      for (const auto &V : UpperFreeVarsDeclared) {
+        S.Diag(Loc, diag::note_free_variable_in_declared_bounds)
             << (unsigned)BoundsComponent::Upper << V;
       }
     }
 
     // For each variable in SrcExpr, check if it has an equivalent variable in Decl
-    // using EquivExprs.  Returns a vector of free variables in SrcExpr.
-    EqualExprTy GetFreeVariables(Expr *SrcExpr, Expr *DeclExpr,
-                                 EquivExprSets *EquivExprs) {
+    // using EquivExprs.
+    bool GetFreeVariables(Expr *SrcExpr, Expr *DeclExpr,
+                          EquivExprSets *EquivExprs, EqualExprTy &FreeVariables) {
       EqualExprTy SrcVariables = CollectVariableSet(S, SrcExpr);
       EqualExprTy DeclVariables = CollectVariableSet(S, DeclExpr);
+      bool HasFreeVariables = false;
 
       // Gather free variables.
-      EqualExprTy FreeVariables;
       for (const auto &SrcV : SrcVariables) {
+        if (IsEqualToConstant(SrcV, EquivExprs))
+          continue;
         auto It = DeclVariables.begin();
         for (; It != DeclVariables.end(); It++) {
           if (EqualValue(S.Context, SrcV, *It, EquivExprs))
             break;
         }
         
-        // We searched all declared variables and found no match for SrcV.
-        if (It == DeclVariables.end())
+        // We searched all declared variables and found neither a constant nor a
+        // match for SrcV.
+        if (It == DeclVariables.end()) {
+          HasFreeVariables = true;
           FreeVariables.push_back(SrcV);
+        }
       }
-      return FreeVariables;
+      return HasFreeVariables;
+    }
+
+    bool IsEqualToConstant(const Expr* Variable, const EquivExprSets* EquivExprs) const {
+      if (Variable->getType()->isPointerType())
+        return false;
+
+      Lexicographic SimpleComparer = Lexicographic(S.Context, nullptr);
+      
+      for (const auto &EquivSet : *EquivExprs) {
+        bool ContainsVariable = false;
+        bool ContainsIntegerLiteral = false;
+        for (const auto &E : EquivSet) {
+          if (SimpleComparer.CompareExpr(Variable, E) ==
+              Lexicographic::Result::Equal)
+            ContainsVariable = true;
+          if (E->getType()->isIntegerType())
+            ContainsIntegerLiteral = true;
+          if (ContainsVariable && ContainsIntegerLiteral)
+            return true;
+        }
+      }
+      return false;
     }
 
     CHKCBindTemporaryExpr *GetTempBinding(Expr *E) {
@@ -4156,10 +4195,12 @@ namespace {
           return;
       }
 
-      EqualExprTy BaseFreeVars, LowerFreeVars, UpperFreeVars;
+      EqualExprTy LowerFreeVarsObserved, UpperFreeVarsObserved,
+                  LowerFreeVarsDeclared, UpperFreeVarsDeclared;
       bool HasFreeVariables =
-          CheckFreeVariables(SrcRange, DeclaredRange, Cause, EquivExprs,
-                             BaseFreeVars, LowerFreeVars, UpperFreeVars);
+          CheckFreeVariables(DeclaredBounds, ObservedBounds, Cause, EquivExprs,
+                             LowerFreeVarsObserved, UpperFreeVarsObserved,
+                             LowerFreeVarsDeclared, UpperFreeVarsDeclared);
       
       // If proof result is Maybe but SrcRange has free variables, emit an error
       // rather than a warning.
@@ -4177,7 +4218,8 @@ namespace {
         ExplainProofFailure(Loc, Cause, ProofStmtKind::BoundsDeclaration);
       
       if (HasFreeVariables)
-        DiagnoseFreeVariables(Loc, BaseFreeVars, LowerFreeVars, UpperFreeVars);
+        DiagnoseFreeVariables(Loc, LowerFreeVarsObserved, UpperFreeVarsObserved,
+                              LowerFreeVarsDeclared, UpperFreeVarsDeclared);
 
       S.Diag(V->getLocation(), diag::note_declared_bounds)
         << DeclaredBounds << DeclaredBounds->getSourceRange();
