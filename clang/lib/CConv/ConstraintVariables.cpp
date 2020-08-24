@@ -250,6 +250,20 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       ArrPresent = IsArr = true;
       IsIncompleteArr = Ty->isIncompleteArrayType();
 
+      // Boil off the typedefs in the array case.
+      bool boiling = true;
+      while (boiling) {
+        if (const TypedefType *TydTy = dyn_cast<TypedefType>(Ty)) {
+          QTy = TydTy->desugar();
+          Ty = QTy.getTypePtr();
+        } else if (const ParenType *ParenTy = dyn_cast<ParenType>(Ty)) {
+          QTy = ParenTy->desugar();
+          Ty = QTy.getTypePtr();
+        } else {
+          boiling = false;
+        }
+      }
+
       // See if there is a constant size to this array type at this position.
       if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
         arrSizes[TypeIdx] = std::pair<OriginalArrType,uint64_t>(
@@ -259,11 +273,6 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
                 O_UnSizedArray,0);
       }
 
-      // Boil off the typedefs in the array case.
-      while (const TypedefType *TydTy = dyn_cast<TypedefType>(Ty)) {
-        QTy = TydTy->desugar();
-        Ty = QTy.getTypePtr();
-      }
 
       // Iterate.
       if (const ArrayType *ArrTy = dyn_cast<ArrayType>(Ty)) {
@@ -613,7 +622,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
     TypeIdx++;
   }
 
-  if (PrevArr && !EmittedName) {
+  if (PrevArr && !EmittedName && TypeIdx == 1) {
     EmittedName = true;
     EndStrs.push_front(" " + getName());
   }
