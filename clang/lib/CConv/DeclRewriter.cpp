@@ -527,7 +527,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     } else {
       // One of the argument is WILD, emit an itype.
       std::string Itype =
-          Defn->mkString(Info.getConstraints().getVariables(), true, true);
+          Defn->mkString(Info.getConstraints().getVariables(), false, true);
       ReturnVar = Defn->getRewritableOriginalTy();
       ItypeStr = " : itype(" + Itype + ")";
     }

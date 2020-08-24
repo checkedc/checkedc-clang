@@ -447,7 +447,7 @@ void PointerVariableConstraint::insertQualType(uint32_t TypeIdx,
     QualMap[TypeIdx].insert(RestrictQualification);
 }
 
-bool PointerVariableConstraint::emitArraySize(std::ostringstream &Pss,
+bool PointerVariableConstraint::emitArraySize(std::deque<std::string> &EndStrs,
                                               uint32_t TypeIdx,
                                               bool &EmitName,
                                               bool &EmittedCheckedAnnotation,
@@ -459,18 +459,16 @@ bool PointerVariableConstraint::emitArraySize(std::ostringstream &Pss,
     OriginalArrType Oat = i->second.first;
     uint64_t Oas = i->second.second;
 
-    if (EmitName == false) {
-      EmitName = true;
-      Pss << getName();
-    }
+    std::ostringstream SizeStr;
 
     switch (Oat) {
       case O_SizedArray:
         if (!EmittedCheckedAnnotation) {
-          Pss << (Nt ? " _Nt_checked" : " _Checked");
-          EmittedCheckedAnnotation = true;
+          SizeStr << (Nt ? " _Nt_checked" : " _Checked");
+          //EmittedCheckedAnnotation = true;
         }
-        Pss << "[" << Oas << "]";
+        SizeStr << "[" << Oas << "]";
+        EndStrs.push_front(SizeStr.str());
         Ret = true;
         break;
       /*case O_UnSizedArray:
@@ -493,12 +491,12 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
                                     bool ForItype,
                                     bool EmitPointee) {
   std::ostringstream Ss;
-  std::ostringstream Pss;
-  unsigned CaratsToAdd = 0;
+  std::deque<std::string> EndStrs;
   bool EmittedBase = false;
   bool EmittedName = false;
   bool EmittedCheckedAnnotation = false;
-  if (EmitName == false && hasItype() == false)
+  bool PrevArr = false;
+  if ((EmitName == false && hasItype() == false) || getName() == RETVAR)
     EmittedName = true;
   uint32_t TypeIdx = 0;
 
@@ -527,6 +525,14 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
     if (!ForItype && BaseType == "void")
       K = Atom::A_Wild;
 
+    if (PrevArr && K != Atom::A_Arr && !EmittedName) {
+      EmittedName = true;
+      EndStrs.push_front(" " + getName());
+    }
+    PrevArr = ((K == Atom::A_Arr || K == Atom::A_NTArr)
+               && ArrPresent
+               && arrSizes[TypeIdx].first == O_SizedArray);
+
     switch (K) {
       case Atom::A_Ptr:
         getQualString(TypeIdx, Ss);
@@ -537,7 +543,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
         if (hasItype() == false) {
           EmittedBase = false;
           Ss << "_Ptr<";
-          CaratsToAdd++;
+          EndStrs.push_front(">");
           break;
         }
         LLVM_FALLTHROUGH;
@@ -548,7 +554,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
         // be [] instead of *, IF, the original type was an array.
         // And, if the original type was a sized array of size K.
         // we should substitute [K].
-        if (emitArraySize(Pss, TypeIdx, EmittedName,
+        if (emitArraySize(EndStrs, TypeIdx, EmittedName,
                           EmittedCheckedAnnotation, false))
           break;
         // We need to check and see if this level of variable
@@ -557,13 +563,13 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
         if (hasItype() == false) {
           EmittedBase = false;
           Ss << "_Array_ptr<";
-          CaratsToAdd++;
+          EndStrs.push_front(">");
           break;
         }
         LLVM_FALLTHROUGH;
       case Atom::A_NTArr:
 
-        if (emitArraySize(Pss, TypeIdx, EmittedName,
+        if (emitArraySize(EndStrs, TypeIdx, EmittedName,
                           EmittedCheckedAnnotation, true))
           break;
         // This additional check is to prevent fall-through from the array.
@@ -577,7 +583,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
           if (hasItype() == false) {
             EmittedBase = false;
             Ss << "_Nt_array_ptr<";
-            CaratsToAdd++;
+            EndStrs.push_front(">");
             break;
           }
         }
@@ -607,6 +613,11 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
     TypeIdx++;
   }
 
+  if (PrevArr && !EmittedName) {
+    EmittedName = true;
+    EndStrs.push_front(" " + getName());
+  }
+
   if (EmittedBase == false) {
     // If we have a FV pointer, then our "base" type is a function pointer.
     // type.
@@ -617,25 +628,20 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
     }
   }
 
-  // Push carats onto the end of the string.
-  for (unsigned i = 0; i < CaratsToAdd; i++) {
-    Ss << ">";
+  // Add closing elements to type
+  for (std::string Str : EndStrs) {
+    Ss << Str;
   }
 
   // No space after itype.
-  if (!ForItype)
+  if (!EmittedName)
+    Ss << " " << getName();
+
+  //TODO remove comparison to RETVAR
+  if (getName() == RETVAR && !ForItype)
     Ss << " ";
 
-  std::string FinalDec;
-  if (EmittedName == false) {
-    if (getName() != RETVAR)
-      Ss << getName();
-    FinalDec = Ss.str();
-  } else {
-    FinalDec = Ss.str() + Pss.str();
-  }
-
-  return FinalDec;
+  return Ss.str();
 }
 
 bool PVConstraint::addArgumentConstraint(ConstraintVariable *DstCons,
