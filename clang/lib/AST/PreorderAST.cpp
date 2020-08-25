@@ -86,13 +86,14 @@ void PreorderAST::Coalesce(Node *N, bool &Changed) {
   if (!Parent)
     return;
 
-  // We can only coalesce if the parent has the same operator as the current
-  // node.
-  if (Parent->Opc != B->Opc)
-    return;
-
-  CoalesceNode(B, Parent);
-  Changed = true;
+  // We can coalesce only if:
+  // 1. The parent has the same operator as the current node.
+  // 2. The current node is a BinaryNode with just one child (for example, as a
+  // result of constant folding).
+  if (Parent->Opc == B->Opc || B->Children.size() == 1) {
+    CoalesceNode(B, Parent);
+    Changed = true;
+  }
 }
 
 void PreorderAST::Sort(Node *N) {
@@ -133,6 +134,101 @@ void PreorderAST::Sort(Node *N) {
       return B1->Opc < B2->Opc;
     return B1->Children.size() < B2->Children.size();
   });
+}
+
+void PreorderAST::ConstantFold(Node *N, bool &Changed) {
+  // Note: This function assumes that the children of each BinaryNode of the
+  // preorder AST have already been sorted.
+
+  if (Error)
+    return;
+
+  auto *B = dyn_cast_or_null<BinaryNode>(N);
+  if (!B)
+    return;
+
+  size_t BaseIdx = 0;
+  unsigned NumConstants = 0;
+  llvm::APSInt BaseIntVal;
+
+  for (size_t I = 0; I != B->Children.size(); ++I) {
+    auto *Child = B->Children[I];
+
+    // Recursively constant fold the children of a BinaryNode.
+    if (isa<BinaryNode>(Child)) {
+      ConstantFold(Child, Changed);
+      continue;
+    }
+
+    // We can only constant fold if the operator is commutative and
+    // associative.
+    if (!B->IsOpCommutativeAndAssociative())
+      continue;
+
+    auto *ChildLeafNode = dyn_cast_or_null<LeafExprNode>(Child);
+    if (!ChildLeafNode)
+      continue;
+
+    Expr *ChildExpr = ChildLeafNode->E;
+
+    llvm::APSInt ChildIntVal;
+    bool IsConstant = ChildExpr->isIntegerConstantExpr(ChildIntVal, Ctx);
+    if (!IsConstant)
+      continue;
+
+    ++NumConstants;
+
+    // We treat the first constant encountered as the "base" and fold all other
+    // constants at this level into the base.
+    if (NumConstants == 1) {
+      BaseIdx = I;
+      BaseIntVal = ChildIntVal;
+
+    } else {
+      bool Overflow;
+      switch(B->Opc) {
+        default: continue;
+        case BO_Add:
+          BaseIntVal = BaseIntVal.sadd_ov(ChildIntVal, Overflow);
+          break;
+        case BO_Mul:
+          BaseIntVal = BaseIntVal.smul_ov(ChildIntVal, Overflow);
+          break;
+      }
+
+      if (Overflow) {
+        SetError();
+        return;
+      }
+    }
+  }
+
+  // In order to fold constants we need at least 2 constants.
+  if (NumConstants <= 1)
+    return;
+
+  // Replace the expression in the BaseLeafNode with the constant folded value.
+  auto *BaseLeafNode = dyn_cast<LeafExprNode>(B->Children[BaseIdx]);
+  llvm::APInt Val(Ctx.getTargetInfo().getIntWidth(),
+                  BaseIntVal.getLimitedValue());
+  BaseLeafNode->E = new (Ctx) IntegerLiteral(Ctx, Val, Ctx.IntTy,
+                                             SourceLocation());
+
+  // At this point NumConstants no. of constants have been folded into the
+  // location pointed by BaseIdx. So we can remove (NumConstants - 1) no. of
+  // constants starting at BaseIdx + 1.
+  llvm::SmallVector<Node *, 2>::iterator I =
+    B->Children.begin() + BaseIdx + 1;
+
+  // Note: We do not explicitly need to increment the iterator because after
+  // erase the iterator automatically points to the new location of the element
+  // following the one we just erased.
+  while (NumConstants > 1) {
+    B->Children.erase(I);
+    --NumConstants;
+  }
+
+  Changed = true;
 }
 
 bool PreorderAST::IsEqual(Node *N1, Node *N2) {
@@ -183,7 +279,6 @@ bool PreorderAST::IsEqual(Node *N1, Node *N2) {
 }
 
 void PreorderAST::Normalize() {
-  // TODO: Constant fold the constants in the nodes.
   // TODO: Perform simple arithmetic optimizations/transformations on the
   // constants in the nodes.
 
@@ -191,9 +286,10 @@ void PreorderAST::Normalize() {
   while (Changed) {
     Changed = false;
     Coalesce(Root, Changed);
+    Sort(Root);
+    ConstantFold(Root, Changed);
   }
 
-  Sort(Root);
   PrettyPrint(Root);
 }
 

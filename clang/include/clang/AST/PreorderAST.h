@@ -103,6 +103,12 @@ namespace clang {
     // @param[in] N is current node of the AST. Initial value is Root.
     void Sort(Node *N);
 
+    // Constant fold integer expressions.
+    // @param[in] N is current node of the AST. Initial value is Root.
+    // @param[in] Changed indicates whether constant folding was done. We need
+    // this to control when to stop recursive constant folding.
+    void ConstantFold(Node *N, bool &Changed);
+
     // Check if the two AST nodes N1 and N2 are equal.
     // @param[in] N1 is the first node.
     // @param[in] N2 is the second node.
