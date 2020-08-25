@@ -459,7 +459,6 @@ void PointerVariableConstraint::insertQualType(uint32_t TypeIdx,
 bool PointerVariableConstraint::emitArraySize(std::deque<std::string> &EndStrs,
                                               uint32_t TypeIdx,
                                               bool &EmitName,
-                                              bool &EmittedCheckedAnnotation,
                                               bool Nt) {
   bool Ret = false;
   if (ArrPresent) {
@@ -472,10 +471,7 @@ bool PointerVariableConstraint::emitArraySize(std::deque<std::string> &EndStrs,
 
     switch (Oat) {
       case O_SizedArray:
-        if (!EmittedCheckedAnnotation) {
-          SizeStr << (Nt ? " _Nt_checked" : " _Checked");
-          //EmittedCheckedAnnotation = true;
-        }
+        SizeStr << (Nt ? " _Nt_checked" : " _Checked");
         SizeStr << "[" << Oas << "]";
         EndStrs.push_front(SizeStr.str());
         Ret = true;
@@ -503,7 +499,6 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
   std::deque<std::string> EndStrs;
   bool EmittedBase = false;
   bool EmittedName = false;
-  bool EmittedCheckedAnnotation = false;
   bool PrevArr = false;
   if ((EmitName == false && hasItype() == false) || getName() == RETVAR)
     EmittedName = true;
@@ -563,8 +558,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
         // be [] instead of *, IF, the original type was an array.
         // And, if the original type was a sized array of size K.
         // we should substitute [K].
-        if (emitArraySize(EndStrs, TypeIdx, EmittedName,
-                          EmittedCheckedAnnotation, false))
+        if (emitArraySize(EndStrs, TypeIdx, EmittedName, false))
           break;
         // We need to check and see if this level of variable
         // is constrained by a bounds safe interface. If it is,
@@ -578,8 +572,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
         LLVM_FALLTHROUGH;
       case Atom::A_NTArr:
 
-        if (emitArraySize(EndStrs, TypeIdx, EmittedName,
-                          EmittedCheckedAnnotation, true))
+        if (emitArraySize(EndStrs, TypeIdx, EmittedName, true))
           break;
         // This additional check is to prevent fall-through from the array.
         if (K == Atom::A_NTArr) {
