@@ -191,7 +191,7 @@ void basic_struct(int count) {
 
 }
 //CHECK_NOALL: struct student *pstd=(struct student*)malloc<struct student>(n*sizeof(struct student));
-//CHECK_ALL:  _Array_ptr<struct student> pstd : count(n) = (_Array_ptr<struct student>)malloc<struct student>(n*sizeof(struct student)); 
+//CHECK_ALL:  _Array_ptr<struct student> pstd : count(n) =(_Array_ptr<struct student>)malloc<struct student>(n*sizeof(struct student)); 
 
 struct student * new_student() {
 		char name[] = "Bilbo Baggins";

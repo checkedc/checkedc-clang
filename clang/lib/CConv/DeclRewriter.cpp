@@ -198,7 +198,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
     if (VD->hasInit()) {
       SourceLocation EqLoc = VD->getInitializerStartLoc();
       TR.setEnd(EqLoc);
-      SRewrite = SRewrite + " = ";
+      SRewrite = SRewrite + " =";
     } else {
       // There is no initializer, lets add it.
       if (isPointerType(VD) &&
