@@ -456,10 +456,13 @@ void PointerVariableConstraint::insertQualType(uint32_t TypeIdx,
     QualMap[TypeIdx].insert(RestrictQualification);
 }
 
+
 bool PointerVariableConstraint::emitArraySize(std::deque<std::string> &EndStrs,
                                               uint32_t TypeIdx,
                                               bool &EmitName,
+                                              bool &ArrayRun,
                                               bool Nt) {
+  llvm::errs() << "Emitting array size @ " << TypeIdx << "\n";
   bool Ret = false;
   if (ArrPresent) {
     auto i = arrSizes.find(TypeIdx);
@@ -469,19 +472,15 @@ bool PointerVariableConstraint::emitArraySize(std::deque<std::string> &EndStrs,
 
     std::ostringstream SizeStr;
 
-    switch (Oat) {
-      case O_SizedArray:
-        SizeStr << (Nt ? " _Nt_checked" : " _Checked");
-        SizeStr << "[" << Oas << "]";
-        EndStrs.push_front(SizeStr.str());
-        Ret = true;
-        break;
-      /*case O_UnSizedArray:
-        Pss << "[]";
-        Ret = true;
-        break;*/
-      default: break;
+    if (Oat == O_SizedArray) {
+      SizeStr << (Nt ? " _Nt_checked" : " _Checked");
+      SizeStr << "[" << Oas << "]";
+      EndStrs.push_front(SizeStr.str());
+      Ret = true;
+    } else {
+      ArrayRun = false;
     }
+
     return Ret;
   }
   return Ret;
@@ -500,6 +499,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
   bool EmittedBase = false;
   bool EmittedName = false;
   bool PrevArr = false;
+  bool ArrayRun = true;
   if ((EmitName == false && hasItype() == false) || getName() == RETVAR)
     EmittedName = true;
   uint32_t TypeIdx = 0;
@@ -544,6 +544,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
         // We need to check and see if this level of variable
         // is constrained by a bounds safe interface. If it is,
         // then we shouldn't re-write it.
+        ArrayRun = false;
         if (hasItype() == false) {
           EmittedBase = false;
           Ss << "_Ptr<";
@@ -558,7 +559,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
         // be [] instead of *, IF, the original type was an array.
         // And, if the original type was a sized array of size K.
         // we should substitute [K].
-        if (emitArraySize(EndStrs, TypeIdx, EmittedName, false))
+        if (emitArraySize(EndStrs, TypeIdx, EmittedName, ArrayRun, false))
           break;
         // We need to check and see if this level of variable
         // is constrained by a bounds safe interface. If it is,
@@ -572,7 +573,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
         LLVM_FALLTHROUGH;
       case Atom::A_NTArr:
 
-        if (emitArraySize(EndStrs, TypeIdx, EmittedName, true))
+        if (emitArraySize(EndStrs, TypeIdx, EmittedName, ArrayRun, true))
           break;
         // This additional check is to prevent fall-through from the array.
         if (K == Atom::A_NTArr) {
@@ -593,6 +594,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
       // If there is no array in the original program, then we fall through to
       // the case where we write a pointer value.
       case Atom::A_Wild:
+        ArrayRun = false;
         if (EmittedBase) {
           Ss << "*";
         } else {
@@ -615,7 +617,9 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
     TypeIdx++;
   }
 
-  if (PrevArr && !EmittedName && TypeIdx == 1) {
+  llvm::errs() << "TypeIdx = " << TypeIdx << "\n";
+  if (PrevArr && !EmittedName && ArrayRun) {
+    llvm::errs() << "Emitting name...\n";
     EmittedName = true;
     EndStrs.push_front(" " + getName());
   }

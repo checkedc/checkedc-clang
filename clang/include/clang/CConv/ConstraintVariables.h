@@ -230,7 +230,7 @@ private:
   // This function tries to emit an array size for the variable.
   // and returns true if the variable is an array and a size is emitted.
   bool emitArraySize(std::deque<std::string> &EndStrs, uint32_t TypeIdx,
-                     bool &EmitName, bool Nt);
+                     bool &EmitName, bool &ArrayRun, bool Nt);
   // Flag to indicate that this constraint is a part of function prototype
   // e.g., Parameters or Return.
   bool partOFFuncPrototype;
