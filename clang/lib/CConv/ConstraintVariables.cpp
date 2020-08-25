@@ -19,7 +19,7 @@
 
 using namespace clang;
 
-std::string ConstraintVariable::getRewritableOriginalTy() {
+std::string ConstraintVariable::getRewritableOriginalTy() const {
   std::string OrigTyString = getOriginalTy();
   std::string SpaceStr = " ";
   std::string AsterixStr = "*";
@@ -32,7 +32,7 @@ std::string ConstraintVariable::getRewritableOriginalTy() {
   }
   return OrigTyString;
 }
-bool ConstraintVariable::isChecked(EnvironmentMap &E) {
+bool ConstraintVariable::isChecked(EnvironmentMap &E) const {
   return getIsOriginallyChecked() || anyChanges(E);
 }
 
@@ -418,7 +418,7 @@ void PointerVariableConstraint::dump_json(llvm::raw_ostream &O) const {
 }
 
 void PointerVariableConstraint::getQualString(uint32_t TypeIdx,
-                                              std::ostringstream &Ss) {
+                                              std::ostringstream &Ss) const {
   auto QIter = QualMap.find(TypeIdx);
   if (QIter != QualMap.end()) {
     for (Qualification Q : QIter->second) {
@@ -451,7 +451,7 @@ bool PointerVariableConstraint::emitArraySize(std::ostringstream &Pss,
                                               uint32_t TypeIdx,
                                               bool &EmitName,
                                               bool &EmittedCheckedAnnotation,
-                                              bool Nt) {
+                                              bool Nt) const {
   bool Ret = false;
   if (ArrPresent) {
     auto i = arrSizes.find(TypeIdx);
@@ -491,7 +491,7 @@ std::string
 PointerVariableConstraint::mkString(EnvironmentMap &E,
                                     bool EmitName,
                                     bool ForItype,
-                                    bool EmitPointee) {
+                                    bool EmitPointee) const {
   std::ostringstream Ss;
   std::ostringstream Pss;
   unsigned CaratsToAdd = 0;
@@ -654,7 +654,7 @@ bool PVConstraint::addArgumentConstraint(ConstraintVariable *DstCons,
   return this->Parent->addArgumentConstraint(DstCons, Info);
 }
 
-CVarSet &PVConstraint::getArgumentConstraints() {
+const CVarSet &PVConstraint::getArgumentConstraints() const {
   return argumentConstraints;
 }
 
@@ -779,7 +779,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   returnVars.insert(new PVConstraint(RT, D, RETVAR, I, Ctx, &N, IsGeneric));
 }
 
-void FunctionVariableConstraint::constrainToWild(Constraints &CS) {
+void FunctionVariableConstraint::constrainToWild(Constraints &CS) const {
   for (const auto &V : returnVars)
     V->constrainToWild(CS);
 
@@ -789,7 +789,7 @@ void FunctionVariableConstraint::constrainToWild(Constraints &CS) {
 }
 
 void FunctionVariableConstraint::constrainToWild(Constraints &CS,
-                                                 const std::string &Rsn) {
+                                                 const std::string &Rsn) const {
   for (const auto &V : returnVars)
     V->constrainToWild(CS, Rsn);
 
@@ -798,9 +798,8 @@ void FunctionVariableConstraint::constrainToWild(Constraints &CS,
       U->constrainToWild(CS, Rsn);
 }
 
-void FunctionVariableConstraint::constrainToWild(Constraints &CS,
-                                                 const std::string &Rsn,
-                                                 PersistentSourceLoc *PL) {
+void FunctionVariableConstraint::constrainToWild
+    (Constraints &CS, const std::string &Rsn, PersistentSourceLoc *PL) const {
   for (const auto &V : returnVars)
     V->constrainToWild(CS, Rsn, PL);
 
@@ -809,7 +808,7 @@ void FunctionVariableConstraint::constrainToWild(Constraints &CS,
       U->constrainToWild(CS, Rsn, PL);
 }
 
-bool FunctionVariableConstraint::anyChanges(EnvironmentMap &E) {
+bool FunctionVariableConstraint::anyChanges(EnvironmentMap &E) const {
   bool f = false;
 
   for (const auto &C : returnVars)
@@ -818,7 +817,7 @@ bool FunctionVariableConstraint::anyChanges(EnvironmentMap &E) {
   return f;
 }
 
-bool FunctionVariableConstraint::hasWild(EnvironmentMap &E, int AIdx)
+bool FunctionVariableConstraint::hasWild(EnvironmentMap &E, int AIdx) const
 {
   for (const auto &C : returnVars)
     if (C->hasWild(E, AIdx))
@@ -827,7 +826,7 @@ bool FunctionVariableConstraint::hasWild(EnvironmentMap &E, int AIdx)
   return false;
 }
 
-bool FunctionVariableConstraint::hasArr(EnvironmentMap &E, int AIdx)
+bool FunctionVariableConstraint::hasArr(EnvironmentMap &E, int AIdx) const
 {
   for (const auto &C : returnVars)
     if (C->hasArr(E, AIdx))
@@ -836,7 +835,7 @@ bool FunctionVariableConstraint::hasArr(EnvironmentMap &E, int AIdx)
   return false;
 }
 
-bool FunctionVariableConstraint::hasNtArr(EnvironmentMap &E, int AIdx)
+bool FunctionVariableConstraint::hasNtArr(EnvironmentMap &E, int AIdx) const
 {
   for (const auto &C : returnVars)
     if (C->hasNtArr(E, AIdx))
@@ -864,9 +863,8 @@ void PVConstraint::equateArgumentConstraints(ProgramInfo &Info) {
   }
 }
 
-void
-FunctionVariableConstraint::equateFVConstraintVars(
-    CVarSet &Cset, ProgramInfo &Info) {
+void FunctionVariableConstraint::equateFVConstraintVars
+    (const CVarSet &Cset, ProgramInfo &Info) const {
   for (auto *TmpCons : Cset) {
     if (FVConstraint *FVCons = dyn_cast<FVConstraint>(TmpCons)) {
       for (auto &PConSet : FVCons->paramVars) {
@@ -913,7 +911,7 @@ void FunctionVariableConstraint::equateArgumentConstraints(ProgramInfo &Info) {
   }
 }
 
-void PointerVariableConstraint::constrainToWild(Constraints &CS) {
+void PointerVariableConstraint::constrainToWild(Constraints &CS) const {
   ConstAtom *WA = CS.getWild();
   for (const auto &V : vars) {
     if (VarAtom *VA = dyn_cast<VarAtom>(V))
@@ -926,7 +924,7 @@ void PointerVariableConstraint::constrainToWild(Constraints &CS) {
 
 void PointerVariableConstraint::constrainToWild(Constraints &CS,
                                                 const std::string &Rsn,
-                                                PersistentSourceLoc *PL) {
+                                                PersistentSourceLoc *PL) const {
   ConstAtom *WA = CS.getWild();
   for (const auto &V : vars) {
     if (VarAtom *VA = dyn_cast<VarAtom>(V))
@@ -938,7 +936,7 @@ void PointerVariableConstraint::constrainToWild(Constraints &CS,
 }
 
 void PointerVariableConstraint::constrainToWild(Constraints &CS,
-                                                const std::string &Rsn) {
+                                                const std::string &Rsn) const {
   ConstAtom *WA = CS.getWild();
   for (const auto &V : vars) {
     if (VarAtom *VA = dyn_cast<VarAtom>(V))
@@ -986,7 +984,7 @@ bool PointerVariableConstraint::anyArgumentIsWild(EnvironmentMap &E) {
   return false;
 }
 
-bool PointerVariableConstraint::anyChanges(EnvironmentMap &E) {
+bool PointerVariableConstraint::anyChanges(EnvironmentMap &E) const {
   // If a pointer variable was checked in the input program, it will have the
   // same checked type in the output, so it cannot have changed.
   if (OriginallyChecked)
@@ -1027,7 +1025,7 @@ PointerVariableConstraint::getSolution(const Atom *A, EnvironmentMap &E) const {
   return CS;
 }
 
-bool PointerVariableConstraint::hasWild(EnvironmentMap &E, int AIdx)
+bool PointerVariableConstraint::hasWild(EnvironmentMap &E, int AIdx) const
 {
   int VarIdx = 0;
   for (const auto &C : vars) {
@@ -1045,7 +1043,7 @@ bool PointerVariableConstraint::hasWild(EnvironmentMap &E, int AIdx)
   return false;
 }
 
-bool PointerVariableConstraint::hasArr(EnvironmentMap &E, int AIdx)
+bool PointerVariableConstraint::hasArr(EnvironmentMap &E, int AIdx) const
 {
   int VarIdx = 0;
   for (const auto &C : vars) {
@@ -1063,7 +1061,7 @@ bool PointerVariableConstraint::hasArr(EnvironmentMap &E, int AIdx)
   return false;
 }
 
-bool PointerVariableConstraint::hasNtArr(EnvironmentMap &E, int AIdx)
+bool PointerVariableConstraint::hasNtArr(EnvironmentMap &E, int AIdx) const
 {
   int VarIdx = 0;
   for (const auto &C : vars) {
@@ -1081,24 +1079,24 @@ bool PointerVariableConstraint::hasNtArr(EnvironmentMap &E, int AIdx)
   return false;
 }
 
-bool PointerVariableConstraint::isTopCvarUnsizedArr() {
+bool PointerVariableConstraint::isTopCvarUnsizedArr() const {
   if (arrSizes.find(0) != arrSizes.end()) {
-    return arrSizes[0].first != O_SizedArray;
+    return arrSizes.at(0).first != O_SizedArray;
   }
   return true;
 }
 
 bool PointerVariableConstraint::
-    solutionEqualTo(Constraints &CS, ConstraintVariable *CV) {
+    solutionEqualTo(Constraints &CS, const ConstraintVariable *CV) const {
   bool Ret = false;
   if (CV != nullptr) {
-    if (PVConstraint *PV = dyn_cast<PVConstraint>(CV)) {
+    if (const auto *PV = dyn_cast<PVConstraint>(CV)) {
       auto &OthCVars = PV->vars;
       if (IsGeneric || PV->IsGeneric || vars.size() == OthCVars.size()) {
         Ret = true;
 
-        CAtoms::iterator I = vars.begin();
-        CAtoms::iterator J = OthCVars.begin();
+        auto I = vars.begin();
+        auto J = OthCVars.begin();
         // Special handling for zero width arrays so they can compare equal to
         // ARR or PTR.
         if (IsZeroWidthArray) {
@@ -1185,7 +1183,7 @@ void FunctionVariableConstraint::dump_json(raw_ostream &O) const {
   O << "}}";
 }
 
-bool FunctionVariableConstraint::hasItype() {
+bool FunctionVariableConstraint::hasItype() const {
   for (auto &RV : getReturnVars()) {
     if (RV->hasItype()) {
       return true;
@@ -1195,8 +1193,8 @@ bool FunctionVariableConstraint::hasItype() {
 }
 
 static bool cvSetsSolutionEqualTo(Constraints &CS,
-                                CVarSet &CVS1,
-                                CVarSet &CVS2) {
+                                  const CVarSet &CVS1,
+                                  const CVarSet &CVS2) {
   bool Ret = false;
   if (CVS1.size() == CVS2.size()) {
     Ret = CVS1.size() <= 1;
@@ -1210,13 +1208,13 @@ static bool cvSetsSolutionEqualTo(Constraints &CS,
 }
 
 bool FunctionVariableConstraint::
-    solutionEqualTo(Constraints &CS, ConstraintVariable *CV) {
+    solutionEqualTo(Constraints &CS, const ConstraintVariable *CV) const {
   bool Ret = false;
   if (CV != nullptr) {
-    if (FVConstraint *OtherFV = dyn_cast<FVConstraint>(CV)) {
+    if (const auto *OtherFV = dyn_cast<FVConstraint>(CV)) {
       Ret = (numParams() == OtherFV->numParams());
       Ret = Ret && cvSetsSolutionEqualTo(CS, getReturnVars(),
-                                       OtherFV->getReturnVars());
+                                         OtherFV->getReturnVars());
       for (unsigned i=0; i < numParams(); i++) {
         Ret = Ret && cvSetsSolutionEqualTo(CS, getParamVar(i),
                                          OtherFV->getParamVar(i));
@@ -1229,7 +1227,7 @@ bool FunctionVariableConstraint::
 std::string
 FunctionVariableConstraint::mkString(EnvironmentMap &E,
                                      bool EmitName, bool ForItype,
-                                     bool EmitPointee) {
+                                     bool EmitPointee) const {
   std::string Ret = "";
   // TODO punting on what to do here. The right thing to do is to figure out
   // The LUB of all of the V in returnVars.
@@ -1416,10 +1414,8 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
         // Constrain the parameters contravariantly.
         if (FCLHS->numParams() == FCRHS->numParams()) {
           for (unsigned i = 0; i < FCLHS->numParams(); i++) {
-            CVarSet &LHSV =
-                FCLHS->getParamVar(i);
-            CVarSet &RHSV =
-                FCRHS->getParamVar(i);
+            const CVarSet &LHSV = FCLHS->getParamVar(i);
+            const CVarSet &RHSV = FCRHS->getParamVar(i);
             // FIXME: Make neg(CA) here? Now: Function pointers equated
             constrainConsVarGeq(RHSV, LHSV, CS, PL, Same_to_Same, doEqType,
                                 Info);
@@ -1514,8 +1510,8 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
 }
 
 // Given an RHS and a LHS, constrain them to be equal.
-void constrainConsVarGeq(CVarSet &LHS,
-                      CVarSet &RHS,
+void constrainConsVarGeq(const CVarSet &LHS,
+                      const CVarSet &RHS,
                       Constraints &CS,
                       PersistentSourceLoc *PL,
                       ConsAction CA,
@@ -1530,11 +1526,9 @@ void constrainConsVarGeq(CVarSet &LHS,
 
 // True if [C] is a PVConstraint that contains at least one Atom (i.e.,
 //   it represents a C pointer).
-bool isAValidPVConstraint(ConstraintVariable *C) {
-  if (C != nullptr) {
-    if (PVConstraint *PV = dyn_cast<PVConstraint>(C))
-      return !PV->getCvars().empty();
-  }
+bool isAValidPVConstraint(const ConstraintVariable *C) {
+  if (const auto *PV = dyn_cast_or_null<PVConstraint>(C))
+    return !PV->getCvars().empty();
   return false;
 }
 
@@ -1632,15 +1626,15 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
   // Transplant params.
   if (numParams() == From->numParams()) {
     for (unsigned i = 0; i < From->numParams(); i++) {
-      CVarSet &FromP = From->getParamVar(i);
-      CVarSet &P = getParamVar(i);
+      const CVarSet &FromP = From->getParamVar(i);
+      const CVarSet &P = getParamVar(i);
       auto FromVar = getOnly(FromP);
       auto Var = getOnly(P);
       Var->brainTransplant(FromVar, I);
     }
   } else if (numParams() != 0 && From->numParams() == 0) {
     auto &CS = I.getConstraints();
-    std::vector<ParamDeferment> &defers = From->getDeferredParams();
+    const std::vector<ParamDeferment> &defers = From->getDeferredParams();
     assert(getDeferredParams().size() == 0);
     for (auto deferred : defers ) {
       assert(numParams() == deferred.PS.size());
@@ -1677,9 +1671,9 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
     // Standard merge
     assert(this->numParams() == From->numParams());
     for (unsigned i = 0; i < From->numParams(); i++) {
-      CVarSet &FromP = From->getParamVar(i);
+      const CVarSet &FromP = From->getParamVar(i);
       auto FromVar = getOnly(FromP);
-      CVarSet &P = getParamVar(i);
+      const CVarSet &P = getParamVar(i);
       auto Var = getOnly(P);
       Var->mergeDeclaration(FromVar, I);
     }
@@ -1694,7 +1688,7 @@ void FunctionVariableConstraint::addDeferredParams
 }
 
 
-bool FunctionVariableConstraint::getIsOriginallyChecked() {
+bool FunctionVariableConstraint::getIsOriginallyChecked() const {
   for (const auto &R : returnVars)
     if (R->getIsOriginallyChecked())
       return true;

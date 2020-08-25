@@ -52,7 +52,7 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
               ArgExpr = ArgExpr->IgnoreImpCasts();
 
             CVarSet ArgumentConstraints = CR.getExprConstraintVars(ArgExpr);
-            CVarSet &ParameterConstraints = FV->getParamVar(PIdx);
+            const CVarSet &ParameterConstraints = FV->getParamVar(PIdx);
             for (auto *ArgumentC : ArgumentConstraints) {
               bool CastInserted = false;
               for (auto *ParameterC : ParameterConstraints) {
