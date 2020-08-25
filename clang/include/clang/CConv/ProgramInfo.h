@@ -94,7 +94,7 @@ public:
 
   // Parameter map is used for cast insertion, post-rewriting
   void merge_MF(ParameterMap &MF);
-  ParameterMap &get_MF();
+  ParameterMap &getMF();
 
   ConstraintsInfo &getInterimConstraintState() {
     return CState;

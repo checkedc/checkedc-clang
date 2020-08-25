@@ -32,7 +32,7 @@ void ProgramInfo::merge_MF(ParameterMap &mf) {
 }
 
 
-ParameterMap &ProgramInfo::get_MF() {
+ParameterMap &ProgramInfo::getMF() {
   return MF;
 }
 
