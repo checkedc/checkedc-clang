@@ -10218,6 +10218,9 @@ def err_bounds_type_annotation_lost_checking : Error<
    "argument must be a non-modifying expression because %ordinal0 parameter "
    "is used in a bounds expression">;
 
+  def error_argument_bounds_unprovable : Warning<
+    "it is impossible to prove argument meets declared bounds for %ordinal0 parameter">;
+
   def warn_argument_bounds_invalid : Warning<
     "cannot prove argument meets declared bounds for %ordinal0 parameter">,
     InGroup<CheckBoundsDeclsUnchecked>;
@@ -10243,6 +10246,9 @@ def err_bounds_type_annotation_lost_checking : Error<
 
   def error_static_cast_bounds_invalid : Error<
     "cast source bounds are too narrow for %0">;
+
+  def error_static_cast_bounds_unprovable : Error<
+    "it is impossible to prove cast source bounds are wide enough for %0">;
 
   def error_out_of_bounds_access : Error<
     "out-of-bounds %select{||memory access|base value}0">;
