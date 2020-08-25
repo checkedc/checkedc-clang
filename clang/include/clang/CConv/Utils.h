@@ -61,7 +61,7 @@ private:
 extern std::set<std::string> FilePaths;
 
 template <typename T>
-T getOnly(std::set<T> &singletonSet) {
+T getOnly(const std::set<T> &singletonSet) {
   assert(singletonSet.size() == 1);
   return (*singletonSet.begin());
 }

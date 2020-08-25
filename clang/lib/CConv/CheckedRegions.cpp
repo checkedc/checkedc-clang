@@ -235,7 +235,7 @@ bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) {
   bool IW = isWild(CVSet ) || containsUncheckedPtr(T);
 
   if (auto FD = dyn_cast<FunctionDecl>(D)) {
-    auto FV = Info.getFuncConstraints(FD, Context);
+    const auto *FV = Info.getFuncConstraints(FD, Context);
     IW |= isWild(FV);
     for (const auto& param: FD->parameters()) {
       auto CVSet = Info.getVariable(param, Context);
@@ -298,7 +298,7 @@ bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
   }
 }
 
-bool CheckedRegionFinder::isWild(std::set<ConstraintVariable*> &S) { 
+bool CheckedRegionFinder::isWild(const std::set<ConstraintVariable*> &S) {
   for (auto Cv : S) 
     if (Cv->hasWild(Info.getConstraints().getVariables()))
       return true;
@@ -306,7 +306,7 @@ bool CheckedRegionFinder::isWild(std::set<ConstraintVariable*> &S) {
   return false;
 }
 
-bool CheckedRegionFinder::isWild(std::set<FVConstraint*> *S) {
+bool CheckedRegionFinder::isWild(const std::set<FVConstraint*> *S) {
   for (auto Fv : *S)
     if (Fv->hasWild(Info.getConstraints().getVariables()))
       return true;
