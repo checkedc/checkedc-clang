@@ -742,33 +742,35 @@ PVConstraint *ConstraintResolver::getRewritablePVConstraint(Expr *E) {
   return P;
 }
 
-bool
-ConstraintResolver::containsValidCons(CVarSet &CVs) {
-  bool RetVal = false;
-  for (auto *ConsVar : CVs) {
-    if (PVConstraint *PV = dyn_cast<PVConstraint>(ConsVar)) {
-      if (!PV->getCvars().empty()) {
-        RetVal = true;
-        break;
-      }
-    }
-  }
-  return RetVal;
+bool ConstraintResolver::containsValidCons(CVarSet &CVs) {
+  for (auto *ConsVar : CVs)
+    if (isValidCons(ConsVar))
+      return true;
+  return false;
 }
 
-bool ConstraintResolver::resolveBoundsKey(CVarSet &CVs,
-                                          BoundsKey &BK) {
-  bool RetVal = false;
+bool ConstraintResolver::isValidCons(ConstraintVariable *CV) {
+  if (PVConstraint *PV = dyn_cast<PVConstraint>(CV))
+    return !PV->getCvars().empty();
+  return false;
+}
+
+bool ConstraintResolver::resolveBoundsKey(CVarSet &CVs, BoundsKey &BK) {
   if (CVs.size() == 1) {
     auto *OCons = getOnly(CVs);
-    if (PVConstraint *PV = dyn_cast<PVConstraint>(OCons)) {
-      if (PV->hasBoundsKey()) {
-        BK = PV->getBoundsKey();
-        RetVal = true;
-      }
-    }
+    return resolveBoundsKey(OCons, BK);
   }
-  return RetVal;
+  return false;
+}
+
+bool ConstraintResolver::resolveBoundsKey(ConstraintVariable *CV,
+                                          BoundsKey &BK) {
+  if (PVConstraint *PV = dyn_cast<PVConstraint>(CV))
+    if (PV->hasBoundsKey()) {
+      BK = PV->getBoundsKey();
+      return true;
+    }
+  return false;
 }
 
 bool ConstraintResolver::canFunctionBeSkipped(const std::string &FN) {

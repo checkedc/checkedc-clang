@@ -469,7 +469,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   // Get rewritten parameter variable declarations
   std::vector<std::string> ParmStrs;
   for (unsigned i = 0; i < Defnc->numParams(); ++i) {
-    auto *Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getParamVar(i)));
+    auto *Defn = dyn_cast<PVConstraint>(Defnc->getParamVar(i));
     assert(Defn);
 
     if (isAValidPVConstraint(Defn) && Defn->anyChanges(CS.getVariables())) {

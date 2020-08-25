@@ -382,7 +382,7 @@ private:
   ConstraintVariable *returnVars;
   // A vector of K sets of N constraints on the parameter values, for
   // K parameters accepted by the function.
-  std::vector<std::set<ConstraintVariable *>> paramVars;
+  std::vector<ConstraintVariable *> paramVars;
   // Storing of parameters in the case of untyped prototypes
   std::vector<ParamDeferment> deferredParams;
   // File name in which this declaration is found.
@@ -434,7 +434,7 @@ public:
   void brainTransplant(ConstraintVariable *From, ProgramInfo &I) override;
   void mergeDeclaration(ConstraintVariable *FromCV, ProgramInfo &I) override;
 
-  const std::set<ConstraintVariable *> &getParamVar(unsigned i) const {
+  ConstraintVariable *getParamVar(unsigned i) const {
     assert(i < paramVars.size());
     return paramVars.at(i);
   }
@@ -469,9 +469,8 @@ public:
       return false;
 
     for (const auto &u : paramVars)
-      for (const auto &v : u)
-        if (!v->isEmpty())
-          return false;
+      if (!u->isEmpty())
+        return false;
 
     return true;
   }

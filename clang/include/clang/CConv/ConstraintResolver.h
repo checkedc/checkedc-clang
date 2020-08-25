@@ -46,8 +46,10 @@ public:
 
   // Check if the set contains any valid constraints.
   bool containsValidCons(CVarSet &CVs);
+  bool isValidCons(ConstraintVariable *CV);
   // Try to get the bounds key from the constraint variable set.
   bool resolveBoundsKey(CVarSet &CVs, BoundsKey &BK);
+  bool resolveBoundsKey(ConstraintVariable *CV, BoundsKey &BK);
 
   static bool canFunctionBeSkipped(const std::string &FN);
 

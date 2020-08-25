@@ -47,22 +47,16 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
             ArgExpr = ArgExpr->IgnoreImpCasts();
 
           CVarSet ArgumentConstraints = CR.getExprConstraintVars(ArgExpr);
-          const CVarSet &ParameterConstraints = FV->getParamVar(PIdx);
+          ConstraintVariable *ParameterC = FV->getParamVar(PIdx);
           for (auto *ArgumentC : ArgumentConstraints) {
-            bool CastInserted = false;
-            for (auto *ParameterC : ParameterConstraints) {
-              auto Dinfo = PIdx < PInfo.size() ? PInfo[PIdx] : CHECKED;
-              if (needCasting(ArgumentC, ParameterC, Dinfo)) {
-                // We expect the cast string to end with "(".
-                std::string CastString =
-                    getCastString(ArgumentC, ParameterC, Dinfo);
-                surroundByCast(CastString, A);
-                CastInserted = true;
-                break;
-              }
+            auto Dinfo = PIdx < PInfo.size() ? PInfo[PIdx] : CHECKED;
+            if (needCasting(ArgumentC, ParameterC, Dinfo)) {
+              // We expect the cast string to end with "(".
+              std::string CastString =
+                  getCastString(ArgumentC, ParameterC, Dinfo);
+              surroundByCast(CastString, A);
+              break;
             }
-            // If we have already inserted a cast, then break.
-            if (CastInserted) break;
           }
         }
         PIdx++;

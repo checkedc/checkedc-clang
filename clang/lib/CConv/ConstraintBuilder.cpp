@@ -214,13 +214,13 @@ public:
             if (callUntyped) {
               deferred.push_back(ArgumentConstraints);
             } else if (i < TargetFV->numParams()) {
-            // constrain the arg CV to the param CV
-              CVarSet ParameterDC =
-                  TargetFV->getParamVar(i);
-              constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
-                                  Wild_to_Safe, false, &Info);
+              // constrain the arg CV to the param CV
+              ConstraintVariable *ParameterDC = TargetFV->getParamVar(i);
+              for (auto *AC : ArgumentConstraints)
+                constrainConsVarGeq(ParameterDC, AC, CS, &PL, Wild_to_Safe,
+                                    false, &Info);
               if (AllTypes && TFD != nullptr &&
-                  !CB.containsValidCons(ParameterDC) &&
+                  !CB.isValidCons(ParameterDC) &&
                   !CB.containsValidCons(ArgumentConstraints)) {
                 auto *PVD = TFD->getParamDecl(i);
                 auto &ABI = Info.getABoundsInfo();

@@ -679,11 +679,11 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
         FV = PI->getExtFuncDefnConstraintSet(FuncName);
       }
 
-      if (hasArray(FV->getParamVar(ParmNum), CS)) {
+      if (hasArray({FV->getParamVar(ParmNum)}, CS)) {
         ArrPointers.insert(Bkey);
       }
       // Does this array belongs to a valid program variable?
-      if (isInSrcArray(FV->getParamVar(ParmNum), CS)) {
+      if (isInSrcArray({FV->getParamVar(ParmNum)}, CS)) {
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }
 

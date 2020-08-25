@@ -176,10 +176,8 @@ CAtoms getVarsFromConstraint(ConstraintVariable *V) {
       R.insert(R.begin(), Tmp.begin(), Tmp.end());
     }
     for (unsigned i = 0; i < FVC->numParams(); i++) {
-      for (const auto &C : FVC->getParamVar(i)) {
-        CAtoms tmp = getVarsFromConstraint(C);
-        R.insert(R.begin(), tmp.begin(), tmp.end());
-      }
+      CAtoms Tmp = getVarsFromConstraint(FVC->getParamVar(i));
+      R.insert(R.begin(), Tmp.begin(), Tmp.end());
     }
   }
 
@@ -406,11 +404,8 @@ bool ProgramInfo::link() {
 
       std::string rsn = "Inner pointer of a parameter to external function.";
       for (unsigned i = 0; i < G->numParams(); i++)
-        for (const auto &PVar : G->getParamVar(i)) {
-          if (PVar->getIsOriginallyChecked())
-            continue;
-          PVar->constrainToWild(CS, rsn);
-        }
+        if (!G->getParamVar(i)->getIsOriginallyChecked())
+          G->getParamVar(i)->constrainToWild(CS, rsn);
     }
   }
 
@@ -562,13 +557,10 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     // the parameters.
     for (unsigned i = 0; i < FD->getNumParams(); i++) {
       ParmVarDecl *PVD = FD->getParamDecl(i);
-      CVarSet PS = F->getParamVar(i);
-      for (auto *PV : PS) {
-        PV->setValidDecl();
-      }
-      assert(PS.size());
+      ConstraintVariable *PV = F->getParamVar(i);
+      PV->setValidDecl();
       PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *astContext);
-      Variables[PSL].insert(PS.begin(), PS.end());
+      Variables[PSL].insert(PV);
       specialCaseVarIntros(PVD, astContext);
     }
 
@@ -706,7 +698,7 @@ CVarSet ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C) {
     // Get corresponding FVConstraint vars.
     FVConstraint *FunFVars = getFuncFVConstraints(FD, C);
     assert(FunFVars != nullptr && "Unable to find function constraints.");
-    return FunFVars->getParamVar(PIdx);
+    return {FunFVars->getParamVar(PIdx)};
 
   } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     FVConstraint *FunFVars = getFuncFVConstraints(FD, C);
