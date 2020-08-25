@@ -171,9 +171,9 @@ CAtoms getVarsFromConstraint(ConstraintVariable *V) {
    if (FVConstraint *FVC = PVC->getFV()) 
      return getVarsFromConstraint(FVC);
   } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(V)) {
-    for (const auto &C : FVC->getReturnVars()) {
-      CAtoms tmp = getVarsFromConstraint(C);
-      R.insert(R.begin(), tmp.begin(), tmp.end());
+    if (FVC->getReturnVars()) {
+      CAtoms Tmp = getVarsFromConstraint(FVC->getReturnVars());
+      R.insert(R.begin(), Tmp.begin(), Tmp.end());
     }
     for (unsigned i = 0; i < FVC->numParams(); i++) {
       for (const auto &C : FVC->getParamVar(i)) {
@@ -399,12 +399,11 @@ bool ProgramInfo::link() {
       // If there was a checked type on a variable in the input program, it
       // should stay that way. Otherwise, we shouldn't be adding a checked type
       // to an extern function.
-      for (const auto &R : G->getReturnVars()) {
-        if (R->getIsOriginallyChecked())
-          continue;
+      if (!G->getReturnVars()->getIsOriginallyChecked()) {
         std::string Rsn = "Return value of an external function:" + FuncName;
-        R->constrainToWild(CS, Rsn);
+        G->getReturnVars()->constrainToWild(CS, Rsn);
       }
+
       std::string rsn = "Inner pointer of a parameter to external function.";
       for (unsigned i = 0; i < G->numParams(); i++)
         for (const auto &PVar : G->getParamVar(i)) {
@@ -860,8 +859,8 @@ bool ProgramInfo::computeInterimConstraintState
         }
       }
       if (FVConstraint *FV = dyn_cast<FVConstraint>(CV)) {
-        for (auto PV : FV->getReturnVars()) {
-          if (PVConstraint *RPV = dyn_cast<PVConstraint>(PV)) {
+        if (FV->getReturnVars()) {
+          if (PVConstraint *RPV = dyn_cast<PVConstraint>(FV->getReturnVars())) {
             for (auto ck : RPV->getCvars()) {
               if (VarAtom *VA = dyn_cast<VarAtom>(ck)) {
                 CState.PtrSourceMap[VA->getLoc()] =

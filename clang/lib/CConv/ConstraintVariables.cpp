@@ -671,10 +671,7 @@ FunctionVariableConstraint::
   this->HasEqArgumentConstraints = Ot->HasEqArgumentConstraints;
   this->IsFunctionPtr = Ot->IsFunctionPtr;
   this->HasEqArgumentConstraints = Ot->HasEqArgumentConstraints;
-  // Copy Return CVs.
-  for (auto *Rt : Ot->getReturnVars()) {
-    this->returnVars.insert(Rt->getCopy(CS));
-  }
+  this->returnVars = Ot->returnVars;
   // Make copy of ParameterCVs too.
   for (auto &Pset : Ot->paramVars) {
     CVarSet ParmCVs;
@@ -776,12 +773,11 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
 
   // ConstraintVariable for the return
   bool IsGeneric = FD != nullptr && getTypeVariableType(FD) != nullptr;
-  returnVars.insert(new PVConstraint(RT, D, RETVAR, I, Ctx, &N, IsGeneric));
+  returnVars = new PVConstraint(RT, D, RETVAR, I, Ctx, &N, IsGeneric);
 }
 
 void FunctionVariableConstraint::constrainToWild(Constraints &CS) const {
-  for (const auto &V : returnVars)
-    V->constrainToWild(CS);
+  returnVars->constrainToWild(CS);
 
   for (const auto &V : paramVars)
     for (const auto &U : V)
@@ -790,8 +786,7 @@ void FunctionVariableConstraint::constrainToWild(Constraints &CS) const {
 
 void FunctionVariableConstraint::constrainToWild(Constraints &CS,
                                                  const std::string &Rsn) const {
-  for (const auto &V : returnVars)
-    V->constrainToWild(CS, Rsn);
+  returnVars->constrainToWild(CS, Rsn);
 
   for (const auto &V : paramVars)
     for (const auto &U : V)
@@ -800,8 +795,7 @@ void FunctionVariableConstraint::constrainToWild(Constraints &CS,
 
 void FunctionVariableConstraint::constrainToWild
     (Constraints &CS, const std::string &Rsn, PersistentSourceLoc *PL) const {
-  for (const auto &V : returnVars)
-    V->constrainToWild(CS, Rsn, PL);
+  returnVars->constrainToWild(CS, Rsn, PL);
 
   for (const auto &V : paramVars)
     for (const auto &U : V)
@@ -809,39 +803,19 @@ void FunctionVariableConstraint::constrainToWild
 }
 
 bool FunctionVariableConstraint::anyChanges(EnvironmentMap &E) const {
-  bool f = false;
-
-  for (const auto &C : returnVars)
-    f |= C->anyChanges(E);
-
-  return f;
+  return returnVars->anyChanges(E);
 }
 
-bool FunctionVariableConstraint::hasWild(EnvironmentMap &E, int AIdx) const
-{
-  for (const auto &C : returnVars)
-    if (C->hasWild(E, AIdx))
-      return true;
-
-  return false;
+bool FunctionVariableConstraint::hasWild(EnvironmentMap &E, int AIdx) const {
+  return returnVars->hasWild(E, AIdx);
 }
 
-bool FunctionVariableConstraint::hasArr(EnvironmentMap &E, int AIdx) const
-{
-  for (const auto &C : returnVars)
-    if (C->hasArr(E, AIdx))
-      return true;
-
-  return false;
+bool FunctionVariableConstraint::hasArr(EnvironmentMap &E, int AIdx) const {
+  return returnVars->hasArr(E, AIdx);
 }
 
-bool FunctionVariableConstraint::hasNtArr(EnvironmentMap &E, int AIdx) const
-{
-  for (const auto &C : returnVars)
-    if (C->hasNtArr(E, AIdx))
-      return true;
-
-  return false;
+bool FunctionVariableConstraint::hasNtArr(EnvironmentMap &E, int AIdx) const {
+  return returnVars->hasNtArr(E, AIdx);
 }
 
 ConstraintVariable *FunctionVariableConstraint::getCopy(Constraints &CS) {
@@ -872,9 +846,7 @@ void FunctionVariableConstraint::equateFVConstraintVars
           PCon->equateArgumentConstraints(Info);
         }
       }
-      for (auto *RCon : FVCons->returnVars) {
-        RCon->equateArgumentConstraints(Info);
-      }
+      FVCons->returnVars->equateArgumentConstraints(Info);
     }
   }
 }
@@ -1135,8 +1107,7 @@ bool PointerVariableConstraint::
 
 void FunctionVariableConstraint::print(raw_ostream &O) const {
   O << "( ";
-  for (const auto &I : returnVars)
-    I->print(O);
+  returnVars->print(O);
   O << " )";
   O << " " << Name << " ";
   for (const auto &I : paramVars) {
@@ -1150,12 +1121,7 @@ void FunctionVariableConstraint::print(raw_ostream &O) const {
 void FunctionVariableConstraint::dump_json(raw_ostream &O) const {
   O << "{\"FunctionVar\":{\"ReturnVar\":[";
   bool AddComma = false;
-  for (const auto &I : returnVars) {
-    if (AddComma) {
-      O << ",";
-    }
-    I->dump_json(O);
-  }
+  returnVars->dump_json(O);
   O << "], \"name\":\"" << Name << "\", ";
   O << "\"Parameters\":[";
   AddComma = false;
@@ -1182,12 +1148,7 @@ void FunctionVariableConstraint::dump_json(raw_ostream &O) const {
 }
 
 bool FunctionVariableConstraint::hasItype() const {
-  for (auto &RV : getReturnVars()) {
-    if (RV->hasItype()) {
-      return true;
-    }
-  }
-  return false;
+  return returnVars->hasItype();
 }
 
 static bool cvSetsSolutionEqualTo(Constraints &CS,
@@ -1211,8 +1172,7 @@ bool FunctionVariableConstraint::
   if (CV != nullptr) {
     if (const auto *OtherFV = dyn_cast<FVConstraint>(CV)) {
       Ret = (numParams() == OtherFV->numParams());
-      Ret = Ret && cvSetsSolutionEqualTo(CS, getReturnVars(),
-                                         OtherFV->getReturnVars());
+      Ret = Ret && returnVars->solutionEqualTo(CS, OtherFV->returnVars);
       for (unsigned i=0; i < numParams(); i++) {
         Ret = Ret && cvSetsSolutionEqualTo(CS, getParamVar(i),
                                          OtherFV->getParamVar(i));
@@ -1229,10 +1189,7 @@ FunctionVariableConstraint::mkString(EnvironmentMap &E,
   std::string Ret = "";
   // TODO punting on what to do here. The right thing to do is to figure out
   // The LUB of all of the V in returnVars.
-  assert(returnVars.size() > 0);
-  ConstraintVariable *V = *returnVars.begin();
-  assert(V != nullptr);
-  Ret = V->mkString(E);
+  Ret = returnVars->mkString(E);
   Ret = Ret + "(";
   std::vector<std::string> ParmStrs;
   for (const auto &I : this->paramVars) {
@@ -1618,9 +1575,7 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert (From != nullptr);
   // Transplant returns.
-  auto FromRetVar = getOnly(From->getReturnVars());
-  auto RetVar = getOnly(returnVars);
-  RetVar->brainTransplant(FromRetVar, I);
+  returnVars->brainTransplant(From->returnVars, I);
   // Transplant params.
   if (numParams() == From->numParams()) {
     for (unsigned i = 0; i < From->numParams(); i++) {
@@ -1655,9 +1610,7 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
   assert(From != nullptr);
   assert(From->getDeferredParams().size() == 0);
   // Transplant returns.
-  auto FromRetVar = getOnly(From->getReturnVars());
-  auto RetVar = getOnly(returnVars);
-  RetVar->mergeDeclaration(FromRetVar, I);
+  returnVars->mergeDeclaration(From->returnVars, I);
 
   if (From->numParams() == 0) {
     // From is an untyped declaration, and adds no information
@@ -1687,8 +1640,5 @@ void FunctionVariableConstraint::addDeferredParams
 
 
 bool FunctionVariableConstraint::getIsOriginallyChecked() const {
-  for (const auto &R : returnVars)
-    if (R->getIsOriginallyChecked())
-      return true;
-  return false;
+  return returnVars->getIsOriginallyChecked();
 }

@@ -285,9 +285,9 @@ public:
       if (FVConstraint *FV = dyn_cast<FVConstraint>(F)) {
         // This is to ensure that the return type of the function is same
         // as the type of return expression.
-        constrainConsVarGeq(FV->getReturnVars(), RconsVar,
-                            Info.getConstraints(), &PL, Same_to_Same, false,
-                            &Info);
+        for (ConstraintVariable *CV : RconsVar)
+          constrainConsVarGeq(FV->getReturnVars(), CV, Info.getConstraints(),
+                              &PL, Same_to_Same, false, &Info);
       }
     }
     return true;

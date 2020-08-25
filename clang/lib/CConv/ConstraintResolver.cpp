@@ -435,13 +435,10 @@ CVarSet
 
           for (ConstraintVariable *C : tmp) {
             if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
-              ReturnCVs.insert(FV->getReturnVars().begin(),
-                               FV->getReturnVars().end());
+              ReturnCVs.insert(FV->getReturnVars());
             } else if (PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
-              if (FVConstraint *FV = PV->getFV()) {
-                ReturnCVs.insert(FV->getReturnVars().begin(),
-                                 FV->getReturnVars().end());
-              }
+              if (FVConstraint *FV = PV->getFV())
+                ReturnCVs.insert(FV->getReturnVars());
             }
           }
         } else if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
@@ -480,15 +477,13 @@ CVarSet
             ConstraintVariable *J = getOnly(TmpCSet);
             /* Direct function call */
             if (FVConstraint *FVC = dyn_cast<FVConstraint>(J))
-              ReturnCVs.insert(FVC->getReturnVars().begin(),
-                               FVC->getReturnVars().end());
+              ReturnCVs.insert(FVC->getReturnVars());
               /* Call via function pointer */
             else {
               PVConstraint *tmp = dyn_cast<PVConstraint>(J);
               assert(tmp != nullptr);
               if (FVConstraint *FVC = tmp->getFV())
-                ReturnCVs.insert(FVC->getReturnVars().begin(),
-                                 FVC->getReturnVars().end());
+                ReturnCVs.insert(FVC->getReturnVars());
               else {
                 // No FVConstraint -- make WILD
                 auto *TmpFV = new FVConstraint();

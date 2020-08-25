@@ -379,7 +379,7 @@ private:
   FunctionVariableConstraint(FunctionVariableConstraint *Ot,
                              Constraints &CS);
   // N constraints on the return value of the function.
-  std::set<ConstraintVariable *> returnVars;
+  ConstraintVariable *returnVars;
   // A vector of K sets of N constraints on the parameter values, for
   // K parameters accepted by the function.
   std::vector<std::set<ConstraintVariable *>> paramVars;
@@ -410,7 +410,7 @@ public:
                              clang::DeclaratorDecl *D, std::string N,
                              ProgramInfo &I, const clang::ASTContext &C);
 
-  const std::set<ConstraintVariable *> &getReturnVars() const {
+  ConstraintVariable *getReturnVars() const {
     return returnVars;
   }
 
@@ -465,7 +465,7 @@ public:
   // An FVConstraint is empty if every constraint associated is empty.
   bool isEmpty(void) const override {
 
-    if (returnVars.size() > 0)
+    if (returnVars != nullptr)
       return false;
 
     for (const auto &u : paramVars)
