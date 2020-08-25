@@ -17,62 +17,60 @@
 using namespace clang;
 
 bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
-  Decl *D = CE->getCalleeDecl();
-  if (D != nullptr && Rewriter::isRewritable(CE->getExprLoc())) {
-    PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CE, *Context);
-    if (auto *FD = dyn_cast<FunctionDecl>(D)) {
-      // Get the constraint variable for the function.
-      std::set<FVConstraint *> *V = Info.getFuncConstraints(FD, Context);
-      // Function has no definition i.e., external function.
-      assert("Function has no definition" && V != nullptr);
+  auto *FD = dyn_cast_or_null<FunctionDecl>(CE->getCalleeDecl());
+  if (FD && Rewriter::isRewritable(CE->getExprLoc())) {
+    // Get the constraint variable for the function.
+    std::set<FVConstraint *> *V = Info.getFuncConstraints(FD, Context);
+    // Function has no definition i.e., external function.
+    assert("Function has no definition" && V != nullptr);
 
-      // Did we see this function in another file?
-      auto Fname = FD->getNameAsString();
-      if (!V->empty() && !ConstraintResolver::canFunctionBeSkipped(Fname)) {
-        // Get the FV constraint for the Callee.
-        FVConstraint *FV = *(V->begin());
+    // Did we see this function in another file?
+    auto Fname = FD->getNameAsString();
+    if (!V->empty() && !ConstraintResolver::canFunctionBeSkipped(Fname)) {
+      // Get the FV constraint for the Callee.
+      // TODO: This seems to assume that V is a singleton set. Validate this
+      //       assumption and use getOnly.
+      if (FVConstraint *FV = *(V->begin())) {
         // Now we need to check the type of the arguments and corresponding
         // parameters to see if any explicit casting is needed.
-        if (FV) {
-          ProgramInfo::CallTypeParamBindingsT TypeVars;
-          if (Info.hasTypeParamBindings(CE, Context))
-            TypeVars = Info.getTypeParamBindings(CE, Context);
-          auto PInfo = Info.get_MF()[Fname];
-          unsigned PIdx = 0;
-          for (const auto &A : CE->arguments()) {
-            if (PIdx < FD->getNumParams()) {
+        ProgramInfo::CallTypeParamBindingsT TypeVars;
+        if (Info.hasTypeParamBindings(CE, Context))
+          TypeVars = Info.getTypeParamBindings(CE, Context);
+        auto PInfo = Info.getMF()[Fname];
+        unsigned PIdx = 0;
+        for (const auto &A : CE->arguments()) {
+          if (PIdx < FD->getNumParams()) {
 
-              // Avoid adding incorrect casts to generic function arguments by
-              // removing implicit casts when on arguments with a consistently
-              // used generic type.
-              Expr *ArgExpr = A;
-              const TypeVariableType
-                  *TyVar = getTypeVariableType(FD->getParamDecl(PIdx));
-              if (TyVar && TypeVars.find(TyVar->GetIndex()) != TypeVars.end()
-                  && TypeVars[TyVar->GetIndex()] != nullptr)
-                ArgExpr = ArgExpr->IgnoreImpCasts();
+            // Avoid adding incorrect casts to generic function arguments by
+            // removing implicit casts when on arguments with a consistently
+            // used generic type.
+            Expr *ArgExpr = A;
+            const TypeVariableType
+                *TyVar = getTypeVariableType(FD->getParamDecl(PIdx));
+            if (TyVar && TypeVars.find(TyVar->GetIndex()) != TypeVars.end()
+                && TypeVars[TyVar->GetIndex()] != nullptr)
+              ArgExpr = ArgExpr->IgnoreImpCasts();
 
-              CVarSet ArgumentConstraints = CR.getExprConstraintVars(ArgExpr);
-              CVarSet &ParameterConstraints = FV->getParamVar(PIdx);
-              for (auto *ArgumentC : ArgumentConstraints) {
-                bool CastInserted = false;
-                for (auto *ParameterC : ParameterConstraints) {
-                  auto Dinfo = PIdx < PInfo.size() ? PInfo[PIdx] : CHECKED;
-                  if (needCasting(ArgumentC, ParameterC, Dinfo)) {
-                    // We expect the cast string to end with "(".
-                    std::string CastString =
-                        getCastString(ArgumentC, ParameterC, Dinfo);
-                    surroundByCast(CastString, A);
-                    CastInserted = true;
-                    break;
-                  }
+            CVarSet ArgumentConstraints = CR.getExprConstraintVars(ArgExpr);
+            CVarSet &ParameterConstraints = FV->getParamVar(PIdx);
+            for (auto *ArgumentC : ArgumentConstraints) {
+              bool CastInserted = false;
+              for (auto *ParameterC : ParameterConstraints) {
+                auto Dinfo = PIdx < PInfo.size() ? PInfo[PIdx] : CHECKED;
+                if (needCasting(ArgumentC, ParameterC, Dinfo)) {
+                  // We expect the cast string to end with "(".
+                  std::string CastString =
+                      getCastString(ArgumentC, ParameterC, Dinfo);
+                  surroundByCast(CastString, A);
+                  CastInserted = true;
+                  break;
                 }
-                // If we have already inserted a cast, then break.
-                if (CastInserted) break;
               }
+              // If we have already inserted a cast, then break.
+              if (CastInserted) break;
             }
-            PIdx++;
           }
+          PIdx++;
         }
       }
     }
@@ -95,6 +93,8 @@ bool CastPlacementVisitor::needCasting(ConstraintVariable *Src,
       return !Dst->solutionEqualTo(Info.getConstraints(), Src);
 
     // Is Dst Wild?
+    // TODO: The Dinfo == WILD comparison seems to be the cause of a cast
+    //       insertion bug. Can it be removed?
     if (!Dst->isChecked(E) || Dinfo == WILD)
       return true;
   }
@@ -112,7 +112,7 @@ std::string CastPlacementVisitor::getCastString(ConstraintVariable *Src,
 void CastPlacementVisitor::surroundByCast(const std::string &CastPrefix,
                                           Expr *E) {
   // If E is already a cast expression, we will try to rewrite the cast instead
-  // adding a new expression.
+  // of adding a new expression.
   if (auto *CE = dyn_cast<CStyleCastExpr>(E->IgnoreParens())) {
     SourceRange CastTypeRange(CE->getLParenLoc(), CE->getRParenLoc());
     Writer.ReplaceText(CastTypeRange, CastPrefix);
