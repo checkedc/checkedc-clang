@@ -46,8 +46,7 @@ public:
       TypeParamBindingsT;
 
 
-  typedef std::map<std::string, const std::set<FVConstraint *>>
-      ExternalFunctionMapType;
+  typedef std::map<std::string, FVConstraint *> ExternalFunctionMapType;
   typedef std::map<std::string, ExternalFunctionMapType> StaticFunctionMapType;
 
   ProgramInfo();
@@ -75,12 +74,10 @@ public:
   CVarSet getVariable(clang::Decl *D, clang::ASTContext *C);
 
   // Retrieve a function's constraints by decl, or by name; nullptr if not found
-  const std::set<FVConstraint *> *getFuncConstraints
-      (FunctionDecl *D, ASTContext *C) const;
-  const std::set<FVConstraint *> *getExtFuncDefnConstraintSet
-      (std::string FuncName) const;
-  const std::set<FVConstraint *> *getStaticFuncConstraintSet
-      (std::string FuncName, std::string FileName) const;
+  FVConstraint *getFuncConstraints (FunctionDecl *D, ASTContext *C) const;
+  FVConstraint *getExtFuncDefnConstraintSet (std::string FuncName) const;
+  FVConstraint *getStaticFuncConstraintSet(std::string FuncName,
+                                           std::string FileName) const;
 
   // Check if the given function is an extern function.
   bool isAnExternFunction(const std::string &FName);
@@ -159,14 +156,14 @@ private:
   // Returns true if successful else false.
   bool insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
                                      const std::string &FuncName,
-                                     const std::set<FVConstraint *> &ToIns);
+                                     FVConstraint *ToIns);
 
   // Inserts the given FVConstraint* set into the provided static map.
   // Returns true if successful else false.
   bool insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
                                    const std::string &FuncName,
                                    const std::string &FileName,
-                                   const std::set<FVConstraint *> &ToIns);
+                                   FVConstraint *ToIns);
 
 
   // Special-case handling for decl introductions. For the moment this covers:
@@ -176,13 +173,12 @@ private:
 
   // Inserts the given FVConstraint* set into the global map, depending
   // on whether static or not; returns true on success
-  bool
-  insertNewFVConstraints(FunctionDecl *FD,
-                         const std::set<FVConstraint *> &FVcons, ASTContext *C);
+  bool insertNewFVConstraints(FunctionDecl *FD, FVConstraint *FVcons,
+                              ASTContext *C);
 
   // Retrieves a FVConstraint* from a Decl (which could be static, or global)
-  const std::set<FVConstraint *> *getFuncFVConstraints(FunctionDecl *FD,
-                                                       ASTContext *C);
+  FVConstraint *getFuncFVConstraints(FunctionDecl *FD, ASTContext *C);
+
   // For each pointer type in the declaration of D, add a variable to the
   // constraint system for that pointer type.
   void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *astContext);

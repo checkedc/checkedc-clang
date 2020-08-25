@@ -893,7 +893,7 @@ void FunctionVariableConstraint::equateArgumentConstraints(ProgramInfo &Info) {
 
   // Is this not a function pointer?
   if (!IsFunctionPtr) {
-    const std::set<FVConstraint *> *DefnCons = nullptr;
+    FVConstraint *DefnCons = nullptr;
 
     // Get appropriate constraints based on whether the function is static or not.
     if (IsStatic) {
@@ -904,9 +904,7 @@ void FunctionVariableConstraint::equateArgumentConstraints(ProgramInfo &Info) {
     assert(DefnCons != nullptr);
 
     // Equate arguments and parameters vars.
-    CVarSet TmpDefn;
-    TmpDefn.clear();
-    TmpDefn.insert(DefnCons->begin(), DefnCons->end());
+    CVarSet TmpDefn = {DefnCons};
     this->equateFVConstraintVars(TmpDefn, Info);
   }
 }

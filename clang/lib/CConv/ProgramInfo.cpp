@@ -38,11 +38,7 @@ void dumpExtFuncMap(const ProgramInfo::ExternalFunctionMapType &EMap,
                     raw_ostream &O) {
   for (const auto &DefM : EMap) {
     O << "Func Name:" << DefM.first << " => ";
-    for (const auto J : DefM.second) {
-      O << "[ ";
-      J->print(O);
-      O << " ]\n";
-    }
+    DefM.second->print(O);
     O << "\n";
   }
 }
@@ -53,11 +49,7 @@ void dumpStaticFuncMap(const ProgramInfo::StaticFunctionMapType &EMap,
     O << "File Name:" << DefM.first << " => ";
     for (const auto &Tmp : DefM.second) {
       O << " Func Name:"<< Tmp.first << " => \n";
-      for (const auto J : Tmp.second) {
-        O << "[ ";
-        J->print(O);
-        O << "]\n";
-      }
+      Tmp.second->print(O);
       O << "\n";
     }
     O << "\n";
@@ -72,14 +64,7 @@ void dumpExtFuncMapJson(const ProgramInfo::ExternalFunctionMapType &EMap,
       O << ",\n";
     }
     O << "{\"FuncName\":\"" << DefM.first << "\", \"Constraints\":[";
-    bool AddComma1 = false;
-    for (const auto J : DefM.second) {
-      if (AddComma1) {
-        O << ",";
-      }
-      J->dump_json(O);
-      AddComma1 = true;
-    }
+    DefM.second->dump_json(O);
     O << "]}";
     AddComma = true;
   }
@@ -99,14 +84,7 @@ void dumpStaticFuncMapJson(const ProgramInfo::StaticFunctionMapType &EMap,
         O << ",";
       }
       O << "{\"FileName\":\"" << J.first << "\", \"FVConstraints\":[";
-      bool AddComma2 = false;
-      for (const auto FV : J.second) {
-        if (AddComma2) {
-          O << ",";
-        }
-        FV->dump_json(O);
-        AddComma2 = true;
-      }
+      J.second->dump_json(O);
       O << "]}\n";
       AddComma1 = true;
     }
@@ -415,28 +393,25 @@ bool ProgramInfo::link() {
     if (!U.second && !isExternOkay(FuncName)) {
       // Some global symbols we don't need to constrain to wild, like 
       // malloc and free. Check those here and skip if we find them. 
-      const std::set<FVConstraint *>
-          *Gs = getExtFuncDefnConstraintSet(FuncName);
-      assert("Function constraints could not be found!" && Gs != nullptr);
+      FVConstraint *G = getExtFuncDefnConstraintSet(FuncName);
+      assert("Function constraints could not be found!" && G != nullptr);
 
       // If there was a checked type on a variable in the input program, it
       // should stay that way. Otherwise, we shouldn't be adding a checked type
       // to an extern function.
-      for (auto *const G : *Gs) {
-        for (const auto &R : G->getReturnVars()) {
-          if (R->getIsOriginallyChecked())
-            continue;
-          std::string Rsn = "Return value of an external function:" + FuncName;
-          R->constrainToWild(CS, Rsn);
-        }
-        std::string rsn = "Inner pointer of a parameter to external function.";
-        for (unsigned i = 0; i < G->numParams(); i++)
-          for (const auto &PVar : G->getParamVar(i)) {
-            if (PVar->getIsOriginallyChecked())
-              continue;
-            PVar->constrainToWild(CS, rsn);
-          }
+      for (const auto &R : G->getReturnVars()) {
+        if (R->getIsOriginallyChecked())
+          continue;
+        std::string Rsn = "Return value of an external function:" + FuncName;
+        R->constrainToWild(CS, Rsn);
       }
+      std::string rsn = "Inner pointer of a parameter to external function.";
+      for (unsigned i = 0; i < G->numParams(); i++)
+        for (const auto &PVar : G->getParamVar(i)) {
+          if (PVar->getIsOriginallyChecked())
+            continue;
+          PVar->constrainToWild(CS, rsn);
+        }
     }
   }
 
@@ -479,21 +454,19 @@ void ProgramInfo::exitCompilationUnit() {
 bool
 ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
                                            const std::string &FuncName,
-                                           const std::set<FVConstraint *> &ToIns) {
+                                           FVConstraint *newC) {
   bool RetVal = false;
   if (Map.find(FuncName) == Map.end()) {
-    Map.insert(std::make_pair(FuncName, ToIns));
+    Map.insert(std::make_pair(FuncName, newC));
     RetVal = true;
   } else {
-    auto oldS = Map[FuncName];
-    auto *newC = getOnly(ToIns);
-    auto *oldC = getOnly(oldS);
+    auto *oldC = Map[FuncName];
     if (!oldC->hasBody() &&
         (newC->hasBody() ||
          (oldC->numParams() == 0 && newC->numParams() != 0))) {
       newC->brainTransplant(oldC, *this);
       Map.erase(FuncName);
-      Map.insert(std::make_pair(FuncName, ToIns));
+      Map.insert(std::make_pair(FuncName, newC));
       RetVal = true;
     } else if (!oldC->hasBody()) {
       // if the current FV constraint is not a definition?
@@ -506,9 +479,10 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
   return RetVal;
 }
 
-bool ProgramInfo::insertIntoStaticFunctionMap (
-    StaticFunctionMapType &Map, const std::string &FuncName,
-    const std::string &FileName, const std::set<FVConstraint *> &ToIns) {
+bool ProgramInfo::insertIntoStaticFunctionMap (StaticFunctionMapType &Map,
+                                               const std::string &FuncName,
+                                               const std::string &FileName,
+                                               FVConstraint *ToIns) {
   bool RetVal = false;
   if (Map.find(FileName) == Map.end()) {
     Map[FileName].insert(std::make_pair(FuncName, ToIns));
@@ -519,17 +493,15 @@ bool ProgramInfo::insertIntoStaticFunctionMap (
   return RetVal;
 }
 
-bool
-ProgramInfo::insertNewFVConstraints(FunctionDecl *FD,
-                                    const std::set<FVConstraint *> &FVcons,
-                                    ASTContext *C) {
+bool ProgramInfo::insertNewFVConstraints(FunctionDecl *FD, FVConstraint *FVcons,
+                                         ASTContext *C) {
   bool ret = false;
   std::string FuncName = FD->getNameAsString();
   if (FD->isGlobal()) {
     // external method.
     ret = insertIntoExternalFunctionMap(ExternalFunctionFVCons,
                                         FuncName, FVcons);
-    bool isDef = getOnly(FVcons)->hasBody();
+    bool isDef = FVcons->hasBody();
     if (isDef) {
       ExternFunctions[FuncName] = true;
     } else {
@@ -584,10 +556,8 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     // Function Decls have FVConstraints.
     FVConstraint *F = new FVConstraint(D, *this, *astContext);
     F->setValidDecl();
-    std::set<FVConstraint *> NewFVars;
     /* Store the FVConstraint in the global and Variables maps */
-    NewFVars.insert(F);
-    insertNewFVConstraints(FD, NewFVars, astContext);
+    insertNewFVConstraints(FD, F, astContext);
     S.insert(F);
     // Add mappings from the parameters PLoc to the constraint variables for
     // the parameters.
@@ -682,9 +652,8 @@ void ProgramInfo::constrainWildIfMacro(CVarSet &S,
 //  return getUniqueDeclKey(D, C);
 //}
 
-const std::set<FVConstraint *> *
-ProgramInfo::getFuncConstraints(FunctionDecl *D, ASTContext *C) const {
-
+FVConstraint *ProgramInfo::getFuncConstraints(FunctionDecl *D,
+                                              ASTContext *C) const {
   std::string FuncName = D->getNameAsString();
   if (D->isGlobal()) {
     // Is this a global (externally visible) function?
@@ -697,10 +666,10 @@ ProgramInfo::getFuncConstraints(FunctionDecl *D, ASTContext *C) const {
   }
 }
 
-const std::set<FVConstraint *> *
+FVConstraint *
     ProgramInfo::getFuncFVConstraints(FunctionDecl *FD, ASTContext *C) {
   std::string FuncName = FD->getNameAsString();
-  const std::set<FVConstraint *> *FunFVars = nullptr;
+  FVConstraint *FunFVars = nullptr;
   if (FD->isGlobal()) {
     FunFVars = getExtFuncDefnConstraintSet(FuncName);
     // FIXME: We are being asked to access a function never declared; best action?
@@ -711,10 +680,8 @@ const std::set<FVConstraint *> *
       assert("FunFVars can only be null if FuncName is not in the map!"
                  && ExternalFunctionFVCons.find(FuncName)
                      == ExternalFunctionFVCons.end());
-      std::set<FVConstraint *> FVSingleton;
-      FVSingleton.insert(F);
-      ExternalFunctionFVCons.insert(std::make_pair(FuncName, FVSingleton));
-      FunFVars = &ExternalFunctionFVCons[FuncName];
+      ExternalFunctionFVCons.insert(std::make_pair(FuncName, F));
+      FunFVars = ExternalFunctionFVCons[FuncName];
     }
   } else {
     auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
@@ -738,26 +705,16 @@ CVarSet ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C) {
     // Get the parameter index with in the function.
     unsigned int PIdx = getParameterIndex(PD, FD);
     // Get corresponding FVConstraint vars.
-    const std::set<FVConstraint *> *FunFVars = getFuncFVConstraints(FD, C);
+    FVConstraint *FunFVars = getFuncFVConstraints(FD, C);
     assert(FunFVars != nullptr && "Unable to find function constraints.");
-    CVarSet ParameterCons;
-    ParameterCons.clear();
-    for (auto fv : *FunFVars) {
-      auto currParamConstraint = fv->getParamVar(PIdx);
-      ParameterCons.insert(currParamConstraint.begin(),
-                           currParamConstraint.end());
-    }
-    return ParameterCons;
+    return FunFVars->getParamVar(PIdx);
 
   } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-    const std::set<FVConstraint *> *FunFVars = getFuncFVConstraints(FD, C);
+    FVConstraint *FunFVars = getFuncFVConstraints(FD, C);
     if (FunFVars == nullptr) {
       llvm::errs() << "No fun constraints for " << FD->getName() << "?!\n";
     }
-    assert (FunFVars != nullptr && "Unable to find function constraints.");
-    std::set<ConstraintVariable*> TmpRet;
-    TmpRet.insert(FunFVars->begin(), FunFVars->end());
-    return TmpRet;
+    return {FunFVars};
 
   } else /* neither function nor function parameter */ {
     VariableMap::iterator I =
@@ -769,21 +726,21 @@ CVarSet ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C) {
   }
 }
 
-const std::set<FVConstraint *> *
-    ProgramInfo::getExtFuncDefnConstraintSet(std::string FuncName) const {
+FVConstraint *
+ProgramInfo::getExtFuncDefnConstraintSet(std::string FuncName) const {
   if (ExternalFunctionFVCons.find(FuncName) != ExternalFunctionFVCons.end()) {
-    return &(ExternalFunctionFVCons.at(FuncName));
+    return ExternalFunctionFVCons.at(FuncName);
   }
   return nullptr;
 }
 
-const std::set<FVConstraint *> *
+FVConstraint *
 ProgramInfo::getStaticFuncConstraintSet(std::string FuncName,
                                         std::string FileName) const {
   if (StaticFunctionFVCons.find(FileName) != StaticFunctionFVCons.end() &&
       StaticFunctionFVCons.at(FileName).find(FuncName) !=
           StaticFunctionFVCons.at(FileName).end()) {
-    return &(StaticFunctionFVCons.at(FileName).at(FuncName));
+    return StaticFunctionFVCons.at(FileName).at(FuncName);
   }
   return nullptr;
 }
