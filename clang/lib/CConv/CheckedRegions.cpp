@@ -235,7 +235,7 @@ bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) {
   bool IW = isWild(CVSet ) || containsUncheckedPtr(T);
 
   if (auto FD = dyn_cast<FunctionDecl>(D)) {
-    auto *FV = Info.getFuncConstraints(FD, Context);
+    auto *FV = Info.getFuncConstraint(FD, Context);
     IW |= FV->hasWild(Info.getConstraints().getVariables());
     for (const auto& param: FD->parameters()) {
       auto CVSet = Info.getVariable(param, Context);

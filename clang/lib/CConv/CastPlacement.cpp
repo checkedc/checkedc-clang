@@ -20,7 +20,7 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
   auto *FD = dyn_cast_or_null<FunctionDecl>(CE->getCalleeDecl());
   if (FD && Rewriter::isRewritable(CE->getExprLoc())) {
     // Get the constraint variable for the function.
-    FVConstraint *FV = Info.getFuncConstraints(FD, Context);
+    FVConstraint *FV = Info.getFuncConstraint(FD, Context);
     // Function has no definition i.e., external function.
     assert("Function has no definition" && FV != nullptr);
 

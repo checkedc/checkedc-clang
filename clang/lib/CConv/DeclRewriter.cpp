@@ -453,7 +453,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     return true;
   VisitedSet.insert(FuncName);
 
-  FVConstraint *Defnc = Info.getFuncConstraints(Definition, Context);
+  FVConstraint *Defnc = Info.getFuncConstraint(Definition, Context);
   assert(Defnc != nullptr);
 
   // If this is an external function, there is no need to rewrite the

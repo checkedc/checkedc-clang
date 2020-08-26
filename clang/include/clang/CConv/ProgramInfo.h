@@ -74,10 +74,10 @@ public:
   CVarSet getVariable(clang::Decl *D, clang::ASTContext *C);
 
   // Retrieve a function's constraints by decl, or by name; nullptr if not found
-  FVConstraint *getFuncConstraints (FunctionDecl *D, ASTContext *C) const;
-  FVConstraint *getExtFuncDefnConstraintSet (std::string FuncName) const;
-  FVConstraint *getStaticFuncConstraintSet(std::string FuncName,
-                                           std::string FileName) const;
+  FVConstraint *getFuncConstraint (FunctionDecl *D, ASTContext *C) const;
+  FVConstraint *getExtFuncDefnConstraint (std::string FuncName) const;
+  FVConstraint *getStaticFuncConstraint(std::string FuncName,
+                                        std::string FileName) const;
 
   // Check if the given function is an extern function.
   bool isAnExternFunction(const std::string &FName);

@@ -854,9 +854,9 @@ void FunctionVariableConstraint::equateArgumentConstraints(ProgramInfo &Info) {
 
     // Get appropriate constraints based on whether the function is static or not.
     if (IsStatic) {
-      DefnCons = Info.getStaticFuncConstraintSet(Name, FileName);
+      DefnCons = Info.getStaticFuncConstraint(Name, FileName);
     } else {
-      DefnCons = Info.getExtFuncDefnConstraintSet(Name);
+      DefnCons = Info.getExtFuncDefnConstraint(Name);
     }
     assert(DefnCons != nullptr);
 

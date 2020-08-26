@@ -673,10 +673,10 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
       bool IsStatic = std::get<2>(ParmTup);
       unsigned ParmNum = std::get<3>(ParmTup);
       FVConstraint *FV = nullptr;
-      if (IsStatic || !PI->getExtFuncDefnConstraintSet(FuncName)) {
-        FV = PI->getStaticFuncConstraintSet(FuncName, FileName);
+      if (IsStatic || !PI->getExtFuncDefnConstraint(FuncName)) {
+        FV = PI->getStaticFuncConstraint(FuncName, FileName);
       } else {
-        FV = PI->getExtFuncDefnConstraintSet(FuncName);
+        FV = PI->getExtFuncDefnConstraint(FuncName);
       }
 
       if (hasArray({FV->getParamVar(ParmNum)}, CS)) {
