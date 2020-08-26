@@ -462,10 +462,11 @@ void PointerVariableConstraint::insertQualType(uint32_t TypeIdx,
 //   Take an array or nt_array variable, determines if it is
 //   a constant array, and if so emits the apprioate syntax for a
 //   stack-based array. This functions also updates various flags.
-//
 bool PointerVariableConstraint::emitArraySize(std::stack<std::string> &CheckedArrs,
                                               uint32_t TypeIdx,
+                                              // Is the type only an array
                                               bool &AllArrays,
+                                              // Are we processing an array
                                               bool &ArrayRun,
                                               bool Nt) {
   bool Ret = false;
@@ -529,7 +530,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
   bool EmittedBase = false;
   // Have we emitted the name of the variable yet?
   bool EmittedName = false;
-  // Was the last cycle an Array?
+  // Was the last variable an Array?
   bool PrevArr = false;
   // Is the entire type so far an array?
   bool AllArrays = true;
@@ -657,7 +658,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
     TypeIdx++;
   }
 
-  // If the previous cycle was an array or
+  // If the previous variable was an array or
   // if we are leaving an array run, we need to emit the
   // annotation for a stack-array
   if ((PrevArr || ArrayRun) && !CheckedArrs.empty())
