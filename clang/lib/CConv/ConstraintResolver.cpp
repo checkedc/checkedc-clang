@@ -288,7 +288,7 @@ CVarSet
           // constraining GEQ these vars would be the cast always be WILD.
           if (!isNULLExpression(ECE, *Context)) {
             PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(ECE, *Context);
-            constrainConsVarGeq(Ret, Vars, Info.getConstraints(), &PL,
+            constrainConsVarGeq(P, Vars, Info.getConstraints(), &PL,
                                 Same_to_Same, false, &Info);
           }
         }
@@ -435,13 +435,10 @@ CVarSet
 
           for (ConstraintVariable *C : tmp) {
             if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
-              ReturnCVs.insert(FV->getReturnVars().begin(),
-                               FV->getReturnVars().end());
+              ReturnCVs.insert(FV->getReturnVar());
             } else if (PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
-              if (FVConstraint *FV = PV->getFV()) {
-                ReturnCVs.insert(FV->getReturnVars().begin(),
-                                 FV->getReturnVars().end());
-              }
+              if (FVConstraint *FV = PV->getFV())
+                ReturnCVs.insert(FV->getReturnVar());
             }
           }
         } else if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
@@ -480,15 +477,13 @@ CVarSet
             ConstraintVariable *J = getOnly(TmpCSet);
             /* Direct function call */
             if (FVConstraint *FVC = dyn_cast<FVConstraint>(J))
-              ReturnCVs.insert(FVC->getReturnVars().begin(),
-                               FVC->getReturnVars().end());
+              ReturnCVs.insert(FVC->getReturnVar());
               /* Call via function pointer */
             else {
               PVConstraint *tmp = dyn_cast<PVConstraint>(J);
               assert(tmp != nullptr);
               if (FVConstraint *FVC = tmp->getFV())
-                ReturnCVs.insert(FVC->getReturnVars().begin(),
-                                 FVC->getReturnVars().end());
+                ReturnCVs.insert(FVC->getReturnVar());
               else {
                 // No FVConstraint -- make WILD
                 auto *TmpFV = new FVConstraint();
@@ -526,9 +521,8 @@ CVarSet
           TmpCVs.insert(NewCV);
           // If this is realloc, constrain the first arg to flow to the return
           if (!ReallocFlow.empty()) {
-            for (auto &Constraint : ReallocFlow)
-              constrainConsVarGeq(NewCV, Constraint, Info.getConstraints(),
-                                  nullptr, Wild_to_Safe, false, &Info);
+            constrainConsVarGeq(NewCV, ReallocFlow, Info.getConstraints(),
+                                nullptr, Wild_to_Safe, false, &Info);
           }
         }
         Ret = TmpCVs;
@@ -560,17 +554,15 @@ CVarSet
         // (int[]){e1, e2, e3, ... }
       } else if (CompoundLiteralExpr *CLE =
           dyn_cast<CompoundLiteralExpr>(E)) {
-        CVarSet T;
         CVarSet Vars = getExprConstraintVars(CLE->getInitializer());
 
         PVConstraint *P = getRewritablePVConstraint(CLE);
-        T = {P};
 
         PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CLE, *Context);
-        constrainConsVarGeq(T, Vars, Info.getConstraints(), &PL, Same_to_Same,
+        constrainConsVarGeq(P, Vars, Info.getConstraints(), &PL, Same_to_Same,
                             false, &Info);
 
-        Ret = T;
+        Ret = {P};
         // "foo"
       } else if (clang::StringLiteral *Str =
           dyn_cast<clang::StringLiteral>(E)) {
@@ -747,33 +739,35 @@ PVConstraint *ConstraintResolver::getRewritablePVConstraint(Expr *E) {
   return P;
 }
 
-bool
-ConstraintResolver::containsValidCons(CVarSet &CVs) {
-  bool RetVal = false;
-  for (auto *ConsVar : CVs) {
-    if (PVConstraint *PV = dyn_cast<PVConstraint>(ConsVar)) {
-      if (!PV->getCvars().empty()) {
-        RetVal = true;
-        break;
-      }
-    }
-  }
-  return RetVal;
+bool ConstraintResolver::containsValidCons(CVarSet &CVs) {
+  for (auto *ConsVar : CVs)
+    if (isValidCons(ConsVar))
+      return true;
+  return false;
 }
 
-bool ConstraintResolver::resolveBoundsKey(CVarSet &CVs,
-                                          BoundsKey &BK) {
-  bool RetVal = false;
+bool ConstraintResolver::isValidCons(ConstraintVariable *CV) {
+  if (PVConstraint *PV = dyn_cast<PVConstraint>(CV))
+    return !PV->getCvars().empty();
+  return false;
+}
+
+bool ConstraintResolver::resolveBoundsKey(CVarSet &CVs, BoundsKey &BK) {
   if (CVs.size() == 1) {
     auto *OCons = getOnly(CVs);
-    if (PVConstraint *PV = dyn_cast<PVConstraint>(OCons)) {
-      if (PV->hasBoundsKey()) {
-        BK = PV->getBoundsKey();
-        RetVal = true;
-      }
-    }
+    return resolveBoundsKey(OCons, BK);
   }
-  return RetVal;
+  return false;
+}
+
+bool ConstraintResolver::resolveBoundsKey(ConstraintVariable *CV,
+                                          BoundsKey &BK) {
+  if (PVConstraint *PV = dyn_cast<PVConstraint>(CV))
+    if (PV->hasBoundsKey()) {
+      BK = PV->getBoundsKey();
+      return true;
+    }
+  return false;
 }
 
 bool ConstraintResolver::canFunctionBeSkipped(const std::string &FN) {

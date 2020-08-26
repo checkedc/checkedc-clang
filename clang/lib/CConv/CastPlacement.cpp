@@ -20,58 +20,46 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
   auto *FD = dyn_cast_or_null<FunctionDecl>(CE->getCalleeDecl());
   if (FD && Rewriter::isRewritable(CE->getExprLoc())) {
     // Get the constraint variable for the function.
-    std::set<FVConstraint *> *V = Info.getFuncConstraints(FD, Context);
+    FVConstraint *FV = Info.getFuncConstraint(FD, Context);
     // Function has no definition i.e., external function.
-    assert("Function has no definition" && V != nullptr);
+    assert("Function has no definition" && FV != nullptr);
 
     // Did we see this function in another file?
     auto Fname = FD->getNameAsString();
-    if (!V->empty() && !ConstraintResolver::canFunctionBeSkipped(Fname)) {
-      // Get the FV constraint for the Callee.
-      // TODO: This seems to assume that V is a singleton set. Validate this
-      //       assumption and use getOnly.
-      if (FVConstraint *FV = *(V->begin())) {
-        // Now we need to check the type of the arguments and corresponding
-        // parameters to see if any explicit casting is needed.
-        ProgramInfo::CallTypeParamBindingsT TypeVars;
-        if (Info.hasTypeParamBindings(CE, Context))
-          TypeVars = Info.getTypeParamBindings(CE, Context);
-        auto PInfo = Info.getMF()[Fname];
-        unsigned PIdx = 0;
-        for (const auto &A : CE->arguments()) {
-          if (PIdx < FD->getNumParams()) {
+    if (!ConstraintResolver::canFunctionBeSkipped(Fname)) {
+      // Now we need to check the type of the arguments and corresponding
+      // parameters to see if any explicit casting is needed.
+      ProgramInfo::CallTypeParamBindingsT TypeVars;
+      if (Info.hasTypeParamBindings(CE, Context))
+        TypeVars = Info.getTypeParamBindings(CE, Context);
+      auto PInfo = Info.getMF()[Fname];
+      unsigned PIdx = 0;
+      for (const auto &A : CE->arguments()) {
+        if (PIdx < FD->getNumParams()) {
+          // Avoid adding incorrect casts to generic function arguments by
+          // removing implicit casts when on arguments with a consistently
+          // used generic type.
+          Expr *ArgExpr = A;
+          const TypeVariableType
+              *TyVar = getTypeVariableType(FD->getParamDecl(PIdx));
+          if (TyVar && TypeVars.find(TyVar->GetIndex()) != TypeVars.end()
+              && TypeVars[TyVar->GetIndex()] != nullptr)
+            ArgExpr = ArgExpr->IgnoreImpCasts();
 
-            // Avoid adding incorrect casts to generic function arguments by
-            // removing implicit casts when on arguments with a consistently
-            // used generic type.
-            Expr *ArgExpr = A;
-            const TypeVariableType
-                *TyVar = getTypeVariableType(FD->getParamDecl(PIdx));
-            if (TyVar && TypeVars.find(TyVar->GetIndex()) != TypeVars.end()
-                && TypeVars[TyVar->GetIndex()] != nullptr)
-              ArgExpr = ArgExpr->IgnoreImpCasts();
-
-            CVarSet ArgumentConstraints = CR.getExprConstraintVars(ArgExpr);
-            CVarSet &ParameterConstraints = FV->getParamVar(PIdx);
-            for (auto *ArgumentC : ArgumentConstraints) {
-              bool CastInserted = false;
-              for (auto *ParameterC : ParameterConstraints) {
-                auto Dinfo = PIdx < PInfo.size() ? PInfo[PIdx] : CHECKED;
-                if (needCasting(ArgumentC, ParameterC, Dinfo)) {
-                  // We expect the cast string to end with "(".
-                  std::string CastString =
-                      getCastString(ArgumentC, ParameterC, Dinfo);
-                  surroundByCast(CastString, A);
-                  CastInserted = true;
-                  break;
-                }
-              }
-              // If we have already inserted a cast, then break.
-              if (CastInserted) break;
+          CVarSet ArgumentConstraints = CR.getExprConstraintVars(ArgExpr);
+          ConstraintVariable *ParameterC = FV->getParamVar(PIdx);
+          for (auto *ArgumentC : ArgumentConstraints) {
+            auto Dinfo = PIdx < PInfo.size() ? PInfo[PIdx] : CHECKED;
+            if (needCasting(ArgumentC, ParameterC, Dinfo)) {
+              // We expect the cast string to end with "(".
+              std::string CastString =
+                  getCastString(ArgumentC, ParameterC, Dinfo);
+              surroundByCast(CastString, A);
+              break;
             }
           }
-          PIdx++;
         }
+        PIdx++;
       }
     }
   }

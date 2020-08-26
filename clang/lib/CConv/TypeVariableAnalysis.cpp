@@ -115,8 +115,7 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
         // Constrain this variable GEQ the function arguments using the type
         // variable so if any of them are wild, the type argument will also be
         // an unchecked pointer.
-        std::set<ConstraintVariable *> CVs = {P};
-        constrainConsVarGeq(CVs, TVEntry.second.getConstraintVariables(),
+        constrainConsVarGeq(P, TVEntry.second.getConstraintVariables(),
                             Info.getConstraints(), nullptr, Safe_to_Wild,
                             false, &Info);
 

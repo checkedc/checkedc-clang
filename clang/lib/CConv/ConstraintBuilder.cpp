@@ -214,13 +214,12 @@ public:
             if (callUntyped) {
               deferred.push_back(ArgumentConstraints);
             } else if (i < TargetFV->numParams()) {
-            // constrain the arg CV to the param CV
-              CVarSet ParameterDC =
-                  TargetFV->getParamVar(i);
+              // constrain the arg CV to the param CV
+              ConstraintVariable *ParameterDC = TargetFV->getParamVar(i);
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
                                   Wild_to_Safe, false, &Info);
               if (AllTypes && TFD != nullptr &&
-                  !CB.containsValidCons(ParameterDC) &&
+                  !CB.isValidCons(ParameterDC) &&
                   !CB.containsValidCons(ArgumentConstraints)) {
                 auto *PVD = TFD->getParamDecl(i);
                 auto &ABI = Info.getABoundsInfo();
@@ -285,9 +284,8 @@ public:
       if (FVConstraint *FV = dyn_cast<FVConstraint>(F)) {
         // This is to ensure that the return type of the function is same
         // as the type of return expression.
-        constrainConsVarGeq(FV->getReturnVars(), RconsVar,
-                            Info.getConstraints(), &PL, Same_to_Same, false,
-                            &Info);
+        constrainConsVarGeq(FV->getReturnVar(), RconsVar, Info.getConstraints(),
+                            &PL, Same_to_Same, false, &Info);
       }
     }
     return true;
