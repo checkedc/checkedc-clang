@@ -50,7 +50,7 @@ struct r *foo() {
   x->next = &y;
   y->next = &x;
   struct r *z = (struct r *) sus(x, y);
-	//CHECK_NOALL: _Ptr<struct r> z =  (_Ptr<struct r> ) sus(x, y);
+	//CHECK_NOALL: _Ptr<struct r> z =  (_Ptr<struct r>) sus(x, y);
 	//CHECK_ALL:   struct r *z = (struct r *) sus(x, y);
   return z;
 }
