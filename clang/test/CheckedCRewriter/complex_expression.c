@@ -56,5 +56,5 @@ void test() {
 
   *b = (0, a);
 }
-//CHECK: _Ptr<int> a = (_Ptr<int> ) 0;
-//CHECK: _Ptr<_Ptr<int>> b = (_Ptr<_Ptr<int>> ) 0;
+//CHECK: _Ptr<int> a = (_Ptr<int>) 0;
+//CHECK: _Ptr<_Ptr<int>> b = (_Ptr<_Ptr<int>>) 0;

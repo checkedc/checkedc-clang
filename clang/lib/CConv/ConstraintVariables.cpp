@@ -250,6 +250,21 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       ArrPresent = IsArr = true;
       IsIncompleteArr = Ty->isIncompleteArrayType();
 
+      // Boil off the typedefs in the array case.
+      // TODO this will need to change to properly account for typedefs
+      bool boiling = true;
+      while (boiling) {
+        if (const TypedefType *TydTy = dyn_cast<TypedefType>(Ty)) {
+          QTy = TydTy->desugar();
+          Ty = QTy.getTypePtr();
+        } else if (const ParenType *ParenTy = dyn_cast<ParenType>(Ty)) {
+          QTy = ParenTy->desugar();
+          Ty = QTy.getTypePtr();
+        } else {
+          boiling = false;
+        }
+      }
+
       // See if there is a constant size to this array type at this position.
       if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
         arrSizes[TypeIdx] = std::pair<OriginalArrType,uint64_t>(
@@ -259,11 +274,6 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
                 O_UnSizedArray,0);
       }
 
-      // Boil off the typedefs in the array case.
-      while (const TypedefType *TydTy = dyn_cast<TypedefType>(Ty)) {
-        QTy = TydTy->desugar();
-        Ty = QTy.getTypePtr();
-      }
 
       // Iterate.
       if (const ArrayType *ArrTy = dyn_cast<ArrayType>(Ty)) {
@@ -447,10 +457,17 @@ void PointerVariableConstraint::insertQualType(uint32_t TypeIdx,
     QualMap[TypeIdx].insert(RestrictQualification);
 }
 
-bool PointerVariableConstraint::emitArraySize(std::ostringstream &Pss,
+
+//   emitArraySize
+//   Take an array or nt_array variable, determines if it is
+//   a constant array, and if so emits the apprioate syntax for a
+//   stack-based array. This functions also updates various flags.
+bool PointerVariableConstraint::emitArraySize(std::stack<std::string> &CheckedArrs,
                                               uint32_t TypeIdx,
-                                              bool &EmitName,
-                                              bool &EmittedCheckedAnnotation,
+                                              // Is the type only an array
+                                              bool &AllArrays,
+                                              // Are we processing an array
+                                              bool &ArrayRun,
                                               bool Nt) const {
   bool Ret = false;
   if (ArrPresent) {
@@ -459,29 +476,37 @@ bool PointerVariableConstraint::emitArraySize(std::ostringstream &Pss,
     OriginalArrType Oat = i->second.first;
     uint64_t Oas = i->second.second;
 
-    if (EmitName == false) {
-      EmitName = true;
-      Pss << getName();
+    std::ostringstream SizeStr;
+
+    if (Oat == O_SizedArray) {
+      SizeStr << (Nt ? " _Nt_checked" : " _Checked");
+      SizeStr << "[" << Oas << "]";
+      CheckedArrs.push(SizeStr.str());
+      ArrayRun = true;
+      Ret = true;
+    } else {
+      AllArrays = ArrayRun = false;
     }
 
-    switch (Oat) {
-      case O_SizedArray:
-        if (!EmittedCheckedAnnotation) {
-          Pss << (Nt ? " _Nt_checked" : " _Checked");
-          EmittedCheckedAnnotation = true;
-        }
-        Pss << "[" << Oas << "]";
-        Ret = true;
-        break;
-      /*case O_UnSizedArray:
-        Pss << "[]";
-        Ret = true;
-        break;*/
-      default: break;
-    }
     return Ret;
   }
   return Ret;
+}
+
+
+/*  addArrayAnnotiations
+ *  This function takes all the stacked annotations for constant arrays
+ *  and pops them onto the EndStrs, this ensures the right order of annotations
+ *   */
+void PointerVariableConstraint::addArrayAnnotations(
+    std::stack<std::string> &CheckedArrs,
+    std::deque<std::string> &EndStrs) const {
+  while(!CheckedArrs.empty()) {
+    auto NextStr = CheckedArrs.top();
+    CheckedArrs.pop();
+    EndStrs.push_front(NextStr);
+  }
+  assert(CheckedArrs.empty());
 }
 
 // Mesh resolved constraints with the PointerVariableConstraints set of
@@ -493,12 +518,25 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
                                     bool ForItype,
                                     bool EmitPointee) const {
   std::ostringstream Ss;
-  std::ostringstream Pss;
-  unsigned CaratsToAdd = 0;
+  // This deque will store all the type strings that need to pushed
+  // to the end of the type string. This is typically things like
+  // closing delimiters.
+  std::deque<std::string> EndStrs;
+  // This will store stacked array decls to ensure correct order
+  // We encounter constant arrays variables in the reverse order they
+  // need to appear in, so the LIFO structure reverses these annotations
+  std::stack<std::string> CheckedArrs;
+  // Have we emitted the string for the base type
   bool EmittedBase = false;
+  // Have we emitted the name of the variable yet?
   bool EmittedName = false;
-  bool EmittedCheckedAnnotation = false;
-  if (EmitName == false && hasItype() == false)
+  // Was the last variable an Array?
+  bool PrevArr = false;
+  // Is the entire type so far an array?
+  bool AllArrays = true;
+  // Are we in a sequence of arrays
+  bool ArrayRun = false;
+  if ((EmitName == false && hasItype() == false) || getName() == RETVAR)
     EmittedName = true;
   uint32_t TypeIdx = 0;
 
@@ -527,6 +565,15 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
     if (!ForItype && BaseType == "void")
       K = Atom::A_Wild;
 
+    if (PrevArr && K != Atom::A_Arr && !EmittedName) {
+      EmittedName = true;
+      addArrayAnnotations(CheckedArrs, EndStrs);
+      EndStrs.push_front(" " + getName());
+    }
+    PrevArr = ((K == Atom::A_Arr || K == Atom::A_NTArr)
+               && ArrPresent
+               && arrSizes.at(TypeIdx).first == O_SizedArray);
+
     switch (K) {
       case Atom::A_Ptr:
         getQualString(TypeIdx, Ss);
@@ -534,10 +581,12 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
         // We need to check and see if this level of variable
         // is constrained by a bounds safe interface. If it is,
         // then we shouldn't re-write it.
+        AllArrays = false;
         if (hasItype() == false) {
           EmittedBase = false;
           Ss << "_Ptr<";
-          CaratsToAdd++;
+          ArrayRun = false;
+          EndStrs.push_front(">");
           break;
         }
         LLVM_FALLTHROUGH;
@@ -548,8 +597,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
         // be [] instead of *, IF, the original type was an array.
         // And, if the original type was a sized array of size K.
         // we should substitute [K].
-        if (emitArraySize(Pss, TypeIdx, EmittedName,
-                          EmittedCheckedAnnotation, false))
+        if (emitArraySize(CheckedArrs, TypeIdx, AllArrays, ArrayRun, false))
           break;
         // We need to check and see if this level of variable
         // is constrained by a bounds safe interface. If it is,
@@ -557,14 +605,13 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
         if (hasItype() == false) {
           EmittedBase = false;
           Ss << "_Array_ptr<";
-          CaratsToAdd++;
+          EndStrs.push_front(">");
           break;
         }
         LLVM_FALLTHROUGH;
       case Atom::A_NTArr:
 
-        if (emitArraySize(Pss, TypeIdx, EmittedName,
-                          EmittedCheckedAnnotation, true))
+        if (emitArraySize(CheckedArrs, TypeIdx, AllArrays, ArrayRun, true))
           break;
         // This additional check is to prevent fall-through from the array.
         if (K == Atom::A_NTArr) {
@@ -577,7 +624,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
           if (hasItype() == false) {
             EmittedBase = false;
             Ss << "_Nt_array_ptr<";
-            CaratsToAdd++;
+            EndStrs.push_front(">");
             break;
           }
         }
@@ -585,6 +632,10 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
       // If there is no array in the original program, then we fall through to
       // the case where we write a pointer value.
       case Atom::A_Wild:
+        AllArrays = false;
+        if (ArrayRun)
+          addArrayAnnotations(CheckedArrs, EndStrs);
+        ArrayRun = false;
         if (EmittedBase) {
           Ss << "*";
         } else {
@@ -607,6 +658,22 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
     TypeIdx++;
   }
 
+  // If the previous variable was an array or
+  // if we are leaving an array run, we need to emit the
+  // annotation for a stack-array
+  if ((PrevArr || ArrayRun) && !CheckedArrs.empty())
+    addArrayAnnotations(CheckedArrs, EndStrs);
+
+  // If the whole type is an array so far, and we haven't emitted
+  // a name yet, then emit the name so that it appears before
+  // the the stack array type.
+  if (PrevArr && !EmittedName && AllArrays) {
+    EmittedName = true;
+    EndStrs.push_front(" " + getName());
+  }
+
+
+
   if (EmittedBase == false) {
     // If we have a FV pointer, then our "base" type is a function pointer.
     // type.
@@ -617,25 +684,24 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
     }
   }
 
-  // Push carats onto the end of the string.
-  for (unsigned i = 0; i < CaratsToAdd; i++) {
-    Ss << ">";
+  // Add closing elements to type
+  for (std::string Str : EndStrs) {
+    Ss << Str;
   }
 
   // No space after itype.
-  if (!ForItype)
+  if (!EmittedName)
+    Ss << " " << getName();
+
+  // Final array dropping
+  if(!CheckedArrs.empty())
+    addArrayAnnotations(CheckedArrs, EndStrs);
+
+  //TODO remove comparison to RETVAR
+  if (getName() == RETVAR && !ForItype)
     Ss << " ";
 
-  std::string FinalDec;
-  if (EmittedName == false) {
-    if (getName() != RETVAR)
-      Ss << getName();
-    FinalDec = Ss.str();
-  } else {
-    FinalDec = Ss.str() + Pss.str();
-  }
-
-  return FinalDec;
+  return Ss.str();
 }
 
 bool PVConstraint::addArgumentConstraint(ConstraintVariable *DstCons,

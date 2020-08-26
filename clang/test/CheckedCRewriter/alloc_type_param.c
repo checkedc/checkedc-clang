@@ -22,11 +22,11 @@ void foo() {
   /* Explicit casts work fine also */
 
   int *d = (int*) malloc(sizeof(int));
-	//CHECK: _Ptr<int> d =  (_Ptr<int> ) malloc<int>(sizeof(int));
+	//CHECK: _Ptr<int> d =  (_Ptr<int>) malloc<int>(sizeof(int));
   int *e = (int*) calloc(1, sizeof(int));
-	//CHECK: _Ptr<int> e =  (_Ptr<int> ) calloc<int>(1, sizeof(int));
+	//CHECK: _Ptr<int> e =  (_Ptr<int>) calloc<int>(1, sizeof(int));
   int *f = (int*) realloc(d, sizeof(int));
-	//CHECK: _Ptr<int> f =  (_Ptr<int> ) realloc<int>(d, sizeof(int));
+	//CHECK: _Ptr<int> f =  (_Ptr<int>) realloc<int>(d, sizeof(int));
 }
 
 /* Allocating pointers to pointers */

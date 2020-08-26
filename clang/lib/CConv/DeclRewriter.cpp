@@ -198,7 +198,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
     if (VD->hasInit()) {
       SourceLocation EqLoc = VD->getInitializerStartLoc();
       TR.setEnd(EqLoc);
-      SRewrite = SRewrite + " = ";
+      SRewrite = SRewrite + " =";
     } else {
       // There is no initializer, lets add it.
       if (isPointerType(VD) &&
@@ -527,7 +527,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     } else {
       // One of the argument is WILD, emit an itype.
       std::string Itype =
-          Defn->mkString(Info.getConstraints().getVariables(), true, true);
+          Defn->mkString(Info.getConstraints().getVariables(), false, true);
       ReturnVar = Defn->getRewritableOriginalTy();
       ItypeStr = " : itype(" + Itype + ")";
     }

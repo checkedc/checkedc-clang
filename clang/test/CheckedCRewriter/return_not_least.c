@@ -26,7 +26,7 @@ int *f(void) {
 	//CHECK_ALL: _Array_ptr<int> f(void) {
   int *p = (int*)0;
 	//CHECK_NOALL: int *p = (int*)0;
-	//CHECK_ALL:   _Array_ptr<int> p =  (_Array_ptr<int> )0;
+	//CHECK_ALL:   _Array_ptr<int> p =  (_Array_ptr<int>)0;
   p++;
   return p;
 }
@@ -60,7 +60,7 @@ int *baz(int *a) {
 
   int *b = (int*) 0;
 	//CHECK_NOALL: int *b = (int*) 0;
-	//CHECK_ALL:   _Array_ptr<int> b =  (_Array_ptr<int> ) 0;
+	//CHECK_ALL:   _Array_ptr<int> b =  (_Array_ptr<int>) 0;
   a = b;
 
   int *c = b;
@@ -77,7 +77,7 @@ int *buz(int *a) {
 
   int *b = (int*) 0;
 	//CHECK_NOALL: int *b = (int*) 0;
-	//CHECK_ALL:   _Array_ptr<int> b =  (_Array_ptr<int> ) 0;
+	//CHECK_ALL:   _Array_ptr<int> b =  (_Array_ptr<int>) 0;
   a = b;
 
   /* The current implementation does not propagate array constraint to c and d, but
@@ -89,7 +89,7 @@ int *buz(int *a) {
 
   int *d = (int*) 0;
 	//CHECK_NOALL: int *d = (int*) 0;
-	//CHECK_ALL:   _Ptr<int> d =  (_Ptr<int> ) 0;
+	//CHECK_ALL:   _Ptr<int> d =  (_Ptr<int>) 0;
   c = d;
 
   return d;
