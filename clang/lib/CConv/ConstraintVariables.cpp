@@ -826,13 +826,11 @@ void PVConstraint::equateArgumentConstraints(ProgramInfo &Info) {
 }
 
 void FunctionVariableConstraint::equateFVConstraintVars
-    (const CVarSet &Cset, ProgramInfo &Info) const {
-  for (auto *TmpCons : Cset) {
-    if (FVConstraint *FVCons = dyn_cast<FVConstraint>(TmpCons)) {
-      for (auto &PCon : FVCons->ParamVars)
-        PCon->equateArgumentConstraints(Info);
-      FVCons->ReturnVar->equateArgumentConstraints(Info);
-    }
+    (ConstraintVariable *CV, ProgramInfo &Info) const {
+  if (FVConstraint *FVCons = dyn_cast<FVConstraint>(CV)) {
+    for (auto &PCon : FVCons->ParamVars)
+      PCon->equateArgumentConstraints(Info);
+    FVCons->ReturnVar->equateArgumentConstraints(Info);
   }
 }
 
@@ -842,11 +840,9 @@ void FunctionVariableConstraint::equateArgumentConstraints(ProgramInfo &Info) {
   }
 
   HasEqArgumentConstraints = true;
-  CVarSet TmpCSet;
-  TmpCSet.insert(this);
 
   // Equate arguments and parameters vars.
-  this->equateFVConstraintVars(TmpCSet, Info);
+  this->equateFVConstraintVars(this, Info);
 
   // Is this not a function pointer?
   if (!IsFunctionPtr) {
@@ -861,8 +857,7 @@ void FunctionVariableConstraint::equateArgumentConstraints(ProgramInfo &Info) {
     assert(DefnCons != nullptr);
 
     // Equate arguments and parameters vars.
-    CVarSet TmpDefn = {DefnCons};
-    this->equateFVConstraintVars(TmpDefn, Info);
+    this->equateFVConstraintVars(DefnCons, Info);
   }
 }
 

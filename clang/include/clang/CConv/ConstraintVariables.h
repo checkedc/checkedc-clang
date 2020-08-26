@@ -394,8 +394,7 @@ private:
   // Flag to indicate whether this is a function pointer or not.
   bool IsFunctionPtr;
 
-  void equateFVConstraintVars(const std::set<ConstraintVariable *> &Cset,
-                              ProgramInfo &Info) const;
+  void equateFVConstraintVars(ConstraintVariable *CV, ProgramInfo &Info) const;
 
 public:
   FunctionVariableConstraint() :
