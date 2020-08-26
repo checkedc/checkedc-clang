@@ -37,9 +37,9 @@ ParameterMap &ProgramInfo::getMF() {
 void dumpExtFuncMap(const ProgramInfo::ExternalFunctionMapType &EMap,
                     raw_ostream &O) {
   for (const auto &DefM : EMap) {
-    O << "Func Name:" << DefM.first << " => ";
+    O << "Func Name:" << DefM.first << " => [ ";
     DefM.second->print(O);
-    O << "\n";
+    O << " ]\n";
   }
 }
 
@@ -48,9 +48,9 @@ void dumpStaticFuncMap(const ProgramInfo::StaticFunctionMapType &EMap,
   for (const auto &DefM : EMap) {
     O << "File Name:" << DefM.first << " => ";
     for (const auto &Tmp : DefM.second) {
-      O << " Func Name:"<< Tmp.first << " => \n";
+      O << " Func Name:"<< Tmp.first << " => [ \n";
       Tmp.second->print(O);
-      O << "\n";
+      O << " ]\n";
     }
     O << "\n";
   }
