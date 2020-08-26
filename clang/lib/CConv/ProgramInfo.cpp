@@ -451,7 +451,7 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
                                            FVConstraint *newC) {
   bool RetVal = false;
   if (Map.find(FuncName) == Map.end()) {
-    Map.insert(std::make_pair(FuncName, newC));
+    Map[FuncName] = newC;
     RetVal = true;
   } else {
     auto *oldC = Map[FuncName];
@@ -459,8 +459,7 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
         (newC->hasBody() ||
          (oldC->numParams() == 0 && newC->numParams() != 0))) {
       newC->brainTransplant(oldC, *this);
-      Map.erase(FuncName);
-      Map.insert(std::make_pair(FuncName, newC));
+      Map[FuncName] = newC;
       RetVal = true;
     } else if (!oldC->hasBody()) {
       // if the current FV constraint is not a definition?
@@ -479,7 +478,7 @@ bool ProgramInfo::insertIntoStaticFunctionMap (StaticFunctionMapType &Map,
                                                FVConstraint *ToIns) {
   bool RetVal = false;
   if (Map.find(FileName) == Map.end()) {
-    Map[FileName].insert(std::make_pair(FuncName, ToIns));
+    Map[FileName][FuncName] = ToIns;
     RetVal = true;
   } else {
     RetVal = insertIntoExternalFunctionMap(Map[FileName],FuncName,ToIns);
@@ -671,7 +670,7 @@ FVConstraint *
       assert("FunFVars can only be null if FuncName is not in the map!"
                  && ExternalFunctionFVCons.find(FuncName)
                      == ExternalFunctionFVCons.end());
-      ExternalFunctionFVCons.insert(std::make_pair(FuncName, F));
+      ExternalFunctionFVCons[FuncName] = F;
       FunFVars = ExternalFunctionFVCons[FuncName];
     }
   } else {
