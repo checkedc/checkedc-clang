@@ -230,7 +230,7 @@ private:
   // This function tries to emit an array size for the variable.
   // and returns true if the variable is an array and a size is emitted.
   bool emitArraySize(std::stack<std::string> &CheckedArrs, uint32_t TypeIdx,
-                     bool &EmitName, bool &AllArray, bool &ArrayRun, bool Nt);
+                     bool &AllArray, bool &ArrayRun, bool Nt);
   void addArrayAnnotations(std::stack<std::string> &CheckedArrs,
                            std::deque<std::string> &EndStrs);
   // Flag to indicate that this constraint is a part of function prototype

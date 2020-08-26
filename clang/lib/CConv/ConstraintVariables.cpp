@@ -458,14 +458,13 @@ void PointerVariableConstraint::insertQualType(uint32_t TypeIdx,
 }
 
 
-/*
- *   Take an array or nt_array variable, determines if it is
- *   a constant array, and if so emits the apprioate syntax for a
- *   stack-based array. This functions also updates various flags.
- *   */
+//   emitArraySize
+//   Take an array or nt_array variable, determines if it is
+//   a constant array, and if so emits the apprioate syntax for a
+//   stack-based array. This functions also updates various flags.
+//
 bool PointerVariableConstraint::emitArraySize(std::stack<std::string> &CheckedArrs,
                                               uint32_t TypeIdx,
-                                              bool &EmitName,
                                               bool &AllArrays,
                                               bool &ArrayRun,
                                               bool Nt) {
@@ -597,7 +596,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
         // be [] instead of *, IF, the original type was an array.
         // And, if the original type was a sized array of size K.
         // we should substitute [K].
-        if (emitArraySize(CheckedArrs, TypeIdx, EmittedName, AllArrays, ArrayRun, false))
+        if (emitArraySize(CheckedArrs, TypeIdx, AllArrays, ArrayRun, false))
           break;
         // We need to check and see if this level of variable
         // is constrained by a bounds safe interface. If it is,
@@ -611,7 +610,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
         LLVM_FALLTHROUGH;
       case Atom::A_NTArr:
 
-        if (emitArraySize(CheckedArrs, TypeIdx, EmittedName, AllArrays, ArrayRun, true))
+        if (emitArraySize(CheckedArrs, TypeIdx, AllArrays, ArrayRun, true))
           break;
         // This additional check is to prevent fall-through from the array.
         if (K == Atom::A_NTArr) {
