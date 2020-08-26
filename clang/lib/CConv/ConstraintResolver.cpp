@@ -288,7 +288,7 @@ CVarSet
           // constraining GEQ these vars would be the cast always be WILD.
           if (!isNULLExpression(ECE, *Context)) {
             PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(ECE, *Context);
-            constrainConsVarGeq(Ret, Vars, Info.getConstraints(), &PL,
+            constrainConsVarGeq(P, Vars, Info.getConstraints(), &PL,
                                 Same_to_Same, false, &Info);
           }
         }
@@ -521,9 +521,8 @@ CVarSet
           TmpCVs.insert(NewCV);
           // If this is realloc, constrain the first arg to flow to the return
           if (!ReallocFlow.empty()) {
-            for (auto &Constraint : ReallocFlow)
-              constrainConsVarGeq(NewCV, Constraint, Info.getConstraints(),
-                                  nullptr, Wild_to_Safe, false, &Info);
+            constrainConsVarGeq(NewCV, ReallocFlow, Info.getConstraints(),
+                                nullptr, Wild_to_Safe, false, &Info);
           }
         }
         Ret = TmpCVs;
@@ -555,17 +554,15 @@ CVarSet
         // (int[]){e1, e2, e3, ... }
       } else if (CompoundLiteralExpr *CLE =
           dyn_cast<CompoundLiteralExpr>(E)) {
-        CVarSet T;
         CVarSet Vars = getExprConstraintVars(CLE->getInitializer());
 
         PVConstraint *P = getRewritablePVConstraint(CLE);
-        T = {P};
 
         PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CLE, *Context);
-        constrainConsVarGeq(T, Vars, Info.getConstraints(), &PL, Same_to_Same,
+        constrainConsVarGeq(P, Vars, Info.getConstraints(), &PL, Same_to_Same,
                             false, &Info);
 
-        Ret = T;
+        Ret = {P};
         // "foo"
       } else if (clang::StringLiteral *Str =
           dyn_cast<clang::StringLiteral>(E)) {

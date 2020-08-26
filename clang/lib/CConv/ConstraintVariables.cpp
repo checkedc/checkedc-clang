@@ -817,10 +817,8 @@ void PVConstraint::equateArgumentConstraints(ProgramInfo &Info) {
     return;
   }
   HasEqArgumentConstraints = true;
-  for (auto *ArgCons : this->argumentConstraints) {
-    constrainConsVarGeq(this, ArgCons, Info.getConstraints(), nullptr,
-                        Same_to_Same, true, &Info);
-  }
+  constrainConsVarGeq(this, this->argumentConstraints, Info.getConstraints(),
+                      nullptr, Same_to_Same, true, &Info);
 
   if (this->FV != nullptr) {
     this->FV->equateArgumentConstraints(Info);
@@ -1435,19 +1433,20 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
   }
 }
 
+
+void constrainConsVarGeq(ConstraintVariable *LHS, const CVarSet &RHS,
+                         Constraints &CS, PersistentSourceLoc *PL,
+                         ConsAction CA, bool doEqType, ProgramInfo *Info) {
+  for (const auto &J : RHS)
+    constrainConsVarGeq(LHS, J, CS, PL, CA, doEqType, Info);
+}
+
 // Given an RHS and a LHS, constrain them to be equal.
-void constrainConsVarGeq(const CVarSet &LHS,
-                      const CVarSet &RHS,
-                      Constraints &CS,
-                      PersistentSourceLoc *PL,
-                      ConsAction CA,
-                      bool doEqType,
-                      ProgramInfo *Info) {
-  for (const auto &I : LHS) {
-    for (const auto &J : RHS) {
-      constrainConsVarGeq(I, J, CS, PL, CA, doEqType, Info);
-    }
-  }
+void constrainConsVarGeq(const CVarSet &LHS, const CVarSet &RHS,
+                         Constraints &CS, PersistentSourceLoc *PL,
+                         ConsAction CA, bool doEqType, ProgramInfo *Info) {
+  for (const auto &I : LHS)
+    constrainConsVarGeq(I, RHS, CS, PL, CA, doEqType, Info);
 }
 
 // True if [C] is a PVConstraint that contains at least one Atom (i.e.,
@@ -1563,10 +1562,8 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
       for(unsigned i = 0; i < deferred.PS.size(); i++) {
         ConstraintVariable *ParamDC = getParamVar(i);
         CVarSet ArgDC = deferred.PS[i];
-        for (auto *P : ArgDC) {
-          constrainConsVarGeq(ParamDC, P, CS, &(deferred.PL), Wild_to_Safe,
-                              false, &I);
-        }
+        constrainConsVarGeq(ParamDC, ArgDC, CS, &(deferred.PL), Wild_to_Safe,
+                            false, &I);
       }
     }
   } else {

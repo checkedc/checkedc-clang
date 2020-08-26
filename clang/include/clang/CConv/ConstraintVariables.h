@@ -171,11 +171,11 @@ enum ConsAction {
 
 void constrainConsVarGeq(const std::set<ConstraintVariable *> &LHS,
                          const std::set<ConstraintVariable *> &RHS,
-                         Constraints &CS,
-                         PersistentSourceLoc *PL,
-                         ConsAction CA,
-                         bool doEqType,
-                         ProgramInfo *Info);
+                         Constraints &CS, PersistentSourceLoc *PL,
+                         ConsAction CA, bool doEqType, ProgramInfo *Info);
+void constrainConsVarGeq(ConstraintVariable *LHS, const CVarSet &RHS,
+                         Constraints &CS, PersistentSourceLoc *PL,
+                         ConsAction CA, bool doEqType, ProgramInfo *Info);
 void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
                          ConsAction CA, bool doEqType, ProgramInfo *Info);
