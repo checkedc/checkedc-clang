@@ -268,11 +268,11 @@ template<> struct GraphTraits<GraphVizOutputGraph> {
                   decltype(&GetTargetNode)>;
 
   static nodes_iterator nodes_begin(const GraphVizOutputGraph &G) {
-    return const_cast<GraphVizOutputGraph&>(G).Nodes.begin();
+    return const_cast<GraphVizOutputGraph &>(G).Nodes.begin();
   }
 
   static nodes_iterator nodes_end(const GraphVizOutputGraph &G) {
-    return const_cast<GraphVizOutputGraph&>(G).Nodes.end();
+    return const_cast<GraphVizOutputGraph &>(G).Nodes.end();
   }
 
   static ChildIteratorType child_begin(NodeRef N) {
@@ -286,7 +286,7 @@ template<> struct GraphTraits<GraphVizOutputGraph> {
 
 template<> struct DOTGraphTraits<GraphVizOutputGraph>
     : public llvm::DefaultDOTGraphTraits,
-             llvm::GraphTraits<GraphVizOutputGraph> {
+      llvm::GraphTraits<GraphVizOutputGraph> {
   DOTGraphTraits(bool simple = false) : DefaultDOTGraphTraits(simple) {}
 
   std::string getNodeLabel(const DataNode<Atom *, GraphVizEdge> *Node,
