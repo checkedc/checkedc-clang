@@ -251,6 +251,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       IsIncompleteArr = Ty->isIncompleteArrayType();
 
       // Boil off the typedefs in the array case.
+      // TODO this will need to change to properly account for typedefs
       bool boiling = true;
       while (boiling) {
         if (const TypedefType *TydTy = dyn_cast<TypedefType>(Ty)) {
@@ -457,6 +458,11 @@ void PointerVariableConstraint::insertQualType(uint32_t TypeIdx,
 }
 
 
+/*
+ *   Take an array or nt_array variable, determines if it is
+ *   a constant array, and if so emits the apprioate syntax for a
+ *   stack-based array. This functions also updates various flags.
+ *   */
 bool PointerVariableConstraint::emitArraySize(std::stack<std::string> &CheckedArrs,
                                               uint32_t TypeIdx,
                                               bool &EmitName,
@@ -488,8 +494,11 @@ bool PointerVariableConstraint::emitArraySize(std::stack<std::string> &CheckedAr
 }
 
 
-void
-PointerVariableConstraint::addArrayAnnotations(
+/*  addArrayAnnotiations
+ *  This function takes all the stacked annotations for constant arrays
+ *  and pops them onto the EndStrs, this ensures the right order of annotations
+ *   */
+void PointerVariableConstraint::addArrayAnnotations(
   std::stack<std::string> &CheckedArrs,
   std::deque<std::string> &EndStrs) {
   while(!CheckedArrs.empty()) {
@@ -509,13 +518,23 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
                                     bool ForItype,
                                     bool EmitPointee) {
   std::ostringstream Ss;
+  // This deque will store all the type strings that need to pushed
+  // to the end of the type string. This is typically things like
+  // closing delimiters.
   std::deque<std::string> EndStrs;
   // This will store stacked array decls to ensure correct order
+  // We encounter constant arrays variables in the reverse order they
+  // need to appear in, so the LIFO structure reverses these annotations
   std::stack<std::string> CheckedArrs;
+  // Have we emitted the string for the base type
   bool EmittedBase = false;
+  // Have we emitted the name of the variable yet?
   bool EmittedName = false;
+  // Was the last cycle an Array?
   bool PrevArr = false;
+  // Is the entire type so far an array?
   bool AllArrays = true;
+  // Are we in a sequence of arrays
   bool ArrayRun = false;
   if ((EmitName == false && hasItype() == false) || getName() == RETVAR)
     EmittedName = true;
@@ -566,8 +585,6 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
         if (hasItype() == false) {
           EmittedBase = false;
           Ss << "_Ptr<";
-          // if (ArrayRun)
-          //   addArrayAnnotations(CheckedArrs, EndStrs);
           ArrayRun = false;
           EndStrs.push_front(">");
           break;
@@ -616,7 +633,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
       // the case where we write a pointer value.
       case Atom::A_Wild:
         AllArrays = false;
-        if(ArrayRun)
+        if (ArrayRun)
           addArrayAnnotations(CheckedArrs, EndStrs);
         ArrayRun = false;
         if (EmittedBase) {
@@ -641,9 +658,15 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
     TypeIdx++;
   }
 
+  // If the previous cycle was an array or
+  // if we are leaving an array run, we need to emit the
+  // annotation for a stack-array
   if ((PrevArr || ArrayRun) && !CheckedArrs.empty())
     addArrayAnnotations(CheckedArrs, EndStrs);
 
+  // If the whole type is an array so far, and we haven't emitted
+  // a name yet, then emit the name so that it appears before
+  // the the stack array type.
   if (PrevArr && !EmittedName && AllArrays) {
     EmittedName = true;
     EndStrs.push_front(" " + getName());
