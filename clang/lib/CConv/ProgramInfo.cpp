@@ -171,8 +171,8 @@ CAtoms getVarsFromConstraint(ConstraintVariable *V) {
    if (FVConstraint *FVC = PVC->getFV()) 
      return getVarsFromConstraint(FVC);
   } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(V)) {
-    if (FVC->getReturnVars()) {
-      CAtoms Tmp = getVarsFromConstraint(FVC->getReturnVars());
+    if (FVC->getReturnVar()) {
+      CAtoms Tmp = getVarsFromConstraint(FVC->getReturnVar());
       R.insert(R.begin(), Tmp.begin(), Tmp.end());
     }
     for (unsigned i = 0; i < FVC->numParams(); i++) {
@@ -397,9 +397,9 @@ bool ProgramInfo::link() {
       // If there was a checked type on a variable in the input program, it
       // should stay that way. Otherwise, we shouldn't be adding a checked type
       // to an extern function.
-      if (!G->getReturnVars()->getIsOriginallyChecked()) {
+      if (!G->getReturnVar()->getIsOriginallyChecked()) {
         std::string Rsn = "Return value of an external function:" + FuncName;
-        G->getReturnVars()->constrainToWild(CS, Rsn);
+        G->getReturnVar()->constrainToWild(CS, Rsn);
       }
 
       std::string rsn = "Inner pointer of a parameter to external function.";
@@ -487,15 +487,15 @@ bool ProgramInfo::insertIntoStaticFunctionMap (StaticFunctionMapType &Map,
   return RetVal;
 }
 
-bool ProgramInfo::insertNewFVConstraints(FunctionDecl *FD, FVConstraint *FVcons,
-                                         ASTContext *C) {
+bool ProgramInfo::insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
+                                        ASTContext *C) {
   bool ret = false;
   std::string FuncName = FD->getNameAsString();
   if (FD->isGlobal()) {
     // external method.
     ret = insertIntoExternalFunctionMap(ExternalFunctionFVCons,
-                                        FuncName, FVcons);
-    bool isDef = FVcons->hasBody();
+                                        FuncName, FVCon);
+    bool isDef = FVCon->hasBody();
     if (isDef) {
       ExternFunctions[FuncName] = true;
     } else {
@@ -507,7 +507,7 @@ bool ProgramInfo::insertNewFVConstraints(FunctionDecl *FD, FVConstraint *FVcons,
     auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
     std::string FuncFileName = Psl.getFileName();
     ret = insertIntoStaticFunctionMap(StaticFunctionFVCons, FuncName,
-                                      FuncFileName, FVcons);
+                                      FuncFileName, FVCon);
   }
   return ret;
 }
@@ -551,7 +551,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     FVConstraint *F = new FVConstraint(D, *this, *astContext);
     F->setValidDecl();
     /* Store the FVConstraint in the global and Variables maps */
-    insertNewFVConstraints(FD, F, astContext);
+    insertNewFVConstraint(FD, F, astContext);
     S.insert(F);
     // Add mappings from the parameters PLoc to the constraint variables for
     // the parameters.
@@ -658,7 +658,7 @@ FVConstraint *ProgramInfo::getFuncConstraints(FunctionDecl *D,
 }
 
 FVConstraint *
-    ProgramInfo::getFuncFVConstraints(FunctionDecl *FD, ASTContext *C) {
+    ProgramInfo::getFuncFVConstraint(FunctionDecl *FD, ASTContext *C) {
   std::string FuncName = FD->getNameAsString();
   FVConstraint *FunFVars = nullptr;
   if (FD->isGlobal()) {
@@ -696,12 +696,12 @@ CVarSet ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C) {
     // Get the parameter index with in the function.
     unsigned int PIdx = getParameterIndex(PD, FD);
     // Get corresponding FVConstraint vars.
-    FVConstraint *FunFVars = getFuncFVConstraints(FD, C);
+    FVConstraint *FunFVars = getFuncFVConstraint(FD, C);
     assert(FunFVars != nullptr && "Unable to find function constraints.");
     return {FunFVars->getParamVar(PIdx)};
 
   } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-    FVConstraint *FunFVars = getFuncFVConstraints(FD, C);
+    FVConstraint *FunFVars = getFuncFVConstraint(FD, C);
     if (FunFVars == nullptr) {
       llvm::errs() << "No fun constraints for " << FD->getName() << "?!\n";
     }
@@ -851,8 +851,8 @@ bool ProgramInfo::computeInterimConstraintState
         }
       }
       if (FVConstraint *FV = dyn_cast<FVConstraint>(CV)) {
-        if (FV->getReturnVars()) {
-          if (PVConstraint *RPV = dyn_cast<PVConstraint>(FV->getReturnVars())) {
+        if (FV->getReturnVar()) {
+          if (PVConstraint *RPV = dyn_cast<PVConstraint>(FV->getReturnVar())) {
             for (auto ck : RPV->getCvars()) {
               if (VarAtom *VA = dyn_cast<VarAtom>(ck)) {
                 CState.PtrSourceMap[VA->getLoc()] =

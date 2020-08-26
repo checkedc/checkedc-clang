@@ -286,7 +286,7 @@ public:
         // This is to ensure that the return type of the function is same
         // as the type of return expression.
         for (ConstraintVariable *CV : RconsVar)
-          constrainConsVarGeq(FV->getReturnVars(), CV, Info.getConstraints(),
+          constrainConsVarGeq(FV->getReturnVar(), CV, Info.getConstraints(),
                               &PL, Same_to_Same, false, &Info);
       }
     }

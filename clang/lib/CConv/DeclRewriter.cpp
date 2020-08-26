@@ -510,7 +510,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   }
 
   // Get rewritten return variable
-  auto *Defn = dyn_cast<PVConstraint>(Defnc->getReturnVars());
+  auto *Defn = dyn_cast<PVConstraint>(Defnc->getReturnVar());
 
   std::string ReturnVar = "";
   std::string ItypeStr = "";

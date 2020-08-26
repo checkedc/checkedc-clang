@@ -173,11 +173,11 @@ private:
 
   // Inserts the given FVConstraint* set into the global map, depending
   // on whether static or not; returns true on success
-  bool insertNewFVConstraints(FunctionDecl *FD, FVConstraint *FVcons,
-                              ASTContext *C);
+  bool insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
+                             ASTContext *C);
 
   // Retrieves a FVConstraint* from a Decl (which could be static, or global)
-  FVConstraint *getFuncFVConstraints(FunctionDecl *FD, ASTContext *C);
+  FVConstraint *getFuncFVConstraint(FunctionDecl *FD, ASTContext *C);
 
   // For each pointer type in the declaration of D, add a variable to the
   // constraint system for that pointer type.

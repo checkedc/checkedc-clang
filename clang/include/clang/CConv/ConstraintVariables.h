@@ -379,10 +379,10 @@ private:
   FunctionVariableConstraint(FunctionVariableConstraint *Ot,
                              Constraints &CS);
   // N constraints on the return value of the function.
-  ConstraintVariable *returnVars;
+  ConstraintVariable *ReturnVar;
   // A vector of K sets of N constraints on the parameter values, for
   // K parameters accepted by the function.
-  std::vector<ConstraintVariable *> paramVars;
+  std::vector<ConstraintVariable *> ParamVars;
   // Storing of parameters in the case of untyped prototypes
   std::vector<ParamDeferment> deferredParams;
   // File name in which this declaration is found.
@@ -410,8 +410,8 @@ public:
                              clang::DeclaratorDecl *D, std::string N,
                              ProgramInfo &I, const clang::ASTContext &C);
 
-  ConstraintVariable *getReturnVars() const {
-    return returnVars;
+  ConstraintVariable *getReturnVar() const {
+    return ReturnVar;
   }
 
   const std::vector<ParamDeferment> &getDeferredParams() const {
@@ -421,7 +421,7 @@ public:
   void addDeferredParams(PersistentSourceLoc PL,
                          std::vector<CVarSet> Ps);
 
-  size_t numParams() const { return paramVars.size(); }
+  size_t numParams() const { return ParamVars.size(); }
 
   bool hasProtoType() const { return Hasproto; }
   bool hasBody() const { return Hasbody; }
@@ -435,8 +435,8 @@ public:
   void mergeDeclaration(ConstraintVariable *FromCV, ProgramInfo &I) override;
 
   ConstraintVariable *getParamVar(unsigned i) const {
-    assert(i < paramVars.size());
-    return paramVars.at(i);
+    assert(i < ParamVars.size());
+    return ParamVars.at(i);
   }
 
   bool hasItype() const override;
@@ -465,10 +465,10 @@ public:
   // An FVConstraint is empty if every constraint associated is empty.
   bool isEmpty(void) const override {
 
-    if (returnVars != nullptr)
+    if (ReturnVar != nullptr)
       return false;
 
-    for (const auto &u : paramVars)
+    for (const auto &u : ParamVars)
       if (!u->isEmpty())
         return false;
 
