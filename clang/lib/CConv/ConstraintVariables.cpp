@@ -1126,21 +1126,6 @@ bool FunctionVariableConstraint::hasItype() const {
   return ReturnVar->hasItype();
 }
 
-static bool cvSetsSolutionEqualTo(Constraints &CS,
-                                  const CVarSet &CVS1,
-                                  const CVarSet &CVS2) {
-  bool Ret = false;
-  if (CVS1.size() == CVS2.size()) {
-    Ret = CVS1.size() <= 1;
-    if (CVS1.size() == 1) {
-     auto *CV1 = getOnly(CVS1);
-     auto *CV2 = getOnly(CVS2);
-     Ret = CV1->solutionEqualTo(CS, CV2);
-    }
-  }
-  return Ret;
-}
-
 bool FunctionVariableConstraint::
     solutionEqualTo(Constraints &CS, const ConstraintVariable *CV) const {
   bool Ret = false;
