@@ -4056,8 +4056,9 @@ namespace {
         SrcRange = BlameExpr->getSourceRange();
 
         // Choose the type of assignment E to show in the diagnostic messages
-        // from: assignment (=), decrement (--) or increment (++). These are all
-        // modifying operators that can update observed bounds.
+        // from: assignment (=), decrement (--) or increment (++). If none of
+        // these cases match, the diagnostic message reports that the error is
+        // for a statement.
         if (UnaryOperator *UO = dyn_cast<UnaryOperator>(BlameExpr)) {
           if (UO->isIncrementOp())
             BDCType = Sema::BoundsDeclarationCheck::BDC_Increment;
