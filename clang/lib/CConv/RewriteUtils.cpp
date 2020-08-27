@@ -206,8 +206,9 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 class TypeExprRewriter
     : public clang::RecursiveASTVisitor<TypeExprRewriter> {
 public:
-  explicit TypeExprRewriter(ASTContext *C, ProgramInfo &I, Rewriter &R)
-      : Context(C), Info(I) , Writer(R) {}
+  explicit TypeExprRewriter(ASTContext *C, ProgramInfo &I, Rewriter &R,
+                            std::set<FileID> &F)
+      : Context(C), Info(I), Writer(R), TouchedFiles(F) {}
 
   bool VisitCompoundLiteralExpr(CompoundLiteralExpr *CLE) {
     SourceRange TypeSrcRange(CLE->getBeginLoc().getLocWithOffset(1),
@@ -228,6 +229,7 @@ private:
   ASTContext *Context;
   ProgramInfo &Info;
   Rewriter &Writer;
+  std::set<FileID> &TouchedFiles;
 
   void rewriteType(Expr *E, SourceRange &Range) {
     CVarSet CVSingleton = Info.getPersistentConstraintVars(E, Context);
@@ -243,8 +245,10 @@ private:
           NewType = CV->mkString(Info.getConstraints().getVariables(), false);
 
       // Replace the original type with this new one
-      if (canRewrite(Writer, Range))
+      if (canRewrite(Writer, Range)) {
+        TouchedFiles.insert(getFileID(Range.getBegin(), *Context));
         Writer.ReplaceText(Range, NewType);
+      }
     }
   }
 };
@@ -255,8 +259,9 @@ private:
 class TypeArgumentAdder
   : public clang::RecursiveASTVisitor<TypeArgumentAdder> {
 public:
-  explicit TypeArgumentAdder(ASTContext *C, ProgramInfo &I, Rewriter &R)
-      : Context(C), Info(I), Writer(R) {}
+  explicit TypeArgumentAdder(ASTContext *C, ProgramInfo &I, Rewriter &R,
+                             std::set<FileID> &F)
+      : Context(C), Info(I), Writer(R), TouchedFiles(F) {}
 
   bool VisitCallExpr(CallExpr *CE) {
     if (isa_and_nonnull<FunctionDecl>(CE->getCalleeDecl())) {
@@ -286,6 +291,7 @@ public:
 
         SourceLocation TypeParamLoc = getTypeArgLocation(CE);
         Writer.InsertTextAfter(TypeParamLoc, "<" + TypeParamString + ">");
+        TouchedFiles.insert(getFileID(TypeParamLoc, *Context));
       }
     }
     return true;
@@ -295,6 +301,7 @@ private:
   ASTContext *Context;
   ProgramInfo &Info;
   Rewriter &Writer;
+  std::set<FileID> &TouchedFiles;
 
   // Attempt to find the right spot to insert the type arguments. This should be
   // directly after the name of the function being called.
@@ -377,10 +384,10 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   std::set<llvm::FoldingSetNodeID> Seen;
   std::map<llvm::FoldingSetNodeID, AnnotationNeeded> NodeMap;
   CheckedRegionFinder CRF(&Context, R, Info, Seen, NodeMap);
-  CheckedRegionAdder CRA(&Context, R, NodeMap);
-  CastPlacementVisitor ECPV(&Context, Info, R);
-  TypeExprRewriter TER(&Context, Info, R);
-  TypeArgumentAdder TPA(&Context, Info, R);
+  CheckedRegionAdder CRA(&Context, R, NodeMap, TouchedFiles);
+  CastPlacementVisitor ECPV(&Context, Info, R, TouchedFiles);
+  TypeExprRewriter TER(&Context, Info, R, TouchedFiles);
+  TypeArgumentAdder TPA(&Context, Info, R, TouchedFiles);
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   for (const auto &D : TUD->decls()) {
     if (AddCheckedRegions) {

@@ -13,6 +13,7 @@
 #include "clang/CConv/ConstraintResolver.h"
 #include "clang/CConv/CastPlacement.h"
 #include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/Utils.h"
 
 using namespace clang;
 
@@ -99,6 +100,7 @@ std::string CastPlacementVisitor::getCastString(ConstraintVariable *Src,
 
 void CastPlacementVisitor::surroundByCast(const std::string &CastPrefix,
                                           Expr *E) {
+  TouchedFiles.insert(getFileID(E->getBeginLoc(), *Context));
   // If E is already a cast expression, we will try to rewrite the cast instead
   // of adding a new expression.
   if (auto *CE = dyn_cast<CStyleCastExpr>(E->IgnoreParens())) {

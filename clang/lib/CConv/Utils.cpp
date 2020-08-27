@@ -410,3 +410,8 @@ bool isZeroBoundsExpr(BoundsExpr *BE, const ASTContext &C) {
   // and it seems unlikely to show up in real code.
   return false;
 }
+
+FileID getFileID(SourceLocation L, ASTContext &C) {
+  FullSourceLoc FSL(L, C.getSourceManager());
+  return FSL.getFileID();
+}

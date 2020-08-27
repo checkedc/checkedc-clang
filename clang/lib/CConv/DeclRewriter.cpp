@@ -137,9 +137,8 @@ void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
 
     // Get a FullSourceLoc for the start location and add it to the
     // list of file ID's we've touched.
-    SourceRange tTR = N->getDecl()->getSourceRange();
-    FullSourceLoc tFSL(tTR.getBegin(), A.getSourceManager());
-    TouchedFiles.insert(tFSL.getFileID());
+    SourceRange SR = N->getDecl()->getSourceRange();
+    TouchedFiles.insert(getFileID(SR.getBegin(), A));
 
     // Exact rewriting procedure depends on declaration type
     if (auto *PVR = dyn_cast<ParmVarDeclReplacement>(N)) {
