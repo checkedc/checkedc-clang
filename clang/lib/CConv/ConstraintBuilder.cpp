@@ -23,7 +23,7 @@ using namespace clang;
 unsigned int lastRecordLocation = -1;
 
 void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
-    ASTContext *Context, ConstraintResolver CB) {
+                       ASTContext *Context, ConstraintResolver CB, bool inFunc) {
   if (RecordDecl *Definition = Declaration->getDefinition()) {
     // store current record's location to cross-ref later in a VarDecl
     lastRecordLocation = Definition->getBeginLoc().getRawEncoding();
@@ -36,12 +36,23 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
         // We only want to re-write a record if it contains
         // any pointer types, to include array types.
         for (const auto &D : Definition->fields()) {
-          if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
-            if(FL.isInSystemHeader() || Definition->isUnion()) {
-              CVarSet C = Info.getVariable(D, Context);
-              std::string Rsn = "External struct field or union encountered";
-              CB.constraintAllCVarsToWild(C, Rsn, nullptr);
+          bool mark_wild = ((D->getType()->isPointerType() || D->getType()->isArrayType()) &&
+                            (FL.isInSystemHeader() || Definition->isUnion()));
+          if (!mark_wild && inFunc) {
+            Decl *D = Declaration->getNextDeclInContext();
+            if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
+              if (!VD->getType()->isPointerType() && !VD->getType()->isArrayType()) {
+                unsigned int BeginLoc = VD->getBeginLoc().getRawEncoding();
+                unsigned int EndLoc = VD->getEndLoc().getRawEncoding();
+                mark_wild = (lastRecordLocation >= BeginLoc &&
+                             lastRecordLocation <= EndLoc);
+              }
             }
+          }
+          if (mark_wild) {
+            CVarSet C = Info.getVariable(D, Context);
+            std::string Rsn = "External struct field or union encountered";
+            CB.constraintAllCVarsToWild(C, Rsn, nullptr);
           }
         }
       }
@@ -66,7 +77,7 @@ public:
     // Introduce variables as needed.
     for (const auto &D : S->decls()) {
       if(RecordDecl *RD = dyn_cast<RecordDecl>(D)) {
-        processRecordDecl(RD, Info, Context, CB);
+        processRecordDecl(RD, Info, Context, CB, true);
       }
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         if (VD->isLocalVarDecl()) {
@@ -459,7 +470,7 @@ public:
   }
 
   bool VisitRecordDecl(RecordDecl *Declaration) {
-    processRecordDecl(Declaration, Info, Context, CB);
+    processRecordDecl(Declaration, Info, Context, CB, false);
     return true;
   }
 
