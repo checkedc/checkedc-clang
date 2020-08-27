@@ -3689,12 +3689,7 @@ namespace {
         if (E->getType()->isStructureType()) {
           Expr *TempUse = CreateTemporaryUse(E);
           Expr *Addr = CreateAddressOfOperator(TempUse);
-          const llvm::APInt One(Context.getTargetInfo().getPointerWidth(0), 1);
-          IntegerLiteral *Size = CreateIntegerLiteral(One);
-          CountBoundsExpr *CBE = new (Context)
-              CountBoundsExpr(BoundsExpr::Kind::ElementCount, Size,
-                              SourceLocation(), SourceLocation());
-          return ExpandToRange(Addr, CBE);
+          return ExpandToRange(Addr, Context.getPrebuiltCountOne());
         }
 
         // Only expressions with array or function type can have a decayed
