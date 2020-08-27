@@ -381,6 +381,10 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   DeclRewriter::rewriteDecls(Context, Info, R, TouchedFiles);
 
   // Take care of some other rewriting tasks
+  // When adding a new rewriting pass, be sure to include a reference to
+  // TouchedFiles as field in the ASTVisitor and to insert into the set any
+  // FileIDs for any rewriting done. This ensure that all modified files are
+  // emitted correctly.
   std::set<llvm::FoldingSetNodeID> Seen;
   std::map<llvm::FoldingSetNodeID, AnnotationNeeded> NodeMap;
   CheckedRegionFinder CRF(&Context, R, Info, Seen, NodeMap);
