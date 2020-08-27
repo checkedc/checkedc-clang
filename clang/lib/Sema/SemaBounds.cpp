@@ -705,6 +705,21 @@ namespace {
       // user when diagnosing unknown bounds errors.
       llvm::DenseMap<const VarDecl *, SmallVector<Expr *, 4>> UnknownSrcBounds;
 
+      // BlameAssignments maps a variable declaration V to an expression in a
+      // top-level CFG statement that last updates any variable used in the
+      // declared bounds of V.
+      //
+      // BlameAssignments is used to provide more context for two types of
+      // diagnostic messages:
+      //   1. The compiler cannot prove or can disprove the declared bounds for
+      //   V are valid after an assignment to a variable in the bounds of V; and
+      //   2. The inferred bounds of V become unknown after an assignment to a
+      //   variable in the bounds of V.
+      //
+      // BlameAssignments is updated in UpdateAfterAssignments and reset after
+      // checking each top-level CFG statement.
+      llvm::DenseMap<const VarDecl *, Expr *> BlameAssignments;
+
       // TargetSrcEquality maps a target expression V to the most recent
       // expression Src that has been assigned to V within the current
       // top-level CFG statement.  When validating the bounds context,
@@ -718,6 +733,7 @@ namespace {
         SameValue.clear();
         LostVariables.clear();
         UnknownSrcBounds.clear();
+        BlameAssignments.clear();
         TargetSrcEquality.clear();
       }
   };
@@ -2819,8 +2835,8 @@ namespace {
         // Update the checking state and result bounds for assignments to `e1`
         // where `e1` is a variable.
         if (LHSVar)
-          ResultBounds = UpdateAfterAssignment(LHSVar, Target, Src, ResultBounds,
-                                               CSS, State, State);
+          ResultBounds = UpdateAfterAssignment(LHSVar, E, Target, Src,
+                                               ResultBounds, CSS, State, State);
         // Update EquivExprs and SameValue for assignments where `e1` is not
         // a variable.
         else
@@ -3265,8 +3281,8 @@ namespace {
           BoundsExpr *RHSBounds = RValueCastBounds(Target, SubExprTargetBounds,
                                                    SubExprLValueBounds,
                                                    SubExprBounds, State);
-          IncDecResultBounds = UpdateAfterAssignment(V, Target, RHS, RHSBounds,
-                                                     CSS, State, State);
+          IncDecResultBounds = UpdateAfterAssignment(
+              V, E, Target, RHS, RHSBounds, CSS, State, State);
         }
 
         // Update the set SameValue of expressions that produce the same
@@ -3927,13 +3943,13 @@ namespace {
     // whose observed bounds are unknown after checking the top-level CFG
     // statement St.
     //
-    // State contians information that is used to provide more context in
+    // State contains information that is used to provide more context in
     // the diagnostic messages.
     void DiagnoseUnknownObservedBounds(Stmt *St, const VarDecl *V,
                                        BoundsExpr *DeclaredBounds,
                                        CheckingState State) {
-      S.Diag(St->getBeginLoc(), diag::err_unknown_inferred_bounds)
-        << V << St->getSourceRange();
+      BlameAssignmentWithinStmt(St, V, State,
+                                diag::err_unknown_inferred_bounds);
       S.Diag(V->getLocation(), diag::note_declared_bounds)
         << DeclaredBounds << DeclaredBounds->getSourceRange();
 
@@ -4000,22 +4016,12 @@ namespace {
           return;
       }
 
-      // For a declaration, the diagnostic message should start at the
-      // location of v rather than the beginning of St.  If the message
-      // starts at the beginning of a declaration T v = e, then extra
-      // diagnostics may be emitted for T.
-      SourceLocation Loc = St->getBeginLoc();
-      if (isa<DeclStmt>(St))
-        Loc = V->getLocation();
-
       unsigned DiagId = (Result == ProofResult::False) ?
         diag::error_bounds_declaration_invalid :
         (CSS != CheckedScopeSpecifier::CSS_Unchecked?
           diag::warn_checked_scope_bounds_declaration_invalid :
           diag::warn_bounds_declaration_invalid);
-      S.Diag(Loc, DiagId)
-        << Sema::BoundsDeclarationCheck::BDC_Statement << V
-        << St->getSourceRange() << St->getSourceRange();
+      SourceLocation Loc = BlameAssignmentWithinStmt(St, V, State, DiagId);
       if (Result == ProofResult::False)
         ExplainProofFailure(Loc, Cause, ProofStmtKind::BoundsDeclaration);
       S.Diag(V->getLocation(), diag::note_declared_bounds)
@@ -4024,11 +4030,62 @@ namespace {
         << ObservedBounds << ObservedBounds->getSourceRange();
     }
 
+    // BlameAssignmentWithinStmt prints a diagnostic message that highlights the
+    // assignment expression in St that causes V's observed bounds to be unknown
+    // or not provably valid.  If St is a DeclStmt, St itself and V are
+    // highlighted.  BlameAssignmentWithinStmt returns the source location of
+    // the blamed assignment.
+    SourceLocation BlameAssignmentWithinStmt(Stmt *St, const VarDecl *V,
+                                             CheckingState State,
+                                             unsigned DiagId) const {
+      assert(St);
+      SourceRange SrcRange = St->getSourceRange();
+      auto BDCType = Sema::BoundsDeclarationCheck::BDC_Statement;
+
+      // For a declaration, show the diagnostic message that starts at the
+      // location of v rather than the beginning of St and return.  If the
+      // message starts at the beginning of a declaration T v = e, then extra
+      // diagnostics may be emitted for T.
+      SourceLocation Loc = St->getBeginLoc();
+      if (isa<DeclStmt>(St)) {
+        Loc = V->getLocation();
+        BDCType = Sema::BoundsDeclarationCheck::BDC_Initialization;
+        S.Diag(Loc, DiagId) << BDCType << V << SrcRange << SrcRange;
+        return Loc;
+      }
+
+      // If not a declaration, find the assignment (if it exists) in St to blame
+      // for the error or warning.
+      auto It = State.BlameAssignments.find(V);
+      if (It != State.BlameAssignments.end()) {
+        Expr *BlameExpr = It->second;
+        Loc = BlameExpr->getBeginLoc();
+        SrcRange = BlameExpr->getSourceRange();
+
+        // Choose the type of assignment E to show in the diagnostic messages
+        // from: assignment (=), decrement (--) or increment (++). If none of
+        // these cases match, the diagnostic message reports that the error is
+        // for a statement.
+        if (UnaryOperator *UO = dyn_cast<UnaryOperator>(BlameExpr)) {
+          if (UO->isIncrementOp())
+            BDCType = Sema::BoundsDeclarationCheck::BDC_Increment;
+          else if (UO->isDecrementOp())
+            BDCType = Sema::BoundsDeclarationCheck::BDC_Decrement;
+        } else if (isa<BinaryOperator>(BlameExpr)) {
+          // Must be an assignment or a compound assignment, because E is
+          // modifying.
+          BDCType = Sema::BoundsDeclarationCheck::BDC_Assignment;
+        }
+      }
+      S.Diag(Loc, DiagId) << BDCType << V << SrcRange << SrcRange;
+      return Loc;
+    }
+
     // Methods to update the checking state.
 
     // UpdateAfterAssignment updates the checking state after a variable V
-    // is updated in an assignment Target = Src, based on the state before
-    // the assignment.  It also returns updated bounds for Src.
+    // is updated in an assignment E of the form Target = Src, based on the
+    // state before the assignment.  It also returns updated bounds for Src.
     //
     // If V has an original value, the original value is substituted for
     // any uses of the value of V in the bounds in ObservedBounds and the
@@ -4041,8 +4098,8 @@ namespace {
     // SrcBounds are the original bounds for the source of the assignment.
     //
     // PrevState is the checking state that was true before the assignment.
-    BoundsExpr *UpdateAfterAssignment(DeclRefExpr *V, Expr *Target, Expr *Src,
-                                      BoundsExpr *SrcBounds,
+    BoundsExpr *UpdateAfterAssignment(DeclRefExpr *V, Expr *E, Expr *Target,
+                                      Expr *Src, BoundsExpr *SrcBounds,
                                       CheckedScopeSpecifier CSS,
                                       const CheckingState PrevState,
                                       CheckingState &State) {
@@ -4078,6 +4135,13 @@ namespace {
         BoundsExpr *AdjustedBounds = ReplaceVariableInBounds(Bounds, V, OriginalValue, CSS);
         if (!Pair.second->isUnknown() && AdjustedBounds->isUnknown())
           State.LostVariables[W] = std::make_pair(Bounds, V);
+
+        // If E modifies the bounds of W, add the pair to BlameAssignments.  We
+        // can check this cheaply by comparing the pointer values of
+        // AdjustedBounds and Bounds because ReplaceVariableInBounds returns
+        // Bounds as AdjustedBounds if Bounds is not adjusted.
+        if (AdjustedBounds != Bounds)
+          State.BlameAssignments[W] = E;
         State.ObservedBounds[W] = AdjustedBounds;
       }
 
@@ -4086,6 +4150,10 @@ namespace {
       BoundsExpr *AdjustedSrcBounds = ReplaceVariableInBounds(SrcBounds, V, OriginalValue, CSS);
       if (DeclaredBounds)
         State.ObservedBounds[VariableDecl] = AdjustedSrcBounds;
+
+      // Record that E updates the observed bounds of VariableDecl.
+      if (DeclaredBounds)
+        State.BlameAssignments[VariableDecl] = E;
 
       // If the initial source bounds were not unknown, but they are unknown
       // after replacing uses of V, then the assignment to V caused the

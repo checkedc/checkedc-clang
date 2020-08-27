@@ -105,7 +105,7 @@ void f6(int i) {
   char p _Nt_checked[] : bounds(p + i, p)  = "abc";
 
   if (p[0]) {
-    i = 0; // expected-error {{inferred bounds for 'p' are unknown after statement}}
+    i = 0; // expected-error {{inferred bounds for 'p' are unknown after assignment}}
     if (p[1]) {}
   }
 
@@ -212,7 +212,7 @@ void f11(int i, int j) {
   _Nt_array_ptr<char> p : bounds(p + i, p + j) = "a";
 
   if (*(p + j)) {
-    i = 0; // expected-error {{inferred bounds for 'p' are unknown after statement}}
+    i = 0; // expected-error {{inferred bounds for 'p' are unknown after assignment}}
     if (*(p + j + 1)) {}
   }
 
@@ -227,7 +227,7 @@ void f11(int i, int j) {
 // CHECK-NOT: upper_bound(p)
 
   if (*(p + j)) {
-    j = 0; // expected-error {{inferred bounds for 'p' are unknown after statement}}
+    j = 0; // expected-error {{inferred bounds for 'p' are unknown after assignment}}
     if (*(p + j + 1)) {}
   }
 
@@ -469,7 +469,7 @@ void f19() {
 
 void f20() {
   // Declared bounds and deref offset are both INT_MAX. Valid widening.
-  _Nt_array_ptr<char> p : count(INT_MAX) = "";      // expected-error {{declared bounds for 'p' are invalid after statement}}
+  _Nt_array_ptr<char> p : count(INT_MAX) = "";      // expected-error {{declared bounds for 'p' are invalid after initialization}}
   if (*(p + INT_MAX))
   {}
 
@@ -525,7 +525,7 @@ void f20() {
 // CHECK: upper_bound(t) = 1
 
   // Declared bounds and deref offset are both (INT_MIN + -1). Integer underflow. No widening.
-  _Nt_array_ptr<char> u : count(INT_MIN + -1) = ""; // expected-error {{declared bounds for 'u' are invalid after statement}}
+  _Nt_array_ptr<char> u : count(INT_MIN + -1) = ""; // expected-error {{declared bounds for 'u' are invalid after initialization}}
   if (*(u + INT_MIN + -1))
   {}
 
