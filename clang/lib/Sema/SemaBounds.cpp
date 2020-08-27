@@ -3692,9 +3692,9 @@ namespace {
           return ExpandToRange(Addr, Context.getPrebuiltCountOne());
         }
 
-        // Only expressions with array or function type can have a decayed
-        // type, which is used to create the lvalue bounds.
-        if (E->getType()->isArrayType() || E->getType()->isFunctionType()) {
+        // The lvalue bounds of an array-typed compound literal expression e
+        // are based on the dimension size of e.
+        if (E->getType()->isArrayType()) {
           BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
           QualType PtrType = Context.getDecayedType(E->getType());
           Expr *ArrLValue = CreateTemporaryUse(E);
