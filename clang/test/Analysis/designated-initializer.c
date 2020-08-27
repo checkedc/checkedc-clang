@@ -33,9 +33,9 @@ void test() {
 // CHECK:  13: 2
 // CHECK:  14: /*implicit*/(int)0
 // CHECK:  15: {[B1.12], [B1.13]}
-// CHECK:  18: /*no init*/
 // CHECK:  19: /*no init*/
-// CHECK:  20: 3
-// CHECK:  21: {[B1.18], [B1.19], [B1.20]}
-// CHECK:  22: {/*base*/[B1.17], /*updater*/[B1.21]} 
-// CHECK:  24: struct Q s[] = {[0] = (struct Q){1, 2}, [0].c = 3};
+// CHECK:  20: /*no init*/
+// CHECK:  21: 3
+// CHECK:  22: {[B1.19], [B1.20], [B1.21]}
+// CHECK:  23: {/*base*/[B1.18], /*updater*/[B1.22]} 
+// CHECK:  25: struct Q s[] = {[0] = (struct Q){1, 2}, [0].c = 3};

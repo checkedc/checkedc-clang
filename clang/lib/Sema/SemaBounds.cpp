@@ -3684,21 +3684,28 @@ namespace {
       Expr *SubExpr = E->getSubExpr()->IgnoreParens();
 
       if (isa<CompoundLiteralExpr>(SubExpr)) {
-        // Only expressions with array or function type can have a decayed
-        // type, which is used to create the lvalue bounds.  Compound literals
-        // with non-array, non-function types do not have lvalue bounds.
-        // TODO: checkedc-clang issue #870: bind all compound literals to
-        // temporaries and infer lvalue bounds for struct compound literals.
-        if (!(E->getType()->isArrayType() || E->getType()->isFunctionType()))
-          return CreateBoundsAlwaysUnknown();
+        // The lvalue bounds of a struct-typed compound literal expression e
+        // are bounds(&value(temp(e), &value(temp(e)) + 1).
+        if (E->getType()->isStructureType()) {
+          Expr *TempUse = CreateTemporaryUse(E);
+          Expr *Addr = CreateAddressOfOperator(TempUse);
+          return ExpandToRange(Addr, Context.getPrebuiltCountOne());
+        }
 
-        BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
-        QualType PtrType = Context.getDecayedType(E->getType());
-        Expr *ArrLValue = CreateTemporaryUse(E);
-        Expr *Base = CreateImplicitCast(PtrType,
-                                        CastKind::CK_ArrayToPointerDecay,
-                                        ArrLValue);
-        return ExpandToRange(Base, BE);
+        // The lvalue bounds of an array-typed compound literal expression e
+        // are based on the dimension size of e.
+        if (E->getType()->isArrayType()) {
+          BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
+          QualType PtrType = Context.getDecayedType(E->getType());
+          Expr *ArrLValue = CreateTemporaryUse(E);
+          Expr *Base = CreateImplicitCast(PtrType,
+                                          CastKind::CK_ArrayToPointerDecay,
+                                          ArrLValue);
+          return ExpandToRange(Base, BE);
+        }
+
+        // All other types of compound literals do not have lvalue bounds.
+        return CreateBoundsAlwaysUnknown();
       }
 
       if (auto *SL = dyn_cast<StringLiteral>(SubExpr))
