@@ -11,6 +11,8 @@
 // This line is for the clang test infrastructure:
 // RUN: %clang_cc1 -fcheckedc-extension -verify -verify-ignore-unexpected=warning -verify-ignore-unexpected=note -fdump-inferred-bounds %s | FileCheck %s --dump-input=always
 
+// expected-no-diagnostics
+
 struct S {
   int i;
   _Ptr<int> p;
@@ -110,14 +112,13 @@ void f2(_Array_ptr<struct S> arr : count(1), struct S s) {
   // CHECK:  `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
 
   // Target LHS bounds: bounds(arr, arr + 1)
-  // Inferred RHS bounds: invalid
-  // TODO: checkedc-clang issue #870: once struct-typed compound literals are bound to temporaries,
-  // the inferred RHS bounds should be bounds(&temp((struct S){ 0 }), &temp((struct S){ 0 }) + 1)
-  arr = &(struct S){ 0 }; // expected-error {{inferred bounds for 'arr' are unknown after assignment}}
+  // Inferred RHS bounds: bounds(&value(temp((struct S){ 0 })), &value(temp((struct S){ 0 })) + 1)
+  arr = &(struct S){ 0 };
   // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<struct S>' '='
   // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'arr' '_Array_ptr<struct S>'
   // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <BitCast>
   // CHECK:  `-UnaryOperator {{0x[0-9a-f]+}} 'struct S *' prefix '&' cannot overflow
+  // CHECK:  `-CHKCBindTemporaryExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
   // CHECK:  `-CompoundLiteralExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
   // CHECK:  `-InitListExpr {{0x[0-9a-f]+}} 'struct S':'struct S'
   // CHECK:  |-IntegerLiteral {{0x[0-9a-f]+}} 'int' 0
@@ -132,5 +133,11 @@ void f2(_Array_ptr<struct S> arr : count(1), struct S s) {
   // CHECK:  | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'arr' '_Array_ptr<struct S>'
   // CHECK:  `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
   // CHECK: RHS Bounds:
-  // CHECK:  NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
+  // CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+  // CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<struct S>' prefix '&' cannot overflow
+  // CHECK: | `-BoundsValueExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue _BoundTemporary
+  // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<struct S>' '+'
+  // CHECK:  |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<struct S>' prefix '&' cannot overflow
+  // CHECK:  | `-BoundsValueExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue _BoundTemporary
+  // CHECK:  `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
 }
