@@ -35,24 +35,36 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
       if (FE && FE->isValid()) {
         // We only want to re-write a record if it contains
         // any pointer types, to include array types.
-        for (const auto &D : Definition->fields()) {
-          bool mark_wild = ((D->getType()->isPointerType()
-                             || D->getType()->isArrayType()) &&
-                            (FL.isInSystemHeader() || Definition->isUnion()));
-          if (!mark_wild && inFunc) {
-            Decl *D = Declaration->getNextDeclInContext();
-            if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-              if (!VD->getType()->isPointerType()
-                  && !VD->getType()->isArrayType() && !VD->hasInit()) {
-                unsigned int BeginLoc = VD->getBeginLoc().getRawEncoding();
-                unsigned int EndLoc = VD->getEndLoc().getRawEncoding();
-                mark_wild = (lastRecordLocation >= BeginLoc &&
-                             lastRecordLocation <= EndLoc);
-              }
+        for (const auto &F : Definition->fields()) {
+          // A boolean to indicate whether the fields of the struct should
+          // be made wild.
+          auto FieldTy = F->getType();
+          // If the RecordDecl is a union and this field is a
+          // pointer, we need to mark it wild;
+          bool in_union = (FL.isInSystemHeader() || Definition->isUnion()) &&
+                          (FieldTy->isPointerType() || FieldTy->isArrayType());
+
+          // Another reason to make fields wild is if we have a non-ptr
+          // inline struct within a function with no initializer, because
+          // this breaks rewriting. Detect this by examining the location
+          // of the VarDecl (if any) that follows the RecordDecl
+          bool inlinestruct = false;
+          Decl *D = Declaration->getNextDeclInContext();
+          if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
+            auto VarTy = VD->getType();
+            // ensure that the variable is not a pointer type and that
+            // it does not have an initializer.
+            if(!(VarTy->isPointerType() || VarTy->isArrayType())
+                && !VD->hasInit()) {
+              unsigned int BeginLoc = VD->getBeginLoc().getRawEncoding();
+              unsigned int EndLoc = VD->getEndLoc().getRawEncoding();
+              inlinestruct = lastRecordLocation >= BeginLoc &&
+                             lastRecordLocation <= EndLoc && inFunc;
             }
           }
-          if (mark_wild) {
-            CVarSet C = Info.getVariable(D, Context);
+          // mark field wild if the above is true
+          if (in_union || inlinestruct) {
+            CVarSet C = Info.getVariable(F, Context);
             std::string Rsn = "External struct field or union encountered";
             CB.constraintAllCVarsToWild(C, Rsn, nullptr);
           }
