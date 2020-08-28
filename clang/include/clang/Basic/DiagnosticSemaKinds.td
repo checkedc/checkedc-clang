@@ -10173,7 +10173,7 @@ def err_bounds_type_annotation_lost_checking : Error<
     InGroup<CheckBoundsDeclsChecked>;
 
   def error_bounds_declaration_unprovable : Error<
-    "it is impossible to prove that the inferred bounds of %1 "
+    "it is not possible to prove that the inferred bounds of %1 "
     "imply the declared bounds of %1 after "
     "%select{assignment|decrement|increment|initialization|statement}0">;
 
@@ -10218,8 +10218,8 @@ def err_bounds_type_annotation_lost_checking : Error<
    "argument must be a non-modifying expression because %ordinal0 parameter "
    "is used in a bounds expression">;
 
-  def error_argument_bounds_unprovable : Warning<
-    "it is impossible to prove argument meets declared bounds for %ordinal0 parameter">;
+  def error_argument_bounds_unprovable : Error<
+    "it is not possible to prove argument meets declared bounds for %ordinal0 parameter">;
 
   def warn_argument_bounds_invalid : Warning<
     "cannot prove argument meets declared bounds for %ordinal0 parameter">,
@@ -10248,7 +10248,7 @@ def err_bounds_type_annotation_lost_checking : Error<
     "cast source bounds are too narrow for %0">;
 
   def error_static_cast_bounds_unprovable : Error<
-    "it is impossible to prove cast source bounds are wide enough for %0">;
+    "it is not possible to prove cast source bounds are wide enough for %0">;
 
   def error_out_of_bounds_access : Error<
     "out-of-bounds %select{||memory access|base value}0">;

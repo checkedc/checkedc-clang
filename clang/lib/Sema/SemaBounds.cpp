@@ -579,7 +579,9 @@ bool EqualExprsContainsExpr(Sema &S, const EqualExprTy Exprs, Expr *E,
   return false;
 }
 
-// Helper class for collecting a vector of unique variables from an expression.
+// Helper class for collecting a vector of unique variables as rvalues from an
+// expression. We collect rvalues because CheckingState.EquivExprSet uses
+// rvalues to check equality.
 class CollectVariableSetHelper
     : public RecursiveASTVisitor<CollectVariableSetHelper> {
 private:
@@ -592,16 +594,19 @@ public:
 
   const EqualExprTy &GetVariableList() const { return VariableList; }
 
-  bool VisitImplicitCastExpr(ImplicitCastExpr *E) {
-    if (isa<DeclRefExpr>(E->getSubExpr()) &&
-        !EqualExprsContainsExpr(SemaRef, VariableList, E, nullptr))
-      VariableList.push_back(E);
-    return false;
+  bool VisitDeclRefExpr(DeclRefExpr *E) {
+    ImplicitCastExpr *CastExpr = ExprCreatorUtil::CreateImplicitCast(
+        SemaRef, E, CK_LValueToRValue, E->getType());
+    if (!EqualExprsContainsExpr(SemaRef, VariableList, CastExpr, nullptr)) {
+      VariableList.push_back(CastExpr);
+    }
+
+    return true;
   }
 
-  bool VisitMemberExpr(MemberExpr* E) {
+  /*bool VisitMemberExpr(MemberExpr* E) {
     return false;
-  }
+  }*/
 };
 
 EqualExprTy CollectVariableSet(Sema &SemaRef, Expr *E) {
@@ -701,30 +706,30 @@ namespace {
   // expressions that produce the same value as e.
   using ExprEqualMapTy = llvm::DenseMap<Expr *, EqualExprTy>;
 
-  // Describes the location of a free variable (FR).
-  enum class FreeVariablePosition {
+  // Describes the position of a free variable (FR).
+  enum class FVPos {
     Lower = 0x1,    // The FR appears in (any) lower bounds.
     Upper = 0x2,    // The FR appears in (any) upper bounds.
-    Both = Lower | Upper, // The FR appears in (any) base bounds.
+    Base = Lower | Upper, // The FR appears in (any) base bounds.
     Observed = 0x4, // The FR appears in the observed bounds.
     ObservedLower =
         Observed | Lower, // The FR appears in the observed lower bounds.
     ObservedUpper =
         Observed | Upper, // The FR appears in the observed upper bounds.
-    ObservedBoth = Observed | Both, // The FR appears in the observed base.
+    ObservedBase = Observed | Base, // The FR appears in the observed base.
     Declared = 0x8,            // The FR appears in the declared bounds.
     DeclaredLower =
         Declared | Lower, // The FR appears in the declared lower bounds
     DeclaredUpper =
         Declared | Upper, // The FR appears in the declared lower bounds
-    DeclaredBoth = Declared | Both, // The FR appears in the declared base.
+    DeclaredBase = Declared | Base, // The FR appears in the declared base.
   };
 
   // FreeVariableListTy denotes a vector of <free variable, poaision> pairs, and
   // represents a list of free variables and their positions w.r.t. the observed
   // and declared bounds.
   using FreeVariableListTy =
-      SmallVector<std::pair<Expr *, FreeVariablePosition>, 4>;
+      SmallVector<std::pair<Expr *, FVPos>, 4>;
 
   // CheckingState stores the outputs of bounds checking methods.
   // These members represent the state during bounds checking
@@ -1151,7 +1156,7 @@ namespace {
     enum class BoundsComponent {
         Lower,
         Upper,
-        Both
+        Base
     };
 
     // Combine proof failure codes.
@@ -1168,15 +1173,15 @@ namespace {
     }
 
     // Combine free variable positions.
-    static constexpr FreeVariablePosition
-    CombineFRPosition(FreeVariablePosition A, FreeVariablePosition B) {
-      return static_cast<FreeVariablePosition>(static_cast<unsigned>(A) |
+    static constexpr FVPos
+    CombineFRPosition(FVPos A, FVPos B) {
+      return static_cast<FVPos>(static_cast<unsigned>(A) |
                                                static_cast<unsigned>(B));
     }
 
     // Check that all the free variable positions in "Test" are in A.
-    static constexpr bool TestFRPosition(FreeVariablePosition A,
-                                         FreeVariablePosition Test) {
+    static constexpr bool TestFRPosition(FVPos A,
+                                         FVPos Test) {
       return ((static_cast<unsigned>(A) & static_cast<unsigned>(Test)) ==
               static_cast<unsigned>(Test));
     }
@@ -1265,10 +1270,11 @@ namespace {
         return ProofResult::Maybe;
       }
 
-      ProofResult InRangeWithFreeVars(BaseRange &R, ProofFailure &Cause,
+      ProofResult
+      InRangeWithFreeVars(BaseRange &R, ProofFailure &Cause,
                           EquivExprSets *EquivExprs,
                           std::pair<ComparisonSet, ComparisonSet> &Facts,
-                          FreeVariableListTy &FreeVars) {
+                          FreeVariableListTy &FreeVariables) {
         // We will warn on declaration of Invalid ranges (upperBound <
         // lowerBound). The following cases are handled by the callers of this
         // function:
@@ -1280,9 +1286,9 @@ namespace {
 
         if (EqualValue(S.Context, Base, R.Base, EquivExprs)) {
           ProofResult LowerBoundsResult =
-              CompareLowerOffsets(R, Cause, EquivExprs, Facts, FreeVars);
+              CompareLowerOffsets(R, Cause, EquivExprs, Facts, FreeVariables);
           ProofResult UpperBoundsResult =
-              CompareUpperOffsets(R, Cause, EquivExprs, Facts, FreeVars);
+              CompareUpperOffsets(R, Cause, EquivExprs, Facts, FreeVariables);
 
           if (LowerBoundsResult == ProofResult::True &&
               UpperBoundsResult == ProofResult::True)
@@ -1290,21 +1296,11 @@ namespace {
           if (LowerBoundsResult == ProofResult::False ||
               UpperBoundsResult == ProofResult::False)
             return ProofResult::False;
-        } else {
-          ProofResult Result = ProofResult::Maybe;
-          if (CheckFreeVariables(
-                  S, R.Base, Base, EquivExprs,
-                  FreeVariablePosition::DeclaredBoth, FreeVars)) {
-            Result = ProofResult::False;
-            Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
-          }
-          if (CheckFreeVariables(
-                  S, Base, R.Base, EquivExprs,
-                  FreeVariablePosition::ObservedBoth, FreeVars)) {
-            Result = ProofResult::False;
-            Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
-          }
-          return Result;
+        } else if (CheckFreeVarInExprs(S, R.Base, Base, FVPos::DeclaredBase,
+                                       FVPos::ObservedBase, EquivExprs,
+                                       FreeVariables)) {
+          Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
+          return ProofResult::False;
         }
         return ProofResult::Maybe;
       }
@@ -1342,30 +1338,6 @@ namespace {
         return ProofResult::Maybe;
       }
 
-      ProofResult
-      CompareLowerOffsets(BaseRange &R, ProofFailure &Cause,
-                          EquivExprSets *EquivExprs,
-                          std::pair<ComparisonSet, ComparisonSet> &Facts,
-                          FreeVariableListTy &FreeVariables) {
-        ProofResult Result = CompareLowerOffsetsImpl(R, Cause, EquivExprs, Facts);
-        if (Result != ProofResult::Maybe)
-          return Result;
-
-        if (CheckFreeVariables(S, R.LowerOffsetVariable, LowerOffsetVariable,
-                               EquivExprs, FreeVariablePosition::DeclaredLower,
-                               FreeVariables)) {
-          Result = ProofResult::False;
-          Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
-        }
-        if (CheckFreeVariables(S, LowerOffsetVariable, R.LowerOffsetVariable,
-                               EquivExprs, FreeVariablePosition::ObservedLower,
-                               FreeVariables)) {
-          Result = ProofResult::False;
-          Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
-        }
-        return Result;
-      }
-
       // This function proves whether R.UpperOffset <= this.UpperOffset.
       // Depending on whether these upper offsets are ConstantSized or VariableSized, various cases should be checked:
       // - If `this` and `R` both have constant upper offsets (i.e., if the following condition holds:
@@ -1400,6 +1372,26 @@ namespace {
       }
 
       ProofResult
+      CompareLowerOffsets(BaseRange &R, ProofFailure &Cause,
+                          EquivExprSets *EquivExprs,
+                          std::pair<ComparisonSet, ComparisonSet> &Facts,
+                          FreeVariableListTy &FreeVariables) {
+        ProofResult Result =
+            CompareLowerOffsetsImpl(R, Cause, EquivExprs, Facts);
+        if (Result != ProofResult::Maybe)
+          return Result;
+
+        if (CheckFreeVarInExprs(S, R.LowerOffsetVariable, LowerOffsetVariable,
+                                FVPos::DeclaredLower, FVPos::ObservedLower,
+                                EquivExprs, FreeVariables)) {
+          Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
+          return ProofResult::False;
+        }
+
+        return ProofResult::Maybe;
+      }
+
+      ProofResult
       CompareUpperOffsets(BaseRange &R, ProofFailure &Cause,
                           EquivExprSets *EquivExprs,
                           std::pair<ComparisonSet, ComparisonSet> &Facts,
@@ -1409,30 +1401,14 @@ namespace {
         if (Result != ProofResult::Maybe)
           return Result;
 
-        if (CheckFreeVariables(S, R.UpperOffsetVariable, UpperOffsetVariable,
-                               EquivExprs, FreeVariablePosition::DeclaredUpper,
-                               FreeVariables)) {
-          Result = ProofResult::False;
+        if (CheckFreeVarInExprs(S, R.UpperOffsetVariable, UpperOffsetVariable,
+                                FVPos::DeclaredUpper, FVPos::ObservedUpper,
+                                EquivExprs, FreeVariables)) {
           Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
+          return ProofResult::False;
         }
-        if (CheckFreeVariables(S, UpperOffsetVariable, R.UpperOffsetVariable,
-                               EquivExprs, FreeVariablePosition::ObservedUpper,
-                               FreeVariables)) {
-          Result = ProofResult::False;
-          Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
-        }
-        return Result;
-      }
 
-      static bool CheckFreeVariables(Sema &S, Expr *Src, Expr *Dst,
-                                     EquivExprSets *EquivExprs,
-                                     FreeVariablePosition Pos,
-                                     FreeVariableListTy &FreeVars) {
-        EqualExprTy SrcFreeVars = CollectVariableSet(S, Src);
-        EqualExprTy DstFreeVars = CollectVariableSet(S, Dst);
-
-        return CombineFreeVariables(S, SrcFreeVars, DstFreeVars, EquivExprs, Pos,
-                                    FreeVars);
+        return ProofResult::Maybe;
       }
 
       // GetFreeVariables gathers "free variables" in SrcVars.
@@ -1474,18 +1450,37 @@ namespace {
         return HasFreeVariables;
       }
 
+      // Check free variables between E1 and E2. Append any found free variables
+      // to FreeVars with each free variable in E1 (resp. E2) having Pos1 (resp.
+      // Pos2).
+      static bool CheckFreeVarInExprs(Sema &S, Expr *E1, Expr *E2, FVPos Pos1,
+                                      FVPos Pos2, EquivExprSets *EquivExprs,
+                                      FreeVariableListTy &FreeVars) {
+        // Do not check free variables in bounds that contain indirect accesses.
+        if ((E1 && ReadsMemoryViaPointer(E1)) || (E2 && ReadsMemoryViaPointer(E2)))
+          return false;
+
+        bool HasFreeVariables = false;
+        EqualExprTy Vars1 = CollectVariableSet(S, E1);
+        EqualExprTy Vars2 = CollectVariableSet(S, E2);
+
+        if (CombineFreeVariables(S, Vars1, Vars2, EquivExprs, Pos1, FreeVars))
+          HasFreeVariables = true;
+
+        if (CombineFreeVariables(S, Vars2, Vars1, EquivExprs, Pos2, FreeVars))
+          HasFreeVariables = true;
+
+        return HasFreeVariables;
+      }
+
       static bool
       CombineFreeVariables(Sema &S, const EqualExprTy &SrcVars,
                            const EqualExprTy &DstVars,
-                           EquivExprSets *EquivExprs, FreeVariablePosition Pos,
+                           EquivExprSets *EquivExprs, FVPos Pos,
                            FreeVariableListTy &FreeVariablesWithPos) {
         EqualExprTy FreeVariables;
         if (GetFreeVariables(S, SrcVars, DstVars, EquivExprs, FreeVariables)) {
           for (const auto V : FreeVariables) {
-            for (auto &Pair : FreeVariablesWithPos) {
-              if (EqualValue(S.Context, V, Pair.first, nullptr))
-                Pair.second = CombineFRPosition(Pair.second, Pos);
-            }
             FreeVariablesWithPos.push_back(std::make_pair(V, Pos));
           }
           return true;
@@ -2136,14 +2131,14 @@ namespace {
     void DiagnoseFreeVariables(SourceLocation Loc,
                                FreeVariableListTy &FreeVars) {
       for (const auto &Pair : FreeVars) {
-        unsigned DiagId = TestFRPosition(Pair.second, FreeVariablePosition::Declared) 
+        unsigned DiagId = TestFRPosition(Pair.second, FVPos::Declared) 
             ? diag::note_free_variable_in_declared_bounds
             : diag::note_free_variable_in_inferred_bounds;
 
         unsigned LowerOrUpper =
-            TestFRPosition(Pair.second, FreeVariablePosition::Both)
-                ? (unsigned)BoundsComponent::Both
-                : (TestFRPosition(Pair.second, FreeVariablePosition::Lower)
+            TestFRPosition(Pair.second, FVPos::Base)
+                ? (unsigned)BoundsComponent::Base
+                : (TestFRPosition(Pair.second, FVPos::Lower)
                        ? (unsigned)BoundsComponent::Lower
                        : (unsigned)BoundsComponent::Upper);
         S.Diag(Loc, DiagId) << LowerOrUpper << Pair.first;
@@ -5259,7 +5254,7 @@ namespace {
     // if e is or contains a pointer dereference, member reference, or
     // indirect member reference (including e1.f which may not read memory
     // via a pointer).
-    bool ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs = false) {
+    static bool ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs = false) {
       E = E->IgnoreParens();
 
       switch (E->getStmtClass()) {

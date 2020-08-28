@@ -366,7 +366,7 @@ _Array_ptr<int> f51(unsigned num) {
 }
 
 _Array_ptr<int> f52(unsigned num1, unsigned num2){
-  _Array_ptr<int> p : count(num1) = test_f50(num2); // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}} \
+  _Array_ptr<int> p : count(num1) = test_f50(num2); // expected-error {{it is impossible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}} \
                                                     // expected-note {{(expanded) declared bounds are 'bounds(p, p + num1)'}} \
                                                     // expected-note {{(expanded) inferred bounds are 'bounds(value of test_f50(num2), value of test_f50(num2) + num2)'}}
   return p;
@@ -380,7 +380,7 @@ _Array_ptr<int> f54(unsigned num) {
 }
 
 _Array_ptr<int> f55(unsigned num1, unsigned num2){
-  _Array_ptr<int> p : byte_count(num1) = test_f53(num2); // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}} \
+  _Array_ptr<int> p : byte_count(num1) = test_f53(num2); // expected-error {{it is impossible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}} \
                                                          // expected-note {{(expanded) declared bounds are 'bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + num1)'}} \
                                                          // expected-note {{inferred bounds are 'bounds((_Array_ptr<char>)value of test_f53(num2), (_Array_ptr<char>)value of test_f53(num2) + num2)'}}
   return p;
@@ -390,14 +390,14 @@ _Array_ptr<int> test_f70(int c) : byte_count(c);
 _Nt_array_ptr<int> test_f70_n(int c) : byte_count(c);
 
 _Array_ptr<int> f70(int num){
-  _Array_ptr<int> p : byte_count(0) = test_f70(num); // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}} \
+  _Array_ptr<int> p : byte_count(0) = test_f70(num); // expected-error {{it is impossible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}} \
                                                      // expected-note {{declared bounds are 'bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + 0)'}} \
                                                      // expected-note {{inferred bounds are 'bounds((_Array_ptr<char>)value of test_f70(num), (_Array_ptr<char>)value of test_f70(num) + num)'}}
   return p;
 }
 
 _Nt_array_ptr<int> f70_n(int num){
-  _Nt_array_ptr<int> p : byte_count(0) = test_f70_n(num); // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}} \
+  _Nt_array_ptr<int> p : byte_count(0) = test_f70_n(num); // expected-error {{it is impossible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}} \
                                                           // expected-note {{(expanded) declared bounds are 'bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + 0)'}} \
                                                           // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of test_f70_n(num), (_Array_ptr<char>)value of test_f70_n(num) + num)'}}
   return p;
@@ -560,7 +560,7 @@ void a_f_11_u(void) {
 static _Array_ptr<char> x1 : count(k); // expected-note {{(expanded) declared bounds are 'bounds(x1, x1 + k)'}}
 static _Array_ptr<char> x2 : count(3);
 void a_f_12(void) {
-  x1 = simulate_calloc<char>(32768, sizeof(char)); // expected-warning {{cannot prove declared bounds for 'x1' are valid after assignment}} \
+  x1 = simulate_calloc<char>(32768, sizeof(char)); // expected-error {{it is impossible to prove that the inferred bounds of 'x1' imply the declared bounds of 'x1' after assignment}} \
                                                    // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_calloc(32768, sizeof(char)), (_Array_ptr<char>)value of simulate_calloc(32768, sizeof(char)) + (size_t)32768 * sizeof(char))'}}
   x2 = simulate_calloc<char>(3, sizeof(char));
 }
