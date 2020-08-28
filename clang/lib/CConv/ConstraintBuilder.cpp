@@ -54,15 +54,10 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
           // If the RecordDecl is a union or in a system header
           // and this field is a pointer, we need to mark it wild;
           bool FieldInUnionOrSysHeader =
-              (FL.isInSystemHeader() || Definition->isUnion()) &&
-              (FieldTy->isPointerType() || FieldTy->isArrayType());
-          // If the RecordDecl is an inline struct within a function
-          bool FieldInInlineStruct =
-              IsInLineStruct &&
-              (FieldTy->isPointerType() || FieldTy->isArrayType());
+              (FL.isInSystemHeader() || Definition->isUnion());
           // mark field wild if the above is true and the field is a pointer
           if ((FieldTy->isPointerType() || FieldTy->isArrayType()) &&
-              (FieldInUnionOrSysHeader || FieldInInlineStruct)) {
+              (FieldInUnionOrSysHeader || IsInLineStruct)) {
             CVarSet C = Info.getVariable(F, Context);
             std::string Rsn = "External struct field or union encountered";
             CB.constraintAllCVarsToWild(C, Rsn, nullptr);
