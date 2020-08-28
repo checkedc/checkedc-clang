@@ -36,12 +36,14 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
         // We only want to re-write a record if it contains
         // any pointer types, to include array types.
         for (const auto &D : Definition->fields()) {
-          bool mark_wild = ((D->getType()->isPointerType() || D->getType()->isArrayType()) &&
+          bool mark_wild = ((D->getType()->isPointerType()
+                             || D->getType()->isArrayType()) &&
                             (FL.isInSystemHeader() || Definition->isUnion()));
           if (!mark_wild && inFunc) {
             Decl *D = Declaration->getNextDeclInContext();
             if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-              if (!VD->getType()->isPointerType() && !VD->getType()->isArrayType()) {
+              if (!VD->getType()->isPointerType()
+                  && !VD->getType()->isArrayType() && !VD->hasInit()) {
                 unsigned int BeginLoc = VD->getBeginLoc().getRawEncoding();
                 unsigned int EndLoc = VD->getEndLoc().getRawEncoding();
                 mark_wild = (lastRecordLocation >= BeginLoc &&
