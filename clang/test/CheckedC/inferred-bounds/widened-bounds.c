@@ -1244,7 +1244,7 @@ void f33() {
 
 void f34(_Nt_array_ptr<char> p : count(i), int i, int flag) {
   if (*(p + i)) {
-    flag ? i++ : i;  // expected-error {{inferred bounds for 'p' are unknown after statement}}
+    flag ? i++ : i;  // expected-error {{inferred bounds for 'p' are unknown after increment}}
 
     if (*(p + i + 1))
     {}
