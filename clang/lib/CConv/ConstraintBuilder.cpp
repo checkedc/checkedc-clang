@@ -23,7 +23,8 @@ using namespace clang;
 unsigned int lastRecordLocation = -1;
 
 void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
-    ASTContext *Context, ConstraintResolver CB) {
+                       ASTContext *Context, ConstraintResolver CB,
+                       bool IsInFunction) {
   if (RecordDecl *Definition = Declaration->getDefinition()) {
     // store current record's location to cross-ref later in a VarDecl
     lastRecordLocation = Definition->getBeginLoc().getRawEncoding();
@@ -32,16 +33,34 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
       SourceManager &SM = Context->getSourceManager();
       FileID FID = FL.getFileID();
       const FileEntry *FE = SM.getFileEntryForID(FID);
+
+      //detect whether this RecordDecl is part of an inline struct
+      bool IsInLineStruct = false;
+      Decl *D = Declaration->getNextDeclInContext();
+      if (VarDecl *VD = dyn_cast_or_null<VarDecl>(D)) {
+        auto VarTy = VD->getType();
+        unsigned int BeginLoc = VD->getBeginLoc().getRawEncoding();
+        unsigned int EndLoc = VD->getEndLoc().getRawEncoding();
+        IsInLineStruct = !(VarTy->isPointerType() || VarTy->isArrayType()) &&
+                         !VD->hasInit() &&
+                         lastRecordLocation >= BeginLoc &&
+                         lastRecordLocation <= EndLoc;
+      }
       if (FE && FE->isValid()) {
         // We only want to re-write a record if it contains
         // any pointer types, to include array types.
-        for (const auto &D : Definition->fields()) {
-          if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
-            if(FL.isInSystemHeader() || Definition->isUnion()) {
-              CVarSet C = Info.getVariable(D, Context);
-              std::string Rsn = "External struct field or union encountered";
-              CB.constraintAllCVarsToWild(C, Rsn, nullptr);
-            }
+        for (const auto &F : Definition->fields()) {
+          auto FieldTy = F->getType();
+          // If the RecordDecl is a union or in a system header
+          // and this field is a pointer, we need to mark it wild;
+          bool FieldInUnionOrSysHeader =
+              (FL.isInSystemHeader() || Definition->isUnion());
+          // mark field wild if the above is true and the field is a pointer
+          if ((FieldTy->isPointerType() || FieldTy->isArrayType()) &&
+              (FieldInUnionOrSysHeader || IsInLineStruct)) {
+            CVarSet C = Info.getVariable(F, Context);
+            std::string Rsn = "External struct field or union encountered";
+            CB.constraintAllCVarsToWild(C, Rsn, nullptr);
           }
         }
       }
@@ -66,7 +85,7 @@ public:
     // Introduce variables as needed.
     for (const auto &D : S->decls()) {
       if(RecordDecl *RD = dyn_cast<RecordDecl>(D)) {
-        processRecordDecl(RD, Info, Context, CB);
+        processRecordDecl(RD, Info, Context, CB, true);
       }
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         if (VD->isLocalVarDecl()) {
@@ -459,7 +478,7 @@ public:
   }
 
   bool VisitRecordDecl(RecordDecl *Declaration) {
-    processRecordDecl(Declaration, Info, Context, CB);
+    processRecordDecl(Declaration, Info, Context, CB, false);
     return true;
   }
 
