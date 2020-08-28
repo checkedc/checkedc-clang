@@ -23,7 +23,8 @@ using namespace clang;
 unsigned int lastRecordLocation = -1;
 
 void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
-                       ASTContext *Context, ConstraintResolver CB, bool inFunc) {
+                       ASTContext *Context, ConstraintResolver CB,
+                       bool IsInFunction) {
   if (RecordDecl *Definition = Declaration->getDefinition()) {
     // store current record's location to cross-ref later in a VarDecl
     lastRecordLocation = Definition->getBeginLoc().getRawEncoding();
@@ -32,38 +33,36 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
       SourceManager &SM = Context->getSourceManager();
       FileID FID = FL.getFileID();
       const FileEntry *FE = SM.getFileEntryForID(FID);
+
+      //detect whether this RecordDecl is part of an inline struct
+      bool IsInLineStruct = false;
+      Decl *D = Declaration->getNextDeclInContext();
+      if (VarDecl *VD = dyn_cast_or_null<VarDecl>(D)) {
+        auto VarTy = VD->getType();
+        unsigned int BeginLoc = VD->getBeginLoc().getRawEncoding();
+        unsigned int EndLoc = VD->getEndLoc().getRawEncoding();
+        IsInLineStruct = !(VarTy->isPointerType() || VarTy->isArrayType()) &&
+                         !VD->hasInit() &&
+                         lastRecordLocation >= BeginLoc &&
+                         lastRecordLocation <= EndLoc;
+      }
       if (FE && FE->isValid()) {
         // We only want to re-write a record if it contains
         // any pointer types, to include array types.
         for (const auto &F : Definition->fields()) {
-          // A boolean to indicate whether the fields of the struct should
-          // be made wild.
           auto FieldTy = F->getType();
-          // If the RecordDecl is a union and this field is a
-          // pointer, we need to mark it wild;
-          bool in_union = (FL.isInSystemHeader() || Definition->isUnion()) &&
-                          (FieldTy->isPointerType() || FieldTy->isArrayType());
-
-          // Another reason to make fields wild is if we have a non-ptr
-          // inline struct within a function with no initializer, because
-          // this breaks rewriting. Detect this by examining the location
-          // of the VarDecl (if any) that follows the RecordDecl
-          bool inlinestruct = false;
-          Decl *D = Declaration->getNextDeclInContext();
-          if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-            auto VarTy = VD->getType();
-            // ensure that the variable is not a pointer type and that
-            // it does not have an initializer.
-            if(!(VarTy->isPointerType() || VarTy->isArrayType())
-                && !VD->hasInit()) {
-              unsigned int BeginLoc = VD->getBeginLoc().getRawEncoding();
-              unsigned int EndLoc = VD->getEndLoc().getRawEncoding();
-              inlinestruct = lastRecordLocation >= BeginLoc &&
-                             lastRecordLocation <= EndLoc && inFunc;
-            }
-          }
-          // mark field wild if the above is true
-          if (in_union || inlinestruct) {
+          // If the RecordDecl is a union or in a system header
+          // and this field is a pointer, we need to mark it wild;
+          bool FieldInUnionOrSysHeader =
+              (FL.isInSystemHeader() || Definition->isUnion()) &&
+              (FieldTy->isPointerType() || FieldTy->isArrayType());
+          // If the RecordDecl is an inline struct within a function
+          bool FieldInInlineStruct =
+              IsInLineStruct &&
+              (FieldTy->isPointerType() || FieldTy->isArrayType());
+          // mark field wild if the above is true and the field is a pointer
+          if ((FieldTy->isPointerType() || FieldTy->isArrayType()) &&
+              (FieldInUnionOrSysHeader || FieldInInlineStruct)) {
             CVarSet C = Info.getVariable(F, Context);
             std::string Rsn = "External struct field or union encountered";
             CB.constraintAllCVarsToWild(C, Rsn, nullptr);
