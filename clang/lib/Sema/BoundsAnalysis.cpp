@@ -756,7 +756,7 @@ Expr *BoundsAnalysis::GetTerminatorCondition(const Expr *E) const {
     if (auto *CE = dyn_cast<CastExpr>(E))
       if (CE->getCastKind() == CastKind::CK_IntegralCast)
         E = CE->getSubExpr();
-        
+
     return const_cast<Expr *>(E);
  }
   const auto *BO = dyn_cast<BinaryOperator>(E->IgnoreParens());
@@ -769,14 +769,14 @@ Expr *BoundsAnalysis::GetTerminatorCondition(const Expr *E) const {
 	// we strip off the IntegralCast.
   if (auto *CE = dyn_cast<CastExpr>(E))
     if (CE->getCastKind() == CastKind::CK_IntegralCast)
-      E = CE->getSubExpr();        
+      E = CE->getSubExpr();
   return const_cast<Expr *>(E);
 }
 Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
   if (const Stmt *S = B->getTerminatorStmt()) {
     if (const auto *BO = dyn_cast<BinaryOperator>(S))
-      return GetTerminatorCondition(BO->getLHS()); 
-    if (const auto *IfS = dyn_cast<IfStmt>(S)) 
+      return GetTerminatorCondition(BO->getLHS());
+    if (const auto *IfS = dyn_cast<IfStmt>(S))
       return GetTerminatorCondition(IfS->getCond());
     if (const auto *WhileS = dyn_cast<WhileStmt>(S))
       return const_cast<Expr *>(WhileS->getCond());
