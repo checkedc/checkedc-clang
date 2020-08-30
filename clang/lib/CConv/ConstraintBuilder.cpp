@@ -23,7 +23,8 @@ using namespace clang;
 unsigned int lastRecordLocation = -1;
 
 void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
-    ASTContext *Context, ConstraintResolver CB) {
+                       ASTContext *Context, ConstraintResolver CB,
+                       bool IsInFunction) {
   if (RecordDecl *Definition = Declaration->getDefinition()) {
     // store current record's location to cross-ref later in a VarDecl
     lastRecordLocation = Definition->getBeginLoc().getRawEncoding();
@@ -32,16 +33,34 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
       SourceManager &SM = Context->getSourceManager();
       FileID FID = FL.getFileID();
       const FileEntry *FE = SM.getFileEntryForID(FID);
+
+      //detect whether this RecordDecl is part of an inline struct
+      bool IsInLineStruct = false;
+      Decl *D = Declaration->getNextDeclInContext();
+      if (VarDecl *VD = dyn_cast_or_null<VarDecl>(D)) {
+        auto VarTy = VD->getType();
+        unsigned int BeginLoc = VD->getBeginLoc().getRawEncoding();
+        unsigned int EndLoc = VD->getEndLoc().getRawEncoding();
+        IsInLineStruct = !(VarTy->isPointerType() || VarTy->isArrayType()) &&
+                         !VD->hasInit() &&
+                         lastRecordLocation >= BeginLoc &&
+                         lastRecordLocation <= EndLoc;
+      }
       if (FE && FE->isValid()) {
         // We only want to re-write a record if it contains
         // any pointer types, to include array types.
-        for (const auto &D : Definition->fields()) {
-          if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
-            if(FL.isInSystemHeader() || Definition->isUnion()) {
-              CVarSet C = Info.getVariable(D, Context);
-              std::string Rsn = "External struct field or union encountered";
-              CB.constraintAllCVarsToWild(C, Rsn, nullptr);
-            }
+        for (const auto &F : Definition->fields()) {
+          auto FieldTy = F->getType();
+          // If the RecordDecl is a union or in a system header
+          // and this field is a pointer, we need to mark it wild;
+          bool FieldInUnionOrSysHeader =
+              (FL.isInSystemHeader() || Definition->isUnion());
+          // mark field wild if the above is true and the field is a pointer
+          if ((FieldTy->isPointerType() || FieldTy->isArrayType()) &&
+              (FieldInUnionOrSysHeader || IsInLineStruct)) {
+            CVarSet C = Info.getVariable(F, Context);
+            std::string Rsn = "External struct field or union encountered";
+            CB.constraintAllCVarsToWild(C, Rsn, nullptr);
           }
         }
       }
@@ -66,7 +85,7 @@ public:
     // Introduce variables as needed.
     for (const auto &D : S->decls()) {
       if(RecordDecl *RD = dyn_cast<RecordDecl>(D)) {
-        processRecordDecl(RD, Info, Context, CB);
+        processRecordDecl(RD, Info, Context, CB, true);
       }
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         if (VD->isLocalVarDecl()) {
@@ -187,6 +206,14 @@ public:
         // and for each arg to the function ...
         if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
           unsigned i = 0;
+          bool callUntyped =
+            TFD ?
+              TFD->getType()->isFunctionNoProtoType() &&
+              E->getNumArgs() != 0 && TargetFV->numParams() == 0
+            :
+              false;
+
+          std::vector<CVarSet> deferred;
           for (const auto &A : E->arguments()) {
             CVarSet ArgumentConstraints;
             if(TFD != nullptr && i < TFD->getNumParams()) {
@@ -202,12 +229,15 @@ public:
             } else
               ArgumentConstraints = CB.getExprConstraintVars(A);
 
-            // constrain the arg CV to the param CV
-            if (i < TargetFV->numParams()) {
-              CVarSet ParameterDC =
-                  TargetFV->getParamVar(i);
+
+            if (callUntyped) {
+              deferred.push_back(ArgumentConstraints);
+            } else if (i < TargetFV->numParams()) {
+              // constrain the arg CV to the param CV
+              ConstraintVariable *ParameterDC = TargetFV->getParamVar(i);
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
                                   Wild_to_Safe, false, &Info);
+              
               if (AllTypes && TFD != nullptr) {
                 auto *PVD = TFD->getParamDecl(i);
                 auto &ABI = Info.getABoundsInfo();
@@ -233,11 +263,15 @@ public:
             }
             i++;
           }
+          if (callUntyped)
+            TargetFV->addDeferredParams(PL, deferred);
+
         }
       }
     }
     return true;
   }
+
 
   // e1[e2]
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
@@ -265,9 +299,8 @@ public:
       if (FVConstraint *FV = dyn_cast<FVConstraint>(F)) {
         // This is to ensure that the return type of the function is same
         // as the type of return expression.
-        constrainConsVarGeq(FV->getReturnVars(), RconsVar,
-                            Info.getConstraints(), &PL, Same_to_Same, false,
-                            &Info);
+        constrainConsVarGeq(FV->getReturnVar(), RconsVar, Info.getConstraints(),
+                            &PL, Same_to_Same, false, &Info);
       }
     }
     return true;
@@ -375,6 +408,7 @@ private:
   TypeVarInfo &TVInfo;
 };
 
+
 // This class visits a global declaration, generating constraints
 //   for functions, variables, types, etc. that are visited
 class ConstraintGenVisitor : public RecursiveASTVisitor<ConstraintGenVisitor> {
@@ -444,7 +478,7 @@ public:
   }
 
   bool VisitRecordDecl(RecordDecl *Declaration) {
-    processRecordDecl(Declaration, Info, Context, CB);
+    processRecordDecl(Declaration, Info, Context, CB, false);
     return true;
   }
 

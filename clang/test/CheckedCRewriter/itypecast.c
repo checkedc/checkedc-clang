@@ -8,7 +8,6 @@
 // RUN: cconv-standalone -output-postfix=checked %s 
 // RUN: cconv-standalone %S/itypecast.checked.c -- | diff -w %S/itypecast.checked.c -
 // RUN: rm %S/itypecast.checked.c
-// XFAIL: *
 
 int foo(int **p:itype(_Ptr<_Ptr<int>>));
 int bar(int **p:itype(_Ptr<int *>));
@@ -49,3 +48,19 @@ int func(void) {
 //CHECK-NEXT: fptr1(2, 0);
 //CHECK-NEXT: baz(((int ((*)(const int *, const int *)) )fptr1));
 //CHECK-NEXT: baz(fptr2);
+
+int func2(void) {
+    int **fp1;
+    // CHECK: _Ptr<int *> fp1 = ((void *)0);
+    *fp1 = 1;
+    foo(fp1);
+    // CHECK: foo(((int **)fp1));
+}
+
+int func3(void) {
+    _Ptr<int *> fp1 = ((void *)0);
+    // CHECK: _Ptr<int *> fp1 = ((void *)0);
+    *fp1 = 1;
+    foo(((int **)fp1));
+    // CHECK: foo(((int **)fp1));
+}

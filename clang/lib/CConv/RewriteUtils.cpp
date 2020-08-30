@@ -14,6 +14,7 @@
 #include "clang/CConv/CheckedRegions.h"
 #include "clang/CConv/DeclRewriter.h"
 #include "clang/Tooling/Refactoring/SourceCode.h"
+#include "clang/CConv/CCGlobalOptions.h"
 
 using namespace llvm;
 using namespace clang;
@@ -383,7 +384,6 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   TypeArgumentAdder TPA(&Context, Info, R);
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   for (const auto &D : TUD->decls()) {
-    ECPV.TraverseDecl(D);
     if (AddCheckedRegions) {
       // Adding checked regions enabled!?
       // TODO: Should checked region finding happen somewhere else? This is
@@ -392,6 +392,10 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
       CRA.TraverseDecl(D);
     }
     TER.TraverseDecl(D);
+    // Cast placement must happen after type expression rewriting (i.e. cast and
+    // compound literal) so that casts to unchecked pointer on itype function
+    // calls can override rewritings of casts to checked types.
+    ECPV.TraverseDecl(D);
     TPA.TraverseDecl(D);
   }
 

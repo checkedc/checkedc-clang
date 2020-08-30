@@ -45,18 +45,18 @@ public:
   typedef std::map<PersistentSourceLoc, CallTypeParamBindingsT>
       TypeParamBindingsT;
 
-  typedef std::map<std::string, std::map<std::string, std::set<FVConstraint *>>>
-      StaticFunctionMapType;
 
-  typedef std::map<std::string, std::set<FVConstraint *>>
-      ExternalFunctionMapType;
+  typedef std::map<std::string, FVConstraint *> ExternalFunctionMapType;
+  typedef std::map<std::string, ExternalFunctionMapType> StaticFunctionMapType;
 
   ProgramInfo();
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const;
-  void dump_stats(std::set<std::string> &F) { print_stats(F, llvm::errs()); }
-  void print_stats(std::set<std::string> &F, llvm::raw_ostream &O,
+  void dump_stats(const std::set<std::string> &F) {
+    print_stats(F, llvm::errs());
+  }
+  void print_stats(const std::set<std::string> &F, llvm::raw_ostream &O,
                    bool OnlySummary = false, bool JsonFormat = false);
 
   // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with
@@ -69,16 +69,15 @@ public:
   // should all be empty. 
   void exitCompilationUnit();
 
-  CVarSet
-      &getPersistentConstraintVars(Expr *E, ASTContext *AstContext);
+  CVarSet &getPersistentConstraintVars(Expr *E, ASTContext *AstContext);
   // Get constraint variable for the provided Decl
-  CVarSet getVariable(clang::Decl *D,
-                                             clang::ASTContext *C);
+  CVarSet getVariable(clang::Decl *D, clang::ASTContext *C);
 
   // Retrieve a function's constraints by decl, or by name; nullptr if not found
-  std::set<FVConstraint *> *getFuncConstraints(FunctionDecl *D, ASTContext *C);
-  std::set<FVConstraint *> *getExtFuncDefnConstraintSet(std::string FuncName);
-  std::set<FVConstraint *> *getStaticFuncConstraintSet(std::string FuncName, std::string FileName);
+  FVConstraint *getFuncConstraint (FunctionDecl *D, ASTContext *C) const;
+  FVConstraint *getExtFuncDefnConstraint (std::string FuncName) const;
+  FVConstraint *getStaticFuncConstraint(std::string FuncName,
+                                        std::string FileName) const;
 
   // Check if the given function is an extern function.
   bool isAnExternFunction(const std::string &FName);
@@ -93,26 +92,27 @@ public:
   AVarBoundsInfo &getABoundsInfo() { return ArrBInfo; }
 
   // Parameter map is used for cast insertion, post-rewriting
-  void merge_MF(ParameterMap &MF);
-  ParameterMap &get_MF();
+  void merge_MF(const ParameterMap &MF);
+  ParameterMap &getMF();
 
   ConstraintsInfo &getInterimConstraintState() {
     return CState;
   }
-  bool computeInterimConstraintState(std::set<std::string> &FilePaths);
+  bool computeInterimConstraintState(const std::set<std::string> &FilePaths);
 
-  ExternalFunctionMapType &getExternFuncDefFVMap() {
+  const ExternalFunctionMapType &getExternFuncDefFVMap() const {
     return ExternalFunctionFVCons;
   }
 
-  StaticFunctionMapType &getStaticFuncDefFVMap() {
+  const StaticFunctionMapType &getStaticFuncDefFVMap() const {
     return StaticFunctionFVCons;
   }
 
   void setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,
                            ConstraintVariable *CV, ASTContext *C);
-  bool hasTypeParamBindings(CallExpr *CE, ASTContext *C);
-  CallTypeParamBindingsT &getTypeParamBindings(CallExpr *CE, ASTContext *C);
+  bool hasTypeParamBindings(CallExpr *CE, ASTContext *C) const;
+  const CallTypeParamBindingsT &getTypeParamBindings(CallExpr *CE,
+                                                     ASTContext *C) const;
 
   void constrainWildIfMacro(CVarSet &S, SourceLocation Location);
 
@@ -156,14 +156,14 @@ private:
   // Returns true if successful else false.
   bool insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
                                      const std::string &FuncName,
-                                     std::set<FVConstraint *> &ToIns);
+                                     FVConstraint *ToIns);
 
   // Inserts the given FVConstraint* set into the provided static map.
   // Returns true if successful else false.
   bool insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
                                    const std::string &FuncName,
                                    const std::string &FileName,
-                                   std::set<FVConstraint *> &ToIns);
+                                   FVConstraint *ToIns);
 
 
   // Special-case handling for decl introductions. For the moment this covers:
@@ -173,14 +173,12 @@ private:
 
   // Inserts the given FVConstraint* set into the global map, depending
   // on whether static or not; returns true on success
-  bool
-  insertNewFVConstraints(FunctionDecl *FD, std::set<FVConstraint *> &FVcons,
-                         ASTContext *C);
+  bool insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
+                             ASTContext *C);
 
-  // Retrieves a FVConstraint* based on the decl (which could be static,
-  //   or global)
-  std::set<FVConstraint *> *getFuncFVConstraints(FunctionDecl *FD,
-                                                 ASTContext *C);
+  // Retrieves a FVConstraint* from a Decl (which could be static, or global)
+  FVConstraint *getFuncFVConstraint(FunctionDecl *FD, ASTContext *C);
+
   // For each pointer type in the declaration of D, add a variable to the
   // constraint system for that pointer type.
   void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *astContext);

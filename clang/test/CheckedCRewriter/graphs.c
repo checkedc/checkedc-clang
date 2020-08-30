@@ -220,7 +220,7 @@ void topologicalSort(struct Graph* graph)
 {
 
 	struct Stack* stack=createStack();
-	//CHECK: _Ptr<struct Stack> stack = createStack();
+	//CHECK: _Ptr<struct Stack> stack =createStack();
 
 	int i=0;
 
@@ -376,7 +376,7 @@ struct Stack* createStack()
 {
 
 	struct Stack* stack=malloc(sizeof(struct Stack));
-	//CHECK: _Ptr<struct Stack> stack = malloc<struct Stack>(sizeof(struct Stack));
+	//CHECK: _Ptr<struct Stack> stack =malloc<struct Stack>(sizeof(struct Stack));
 
 	stack->top=-1;
     return stack;

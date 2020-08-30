@@ -198,7 +198,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
     if (VD->hasInit()) {
       SourceLocation EqLoc = VD->getInitializerStartLoc();
       TR.setEnd(EqLoc);
-      SRewrite = SRewrite + " = ";
+      SRewrite = SRewrite + " =";
     } else {
       // There is no initializer, lets add it.
       if (isPointerType(VD) &&
@@ -453,7 +453,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     return true;
   VisitedSet.insert(FuncName);
 
-  FVConstraint *Defnc = getOnly(*Info.getFuncConstraints(Definition, Context));
+  FVConstraint *Defnc = Info.getFuncConstraint(Definition, Context);
   assert(Defnc != nullptr);
 
   // If this is an external function, there is no need to rewrite the
@@ -469,7 +469,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   // Get rewritten parameter variable declarations
   std::vector<std::string> ParmStrs;
   for (unsigned i = 0; i < Defnc->numParams(); ++i) {
-    auto *Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getParamVar(i)));
+    auto *Defn = dyn_cast<PVConstraint>(Defnc->getParamVar(i));
     assert(Defn);
 
     if (isAValidPVConstraint(Defn) && Defn->anyChanges(CS.getVariables())) {
@@ -510,7 +510,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   }
 
   // Get rewritten return variable
-  auto *Defn = dyn_cast<PVConstraint>(getOnly(Defnc->getReturnVars()));
+  auto *Defn = dyn_cast<PVConstraint>(Defnc->getReturnVar());
 
   std::string ReturnVar = "";
   std::string ItypeStr = "";
@@ -528,7 +528,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     } else {
       // One of the argument is WILD, emit an itype.
       std::string Itype =
-          Defn->mkString(Info.getConstraints().getVariables(), true, true);
+          Defn->mkString(Info.getConstraints().getVariables(), false, true);
       ReturnVar = Defn->getRewritableOriginalTy();
       ItypeStr = " : itype(" + Itype + ")";
       GeneratedRetIType = true;

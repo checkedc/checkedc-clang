@@ -541,7 +541,7 @@ void AVarBoundsInfo::insertProgramVar(BoundsKey NK, ProgramVar *PV) {
   PVarInfo[NK] = PV;
 }
 
-bool hasArray(CVarSet &CSet, Constraints &CS) {
+bool hasArray(const CVarSet &CSet, Constraints &CS) {
   auto &E = CS.getVariables();
   for (auto *CK : CSet) {
     if (PVConstraint *PV = dyn_cast<PVConstraint>(CK)) {
@@ -554,7 +554,7 @@ bool hasArray(CVarSet &CSet, Constraints &CS) {
   return false;
 }
 
-bool isInSrcArray(CVarSet &CSet, Constraints &CS) {
+bool isInSrcArray(const CVarSet &CSet, Constraints &CS) {
   auto &E = CS.getVariables();
   for (auto *CK : CSet) {
     if (PVConstraint *PV = dyn_cast<PVConstraint>(CK)) {
@@ -972,17 +972,17 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
       bool IsStatic = std::get<2>(ParmTup);
       unsigned ParmNum = std::get<3>(ParmTup);
       FVConstraint *FV = nullptr;
-      if (IsStatic || !PI->getExtFuncDefnConstraintSet(FuncName)) {
-        FV = getOnly(*(PI->getStaticFuncConstraintSet(FuncName, FileName)));
+      if (IsStatic || !PI->getExtFuncDefnConstraint(FuncName)) {
+        FV = PI->getStaticFuncConstraint(FuncName, FileName);
       } else {
-        FV = getOnly(*(PI->getExtFuncDefnConstraintSet(FuncName)));
+        FV = PI->getExtFuncDefnConstraint(FuncName);
       }
 
-      if (hasArray(FV->getParamVar(ParmNum), CS)) {
+      if (hasArray({FV->getParamVar(ParmNum)}, CS)) {
         ArrPointers.insert(Bkey);
       }
       // Does this array belongs to a valid program variable?
-      if (isInSrcArray(FV->getParamVar(ParmNum), CS)) {
+      if (isInSrcArray({FV->getParamVar(ParmNum)}, CS)) {
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }
 
