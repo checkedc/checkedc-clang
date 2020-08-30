@@ -1153,7 +1153,12 @@ namespace {
       Target = 0x1
     };
 
-    enum class BoundsComponent {
+    enum class DiagnosticBoundsName {
+      Declared,
+      Inferred
+    };
+
+    enum class DiagnosticBoundsComponent {
         Lower,
         Upper,
         Base
@@ -2128,20 +2133,22 @@ namespace {
     }
 
     // Prints a note for each free variable at Loc.
-    void DiagnoseFreeVariables(SourceLocation Loc,
+    void DiagnoseFreeVariables(unsigned DiagId,
+                               SourceLocation Loc,
                                FreeVariableListTy &FreeVars) {
       for (const auto &Pair : FreeVars) {
-        unsigned DiagId = TestFRPosition(Pair.second, FVPos::Declared) 
-            ? diag::note_free_variable_in_declared_bounds
-            : diag::note_free_variable_in_inferred_bounds;
+        unsigned DeclOrInferred =
+            TestFRPosition(Pair.second, FVPos::Declared)
+                ? (unsigned)DiagnosticBoundsName::Declared
+                : (unsigned)DiagnosticBoundsName::Inferred;
 
         unsigned LowerOrUpper =
             TestFRPosition(Pair.second, FVPos::Base)
-                ? (unsigned)BoundsComponent::Base
+                ? (unsigned)DiagnosticBoundsComponent::Base
                 : (TestFRPosition(Pair.second, FVPos::Lower)
-                       ? (unsigned)BoundsComponent::Lower
-                       : (unsigned)BoundsComponent::Upper);
-        S.Diag(Loc, DiagId) << LowerOrUpper << Pair.first;
+                       ? (unsigned)DiagnosticBoundsComponent::Lower
+                       : (unsigned)DiagnosticBoundsComponent::Upper);
+        S.Diag(Loc, DiagId) << DeclOrInferred << LowerOrUpper << Pair.first;
       }
     }
 
@@ -2217,7 +2224,8 @@ namespace {
           ExplainProofFailure(ExprLoc, Cause, ProofStmtKind::BoundsDeclaration);
 
         if (TestFailure(Cause, ProofFailure::HasFreeVariables))
-          DiagnoseFreeVariables(ExprLoc, FreeVars);
+          DiagnoseFreeVariables(diag::note_free_variable_decl_or_inferred,
+                                ExprLoc, FreeVars);
 
         S.Diag(Target->getExprLoc(), diag::note_declared_bounds)
           << DeclaredBounds << DeclaredBounds->getSourceRange();
@@ -2260,7 +2268,8 @@ namespace {
           ExplainProofFailure(E->getExprLoc(), Cause, ProofStmtKind::BoundsDeclaration);
 
         if (TestFailure(Cause, ProofFailure::HasFreeVariables))
-          DiagnoseFreeVariables(E->getExprLoc(), FreeVars);
+          DiagnoseFreeVariables(diag::note_free_variable_decl_or_inferred,
+                                E->getExprLoc(), FreeVars);
 
         S.Diag(Target->getExprLoc(), diag::note_declared_bounds)
           << DeclaredBounds << DeclaredBounds->getSourceRange();
@@ -2296,7 +2305,8 @@ namespace {
           ExplainProofFailure(ArgLoc, Cause, ProofStmtKind::BoundsDeclaration);
 
         if (TestFailure(Cause, ProofFailure::HasFreeVariables))
-          DiagnoseFreeVariables(ArgLoc, FreeVars);
+          DiagnoseFreeVariables(diag::note_free_variable_in_expected_args,
+                                ArgLoc, FreeVars);
 
         S.Diag(ArgLoc, diag::note_expected_argument_bounds) << ExpectedArgBounds;
         S.Diag(Arg->getExprLoc(), diag::note_expanded_inferred_bounds)
@@ -2372,7 +2382,8 @@ namespace {
           ExplainProofFailure(ExprLoc, Cause, ProofStmtKind::BoundsDeclaration);
 
         if (TestFailure(Cause, ProofFailure::HasFreeVariables))
-          DiagnoseFreeVariables(ExprLoc, FreeVars);
+          DiagnoseFreeVariables(diag::note_free_variable_decl_or_inferred,
+                                ExprLoc, FreeVars);
 
         S.Diag(D->getLocation(), diag::note_declared_bounds)
           << DeclaredBounds << D->getLocation();
@@ -2414,7 +2425,8 @@ namespace {
                               ProofStmtKind::StaticBoundsCast);
 
         if (TestFailure(Cause, ProofFailure::HasFreeVariables))
-          DiagnoseFreeVariables(ExprLoc, FreeVars);
+          DiagnoseFreeVariables(diag::note_free_variable_decl_or_inferred,
+                                ExprLoc, FreeVars);
 
         S.Diag(ExprLoc, diag::note_required_bounds) << TargetBounds;
         S.Diag(ExprLoc, diag::note_expanded_inferred_bounds) << SrcBounds;
@@ -4355,7 +4367,8 @@ namespace {
         ExplainProofFailure(Loc, Cause, ProofStmtKind::BoundsDeclaration);
       
       if (TestFailure(Cause, ProofFailure::HasFreeVariables))
-        DiagnoseFreeVariables(Loc, FreeVars);
+        DiagnoseFreeVariables(diag::note_free_variable_decl_or_inferred, Loc,
+                              FreeVars);
 
       S.Diag(V->getLocation(), diag::note_declared_bounds)
         << DeclaredBounds << DeclaredBounds->getSourceRange();
