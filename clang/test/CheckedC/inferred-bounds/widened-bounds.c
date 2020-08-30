@@ -169,7 +169,7 @@ void f8() {
 }
 
 void f9(int i) {
-  _Nt_array_ptr<char> p : bounds(p, p + i) = "a";
+_Nt_array_ptr<char> p : bounds(p, p + i) = "a"; // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}}
 
   if (*p)
     if (*(p + i))
@@ -209,7 +209,7 @@ void f10(int i) {
 }
 
 void f11(int i, int j) {
-  _Nt_array_ptr<char> p : bounds(p + i, p + j) = "a";
+  _Nt_array_ptr<char> p : bounds(p + i, p + j) = "a"; // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}}
 
   if (*(p + j)) {
     i = 0; // expected-error {{inferred bounds for 'p' are unknown after assignment}}
@@ -307,7 +307,7 @@ void f14(int i) {
 }
 
 void f15(int i) {
-  _Nt_array_ptr<char> p : bounds(p, p - i) = "a";
+  _Nt_array_ptr<char> p : bounds(p, p - i) = "a"; // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}}
   if (*(p - i)) {}
 
 // CHECK: In function: f15
@@ -350,8 +350,8 @@ void f15(int i) {
 }
 
 void f16(_Nt_array_ptr<char> p : bounds(p, p)) {
-  _Nt_array_ptr<char> q : bounds(p, p) = "a";
-  _Nt_array_ptr<char> r : bounds(p, p + 1) = "a";
+  _Nt_array_ptr<char> q : bounds(p, p) = "a"; // expected-error {{it is not possible to prove that the inferred bounds of 'q' imply the declared bounds of 'q' after initialization}}
+  _Nt_array_ptr<char> r : bounds(p, p + 1) = "a"; // expected-error {{it is not possible to prove that the inferred bounds of 'r' imply the declared bounds of 'r' after initialization}}
 
   if (*(p))
     if (*(p + 1))
@@ -371,8 +371,8 @@ void f16(_Nt_array_ptr<char> p : bounds(p, p)) {
 }
 
 void f17(char p _Nt_checked[] : count(1)) {
-  _Nt_array_ptr<char> q : bounds(p, p + 1) = "a";
-  _Nt_array_ptr<char> r : bounds(p, p) = "a";
+  _Nt_array_ptr<char> q : bounds(p, p + 1) = "a"; // expected-error {{it is not possible to prove that the inferred bounds of 'q' imply the declared bounds of 'q' after initialization}}
+  _Nt_array_ptr<char> r : bounds(p, p) = "a"; // expected-error {{it is not possible to prove that the inferred bounds of 'r' imply the declared bounds of 'r' after initialization}}
 
   if (*(p))
     if (*(p + 1))

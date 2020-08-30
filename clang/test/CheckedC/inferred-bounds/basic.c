@@ -426,7 +426,7 @@ void f42(void) {
 // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
 
-  _Array_ptr<int> r : count(1) = &p[0];
+  _Array_ptr<int> r : count(1) = &p[0]; // expected-error {{it is not possible to prove that the inferred bounds of 'r' imply the declared bounds of 'r' after initialization}}
 
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} r '_Array_ptr<int>' cinit
 // CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
@@ -490,7 +490,7 @@ void f43(void) {
 // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5][5]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int [5][5]'
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 
-  p = arr[0];
+  p = arr[0]; // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after assignment}}
 
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
@@ -517,7 +517,7 @@ void f43(void) {
 // CHECK:   | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5][5]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int [5][5]'
 // CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 
-  r = &p[0];
+  r = &p[0]; // expected-error {{it is not possible to prove that the inferred bounds of 'r' imply the declared bounds of 'r' after assignment}}
 
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'r' '_Array_ptr<int>'

@@ -501,8 +501,8 @@ void assign5(array_ptr<int> a : count(len), int len, int size) { // expected-not
   // Observed bounds context before assignment: { a => bounds(a, a + len) }
   // Original value of len: size
   // Observed bounds context after assignment:  { a => bounds(a, a + size) }
-  len = len * 2; // expected-warning {{cannot prove declared bounds for 'a' are valid after assignment}} \
-                 // expected-note {{(expanded) inferred bounds are 'bounds(a, a + size)'}}
+  len = len * 2; // expected-error {{it is not possible to prove that the inferred bounds of 'a' imply the declared bounds of 'a' after assignment}} \
+                 // expected-note {{the inferred upper bounds use the value of the variable 'size', and there is no relational information between 'size' and any of the variables used by the declared upper bounds}} \                 // expected-note {{(expanded) inferred bounds are 'bounds(a, a + size)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
   // CHECK-NEXT:   DeclRefExpr {{.*}} 'len'
@@ -616,9 +616,11 @@ void assign7(
   // Observed bounds context before assignment: { a => bounds(a, a + 1), b => bounds(a, a + 1), c => bounds(a, a + 1) }
   // Original value of a: b
   // Observed bounds context after assignment:  { a => bounds(b, b + 1), b => bounds(b, b + 1), c => bounds(b, b + 1) }
-  a = c; // expected-warning {{cannot prove declared bounds for 'a' are valid after assignment}} \
-         // expected-warning {{cannot prove declared bounds for 'b' are valid after assignment}} \
-         // expected-warning {{cannot prove declared bounds for 'c' are valid after assignment}} \
+  a = c; // expected-error {{it is not possible to prove that the inferred bounds of 'a' imply the declared bounds of 'a' after assignment}} \
+         // expected-error {{it is not possible to prove that the inferred bounds of 'b' imply the declared bounds of 'b' after assignment}} \
+         // expected-error {{it is not possible to prove that the inferred bounds of 'c' imply the declared bounds of 'c' after assignment}} \
+         // expected-note 3 {{the declared bounds use the value of the variable 'a', and there is no relational information between 'a' and any of the variables used by the inferred bounds}} \
+         // expected-note 3 {{the inferred bounds use the value of the variable 'b', and there is no relational information between 'b' and any of the variables used by the declared bounds}} \
          // expected-note 3 {{(expanded) inferred bounds are 'bounds(b, b + 1)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='

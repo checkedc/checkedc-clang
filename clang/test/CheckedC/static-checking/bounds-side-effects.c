@@ -29,7 +29,8 @@ void f1(int i) {
   g1_len = i, g2 = alloc(i * sizeof(int));  // correct
   g1_len = 5;                               // incorrect
 
-  g3_len = i * sizeof(int), g4 = alloc(i * sizeof(int)); // correct
+  g3_len = i * sizeof(int), g4 = alloc(i * sizeof(int)); // correct \
+                                                         // expected-error {{it is not possible to prove that the inferred bounds of 'g4' imply the declared bounds of 'g4' after assignment}}
   g3_len = 10;                                           // incorrect
   g3_low = g6_arr + 2, g4_high = g6_arr + 6, g5 = g6_arr + 2;  // correct
   g3_low = g2;                                                 // incorrect.
@@ -38,7 +39,7 @@ void f1(int i) {
      // Declare a bounds declaration that goes out of scope;
      g1_len = i;
      _Array_ptr<int> x1 : count(g1_len) = alloc(i * sizeof(int));
-     g1_len = 5;
+     g1_len = 5; // expected-error {{it is not possible to prove that the inferred bounds of 'x1' imply the declared bounds of 'x1' after assignment}}
   }
 }
 
@@ -91,11 +92,12 @@ void f5(int i) {
 // Test different forms of bounds declarations.
 void f20(int len, _Array_ptr<int> p : count(len), int i) {
   len = i, p = alloc(i * sizeof(int));  // correct
-  len = 5;                              // incorrect
+  len = 5;                              // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after assignment}}
 }
 
 void f21(int len, _Array_ptr<int> p : byte_count(len), int i) {
-  len = i * sizeof(int), p = alloc(i * sizeof(int)); // correct
+  len = i * sizeof(int), p = alloc(i * sizeof(int)); // correct \
+                                                     // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after assignment}}
   len = 10;                                          // expected-error {{inferred bounds for 'p' are unknown after assignment}}
 }
 
@@ -145,13 +147,14 @@ void f40(int i) {
   int len = 0;
   _Array_ptr<int> p : count(len) = 0;
   len = i, p = alloc(i * sizeof(int));  // correct
-  len = 5;                              // incorrect
+  len = 5;                              // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after assignment}}
 }
 
 void f41(int i) {
   int len = 0;
    _Array_ptr<int> p : byte_count(len) = 0;
-  len = i * sizeof(int), p = alloc(i * sizeof(int)); // correct
+  len = i * sizeof(int), p = alloc(i * sizeof(int)); // correct \
+                                                     // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after assignment}}
   len = 10;                                          // expected-error {{inferred bounds for 'p' are unknown after assignment}}
 }
 
