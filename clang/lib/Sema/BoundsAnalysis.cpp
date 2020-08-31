@@ -752,7 +752,8 @@ BoundsMapTy BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
 }
 
 Expr *BoundsAnalysis::GetTerminatorCondition(const Expr *E) const {
-  if (!dyn_cast<BinaryOperator>(E->IgnoreParens())){
+  if (const auto *BO = dyn_cast<BinaryOperator>(E->IgnoreParens()))
+    return GetTerminatorCondition(BO->getRHS()->IgnoreParens());
 
     // According to C11 standard section 6.5.13, the logical AND Operator
     // shall yield 1 if both of its operands compare unequal to 0;
@@ -764,9 +765,6 @@ Expr *BoundsAnalysis::GetTerminatorCondition(const Expr *E) const {
       if (CE->getCastKind() == CastKind::CK_IntegralCast)
         return const_cast<Expr *>(CE->getSubExpr());
     return const_cast<Expr *>(E);
-   }
-  if (const auto *BO = dyn_cast<BinaryOperator>(E->IgnoreParens()))
-     return GetTerminatorCondition(BO->getRHS()->IgnoreParens());
 }
 Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
   if (const Stmt *S = B->getTerminatorStmt()) {

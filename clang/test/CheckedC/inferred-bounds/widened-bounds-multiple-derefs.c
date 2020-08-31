@@ -1,8 +1,5 @@
- //Tests for datafow analysis for bounds widening in case of multiple dereferences of _Nt_array_ptr's.
+ // Tests for datafow analysis for bounds widening in case of multiple dereferences of _Nt_array_ptr's.
 // RUN: %clang_cc1 -fdump-widened-bounds -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s | FileCheck %s
-
-#include <limits.h>
-#include <stdint.h>
 
 void f1() {
   _Nt_array_ptr<char> p : count(0) = "a";
