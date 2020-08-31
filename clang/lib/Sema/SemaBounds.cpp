@@ -595,6 +595,7 @@ public:
   const EqualExprTy &GetVariableList() const { return VariableList; }
 
   bool VisitDeclRefExpr(DeclRefExpr *E) {
+    // We cast variables to rvalues so they can be compared with rvalues in EquivExprSet.
     ImplicitCastExpr *CastExpr = ExprCreatorUtil::CreateImplicitCast(
         SemaRef, E, CK_LValueToRValue, E->getType());
     if (!EqualExprsContainsExpr(SemaRef, VariableList, CastExpr, nullptr)) {
@@ -603,10 +604,6 @@ public:
 
     return true;
   }
-
-  /*bool VisitMemberExpr(MemberExpr* E) {
-    return false;
-  }*/
 };
 
 EqualExprTy CollectVariableSet(Sema &SemaRef, Expr *E) {
@@ -1159,9 +1156,9 @@ namespace {
     };
 
     enum class DiagnosticBoundsComponent {
-        Lower,
-        Upper,
-        Base
+      Lower,
+      Upper,
+      Base
     };
 
     // Combine proof failure codes.
@@ -1178,15 +1175,13 @@ namespace {
     }
 
     // Combine free variable positions.
-    static constexpr FVPos
-    CombineFRPosition(FVPos A, FVPos B) {
+    static constexpr FVPos CombineFRPosition(FVPos A, FVPos B) {
       return static_cast<FVPos>(static_cast<unsigned>(A) |
-                                               static_cast<unsigned>(B));
+                                static_cast<unsigned>(B));
     }
 
     // Check that all the free variable positions in "Test" are in A.
-    static constexpr bool TestFRPosition(FVPos A,
-                                         FVPos Test) {
+    static constexpr bool TestFRPosition(FVPos A, FVPos Test) {
       return ((static_cast<unsigned>(A) & static_cast<unsigned>(Test)) ==
               static_cast<unsigned>(Test));
     }
@@ -1275,6 +1270,8 @@ namespace {
         return ProofResult::Maybe;
       }
 
+      // InRangeWithFreeVars is the same as InRange, but gathers free variables
+      // betweeen the source and declared BaseRanges in addition.
       ProofResult
       InRangeWithFreeVars(BaseRange &R, ProofFailure &Cause,
                           EquivExprSets *EquivExprs,
@@ -1376,6 +1373,9 @@ namespace {
         return ProofResult::Maybe;
       }
 
+      // CompareLowerOffsets first calls CompareLowerOffsetsImpl. If
+      // CompareLowerOffsetsImpl returns Maybe, it continues to collect free
+      // variables in the lower offsets of this and R.
       ProofResult
       CompareLowerOffsets(BaseRange &R, ProofFailure &Cause,
                           EquivExprSets *EquivExprs,
@@ -1396,6 +1396,9 @@ namespace {
         return ProofResult::Maybe;
       }
 
+      // CompareUpperOffsets first calls CompareUpperOffsetsImpl. If
+      // CompareUpperOffsetsImpl returns Maybe, it continues to collect free
+      // variables in the upper offsets of this and R.
       ProofResult
       CompareUpperOffsets(BaseRange &R, ProofFailure &Cause,
                           EquivExprSets *EquivExprs,
@@ -1469,20 +1472,22 @@ namespace {
         EqualExprTy Vars1 = CollectVariableSet(S, E1);
         EqualExprTy Vars2 = CollectVariableSet(S, E2);
 
-        if (CombineFreeVariables(S, Vars1, Vars2, EquivExprs, Pos1, FreeVars))
+        if (AddFreeVariables(S, Vars1, Vars2, EquivExprs, Pos1, FreeVars))
           HasFreeVariables = true;
 
-        if (CombineFreeVariables(S, Vars2, Vars1, EquivExprs, Pos2, FreeVars))
+        if (AddFreeVariables(S, Vars2, Vars1, EquivExprs, Pos2, FreeVars))
           HasFreeVariables = true;
 
         return HasFreeVariables;
       }
 
-      static bool
-      CombineFreeVariables(Sema &S, const EqualExprTy &SrcVars,
-                           const EqualExprTy &DstVars,
-                           EquivExprSets *EquivExprs, FVPos Pos,
-                           FreeVariableListTy &FreeVariablesWithPos) {
+      // AddFreeVariables maps each free variable in SrcVars w.r.t. DstVars
+      // to a pair <Variable, Pos>, and appends the pair to
+      // FreeVariablesWithPos.
+      static bool AddFreeVariables(Sema &S, const EqualExprTy &SrcVars,
+                                   const EqualExprTy &DstVars,
+                                   EquivExprSets *EquivExprs, FVPos Pos,
+                                   FreeVariableListTy &FreeVariablesWithPos) {
         EqualExprTy FreeVariables;
         if (GetFreeVariables(S, SrcVars, DstVars, EquivExprs, FreeVariables)) {
           for (const auto V : FreeVariables) {
@@ -1493,8 +1498,12 @@ namespace {
         return false;
       }
 
-      static bool IsEqualToConstant(Sema &S, Expr *Variable, const EquivExprSets *EquivExprs) {
-        if (Variable->getType()->isPointerType())
+      // IsEqualToConstant checks if Variable equals to some constant.
+      // Specifically, it checks if there is a set in EquivExprs that contains
+      // both Variable and a constant (i.e. IntegerType).
+      static bool IsEqualToConstant(Sema &S, Expr *Variable,
+                                    const EquivExprSets *EquivExprs) {
+        if (Variable->getType()->isPointerType() || !EquivExprs)
           return false;
 
         EqualExprTy EquivSet =
@@ -1926,7 +1935,7 @@ namespace {
     // types from SrcBounds to DestBounds is legal.
     // 
     // If any free variable is found in SrcBounds or DeclaredBounds, return
-    // False and store the free variables to State.FreeVariables.
+    // False and add the free variables to FreeVariables.
     ProofResult ProveBoundsDeclValidity(
         const BoundsExpr *DeclaredBounds, const BoundsExpr *SrcBounds,
         ProofFailure &Cause, EquivExprSets *EquivExprs,
@@ -1970,7 +1979,8 @@ namespace {
         llvm::outs() << "\nSource range:";
         SrcRange.Dump(llvm::outs());
 #endif
-        ProofResult R = SrcRange.InRangeWithFreeVars(DeclaredRange, Cause, EquivExprs, Facts, FreeVariables);
+        ProofResult R = SrcRange.InRangeWithFreeVars(
+            DeclaredRange, Cause, EquivExprs, Facts, FreeVariables);
         if (R == ProofResult::True)
           return R;
         if (R == ProofResult::False || R == ProofResult::Maybe) {
@@ -1991,6 +2001,7 @@ namespace {
         }
         return R;
       } else
+        // Failed to extract a common base.
         Cause = CombineFailures(Cause, ProofFailure::NoBaseRange);
       return ProofResult::Maybe;
     }
@@ -2132,7 +2143,7 @@ namespace {
         S.Diag(Loc, diag::note_upper_out_of_bounds) << (unsigned) Kind;
     }
 
-    // Prints a note for each free variable at Loc.
+    // Prints a note for each free variable in FreeVars at Loc.
     void DiagnoseFreeVariables(unsigned DiagId,
                                SourceLocation Loc,
                                FreeVariableListTy &FreeVars) {
@@ -2209,6 +2220,7 @@ namespace {
       FreeVariableListTy FreeVars;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds, Cause, &EquivExprs, FreeVars);
       if (Result != ProofResult::True) {
+        // Which diagnostic message to print?
         unsigned DiagId =
             (Result == ProofResult::False)
                 ? (TestFailure(Cause, ProofFailure::HasFreeVariables)
@@ -2217,6 +2229,7 @@ namespace {
                 : (CSS != CheckedScopeSpecifier::CSS_Unchecked
                        ? diag::warn_checked_scope_bounds_declaration_invalid
                        : diag::warn_bounds_declaration_invalid);
+
         S.Diag(ExprLoc, DiagId)
           << Sema::BoundsDeclarationCheck::BDC_Assignment << Target
           << Target->getSourceRange() << Src->getSourceRange();
@@ -2253,6 +2266,7 @@ namespace {
       if (Result != ProofResult::True) {
         Expr *Target = E->getSubExpr();
         Expr *Src = E;
+        // Which diagnostic message to print?
         unsigned DiagId =
             (Result == ProofResult::False)
                 ? (TestFailure(Cause, ProofFailure::HasFreeVariables)
@@ -2261,6 +2275,7 @@ namespace {
                 : (CSS != CheckedScopeSpecifier::CSS_Unchecked
                        ? diag::warn_checked_scope_bounds_declaration_invalid
                        : diag::warn_bounds_declaration_invalid);
+
         S.Diag(E->getExprLoc(), DiagId)
           << Sema::BoundsDeclarationCheck::BDC_Assignment << Target
           << Target->getSourceRange() << Src->getSourceRange();
@@ -2292,6 +2307,7 @@ namespace {
       FreeVariableListTy FreeVars;
       ProofResult Result = ProveBoundsDeclValidity(ExpectedArgBounds, ArgBounds, Cause, &EquivExprs, FreeVars);
       if (Result != ProofResult::True) {
+        // Which diagnostic message to print?
         unsigned DiagId =
             (Result == ProofResult::False)
                 ? (TestFailure(Cause, ProofFailure::HasFreeVariables)
@@ -2300,6 +2316,7 @@ namespace {
                 : (CSS != CheckedScopeSpecifier::CSS_Unchecked
                        ? diag::warn_checked_scope_argument_bounds_invalid
                        : diag::warn_argument_bounds_invalid);
+
         S.Diag(ArgLoc, DiagId) << (ParamNum + 1) << Arg->getSourceRange();
         if (Result == ProofResult::False)
           ExplainProofFailure(ArgLoc, Cause, ProofStmtKind::BoundsDeclaration);
@@ -2367,6 +2384,7 @@ namespace {
       ProofResult Result = ProveBoundsDeclValidity(
           DeclaredBounds, SrcBounds, Cause, &EquivExprs, FreeVars);
       if (Result != ProofResult::True) {
+        // Which diagnostic message to print?
         unsigned DiagId =
             (Result == ProofResult::False)
                 ? (TestFailure(Cause, ProofFailure::HasFreeVariables)
@@ -2375,6 +2393,7 @@ namespace {
                 : (CSS != CheckedScopeSpecifier::CSS_Unchecked
                        ? diag::warn_checked_scope_bounds_declaration_invalid
                        : diag::warn_bounds_declaration_invalid);
+
         S.Diag(ExprLoc, DiagId)
           << Sema::BoundsDeclarationCheck::BDC_Initialization << D
           << D->getLocation() << Src->getSourceRange();
@@ -2410,6 +2429,7 @@ namespace {
       ProofResult Result = ProveBoundsDeclValidity(
           TargetBounds, SrcBounds, Cause, nullptr, FreeVars, Kind);
       if (Result != ProofResult::True) {
+        // Which diagnostic message to print?
         unsigned DiagId =
             (Result == ProofResult::False)
                 ? (TestFailure(Cause, ProofFailure::HasFreeVariables)
@@ -2418,6 +2438,7 @@ namespace {
                 : (CSS != CheckedScopeSpecifier::CSS_Unchecked
                        ? diag::warn_checked_scopestatic_cast_bounds_invalid
                        : diag::warn_static_cast_bounds_invalid);
+
         SourceLocation ExprLoc = Cast->getExprLoc();
         S.Diag(ExprLoc, DiagId) << Cast->getType() << Cast->getSourceRange();
         if (Result == ProofResult::False)
@@ -4351,8 +4372,7 @@ namespace {
           return;
       }
       
-      // If proof result is Maybe but SrcRange has free variables, emit an error
-      // rather than a warning.
+      // Which diagnostic message to print?
       unsigned DiagId =
           (Result == ProofResult::False)
               ? (TestFailure(Cause, ProofFailure::HasFreeVariables)
@@ -5180,7 +5200,7 @@ namespace {
         if (::EqualExprsContainsExpr(S, F, E, nullptr))
           return F;
       }
-      return {};
+      return { };
     }
 
     EqualExprTy GetEqualExprSetContainingExpr(Expr* E, EquivExprSets EQ) {
@@ -5198,6 +5218,7 @@ namespace {
       return true;
     }
 
+    // EqualExprsContainsExpr returns true if the set Exprs contains E.
     bool EqualExprsContainsExpr(const EqualExprTy Exprs, Expr *E) {
       return ::EqualExprsContainsExpr(S, Exprs, E, nullptr);
     }
