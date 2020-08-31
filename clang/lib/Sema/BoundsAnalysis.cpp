@@ -755,17 +755,18 @@ Expr *BoundsAnalysis::GetTerminatorCondition(const Expr *E) const {
   if (const auto *BO = dyn_cast<BinaryOperator>(E->IgnoreParens()))
     return GetTerminatorCondition(BO->getRHS());
 
-    // According to C11 standard section 6.5.13, the logical AND Operator
-    // shall yield 1 if both of its operands compare unequal to 0;
-    // otherwise, it yields 0. The result has type int.
-    // If we have if (*p && *(p + 1)) where p is _Nt_array_ptr<char> then
-    // it is casted to integer type and an IntegralCast is generated. Here
-    // we strip off the IntegralCast.
-    if (auto *CE = dyn_cast<CastExpr>(E))
-      if (CE->getCastKind() == CastKind::CK_IntegralCast)
-        return const_cast<Expr *>(CE->getSubExpr());
-    return const_cast<Expr *>(E);
+  // According to C11 standard section 6.5.13, the logical AND Operator
+  // shall yield 1 if both of its operands compare unequal to 0;
+  // otherwise, it yields 0. The result has type int.
+  // If we have if (*p && *(p + 1)) where p is _Nt_array_ptr<char> then
+  // it is casted to integer type and an IntegralCast is generated. Here
+  // we strip off the IntegralCast.
+  if (auto *CE = dyn_cast<CastExpr>(E))
+    if (CE->getCastKind() == CastKind::CK_IntegralCast)
+      return const_cast<Expr *>(CE->getSubExpr());
+  return const_cast<Expr *>(E);
 }
+
 Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
   if (const Stmt *S = B->getTerminatorStmt()) {
     if (const auto *BO = dyn_cast<BinaryOperator>(S))
