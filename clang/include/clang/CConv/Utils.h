@@ -161,4 +161,8 @@ bool evaluateToInt(clang::Expr *E, const clang::ASTContext &C, int &Result);
 // Check if the bounds expression BE is zero width. Arrays with zero width bounds
 // can be treated as pointers.
 bool isZeroBoundsExpr(clang::BoundsExpr *BE, const clang::ASTContext &C);
+
+// Get the FileIdD for the file containing the given source location. This is
+// used to maintain a set of FileIDs which have been modified by the rewriter.
+clang::FileID getFileID(clang::SourceLocation L, clang::ASTContext &C);
 #endif
