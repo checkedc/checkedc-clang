@@ -1,5 +1,4 @@
-// Tests for datafow analysis for bounds multiple widening of _Nt_array_ptr's.
-//
+ //Tests for datafow analysis for bounds widening in case of multiple dereferences of _Nt_array_ptr's.
 // RUN: %clang_cc1 -fdump-widened-bounds -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s | FileCheck %s
 
 #include <limits.h>
@@ -58,8 +57,7 @@ void f3() {
 // CHECK:   1: p = "a"
 // CHECK: upper_bound(p) = 2
 // CHECK: [B1]
-// CHECK-NOT: upper_bound(p) = 1
-// CHECK-NOT: upper_bound(p) = 2
+// CHECK-NOT: upper_bound(p)
 }
 
 void f4(_Nt_array_ptr<char> p : count(0)) {
@@ -531,14 +529,40 @@ void f21(_Nt_array_ptr<char> p : count(i), int i, int flag) {
 // CHECK-NOT: upper_bound(p)
 //
 }
+
 void f22() {
+  _Nt_array_ptr<char> p : count(0) = "";
+
+ if (((*p && *(p + 1)) && *(p + 2)) && (*(p + 3) && *(p + 4)))
+ {}
+
+// CHECK: In function: f22
+// CHECK:  [B6]
+// CHECK:    2: *p
+// CHECK:  [B5]
+// CHECK:    1: *(p + 1)
+// CHECK: upper_bound(p) = 1
+// CHECK:  [B4]
+// CHECK:    1: *(p + 2)
+// CHECK: upper_bound(p) = 2
+// CHECK:  [B3]
+// CHECK:    1: *(p + 3)
+// CHECK: upper_bound(p) = 3
+// CHECK:  [B2]
+// CHECK:    1: *(p + 4)
+// CHECK: upper_bound(p) = 4
+// CHECK:  [B1]
+// CHECK: upper_bound(p) = 5
+ }
+
+void f23() {
   _Nt_array_ptr<char> p : count(0) = "";
   _Nt_array_ptr<char> q : count(0) = "";
 
  if (((*p && *(p + 1))) && *(p + 2) && (*q && *(q + 1)) && (*(p + 3) && *(p + 4)))
  {}
 
-// CHECK: In function: f22
+// CHECK: In function: f23
 // CHECK:  [B8]
 // CHECK:    3: *p
 // CHECK:  [B7]
@@ -565,4 +589,20 @@ void f22() {
 // CHECK:  [B1]
 // CHECK: upper_bound(p) = 5
 // CHECK: upper_bound(q) = 2
+}
+
+void f24() {
+  _Nt_array_ptr<char> p : count(0) = "a";
+
+  if (*p || *(p + 1)) // expected-error {{out-of-bounds memory access}}
+{}
+
+// CHECK: In function: f24
+// CHECK: [B3]
+// CHECK:   2: *p
+// CHECK: [B2]
+// CHECK:   1: *(p + 1)
+// CHECK-NOT: upper_bound(p)
+// CHECK: [B1]
+// CHECK-NOT: upper_bound(p)
 }
