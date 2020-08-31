@@ -16,9 +16,8 @@
 
 class CastPlacementVisitor : public RecursiveASTVisitor<CastPlacementVisitor> {
 public:
-  explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I, Rewriter &R,
-                                std::set<FileID> &F)
-      : Context(C), Info(I), Writer(R), CR(Info, Context), TouchedFiles(F) {}
+  explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I, Rewriter &R)
+      : Context(C), Info(I), Writer(R), CR(Info, Context) {}
 
   bool VisitCallExpr(CallExpr* C);
 private:
@@ -26,7 +25,6 @@ private:
   ProgramInfo& Info;
   Rewriter& Writer;
   ConstraintResolver CR;
-  std::set<FileID> &TouchedFiles;
 
   bool needCasting(ConstraintVariable*, ConstraintVariable*, IsChecked);
   std::string getCastString(ConstraintVariable *Src, ConstraintVariable *Dst,

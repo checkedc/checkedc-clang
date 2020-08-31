@@ -38,14 +38,12 @@ bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
       if(isParentChecked(DTN) && !isFunctionBody(S)) {
         auto Loc = S->getBeginLoc();
         Writer.InsertTextBefore(Loc, "_Unchecked ");
-        TouchedFiles.insert(getFileID(Loc, *Context));
       }
       break;
     case IS_CHECKED:
       if(!isParentChecked(DTN)) {
         auto Loc = S->getBeginLoc();
         Writer.InsertTextBefore(Loc, "_Checked ");
-        TouchedFiles.insert(getFileID(Loc, *Context));
       }
       break;
     default: llvm_unreachable("Bad flag in CheckedRegionAdder");
@@ -66,7 +64,6 @@ bool CheckedRegionAdder::VisitCallExpr(CallExpr *C) {
     Writer.InsertTextBefore(Begin, "_Unchecked { ");
     auto End = C->getEndLoc();
     Writer.InsertTextAfterToken(End, "; }");
-    TouchedFiles.insert(getFileID(Begin, *Context));
   }
 
   return true;
