@@ -105,8 +105,8 @@ int *mul2(int *x) {
 }
 
 int * sus(struct general *, struct general *);
-	//CHECK_NOALL: int * sus(struct general *x, _Ptr<struct general> y);
-	//CHECK_ALL: _Array_ptr<int> sus(struct general *x, _Ptr<struct general> y);
+	//CHECK_NOALL: int * sus(struct general * x, _Ptr<struct general> y);
+	//CHECK_ALL: _Array_ptr<int> sus(struct general * x, _Ptr<struct general> y);
 
 int * foo() {
 	//CHECK_NOALL: int * foo(void) {
@@ -151,8 +151,8 @@ int * bar() {
 return z; }
 
 int * sus(struct general * x, struct general * y) {
-	//CHECK_NOALL: int * sus(struct general *x, _Ptr<struct general> y) {
-	//CHECK_ALL: _Array_ptr<int> sus(struct general *x, _Ptr<struct general> y) {
+	//CHECK_NOALL: int * sus(struct general * x, _Ptr<struct general> y) {
+	//CHECK_ALL: _Array_ptr<int> sus(struct general * x, _Ptr<struct general> y) {
 x = (struct general *) 5;
 	//CHECK: x = (struct general *) 5;
         int *z = calloc(5, sizeof(int)); 

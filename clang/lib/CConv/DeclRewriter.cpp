@@ -218,8 +218,9 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
       // maybe there is still something we can do because Decl refers
       // to a non-macro line.
 
+
       SourceRange Possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()),
-                           D->getLocation());
+                           D->getEndLoc());
 
       if (canRewrite(R, Possible)) {
         R.ReplaceText(Possible, SRewrite);
@@ -479,10 +480,11 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
 
   // Get rewritten parameter variable declarations
   std::vector<std::string> ParmStrs;
-  for (unsigned i = 0; i < Defnc->numParams(); ++i) {
-    auto *Defn = dyn_cast<PVConstraint>(Defnc->getParamVar(i));
+  for (unsigned I = 0; I < Defnc->numParams(); ++I) {
+    auto *Defn = dyn_cast<PVConstraint>(Defnc->getParamVar(I));
     assert(Defn);
 
+    ParmVarDecl *PVDecl = Definition->getParamDecl(I);
     if (isAValidPVConstraint(Defn) && Defn->anyChanges(CS.getVariables())) {
       // This means Defn has a checked type, so we should rewrite to use this
       // type with an itype if applicable.
@@ -495,7 +497,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
         std::string PtypeS =
             Defn->mkString(Info.getConstraints().getVariables());
         PtypeS = PtypeS + getExistingIType(Defn) +
-            ABRewriter.getBoundsString(Defn, Definition->getParamDecl(i));
+            ABRewriter.getBoundsString(Defn, PVDecl);
         ParmStrs.push_back(PtypeS);
       } else {
         // Here, definition is checked type but at least one of the arguments
@@ -505,18 +507,12 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
             Defn->mkString(Info.getConstraints().getVariables(), false, true);
         std::string Bi =
             Defn->getRewritableOriginalTy() + Defn->getName() + " : itype(" +
-                PtypeS + ")" +
-                ABRewriter.getBoundsString(Defn,
-                                       Definition->getParamDecl(i), true);
+                PtypeS + ")" + ABRewriter.getBoundsString(Defn, PVDecl, true);
         ParmStrs.push_back(Bi);
       }
     } else {
-      // If the parameter isn't checked, we can just dump the original
-      // declaration.
-      std::string Scratch = "";
-      raw_string_ostream DeclText(Scratch);
-      Definition->getParamDecl(i)->print(DeclText);
-      ParmStrs.push_back(DeclText.str());
+      // When parameter isn't checked, we just dump the original declaration.
+      ParmStrs.push_back(getSourceText(PVDecl->getSourceRange(), *Context));
     }
   }
 

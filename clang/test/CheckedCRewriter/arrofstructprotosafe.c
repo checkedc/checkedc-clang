@@ -107,7 +107,7 @@ int *mul2(int *x) {
 
 struct general ** sus(struct general *, struct general *);
 	//CHECK_NOALL: struct general ** sus(struct general *, struct general *);
-	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> sus(struct general *x, _Ptr<struct general> y);
+	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> sus(struct general * x, _Ptr<struct general> y);
 
 struct general ** foo() {
 	//CHECK_NOALL: struct general ** foo(void) {
@@ -157,7 +157,7 @@ return z; }
 
 struct general ** sus(struct general * x, struct general * y) {
 	//CHECK_NOALL: struct general ** sus(struct general * x, struct general * y) {
-	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> sus(struct general *x, _Ptr<struct general> y) {
+	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> sus(struct general * x, _Ptr<struct general> y) {
 x = (struct general *) 5; 
 	//CHECK: x = (struct general *) 5; 
         struct general **z = calloc(5, sizeof(struct general *));

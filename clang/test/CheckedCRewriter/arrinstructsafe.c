@@ -102,7 +102,7 @@ int *mul2(int *x) {
 }
 
 struct warr * sus(struct warr * x, struct warr * y) {
-	//CHECK: _Ptr<struct warr> sus(struct warr *x, _Ptr<struct warr> y) {
+	//CHECK: _Ptr<struct warr> sus(struct warr * x, _Ptr<struct warr> y) {
 x = (struct warr *) 5;
 	//CHECK: x = (struct warr *) 5;
         char name[20]; 
