@@ -112,9 +112,9 @@ struct warr * foo() {
         struct warr * x = malloc(sizeof(struct warr));
 	//CHECK: struct warr * x = malloc<struct warr>(sizeof(struct warr));
         struct warr * y = malloc(sizeof(struct warr));
-	//CHECK: _Ptr<struct warr> y =  malloc<struct warr>(sizeof(struct warr));
+	//CHECK: _Ptr<struct warr> y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
-	//CHECK: _Ptr<struct warr> z =  sus(x, y);
+	//CHECK: _Ptr<struct warr> z = sus(x, y);
 return z; }
 
 struct warr * bar() {
@@ -122,9 +122,9 @@ struct warr * bar() {
         struct warr * x = malloc(sizeof(struct warr));
 	//CHECK: struct warr * x = malloc<struct warr>(sizeof(struct warr));
         struct warr * y = malloc(sizeof(struct warr));
-	//CHECK: _Ptr<struct warr> y =  malloc<struct warr>(sizeof(struct warr));
+	//CHECK: _Ptr<struct warr> y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
-	//CHECK: _Ptr<struct warr> z =  sus(x, y);
+	//CHECK: _Ptr<struct warr> z = sus(x, y);
 return z; }
 
 struct warr * sus(struct warr * x, struct warr * y) {
@@ -135,7 +135,7 @@ x = (struct warr *) 5;
 	//CHECK_NOALL: char name[20]; 
 	//CHECK_ALL: char name _Checked[20]; 
         struct warr *z = y;
-	//CHECK: _Ptr<struct warr> z =  y;
+	//CHECK: _Ptr<struct warr> z = y;
         int i;
         for(i = 0; i < 5; i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; i++) { 

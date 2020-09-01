@@ -120,7 +120,7 @@ x = (struct warr *) 5;
 	//CHECK_ALL: char name _Checked[20]; 
         struct warr *z = y;
 	//CHECK_NOALL: struct warr *z = y;
-	//CHECK_ALL: _Array_ptr<struct warr> z =  y;
+	//CHECK_ALL: _Array_ptr<struct warr> z = y;
         int i;
         for(i = 0; i < 5; i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; i++) { 

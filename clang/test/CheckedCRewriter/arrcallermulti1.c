@@ -120,10 +120,10 @@ int * foo() {
         int * x = malloc(sizeof(int));
 	//CHECK: int * x = malloc<int>(sizeof(int));
         int * y = malloc(sizeof(int));
-	//CHECK: _Ptr<int> y =  malloc<int>(sizeof(int));
+	//CHECK: _Ptr<int> y = malloc<int>(sizeof(int));
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
 return z; }
 
 int * bar() {
@@ -132,9 +132,9 @@ int * bar() {
         int * x = malloc(sizeof(int));
 	//CHECK: int * x = malloc<int>(sizeof(int));
         int * y = malloc(sizeof(int));
-	//CHECK: _Ptr<int> y =  malloc<int>(sizeof(int));
+	//CHECK: _Ptr<int> y = malloc<int>(sizeof(int));
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
 z += 2;
 return z; }

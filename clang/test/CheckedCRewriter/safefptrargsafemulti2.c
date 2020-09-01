@@ -117,7 +117,7 @@ int * sus(int (*x) (int), int (*y) (int)) {
 	//CHECK: x = (int (*) (int)) 5;
         int *z = calloc(5, sizeof(int));
 	//CHECK_NOALL: int *z = calloc<int>(5, sizeof(int));
-	//CHECK_ALL: _Array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int));
+	//CHECK_ALL: _Array_ptr<int> z : count(5) = calloc<int>(5, sizeof(int));
         int i;
         for(i = 0; i < 5; i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; i++) { 

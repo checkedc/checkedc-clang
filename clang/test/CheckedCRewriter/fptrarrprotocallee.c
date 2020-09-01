@@ -118,7 +118,7 @@ int ** foo() {
 	//CHECK: int *x = malloc<int>(sizeof(int)); 
         int *y = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *y = calloc<int>(5, sizeof(int)); 
-	//CHECK_ALL: _Array_ptr<int> y : count(5) =  calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> y : count(5) = calloc<int>(5, sizeof(int)); 
         int i;
         for(i = 0; i < 5; i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; i++) { 
@@ -127,7 +127,7 @@ int ** foo() {
         } 
         int **z = sus(x, y);
 	//CHECK_NOALL: int **z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z = sus(x, y);
         
 return z; }
 
@@ -139,7 +139,7 @@ int ** bar() {
 	//CHECK: int *x = malloc<int>(sizeof(int)); 
         int *y = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *y = calloc<int>(5, sizeof(int)); 
-	//CHECK_ALL: _Array_ptr<int> y : count(5) =  calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> y : count(5) = calloc<int>(5, sizeof(int)); 
         int i;
         for(i = 0; i < 5; i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; i++) { 
@@ -148,7 +148,7 @@ int ** bar() {
         } 
         int **z = sus(x, y);
 	//CHECK_NOALL: int **z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z = sus(x, y);
         
 return z; }
 
@@ -160,10 +160,10 @@ int ** sus(int *x, int *y) {
 	//CHECK: x = (int *) 5;
         int **z = calloc(5, sizeof(int *)); 
 	//CHECK_NOALL: int **z = calloc<int *>(5, sizeof(int *)); 
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z : count(5) =  calloc<_Array_ptr<int>>(5, sizeof(int *)); 
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z : count(5) = calloc<_Array_ptr<int>>(5, sizeof(int *)); 
         int * (*mul2ptr) (int *) = mul2;
-	//CHECK_NOALL: _Ptr<int * (int *)> mul2ptr =  mul2;
-	//CHECK_ALL: _Ptr<_Array_ptr<int> (_Array_ptr<int> )> mul2ptr =  mul2;
+	//CHECK_NOALL: _Ptr<int * (int *)> mul2ptr = mul2;
+	//CHECK_ALL: _Ptr<_Array_ptr<int> (_Array_ptr<int> )> mul2ptr = mul2;
         int i;
         for(i = 0; i < 5; i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; i++) { 

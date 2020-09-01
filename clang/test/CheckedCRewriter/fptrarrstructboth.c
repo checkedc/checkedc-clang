@@ -129,10 +129,10 @@ struct fptrarr * foo() {
         struct fptrarr * x = malloc(sizeof(struct fptrarr));
 	//CHECK: struct fptrarr * x = malloc<struct fptrarr>(sizeof(struct fptrarr));
         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
-	//CHECK: _Ptr<struct fptrarr> y =   malloc<struct fptrarr>(sizeof(struct fptrarr));
+	//CHECK: _Ptr<struct fptrarr> y =  malloc<struct fptrarr>(sizeof(struct fptrarr));
         int *yvals = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *yvals = calloc<int>(5, sizeof(int)); 
-	//CHECK_ALL: _Array_ptr<int> yvals : count(5) =  calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> yvals : count(5) = calloc<int>(5, sizeof(int)); 
         int i;
         for(i = 0; i < 5; i++) {
 	//CHECK_NOALL: for(i = 0; i < 5; i++) {
@@ -155,10 +155,10 @@ struct fptrarr * bar() {
         struct fptrarr * x = malloc(sizeof(struct fptrarr));
 	//CHECK: struct fptrarr * x = malloc<struct fptrarr>(sizeof(struct fptrarr));
         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
-	//CHECK: _Ptr<struct fptrarr> y =   malloc<struct fptrarr>(sizeof(struct fptrarr));
+	//CHECK: _Ptr<struct fptrarr> y =  malloc<struct fptrarr>(sizeof(struct fptrarr));
         int *yvals = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *yvals = calloc<int>(5, sizeof(int)); 
-	//CHECK_ALL: _Array_ptr<int> yvals : count(5) =  calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> yvals : count(5) = calloc<int>(5, sizeof(int)); 
         int i;
         for(i = 0; i < 5; i++) {
 	//CHECK_NOALL: for(i = 0; i < 5; i++) {

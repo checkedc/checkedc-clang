@@ -108,9 +108,9 @@ x = (struct general *) 5;
 	//CHECK: x = (struct general *) 5;
         int *z = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *z = calloc<int>(5, sizeof(int)); 
-	//CHECK_ALL: _Array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> z : count(5) = calloc<int>(5, sizeof(int)); 
         struct general *p = y;
-	//CHECK: _Ptr<struct general> p =  y;
+	//CHECK: _Ptr<struct general> p = y;
         int i;
         for(i = 0; i < 5; p = p->next, i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; p = p->next, i++) { 
@@ -126,10 +126,10 @@ int * foo() {
         struct general * x = malloc(sizeof(struct general));
 	//CHECK: struct general * x = malloc<struct general>(sizeof(struct general));
         struct general * y = malloc(sizeof(struct general));
-	//CHECK: _Ptr<struct general> y =  malloc<struct general>(sizeof(struct general));
+	//CHECK: _Ptr<struct general> y = malloc<struct general>(sizeof(struct general));
         
         struct general *curr = y;
-	//CHECK: _Ptr<struct general> curr =  y;
+	//CHECK: _Ptr<struct general> curr = y;
         int i;
         for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
@@ -138,7 +138,7 @@ int * foo() {
         }
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
 return z; }
 
 int * bar() {
@@ -147,10 +147,10 @@ int * bar() {
         struct general * x = malloc(sizeof(struct general));
 	//CHECK: struct general * x = malloc<struct general>(sizeof(struct general));
         struct general * y = malloc(sizeof(struct general));
-	//CHECK: _Ptr<struct general> y =  malloc<struct general>(sizeof(struct general));
+	//CHECK: _Ptr<struct general> y = malloc<struct general>(sizeof(struct general));
         
         struct general *curr = y;
-	//CHECK: _Ptr<struct general> curr =  y;
+	//CHECK: _Ptr<struct general> curr = y;
         int i;
         for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
@@ -159,5 +159,5 @@ int * bar() {
         }
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
 return z; }

@@ -117,7 +117,7 @@ x = (int *) 5;
 	//CHECK: x = (int *) 5;
         int *z = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *z = calloc<int>(5, sizeof(int)); 
-	//CHECK_ALL: _Array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> z : count(5) = calloc<int>(5, sizeof(int)); 
         int i, fac;
         int *p;
 	//CHECK_NOALL: int *p;

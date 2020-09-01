@@ -115,7 +115,7 @@ struct fptr * sus(struct fptr *x, struct fptr *y) {
         x = (struct fptr *) 5; 
 	//CHECK: x = (struct fptr *) 5; 
         struct fptr *z = malloc(sizeof(struct fptr)); 
-	//CHECK: _Ptr<struct fptr> z =  malloc<struct fptr>(sizeof(struct fptr)); 
+	//CHECK: _Ptr<struct fptr> z = malloc<struct fptr>(sizeof(struct fptr)); 
         z->value = y->value; 
         z->func = fact;
         

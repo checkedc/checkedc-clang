@@ -118,10 +118,10 @@ struct arrfptr * foo() {
         struct arrfptr * x = malloc(sizeof(struct arrfptr));
 	//CHECK: struct arrfptr * x = malloc<struct arrfptr>(sizeof(struct arrfptr));
         struct arrfptr * y =  malloc(sizeof(struct arrfptr));
-	//CHECK: _Ptr<struct arrfptr> y =   malloc<struct arrfptr>(sizeof(struct arrfptr));
+	//CHECK: _Ptr<struct arrfptr> y =  malloc<struct arrfptr>(sizeof(struct arrfptr));
        
         struct arrfptr *z = sus(x, y); 
-	//CHECK: _Ptr<struct arrfptr> z =  sus(x, y); 
+	//CHECK: _Ptr<struct arrfptr> z = sus(x, y); 
         int i;
         for(i = 0; i < 5; i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; i++) { 
@@ -137,10 +137,10 @@ struct arrfptr * bar() {
         struct arrfptr * x = malloc(sizeof(struct arrfptr));
 	//CHECK: struct arrfptr * x = malloc<struct arrfptr>(sizeof(struct arrfptr));
         struct arrfptr * y =  malloc(sizeof(struct arrfptr));
-	//CHECK: _Ptr<struct arrfptr> y =   malloc<struct arrfptr>(sizeof(struct arrfptr));
+	//CHECK: _Ptr<struct arrfptr> y =  malloc<struct arrfptr>(sizeof(struct arrfptr));
        
         struct arrfptr *z = sus(x, y); 
-	//CHECK: _Ptr<struct arrfptr> z =  sus(x, y); 
+	//CHECK: _Ptr<struct arrfptr> z = sus(x, y); 
         int i;
         for(i = 0; i < 5; i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; i++) { 

@@ -121,10 +121,10 @@ int * foo() {
         int (*x)(int) = add1; 
 	//CHECK: int (*x)(int) = add1; 
         int (*y)(int) = sub1; 
-	//CHECK: _Ptr<int (int )> y =  sub1; 
+	//CHECK: _Ptr<int (int )> y = sub1; 
         int *z = sus(x, y);
 	//CHECK_NOALL: int *z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
         
 return z; }
 
@@ -135,10 +135,10 @@ int * bar() {
         int (*x)(int) = add1; 
 	//CHECK: int (*x)(int) = add1; 
         int (*y)(int) = sub1; 
-	//CHECK: _Ptr<int (int )> y =  sub1; 
+	//CHECK: _Ptr<int (int )> y = sub1; 
         int *z = sus(x, y);
 	//CHECK_NOALL: int *z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
         
 z += 2;
 return z; }

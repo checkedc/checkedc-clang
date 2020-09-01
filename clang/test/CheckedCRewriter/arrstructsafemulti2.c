@@ -116,9 +116,9 @@ x = (struct general *) 5;
 	//CHECK: x = (struct general *) 5;
         int *z = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *z = calloc<int>(5, sizeof(int)); 
-	//CHECK_ALL: _Array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> z : count(5) = calloc<int>(5, sizeof(int)); 
         struct general *p = y;
-	//CHECK: _Ptr<struct general> p =  y;
+	//CHECK: _Ptr<struct general> p = y;
         int i;
         for(i = 0; i < 5; p = p->next, i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; p = p->next, i++) { 

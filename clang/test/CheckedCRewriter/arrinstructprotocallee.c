@@ -118,7 +118,7 @@ struct warr * foo() {
 	//CHECK: struct warr * y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
 	//CHECK_NOALL: struct warr * z = sus(x, y);
-	//CHECK_ALL: _Ptr<struct warr> z =  sus(x, y);
+	//CHECK_ALL: _Ptr<struct warr> z = sus(x, y);
 return z; }
 
 struct warr * bar() {
@@ -130,7 +130,7 @@ struct warr * bar() {
 	//CHECK: struct warr * y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
 	//CHECK_NOALL: struct warr * z = sus(x, y);
-	//CHECK_ALL: _Ptr<struct warr> z =  sus(x, y);
+	//CHECK_ALL: _Ptr<struct warr> z = sus(x, y);
 return z; }
 
 struct warr * sus(struct warr * x, struct warr * y) {
@@ -143,7 +143,7 @@ x = (struct warr *) 5;
 	//CHECK_ALL: char name _Checked[20]; 
         struct warr *z = y;
 	//CHECK_NOALL: struct warr *z = y;
-	//CHECK_ALL: _Array_ptr<struct warr> z =  y;
+	//CHECK_ALL: _Array_ptr<struct warr> z = y;
         int i;
         for(i = 0; i < 5; i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; i++) { 
