@@ -113,7 +113,7 @@ void f6(int i) {
   char p _Nt_checked[] : bounds(p + i, p)  = "abc";
 
   if (p[0] && p[1]) {
-    i = 0; // expected-error {{inferred bounds for 'p' are unknown after statement}}
+    i = 0; // expected-error {{inferred bounds for 'p' are unknown after assignment}}
     if (p[2]) {}
   }
 
@@ -224,7 +224,7 @@ void f11(int i, int j) {
   _Nt_array_ptr<char> p : bounds(p + i, p + j) = "a";
 
   if (*(p + j) && *(p + j + 1)) {
-    i = 0; // expected-error {{inferred bounds for 'p' are unknown after statement}}
+    i = 0; // expected-error {{inferred bounds for 'p' are unknown after assignment}}
     if (*(p + j + 2)) {}
   }
 
@@ -242,7 +242,7 @@ void f11(int i, int j) {
 // CHECK-NOT: upper_bound(p)
 
   if (*(p + j) && *(p + j + 1)) {
-    j = 0; // expected-error {{inferred bounds for 'p' are unknown after statement}}
+    j = 0; // expected-error {{inferred bounds for 'p' are unknown after assignment}}
     if (*(p + j + 2)) {}
   }
 
@@ -499,7 +499,7 @@ void f20() {
 
 void f21(_Nt_array_ptr<char> p : count(i), int i, int flag) {
   if (*(p + i) && *(p + i + 1)) {
-    flag ? i++ : i;  // expected-error {{inferred bounds for 'p' are unknown after statement}}
+    flag ? i++ : i;  // expected-error {{inferred bounds for 'p' are unknown after increment}}
 
     if (*(p + i + 2))
     {}
