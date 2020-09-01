@@ -13,6 +13,7 @@
 #include "clang/CConv/ConstraintResolver.h"
 #include "clang/CConv/CastPlacement.h"
 #include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/Utils.h"
 
 using namespace clang;
 

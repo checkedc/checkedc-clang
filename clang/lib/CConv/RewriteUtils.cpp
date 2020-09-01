@@ -141,64 +141,58 @@ bool canRewrite(Rewriter &R, SourceRange &SR) {
   return SR.isValid() && (R.getRangeSize(SR) != -1);
 }
 
-static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
-                 std::string &OutputPostfix) {
-
-  // Check if we are outputing to stdout or not, if we are, just output the
-  // main file ID to stdout.
+static void emit(Rewriter &R, ASTContext &C, std::string &OutputPostfix) {
   if (Verbose)
     errs() << "Writing files out\n";
 
+  // Check if we are outputing to stdout or not, if we are, just output the
+  // main file ID to stdout.
   SourceManager &SM = C.getSourceManager();
   if (OutputPostfix == "-") {
     if (const RewriteBuffer *B = R.getRewriteBufferFor(SM.getMainFileID()))
       B->write(outs());
-  } else
-    for (const auto &F : Files)
-      if (const RewriteBuffer *B = R.getRewriteBufferFor(F))
-        if (const FileEntry *FE = SM.getFileEntryForID(F)) {
-          assert(FE->isValid());
+  } else {
+    // Iterate over each modified rewrite buffer
+    for (auto Buffer = R.buffer_begin(); Buffer != R.buffer_end(); ++Buffer) {
+      if (const FileEntry *FE = SM.getFileEntryForID(Buffer->first)) {
+        assert(FE->isValid());
 
-          // Produce a path/file name for the rewritten source file.
-          // That path should be the same as the old one, with a
-          // suffix added between the file name and the extension.
-          // For example \foo\bar\a.c should become \foo\bar\a.checked.c
-          // if the OutputPostfix parameter is "checked" .
+        // Produce a path/file name for the rewritten source file.
+        // That path should be the same as the old one, with a
+        // suffix added between the file name and the extension.
+        // For example \foo\bar\a.c should become \foo\bar\a.checked.c
+        // if the OutputPostfix parameter is "checked" .
+        std::string PfName = sys::path::filename(FE->getName()).str();
+        std::string DirName = sys::path::parent_path(FE->getName()).str();
+        std::string FileName = sys::path::remove_leading_dotslash(PfName).str();
+        std::string Ext = sys::path::extension(FileName).str();
+        std::string Stem = sys::path::stem(FileName).str();
+        std::string NFile = Stem + "." + OutputPostfix + Ext;
+        if (!DirName.empty())
+          NFile = DirName + sys::path::get_separator().str() + NFile;
 
-          std::string PfName = sys::path::filename(FE->getName()).str();
-          std::string DirName = sys::path::parent_path(FE->getName()).str();
-          std::string
-              FileName = sys::path::remove_leading_dotslash(PfName).str();
-          std::string Ext = sys::path::extension(FileName).str();
-          std::string Stem = sys::path::stem(FileName).str();
-          std::string NFile = Stem + "." + OutputPostfix + Ext;
-          if (!DirName.empty())
-            NFile = DirName + sys::path::get_separator().str() + NFile;
+        // Write this file if it was specified as a file on the command line.
+        std::string FeAbsS = "";
+        if (getAbsoluteFilePath(FE->getName(), FeAbsS))
+          FeAbsS = sys::path::remove_leading_dotslash(FeAbsS);
 
-          // Write this file out if it was specified as a file on the command
-          // line.
-          std::string FeAbsS = "";
-          if (getAbsoluteFilePath(FE->getName(), FeAbsS)) {
-            FeAbsS = sys::path::remove_leading_dotslash(FeAbsS);
-          }
+        if (canWrite(FeAbsS)) {
+          std::error_code EC;
+          raw_fd_ostream Out(NFile, EC, sys::fs::F_None);
 
-          if (canWrite(FeAbsS)) {
-            std::error_code EC;
-            raw_fd_ostream out(NFile, EC, sys::fs::F_None);
-
-            if (!EC) {
-              if (Verbose)
-                outs() << "writing out " << NFile << "\n";
-              B->write(out);
-            }
-            else
-              errs() << "could not open file " << NFile << "\n";
-            // This is awkward. What to do? Since we're iterating,
-            // we could have created other files successfully. Do we go back
-            // and erase them? Is that surprising? For now, let's just keep
-            // going.
-          }
+          if (!EC) {
+            if (Verbose)
+              outs() << "writing out " << NFile << "\n";
+            Buffer->second.write(Out);
+          } else
+            errs() << "could not open file " << NFile << "\n";
+          // This is awkward. What to do? Since we're iterating, we could have
+          // created other files successfully. Do we go back and erase them? Is
+          // that surprising? For now, let's just keep going.
         }
+      }
+    }
+  }
 }
 
 // Rewrites types that inside other expressions. This includes cast expression
@@ -207,7 +201,7 @@ class TypeExprRewriter
     : public clang::RecursiveASTVisitor<TypeExprRewriter> {
 public:
   explicit TypeExprRewriter(ASTContext *C, ProgramInfo &I, Rewriter &R)
-      : Context(C), Info(I) , Writer(R) {}
+      : Context(C), Info(I), Writer(R) {}
 
   bool VisitCompoundLiteralExpr(CompoundLiteralExpr *CLE) {
     SourceRange TypeSrcRange(CLE->getBeginLoc().getLocWithOffset(1),
@@ -370,8 +364,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
 
   // Rewrite Variable declarations
   Rewriter R(Context.getSourceManager(), Context.getLangOpts());
-  std::set<FileID> TouchedFiles;
-  DeclRewriter::rewriteDecls(Context, Info, R, TouchedFiles);
+  DeclRewriter::rewriteDecls(Context, Info, R);
 
   // Take care of some other rewriting tasks
   std::set<llvm::FoldingSetNodeID> Seen;
@@ -399,7 +392,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   }
 
   // Output files.
-  emit(R, Context, TouchedFiles, OutputPostfix);
+  emit(R, Context, OutputPostfix);
 
   Info.exitCompilationUnit();
   return;

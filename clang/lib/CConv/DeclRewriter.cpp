@@ -26,7 +26,7 @@ using namespace clang;
 
 // This function is the public entry point for declaration rewriting.
 void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
-                                Rewriter &R, std::set<FileID> &TouchedFiles) {
+                                Rewriter &R) {
   // Compute the bounds information for all the array variables.
   ArrayBoundsRewriter ABRewriter(&Context, Info);
 
@@ -119,13 +119,13 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
 
   // Do the declaration rewriting
   DeclRewriter DeclR(R, Context, GVG);
-  DeclR.rewrite(RewriteThese, TouchedFiles);
+  DeclR.rewrite(RewriteThese);
 
   for (const auto *R : RewriteThese)
     delete R;
 }
 
-void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
+void DeclRewriter::rewrite(RSet &ToRewrite) {
   for (auto *const N : ToRewrite) {
     assert(N->getDecl() != nullptr);
 
@@ -137,9 +137,7 @@ void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
 
     // Get a FullSourceLoc for the start location and add it to the
     // list of file ID's we've touched.
-    SourceRange tTR = N->getDecl()->getSourceRange();
-    FullSourceLoc tFSL(tTR.getBegin(), A.getSourceManager());
-    TouchedFiles.insert(tFSL.getFileID());
+    SourceRange SR = N->getDecl()->getSourceRange();
 
     // Exact rewriting procedure depends on declaration type
     if (auto *PVR = dyn_cast<ParmVarDeclReplacement>(N)) {
