@@ -455,19 +455,19 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
     RetVal = true;
   } else {
     auto *oldC = Map[FuncName];
-    if (!oldC->hasBody() &&
-        (newC->hasBody() ||
-         (oldC->numParams() == 0 && newC->numParams() != 0))) {
-      newC->brainTransplant(oldC, *this);
-      Map[FuncName] = newC;
-      RetVal = true;
-    } else if (!oldC->hasBody()) {
-      // if the current FV constraint is not a definition?
-      // then merge.
-      oldC->mergeDeclaration(newC, *this);
-    } else {
-      llvm::errs() << "Warning: duplicate definition\n";
-    }
+    if (!oldC->hasBody()) {
+      if (newC->hasBody() ||
+          (oldC->numParams() == 0 && newC->numParams() != 0)) {
+        newC->brainTransplant(oldC, *this);
+        Map[FuncName] = newC;
+        RetVal = true;
+      } else
+        // if the current FV constraint is not a definition?
+        // then merge.
+        oldC->mergeDeclaration(newC, *this);
+    } else if (newC->hasBody())
+      llvm::errs() << "Warning: duplicate definition " << FuncName << "\n";
+    // else oldc->hasBody() so we can ignore the newC prototype
   }
   return RetVal;
 }
