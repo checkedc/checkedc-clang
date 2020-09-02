@@ -566,51 +566,53 @@ namespace {
 }
 
 namespace {
-using EqualExprTy = SmallVector<Expr *, 4>;
+  using EqualExprTy = SmallVector<Expr *, 4>;
 
-// EqualExprsContainsExpr returns true if the set Exprs contains E.
-bool EqualExprsContainsExpr(Sema &S, const EqualExprTy Exprs, Expr *E,
-                            EquivExprSets *EquivExprs) {
-  for (auto I = Exprs.begin(); I != Exprs.end(); ++I) {
-    if (Lexicographic(S.Context, EquivExprs).CompareExpr(*I, E) ==
-        Lexicographic::Result::Equal)
+  // EqualExprsContainsExpr returns true if the set Exprs contains E.
+  bool EqualExprsContainsExpr(Sema &S, const EqualExprTy Exprs, Expr *E,
+                              EquivExprSets *EquivExprs) {
+      for (auto I = Exprs.begin(); I != Exprs.end(); ++I) {
+      if (Lexicographic(S.Context, EquivExprs).CompareExpr(*I, E) ==
+          Lexicographic::Result::Equal)
+          return true;
+      }
+      return false;
+  }
+
+  // Helper class for collecting a vector of unique variables as rvalues from an
+  // expression. We collect rvalues because CheckingState.EquivExprSet uses
+  // rvalues to check equality.
+  class CollectVariableSetHelper
+      : public RecursiveASTVisitor<CollectVariableSetHelper> {
+  private:
+      Sema &SemaRef;
+      EqualExprTy VariableList;
+
+  public:
+      CollectVariableSetHelper(Sema &SemaRef)
+          : SemaRef(SemaRef), VariableList() {}
+
+      const EqualExprTy &GetVariableList() const { return VariableList; }
+
+      bool VisitDeclRefExpr(DeclRefExpr *E) {
+      // We cast variables to rvalues so they can be compared with rvalues in EquivExprSet.
+      ImplicitCastExpr *CastExpr = ExprCreatorUtil::CreateImplicitCast(
+          SemaRef, E, CK_LValueToRValue, E->getType());
+      if (!EqualExprsContainsExpr(SemaRef, VariableList, CastExpr, nullptr)) {
+          VariableList.push_back(CastExpr);
+      }
+
       return true;
+      }
+  };
+
+  // Collect variables in E without duplication. If E is nullptr, return an
+  // empty vector.
+  EqualExprTy CollectVariableSet(Sema &SemaRef, Expr *E) {
+      CollectVariableSetHelper Helper(SemaRef);
+      Helper.TraverseStmt(E);
+      return Helper.GetVariableList();
   }
-  return false;
-}
-
-// Helper class for collecting a vector of unique variables as rvalues from an
-// expression. We collect rvalues because CheckingState.EquivExprSet uses
-// rvalues to check equality.
-class CollectVariableSetHelper
-    : public RecursiveASTVisitor<CollectVariableSetHelper> {
-private:
-  Sema &SemaRef;
-  EqualExprTy VariableList;
-
-public:
-  CollectVariableSetHelper(Sema &SemaRef)
-      : SemaRef(SemaRef), VariableList() {}
-
-  const EqualExprTy &GetVariableList() const { return VariableList; }
-
-  bool VisitDeclRefExpr(DeclRefExpr *E) {
-    // We cast variables to rvalues so they can be compared with rvalues in EquivExprSet.
-    ImplicitCastExpr *CastExpr = ExprCreatorUtil::CreateImplicitCast(
-        SemaRef, E, CK_LValueToRValue, E->getType());
-    if (!EqualExprsContainsExpr(SemaRef, VariableList, CastExpr, nullptr)) {
-      VariableList.push_back(CastExpr);
-    }
-
-    return true;
-  }
-};
-
-EqualExprTy CollectVariableSet(Sema &SemaRef, Expr *E) {
-  CollectVariableSetHelper Helper(SemaRef);
-  Helper.TraverseStmt(E);
-  return Helper.GetVariableList();
-}
 }
 
 namespace {
@@ -704,29 +706,18 @@ namespace {
   using ExprEqualMapTy = llvm::DenseMap<Expr *, EqualExprTy>;
 
   // Describes the position of a free variable (FR).
-  enum class FVPos {
+  enum class FreeVariablePosition {
     Lower = 0x1,    // The FR appears in (any) lower bounds.
     Upper = 0x2,    // The FR appears in (any) upper bounds.
-    Base = Lower | Upper, // The FR appears in (any) base bounds.
     Observed = 0x4, // The FR appears in the observed bounds.
-    ObservedLower =
-        Observed | Lower, // The FR appears in the observed lower bounds.
-    ObservedUpper =
-        Observed | Upper, // The FR appears in the observed upper bounds.
-    ObservedBase = Observed | Base, // The FR appears in the observed base.
-    Declared = 0x8,            // The FR appears in the declared bounds.
-    DeclaredLower =
-        Declared | Lower, // The FR appears in the declared lower bounds
-    DeclaredUpper =
-        Declared | Upper, // The FR appears in the declared lower bounds
-    DeclaredBase = Declared | Base, // The FR appears in the declared base.
+    Declared = 0x8, // The FR appears in the declared bounds.
   };
 
-  // FreeVariableListTy denotes a vector of <free variable, poaision> pairs, and
+  // FreeVariableListTy denotes a vector of <free variable, position> pairs, and
   // represents a list of free variables and their positions w.r.t. the observed
   // and declared bounds.
   using FreeVariableListTy =
-      SmallVector<std::pair<Expr *, FVPos>, 4>;
+      SmallVector<std::pair<Expr *, FreeVariablePosition>, 4>;
 
   // CheckingState stores the outputs of bounds checking methods.
   // These members represent the state during bounds checking
@@ -1175,13 +1166,16 @@ namespace {
     }
 
     // Combine free variable positions.
-    static constexpr FVPos CombineFRPosition(FVPos A, FVPos B) {
-      return static_cast<FVPos>(static_cast<unsigned>(A) |
-                                static_cast<unsigned>(B));
+    static constexpr FreeVariablePosition
+    CombineFreeVariablePosition(FreeVariablePosition A,
+                                FreeVariablePosition B) {
+      return static_cast<FreeVariablePosition>(static_cast<unsigned>(A) |
+                                               static_cast<unsigned>(B));
     }
 
     // Check that all the free variable positions in "Test" are in A.
-    static constexpr bool TestFRPosition(FVPos A, FVPos Test) {
+    static constexpr bool TestFreeVariablePosition(FreeVariablePosition A,
+                                                   FreeVariablePosition Test) {
       return ((static_cast<unsigned>(A) & static_cast<unsigned>(Test)) ==
               static_cast<unsigned>(Test));
     }
@@ -1286,6 +1280,13 @@ namespace {
           return ProofResult::Maybe;
         }
 
+        FreeVariablePosition BasePos = CombineFreeVariablePosition(
+            FreeVariablePosition::Lower, FreeVariablePosition::Upper);
+        FreeVariablePosition DeclaredBasePos = CombineFreeVariablePosition(
+            FreeVariablePosition::Declared, BasePos);
+        FreeVariablePosition ObservedBasePos = CombineFreeVariablePosition(
+            FreeVariablePosition::Observed, BasePos);
+
         if (EqualValue(S.Context, Base, R.Base, EquivExprs)) {
           ProofResult LowerBoundsResult =
               CompareLowerOffsets(R, Cause, EquivExprs, Facts, FreeVariables);
@@ -1298,8 +1299,8 @@ namespace {
           if (LowerBoundsResult == ProofResult::False ||
               UpperBoundsResult == ProofResult::False)
             return ProofResult::False;
-        } else if (CheckFreeVarInExprs(S, R.Base, Base, FVPos::DeclaredBase,
-                                       FVPos::ObservedBase, EquivExprs,
+        } else if (CheckFreeVarInExprs(S, R.Base, Base, DeclaredBasePos,
+                                       ObservedBasePos, EquivExprs,
                                        FreeVariables)) {
           Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
           return ProofResult::False;
@@ -1386,8 +1387,13 @@ namespace {
         if (Result != ProofResult::Maybe)
           return Result;
 
+        FreeVariablePosition DeclaredLowerPos = CombineFreeVariablePosition(
+            FreeVariablePosition::Declared, FreeVariablePosition::Lower);
+        FreeVariablePosition ObservedLowerPos = CombineFreeVariablePosition(
+            FreeVariablePosition::Observed, FreeVariablePosition::Lower);
+
         if (CheckFreeVarInExprs(S, R.LowerOffsetVariable, LowerOffsetVariable,
-                                FVPos::DeclaredLower, FVPos::ObservedLower,
+                                DeclaredLowerPos, ObservedLowerPos,
                                 EquivExprs, FreeVariables)) {
           Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
           return ProofResult::False;
@@ -1409,8 +1415,13 @@ namespace {
         if (Result != ProofResult::Maybe)
           return Result;
 
+        FreeVariablePosition DeclaredUpperPos = CombineFreeVariablePosition(
+            FreeVariablePosition::Declared, FreeVariablePosition::Upper);
+        FreeVariablePosition ObservedUpperPos = CombineFreeVariablePosition(
+            FreeVariablePosition::Observed, FreeVariablePosition::Upper);
+
         if (CheckFreeVarInExprs(S, R.UpperOffsetVariable, UpperOffsetVariable,
-                                FVPos::DeclaredUpper, FVPos::ObservedUpper,
+                                DeclaredUpperPos, ObservedUpperPos,
                                 EquivExprs, FreeVariables)) {
           Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
           return ProofResult::False;
@@ -1433,9 +1444,9 @@ namespace {
       // GetFreeVariables returns true if any free variable is found in SrcVars,
       // and appends the free variables to FreeVariables.
       static bool GetFreeVariables(Sema &S, const EqualExprTy &SrcVars,
-                            const EqualExprTy &DstVars,
-                            EquivExprSets *EquivExprs,
-                            EqualExprTy &FreeVariables) {
+                                   const EqualExprTy &DstVars,
+                                   EquivExprSets *EquivExprs,
+                                   EqualExprTy &FreeVariables) {
         bool HasFreeVariables = false;
 
         // Gather free variables.
@@ -1461,11 +1472,14 @@ namespace {
       // Check free variables between E1 and E2. Append any found free variables
       // to FreeVars with each free variable in E1 (resp. E2) having Pos1 (resp.
       // Pos2).
-      static bool CheckFreeVarInExprs(Sema &S, Expr *E1, Expr *E2, FVPos Pos1,
-                                      FVPos Pos2, EquivExprSets *EquivExprs,
+      static bool CheckFreeVarInExprs(Sema &S, Expr *E1, Expr *E2,
+                                      FreeVariablePosition Pos1,
+                                      FreeVariablePosition Pos2,
+                                      EquivExprSets *EquivExprs,
                                       FreeVariableListTy &FreeVars) {
-        // Do not check free variables in bounds that contain indirect accesses.
-        if ((E1 && ReadsMemoryViaPointer(E1)) || (E2 && ReadsMemoryViaPointer(E2)))
+        // If E1 or E2 accesses memory via poiter, we skip because we cannot
+        // determine aliases for two indirect accesses soundly yet.
+        if (ReadsMemoryViaPointer(E1) || ReadsMemoryViaPointer(E2))
           return false;
 
         bool HasFreeVariables = false;
@@ -1486,7 +1500,7 @@ namespace {
       // FreeVariablesWithPos.
       static bool AddFreeVariables(Sema &S, const EqualExprTy &SrcVars,
                                    const EqualExprTy &DstVars,
-                                   EquivExprSets *EquivExprs, FVPos Pos,
+                                   EquivExprSets *EquivExprs, FreeVariablePosition Pos,
                                    FreeVariableListTy &FreeVariablesWithPos) {
         EqualExprTy FreeVariables;
         if (GetFreeVariables(S, SrcVars, DstVars, EquivExprs, FreeVariables)) {
@@ -1498,9 +1512,9 @@ namespace {
         return false;
       }
 
-      // IsEqualToConstant checks if Variable equals to some constant.
-      // Specifically, it checks if there is a set in EquivExprs that contains
-      // both Variable and a constant (i.e. IntegerType).
+      // IsEqualToConstant checks if Variable has integer type and equals to
+      // some constant. Specifically, it checks if there is a set in EquivExprs
+      // that contains both Variable and a constant (i.e. IntegerType).
       static bool IsEqualToConstant(Sema &S, Expr *Variable,
                                     const EquivExprSets *EquivExprs) {
         if (Variable->getType()->isPointerType() || !EquivExprs)
@@ -1509,7 +1523,7 @@ namespace {
         EqualExprTy EquivSet =
             GetEqualExprSetContainingExpr(S, Variable, *EquivExprs);
         for (const auto &E : EquivSet) {
-          if (E->getType()->isIntegerType())
+          if (isa<IntegerLiteral>(E))
             return true;
         }
 
@@ -2149,14 +2163,17 @@ namespace {
                                FreeVariableListTy &FreeVars) {
       for (const auto &Pair : FreeVars) {
         unsigned DeclOrInferred =
-            TestFRPosition(Pair.second, FVPos::Declared)
+            TestFreeVariablePosition(Pair.second, FreeVariablePosition::Declared)
                 ? (unsigned)DiagnosticBoundsName::Declared
                 : (unsigned)DiagnosticBoundsName::Inferred;
 
+        FreeVariablePosition BasePos = CombineFreeVariablePosition(
+            FreeVariablePosition::Lower, FreeVariablePosition::Upper);
+
         unsigned LowerOrUpper =
-            TestFRPosition(Pair.second, FVPos::Base)
+            TestFreeVariablePosition(Pair.second, BasePos)
                 ? (unsigned)DiagnosticBoundsComponent::Base
-                : (TestFRPosition(Pair.second, FVPos::Lower)
+                : (TestFreeVariablePosition(Pair.second, FreeVariablePosition::Lower)
                        ? (unsigned)DiagnosticBoundsComponent::Lower
                        : (unsigned)DiagnosticBoundsComponent::Upper);
         S.Diag(Loc, DiagId) << DeclOrInferred << LowerOrUpper << Pair.first;
@@ -5291,12 +5308,15 @@ namespace {
       }
     }
 
-    // Returns true if the expression e reads memory via a pointer.
-    // IncludeAllMemberExprs is used to modify the behavior to return true
-    // if e is or contains a pointer dereference, member reference, or
+    // Returns true if the expression e reads memory via a pointer, or e is
+    // nullptr. IncludeAllMemberExprs is used to modify the behavior to return
+    // true if e is or contains a pointer dereference, member reference, or
     // indirect member reference (including e1.f which may not read memory
     // via a pointer).
     static bool ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs = false) {
+      if (!E)
+        return false;
+
       E = E->IgnoreParens();
 
       switch (E->getStmtClass()) {
