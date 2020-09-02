@@ -596,6 +596,7 @@ namespace {
 
       bool VisitDeclRefExpr(DeclRefExpr *E) {
       // We cast variables to rvalues so they can be compared with rvalues in EquivExprSet.
+      // TODO(checkedc-clang#909): avoid constructing these ImplicitCastExprs.
       ImplicitCastExpr *CastExpr = ExprCreatorUtil::CreateImplicitCast(
           SemaRef, E, CK_LValueToRValue, E->getType());
       if (!EqualExprsContainsExpr(SemaRef, VariableList, CastExpr, nullptr)) {
@@ -1377,11 +1378,10 @@ namespace {
       // CompareLowerOffsets first calls CompareLowerOffsetsImpl. If
       // CompareLowerOffsetsImpl returns Maybe, it continues to collect free
       // variables in the lower offsets of this and R.
-      ProofResult
-      CompareLowerOffsets(BaseRange &R, ProofFailure &Cause,
-                          EquivExprSets *EquivExprs,
-                          std::pair<ComparisonSet, ComparisonSet> &Facts,
-                          FreeVariableListTy &FreeVariables) {
+      ProofResult CompareLowerOffsets(BaseRange &R, ProofFailure &Cause,
+                                      EquivExprSets *EquivExprs,
+                                      std::pair<ComparisonSet, ComparisonSet> &Facts,
+                                      FreeVariableListTy &FreeVariables) {
         ProofResult Result =
             CompareLowerOffsetsImpl(R, Cause, EquivExprs, Facts);
         if (Result != ProofResult::Maybe)
@@ -1405,11 +1405,10 @@ namespace {
       // CompareUpperOffsets first calls CompareUpperOffsetsImpl. If
       // CompareUpperOffsetsImpl returns Maybe, it continues to collect free
       // variables in the upper offsets of this and R.
-      ProofResult
-      CompareUpperOffsets(BaseRange &R, ProofFailure &Cause,
-                          EquivExprSets *EquivExprs,
-                          std::pair<ComparisonSet, ComparisonSet> &Facts,
-                          FreeVariableListTy &FreeVariables) {
+      ProofResult CompareUpperOffsets(BaseRange &R, ProofFailure &Cause,
+                                      EquivExprSets *EquivExprs,
+                                      std::pair<ComparisonSet, ComparisonSet> &Facts,
+                                      FreeVariableListTy &FreeVariables) {
         ProofResult Result =
             CompareUpperOffsetsImpl(R, Cause, EquivExprs, Facts);
         if (Result != ProofResult::Maybe)
@@ -1951,10 +1950,11 @@ namespace {
     // If any free variable is found in SrcBounds or DeclaredBounds, return
     // False and add the free variables to FreeVariables.
     ProofResult ProveBoundsDeclValidity(
-        const BoundsExpr *DeclaredBounds, const BoundsExpr *SrcBounds,
-        ProofFailure &Cause, EquivExprSets *EquivExprs,
-        FreeVariableListTy &FreeVariables,
-        ProofStmtKind Kind = ProofStmtKind::BoundsDeclaration) {
+                const BoundsExpr *DeclaredBounds, 
+                const BoundsExpr *SrcBounds,
+                ProofFailure &Cause, EquivExprSets *EquivExprs,
+                FreeVariableListTy &FreeVariables,
+                ProofStmtKind Kind = ProofStmtKind::BoundsDeclaration) {
       assert(BoundsUtil::IsStandardForm(DeclaredBounds) &&
         "declared bounds not in standard form");
       assert(BoundsUtil::IsStandardForm(SrcBounds) &&
@@ -5308,11 +5308,11 @@ namespace {
       }
     }
 
-    // Returns true if the expression e reads memory via a pointer, or e is
-    // nullptr. IncludeAllMemberExprs is used to modify the behavior to return
-    // true if e is or contains a pointer dereference, member reference, or
-    // indirect member reference (including e1.f which may not read memory
-    // via a pointer).
+    // Returns true if the expression e reads memory via a pointer.
+    // IncludeAllMemberExprs is used to modify the behavior to return true if e
+    // is or contains a pointer dereference, member reference, or indirect
+    // member reference (including e1.f which may not read memory via a
+    // pointer). Returns false if E is nullptr.
     static bool ReadsMemoryViaPointer(Expr *E, bool IncludeAllMemberExprs = false) {
       if (!E)
         return false;
