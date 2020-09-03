@@ -31,19 +31,20 @@ in a basic block is taken into consideration when performing the analysis.
 4. **Intra-procedural:** The analysis is done on one function at a time.
 
 ## Dataflow Analysis Details
-For every basic block we compute the following sets: `In` and `Kill`. The `In`
+For every basic block, we compute the following sets: `In` and `Kill`. The `In`
 set for basic block `B` is denoted as `In[B]` and the `Kill` set is denoted as
 `Kill[B]`.
 
-For every edge we compute the following sets: `Out` and `Gen`. The `Out` set on
-edge `Bi->Bj` is denoted as `Out[Bi][Bj]` and the Gen set is denoted as
+For every edge, we compute the following sets: `Out` and `Gen`. The `Out` set on
+edge `Bi->Bj` is denoted as `Out[Bi][Bj]` and the `Gen` set is denoted as
 `Gen[Bi][Bj]`.
 
 ### In[B]
 `In[B]` stores the mapping between an `_Nt_array_ptr` and its widened bounds
 inside block `B`. For example, given `_Nt_array_ptr V` with declared bounds
-`(low, high)`, `In[B]` would store the mapping `{V:i}`, where `i` is an unsigned
-integer and the bounds of `V` should be widened to `(low, high + i)`.
+`(V + low, V + high)`, `In[B]` would store the mapping `{V:i}`, where `i` is an
+unsigned integer implying that the bounds of `V` should be widened to
+`(V + low, V + high + i)`.
 
 Dataflow equation:
 `In[B] = ∩ Out[B*][B], where B* ∈ pred(B)`.
@@ -57,43 +58,43 @@ Thus, `Kill[B]` stores the mapping between a statement `S` and `_Nt_array_ptr's`
 whose bounds are killed in `S`.
 
 ### Gen[Bi][Bj]
-Given `_Nt_array_ptr V` with declared bounds `(low, high)`, the bounds of `V`
-can be widened by 1 if `V` is dereferenced at the upper bound. This means that
-if there is an edge `Bi->Bj` whose edge condition is of the form `if (*(V +
-high + i))`, where `i` is an unsigned integer offset, the widened bounds
-`{V:i+1}` can be added to `Gen[Bi][Bj]`, provided we have already tested for
-pointer access of the form `if (*(V + high + i - 1))`.
+Given `_Nt_array_ptr V` with declared bounds `(V + low, V + high)`, the bounds
+of `V` can be widened by 1 if `V` is dereferenced at its current upper bound.
+This means that if there is an edge `Bi->Bj` whose edge condition is of the
+form `if (*(V + high + i))`, where `i` is an unsigned integer offset, the
+widened bounds `{V:i+1}` can be added to `Gen[Bi][Bj]`, provided we have
+already tested for pointer access of the form `if (*(V + high + (i - 1)))`.
 
 For example:
 ```
-_Nt_array_ptr<T> V : bounds (low, high);
+_Nt_array_ptr<T> V : bounds (V + low, V + high);
 if (*V) { // Ptr dereference is NOT at the current upper bound. No bounds widening.
-  if (*(V + high)) { // Ptr dereference is at the current upper bound. Widen bounds by 1. New bounds for V are (low, high + 1).
-    if (*(V + high + 1)) { // Ptr dereference is at the current upper bound. Widen bounds by 1. New bounds for V are (low, high + 2).
-      if (*(V + high + 3)) { // Ptr dereference is *not* at the current upper bound. No bounds widening. Flag an error!.
+  if (*(V + high)) { // Ptr dereference is at the current upper bound. Widen bounds by 1. New bounds for V are (V + low, V + high + 1).
+    if (*(V + high + 1)) { // Ptr dereference is at the current upper bound. Widen bounds by 1. New bounds for V are (V + low, V + high + 2).
+      if (*(V + high + 3)) { // Ptr dereference is NOT at the current upper bound. No bounds widening. Flag an error!
 ```
 
 ### Out[Bi][Bj]
 `Out[Bi][Bj]` denotes the bounds widened by block `Bi` on edge `Bi->Bj`.
 
 Dataflow equation:
-`Out[Bi][Bj] = (In[Bi] - Kill[Bi]) ∪ Gen[Bi][Bj]`
+`Out[Bi][Bj] = (In[Bi] - Kill[Bi]) ∪ Gen[Bi][Bj], where Bj ∈ succ(Bi)`.
 
 ### Initial values of In and Out sets
 
 To compute `In[B]`, we compute the intersection of `Out[B*][B]`, where `B*` are
 all preds of block `B`. When there is a back edge from block `B'` to `B` (for
-example in the case of loops), the Out set for block `B'` will be empty. As a
+example in the case of loops), the `Out` set for block `B'` will be empty. As a
 result, the intersection operation would always result in an empty set `In[B]`.
 
-So to handle this, we initialize the In and Out sets for all blocks to `Top`.
-`Top` represents the union of the Gen sets of all edges. We have chosen the
-offsets of ptr variables in `Top` to be the max unsigned int. The reason behind
-this is that in order to compute the actual In sets for blocks we are going to
-intersect the Out sets on all the incoming edges of the block. And in that case
-we would always pick the ptr with the smaller offset. Choosing max unsigned int
-also makes handling `Top` much easier as we do not need to explicitly store edge
-info.
+So to handle this, we initialize the `In` and `Out` sets for all blocks to
+`Top`. `Top` represents the union of the `Gen` sets of all edges. We have
+chosen the offsets of ptr variables in `Top` to be `UINT_MAX`. The reason
+behind this is that in order to compute the actual `In` sets for blocks we are
+going to intersect the `Out` sets on all the incoming edges of the block. And
+in that case we would always pick the ptr with the smaller offset. Choosing
+`UINT_MAX` also makes handling `Top` much easier as we do not need to
+explicitly store edge info.
 
 Thus, we have the following two equations for `Top`:
 ```
@@ -107,16 +108,16 @@ In[B] = Top
 Out[Bi][Bj] = Top, where Bj ∈ succ(Bi)
 ```
 
-Now, we also need to handle the case where there is an unconditional jump into a
-block (for example, as a result of a `goto`). In this case, we cannot widen the
-bounds because we would not have tested the ptr dereference on the
-unconditional edge. So in this case we want the intersection (and hence the In
-set) to result in an empty set.
+Now, we also need to handle the case where there is an unconditional jump into
+a block (for example, as a result of a `goto`). In this case, we cannot widen
+the bounds because we would not have tested the ptr dereference on the
+unconditional edge. So in this case we want the intersection (and hence the
+`In` set) to result in an empty set.
 
-So we initialize the In and Out sets of all blocks to `Top`, except the Entry
-block.
+So we initialize the `In` and `Out` sets of all blocks to `Top`, except the
+`Entry` block.
 
-Thus, we have the following initial value for the Entry block:
+Thus, we have the following initial values for the `Entry` block:
 ```
 In[Entry] = ∅
 Out[Entry][B*] = ∅, where B* ∈ succ(Entry)
@@ -128,12 +129,12 @@ The main class that implements the analysis is
 and the main function is `BoundsAnalysis::WidenBounds()`.
 
 `WidenBounds` will perform the bounds widening for the entire function. We can
-then we can call `BoundsAnalysis::GetWidenedBounds` to retrieve the
-widened bounds for the current basic block.
+then call `BoundsAnalysis::GetWidenedBounds` to retrieve the widened bounds for
+the current basic block.
 
 The approach used for implementing the analysis is the iterative worklist
 algorithm in which we keep adding blocks to a worklist as long as we do not
-reach a fixed point i.e.: as long as the Out sets for the blocks keep changing.
+reach a fixed point i.e.: as long as the `Out` sets for the blocks keep changing.
 
 ### Algorithm
 ```

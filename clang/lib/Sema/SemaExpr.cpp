@@ -6372,8 +6372,7 @@ Sema::BuildCompoundLiteralExpr(SourceLocation LParenLoc, TypeSourceInfo *TInfo,
   // bound to temporaries.
   // TODO: checkedc-clang issue #870: bind all compound literal expressions
   // to temporaries.
-  if (getLangOpts().CheckedC &&
-      (E->getType()->isArrayType() || E->getType()->isFunctionType()))
+  if (getLangOpts().CheckedC)
     return new (Context) CHKCBindTemporaryExpr(E);
 
   return MaybeBindToTemporary(E);

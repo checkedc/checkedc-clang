@@ -17,91 +17,122 @@
 
 using namespace clang;
 
-void PreorderAST::Create(Expr *E, Node *N, Node *Parent) {
-  if (!E)
-    return;
-
-  if (!N)
-    N = new Node(Parent);
-
-  // If the root is null, the current node is the root.
+void PreorderAST::AddNode(Node *N, Node *Parent) {
+  // If the root is null, make the current node the root.
   if (!Root)
     Root = N;
 
-  // If the parent is non-null add the current node to its list of children.
-  if (Parent)
-    Parent->Children.push_back(N);
+  // Add the current node to the list of children of its parent.
+  if (Parent) {
+    assert(isa<BinaryNode>(Parent) && "Invalid parent");
+    dyn_cast<BinaryNode>(Parent)->Children.push_back(N);
+  }
+}
 
-  E = Lex.IgnoreValuePreservingOperations(Ctx, E);
-
-  // If E is a variable, store it in the variable list for the current node.
-  if (DeclRefExpr *D = GetDeclOperand(E)) {
-    if (const auto *V = dyn_cast_or_null<VarDecl>(D->getDecl())) {
-      N->Vars.push_back(V);
-      return;
+void PreorderAST::CoalesceNode(BinaryNode *B, BinaryNode *Parent) {
+  // Remove the current node from the list of children of its parent.
+  for (auto I = Parent->Children.begin(),
+            E = Parent->Children.end(); I != E; ++I) {
+    if (*I == B) {
+      Parent->Children.erase(I);
+      break;
     }
   }
 
-  // If E is a constant, store it in the constant field of the current node and
-  // set the HasConst field.
-  llvm::APSInt IntVal;
-  if (E->isIntegerConstantExpr(IntVal, Ctx)) {
-    N->Const = IntVal;
-    N->HasConst = true;
-    return;
+  // Move all children of the current node to its parent.
+  for (auto *Child : B->Children) {
+    Child->Parent = Parent;
+    Parent->Children.push_back(Child);
   }
+
+  // Delete the current node.
+  delete B;
+}
+
+void PreorderAST::Create(Expr *E, Node *Parent) {
+  if (!E)
+    return;
+
+  E = Lex.IgnoreValuePreservingOperations(Ctx, E->IgnoreParens());
 
   if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
-    // Set the opcode for the current node.
-    N->Opc = BO->getOpcode();
+    auto *N = new BinaryNode(BO->getOpcode(), Parent);
+    AddNode(N, Parent);
 
-    Expr *LHS = BO->getLHS()->IgnoreParens();
-    Expr *RHS = BO->getRHS()->IgnoreParens();
-  
-    if (isa<BinaryOperator>(LHS))
-      // Create the LHS as a child of the current node.
-      Create(LHS, nullptr, N);
-    else
-      // Create the LHS in the current node.
-      Create(LHS, N);
-  
-    if (isa<BinaryOperator>(RHS))
-      // Create the RHS as a child of the current node.
-      Create(RHS, nullptr, N);
-    else
-      // Create the RHS in the current node.
-      Create(RHS, N);
-  
-    return;
+    Create(BO->getLHS(), /*Parent*/ N);
+    Create(BO->getRHS(), /*Parent*/ N);
+
+  } else {
+    auto *N = new LeafExprNode(E, Parent);
+    AddNode(N, Parent);
   }
+}
 
-  // Currently, we only handle expression which are either variables or
-  // constants.
-  // TODO: Handle expressions that are non-variables and non-constants.
-  // Possibly, add a field to the node to represent such expressions.
-  SetError();
+void PreorderAST::Coalesce(Node *N, bool &Changed) {
+  auto *B = dyn_cast_or_null<BinaryNode>(N);
+  if (!B)
+    return;
+
+  // Coalesce the children first.
+  for (auto *Child : B->Children)
+    if (isa<BinaryNode>(Child))
+      Coalesce(Child, Changed);
+
+  // We can only coalesce if the operator is commutative and associative.
+  if (!B->IsOpCommutativeAndAssociative())
+    return;
+
+  auto *Parent = dyn_cast_or_null<BinaryNode>(B->Parent);
+  if (!Parent)
+    return;
+
+  // We can only coalesce if the parent has the same operator as the current
+  // node.
+  if (Parent->Opc != B->Opc)
+    return;
+
+  CoalesceNode(B, Parent);
+  Changed = true;
 }
 
 void PreorderAST::Sort(Node *N) {
-  if (Error)
+  auto *B = dyn_cast_or_null<BinaryNode>(N);
+  if (!B)
     return;
 
-  if (!N || !N->Vars.size())
+  // Sort the children first.
+  for (auto *Child : B->Children)
+    if (isa<BinaryNode>(Child))
+      Sort(Child);
+
+  // We can only sort if the operator is commutative and associative.
+  if (!B->IsOpCommutativeAndAssociative())
     return;
 
-  if (!N->IsOpCommutativeAndAssociative()) {
-    SetError();
-    return;
-  }
+  // Sort the children.
+  llvm::sort(B->Children.begin(), B->Children.end(),
+  [&](const Node *N1, const Node *N2) {
 
-  // Sort the variables in the node lexicographically.
-  llvm::sort(N->Vars.begin(), N->Vars.end(),
-             [&](const VarDecl *V1, const VarDecl *V2) {
-               return Lex.CompareDecl(V1, V2) == Result::LessThan;
-             });
+    if (const auto *L1 = dyn_cast<LeafExprNode>(N1)) {
+      if (const auto *L2 = dyn_cast<LeafExprNode>(N2))
+        // If both nodes are LeafExprNodes compare the exprs.
+        return Lex.CompareExpr(L1->E, L2->E) == Result::LessThan;
+      // N2:BinaryNodeExpr < N1:LeafExprNode.
+      return false;
+    }
 
-  for (auto *Child : N->Children)
-    Sort(Child);
+    // N1:BinaryNodeExpr < N2:LeafExprNode.
+    if (isa<LeafExprNode>(N2))
+      return true;
+
+    // Compare N1:BinaryNode and N2:BinaryNode.
+    const auto *B1 = dyn_cast<BinaryNode>(N1);
+    const auto *B2 = dyn_cast<BinaryNode>(N2);
+
+    if (B1->Opc != B2->Opc)
+      return B1->Opc < B2->Opc;
+    return B1->Children.size() < B2->Children.size();
+  });
 }
 
 bool PreorderAST::IsEqual(Node *N1, Node *N2) {
@@ -113,92 +144,75 @@ bool PreorderAST::IsEqual(Node *N1, Node *N2) {
   if ((N1 && !N2) || (!N1 && N2))
     return false;
 
-  // If the Opcodes mismatch.
-  if (N1->Opc != N2->Opc)
-    return false;
-
-  // If the number of variables in the two nodes mismatch.
-  if (N1->Vars.size() != N2->Vars.size())
-    return false;
-
-  // If the values of the constants in the two nodes differ.
-  if (llvm::APSInt::compareValues(N1->Const, N2->Const) != 0)
-    return false;
-
-  // If the number of children of the two nodes mismatch.
-  if (N1->Children.size() != N2->Children.size())
-    return false;
-
-  // Match each variable occurring in the two nodes.
-  for (size_t I = 0; I != N1->Vars.size(); ++I) {
-    auto &V1 = N1->Vars[I];
-    auto &V2 = N2->Vars[I];
-
-    // If any variable differs between the two nodes.
-    if (Lex.CompareDecl(V1, V2) != Result::Equal)
+  if (const auto *B1 = dyn_cast<BinaryNode>(N1)) {
+    // If the types of the nodes mismatch.
+    if (!isa<BinaryNode>(N2))
       return false;
+
+    const auto *B2 = dyn_cast<BinaryNode>(N2);
+
+    // If the Opcodes mismatch.
+    if (B1->Opc != B2->Opc)
+      return false;
+
+    // If the number of children of the two nodes mismatch.
+    if (B1->Children.size() != B2->Children.size())
+      return false;
+
+    // Match each child of the two nodes.
+    for (size_t I = 0; I != B1->Children.size(); ++I) {
+      auto *Child1 = B1->Children[I];
+      auto *Child2 = B2->Children[I];
+  
+      // If any child differs between the two nodes.
+      if (!IsEqual(Child1, Child2))
+        return false;
+    }
   }
 
-  // Match each child of the two nodes.
-  for (size_t I = 0; I != N1->Children.size(); ++I) {
-    auto *Child1 = N1->Children[I];
-    auto *Child2 = N2->Children[I];
+  if (const auto *L1 = dyn_cast<LeafExprNode>(N1)) {
+    // If the expr differs between the two nodes.
+    if (const auto *L2 = dyn_cast<LeafExprNode>(N2))
+      return Lex.CompareExpr(L1->E, L2->E) == Result::Equal;
 
-    // If any child differs between the two nodes.
-    if (!IsEqual(Child1, Child2))
-      return false;
+    // Else if the types of the nodes mismatch.
+    return false;
   }
+
   return true;
 }
 
 void PreorderAST::Normalize() {
-  // TODO: Coalesce nodes having the same commutative and associative operator.
   // TODO: Constant fold the constants in the nodes.
   // TODO: Perform simple arithmetic optimizations/transformations on the
   // constants in the nodes.
 
-  Sort(Root);
-}
-
-DeclRefExpr *PreorderAST::GetDeclOperand(Expr *E) {
-  if (auto *CE = dyn_cast_or_null<CastExpr>(E)) {
-    assert(CE->getSubExpr() && "Invalid CastExpr expression");
-
-    if (CE->getCastKind() == CastKind::CK_LValueToRValue ||
-        CE->getCastKind() == CastKind::CK_ArrayToPointerDecay) {
-      E = Lex.IgnoreValuePreservingOperations(Ctx, CE->getSubExpr());
-      return dyn_cast_or_null<DeclRefExpr>(E);
-    }
+  bool Changed = true;
+  while (Changed) {
+    Changed = false;
+    Coalesce(Root, Changed);
   }
-  return nullptr;
+
+  Sort(Root);
+  PrettyPrint(Root);
 }
 
 void PreorderAST::PrettyPrint(Node *N) {
-  if (!N)
-    return;
+  if (const auto *B = dyn_cast_or_null<BinaryNode>(N)) {
+    OS << BinaryOperator::getOpcodeStr(B->Opc) << "\n";
 
-  OS << BinaryOperator::getOpcodeStr(N->Opc);
-
-  if (N->Vars.size()) {
-    OS << "[ ";
-    for (auto &V : N->Vars)
-      OS << V->getQualifiedNameAsString() << " ";
-    OS << "]\n";
+    for (auto *Child : B->Children)
+      PrettyPrint(Child);
   }
-
-  if (N->HasConst)
-    OS << " [const:" << N->Const << "]\n";
-
-  for (auto *Child : N->Children)
-    PrettyPrint(Child);
+  else if (const auto *L = dyn_cast_or_null<LeafExprNode>(N))
+    L->E->dump(OS);
 }
 
 void PreorderAST::Cleanup(Node *N) {
-  if (!N)
-    return;
+  if (auto *B = dyn_cast_or_null<BinaryNode>(N))
+    for (auto *Child : B->Children)
+      Cleanup(Child);
 
-  for (auto *Child : N->Children)
-    Cleanup(Child);
-
-  delete N;
+  if (N)
+    delete N;
 }
