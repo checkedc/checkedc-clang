@@ -16,8 +16,7 @@
 /*********************************************************************************/
 
 
-typedef unsigned long size_t;
-#define NULL 0
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -110,7 +109,7 @@ x = (char * * *) 5;
         *ch = 'A'; /*Capital A*/
         char *** z = malloc(5*sizeof(char**)); 
 	//CHECK_NOALL: char *** z = malloc<char **>(5*sizeof(char**)); 
-	//CHECK_ALL: _Array_ptr<_Array_ptr<char *>> z : count(5) =  malloc<_Array_ptr<char *>>(5*sizeof(char**)); 
+	//CHECK_ALL: _Array_ptr<_Array_ptr<char *>> z : count(5) = malloc<_Array_ptr<char *>>(5*sizeof(char**)); 
         for(int i = 0; i < 5; i++) { 
             z[i] = malloc(5*sizeof(char *)); 
 	//CHECK: z[i] = malloc<char *>(5*sizeof(char *)); 
@@ -130,10 +129,10 @@ char *** foo() {
         char * * * x = malloc(sizeof(char * *));
 	//CHECK: char * * * x = malloc<char **>(sizeof(char * *));
         char * * * y = malloc(sizeof(char * *));
-	//CHECK: _Ptr<_Ptr<_Ptr<char>>> y =  malloc<_Ptr<_Ptr<char>>>(sizeof(char * *));
+	//CHECK: _Ptr<_Ptr<_Ptr<char>>> y = malloc<_Ptr<_Ptr<char>>>(sizeof(char * *));
         char *** z = sus(x, y);
 	//CHECK_NOALL: char *** z = sus(x, y);
-	//CHECK_ALL: _Ptr<_Array_ptr<char *>> z =  sus(x, y);
+	//CHECK_ALL: _Ptr<_Array_ptr<char *>> z = sus(x, y);
 return z; }
 
 char *** bar() {
@@ -142,8 +141,8 @@ char *** bar() {
         char * * * x = malloc(sizeof(char * *));
 	//CHECK: char * * * x = malloc<char **>(sizeof(char * *));
         char * * * y = malloc(sizeof(char * *));
-	//CHECK: _Ptr<_Ptr<_Ptr<char>>> y =  malloc<_Ptr<_Ptr<char>>>(sizeof(char * *));
+	//CHECK: _Ptr<_Ptr<_Ptr<char>>> y = malloc<_Ptr<_Ptr<char>>>(sizeof(char * *));
         char *** z = sus(x, y);
 	//CHECK_NOALL: char *** z = sus(x, y);
-	//CHECK_ALL: _Ptr<_Array_ptr<char *>> z =  sus(x, y);
+	//CHECK_ALL: _Ptr<_Array_ptr<char *>> z = sus(x, y);
 return z; }

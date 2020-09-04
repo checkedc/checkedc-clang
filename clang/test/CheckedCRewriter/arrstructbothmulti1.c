@@ -26,8 +26,7 @@ through invalid pointer arithmetic, an unsafe cast, etc.*/
 /*********************************************************************************/
 
 
-typedef unsigned long size_t;
-#define NULL 0
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -120,10 +119,10 @@ int * foo() {
         struct general * x = malloc(sizeof(struct general));
 	//CHECK: struct general * x = malloc<struct general>(sizeof(struct general));
         struct general * y = malloc(sizeof(struct general));
-	//CHECK: _Ptr<struct general> y =  malloc<struct general>(sizeof(struct general));
+	//CHECK: _Ptr<struct general> y = malloc<struct general>(sizeof(struct general));
         
         struct general *curr = y;
-	//CHECK: _Ptr<struct general> curr =  y;
+	//CHECK: _Ptr<struct general> curr = y;
         int i;
         for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
@@ -132,7 +131,7 @@ int * foo() {
         }
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
 return z; }
 
 int * bar() {
@@ -141,10 +140,10 @@ int * bar() {
         struct general * x = malloc(sizeof(struct general));
 	//CHECK: struct general * x = malloc<struct general>(sizeof(struct general));
         struct general * y = malloc(sizeof(struct general));
-	//CHECK: _Ptr<struct general> y =  malloc<struct general>(sizeof(struct general));
+	//CHECK: _Ptr<struct general> y = malloc<struct general>(sizeof(struct general));
         
         struct general *curr = y;
-	//CHECK: _Ptr<struct general> curr =  y;
+	//CHECK: _Ptr<struct general> curr = y;
         int i;
         for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
@@ -153,6 +152,6 @@ int * bar() {
         }
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
 z += 2;
 return z; }

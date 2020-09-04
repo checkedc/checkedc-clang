@@ -25,8 +25,7 @@ the tool performs conversions*/
 /*********************************************************************************/
 
 
-typedef unsigned long size_t;
-#define NULL 0
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -120,9 +119,9 @@ int * foo() {
         struct general *x = malloc(sizeof(struct general)); 
 	//CHECK: struct general *x = malloc<struct general>(sizeof(struct general)); 
         struct general *y = malloc(sizeof(struct general));
-	//CHECK: _Ptr<struct general> y =  malloc<struct general>(sizeof(struct general));
+	//CHECK: _Ptr<struct general> y = malloc<struct general>(sizeof(struct general));
         struct general *curr = y;
-	//CHECK: _Ptr<struct general> curr =  y;
+	//CHECK: _Ptr<struct general> curr = y;
         int i;
         for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
@@ -130,11 +129,11 @@ int * foo() {
             curr->next->data = i+1;
         }
         int * (*sus_ptr)(struct general *, struct general *) = sus;   
-	//CHECK_NOALL: _Ptr<int * (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
-	//CHECK_ALL: _Ptr<_Array_ptr<int> (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
+	//CHECK_NOALL: _Ptr<int * (struct general *, _Ptr<struct general> )> sus_ptr = sus;   
+	//CHECK_ALL: _Ptr<_Array_ptr<int> (struct general *, _Ptr<struct general> )> sus_ptr = sus;   
         int *z = sus_ptr(x, y);
 	//CHECK_NOALL: int *z = sus_ptr(x, y);
-	//CHECK_ALL: _Array_ptr<int> z =  sus_ptr(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus_ptr(x, y);
         
 return z; }
 
@@ -145,9 +144,9 @@ int * bar() {
         struct general *x = malloc(sizeof(struct general)); 
 	//CHECK: struct general *x = malloc<struct general>(sizeof(struct general)); 
         struct general *y = malloc(sizeof(struct general));
-	//CHECK: _Ptr<struct general> y =  malloc<struct general>(sizeof(struct general));
+	//CHECK: _Ptr<struct general> y = malloc<struct general>(sizeof(struct general));
         struct general *curr = y;
-	//CHECK: _Ptr<struct general> curr =  y;
+	//CHECK: _Ptr<struct general> curr = y;
         int i;
         for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
@@ -155,10 +154,10 @@ int * bar() {
             curr->next->data = i+1;
         }
         int * (*sus_ptr)(struct general *, struct general *) = sus;   
-	//CHECK_NOALL: _Ptr<int * (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
-	//CHECK_ALL: _Ptr<_Array_ptr<int> (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
+	//CHECK_NOALL: _Ptr<int * (struct general *, _Ptr<struct general> )> sus_ptr = sus;   
+	//CHECK_ALL: _Ptr<_Array_ptr<int> (struct general *, _Ptr<struct general> )> sus_ptr = sus;   
         int *z = sus_ptr(x, y);
 	//CHECK_NOALL: int *z = sus_ptr(x, y);
-	//CHECK_ALL: _Array_ptr<int> z =  sus_ptr(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus_ptr(x, y);
         
 return z; }

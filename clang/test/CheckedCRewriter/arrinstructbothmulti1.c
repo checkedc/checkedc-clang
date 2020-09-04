@@ -26,8 +26,7 @@ through invalid pointer arithmetic, an unsafe cast, etc.*/
 /*********************************************************************************/
 
 
-typedef unsigned long size_t;
-#define NULL 0
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -123,7 +122,7 @@ struct warr * foo() {
 	//CHECK: struct warr * y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
 	//CHECK_NOALL: struct warr * z = sus(x, y);
-	//CHECK_ALL: _Ptr<struct warr> z =  sus(x, y);
+	//CHECK_ALL: _Ptr<struct warr> z = sus(x, y);
 return z; }
 
 struct warr * bar() {
@@ -135,6 +134,6 @@ struct warr * bar() {
 	//CHECK: struct warr * y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
 	//CHECK_NOALL: struct warr * z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<struct warr> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<struct warr> z = sus(x, y);
 z += 2;
 return z; }

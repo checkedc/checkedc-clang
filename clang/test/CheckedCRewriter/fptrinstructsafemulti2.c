@@ -25,8 +25,7 @@ the tool performs conversions*/
 /*********************************************************************************/
 
 
-typedef unsigned long size_t;
-#define NULL 0
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -115,7 +114,7 @@ struct fptr * sus(struct fptr *x, struct fptr *y) {
         x = (struct fptr *) 5; 
 	//CHECK: x = (struct fptr *) 5; 
         struct fptr *z = malloc(sizeof(struct fptr)); 
-	//CHECK: _Ptr<struct fptr> z =  malloc<struct fptr>(sizeof(struct fptr)); 
+	//CHECK: _Ptr<struct fptr> z = malloc<struct fptr>(sizeof(struct fptr)); 
         z->value = y->value; 
         z->func = fact;
         

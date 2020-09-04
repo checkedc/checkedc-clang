@@ -20,8 +20,7 @@ while the definition for sus appears below them*/
 /*********************************************************************************/
 
 
-typedef unsigned long size_t;
-#define NULL 0
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -115,10 +114,10 @@ int * foo() {
         int (*x)(int) = add1; 
 	//CHECK: int (*x)(int) = add1; 
         int (*y)(int) = sub1; 
-	//CHECK: _Ptr<int (int )> y =  sub1; 
+	//CHECK: _Ptr<int (int )> y = sub1; 
         int *z = sus(x, y);
 	//CHECK_NOALL: int *z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
         
 return z; }
 
@@ -129,10 +128,10 @@ int * bar() {
         int (*x)(int) = add1; 
 	//CHECK: int (*x)(int) = add1; 
         int (*y)(int) = sub1; 
-	//CHECK: _Ptr<int (int )> y =  sub1; 
+	//CHECK: _Ptr<int (int )> y = sub1; 
         int *z = sus(x, y);
 	//CHECK_NOALL: int *z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
         
 return z; }
 
@@ -144,7 +143,7 @@ int * sus(int (*x) (int), int (*y) (int)) {
 	//CHECK: x = (int (*) (int)) 5;
         int *z = calloc(5, sizeof(int));
 	//CHECK_NOALL: int *z = calloc<int>(5, sizeof(int));
-	//CHECK_ALL: _Array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int));
+	//CHECK_ALL: _Array_ptr<int> z : count(5) = calloc<int>(5, sizeof(int));
         int i;
         for(i = 0; i < 5; i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; i++) { 
