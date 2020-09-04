@@ -2,7 +2,7 @@
 // RUN: cconv-standalone -use-malloc=my_malloc,your_malloc %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 // RUN: cconv-standalone -use-malloc=my_malloc,your_malloc %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
-typedef unsigned long size_t;
+#include <stddef.h>
 extern _Itype_for_any(T) void *my_malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 extern _Itype_for_any(T) void *your_malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);

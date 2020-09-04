@@ -6,7 +6,7 @@
 Various array bounds tests.
 */
 
-typedef unsigned long size_t;
+#include <stddef.h>
 void *memset(void * dest : byte_count(n),
              int c,
              size_t n) : bounds(dest, (_Array_ptr<char>)dest + n);

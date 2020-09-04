@@ -8,7 +8,7 @@ import subprocess
 #### USERS PUT YOUR INFO HERE ##### 
 
 # Please remember to add a '/' at the very end!
-path_to_monorepo = "/Users/shilpa-roy/checkedc-clang/build/bin/"
+path_to_monorepo = "/Users/shilpa-roy/checkedc/checkedc-clang/build/bin/"
 
 
 
@@ -48,8 +48,7 @@ for e in it.product(prefixes, addendums, suffixes):
 
 # header that should top every file
 header = """
-typedef unsigned long size_t;
-#define NULL 0
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);

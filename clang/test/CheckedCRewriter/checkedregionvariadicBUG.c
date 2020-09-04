@@ -3,7 +3,7 @@
 // XFAIL: *
 
 #include <stdarg.h>
-#define NULL ((void*) 0x0)
+#include <stddef.h>
 
 void sum(int *ptr, int count, ...) { 
   //CHECK: void sum(_Ptr<int> ptr, int count, ...) {

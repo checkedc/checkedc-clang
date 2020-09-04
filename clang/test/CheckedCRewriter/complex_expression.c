@@ -8,8 +8,7 @@
 // RUN: cconv-standalone -addcr %S/complex_expression.checked.c -- | count 0
 // RUN: rm %S/complex_expression.checked.c
 
-#define NULL ((void *)0)
-typedef unsigned long size_t;
+#include <stddef.h>
 
 int * func(int *a, int *b) {
     // This is a checked pointer

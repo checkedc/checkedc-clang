@@ -76,7 +76,7 @@ void unsafe(int *a) {
 
 // Example issue 153
 
-typedef unsigned long size_t;
+#include <stddef.h>
 _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 _Itype_for_any(T) void *memcpy(void * restrict dest : itype(restrict _Array_ptr<T>) byte_count(n),
              const void * restrict src : itype(restrict _Array_ptr<const T>) byte_count(n),

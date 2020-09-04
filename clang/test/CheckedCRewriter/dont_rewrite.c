@@ -2,7 +2,7 @@
 // RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK" %s
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
-typedef unsigned long size_t;
+#include <stddef.h>
 
 extern void *memset(void * dest : byte_count(n),
              int c,
