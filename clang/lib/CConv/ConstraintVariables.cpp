@@ -150,7 +150,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
   ArrPresent = false;
 
-  bool isDeclTy = false;
+  bool IsDeclTy = false;
   if (D != nullptr) {
     auto &ABInfo = I.getABoundsInfo();
     if (ABInfo.tryGetVariable(D, BKey)) {
@@ -174,14 +174,14 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       }
     }
 
-    isDeclTy = D->getType() == QT; // If false, then QT may be D's return type
+    IsDeclTy = D->getType() == QT; // If false, then QT may be D's return type
     if (InteropTypeExpr *ITE = D->getInteropTypeExpr()) {
       // External variables can also have itype.
       // Check if the provided declaration is an external
       // variable.
       // For functions, check to see that if we are analyzing
       // function return types.
-      bool AnalyzeITypeExpr = isDeclTy;
+      bool AnalyzeITypeExpr = IsDeclTy;
       if (!AnalyzeITypeExpr) {
         const Type *OrigType = Ty;
         if (isa<FunctionDecl>(D)) {
@@ -343,10 +343,33 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     //    tn fname = ...,
     // where tn is the typedef'ed type name.
     // There is possibly something more elegant to do in the code here.
-    FV = new FVConstraint(Ty, isDeclTy ? D : nullptr,
-                          (IsTypedef ? "" : N), I, C);
+    FV = new FVConstraint(Ty, IsDeclTy ? D : nullptr, IsTypedef ? "" : N, I, C);
 
-  BaseType = tyToStr(Ty);
+  // Get a string representing the type without pointer and array indirection.
+  bool FoundMatchingType = false;
+  if (!IsTypedef && D && D->getTypeSourceInfo()) {
+    // Try to extract the type from original source to preserve defines
+    TypeLoc TL = D->getTypeSourceInfo()->getTypeLoc();
+    if (isa<FunctionDecl>(D)) {
+      FoundMatchingType = D->getAsFunction()->getReturnType() == QT;
+      TL = TL.getAs<clang::FunctionTypeLoc>().getReturnLoc();
+    } else {
+      FoundMatchingType = D->getType() == QT;
+    }
+    // Only use this type if the type passed as a parameter to this constructor
+    // agrees with the actual type of the declaration.
+    if (FoundMatchingType) {
+      BaseType = getSourceText(getBaseTypeLoc(TL).getSourceRange(), C);
+
+      // getSourceText returns the empty string when there's a pointer level
+      // inside a macro. Not sure how to handle this, so fall back to tyToStr.
+      if (BaseType.empty())
+        FoundMatchingType = false;
+    }
+  }
+  // Fall back to rebuilding the base type based on type passed to constructor
+  if (!FoundMatchingType)
+    BaseType = tyToStr(Ty);
 
   bool IsWild = !IsGeneric && (isVarArgType(BaseType) || isTypeHasVoid(QT));
   if (IsWild) {

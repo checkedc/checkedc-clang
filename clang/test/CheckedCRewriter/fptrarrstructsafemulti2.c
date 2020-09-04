@@ -117,7 +117,7 @@ struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
 	//CHECK: x = (struct fptrarr *) 5; 
         char name[30]; 
         struct fptrarr *z = malloc(sizeof(struct fptrarr)); 
-	//CHECK: _Ptr<struct fptrarr> z =  malloc<struct fptrarr>(sizeof(struct fptrarr)); 
+	//CHECK: _Ptr<struct fptrarr> z = malloc<struct fptrarr>(sizeof(struct fptrarr)); 
         z->values = y->values; 
         z->name = strcpy(name, "Hello World");
         z->mapper = fact; 

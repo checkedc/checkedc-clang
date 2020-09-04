@@ -28,7 +28,7 @@ int foo(int *arr, unsigned len) {
     return 0;
 }
 
-//CHECK: int foo(_Array_ptr<int> arr : count(len), unsigned int len) {
+//CHECK: int foo(_Array_ptr<int> arr : count(len), unsigned len) {
 
 void baz() {
     unsigned n;

@@ -111,16 +111,16 @@ int *mul2(int *x) {
 }
 
 struct warr * sus(struct warr * x, struct warr * y) {
-	//CHECK_NOALL: struct warr *sus(struct warr *x, _Ptr<struct warr> y) : itype(_Ptr<struct warr>) {
-	//CHECK_ALL: _Array_ptr<struct warr> sus(struct warr *x, struct warr *y : itype(_Array_ptr<struct warr>)) {
+	//CHECK_NOALL: struct warr *sus(struct warr * x, _Ptr<struct warr> y) : itype(_Ptr<struct warr>) {
+	//CHECK_ALL: _Array_ptr<struct warr> sus(struct warr * x, struct warr *y : itype(_Array_ptr<struct warr>)) {
 x = (struct warr *) 5;
 	//CHECK: x = (struct warr *) 5;
         char name[20]; 
 	//CHECK_NOALL: char name[20]; 
 	//CHECK_ALL: char name _Checked[20]; 
         struct warr *z = y;
-	//CHECK_NOALL: _Ptr<struct warr> z =  y;
-	//CHECK_ALL: _Array_ptr<struct warr> z =  y;
+	//CHECK_NOALL: _Ptr<struct warr> z = y;
+	//CHECK_ALL: _Array_ptr<struct warr> z = y;
         int i;
         for(i = 0; i < 5; i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; i++) { 

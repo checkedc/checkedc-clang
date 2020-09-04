@@ -45,7 +45,7 @@ struct np *sus(struct p x, struct p y) {
 }
 
 struct np *foo() {
-	//CHECK: struct np * foo(void) {
+	//CHECK: struct np *foo(void) {
   struct p x, y;
   x.x = 1;
   x.y = 2;
@@ -57,7 +57,7 @@ struct np *foo() {
 }
 
 struct np *bar() {
-	//CHECK: struct np * bar(void) {
+	//CHECK: struct np *bar(void) {
   struct p x, y;
   x.x = 1;
   x.y = 2;

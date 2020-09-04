@@ -117,9 +117,9 @@ struct warr * foo() {
         struct warr * x = malloc(sizeof(struct warr));
 	//CHECK: struct warr * x = malloc<struct warr>(sizeof(struct warr));
         struct warr * y = malloc(sizeof(struct warr));
-	//CHECK: _Ptr<struct warr> y =  malloc<struct warr>(sizeof(struct warr));
+	//CHECK: _Ptr<struct warr> y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
-	//CHECK: _Ptr<struct warr> z =  sus(x, y);
+	//CHECK: _Ptr<struct warr> z = sus(x, y);
 return z; }
 
 struct warr * bar() {
@@ -127,7 +127,7 @@ struct warr * bar() {
         struct warr * x = malloc(sizeof(struct warr));
 	//CHECK: struct warr * x = malloc<struct warr>(sizeof(struct warr));
         struct warr * y = malloc(sizeof(struct warr));
-	//CHECK: _Ptr<struct warr> y =  malloc<struct warr>(sizeof(struct warr));
+	//CHECK: _Ptr<struct warr> y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
-	//CHECK: _Ptr<struct warr> z =  sus(x, y);
+	//CHECK: _Ptr<struct warr> z = sus(x, y);
 return z; }

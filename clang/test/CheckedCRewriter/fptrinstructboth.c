@@ -121,7 +121,7 @@ struct fptr * foo() {
         struct fptr * x = malloc(sizeof(struct fptr)); 
 	//CHECK: struct fptr * x = malloc<struct fptr>(sizeof(struct fptr)); 
         struct fptr *y =  malloc(sizeof(struct fptr));
-	//CHECK: _Ptr<struct fptr> y =   malloc<struct fptr>(sizeof(struct fptr));
+	//CHECK: _Ptr<struct fptr> y =  malloc<struct fptr>(sizeof(struct fptr));
         struct fptr *z = sus(x, y);
 	//CHECK: struct fptr *z = sus(x, y);
         
@@ -133,7 +133,7 @@ struct fptr * bar() {
         struct fptr * x = malloc(sizeof(struct fptr)); 
 	//CHECK: struct fptr * x = malloc<struct fptr>(sizeof(struct fptr)); 
         struct fptr *y =  malloc(sizeof(struct fptr));
-	//CHECK: _Ptr<struct fptr> y =   malloc<struct fptr>(sizeof(struct fptr));
+	//CHECK: _Ptr<struct fptr> y =  malloc<struct fptr>(sizeof(struct fptr));
         struct fptr *z = sus(x, y);
 	//CHECK: struct fptr *z = sus(x, y);
         

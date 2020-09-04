@@ -119,7 +119,7 @@ struct arrfptr * foo() {
         struct arrfptr * x = malloc(sizeof(struct arrfptr));
 	//CHECK: struct arrfptr * x = malloc<struct arrfptr>(sizeof(struct arrfptr));
         struct arrfptr * y =  malloc(sizeof(struct arrfptr));
-	//CHECK: _Ptr<struct arrfptr> y =   malloc<struct arrfptr>(sizeof(struct arrfptr));
+	//CHECK: _Ptr<struct arrfptr> y =  malloc<struct arrfptr>(sizeof(struct arrfptr));
        
         struct arrfptr *z = sus(x, y); 
 	//CHECK: struct arrfptr *z = sus(x, y); 
@@ -136,7 +136,7 @@ struct arrfptr * bar() {
         struct arrfptr * x = malloc(sizeof(struct arrfptr));
 	//CHECK: struct arrfptr * x = malloc<struct arrfptr>(sizeof(struct arrfptr));
         struct arrfptr * y =  malloc(sizeof(struct arrfptr));
-	//CHECK: _Ptr<struct arrfptr> y =   malloc<struct arrfptr>(sizeof(struct arrfptr));
+	//CHECK: _Ptr<struct arrfptr> y =  malloc<struct arrfptr>(sizeof(struct arrfptr));
        
         struct arrfptr *z = sus(x, y); 
 	//CHECK: struct arrfptr *z = sus(x, y); 

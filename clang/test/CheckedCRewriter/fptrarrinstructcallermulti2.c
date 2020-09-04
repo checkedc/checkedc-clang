@@ -117,7 +117,7 @@ struct arrfptr * sus(struct arrfptr *x, struct arrfptr *y) {
         x = (struct arrfptr *) 5; 
 	//CHECK: x = (struct arrfptr *) 5; 
         struct arrfptr *z = malloc(sizeof(struct arrfptr)); 
-	//CHECK_NOALL: _Ptr<struct arrfptr> z =  malloc<struct arrfptr>(sizeof(struct arrfptr)); 
+	//CHECK_NOALL: _Ptr<struct arrfptr> z = malloc<struct arrfptr>(sizeof(struct arrfptr)); 
 	//CHECK_ALL: struct arrfptr *z = malloc<struct arrfptr>(sizeof(struct arrfptr)); 
         int i;
         for(i = 0; i < 5; i++) { 
