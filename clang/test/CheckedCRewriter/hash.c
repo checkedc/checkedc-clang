@@ -38,9 +38,9 @@ void* hash_lookup_entry(struct hash* p_hash, void* p_key);
 void hash_add_entry(struct hash* p_hash, void* p_key, void* p_value);
 void hash_free_entry(struct hash* p_hash, void* p_key);
 //CHECK_ALL: _Ptr<struct hash> hash_alloc(unsigned int buckets, unsigned int key_size, unsigned int value_size, _Ptr<unsigned int (unsigned int , void *)> hash_func);
-//CHECK_ALL: void * hash_lookup_entry(_Ptr<struct hash> p_hash, void *p_key);
-//CHECK_ALL: void hash_add_entry(_Ptr<struct hash> p_hash, void *p_key, void *p_value);
-//CHECK_ALL: void hash_free_entry(_Ptr<struct hash> p_hash, void *p_key);
+//CHECK_ALL: void* hash_lookup_entry(_Ptr<struct hash> p_hash, void* p_key);
+//CHECK_ALL: void hash_add_entry(_Ptr<struct hash> p_hash, void* p_key, void* p_value);
+//CHECK_ALL: void hash_free_entry(_Ptr<struct hash> p_hash, void* p_key);
 
 #define bug(s) {  }
 
@@ -68,8 +68,8 @@ struct hash
 /* Internal functions */
 struct hash_node** hash_get_bucket(struct hash* p_hash, void* p_key);
 struct hash_node* hash_get_node_by_key(struct hash* p_hash, void* p_key);
-//CHECK_ALL: _Array_ptr<_Ptr<struct hash_node>> hash_get_bucket(_Ptr<struct hash> p_hash, void *p_key);
-//CHECK_ALL: _Ptr<struct hash_node> hash_get_node_by_key(_Ptr<struct hash> p_hash, void *p_key);
+//CHECK_ALL: _Array_ptr<_Ptr<struct hash_node>> hash_get_bucket(_Ptr<struct hash> p_hash, void* p_key);
+//CHECK_ALL: _Ptr<struct hash_node> hash_get_node_by_key(_Ptr<struct hash> p_hash, void* p_key);
 
 struct hash*
 hash_alloc(unsigned int buckets, unsigned int key_size,
@@ -94,7 +94,7 @@ hash_alloc(unsigned int buckets, unsigned int key_size,
 
 void*
 hash_lookup_entry(struct hash* p_hash, void* p_key)
-//CHECK_ALL: void * hash_lookup_entry(_Ptr<struct hash> p_hash, void *p_key)
+//CHECK_ALL: hash_lookup_entry(_Ptr<struct hash> p_hash, void* p_key)
 {
   struct hash_node* p_node = hash_get_node_by_key(p_hash, p_key);
 //CHECK_ALL:  _Ptr<struct hash_node> p_node =  hash_get_node_by_key(p_hash, p_key);
@@ -109,7 +109,7 @@ hash_lookup_entry(struct hash* p_hash, void* p_key)
 
 void
 hash_add_entry(struct hash* p_hash, void* p_key, void* p_value)
-//CHECK_ALL: void hash_add_entry(_Ptr<struct hash> p_hash, void *p_key, void *p_value)
+//CHECK_ALL: hash_add_entry(_Ptr<struct hash> p_hash, void* p_key, void* p_value)
 {
   struct hash_node** p_bucket;
   struct hash_node* p_new_node;
@@ -143,7 +143,7 @@ hash_add_entry(struct hash* p_hash, void* p_key, void* p_value)
 
 void
 hash_free_entry(struct hash* p_hash, void* p_key)
-//CHECK_ALL: void hash_free_entry(_Ptr<struct hash> p_hash, void *p_key)
+//CHECK_ALL: hash_free_entry(_Ptr<struct hash> p_hash, void* p_key)
 {
   struct hash_node* p_node = hash_get_node_by_key(p_hash, p_key);
 //CHECK_ALL:  _Ptr<struct hash_node> p_node =  hash_get_node_by_key(p_hash, p_key);
@@ -172,7 +172,7 @@ hash_free_entry(struct hash* p_hash, void* p_key)
 
 struct hash_node**
 hash_get_bucket(struct hash* p_hash, void* p_key)
-//CHECK_ALL: _Array_ptr<_Ptr<struct hash_node>> hash_get_bucket(_Ptr<struct hash> p_hash, void *p_key)
+//CHECK_ALL: _Array_ptr<_Ptr<struct hash_node>> hash_get_bucket(_Ptr<struct hash> p_hash, void* p_key)
 {
   unsigned int bucket = (*p_hash->hash_func)(p_hash->buckets, p_key);
   if (bucket >= p_hash->buckets)
@@ -184,7 +184,7 @@ hash_get_bucket(struct hash* p_hash, void* p_key)
 
 struct hash_node*
 hash_get_node_by_key(struct hash* p_hash, void* p_key)
-//CHECK_ALL: _Ptr<struct hash_node> hash_get_node_by_key(_Ptr<struct hash> p_hash, void *p_key)
+//CHECK_ALL: _Ptr<struct hash_node> hash_get_node_by_key(_Ptr<struct hash> p_hash, void* p_key)
 {
   struct hash_node** p_bucket = hash_get_bucket(p_hash, p_key);
   struct hash_node* p_node = *p_bucket;

@@ -13,8 +13,8 @@ extern int printf(const char * restrict format : itype(restrict _Nt_array_ptr<co
 extern _Unchecked char *strcpy(char * restrict dest, const char * restrict src : itype(restrict _Nt_array_ptr<const char>));
 
 char *sus(int *x, int*y) {
-	//CHECK_NOALL: char * sus(int *x, _Ptr<int> y) {
-	//CHECK_ALL: char * sus(int *x : itype(_Array_ptr<int>), _Ptr<int> y) {
+	//CHECK_NOALL: char *sus(int *x, _Ptr<int> y) {
+	//CHECK_ALL: char *sus(int *x : itype(_Array_ptr<int>), _Ptr<int> y) {
   int *z = malloc(sizeof(int));
 	//CHECK: int *z = malloc<int>(sizeof(int));
   *z = 1;
@@ -24,7 +24,7 @@ char *sus(int *x, int*y) {
 }
 
 char* foo() {
-	//CHECK: char * foo(void) {
+	//CHECK: char* foo(void) {
   int sx = 3, sy = 4; 
   int *x = &sx;
 	//CHECK: int *x = &sx;
@@ -37,7 +37,7 @@ char* foo() {
 }
 
 int* bar() {
-	//CHECK: int * bar(void) {
+	//CHECK: int* bar(void) {
   int sx = 3, sy = 4; 
   int *x = &sx;
 	//CHECK: int *x = &sx;

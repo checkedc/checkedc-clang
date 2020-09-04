@@ -410,3 +410,10 @@ bool isZeroBoundsExpr(BoundsExpr *BE, const ASTContext &C) {
   // and it seems unlikely to show up in real code.
   return false;
 }
+
+TypeLoc getBaseTypeLoc(TypeLoc T) {
+  while (!T.getNextTypeLoc().isNull()
+      && (T.getTypePtr()->isPointerType() || T.getTypePtr()->isArrayType()))
+    T = T.getNextTypeLoc();
+  return T;
+}

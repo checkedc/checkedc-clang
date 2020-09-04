@@ -37,7 +37,7 @@ struct np *sus(struct r *, struct r *);
 	//CHECK: struct np *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct np>);
 
 struct np *foo() {
-	//CHECK: struct np * foo(void) {
+	//CHECK: struct np *foo(void) {
   struct r *x;
 	//CHECK: struct r *x;
   struct r *y;
@@ -52,7 +52,7 @@ struct np *foo() {
 }
 
 struct r *bar() {
-	//CHECK: struct r * bar(void) {
+	//CHECK: struct r *bar(void) {
   struct r *x; 
 	//CHECK: struct r *x; 
   struct r *y;

@@ -52,7 +52,7 @@ struct r *foo() {
 }
 
 struct np *bar() {
-	//CHECK: struct np * bar(void) {
+	//CHECK: struct np *bar(void) {
   struct r *x; 
 	//CHECK: struct r *x; 
   struct r *y;

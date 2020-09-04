@@ -16,7 +16,7 @@ _Itype_for_any(T) void vsf_sysutil_memclr(void* p_dest : itype(_Array_ptr<T>) by
 
 
 int *foo( _Ptr<int> q) {
-// CHECK: _Ptr<int> foo(_Ptr<int> q) _Checked {
+// CHECK: _Ptr<int> foo( _Ptr<int> q) _Checked {
   return q;
 }
 void bar(void) {

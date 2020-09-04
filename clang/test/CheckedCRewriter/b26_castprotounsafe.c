@@ -30,7 +30,7 @@ int* foo() {
 }
 
 char* bar() {
-	//CHECK: char * bar(void) {
+	//CHECK: char* bar(void) {
   int sx = 3, sy = 4; 
   int *x = &sx;
 	//CHECK: int *x = &sx;

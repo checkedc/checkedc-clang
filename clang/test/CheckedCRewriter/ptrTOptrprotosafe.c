@@ -103,8 +103,8 @@ int *mul2(int *x) {
 }
 
 char *** sus(char * * *, char * * *);
-	//CHECK_NOALL: char *** sus(char ***x, _Ptr<_Ptr<_Ptr<char>>> y);
-	//CHECK_ALL: _Ptr<_Array_ptr<char *>> sus(char ***x, _Ptr<_Ptr<_Ptr<char>>> y);
+	//CHECK_NOALL: char *** sus(char * * * x, _Ptr<_Ptr<_Ptr<char>>> y);
+	//CHECK_ALL: _Ptr<_Array_ptr<char *>> sus(char * * * x, _Ptr<_Ptr<_Ptr<char>>> y);
 
 char *** foo() {
 	//CHECK_NOALL: char *** foo(void) {
@@ -131,8 +131,8 @@ char *** bar() {
 return z; }
 
 char *** sus(char * * * x, char * * * y) {
-	//CHECK_NOALL: char *** sus(char ***x, _Ptr<_Ptr<_Ptr<char>>> y) {
-	//CHECK_ALL: _Ptr<_Array_ptr<char *>> sus(char ***x, _Ptr<_Ptr<_Ptr<char>>> y) {
+	//CHECK_NOALL: char *** sus(char * * * x, _Ptr<_Ptr<_Ptr<char>>> y) {
+	//CHECK_ALL: _Ptr<_Array_ptr<char *>> sus(char * * * x, _Ptr<_Ptr<_Ptr<char>>> y) {
 x = (char * * *) 5;
 	//CHECK: x = (char * * *) 5;
         char *ch = malloc(sizeof(char)); 

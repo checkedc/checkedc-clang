@@ -47,12 +47,12 @@ struct r *foo() {
   x->next = &y;
   y->next = &x;
   struct r *z = (struct r *) sus(x, y);
-	//CHECK: _Ptr<struct r> z =  (_Ptr<struct r>) sus(x, y);
+	//CHECK: _Ptr<struct r> z = (_Ptr<struct r>) sus(x, y);
   return z;
 }
 
 struct np *bar() {
-	//CHECK: struct np * bar(void) {
+	//CHECK: struct np *bar(void) {
   struct r *x;
 	//CHECK: struct r *x;
   struct r *y;

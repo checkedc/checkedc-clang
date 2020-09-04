@@ -40,7 +40,7 @@ struct np *sus(struct r *, struct r *);
 	//CHECK_ALL: struct np *sus(_Ptr<struct r> x, _Ptr<struct r> y) : itype(_Ptr<struct np>);
 
 struct r *foo() {
-	//CHECK: struct r * foo(void) {
+	//CHECK: struct r *foo(void) {
   struct r *x; 
 	//CHECK_NOALL: struct r *x; 
 	//CHECK_ALL:   _Array_ptr<struct r> x = ((void *)0); 

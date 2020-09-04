@@ -17,7 +17,7 @@ char *sus(int *, int *);
 	//CHECK_ALL: char *sus(int *x : itype(_Array_ptr<int>), _Ptr<int> y) : itype(_Ptr<char>);
 
 char* foo() {
-	//CHECK: char * foo(void) {
+	//CHECK: char* foo(void) {
   int sx = 3, sy = 4; 
   int *x = &sx;
 	//CHECK: int *x = &sx;
@@ -30,7 +30,7 @@ char* foo() {
 }
 
 int* bar() {
-	//CHECK: int * bar(void) {
+	//CHECK: int* bar(void) {
   int sx = 3, sy = 4; 
   int *x = &sx;
 	//CHECK: int *x = &sx;

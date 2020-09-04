@@ -34,7 +34,7 @@ void test1(int *a) {
 
 /* Example from from the issue */
 int *foo() {
-	//CHECK: int * foo(void) {
+	//CHECK: int *foo(void) {
 
   int x = 1;
   int y = 2;
@@ -53,7 +53,7 @@ int *foo() {
 
 /* Example from the issue, but everthing should check */
 int *foo2() {
-	//CHECK_NOALL: int * foo2(void) {
+	//CHECK_NOALL: int *foo2(void) {
 	//CHECK_ALL: _Ptr<int> foo2(void) _Checked {
 
   int x = 1;

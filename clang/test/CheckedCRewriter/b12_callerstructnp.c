@@ -46,20 +46,20 @@ struct np *sus(struct p x, struct p y) {
 
 struct np *foo() {
 	//CHECK_NOALL: _Ptr<struct np> foo(void) {
-	//CHECK_ALL: struct np * foo(void) {
+	//CHECK_ALL: struct np *foo(void) {
   struct p x, y;
   x.x = 1;
   x.y = 2;
   y.x = 3;
   y.y = 4;
   struct np *z = sus(x, y);
-	//CHECK_NOALL: _Ptr<struct np> z =  sus(x, y);
+	//CHECK_NOALL: _Ptr<struct np> z = sus(x, y);
 	//CHECK_ALL:   struct np *z = sus(x, y);
   return z;
 }
 
 struct np *bar() {
-	//CHECK: struct np * bar(void) {
+	//CHECK: struct np *bar(void) {
   struct p x, y;
   x.x = 1;
   x.y = 2;

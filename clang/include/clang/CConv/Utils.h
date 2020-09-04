@@ -162,7 +162,7 @@ bool evaluateToInt(clang::Expr *E, const clang::ASTContext &C, int &Result);
 // can be treated as pointers.
 bool isZeroBoundsExpr(clang::BoundsExpr *BE, const clang::ASTContext &C);
 
-// Get the FileIdD for the file containing the given source location. This is
-// used to maintain a set of FileIDs which have been modified by the rewriter.
-clang::FileID getFileID(clang::SourceLocation L, clang::ASTContext &C);
+// Find the range in the source code for the base type of a type location.
+// The base type is the type after removing all
+clang::TypeLoc getBaseTypeLoc(clang::TypeLoc T);
 #endif

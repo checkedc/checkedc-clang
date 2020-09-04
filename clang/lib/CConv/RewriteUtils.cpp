@@ -31,7 +31,7 @@ SourceLocation DComp::getDeclBegin(DeclReplacement *D) const {
 }
 
 SourceRange DComp::getReplacementSourceRange(DeclReplacement *D) const {
-  SourceRange Range = D->getSourceRange(SM);
+  SourceRange Range = D->getSourceRange();
 
   // Also take into account whether or not there is a multi-statement
   // decl, because the generated ranges will overlap.

@@ -28,7 +28,7 @@ public:
 
   std::string getReplacement() const { return Replacement; }
 
-  virtual SourceRange getSourceRange(SourceManager &SR) const {
+  virtual SourceRange getSourceRange() const {
     return getDecl()->getSourceRange();
   }
 
@@ -85,24 +85,56 @@ class FunctionDeclReplacement :
     public DeclReplacementTempl<FunctionDecl,
                                 DeclReplacement::DRK_FunctionDecl> {
 public:
-  explicit FunctionDeclReplacement(FunctionDecl *D, std::string R, bool Full)
-      : DeclReplacementTempl(D, nullptr, R), FullDecl(Full) {}
-
-  SourceRange getSourceRange(SourceManager &SM) const override {
-    if (FullDecl) {
-      SourceRange Range = Decl->getSourceRange();
-      Range.setEnd(getFunctionDeclarationEnd(Decl, SM));
-      return Range;
-    } else
-      return Decl->getReturnTypeSourceRange();
+  explicit FunctionDeclReplacement(FunctionDecl *D, std::string R, bool Return,
+                                   bool Params)
+      : DeclReplacementTempl(D, nullptr, R), RewriteReturn(Return),
+        RewriteParams(Params) {
+    assert("Doesn't make sense to rewrite nothing!"
+           && (RewriteReturn || RewriteParams));
   }
 
-  bool isFullDecl() const {
-    return FullDecl;
+  SourceRange getSourceRange() const override {
+    FunctionTypeLoc TypeLoc =
+        Decl->getTypeSourceInfo()->getTypeLoc().getAs<clang::FunctionTypeLoc>();
+
+    // Function pointer are funky, and require special handling to rewrite the
+    // return type.
+    if (Decl->getReturnType()->isFunctionPointerType()){
+      if (RewriteParams && RewriteReturn) {
+        SourceLocation End = TypeLoc.getReturnLoc().getNextTypeLoc()
+                                    .getAs<clang::ParenTypeLoc>().getInnerLoc()
+                                    .getAs<clang::FunctionTypeLoc>()
+                                    .getRParenLoc();
+        return SourceRange(Decl->getBeginLoc(), End);
+      }
+      assert("RewriteReturn implies RewriteParams for function pointer return."
+             && !RewriteReturn);
+      // Fall through to standard handling when only rewriting param decls
+    }
+
+    // If rewriting the return, then the range starts at the begining of the
+    // decl. Otherwise, skip to the left parenthesis of parameters.
+    SourceLocation Begin = RewriteReturn ?
+        Decl->getBeginLoc() :
+        TypeLoc.getLParenLoc();
+
+    // If rewriting Parameters, stop at the right parenthesis of the parameters.
+    // Otherwise, stop after the return type.
+    SourceLocation End = RewriteParams ?
+        TypeLoc.getRParenLoc() :
+        Decl->getReturnTypeSourceRange().getEnd();
+
+    assert("Invalid FunctionDeclReplacement SourceRange!"
+           && Begin.isValid() && End.isValid());
+
+    return SourceRange(Begin, End);
   }
+
 private:
   // This determines if the full declaration or the return will be replaced.
-  bool FullDecl;
+  bool RewriteReturn;
+
+  bool RewriteParams;
 };
 
 // Compare two DeclReplacement values. The algorithm for comparing them relates

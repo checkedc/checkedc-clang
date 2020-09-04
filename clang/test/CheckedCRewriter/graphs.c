@@ -71,7 +71,7 @@ struct Stack
 };
 
 struct Graph* createGraph(int);
-	//CHECK: _Ptr<struct Graph> createGraph(int vertices);
+	//CHECK: _Ptr<struct Graph> createGraph(int);
 
 void addEdge(struct Graph*, int, int);
 	//CHECK: void addEdge(_Ptr<struct Graph> graph, int src, int dest);

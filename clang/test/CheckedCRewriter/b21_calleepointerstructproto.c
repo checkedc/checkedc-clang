@@ -34,10 +34,10 @@ struct r {
 
 
 struct p *sus(struct p *, struct p *);
-	//CHECK: struct p * sus(_Ptr<struct p> x, _Ptr<struct p> y);
+	//CHECK: struct p *sus(_Ptr<struct p> x, _Ptr<struct p> y);
 
 struct p *foo() {
-	//CHECK: struct p * foo(void) {
+	//CHECK: struct p *foo(void) {
   int ex1 = 2, ex2 = 3;
   struct p *x;
 	//CHECK: _Ptr<struct p> x = ((void *)0);
@@ -53,7 +53,7 @@ struct p *foo() {
 }
 
 struct p *bar() {
-	//CHECK: struct p * bar(void) {
+	//CHECK: struct p *bar(void) {
   int ex1 = 2, ex2 = 3;
   struct p *x;
 	//CHECK: _Ptr<struct p> x = ((void *)0);
@@ -69,7 +69,7 @@ struct p *bar() {
 }
 
 struct p *sus(struct p *x, struct p *y) {
-	//CHECK: struct p * sus(_Ptr<struct p> x, _Ptr<struct p> y) {
+	//CHECK: struct p *sus(_Ptr<struct p> x, _Ptr<struct p> y) {
   x->y += 1;
   struct p *z = malloc(sizeof(struct p));
 	//CHECK: struct p *z = malloc<struct p>(sizeof(struct p));

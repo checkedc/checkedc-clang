@@ -105,8 +105,8 @@ int *mul2(int *x) {
 }
 
 int * sus(int *, int *);
-	//CHECK_NOALL: int * sus(int *x, _Ptr<int> y);
-	//CHECK_ALL: _Array_ptr<int> sus(int *x, _Ptr<int> y);
+	//CHECK_NOALL: int * sus(int * x, _Ptr<int> y);
+	//CHECK_ALL: _Array_ptr<int> sus(int * x, _Ptr<int> y);
 
 int * foo() {
 	//CHECK_NOALL: int * foo(void) {
@@ -133,8 +133,8 @@ int * bar() {
 return z; }
 
 int * sus(int * x, int * y) {
-	//CHECK_NOALL: int * sus(int *x, _Ptr<int> y) {
-	//CHECK_ALL: _Array_ptr<int> sus(int *x, _Ptr<int> y) {
+	//CHECK_NOALL: int * sus(int * x, _Ptr<int> y) {
+	//CHECK_ALL: _Array_ptr<int> sus(int * x, _Ptr<int> y) {
 x = (int *) 5;
 	//CHECK: x = (int *) 5;
         int *z = calloc(5, sizeof(int)); 
