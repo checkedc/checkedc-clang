@@ -1993,8 +1993,14 @@ namespace {
         llvm::outs() << "\nSource range:";
         SrcRange.Dump(llvm::outs());
 #endif
-        ProofResult R = SrcRange.InRangeWithFreeVars(
-            DeclaredRange, Cause, EquivExprs, Facts, FreeVariables);
+        // For static bounds cast, we do not check free variables.
+        ProofResult R;
+        if (EquivExprs)
+          R = SrcRange.InRangeWithFreeVars(DeclaredRange, Cause, EquivExprs,
+                                           Facts, FreeVariables);
+        else
+          R = SrcRange.InRange(DeclaredRange, Cause, EquivExprs, Facts);
+
         if (R == ProofResult::True)
           return R;
         if (R == ProofResult::False || R == ProofResult::Maybe) {
