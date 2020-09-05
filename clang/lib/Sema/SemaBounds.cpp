@@ -583,18 +583,18 @@ namespace {
   // expression. We collect rvalues because CheckingState.EquivExprSet uses
   // rvalues to check equality.
   class CollectVariableSetHelper
-      : public RecursiveASTVisitor<CollectVariableSetHelper> {
+    : public RecursiveASTVisitor<CollectVariableSetHelper> {
   private:
-      Sema &SemaRef;
-      EqualExprTy VariableList;
+    Sema &SemaRef;
+    EqualExprTy VariableList;
 
   public:
-      CollectVariableSetHelper(Sema &SemaRef)
-          : SemaRef(SemaRef), VariableList() {}
+    CollectVariableSetHelper(Sema &SemaRef)
+      : SemaRef(SemaRef), VariableList() {}
 
-      const EqualExprTy &GetVariableList() const { return VariableList; }
+    const EqualExprTy &GetVariableList() const { return VariableList; }
 
-      bool VisitDeclRefExpr(DeclRefExpr *E) {
+    bool VisitDeclRefExpr(DeclRefExpr *E) {
       // We cast variables to rvalues so they can be compared with rvalues in EquivExprSet.
       // TODO(checkedc-clang#909): avoid constructing these ImplicitCastExprs.
       ImplicitCastExpr *CastExpr = ExprCreatorUtil::CreateImplicitCast(
@@ -604,7 +604,7 @@ namespace {
       }
 
       return true;
-      }
+    }
   };
 
   // Collect variables in E without duplication. If E is nullptr, return an
@@ -1133,7 +1133,6 @@ namespace {
       Width = 0x40,         // The source bounds are narrower than the destination bounds.
       PartialOverlap = 0x80, // There was only partial overlap of the destination bounds with
                             // the source bounds.
-      NoBaseRange = 0x100,  // Fails to extract base ranges from source and destination.
       HasFreeVariables = 0x200, // Source or destination has free variables.
     };
 
@@ -1272,6 +1271,12 @@ namespace {
                           EquivExprSets *EquivExprs,
                           std::pair<ComparisonSet, ComparisonSet> &Facts,
                           FreeVariableListTy &FreeVariables) {
+        // If we do not have equivalence relational information (EquivExprs
+        // is nullptr), we don't catch free variables. Invoke the normal
+        // InRange instead.
+        if (!EquivExprs)
+          return InRange(R, Cause, nullptr, Facts);
+
         // We will warn on declaration of Invalid ranges (upperBound <
         // lowerBound). The following cases are handled by the callers of this
         // function:
@@ -1384,6 +1389,7 @@ namespace {
                                       FreeVariableListTy &FreeVariables) {
         ProofResult Result =
             CompareLowerOffsetsImpl(R, Cause, EquivExprs, Facts);
+        // If we get a definite result, no need to check free variables.
         if (Result != ProofResult::Maybe)
           return Result;
 
@@ -1411,7 +1417,8 @@ namespace {
                                       FreeVariableListTy &FreeVariables) {
         ProofResult Result =
             CompareUpperOffsetsImpl(R, Cause, EquivExprs, Facts);
-        if (Result != ProofResult::Maybe)
+        // If we get a definite result, no need to check free variables.
+        if (Result != ProofResult::Maybe || !EquivExprs)
           return Result;
 
         FreeVariablePosition DeclaredUpperPos = CombineFreeVariablePosition(
@@ -1994,13 +2001,8 @@ namespace {
         SrcRange.Dump(llvm::outs());
 #endif
         // For static bounds cast, we do not check free variables.
-        ProofResult R;
-        if (EquivExprs)
-          R = SrcRange.InRangeWithFreeVars(DeclaredRange, Cause, EquivExprs,
-                                           Facts, FreeVariables);
-        else
-          R = SrcRange.InRange(DeclaredRange, Cause, EquivExprs, Facts);
-
+        ProofResult R = SrcRange.InRangeWithFreeVars(
+            DeclaredRange, Cause, EquivExprs, Facts, FreeVariables);
         if (R == ProofResult::True)
           return R;
         if (R == ProofResult::False || R == ProofResult::Maybe) {
@@ -2020,9 +2022,7 @@ namespace {
           }
         }
         return R;
-      } else
-        // Failed to extract a common base.
-        Cause = CombineFailures(Cause, ProofFailure::NoBaseRange);
+      }
       return ProofResult::Maybe;
     }
 
@@ -2455,9 +2455,7 @@ namespace {
         // Which diagnostic message to print?
         unsigned DiagId =
             (Result == ProofResult::False)
-                ? (TestFailure(Cause, ProofFailure::HasFreeVariables)
-                       ? diag::error_static_cast_bounds_unprovable
-                       : diag::error_static_cast_bounds_invalid)
+                ? diag::error_static_cast_bounds_invalid
                 : (CSS != CheckedScopeSpecifier::CSS_Unchecked
                        ? diag::warn_checked_scopestatic_cast_bounds_invalid
                        : diag::warn_static_cast_bounds_invalid);
