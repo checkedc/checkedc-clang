@@ -1133,7 +1133,7 @@ namespace {
       Width = 0x40,         // The source bounds are narrower than the destination bounds.
       PartialOverlap = 0x80, // There was only partial overlap of the destination bounds with
                             // the source bounds.
-      HasFreeVariables = 0x200, // Source or destination has free variables.
+      HasFreeVariables = 0x100 // Source or destination has free variables.
     };
 
     enum class DiagnosticNameForTarget {
