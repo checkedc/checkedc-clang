@@ -2000,7 +2000,6 @@ namespace {
         llvm::outs() << "\nSource range:";
         SrcRange.Dump(llvm::outs());
 #endif
-        // For static bounds cast, we do not check free variables.
         ProofResult R = SrcRange.InRangeWithFreeVars(
             DeclaredRange, Cause, EquivExprs, Facts, FreeVariables);
         if (R == ProofResult::True)
@@ -2465,10 +2464,6 @@ namespace {
         if (Result == ProofResult::False)
           ExplainProofFailure(ExprLoc, Cause,
                               ProofStmtKind::StaticBoundsCast);
-
-        if (TestFailure(Cause, ProofFailure::HasFreeVariables))
-          DiagnoseFreeVariables(diag::note_free_variable_decl_or_inferred,
-                                ExprLoc, FreeVars);
 
         S.Diag(ExprLoc, diag::note_required_bounds) << TargetBounds;
         S.Diag(ExprLoc, diag::note_expanded_inferred_bounds) << SrcBounds;
