@@ -45,7 +45,7 @@ public:
                             ConsAction CAction = Same_to_Same);
 
   // Check if the set contains any valid constraints.
-  bool containsValidCons(CVarSet &CVs);
+  bool containsValidCons(const CVarSet &CVs);
   bool isValidCons(ConstraintVariable *CV);
   // Try to get the bounds key from the constraint variable set.
   bool resolveBoundsKey(CVarSet &CVs, BoundsKey &BK);

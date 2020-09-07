@@ -743,7 +743,7 @@ PVConstraint *ConstraintResolver::getRewritablePVConstraint(Expr *E) {
   return P;
 }
 
-bool ConstraintResolver::containsValidCons(CVarSet &CVs) {
+bool ConstraintResolver::containsValidCons(const CVarSet &CVs) {
   for (auto *ConsVar : CVs)
     if (isValidCons(ConsVar))
       return true;

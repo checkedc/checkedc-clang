@@ -249,7 +249,6 @@ BoundsKey AVarBoundsInfo::getVariable(clang::ParmVarDecl *PVD) {
   std::string FileName = Psl.getFileName();
   auto ParamKey = std::make_tuple(FD->getNameAsString(), FileName,
                                   FD->isStatic(), ParamIdx);
-  assert(ParamIdx >= 0 && "Unable to find parameter.");
   if (ParamDeclVarMap.left().find(ParamKey) == ParamDeclVarMap.left().end()) {
     BoundsKey NK = ++BCount;
     FunctionParamScope *FPS =
@@ -276,7 +275,7 @@ BoundsKey AVarBoundsInfo::getVariable(clang::FunctionDecl *FD) {
   std::string FileName = Psl.getFileName();
   auto FuncKey = std::make_tuple(FD->getNameAsString(), FileName,
                                  FD->isStatic());
-  if (FuncDeclVarMap.left.find(FuncKey) == FuncDeclVarMap.left.end()) {
+  if (FuncDeclVarMap.left().find(FuncKey) == FuncDeclVarMap.left().end()) {
     BoundsKey NK = ++BCount;
     FunctionParamScope *FPS =
         FunctionParamScope::getFunctionParamScope(FD->getNameAsString(),
@@ -284,11 +283,11 @@ BoundsKey AVarBoundsInfo::getVariable(clang::FunctionDecl *FD) {
 
     auto *PVar = new ProgramVar(NK, FD->getNameAsString(), FPS);
     insertProgramVar(NK, PVar);
-    FuncDeclVarMap.insert(FuncMapItemType(FuncKey, NK));
+    FuncDeclVarMap.insert(FuncKey, NK);
     if (FD->getReturnType()->isPointerType())
       PointerBoundsKey.insert(NK);
   }
-  return FuncDeclVarMap.left.at(FuncKey);
+  return FuncDeclVarMap.left().at(FuncKey);
 }
 
 BoundsKey AVarBoundsInfo::getVariable(clang::FieldDecl *FD) {
@@ -354,27 +353,25 @@ bool AVarBoundsInfo::handleAssignment(clang::Decl *L, CVarSet &LCVars,
 
 bool AVarBoundsInfo::handleContextSensitiveAssignment(CallExpr *CE,
                                                       clang::Decl *L,
-                                                      CVarSet &LCVars,
+                                                      ConstraintVariable *LCVar,
                                                       clang::Expr *R,
                                                       CVarSet &RCVars,
                                                       ASTContext *C,
                                                       ConstraintResolver *CR) {
   // If these are pointer variable then directly get the context-sensitive
   // bounds key.
-  if(CR->containsValidCons(LCVars) && CR->containsValidCons(RCVars)) {
-    for (auto *L : LCVars) {
-      for (auto *R : RCVars) {
-        if (L->hasBoundsKey() && R->hasBoundsKey()) {
-          BoundsKey NewL = getContextSensitiveBoundsKey(CE, L->getBoundsKey());
-          BoundsKey NewR = getContextSensitiveBoundsKey(CE, R->getBoundsKey());
-          addAssignment(NewL, NewR);
-        }
+  if(CR->containsValidCons({LCVar}) && CR->containsValidCons(RCVars)) {
+    for (auto *RT : RCVars) {
+      if (LCVar->hasBoundsKey() && RT->hasBoundsKey()) {
+        BoundsKey NewL = getContextSensitiveBoundsKey(CE, LCVar->getBoundsKey());
+        BoundsKey NewR = getContextSensitiveBoundsKey(CE, RT->getBoundsKey());
+        addAssignment(NewL, NewR);
       }
     }
   } else {
     // This is the assignment of regular variables.
     BoundsKey LKey, RKey;
-    if ((CR->resolveBoundsKey(LCVars, LKey) ||
+    if ((CR->resolveBoundsKey({LCVar}, LKey) ||
         tryGetVariable(L, LKey)) &&
         (CR->resolveBoundsKey(RCVars, RKey) ||
             tryGetVariable(R, *C, RKey))) {
@@ -396,7 +393,7 @@ bool AVarBoundsInfo::addAssignment(BoundsKey L, BoundsKey R) {
     // dependency and never will be able to find the bounds for the return
     // value.
     if (L != R)
-      ProgVarGraph.addEdge(L, R);
+      ProgVarGraph.addEdge(R, L);
   } else {
     ProgVarGraph.addEdge(L, R);
     ProgVarGraph.addEdge(R, L);
@@ -884,9 +881,9 @@ AVarBoundsInfo::contextualizeCVar(CallExpr *CE, const CVarSet &CSet) {
     // If this is a FV Constraint the contextualize its returns and
     // parameters.
     if (FVConstraint *FV = dyn_cast_or_null<FVConstraint>(CV)) {
-      contextualizeCVar(CE, FV->getReturnVars());
+      contextualizeCVar(CE, {FV->getReturnVar()});
       for (unsigned i = 0; i < FV->numParams(); i++) {
-        contextualizeCVar(CE, FV->getParamVar(i));
+        contextualizeCVar(CE, {FV->getParamVar(i)});
       }
     }
 
@@ -989,24 +986,28 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
       continue;
     }
     // Function returns.
-    auto &FuncKeyToPSL = FuncDeclVarMap.right;
+    auto &FuncKeyToPSL = FuncDeclVarMap.right();
     if (FuncKeyToPSL.find(Bkey) != FuncKeyToPSL.end()) {
       auto &FuncRet = FuncKeyToPSL.at(Bkey);
       std::string FuncName = std::get<0>(FuncRet);
       std::string FileName = std::get<1>(FuncRet);
       bool IsStatic = std::get<2>(FuncRet);
-      FVConstraint *FV = nullptr;
-      if (IsStatic || !PI->getExtFuncDefnConstraintSet(FuncName)) {
-        FV = getOnly(*(PI->getStaticFuncConstraintSet(FuncName, FileName)));
+      const FVConstraint *FV = nullptr;
+      std::set<FVConstraint *> Tmp;
+      Tmp.clear();
+      if (IsStatic || !PI->getExtFuncDefnConstraint(FuncName)) {
+        Tmp.insert(PI->getStaticFuncConstraint(FuncName, FileName));
+        FV = getOnly(Tmp);
       } else {
-        FV = getOnly(*(PI->getExtFuncDefnConstraintSet(FuncName)));
+        Tmp.insert(PI->getExtFuncDefnConstraint(FuncName));
+        FV = getOnly(Tmp);
       }
 
-      if (hasArray(FV->getReturnVars(), CS)) {
+      if (hasArray({FV->getReturnVar()}, CS)) {
         ArrPointers.insert(Bkey);
       }
       // Does this array belongs to a valid program variable?
-      if (isInSrcArray(FV->getReturnVars(), CS)) {
+      if (isInSrcArray({FV->getReturnVar()}, CS)) {
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }
       continue;
@@ -1089,7 +1090,7 @@ void AVarBoundsInfo::dumpAVarGraph(const std::string &DFPath) {
 }
 
 bool AVarBoundsInfo::isFunctionReturn(BoundsKey BK) {
-  return (FuncDeclVarMap.right.find(BK) != FuncDeclVarMap.right.end());
+  return (FuncDeclVarMap.right().find(BK) != FuncDeclVarMap.right().end());
 }
 
 void AVarBoundsInfo::print_stats(llvm::raw_ostream &O,

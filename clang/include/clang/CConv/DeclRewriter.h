@@ -31,8 +31,7 @@ public:
   // The publicly accessible interface for performing declaration rewriting.
   // All declarations for variables with checked types in the variable map of
   // Info parameter are rewritten.
-  static void rewriteDecls(ASTContext &Context, ProgramInfo &Info, Rewriter &R,
-                           std::set<FileID> &TouchedFiles);
+  static void rewriteDecls(ASTContext &Context, ProgramInfo &Info, Rewriter &R);
 private:
   Rewriter &R;
   ASTContext &A;
@@ -51,9 +50,7 @@ private:
 
   // Visit each Decl in ToRewrite and apply the appropriate pointer type
   // to that Decl. ToRewrite is the set of all declarations to rewrite.
-  // TouchedFiles is used to collect and return the set of FileId's that have
-  // edited. This is later used to know which files need to be updated.
-  void rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles);
+  void rewrite(RSet &ToRewrite);
 
   // Rewrite a specific variable declaration using the replacement string in the
   // DAndReplace structure. Each of these functions is specialized to handling

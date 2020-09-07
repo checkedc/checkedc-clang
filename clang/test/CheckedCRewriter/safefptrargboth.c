@@ -18,8 +18,7 @@ through invalid pointer arithmetic, an unsafe cast, etc.*/
 /*********************************************************************************/
 
 
-typedef unsigned long size_t;
-#define NULL 0
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -103,8 +102,8 @@ int *mul2(int *x) {
 }
 
 int * sus(int (*x) (int), int (*y) (int)) {
-	//CHECK_NOALL: int * sus(int (*x)(int), _Ptr<int (int )> y) {
-	//CHECK_ALL: _Array_ptr<int> sus(int (*x)(int), _Ptr<int (int )> y) {
+	//CHECK_NOALL: int * sus(int (*x) (int), _Ptr<int (int )> y) {
+	//CHECK_ALL: _Array_ptr<int> sus(int (*x) (int), _Ptr<int (int )> y) {
  
         x = (int (*) (int)) 5;
 	//CHECK: x = (int (*) (int)) 5;
@@ -128,10 +127,10 @@ int * foo() {
         int (*x)(int) = add1; 
 	//CHECK: int (*x)(int) = add1; 
         int (*y)(int) = sub1; 
-	//CHECK: _Ptr<int (int )> y =  sub1; 
+	//CHECK: _Ptr<int (int )> y = sub1; 
         int *z = sus(x, y);
 	//CHECK_NOALL: int *z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
         
 return z; }
 
@@ -142,10 +141,10 @@ int * bar() {
         int (*x)(int) = add1; 
 	//CHECK: int (*x)(int) = add1; 
         int (*y)(int) = sub1; 
-	//CHECK: _Ptr<int (int )> y =  sub1; 
+	//CHECK: _Ptr<int (int )> y = sub1; 
         int *z = sus(x, y);
 	//CHECK_NOALL: int *z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
         
 z += 2;
 return z; }

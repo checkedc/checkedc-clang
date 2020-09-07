@@ -2,7 +2,7 @@
 // RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK" %s
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
-typedef unsigned long size_t;
+#include <stddef.h>
 
 extern void *memset(void * dest : byte_count(n),
              int c,
@@ -16,7 +16,7 @@ _Itype_for_any(T) void vsf_sysutil_memclr(void* p_dest : itype(_Array_ptr<T>) by
 
 
 int *foo( _Ptr<int> q) {
-// CHECK: _Ptr<int> foo(_Ptr<int> q) _Checked {
+// CHECK: _Ptr<int> foo( _Ptr<int> q) _Checked {
   return q;
 }
 void bar(void) {

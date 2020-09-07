@@ -6,7 +6,7 @@
 // RUN: rm %S/return_not_least.checked.c
 
 int *a() {
-	//CHECK_NOALL: int * a(void) {
+	//CHECK_NOALL: int *a(void) {
 	//CHECK_ALL: _Array_ptr<int> a(void) _Checked {
   int *a = 0;
 	//CHECK_NOALL: int *a = 0;
@@ -40,11 +40,11 @@ int *foo(void) {
   return q;
 }
 
-typedef unsigned long size_t;
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 
 int *bar() {
-	//CHECK_NOALL: int * bar(void) {
+	//CHECK_NOALL: int *bar(void) {
 	//CHECK_ALL: _Array_ptr<int> bar(void) {
   int *z = calloc(2, sizeof(int));
   //CHECK_NOALL: int *z = calloc<int>(2, sizeof(int));

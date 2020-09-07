@@ -5,11 +5,10 @@
 // RUN: cconv-standalone -alltypes %S/malloc_array.checked.c -- | count 0
 // RUN: rm %S/malloc_array.checked.c
 
-typedef unsigned long size_t;
+#include <stddef.h>
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 
-#define NULL 0
-typedef unsigned long size_t;
+#include <stddef.h>
 _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 	//CHECK: _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));

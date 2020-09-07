@@ -2,8 +2,7 @@
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 // RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
-#define NULL 0
-typedef unsigned long size_t;
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);

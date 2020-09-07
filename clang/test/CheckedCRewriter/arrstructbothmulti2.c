@@ -26,8 +26,7 @@ through invalid pointer arithmetic, an unsafe cast, etc.*/
 /*********************************************************************************/
 
 
-typedef unsigned long size_t;
-#define NULL 0
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -111,15 +110,15 @@ int *mul2(int *x) {
 }
 
 int * sus(struct general * x, struct general * y) {
-	//CHECK_NOALL: int * sus(struct general *x, _Ptr<struct general> y) {
-	//CHECK_ALL: _Array_ptr<int> sus(struct general *x, _Ptr<struct general> y) {
+	//CHECK_NOALL: int * sus(struct general * x, _Ptr<struct general> y) {
+	//CHECK_ALL: _Array_ptr<int> sus(struct general * x, _Ptr<struct general> y) {
 x = (struct general *) 5;
 	//CHECK: x = (struct general *) 5;
         int *z = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *z = calloc<int>(5, sizeof(int)); 
 	//CHECK_ALL: _Array_ptr<int> z =  calloc<int>(5, sizeof(int)); 
         struct general *p = y;
-	//CHECK: _Ptr<struct general> p =  y;
+	//CHECK: _Ptr<struct general> p = y;
         int i;
         for(i = 0; i < 5; p = p->next, i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; p = p->next, i++) { 

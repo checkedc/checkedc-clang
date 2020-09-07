@@ -9,22 +9,15 @@
 
 #include <stdlib.h>
 
-#define NULL 0
-typedef unsigned long size_t;
-_Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
-	//CHECK: _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
-_Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
-	//CHECK: _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
-_Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
-	//CHECK: _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
-_Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
-	//CHECK: _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
+#include <stddef.h>
+extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
+extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
+extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
+extern _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
 
 #define MAX_SIZE 40/*Assume 40 nodes at max in graph*/
 #define INT_MIN 0 
 
-typedef unsigned long size_t;
-extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 
 /*A vertex of the graph*/
 
@@ -78,7 +71,7 @@ struct Stack
 };
 
 struct Graph* createGraph(int);
-	//CHECK: _Ptr<struct Graph> createGraph(int vertices);
+	//CHECK: _Ptr<struct Graph> createGraph(int);
 
 void addEdge(struct Graph*, int, int);
 	//CHECK: void addEdge(_Ptr<struct Graph> graph, int src, int dest);
@@ -296,7 +289,7 @@ struct Graph* createGraph(int vertices)
 
     for (i = 0; i < vertices; i++) {
 	//CHECK_NOALL: for (i = 0; i < vertices; i++) {
-	//CHECK_ALL:     for (i = 0; i < vertices; i++) _Checked {
+	//CHECK_ALL:     for (i = 0; i < vertices; i++) {
 
         graph->adjLists[i] = NULL;
 

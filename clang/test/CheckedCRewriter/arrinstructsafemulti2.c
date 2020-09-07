@@ -25,8 +25,7 @@ the tool performs conversions*/
 /*********************************************************************************/
 
 
-typedef unsigned long size_t;
-#define NULL 0
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -110,14 +109,14 @@ int *mul2(int *x) {
 }
 
 struct warr * sus(struct warr * x, struct warr * y) {
-	//CHECK: _Ptr<struct warr> sus(struct warr *x, _Ptr<struct warr> y) {
+	//CHECK: _Ptr<struct warr> sus(struct warr * x, _Ptr<struct warr> y) {
 x = (struct warr *) 5;
 	//CHECK: x = (struct warr *) 5;
         char name[20]; 
 	//CHECK_NOALL: char name[20]; 
 	//CHECK_ALL: char name _Checked[20]; 
         struct warr *z = y;
-	//CHECK: _Ptr<struct warr> z =  y;
+	//CHECK: _Ptr<struct warr> z = y;
         int i;
         for(i = 0; i < 5; i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; i++) { 

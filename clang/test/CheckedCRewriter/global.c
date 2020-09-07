@@ -8,7 +8,7 @@
 // RUN: cconv-standalone -addcr %S/global.checked.c -- | count 0
 // RUN: rm %S/global.checked.c
 // expected-no-diagnostics
-#define NULL ((void*)0)
+#include <stddef.h> 
 char *c;
 //CHECK: char *c;
 int *p,*q;

@@ -18,8 +18,7 @@ not, through invalid pointer arithmetic, an unsafe cast, etc.*/
 /*********************************************************************************/
 
 
-typedef unsigned long size_t;
-#define NULL 0
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -109,7 +108,7 @@ struct fptr * sus(struct fptr *x, struct fptr *y) {
         x = (struct fptr *) 5; 
 	//CHECK: x = (struct fptr *) 5; 
         struct fptr *z = malloc(sizeof(struct fptr)); 
-	//CHECK_NOALL: _Ptr<struct fptr> z =  malloc<struct fptr>(sizeof(struct fptr)); 
+	//CHECK_NOALL: _Ptr<struct fptr> z = malloc<struct fptr>(sizeof(struct fptr)); 
 	//CHECK_ALL: struct fptr *z = malloc<struct fptr>(sizeof(struct fptr)); 
         z->value = y->value; 
         z->func = fact;
@@ -123,9 +122,9 @@ struct fptr * foo() {
         struct fptr * x = malloc(sizeof(struct fptr)); 
 	//CHECK: struct fptr * x = malloc<struct fptr>(sizeof(struct fptr)); 
         struct fptr *y =  malloc(sizeof(struct fptr));
-	//CHECK: _Ptr<struct fptr> y =   malloc<struct fptr>(sizeof(struct fptr));
+	//CHECK: _Ptr<struct fptr> y =  malloc<struct fptr>(sizeof(struct fptr));
         struct fptr *z = sus(x, y);
-	//CHECK_NOALL: _Ptr<struct fptr> z =  sus(x, y);
+	//CHECK_NOALL: _Ptr<struct fptr> z = sus(x, y);
 	//CHECK_ALL: struct fptr *z = sus(x, y);
         
 return z; }
@@ -136,7 +135,7 @@ struct fptr * bar() {
         struct fptr * x = malloc(sizeof(struct fptr)); 
 	//CHECK: struct fptr * x = malloc<struct fptr>(sizeof(struct fptr)); 
         struct fptr *y =  malloc(sizeof(struct fptr));
-	//CHECK: _Ptr<struct fptr> y =   malloc<struct fptr>(sizeof(struct fptr));
+	//CHECK: _Ptr<struct fptr> y =  malloc<struct fptr>(sizeof(struct fptr));
         struct fptr *z = sus(x, y);
 	//CHECK: struct fptr *z = sus(x, y);
         

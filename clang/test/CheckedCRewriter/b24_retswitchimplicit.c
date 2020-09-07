@@ -4,8 +4,7 @@
 // RUN: cconv-standalone -output-postfix=checked -alltypes %s
 // RUN: cconv-standalone -alltypes %S/b24_retswitchimplicit.checked.c -- | count 0
 // RUN: rm %S/b24_retswitchimplicit.checked.c
-typedef unsigned long size_t;
-#define NULL 0
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -25,7 +24,7 @@ char *sus(int *x, int*y) {
 }
 
 char* foo() {
-	//CHECK: char * foo(void) {
+	//CHECK: char* foo(void) {
   int sx = 3, sy = 4; 
   int *x = &sx;
 	//CHECK: int *x = &sx;
@@ -38,7 +37,7 @@ char* foo() {
 }
 
 int* bar() {
-	//CHECK: int * bar(void) {
+	//CHECK: int* bar(void) {
   int sx = 3, sy = 4; 
   int *x = &sx;
 	//CHECK: int *x = &sx;

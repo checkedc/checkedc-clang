@@ -6,9 +6,8 @@ Basic array bounds tests (without any data-flow analysis).
 */
 
 
-typedef unsigned long size_t;
+#include <stddef.h>
 
-#define NULL 0
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 
 
@@ -28,7 +27,7 @@ int foo(int *arr, unsigned len) {
     return 0;
 }
 
-//CHECK: int foo(_Array_ptr<int> arr : count(len), unsigned int len) {
+//CHECK: int foo(_Array_ptr<int> arr : count(len), unsigned len) {
 
 void baz() {
     unsigned n;

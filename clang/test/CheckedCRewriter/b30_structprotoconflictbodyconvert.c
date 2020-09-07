@@ -4,9 +4,8 @@
 // RUN: cconv-standalone -output-postfix=checked -alltypes %s
 // RUN: cconv-standalone -alltypes %S/b30_structprotoconflictbodyconvert.checked.c -- | count 0
 // RUN: rm %S/b30_structprotoconflictbodyconvert.checked.c
-typedef unsigned long size_t;
-#define NULL ((void*)0)
-typedef unsigned long size_t;
+#include <stddef.h>
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -41,7 +40,7 @@ struct np *sus(struct r *, struct r *);
 	//CHECK_ALL: struct np *sus(_Ptr<struct r> x, _Ptr<struct r> y) : itype(_Ptr<struct np>);
 
 struct r *foo() {
-	//CHECK: struct r * foo(void) {
+	//CHECK: struct r *foo(void) {
   struct r *x; 
 	//CHECK_NOALL: struct r *x; 
 	//CHECK_ALL:   _Array_ptr<struct r> x = ((void *)0); 

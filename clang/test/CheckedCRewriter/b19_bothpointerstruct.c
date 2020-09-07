@@ -4,8 +4,7 @@
 // RUN: cconv-standalone -output-postfix=checked -alltypes %s
 // RUN: cconv-standalone -alltypes %S/b19_bothpointerstruct.checked.c -- | count 0
 // RUN: rm %S/b19_bothpointerstruct.checked.c
-typedef unsigned long size_t;
-#define NULL 0
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -35,7 +34,7 @@ struct r {
 
 
 struct p *sus(struct p *x, struct p *y) {
-	//CHECK: struct p * sus(_Ptr<struct p> x, _Ptr<struct p> y) {
+	//CHECK: struct p *sus(_Ptr<struct p> x, _Ptr<struct p> y) {
   x->y += 1;
   struct p *z = malloc(sizeof(struct p));
 	//CHECK: struct p *z = malloc<struct p>(sizeof(struct p));
@@ -44,7 +43,7 @@ struct p *sus(struct p *x, struct p *y) {
 }
 
 struct p *foo() {
-	//CHECK: struct p * foo(void) {
+	//CHECK: struct p *foo(void) {
   int ex1 = 2, ex2 = 3;
   struct p *x; 
 	//CHECK: _Ptr<struct p> x = ((void *)0); 
@@ -60,7 +59,7 @@ struct p *foo() {
 }
 
 struct p *bar() {
-	//CHECK: struct p * bar(void) {
+	//CHECK: struct p *bar(void) {
   int ex1 = 2, ex2 = 3;
   struct p *x; 
 	//CHECK: _Ptr<struct p> x = ((void *)0); 

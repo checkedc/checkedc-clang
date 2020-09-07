@@ -26,7 +26,7 @@ using namespace clang;
 
 // This function is the public entry point for declaration rewriting.
 void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
-                                Rewriter &R, std::set<FileID> &TouchedFiles) {
+                                Rewriter &R) {
   // Compute the bounds information for all the array variables.
   ArrayBoundsRewriter ABRewriter(&Context, Info);
 
@@ -103,7 +103,8 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
         // If this function already has a modified signature? and it is not
         // visited by our cast placement visitor then rewrite it.
         std::string NewSig = NewFuncSig[FV->getName()];
-        RewriteThese.insert(new FunctionDeclReplacement(FD, NewSig, true));
+        RewriteThese.insert(new FunctionDeclReplacement(FD, NewSig, true,
+                                                        true));
       }
     }
   }
@@ -119,13 +120,13 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
 
   // Do the declaration rewriting
   DeclRewriter DeclR(R, Context, GVG);
-  DeclR.rewrite(RewriteThese, TouchedFiles);
+  DeclR.rewrite(RewriteThese);
 
   for (const auto *R : RewriteThese)
     delete R;
 }
 
-void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
+void DeclRewriter::rewrite(RSet &ToRewrite) {
   for (auto *const N : ToRewrite) {
     assert(N->getDecl() != nullptr);
 
@@ -137,9 +138,7 @@ void DeclRewriter::rewrite(RSet &ToRewrite, std::set<FileID> &TouchedFiles) {
 
     // Get a FullSourceLoc for the start location and add it to the
     // list of file ID's we've touched.
-    SourceRange tTR = N->getDecl()->getSourceRange();
-    FullSourceLoc tFSL(tTR.getBegin(), A.getSourceManager());
-    TouchedFiles.insert(tFSL.getFileID());
+    SourceRange SR = N->getDecl()->getSourceRange();
 
     // Exact rewriting procedure depends on declaration type
     if (auto *PVR = dyn_cast<ParmVarDeclReplacement>(N)) {
@@ -219,13 +218,12 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
       // maybe there is still something we can do because Decl refers
       // to a non-macro line.
 
+
       SourceRange Possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()),
-                           D->getLocation());
+                           D->getEndLoc());
 
       if (canRewrite(R, Possible)) {
         R.ReplaceText(Possible, SRewrite);
-        std::string NewStr = " " + D->getName().str();
-        R.InsertTextAfter(D->getLocation(), NewStr);
       } else {
         if (Verbose) {
           errs() << "Still don't know how to re-write VarDecl\n";
@@ -339,9 +337,23 @@ void DeclRewriter::rewriteFunctionDecl(FunctionDeclReplacement *N) {
   //       Additionally, a source range can be (mis) identified as
   //       spanning multiple files. We don't know how to re-write that,
   //       so don't.
-  SourceRange SR = N->getSourceRange(A.getSourceManager());
-  if (canRewrite(R, SR))
+  SourceRange SR = N->getSourceRange();
+  if (canRewrite(R, SR)) {
     R.ReplaceText(SR, N->getReplacement());
+  } else {
+    SourceRange Possible(R.getSourceMgr().getExpansionLoc(SR.getBegin()),
+                         SR.getEnd());
+    if (canRewrite(R, Possible)) {
+      R.ReplaceText(Possible, N->getReplacement());
+    } else if (Verbose) {
+      errs() << "Don't know how to re-write FunctionDecl\n";
+      N->getDecl()->dump();
+      errs() << "at\n";
+      if (N->getStatement())
+        N->getStatement()->dump();
+      errs() << "with " << N->getReplacement() << "\n";
+    }
+  }
 }
 
 bool DeclRewriter::areDeclarationsOnSameLine(DeclReplacement *N1,
@@ -461,21 +473,22 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   if (!Defnc->hasBody())
     return true;
 
-  // DidAny tracks if we have made any changes to this function declaration.
-  // If no changes are made, then there is no need to rewrite anything, and the
-  // declaration is not added to RewriteThese.
-  bool DidAny = false;
+  // DidAnyParams tracks if we have made any changes to the parameters for this
+  // declarations. If no changes are made, then there is no need to rewrite the
+  // parameter declarations.
+  bool DidAnyParams = false;
 
   // Get rewritten parameter variable declarations
   std::vector<std::string> ParmStrs;
-  for (unsigned i = 0; i < Defnc->numParams(); ++i) {
-    auto *Defn = dyn_cast<PVConstraint>(Defnc->getParamVar(i));
+  for (unsigned I = 0; I < Defnc->numParams(); ++I) {
+    auto *Defn = dyn_cast<PVConstraint>(Defnc->getParamVar(I));
     assert(Defn);
 
+    ParmVarDecl *PVDecl = Definition->getParamDecl(I);
     if (isAValidPVConstraint(Defn) && Defn->anyChanges(CS.getVariables())) {
       // This means Defn has a checked type, so we should rewrite to use this
       // type with an itype if applicable.
-      DidAny = true;
+      DidAnyParams = true;
 
       if (Defn->hasItype() || !Defn->anyArgumentIsWild(CS.getVariables())) {
         // If the definition already has itype or there are no WILD arguments.
@@ -484,7 +497,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
         std::string PtypeS =
             Defn->mkString(Info.getConstraints().getVariables());
         PtypeS = PtypeS + getExistingIType(Defn) +
-            ABRewriter.getBoundsString(Defn, Definition->getParamDecl(i));
+            ABRewriter.getBoundsString(Defn, PVDecl);
         ParmStrs.push_back(PtypeS);
       } else {
         // Here, definition is checked type but at least one of the arguments
@@ -494,19 +507,22 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
             Defn->mkString(Info.getConstraints().getVariables(), false, true);
         std::string Bi =
             Defn->getRewritableOriginalTy() + Defn->getName() + " : itype(" +
-                PtypeS + ")" +
-                ABRewriter.getBoundsString(Defn,
-                                       Definition->getParamDecl(i), true);
+                PtypeS + ")" + ABRewriter.getBoundsString(Defn, PVDecl, true);
         ParmStrs.push_back(Bi);
       }
     } else {
-      // If the parameter isn't checked, we can just dump the original
-      // declaration.
-      std::string Scratch = "";
-      raw_string_ostream DeclText(Scratch);
-      Definition->getParamDecl(i)->print(DeclText);
-      ParmStrs.push_back(DeclText.str());
+      // When parameter isn't checked, we just dump the original declaration.
+      ParmStrs.push_back(getSourceText(PVDecl->getSourceRange(), *Context));
     }
+  }
+
+
+  if (Defnc->numParams() == 0) {
+    ParmStrs.push_back("void");
+    QualType ReturnTy = FD->getReturnType();
+    QualType Ty = FD->getType();
+    if (!Ty->isFunctionProtoType() && ReturnTy->isPointerType())
+      DidAnyParams = true;
   }
 
   // Get rewritten return variable
@@ -516,10 +532,14 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   std::string ItypeStr = "";
   bool GeneratedRetIType = false;
 
+  // Does the same job as DidAnyParams, but with respect to the return value. If
+  // the return does not change, there is no need to rewrite it.
+  bool DidAnyReturn = false;
+
   // Insert a bounds safe interface for the return.
   if (isAValidPVConstraint(Defn) && Defn->anyChanges(CS.getVariables())) {
     // This means we can infer that the return type is a checked type.
-    DidAny = true;
+    DidAnyReturn = true;
     // If the definition has itype or there is no argument which is WILD?
     if (Defn->hasItype() || !Defn->anyArgumentIsWild(CS.getVariables())) {
       // Just get the checked itype
@@ -532,6 +552,10 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
       ReturnVar = Defn->getRewritableOriginalTy();
       ItypeStr = " : itype(" + Itype + ")";
       GeneratedRetIType = true;
+
+      // A small hack here. The inserted itype comes after param declarations,
+      // so we have to rewrite the parameters if we want to insert an itype.
+      DidAnyParams = true;
     }
   } else {
     // This means inside the function, the return value is WILD so the return
@@ -541,29 +565,34 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     ItypeStr = getExistingIType(Defn);
   }
 
+  // If the return is a function pointer, we need to rewrite the whole
+  // declaration even if no actual changes were made to the parameters. It could
+  // probably be done better, but getting the correct source locations is
+  // painful.
+  if (FD->getReturnType()->isFunctionPointerType() && DidAnyReturn)
+    DidAnyParams = true;
+
   // Combine parameter and return variables rewritings into a single rewriting
   // for the entire function declaration.
-  std::string NewSig =
-      getStorageQualifierString(Definition) + ReturnVar + Defnc->getName()
-          + "(";
-  if (!ParmStrs.empty()) {
+  std::string NewSig = "";
+  if (DidAnyReturn)
+    NewSig = getStorageQualifierString(Definition) + ReturnVar;
+
+  if (DidAnyReturn && DidAnyParams)
+    NewSig += Defnc->getName();
+
+  if (DidAnyParams && !ParmStrs.empty()) {
     // Gather individual parameter strings into a single buffer
     std::ostringstream ConcatParamStr;
     copy(ParmStrs.begin(), ParmStrs.end() - 1,
               std::ostream_iterator<std::string>(ConcatParamStr, ", "));
     ConcatParamStr << ParmStrs.back();
 
-    NewSig = NewSig + ConcatParamStr.str();
+    NewSig += "(" + ConcatParamStr.str();
     // Add varargs.
     if (functionHasVarArgs(Definition))
-      NewSig = NewSig + ", ...";
-    NewSig = NewSig + ")";
-  } else {
-    NewSig = NewSig + "void)";
-    QualType ReturnTy = FD->getReturnType();
-    QualType Ty = FD->getType();
-    if (!Ty->isFunctionProtoType() && ReturnTy->isPointerType())
-      DidAny = true;
+      NewSig += ", ...";
+    NewSig += ")";
   }
   if (!ItypeStr.empty())
     NewSig = NewSig + ItypeStr;
@@ -573,9 +602,10 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   }
 
   // Add new declarations to RewriteThese if it has changed
-  if (DidAny) {
+  if (DidAnyReturn || DidAnyParams) {
     for (auto *const RD : Definition->redecls())
-      RewriteThese.insert(new FunctionDeclReplacement(RD, NewSig, true));
+      RewriteThese.insert(new FunctionDeclReplacement(RD, NewSig, DidAnyReturn,
+                                                      DidAnyParams));
     // Save the modified function signature.
     if(FD->isStatic()) {
       auto FileName = PersistentSourceLoc::mkPSL(FD, *Context).getFileName();

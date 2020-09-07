@@ -25,8 +25,7 @@ the tool performs conversions*/
 /*********************************************************************************/
 
 
-typedef unsigned long size_t;
-#define NULL 0
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -117,9 +116,9 @@ struct warr * foo() {
         struct warr * x = malloc(sizeof(struct warr));
 	//CHECK: struct warr * x = malloc<struct warr>(sizeof(struct warr));
         struct warr * y = malloc(sizeof(struct warr));
-	//CHECK: _Ptr<struct warr> y =  malloc<struct warr>(sizeof(struct warr));
+	//CHECK: _Ptr<struct warr> y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
-	//CHECK: _Ptr<struct warr> z =  sus(x, y);
+	//CHECK: _Ptr<struct warr> z = sus(x, y);
 return z; }
 
 struct warr * bar() {
@@ -127,7 +126,7 @@ struct warr * bar() {
         struct warr * x = malloc(sizeof(struct warr));
 	//CHECK: struct warr * x = malloc<struct warr>(sizeof(struct warr));
         struct warr * y = malloc(sizeof(struct warr));
-	//CHECK: _Ptr<struct warr> y =  malloc<struct warr>(sizeof(struct warr));
+	//CHECK: _Ptr<struct warr> y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
-	//CHECK: _Ptr<struct warr> z =  sus(x, y);
+	//CHECK: _Ptr<struct warr> z = sus(x, y);
 return z; }

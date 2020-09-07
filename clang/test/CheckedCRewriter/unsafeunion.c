@@ -5,7 +5,7 @@
 // RUN: cconv-standalone -alltypes %S/unsafeunion.checked.c -- | count 0
 // RUN: rm %S/unsafeunion.checked.c
 
-typedef unsigned long size_t;
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 
 union foo {

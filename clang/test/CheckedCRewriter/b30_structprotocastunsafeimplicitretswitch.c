@@ -4,8 +4,7 @@
 // RUN: cconv-standalone -output-postfix=checked -alltypes %s
 // RUN: cconv-standalone -alltypes %S/b30_structprotocastunsafeimplicitretswitch.checked.c -- | count 0
 // RUN: rm %S/b30_structprotocastunsafeimplicitretswitch.checked.c
-typedef unsigned long size_t;
-#define NULL ((void*)0)
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -38,7 +37,7 @@ struct np *sus(struct r *, struct r *);
 	//CHECK: struct np *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct np>);
 
 struct np *foo() {
-	//CHECK: struct np * foo(void) {
+	//CHECK: struct np *foo(void) {
   struct r *x;
 	//CHECK: struct r *x;
   struct r *y;
@@ -53,7 +52,7 @@ struct np *foo() {
 }
 
 struct r *bar() {
-	//CHECK: struct r * bar(void) {
+	//CHECK: struct r *bar(void) {
   struct r *x; 
 	//CHECK: struct r *x; 
   struct r *y;

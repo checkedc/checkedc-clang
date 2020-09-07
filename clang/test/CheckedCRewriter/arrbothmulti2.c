@@ -26,8 +26,7 @@ through invalid pointer arithmetic, an unsafe cast, etc.*/
 /*********************************************************************************/
 
 
-typedef unsigned long size_t;
-#define NULL 0
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -111,8 +110,8 @@ int *mul2(int *x) {
 }
 
 int * sus(int * x, int * y) {
-	//CHECK_NOALL: int * sus(int *x, _Ptr<int> y) {
-	//CHECK_ALL: _Array_ptr<int> sus(int *x, _Ptr<int> y) {
+	//CHECK_NOALL: int * sus(int * x, _Ptr<int> y) {
+	//CHECK_ALL: _Array_ptr<int> sus(int * x, _Ptr<int> y) {
 x = (int *) 5;
 	//CHECK: x = (int *) 5;
         int *z = calloc(5, sizeof(int)); 

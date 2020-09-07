@@ -6,7 +6,7 @@
 // RUN: rm %S/checkedregions.checked.c
 /* Tests for adding (un)checked regions automatically */
 
-#define NULL 0
+#include <stddef.h> 
 
 int foo(int *x) { 
 	//CHECK: int foo(_Ptr<int> x) _Checked { 

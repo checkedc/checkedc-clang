@@ -4,8 +4,7 @@
 // RUN: cconv-standalone -output-postfix=checked -alltypes %s
 // RUN: cconv-standalone -alltypes %S/b30_structprotocastimplicitunsafeuseunsafe.checked.c -- | count 0
 // RUN: rm %S/b30_structprotocastimplicitunsafeuseunsafe.checked.c
-typedef unsigned long size_t;
-#define NULL ((void*)0)
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -36,11 +35,11 @@ struct r {
 
 struct r *sus(struct r *, struct r *);
 	//CHECK_NOALL: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct r>);
-	//CHECK_ALL: struct r * sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>));
+	//CHECK_ALL: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>));
 
 struct r *foo() {
 	//CHECK_NOALL: _Ptr<struct r> foo(void) {
-	//CHECK_ALL: struct r * foo(void) {
+	//CHECK_ALL: struct r *foo(void) {
   struct r *x; 
 	//CHECK: struct r *x; 
   struct r *y;
@@ -50,13 +49,13 @@ struct r *foo() {
   x->next = &y;
   y->next = &x;
   struct r *z = (struct r *) sus(x, y);
-	//CHECK_NOALL: _Ptr<struct r> z =  (_Ptr<struct r>) sus(x, y);
+	//CHECK_NOALL: _Ptr<struct r> z = (_Ptr<struct r>) sus(x, y);
 	//CHECK_ALL:   struct r *z = (struct r *) sus(x, y);
   return z;
 }
 
 struct np *bar() {
-	//CHECK: struct np * bar(void) {
+	//CHECK: struct np *bar(void) {
   struct r *x; 
 	//CHECK: struct r *x; 
   struct r *y;
@@ -73,7 +72,7 @@ struct np *bar() {
 
 struct r *sus(struct r *x, struct r *y) {
 	//CHECK_NOALL: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct r>) {
-	//CHECK_ALL: struct r * sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) {
+	//CHECK_ALL: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) {
   x->next += 1;
   struct r *z = malloc(sizeof(struct r));
 	//CHECK_NOALL: _Ptr<struct r> z =  malloc<struct r>(sizeof(struct r));

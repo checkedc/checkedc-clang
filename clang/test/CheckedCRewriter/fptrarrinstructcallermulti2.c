@@ -26,8 +26,7 @@ not, through invalid pointer arithmetic, an unsafe cast, etc.*/
 /*********************************************************************************/
 
 
-typedef unsigned long size_t;
-#define NULL 0
+#include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
@@ -117,7 +116,7 @@ struct arrfptr * sus(struct arrfptr *x, struct arrfptr *y) {
         x = (struct arrfptr *) 5; 
 	//CHECK: x = (struct arrfptr *) 5; 
         struct arrfptr *z = malloc(sizeof(struct arrfptr)); 
-	//CHECK_NOALL: _Ptr<struct arrfptr> z =  malloc<struct arrfptr>(sizeof(struct arrfptr)); 
+	//CHECK_NOALL: _Ptr<struct arrfptr> z = malloc<struct arrfptr>(sizeof(struct arrfptr)); 
 	//CHECK_ALL: struct arrfptr *z = malloc<struct arrfptr>(sizeof(struct arrfptr)); 
         int i;
         for(i = 0; i < 5; i++) { 

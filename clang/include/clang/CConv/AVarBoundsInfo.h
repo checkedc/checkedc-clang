@@ -182,7 +182,7 @@ public:
                         ASTContext *C, ConstraintResolver *CR);
   // Handle context sensitive assignment.
   bool handleContextSensitiveAssignment(CallExpr *CE, clang::Decl *L,
-                                        CVarSet &LCVars,
+                                        ConstraintVariable *LCVar,
                                         clang::Expr *R, CVarSet &RCVars,
                                         ASTContext *C, ConstraintResolver *CR);
 
@@ -264,8 +264,8 @@ private:
   // BiMap of parameter keys and BoundsKey for function parameters.
   BiMap<ParamDeclType, BoundsKey> ParamDeclVarMap;
   // BiMap of function keys and BoundsKey for function return values.
-  Bimap<std::tuple<std::string, string, bool>,
-                     BoundsKey> FuncKeyBiMapType;
+  BiMap<std::tuple<std::string, std::string, bool>,
+                     BoundsKey> FuncDeclVarMap;
 
   // Graph of all program variables.
   AVarGraph ProgVarGraph;

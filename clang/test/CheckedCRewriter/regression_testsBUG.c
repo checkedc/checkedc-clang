@@ -8,8 +8,7 @@
 // 
 // XFAIL: *
 
-#define NULL ((void *)0)
-typedef unsigned long size_t;
+#include <stddef.h>
 
 _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 

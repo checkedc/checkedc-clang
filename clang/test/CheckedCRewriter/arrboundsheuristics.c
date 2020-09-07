@@ -7,7 +7,7 @@
 
 int *glob;
 int lenplusone;
-typedef unsigned long size_t;
+#include <stddef.h>
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 //CHECK_ALL: _Array_ptr<int> glob = ((void *)0);
 //CHECK_NOALL: int *glob;
