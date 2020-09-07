@@ -510,10 +510,22 @@ CVarSet
             NewCV = new PVConstraint(CE->getType(), nullptr, PCV->getName(),
                                      Info, *Context, nullptr,
                                      PCV->getIsGeneric());
+            if (PCV->hasBoundsKey())
+              NewCV->setBoundsKey(PCV->getBoundsKey());
+              
           } else {
             NewCV = CV->getCopy(CS);
           }
-
+          
+          // Make the bounds key context sensitive.
+          if (NewCV->hasBoundsKey()) {
+            auto &ABInfo = Info.getABoundsInfo();
+            auto CSensBKey =
+                ABInfo.getContextSensitiveBoundsKey(CE,
+                                                    NewCV->getBoundsKey());
+            NewCV->setBoundsKey(CSensBKey);
+          }
+          
           // Important: Do Safe_to_Wild from returnvar in this copy, which then
           //   might be assigned otherwise (Same_to_Same) to LHS
           constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false,
@@ -660,18 +672,15 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,
   CVarSet R = getExprConstraintVars(RHS);
   constrainConsVarGeq(L, R, Info.getConstraints(), &PL, CAction, false, &Info);
 
+  // Handle pointer arithmetic.
+  auto &ABI = Info.getABoundsInfo();
+  ABI.handlePointerAssignment(TSt, LHS, RHS, Context,this);
+
   // Only if all types are enabled and these are not pointers, then track
   // the assignment.
   if (AllTypes && !containsValidCons(L) &&
       !containsValidCons(R)) {
-    BoundsKey LKey, RKey;
-    auto &ABI = Info.getABoundsInfo();
-    if ((resolveBoundsKey(L, LKey) ||
-        ABI.tryGetVariable(LHS, *Context, LKey)) &&
-        (resolveBoundsKey(R, RKey) ||
-        ABI.tryGetVariable(RHS, *Context, RKey))) {
-      ABI.addAssignment(LKey, RKey);
-    }
+    ABI.handleAssignment(LHS, L, RHS, R, Context, this);
   }
 }
 
@@ -689,15 +698,10 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
   constrainConsVarGeq(V, RHSCons, Info.getConstraints(), PLPtr, CAction, false,
                       &Info);
 
-  if (AllTypes && !containsValidCons(V) && !containsValidCons(RHSCons)) {
-    BoundsKey LKey, RKey;
+  if (AllTypes && !containsValidCons(V) &&
+      !containsValidCons(RHSCons)) {
     auto &ABI = Info.getABoundsInfo();
-    if ((resolveBoundsKey(V, LKey) ||
-         ABI.tryGetVariable(D, LKey)) &&
-        (resolveBoundsKey(RHSCons, RKey) ||
-         ABI.tryGetVariable(RHS, *Context, RKey))) {
-      ABI.addAssignment(LKey, RKey);
-    }
+    ABI.handleAssignment(D, V, RHS, RHSCons, Context, this);
   }
 }
 
@@ -739,7 +743,7 @@ PVConstraint *ConstraintResolver::getRewritablePVConstraint(Expr *E) {
   return P;
 }
 
-bool ConstraintResolver::containsValidCons(CVarSet &CVs) {
+bool ConstraintResolver::containsValidCons(const CVarSet &CVs) {
   for (auto *ConsVar : CVs)
     if (isValidCons(ConsVar))
       return true;

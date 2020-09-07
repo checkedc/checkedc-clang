@@ -530,6 +530,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
 
   std::string ReturnVar = "";
   std::string ItypeStr = "";
+  bool GeneratedRetIType = false;
 
   // Does the same job as DidAnyParams, but with respect to the return value. If
   // the return does not change, there is no need to rewrite it.
@@ -550,6 +551,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
           Defn->mkString(Info.getConstraints().getVariables(), false, true);
       ReturnVar = Defn->getRewritableOriginalTy();
       ItypeStr = " : itype(" + Itype + ")";
+      GeneratedRetIType = true;
 
       // A small hack here. The inserted itype comes after param declarations,
       // so we have to rewrite the parameters if we want to insert an itype.
@@ -594,6 +596,10 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   }
   if (!ItypeStr.empty())
     NewSig = NewSig + ItypeStr;
+
+  if (ItypeStr.empty() || GeneratedRetIType) {
+    NewSig = NewSig + ABRewriter.getBoundsString(Defn, FD, GeneratedRetIType);
+  }
 
   // Add new declarations to RewriteThese if it has changed
   if (DidAnyReturn || DidAnyParams) {

@@ -135,7 +135,7 @@ public:
     switch(O->getOpcode()) {
     case BO_AddAssign:
     case BO_SubAssign:
-      arithBinop(O);
+      arithBinop(O, true);
       break;
     // rest shouldn't happen on pointers, so we ignore
     default:
@@ -237,18 +237,14 @@ public:
               ConstraintVariable *ParameterDC = TargetFV->getParamVar(i);
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
                                   Wild_to_Safe, false, &Info);
-              if (AllTypes && TFD != nullptr &&
-                  !CB.isValidCons(ParameterDC) &&
-                  !CB.containsValidCons(ArgumentConstraints)) {
+              
+              if (AllTypes && TFD != nullptr) {
                 auto *PVD = TFD->getParamDecl(i);
                 auto &ABI = Info.getABoundsInfo();
-                BoundsKey PVKey, AGKey;
-                if ((CB.resolveBoundsKey(ParameterDC, PVKey) ||
-                     ABI.tryGetVariable(PVD, PVKey)) &&
-                    (CB.resolveBoundsKey(ArgumentConstraints, AGKey) ||
-                     ABI.tryGetVariable(A, *Context, AGKey))) {
-                  ABI.addAssignment(PVKey, AGKey);
-                }
+                // Here, we need to handle context-sensitive assignment.
+                ABI.handleContextSensitiveAssignment(E, PVD, ParameterDC, A,
+                                                  ArgumentConstraints,
+                                                     Context, &CB);
               }
             } else {
               // The argument passed to a function ith varargs; make it wild
@@ -383,20 +379,24 @@ private:
     }
   }
 
-  void arithBinop(BinaryOperator *O) {
-      constraintPointerArithmetic(O->getLHS());
-      constraintPointerArithmetic(O->getRHS());
+  // Here the flag, ModifyingExpr indicates if the arithmetic operation
+  // is modifying any variable.
+  void arithBinop(BinaryOperator *O, bool ModifyingExpr = false) {
+      constraintPointerArithmetic(O->getLHS(), ModifyingExpr);
+      constraintPointerArithmetic(O->getRHS(), ModifyingExpr);
   }
 
   // Pointer arithmetic constrains the expression to be at least ARR,
   // unless it is on a function pointer. In this case the function pointer
   // is WILD.
-  void constraintPointerArithmetic(Expr *E) {
+  void constraintPointerArithmetic(Expr *E, bool ModifyingExpr = true) {
     if (E->getType()->isFunctionPointerType()) {
       CVarSet Var = CB.getExprConstraintVars(E);
       std::string Rsn = "Pointer arithmetic performed on a function pointer.";
       CB.constraintAllCVarsToWild(Var, Rsn, E);
     } else {
+      if (ModifyingExpr)
+        Info.getABoundsInfo().recordArithmeticOperation(E, &CB);
       constraintInBodyVariable(E, Info.getConstraints().getArr());
     }
   }
@@ -553,15 +553,19 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
 
   VariableAdderVisitor VAV = VariableAdderVisitor(&C, Info);
   TypeVarVisitor TV = TypeVarVisitor(&C, Info);
+  ConstraintResolver CSResolver(Info, &C);
+  ContextSensitiveBoundsKeyVisitor CSBV =
+      ContextSensitiveBoundsKeyVisitor(&C, Info, &CSResolver);
   ConstraintGenVisitor GV = ConstraintGenVisitor(&C, Info, TV);
   TranslationUnitDecl *TUD = C.getTranslationUnitDecl();
   // Generate constraints.
   for (const auto &D : TUD->decls()) {
-    // The order of these traversals cannot be changed because both the type
+    // The order of these traversals CANNOT be changed because both the type
     // variable and constraint gen visitor require that variables have been
     // added to ProgramInfo, and the constraint gen visitor requires the type
     // variable information gathered in the type variable traversal.
     VAV.TraverseDecl(D);
+    CSBV.TraverseDecl(D);
     TV.TraverseDecl(D);
     GV.TraverseDecl(D);
   }

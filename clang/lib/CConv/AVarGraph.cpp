@@ -51,7 +51,6 @@ std::string llvm::DOTGraphTraits<AVarGraph>::getNodeAttributes
       }
     }
   }
-
   return "color=\"" + ClrStr + "\", " +
          "shape=\"" + ShapeStr + "\"";
 }
@@ -61,7 +60,10 @@ std::string llvm::DOTGraphTraits<AVarGraph>::
                  const AVarGraph &G) {
   AVarBoundsInfo *ABInfo = G.ABInfo;
   BoundsKey BK = Node->getData();
-  std::string LblStr = ABInfo->getProgramVar(BK)->verboseStr();
+  ProgramVar *Tmp = ABInfo->getProgramVar(BK);
+  std::string LblStr = "Temp";
+  if (Tmp != nullptr)
+    LblStr = Tmp->verboseStr();
   bool IsArrPtr = ABInfo->ArrPointerBoundsKey.find(BK) !=
                   ABInfo->ArrPointerBoundsKey.end();
   if (IsArrPtr)

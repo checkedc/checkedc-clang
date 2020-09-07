@@ -111,11 +111,11 @@ int *mul2(int *x) {
 
 int * sus(struct general *, struct general *);
 	//CHECK_NOALL: int * sus(struct general *, _Ptr<struct general> y);
-	//CHECK_ALL: _Array_ptr<int> sus(struct general *, _Ptr<struct general> y);
+	//CHECK_ALL: _Array_ptr<int> sus(struct general *, _Ptr<struct general> y) : count(5);
 
 int * foo() {
 	//CHECK_NOALL: int * foo(void) {
-	//CHECK_ALL: _Array_ptr<int> foo(void) {
+	//CHECK_ALL: _Array_ptr<int> foo(void) : count(5) {
         struct general * x = malloc(sizeof(struct general));
 	//CHECK: struct general * x = malloc<struct general>(sizeof(struct general));
         struct general * y = malloc(sizeof(struct general));
@@ -131,7 +131,7 @@ int * foo() {
         }
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z : count(5) =  sus(x, y);
 return z; }
 
 int * bar() {

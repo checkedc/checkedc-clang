@@ -106,18 +106,18 @@ int *mul2(int *x) {
 
 int * sus(int *, int *);
 	//CHECK_NOALL: int * sus(int * x, _Ptr<int> y);
-	//CHECK_ALL: _Array_ptr<int> sus(int * x, _Ptr<int> y);
+	//CHECK_ALL: _Array_ptr<int> sus(int * x, _Ptr<int> y) : count(5);
 
 int * foo() {
 	//CHECK_NOALL: int * foo(void) {
-	//CHECK_ALL: _Array_ptr<int> foo(void) {
+	//CHECK_ALL: _Array_ptr<int> foo(void) : count(5) {
         int * x = malloc(sizeof(int));
 	//CHECK: int * x = malloc<int>(sizeof(int));
         int * y = malloc(sizeof(int));
 	//CHECK: _Ptr<int> y = malloc<int>(sizeof(int));
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z : count(5) =  sus(x, y);
 return z; }
 
 int * bar() {
@@ -135,7 +135,7 @@ return z; }
 
 int * sus(int * x, int * y) {
 	//CHECK_NOALL: int * sus(int * x, _Ptr<int> y) {
-	//CHECK_ALL: _Array_ptr<int> sus(int * x, _Ptr<int> y) {
+	//CHECK_ALL: _Array_ptr<int> sus(int * x, _Ptr<int> y) : count(5) {
 x = (int *) 5;
 	//CHECK: x = (int *) 5;
         int *z = calloc(5, sizeof(int)); 
@@ -144,7 +144,7 @@ x = (int *) 5;
         int i, fac;
         int *p;
 	//CHECK_NOALL: int *p;
-	//CHECK_ALL: _Array_ptr<int> p : count(5) = ((void *)0);
+	//CHECK_ALL: _Array_ptr<int> p = ((void *)0);
         for(i = 0, p = z, fac = 1; i < 5; ++i, p++, fac *= i) 
         { *p = fac; }
 	//CHECK_NOALL: { *p = fac; }

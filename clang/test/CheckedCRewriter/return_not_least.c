@@ -47,8 +47,8 @@ int *bar() {
 	//CHECK_NOALL: int *bar(void) {
 	//CHECK_ALL: _Array_ptr<int> bar(void) {
   int *z = calloc(2, sizeof(int));
-	//CHECK_NOALL: int *z = calloc<int>(2, sizeof(int));
-	//CHECK_ALL:   _Array_ptr<int> z : count(2) =  calloc<int>(2, sizeof(int));
+  //CHECK_NOALL: int *z = calloc<int>(2, sizeof(int));
+  //CHECK_ALL: _Array_ptr<int> z =  calloc<int>(2, sizeof(int));
   z += 2;
   return z;
 }

@@ -111,7 +111,7 @@ int *mul2(int *x) {
 
 int * sus(struct general * x, struct general * y) {
 	//CHECK_NOALL: int * sus(struct general * x, _Ptr<struct general> y) {
-	//CHECK_ALL: _Array_ptr<int> sus(struct general * x, _Ptr<struct general> y) {
+	//CHECK_ALL: _Array_ptr<int> sus(struct general * x, _Ptr<struct general> y) : count(5) {
 x = (struct general *) 5;
 	//CHECK: x = (struct general *) 5;
         int *z = calloc(5, sizeof(int)); 

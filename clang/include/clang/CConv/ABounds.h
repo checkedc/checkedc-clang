@@ -39,11 +39,19 @@ private:
   BoundsKind Kind;
 protected:
   ABounds(BoundsKind K): Kind(K) { }
+  void addBoundsUsedKey(BoundsKey);
 public:
   virtual ~ABounds() { }
 
   virtual std::string mkString(AVarBoundsInfo *) = 0;
   virtual bool areSame(ABounds *) = 0;
+  virtual BoundsKey getBKey() = 0;
+  virtual ABounds* makeCopy(BoundsKey NK) = 0;
+
+  // Set that maintains all the bound keys that are used inin
+  static std::set<BoundsKey> KeysUsedInBounds;
+
+  static bool isKeyUsedInBounds(BoundsKey ToCheck);
 
   static ABounds *getBoundsInfo(AVarBoundsInfo *AVBInfo,
                                 BoundsExpr *BExpr, const ASTContext &C);
@@ -51,12 +59,16 @@ public:
 
 class CountBound : public ABounds {
 public:
-  CountBound(BoundsKey Var) : ABounds(CountBoundKind), CountVar(Var) { }
+  CountBound(BoundsKey Var) : ABounds(CountBoundKind), CountVar(Var) {
+    addBoundsUsedKey(Var);
+  }
 
   virtual ~CountBound() { }
 
   std::string mkString(AVarBoundsInfo *ABI) override ;
   bool areSame(ABounds *O) override;
+  BoundsKey getBKey() override;
+  ABounds* makeCopy(BoundsKey NK) override;
 
   static bool classof(const ABounds *S) {
     return S->getKind() == CountBoundKind;
@@ -69,12 +81,16 @@ private:
 
 class ByteBound : public ABounds {
 public:
-  ByteBound(BoundsKey Var) : ABounds(ByteBoundKind), ByteVar(Var) { }
+  ByteBound(BoundsKey Var) : ABounds(ByteBoundKind), ByteVar(Var) {
+    addBoundsUsedKey(Var);
+  }
 
   virtual ~ByteBound() { }
 
   std::string mkString(AVarBoundsInfo *ABI) override ;
   bool areSame(ABounds *O) override;
+  BoundsKey getBKey() override;
+  ABounds* makeCopy(BoundsKey NK) override;
 
   static bool classof(const ABounds *S) {
     return S->getKind() == ByteBoundKind;
@@ -87,12 +103,25 @@ private:
 class RangeBound : public ABounds {
 public:
   RangeBound(BoundsKey L, BoundsKey R) : ABounds(RangeBoundKind),
-                                   LB(L), UB(R) { }
+                                   LB(L), UB(R) {
+    addBoundsUsedKey(L);
+    addBoundsUsedKey(R);
+  }
 
   virtual ~RangeBound() { }
 
   std::string mkString(AVarBoundsInfo *ABI) override ;
   bool areSame(ABounds *O) override;
+
+  BoundsKey getBKey() override {
+    assert (false && "Not implemented.");
+    return 0;
+  }
+
+  ABounds* makeCopy(BoundsKey NK) override {
+    assert (false &&& "Not Implemented");
+    return nullptr;
+  }
 
   static bool classof(const ABounds *S) {
     return S->getKind() == RangeBoundKind;

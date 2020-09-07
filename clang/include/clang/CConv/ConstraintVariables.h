@@ -104,6 +104,10 @@ public:
     assert(ValidBoundsKey && "No valid Bkey");
     return BKey;
   }
+  void setBoundsKey(BoundsKey NK) {
+    ValidBoundsKey = true;
+    BKey = NK;
+  }
 
   virtual bool solutionEqualTo(Constraints &, const ConstraintVariable *) const
     = 0;

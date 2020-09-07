@@ -108,11 +108,11 @@ x = (int *) 5;
 	//CHECK: x = (int *) 5;
         int *z = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *z = calloc<int>(5, sizeof(int)); 
-	//CHECK_ALL: _Array_ptr<int> z : count(5) = calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> z =  calloc<int>(5, sizeof(int)); 
         int i, fac;
         int *p;
 	//CHECK_NOALL: int *p;
-	//CHECK_ALL: _Array_ptr<int> p : count(5) = ((void *)0);
+	//CHECK_ALL: _Array_ptr<int> p = ((void *)0);
         for(i = 0, p = z, fac = 1; i < 5; ++i, p++, fac *= i) 
         { *p = fac; }
 	//CHECK_NOALL: { *p = fac; }

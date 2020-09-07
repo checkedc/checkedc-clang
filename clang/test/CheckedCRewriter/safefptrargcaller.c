@@ -103,7 +103,7 @@ int *mul2(int *x) {
 
 int * sus(int (*x) (int), int (*y) (int)) {
 	//CHECK_NOALL: int * sus(int (*x) (int), _Ptr<int (int )> y) {
-	//CHECK_ALL: _Array_ptr<int> sus(int (*x) (int), _Ptr<int (int )> y) {
+	//CHECK_ALL: _Array_ptr<int> sus(int (*x) (int), _Ptr<int (int )> y) : count(5) {
  
         x = (int (*) (int)) 5;
 	//CHECK: x = (int (*) (int)) 5;
@@ -121,7 +121,7 @@ return z; }
 
 int * foo() {
 	//CHECK_NOALL: int * foo(void) {
-	//CHECK_ALL: _Array_ptr<int> foo(void) {
+	//CHECK_ALL: _Array_ptr<int> foo(void) : count(5) {
  
         int (*x)(int) = add1; 
 	//CHECK: int (*x)(int) = add1; 
@@ -129,7 +129,7 @@ int * foo() {
 	//CHECK: _Ptr<int (int )> y = sub1; 
         int *z = sus(x, y);
 	//CHECK_NOALL: int *z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z : count(5) =  sus(x, y);
         
 return z; }
 

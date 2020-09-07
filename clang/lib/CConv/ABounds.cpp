@@ -13,6 +13,16 @@
 #include "clang/CConv/ABounds.h"
 #include "clang/CConv/AVarBoundsInfo.h"
 
+std::set<BoundsKey> ABounds::KeysUsedInBounds;
+
+void ABounds::addBoundsUsedKey(BoundsKey BK) {
+  KeysUsedInBounds.insert(BK);
+}
+
+bool ABounds::isKeyUsedInBounds(BoundsKey ToCheck) {
+  return KeysUsedInBounds.find(ToCheck) != KeysUsedInBounds.end();
+}
+
 ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo,
                                 BoundsExpr *BExpr,
                                 const ASTContext &C) {
@@ -21,15 +31,18 @@ ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo,
   RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(BExpr->IgnoreParenCasts());
   BoundsKey VK;
   if (CBE && !CBE->isCompilerGenerated()) {
-    if (BExpr->isElementCount() &&
-        ABInfo->tryGetVariable(CBE->getCountExpr()->IgnoreParenCasts(), C,
-                               VK)) {
-      Ret = new CountBound(VK);
-    }
-    if (BExpr->isByteCount() &&
-        ABInfo->tryGetVariable(CBE->getCountExpr()->IgnoreParenCasts(), C,
-                               VK)) {
-      Ret = new ByteBound(VK);
+    if (ABInfo->tryGetVariable(CBE->getCountExpr()->IgnoreParenCasts(), C,
+                           VK)) {
+      ProgramVar *PV = ABInfo->getProgramVar(VK);
+      if (PV->IsNumConstant() && PV->getVarName() == "0") {
+        // Invalid bounds. This is for functions like free.
+        // Where the bounds is 0.
+        Ret = nullptr;
+      } else if (BExpr->isElementCount()) {
+        Ret = new CountBound(VK);
+      } else if (BExpr->isByteCount()) {
+        Ret = new ByteBound(VK);
+      }
     }
   }
   if (BExpr->isRange() && RBE) {
@@ -59,6 +72,14 @@ bool CountBound::areSame(ABounds *O) {
   return false;
 }
 
+BoundsKey CountBound::getBKey() {
+  return this->CountVar;
+}
+
+ABounds* CountBound::makeCopy(BoundsKey NK) {
+  return new CountBound(NK);
+}
+
 std::string ByteBound::mkString(AVarBoundsInfo *ABI) {
   ProgramVar *PV = ABI->getProgramVar(ByteVar);
   assert(PV != nullptr && "No Valid program var");
@@ -72,6 +93,15 @@ bool ByteBound::areSame(ABounds *O) {
     }
   }
   return false;
+}
+
+
+BoundsKey ByteBound::getBKey() {
+  return this->ByteVar;
+}
+
+ABounds* ByteBound::makeCopy(BoundsKey NK) {
+  return new ByteBound(NK);
 }
 
 std::string RangeBound::mkString(AVarBoundsInfo *ABI) {

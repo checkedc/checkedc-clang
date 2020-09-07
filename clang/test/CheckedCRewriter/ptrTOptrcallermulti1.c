@@ -110,7 +110,7 @@ int *mul2(int *x) {
 
 char *** sus(char * * *, char * * *);
 	//CHECK_NOALL: char *** sus(char * * *, _Ptr<_Ptr<_Ptr<char>>> y);
-	//CHECK_ALL: _Array_ptr<_Array_ptr<char *>> sus(char * * *, _Ptr<_Ptr<_Ptr<char>>> y);
+	//CHECK_ALL: _Array_ptr<_Array_ptr<char *>> sus(char * * *, _Ptr<_Ptr<_Ptr<char>>> y) : count(5);
 
 char *** foo() {
 	//CHECK_NOALL: char *** foo(void) {

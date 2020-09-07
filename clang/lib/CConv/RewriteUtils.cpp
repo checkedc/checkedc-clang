@@ -347,7 +347,8 @@ std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
 
   if (ValidBKey) {
     ABounds *ArrB = ABInfo.getBounds(DK);
-    if (ArrB != nullptr) {
+    // Only we we have bounds and no pointer arithmetic on the variable.
+    if (ArrB != nullptr && !ABInfo.hasPointerArithmetic(DK)) {
       BString = ArrB->mkString(&ABInfo);
       if (!BString.empty())
         BString = Pfix + BString;

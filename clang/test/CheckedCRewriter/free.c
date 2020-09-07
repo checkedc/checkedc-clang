@@ -9,7 +9,7 @@ _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(si
 
 int *test() {
 // CHECK_NOALL: int *test(void) {
-// CHECK_ALL: _Array_ptr<int> test(void) {
+// CHECK_ALL: _Array_ptr<int> test(void) : count(5) {
   int *a = malloc(sizeof(int));
   // CHECK: _Ptr<int> a = malloc<int>(sizeof(int));
   free(a);
@@ -27,7 +27,7 @@ _Itype_for_any(T) void my_free(void *pointer : itype(_Array_ptr<T>) byte_count(0
 
 int *test2() {
 // CHECK_NOALL: int *test2(void) {
-// CHECK_ALL:_Array_ptr<int> test2(void) {
+// CHECK_ALL:_Array_ptr<int> test2(void) : count(5) {
   int *a = malloc(sizeof(int));
   // CHECK: _Ptr<int> a = malloc<int>(sizeof(int));
   my_free(a);

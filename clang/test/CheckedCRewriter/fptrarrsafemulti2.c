@@ -111,7 +111,7 @@ int *mul2(int *x) {
 
 int ** sus(int *x, int *y) {
 	//CHECK_NOALL: int ** sus(int *x, int *y) {
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> sus(int *x, _Array_ptr<int> y : count(5)) {
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> sus(int *x, _Array_ptr<int> y : count(5)) : count(5) {
 
         x = (int *) 5;
 	//CHECK: x = (int *) 5;

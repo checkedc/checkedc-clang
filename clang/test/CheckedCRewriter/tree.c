@@ -1,7 +1,6 @@
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 // RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// XFAIL: *
 
 #include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
@@ -17,7 +16,7 @@ struct tree {
   struct tree *parent;
 //CHECK: _Ptr<struct tree> parent;
   struct tree **children;
-// FIX_CHECK_ALL: _Array_ptr<_Ptr<struct tree>> children : count(len);
+//CHECK_ALL: _Array_ptr<_Ptr<struct tree>> children : count(len);
 //CHECK_NOALL: struct tree **children;
   int len;
   int child_count;
