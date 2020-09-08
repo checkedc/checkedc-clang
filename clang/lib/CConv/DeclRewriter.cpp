@@ -66,12 +66,6 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
     // of the type specifier, since we want where the text is printed before
     // the variable name, not the typedef or #define that creates the
     // name of the type.
-
-    //clang::DiagnosticsEngine &DE = Context.getDiagnostics();
-    //const unsigned ID = DE.getCustomDiagID (clang::DiagnosticsEngine::Warning,
-    //                                        "Root cause of unchecked pointers: %0");
-    //auto I = Info.getInterimConstraintState();
-
     if (Decl *D = std::get<1>(PSLMap[PLoc])) {
       // We might have one Decl for multiple Vars, however, one will be a
       // PointerVar so we'll use that.
@@ -82,20 +76,6 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
           PV = T;
         else if (FVConstraint *T = dyn_cast<FVConstraint>(V))
           FV = T;
-
-      //if (PV && AnnotateRootCause) {
-      //  for (auto A : PV->getCvars()){
-      //    if (auto VA = dyn_cast<VarAtom>(A)){
-      //      if (I.RealWildPtrsWithReasons.find(VA->getLoc())
-      //          != I.RealWildPtrsWithReasons.end()) {
-      //        auto WReason = I.RealWildPtrsWithReasons[VA->getLoc()];
-      //        auto DiagBuilder = DE.Report(D->getLocation(), ID);
-      //        DiagBuilder.AddString(WReason.WildPtrReason);
-      //        DiagBuilder.AddSourceRange(CharSourceRange::getCharRange(D->getSourceRange()));
-      //      }
-      //    }
-      //  }
-      //}
 
       if (PV && PV->anyChanges(Info.getConstraints().getVariables()) &&
           !PV->isPartOfFunctionPrototype()) {
