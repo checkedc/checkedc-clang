@@ -27,9 +27,9 @@
 
 class PersistentSourceLoc {
 protected:
-  PersistentSourceLoc(std::string f, uint32_t l, uint32_t c, uint32_t e, unsigned Raw) :
+  PersistentSourceLoc(std::string f, uint32_t l, uint32_t c, uint32_t e) :
                       FileName(f), LineNo(l), ColNoS(c), ColNoE(e),
-                      isValid(true), RawLocation(Raw) {}
+                      isValid(true) {}
   
 public:
   PersistentSourceLoc() : FileName(""), LineNo(0), ColNoS(0), ColNoE(0),
@@ -68,7 +68,6 @@ public:
   static
   PersistentSourceLoc mkPSL(const clang::Stmt *S, clang::ASTContext &Context);
 
-  unsigned int getRawLocation() const { return RawLocation; }
 private:
   // Create a PersistentSourceLoc based on absolute file path
   // from the given SourceRange and SourceLocation.
@@ -85,8 +84,6 @@ private:
   // Column number end.
   uint32_t ColNoE;
   bool isValid;
-
-  unsigned RawLocation;
 };
 
 typedef std::pair<PersistentSourceLoc, PersistentSourceLoc>

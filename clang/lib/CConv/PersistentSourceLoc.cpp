@@ -79,7 +79,7 @@ PersistentSourceLoc::mkPSL(clang::SourceRange SR, SourceLocation SL,
   PersistentSourceLoc PSL(fn, 
                           FESL.getExpansionLineNumber(),
                           FESL.getExpansionColumnNumber(),
-                          EndCol, FESL.getRawEncoding());
+                          EndCol);
 
   return PSL;
 }
