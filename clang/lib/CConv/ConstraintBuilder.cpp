@@ -122,8 +122,7 @@ public:
     QualType DstT = C->getType();
     if (!isCastSafe(DstT, SrcT)) {
       auto CVs = CB.getExprConstraintVars(C->getSubExpr());
-      std::string Rsn = "Casted from " +
-                        SrcT.getAsString() +  " to " +
+      std::string Rsn = "Cast from " + SrcT.getAsString() +  " to " +
                         DstT.getAsString();
       CB.constraintAllCVarsToWild(CVs, Rsn, C);
     }
