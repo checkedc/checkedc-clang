@@ -373,11 +373,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
 
   bool IsWild = !IsGeneric && (isVarArgType(BaseType) || isTypeHasVoid(QT));
   if (IsWild) {
-    std::string Rsn = "Default Var arg list type.";
-    if (D && hasVoidType(D))
-      Rsn = "Default void* type";
-    // TODO: Github issue #61: improve handling of types for
-    // Variable arguments.
+    std::string Rsn =
+        isTypeHasVoid(QT) ? "Default void* type" : "Default Var arg list type";
+    // TODO: Github issue #61: improve handling of types for variable arguments.
     for (const auto &V : vars)
       if (VarAtom *VA = dyn_cast<VarAtom>(V))
         CS.addConstraint(CS.createGeq(VA, CS.getWild(), Rsn));
