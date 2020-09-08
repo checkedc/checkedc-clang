@@ -19,7 +19,7 @@ set( LLVM_LINK_COMPONENTS
           ConstraintsGraph.cpp
           ConstraintVariables.cpp
           DeclRewriter.cpp
-          GatherTool.cpp
+          IntermediateToolHook.cpp
           MappingVisitor.cpp
           PersistentSourceLoc.cpp
           ProgramInfo.cpp

@@ -22,7 +22,6 @@
 #include "Utils.h"
 #include "PersistentSourceLoc.h"
 #include "CConvInteractiveData.h"
-#include "GatherTypes.h"
 
 
 class ProgramVariableAdder {
@@ -91,10 +90,6 @@ public:
   Constraints &getConstraints() { return CS;  }
   AVarBoundsInfo &getABoundsInfo() { return ArrBInfo; }
 
-  // Parameter map is used for cast insertion, post-rewriting
-  void merge_MF(const ParameterMap &MF);
-  ParameterMap &getMF();
-
   ConstraintsInfo &getInterimConstraintState() {
     return CState;
   }
@@ -137,7 +132,6 @@ private:
   StaticFunctionMapType StaticFunctionFVCons;
   std::map<std::string, std::set<PVConstraint *>> GlobalVariableSymbols;
 
-  ParameterMap MF;
   // Object that contains all the bounds information of various
   // array variables.
   AVarBoundsInfo ArrBInfo;

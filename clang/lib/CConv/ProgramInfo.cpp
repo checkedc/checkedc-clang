@@ -24,16 +24,6 @@ ProgramInfo::ProgramInfo() :
   StaticFunctionFVCons.clear();
 }
 
-
-void ProgramInfo::merge_MF(const ParameterMap &OtherMF) {
-  for (auto KV : OtherMF)
-    MF[KV.first] = KV.second;
-}
-
-ParameterMap &ProgramInfo::getMF() {
-  return MF;
-}
-
 void dumpExtFuncMap(const ProgramInfo::ExternalFunctionMapType &EMap,
                     raw_ostream &O) {
   for (const auto &DefM : EMap) {

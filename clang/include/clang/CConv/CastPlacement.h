@@ -26,9 +26,8 @@ private:
   Rewriter& Writer;
   ConstraintResolver CR;
 
-  bool needCasting(ConstraintVariable*, ConstraintVariable*, IsChecked);
-  std::string getCastString(ConstraintVariable *Src, ConstraintVariable *Dst,
-                            IsChecked Dinfo) ;
+  bool needCasting(ConstraintVariable*, ConstraintVariable*);
+  std::string getCastString(ConstraintVariable *Src, ConstraintVariable *Dst);
   void surroundByCast(const std::string&, Expr*);
 };
 #endif // _CASTPLACEMENT_H
