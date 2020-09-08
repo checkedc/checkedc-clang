@@ -260,6 +260,11 @@ namespace clang {
     // Assign the widened bounds from the ElevatedBlock to the CFG Block.
     void CollectWidenedBounds();
 
+    // Extract the terminating sub-expression from the expression E.
+    // @param[in] E is the expression from which we need to extract the terminating sub-expression.
+    // @return The terminating sub-expression from the expression E.
+    Expr *GetTerminatorCondition(const Expr *E) const;
+
     // Get the terminating condition for a block. This could be an if condition
     // of the form "if(*(p + i))".
     // @param[in] B is the block for which we need the terminating condition.
