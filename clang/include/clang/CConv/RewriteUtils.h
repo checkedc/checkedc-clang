@@ -219,6 +219,13 @@ private:
   ProgramInfo &Info;
   static std::map<std::string, std::string> ModifiedFuncSignatures;
   std::string &OutputPostfix;
+
+  // A single header file can be included in multiple translations units. This
+  // set ensures that the diagnostics for a header file are not emitted each
+  // time a translation unit containing the header is vistied.
+  static std::set<PersistentSourceLoc *> EmittedDiagnostics;
+
+  void emitRootCauseDiagnostics(ASTContext &Context);
 };
 
 bool canRewrite(Rewriter &R, SourceRange &SR);

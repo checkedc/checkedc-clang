@@ -187,17 +187,12 @@ CVarSet ConstraintResolver::getInvalidCastPVCons(Expr *E) {
   if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(E))
     SrcType = ECE->getSubExpr()->getType();
 
-  auto &CS = Info.getConstraints();
-  CAtoms NewVA;
-  Atom *NewA = CS.getFreshVar("Invalid cast to:" + E->getType().getAsString(),
-                              VarAtom::V_Other);
-  NewVA.push_back(NewA);
+  auto *P = new PVConstraint(DstType, nullptr, "Invalid cast", Info, *Context);
 
-  PVConstraint *P = new PVConstraint(NewVA, "unsigned", "wildvar",
-                                     nullptr, false, false, "");
   PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
-  P->constrainToWild(CS, "Casted from " + SrcType.getAsString() +  " to " +
-                             DstType.getAsString() , &PL);
+  std::string Rsn =
+      "Cast from " + SrcType.getAsString() + " to " + DstType.getAsString();
+  P->constrainToWild(Info.getConstraints(), Rsn, &PL);
   Ret = {P};
   storePersistentConstraints(E, Ret);
   return Ret;
@@ -240,8 +235,7 @@ CVarSet
           !(SubTypE->isFunctionType() || SubTypE->isArrayType() ||
             SubTypE->isVoidPointerType()) &&
           !isCastSafe(TypE, SubTypE)) {
-        std::string Rsn = "Casted from " +
-                          SubTypE.getAsString() +  " to " +
+        std::string Rsn = "Cast from " + SubTypE.getAsString() +  " to " +
                           TypE.getAsString();
         constraintAllCVarsToWild(CVs, Rsn, IE);
         return getInvalidCastPVCons(E);

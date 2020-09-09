@@ -51,7 +51,10 @@ bool AllTypes;
 std::string BaseDir;
 bool AddCheckedRegions;
 bool DisableCCTypeChecker;
+bool WarnRootCause;
+bool WarnAllRootCause;
 std::set<std::string> FilePaths;
+
 
 static ClangTool *GlobalCTool = nullptr;
 
@@ -185,6 +188,8 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
   AddCheckedRegions = CCopt.AddCheckedRegions;
   DisableCCTypeChecker = CCopt.DisableCCTypeChecker;
   AllocatorFunctions = CCopt.AllocatorFunctions;
+  WarnRootCause = CCopt.WarnRootCause || CCopt.WarnAllRootCause;
+  WarnAllRootCause = CCopt.WarnAllRootCause;
 
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();

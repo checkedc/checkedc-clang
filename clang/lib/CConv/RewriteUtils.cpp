@@ -15,6 +15,7 @@
 #include "clang/CConv/DeclRewriter.h"
 #include "clang/Tooling/Refactoring/SourceCode.h"
 #include "clang/CConv/CCGlobalOptions.h"
+#include "clang/Basic/DiagnosticCConvKinds.inc"
 
 using namespace llvm;
 using namespace clang;
@@ -360,8 +361,45 @@ std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
   return BString;
 }
 
+std::set<PersistentSourceLoc *> RewriteConsumer::EmittedDiagnostics;
+void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
+  clang::DiagnosticsEngine &DE = Context.getDiagnostics();
+  unsigned ID = DE.getCustomDiagID(DiagnosticsEngine::Warning,
+                                   "Root cause of unchecked pointers: %0");
+  auto I = Info.getInterimConstraintState();
+  SourceManager &SM = Context.getSourceManager();
+  for (auto &WReason : I.RealWildPtrsWithReasons) {
+    if (I.PtrSourceMap.find(WReason.first) != I.PtrSourceMap.end()) {
+      PersistentSourceLoc *PsInfo = I.PtrSourceMap[WReason.first];
+      // Avoid emitting the same diagnostic message twice.
+      if (EmittedDiagnostics.find(PsInfo) == EmittedDiagnostics.end()) {
+        // Convert the PSL into a clang::SourceLocation that can be used with
+        // the DiagnosticsEngine.
+        auto File = SM.getFileManager().getFile(PsInfo->getFileName());
+        SourceLocation SL = SM.translateFileLineCol(File, PsInfo->getLineNo(),
+                                                    PsInfo->getColSNo());
+        // Limit emitted root causes to those that effect more than one pointer
+        // or are in the main file of the TU. Alternatively, don't filter causes
+        // if -warn-all-root-cause is passed.
+        if (WarnAllRootCause || SM.isInMainFile(SL)
+            || I.GetSrcCVars(WReason.first).size() > 1) {
+          // SL is invalid when the File is not in the current translation unit.
+          if (SL.isValid()) {
+            EmittedDiagnostics.insert(PsInfo);
+            auto DiagBuilder = DE.Report(SL, ID);
+            DiagBuilder.AddString(WReason.second.WildPtrReason);
+          }
+        }
+      }
+    }
+  }
+}
+
 void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   Info.enterCompilationUnit(Context);
+
+  if (WarnRootCause)
+    emitRootCauseDiagnostics(Context);
 
   // Rewrite Variable declarations
   Rewriter R(Context.getSourceManager(), Context.getLangOpts());

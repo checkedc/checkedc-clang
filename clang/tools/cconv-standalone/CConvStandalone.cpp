@@ -104,6 +104,17 @@ static cl::opt<std::string>
             cl::desc("Base directory for the code we're translating"),
             cl::init(""), cl::cat(ConvertCategory));
 
+static cl::opt<bool> OptWarnRootCause
+    ("warn-root-cause",
+    cl::desc("Emit warnings indicating root causes of unchecked pointers."),
+    cl::init(false), cl::cat(ConvertCategory));
+
+static cl::opt<bool> OptWarnAllRootCause
+    ("warn-all-root-cause",
+     cl::desc("Emit warnings for all root causes, "
+              "even those unlikely to be interesting."),
+     cl::init(false), cl::cat(ConvertCategory));
+
 int main(int argc, const char **argv) {
   sys::PrintStackTraceOnErrorSignal(argv[0]);
 
@@ -131,6 +142,8 @@ int main(int argc, const char **argv) {
   CcOptions.AddCheckedRegions = OptAddCheckedRegions;
   CcOptions.EnableAllTypes = OptAllTypes;
   CcOptions.DisableCCTypeChecker = OptDiableCCTypeChecker;
+  CcOptions.WarnRootCause = OptWarnRootCause;
+  CcOptions.WarnAllRootCause = OptWarnAllRootCause;
   //Add user specified function allocators
   std::string Malloc = OptMalloc.getValue();
   if (!Malloc.empty()) {
@@ -167,7 +180,7 @@ int main(int argc, const char **argv) {
   }
 
   // Next solve the constraints.
-  if (!CCInterface.SolveConstraints()) {
+  if (!CCInterface.SolveConstraints(OptWarnRootCause)) {
     errs() << "Failure occurred while trying to solve constraints. Exiting.\n";
     return 1;
   }
