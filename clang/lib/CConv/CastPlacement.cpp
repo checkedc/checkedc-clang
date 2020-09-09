@@ -33,7 +33,6 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
       ProgramInfo::CallTypeParamBindingsT TypeVars;
       if (Info.hasTypeParamBindings(CE, Context))
         TypeVars = Info.getTypeParamBindings(CE, Context);
-      auto PInfo = Info.getMF()[Fname];
       unsigned PIdx = 0;
       for (const auto &A : CE->arguments()) {
         if (PIdx < FD->getNumParams()) {
@@ -50,11 +49,10 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
           CVarSet ArgumentConstraints = CR.getExprConstraintVars(ArgExpr);
           ConstraintVariable *ParameterC = FV->getParamVar(PIdx);
           for (auto *ArgumentC : ArgumentConstraints) {
-            auto Dinfo = PIdx < PInfo.size() ? PInfo[PIdx] : CHECKED;
-            if (needCasting(ArgumentC, ParameterC, Dinfo)) {
+            if (needCasting(ArgumentC, ParameterC)) {
               // We expect the cast string to end with "(".
               std::string CastString =
-                  getCastString(ArgumentC, ParameterC, Dinfo);
+                  getCastString(ArgumentC, ParameterC);
               surroundByCast(CastString, A);
               break;
             }
@@ -71,8 +69,7 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
 // Check whether an explicit casting is needed when the pointer represented
 // by src variable is assigned to dst.
 bool CastPlacementVisitor::needCasting(ConstraintVariable *Src,
-                                       ConstraintVariable *Dst,
-                                       IsChecked Dinfo) {
+                                       ConstraintVariable *Dst) {
   auto &E = Info.getConstraints().getVariables();
   // Check if the src is a checked type.
   if (Src->isChecked(E)) {
@@ -84,7 +81,7 @@ bool CastPlacementVisitor::needCasting(ConstraintVariable *Src,
     // Is Dst Wild?
     // TODO: The Dinfo == WILD comparison seems to be the cause of a cast
     //       insertion bug. Can it be removed?
-    if (!Dst->isChecked(E) || Dinfo == WILD)
+    if (!Dst->isChecked(E))
       return true;
   }
   return false;
@@ -92,9 +89,8 @@ bool CastPlacementVisitor::needCasting(ConstraintVariable *Src,
 
 // Get the type name to insert for casting.
 std::string CastPlacementVisitor::getCastString(ConstraintVariable *Src,
-                                                ConstraintVariable *Dst,
-                                                IsChecked Dinfo) {
-  assert(needCasting(Src, Dst, Dinfo) && "No casting needed.");
+                                                ConstraintVariable *Dst) {
+  assert(needCasting(Src, Dst) && "No casting needed.");
   return "(" + Dst->getRewritableOriginalTy() + ")";
 }
 

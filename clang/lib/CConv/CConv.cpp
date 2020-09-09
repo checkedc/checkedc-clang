@@ -12,7 +12,7 @@
 
 #include "clang/CConv/CConv.h"
 #include "clang/CConv/ConstraintBuilder.h"
-#include "clang/CConv/GatherTool.h"
+#include "clang/CConv/IntermediateToolHook.h"
 #include "clang/CConv/RewriteUtils.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
 
@@ -286,13 +286,14 @@ bool CConvInterface::SolveConstraints(bool ComputeInterimState) {
     GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
   }
 
-  // 3. Gather pre-rewrite data.
+  // 3. Run intermediate tool hook to run visitors that need to be executed
+  // after constraint solving but before rewriting.
   ClangTool &Tool = getGlobalClangTool();
-  std::unique_ptr<ToolAction> GatherTool =
+  std::unique_ptr<ToolAction> IMTool =
       newFrontendActionFactoryA
-          <RewriteAction<ArgGatherer, ProgramInfo>>(GlobalProgramInfo);
-  if (GatherTool)
-    Tool.run(GatherTool.get());
+          <GenericAction<IntermediateToolHook, ProgramInfo>>(GlobalProgramInfo);
+  if (IMTool)
+    Tool.run(IMTool.get());
   else
     llvm_unreachable("No Action");
 
