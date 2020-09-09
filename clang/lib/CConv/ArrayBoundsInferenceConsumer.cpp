@@ -122,8 +122,9 @@ static bool needNTArrayBounds(ConstraintVariable *CV,
 static bool needArrayBounds(Expr *E, ProgramInfo &Info, ASTContext *C) {
   ConstraintResolver CR(Info, C);
   CVarSet ConsVar = CR.getExprConstraintVars(E);
+  auto &EnvMap = Info.getConstraints().getVariables();
   for (auto CurrCVar : ConsVar) {
-    if (needArrayBounds(CurrCVar, Info.getConstraints().getVariables()))
+    if (needArrayBounds(CurrCVar, EnvMap) || needNTArrayBounds(CurrCVar, EnvMap))
       return true;
     return false;
   }
@@ -131,7 +132,7 @@ static bool needArrayBounds(Expr *E, ProgramInfo &Info, ASTContext *C) {
 }
 
 static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C,
-                            bool IsNtArr = false) {
+                            bool IsNtArr) {
   CVarSet ConsVar = Info.getVariable(D, C);
   auto &E = Info.getConstraints().getVariables();
   for (auto CurrCVar : ConsVar) {
@@ -141,6 +142,11 @@ static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C,
     return false;
   }
   return false;
+}
+
+static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C) {
+  return needArrayBounds(D, Info, C, false) ||
+         needArrayBounds(D, Info, C, true);
 }
 
 // Map that contains association of allocator functions and indexes of
@@ -440,13 +446,13 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           // Here, we are using heuristics. So we only use heuristics when
           // there are no bounds already computed.
           if (!ABInfo.getBounds(PK)) {
-            if (needArrayBounds(PVD, Info, Context)) {
-              // Is this an array?
-              ParamArrays[i] = PVal;
-            }
             if (needArrayBounds(PVD, Info, Context, true)) {
               // Is this an NTArray?
               ParamNtArrays[i] = PVal;
+            }
+            if (needArrayBounds(PVD, Info, Context, false)) {
+              // Is this an array?
+              ParamArrays[i] = PVal;
             }
           }
 
@@ -530,6 +536,21 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   return true;
 }
 
+void LocalVarABVisitor::handleAssignment(BoundsKey LK, QualType LHSType, Expr *RHS) {
+  auto &ABoundsInfo = Info.getABoundsInfo();
+  handleAllocatorCall(LHSType, LK, RHS, Info, Context);
+  clang::StringLiteral *SL =
+    dyn_cast_or_null<clang::StringLiteral>(RHS->IgnoreParenCasts());
+  if (SL != nullptr) {
+    ABounds *ByBounds =
+      new ByteBound(ABoundsInfo.getConstKey(SL->getByteLength()));
+    if (!ABoundsInfo.mergeBounds(LK, Allocator, ByBounds)) {
+      delete (ByBounds);
+    } else {
+      ABoundsInfo.getBStats().AllocatorMatch.insert(LK);
+    }
+  }
+}
 
 bool LocalVarABVisitor::HandleBinAssign(BinaryOperator *O) {
   Expr *LHS = O->getLHS()->IgnoreParenCasts();
@@ -541,7 +562,7 @@ bool LocalVarABVisitor::HandleBinAssign(BinaryOperator *O) {
   // is the RHS expression a call to allocator function?
   if (needArrayBounds(LHS, Info, Context) &&
       tryGetBoundsKeyVar(LHS, LK, Info, Context)) {
-    handleAllocatorCall(LHS->getType(), LK, RHS, Info, Context);
+    handleAssignment(LK, LHS->getType(), RHS);
   }
 
   // Any parameter directly used as a condition in ternary expression
@@ -606,23 +627,9 @@ bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
     if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       Expr *InitE = VD->getInit();
       BoundsKey DeclKey;
-      if (InitE != nullptr && (needArrayBounds(VD, Info, Context) ||
-                               needArrayBounds(VD, Info, Context, true))) {
-        clang::StringLiteral *SL =
-            dyn_cast<clang::StringLiteral>(InitE->IgnoreParenCasts());
-        if (tryGetBoundsKeyVar(VD, DeclKey, Info, Context)) {
-          handleAllocatorCall(VD->getType(), DeclKey, InitE,
-                              Info, Context);
-          if (SL != nullptr) {
-            ABounds *ByBounds =
-                new ByteBound(ABoundsInfo.getConstKey(SL->getByteLength()));
-            if (!ABoundsInfo.mergeBounds(DeclKey, Allocator, ByBounds)) {
-              delete (ByBounds);
-            } else {
-              ABoundsInfo.getBStats().AllocatorMatch.insert(DeclKey);
-            }
-          }
-        }
+      if (InitE != nullptr && needArrayBounds(VD, Info, Context) &&
+          tryGetBoundsKeyVar(VD, DeclKey, Info, Context)) {
+        handleAssignment(DeclKey, VD->getType(), InitE);
       }
     }
 

@@ -8,7 +8,6 @@ set( LLVM_LINK_COMPONENTS
           AVarBoundsInfo.cpp
           AVarGraph.cpp
           ArrayBoundsInferenceConsumer.cpp
-          ArrayBoundsInformation.cpp
           CastPlacement.cpp
           CConv.cpp
           CConvInteractiveData.cpp
