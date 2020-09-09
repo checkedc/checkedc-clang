@@ -1,5 +1,8 @@
 // RUN: cconv-standalone -addcr  %s -- | FileCheck -match-full-lines --check-prefixes="CHECK" %s
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -output-postfix=checked -alltypes %s
+// RUN: cconv-standalone -alltypes %S/alreadychecked.checked.c -- | count 0
+// RUN: rm %S/alreadychecked.checked.c
 
 int fib(int n) _Checked
 //CHECK: int fib(int n) _Checked
