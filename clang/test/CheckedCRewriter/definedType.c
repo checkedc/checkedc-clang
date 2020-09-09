@@ -89,3 +89,20 @@ buz *m;
 
 buz n = (buz) 1;
 // CHECK: buz n = (buz) 1;
+
+
+// This was a regression in lua. The function type is wrapped in a ParenType.
+int *(lua_test0)() {
+// CHECK: _Ptr<int> lua_test0(void) _Checked {
+  return 0;
+}
+baz *(lua_test1)() {
+// CHECK: _Ptr<baz> lua_test1(void) _Checked  {
+  return 0;
+}
+
+baz (*lua_test2);
+// CHECK: _Ptr<baz> lua_test2 = ((void *)0);
+
+baz (*(*lua_test3));
+// CHECK: _Ptr<_Ptr<baz>> lua_test3 = ((void *)0);

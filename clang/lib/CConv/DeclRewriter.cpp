@@ -466,7 +466,8 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   VisitedSet.insert(FuncName);
 
   FVConstraint *Defnc = Info.getFuncConstraint(Definition, Context);
-  assert(Defnc != nullptr);
+  if (!Defnc)
+    return true;
 
   // If this is an external function, there is no need to rewrite the
   // declaration. We cannot change the signature of external functions.

@@ -95,20 +95,20 @@ public:
 
   SourceRange getSourceRange() const override {
     FunctionTypeLoc TypeLoc =
-        Decl->getTypeSourceInfo()->getTypeLoc().getAs<clang::FunctionTypeLoc>();
+        getBaseTypeLoc(Decl->getTypeSourceInfo()->getTypeLoc())
+        .getAs<clang::FunctionTypeLoc>();
+
+    assert("FunctionDecl doesn't have function type?" && !TypeLoc.isNull());
 
     // Function pointer are funky, and require special handling to rewrite the
     // return type.
     if (Decl->getReturnType()->isFunctionPointerType()){
       if (RewriteParams && RewriteReturn) {
-        SourceLocation End = TypeLoc.getReturnLoc().getNextTypeLoc()
-                                    .getAs<clang::ParenTypeLoc>().getInnerLoc()
-                                    .getAs<clang::FunctionTypeLoc>()
-                                    .getRParenLoc();
-        return SourceRange(Decl->getBeginLoc(), End);
+        auto
+            T = getBaseTypeLoc(TypeLoc.getReturnLoc()).getAs<FunctionTypeLoc>();
+        if (!T.isNull())
+          return SourceRange(Decl->getBeginLoc(), T.getRParenLoc());
       }
-      assert("RewriteReturn implies RewriteParams for function pointer return."
-             && !RewriteReturn);
       // Fall through to standard handling when only rewriting param decls
     }
 

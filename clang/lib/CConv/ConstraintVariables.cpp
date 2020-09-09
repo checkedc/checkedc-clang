@@ -352,14 +352,20 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     TypeLoc TL = D->getTypeSourceInfo()->getTypeLoc();
     if (isa<FunctionDecl>(D)) {
       FoundMatchingType = D->getAsFunction()->getReturnType() == QT;
-      TL = TL.getAs<clang::FunctionTypeLoc>().getReturnLoc();
+      TL = getBaseTypeLoc(TL).getAs<FunctionTypeLoc>();
+      // FunctionDecl that doesn't have function type? weird
+      if (TL.isNull())
+        FoundMatchingType = false;
+      else
+        TL = TL.getAs<clang::FunctionTypeLoc>().getReturnLoc();
     } else {
       FoundMatchingType = D->getType() == QT;
     }
     // Only use this type if the type passed as a parameter to this constructor
     // agrees with the actual type of the declaration.
-    if (FoundMatchingType) {
-      BaseType = getSourceText(getBaseTypeLoc(TL).getSourceRange(), C);
+    SourceRange SR = getBaseTypeLoc(TL).getSourceRange();
+    if (FoundMatchingType && SR.isValid()) {
+      BaseType = getSourceText(SR, C);
 
       // getSourceText returns the empty string when there's a pointer level
       // inside a macro. Not sure how to handle this, so fall back to tyToStr.
