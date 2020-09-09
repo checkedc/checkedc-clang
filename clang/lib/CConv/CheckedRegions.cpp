@@ -106,9 +106,19 @@ bool CheckedRegionAdder::isParentChecked(const ast_type_traits::DynTypedNode &DT
   if (auto Parent = findParentCompound(DTN).first) {
     llvm::FoldingSetNodeID ID;
     Parent->Profile(ID, *Context, true);
-    return Map[ID] == IS_CHECKED;
+    return Map[ID] == IS_CHECKED || isWrittenChecked(Parent);
   } else {
     return false;
+  }
+}
+
+bool CheckedRegionAdder::isWrittenChecked(const clang::CompoundStmt* S) {
+  CheckedScopeSpecifier WCSS = S->getWrittenCheckedSpecifier();
+  switch (WCSS) {
+    case CSS_None: return false;
+    case CSS_Unchecked: return false;
+    case CSS_Bounds: return true;
+    case CSS_Memory: return true;
   }
 }
 
