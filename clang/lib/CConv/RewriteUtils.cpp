@@ -15,7 +15,6 @@
 #include "clang/CConv/DeclRewriter.h"
 #include "clang/Tooling/Refactoring/SourceCode.h"
 #include "clang/CConv/CCGlobalOptions.h"
-#include "clang/Basic/DiagnosticCConvKinds.inc"
 
 using namespace llvm;
 using namespace clang;

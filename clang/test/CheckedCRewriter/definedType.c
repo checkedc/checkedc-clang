@@ -106,3 +106,7 @@ baz (*lua_test2);
 
 baz (*(*lua_test3));
 // CHECK: _Ptr<_Ptr<baz>> lua_test3 = ((void *)0);
+
+typedef int *StkId;
+void lua_test4(StkId *x) {}
+// CHECK: void lua_test4(_Ptr<_Ptr<int>> x) _Checked {}

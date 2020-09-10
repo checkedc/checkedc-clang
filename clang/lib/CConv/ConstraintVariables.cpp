@@ -361,16 +361,21 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     } else {
       FoundMatchingType = D->getType() == QT;
     }
-    // Only use this type if the type passed as a parameter to this constructor
-    // agrees with the actual type of the declaration.
-    SourceRange SR = getBaseTypeLoc(TL).getSourceRange();
-    if (FoundMatchingType && SR.isValid()) {
-      BaseType = getSourceText(SR, C);
+    TypeLoc BaseLoc = getBaseTypeLoc(TL);
+    if (!BaseLoc.getAs<TypedefTypeLoc>().isNull()) {
+      FoundMatchingType = false;
+    } else {
+      // Only use this type if the type passed as a parameter to this constructor
+      // agrees with the actual type of the declaration.
+      SourceRange SR = BaseLoc.getSourceRange();
+      if (FoundMatchingType && SR.isValid()) {
+        BaseType = getSourceText(SR, C);
 
-      // getSourceText returns the empty string when there's a pointer level
-      // inside a macro. Not sure how to handle this, so fall back to tyToStr.
-      if (BaseType.empty())
-        FoundMatchingType = false;
+        // getSourceText returns the empty string when there's a pointer level
+        // inside a macro. Not sure how to handle this, so fall back to tyToStr.
+        if (BaseType.empty())
+          FoundMatchingType = false;
+      }
     }
   }
   // Fall back to rebuilding the base type based on type passed to constructor

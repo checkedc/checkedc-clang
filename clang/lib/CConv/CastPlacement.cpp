@@ -101,20 +101,27 @@ void CastPlacementVisitor::surroundByCast(const std::string &CastPrefix,
   if (auto *CE = dyn_cast<CStyleCastExpr>(E->IgnoreParens())) {
     SourceRange CastTypeRange(CE->getLParenLoc(), CE->getRParenLoc());
     Writer.ReplaceText(CastTypeRange, CastPrefix);
-  } else if (Writer.InsertTextAfterToken(E->getEndLoc(), ")")) {
-    // This means we failed to insert the text at the end of the RHS.
-    // This can happen because of Macro expansion.
-    // We will see if this is a single expression statement?
-    // If yes, then we will use parent statement to add ")"
-    auto CRA = CharSourceRange::getTokenRange(E->getSourceRange());
-    auto NewCRA = clang::Lexer::makeFileCharRange(CRA,
-                                                  Context->getSourceManager(),
-                                                  Context->getLangOpts());
-    std::string SrcText = clang::tooling::getText(CRA, *Context);
-    // Only insert if there is anything to write.
-    if (!SrcText.empty())
-      Writer.ReplaceText(NewCRA, "(" + CastPrefix + SrcText + ")");
   } else {
-    Writer.InsertTextBefore(E->getBeginLoc(), "(" + CastPrefix);
+    bool FrontRewritable = Writer.isRewritable(E->getBeginLoc());
+    bool EndRewritable = Writer.isRewritable(E->getEndLoc());
+    if (FrontRewritable && EndRewritable) {
+      bool FFail = Writer.InsertTextAfterToken(E->getEndLoc(), ")");
+      bool EFail = Writer.InsertTextBefore(E->getBeginLoc(), "(" + CastPrefix);
+      assert("Locations were rewritable, fail should not be possible."
+          && !FFail && !EFail);
+    } else {
+      // This means we failed to insert the text at the end of the RHS.
+      // This can happen because of Macro expansion.
+      // We will see if this is a single expression statement?
+      // If yes, then we will use parent statement to add ")"
+      auto CRA = CharSourceRange::getTokenRange(E->getSourceRange());
+      auto NewCRA = clang::Lexer::makeFileCharRange(CRA,
+                                                    Context->getSourceManager(),
+                                                    Context->getLangOpts());
+      std::string SrcText = clang::tooling::getText(CRA, *Context);
+      // Only insert if there is anything to write.
+      if (!SrcText.empty())
+        Writer.ReplaceText(NewCRA, "(" + CastPrefix + SrcText + ")");
+    }
   }
 }
