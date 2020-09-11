@@ -62,6 +62,7 @@ public:
   bool isNonLengthParameter(ParmVarDecl *PVD);
 
 private:
+  void handleAssignment(BoundsKey LK, QualType LHSType, Expr *RHS);
   void addUsedParmVarDecl(Expr *CE);
   std::set<ParmVarDecl *> NonLengthParameters;
   ASTContext *Context;
