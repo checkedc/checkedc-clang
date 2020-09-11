@@ -152,15 +152,21 @@ void BoundsAnalysis::ComputeGenSets() {
       if (pred->succ_size() == 0)
         continue;
 
-      const CFGBlock *FalseOrDefaultBlock = *(pred->succs().end() - 1);
-      if (EB->Block == FalseOrDefaultBlock)
-        continue;
-
       // Get the edge condition.
       Expr *E = GetTerminatorCondition(pred);
       if (!E)
         continue;
 
+      const CFGBlock *FalseOrDefaultBlock = *(pred->succs().end() - 1);
+      if (auto *UO = dyn_cast<UnaryOperator>(E)){
+        if (UO->getOpcode() == UO_LNot)
+          if (EB->Block == FalseOrDefaultBlock){
+            E = IgnoreCasts(UO->getSubExpr());
+            FillGenSet(E, BlockMap[pred], EB);
+          }
+      }else{
+        if (EB->Block == FalseOrDefaultBlock)
+          continue;
       // Check if the pred ends in a switch statement.
       const Stmt *TerminatorStmt = pred->getTerminatorStmt();
       if (TerminatorStmt && isa<SwitchStmt>(TerminatorStmt)) {
@@ -188,7 +194,7 @@ void BoundsAnalysis::ComputeGenSets() {
           continue;
         }
       }
-
+  }
       FillGenSet(E, BlockMap[pred], EB);
     }
   }

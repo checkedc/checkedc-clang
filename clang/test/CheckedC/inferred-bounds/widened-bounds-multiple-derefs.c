@@ -604,3 +604,119 @@ void f24() {
 // CHECK: [B1]
 // CHECK-NOT: upper_bound(p)
 }
+
+void f25() {
+  _Nt_array_ptr<char> p : count(0) = "a";
+
+  if (!*p) {
+  }else{
+      int x = 1;
+  }
+
+// CHECK: In function: f25
+// CHECK: [B3]
+// CHECK:   2: !*p
+// CHECK: [B2]
+// CHECK_NOT: upper_bound(p)
+// CHECK: [B1]
+// CHECK: upper_bound(p) = 1
+}
+
+void f26() {
+  _Nt_array_ptr<char> p : count(0) = "ab";
+
+  if (!*p){
+  }else if (*(p + 1))
+          if (*(p + 2))
+  {}
+
+// CHECK: In function: f26
+// CHECK: [B5]
+// CHECK:   2: !*p
+// CHECK: [B4]
+// CHECK_NOT: upper_bound(p)
+// CHECK: [B3]
+// CHECK:   1: *(p + 1)
+// CHECK: upper_bound(p) = 1
+// CHECK: [B2]
+// CHECK:   1: *(p + 2)
+// CHECK: [B1]
+// CHECK: upper_bound(p) = 3
+}
+
+void f27(_Nt_array_ptr<char> p : count(0)) {
+  if (!p[0]) {
+  }else{
+      int x = 1;
+  }
+
+// CHECK: In function: f27
+// CHECK: [B6]
+// CHECK:   1: !p[0]
+// CHECK: [B5]
+// CHECK_NOT: upper_bound(p)
+// CHECK: [B4]
+// CHECK: upper_bound(p) = 1
+//
+
+  _Nt_array_ptr<char> q : count(0) = "a";
+  if (!0[q]) {
+  }else{
+	  int x = 1;
+  }
+// CHECK: [B3]
+// CHECK:   2: !0[q]
+// CHECK: [B2]
+// CHECK_NOT: upper_bound(q)
+// CHECK: [B1]
+// CHECK: upper_bound(q) = 1
+}
+
+void f28() {
+  _Nt_array_ptr<char> p : count(0) = "";
+
+  if (!*p && *p) {
+  }else{
+      int x = 1;
+  }
+
+// CHECK: In function: f28
+// CHECK: [B4]
+// CHECK:   2: !*p
+// CHECK: [B3]
+// CHECK:   1: *p
+// CHECK_NOT: upper_bound(p)
+// CHECK: [B2]
+// CHECK: upper_bound(p) = 1
+// CHECK: [B1]
+// CHECK_NOT: upper_bound(p)
+}
+
+void f29() {
+  _Nt_array_ptr<char> p : count(0) = "ab";
+
+  if (!*p){
+  }else if (!*(p + 1)){
+  }else if (!*(p + 2)){
+  }else{
+     int x = 1;
+  }
+
+// CHECK: In function: f29
+// CHECK: [B7]
+// CHECK:   2: !*p
+// CHECK: [B6]
+// CHECK_NOT: upper_bound(p)
+// CHECK: [B5]
+// CHECK:   1: !*(p + 1)
+// CHECK: upper_bound(p) = 1
+// CHECK: [B4]
+// CHECK: upper_bound(p) = 1
+// CHECK: [B3]
+// CHECK:   1: !*(p + 2)
+// CHECK: upper_bound(p) = 2
+// CHECK: [B2]
+// CHECK: upper_bound(p) = 2
+// CHECK: [B1]
+// CHECK: upper_bound(p) = 3
+}
