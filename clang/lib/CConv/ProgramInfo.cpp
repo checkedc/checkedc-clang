@@ -593,8 +593,8 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
 bool ProgramInfo::hasPersistentConstraints(Expr *E, ASTContext *C) const {
   auto PSL = PersistentSourceLoc::mkPSL(E, *C);
   // Has constraints only if the PSL is valid.
-  return PSL.valid() && Variables.find(PSL) != Variables.end()
-      && !Variables.at(PSL).empty();
+  return PSL.valid() && ExprConstraintVars.find(PSL) != ExprConstraintVars.end()
+      && !ExprConstraintVars.at(PSL).empty();
 }
 
 // Get the set of constraint variables for an expression that will persist
@@ -607,7 +607,7 @@ const CVarSet &ProgramInfo::getPersistentConstraints(Expr *E,
   assert (hasPersistentConstraints(E, C) &&
            "Persistent constraints not present.");
   PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(E, *C);
-  return Variables.at(PLoc);
+  return ExprConstraintVars.at(PLoc);
 }
 
 void ProgramInfo::storePersistentConstraints(Expr *E, const CVarSet &Vars,
@@ -622,7 +622,7 @@ void ProgramInfo::storePersistentConstraints(Expr *E, const CVarSet &Vars,
   // visited before. To avoid this, the expression is not cached and instead is
   // recomputed each time it's needed.
   if (PSL.valid() && Rewriter::isRewritable(E->getBeginLoc()))
-    Variables[PSL].insert(Vars.begin(), Vars.end());
+    ExprConstraintVars[PSL].insert(Vars.begin(), Vars.end());
 }
 
 // The Rewriter won't let us re-write things that are in macros. So, we

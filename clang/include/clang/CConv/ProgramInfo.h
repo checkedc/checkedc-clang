@@ -116,10 +116,15 @@ public:
   void constrainWildIfMacro(CVarSet &S, SourceLocation Location);
 
 private:
-  // List of all constraint variables, indexed by their location in the source.
-  // This information persists across invocations of the constraint analysis
-  // from compilation unit to compilation unit.
+  // List of constraint variables for declarations, indexed by their location in
+  // the source. This information persists across invocations of the constraint
+  // analysis from compilation unit to compilation unit.
   VariableMap Variables;
+
+  // Map with the same purpose as the Variables map, this stores constraint vars
+  // non-declaration expressions.
+  VariableMap ExprConstraintVars;
+
   // Constraint system.
   Constraints CS;
   // Is the ProgramInfo persisted? Only tested in asserts. Starts at true.
