@@ -68,7 +68,11 @@ public:
   // should all be empty. 
   void exitCompilationUnit();
 
-  CVarSet &getPersistentConstraintVars(Expr *E, ASTContext *AstContext);
+  bool hasPersistentConstraints(clang::Expr *E, ASTContext *C) const;
+  const CVarSet &getPersistentConstraints(clang::Expr *E, ASTContext *C) const;
+  void storePersistentConstraints(clang::Expr *E, const CVarSet &Vars,
+                                  ASTContext *C);
+
   // Get constraint variable for the provided Decl
   CVarSet getVariable(clang::Decl *D, clang::ASTContext *C);
 

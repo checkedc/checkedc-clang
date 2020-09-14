@@ -182,7 +182,6 @@ void ProgramInfo::print_stats(const std::set<std::string> &F, raw_ostream &O,
     O << "Sound handling of var args functions:" << HandleVARARGS << "\n";
   }
   std::map<std::string, std::tuple<int, int, int, int, int>> FilesToVars;
-  const EnvironmentMap &Env = CS.getVariables();
   CVarSet InSrcCVars;
   unsigned int totC, totP, totNt, totA, totWi;
   totC = totP = totNt = totA = totWi = 0;
@@ -591,13 +590,39 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
   constrainWildIfMacro(S, D->getLocation());
 }
 
-CVarSet
-    &ProgramInfo::getPersistentConstraintVars(Expr *E,
-                                              clang::ASTContext *AstContext) {
-  PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(E, *AstContext);
-  assert(PLoc.valid());
+bool ProgramInfo::hasPersistentConstraints(Expr *E, ASTContext *C) const {
+  auto PSL = PersistentSourceLoc::mkPSL(E, *C);
+  // Has constraints only if the PSL is valid.
+  return PSL.valid() && Variables.find(PSL) != Variables.end()
+      && !Variables.at(PSL).empty();
+}
 
-  return Variables[PLoc];
+// Get the set of constraint variables for an expression that will persist
+// between the constraint generation and rewriting pass. If the expression
+// already has a set of persistent constraints, this set is returned. Otherwise,
+// the set provided in the arguments is stored persistent and returned. This is
+// required for correct cast insertion.
+const CVarSet &ProgramInfo::getPersistentConstraints(Expr *E,
+                                                     ASTContext *C) const {
+  assert (hasPersistentConstraints(E, C) &&
+           "Persistent constraints not present.");
+  PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(E, *C);
+  return Variables.at(PLoc);
+}
+
+void ProgramInfo::storePersistentConstraints(Expr *E, const CVarSet &Vars,
+                                             ASTContext *C) {
+  // Store only if the PSL is valid.
+  auto PSL = PersistentSourceLoc::mkPSL(E, *C);
+  // The check Rewrite::isRewritable is needed here to ensure that the
+  // expression is not inside a macro. If the expression is in a macro, then it
+  // is possible for there to be multiple expressions that map to the same PSL.
+  // This could make it look like the constraint variables for an expression
+  // have been computed and cached when the expression has not in fact been
+  // visited before. To avoid this, the expression is not cached and instead is
+  // recomputed each time it's needed.
+  if (PSL.valid() && Rewriter::isRewritable(E->getBeginLoc()))
+    Variables[PSL].insert(Vars.begin(), Vars.end());
 }
 
 // The Rewriter won't let us re-write things that are in macros. So, we

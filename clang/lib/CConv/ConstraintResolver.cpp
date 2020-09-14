@@ -176,8 +176,8 @@ CVarSet ConstraintResolver::getInvalidCastPVCons(Expr *E) {
   // As getInvalidCastPVCons could be called from non-persistent expressions
   // we need to explicitly store the generated PVConstraints into persistent
   // constraints.
-  if (hasPersistentConstraints(E))
-    return getPersistentConstraints(E);
+  if (Info.hasPersistentConstraints(E, Context))
+    return Info.getPersistentConstraints(E, Context);
 
   DstType = E->getType();
   SrcType = E->getType();
@@ -194,7 +194,7 @@ CVarSet ConstraintResolver::getInvalidCastPVCons(Expr *E) {
       "Cast from " + SrcType.getAsString() + " to " + DstType.getAsString();
   P->constrainToWild(Info.getConstraints(), Rsn, &PL);
   Ret = {P};
-  storePersistentConstraints(E, Ret);
+  Info.storePersistentConstraints(E, Ret, Context);
   return Ret;
 }
 
@@ -256,9 +256,8 @@ CVarSet
       // Apart from the above expressions constraints for all the other
       // expressions can be cached.
       // First, check if the expression has constraints that are cached?
-      if (hasPersistentConstraints(E)) {
-        return getPersistentConstraints(E);
-      }
+      if (Info.hasPersistentConstraints(E, Context))
+        return Info.getPersistentConstraints(E, Context);
 
       CVarSet Ret = EmptyCSet;
       if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(E)) {
@@ -597,52 +596,11 @@ CVarSet
           llvm::errs() << "\n";
         }
       }
-      storePersistentConstraints(E, Ret);
+      Info.storePersistentConstraints(E, Ret, Context);
       return Ret;
     }
   }
   return EmptyCSet;
-}
-
-bool ConstraintResolver::hasPersistentConstraints(clang::Expr *E) {
-  auto PSL = PersistentSourceLoc::mkPSL(E, *Context);
-  // Has constraints only if the PSL is valid.
-  if (PSL.valid()) {
-    CVarSet &Persist = Info.getPersistentConstraintVars(E, Context);
-    return !Persist.empty();
-  }
-  return false;
-}
-
-// Get the set of constraint variables for an expression that will persist
-// between the constraint generation and rewriting pass. If the expression
-// already has a set of persistent constraints, this set is returned. Otherwise,
-// the set provided in the arguments is stored persistent and returned. This is
-// required for correct cast insertion.
-CVarSet
-    ConstraintResolver::getPersistentConstraints(clang::Expr *E) {
-  assert (hasPersistentConstraints(E) &&
-         "Persistent constraints not present.");
-  CVarSet &Persist = Info.getPersistentConstraintVars(E, Context);
-  return Persist;
-}
-
-
-void ConstraintResolver::storePersistentConstraints(clang::Expr *E,
-                                                    CVarSet &Vars) {
-  // Store only if the PSL is valid.
-  auto PSL = PersistentSourceLoc::mkPSL(E, *Context);
-  // The check Rewrite::isRewritable is needed here to ensure that the
-  // expression is not inside a macro. If the expression is in a macro, then it
-  // is possible for there to be multiple expressions that map to the same PSL.
-  // This could make it look like the constraint variables for an expression
-  // have been computed and cached when the expression has not in fact been
-  // visited before. To avoid this, the expression is not cached and instead is
-  // recomputed each time it's needed.
-  if (PSL.valid() && Rewriter::isRewritable(E->getBeginLoc())){
-    CVarSet &Persist = Info.getPersistentConstraintVars(E, Context);
-    Persist.insert(Vars.begin(), Vars.end());
-  }
 }
 
 // Collect constraint variables for Exprs int a set

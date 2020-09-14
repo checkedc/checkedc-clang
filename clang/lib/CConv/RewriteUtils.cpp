@@ -224,7 +224,9 @@ private:
   Rewriter &Writer;
 
   void rewriteType(Expr *E, SourceRange &Range) {
-    CVarSet CVSingleton = Info.getPersistentConstraintVars(E, Context);
+    if (!Info.hasPersistentConstraints(E, Context))
+      return;
+    const CVarSet &CVSingleton = Info.getPersistentConstraints(E, Context);
     if (CVSingleton.empty())
       return;
 

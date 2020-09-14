@@ -69,9 +69,7 @@ private:
 
   CVarSet getAllSubExprConstraintVars(std::vector<Expr *> &Exprs);
   CVarSet getBaseVarPVConstraint(DeclRefExpr *Decl);
-  bool hasPersistentConstraints(clang::Expr *E);
-  CVarSet getPersistentConstraints(clang::Expr *E);
-  void storePersistentConstraints(clang::Expr *E, CVarSet &Vars);
+
   PVConstraint *getRewritablePVConstraint(Expr *E);
 };
 
