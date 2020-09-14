@@ -529,6 +529,7 @@ class ConstraintsEnv {
 public:
   ConstraintsEnv() : consFreeKey(0), useChecked(true) { environment.clear(); }
   EnvironmentMap &getVariables() { return environment; }
+  const EnvironmentMap &getVariables() const { return environment; }
   void dump() const;
   void print(llvm::raw_ostream &) const;
   void dump_json(llvm::raw_ostream &) const;
@@ -574,7 +575,8 @@ public:
   // a client wants to examine the environment is untenable.
   ConstraintSet &getConstraints() { return constraints; }
   EnvironmentMap &getVariables() { return environment.getVariables(); }
-  
+  const EnvironmentMap &getVariables() const { return environment.getVariables(); }
+
   EnvironmentMap &getitypeVarMap() { return itypeConstraintVars; }
 
   void editConstraintHook(Constraint *C);

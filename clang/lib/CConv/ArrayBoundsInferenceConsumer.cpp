@@ -101,19 +101,19 @@ static bool hasLengthKeyword(std::string VarName) {
 }
 
 // Check if the provided constraint variable is an array and it needs bounds.
-static bool needArrayBounds(ConstraintVariable *CV,
-                            EnvironmentMap &E) {
+static bool needArrayBounds(const ConstraintVariable *CV,
+                            const EnvironmentMap &E) {
   if (CV->hasArr(E, 0)) {
-    PVConstraint *PV = dyn_cast<PVConstraint>(CV);
+    const PVConstraint *PV = dyn_cast<PVConstraint>(CV);
     return !PV || PV->isTopCvarUnsizedArr();
   }
   return false;
 }
 
-static bool needNTArrayBounds(ConstraintVariable *CV,
-                              EnvironmentMap &E) {
+static bool needNTArrayBounds(const ConstraintVariable *CV,
+                              const EnvironmentMap &E) {
   if (CV->hasNtArr(E, 0)) {
-    PVConstraint *PV = dyn_cast<PVConstraint>(CV);
+    const PVConstraint *PV = dyn_cast<PVConstraint>(CV);
     return !PV || PV->isTopCvarUnsizedArr();
   }
   return false;
@@ -122,7 +122,7 @@ static bool needNTArrayBounds(ConstraintVariable *CV,
 static bool needArrayBounds(Expr *E, ProgramInfo &Info, ASTContext *C) {
   ConstraintResolver CR(Info, C);
   CVarSet ConsVar = CR.getExprConstraintVars(E);
-  auto &EnvMap = Info.getConstraints().getVariables();
+  const auto &EnvMap = Info.getConstraints().getVariables();
   for (auto CurrCVar : ConsVar) {
     if (needArrayBounds(CurrCVar, EnvMap) || needNTArrayBounds(CurrCVar, EnvMap))
       return true;
@@ -134,7 +134,7 @@ static bool needArrayBounds(Expr *E, ProgramInfo &Info, ASTContext *C) {
 static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C,
                             bool IsNtArr) {
   CVarSet ConsVar = Info.getVariable(D, C);
-  auto &E = Info.getConstraints().getVariables();
+  const auto &E = Info.getConstraints().getVariables();
   for (auto CurrCVar : ConsVar) {
     if ((!IsNtArr && needArrayBounds(CurrCVar, E)) ||
         (IsNtArr && needNTArrayBounds(CurrCVar, E)))

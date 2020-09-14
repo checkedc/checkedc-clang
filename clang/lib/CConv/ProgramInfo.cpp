@@ -182,7 +182,7 @@ void ProgramInfo::print_stats(const std::set<std::string> &F, raw_ostream &O,
     O << "Sound handling of var args functions:" << HandleVARARGS << "\n";
   }
   std::map<std::string, std::tuple<int, int, int, int, int>> FilesToVars;
-  EnvironmentMap Env = CS.getVariables();
+  const EnvironmentMap &Env = CS.getVariables();
   CVarSet InSrcCVars;
   unsigned int totC, totP, totNt, totA, totWi;
   totC = totP = totNt = totA = totWi = 0;
@@ -738,7 +738,7 @@ bool ProgramInfo::computeInterimConstraintState
   // Get all the valid vars of interest i.e., all the Vars that are present
   // in one of the files being compiled.
   CAtoms ValidVarsVec;
-  for (auto &I : Variables) {
+  for (const auto &I : Variables) {
     std::string FileName = I.first.getFileName();
     if (FilePaths.count(FileName)) {
       for (auto &C : I.second) {

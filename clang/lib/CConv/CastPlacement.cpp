@@ -70,7 +70,7 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
 // by src variable is assigned to dst.
 bool CastPlacementVisitor::needCasting(ConstraintVariable *Src,
                                        ConstraintVariable *Dst) {
-  auto &E = Info.getConstraints().getVariables();
+  const auto &E = Info.getConstraints().getVariables();
   // Check if the src is a checked type.
   if (Src->isChecked(E)) {
     // If Dst has an itype, Src must have exactly the same checked type. If this

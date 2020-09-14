@@ -32,7 +32,7 @@ std::string ConstraintVariable::getRewritableOriginalTy() const {
   }
   return OrigTyString;
 }
-bool ConstraintVariable::isChecked(EnvironmentMap &E) const {
+bool ConstraintVariable::isChecked(const EnvironmentMap &E) const {
   return getIsOriginallyChecked() || anyChanges(E);
 }
 
@@ -546,7 +546,7 @@ void PointerVariableConstraint::addArrayAnnotations(
 // variables and potentially nested function pointer declaration. Produces a
 // string that can be replaced in the source code.
 std::string
-PointerVariableConstraint::mkString(EnvironmentMap &E,
+PointerVariableConstraint::mkString(const EnvironmentMap &E,
                                     bool EmitName,
                                     bool ForItype,
                                     bool EmitPointee) const {
@@ -587,7 +587,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
       VarAtom *VA = dyn_cast<VarAtom>(V);
       assert(VA != nullptr && "Constraint variable can "
                               "be either constant or VarAtom.");
-      C = E[VA].first;
+      C = E.at(VA).first;
     }
     assert(C != nullptr);
 
@@ -891,19 +891,22 @@ void FunctionVariableConstraint::constrainToWild
     V->constrainToWild(CS, Rsn, PL);
 }
 
-bool FunctionVariableConstraint::anyChanges(EnvironmentMap &E) const {
+bool FunctionVariableConstraint::anyChanges(const EnvironmentMap &E) const {
   return ReturnVar->anyChanges(E);
 }
 
-bool FunctionVariableConstraint::hasWild(EnvironmentMap &E, int AIdx) const {
+bool FunctionVariableConstraint::hasWild(const EnvironmentMap &E,
+                                         int AIdx) const {
   return ReturnVar->hasWild(E, AIdx);
 }
 
-bool FunctionVariableConstraint::hasArr(EnvironmentMap &E, int AIdx) const {
+bool FunctionVariableConstraint::hasArr(const EnvironmentMap &E,
+                                        int AIdx) const {
   return ReturnVar->hasArr(E, AIdx);
 }
 
-bool FunctionVariableConstraint::hasNtArr(EnvironmentMap &E, int AIdx) const {
+bool FunctionVariableConstraint::hasNtArr(const EnvironmentMap &E,
+                                          int AIdx) const {
   return ReturnVar->hasNtArr(E, AIdx);
 }
 
@@ -1024,7 +1027,7 @@ void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C,
   }
 }
 
-bool PointerVariableConstraint::anyArgumentIsWild(EnvironmentMap &E) {
+bool PointerVariableConstraint::anyArgumentIsWild(const EnvironmentMap &E) {
   for (auto *ArgVal : argumentConstraints) {
     if (!ArgVal->isChecked(E)) {
       return true;
@@ -1033,7 +1036,7 @@ bool PointerVariableConstraint::anyArgumentIsWild(EnvironmentMap &E) {
   return false;
 }
 
-bool PointerVariableConstraint::anyChanges(EnvironmentMap &E) const {
+bool PointerVariableConstraint::anyChanges(const EnvironmentMap &E) const {
   // If a pointer variable was checked in the input program, it will have the
   // same checked type in the output, so it cannot have changed.
   if (OriginallyChecked)
@@ -1061,21 +1064,21 @@ ConstraintVariable *PointerVariableConstraint::getCopy(Constraints &CS) {
 }
 
 const ConstAtom *
-PointerVariableConstraint::getSolution(const Atom *A, EnvironmentMap &E) const {
+PointerVariableConstraint::getSolution(const Atom *A,
+                                       const EnvironmentMap &E) const {
   const ConstAtom *CS = nullptr;
   if (const ConstAtom *CA = dyn_cast<ConstAtom>(A)) {
     CS = CA;
   } else if (const VarAtom *VA = dyn_cast<VarAtom>(A)) {
-    // If this is a VarAtom?, we need ot fetch from solution
-    // i.e., environment.
-    CS = E[const_cast<VarAtom*>(VA)].first;
+    // If this is a VarAtom?, we need to fetch from solution i.e., environment.
+    CS = E.at(const_cast<VarAtom*>(VA)).first;
   }
   assert(CS != nullptr && "Atom should be either const or var");
   return CS;
 }
 
-bool PointerVariableConstraint::hasWild(EnvironmentMap &E, int AIdx) const
-{
+bool PointerVariableConstraint::hasWild(const EnvironmentMap &E,
+                                        int AIdx) const {
   int VarIdx = 0;
   for (const auto &C : vars) {
     const ConstAtom *CS = getSolution(C, E);
@@ -1092,8 +1095,8 @@ bool PointerVariableConstraint::hasWild(EnvironmentMap &E, int AIdx) const
   return false;
 }
 
-bool PointerVariableConstraint::hasArr(EnvironmentMap &E, int AIdx) const
-{
+bool PointerVariableConstraint::hasArr(const EnvironmentMap &E,
+                                       int AIdx) const {
   int VarIdx = 0;
   for (const auto &C : vars) {
     const ConstAtom *CS = getSolution(C, E);
@@ -1110,8 +1113,8 @@ bool PointerVariableConstraint::hasArr(EnvironmentMap &E, int AIdx) const
   return false;
 }
 
-bool PointerVariableConstraint::hasNtArr(EnvironmentMap &E, int AIdx) const
-{
+bool PointerVariableConstraint::hasNtArr(const EnvironmentMap &E,
+                                         int AIdx) const {
   int VarIdx = 0;
   for (const auto &C : vars) {
     const ConstAtom *CS = getSolution(C, E);
@@ -1237,7 +1240,7 @@ bool FunctionVariableConstraint::
 }
 
 std::string
-FunctionVariableConstraint::mkString(EnvironmentMap &E,
+FunctionVariableConstraint::mkString(const EnvironmentMap &E,
                                      bool EmitName, bool ForItype,
                                      bool EmitPointee) const {
   std::string Ret = "";

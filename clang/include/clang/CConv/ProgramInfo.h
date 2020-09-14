@@ -86,7 +86,7 @@ public:
   // constraints where appropriate.
   bool link();
 
-  VariableMap &getVarMap() { return Variables; }
+  const VariableMap &getVarMap() const { return Variables; }
   Constraints &getConstraints() { return CS;  }
   AVarBoundsInfo &getABoundsInfo() { return ArrBInfo; }
 

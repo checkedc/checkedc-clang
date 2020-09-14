@@ -950,11 +950,11 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
     auto &BkeyToPSL = DeclVarMap.right();
     if (BkeyToPSL.find(Bkey) != BkeyToPSL.end()) {
       auto &PSL = BkeyToPSL.at(Bkey);
-      if (hasArray(PI->getVarMap()[PSL], CS)) {
+      if (hasArray(PI->getVarMap().at(PSL), CS)) {
         ArrPointers.insert(Bkey);
       }
       // Does this array belongs to a valid program variable?
-      if (isInSrcArray(PI->getVarMap()[PSL], CS)) {
+      if (isInSrcArray(PI->getVarMap().at(PSL), CS)) {
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }
       continue;
