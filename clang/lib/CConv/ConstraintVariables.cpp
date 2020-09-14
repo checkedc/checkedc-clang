@@ -375,7 +375,8 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
         // inside a macro. Not sure how to handle this, so fall back to tyToStr.
         if (BaseType.empty())
           FoundMatchingType = false;
-      }
+      } else
+        FoundMatchingType = false;
     }
   }
   // Fall back to rebuilding the base type based on type passed to constructor

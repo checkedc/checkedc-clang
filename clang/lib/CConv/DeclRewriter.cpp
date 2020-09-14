@@ -136,10 +136,6 @@ void DeclRewriter::rewrite(RSet &ToRewrite) {
       errs() << "with " << N->getReplacement() << "\n";
     }
 
-    // Get a FullSourceLoc for the start location and add it to the
-    // list of file ID's we've touched.
-    SourceRange SR = N->getDecl()->getSourceRange();
-
     // Exact rewriting procedure depends on declaration type
     if (auto *PVR = dyn_cast<ParmVarDeclReplacement>(N)) {
       assert(N->getStatement() == nullptr);
@@ -337,7 +333,7 @@ void DeclRewriter::rewriteFunctionDecl(FunctionDeclReplacement *N) {
   //       Additionally, a source range can be (mis) identified as
   //       spanning multiple files. We don't know how to re-write that,
   //       so don't.
-  SourceRange SR = N->getSourceRange();
+  SourceRange SR = N->getSourceRange(A.getSourceManager());
   if (canRewrite(R, SR)) {
     R.ReplaceText(SR, N->getReplacement());
   } else {

@@ -23,9 +23,9 @@ PersistentSourceLoc::mkPSL(const Decl *D, ASTContext &C) {
   SourceLocation SL = D->getLocation();
 
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) 
-    SL = C.getSourceManager().getSpellingLoc(FD->getLocation());
+    SL = C.getSourceManager().getExpansionLoc(FD->getLocation());
   else if (const ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) 
-    SL = C.getSourceManager().getSpellingLoc(PV->getLocation());
+    SL = C.getSourceManager().getExpansionLoc(PV->getLocation());
   else if (const VarDecl *V = dyn_cast<VarDecl>(D))
     SL = C.getSourceManager().getExpansionLoc(V->getLocation());
   

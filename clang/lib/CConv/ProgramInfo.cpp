@@ -530,10 +530,13 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
   PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(D, *astContext);
   assert(PLoc.valid());
 
-  // We only add a PVConstraint or an FVConstraint if the set at
-  // Variables[PLoc] does not contain one already. TODO: Explain why would this happen
+  // We only add a PVConstraint if the set at Variables[PLoc] does not contain
+  // one already. Two variables can have the same source locations when they are
+  // declared inside the same macro expansion. Functions are exempt from this
+  // check because they need to be added to the Extern/Static function maps
+  // regardless if they are inside a macro expansion.
   CVarSet &S = Variables[PLoc];
-  if (S.size()) return;
+  if (S.size() && !isa<FunctionDecl>(D)) return;
 
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     // Function Decls have FVConstraints.

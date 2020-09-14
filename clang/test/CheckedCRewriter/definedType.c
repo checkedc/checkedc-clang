@@ -110,3 +110,31 @@ baz (*(*lua_test3));
 typedef int *StkId;
 void lua_test4(StkId *x) {}
 // CHECK: void lua_test4(_Ptr<_Ptr<int>> x) _Checked {}
+
+// Things declared inside macros should be WILD unless we start doing something extremely clever
+
+#define declare_function(x) int *foo##x(int *a) {return a; } int *bar##x(int *a) { return a; }
+
+declare_function(1)
+
+#define declare_var(x) int * x##1; int ** x##2; int *** x##3;
+
+declare_var(y)
+
+void test() {
+  int *x = 0;
+  int *y = 0;
+  int *a = foo1(x);
+  int *b = bar1(y);
+  int *c = y1;
+  int **d = y2;
+  int ***e = y3;
+}
+// CHECK: void test() {
+// CHECK: int *x = 0;
+// CHECK: int *y = 0;
+// CHECK: int *a = foo1(x);
+// CHECK: int *b = bar1(y);
+// CHECK: int *c = y1;
+// CHECK: int **d = y2;
+// CHECK: int ***e = y3;
