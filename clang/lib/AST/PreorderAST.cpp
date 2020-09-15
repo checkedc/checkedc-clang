@@ -147,9 +147,9 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
   if (!B)
     return;
 
-  size_t BaseIdx = 0;
-  unsigned NumConstants = 0;
-  llvm::APSInt BaseIntVal;
+  size_t ConstStartIdx = 0;
+  unsigned NumConsts = 0;
+  llvm::APSInt ConstFoldedVal;
 
   for (size_t I = 0; I != B->Children.size(); ++I) {
     auto *Child = B->Children[I];
@@ -169,33 +169,33 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
     if (!ChildLeafNode)
       continue;
 
-    Expr *ChildExpr = ChildLeafNode->E;
-
-    llvm::APSInt ChildIntVal;
-    bool IsConstant = ChildExpr->isIntegerConstantExpr(ChildIntVal, Ctx);
-    if (!IsConstant)
+    // Check if the child node is an integer constant.
+    llvm::APSInt CurrConstVal;
+    if (!ChildLeafNode->E->isIntegerConstantExpr(CurrConstVal, Ctx))
       continue;
 
-    ++NumConstants;
+    ++NumConsts;
 
-    // We treat the first constant encountered as the "base" and fold all other
-    // constants at this level into the base.
-    if (NumConstants == 1) {
-      BaseIdx = I;
-      BaseIntVal = ChildIntVal;
+    if (NumConsts == 1) {
+      // We will use ConstStartIdx later in this function to delete the
+      // constant folded nodes.
+      ConstStartIdx = I;
+      ConstFoldedVal = CurrConstVal;
 
     } else {
+      // Constant fold based on the operator.
       bool Overflow;
       switch(B->Opc) {
         default: continue;
         case BO_Add:
-          BaseIntVal = BaseIntVal.sadd_ov(ChildIntVal, Overflow);
+          ConstFoldedVal = ConstFoldedVal.sadd_ov(CurrConstVal, Overflow);
           break;
         case BO_Mul:
-          BaseIntVal = BaseIntVal.smul_ov(ChildIntVal, Overflow);
+          ConstFoldedVal = ConstFoldedVal.smul_ov(CurrConstVal, Overflow);
           break;
       }
 
+      // If we encounter an overflow during constant folding we cannot proceed.
       if (Overflow) {
         SetError();
         return;
@@ -203,31 +203,30 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
     }
   }
 
-  // In order to fold constants we need at least 2 constants.
-  if (NumConstants <= 1)
+  // To fold constants we need at least 2 constants.
+  if (NumConsts <= 1)
     return;
 
-  // Replace the expression in the BaseLeafNode with the constant folded value.
-  auto *BaseLeafNode = dyn_cast<LeafExprNode>(B->Children[BaseIdx]);
-  llvm::APInt Val(Ctx.getTargetInfo().getIntWidth(),
-                  BaseIntVal.getLimitedValue());
-  BaseLeafNode->E = new (Ctx) IntegerLiteral(Ctx, Val, Ctx.IntTy,
-                                             SourceLocation());
-
-  // At this point NumConstants no. of constants have been folded into the
-  // location pointed by BaseIdx. So we can remove (NumConstants - 1) no. of
-  // constants starting at BaseIdx + 1.
-  llvm::SmallVector<Node *, 2>::iterator I =
-    B->Children.begin() + BaseIdx + 1;
-
+  // Delete the folded constants and reclaim memory.
   // Note: We do not explicitly need to increment the iterator because after
   // erase the iterator automatically points to the new location of the element
   // following the one we just erased.
-  while (NumConstants > 1) {
+  llvm::SmallVector<Node *, 2>::iterator I =
+    B->Children.begin() + ConstStartIdx;
+  while (NumConsts--) {
+    delete(*I);
     B->Children.erase(I);
-    --NumConstants;
   }
 
+  llvm::APInt IntVal(Ctx.getTargetInfo().getIntWidth(),
+                     ConstFoldedVal.getLimitedValue());
+
+  Expr *ConstFoldedExpr = new (Ctx) IntegerLiteral(Ctx, IntVal, Ctx.IntTy,
+                                                   SourceLocation());
+
+  // Add the constant folded expression to list of children of the current
+  // BinaryNode.
+  B->Children.push_back(new LeafExprNode(ConstFoldedExpr, B));
   Changed = true;
 }
 
