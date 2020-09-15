@@ -176,13 +176,20 @@ enum ConsAction {
 void constrainConsVarGeq(const std::set<ConstraintVariable *> &LHS,
                          const std::set<ConstraintVariable *> &RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
-                         ConsAction CA, bool doEqType, ProgramInfo *Info);
+                         ConsAction CA, bool doEqType,
+                         ProgramInfo *Info,
+                         bool HandleBoundsKey = true);
 void constrainConsVarGeq(ConstraintVariable *LHS, const CVarSet &RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
-                         ConsAction CA, bool doEqType, ProgramInfo *Info);
-void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
+                         ConsAction CA, bool doEqType,
+                         ProgramInfo *Info,
+                         bool HandleBoundsKey = true);
+void constrainConsVarGeq(ConstraintVariable *LHS,
+                         ConstraintVariable *RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
-                         ConsAction CA, bool doEqType, ProgramInfo *Info);
+                         ConsAction CA, bool doEqType,
+                         ProgramInfo *Info,
+                         bool HandleBoundsKey = true);
 
 // True if [C] is a PVConstraint that contains at least one Atom (i.e.,
 //   it represents a C pointer)

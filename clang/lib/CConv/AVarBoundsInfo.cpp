@@ -571,7 +571,7 @@ public:
                std::map<BoundsKey, ProgramVar *> &VarM,
                std::set<BoundsKey> &P): TS(S), Res(R), VM(VarM)
                , PtrAtoms(P) { }
-  void vistBoundsKey(BoundsKey V) const {
+  void visitBoundsKey(BoundsKey V) const {
     // If the variable is non-pointer?
     if (VM.find(V) != VM.end() && PtrAtoms.find(V) == PtrAtoms.end()) {
       auto *S = VM[V];
@@ -673,10 +673,10 @@ AvarBoundsInference::
 }
 
 bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
+                                              AVarGraph &BKGraph,
                                               std::set<ABounds *> &EB) {
   bool RetVal = false;
   if (SB != nullptr) {
-    auto &VarG = BI->ProgVarGraph;
     auto *Kvar = BI->getProgramVar(K);
     bool ValidB = false;
     auto BKind = SB->getKind();
@@ -701,9 +701,13 @@ bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
         // bounds variable.
         ScopeVisitor TV(Kvar->getScope(), PotentialB, BI->PVarInfo,
                         BI->PointerBoundsKey);
-        VarG.visitBreadthFirst(SBKey, [&TV](BoundsKey BK) {
-          TV.vistBoundsKey(BK);
+        BKGraph.visitBreadthFirst(SBKey, [&TV](BoundsKey BK) {
+          TV.visitBoundsKey(BK);
         });
+      }
+
+      if (*Kvar->getScope() == *SBVar->getScope()) {
+        PotentialB.insert(SBVar);
       }
 
       mergeReachableProgramVars(PotentialB);
@@ -738,6 +742,7 @@ bool AvarBoundsInference::getRelevantBounds(std::set<BoundsKey> &RBKeys,
 
 bool AvarBoundsInference::predictBounds(BoundsKey K,
                                         std::set<BoundsKey> &Neighbours,
+                                        AVarGraph &BKGraph,
                                         ABounds **KB) {
   std::set<ABounds *> ResBounds;
   std::set<ABounds *> KBounds;
@@ -761,7 +766,7 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
 
         // For function returns we should have atleast one common bound
         // from all the return values.
-        if (!inferPossibleBounds(K, B, KBounds) && IsFuncRet) {
+        if (!inferPossibleBounds(K, B, BKGraph, KBounds) && IsFuncRet) {
           IsValid = false;
           break;
         }
@@ -781,7 +786,7 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
   }
   return IsValid;
 }
-bool AvarBoundsInference::inferBounds(BoundsKey K, bool FromPB) {
+bool AvarBoundsInference::inferBounds(BoundsKey K, AVarGraph &BKGraph, bool FromPB) {
   bool IsChanged = false;
 
   if (BI->InvalidBounds.find(K) == BI->InvalidBounds.end()) {
@@ -790,7 +795,6 @@ bool AvarBoundsInference::inferBounds(BoundsKey K, bool FromPB) {
     if (FromPB) {
       auto &PotBDs = BI->PotentialCntBounds;
       if (PotBDs.find(K) != PotBDs.end()) {
-        auto &VarG = BI->ProgVarGraph;
         ProgramVar *Kvar = BI->getProgramVar(K);
         std::set<ProgramVar *> PotentialB;
         PotentialB.clear();
@@ -803,8 +807,8 @@ bool AvarBoundsInference::inferBounds(BoundsKey K, bool FromPB) {
             // bounds variable.
             ScopeVisitor TV(Kvar->getScope(), PotentialB, BI->PVarInfo,
                             BI->PointerBoundsKey);
-            VarG.visitBreadthFirst(TK, [&TV](BoundsKey BK) {
-              TV.vistBoundsKey(BK);
+            BKGraph.visitBreadthFirst(TK, [&TV](BoundsKey BK) {
+              TV.visitBoundsKey(BK);
             });
           } else {
             PotentialB.insert(TKVar);
@@ -821,8 +825,8 @@ bool AvarBoundsInference::inferBounds(BoundsKey K, bool FromPB) {
       // Infer from the flow-graph.
       std::set<BoundsKey> TmpBkeys;
       // Try to predict bounds from predecessors.
-      BI->ProgVarGraph.getPredecessors(K, TmpBkeys);
-      if (!predictBounds(K, TmpBkeys, &KB)) {
+      BKGraph.getPredecessors(K, TmpBkeys);
+      if (!predictBounds(K, TmpBkeys, BKGraph, &KB)) {
         KB = nullptr;
       }
     }
@@ -836,6 +840,7 @@ bool AvarBoundsInference::inferBounds(BoundsKey K, bool FromPB) {
 }
 
 bool AVarBoundsInfo::performWorkListInference(std::set<BoundsKey> &ArrNeededBounds,
+                                              AVarGraph &BKGraph,
                                               bool FromPB) {
   bool RetVal = false;
   std::set<BoundsKey> WorkList;
@@ -852,7 +857,7 @@ bool AVarBoundsInfo::performWorkListInference(std::set<BoundsKey> &ArrNeededBoun
       // Remove the bounds key from the worklist.
       WorkList.erase(CurrArrKey);
       // Can we find bounds for this Arr?
-      if (BI.inferBounds(CurrArrKey, FromPB)) {
+      if (BI.inferBounds(CurrArrKey, BKGraph, FromPB)) {
         // Record the stats.
         BoundsInferStats.DataflowMatch.insert(CurrArrKey);
         // We found the bounds.
@@ -860,7 +865,7 @@ bool AVarBoundsInfo::performWorkListInference(std::set<BoundsKey> &ArrNeededBoun
         RetVal = true;
         Changed = true;
         // Get all the successors of the ARR whose bounds we just found.
-        ProgVarGraph.getSuccessors(CurrArrKey, NextIterArrs);
+        BKGraph.getSuccessors(CurrArrKey, NextIterArrs);
       }
     }
     if (Changed) {
@@ -870,20 +875,30 @@ bool AVarBoundsInfo::performWorkListInference(std::set<BoundsKey> &ArrNeededBoun
   return RetVal;
 }
 
+void
+AVarBoundsInfo::insertCtxSensBoundsKey(ProgramVar *OldPV,
+                                       BoundsKey NK,
+                                       CtxFunctionArgScope *CFAS) {
+  ProgramVar *NKVar = OldPV->makeCopy(NK);
+  NKVar->setScope(CFAS);
+  insertProgramVar(NK, NKVar);
+  ProgVarGraph.addEdge(OldPV->getKey(), NKVar->getKey());
+  CtxSensProgVarGraph.addEdge(NKVar->getKey(), OldPV->getKey());
+}
+
 // Here, we create a new BoundsKey for every BoundsKey var that is related to
 // any ConstraintVariable in CSet and store the information by the
 // corresponding call expression (CE).
-// Here, we only care about variables that have bounds declaration
-// or that are used in a bounds declaration.
 bool
-AVarBoundsInfo::contextualizeCVar(CallExpr *CE, const CVarSet &CSet) {
+AVarBoundsInfo::contextualizeCVar(CallExpr *CE, const CVarSet &CSet,
+                                  ASTContext *C) {
   for (auto *CV : CSet) {
     // If this is a FV Constraint the contextualize its returns and
     // parameters.
     if (FVConstraint *FV = dyn_cast_or_null<FVConstraint>(CV)) {
-      contextualizeCVar(CE, {FV->getReturnVar()});
+      contextualizeCVar(CE, {FV->getReturnVar()}, C);
       for (unsigned i = 0; i < FV->numParams(); i++) {
-        contextualizeCVar(CE, {FV->getParamVar(i)});
+        contextualizeCVar(CE, {FV->getParamVar(i)}, C);
       }
     }
 
@@ -891,20 +906,20 @@ AVarBoundsInfo::contextualizeCVar(CallExpr *CE, const CVarSet &CSet) {
       if (PV->hasBoundsKey()) {
         // First duplicate the bounds key.
         BoundsKey CK = PV->getBoundsKey();
-        // Either this is a regular variable and used in a bounds declaration
-        // or a pointer that has bounds declaration? Then we need to
-        // contextualize it.
-        // If this is just a regular pointer or variable without declared
-        // bounds. We ignore it.
-        if((PV->getCvars().empty() && !ABounds::isKeyUsedInBounds(CK)) ||
-            !PV->hasBoundsStr())
-          continue;
-
+        PersistentSourceLoc CEPSL = PersistentSourceLoc::mkPSL(CE, *C);
         ProgramVar *CKVar = getProgramVar(CK);
+
+        // Create a context sensitive scope.
+        CtxFunctionArgScope *CFAS = nullptr;
+        if (FunctionParamScope *FPS =
+          dyn_cast_or_null<FunctionParamScope>(CKVar->getScope())) {
+          CFAS = CtxFunctionArgScope::getCtxFunctionParamScope(FPS, CEPSL);
+        }
+
         auto &BKeyMap = CSBoundsKey[CE];
         if (BKeyMap.find(CK) == BKeyMap.end()) {
           BoundsKey NK = ++BCount;
-          insertProgramVar(NK, CKVar->makeCopy(NK));
+          insertCtxSensBoundsKey(CKVar, NK, CFAS);
           BKeyMap[CK] = NK;
           // Next duplicate the Bounds information.
           BoundsPriority TP = Invalid;
@@ -915,7 +930,7 @@ AVarBoundsInfo::contextualizeCVar(CallExpr *CE, const CVarSet &CSet) {
             if (BKeyMap.find(NBK) == BKeyMap.end()) {
               BoundsKey TmpBK = ++BCount;
               BKeyMap[NBK] = TmpBK;
-              insertProgramVar(TmpBK, NBKVar->makeCopy(TmpBK));
+              insertCtxSensBoundsKey(NBKVar, TmpBK, CFAS);
             }
             CKBounds = CKBounds->makeCopy(BKeyMap[NBK]);
             replaceBounds(NK, TP, CKBounds);
@@ -1013,6 +1028,34 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
       continue;
     }
   }
+
+  // Get all context-sensitive BoundsKey for each of the actual BKs
+  // and consider them to be array pointers as well.
+  // Since context-sensitive BoundsKey will be immediate children
+  // of the regular bounds key, we just get the neighbours (predecessors
+  // and successors) of the regular bounds key to get the context-sensitive
+  // counterparts.
+  std::set<BoundsKey> CtxSensBKeys;
+  CtxSensBKeys.clear();
+  std::set<BoundsKey> TmpBKeys, TmpBKeysF;
+  for (auto BK : ArrPointers) {
+    TmpBKeys.clear();
+    ProgVarGraph.getPredecessors(BK, TmpBKeys);
+    TmpBKeysF.insert(TmpBKeys.begin(), TmpBKeys.end());
+    TmpBKeys.clear();
+    ProgVarGraph.getSuccessors(BK, TmpBKeys);
+    TmpBKeysF.insert(TmpBKeys.begin(), TmpBKeys.end());
+    for (auto TBK : TmpBKeysF) {
+      ProgramVar *TmpPVar = getProgramVar(TBK);
+      if (TmpPVar != nullptr) {
+        if (isa<CtxFunctionArgScope>(TmpPVar->getScope())) {
+          CtxSensBKeys.insert(TBK);
+        }
+      }
+    }
+  }
+
+  ArrPointers.insert(CtxSensBKeys.begin(), CtxSensBKeys.end());
 }
 
 bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
@@ -1057,9 +1100,12 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
   while (Changed) {
     Changed = false;
     // Use flow-graph.
-    Changed = performWorkListInference(ArrNeededBounds) || Changed;
+    Changed = performWorkListInference(ArrNeededBounds, this->ProgVarGraph) || Changed;
     // Use potential length variables.
-    Changed = performWorkListInference(ArrNeededBounds, true) || Changed;
+    Changed = performWorkListInference(ArrNeededBounds, this->ProgVarGraph, true) || Changed;
+    // Try solving using context-sensitive BoundsKey.
+    Changed = performWorkListInference(ArrNeededBounds, this->CtxSensProgVarGraph) || Changed;
+    Changed = performWorkListInference(ArrNeededBounds, this->CtxSensProgVarGraph, true) || Changed;
   }
 
   return RetVal;
@@ -1140,7 +1186,7 @@ bool ContextSensitiveBoundsKeyVisitor::VisitCallExpr(CallExpr *CE) {
   if (FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(CE->getCalleeDecl())) {
     // Contextualize the function at this call-site.
     for (auto *CFV : Info.getVariable(FD, Context)) {
-      Info.getABoundsInfo().contextualizeCVar(CE, {CFV});
+      Info.getABoundsInfo().contextualizeCVar(CE, {CFV}, Context);
     }
   }
   return true;

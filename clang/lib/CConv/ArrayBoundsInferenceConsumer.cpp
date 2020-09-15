@@ -851,6 +851,13 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
                               "to any basic block");
   // First, get the BoundsKey for the base.
   Expr *BE = ASE->getBase()->IgnoreParenCasts();
+
+  // If this is a multi-level array dereference i.e., a[i][j],
+  // then try-processing the base ASE i.e., a[i].
+  if (ArraySubscriptExpr *SubASE = dyn_cast_or_null<ArraySubscriptExpr>(BE)) {
+    VisitArraySubscriptExpr(SubASE);
+    return;
+  }
   auto BaseCVars = CR->getExprConstraintVars(BE);
   // Next get the index used.
   Expr *IdxExpr = ASE->getIdx()->IgnoreParenCasts();

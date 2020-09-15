@@ -18,6 +18,8 @@ std::map<std::pair<std::string, bool>, FunctionScope*>
     FunctionScope::FnScopeMap;
 std::map<std::pair<std::string, bool>, FunctionParamScope*>
     FunctionParamScope::FnParmScopeMap;
+std::map<std::tuple<std::string, bool, PersistentSourceLoc>,
+  CtxFunctionArgScope *> CtxFunctionArgScope::CtxFnArgScopeMap;
 
 GlobalScope *GlobalScope::getGlobalScope() {
   if (ProgScope == nullptr) {
@@ -42,7 +44,20 @@ FunctionParamScope *FunctionParamScope::getFunctionParamScope(
   return FnParmScopeMap[MapK];
 }
 
-FunctionScope *FunctionScope::getFunctionScope(std::string FnName, bool IsSt) {
+CtxFunctionArgScope *CtxFunctionArgScope::getCtxFunctionParamScope(
+  FunctionParamScope *FPS, const PersistentSourceLoc &PSL) {
+  auto MapT = std::make_tuple(FPS->getFName(), FPS->getIsStatic(),
+                              PSL);
+  if (CtxFnArgScopeMap.find(MapT) == CtxFnArgScopeMap.end()) {
+    CtxFnArgScopeMap[MapT] =
+      new CtxFunctionArgScope(FPS->getFName(), FPS->getIsStatic(),
+                              PSL);
+  }
+  return CtxFnArgScopeMap[MapT];
+}
+
+FunctionScope *FunctionScope::getFunctionScope(std::string FnName,
+                                               bool IsSt) {
   auto MapK = std::make_pair(FnName, IsSt);
   if (FnScopeMap.find(MapK) == FnScopeMap.end()) {
     FnScopeMap[MapK] = new FunctionScope(FnName, IsSt);

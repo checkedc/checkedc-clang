@@ -97,9 +97,10 @@ public:
 
   // Infer bounds for the given key from the set of given ARR atoms.
   // The flag FromPB requests the inference to use potential length variables.
-  bool inferBounds(BoundsKey K, bool FromPB = false);
+  bool inferBounds(BoundsKey K, AVarGraph &BKGraph, bool FromPB = false);
 private:
   bool inferPossibleBounds(BoundsKey K, ABounds *SB,
+                           AVarGraph &BKGraph,
                            std::set<ABounds *> &EB);
 
   bool intersectBounds(std::set<ProgramVar *> &ProgVars,
@@ -110,6 +111,7 @@ private:
                          std::set<ABounds *> &ResBounds);
 
   bool predictBounds(BoundsKey K, std::set<BoundsKey> &Neighbours,
+                     AVarGraph &BKGraph,
                      ABounds **KB);
 
 
@@ -120,7 +122,7 @@ private:
 
 class AVarBoundsInfo {
 public:
-  AVarBoundsInfo() : ProgVarGraph(this) {
+  AVarBoundsInfo() : ProgVarGraph(this), CtxSensProgVarGraph(this) {
     BCount = 1;
     PVarInfo.clear();
     InProgramArrPtrBoundsKeys.clear();
@@ -208,7 +210,8 @@ public:
   // Create context sensitive BoundsKey variables for the given set of
   // ConstraintVariables.
   bool contextualizeCVar(CallExpr *CE,
-                         const std::set<ConstraintVariable *> &CV);
+                         const std::set<ConstraintVariable *> &CV,
+                         ASTContext *C);
   // Get the context sensitive BoundsKey for the given key.
   // If there exists no context-sensitive bounds key, we just return
   // the provided key.
@@ -269,6 +272,9 @@ private:
 
   // Graph of all program variables.
   AVarGraph ProgVarGraph;
+  // Graph that contains only edges between context-sensitive
+  // BoundsKey and corresponding original BoundsKey.
+  AVarGraph CtxSensProgVarGraph;
   // Stats on techniques used to find length for various variables.
   AVarBoundsStats BoundsInferStats;
   // This is the map of pointer variable bounds key and set of bounds key
@@ -293,6 +299,9 @@ private:
 
   void insertProgramVar(BoundsKey NK, ProgramVar *PV);
 
+  void insertCtxSensBoundsKey(ProgramVar *OldPV, BoundsKey NK,
+                              CtxFunctionArgScope *CFAS);
+
   // Check if the provided bounds key corresponds to function return.
   bool isFunctionReturn(BoundsKey BK);
 
@@ -303,9 +312,11 @@ private:
   // returns true if any thing changed, else false.
   bool keepHighestPriorityBounds(std::set<BoundsKey> &ArrPtrs);
 
-  // Perform worklist based inference on the requested array variables.
+  // Perform worklist based inference on the requested array variables using
+  // the provided graph.
   // The flag FromPB requests the algorithm to use potential length variables.
   bool performWorkListInference(std::set<BoundsKey> &ArrNeededBounds,
+                                AVarGraph &BKGraph,
                                 bool FromPB = false);
 
   void insertParamKey(ParamDeclType ParamDecl, BoundsKey NK);
