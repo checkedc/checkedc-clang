@@ -26,8 +26,7 @@ public:
 
   virtual ~ConstraintResolver();
 
-  void constraintAllCVarsToWild(CVarSet &CSet,
-                                std::string rsn,
+  void constraintAllCVarsToWild(const CVarSet &CSet, const std::string &Rsn,
                                 Expr *AtExpr = nullptr);
 
   // Returns a set of ConstraintVariables which represent the result of
@@ -48,7 +47,7 @@ public:
   bool containsValidCons(const CVarSet &CVs);
   bool isValidCons(ConstraintVariable *CV);
   // Try to get the bounds key from the constraint variable set.
-  bool resolveBoundsKey(CVarSet &CVs, BoundsKey &BK);
+  bool resolveBoundsKey(const CVarSet &CVs, BoundsKey &BK);
   bool resolveBoundsKey(ConstraintVariable *CV, BoundsKey &BK);
 
   static bool canFunctionBeSkipped(const std::string &FN);

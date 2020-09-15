@@ -84,8 +84,8 @@ class CheckedRegionFinder : public clang::RecursiveASTVisitor<CheckedRegionFinde
     bool containsUncheckedPtr(clang::QualType Qt);
     bool containsUncheckedPtrAcc(clang::QualType Qt, std::set<std::string> &Seen);
     bool isUncheckedStruct(clang::QualType Qt, std::set<std::string> &Seen);
-    bool isWild(const std::set<ConstraintVariable*>&);
-    bool isWild(const std::set<FVConstraint*>*);
+    bool isWild(const ConstraintVariable*);
+    bool isWild(const FVConstraint*);
 
     clang::ASTContext* Context;
     clang::Rewriter& Writer;

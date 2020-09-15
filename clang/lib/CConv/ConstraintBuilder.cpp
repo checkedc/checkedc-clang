@@ -58,9 +58,10 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
           // mark field wild if the above is true and the field is a pointer
           if ((FieldTy->isPointerType() || FieldTy->isArrayType()) &&
               (FieldInUnionOrSysHeader || IsInLineStruct)) {
-            CVarSet C = Info.getVariable(F, Context);
-            std::string Rsn = "External struct field or union encountered";
-            CB.constraintAllCVarsToWild(C, Rsn, nullptr);
+            if (ConstraintVariable *CV = Info.getVariable(F, Context)) {
+              std::string Rsn = "External struct field or union encountered";
+              CB.constraintAllCVarsToWild({CV}, Rsn, nullptr);
+            }
           }
         }
       }
@@ -95,8 +96,9 @@ public:
               (VD->getType()->isPointerType() ||
                VD->getType()->isArrayType())) {
             if (lastRecordLocation == VD->getBeginLoc().getRawEncoding()) {
-              CVarSet C = Info.getVariable(VD, Context);
-              CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
+              if (ConstraintVariable *CV = Info.getVariable(VD, Context))
+                CB.constraintAllCVarsToWild({CV}, "Inline struct encountered.",
+                                            nullptr);
             }
           }
         }
@@ -176,11 +178,13 @@ public:
       }
     } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       FuncName = FD->getNameAsString();
-      FVCons = Info.getVariable(FD, Context);
       TFD = FD;
+      if (ConstraintVariable *CV = Info.getVariable(FD, Context))
+        FVCons.insert(CV);
     } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {
-      FVCons = Info.getVariable(DD, Context);
       FuncName = DD->getNameAsString();
+      if (ConstraintVariable *CV = Info.getVariable(DD, Context))
+        FVCons.insert(CV);
     }
 
     // Collect type parameters for this function call that are
@@ -284,7 +288,7 @@ public:
     // Get function variable constraint of the body
     PersistentSourceLoc PL =
         PersistentSourceLoc::mkPSL(S, *Context);
-    CVarSet Fun =
+    ConstraintVariable *CV =
         Info.getVariable(Function, Context);
 
     // Constrain the value returned (if present) against the return value
@@ -294,13 +298,11 @@ public:
     CVarSet RconsVar = CB.getExprConstraintVars(RetExpr);
     // Constrain the return type of the function
     // to the type of the return expression.
-    for (const auto &F : Fun) {
-      if (FVConstraint *FV = dyn_cast<FVConstraint>(F)) {
-        // This is to ensure that the return type of the function is same
-        // as the type of return expression.
-        constrainConsVarGeq(FV->getReturnVar(), RconsVar, Info.getConstraints(),
-                            &PL, Same_to_Same, false, &Info);
-      }
+    if (FVConstraint *FV = dyn_cast_or_null<FVConstraint>(CV)) {
+      // This is to ensure that the return type of the function is same
+      // as the type of return expression.
+      constrainConsVarGeq(FV->getReturnVar(), RconsVar, Info.getConstraints(),
+                          &PL, Same_to_Same, false, &Info);
     }
     return true;
   }
@@ -428,8 +430,9 @@ public:
       unsigned int BeginLoc = G->getBeginLoc().getRawEncoding();
       unsigned int EndLoc = G->getEndLoc().getRawEncoding();
       if (lastRecordLocation >= BeginLoc && lastRecordLocation <= EndLoc) {
-        CVarSet C = Info.getVariable(G, Context);
-        CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
+        if (ConstraintVariable *CV = Info.getVariable(G, Context))
+          CB.constraintAllCVarsToWild({CV}, "Inline struct encountered.",
+                                      nullptr);
       }
     }
 

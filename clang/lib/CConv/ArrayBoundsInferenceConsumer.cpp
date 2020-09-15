@@ -133,9 +133,8 @@ static bool needArrayBounds(Expr *E, ProgramInfo &Info, ASTContext *C) {
 
 static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C,
                             bool IsNtArr) {
-  CVarSet ConsVar = Info.getVariable(D, C);
   const auto &E = Info.getConstraints().getVariables();
-  for (auto CurrCVar : ConsVar) {
+  if (ConstraintVariable *CurrCVar = Info.getVariable(D, C)) {
     if ((!IsNtArr && needArrayBounds(CurrCVar, E)) ||
         (IsNtArr && needNTArrayBounds(CurrCVar, E)))
       return true;
@@ -179,10 +178,9 @@ bool tryGetBoundsKeyVar(Expr *E, BoundsKey &BK, ProgramInfo &Info,
 bool tryGetBoundsKeyVar(Decl *D, BoundsKey &BK, ProgramInfo &Info,
                         ASTContext *Context) {
   ConstraintResolver CR(Info, Context);
-  CVarSet CVs = Info.getVariable(D, Context);
+  ConstraintVariable *CV = Info.getVariable(D, Context);
   auto &ABInfo = Info.getABoundsInfo();
-  return CR.resolveBoundsKey(CVs, BK) ||
-         ABInfo.tryGetVariable(D, BK);
+  return (CV && CR.resolveBoundsKey(CV, BK)) || ABInfo.tryGetVariable(D, BK);
 }
 
 // Check if the provided expression is a call to one of the known

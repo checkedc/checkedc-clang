@@ -19,8 +19,9 @@ using namespace clang;
 ConstraintResolver::~ConstraintResolver() { }
 
 // Force all ConstraintVariables in this set to be WILD
-void ConstraintResolver::constraintAllCVarsToWild(
-    CVarSet &CSet, std::string rsn, Expr *AtExpr) {
+void ConstraintResolver::constraintAllCVarsToWild(const CVarSet &CSet,
+                                                  const std::string &rsn,
+                                                  Expr *AtExpr) {
   PersistentSourceLoc Psl;
   PersistentSourceLoc *PslP = nullptr;
   if (AtExpr != nullptr) {
@@ -244,10 +245,14 @@ CVarSet
       return CVs;
       // variable (x)
     } else if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
-      return Info.getVariable(DRE->getDecl(), Context);
+      ConstraintVariable *CV = Info.getVariable(DRE->getDecl(), Context);
+      assert("Declaration without constraint variable?" && CV);
+      return {CV};
       // x.f
     } else if (MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
-      return Info.getVariable(ME->getMemberDecl(), Context);
+      ConstraintVariable *CV = Info.getVariable(ME->getMemberDecl(), Context);
+      assert("Declaration without constraint variable?" && CV);
+      return {CV};
       // Checked-C temporary
     } else if (CHKCBindTemporaryExpr *CE = dyn_cast<CHKCBindTemporaryExpr>(E)) {
       return getExprConstraintVars(CE->getSubExpr());
@@ -466,8 +471,8 @@ CVarSet
 
             /* Normal function call */
           } else {
-            CVarSet TmpCSet = Info.getVariable(FD, Context);
-            ConstraintVariable *J = getOnly(TmpCSet);
+            ConstraintVariable *J = Info.getVariable(FD, Context);
+            assert(J && "Function without constraint variable.");
             /* Direct function call */
             if (FVConstraint *FVC = dyn_cast<FVConstraint>(J))
               ReturnCVs.insert(FVC->getReturnVar());
@@ -644,13 +649,13 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
    PLPtr = &PL;
   }
   // Get the in-context local constraints.
-  CVarSet V = Info.getVariable(D, Context);
+  ConstraintVariable *V = Info.getVariable(D, Context);
   auto RHSCons = getExprConstraintVars(RHS);
 
-  constrainConsVarGeq(V, RHSCons, Info.getConstraints(), PLPtr, CAction, false,
-                      &Info);
-
-  if (AllTypes && !containsValidCons(V) &&
+  if (V)
+    constrainConsVarGeq(V, RHSCons, Info.getConstraints(), PLPtr, CAction,
+                        false, &Info);
+  if (AllTypes && !(V && isValidCons(V)) &&
       !containsValidCons(RHSCons)) {
     auto &ABI = Info.getABoundsInfo();
     ABI.handleAssignment(D, V, RHS, RHSCons, Context, this);
@@ -690,8 +695,7 @@ PVConstraint *ConstraintResolver::getRewritablePVConstraint(Expr *E) {
   PVConstraint *P = new PVConstraint(E->getType(), nullptr,
                                      E->getStmtClassName(), Info, *Context,
                                      nullptr);
-  CVarSet Tmp = {P};
-  Info.constrainWildIfMacro(Tmp, E->getExprLoc());
+  Info.constrainWildIfMacro(P, E->getExprLoc());
   return P;
 }
 
@@ -708,7 +712,7 @@ bool ConstraintResolver::isValidCons(ConstraintVariable *CV) {
   return false;
 }
 
-bool ConstraintResolver::resolveBoundsKey(CVarSet &CVs, BoundsKey &BK) {
+bool ConstraintResolver::resolveBoundsKey(const CVarSet &CVs, BoundsKey &BK) {
   if (CVs.size() == 1) {
     auto *OCons = getOnly(CVs);
     return resolveBoundsKey(OCons, BK);
@@ -718,7 +722,7 @@ bool ConstraintResolver::resolveBoundsKey(CVarSet &CVs, BoundsKey &BK) {
 
 bool ConstraintResolver::resolveBoundsKey(ConstraintVariable *CV,
                                           BoundsKey &BK) {
-  if (PVConstraint *PV = dyn_cast<PVConstraint>(CV))
+  if (PVConstraint *PV = dyn_cast_or_null<PVConstraint>(CV))
     if (PV->hasBoundsKey()) {
       BK = PV->getBoundsKey();
       return true;

@@ -74,13 +74,14 @@ public:
                                   ASTContext *C);
 
   // Get constraint variable for the provided Decl
-  CVarSet getVariable(clang::Decl *D, clang::ASTContext *C);
+  ConstraintVariable *getVariable(clang::Decl *D, clang::ASTContext *C);
 
   // Retrieve a function's constraints by decl, or by name; nullptr if not found
   FVConstraint *getFuncConstraint (FunctionDecl *D, ASTContext *C) const;
   FVConstraint *getExtFuncDefnConstraint (std::string FuncName) const;
   FVConstraint *getStaticFuncConstraint(std::string FuncName,
                                         std::string FileName) const;
+
 
   // Check if the given function is an extern function.
   bool isAnExternFunction(const std::string &FName);
@@ -113,7 +114,7 @@ public:
   const CallTypeParamBindingsT &getTypeParamBindings(CallExpr *CE,
                                                      ASTContext *C) const;
 
-  void constrainWildIfMacro(CVarSet &S, SourceLocation Location);
+  void constrainWildIfMacro(ConstraintVariable *CV, SourceLocation Location);
 
 private:
   // List of constraint variables for declarations, indexed by their location in
@@ -123,7 +124,7 @@ private:
 
   // Map with the same purpose as the Variables map, this stores constraint vars
   // non-declaration expressions.
-  VariableMap ExprConstraintVars;
+  std::map<PersistentSourceLoc, CVarSet> ExprConstraintVars;
 
   // Constraint system.
   Constraints CS;
