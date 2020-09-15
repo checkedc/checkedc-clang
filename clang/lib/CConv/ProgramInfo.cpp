@@ -302,27 +302,6 @@ bool ProgramInfo::link() {
   if (Verbose)
     llvm::errs() << "Linking!\n";
 
-// MWH: Should never happen: Variables set sizes == 1
-  // Multiple Variables can be at the same PersistentSourceLoc. We should
-  // constrain that everything that is at the same location is explicitly
-  // equal.
-//  for (const auto &V : Variables) {
-//    std::set<ConstraintVariable *> C = V.second;
-//
-//    if (C.size() > 1) {
-//      assert(false); // should never get here
-//      std::set<ConstraintVariable *>::iterator I = C.begin();
-//      std::set<ConstraintVariable *>::iterator J = C.begin();
-//      ++J;
-//
-//      while (J != C.end()) {
-//        constrainConsVarGeq(*I, *J, CS, nullptr, Same_to_Same, true, this);
-//        ++I;
-//        ++J;
-//      }
-//    }
-//  }
-
   // Equate the constraints for all global variables.
   // This is needed for variables that are defined as extern.
   for (const auto &V : GlobalVariableSymbols) {
