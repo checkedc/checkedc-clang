@@ -338,7 +338,7 @@ bool AVarBoundsInfo::handleAssignment(clang::Expr *L, const CVarSet &LCVars,
   return false;
 }
 
-bool AVarBoundsInfo::handleAssignment(clang::Decl *L, ConstraintVariable *LCVars,
+bool AVarBoundsInfo::handleAssignment(clang::Decl *L, CVarOption LCVars,
                                       clang::Expr *R, const CVarSet &RCVars,
                                       ASTContext *C, ConstraintResolver *CR) {
   BoundsKey LKey, RKey;
@@ -371,7 +371,7 @@ bool AVarBoundsInfo::handleContextSensitiveAssignment(CallExpr *CE,
   } else {
     // This is the assignment of regular variables.
     BoundsKey LKey, RKey;
-    if ((CR->resolveBoundsKey({LCVar}, LKey) ||
+    if ((CR->resolveBoundsKey(LCVar, LKey) ||
         tryGetVariable(L, LKey)) &&
         (CR->resolveBoundsKey(RCVars, RKey) ||
             tryGetVariable(R, *C, RKey))) {
@@ -1135,9 +1135,9 @@ ContextSensitiveBoundsKeyVisitor::~ContextSensitiveBoundsKeyVisitor() {
 bool ContextSensitiveBoundsKeyVisitor::VisitCallExpr(CallExpr *CE) {
   if (FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(CE->getCalleeDecl())) {
     // Contextualize the function at this call-site.
-    if (ConstraintVariable *CFV = Info.getVariable(FD, Context)) {
-      Info.getABoundsInfo().contextualizeCVar(CE, {CFV});
-    }
+    CVarOption COpt = Info.getVariable(FD, Context);
+    if (COpt.hasValue())
+      Info.getABoundsInfo().contextualizeCVar(CE, {COpt.getValue()});
   }
   return true;
 }

@@ -28,6 +28,8 @@ public:
 
   void constraintAllCVarsToWild(const CVarSet &CSet, const std::string &Rsn,
                                 Expr *AtExpr = nullptr);
+  void constraintCVarToWild(CVarOption CVar, const std::string &Rsn,
+                            Expr *AtExpr = nullptr);
 
   // Returns a set of ConstraintVariables which represent the result of
   // evaluating the expression E. Will explore E recursively, but will
@@ -48,7 +50,7 @@ public:
   bool isValidCons(ConstraintVariable *CV);
   // Try to get the bounds key from the constraint variable set.
   bool resolveBoundsKey(const CVarSet &CVs, BoundsKey &BK);
-  bool resolveBoundsKey(ConstraintVariable *CV, BoundsKey &BK);
+  bool resolveBoundsKey(CVarOption CV, BoundsKey &BK);
 
   static bool canFunctionBeSkipped(const std::string &FN);
 

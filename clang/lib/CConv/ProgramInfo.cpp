@@ -496,7 +496,7 @@ void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context) {
     PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(D, *Context);
     if (!D->getType()->isVoidType())
       Rsn = "Variable type is va_list.";
-    ConstraintVariable *CV = getVariable(D, Context);
+    ConstraintVariable *CV = getVariable(D, Context).getValueOr(nullptr);
     if (PVConstraint *PVC = dyn_cast_or_null<PVConstraint>(CV))
       PVC->constrainToWild(CS, Rsn, &PL);
   }
@@ -686,15 +686,14 @@ FVConstraint *
 
 // Given a decl, return the variables for the constraints of the Decl.
 // Returns null if a constraint variable could not be found for the decl.
-ConstraintVariable *ProgramInfo::getVariable(clang::Decl *D,
-                                             clang::ASTContext *C) {
+CVarOption ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C) {
   assert(!persisted);
 
   if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
     DeclContext *DC = PD->getParentFunctionOrMethod();
     // This can fail for extern definitions
     if(!DC)
-      return nullptr;
+      return CVarOption();
     FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
     // Get the parameter index with in the function.
     unsigned int PIdx = getParameterIndex(PD, FD);
@@ -714,7 +713,7 @@ ConstraintVariable *ProgramInfo::getVariable(clang::Decl *D,
     auto I = Variables.find(PersistentSourceLoc::mkPSL(D, *C));
     if (I != Variables.end())
       return I->second;
-    return nullptr;
+    return CVarOption();
   }
 }
 

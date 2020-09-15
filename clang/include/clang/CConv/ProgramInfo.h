@@ -74,7 +74,8 @@ public:
                                   ASTContext *C);
 
   // Get constraint variable for the provided Decl
-  ConstraintVariable *getVariable(clang::Decl *D, clang::ASTContext *C);
+  CVarOption getVariable(clang::Decl *D,
+                                                   clang::ASTContext *C);
 
   // Retrieve a function's constraints by decl, or by name; nullptr if not found
   FVConstraint *getFuncConstraint (FunctionDecl *D, ASTContext *C) const;

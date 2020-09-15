@@ -58,10 +58,9 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
           // mark field wild if the above is true and the field is a pointer
           if ((FieldTy->isPointerType() || FieldTy->isArrayType()) &&
               (FieldInUnionOrSysHeader || IsInLineStruct)) {
-            if (ConstraintVariable *CV = Info.getVariable(F, Context)) {
-              std::string Rsn = "External struct field or union encountered";
-              CB.constraintAllCVarsToWild({CV}, Rsn, nullptr);
-            }
+            std::string Rsn = "External struct field or union encountered";
+            CVarOption CV = Info.getVariable(F, Context);
+            CB.constraintCVarToWild(CV, Rsn);
           }
         }
       }
@@ -96,9 +95,8 @@ public:
               (VD->getType()->isPointerType() ||
                VD->getType()->isArrayType())) {
             if (lastRecordLocation == VD->getBeginLoc().getRawEncoding()) {
-              if (ConstraintVariable *CV = Info.getVariable(VD, Context))
-                CB.constraintAllCVarsToWild({CV}, "Inline struct encountered.",
-                                            nullptr);
+              CVarOption CV = Info.getVariable(VD, Context);
+              CB.constraintCVarToWild(CV, "Inline struct encountered.");
             }
           }
         }
@@ -179,12 +177,12 @@ public:
     } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       FuncName = FD->getNameAsString();
       TFD = FD;
-      if (ConstraintVariable *CV = Info.getVariable(FD, Context))
-        FVCons.insert(CV);
+      if (CVarOption CV = Info.getVariable(FD, Context))
+        FVCons.insert(*CV);
     } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {
       FuncName = DD->getNameAsString();
-      if (ConstraintVariable *CV = Info.getVariable(DD, Context))
-        FVCons.insert(CV);
+      if (CVarOption CV = Info.getVariable(DD, Context))
+        FVCons.insert(*CV);
     }
 
     // Collect type parameters for this function call that are
@@ -289,7 +287,7 @@ public:
     PersistentSourceLoc PL =
         PersistentSourceLoc::mkPSL(S, *Context);
     ConstraintVariable *CV =
-        Info.getVariable(Function, Context);
+        Info.getVariable(Function, Context).getValueOr(nullptr);
 
     // Constrain the value returned (if present) against the return value
     // of the function.
@@ -430,9 +428,8 @@ public:
       unsigned int BeginLoc = G->getBeginLoc().getRawEncoding();
       unsigned int EndLoc = G->getEndLoc().getRawEncoding();
       if (lastRecordLocation >= BeginLoc && lastRecordLocation <= EndLoc) {
-        if (ConstraintVariable *CV = Info.getVariable(G, Context))
-          CB.constraintAllCVarsToWild({CV}, "Inline struct encountered.",
-                                      nullptr);
+        CVarOption CV = Info.getVariable(G, Context);
+        CB.constraintCVarToWild(CV, "Inline struct encountered.");
       }
     }
 

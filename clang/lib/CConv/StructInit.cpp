@@ -25,7 +25,7 @@ bool StructVariableInitializer::VariableNeedsInitializer(VarDecl *VD) {
 
     for (auto *const D : Definition->fields()) {
       if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
-        ConstraintVariable *CV = I.getVariable(D, Context);
+        ConstraintVariable *CV = I.getVariable(D, Context).getValueOr(nullptr);
         PVConstraint *PV = dyn_cast_or_null<PVConstraint>(CV);
         if (PV && PV->isChecked(I.getConstraints().getVariables())) {
           // Ok this contains a pointer that is checked. Store it.

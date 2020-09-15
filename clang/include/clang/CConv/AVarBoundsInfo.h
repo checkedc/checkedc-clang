@@ -177,7 +177,7 @@ public:
   bool handleAssignment(clang::Expr *L, const CVarSet &LCVars,
                         clang::Expr *R, const CVarSet &RCVars,
                         ASTContext *C, ConstraintResolver *CR);
-  bool handleAssignment(clang::Decl *L, ConstraintVariable *LCVar,
+  bool handleAssignment(clang::Decl *L, CVarOption LCVar,
                         clang::Expr *R, const CVarSet &RCVars,
                         ASTContext *C, ConstraintResolver *CR);
   // Handle context sensitive assignment.

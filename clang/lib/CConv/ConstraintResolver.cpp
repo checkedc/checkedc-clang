@@ -41,6 +41,13 @@ void ConstraintResolver::constraintAllCVarsToWild(const CVarSet &CSet,
   }
 }
 
+void ConstraintResolver::constraintCVarToWild(CVarOption CVar,
+                                              const std::string &Rsn,
+                                              Expr *AtExpr) {
+  if (CVar)
+    constraintAllCVarsToWild({*CVar}, Rsn, AtExpr);
+}
+
 // Return a set of PVConstraints equivalent to the set given,
 // but dereferenced one level down
 CVarSet
@@ -245,14 +252,14 @@ CVarSet
       return CVs;
       // variable (x)
     } else if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
-      ConstraintVariable *CV = Info.getVariable(DRE->getDecl(), Context);
-      assert("Declaration without constraint variable?" && CV);
-      return {CV};
+      CVarOption CV = Info.getVariable(DRE->getDecl(), Context);
+      assert("Declaration without constraint variable?" && CV.hasValue());
+      return {CV.getValue()};
       // x.f
     } else if (MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
-      ConstraintVariable *CV = Info.getVariable(ME->getMemberDecl(), Context);
-      assert("Declaration without constraint variable?" && CV);
-      return {CV};
+      CVarOption CV = Info.getVariable(ME->getMemberDecl(), Context);
+      assert("Declaration without constraint variable?" && CV.hasValue());
+      return {CV.getValue()};
       // Checked-C temporary
     } else if (CHKCBindTemporaryExpr *CE = dyn_cast<CHKCBindTemporaryExpr>(E)) {
       return getExprConstraintVars(CE->getSubExpr());
@@ -471,14 +478,14 @@ CVarSet
 
             /* Normal function call */
           } else {
-            ConstraintVariable *J = Info.getVariable(FD, Context);
-            assert(J && "Function without constraint variable.");
+            CVarOption CV = Info.getVariable(FD, Context);
+            assert(CV && "Function without constraint variable.");
             /* Direct function call */
-            if (FVConstraint *FVC = dyn_cast<FVConstraint>(J))
+            if (FVConstraint *FVC = dyn_cast<FVConstraint>(*CV))
               ReturnCVs.insert(FVC->getReturnVar());
               /* Call via function pointer */
             else {
-              PVConstraint *tmp = dyn_cast<PVConstraint>(J);
+              PVConstraint *tmp = dyn_cast<PVConstraint>(*CV);
               assert(tmp != nullptr);
               if (FVConstraint *FVC = tmp->getFV())
                 ReturnCVs.insert(FVC->getReturnVar());
@@ -649,14 +656,13 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
    PLPtr = &PL;
   }
   // Get the in-context local constraints.
-  ConstraintVariable *V = Info.getVariable(D, Context);
+  CVarOption V = Info.getVariable(D, Context);
   auto RHSCons = getExprConstraintVars(RHS);
 
   if (V)
-    constrainConsVarGeq(V, RHSCons, Info.getConstraints(), PLPtr, CAction,
+    constrainConsVarGeq(*V, RHSCons, Info.getConstraints(), PLPtr, CAction,
                         false, &Info);
-  if (AllTypes && !(V && isValidCons(V)) &&
-      !containsValidCons(RHSCons)) {
+  if (AllTypes && !(V && isValidCons(*V)) && !containsValidCons(RHSCons)) {
     auto &ABI = Info.getABoundsInfo();
     ABI.handleAssignment(D, V, RHS, RHSCons, Context, this);
   }
@@ -720,9 +726,9 @@ bool ConstraintResolver::resolveBoundsKey(const CVarSet &CVs, BoundsKey &BK) {
   return false;
 }
 
-bool ConstraintResolver::resolveBoundsKey(ConstraintVariable *CV,
+bool ConstraintResolver::resolveBoundsKey(CVarOption CV,
                                           BoundsKey &BK) {
-  if (PVConstraint *PV = dyn_cast_or_null<PVConstraint>(CV))
+  if (PVConstraint *PV = dyn_cast_or_null<PVConstraint>(CV.getValueOr(nullptr)))
     if (PV->hasBoundsKey()) {
       BK = PV->getBoundsKey();
       return true;
