@@ -138,3 +138,9 @@ void test() {
 // CHECK: int *c = y1;
 // CHECK: int **d = y2;
 // CHECK: int ***e = y3;
+
+
+#define parm_decl int *a, int *b
+
+void parm_test(parm_decl) {}
+// CHECK: void parm_test(parm_decl) {}
