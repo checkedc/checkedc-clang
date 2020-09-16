@@ -290,7 +290,7 @@ void ProgramInfo::print_stats(const std::set<std::string> &F, raw_ostream &O,
   }
 }
 
-bool ProgramInfo::isExternOkay(std::string Ext) {
+bool ProgramInfo::isExternOkay(const std::string &Ext) {
   return llvm::StringSwitch<bool>(Ext)
     .Cases("malloc", "free", true)
     .Default(false);
@@ -500,7 +500,8 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     // without doing anymore work.
     if (!Rewriter::isRewritable(D->getLocation())) {
       // If we're not in a macro, we should make the constraint variable WILD
-      // anyways.
+      // anyways. This happens if the name of the variable is a macro defined
+      // differently is different parts of the program.
       std::string Rsn = "Duplicate source location. Possibly part of a macro.";
       Variables[PLoc]->constrainToWild(CS, Rsn);
     }
@@ -523,7 +524,9 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
         insertNewFVConstraint(FD, F, AstContext);
       } else {
         // FIXME: Visiting same function in same source location twice.
-        //        Shouldn't happen but it does. Just bailing for now.
+        //        This shouldn't happen, but it does for some std lib functions
+        //        on our benchmarks programs (vsftpd, lua, etc.). Bailing for
+        //        now, but a real fix will catch and prevent this earlier.
       }
       return;
     }

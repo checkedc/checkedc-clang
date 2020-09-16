@@ -158,10 +158,6 @@ public:
 
   virtual ~ConstraintVariable() {};
 
-  // Sometimes, constraint variables can be produced that are empty. This
-  // tests for the existence of those constraint variables.
-  virtual bool isEmpty(void) const = 0;
-
   virtual bool getIsOriginallyChecked() const = 0;
 };
 
@@ -370,8 +366,6 @@ public:
   // Get the set of constraint variables corresponding to the arguments.
   const std::set<ConstraintVariable *> &getArgumentConstraints() const;
 
-  bool isEmpty(void) const override { return vars.size() == 0; }
-
   ConstraintVariable *getCopy(Constraints &CS) override;
 
   // Retrieve the atom at the specified index. This function includes special
@@ -480,19 +474,6 @@ public:
   void equateArgumentConstraints(ProgramInfo &P) override;
 
   ConstraintVariable *getCopy(Constraints &CS) override;
-
-  // An FVConstraint is empty if every constraint associated is empty.
-  bool isEmpty(void) const override {
-
-    if (ReturnVar != nullptr)
-      return false;
-
-    for (const auto &u : ParamVars)
-      if (!u->isEmpty())
-        return false;
-
-    return true;
-  }
 
   bool getIsOriginallyChecked() const override;
 

@@ -74,8 +74,7 @@ public:
                                   ASTContext *C);
 
   // Get constraint variable for the provided Decl
-  CVarOption getVariable(clang::Decl *D,
-                                                   clang::ASTContext *C);
+  CVarOption getVariable(clang::Decl *D, clang::ASTContext *C);
 
   // Retrieve a function's constraints by decl, or by name; nullptr if not found
   FVConstraint *getFuncConstraint (FunctionDecl *D, ASTContext *C) const;
@@ -123,8 +122,8 @@ private:
   // analysis from compilation unit to compilation unit.
   VariableMap Variables;
 
-  // Map with the same purpose as the Variables map, this stores constraint vars
-  // non-declaration expressions.
+  // Map with the same purpose as the Variables map, this stores constraint
+  // variables for non-declaration expressions.
   std::map<PersistentSourceLoc, CVarSet> ExprConstraintVars;
 
   // Constraint system.
@@ -143,8 +142,7 @@ private:
   StaticFunctionMapType StaticFunctionFVCons;
   std::map<std::string, std::set<PVConstraint *>> GlobalVariableSymbols;
 
-  // Object that contains all the bounds information of various
-  // array variables.
+  // Object that contains all the bounds information of various array variables.
   AVarBoundsInfo ArrBInfo;
   // Constraints state.
   ConstraintsInfo CState;
@@ -153,9 +151,8 @@ private:
   // instantiated so they can be inserted during rewriting.
   TypeParamBindingsT TypeParamBindings;
 
-  // Function to check if an external symbol is okay to leave
-  // constrained.
-  bool isExternOkay(std::string Ext);
+  // Function to check if an external symbol is okay to leave constrained.
+  bool isExternOkay(const std::string &Ext);
 
   // Insert the given FVConstraint* set into the provided Map.
   // Returns true if successful else false.

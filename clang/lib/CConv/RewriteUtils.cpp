@@ -233,7 +233,7 @@ private:
     // Macros wil sometimes cause a single expression to have multiple
     // constraint variables. These should have been constrained to wild, so
     // there shouldn't be any rewriting required.
-    EnvironmentMap &Vars = Info.getConstraints().getVariables();
+    const EnvironmentMap &Vars = Info.getConstraints().getVariables();
     assert(CVSingleton.size() == 1 || llvm::none_of(CVSingleton,
       [&Vars](ConstraintVariable *CV) {
         return CV->anyChanges(Vars);
@@ -241,15 +241,10 @@ private:
 
     for (auto *CV : CVSingleton)
       // Only rewrite if the type has changed.
-      if (CV->anyChanges(Info.getConstraints().getVariables())){
-        // The constraint variable is able to tell us what the new type string
-        // should be.
-        std::string
-            NewType = CV->mkString(Info.getConstraints().getVariables(), false);
-
+      if (CV->anyChanges(Vars)){
         // Replace the original type with this new one
         if (canRewrite(Writer, Range))
-          Writer.ReplaceText(Range, NewType);
+          Writer.ReplaceText(Range, CV->mkString(Vars, false));
       }
   }
 };
