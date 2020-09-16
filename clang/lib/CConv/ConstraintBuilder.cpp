@@ -177,12 +177,14 @@ public:
     } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       FuncName = FD->getNameAsString();
       TFD = FD;
-      if (CVarOption CV = Info.getVariable(FD, Context))
-        FVCons.insert(*CV);
+      CVarOption CV = Info.getVariable(FD, Context);
+      if (CV.hasValue())
+        FVCons.insert(&CV.getValue());
     } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {
       FuncName = DD->getNameAsString();
-      if (CVarOption CV = Info.getVariable(DD, Context))
-        FVCons.insert(*CV);
+      CVarOption CV = Info.getVariable(DD, Context);
+      if (CV.hasValue())
+        FVCons.insert(&CV.getValue());
     }
 
     // Collect type parameters for this function call that are
@@ -286,8 +288,7 @@ public:
     // Get function variable constraint of the body
     PersistentSourceLoc PL =
         PersistentSourceLoc::mkPSL(S, *Context);
-    ConstraintVariable *CV =
-        Info.getVariable(Function, Context).getValueOr(nullptr);
+    CVarOption CVOpt = Info.getVariable(Function, Context);
 
     // Constrain the value returned (if present) against the return value
     // of the function.
@@ -296,11 +297,13 @@ public:
     CVarSet RconsVar = CB.getExprConstraintVars(RetExpr);
     // Constrain the return type of the function
     // to the type of the return expression.
-    if (FVConstraint *FV = dyn_cast_or_null<FVConstraint>(CV)) {
-      // This is to ensure that the return type of the function is same
-      // as the type of return expression.
-      constrainConsVarGeq(FV->getReturnVar(), RconsVar, Info.getConstraints(),
-                          &PL, Same_to_Same, false, &Info);
+    if (CVOpt.hasValue()) {
+      if (FVConstraint *FV = dyn_cast<FVConstraint>(&CVOpt.getValue())) {
+        // This is to ensure that the return type of the function is same
+        // as the type of return expression.
+        constrainConsVarGeq(FV->getReturnVar(), RconsVar, Info.getConstraints(),
+                            &PL, Same_to_Same, false, &Info);
+      }
     }
     return true;
   }

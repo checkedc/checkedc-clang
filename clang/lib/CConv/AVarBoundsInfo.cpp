@@ -371,7 +371,7 @@ bool AVarBoundsInfo::handleContextSensitiveAssignment(CallExpr *CE,
   } else {
     // This is the assignment of regular variables.
     BoundsKey LKey, RKey;
-    if ((CR->resolveBoundsKey(LCVar, LKey) ||
+    if ((CR->resolveBoundsKey(*LCVar, LKey) ||
         tryGetVariable(L, LKey)) &&
         (CR->resolveBoundsKey(RCVars, RKey) ||
             tryGetVariable(R, *C, RKey))) {
@@ -1137,7 +1137,7 @@ bool ContextSensitiveBoundsKeyVisitor::VisitCallExpr(CallExpr *CE) {
     // Contextualize the function at this call-site.
     CVarOption COpt = Info.getVariable(FD, Context);
     if (COpt.hasValue())
-      Info.getABoundsInfo().contextualizeCVar(CE, {COpt.getValue()});
+      Info.getABoundsInfo().contextualizeCVar(CE, {&COpt.getValue()});
   }
   return true;
 }

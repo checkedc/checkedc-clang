@@ -162,7 +162,7 @@ public:
 };
 
 typedef std::set<ConstraintVariable *> CVarSet;
-typedef llvm::Optional<ConstraintVariable *> CVarOption;
+typedef Option<ConstraintVariable> CVarOption;
 
 enum ConsAction {
   Safe_to_Wild,

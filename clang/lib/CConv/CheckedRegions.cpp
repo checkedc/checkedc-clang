@@ -217,7 +217,8 @@ bool CheckedRegionFinder::VisitMemberExpr(MemberExpr *E){
   if (VD) {
     // Check if the variable is WILD.
     CVarOption Cv = Info.getVariable(VD, Context);
-    if (Cv && (*Cv)->hasWild(Info.getConstraints().getVariables()))
+    if (Cv.hasValue()
+        && Cv.getValue().hasWild(Info.getConstraints().getVariables()))
       Wild = true;
     // Check if the variable contains unchecked types.
     Wild |= containsUncheckedPtr(VD->getType());
@@ -296,7 +297,8 @@ bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
 }
 
 bool CheckedRegionFinder::isWild(CVarOption Cv) {
-  if (Cv && (*Cv)->hasWild(Info.getConstraints().getVariables()))
+  if (Cv.hasValue()
+      && Cv.getValue().hasWild(Info.getConstraints().getVariables()))
     return true;
   return false;
 }
@@ -356,7 +358,8 @@ bool CheckedRegionFinder::isUncheckedStruct(QualType Qt, std::set<std::string> &
         auto Ftype = Fld->getType();
         Unsafe |= containsUncheckedPtrAcc(Ftype, Seen);
         CVarOption Cv = Info.getVariable(Fld, Context);
-        Unsafe |= (Cv && (*Cv)->hasWild(Info.getConstraints().getVariables()));
+        Unsafe |= (Cv.hasValue()
+            && Cv.getValue().hasWild(Info.getConstraints().getVariables()));
       }
       return Unsafe;
     }

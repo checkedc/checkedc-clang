@@ -135,9 +135,10 @@ static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C,
                             bool IsNtArr) {
   const auto &E = Info.getConstraints().getVariables();
   CVarOption CVar = Info.getVariable(D, C);
-  if (CVar) {
-    if ((!IsNtArr && needArrayBounds(*CVar, E)) ||
-        (IsNtArr && needNTArrayBounds(*CVar, E)))
+  if (CVar.hasValue()) {
+    ConstraintVariable &CV = CVar.getValue();
+    if ((!IsNtArr && needArrayBounds(&CV, E)) ||
+        (IsNtArr && needNTArrayBounds(&CV, E)))
       return true;
     return false;
   }

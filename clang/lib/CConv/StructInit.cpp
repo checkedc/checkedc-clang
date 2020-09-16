@@ -25,12 +25,14 @@ bool StructVariableInitializer::VariableNeedsInitializer(VarDecl *VD) {
 
     for (auto *const D : Definition->fields()) {
       if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
-        ConstraintVariable *CV = I.getVariable(D, Context).getValueOr(nullptr);
-        PVConstraint *PV = dyn_cast_or_null<PVConstraint>(CV);
-        if (PV && PV->isChecked(I.getConstraints().getVariables())) {
-          // Ok this contains a pointer that is checked. Store it.
-          RecordsWithCPointers.insert(Definition);
-          return true;
+        CVarOption CV = I.getVariable(D, Context);
+        if (CV.hasValue()) {
+          PVConstraint *PV = dyn_cast<PVConstraint>(&CV.getValue());
+          if (PV && PV->isChecked(I.getConstraints().getVariables())) {
+            // Ok this contains a pointer that is checked. Store it.
+            RecordsWithCPointers.insert(Definition);
+            return true;
+          }
         }
       }
     }

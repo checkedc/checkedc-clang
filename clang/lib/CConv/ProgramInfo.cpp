@@ -475,9 +475,12 @@ void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context) {
     PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(D, *Context);
     if (!D->getType()->isVoidType())
       Rsn = "Variable type is va_list.";
-    ConstraintVariable *CV = getVariable(D, Context).getValueOr(nullptr);
-    if (PVConstraint *PVC = dyn_cast_or_null<PVConstraint>(CV))
-      PVC->constrainToWild(CS, Rsn, &PL);
+    CVarOption CVOpt = getVariable(D, Context);
+    if (CVOpt.hasValue()) {
+      ConstraintVariable &CV = CVOpt.getValue();
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(&CV))
+        PVC->constrainToWild(CS, Rsn, &PL);
+    }
   }
 }
 
@@ -714,19 +717,19 @@ CVarOption ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C) {
     // Get corresponding FVConstraint vars.
     FVConstraint *FunFVar = getFuncFVConstraint(FD, C);
     assert(FunFVar != nullptr && "Unable to find function constraints.");
-    return FunFVar->getParamVar(PIdx);
+    return CVarOption(*FunFVar->getParamVar(PIdx));
 
   } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     FVConstraint *FunFVar = getFuncFVConstraint(FD, C);
     if (FunFVar == nullptr) {
       llvm::errs() << "No fun constraints for " << FD->getName() << "?!\n";
     }
-    return FunFVar;
+    return CVarOption(*FunFVar);
 
   } else /* neither function nor function parameter */ {
     auto I = Variables.find(PersistentSourceLoc::mkPSL(D, *C));
     if (I != Variables.end())
-      return I->second;
+      return CVarOption(*I->second);
     return CVarOption();
   }
 }
