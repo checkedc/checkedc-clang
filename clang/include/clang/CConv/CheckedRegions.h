@@ -55,8 +55,9 @@ class CheckedRegionFinder : public clang::RecursiveASTVisitor<CheckedRegionFinde
   public:
     explicit CheckedRegionFinder(clang::ASTContext *_C, clang::Rewriter &_R, ProgramInfo &_I,
                                 std::set<llvm::FoldingSetNodeID> &S,
-                                std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &M)
-      : Context(_C), Writer(_R), Info(_I), Seen(S), Map(M) {}
+                                 std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &M,
+                                 bool EW)
+      : Context(_C), Writer(_R), Info(_I), Seen(S), Map(M), EmitWarnings(EW) {}
     bool Wild = false;
 
     bool VisitForStmt(clang::ForStmt *S);
@@ -86,12 +87,15 @@ class CheckedRegionFinder : public clang::RecursiveASTVisitor<CheckedRegionFinde
     bool isUncheckedStruct(clang::QualType Qt, std::set<std::string> &Seen);
     bool isWild(const std::set<ConstraintVariable*>&);
     bool isWild(const std::set<FVConstraint*>*);
+    void emitCauseDiagnostic(PersistentSourceLoc*);
 
     clang::ASTContext* Context;
     clang::Rewriter& Writer;
     ProgramInfo& Info;
     std::set<llvm::FoldingSetNodeID>& Seen;
     std::map<llvm::FoldingSetNodeID, AnnotationNeeded>& Map;
+    std::set<PersistentSourceLoc*> Emitted;
+    bool EmitWarnings;
 
 };
 

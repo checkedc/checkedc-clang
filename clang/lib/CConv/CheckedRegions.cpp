@@ -58,6 +58,12 @@ bool CheckedRegionAdder::VisitCallExpr(CallExpr *C) {
   ast_type_traits::DynTypedNode DTN = ast_type_traits::DynTypedNode::create(*C);
 
   C->Profile(ID, *Context, true);
+  std::string s;
+  switch (Map[ID]) {
+    case IS_CHECKED : s = "ISCHECKED"; break;
+    case IS_UNCHECKED : s = "ISUNCHECKED"; break;
+    case IS_CONTAINED : s = "ISCONTAINED"; break;
+  };
   if (FD && FD->isVariadic() &&
       Map[ID] == IS_CONTAINED && isParentChecked(DTN)) {
     auto Begin = C->getBeginLoc();
@@ -145,7 +151,7 @@ bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
   // Visit all subblocks, find all unchecked types
   bool Localwild = 0;
   for (const auto &SubStmt : S->children()) {
-    CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
+    CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map, EmitWarnings);
     Sub.TraverseStmt(SubStmt);
     Localwild |= Sub.Wild;
   }
@@ -179,8 +185,8 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
   FoldingSetNodeID ID;
   C->Profile(ID, *Context, true);
   if (FD && FD->isVariadic()) {
-    Wild = true;
-    Map[ID] = IS_UNCHECKED;
+    Wild = !isInStatementPosition(C);
+    Map[ID] = isInStatementPosition(C) ? IS_CONTAINED : IS_UNCHECKED;
   } else {
     if (FD) {
       auto type = FD->getReturnType();
@@ -249,7 +255,7 @@ bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) {
 
 void CheckedRegionFinder::handleChildren(const Stmt::child_range &Stmts) {
   for (const auto &SubStmt : Stmts) {
-    CheckedRegionFinder Sub(Context, Writer, Info, Seen, Map);
+    CheckedRegionFinder Sub(Context, Writer, Info, Seen, Map, EmitWarnings);
     Sub.TraverseStmt(SubStmt);
     Wild |= Sub.Wild;
   }
@@ -270,7 +276,7 @@ bool CheckedRegionFinder::hasUncheckedParameters(CompoundStmt *S) {
 
   int Localwild = false;
   for (auto Child : Parent->parameters()) {
-    CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map);
+    CheckedRegionFinder Sub(Context,Writer,Info,Seen,Map, EmitWarnings);
     Sub.TraverseParmVarDecl(Child);
     Localwild |= Sub.Wild;
   }
@@ -294,6 +300,8 @@ bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
   } else {
     //TODO there are other statement positions
     //     besides child of compound stmt
+    auto PSL = PersistentSourceLoc::mkPSL(C, *Context);
+    emitCauseDiagnostic(&PSL);
     return false;
   }
 }
@@ -390,4 +398,21 @@ void CheckedRegionFinder::markChecked(CompoundStmt *S, int Localwild) {
     Cur == CheckedScopeSpecifier::CSS_None && Localwild == 0;
 
   Map[Id] = IsChecked ? IS_CHECKED : IS_UNCHECKED;
+}
+
+void CheckedRegionFinder::emitCauseDiagnostic(PersistentSourceLoc *PSL) {
+  if (Emitted.find(PSL) == Emitted.end()) {
+    clang::DiagnosticsEngine &DE = Context->getDiagnostics();
+    unsigned ID = DE.getCustomDiagID(DiagnosticsEngine::Warning,
+                                     "Root cause of unchecked region: %0");
+    SourceManager &SM = Context->getSourceManager();
+    auto File = SM.getFileManager().getFile(PSL->getFileName());
+    SourceLocation SL = SM.translateFileLineCol(File, PSL->getLineNo(),
+                                                PSL->getColSNo());
+    if (SL.isValid()) {
+      auto DiagBuilder = DE.Report(SL, ID);
+      DiagBuilder.AddString("here");
+    }
+    Emitted.insert(PSL);
+  }
 }
