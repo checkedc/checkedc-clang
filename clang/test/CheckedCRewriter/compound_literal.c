@@ -1,7 +1,5 @@
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
 // RUN: cconv-standalone -alltypes %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// XFAIL: *
-// Fails dues to issue microsoft#870 but fixed by pull request microsft#899
 
 struct a {
   int *a;
