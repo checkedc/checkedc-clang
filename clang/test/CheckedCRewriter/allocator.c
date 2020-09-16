@@ -3,12 +3,12 @@
 // Tests for malloc and friends. 
 //
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-// RUN: cconv-standalone %s -- | %clang_cc1 -fno-builtin -verify -fcheckedc-extension -x c -
+// RUN: cconv-standalone %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 //
 typedef __SIZE_TYPE__ size_t;
-extern void *malloc(size_t n) : byte_count(n);
-extern void free(void *);
+_Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
+_Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
 
 void dosomething(void) {
   int a = 0;
@@ -16,16 +16,16 @@ void dosomething(void) {
   *b = 1;
   return;
 }
+//CHECK: _Ptr<int> b =  &a;
 
 void foo(void) {
   int *a = (int *) malloc(sizeof(int));
   *a = 0;
-  free((void *)a);
+  free(a);
   return;
 }
 //CHECK: void foo(void) {
-//CHECK-NEXT: int *a = (int *) malloc(sizeof(int));
-//CHECK-NEXT: *a = 0;
+//CHECK-NEXT: int *a = (int *) malloc<int>(sizeof(int));
 
 typedef struct _listelt {
   struct _listelt *next;
@@ -48,4 +48,4 @@ void add_some_stuff(listhead *hd) {
   return;
 }
 //CHECK: void add_some_stuff(_Ptr<listhead>  hd) {
-//CHECK-NEXT: _Ptr<listelt>  l1 = (listelt *) malloc(sizeof(listelt));
+//CHECK-NEXT: _Ptr<listelt>  l1 = (listelt *) malloc<listelt>(sizeof(listelt));

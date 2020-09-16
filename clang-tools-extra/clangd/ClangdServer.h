@@ -328,8 +328,8 @@ private:
              ArrayRef<tooling::Range> Ranges);
 
 #ifdef INTERACTIVECCCONV
-  void reportCConvDiagsForAllFiles(DisjointSet &CcInfo, CConvLSPCallBack *ConvCB);
-  void clearCConvDiagsForAllFiles(DisjointSet &CcInfo, CConvLSPCallBack *ConvCB);
+  void reportCConvDiagsForAllFiles(ConstraintsInfo &CcInfo, CConvLSPCallBack *ConvCB);
+  void clearCConvDiagsForAllFiles(ConstraintsInfo &CcInfo, CConvLSPCallBack *ConvCB);
 #endif
 
   const FileSystemProvider &FSProvider;

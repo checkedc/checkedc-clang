@@ -5,6 +5,7 @@
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
 //
 
+unsigned long strlen(const char *s : itype(_Nt_array_ptr<const char>)) ;
 char *strstr(const char *s1 : itype(_Nt_array_ptr<const char>),
              const char *s2 : itype(_Nt_array_ptr<const char>)) : itype(_Nt_array_ptr<char>);
 // This tests the propagation of constraints
@@ -22,6 +23,7 @@ foo obj1 = {};
 int* func(int *ptr, char *ntptr) {
   obj1.ptr = ptr;
   obj1.ntptr = strstr(ntptr, "world");
+  strstr(obj1.ntptr, "world");
   return ptr;
 }
 //CHECK: _Ptr<int> func(_Ptr<int> ptr, _Nt_array_ptr<char> ntptr) {

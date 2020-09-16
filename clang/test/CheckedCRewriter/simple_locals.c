@@ -2,8 +2,9 @@
 //
 // Checks very simple inference properties for local variables.
 //
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-// RUN: cconv-standalone %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
+// RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // expected-no-diagnostics
 
 void f1(void) {
@@ -41,8 +42,9 @@ void upd(BarRec *P, int a) {
 void canthelp(int *a, int b, int c) {
   *(a + b) = c;
 }
-//CHECK: void canthelp(int *a, int b, int c) {
-//CHECK-NEXT:  *(a + b) = c;
+//CHECK_NOALL: void canthelp(int *a, int b, int c) { 
+//CHECK_ALL: void canthelp(_Array_ptr<int> a : count(b), int b, int c) {
+//CHECK:  *(a + b) = c;
 //CHECK-NEXT: }
 
 void partialhelp(int *a, int b, int c) {
@@ -50,14 +52,17 @@ void partialhelp(int *a, int b, int c) {
   *d = 0;
   *(a + b) = c;
 }
-//CHECK: void partialhelp(int *a, int b, int c) {
-//CHECK-NEXT: int *d = a;
-//CHECK-NEXT: *d = 0;
+//CHECK_ALL: void partialhelp(_Array_ptr<int> a : count(b), int b, int c) {
+//CHECK_NOALL: void partialhelp(int *a, int b, int c) {
+//CHECK_NOALL: int *d = a;
+//CHECK_ALL: _Ptr<int> d = a;
+//CHECK: *d = 0;
 //CHECK-NEXT:  *(a + b) = c;
 //CHECK-NEXT: }
 
 void g(void) {
-    int a = 0, *b = &a;
+    int a = 0;
+    int *b = &a;
     *b = 1;
 }
 //CHECK: void g(void) {
@@ -65,7 +70,9 @@ void g(void) {
 //CHECK-NEXT: _Ptr<int> b = &a;
 
 void gg(void) {
-  int a = 0, *b = &a, **c = &b;
+  int a = 0;
+  int *b = &a;
+  int **c = &b;
 
   *b = 1;
   **c = 2;
@@ -120,16 +127,18 @@ int baz(int *a, int b, int c) {
 
 int arrcheck(int *a, int b) {
   return a[b];
-}
-//CHECK: int arrcheck(int *a, int b) {
-//CHECK-NEXT: return a[b];
+} 
+//CHECK_ALL: int arrcheck(_Array_ptr<int> a : count(b), int b) {
+//CHECK_NOALL: int arrcheck(int *a, int b) {
+//CHECK: return a[b];
 //CHECK-NEXT: }
 
 int badcall(int *a, int b) {
   return arrcheck(a, b);
 }
-//CHECK: int badcall(_Ptr<int> a, int b) {
-//CHECK-NEXT: return arrcheck(((int *)a), b); 
+//CHECK_ALL: int badcall(_Array_ptr<int> a : count(b), int b) {
+//CHECK_NOALL: int badcall(int *a, int b) {
+//CHECK: return arrcheck(a, b); 
 //CHECK-NEXT: }
 
 void pullit(char *base, char *out, int *index) {
@@ -139,7 +148,8 @@ void pullit(char *base, char *out, int *index) {
 
   return;
 }
-//CHECK: void pullit(char *base, _Ptr<char> out, _Ptr<int> index) {
+//CHECK_ALL: void pullit(_Array_ptr<char> base, _Ptr<char> out, _Ptr<int> index) {
+//CHECK_NOALL: void pullit(char *base, _Ptr<char> out, _Ptr<int> index) {
 
 void driver() {
   char buf[10] = { 0 };
@@ -252,5 +262,5 @@ void ptrarr(void) {
   return;
 }
 //CHECK: void ptrarr(void) { 
-//CHECK-NEXT: _Ptr<int> vals _Checked[4] =  { 0 };
-
+//CHECK_NOALL: int *vals[4] = { 0 };
+//CHECK_ALL: _Ptr<int> vals _Checked[4] =  { 0 };

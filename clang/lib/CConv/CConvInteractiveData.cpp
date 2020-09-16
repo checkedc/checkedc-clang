@@ -12,54 +12,69 @@
 
 #include "clang/CConv/CConvInteractiveData.h"
 
-void DisjointSet::Clear() {
-  Leaders.clear();
-  Groups.clear();
+void ConstraintsInfo::Clear() {
   RealWildPtrsWithReasons.clear();
   PtrSourceMap.clear();
   AllWildPtrs.clear();
   TotalNonDirectWildPointers.clear();
   ValidSourceFiles.clear();
+  RCMap.clear();
+  SrcWMap.clear();
 }
-void DisjointSet::AddElements(ConstraintKey A, ConstraintKey B) {
-  if (Leaders.find(A) != Leaders.end()) {
-    if (Leaders.find(B) != Leaders.end()) {
-      auto LeaderA = Leaders[A];
-      auto LeaderB = Leaders[B];
-      auto &GrpA = Groups[LeaderA];
-      auto &GrpB = Groups[LeaderB];
 
-      if (GrpA.size() < GrpB.size()) {
-        GrpA = Groups[LeaderB];
-        GrpB = Groups[LeaderA];
-        LeaderA = Leaders[B];
-        LeaderB = Leaders[A];
-      }
-      GrpA.insert(GrpB.begin(), GrpB.end());
-      for (auto k : GrpB) {
-        Leaders[k] = LeaderA;
-      }
-      Groups.erase(LeaderB);
-    } else {
-      Groups[Leaders[A]].insert(B);
-      Leaders[B] = Leaders[A];
-    }
-  } else {
-    if (Leaders.find(B) != Leaders.end()) {
-      Groups[Leaders[B]].insert(A);
-      Leaders[A] = Leaders[B];
-    } else {
-      Leaders[A] = Leaders[B] = A;
-      Groups[A].insert(A);
-      Groups[A].insert(B);
-    }
+CVars &ConstraintsInfo::GetRCVars(ConstraintKey Ckey) {
+  return RCMap[Ckey];
+}
+
+CVars &ConstraintsInfo::GetSrcCVars(ConstraintKey Ckey) {
+  return SrcWMap[Ckey];
+}
+
+CVars
+ConstraintsInfo::getWildAffectedCKeys(const CVars &DWKeys) {
+  CVars IndirectWKeys;
+  for (auto CK : DWKeys) {
+    auto &TK = GetSrcCVars(CK);
+    IndirectWKeys.insert(TK.begin(), TK.end());
   }
+  return IndirectWKeys;
 }
 
-ConstraintKey DisjointSet::GetLeader(ConstraintKey Ckey) {
-  return Leaders[Ckey];
-}
+void ConstraintsInfo::print_stats(llvm::raw_ostream &O) {
+    O << "{\"WildPtrInfo\":{";
+    O << "\"InDirectWildPtrNum\":" << TotalNonDirectWildPointers.size() << ",";
+    O << "\"InSrcInDirectWildPtrNum\":" <<
+        InSrcNonDirectWildPointers.size() << ",";
+    O << "\"DirectWildPtrs\":{";
+    O << "\"Num\":" << AllWildPtrs.size() << ",";
+    O << "\"InSrcNum\":" << InSrcWildPtrs.size() << ",";
+    O << "\"Reasons\":[";
 
-CVars &DisjointSet::GetGroup(ConstraintKey Ckey) {
-  return Groups[Ckey];
+    std::map<std::string, std::set<ConstraintKey>> RsnBasedWildCKeys;
+    for (auto &PtrR : RealWildPtrsWithReasons) {
+      if (AllWildPtrs.find(PtrR.first) != AllWildPtrs.end()) {
+        RsnBasedWildCKeys[PtrR.second.WildPtrReason].insert(PtrR.first);
+      }
+    }
+    bool AddComma = false;
+    for (auto &T : RsnBasedWildCKeys) {
+      if (AddComma) {
+        O << ",\n";
+      }
+      O << "{\"" << T.first << "\":{";
+      O << "\"Num\":" << T.second.size() << ",";
+      CVars TmpKeys;
+      findIntersection(InSrcWildPtrs, T.second, TmpKeys);
+      O << "\"InSrcNum\":" << TmpKeys.size() << ",";
+      CVars InDWild, Tmp;
+      InDWild = getWildAffectedCKeys(T.second);
+      findIntersection(InDWild, InSrcNonDirectWildPointers, Tmp);
+      O << "\"TotalIndirect\":" << InDWild.size() << ",";
+      O << "\"InSrcIndirect\":" << Tmp.size();
+      O << "}}";
+      AddComma = true;
+    }
+    O << "]";
+    O << "}";
+    O << "}}";
 }

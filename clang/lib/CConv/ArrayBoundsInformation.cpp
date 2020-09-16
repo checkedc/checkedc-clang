@@ -9,102 +9,97 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/CConv/ArrayBoundsInformation.h"
-#include "clang/CConv/ProgramInfo.h"
-#include "clang/CConv/Utils.h"
 
-ConstraintKey ArrayBoundsInformation::getTopLevelConstraintVar(Decl *D) {
-  std::set<ConstraintVariable *> DefCVars =
-      Info.getVariable(D, &(D->getASTContext()), true);
-  for (auto ConsVar : DefCVars) {
-    if (PVConstraint *PV = dyn_cast<PVConstraint>(ConsVar)) {
-      auto &Cvars = PV->getCvars();
-      if (Cvars.size() > 0) {
-        return *(Cvars.begin());
-      }
-    }
-  }
-  assert (false && "Invalid declaration variable requested.");
-}
-
-bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *ArrFD,
+bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *ArrFd,
                                                   FieldDecl *LenFD) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFD);
+  PersistentSourceLoc PSL =
+      PersistentSourceLoc::mkPSL(ArrFd, ArrFd->getASTContext());
   std::string BString = LenFD->getNameAsString();
   auto BPair = std::make_pair(BoundsKind::LocalFieldBound, BString);
-  return BoundsInfo[ArrCKey].insert(BPair).second;
+  return BoundsInfo[PSL].insert(BPair).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *ArrFD,
+bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *ArrFd,
                                                   Expr *E) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFD);
-  auto BInfo = getExprBoundsInfo(ArrFD, E);
+  PersistentSourceLoc PSL =
+      PersistentSourceLoc::mkPSL(ArrFd, ArrFd->getASTContext());
+  auto BInfo = getExprBoundsInfo(ArrFd, E);
   if (BInfo.first != ArrayBoundsInformation::BoundsKind::InvalidKind)
-    return BoundsInfo[ArrCKey].insert(BInfo).second;
+    return BoundsInfo[PSL].insert(BInfo).second;
   return false;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *ArrFD,
+bool ArrayBoundsInformation::addBoundsInformation(FieldDecl *ArrFd,
                                                   BOUNDSINFOTYPE Binfo) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFD);
-  return BoundsInfo[ArrCKey].insert(Binfo).second;
+  PersistentSourceLoc PSL =
+      PersistentSourceLoc::mkPSL(ArrFd, ArrFd->getASTContext());
+  return BoundsInfo[PSL].insert(Binfo).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(ParmVarDecl *ArrFD,
-                                                  ParmVarDecl *LenFD) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFD);
-  std::string BString = LenFD->getNameAsString();
+bool ArrayBoundsInformation::addBoundsInformation(ParmVarDecl *ArrFd,
+                                                  ParmVarDecl *LenFd) {
+  PersistentSourceLoc PSL =
+      PersistentSourceLoc::mkPSL(ArrFd, ArrFd->getASTContext());
+  std::string BString = LenFd->getNameAsString();
   auto BPair = std::make_pair(BoundsKind::LocalParamBound, BString);
-  return BoundsInfo[ArrCKey].insert(BPair).second;
+  return BoundsInfo[PSL].insert(BPair).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(ParmVarDecl *ArrFD,
+bool ArrayBoundsInformation::addBoundsInformation(ParmVarDecl *ArrFd,
                                                   BOUNDSINFOTYPE Binfo) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFD);
-  return BoundsInfo[ArrCKey].insert(Binfo).second;
+  PersistentSourceLoc PSL =
+      PersistentSourceLoc::mkPSL(ArrFd, ArrFd->getASTContext());
+  return BoundsInfo[PSL].insert(Binfo).second;
 }
 
 bool ArrayBoundsInformation::addBoundsInformation(VarDecl *ArrFD,
-                                                  VarDecl *LenFD) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFD);
-  std::string BString = LenFD->getNameAsString();
+                                                  VarDecl *lenFD) {
+  PersistentSourceLoc PSL =
+      PersistentSourceLoc::mkPSL(ArrFD, ArrFD->getASTContext());
+  std::string BString = lenFD->getNameAsString();
   auto BPair = std::make_pair(BoundsKind::LocalVarBound, BString);
-  return BoundsInfo[ArrCKey].insert(BPair).second;
+  return BoundsInfo[PSL].insert(BPair).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(VarDecl *ArrFD,
+bool ArrayBoundsInformation::addBoundsInformation(VarDecl *ArrFd,
                                                   BOUNDSINFOTYPE Binfo) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFD);
-  return BoundsInfo[ArrCKey].insert(Binfo).second;
+  PersistentSourceLoc PSL =
+      PersistentSourceLoc::mkPSL(ArrFd, ArrFd->getASTContext());
+  return BoundsInfo[PSL].insert(Binfo).second;
 }
 
-bool ArrayBoundsInformation::addBoundsInformation(VarDecl *ArrFD, Expr *E) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(ArrFD);
+bool ArrayBoundsInformation::addBoundsInformation(VarDecl *ArrFd, Expr *E) {
+  PersistentSourceLoc PSL =
+      PersistentSourceLoc::mkPSL(ArrFd, ArrFd->getASTContext());
   auto Binfo = getExprBoundsInfo(nullptr, E);
   if (Binfo.first != ArrayBoundsInformation::BoundsKind::InvalidKind)
-    return BoundsInfo[ArrCKey].insert(Binfo).second;
+    return BoundsInfo[PSL].insert(Binfo).second;
   return false;
 }
 
 bool ArrayBoundsInformation::removeBoundsInformation(Decl *D) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(D);
-  if (BoundsInfo.find(ArrCKey) != BoundsInfo.end()) {
-    BoundsInfo.erase(ArrCKey);
+  PersistentSourceLoc PSL =
+      PersistentSourceLoc::mkPSL(D, D->getASTContext());
+  if (BoundsInfo.find(PSL) != BoundsInfo.end()) {
+    BoundsInfo.erase(PSL);
     return true;
   }
   return false;
 }
 
 bool ArrayBoundsInformation::hasBoundsInformation(Decl *D) {
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(D);
-  return BoundsInfo.find(ArrCKey) != BoundsInfo.end();
+  PersistentSourceLoc PSL =
+      PersistentSourceLoc::mkPSL(D, D->getASTContext());
+  return BoundsInfo.find(PSL) != BoundsInfo.end();
 }
 
 ArrayBoundsInformation::BOUNDSINFOTYPE
 ArrayBoundsInformation::getBoundsInformation(Decl *D) {
   assert(hasBoundsInformation(D) && "Has no bounds information "
                                        "for the decl");
-  ConstraintKey ArrCKey = getTopLevelConstraintVar(D);
-  return *(BoundsInfo[ArrCKey].begin());
+  PersistentSourceLoc PSL =
+      PersistentSourceLoc::mkPSL(D, D->getASTContext());
+  return *(BoundsInfo[PSL].begin());
 }
 
 bool ArrayBoundsInformation::isValidBoundKindForField(

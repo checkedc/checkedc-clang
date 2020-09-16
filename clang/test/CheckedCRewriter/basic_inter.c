@@ -38,25 +38,18 @@ int main() {
   int *bp1 = 0;
   int *cp1 = 0;
 
-
   ap1 = ap = &a;
   // we will make this pointer wild.
   bp1 = bp = (int*)0xcafeba;
   cp = &c;
   cp1 = &c;
-  // although, we are passing cp
+  // we are passing cp and cp1
   // to a paramter that will be
-  // treated as WILD in func, cp
-  // is Ptr within main
+  // treated as WILD in callee, which
+  // forces it to be WILD in main
   func(ap, bp, cp);
   funcdecl(ap1, bp1, cp1);
   return 0;
 }
 //CHECK: _Ptr<int> ap =  0;
-//CHECK-NEXT: int *bp = 0;
-//CHECK-NEXT: _Ptr<int> cp =  0;
-//CHECK-NEXT: _Ptr<int> ap1 =  0;
-//CHECK-NEXT: int *bp1 = 0;
-//CHECK-NEXT: _Ptr<int> cp1 =  0;
-
-
+//CHECK: _Ptr<int> ap1 =  0;

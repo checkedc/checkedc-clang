@@ -3,9 +3,9 @@
 // Tests for rewriting global declarations.
 //
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-// RUN: cconv-standalone %s -- | %clang_cc1 -fno-builtin -verify -fcheckedc-extension -x c -
+// RUN: cconv-standalone %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
-#define NULL ((void*)0)
+#include <stddef.h>
 char *c;
 //CHECK: char *c;
 int *p,*q;

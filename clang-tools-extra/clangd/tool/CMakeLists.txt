@@ -6,11 +6,6 @@ add_clang_tool(clangd
   $<TARGET_OBJECTS:obj.clangDaemonTweaks>
   )
 
-add_clang_tool(icconv
-   ClangdMain.cpp
-   $<TARGET_OBJECTS:obj.clangDaemonTweaks>
-   )
-
 set(LLVM_LINK_COMPONENTS
   support
   )
@@ -34,6 +29,11 @@ target_link_libraries(clangd
   clangToolingSyntax
   ${CLANGD_XPC_LIBS}
   )
+
+add_clang_tool(icconv
+        ClangdMain.cpp
+        $<TARGET_OBJECTS:obj.clangDaemonTweaks>
+        )
 
 target_link_libraries(icconv
   PRIVATE
