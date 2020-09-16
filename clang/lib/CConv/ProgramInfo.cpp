@@ -484,28 +484,53 @@ void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context) {
 // For each pointer type in the declaration of D, add a variable to the
 // constraint system for that pointer type.
 void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
-                              clang::ASTContext *astContext) {
+                              clang::ASTContext *AstContext) {
   assert(!persisted);
 
-  PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(D, *astContext);
+  PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(D, *AstContext);
   assert(PLoc.valid());
 
-  // We only add a PVConstraint if the set at Variables[PLoc] does not contain
-  // one already. Two variables can have the same source locations when they are
-  // declared inside the same macro expansion. Functions are exempt from this
-  // check because they need to be added to the Extern/Static function maps
-  // regardless if they are inside a macro expansion.
-  if (Variables.find(PLoc) != Variables.end() && !isa<FunctionDecl>(D))
+  // We only add a PVConstraint if Variables[PLoc] does not exist.
+  // Functions are exempt from this check because they need to be added to the
+  // Extern/Static function map even if they are inside a macro expansion.
+  if (Variables.find(PLoc) != Variables.end() && !isa<FunctionDecl>(D)) {
+    // Two variables can have the same source locations when they are
+    // declared inside the same macro expansion. The first instance of the
+    // source location will have been constrained to WILD, so it's safe to bail
+    // without doing anymore work.
+    if (!Rewriter::isRewritable(D->getLocation())) {
+      // If we're not in a macro, we should make the constraint variable WILD
+      // anyways.
+      std::string Rsn = "Duplicate source location. Possibly part of a macro.";
+      Variables[PLoc]->constrainToWild(CS, Rsn);
+    }
     return;
+  }
 
   ConstraintVariable *NewCV = nullptr;
 
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     // Function Decls have FVConstraints.
-    FVConstraint *F = new FVConstraint(D, *this, *astContext);
+    FVConstraint *F = new FVConstraint(D, *this, *AstContext);
     F->setValidDecl();
+
+    // Handling of PSL collision for functions is different since we need to
+    // consider the static and extern function maps.
+    if (Variables.find(PLoc) != Variables.end()) {
+      // Try to find a previous definition based on function name
+      if (!getFuncConstraint(FD, AstContext)) {
+        constrainWildIfMacro(F, FD->getLocation());
+        insertNewFVConstraint(FD, F, AstContext);
+      } else {
+        // FIXME: Visiting same function in same source location twice.
+        //        Shouldn't happen but it does. Just bailing for now.
+      }
+      return;
+    }
+
     /* Store the FVConstraint in the global and Variables maps */
-    insertNewFVConstraint(FD, F, astContext);
+    insertNewFVConstraint(FD, F, AstContext);
+
     NewCV = F;
     // Add mappings from the parameters PLoc to the constraint variables for
     // the parameters.
@@ -513,21 +538,28 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       ParmVarDecl *PVD = FD->getParamDecl(i);
       ConstraintVariable *PV = F->getParamVar(i);
       PV->setValidDecl();
-      PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *astContext);
+      PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *AstContext);
+      // Constraint variable is stored on the parent function, so we need to
+      // constrain to WILD even if we don't end up storing this in the map.
+      constrainWildIfMacro(PV, PVD->getLocation());
+      specialCaseVarIntros(PVD, AstContext);
+      // It is possible to have a parameter delc in a macro when function is not
+      if (Variables.find(PSL) != Variables.end())
+        continue;
       Variables[PSL] = PV;
-      specialCaseVarIntros(PVD, astContext);
     }
 
   } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
+    assert(!isa<ParmVarDecl>(VD));
     const Type *Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     if (Ty->isPointerType() || Ty->isArrayType()) {
-      PVConstraint *P = new PVConstraint(D, *this, *astContext);
+      PVConstraint *P = new PVConstraint(D, *this, *AstContext);
       P->setValidDecl();
       NewCV = P;
       std::string VarName = VD->getName();
       if (VD->hasGlobalStorage()) {
           // if we see a definition for this global variable, indicate so in ExternGVars
-          if(VD->hasDefinition() || VD->hasDefinition(*astContext)) {
+          if(VD->hasDefinition() || VD->hasDefinition(*AstContext)) {
               ExternGVars[VarName] = true;
           }
           // if we don't, check that we haven't seen one before before setting to false
@@ -536,20 +568,20 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
           }
           GlobalVariableSymbols[VarName].insert(P);
       }
-      specialCaseVarIntros(D, astContext);
+      specialCaseVarIntros(D, AstContext);
     }
 
   } else if (FieldDecl *FlD = dyn_cast<FieldDecl>(D)) {
     const Type *Ty = FlD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     if (Ty->isPointerType() || Ty->isArrayType()) {
-      PVConstraint *P = new PVConstraint(D, *this, *astContext);
-      P->setValidDecl();
-      NewCV = P;
-      specialCaseVarIntros(D, astContext);
+      NewCV = new PVConstraint(D, *this, *AstContext);
+      NewCV->setValidDecl();
+      specialCaseVarIntros(D, AstContext);
     }
   } else
     llvm_unreachable("unknown decl type");
 
+  assert("We shouldn't be adding a null CV to Variables map." && NewCV);
   constrainWildIfMacro(NewCV, D->getLocation());
   Variables[PLoc] = NewCV;
 }

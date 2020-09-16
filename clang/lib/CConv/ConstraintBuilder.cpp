@@ -498,8 +498,7 @@ public:
 
   bool VisitVarDecl(VarDecl *D) {
     FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
-    if (FL.isValid() &&
-        (!isa<ParmVarDecl>(D) || D->getParentFunctionOrMethod() != nullptr))
+    if (FL.isValid() && !isa<ParmVarDecl>(D))
       addVariable(D);
     return true;
   }
@@ -512,7 +511,10 @@ public:
   }
 
   bool VisitRecordDecl(RecordDecl *Declaration) {
-    if (RecordDecl *Definition = Declaration->getDefinition()) {
+    if (Declaration->isThisDeclarationADefinition()) {
+      RecordDecl *Definition = Declaration->getDefinition();
+      assert("Declaration is a definition, but getDefinition() is null?"
+                 && Definition);
       FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
       if (FL.isValid()) {
         SourceManager &SM = Context->getSourceManager();
