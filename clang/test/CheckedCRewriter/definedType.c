@@ -144,3 +144,14 @@ void test() {
 
 void parm_test(parm_decl) {}
 // CHECK: void parm_test(parm_decl) {}
+
+
+#define declare_single_var(x) int *x = 0; 
+int *another_test(void) {
+// CHECK: int *another_test(void) {
+  declare_single_var(z)
+  // CHECK: declare_single_var(z)
+  declare_single_var(y)
+  // CHECK: declare_single_var(y)
+  return z;
+}
