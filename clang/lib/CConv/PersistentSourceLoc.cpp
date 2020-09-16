@@ -14,21 +14,14 @@
 using namespace clang;
 using namespace llvm;
 
-// Given a Decl, look up the source location for that Decl and create a 
-// PersistentSourceLoc that represents the location of the Decl. 
-// For Function and Parameter Decls, use the Spelling location, while for
-// variables, use the expansion location. 
+// Given a Decl, look up the source location for that Decl and create a
+// PersistentSourceLoc that represents the location of the Decl.
+// This currently the expansion location for the declarations source location.
+// If we want to add more complete source for macros in the future, I expect we
+// will need to the spelling location instead.
 PersistentSourceLoc
 PersistentSourceLoc::mkPSL(const Decl *D, ASTContext &C) {
-  SourceLocation SL = D->getLocation();
-
-  if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) 
-    SL = C.getSourceManager().getExpansionLoc(FD->getLocation());
-  else if (const ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) 
-    SL = C.getSourceManager().getExpansionLoc(PV->getLocation());
-  else if (const VarDecl *V = dyn_cast<VarDecl>(D))
-    SL = C.getSourceManager().getExpansionLoc(V->getLocation());
-  
+  SourceLocation SL = C.getSourceManager().getExpansionLoc(D->getLocation());
   return mkPSL(D->getSourceRange(), SL, C);
 }
 
