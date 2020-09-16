@@ -44,6 +44,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     std::pair<const clang::CompoundStmt*, int>
         findParentCompound(const clang::ast_type_traits::DynTypedNode &N, int);
     bool isParentChecked(const clang::ast_type_traits::DynTypedNode &N);
+    bool isWrittenChecked(const clang::CompoundStmt*);
     bool isFunctionBody(clang::CompoundStmt *S);
     clang::ASTContext* Context;
     clang::Rewriter& Writer;
