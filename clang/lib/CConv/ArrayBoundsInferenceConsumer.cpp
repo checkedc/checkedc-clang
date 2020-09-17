@@ -15,6 +15,7 @@
 #include "clang/CConv/ArrayBoundsInferenceConsumer.h"
 #include "clang/CConv/ConstraintResolver.h"
 #include <sstream>
+#include <cctype>
 
 static std::set<std::string> LengthVarNamesPrefixes = {"len", "count",
                                                                "size", "num",
