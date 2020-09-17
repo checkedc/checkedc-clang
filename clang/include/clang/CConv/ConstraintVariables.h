@@ -236,6 +236,12 @@ private:
                      bool &AllArray, bool &ArrayRun, bool Nt) const;
   void addArrayAnnotations(std::stack<std::string> &CheckedArrs,
                            std::deque<std::string> &EndStrs) const;
+
+  // Utility used by the constructor to extract string representation of the
+  // base type that preserves macros where possible.
+  static std::string extractBaseType(DeclaratorDecl *D, QualType QT,
+                                     const Type *Ty, const ASTContext &C);
+
   // Flag to indicate that this constraint is a part of function prototype
   // e.g., Parameters or Return.
   bool partOFFuncPrototype;

@@ -346,42 +346,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     FV = new FVConstraint(Ty, IsDeclTy ? D : nullptr, IsTypedef ? "" : N, I, C);
 
   // Get a string representing the type without pointer and array indirection.
-  bool FoundMatchingType = false;
-  if (!IsTypedef && D && D->getTypeSourceInfo()) {
-    // Try to extract the type from original source to preserve defines
-    TypeLoc TL = D->getTypeSourceInfo()->getTypeLoc();
-    if (isa<FunctionDecl>(D)) {
-      FoundMatchingType = D->getAsFunction()->getReturnType() == QT;
-      TL = getBaseTypeLoc(TL).getAs<FunctionTypeLoc>();
-      // FunctionDecl that doesn't have function type? weird
-      if (TL.isNull())
-        FoundMatchingType = false;
-      else
-        TL = TL.getAs<clang::FunctionTypeLoc>().getReturnLoc();
-    } else {
-      FoundMatchingType = D->getType() == QT;
-    }
-    TypeLoc BaseLoc = getBaseTypeLoc(TL);
-    if (!BaseLoc.getAs<TypedefTypeLoc>().isNull()) {
-      FoundMatchingType = false;
-    } else {
-      // Only use this type if the type passed as a parameter to this constructor
-      // agrees with the actual type of the declaration.
-      SourceRange SR = BaseLoc.getSourceRange();
-      if (FoundMatchingType && SR.isValid()) {
-        BaseType = getSourceText(SR, C);
-
-        // getSourceText returns the empty string when there's a pointer level
-        // inside a macro. Not sure how to handle this, so fall back to tyToStr.
-        if (BaseType.empty())
-          FoundMatchingType = false;
-      } else
-        FoundMatchingType = false;
-    }
-  }
-  // Fall back to rebuilding the base type based on type passed to constructor
-  if (!FoundMatchingType)
-    BaseType = tyToStr(Ty);
+  BaseType = extractBaseType(D, QT, Ty, C);
 
   bool IsWild = !IsGeneric && (isVarArgType(BaseType) || isTypeHasVoid(QT));
   if (IsWild) {
@@ -422,6 +387,51 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       }
     }
   }
+}
+
+std::string PointerVariableConstraint::extractBaseType(DeclaratorDecl *D,
+                                                       QualType QT,
+                                                       const Type *Ty,
+                                                       const ASTContext &C) {
+  std::string BaseTypeStr;
+  bool FoundBaseTypeInSrc = false;
+  if (!Ty->getAs<TypedefType>() && D && D->getTypeSourceInfo()) {
+    // Try to extract the type from original source to preserve defines
+    TypeLoc TL = D->getTypeSourceInfo()->getTypeLoc();
+    if (isa<FunctionDecl>(D)) {
+      FoundBaseTypeInSrc = D->getAsFunction()->getReturnType() == QT;
+      TL = getBaseTypeLoc(TL).getAs<FunctionTypeLoc>();
+      // FunctionDecl that doesn't have function type? weird
+      if (TL.isNull())
+        FoundBaseTypeInSrc = false;
+      else
+        TL = TL.getAs<clang::FunctionTypeLoc>().getReturnLoc();
+    } else {
+      FoundBaseTypeInSrc = D->getType() == QT;
+    }
+    TypeLoc BaseLoc = getBaseTypeLoc(TL);
+    if (!BaseLoc.getAs<TypedefTypeLoc>().isNull()) {
+      FoundBaseTypeInSrc = false;
+    } else {
+      // Only use this type if the type passed as a parameter to this constructor
+      // agrees with the actual type of the declaration.
+      SourceRange SR = BaseLoc.getSourceRange();
+      if (FoundBaseTypeInSrc && SR.isValid()) {
+        BaseTypeStr = getSourceText(SR, C);
+
+        // getSourceText returns the empty string when there's a pointer level
+        // inside a macro. Not sure how to handle this, so fall back to tyToStr.
+        if (BaseTypeStr.empty())
+          FoundBaseTypeInSrc = false;
+      } else
+        FoundBaseTypeInSrc = false;
+    }
+  }
+  // Fall back to rebuilding the base type based on type passed to constructor
+  if (!FoundBaseTypeInSrc)
+    BaseTypeStr = tyToStr(Ty);
+
+  return BaseTypeStr;
 }
 
 void PointerVariableConstraint::print(raw_ostream &O) const {
