@@ -145,7 +145,7 @@ private:
 class FunctionParamScope : public ProgramVarScope {
 public:
   friend class FunctionScope;
-  FunctionParamScope(std::string FN, bool IsSt) :
+  FunctionParamScope(const std::string &FN, bool IsSt) :
       ProgramVarScope(FunctionParamScopeKind),
       FName(FN), IsStatic(IsSt) { }
 
@@ -189,8 +189,8 @@ public:
     return "FuncParm_" + FName;
   }
 
-  const std::string *getFName() const {
-    return &(this->FName);
+  const llvm::StringRef getFName() const {
+    return this->FName;
   }
 
   bool getIsStatic() const {
@@ -211,8 +211,8 @@ private:
 class CtxFunctionArgScope : public FunctionParamScope {
 public:
   friend class FunctionScope;
-  CtxFunctionArgScope(std::string FN, bool IsSt,
-                        const PersistentSourceLoc &CtxPSL) :
+  CtxFunctionArgScope(const std::string &FN, bool IsSt,
+                      const PersistentSourceLoc &CtxPSL) :
     FunctionParamScope(FN, IsSt) {
     PSL = CtxPSL;
     this->Kind = CtxFunctionArgScopeKind;

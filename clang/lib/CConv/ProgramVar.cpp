@@ -46,7 +46,7 @@ const FunctionParamScope *FunctionParamScope::getFunctionParamScope(
 
 const CtxFunctionArgScope *CtxFunctionArgScope::getCtxFunctionParamScope(
   const FunctionParamScope *FPS, const PersistentSourceLoc &PSL) {
-  CtxFunctionArgScope TmpAS(*(FPS->getFName()), FPS->getIsStatic(), PSL);
+  CtxFunctionArgScope TmpAS(FPS->getFName(), FPS->getIsStatic(), PSL);
   if (AllCtxFnArgScopes.find(TmpAS) == AllCtxFnArgScopes.end()) {
     AllCtxFnArgScopes.insert(TmpAS);
   }
