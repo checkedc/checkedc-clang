@@ -51,6 +51,15 @@ public:
 
 };
 
+class PVSComp {
+public:
+
+  bool operator()(const ProgramVarScope &Lhs,
+                  const ProgramVarScope &Rhs) const {
+    return Lhs < Rhs;
+  }
+};
+
 // Scope for all global variables and program constants.
 class GlobalScope : public ProgramVarScope {
 public:
@@ -96,7 +105,7 @@ public:
   }
 
   bool operator==(const ProgramVarScope &O) const {
-    if (const StructScope *SS = clang::dyn_cast<StructScope>(&O)) {
+    if (auto *SS = clang::dyn_cast<StructScope>(&O)) {
       return SS->StName == StName;
     }
     return false;
@@ -107,21 +116,31 @@ public:
   }
 
   bool operator<(const ProgramVarScope &O) const {
-    return clang::isa<GlobalScope>(&O);
+    if (clang::isa<GlobalScope>(&O)) {
+      return true;
+    }
+
+    if (auto *SS = clang::dyn_cast<StructScope>(&O)) {
+      if (this->StName != SS->StName) {
+        return StName < SS->StName;
+      }
+      return false;
+    }
+
+    return false;
   }
 
   std::string getStr() const {
     return "Struct_" + StName;
   }
 
-  static StructScope *getStructScope(std::string StName);
+  static const StructScope *getStructScope(std::string StName);
 
 private:
   std::string StName;
-  static std::map<std::string, StructScope *> StScopeMap;
+  static std::set<StructScope, PVSComp> AllStScopes;
 };
 
-class FunctionScope;
 
 class FunctionParamScope : public ProgramVarScope {
 public:
@@ -137,8 +156,7 @@ public:
   }
 
   bool operator==(const ProgramVarScope &O) const {
-    if (const FunctionParamScope *FPS =
-        clang::dyn_cast<FunctionParamScope>(&O)) {
+    if (auto *FPS = clang::dyn_cast<FunctionParamScope>(&O)) {
       return (FPS->FName == FName && FPS->IsStatic == IsStatic);
     }
     return false;
@@ -149,30 +167,44 @@ public:
   }
 
   bool operator<(const ProgramVarScope &O) const {
-    return clang::isa<GlobalScope>(&O);
+    if (clang::isa<GlobalScope>(&O) ||
+        clang::isa<StructScope>(&O)) {
+      return true;
+    }
+
+    if (auto *FPS = clang::dyn_cast<FunctionParamScope>(&O)) {
+      if (this->FName != FPS->FName) {
+        return FName < FPS->FName;
+      }
+      if (this->IsStatic != FPS->IsStatic) {
+        return IsStatic < FPS->IsStatic;
+      }
+      return false;
+    }
+
+    return false;
   }
 
   std::string getStr() const {
     return "FuncParm_" + FName;
   }
 
-  std::string getFName() const {
-    return FName;
+  const std::string *getFName() const {
+    return &(this->FName);
   }
 
   bool getIsStatic() const {
     return IsStatic;
   }
 
-  static FunctionParamScope *
+  static const FunctionParamScope *
         getFunctionParamScope(std::string FnName, bool IsSt);
 
 protected:
   std::string FName;
   bool IsStatic;
 private:
-  static std::map<std::pair<std::string, bool>,
-                  FunctionParamScope *> FnParmScopeMap;
+  static std::set<FunctionParamScope, PVSComp> AllFnParamScopes;
 };
 
 // Context-sensitive arguments scope.
@@ -193,8 +225,7 @@ public:
   }
 
   bool operator==(const ProgramVarScope &O) const {
-    if (const CtxFunctionArgScope *FPS =
-      clang::dyn_cast<CtxFunctionArgScope>(&O)) {
+    if (auto *FPS = clang::dyn_cast<CtxFunctionArgScope>(&O)) {
       return (FPS->FName == FName &&
               FPS->IsStatic == IsStatic &&
               !(FPS->PSL < PSL || PSL < FPS->PSL));
@@ -207,22 +238,40 @@ public:
   }
 
   bool operator<(const ProgramVarScope &O) const {
-    return clang::isa<GlobalScope>(&O);
+    if (clang::isa<GlobalScope>(&O) ||
+        clang::isa<FunctionParamScope>(&O) ||
+        clang::isa<StructScope>(&O)) {
+      return true;
+    }
+
+    if (auto *FPS = clang::dyn_cast<CtxFunctionArgScope>(&O)) {
+      if (this->FName != FPS->FName) {
+        return FName < FPS->FName;
+      }
+      if (this->IsStatic != FPS->IsStatic) {
+        return IsStatic < FPS->IsStatic;
+      }
+      if (FPS->PSL < PSL || PSL < FPS->PSL) {
+        return PSL < FPS->PSL;
+      }
+      return false;
+    }
+
+    return false;
   }
 
   std::string getStr() const {
     return "CtxFuncArg_" + FName;
   }
 
-  static CtxFunctionArgScope *
-  getCtxFunctionParamScope(FunctionParamScope *FPS,
+  static const CtxFunctionArgScope *
+  getCtxFunctionParamScope(const FunctionParamScope *FPS,
                            const PersistentSourceLoc &PSL);
 
 private:
   PersistentSourceLoc PSL;
 
-  static std::map<std::tuple<std::string, bool, PersistentSourceLoc>,
-                  CtxFunctionArgScope *> CtxFnArgScopeMap;
+  static std::set<CtxFunctionArgScope, PVSComp> AllCtxFnArgScopes;
 };
 
 class FunctionScope : public ProgramVarScope {
@@ -238,12 +287,10 @@ public:
   }
 
   bool operator==(const ProgramVarScope &O) const {
-    if (const FunctionScope *FS =
-      clang::dyn_cast<FunctionScope>(&O)) {
+    if (auto *FS = clang::dyn_cast<FunctionScope>(&O)) {
       return (FS->FName == FName && FS->IsStatic == IsStatic);
     }
-    if (const FunctionParamScope *FPS =
-      clang::dyn_cast<FunctionParamScope>(&O)) {
+    if (auto *FPS = clang::dyn_cast<FunctionParamScope>(&O)) {
       return (FPS->FName == FName && FPS->IsStatic == IsStatic);
     }
     return false;
@@ -254,36 +301,53 @@ public:
   }
 
   bool operator<(const ProgramVarScope &O) const {
-    return clang::isa<GlobalScope>(&O);
+    if (clang::isa<GlobalScope>(&O) ||
+        clang::isa<FunctionParamScope>(&O) ||
+        clang::isa<CtxFunctionArgScope>(&O) ||
+        clang::isa<StructScope>(&O)) {
+      return true;
+    }
+
+    if (auto *FS = clang::dyn_cast<FunctionScope>(&O)) {
+      if (this->FName != FS->FName) {
+        return FName < FS->FName;
+      }
+      if (this->IsStatic != FS->IsStatic) {
+        return IsStatic < FS->IsStatic;
+      }
+      return false;
+    }
+    return false;
   }
 
   std::string getStr() const {
     return "InFunc_" + FName;
   }
 
-  static FunctionScope *getFunctionScope(std::string FnName,
-                                         bool IsSt);
+  static const FunctionScope *getFunctionScope(std::string FnName,
+                                               bool IsSt);
 
 private:
   std::string FName;
   bool IsStatic;
 
-  static std::map<std::pair<std::string, bool>, FunctionScope *>
-    FnScopeMap;
+  static std::set<FunctionScope, PVSComp> AllFnScopes;
 };
 
 // Class that represents a program variable along with its scope.
 class ProgramVar {
 public:
-  ProgramVar(BoundsKey VK, std::string VName, ProgramVarScope *PVS,
+  ProgramVar(BoundsKey VK, std::string VName,
+             const ProgramVarScope *PVS,
              bool IsCons) :
       K(VK), VarName(VName), VScope(PVS), IsConstant(IsCons) { }
 
-  ProgramVar(BoundsKey VK, std::string VName, ProgramVarScope *PVS) :
+  ProgramVar(BoundsKey VK, std::string VName,
+             const ProgramVarScope *PVS) :
       ProgramVar(VK, VName, PVS, false) { }
 
-  ProgramVarScope *getScope() { return VScope; }
-  void setScope(ProgramVarScope *PVS) { this->VScope = PVS; }
+  const ProgramVarScope *getScope() { return VScope; }
+  void setScope(const ProgramVarScope *PVS) { this->VScope = PVS; }
   BoundsKey getKey() { return K; }
   bool IsNumConstant() { return IsConstant; }
   std::string mkString(bool GetKey = false);
@@ -294,7 +358,7 @@ public:
 private:
   BoundsKey K;
   std::string VarName;
-  ProgramVarScope *VScope;
+  const ProgramVarScope *VScope;
   bool IsConstant;
 };
 

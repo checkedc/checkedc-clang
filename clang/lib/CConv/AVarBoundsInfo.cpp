@@ -221,7 +221,7 @@ BoundsKey AVarBoundsInfo::getVariable(clang::VarDecl *VD) {
   if (!hasVarKey(PSL)) {
     BoundsKey NK = ++BCount;
     insertVarKey(PSL, NK);
-    ProgramVarScope *PVS = nullptr;
+    const ProgramVarScope *PVS = nullptr;
     if (VD->hasGlobalStorage()) {
       PVS = GlobalScope::getGlobalScope();
     } else {
@@ -251,8 +251,8 @@ BoundsKey AVarBoundsInfo::getVariable(clang::ParmVarDecl *PVD) {
                                   FD->isStatic(), ParamIdx);
   if (ParamDeclVarMap.left().find(ParamKey) == ParamDeclVarMap.left().end()) {
     BoundsKey NK = ++BCount;
-    FunctionParamScope *FPS =
-        FunctionParamScope::getFunctionParamScope(FD->getNameAsString(),
+    const FunctionParamScope *FPS =
+          FunctionParamScope::getFunctionParamScope(FD->getNameAsString(),
                                                   FD->isStatic());
     std::string ParamName = PVD->getNameAsString();
     // If this is a parameter without name!?
@@ -277,8 +277,8 @@ BoundsKey AVarBoundsInfo::getVariable(clang::FunctionDecl *FD) {
                                  FD->isStatic());
   if (FuncDeclVarMap.left().find(FuncKey) == FuncDeclVarMap.left().end()) {
     BoundsKey NK = ++BCount;
-    FunctionParamScope *FPS =
-        FunctionParamScope::getFunctionParamScope(FD->getNameAsString(),
+    const FunctionParamScope *FPS =
+          FunctionParamScope::getFunctionParamScope(FD->getNameAsString(),
                                                   FD->isStatic());
 
     auto *PVar = new ProgramVar(NK, FD->getNameAsString(), FPS);
@@ -297,7 +297,7 @@ BoundsKey AVarBoundsInfo::getVariable(clang::FieldDecl *FD) {
     BoundsKey NK = ++BCount;
     insertVarKey(PSL, NK);
     std::string StName = FD->getParent()->getNameAsString();
-    StructScope *SS = StructScope::getStructScope(StName);
+    const StructScope *SS = StructScope::getStructScope(StName);
     auto *PVar = new ProgramVar(NK, FD->getNameAsString(), SS);
     insertProgramVar(NK, PVar);
     if (FD->getType()->isPointerType())
@@ -567,7 +567,7 @@ bool isInSrcArray(const CVarSet &CSet, Constraints &CS) {
 // This class picks variables that are in the same scope as the provided scope.
 class ScopeVisitor {
 public:
-  ScopeVisitor(ProgramVarScope *S, std::set<ProgramVar *> &R,
+  ScopeVisitor(const ProgramVarScope *S, std::set<ProgramVar *> &R,
                std::map<BoundsKey, ProgramVar *> &VarM,
                std::set<BoundsKey> &P): TS(S), Res(R), VM(VarM)
                , PtrAtoms(P) { }
@@ -595,7 +595,7 @@ public:
       }
     }
   }
-  ProgramVarScope *TS;
+  const ProgramVarScope *TS;
   std::set<ProgramVar *> &Res;
   std::map<BoundsKey, ProgramVar *> &VM;
   std::set<BoundsKey> &PtrAtoms;
@@ -878,7 +878,7 @@ bool AVarBoundsInfo::performWorkListInference(std::set<BoundsKey> &ArrNeededBoun
 void
 AVarBoundsInfo::insertCtxSensBoundsKey(ProgramVar *OldPV,
                                        BoundsKey NK,
-                                       CtxFunctionArgScope *CFAS) {
+                                       const CtxFunctionArgScope *CFAS) {
   ProgramVar *NKVar = OldPV->makeCopy(NK);
   NKVar->setScope(CFAS);
   insertProgramVar(NK, NKVar);
@@ -910,8 +910,8 @@ AVarBoundsInfo::contextualizeCVar(CallExpr *CE, const CVarSet &CSet,
         ProgramVar *CKVar = getProgramVar(CK);
 
         // Create a context sensitive scope.
-        CtxFunctionArgScope *CFAS = nullptr;
-        if (FunctionParamScope *FPS =
+        const CtxFunctionArgScope *CFAS = nullptr;
+        if (auto *FPS =
           dyn_cast_or_null<FunctionParamScope>(CKVar->getScope())) {
           CFAS = CtxFunctionArgScope::getCtxFunctionParamScope(FPS, CEPSL);
         }

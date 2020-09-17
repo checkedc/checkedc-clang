@@ -300,7 +300,7 @@ private:
   void insertProgramVar(BoundsKey NK, ProgramVar *PV);
 
   void insertCtxSensBoundsKey(ProgramVar *OldPV, BoundsKey NK,
-                              CtxFunctionArgScope *CFAS);
+                              const CtxFunctionArgScope *CFAS);
 
   // Check if the provided bounds key corresponds to function return.
   bool isFunctionReturn(BoundsKey BK);
