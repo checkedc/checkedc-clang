@@ -528,7 +528,7 @@ class ConstraintsEnv {
 
 public:
   ConstraintsEnv() : consFreeKey(0), useChecked(true) { environment.clear(); }
-  EnvironmentMap &getVariables() { return environment; }
+  const EnvironmentMap &getVariables() const { return environment; }
   void dump() const;
   void print(llvm::raw_ostream &) const;
   void dump_json(llvm::raw_ostream &) const;
@@ -572,10 +572,10 @@ public:
   // It's important to return these by reference. Programs can have 
   // 10-100-100000 constraints and variables, and copying them each time
   // a client wants to examine the environment is untenable.
-  ConstraintSet &getConstraints() { return constraints; }
-  EnvironmentMap &getVariables() { return environment.getVariables(); }
-  
-  EnvironmentMap &getitypeVarMap() { return itypeConstraintVars; }
+  const ConstraintSet &getConstraints() const { return constraints; }
+  const EnvironmentMap &getVariables() const {
+    return environment.getVariables();
+  }
 
   void editConstraintHook(Constraint *C);
 
@@ -617,11 +617,6 @@ private:
   ConstraintsGraph *PtrTypCG;
   std::map<std::string, ConstraintSet> constraintsByReason;
   ConstraintsEnv environment;
-  // Map of constraint variables, which are identified
-  // as itype pointers
-  // These should be the constraint variables of only
-  // function parameters or returns.
-  EnvironmentMap itypeConstraintVars;
 
   // Confirm a constraint is well-formed
   bool check(Constraint *C);

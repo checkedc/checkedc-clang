@@ -28,7 +28,7 @@ public:
 
   std::string getReplacement() const { return Replacement; }
 
-  virtual SourceRange getSourceRange() const {
+  virtual SourceRange getSourceRange(SourceManager &SM) const {
     return getDecl()->getSourceRange();
   }
 
@@ -93,10 +93,13 @@ public:
            && (RewriteReturn || RewriteParams));
   }
 
-  SourceRange getSourceRange() const override {
-    FunctionTypeLoc TypeLoc =
-        getBaseTypeLoc(Decl->getTypeSourceInfo()->getTypeLoc())
-        .getAs<clang::FunctionTypeLoc>();
+  SourceRange getSourceRange(SourceManager &SM) const override {
+    TypeSourceInfo *TSInfo = Decl->getTypeSourceInfo();
+    if (!TSInfo)
+      return SourceRange(Decl->getBeginLoc(),
+                         getFunctionDeclarationEnd(Decl, SM));
+    FunctionTypeLoc TypeLoc = getBaseTypeLoc(TSInfo->getTypeLoc())
+                             .getAs<clang::FunctionTypeLoc>();
 
     assert("FunctionDecl doesn't have function type?" && !TypeLoc.isNull());
 

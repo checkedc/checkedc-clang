@@ -198,8 +198,8 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
         || containsUncheckedPtr(type)
         || (std::any_of(FD->param_begin(), FD->param_end(),
            [this] (Decl *param) {
-              auto CVSet = Info.getVariable(param, Context);
-              return isWild(CVSet );
+              CVarOption CV = Info.getVariable(param, Context);
+              return isWild(CV);
             }));
     }
     handleChildren(C->children());
@@ -210,15 +210,15 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
 }
 
 bool CheckedRegionFinder::VisitVarDecl(VarDecl *VD) {
-  auto CVSet = Info.getVariable(VD, Context);
-  Wild = isWild(CVSet) || containsUncheckedPtr(VD->getType());
+  CVarOption CV = Info.getVariable(VD, Context);
+  Wild = isWild(CV) || containsUncheckedPtr(VD->getType());
   return true;
 }
 
 bool CheckedRegionFinder::VisitParmVarDecl(ParmVarDecl *PVD) {
   // Check if the variable is WILD.
-  auto CVSet = Info.getVariable(PVD, Context);
-  Wild |= isWild(CVSet) | containsUncheckedPtr(PVD->getType());
+  CVarOption CV = Info.getVariable(PVD, Context);
+  Wild |= isWild(CV) || containsUncheckedPtr(PVD->getType());
   return true;
 }
 
@@ -226,12 +226,10 @@ bool CheckedRegionFinder::VisitMemberExpr(MemberExpr *E){
   ValueDecl *VD = E->getMemberDecl();
   if (VD) {
     // Check if the variable is WILD.
-    std::set<ConstraintVariable *> CVSet = Info.getVariable(VD, Context);
-    for (auto Cv : CVSet) {
-      if (Cv->hasWild(Info.getConstraints().getVariables())) {
-        Wild = true;
-      }
-    }
+    CVarOption Cv = Info.getVariable(VD, Context);
+    if (Cv.hasValue()
+        && Cv.getValue().hasWild(Info.getConstraints().getVariables()))
+      Wild = true;
     // Check if the variable contains unchecked types.
     Wild |= containsUncheckedPtr(VD->getType());
   }
@@ -241,15 +239,15 @@ bool CheckedRegionFinder::VisitMemberExpr(MemberExpr *E){
 bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr* DR) {
   auto T = DR->getType();
   auto D = DR->getDecl();
-  auto CVSet = Info.getVariable(D, Context);
-  bool IW = isWild(CVSet ) || containsUncheckedPtr(T);
+  CVarOption CV = Info.getVariable(D, Context);
+  bool IW = isWild(CV) || containsUncheckedPtr(T);
 
   if (auto FD = dyn_cast<FunctionDecl>(D)) {
     auto *FV = Info.getFuncConstraint(FD, Context);
     IW |= FV->hasWild(Info.getConstraints().getVariables());
     for (const auto& param: FD->parameters()) {
-      auto CVSet = Info.getVariable(param, Context);
-      IW |= isWild(CVSet);
+      CVarOption CV = Info.getVariable(param, Context);
+      IW |= isWild(CV);
     }
   }
 
@@ -308,18 +306,10 @@ bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
   }
 }
 
-bool CheckedRegionFinder::isWild(const std::set<ConstraintVariable*> &S) {
-  for (auto Cv : S) 
-    if (Cv->hasWild(Info.getConstraints().getVariables()))
-      return true;
-
-  return false;
-}
-
-bool CheckedRegionFinder::isWild(const std::set<FVConstraint*> *S) {
-  for (auto Fv : *S)
-    if (Fv->hasWild(Info.getConstraints().getVariables()))
-      return true;
+bool CheckedRegionFinder::isWild(CVarOption Cv) {
+  if (Cv.hasValue()
+      && Cv.getValue().hasWild(Info.getConstraints().getVariables()))
+    return true;
   return false;
 }
 
@@ -377,10 +367,9 @@ bool CheckedRegionFinder::isUncheckedStruct(QualType Qt, std::set<std::string> &
       for (auto const &Fld : D->fields()) {
         auto Ftype = Fld->getType();
         Unsafe |= containsUncheckedPtrAcc(Ftype, Seen);
-        std::set<ConstraintVariable *> CVSet =
-            Info.getVariable(Fld, Context);
-        for (auto Cv : CVSet)
-          Unsafe |= Cv->hasWild(Info.getConstraints().getVariables());
+        CVarOption Cv = Info.getVariable(Fld, Context);
+        Unsafe |= (Cv.hasValue()
+            && Cv.getValue().hasWild(Info.getConstraints().getVariables()));
       }
       return Unsafe;
     }
