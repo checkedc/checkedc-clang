@@ -68,15 +68,20 @@ public:
   // should all be empty. 
   void exitCompilationUnit();
 
-  CVarSet &getPersistentConstraintVars(Expr *E, ASTContext *AstContext);
+  bool hasPersistentConstraints(clang::Expr *E, ASTContext *C) const;
+  const CVarSet &getPersistentConstraints(clang::Expr *E, ASTContext *C) const;
+  void storePersistentConstraints(clang::Expr *E, const CVarSet &Vars,
+                                  ASTContext *C);
+
   // Get constraint variable for the provided Decl
-  CVarSet getVariable(clang::Decl *D, clang::ASTContext *C);
+  CVarOption getVariable(clang::Decl *D, clang::ASTContext *C);
 
   // Retrieve a function's constraints by decl, or by name; nullptr if not found
   FVConstraint *getFuncConstraint (FunctionDecl *D, ASTContext *C) const;
   FVConstraint *getExtFuncDefnConstraint (std::string FuncName) const;
   FVConstraint *getStaticFuncConstraint(std::string FuncName,
                                         std::string FileName) const;
+
 
   // Check if the given function is an extern function.
   bool isAnExternFunction(const std::string &FName);
@@ -86,7 +91,7 @@ public:
   // constraints where appropriate.
   bool link();
 
-  VariableMap &getVarMap() { return Variables; }
+  const VariableMap &getVarMap() const { return Variables; }
   Constraints &getConstraints() { return CS;  }
   AVarBoundsInfo &getABoundsInfo() { return ArrBInfo; }
 
@@ -109,13 +114,18 @@ public:
   const CallTypeParamBindingsT &getTypeParamBindings(CallExpr *CE,
                                                      ASTContext *C) const;
 
-  void constrainWildIfMacro(CVarSet &S, SourceLocation Location);
+  void constrainWildIfMacro(ConstraintVariable *CV, SourceLocation Location);
 
 private:
-  // List of all constraint variables, indexed by their location in the source.
-  // This information persists across invocations of the constraint analysis
-  // from compilation unit to compilation unit.
+  // List of constraint variables for declarations, indexed by their location in
+  // the source. This information persists across invocations of the constraint
+  // analysis from compilation unit to compilation unit.
   VariableMap Variables;
+
+  // Map with the same purpose as the Variables map, this stores constraint
+  // variables for non-declaration expressions.
+  std::map<PersistentSourceLoc, CVarSet> ExprConstraintVars;
+
   // Constraint system.
   Constraints CS;
   // Is the ProgramInfo persisted? Only tested in asserts. Starts at true.
@@ -132,8 +142,7 @@ private:
   StaticFunctionMapType StaticFunctionFVCons;
   std::map<std::string, std::set<PVConstraint *>> GlobalVariableSymbols;
 
-  // Object that contains all the bounds information of various
-  // array variables.
+  // Object that contains all the bounds information of various array variables.
   AVarBoundsInfo ArrBInfo;
   // Constraints state.
   ConstraintsInfo CState;
@@ -142,9 +151,8 @@ private:
   // instantiated so they can be inserted during rewriting.
   TypeParamBindingsT TypeParamBindings;
 
-  // Function to check if an external symbol is okay to leave
-  // constrained.
-  bool isExternOkay(std::string Ext);
+  // Function to check if an external symbol is okay to leave constrained.
+  bool isExternOkay(const std::string &Ext);
 
   // Insert the given FVConstraint* set into the provided Map.
   // Returns true if successful else false.
@@ -175,7 +183,7 @@ private:
 
   // For each pointer type in the declaration of D, add a variable to the
   // constraint system for that pointer type.
-  void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *astContext);
+  void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *AstContext);
 };
 
 #endif

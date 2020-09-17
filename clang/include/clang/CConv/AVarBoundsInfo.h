@@ -176,11 +176,11 @@ public:
                                clang::Expr *R,
                                ASTContext *C,
                                ConstraintResolver *CR);
-  bool handleAssignment(clang::Expr *L, CVarSet &LCVars,
-                        clang::Expr *R, CVarSet &RCVars,
+  bool handleAssignment(clang::Expr *L, const CVarSet &LCVars,
+                        clang::Expr *R, const CVarSet &RCVars,
                         ASTContext *C, ConstraintResolver *CR);
-  bool handleAssignment(clang::Decl *L, CVarSet &LCVars,
-                        clang::Expr *R, CVarSet &RCVars,
+  bool handleAssignment(clang::Decl *L, CVarOption LCVar,
+                        clang::Expr *R, const CVarSet &RCVars,
                         ASTContext *C, ConstraintResolver *CR);
   // Handle context sensitive assignment.
   bool handleContextSensitiveAssignment(CallExpr *CE, clang::Decl *L,

@@ -1,6 +1,6 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/qualifiers.c
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/qualifiers.c
-// RUN: %clang -c %S/qualifiers.checkedNOALL.c %S/qualifiers.checkedNOALL.c
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s
+// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s
+// RUN: %clang -c %S/qualifiers.checkedNOALL.c
 // RUN: FileCheck -match-full-lines --input-file %S/qualifiers.checkedNOALL.c %s
 // RUN: FileCheck -match-full-lines --input-file %S/qualifiers.checkedALL.c %s
 // RUN: rm %S/qualifiers.checkedALL.c %S/qualifiers.checkedNOALL.c

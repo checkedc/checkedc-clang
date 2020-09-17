@@ -26,11 +26,31 @@ class ConstraintVariable;
 class ProgramInfo;
 
 // Maps a Decl to the set of constraint variables for that Decl.
-typedef std::map<PersistentSourceLoc, 
-  std::set<ConstraintVariable *>> VariableMap;
+typedef std::map<PersistentSourceLoc, ConstraintVariable *> VariableMap;
 
 // Maps a Decl to the DeclStmt that defines the Decl.
 typedef std::map<clang::Decl *, clang::DeclStmt *> VariableDecltoStmtMap;
+
+template<typename ValueT>
+class Option {
+public:
+  Option() : Value(nullptr), HasValue(false) {}
+  Option(ValueT &V) : Value(&V), HasValue(true) {}
+
+  ValueT &getValue() const {
+    assert("Inconsistent option!" && HasValue && Value != nullptr);
+    return *Value;
+  }
+
+  bool hasValue() const {
+    assert("Inconsistent option!" && HasValue == (Value != nullptr));
+    return HasValue;
+  }
+
+private:
+  ValueT *Value;
+  bool HasValue;
+};
 
 // Replacement for boost:bimap. A wrapper class around two std::maps to enable
 // map lookup from key to value or from value to key.

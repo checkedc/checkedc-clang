@@ -88,7 +88,7 @@ public:
   // the name of the variable, false for just the type.
   // The 'forIType' parameter is true when the generated string is expected
   // to be used inside an itype
-  virtual std::string mkString(EnvironmentMap &E,
+  virtual std::string mkString(const EnvironmentMap &E,
                                bool emitName=true, bool forItype=false,
                                bool emitPointee=false) const = 0;
 
@@ -123,20 +123,20 @@ public:
   // have a binding in E other than top. E should be the EnvironmentMap that
   // results from running unification on the set of constraints and the
   // environment.
-  bool isChecked(EnvironmentMap &E) const;
+  bool isChecked(const EnvironmentMap &E) const;
 
   // Returns true if this constraint variable has a different checked type after
   // running unification. Note that if the constraint variable had a checked
   // type in the input program, it will have the same checked type after solving
   // so, the type will not have changed. To test if the type is checked, use
   // isChecked instead.
-  virtual bool anyChanges(EnvironmentMap &E) const = 0;
+  virtual bool anyChanges(const EnvironmentMap &E) const = 0;
 
   // Here, AIdx is the pointer level which needs to be checked.
   // By default, we check for all pointer levels (or VarAtoms)
-  virtual bool hasWild(EnvironmentMap &E, int AIdx = -1) const = 0;
-  virtual bool hasArr(EnvironmentMap &E, int AIdx = -1) const = 0;
-  virtual bool hasNtArr(EnvironmentMap &E, int AIdx = -1) const = 0;
+  virtual bool hasWild(const EnvironmentMap &E, int AIdx = -1) const = 0;
+  virtual bool hasArr(const EnvironmentMap &E, int AIdx = -1) const = 0;
+  virtual bool hasNtArr(const EnvironmentMap &E, int AIdx = -1) const = 0;
 
   // Force use of equality constraints in function calls for this CV
   virtual void equateArgumentConstraints(ProgramInfo &I) = 0;
@@ -158,14 +158,11 @@ public:
 
   virtual ~ConstraintVariable() {};
 
-  // Sometimes, constraint variables can be produced that are empty. This
-  // tests for the existence of those constraint variables.
-  virtual bool isEmpty(void) const = 0;
-
   virtual bool getIsOriginallyChecked() const = 0;
 };
 
 typedef std::set<ConstraintVariable *> CVarSet;
+typedef Option<ConstraintVariable> CVarOption;
 
 enum ConsAction {
   Safe_to_Wild,
@@ -246,6 +243,12 @@ private:
                      bool &AllArray, bool &ArrayRun, bool Nt) const;
   void addArrayAnnotations(std::stack<std::string> &CheckedArrs,
                            std::deque<std::string> &EndStrs) const;
+
+  // Utility used by the constructor to extract string representation of the
+  // base type that preserves macros where possible.
+  static std::string extractBaseType(DeclaratorDecl *D, QualType QT,
+                                     const Type *Ty, const ASTContext &C);
+
   // Flag to indicate that this constraint is a part of function prototype
   // e.g., Parameters or Return.
   bool partOFFuncPrototype;
@@ -254,7 +257,7 @@ private:
   // the values used as arguments.
   std::set<ConstraintVariable *> argumentConstraints;
   // Get solution for the atom of a pointer.
-  const ConstAtom *getSolution(const Atom *A, EnvironmentMap &E) const;
+  const ConstAtom *getSolution(const Atom *A, const EnvironmentMap &E) const;
 
   PointerVariableConstraint(PointerVariableConstraint *Ot, Constraints &CS);
   PointerVariableConstraint *Parent;
@@ -348,7 +351,7 @@ public:
     return S->getKind() == PointerVariable;
   }
 
-  std::string mkString(EnvironmentMap &E, bool EmitName =true,
+  std::string mkString(const EnvironmentMap &E, bool EmitName =true,
                        bool ForItype = false,
                        bool EmitPointee = false) const override;
 
@@ -362,11 +365,11 @@ public:
   void constrainToWild(Constraints &CS, const std::string &Rsn,
                        PersistentSourceLoc *PL) const override;
   void constrainOuterTo(Constraints &CS, ConstAtom *C, bool doLB = false);
-  bool anyChanges(EnvironmentMap &E) const override;
-  bool anyArgumentIsWild(EnvironmentMap &E);
-  bool hasWild(EnvironmentMap &E, int AIdx = -1) const override;
-  bool hasArr(EnvironmentMap &E, int AIdx = -1) const override;
-  bool hasNtArr(EnvironmentMap &E, int AIdx = -1) const override;
+  bool anyChanges(const EnvironmentMap &E) const override;
+  bool anyArgumentIsWild(const EnvironmentMap &E);
+  bool hasWild(const EnvironmentMap &E, int AIdx = -1) const override;
+  bool hasArr(const EnvironmentMap &E, int AIdx = -1) const override;
+  bool hasNtArr(const EnvironmentMap &E, int AIdx = -1) const override;
 
   void equateArgumentConstraints(ProgramInfo &I) override;
 
@@ -375,8 +378,6 @@ public:
   bool addArgumentConstraint(ConstraintVariable *DstCons, ProgramInfo &Info);
   // Get the set of constraint variables corresponding to the arguments.
   const std::set<ConstraintVariable *> &getArgumentConstraints() const;
-
-  bool isEmpty(void) const override { return vars.size() == 0; }
 
   ConstraintVariable *getCopy(Constraints &CS) override;
 
@@ -468,7 +469,7 @@ public:
   bool solutionEqualTo(Constraints &CS,
                        const ConstraintVariable *CV) const override;
 
-  std::string mkString(EnvironmentMap &E, bool EmitName =true,
+  std::string mkString(const EnvironmentMap &E, bool EmitName =true,
                        bool ForItype = false,
                        bool EmitPointee = false) const override;
   void print(llvm::raw_ostream &O) const override;
@@ -478,27 +479,14 @@ public:
   void constrainToWild(Constraints &CS, const std::string &Rsn) const override;
   void constrainToWild(Constraints &CS, const std::string &Rsn,
                        PersistentSourceLoc *PL) const override;
-  bool anyChanges(EnvironmentMap &E) const override;
-  bool hasWild(EnvironmentMap &E, int AIdx = -1) const override;
-  bool hasArr(EnvironmentMap &E, int AIdx = -1) const override;
-  bool hasNtArr(EnvironmentMap &E, int AIdx = -1) const override;
+  bool anyChanges(const EnvironmentMap &E) const override;
+  bool hasWild(const EnvironmentMap &E, int AIdx = -1) const override;
+  bool hasArr(const EnvironmentMap &E, int AIdx = -1) const override;
+  bool hasNtArr(const EnvironmentMap &E, int AIdx = -1) const override;
 
   void equateArgumentConstraints(ProgramInfo &P) override;
 
   ConstraintVariable *getCopy(Constraints &CS) override;
-
-  // An FVConstraint is empty if every constraint associated is empty.
-  bool isEmpty(void) const override {
-
-    if (ReturnVar != nullptr)
-      return false;
-
-    for (const auto &u : ParamVars)
-      if (!u->isEmpty())
-        return false;
-
-    return true;
-  }
 
   bool getIsOriginallyChecked() const override;
 

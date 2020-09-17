@@ -58,9 +58,9 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
           // mark field wild if the above is true and the field is a pointer
           if ((FieldTy->isPointerType() || FieldTy->isArrayType()) &&
               (FieldInUnionOrSysHeader || IsInLineStruct)) {
-            CVarSet C = Info.getVariable(F, Context);
             std::string Rsn = "External struct field or union encountered";
-            CB.constraintAllCVarsToWild(C, Rsn, nullptr);
+            CVarOption CV = Info.getVariable(F, Context);
+            CB.constraintCVarToWild(CV, Rsn);
           }
         }
       }
@@ -95,8 +95,8 @@ public:
               (VD->getType()->isPointerType() ||
                VD->getType()->isArrayType())) {
             if (lastRecordLocation == VD->getBeginLoc().getRawEncoding()) {
-              CVarSet C = Info.getVariable(VD, Context);
-              CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
+              CVarOption CV = Info.getVariable(VD, Context);
+              CB.constraintCVarToWild(CV, "Inline struct encountered.");
             }
           }
         }
@@ -176,11 +176,15 @@ public:
       }
     } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       FuncName = FD->getNameAsString();
-      FVCons = Info.getVariable(FD, Context);
       TFD = FD;
+      CVarOption CV = Info.getVariable(FD, Context);
+      if (CV.hasValue())
+        FVCons.insert(&CV.getValue());
     } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {
-      FVCons = Info.getVariable(DD, Context);
       FuncName = DD->getNameAsString();
+      CVarOption CV = Info.getVariable(DD, Context);
+      if (CV.hasValue())
+        FVCons.insert(&CV.getValue());
     }
 
     // Collect type parameters for this function call that are
@@ -286,8 +290,7 @@ public:
     // Get function variable constraint of the body
     PersistentSourceLoc PL =
         PersistentSourceLoc::mkPSL(S, *Context);
-    CVarSet Fun =
-        Info.getVariable(Function, Context);
+    CVarOption CVOpt = Info.getVariable(Function, Context);
 
     // Constrain the value returned (if present) against the return value
     // of the function.
@@ -296,8 +299,8 @@ public:
     CVarSet RconsVar = CB.getExprConstraintVars(RetExpr);
     // Constrain the return type of the function
     // to the type of the return expression.
-    for (const auto &F : Fun) {
-      if (FVConstraint *FV = dyn_cast<FVConstraint>(F)) {
+    if (CVOpt.hasValue()) {
+      if (FVConstraint *FV = dyn_cast<FVConstraint>(&CVOpt.getValue())) {
         // This is to ensure that the return type of the function is same
         // as the type of return expression.
         constrainConsVarGeq(FV->getReturnVar(), RconsVar, Info.getConstraints(),
@@ -430,8 +433,8 @@ public:
       unsigned int BeginLoc = G->getBeginLoc().getRawEncoding();
       unsigned int EndLoc = G->getEndLoc().getRawEncoding();
       if (lastRecordLocation >= BeginLoc && lastRecordLocation <= EndLoc) {
-        CVarSet C = Info.getVariable(G, Context);
-        CB.constraintAllCVarsToWild(C, "Inline struct encountered.", nullptr);
+        CVarOption CV = Info.getVariable(G, Context);
+        CB.constraintCVarToWild(CV, "Inline struct encountered.");
       }
     }
 
@@ -500,8 +503,7 @@ public:
 
   bool VisitVarDecl(VarDecl *D) {
     FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
-    if (FL.isValid() &&
-        (!isa<ParmVarDecl>(D) || D->getParentFunctionOrMethod() != nullptr))
+    if (FL.isValid() && !isa<ParmVarDecl>(D))
       addVariable(D);
     return true;
   }
@@ -514,7 +516,10 @@ public:
   }
 
   bool VisitRecordDecl(RecordDecl *Declaration) {
-    if (RecordDecl *Definition = Declaration->getDefinition()) {
+    if (Declaration->isThisDeclarationADefinition()) {
+      RecordDecl *Definition = Declaration->getDefinition();
+      assert("Declaration is a definition, but getDefinition() is null?"
+                 && Definition);
       FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
       if (FL.isValid()) {
         SourceManager &SM = Context->getSourceManager();

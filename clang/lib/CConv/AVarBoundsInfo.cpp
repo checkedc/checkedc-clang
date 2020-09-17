@@ -325,8 +325,8 @@ bool AVarBoundsInfo::addAssignment(clang::DeclRefExpr *L,
   return addAssignment(L->getDecl(), R->getDecl());
 }
 
-bool AVarBoundsInfo::handleAssignment(clang::Expr *L, CVarSet &LCVars,
-                                      clang::Expr *R, CVarSet &RCVars,
+bool AVarBoundsInfo::handleAssignment(clang::Expr *L, const CVarSet &LCVars,
+                                      clang::Expr *R, const CVarSet &RCVars,
                                       ASTContext *C, ConstraintResolver *CR) {
   BoundsKey LKey, RKey;
   if ((CR->resolveBoundsKey(LCVars, LKey) ||
@@ -338,8 +338,8 @@ bool AVarBoundsInfo::handleAssignment(clang::Expr *L, CVarSet &LCVars,
   return false;
 }
 
-bool AVarBoundsInfo::handleAssignment(clang::Decl *L, CVarSet &LCVars,
-                                      clang::Expr *R, CVarSet &RCVars,
+bool AVarBoundsInfo::handleAssignment(clang::Decl *L, CVarOption LCVars,
+                                      clang::Expr *R, const CVarSet &RCVars,
                                       ASTContext *C, ConstraintResolver *CR) {
   BoundsKey LKey, RKey;
   if ((CR->resolveBoundsKey(LCVars, LKey) ||
@@ -371,7 +371,7 @@ bool AVarBoundsInfo::handleContextSensitiveAssignment(CallExpr *CE,
   } else {
     // This is the assignment of regular variables.
     BoundsKey LKey, RKey;
-    if ((CR->resolveBoundsKey({LCVar}, LKey) ||
+    if ((CR->resolveBoundsKey(*LCVar, LKey) ||
         tryGetVariable(L, LKey)) &&
         (CR->resolveBoundsKey(RCVars, RKey) ||
             tryGetVariable(R, *C, RKey))) {
@@ -538,27 +538,23 @@ void AVarBoundsInfo::insertProgramVar(BoundsKey NK, ProgramVar *PV) {
   PVarInfo[NK] = PV;
 }
 
-bool hasArray(const CVarSet &CSet, Constraints &CS) {
+bool hasArray(ConstraintVariable *CK, Constraints &CS) {
   auto &E = CS.getVariables();
-  for (auto *CK : CSet) {
-    if (PVConstraint *PV = dyn_cast<PVConstraint>(CK)) {
-      if ((PV->hasArr(E, 0) || PV->hasNtArr(E, 0)) &&
-          PV->isTopCvarUnsizedArr()) {
-        return true;
-      }
+  if (PVConstraint *PV = dyn_cast<PVConstraint>(CK)) {
+    if ((PV->hasArr(E, 0) || PV->hasNtArr(E, 0)) &&
+        PV->isTopCvarUnsizedArr()) {
+      return true;
     }
   }
   return false;
 }
 
-bool isInSrcArray(const CVarSet &CSet, Constraints &CS) {
+bool isInSrcArray(ConstraintVariable *CK, Constraints &CS) {
   auto &E = CS.getVariables();
-  for (auto *CK : CSet) {
-    if (PVConstraint *PV = dyn_cast<PVConstraint>(CK)) {
-      if ((PV->hasArr(E, 0) || PV->hasNtArr(E, 0)) &&
-          PV->isTopCvarUnsizedArr() && PV->isForValidDecl()) {
-        return true;
-      }
+  if (PVConstraint *PV = dyn_cast<PVConstraint>(CK)) {
+    if ((PV->hasArr(E, 0) || PV->hasNtArr(E, 0)) &&
+        PV->isTopCvarUnsizedArr() && PV->isForValidDecl()) {
+      return true;
     }
   }
   return false;
@@ -965,11 +961,11 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
     auto &BkeyToPSL = DeclVarMap.right();
     if (BkeyToPSL.find(Bkey) != BkeyToPSL.end()) {
       auto &PSL = BkeyToPSL.at(Bkey);
-      if (hasArray(PI->getVarMap()[PSL], CS)) {
+      if (hasArray(PI->getVarMap().at(PSL), CS)) {
         ArrPointers.insert(Bkey);
       }
       // Does this array belongs to a valid program variable?
-      if (isInSrcArray(PI->getVarMap()[PSL], CS)) {
+      if (isInSrcArray(PI->getVarMap().at(PSL), CS)) {
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }
       continue;
@@ -990,11 +986,11 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
         FV = PI->getExtFuncDefnConstraint(FuncName);
       }
 
-      if (hasArray({FV->getParamVar(ParmNum)}, CS)) {
+      if (hasArray(FV->getParamVar(ParmNum), CS)) {
         ArrPointers.insert(Bkey);
       }
       // Does this array belongs to a valid program variable?
-      if (isInSrcArray({FV->getParamVar(ParmNum)}, CS)) {
+      if (isInSrcArray(FV->getParamVar(ParmNum), CS)) {
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }
 
@@ -1018,11 +1014,11 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
         FV = getOnly(Tmp);
       }
 
-      if (hasArray({FV->getReturnVar()}, CS)) {
+      if (hasArray(FV->getReturnVar(), CS)) {
         ArrPointers.insert(Bkey);
       }
       // Does this array belongs to a valid program variable?
-      if (isInSrcArray({FV->getReturnVar()}, CS)) {
+      if (isInSrcArray(FV->getReturnVar(), CS)) {
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }
       continue;
@@ -1185,9 +1181,10 @@ ContextSensitiveBoundsKeyVisitor::~ContextSensitiveBoundsKeyVisitor() {
 bool ContextSensitiveBoundsKeyVisitor::VisitCallExpr(CallExpr *CE) {
   if (FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(CE->getCalleeDecl())) {
     // Contextualize the function at this call-site.
-    for (auto *CFV : Info.getVariable(FD, Context)) {
-      Info.getABoundsInfo().contextualizeCVar(CE, {CFV}, Context);
-    }
+    CVarOption COpt = Info.getVariable(FD, Context);
+    if (COpt.hasValue())
+      Info.getABoundsInfo().contextualizeCVar(CE, {&COpt.getValue()}, Context);
+    
   }
   return true;
 }

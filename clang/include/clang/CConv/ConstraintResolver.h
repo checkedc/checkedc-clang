@@ -26,9 +26,10 @@ public:
 
   virtual ~ConstraintResolver();
 
-  void constraintAllCVarsToWild(CVarSet &CSet,
-                                std::string rsn,
+  void constraintAllCVarsToWild(const CVarSet &CSet, const std::string &Rsn,
                                 Expr *AtExpr = nullptr);
+  void constraintCVarToWild(CVarOption CVar, const std::string &Rsn,
+                            Expr *AtExpr = nullptr);
 
   // Returns a set of ConstraintVariables which represent the result of
   // evaluating the expression E. Will explore E recursively, but will
@@ -48,8 +49,8 @@ public:
   bool containsValidCons(const CVarSet &CVs);
   bool isValidCons(ConstraintVariable *CV);
   // Try to get the bounds key from the constraint variable set.
-  bool resolveBoundsKey(CVarSet &CVs, BoundsKey &BK);
-  bool resolveBoundsKey(ConstraintVariable *CV, BoundsKey &BK);
+  bool resolveBoundsKey(const CVarSet &CVs, BoundsKey &BK);
+  bool resolveBoundsKey(CVarOption CV, BoundsKey &BK);
 
   static bool canFunctionBeSkipped(const std::string &FN);
 
@@ -69,9 +70,7 @@ private:
 
   CVarSet getAllSubExprConstraintVars(std::vector<Expr *> &Exprs);
   CVarSet getBaseVarPVConstraint(DeclRefExpr *Decl);
-  bool hasPersistentConstraints(clang::Expr *E);
-  CVarSet getPersistentConstraints(clang::Expr *E);
-  void storePersistentConstraints(clang::Expr *E, CVarSet &Vars);
+
   PVConstraint *getRewritablePVConstraint(Expr *E);
 };
 

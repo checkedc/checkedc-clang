@@ -101,19 +101,19 @@ static bool hasLengthKeyword(std::string VarName) {
 }
 
 // Check if the provided constraint variable is an array and it needs bounds.
-static bool needArrayBounds(ConstraintVariable *CV,
-                            EnvironmentMap &E) {
+static bool needArrayBounds(const ConstraintVariable *CV,
+                            const EnvironmentMap &E) {
   if (CV->hasArr(E, 0)) {
-    PVConstraint *PV = dyn_cast<PVConstraint>(CV);
+    const PVConstraint *PV = dyn_cast<PVConstraint>(CV);
     return !PV || PV->isTopCvarUnsizedArr();
   }
   return false;
 }
 
-static bool needNTArrayBounds(ConstraintVariable *CV,
-                              EnvironmentMap &E) {
+static bool needNTArrayBounds(const ConstraintVariable *CV,
+                              const EnvironmentMap &E) {
   if (CV->hasNtArr(E, 0)) {
-    PVConstraint *PV = dyn_cast<PVConstraint>(CV);
+    const PVConstraint *PV = dyn_cast<PVConstraint>(CV);
     return !PV || PV->isTopCvarUnsizedArr();
   }
   return false;
@@ -122,7 +122,7 @@ static bool needNTArrayBounds(ConstraintVariable *CV,
 static bool needArrayBounds(Expr *E, ProgramInfo &Info, ASTContext *C) {
   ConstraintResolver CR(Info, C);
   CVarSet ConsVar = CR.getExprConstraintVars(E);
-  auto &EnvMap = Info.getConstraints().getVariables();
+  const auto &EnvMap = Info.getConstraints().getVariables();
   for (auto CurrCVar : ConsVar) {
     if (needArrayBounds(CurrCVar, EnvMap) || needNTArrayBounds(CurrCVar, EnvMap))
       return true;
@@ -133,11 +133,12 @@ static bool needArrayBounds(Expr *E, ProgramInfo &Info, ASTContext *C) {
 
 static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C,
                             bool IsNtArr) {
-  CVarSet ConsVar = Info.getVariable(D, C);
-  auto &E = Info.getConstraints().getVariables();
-  for (auto CurrCVar : ConsVar) {
-    if ((!IsNtArr && needArrayBounds(CurrCVar, E)) ||
-        (IsNtArr && needNTArrayBounds(CurrCVar, E)))
+  const auto &E = Info.getConstraints().getVariables();
+  CVarOption CVar = Info.getVariable(D, C);
+  if (CVar.hasValue()) {
+    ConstraintVariable &CV = CVar.getValue();
+    if ((!IsNtArr && needArrayBounds(&CV, E)) ||
+        (IsNtArr && needNTArrayBounds(&CV, E)))
       return true;
     return false;
   }
@@ -179,10 +180,9 @@ bool tryGetBoundsKeyVar(Expr *E, BoundsKey &BK, ProgramInfo &Info,
 bool tryGetBoundsKeyVar(Decl *D, BoundsKey &BK, ProgramInfo &Info,
                         ASTContext *Context) {
   ConstraintResolver CR(Info, Context);
-  CVarSet CVs = Info.getVariable(D, Context);
+  CVarOption CV = Info.getVariable(D, Context);
   auto &ABInfo = Info.getABoundsInfo();
-  return CR.resolveBoundsKey(CVs, BK) ||
-         ABInfo.tryGetVariable(D, BK);
+  return CR.resolveBoundsKey(CV, BK) || ABInfo.tryGetVariable(D, BK);
 }
 
 // Check if the provided expression is a call to one of the known

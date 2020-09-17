@@ -32,7 +32,7 @@ std::string ConstraintVariable::getRewritableOriginalTy() const {
   }
   return OrigTyString;
 }
-bool ConstraintVariable::isChecked(EnvironmentMap &E) const {
+bool ConstraintVariable::isChecked(const EnvironmentMap &E) const {
   return getIsOriginallyChecked() || anyChanges(E);
 }
 
@@ -346,41 +346,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     FV = new FVConstraint(Ty, IsDeclTy ? D : nullptr, IsTypedef ? "" : N, I, C);
 
   // Get a string representing the type without pointer and array indirection.
-  bool FoundMatchingType = false;
-  if (!IsTypedef && D && D->getTypeSourceInfo()) {
-    // Try to extract the type from original source to preserve defines
-    TypeLoc TL = D->getTypeSourceInfo()->getTypeLoc();
-    if (isa<FunctionDecl>(D)) {
-      FoundMatchingType = D->getAsFunction()->getReturnType() == QT;
-      TL = getBaseTypeLoc(TL).getAs<FunctionTypeLoc>();
-      // FunctionDecl that doesn't have function type? weird
-      if (TL.isNull())
-        FoundMatchingType = false;
-      else
-        TL = TL.getAs<clang::FunctionTypeLoc>().getReturnLoc();
-    } else {
-      FoundMatchingType = D->getType() == QT;
-    }
-    TypeLoc BaseLoc = getBaseTypeLoc(TL);
-    if (!BaseLoc.getAs<TypedefTypeLoc>().isNull()) {
-      FoundMatchingType = false;
-    } else {
-      // Only use this type if the type passed as a parameter to this constructor
-      // agrees with the actual type of the declaration.
-      SourceRange SR = BaseLoc.getSourceRange();
-      if (FoundMatchingType && SR.isValid()) {
-        BaseType = getSourceText(SR, C);
-
-        // getSourceText returns the empty string when there's a pointer level
-        // inside a macro. Not sure how to handle this, so fall back to tyToStr.
-        if (BaseType.empty())
-          FoundMatchingType = false;
-      }
-    }
-  }
-  // Fall back to rebuilding the base type based on type passed to constructor
-  if (!FoundMatchingType)
-    BaseType = tyToStr(Ty);
+  BaseType = extractBaseType(D, QT, Ty, C);
 
   bool IsWild = !IsGeneric && (isVarArgType(BaseType) || isTypeHasVoid(QT));
   if (IsWild) {
@@ -421,6 +387,51 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       }
     }
   }
+}
+
+std::string PointerVariableConstraint::extractBaseType(DeclaratorDecl *D,
+                                                       QualType QT,
+                                                       const Type *Ty,
+                                                       const ASTContext &C) {
+  std::string BaseTypeStr;
+  bool FoundBaseTypeInSrc = false;
+  if (!Ty->getAs<TypedefType>() && D && D->getTypeSourceInfo()) {
+    // Try to extract the type from original source to preserve defines
+    TypeLoc TL = D->getTypeSourceInfo()->getTypeLoc();
+    if (isa<FunctionDecl>(D)) {
+      FoundBaseTypeInSrc = D->getAsFunction()->getReturnType() == QT;
+      TL = getBaseTypeLoc(TL).getAs<FunctionTypeLoc>();
+      // FunctionDecl that doesn't have function type? weird
+      if (TL.isNull())
+        FoundBaseTypeInSrc = false;
+      else
+        TL = TL.getAs<clang::FunctionTypeLoc>().getReturnLoc();
+    } else {
+      FoundBaseTypeInSrc = D->getType() == QT;
+    }
+    TypeLoc BaseLoc = getBaseTypeLoc(TL);
+    if (!BaseLoc.getAs<TypedefTypeLoc>().isNull()) {
+      FoundBaseTypeInSrc = false;
+    } else {
+      // Only use this type if the type passed as a parameter to this constructor
+      // agrees with the actual type of the declaration.
+      SourceRange SR = BaseLoc.getSourceRange();
+      if (FoundBaseTypeInSrc && SR.isValid()) {
+        BaseTypeStr = getSourceText(SR, C);
+
+        // getSourceText returns the empty string when there's a pointer level
+        // inside a macro. Not sure how to handle this, so fall back to tyToStr.
+        if (BaseTypeStr.empty())
+          FoundBaseTypeInSrc = false;
+      } else
+        FoundBaseTypeInSrc = false;
+    }
+  }
+  // Fall back to rebuilding the base type based on type passed to constructor
+  if (!FoundBaseTypeInSrc)
+    BaseTypeStr = tyToStr(Ty);
+
+  return BaseTypeStr;
 }
 
 void PointerVariableConstraint::print(raw_ostream &O) const {
@@ -545,7 +556,7 @@ void PointerVariableConstraint::addArrayAnnotations(
 // variables and potentially nested function pointer declaration. Produces a
 // string that can be replaced in the source code.
 std::string
-PointerVariableConstraint::mkString(EnvironmentMap &E,
+PointerVariableConstraint::mkString(const EnvironmentMap &E,
                                     bool EmitName,
                                     bool ForItype,
                                     bool EmitPointee) const {
@@ -586,7 +597,7 @@ PointerVariableConstraint::mkString(EnvironmentMap &E,
       VarAtom *VA = dyn_cast<VarAtom>(V);
       assert(VA != nullptr && "Constraint variable can "
                               "be either constant or VarAtom.");
-      C = E[VA].first;
+      C = E.at(VA).first;
     }
     assert(C != nullptr);
 
@@ -890,19 +901,22 @@ void FunctionVariableConstraint::constrainToWild
     V->constrainToWild(CS, Rsn, PL);
 }
 
-bool FunctionVariableConstraint::anyChanges(EnvironmentMap &E) const {
+bool FunctionVariableConstraint::anyChanges(const EnvironmentMap &E) const {
   return ReturnVar->anyChanges(E);
 }
 
-bool FunctionVariableConstraint::hasWild(EnvironmentMap &E, int AIdx) const {
+bool FunctionVariableConstraint::hasWild(const EnvironmentMap &E,
+                                         int AIdx) const {
   return ReturnVar->hasWild(E, AIdx);
 }
 
-bool FunctionVariableConstraint::hasArr(EnvironmentMap &E, int AIdx) const {
+bool FunctionVariableConstraint::hasArr(const EnvironmentMap &E,
+                                        int AIdx) const {
   return ReturnVar->hasArr(E, AIdx);
 }
 
-bool FunctionVariableConstraint::hasNtArr(EnvironmentMap &E, int AIdx) const {
+bool FunctionVariableConstraint::hasNtArr(const EnvironmentMap &E,
+                                          int AIdx) const {
   return ReturnVar->hasNtArr(E, AIdx);
 }
 
@@ -1023,7 +1037,7 @@ void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C,
   }
 }
 
-bool PointerVariableConstraint::anyArgumentIsWild(EnvironmentMap &E) {
+bool PointerVariableConstraint::anyArgumentIsWild(const EnvironmentMap &E) {
   for (auto *ArgVal : argumentConstraints) {
     if (!ArgVal->isChecked(E)) {
       return true;
@@ -1032,7 +1046,7 @@ bool PointerVariableConstraint::anyArgumentIsWild(EnvironmentMap &E) {
   return false;
 }
 
-bool PointerVariableConstraint::anyChanges(EnvironmentMap &E) const {
+bool PointerVariableConstraint::anyChanges(const EnvironmentMap &E) const {
   // If a pointer variable was checked in the input program, it will have the
   // same checked type in the output, so it cannot have changed.
   if (OriginallyChecked)
@@ -1060,21 +1074,21 @@ ConstraintVariable *PointerVariableConstraint::getCopy(Constraints &CS) {
 }
 
 const ConstAtom *
-PointerVariableConstraint::getSolution(const Atom *A, EnvironmentMap &E) const {
+PointerVariableConstraint::getSolution(const Atom *A,
+                                       const EnvironmentMap &E) const {
   const ConstAtom *CS = nullptr;
   if (const ConstAtom *CA = dyn_cast<ConstAtom>(A)) {
     CS = CA;
   } else if (const VarAtom *VA = dyn_cast<VarAtom>(A)) {
-    // If this is a VarAtom?, we need ot fetch from solution
-    // i.e., environment.
-    CS = E[const_cast<VarAtom*>(VA)].first;
+    // If this is a VarAtom?, we need to fetch from solution i.e., environment.
+    CS = E.at(const_cast<VarAtom*>(VA)).first;
   }
   assert(CS != nullptr && "Atom should be either const or var");
   return CS;
 }
 
-bool PointerVariableConstraint::hasWild(EnvironmentMap &E, int AIdx) const
-{
+bool PointerVariableConstraint::hasWild(const EnvironmentMap &E,
+                                        int AIdx) const {
   int VarIdx = 0;
   for (const auto &C : vars) {
     const ConstAtom *CS = getSolution(C, E);
@@ -1091,8 +1105,8 @@ bool PointerVariableConstraint::hasWild(EnvironmentMap &E, int AIdx) const
   return false;
 }
 
-bool PointerVariableConstraint::hasArr(EnvironmentMap &E, int AIdx) const
-{
+bool PointerVariableConstraint::hasArr(const EnvironmentMap &E,
+                                       int AIdx) const {
   int VarIdx = 0;
   for (const auto &C : vars) {
     const ConstAtom *CS = getSolution(C, E);
@@ -1109,8 +1123,8 @@ bool PointerVariableConstraint::hasArr(EnvironmentMap &E, int AIdx) const
   return false;
 }
 
-bool PointerVariableConstraint::hasNtArr(EnvironmentMap &E, int AIdx) const
-{
+bool PointerVariableConstraint::hasNtArr(const EnvironmentMap &E,
+                                         int AIdx) const {
   int VarIdx = 0;
   for (const auto &C : vars) {
     const ConstAtom *CS = getSolution(C, E);
@@ -1236,7 +1250,7 @@ bool FunctionVariableConstraint::
 }
 
 std::string
-FunctionVariableConstraint::mkString(EnvironmentMap &E,
+FunctionVariableConstraint::mkString(const EnvironmentMap &E,
                                      bool EmitName, bool ForItype,
                                      bool EmitPointee) const {
   std::string Ret = "";
