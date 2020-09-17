@@ -57,9 +57,14 @@ private:
   // one subclass of declarations.
   void rewriteParmVarDecl(ParmVarDeclReplacement *N);
 
-  template <typename DT, DeclReplacement::DRKind DK>
+  template<typename DT, DeclReplacement::DRKind DK>
+  void rewriteFieldOrVarDecl(DeclReplacementTempl<DT, DK> *N, RSet &ToRewrite);
+  template<typename DT, DeclReplacement::DRKind DK>
   void rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N, RSet &ToRewrite);
-  void rewriteFunctionDecl(FunctionDeclReplacement *N);
+  template<typename DT, DeclReplacement::DRKind DK>
+  void rewriteSingleDecl(DeclReplacementTempl<DT, DK> *N, RSet &ToRewrite);
+
+    void rewriteFunctionDecl(FunctionDeclReplacement *N);
   SourceLocation deleteAllDeclarationsOnLine(DeclReplacement *N);
   void getDeclsOnSameLine(DeclReplacement *N, std::set<Decl *> &Decls);
   bool isSingleDeclaration(DeclReplacement *N);

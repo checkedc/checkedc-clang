@@ -134,11 +134,11 @@ void DeclRewriter::rewrite(RSet &ToRewrite) {
       assert(N->getStatement() == nullptr);
       rewriteParmVarDecl(PVR);
     } else if (auto *VR = dyn_cast<VarDeclReplacement>(N)) {
-      rewriteMultiDecl(VR, ToRewrite);
+      rewriteFieldOrVarDecl(VR, ToRewrite);
     } else if (auto *FR = dyn_cast<FunctionDeclReplacement>(N)) {
       rewriteFunctionDecl(FR);
     } else if (auto *FdR = dyn_cast<FieldDeclReplacement>(N)) {
-      rewriteMultiDecl(FdR, ToRewrite);
+      rewriteFieldOrVarDecl(FdR, ToRewrite);
     }
   }
 }
@@ -167,8 +167,31 @@ void DeclRewriter::rewriteParmVarDecl(ParmVarDeclReplacement *N) {
 
 
 template <typename DT, DeclReplacement::DRKind DK>
-void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
-                                    RSet &ToRewrite) {
+void DeclRewriter::rewriteFieldOrVarDecl(DeclReplacementTempl<DT, DK> *N,
+                                         RSet &ToRewrite) {
+  using DRType = DeclReplacementTempl<DT, DK>;
+  static_assert(std::is_same<DRType, FieldDeclReplacement>::value
+                    || std::is_same<DRType, VarDeclReplacement>::value,
+                "Method expects variable or field declaration replacement.");
+
+  if (isSingleDeclaration(N)) {
+    rewriteSingleDecl(N, ToRewrite);
+  } else if (Skip.find(N) == Skip.end()) {
+    rewriteMultiDecl(N, ToRewrite);
+  } else {
+    // Anything that reaches this case should be a multi-declaration that has
+    // already been rewritten.
+    assert("Declaration should have been rewritten." && !isSingleDeclaration(N)
+               && Skip.find(N) != Skip.end());
+  }
+}
+
+template <typename DT, DeclReplacement::DRKind DK>
+void DeclRewriter::rewriteSingleDecl(DeclReplacementTempl<DT, DK> *N,
+                                     RSet &ToRewrite) {
+  assert("Declaration is not a single declaration." && isSingleDeclaration(N));
+
+  // This is the easy case, we can rewrite it locally, at the declaration.
   DT *D = N->getDecl();
   std::string SRewrite = N->getReplacement();
   if (Verbose) {
@@ -197,125 +220,103 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
     }
   }
 
-  // Is it a variable type? This is the easy case, we can re-write it
-  // locally, at the site of the declaration.
-  if (isSingleDeclaration(N)) {
-    if (canRewrite(R, TR)) {
-      R.ReplaceText(TR, SRewrite);
-    } else {
-      // This can happen if SR is within a macro. If that is the case,
-      // maybe there is still something we can do because Decl refers
-      // to a non-macro line.
-
-
-      SourceRange Possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()),
-                           D->getEndLoc());
-
-      if (canRewrite(R, Possible)) {
-        R.ReplaceText(Possible, SRewrite);
-      } else {
-        if (Verbose) {
-          errs() << "Still don't know how to re-write VarDecl\n";
-          D->dump();
-          errs() << "at\n";
-          if (N->getStatement())
-            N->getStatement()->dump();
-          errs() << "with " << SRewrite << "\n";
-        }
-      }
-    }
-  } else if (!isSingleDeclaration(N) &&
-             Skip.find(N) == Skip.end()) {
-    // Hack time!
-    // Sometimes, like in the case of a decl on a single line, we'll need to
-    // do multiple NewTyps at once. In that case, in the inner loop, we'll
-    // re-scan and find all of the NewTyps related to that line and do
-    // everything at once. That means sometimes we'll get NewTyps that
-    // we don't want to process twice. We'll skip them here.
-
-    // Step 1: get the re-written types.
-    RSet RewritesForThisDecl(DComp(R.getSourceMgr()));
-    auto I = ToRewrite.find(N);
-    while (I != ToRewrite.end()) {
-      auto *Tmp = dyn_cast<DeclReplacementTempl<DT, DK>>(*I);
-      if (Tmp != nullptr && areDeclarationsOnSameLine(N, Tmp))
-        RewritesForThisDecl.insert(Tmp);
-      ++I;
-    }
-
-    // Step 2: Remove the original line from the program.
-    SourceLocation EndOfLine = deleteAllDeclarationsOnLine(N);
-
-    // Step 3: For each decl in the original, build up a new string
-    //         and if the original decl was re-written, write that
-    //         out instead (WITH the initializer).
-    std::string NewMultiLineDeclS = "";
-    raw_string_ostream NewMlDecl(NewMultiLineDeclS);
-    std::set<Decl *> SameLineDecls;
-    getDeclsOnSameLine(N, SameLineDecls);
-
-    for (const auto &DL : SameLineDecls) {
-      DT *SDL = dyn_cast<DT>(DL);
-      if (SDL == nullptr) {
-        // Example:
-        //        struct {
-        //           const wchar_t *start;
-        //            const wchar_t *end;
-        //        } field[6], name;
-        // we cannot handle this.
-        errs()
-            << "Expected a variable declaration but got an invalid AST node\n";
-        DL->dump();
-        continue;
-      }
-      assert(SDL != nullptr);
-
-      DeclReplacement *SameLineReplacement;
-      bool Found = false;
-      for (const auto &NLT : RewritesForThisDecl)
-        if (NLT->getDecl() == DL) {
-          SameLineReplacement = NLT;
-          Found = true;
-          break;
-        }
-
-      if (Found) {
-        NewMlDecl << SameLineReplacement->getReplacement();
-        if (auto VDL = dyn_cast<VarDecl>(SDL)) {
-          if (Expr *E = VDL->getInit()) {
-            NewMlDecl << " = ";
-            E->printPretty(NewMlDecl, nullptr, A.getPrintingPolicy());
-          } else {
-            if (isPointerType(VDL))
-              NewMlDecl << " = ((void *)0)";
-          }
-        }
-        NewMlDecl << (dyn_cast<VarDecl>(SDL) ? ";\n" : "; ");
-      } else {
-        DL->print(NewMlDecl);
-        NewMlDecl << (dyn_cast<VarDecl>(SDL) ? ";\n" : "; ");
-      }
-    }
-
-    // Step 4: Write out the string built up in step 3.
-    R.InsertTextAfter(EndOfLine, NewMlDecl.str());
-
-    // Step 5: Be sure and skip all of the NewTyps that we dealt with
-    //         during this time of hacking, by adding them to the
-    //         skip set.
-
-    for (const auto &TN : RewritesForThisDecl)
-      Skip.insert(TN);
+  if (canRewrite(R, TR)) {
+    R.ReplaceText(TR, SRewrite);
   } else {
-    if (Verbose) {
-      errs() << "Don't know how to re-write VarDecl\n";
-      D->dump();
-      errs() << "at\n";
-      if (N->getStatement())
-        N->getStatement()->dump();
-      errs() << "with " << N->getReplacement() << "\n";
+    // This can happen if SR is within a macro. If that is the case,
+    // maybe there is still something we can do because Decl refers
+    // to a non-macro line.
+
+    SourceRange Possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()),
+                         D->getEndLoc());
+
+    if (canRewrite(R, Possible)) {
+      R.ReplaceText(Possible, SRewrite);
+    } else {
+      if (Verbose) {
+        errs() << "Still don't know how to re-write VarDecl\n";
+        D->dump();
+        errs() << "at\n";
+        if (N->getStatement())
+          N->getStatement()->dump();
+        errs() << "with " << SRewrite << "\n";
+      }
     }
   }
+}
+
+template <typename DT, DeclReplacement::DRKind DK>
+void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
+                                    RSet &ToRewrite) {
+  assert("Declaration is not a multi declaration." && !isSingleDeclaration(N));
+  // Hack time!
+  // Sometimes, like in the case of a decl on a single line, we'll need to
+  // do multiple NewTyps at once. In that case, in the inner loop, we'll
+  // re-scan and find all of the NewTyps related to that line and do
+  // everything at once. That means sometimes we'll get NewTyps that
+  // we don't want to process twice. We'll skip them here.
+
+  // Step 1: get the re-written types.
+  RSet RewritesForThisDecl(DComp(R.getSourceMgr()));
+  auto I = ToRewrite.find(N);
+  while (I != ToRewrite.end()) {
+    auto *Tmp = dyn_cast<DeclReplacementTempl<DT, DK>>(*I);
+    if (Tmp != nullptr && areDeclarationsOnSameLine(N, Tmp))
+      RewritesForThisDecl.insert(Tmp);
+    ++I;
+  }
+
+  // Step 2: Remove the original line from the program.
+  SourceLocation EndOfLine = deleteAllDeclarationsOnLine(N);
+
+  // Step 3: For each decl in the original, build up a new string
+  //         and if the original decl was re-written, write that
+  //         out instead (WITH the initializer).
+  std::string NewMultiLineDeclS = "";
+  raw_string_ostream NewMlDecl(NewMultiLineDeclS);
+  std::set<Decl *> SameLineDecls;
+  getDeclsOnSameLine(N, SameLineDecls);
+
+  for (const auto &DL : SameLineDecls) {
+    DT *SDL = dyn_cast<DT>(DL);
+    assert("Could not get variable declaration of expected type." && SDL);
+
+    DeclReplacement *SameLineReplacement;
+    bool Found = false;
+    for (const auto &NLT : RewritesForThisDecl)
+      if (NLT->getDecl() == DL) {
+        SameLineReplacement = NLT;
+        Found = true;
+        break;
+      }
+
+    if (Found) {
+      NewMlDecl << SameLineReplacement->getReplacement();
+      if (auto VDL = dyn_cast<VarDecl>(SDL)) {
+        if (Expr *E = VDL->getInit()) {
+          NewMlDecl << " = ";
+          E->printPretty(NewMlDecl, nullptr, A.getPrintingPolicy());
+        } else {
+          if (isPointerType(VDL))
+            NewMlDecl << " = ((void *)0)";
+        }
+      }
+      NewMlDecl << (dyn_cast<VarDecl>(SDL) ? ";\n" : "; ");
+    } else {
+      DL->print(NewMlDecl);
+      NewMlDecl << (dyn_cast<VarDecl>(SDL) ? ";\n" : "; ");
+    }
+  }
+
+  // Step 4: Write out the string built up in step 3.
+  R.InsertTextAfter(EndOfLine, NewMlDecl.str());
+
+  // Step 5: Be sure and skip all of the NewTyps that we dealt with
+  //         during this time of hacking, by adding them to the
+  //         skip set.
+
+  for (const auto &TN : RewritesForThisDecl)
+    Skip.insert(TN);
 }
 
 void DeclRewriter::rewriteFunctionDecl(FunctionDeclReplacement *N) {
