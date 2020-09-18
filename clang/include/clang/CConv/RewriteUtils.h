@@ -142,10 +142,8 @@ void rewrite( Rewriter              &R,
 class ArrayBoundsRewriter {
 public:
   ArrayBoundsRewriter(ASTContext *C, ProgramInfo &I): Context(C), Info(I) {}
-  // Compute the possible bounds for all the array variables.
-  void computeArrayBounds();
   // Get the string representation of the bounds for the given variable.
-  std::string getBoundsString(Decl *D, bool Isitype = false);
+  std::string getBoundsString(PVConstraint *PV, Decl *D, bool Isitype = false);
 private:
   ASTContext *Context;
   ProgramInfo &Info;
@@ -170,10 +168,8 @@ private:
   // if tries to get the string from declaration, however,
   // if there is no declaration of the function,
   // it will try to get it from the definition.
-  std::string getExistingIType(ConstraintVariable *DeclC,
-                               ConstraintVariable *Defc,
-                               FunctionDecl *FuncDecl);
-  bool anyTop(std::set<ConstraintVariable *>);
+  std::string getExistingIType(ConstraintVariable *DeclC);
+  bool anyTop(CVarSet);
   ASTContext            *Context;
   ProgramInfo           &Info;
   RSet                  &rewriteThese;

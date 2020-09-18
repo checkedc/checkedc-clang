@@ -1,7 +1,7 @@
 // Tests for the Checked C rewriter tool.
 //
 // RUN: cconv-standalone %s -- -fcheckedc-extension | FileCheck -match-full-lines %s
-// RUN: cconv-standalone %s -- -fcheckedc-extension | %clang_cc1 -verify -fcheckedc-extension -x c -
+// RUN: cconv-standalone %s -- -fcheckedc-extension | %clang_cc1  -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 //
 
@@ -27,3 +27,10 @@ int foo2(int *j) {
 }
 //CHECK: int foo2(_Ptr<int> j) {
 //CHECK-NEXT: _Ptr<int> a = baz();
+
+void bif(void) {
+    int *x = (int *)5;
+    foo(x);
+}
+//CHECK:     int *x = (int *)5;
+

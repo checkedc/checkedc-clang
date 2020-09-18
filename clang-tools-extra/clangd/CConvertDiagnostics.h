@@ -26,7 +26,7 @@ public:
 
   // GUARDED by DiagMutex
   // Populate diagnostics from the given disjoint set.
-  bool PopulateDiagsFromDisjointSet(DisjointSet &Line);
+  bool PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line);
   // GUARDED by DiagMutex
   // Clear diagnostics of all files.
   void ClearAllDiags();

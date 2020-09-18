@@ -21,28 +21,31 @@
 #include "clang/AST/Expr.h"
 
 namespace clang {
-
   using Result = Lexicographic::Result;
 
-  // Each binary operator of an expression results in a new node of the
-  // PreorderAST. Each node contains 3 fields:
-  // Opc: The opcode of the operator.
-  // Vars: A list of variables in the sub expression.
-  // Const: Constants of the sub expression are folded.
+  class Node {
+  public:
+    enum class NodeKind { BinaryNode, LeafExprNode };
 
-  struct Node {
+    NodeKind Kind;
+    Node *Parent;
+
+    Node(NodeKind Kind, Node *Parent) :
+      Kind(Kind), Parent(Parent) {}
+  };
+
+  class BinaryNode : public Node {
+  public:
     BinaryOperator::Opcode Opc;
-    std::vector<const VarDecl *> Vars;
-    llvm::APSInt Const;
-    // HasConst indicates whether there is a constant in the node. This is used
-    // to differentiate between an absence of a constant and a constant of value
-    // 0.
-    bool HasConst;
-    Node *Parent, *Left, *Right;
+    llvm::SmallVector<Node *, 2> Children;
 
-    Node(Node *Parent) :
-      Opc(BO_Add), HasConst(false),
-      Parent(Parent), Left(nullptr), Right(nullptr) {}
+    BinaryNode(BinaryOperator::Opcode Opc, Node *Parent) :
+      Node(NodeKind::BinaryNode, Parent),
+      Opc(Opc) {}
+
+    static bool classof(const Node *N) {
+      return N->Kind == NodeKind::BinaryNode;
+    }
 
     // Is the operator commutative and associative?
     bool IsOpCommutativeAndAssociative() {
@@ -50,6 +53,22 @@ namespace clang {
     }
   };
 
+  class LeafExprNode : public Node {
+  public:
+    Expr *E;
+
+    LeafExprNode(Expr *E, Node *Parent) :
+      Node(NodeKind::LeafExprNode, Parent),
+      E(E) {}
+
+    static bool classof(const Node *N) {
+      return N->Kind == NodeKind::LeafExprNode;
+    }
+  };
+
+} // end namespace clang
+
+namespace clang {
   class PreorderAST {
   private:
     ASTContext &Ctx;
@@ -59,13 +78,29 @@ namespace clang {
     Node *Root;
 
     // Create a PreorderAST for the expression E.
-    // @param[in] E is the sub expression which needs to be added to N.
-    // @param[in] N is the current node of the AST.
-    // @param[in] Parent is the parent node for N.
-    void Create(Expr *E, Node *N = nullptr, Node *Parent = nullptr);
+    // @param[in] E is the sub expression to be added to a new node.
+    // @param[in] Parent is the parent of the new node.
+    void Create(Expr *E, Node *Parent = nullptr);
 
-    // Sort the variables in a node of the AST.
-    // @param[in] N is current node of the AST.
+    // Add a new node to the AST.
+    // @param[in] Node is the current node to be added.
+    // @param[in] Parent is the parent of the node to be added.
+    void AddNode(Node *N, Node *Parent);
+
+    // Coalesce the BinaryNode with its parent.
+    // @param[in] B is the current BinaryNode.
+    // @param[in] Parent is the parent of the node to be coalesced.
+    void CoalesceNode(BinaryNode *B, BinaryNode *Parent);
+
+    // Recursively coalesce binary nodes having the same commutative and
+    // associative operator.
+    // @param[in] N is current node of the AST. Initial value is Root.
+    // @param[in] Changed indicates whether a node was coalesced. We need this
+    // to control when to stop recursive coalescing.
+    void Coalesce(Node *N, bool &Changed);
+
+    // Sort the children expressions in a binary node of the AST.
+    // @param[in] N is current node of the AST. Initial value is Root.
     void Sort(Node *N);
 
     // Check if the two AST nodes N1 and N2 are equal.
@@ -78,19 +113,12 @@ namespace clang {
     void SetError() { Error = true; }
 
     // Print the PreorderAST.
-    // @param[in] N is the current node of the AST.
+    // @param[in] N is the current node of the AST. Initial value is Root.
     void PrettyPrint(Node *N);
 
     // Cleanup the memory consumed by node N.
-    // @param[in] N is the current node of the AST.
+    // @param[in] N is the current node of the AST. Initial value is Root.
     void Cleanup(Node *N);
-
-    // A DeclRefExpr can be a reference either to an array subscript (in which
-    // case it is wrapped around a ArrayToPointerDecay cast) or to a pointer
-    // dereference (in which case it is wrapped around an LValueToRValue cast).
-    // @param[in] An expression E.
-    // @return Returns a DeclRefExpr if E is a DeclRefExpr, otherwise nullptr.
-    DeclRefExpr *GetDeclOperand(Expr *E);
 
   public:
     PreorderAST(ASTContext &Ctx, Expr *E) :

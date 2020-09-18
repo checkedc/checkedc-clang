@@ -105,6 +105,7 @@ namespace clang {
     CFG *Cfg;
     ASTContext &Ctx;
     Lexicographic Lex;
+    llvm::raw_ostream &OS;
 
     class ElevatedCFGBlock {
     public:
@@ -115,9 +116,6 @@ namespace clang {
       EdgeBoundsTy Gen, Out;
       // The Kill set for the block.
       StmtDeclSetTy Kill;
-      // The set of all variables used in bounds expr for each ntptr in the
-      // block.
-      BoundsVarTy BoundsVars;
 
       // To compute In[B] we compute the intersection of Out[B*->B], where B*
       // are all preds of B. When there is a back edge from block B' to B (for
@@ -155,9 +153,9 @@ namespace clang {
     // to lookup ElevatedCFGBlock from CFGBlock.
     BlockMapTy BlockMap;
 
-    // A set of all ntptrs in scope. Currently, we simply collect all ntptrs
-    // defined in the function.
-    DeclSetTy NtPtrsInScope;
+    // The mapping of all ntptrs in the function and all variables occurring in
+    // the bounds expr for each ntptr.
+    BoundsVarTy NtPtrsInScope;
 
     // To compute In[B] we compute the intersection of Out[B*->B], where B* are
     // all preds of B. When there is a back edge from block B' to B (for
@@ -183,7 +181,7 @@ namespace clang {
   public:
     BoundsAnalysis(Sema &S, CFG *Cfg) :
       S(S), Cfg(Cfg), Ctx(S.Context),
-      Lex(Lexicographic(Ctx, nullptr)) {}
+      Lex(Lexicographic(Ctx, nullptr)), OS(llvm::outs()) {}
 
     // Run the dataflow analysis to widen bounds for ntptr's.
     // @param[in] FD is the current function.
@@ -245,14 +243,13 @@ namespace clang {
     // @param[in] Dest block for the edge for which the Gen set is updated.
     void FillGenSet(Expr *E, ElevatedCFGBlock *EB, ElevatedCFGBlock *SuccEB);
 
-    // Uniformize the expr, fill Gen set and get variables used in bounds expr
-    // for the ntptr.
+    // Uniformize the expr, fill Gen set for the edge EB->SuccEB.
     // @param[in] E is an ntptr dereference or array subscript expr.
     // @param[in] Source block for the edge for which the Gen set is updated.
     // @param[in] Dest block for the edge for which the Gen set is updated.
-    void FillGenSetAndGetBoundsVars(const Expr *E,
-                                    ElevatedCFGBlock *EB,
-                                    ElevatedCFGBlock *SuccEB);
+    void FillGenSetForEdge(const Expr *E,
+                           ElevatedCFGBlock *EB,
+                           ElevatedCFGBlock *SuccEB);
 
     // Collect all variables used in bounds expr E.
     // @param[in] E represents the bounds expr for an ntptr.
@@ -262,6 +259,11 @@ namespace clang {
 
     // Assign the widened bounds from the ElevatedBlock to the CFG Block.
     void CollectWidenedBounds();
+
+    // Extract the terminating sub-expression from the expression E.
+    // @param[in] E is the expression from which we need to extract the terminating sub-expression.
+    // @return The terminating sub-expression from the expression E.
+    Expr *GetTerminatorCondition(const Expr *E) const;
 
     // Get the terminating condition for a block. This could be an if condition
     // of the form "if(*(p + i))".
@@ -296,16 +298,8 @@ namespace clang {
     // Get the DeclRefExpr from an expression E.
     // @param[in] An expression E which is known to be either an LValueToRValue
     // cast or an ArrayToPointerDecay cast.
-    // @return The DeclRefExpr from the expression E.
+    // @return The DeclRefExpr from the expression E or nullptr.
     DeclRefExpr *GetDeclOperand(const Expr *E);
-
-    // A DeclRefExpr can be a reference either to an array subscript (in which
-    // case it is wrapped around a ArrayToPointerDecay cast) or to a pointer
-    // dereference (in which case it is wrapped around an LValueToRValue cast).
-    // @param[in] An expression E.
-    // @return Whether E is an expression containing a reference to an array
-    // subscript or a pointer dereference.
-    bool IsDeclOperand(const Expr *E);
 
     // Make an expression uniform by moving all DeclRefExpr to the LHS and all
     // IntegerLiterals to the RHS.
@@ -342,10 +336,10 @@ namespace clang {
     // @return The intersection of sets A and B.
     template<class T> T Intersect(T &A, T &B) const;
 
-    // Compute the union of sets A and B.
+    // Compute the union of sets A and B and widen the bounds where applicable.
     // @param[in] A is a set.
     // @param[in] B is a set.
-    // @return The union of sets A and B.
+    // @return The union of sets A and B containing the widened bounds.
     template<class T> T Union(T &A, T &B) const;
 
     // Compute the set difference of sets A and B.

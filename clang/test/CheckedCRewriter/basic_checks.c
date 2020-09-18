@@ -3,8 +3,9 @@
 // Tests properties about type re-writing and replacement, and simple function
 // return value stuff.
 //
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-// RUN: cconv-standalone %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
+// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK","CHECK_NEXT" %s
+// RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK","CHECK-NEXT" %s
+// RUN: cconv-standalone %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 //
 
@@ -20,9 +21,14 @@ void typd_driver(void) {
   *(b+4) = 0;
 }
 //CHECK: void typd_driver(void) {
-//CHECK-NEXT: wchar_t buf _Checked[10];
-//CHECK-NEXT: _Ptr<wchar_t> a = &buf[0];
-//CHECK-NEXT: wchar_t *b = &buf[0];
+//CHECK_NOALL: wchar_t buf[10];
+//CHECK_NOALL: wchar_t *a = &buf[0];
+//CHECK_NOALL: wchar_t *b = &buf[0];
+
+//CHECK_ALL: wchar_t buf _Checked[10];
+//CHECK_ALL: _Ptr<wchar_t> a = &buf[0];
+//CHECK_ALL: _Array_ptr<wchar_t> b = &buf[0];
+
 
 typedef struct _A {
   int a;

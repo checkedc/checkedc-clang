@@ -3,7 +3,6 @@ set( LLVM_LINK_COMPONENTS
   Option
   Support
   )
-
 add_clang_executable(cconv-standalone
   CConvStandalone.cpp
   )
@@ -19,6 +18,7 @@ target_link_libraries(cconv-standalone
   clangStaticAnalyzerFrontend
   clangTooling
   )
+target_include_directories(cconv-standalone PUBLIC)
 
 install(TARGETS cconv-standalone
   RUNTIME DESTINATION bin)

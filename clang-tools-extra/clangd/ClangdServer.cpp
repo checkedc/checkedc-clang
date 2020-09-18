@@ -170,7 +170,7 @@ void ClangdServer::addDocument(PathRef File, llvm::StringRef Contents,
 }
 
 #ifdef INTERACTIVECCCONV
-void ClangdServer::reportCConvDiagsForAllFiles(DisjointSet &CcInfo,
+void ClangdServer::reportCConvDiagsForAllFiles(ConstraintsInfo &CcInfo,
                                                CConvLSPCallBack *ConvCB) {
   // Update the diag information for all the valid files.
   for (auto &SrcFileDiags : CConvDiagInfo.GetAllFilesDiagnostics()) {
@@ -178,7 +178,7 @@ void ClangdServer::reportCConvDiagsForAllFiles(DisjointSet &CcInfo,
   }
 }
 
-void ClangdServer::clearCConvDiagsForAllFiles(DisjointSet &CcInfo,
+void ClangdServer::clearCConvDiagsForAllFiles(ConstraintsInfo &CcInfo,
                                               CConvLSPCallBack *ConvCB) {
   for (auto &SrcFileDiags : CConvDiagInfo.GetAllFilesDiagnostics()) {
     // Clear diags for all files.
@@ -192,12 +192,12 @@ ClangdServer::cconvCollectAndBuildInitialConstraints(CConvLSPCallBack *ConvCB) {
     CConvDiagInfo.ClearAllDiags();
     ConvCB->sendCConvMessage("Running CConv for first time.");
     CConvInter.BuildInitialConstraints();
-    CConvInter.SolveConstraints();
+    CConvInter.SolveConstraints(true);
     ConvCB->sendCConvMessage("Finished running CConv.");
     log("CConv: Built initial constraints successfully.\n");
     auto &WildPtrsInfo = CConvInter.GetWILDPtrsInfo();
     log("CConv: Got WILD Ptrs Info.\n");
-    CConvDiagInfo.PopulateDiagsFromDisjointSet(WildPtrsInfo);
+    CConvDiagInfo.PopulateDiagsFromConstraintsInfo(WildPtrsInfo);
     log("CConv: Populated Diags from Disjoint Sets.\n");
     reportCConvDiagsForAllFiles(WildPtrsInfo, ConvCB);
     ConvCB->sendCConvMessage("CConv: Finished updating problems.");
@@ -223,7 +223,7 @@ void ClangdServer::executeCConvCommand(ExecuteCommandParams Params,
       this->CConvDiagInfo.ClearAllDiags();
       ConvCB->sendCConvMessage("CConv Updating new issues "
                                "after editing constraints.");
-      this->CConvDiagInfo.PopulateDiagsFromDisjointSet(WildPtrsInfo);
+      this->CConvDiagInfo.PopulateDiagsFromConstraintsInfo(WildPtrsInfo);
       log("CConv calling call-back\n");
       // ConvCB->ccConvResultsReady(ptrFileName);
       ConvCB->sendCConvMessage("CConv Updated new issues.");

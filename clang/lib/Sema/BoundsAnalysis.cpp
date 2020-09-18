@@ -1,5 +1,4 @@
 //===--------- BoundsAnalysis.cpp - Bounds Widening Analysis --------------===//
-//
 //                     The LLVM Compiler Infrastructure
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -217,44 +216,40 @@ void BoundsAnalysis::CollectBoundsVars(const Expr *E, DeclSetTy &BoundsVars) {
     CollectBoundsVars(BO->getRHS(), BoundsVars);
   }
 
-  if (IsDeclOperand(E)) {
-    const DeclRefExpr *D = GetDeclOperand(E);
+  if (DeclRefExpr *D = GetDeclOperand(E))
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
       BoundsVars.insert(V);
-  }
 }
 
 DeclRefExpr *BoundsAnalysis::GetDeclOperand(const Expr *E) {
-  if (!E || !isa<CastExpr>(E))
-    return nullptr;
-  auto *CE = dyn_cast<CastExpr>(E);
-  assert(CE->getSubExpr() && "invalid CastExpr expression");
-
-  return dyn_cast<DeclRefExpr>(IgnoreCasts(CE->getSubExpr()));
-}
-
-bool BoundsAnalysis::IsDeclOperand(const Expr *E) {
-  if (auto *CE = dyn_cast<CastExpr>(E)) {
-    assert(CE->getSubExpr() && "invalid CastExpr expression");
+  if (auto *CE = dyn_cast_or_null<CastExpr>(E)) {
+    const Expr *SubE = CE->getSubExpr();
+    assert(SubE && "Invalid CastExpr expression");
 
     if (CE->getCastKind() == CastKind::CK_LValueToRValue ||
-        CE->getCastKind() == CastKind::CK_ArrayToPointerDecay)
-      return isa<DeclRefExpr>(IgnoreCasts(CE->getSubExpr()));
+        CE->getCastKind() == CastKind::CK_ArrayToPointerDecay) {
+      E = Lex.IgnoreValuePreservingOperations(Ctx, const_cast<Expr *>(SubE));
+      return dyn_cast_or_null<DeclRefExpr>(const_cast<Expr *>(E));
+    }
   }
-  return false;
+  return nullptr;
 }
 
 void BoundsAnalysis::CollectNtPtrsInScope(FunctionDecl *FD) {
-  // TODO: Currently, we simply collect all ntptrs defined in the current
-  // function. Ultimately, we need to do a liveness analysis of what ntptrs are
-  // in scope for a block.
+  // TODO: Currently, we simply collect all ntptrs and variables used in their
+  // declared bounds for the entire function. Ultimately, we need to do a
+  // liveness analysis of what ntptrs are in scope for a block.
 
   assert(FD && "invalid function");
 
   // Collect ntptrs passed as parameters to the current function.
-  for (const ParmVarDecl *PD : FD->parameters())
+  // Note: NtPtrsInScope is a mapping from ntptr to variables used in the
+  // declared bounds of the ntptr. In this function we store an empty set for
+  // the bounds variables. This will later be filled in FillGenSetForEdge.
+  for (const ParmVarDecl *PD : FD->parameters()) {
     if (IsNtArrayType(PD))
-      NtPtrsInScope.insert(PD);
+      NtPtrsInScope[PD] = DeclSetTy();
+  }
 
   // Collect all ntptrs defined in the current function. BlockMap contains all
   // blocks of the current function. We iterate through all blocks in BlockMap
@@ -273,15 +268,15 @@ void BoundsAnalysis::CollectNtPtrsInScope(FunctionDecl *FD) {
         for (const Decl *D : DS->decls())
           if (const auto *V = dyn_cast<VarDecl>(D))
             if (IsNtArrayType(V))
-              NtPtrsInScope.insert(V);
+              NtPtrsInScope[V] = DeclSetTy();
       }
     }
   }
 }
 
-void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
-                                                ElevatedCFGBlock *EB,
-                                                ElevatedCFGBlock *SuccEB) {
+void BoundsAnalysis::FillGenSetForEdge(const Expr *E,
+                                       ElevatedCFGBlock *EB,
+                                       ElevatedCFGBlock *SuccEB) {
 
   // TODO: Handle accesses of the form:
   // "if (*(p + i) && *(p + j) && *(p + k))"
@@ -327,29 +322,23 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
   //   if (*(p + 1)) // no widening
   //     if (*(p + i)) // widen p and q by 1
 
-  // TODO: Currently, we iterate and re-compute info for all ntptrs in scope
-  // for each ntptr dereference. We can optimize this at the cost of space by
-  // storing the VarDecls, variables used in bounds exprs and base/offset for
-  // the declared upper bounds expr for the VarDecl. Then we simply have to
-  // look this up instead of re-computing.
+  for (auto item : NtPtrsInScope) {
+    const VarDecl *V = item.first;
 
-  for (const VarDecl *V : NtPtrsInScope) {
-    // In case the bounds expr for V is not a RangeBoundsExpr, invoke
-    // ExpandBoundsToRange to expand it to RangeBoundsExpr.
-    const BoundsExpr *BE = S.ExpandBoundsToRange(V, V->getBoundsExpr());
-    const auto *RBE = dyn_cast<RangeBoundsExpr>(BE);
+    BoundsExpr *NormalizedBounds = S.NormalizeBounds(V);
+    if (!NormalizedBounds)
+      continue;
 
+    const auto *RBE = dyn_cast<RangeBoundsExpr>(NormalizedBounds);
     if (!RBE)
       continue;
 
     // Collect all variables involved in the upper and lower bounds exprs for
     // the ntptr. An assignment to any such variable would kill the widenend
     // bounds for the ntptr.
-    if (!SuccEB->BoundsVars.count(V)) {
-      DeclSetTy BoundsVars;
-      CollectBoundsVars(RBE, BoundsVars);
-      SuccEB->BoundsVars[V] = BoundsVars;
-    }
+    DeclSetTy BoundsVars;
+    CollectBoundsVars(NormalizedBounds, BoundsVars);
+    NtPtrsInScope[V] = BoundsVars;
 
     // Update the bounds of p on the edge EB->SuccEB only if we haven't already
     // updated them.
@@ -423,18 +412,20 @@ ExprIntPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   llvm::APSInt Zero (Ctx.getTypeSize(Ctx.IntTy), 0);
 
   if (!E)
-    return std::make_pair(nullptr, Zero);;
+    return std::make_pair(nullptr, Zero);
 
-  if (IsDeclOperand(E))
-    return std::make_pair(GetDeclOperand(E), Zero);
+  E = E->IgnoreParens();
+
+  if (DeclRefExpr *D = GetDeclOperand(E))
+    return std::make_pair(D, Zero);
 
   if (!isa<BinaryOperator>(E))
-    return std::make_pair(nullptr, Zero);;
+    return std::make_pair(nullptr, Zero);
 
   const BinaryOperator *BO = dyn_cast<BinaryOperator>(E);
   // TODO: Currently we only handle exprs containing additive operations.
   if (BO->getOpcode() != BO_Add)
-    return std::make_pair(nullptr, Zero);;
+    return std::make_pair(nullptr, Zero);
 
   Expr *LHS = BO->getLHS()->IgnoreParens();
   Expr *RHS = BO->getRHS()->IgnoreParens();
@@ -448,20 +439,22 @@ ExprIntPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   // p + i ==> return (p, i)
   llvm::APSInt IntVal;
 
-  if (IsDeclOperand(LHS) && RHS->isIntegerConstantExpr(IntVal, Ctx))
-    return std::make_pair(GetDeclOperand(LHS), IntVal);
+  if (DeclRefExpr *D = GetDeclOperand(LHS))
+    if (RHS->isIntegerConstantExpr(IntVal, Ctx))
+      return std::make_pair(D, IntVal);
 
   // Case 2: LHS is IntegerLiteral and RHS is DeclRefExpr. We simply need to
   // swap LHS and RHS to make expr uniform.
   // i + p ==> return (p, i)
-  if (LHS->isIntegerConstantExpr(IntVal, Ctx) && IsDeclOperand(RHS))
-    return std::make_pair(GetDeclOperand(RHS), IntVal);
+  if (DeclRefExpr *D = GetDeclOperand(RHS))
+    if (LHS->isIntegerConstantExpr(IntVal, Ctx))
+      return std::make_pair(D, IntVal);
 
   // Case 3: LHS and RHS are both DeclRefExprs. This means there is no
   // IntegerLiteral in the expr. In this case, we return the incoming
   // BinaryOperator expr with a nullptr for the RHS.
   // p + q ==> return (p + q, nullptr)
-  if (IsDeclOperand(LHS) && IsDeclOperand(RHS))
+  if (GetDeclOperand(LHS) && GetDeclOperand(RHS))
     return std::make_pair(BO, Zero);
 
   // To make parsing simpler, we always try to keep BinaryOperator on the LHS.
@@ -472,7 +465,7 @@ ExprIntPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   // was a BinaryOperator, or because the RHS was a BinaryOperator and was
   // swapped with the LHS.
   if (!isa<BinaryOperator>(LHS))
-    return std::make_pair(nullptr, Zero);;
+    return std::make_pair(nullptr, Zero);
 
   // If we reach here, the expr is one of these:
   // Case 4: (p + q) + i
@@ -578,22 +571,23 @@ void BoundsAnalysis::FillGenSet(Expr *E,
                                AE->getValueKind(), AE->getObjectKind(),
                                AE->getExprLoc(), FPOptions());
 
-    FillGenSetAndGetBoundsVars(BO, EB, SuccEB);
+    FillGenSetForEdge(BO, EB, SuccEB);
 
   } else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
     if (UO->getOpcode() == UO_Deref) {
       assert(UO->getSubExpr() && "invalid UnaryOperator expression");
 
       const Expr *UE = IgnoreCasts(UO->getSubExpr());
-      FillGenSetAndGetBoundsVars(UE, EB, SuccEB);
+      FillGenSetForEdge(UE, EB, SuccEB);
     }
   }
 }
 
 void BoundsAnalysis::ComputeKillSets(StmtSet NestedStmts) {
-  // For a block B, a variable v is added to Kill[B][S] if v is assigned to in
+  // For a block B, a variable V is added to Kill[B][S] if V is assigned to in
   // B by Stmt S or some child S1 of S.
 
+  // Compute vars killed in the current block.
   for (const auto item : BlockMap) {
     ElevatedCFGBlock *EB = item.second;
 
@@ -602,10 +596,12 @@ void BoundsAnalysis::ComputeKillSets(StmtSet NestedStmts) {
         const Stmt *S = Elem.castAs<CFGStmt>().getStmt();
         if (!S)
           continue;
+
         // Skip top-level statements that are nested in another
         // top-level statement.
         if (NestedStmts.find(S) != NestedStmts.end())
           continue;
+
         FillKillSet(EB, S, S);
       }
     }
@@ -639,23 +635,23 @@ void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB,
           EB->Kill[TopLevelStmt].insert(V);
 
         else {
-          // Else look for the variable in BoundsVars.
+          // Else look for the variable in NtPtrsInScope.
 
-          // BoundsVars is a mapping from an ntptr to all the variables used in
-          // its upper and lower bounds exprs. For example:
+          // NtPtrsInScope is a mapping from an ntptr to all the variables used
+          // in its upper and lower bounds exprs. For example:
 
           // _Nt_array_ptr<char> p : bounds(p + i, i + p + j + 10);
           // _Nt_array_ptr<char> q : bounds(i + q, i + p + q + m);
 
-          // EB->BoundsVars: {p: {p, i, j}, q: {i, q, p, m}}
+          // NtPtrsInScope: {p: {p, i, j}, q: {i, q, p, m}}
 
-          for (auto item : EB->BoundsVars) {
+          for (auto item : NtPtrsInScope) {
             const VarDecl *NtPtr = item.first;
-            DeclSetTy Vars = item.second;
+            DeclSetTy BoundsVars = item.second;
 
             // If the variable exists in the bounds declaration for the ntptr,
             // then add the Stmt:ntptr pair to the Kill set for the block.
-            if (Vars.count(V))
+            if (BoundsVars.count(V))
               EB->Kill[TopLevelStmt].insert(NtPtr);
           }
         }
@@ -693,15 +689,15 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
                                     WorkListTy &WorkList) {
   // Out[B1->B2] = (In[B1] - Kill[B1]) u Gen[B1->B2].
 
-  // EB->Kill is a mapping from Stmt to ntptrs. We extract just the ntptrs for
-  // the block and then use that to compute (In - Kill).
+  // EB->Kill is a mapping from Stmt to ntptrs. We extract just the ntptrs
+  // killed for the block and use that to compute (In - Kill).
   DeclSetTy KilledVars;
   for (auto item : EB->Kill) {
     const DeclSetTy Vars = item.second;
     KilledVars.insert(Vars.begin(), Vars.end());
   }
 
-  BoundsMapTy Diff = Difference(EB->In, KilledVars);
+  BoundsMapTy InMinusKill = Difference(EB->In, KilledVars);
 
   for (const CFGBlock *succ : EB->Block->succs()) {
     if (SkipBlock(succ))
@@ -726,7 +722,7 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
     // B2:   if (*(p + 1)) { // In[B2] = {p:1}, Gen[B1->B2] = {p:1} ==> bounds(p) = 2.
     // B3:     if (*(p + 2)) { // In[B2] = {p:2}, Gen[B1->B2] = {p:2} ==> bounds(p) = 3.
 
-    EB->Out[succ] = Union(Diff, EB->Gen[succ]);
+    EB->Out[succ] = Union(InMinusKill, EB->Gen[succ]);
 
     // The Out set on an edge is marked "empty" if the In set is marked "empty"
     // and the Gen set on that edge is empty.
@@ -755,10 +751,28 @@ BoundsMapTy BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
   return EB->In;
 }
 
+Expr *BoundsAnalysis::GetTerminatorCondition(const Expr *E) const {
+  if (const auto *BO = dyn_cast<BinaryOperator>(E->IgnoreParens()))
+    return GetTerminatorCondition(BO->getRHS());
+
+  // According to C11 standard section 6.5.13, the logical AND Operator
+  // shall yield 1 if both of its operands compare unequal to 0;
+  // otherwise, it yields 0. The result has type int.
+  // If we have if (*p && *(p + 1)) where p is _Nt_array_ptr<char> then
+  // it is casted to integer type and an IntegralCast is generated. Here
+  // we strip off the IntegralCast.
+  if (auto *CE = dyn_cast<CastExpr>(E))
+    if (CE->getCastKind() == CastKind::CK_IntegralCast)
+      return const_cast<Expr *>(CE->getSubExpr());
+  return const_cast<Expr *>(E);
+}
+
 Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
   if (const Stmt *S = B->getTerminatorStmt()) {
+    if (const auto *BO = dyn_cast<BinaryOperator>(S))
+      return GetTerminatorCondition(BO->getLHS());
     if (const auto *IfS = dyn_cast<IfStmt>(S))
-      return const_cast<Expr *>(IfS->getCond());
+      return GetTerminatorCondition(IfS->getCond());
     if (const auto *WhileS = dyn_cast<WhileStmt>(S))
       return const_cast<Expr *>(WhileS->getCond());
     if (const auto *ForS = dyn_cast<ForStmt>(S))
@@ -774,8 +788,8 @@ Expr *BoundsAnalysis::IgnoreCasts(const Expr *E) {
 }
 
 bool BoundsAnalysis::IsNtArrayType(const VarDecl *V) const {
-  return V->getType()->isCheckedPointerNtArrayType() ||
-         V->getType()->isNtCheckedArrayType();
+  return V && (V->getType()->isCheckedPointerNtArrayType() ||
+               V->getType()->isNtCheckedArrayType());
 }
 
 bool BoundsAnalysis::SkipBlock(const CFGBlock *B) const {
@@ -878,25 +892,26 @@ OrderedBlocksTy BoundsAnalysis::GetOrderedBlocks() {
 }
 
 void BoundsAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
-  llvm::outs() << "--------------------------------------\n";
-  llvm::outs() << "In function: " << FD->getName() << "\n";
+  OS << "--------------------------------------\n";
+  OS << "In function: " << FD->getName() << "\n";
 
   for (const CFGBlock *B : GetOrderedBlocks()) {
-    llvm::outs() << "--------------------------------------";
-    B->print(llvm::outs(), Cfg, S.getLangOpts(), /* ShowColors */ true);
+    OS << "--------------------------------------";
+    B->print(OS, Cfg, S.getLangOpts(), /* ShowColors */ true);
 
     BoundsMapTy Vars = GetWidenedBounds(B);
     using VarPairTy = std::pair<const VarDecl *, unsigned>;
 
-    std::sort(Vars.begin(), Vars.end(), [](VarPairTy A, VarPairTy B) {
-                return A.first->getQualifiedNameAsString().compare(
-                       B.first->getQualifiedNameAsString()) < 0;
-              });
+    llvm::sort(Vars.begin(), Vars.end(),
+               [](VarPairTy A, VarPairTy B) {
+                 return A.first->getQualifiedNameAsString().compare(
+                        B.first->getQualifiedNameAsString()) < 0;
+               });
 
     for (auto item : Vars) {
-      llvm::outs() << "upper_bound("
-                   << item.first->getQualifiedNameAsString() << ") = "
-                   << item.second << "\n";
+      OS << "upper_bound("
+         << item.first->getQualifiedNameAsString() << ") = "
+         << item.second << "\n";
     }
   }
 }

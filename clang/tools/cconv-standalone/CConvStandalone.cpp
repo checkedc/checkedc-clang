@@ -23,73 +23,78 @@ static cl::OptionCategory ConvertCategory("cconv options");
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp("");
 
-static cl::opt<bool> DumpIntermediate("dump-intermediate",
+static cl::opt<bool> OptDumpIntermediate("dump-intermediate",
                                       cl::desc("Dump intermediate "
                                                "information"),
                                       cl::init(false),
                                       cl::cat(ConvertCategory));
 
-static cl::opt<bool> Verbose("verbose", cl::desc("Print verbose "
+static cl::opt<bool> OptVerbose("verbose", cl::desc("Print verbose "
                                                  "information"),
                              cl::init(false), cl::cat(ConvertCategory));
 
-static cl::opt<bool>
-    SeperateMultipleFuncDecls("seperatefds",
-                              cl::desc("Do not merge multiple "
-                                       "declarations of functions."),
-                              cl::init(false),
-                              cl::cat(ConvertCategory));
-
 static cl::opt<std::string>
-    OutputPostfix("output-postfix",
+    OptOutputPostfix("output-postfix",
                   cl::desc("Postfix to add to the names of rewritten "
                            "files, if not supplied writes to STDOUT"),
                   cl::init("-"), cl::cat(ConvertCategory));
 
 static cl::opt<std::string>
-    ConstraintOutputJson("constraint-output",
+    OptConstraintOutputJson("constraint-output",
                          cl::desc("Path to the file where all the analysis "
                                   "information will be dumped as json"),
                          cl::init("constraint_output.json"),
                          cl::cat(ConvertCategory));
 
-static cl::opt<bool> DumpStats("dump-stats", cl::desc("Dump statistics"),
+static cl::opt<std::string>
+    OptStatsOutputJson("stats-output",
+                            cl::desc("Path to the file where all the stats "
+                                     "will be dumped as json"),
+                            cl::init("TotalConstraintStats.json"),
+                            cl::cat(ConvertCategory));
+static cl::opt<std::string>
+    OptWildPtrInfoJson("wildptrstats-output",
+                            cl::desc("Path to the file where all the info "
+                                     "related to WILD ptr will be dumped as json"),
+                            cl::init("WildPtrStats.json"),
+                            cl::cat(ConvertCategory));
+
+static cl::opt<bool> OptDumpStats("dump-stats", cl::desc("Dump statistics"),
                                cl::init(false),
                                cl::cat(ConvertCategory));
 
-static cl::opt<bool> HandleVARARGS("handle-varargs",
+static cl::opt<bool> OptHandleVARARGS("handle-varargs",
                                    cl::desc("Enable handling of varargs "
                                             "in a "
                                             "sound manner"),
                                    cl::init(false),
                                    cl::cat(ConvertCategory));
 
-static cl::opt<bool> EnablePropThruIType("enable-itypeprop",
+static cl::opt<bool> OptEnablePropThruIType("enable-itypeprop",
                                          cl::desc("Enable propagation of "
                                                   "constraints through ityped "
                                                   "parameters/returns."),
                                          cl::init(false),
                                          cl::cat(ConvertCategory));
 
-static cl::opt<bool>
-    ConsiderAllocUnsafe("alloc-unsafe",
-                        cl::desc("Consider the allocators "
-                                 "(i.e., malloc/calloc) as unsafe."),
-                        cl::init(false),
-                        cl::cat(ConvertCategory));
-static cl::opt<bool> AllTypes("alltypes",
+static cl::opt<bool> OptAllTypes("alltypes",
                               cl::desc("Consider all Checked C types for "
                                        "conversion"),
                               cl::init(false),
                               cl::cat(ConvertCategory));
 
-static cl::opt<bool> AddCheckedRegions("addcr", cl::desc("Add Checked "
+static cl::opt<bool> OptAddCheckedRegions("addcr", cl::desc("Add Checked "
                                                          "Regions"),
                                        cl::init(false),
                                        cl::cat(ConvertCategory));
 
+static cl::opt<bool> OptDiableCCTypeChecker("disccty",
+                              cl::desc("Do not disable checked c type checker."),
+                              cl::init(false),
+                              cl::cat(ConvertCategory));
+
 static cl::opt<std::string>
-    BaseDir("base-dir",
+    OptBaseDir("base-dir",
             cl::desc("Base directory for the code we're translating"),
             cl::init(""), cl::cat(ConvertCategory));
 
@@ -107,25 +112,26 @@ int main(int argc, const char **argv) {
                                     ConvertCategory);
   // Setup options.
   struct CConvertOptions CcOptions;
-  CcOptions.BaseDir = BaseDir.getValue();
-  CcOptions.ConsiderAllocUnsafe = ConsiderAllocUnsafe;
-  CcOptions.EnablePropThruIType = EnablePropThruIType;
-  CcOptions.HandleVARARGS = HandleVARARGS;
-  CcOptions.DumpStats = DumpStats;
-  CcOptions.OutputPostfix = OutputPostfix.getValue();
-  CcOptions.Verbose = Verbose;
-  CcOptions.DumpIntermediate = DumpIntermediate;
-  CcOptions.ConstraintOutputJson = ConstraintOutputJson.getValue();
-  CcOptions.SeperateMultipleFuncDecls = SeperateMultipleFuncDecls;
-  CcOptions.AddCheckedRegions = AddCheckedRegions;
-  CcOptions.EnableAllTypes = AllTypes;
+  CcOptions.BaseDir = OptBaseDir.getValue();
+  CcOptions.EnablePropThruIType = OptEnablePropThruIType;
+  CcOptions.HandleVARARGS = OptHandleVARARGS;
+  CcOptions.DumpStats = OptDumpStats;
+  CcOptions.OutputPostfix = OptOutputPostfix.getValue();
+  CcOptions.Verbose = OptVerbose;
+  CcOptions.DumpIntermediate = OptDumpIntermediate;
+  CcOptions.ConstraintOutputJson = OptConstraintOutputJson.getValue();
+  CcOptions.StatsOutputJson = OptStatsOutputJson.getValue();
+  CcOptions.WildPtrInfoJson = OptWildPtrInfoJson.getValue();
+  CcOptions.AddCheckedRegions = OptAddCheckedRegions;
+  CcOptions.EnableAllTypes = OptAllTypes;
+  CcOptions.DisableCCTypeChecker = OptDiableCCTypeChecker;
 
   // Create CConv Interface.
   CConvInterface CCInterface(CcOptions,
                              OptionsParser.getSourcePathList(),
                              &(OptionsParser.getCompilations()));
 
-  if (Verbose)
+  if (OptVerbose)
     errs() << "Calling Library to building Constraints.\n";
   // First build constraints.
   if (!CCInterface.BuildInitialConstraints()) {
@@ -133,7 +139,7 @@ int main(int argc, const char **argv) {
     return 1;
   }
 
-  if (Verbose) {
+  if (OptVerbose) {
     errs() << "Finished Building Constraints.\n";
     errs() << "Trying to solve Constraints.\n";
   }
@@ -144,7 +150,7 @@ int main(int argc, const char **argv) {
     return 1;
   }
 
-  if (Verbose) {
+  if (OptVerbose) {
     errs() << "Finished solving constraints.\n";
     errs() << "Trying to rewrite the converted files back.\n";
   }

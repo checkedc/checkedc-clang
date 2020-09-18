@@ -140,7 +140,6 @@ add_clang_library(clangDaemon
   ${CLANGD_ATOMIC_LIB}
   )
 
-
 add_clang_library(cconvClangDaemon
   AST.cpp
   CConvertCommands.cpp
@@ -246,9 +245,9 @@ add_clang_library(cconvClangDaemon
   clangToolingSyntax
   ${LLVM_PTHREAD_LIB}
   ${CLANGD_ATOMIC_LIB}
-        )
+      )
 
-target_compile_definitions(obj.cconvClangDaemon PRIVATE INTERACTIVECCCONV=1)
+  target_compile_definitions(obj.cconvClangDaemon PRIVATE INTERACTIVECCCONV=1)
 
 add_subdirectory(refactor/tweaks)
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")

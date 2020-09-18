@@ -6367,6 +6367,14 @@ Sema::BuildCompoundLiteralExpr(SourceLocation LParenLoc, TypeSourceInfo *TInfo,
     checkNonTrivialCUnionInInitializer(E->getInitializer(),
                                        E->getInitializer()->getExprLoc());
 
+  // Compound literals with non-array, non-function types (e.g. structs)
+  // currently cause assert failures and compile-time errors if they are
+  // bound to temporaries.
+  // TODO: checkedc-clang issue #870: bind all compound literal expressions
+  // to temporaries.
+  if (getLangOpts().CheckedC)
+    return new (Context) CHKCBindTemporaryExpr(E);
+
   return MaybeBindToTemporary(E);
 }
 
@@ -8884,7 +8892,7 @@ static bool arrayConstantCheckedConversion(Sema &S, QualType LHSType,
   if (ICE->getCastKind() != CK_ArrayToPointerDecay)
     return false;
 
-  Expr *Child = ICE->getSubExpr()->IgnoreExprTmp()->IgnoreParens();
+  Expr *Child = ICE->getSubExpr()->IgnoreParenTmp();
   if (!isa<InitListExpr>(Child) && !isa<StringLiteral>(Child) &&
       !isa<CompoundLiteralExpr>(Child))
     return false;
