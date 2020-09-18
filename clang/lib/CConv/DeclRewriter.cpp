@@ -201,6 +201,8 @@ void DeclRewriter::rewriteSingleDecl(DeclReplacementTempl<DT, DK> *N,
   }
   SourceRange TR = D->getSourceRange();
 
+  // TODO: use doDeclRewrite
+
   // Is there an initializer? If there is, change TR so that it points
   // to the START of the SourceRange of the initializer text, and drop
   // an '=' token into sRewrite.
@@ -266,21 +268,20 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
     ++I;
   }
 
-  // Step 2: Remove the original line from the program.
-  SourceLocation EndOfLine = deleteAllDeclarationsOnLine(N);
-
-  // Step 3: For each decl in the original, build up a new string
-  //         and if the original decl was re-written, write that
-  //         out instead (WITH the initializer).
-  std::string NewMultiLineDeclS = "";
-  raw_string_ostream NewMlDecl(NewMultiLineDeclS);
+  // Step 2: For each decl in the original, build up a new string. If the
+  //         original decl was re-written, write that out instead. Existing
+  //         initializers are preserved, any declarations that an initializer to
+  //         be valid checked-c are given one.
   std::set<Decl *> SameLineDecls;
   getDeclsOnSameLine(N, SameLineDecls);
 
+  bool IsFirst = true;
+  SourceLocation PrevEnd;
   for (const auto &DL : SameLineDecls) {
     DT *SDL = dyn_cast<DT>(DL);
     assert("Could not get variable declaration of expected type." && SDL);
 
+    // Find the declaration replacement object for the current declaration
     DeclReplacement *SameLineReplacement;
     bool Found = false;
     for (const auto &NLT : RewritesForThisDecl)
@@ -290,33 +291,89 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
         break;
       }
 
-    if (Found) {
-      NewMlDecl << SameLineReplacement->getReplacement();
-      if (auto VDL = dyn_cast<VarDecl>(SDL)) {
-        if (Expr *E = VDL->getInit()) {
-          NewMlDecl << " = ";
-          E->printPretty(NewMlDecl, nullptr, A.getPrintingPolicy());
-        } else {
-          if (isPointerType(VDL))
-            NewMlDecl << " = ((void *)0)";
-        }
+    if (IsFirst) {
+      // Rewriting the first declaration is easy. Nothing should change if its
+      // type does not to be rewritten. When rewriting is required, it is
+      // essentially the same as the single declaration case.
+      IsFirst = false;
+      if (Found) {
+        SourceRange SR(SDL->getBeginLoc(), SDL->getEndLoc());
+        doDeclRewrite(SR, SameLineReplacement);
       }
-      NewMlDecl << (dyn_cast<VarDecl>(SDL) ? ";\n" : "; ");
-    } else {
-      DL->print(NewMlDecl);
-      NewMlDecl << (dyn_cast<VarDecl>(SDL) ? ";\n" : "; ");
+    } else  {
+      // The subsequent decls are more complicated because we need to insert a
+      // type string even the variables type hasn't changed.
+      if (Found) {
+        // If the type has changed, the DeclReplacement object has a replacement
+        // string stored in it that should be used.
+        SourceRange SR(PrevEnd, SDL->getEndLoc());
+        doDeclRewrite(SR, SameLineReplacement);
+      } else {
+        // When the type hasn't changed, we still need to insert the original
+        // type for the variable.
+
+        // This is a bit of trickery needed to get a string representation of
+        // the declaration without the initializer. We don't want to rewrite to
+        // initializer because this causes problems when rewriting casts and
+        // generic function calls later on.
+        auto *VD = dyn_cast<VarDecl>(SDL);
+        Expr *Init = nullptr;
+        if (VD && VD->hasInit()) {
+          Init = VD->getInit();
+          VD->setInit(nullptr);
+        }
+
+        // Dump the declaration (without the initializer) to a string. Printing
+        // the AST node gives a full declaration including the base type which
+        // is not present in the multi-decl.
+        std::string DeclStr = "";
+        raw_string_ostream DeclStream(DeclStr);
+        DL->print(DeclStream);
+        assert("Original decl string empty." && !DeclStream.str().empty());
+
+        // Do the replacement. PrevEnd is setup to be the source location of the
+        // comma after the previous declaration in the multi-decl. getEndLoc is
+        // either the end of the declaration or just before the initializer if
+        // one is present.
+        SourceRange SR(PrevEnd, DL->getEndLoc());
+        R.ReplaceText(SR, DeclStream.str());
+
+        // Undo prior trickery. This need to happen so that the PSL for the decl
+        // is not changed since the PSL is used as a map key in a few places.
+        if (VD && Init)
+          VD->setInit(Init);
+      }
     }
+
+    // Variables in a mutli-decl are delimited by commas. The rewritten decls
+    // are separate statements separated by a semicolon an newline.
+    SourceRange End = getNextCommaOrSemicolon(DL->getEndLoc());
+    R.ReplaceText(End, ";\n ");
+    PrevEnd = End.getEnd();
   }
 
-  // Step 4: Write out the string built up in step 3.
-  R.InsertTextAfter(EndOfLine, NewMlDecl.str());
-
-  // Step 5: Be sure and skip all of the NewTyps that we dealt with
+  // Step 3: Be sure and skip all of the NewTyps that we dealt with
   //         during this time of hacking, by adding them to the
   //         skip set.
-
   for (const auto &TN : RewritesForThisDecl)
     Skip.insert(TN);
+}
+
+// Common rewriting logic used to replace a single decl either on its own or as
+// part of a multi decl. The primary responsibility of this method (aside from
+// invoking the rewriter) is to add any required initializer expression.
+void DeclRewriter::doDeclRewrite(SourceRange &SR, DeclReplacement *N) {
+  std::string Replacement = N->getReplacement();
+  if (auto *VD = dyn_cast<VarDecl>(N->getDecl())) {
+    if (VD->hasInit()) {
+      SR.setEnd(VD->getInitializerStartLoc());
+      Replacement += " =";
+    } else {
+      if (isPointerType(VD))
+        Replacement += " = ((void *)0)";
+    }
+  }
+  R.ReplaceText(SR, Replacement);
 }
 
 void DeclRewriter::rewriteFunctionDecl(FunctionDeclReplacement *N) {
@@ -344,6 +401,22 @@ void DeclRewriter::rewriteFunctionDecl(FunctionDeclReplacement *N) {
       errs() << "with " << N->getReplacement() << "\n";
     }
   }
+}
+
+// Makes use of clangs lexer to find the source location of the next comma after
+// the given source location. This is used to find the end of each declaration
+// within a multi-declaration. Using the lexer is better than doing this
+// character-wise since characters comments and strings don't mess things up.
+SourceRange DeclRewriter::getNextCommaOrSemicolon(SourceLocation L) {
+  SourceManager &SM = A.getSourceManager();
+  auto Tok = Lexer::findNextToken(L, SM, A.getLangOpts());
+  while (Tok.hasValue()) {
+    if (Tok->is(clang::tok::comma) || Tok->is(clang::tok::semi))
+      return SourceRange(Tok->getLocation(), Tok->getEndLoc());
+    Tok = Lexer::findNextToken(Tok->getEndLoc(), A.getSourceManager(),
+                               A.getLangOpts());
+  }
+  llvm_unreachable("Unable to find comma or semicolon at source location.");
 }
 
 bool DeclRewriter::areDeclarationsOnSameLine(DeclReplacement *N1,

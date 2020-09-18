@@ -63,13 +63,15 @@ private:
   void rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N, RSet &ToRewrite);
   template<typename DT, DeclReplacement::DRKind DK>
   void rewriteSingleDecl(DeclReplacementTempl<DT, DK> *N, RSet &ToRewrite);
+  void doDeclRewrite(SourceRange &SR, DeclReplacement *N);
 
-    void rewriteFunctionDecl(FunctionDeclReplacement *N);
+  void rewriteFunctionDecl(FunctionDeclReplacement *N);
   SourceLocation deleteAllDeclarationsOnLine(DeclReplacement *N);
   void getDeclsOnSameLine(DeclReplacement *N, std::set<Decl *> &Decls);
   bool isSingleDeclaration(DeclReplacement *N);
   bool areDeclarationsOnSameLine(DeclReplacement *N1,
                                  DeclReplacement *N2);
+  SourceRange getNextCommaOrSemicolon(SourceLocation L);
 };
 
 // Visits function declarations and adds entries with their new rewritten

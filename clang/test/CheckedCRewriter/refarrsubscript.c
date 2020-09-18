@@ -13,7 +13,8 @@ int **func(int **p, int *x) {
 
 struct foo { int **b; int n; };
 	//CHECK_NOALL: struct foo { int **b; int n; };
-	//CHECK_ALL: struct foo { _Array_ptr<_Ptr<int>> b; int n;   };
+	//CHECK_ALL: struct foo { _Array_ptr<_Ptr<int>> b;
+	//CHECK_ALL: int n;
 int **bar(struct foo *p) {
 	//CHECK_NOALL: int **bar(_Ptr<struct foo> p) {
 	//CHECK_ALL: _Array_ptr<_Ptr<int>> bar(_Ptr<struct foo> p) _Checked {
