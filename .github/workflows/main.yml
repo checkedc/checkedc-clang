@@ -91,6 +91,13 @@ jobs:
         with:
           name: cconvscripts
           path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils
+      
+      # Upload Test files
+      - name: Upload Test files
+        uses: actions/upload-artifact@v2
+        with:
+          name: cconvtests
+          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/test
 
 
   unittests:
@@ -109,6 +116,13 @@ jobs:
         with:
           name: cconvbuild
           path: ${{runner.workspace}}/${{env.builddir}}
+          
+      # Download test files
+      - name: Download test files
+        uses: actions/download-artifact@v2
+        with:
+          name: cconvtests
+          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/test
 
       - name: Clone checked c headers
         uses: actions/checkout@v2
@@ -138,10 +152,13 @@ jobs:
       # clone and install bear
       # Needed for generating compile_commands.json
       - name: Clone Bear
-        uses: actions/checkout@v2
-        with:
-          repository: rizsotto/Bear
-          path: depsfolder/bear
+        run: |
+          mkdir -p ${{github.workspace}}/depsfolder
+          cd ${{github.workspace}}/depsfolder
+          git clone https://github.com/rizsotto/Bear.git bear
+          cd bear
+          git pull
+          git checkout -f 75ff7f561652509ec9b34095881fdb6c4a56c9e0
       - name: Install Bear
         run: |
           mkdir -p ${{runner.workspace}}/depsfolder/bear
@@ -203,10 +220,13 @@ jobs:
       # clone and install bear
       # Needed for generating compile_commands.json
       - name: Clone Bear
-        uses: actions/checkout@v2
-        with:
-          repository: rizsotto/Bear
-          path: depsfolder/bear
+        run: |
+          mkdir -p ${{github.workspace}}/depsfolder
+          cd ${{github.workspace}}/depsfolder
+          git clone https://github.com/rizsotto/Bear.git bear
+          cd bear
+          git pull
+          git checkout -f 75ff7f561652509ec9b34095881fdb6c4a56c9e0
       - name: Install Bear
         run: |
           mkdir -p ${{runner.workspace}}/depsfolder/bear
@@ -291,10 +311,13 @@ jobs:
       # clone and install bear
       # Needed for generating compile_commands.json
       - name: Clone Bear
-        uses: actions/checkout@v2
-        with:
-          repository: rizsotto/Bear
-          path: depsfolder/bear
+        run: |
+          mkdir -p ${{github.workspace}}/depsfolder
+          cd ${{github.workspace}}/depsfolder
+          git clone https://github.com/rizsotto/Bear.git bear
+          cd bear
+          git pull
+          git checkout -f 75ff7f561652509ec9b34095881fdb6c4a56c9e0
       - name: Install Bear
         run: |
           mkdir -p ${{runner.workspace}}/depsfolder/bear
@@ -359,10 +382,13 @@ jobs:
       # clone and install bear
       # Needed for generating compile_commands.json
       - name: Clone Bear
-        uses: actions/checkout@v2
-        with:
-          repository: rizsotto/Bear
-          path: depsfolder/bear
+        run: |
+          mkdir -p ${{github.workspace}}/depsfolder
+          cd ${{github.workspace}}/depsfolder
+          git clone https://github.com/rizsotto/Bear.git bear
+          cd bear
+          git pull
+          git checkout -f 75ff7f561652509ec9b34095881fdb6c4a56c9e0
       - name: Install Bear
         run: |
           mkdir -p ${{runner.workspace}}/depsfolder/bear
@@ -426,10 +452,13 @@ jobs:
       # clone and install bear
       # Needed for generating compile_commands.json
       - name: Clone Bear
-        uses: actions/checkout@v2
-        with:
-          repository: rizsotto/Bear
-          path: depsfolder/bear
+        run: |
+          mkdir -p ${{github.workspace}}/depsfolder
+          cd ${{github.workspace}}/depsfolder
+          git clone https://github.com/rizsotto/Bear.git bear
+          cd bear
+          git pull
+          git checkout -f 75ff7f561652509ec9b34095881fdb6c4a56c9e0
       - name: Install Bear
         run: |
           mkdir -p ${{runner.workspace}}/depsfolder/bear
@@ -494,10 +523,13 @@ jobs:
       # clone and install bear
       # Needed for generating compile_commands.json
       - name: Clone Bear
-        uses: actions/checkout@v2
-        with:
-          repository: rizsotto/Bear
-          path: depsfolder/bear
+        run: |
+          mkdir -p ${{github.workspace}}/depsfolder
+          cd ${{github.workspace}}/depsfolder
+          git clone https://github.com/rizsotto/Bear.git bear
+          cd bear
+          git pull
+          git checkout -f 75ff7f561652509ec9b34095881fdb6c4a56c9e0
       - name: Install Bear
         run: |
           mkdir -p ${{runner.workspace}}/depsfolder/bear
