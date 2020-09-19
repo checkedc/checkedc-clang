@@ -31,10 +31,13 @@ jobs:
       # clone and install bear
       # Needed for generating compile_commands.json
       - name: Clone Bear
-        uses: actions/checkout@v2
-        with:
-          repository: rizsotto/Bear
-          path: depsfolder/bear
+        run: |
+          mkdir -p ${{github.workspace}}/depsfolder
+          cd ${{github.workspace}}/depsfolder
+          git clone https://github.com/rizsotto/Bear.git bear
+          cd bear
+          git pull
+          git checkout -f 75ff7f561652509ec9b34095881fdb6c4a56c9e0
       - name: Install Bear
         run: |
           mkdir -p ${{runner.workspace}}/depsfolder/bear
