@@ -120,6 +120,7 @@ bool CheckedRegionAdder::isWrittenChecked(const clang::CompoundStmt* S) {
     case CSS_Bounds: return true;
     case CSS_Memory: return true;
   }
+  llvm_unreachable("Invalid Checked Scope Specifier.");
 }
 
 

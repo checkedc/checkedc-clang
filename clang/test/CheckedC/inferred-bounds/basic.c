@@ -131,7 +131,7 @@ void f5(void) {
 // CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Any
 
 void f6(_Array_ptr<int> a : bounds(a, a + 5)) {
-  a = (_Array_ptr<int>) 5; // expected-error {{inferred bounds for 'a' are unknown after statement}}
+  a = (_Array_ptr<int>) 5; // expected-error {{inferred bounds for 'a' are unknown after assignment}}
 }
 
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
@@ -150,7 +150,7 @@ void f6(_Array_ptr<int> a : bounds(a, a + 5)) {
 // CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
 
 void f7(void) {
-  _Array_ptr<int> d : count(5) = (_Array_ptr<int>) 5; // expected-error {{inferred bounds for 'd' are unknown after statement}}
+  _Array_ptr<int> d : count(5) = (_Array_ptr<int>) 5; // expected-error {{inferred bounds for 'd' are unknown after initialization}}
 }
 
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} d '_Array_ptr<int>' cinit
@@ -190,7 +190,7 @@ void f8(_Array_ptr<int> a, _Array_ptr<int> b : count(5)) {
 // CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 
 void f9(int a) {
-  _Array_ptr<int> b : count(5) = (_Array_ptr<int>) !a; // expected-error {{inferred bounds for 'b' are unknown after statement}}
+  _Array_ptr<int> b : count(5) = (_Array_ptr<int>) !a; // expected-error {{inferred bounds for 'b' are unknown after initialization}}
 }
 
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} b '_Array_ptr<int>' cinit
@@ -207,7 +207,7 @@ void f9(int a) {
 // CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
 
 void f10(float a) {
-  _Array_ptr<int> b : count(5) = (_Array_ptr<int>)((int)a); // expected-error {{inferred bounds for 'b' are unknown after statement}}
+  _Array_ptr<int> b : count(5) = (_Array_ptr<int>)((int)a); // expected-error {{inferred bounds for 'b' are unknown after initialization}}
 }
 
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} b '_Array_ptr<int>' cinit
@@ -260,7 +260,7 @@ void f20(_Array_ptr<int> a : count(len),
 
 void f21(_Array_ptr<int> a : count(5),
          _Array_ptr<int> b) {
-  a = b;  // expected-error {{inferred bounds for 'a' are unknown after statement}}
+  a = b;  // expected-error {{inferred bounds for 'a' are unknown after assignment}}
 }
 
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
@@ -280,7 +280,7 @@ void f21(_Array_ptr<int> a : count(5),
 
 // Only test declarations for the negative case (where an error is expected}
 void f22(_Array_ptr<int> b) {
-  _Array_ptr<int> a : count(5) = b;  // expected-error {{inferred bounds for 'a' are unknown after statement}}
+  _Array_ptr<int> a : count(5) = b;  // expected-error {{inferred bounds for 'a' are unknown after initialization}}
 }
 
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} a '_Array_ptr<int>' cinit
