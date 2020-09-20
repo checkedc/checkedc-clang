@@ -1,4 +1,7 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines %s
+// RUN: cconv-standalone -addcr -alltypes -output-postfix=checked %s 
+// RUN: cconv-standalone -addcr -alltypes %S/pointerarithm.checked.c -- | count 0
+// RUN: rm %S/pointerarithm.checked.c
 
 #include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
@@ -15,7 +18,7 @@ int *sus(int *x, int*y) {
   *x = 2;
   return z;
 }
-//CHECK: _Array_ptr<int> sus(int *x : itype(_Array_ptr<int>), _Ptr<int> y) {
+//CHECK: _Array_ptr<int> sus(int *x : itype(_Array_ptr<int>), _Ptr<int> y) : count(2) {
 //CHECK-NEXT:  _Array_ptr<int> z : count(2) =  malloc<int>(sizeof(int)*2);
 
 int* foo() {

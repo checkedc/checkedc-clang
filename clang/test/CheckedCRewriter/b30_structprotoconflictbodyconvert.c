@@ -1,6 +1,9 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -output-postfix=checked -alltypes %s
+// RUN: cconv-standalone -alltypes %S/b30_structprotoconflictbodyconvert.checked.c -- | count 0
+// RUN: rm %S/b30_structprotoconflictbodyconvert.checked.c
 #include <stddef.h>
 #include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
@@ -37,7 +40,7 @@ struct np *sus(struct r *, struct r *);
 	//CHECK_ALL: struct np *sus(_Ptr<struct r> x, _Ptr<struct r> y) : itype(_Ptr<struct np>);
 
 struct r *foo() {
-	//CHECK: struct r * foo(void) {
+	//CHECK: struct r *foo(void) {
   struct r *x; 
 	//CHECK_NOALL: struct r *x; 
 	//CHECK_ALL:   _Array_ptr<struct r> x = ((void *)0); 
@@ -54,7 +57,8 @@ struct r *foo() {
 }
 
 struct np *bar() {
-	//CHECK: _Ptr<struct np> bar(void) {
+	//CHECK_NOALL: _Ptr<struct np> bar(void) {
+	//CHECK_ALL: _Ptr<struct np> bar(void) _Checked {
   struct r *x;
 	//CHECK_NOALL: struct r *x;
 	//CHECK_ALL:   _Array_ptr<struct r> x = ((void *)0);

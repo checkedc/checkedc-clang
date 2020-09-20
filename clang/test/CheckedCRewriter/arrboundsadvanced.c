@@ -43,7 +43,7 @@ void setdata(struct foo **G, unsigned dlen, struct foo *d, unsigned idx) {
     // This will make dlen the length of G
     G[idx] = d;
 }
-//CHECK: void setdata(_Array_ptr<_Ptr<struct foo>> G : count(dlen), unsigned int dlen, _Ptr<struct foo> d, unsigned int idx) {
+//CHECK: void setdata(_Array_ptr<_Ptr<struct foo>> G : count(dlen), unsigned dlen, _Ptr<struct foo> d, unsigned idx) {
 
 int main(int argc, char **argv) {
     char *PN = argv[0];

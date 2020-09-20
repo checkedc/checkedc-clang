@@ -1,10 +1,15 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/arrcallermulti2.c
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/arrcallermulti2.c
-//RUN: %clang -c %S/arrcallermulti1.checkedNOALL.c %S/arrcallermulti2.checkedNOALL.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/arrcallermulti1.checkedNOALL.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/arrcallermulti1.checkedALL.c %s
-//RUN: rm %S/arrcallermulti1.checkedALL.c %S/arrcallermulti2.checkedALL.c
-//RUN: rm %S/arrcallermulti1.checkedNOALL.c %S/arrcallermulti2.checkedNOALL.c
+// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/arrcallermulti2.c
+// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/arrcallermulti2.c
+// RUN: %clang -c %S/arrcallermulti1.checkedNOALL.c %S/arrcallermulti2.checkedNOALL.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrcallermulti1.checkedNOALL.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrcallermulti1.checkedALL.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %S/arrcallermulti2.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/arrcallermulti1.checked.c %S/arrcallermulti2.checked.c
+// RUN: diff %S/arrcallermulti1.checked.convert_again.c %S/arrcallermulti1.checked.c
+// RUN: diff %S/arrcallermulti2.checked.convert_again.c %S/arrcallermulti2.checked.c
+// RUN: rm %S/arrcallermulti1.checkedALL.c %S/arrcallermulti2.checkedALL.c
+// RUN: rm %S/arrcallermulti1.checkedNOALL.c %S/arrcallermulti2.checkedNOALL.c
+// RUN: rm %S/arrcallermulti1.checked.c %S/arrcallermulti2.checked.c %S/arrcallermulti1.checked.convert_again.c %S/arrcallermulti2.checked.convert_again.c
 
 
 /*********************************************************************************/
@@ -69,14 +74,17 @@ struct arrfptr {
 };
 
 int add1(int x) { 
+	//CHECK: int add1(int x) _Checked { 
     return x+1;
 } 
 
 int sub1(int x) { 
+	//CHECK: int sub1(int x) _Checked { 
     return x-1; 
 } 
 
 int fact(int n) { 
+	//CHECK: int fact(int n) _Checked { 
     if(n==0) { 
         return 1;
     } 
@@ -84,46 +92,48 @@ int fact(int n) {
 } 
 
 int fib(int n) { 
+	//CHECK: int fib(int n) _Checked { 
     if(n==0) { return 0; } 
     if(n==1) { return 1; } 
     return fib(n-1) + fib(n-2);
 } 
 
 int zerohuh(int n) { 
+	//CHECK: int zerohuh(int n) _Checked { 
     return !n;
 }
 
 int *mul2(int *x) { 
-	//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }
 
 int * sus(int *, int *);
 	//CHECK_NOALL: int * sus(int *, _Ptr<int> y);
-	//CHECK_ALL: _Nt_array_ptr<int> sus(int *, _Ptr<int> y);
+	//CHECK_ALL: _Array_ptr<int> sus(int *, _Ptr<int> y) : count(5);
 
 int * foo() {
 	//CHECK_NOALL: int * foo(void) {
-	//CHECK_ALL: _Nt_array_ptr<int> foo(void) {
+	//CHECK_ALL: _Array_ptr<int> foo(void) : count(5) {
         int * x = malloc(sizeof(int));
 	//CHECK: int * x = malloc<int>(sizeof(int));
         int * y = malloc(sizeof(int));
-	//CHECK: _Ptr<int> y =  malloc<int>(sizeof(int));
+	//CHECK: _Ptr<int> y = malloc<int>(sizeof(int));
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Nt_array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z : count(5) = sus(x, y);
 return z; }
 
 int * bar() {
 	//CHECK_NOALL: int * bar(void) {
-	//CHECK_ALL: _Nt_array_ptr<int> bar(void) {
+	//CHECK_ALL: _Array_ptr<int> bar(void) {
         int * x = malloc(sizeof(int));
 	//CHECK: int * x = malloc<int>(sizeof(int));
         int * y = malloc(sizeof(int));
-	//CHECK: _Ptr<int> y =  malloc<int>(sizeof(int));
+	//CHECK: _Ptr<int> y = malloc<int>(sizeof(int));
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Nt_array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
 z += 2;
 return z; }

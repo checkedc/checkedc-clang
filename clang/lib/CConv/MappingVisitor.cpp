@@ -28,8 +28,7 @@ bool MappingVisitor::VisitDeclStmt(DeclStmt *S) {
     if (I != SourceLocs.end()) {
       Decl *D = nullptr;
       Stmt *So = nullptr;
-      Type *T = nullptr;
-      std::tie<Stmt *, Decl *, Type *>(So, D, T) = PSLtoSDT[PSL];
+      std::tie<Stmt *, Decl *>(So, D) = PSLtoSDT[PSL];
       if (So != nullptr && Verbose) {
         llvm::errs() << "\nOverriding ";
         S->dump();
@@ -43,7 +42,7 @@ bool MappingVisitor::VisitDeclStmt(DeclStmt *S) {
       }
 
       if (So == nullptr)
-        PSLtoSDT[PSL] = StmtDeclOrType(S, D, T);
+        PSLtoSDT[PSL] = StmtDecl(S, D);
     }
 
     if (DeclStmt *DL = dyn_cast<DeclStmt>(S)) {
@@ -68,8 +67,7 @@ bool MappingVisitor::VisitDecl(Decl *D) {
     if (I != SourceLocs.end()) {
       Decl *Do = nullptr;
       Stmt *S = nullptr;
-      Type *T = nullptr;
-      std::tie<Stmt *, Decl *, Type *>(S, Do, T) = PSLtoSDT[PSL];
+      std::tie<Stmt *, Decl *>(S, Do) = PSLtoSDT[PSL];
       if (Do != nullptr && Verbose) {
         llvm::errs() << "Overriding ";
         Do->dump();
@@ -80,7 +78,7 @@ bool MappingVisitor::VisitDecl(Decl *D) {
       }
       
       if (Do == nullptr)
-        PSLtoSDT[PSL] = StmtDeclOrType(S, D, T);
+        PSLtoSDT[PSL] = StmtDecl(S, D);
     }
   }
 

@@ -1,10 +1,15 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %s %S/arrofstructsafemulti1.c
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %s %S/arrofstructsafemulti1.c
-//RUN: %clang -c %S/arrofstructsafemulti1.checkedNOALL2.c %S/arrofstructsafemulti2.checkedNOALL2.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/arrofstructsafemulti2.checkedNOALL2.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/arrofstructsafemulti2.checkedALL2.c %s
-//RUN: rm %S/arrofstructsafemulti1.checkedALL2.c %S/arrofstructsafemulti2.checkedALL2.c
-//RUN: rm %S/arrofstructsafemulti1.checkedNOALL2.c %S/arrofstructsafemulti2.checkedNOALL2.c
+// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL2 %S/arrofstructsafemulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL2 %S/arrofstructsafemulti1.c %s
+// RUN: %clang -c %S/arrofstructsafemulti1.checkedNOALL2.c %S/arrofstructsafemulti2.checkedNOALL2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrofstructsafemulti2.checkedNOALL2.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrofstructsafemulti2.checkedALL2.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/arrofstructsafemulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/arrofstructsafemulti1.checked2.c %S/arrofstructsafemulti2.checked2.c
+// RUN: diff %S/arrofstructsafemulti1.checked2.convert_again.c %S/arrofstructsafemulti1.checked2.c
+// RUN: diff %S/arrofstructsafemulti2.checked2.convert_again.c %S/arrofstructsafemulti2.checked2.c
+// RUN: rm %S/arrofstructsafemulti1.checkedALL2.c %S/arrofstructsafemulti2.checkedALL2.c
+// RUN: rm %S/arrofstructsafemulti1.checkedNOALL2.c %S/arrofstructsafemulti2.checkedNOALL2.c
+// RUN: rm %S/arrofstructsafemulti1.checked2.c %S/arrofstructsafemulti2.checked2.c %S/arrofstructsafemulti1.checked2.convert_again.c %S/arrofstructsafemulti2.checked2.convert_again.c
 
 
 /*********************************************************************************/
@@ -31,7 +36,8 @@ extern _Unchecked char *strcpy(char * restrict dest, const char * restrict src :
 struct general { 
     int data; 
     struct general *next;
-	//CHECK: struct general *next;
+	//CHECK_NOALL: struct general *next;
+	//CHECK_ALL: _Ptr<struct general> next;
 };
 
 struct warr { 
@@ -68,14 +74,17 @@ struct arrfptr {
 };
 
 int add1(int x) { 
+	//CHECK: int add1(int x) _Checked { 
     return x+1;
 } 
 
 int sub1(int x) { 
+	//CHECK: int sub1(int x) _Checked { 
     return x-1; 
 } 
 
 int fact(int n) { 
+	//CHECK: int fact(int n) _Checked { 
     if(n==0) { 
         return 1;
     } 
@@ -83,31 +92,38 @@ int fact(int n) {
 } 
 
 int fib(int n) { 
+	//CHECK: int fib(int n) _Checked { 
     if(n==0) { return 0; } 
     if(n==1) { return 1; } 
     return fib(n-1) + fib(n-2);
 } 
 
 int zerohuh(int n) { 
+	//CHECK: int zerohuh(int n) _Checked { 
     return !n;
 }
 
 int *mul2(int *x) { 
-	//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }
 
 struct general ** sus(struct general * x, struct general * y) {
-	//CHECK: struct general ** sus(struct general *x, struct general *y) {
+	//CHECK_NOALL: struct general ** sus(struct general * x, struct general * y) {
+	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> sus(struct general * x, _Ptr<struct general> y) : count(5) {
 x = (struct general *) 5; 
 	//CHECK: x = (struct general *) 5; 
         struct general **z = calloc(5, sizeof(struct general *));
-	//CHECK: struct general **z = calloc<struct general *>(5, sizeof(struct general *));
+	//CHECK_NOALL: struct general **z = calloc<struct general *>(5, sizeof(struct general *));
+	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> z : count(5) = calloc<_Ptr<struct general>>(5, sizeof(struct general *));
         struct general *curr = y;
-	//CHECK: struct general *curr = y;
+	//CHECK_NOALL: struct general *curr = y;
+	//CHECK_ALL: _Ptr<struct general> curr = y;
         int i;
         for(i = 0; i < 5; i++) { 
+	//CHECK_NOALL: for(i = 0; i < 5; i++) { 
+	//CHECK_ALL: for(i = 0; i < 5; i++) _Checked { 
             z[i] = curr; 
             curr = curr->next; 
         } 

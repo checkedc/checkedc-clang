@@ -1,10 +1,15 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %s %S/fptrarrinstructsafemulti1.c
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %s %S/fptrarrinstructsafemulti1.c
-//RUN: %clang -c %S/fptrarrinstructsafemulti1.checkedNOALL2.c %S/fptrarrinstructsafemulti2.checkedNOALL2.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/fptrarrinstructsafemulti2.checkedNOALL2.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/fptrarrinstructsafemulti2.checkedALL2.c %s
-//RUN: rm %S/fptrarrinstructsafemulti1.checkedALL2.c %S/fptrarrinstructsafemulti2.checkedALL2.c
-//RUN: rm %S/fptrarrinstructsafemulti1.checkedNOALL2.c %S/fptrarrinstructsafemulti2.checkedNOALL2.c
+// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL2 %S/fptrarrinstructsafemulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL2 %S/fptrarrinstructsafemulti1.c %s
+// RUN: %clang -c %S/fptrarrinstructsafemulti1.checkedNOALL2.c %S/fptrarrinstructsafemulti2.checkedNOALL2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrarrinstructsafemulti2.checkedNOALL2.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrarrinstructsafemulti2.checkedALL2.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/fptrarrinstructsafemulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrarrinstructsafemulti1.checked2.c %S/fptrarrinstructsafemulti2.checked2.c
+// RUN: diff %S/fptrarrinstructsafemulti1.checked2.convert_again.c %S/fptrarrinstructsafemulti1.checked2.c
+// RUN: diff %S/fptrarrinstructsafemulti2.checked2.convert_again.c %S/fptrarrinstructsafemulti2.checked2.c
+// RUN: rm %S/fptrarrinstructsafemulti1.checkedALL2.c %S/fptrarrinstructsafemulti2.checkedALL2.c
+// RUN: rm %S/fptrarrinstructsafemulti1.checkedNOALL2.c %S/fptrarrinstructsafemulti2.checkedNOALL2.c
+// RUN: rm %S/fptrarrinstructsafemulti1.checked2.c %S/fptrarrinstructsafemulti2.checked2.c %S/fptrarrinstructsafemulti1.checked2.convert_again.c %S/fptrarrinstructsafemulti2.checked2.convert_again.c
 
 
 /*********************************************************************************/
@@ -68,14 +73,17 @@ struct arrfptr {
 };
 
 int add1(int x) { 
+	//CHECK: int add1(int x) _Checked { 
     return x+1;
 } 
 
 int sub1(int x) { 
+	//CHECK: int sub1(int x) _Checked { 
     return x-1; 
 } 
 
 int fact(int n) { 
+	//CHECK: int fact(int n) _Checked { 
     if(n==0) { 
         return 1;
     } 
@@ -83,17 +91,19 @@ int fact(int n) {
 } 
 
 int fib(int n) { 
+	//CHECK: int fib(int n) _Checked { 
     if(n==0) { return 0; } 
     if(n==1) { return 1; } 
     return fib(n-1) + fib(n-2);
 } 
 
 int zerohuh(int n) { 
+	//CHECK: int zerohuh(int n) _Checked { 
     return !n;
 }
 
 int *mul2(int *x) { 
-	//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }
@@ -104,9 +114,11 @@ struct arrfptr * sus(struct arrfptr *x, struct arrfptr *y) {
         x = (struct arrfptr *) 5; 
 	//CHECK: x = (struct arrfptr *) 5; 
         struct arrfptr *z = malloc(sizeof(struct arrfptr)); 
-	//CHECK: _Ptr<struct arrfptr> z =  malloc<struct arrfptr>(sizeof(struct arrfptr)); 
+	//CHECK: _Ptr<struct arrfptr> z = malloc<struct arrfptr>(sizeof(struct arrfptr)); 
         int i;
         for(i = 0; i < 5; i++) { 
+	//CHECK_NOALL: for(i = 0; i < 5; i++) { 
+	//CHECK_ALL: for(i = 0; i < 5; i++) _Checked { 
             z->args[i] = i + 1; 
         } 
         z->funcs[0] = add1;

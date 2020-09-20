@@ -1,6 +1,9 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -output-postfix=checked -alltypes %s
+// RUN: cconv-standalone -alltypes %S/b30_structprotocastexplicitunsafeuseunsafe.checked.c -- | count 0
+// RUN: rm %S/b30_structprotocastexplicitunsafeuseunsafe.checked.c
 #include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
@@ -44,12 +47,12 @@ struct r *foo() {
   x->next = &y;
   y->next = &x;
   struct r *z = (struct r *) sus(x, y);
-	//CHECK: _Ptr<struct r> z =  (struct r *) sus(x, y);
+	//CHECK: _Ptr<struct r> z =  (_Ptr<struct r>) sus(x, y);
   return z;
 }
 
 struct np *bar() {
-	//CHECK: struct np * bar(void) {
+	//CHECK: struct np *bar(void) {
   struct r *x; 
 	//CHECK: struct r *x; 
   struct r *y;

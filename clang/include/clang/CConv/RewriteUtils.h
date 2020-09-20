@@ -16,74 +16,164 @@
 #include "clang/AST/Stmt.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Rewrite/Core/Rewriter.h"
-
 #include "ProgramInfo.h"
 
 using namespace clang;
 
-// A Declaration, optional DeclStmt, and a replacement string
-// for that Declaration.
-struct DAndReplace
-{
-    Decl        *Declaration; // The declaration to replace.
-    Stmt        *Statement;   // The Stmt, if it exists.
-    std::string Replacement;  // The string to replace the declaration with.
-    bool        fullDecl;     // If the declaration is a function, true if
-    // Replace the entire declaration or just the
-    // return declaration.
-    DAndReplace() : Declaration(nullptr),
-                    Statement(nullptr),
-                    Replacement(""),
-                    fullDecl(false) { }
+class DeclReplacement {
+public:
+  virtual Decl *getDecl() const = 0;
 
-    DAndReplace(Decl *D, std::string R) : Declaration(D),
-                                          Statement(nullptr),
-                                          Replacement(R),
-                                          fullDecl(false) {}
+  DeclStmt *getStatement() const { return Statement; }
 
-    DAndReplace(Decl *D, std::string R, bool F) : Declaration(D),
-                                                  Statement(nullptr),
-                                                  Replacement(R),
-                                                  fullDecl(F) {}
+  std::string getReplacement() const { return Replacement; }
 
+  virtual SourceRange getSourceRange(SourceManager &SM) const {
+    return getDecl()->getSourceRange();
+  }
 
-    DAndReplace(Decl *D, Stmt *S, std::string R) :  Declaration(D),
-                                                    Statement(S),
-                                                    Replacement(R),
-                                                    fullDecl(false) { }
+  // Discriminator for LLVM-style RTTI (dyn_cast<> et al.)
+  enum DRKind {
+    DRK_VarDecl,
+    DRK_ParmVarDecl,
+    DRK_FunctionDecl,
+    DRK_FieldDecl
+  };
+
+  DRKind getKind() const { return Kind; }
+
+  virtual ~DeclReplacement() {}
+protected:
+  explicit DeclReplacement(DeclStmt *S, std::string R, DRKind K)
+      : Statement(S), Replacement(R), Kind(K) {}
+
+  // The Stmt, if it exists (may be nullptr).
+  DeclStmt *Statement;
+
+  // The string to replace the declaration with.
+  std::string Replacement;
+
+private:
+  const DRKind Kind;
 };
 
-// Compare two DAndReplace values. The algorithm for comparing them relates
-// their source positions. If two DAndReplace values refer to overlapping
+template<typename DeclT, DeclReplacement::DRKind K>
+class DeclReplacementTempl : public DeclReplacement {
+public:
+  explicit DeclReplacementTempl(DeclT *D, DeclStmt *DS, std::string R)
+      : DeclReplacement(DS, R, K), Decl(D) {}
+
+  DeclT *getDecl() const override {
+    return Decl;
+  }
+
+  static bool classof(const DeclReplacement *S) {
+    return S->getKind() == K;
+  }
+protected:
+  DeclT *Decl;
+};
+
+typedef DeclReplacementTempl<VarDecl, DeclReplacement::DRK_VarDecl>
+    VarDeclReplacement;
+typedef DeclReplacementTempl<ParmVarDecl, DeclReplacement::DRK_ParmVarDecl>
+    ParmVarDeclReplacement;
+typedef DeclReplacementTempl<FieldDecl, DeclReplacement::DRK_FieldDecl>
+    FieldDeclReplacement;
+
+class FunctionDeclReplacement :
+    public DeclReplacementTempl<FunctionDecl,
+                                DeclReplacement::DRK_FunctionDecl> {
+public:
+  explicit FunctionDeclReplacement(FunctionDecl *D, std::string R, bool Return,
+                                   bool Params)
+      : DeclReplacementTempl(D, nullptr, R), RewriteReturn(Return),
+        RewriteParams(Params) {
+    assert("Doesn't make sense to rewrite nothing!"
+           && (RewriteReturn || RewriteParams));
+  }
+
+  SourceRange getSourceRange(SourceManager &SM) const override {
+    TypeSourceInfo *TSInfo = Decl->getTypeSourceInfo();
+    if (!TSInfo)
+      return SourceRange(Decl->getBeginLoc(),
+                         getFunctionDeclarationEnd(Decl, SM));
+    FunctionTypeLoc TypeLoc = getBaseTypeLoc(TSInfo->getTypeLoc())
+                             .getAs<clang::FunctionTypeLoc>();
+
+    assert("FunctionDecl doesn't have function type?" && !TypeLoc.isNull());
+
+    // Function pointer are funky, and require special handling to rewrite the
+    // return type.
+    if (Decl->getReturnType()->isFunctionPointerType()){
+      if (RewriteParams && RewriteReturn) {
+        auto
+            T = getBaseTypeLoc(TypeLoc.getReturnLoc()).getAs<FunctionTypeLoc>();
+        if (!T.isNull())
+          return SourceRange(Decl->getBeginLoc(), T.getRParenLoc());
+      }
+      // Fall through to standard handling when only rewriting param decls
+    }
+
+    // If rewriting the return, then the range starts at the begining of the
+    // decl. Otherwise, skip to the left parenthesis of parameters.
+    SourceLocation Begin = RewriteReturn ?
+        Decl->getBeginLoc() :
+        TypeLoc.getLParenLoc();
+
+    // If rewriting Parameters, stop at the right parenthesis of the parameters.
+    // Otherwise, stop after the return type.
+    SourceLocation End = RewriteParams ?
+        TypeLoc.getRParenLoc() :
+        Decl->getReturnTypeSourceRange().getEnd();
+
+    assert("Invalid FunctionDeclReplacement SourceRange!"
+           && Begin.isValid() && End.isValid());
+
+    return SourceRange(Begin, End);
+  }
+
+private:
+  // This determines if the full declaration or the return will be replaced.
+  bool RewriteReturn;
+
+  bool RewriteParams;
+};
+
+// Compare two DeclReplacement values. The algorithm for comparing them relates
+// their source positions. If two DeclReplacement values refer to overlapping
 // source positions, then they are the same. Otherwise, they are ordered
 // by their placement in the input file.
 //
 // There are two special cases: Function declarations, and DeclStmts. In turn:
 //
-//  - Function declarations might either be a DAndReplace describing the entire
-//    declaration, i.e. replacing "int *foo(void)"
+//  - Function declarations might either be a DeclReplacement describing the
+//    entire declaration, i.e. replacing "int *foo(void)"
 //    with "int *foo(void) : itype(_Ptr<int>)". Or, it might describe just
 //    replacing only the return type, i.e. "_Ptr<int> foo(void)". This is
-//    discriminated against with the 'fullDecl' field of the DAndReplace type
-//    and the comparison function first checks if the operands are
+//    discriminated against with the 'fullDecl' field of the DeclReplacement
+//    type and the comparison function first checks if the operands are
 //    FunctionDecls and if the 'fullDecl' field is set.
 //  - A DeclStmt of mupltiple Decls, i.e. 'int *a = 0, *b = 0'. In this case,
-//    we want the DAndReplace to refer only to the specific sub-region that
+//    we want the DeclReplacement to refer only to the specific sub-region that
 //    would be replaced, i.e. '*a = 0' and '*b = 0'. To do that, we traverse
 //    the Decls contained in a DeclStmt and figure out what the appropriate
 //    source locations are to describe the positions of the independent
 //    declarations.
-struct DComp
-{
-    SourceManager &SM;
-    DComp(SourceManager &S) : SM(S) { }
+class DComp {
+public:
+  DComp(SourceManager &S) : SM(S) { }
 
-    SourceRange getWholeSR(SourceRange Orig, DAndReplace Dr) const;
+  bool operator()(DeclReplacement *Lhs, DeclReplacement *Rhs) const;
 
-    bool operator()(const DAndReplace Lhs, const DAndReplace Rhs) const;
+private:
+  SourceManager &SM;
+
+  SourceRange getReplacementSourceRange(DeclReplacement *D) const;
+  SourceLocation getDeclBegin(DeclReplacement *D) const;
 };
 
-typedef std::set<DAndReplace, DComp> RSet;
+typedef std::set<DeclReplacement *, DComp> RSet;
 
 // Class that maintains global variables according to the line numbers
 // this groups global variables according to the line numbers in source files.
@@ -98,44 +188,16 @@ typedef std::set<DAndReplace, DComp> RSet;
 class GlobalVariableGroups {
 public:
   GlobalVariableGroups(SourceManager &SourceMgr) : SM(SourceMgr) { }
-  void addGlobalDecl(VarDecl *VD, std::set<VarDecl *> *VDSet = nullptr);
+  void addGlobalDecl(Decl *VD, std::set<Decl *> *VDSet = nullptr);
 
-  std::set<VarDecl *> &getVarsOnSameLine(VarDecl *VD);
+  std::set<Decl *> &getVarsOnSameLine(Decl *VD);
 
   virtual ~GlobalVariableGroups();
 
 private:
   SourceManager &SM;
-  std::map<VarDecl *, std::set<VarDecl *>*> globVarGroups;
+  std::map<Decl *, std::set<Decl *>*> GlobVarGroups;
 };
-
-void rewrite(ParmVarDecl *PV, Rewriter &R, std::string SRewrite);
-
-void rewrite( VarDecl               *VD,
-              Rewriter              &R,
-              std::string SRewrite,
-              Stmt                  *WhereStmt,
-              RSet                  &skip,
-              const DAndReplace     &N,
-              RSet                  &ToRewrite,
-              ASTContext            &A,
-              GlobalVariableGroups  &GP);
-
-// Visit each Decl in toRewrite and apply the appropriate pointer type
-// to that Decl. The state of the rewrite is contained within R, which
-// is both input and output. R is initialized to point to the 'main'
-// source file for this transformation. toRewrite contains the set of
-// declarations to rewrite. S is passed for source-level information
-// about the current compilation unit. skip indicates some rewrites that
-// we should skip because we already applied them, for example, as part
-// of turning a single line declaration into a multi-line declaration.
-void rewrite( Rewriter              &R,
-              RSet                  &ToRewrite,
-              RSet                  &Skip,
-              SourceManager         &S,
-              ASTContext            &A,
-              std::set<FileID>      &Files,
-              GlobalVariableGroups  &GP);
 
 // Class that handles rewriting bounds information for all the
 // detected array variables.
@@ -149,52 +211,26 @@ private:
   ProgramInfo &Info;
 };
 
-// Class for visiting declarations of variables and adding type annotations
-class TypeRewritingVisitor : public RecursiveASTVisitor<TypeRewritingVisitor> {
-public:
-  explicit TypeRewritingVisitor(ASTContext *C, ProgramInfo &I,
-                                RSet &DR, std::set<std::string> &V,
-                                std::map<std::string, std::string> &newFuncSig,
-                                ArrayBoundsRewriter &ArrRewriter)
-          : Context(C), Info(I), rewriteThese(DR), VisitedSet(V),
-            ModifiedFuncSignatures(newFuncSig), ABRewriter(ArrRewriter) {}
-
-  bool VisitCallExpr(CallExpr *);
-  bool VisitFunctionDecl(FunctionDecl *);
-  bool isFunctionVisited(std::string FuncName);
-private:
-  std::set<unsigned int> getParamsForExtern(std::string);
-  // Get existing itype string from constraint variables.
-  // if tries to get the string from declaration, however,
-  // if there is no declaration of the function,
-  // it will try to get it from the definition.
-  std::string getExistingIType(ConstraintVariable *DeclC);
-  bool anyTop(CVarSet);
-  ASTContext            *Context;
-  ProgramInfo           &Info;
-  RSet                  &rewriteThese;
-  std::set<std::string> &VisitedSet;
-  std::map<std::string, std::string> &ModifiedFuncSignatures;
-  ArrayBoundsRewriter   &ABRewriter;
-};
-
-
 class RewriteConsumer : public ASTConsumer {
 public:
-  explicit RewriteConsumer(ProgramInfo &I, ASTContext *Context,
-                           std::string &OPostfix) :
+  explicit RewriteConsumer(ProgramInfo &I, std::string &OPostfix) :
                            Info(I), OutputPostfix(OPostfix) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context);
 
 private:
-  // Functions to handle modified signatures and ensuring that
-  // we always use the latest signature.
-  static std::string getModifiedFuncSignature(std::string FuncName);
-  static bool hasModifiedSignature(std::string FuncName);
   ProgramInfo &Info;
   static std::map<std::string, std::string> ModifiedFuncSignatures;
   std::string &OutputPostfix;
+
+  // A single header file can be included in multiple translations units. This
+  // set ensures that the diagnostics for a header file are not emitted each
+  // time a translation unit containing the header is vistied.
+  static std::set<PersistentSourceLoc *> EmittedDiagnostics;
+
+  void emitRootCauseDiagnostics(ASTContext &Context);
 };
+
+bool canRewrite(Rewriter &R, SourceRange &SR);
 
 #endif //_REWRITEUTILS_H

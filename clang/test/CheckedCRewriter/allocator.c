@@ -4,6 +4,9 @@
 //
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
 // RUN: cconv-standalone %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
+// RUN: cconv-standalone -output-postfix=checked %s 
+// RUN: cconv-standalone %S/allocator.checked.c -- | count 0
+// RUN: rm %S/allocator.checked.c
 // expected-no-diagnostics
 //
 typedef __SIZE_TYPE__ size_t;
@@ -25,7 +28,7 @@ void foo(void) {
   return;
 }
 //CHECK: void foo(void) {
-//CHECK-NEXT: int *a = (int *) malloc<int>(sizeof(int));
+//CHECK-NEXT: _Ptr<int> a = (_Ptr<int>) malloc<int>(sizeof(int));
 
 typedef struct _listelt {
   struct _listelt *next;
@@ -48,4 +51,4 @@ void add_some_stuff(listhead *hd) {
   return;
 }
 //CHECK: void add_some_stuff(_Ptr<listhead>  hd) {
-//CHECK-NEXT: _Ptr<listelt>  l1 = (listelt *) malloc<listelt>(sizeof(listelt));
+//CHECK-NEXT: _Ptr<listelt>  l1 = (_Ptr<listelt>) malloc<listelt>(sizeof(listelt));

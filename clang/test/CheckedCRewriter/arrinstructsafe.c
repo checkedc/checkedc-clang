@@ -1,7 +1,10 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
+// RUN: cconv-standalone -alltypes -output-postfix=checked %s
+// RUN: cconv-standalone -alltypes %S/arrinstructsafe.checked.c -- | diff %S/arrinstructsafe.checked.c -
+// RUN: rm %S/arrinstructsafe.checked.c
 
 
 /*********************************************************************************/
@@ -62,14 +65,17 @@ struct arrfptr {
 };
 
 int add1(int x) { 
+	//CHECK: int add1(int x) _Checked { 
     return x+1;
 } 
 
 int sub1(int x) { 
+	//CHECK: int sub1(int x) _Checked { 
     return x-1; 
 } 
 
 int fact(int n) { 
+	//CHECK: int fact(int n) _Checked { 
     if(n==0) { 
         return 1;
     } 
@@ -77,32 +83,36 @@ int fact(int n) {
 } 
 
 int fib(int n) { 
+	//CHECK: int fib(int n) _Checked { 
     if(n==0) { return 0; } 
     if(n==1) { return 1; } 
     return fib(n-1) + fib(n-2);
 } 
 
 int zerohuh(int n) { 
+	//CHECK: int zerohuh(int n) _Checked { 
     return !n;
 }
 
 int *mul2(int *x) { 
-	//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }
 
 struct warr * sus(struct warr * x, struct warr * y) {
-	//CHECK: _Ptr<struct warr> sus(struct warr *x, _Ptr<struct warr> y) {
+	//CHECK: _Ptr<struct warr> sus(struct warr * x, _Ptr<struct warr> y) {
 x = (struct warr *) 5;
 	//CHECK: x = (struct warr *) 5;
         char name[20]; 
 	//CHECK_NOALL: char name[20]; 
 	//CHECK_ALL: char name _Checked[20]; 
         struct warr *z = y;
-	//CHECK: _Ptr<struct warr> z =  y;
+	//CHECK: _Ptr<struct warr> z = y;
         int i;
         for(i = 0; i < 5; i++) { 
+	//CHECK_NOALL: for(i = 0; i < 5; i++) { 
+	//CHECK_ALL: for(i = 0; i < 5; i++) _Checked { 
             z->data1[i] = i; 
         }
         
@@ -113,9 +123,9 @@ struct warr * foo() {
         struct warr * x = malloc(sizeof(struct warr));
 	//CHECK: struct warr * x = malloc<struct warr>(sizeof(struct warr));
         struct warr * y = malloc(sizeof(struct warr));
-	//CHECK: _Ptr<struct warr> y =  malloc<struct warr>(sizeof(struct warr));
+	//CHECK: _Ptr<struct warr> y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
-	//CHECK: _Ptr<struct warr> z =  sus(x, y);
+	//CHECK: _Ptr<struct warr> z = sus(x, y);
 return z; }
 
 struct warr * bar() {
@@ -123,7 +133,7 @@ struct warr * bar() {
         struct warr * x = malloc(sizeof(struct warr));
 	//CHECK: struct warr * x = malloc<struct warr>(sizeof(struct warr));
         struct warr * y = malloc(sizeof(struct warr));
-	//CHECK: _Ptr<struct warr> y =  malloc<struct warr>(sizeof(struct warr));
+	//CHECK: _Ptr<struct warr> y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
-	//CHECK: _Ptr<struct warr> z =  sus(x, y);
+	//CHECK: _Ptr<struct warr> z = sus(x, y);
 return z; }

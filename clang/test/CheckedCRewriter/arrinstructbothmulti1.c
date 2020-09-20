@@ -1,10 +1,15 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/arrinstructbothmulti2.c
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/arrinstructbothmulti2.c
-//RUN: %clang -c %S/arrinstructbothmulti1.checkedNOALL.c %S/arrinstructbothmulti2.checkedNOALL.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/arrinstructbothmulti1.checkedNOALL.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/arrinstructbothmulti1.checkedALL.c %s
-//RUN: rm %S/arrinstructbothmulti1.checkedALL.c %S/arrinstructbothmulti2.checkedALL.c
-//RUN: rm %S/arrinstructbothmulti1.checkedNOALL.c %S/arrinstructbothmulti2.checkedNOALL.c
+// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/arrinstructbothmulti2.c
+// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/arrinstructbothmulti2.c
+// RUN: %clang -c %S/arrinstructbothmulti1.checkedNOALL.c %S/arrinstructbothmulti2.checkedNOALL.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrinstructbothmulti1.checkedNOALL.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrinstructbothmulti1.checkedALL.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %S/arrinstructbothmulti2.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/arrinstructbothmulti1.checked.c %S/arrinstructbothmulti2.checked.c
+// RUN: diff %S/arrinstructbothmulti1.checked.convert_again.c %S/arrinstructbothmulti1.checked.c
+// RUN: diff %S/arrinstructbothmulti2.checked.convert_again.c %S/arrinstructbothmulti2.checked.c
+// RUN: rm %S/arrinstructbothmulti1.checkedALL.c %S/arrinstructbothmulti2.checkedALL.c
+// RUN: rm %S/arrinstructbothmulti1.checkedNOALL.c %S/arrinstructbothmulti2.checkedNOALL.c
+// RUN: rm %S/arrinstructbothmulti1.checked.c %S/arrinstructbothmulti2.checked.c %S/arrinstructbothmulti1.checked.convert_again.c %S/arrinstructbothmulti2.checked.convert_again.c
 
 
 /*********************************************************************************/
@@ -69,14 +74,17 @@ struct arrfptr {
 };
 
 int add1(int x) { 
+	//CHECK: int add1(int x) _Checked { 
     return x+1;
 } 
 
 int sub1(int x) { 
+	//CHECK: int sub1(int x) _Checked { 
     return x-1; 
 } 
 
 int fact(int n) { 
+	//CHECK: int fact(int n) _Checked { 
     if(n==0) { 
         return 1;
     } 
@@ -84,17 +92,19 @@ int fact(int n) {
 } 
 
 int fib(int n) { 
+	//CHECK: int fib(int n) _Checked { 
     if(n==0) { return 0; } 
     if(n==1) { return 1; } 
     return fib(n-1) + fib(n-2);
 } 
 
 int zerohuh(int n) { 
+	//CHECK: int zerohuh(int n) _Checked { 
     return !n;
 }
 
 int *mul2(int *x) { 
-	//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }
@@ -112,7 +122,7 @@ struct warr * foo() {
 	//CHECK: struct warr * y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
 	//CHECK_NOALL: struct warr * z = sus(x, y);
-	//CHECK_ALL: _Ptr<struct warr> z =  sus(x, y);
+	//CHECK_ALL: _Ptr<struct warr> z = sus(x, y);
 return z; }
 
 struct warr * bar() {
@@ -124,6 +134,6 @@ struct warr * bar() {
 	//CHECK: struct warr * y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
 	//CHECK_NOALL: struct warr * z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<struct warr> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<struct warr> z = sus(x, y);
 z += 2;
 return z; }

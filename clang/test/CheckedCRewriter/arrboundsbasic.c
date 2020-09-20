@@ -26,8 +26,8 @@ int foo(int *arr, unsigned len) {
     struct bar a;
     char *arr1 = malloc(n*sizeof(char));
     char *arr2 = calloc(n, sizeof(char));
-    arr1++;
-    arr2++;
+    arr1[0] = 0;
+    arr2[0] = 0;
     for (i=0; i<len; i++) {
         arr[i] = 0;
     }
@@ -36,6 +36,6 @@ int foo(int *arr, unsigned len) {
     a.a[0] = 0;
     return 0;
 }
-//CHECK: int foo(_Array_ptr<int> arr : count(len), unsigned int len) {
+//CHECK: int foo(_Array_ptr<int> arr : count(len), unsigned len) {
 //CHECK: _Array_ptr<char> arr1 : count(n) = malloc<char>(n*sizeof(char));
 //CHECK: _Array_ptr<char> arr2 : count(n) =  calloc<char>(n, sizeof(char));

@@ -1,41 +1,35 @@
-//=--GatherTool.h-------------------------------------------------*- C++-*-===//
+//=--IntermediateToolHook.h---------------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// This class is used to gather arguments of functions which are WILD so that
-// explicit cast could be inserted when checked pointers are used as parameters
-// for corresponding calls
+// This class provides an intermediate hook for any visitors that need to be
+// run after constraint solving but before rewriting, such as trying out
+// heuristics in the case of array bounds inference.
 //===----------------------------------------------------------------------===//
 
-#ifndef _GATHERTOOL_H_
-#define _GATHERTOOL_H_
+#ifndef _INTERMEDIATETOOLHOOK_H
+#define _INTERMEDIATETOOLHOOK_H
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Rewrite/Core/Rewriter.h"
 
-#include "GatherTypes.h"
 #include "ProgramInfo.h"
 
 using namespace clang;
 
 
-class ArgGatherer : public ASTConsumer {
+class IntermediateToolHook : public ASTConsumer {
 public:
-  explicit ArgGatherer(ProgramInfo &I, ASTContext *Context,
-                       std::string &OPostfix)
-      : Info(I), OutputPostfix(OPostfix) {}
+  explicit IntermediateToolHook(ProgramInfo &I, clang::ASTContext *C) : Info(I) { }
   virtual void HandleTranslationUnit(ASTContext &Context);
-  ParameterMap getMF();
 
 private:
   ProgramInfo &Info;
-  std::string &OutputPostfix;
-  ParameterMap MF;
 };
 
-#endif // _GATHERTOOL_H_
+#endif // _INTERMEDIATETOOLHOOK_H

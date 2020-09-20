@@ -26,11 +26,31 @@ class ConstraintVariable;
 class ProgramInfo;
 
 // Maps a Decl to the set of constraint variables for that Decl.
-typedef std::map<PersistentSourceLoc, 
-  std::set<ConstraintVariable *>> VariableMap;
+typedef std::map<PersistentSourceLoc, ConstraintVariable *> VariableMap;
 
 // Maps a Decl to the DeclStmt that defines the Decl.
 typedef std::map<clang::Decl *, clang::DeclStmt *> VariableDecltoStmtMap;
+
+template<typename ValueT>
+class Option {
+public:
+  Option() : Value(nullptr), HasValue(false) {}
+  Option(ValueT &V) : Value(&V), HasValue(true) {}
+
+  ValueT &getValue() const {
+    assert("Inconsistent option!" && HasValue && Value != nullptr);
+    return *Value;
+  }
+
+  bool hasValue() const {
+    assert("Inconsistent option!" && HasValue == (Value != nullptr));
+    return HasValue;
+  }
+
+private:
+  ValueT *Value;
+  bool HasValue;
+};
 
 // Replacement for boost:bimap. A wrapper class around two std::maps to enable
 // map lookup from key to value or from value to key.
@@ -61,7 +81,7 @@ private:
 extern std::set<std::string> FilePaths;
 
 template <typename T>
-T getOnly(std::set<T> &singletonSet) {
+T getOnly(const std::set<T> &singletonSet) {
   assert(singletonSet.size() == 1);
   return (*singletonSet.begin());
 }
@@ -102,7 +122,7 @@ bool functionHasVarArgs(clang::FunctionDecl *FD);
 bool isFunctionAllocator(std::string FuncName);
 
 // Is the given variable built  in type?
-bool isPointerType(clang::VarDecl *VD);
+bool isPointerType(clang::ValueDecl *VD);
 
 // Check if provided type is a var arg type?
 bool isVarArgType(const std::string &TypeName);
@@ -147,4 +167,22 @@ unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
                                   unsigned long Str1Len, unsigned long Str2Len);
 
 const clang::TypeVariableType *getTypeVariableType(clang::DeclaratorDecl *Decl);
+
+bool isTypeAnonymous(const clang::Type *T);
+
+// Find the index of parameter PV in the parameter list of function FD.
+unsigned int getParameterIndex(clang::ParmVarDecl *PV, clang::FunctionDecl *FD);
+
+// If E can be evaluated to a constant integer, the result is stored in Result,
+// and true is returned. Otherwise, Result is not modified and, false is
+// returned.
+bool evaluateToInt(clang::Expr *E, const clang::ASTContext &C, int &Result);
+
+// Check if the bounds expression BE is zero width. Arrays with zero width bounds
+// can be treated as pointers.
+bool isZeroBoundsExpr(clang::BoundsExpr *BE, const clang::ASTContext &C);
+
+// Find the range in the source code for the base type of a type location.
+// The base type is the type after removing all
+clang::TypeLoc getBaseTypeLoc(clang::TypeLoc T);
 #endif

@@ -63,6 +63,12 @@ std::string ProgramVar::mkString(bool GetKey) {
   return Ret;
 }
 
+ProgramVar *ProgramVar::makeCopy(BoundsKey NK) {
+  ProgramVar *NewPVar = new ProgramVar(NK, this->VarName, this->VScope,
+                                       this->IsConstant);
+  return NewPVar;
+}
+
 std::string ProgramVar::verboseStr() {
   std::string Ret = mkString(true) + "(" + VScope->getStr() + ")";
   return Ret;

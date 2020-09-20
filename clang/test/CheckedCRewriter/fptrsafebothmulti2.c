@@ -1,10 +1,15 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %s %S/fptrsafebothmulti1.c
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %s %S/fptrsafebothmulti1.c
-//RUN: %clang -c %S/fptrsafebothmulti1.checkedNOALL2.c %S/fptrsafebothmulti2.checkedNOALL2.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/fptrsafebothmulti2.checkedNOALL2.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/fptrsafebothmulti2.checkedALL2.c %s
-//RUN: rm %S/fptrsafebothmulti1.checkedALL2.c %S/fptrsafebothmulti2.checkedALL2.c
-//RUN: rm %S/fptrsafebothmulti1.checkedNOALL2.c %S/fptrsafebothmulti2.checkedNOALL2.c
+// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL2 %S/fptrsafebothmulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL2 %S/fptrsafebothmulti1.c %s
+// RUN: %clang -c %S/fptrsafebothmulti1.checkedNOALL2.c %S/fptrsafebothmulti2.checkedNOALL2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrsafebothmulti2.checkedNOALL2.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrsafebothmulti2.checkedALL2.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/fptrsafebothmulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrsafebothmulti1.checked2.c %S/fptrsafebothmulti2.checked2.c
+// RUN: diff %S/fptrsafebothmulti1.checked2.convert_again.c %S/fptrsafebothmulti1.checked2.c
+// RUN: diff %S/fptrsafebothmulti2.checked2.convert_again.c %S/fptrsafebothmulti2.checked2.c
+// RUN: rm %S/fptrsafebothmulti1.checkedALL2.c %S/fptrsafebothmulti2.checkedALL2.c
+// RUN: rm %S/fptrsafebothmulti1.checkedNOALL2.c %S/fptrsafebothmulti2.checkedNOALL2.c
+// RUN: rm %S/fptrsafebothmulti1.checked2.c %S/fptrsafebothmulti2.checked2.c %S/fptrsafebothmulti1.checked2.convert_again.c %S/fptrsafebothmulti2.checked2.convert_again.c
 
 
 /*********************************************************************************/
@@ -69,14 +74,17 @@ struct arrfptr {
 };
 
 int add1(int x) { 
+	//CHECK: int add1(int x) _Checked { 
     return x+1;
 } 
 
 int sub1(int x) { 
+	//CHECK: int sub1(int x) _Checked { 
     return x-1; 
 } 
 
 int fact(int n) { 
+	//CHECK: int fact(int n) _Checked { 
     if(n==0) { 
         return 1;
     } 
@@ -84,34 +92,38 @@ int fact(int n) {
 } 
 
 int fib(int n) { 
+	//CHECK: int fib(int n) _Checked { 
     if(n==0) { return 0; } 
     if(n==1) { return 1; } 
     return fib(n-1) + fib(n-2);
 } 
 
 int zerohuh(int n) { 
+	//CHECK: int zerohuh(int n) _Checked { 
     return !n;
 }
 
 int *mul2(int *x) { 
-	//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }
 
 int * sus(struct general *x, struct general *y) {
 	//CHECK_NOALL: int * sus(struct general *x, _Ptr<struct general> y) {
-	//CHECK_ALL: _Nt_array_ptr<int> sus(struct general *x, _Ptr<struct general> y) {
+	//CHECK_ALL: _Array_ptr<int> sus(struct general *x, _Ptr<struct general> y) {
 
         x = (struct general *) 5;
 	//CHECK: x = (struct general *) 5;
         int *z = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *z = calloc<int>(5, sizeof(int)); 
-	//CHECK_ALL: _Nt_array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> z =  calloc<int>(5, sizeof(int)); 
         struct general *p = y;
-	//CHECK: _Ptr<struct general> p =  y;
+	//CHECK: _Ptr<struct general> p = y;
         int i;
         for(i = 0; i < 5; p = p->next, i++) { 
+	//CHECK_NOALL: for(i = 0; i < 5; p = p->next, i++) { 
+	//CHECK_ALL: for(i = 0; i < 5; p = p->next, i++) _Checked { 
             z[i] = p->data; 
         } 
         

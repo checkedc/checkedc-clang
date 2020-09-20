@@ -1,7 +1,10 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
+// RUN: cconv-standalone -alltypes -output-postfix=checked %s
+// RUN: cconv-standalone -alltypes %S/arrstructcaller.checked.c -- | diff %S/arrstructcaller.checked.c -
+// RUN: rm %S/arrstructcaller.checked.c
 
 
 /*********************************************************************************/
@@ -63,14 +66,17 @@ struct arrfptr {
 };
 
 int add1(int x) { 
+	//CHECK: int add1(int x) _Checked { 
     return x+1;
 } 
 
 int sub1(int x) { 
+	//CHECK: int sub1(int x) _Checked { 
     return x-1; 
 } 
 
 int fact(int n) { 
+	//CHECK: int fact(int n) _Checked { 
     if(n==0) { 
         return 1;
     } 
@@ -78,33 +84,37 @@ int fact(int n) {
 } 
 
 int fib(int n) { 
+	//CHECK: int fib(int n) _Checked { 
     if(n==0) { return 0; } 
     if(n==1) { return 1; } 
     return fib(n-1) + fib(n-2);
 } 
 
 int zerohuh(int n) { 
+	//CHECK: int zerohuh(int n) _Checked { 
     return !n;
 }
 
 int *mul2(int *x) { 
-	//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }
 
 int * sus(struct general * x, struct general * y) {
-	//CHECK_NOALL: int * sus(struct general *x, _Ptr<struct general> y) {
-	//CHECK_ALL: _Nt_array_ptr<int> sus(struct general *x, _Ptr<struct general> y) {
+	//CHECK_NOALL: int * sus(struct general * x, _Ptr<struct general> y) {
+	//CHECK_ALL: _Array_ptr<int> sus(struct general * x, _Ptr<struct general> y) : count(5) {
 x = (struct general *) 5;
 	//CHECK: x = (struct general *) 5;
         int *z = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *z = calloc<int>(5, sizeof(int)); 
-	//CHECK_ALL: _Nt_array_ptr<int> z : count(5) =  calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> z : count(5) = calloc<int>(5, sizeof(int)); 
         struct general *p = y;
-	//CHECK: _Ptr<struct general> p =  y;
+	//CHECK: _Ptr<struct general> p = y;
         int i;
         for(i = 0; i < 5; p = p->next, i++) { 
+	//CHECK_NOALL: for(i = 0; i < 5; p = p->next, i++) { 
+	//CHECK_ALL: for(i = 0; i < 5; p = p->next, i++) _Checked { 
             z[i] = p->data; 
         } 
         
@@ -112,14 +122,14 @@ return z; }
 
 int * foo() {
 	//CHECK_NOALL: int * foo(void) {
-	//CHECK_ALL: _Nt_array_ptr<int> foo(void) {
+	//CHECK_ALL: _Array_ptr<int> foo(void) : count(5) {
         struct general * x = malloc(sizeof(struct general));
 	//CHECK: struct general * x = malloc<struct general>(sizeof(struct general));
         struct general * y = malloc(sizeof(struct general));
-	//CHECK: _Ptr<struct general> y =  malloc<struct general>(sizeof(struct general));
+	//CHECK: _Ptr<struct general> y = malloc<struct general>(sizeof(struct general));
         
         struct general *curr = y;
-	//CHECK: _Ptr<struct general> curr =  y;
+	//CHECK: _Ptr<struct general> curr = y;
         int i;
         for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
@@ -128,19 +138,19 @@ int * foo() {
         }
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Nt_array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z : count(5) =  sus(x, y);
 return z; }
 
 int * bar() {
 	//CHECK_NOALL: int * bar(void) {
-	//CHECK_ALL: _Nt_array_ptr<int> bar(void) {
+	//CHECK_ALL: _Array_ptr<int> bar(void) {
         struct general * x = malloc(sizeof(struct general));
 	//CHECK: struct general * x = malloc<struct general>(sizeof(struct general));
         struct general * y = malloc(sizeof(struct general));
-	//CHECK: _Ptr<struct general> y =  malloc<struct general>(sizeof(struct general));
+	//CHECK: _Ptr<struct general> y = malloc<struct general>(sizeof(struct general));
         
         struct general *curr = y;
-	//CHECK: _Ptr<struct general> curr =  y;
+	//CHECK: _Ptr<struct general> curr = y;
         int i;
         for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
@@ -149,6 +159,6 @@ int * bar() {
         }
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Nt_array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
 z += 2;
 return z; }

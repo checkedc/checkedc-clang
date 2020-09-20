@@ -1,10 +1,15 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/fptrsafebothmulti2.c
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/fptrsafebothmulti2.c
-//RUN: %clang -c %S/fptrsafebothmulti1.checkedNOALL.c %S/fptrsafebothmulti2.checkedNOALL.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/fptrsafebothmulti1.checkedNOALL.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/fptrsafebothmulti1.checkedALL.c %s
-//RUN: rm %S/fptrsafebothmulti1.checkedALL.c %S/fptrsafebothmulti2.checkedALL.c
-//RUN: rm %S/fptrsafebothmulti1.checkedNOALL.c %S/fptrsafebothmulti2.checkedNOALL.c
+// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/fptrsafebothmulti2.c
+// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/fptrsafebothmulti2.c
+// RUN: %clang -c %S/fptrsafebothmulti1.checkedNOALL.c %S/fptrsafebothmulti2.checkedNOALL.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrsafebothmulti1.checkedNOALL.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrsafebothmulti1.checkedALL.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %S/fptrsafebothmulti2.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrsafebothmulti1.checked.c %S/fptrsafebothmulti2.checked.c
+// RUN: diff %S/fptrsafebothmulti1.checked.convert_again.c %S/fptrsafebothmulti1.checked.c
+// RUN: diff %S/fptrsafebothmulti2.checked.convert_again.c %S/fptrsafebothmulti2.checked.c
+// RUN: rm %S/fptrsafebothmulti1.checkedALL.c %S/fptrsafebothmulti2.checkedALL.c
+// RUN: rm %S/fptrsafebothmulti1.checkedNOALL.c %S/fptrsafebothmulti2.checkedNOALL.c
+// RUN: rm %S/fptrsafebothmulti1.checked.c %S/fptrsafebothmulti2.checked.c %S/fptrsafebothmulti1.checked.convert_again.c %S/fptrsafebothmulti2.checked.convert_again.c
 
 
 /*********************************************************************************/
@@ -69,14 +74,17 @@ struct arrfptr {
 };
 
 int add1(int x) { 
+	//CHECK: int add1(int x) _Checked { 
     return x+1;
 } 
 
 int sub1(int x) { 
+	//CHECK: int sub1(int x) _Checked { 
     return x-1; 
 } 
 
 int fact(int n) { 
+	//CHECK: int fact(int n) _Checked { 
     if(n==0) { 
         return 1;
     } 
@@ -84,35 +92,37 @@ int fact(int n) {
 } 
 
 int fib(int n) { 
+	//CHECK: int fib(int n) _Checked { 
     if(n==0) { return 0; } 
     if(n==1) { return 1; } 
     return fib(n-1) + fib(n-2);
 } 
 
 int zerohuh(int n) { 
+	//CHECK: int zerohuh(int n) _Checked { 
     return !n;
 }
 
 int *mul2(int *x) { 
-	//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }
 
 int * sus(struct general *, struct general *);
 	//CHECK_NOALL: int * sus(struct general *, _Ptr<struct general> y);
-	//CHECK_ALL: _Nt_array_ptr<int> sus(struct general *, _Ptr<struct general> y);
+	//CHECK_ALL: _Array_ptr<int> sus(struct general *, _Ptr<struct general> y);
 
 int * foo() {
 	//CHECK_NOALL: int * foo(void) {
-	//CHECK_ALL: _Nt_array_ptr<int> foo(void) {
+	//CHECK_ALL: _Array_ptr<int> foo(void) {
 
         struct general *x = malloc(sizeof(struct general)); 
 	//CHECK: struct general *x = malloc<struct general>(sizeof(struct general)); 
         struct general *y = malloc(sizeof(struct general));
-	//CHECK: _Ptr<struct general> y =  malloc<struct general>(sizeof(struct general));
+	//CHECK: _Ptr<struct general> y = malloc<struct general>(sizeof(struct general));
         struct general *curr = y;
-	//CHECK: _Ptr<struct general> curr =  y;
+	//CHECK: _Ptr<struct general> curr = y;
         int i;
         for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
@@ -120,24 +130,24 @@ int * foo() {
             curr->next->data = i+1;
         }
         int * (*sus_ptr)(struct general *, struct general *) = sus;   
-	//CHECK_NOALL: _Ptr<int* (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
-	//CHECK_ALL: _Ptr<_Nt_array_ptr<int> (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
+	//CHECK_NOALL: _Ptr<int * (struct general *, _Ptr<struct general> )> sus_ptr = sus;   
+	//CHECK_ALL: _Ptr<_Array_ptr<int> (struct general *, _Ptr<struct general> )> sus_ptr = sus;   
         int *z = sus_ptr(x, y);
 	//CHECK_NOALL: int *z = sus_ptr(x, y);
-	//CHECK_ALL: _Nt_array_ptr<int> z =  sus_ptr(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus_ptr(x, y);
         
 return z; }
 
 int * bar() {
 	//CHECK_NOALL: int * bar(void) {
-	//CHECK_ALL: _Nt_array_ptr<int> bar(void) {
+	//CHECK_ALL: _Array_ptr<int> bar(void) {
 
         struct general *x = malloc(sizeof(struct general)); 
 	//CHECK: struct general *x = malloc<struct general>(sizeof(struct general)); 
         struct general *y = malloc(sizeof(struct general));
-	//CHECK: _Ptr<struct general> y =  malloc<struct general>(sizeof(struct general));
+	//CHECK: _Ptr<struct general> y = malloc<struct general>(sizeof(struct general));
         struct general *curr = y;
-	//CHECK: _Ptr<struct general> curr =  y;
+	//CHECK: _Ptr<struct general> curr = y;
         int i;
         for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
@@ -145,11 +155,11 @@ int * bar() {
             curr->next->data = i+1;
         }
         int * (*sus_ptr)(struct general *, struct general *) = sus;   
-	//CHECK_NOALL: _Ptr<int* (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
-	//CHECK_ALL: _Ptr<_Nt_array_ptr<int> (struct general *, _Ptr<struct general> )> sus_ptr =  sus;   
+	//CHECK_NOALL: _Ptr<int * (struct general *, _Ptr<struct general> )> sus_ptr = sus;   
+	//CHECK_ALL: _Ptr<_Array_ptr<int> (struct general *, _Ptr<struct general> )> sus_ptr = sus;   
         int *z = sus_ptr(x, y);
 	//CHECK_NOALL: int *z = sus_ptr(x, y);
-	//CHECK_ALL: _Nt_array_ptr<int> z =  sus_ptr(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus_ptr(x, y);
         
 z += 2;
 return z; }

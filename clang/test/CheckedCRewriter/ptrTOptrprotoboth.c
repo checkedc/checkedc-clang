@@ -1,7 +1,10 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
+// RUN: cconv-standalone -alltypes -output-postfix=checked %s
+// RUN: cconv-standalone -alltypes %S/ptrTOptrprotoboth.checked.c -- | diff %S/ptrTOptrprotoboth.checked.c -
+// RUN: rm %S/ptrTOptrprotoboth.checked.c
 
 
 /*********************************************************************************/
@@ -65,14 +68,17 @@ struct arrfptr {
 };
 
 int add1(int x) { 
+	//CHECK: int add1(int x) _Checked { 
     return x+1;
 } 
 
 int sub1(int x) { 
+	//CHECK: int sub1(int x) _Checked { 
     return x-1; 
 } 
 
 int fact(int n) { 
+	//CHECK: int fact(int n) _Checked { 
     if(n==0) { 
         return 1;
     } 
@@ -80,53 +86,55 @@ int fact(int n) {
 } 
 
 int fib(int n) { 
+	//CHECK: int fib(int n) _Checked { 
     if(n==0) { return 0; } 
     if(n==1) { return 1; } 
     return fib(n-1) + fib(n-2);
 } 
 
 int zerohuh(int n) { 
+	//CHECK: int zerohuh(int n) _Checked { 
     return !n;
 }
 
 int *mul2(int *x) { 
-	//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }
 
 char *** sus(char * * *, char * * *);
-	//CHECK_NOALL: char *** sus(char ***x, _Ptr<_Ptr<_Ptr<char>>> y);
-	//CHECK_ALL: _Array_ptr<_Array_ptr<char*>> sus(char ***x, _Ptr<_Ptr<_Ptr<char>>> y);
+	//CHECK_NOALL: char *** sus(char * * * x, _Ptr<_Ptr<_Ptr<char>>> y);
+	//CHECK_ALL: _Array_ptr<_Array_ptr<char *>> sus(char * * * x, _Ptr<_Ptr<_Ptr<char>>> y);
 
 char *** foo() {
 	//CHECK_NOALL: char *** foo(void) {
-	//CHECK_ALL: _Ptr<_Array_ptr<char*>> foo(void) {
+	//CHECK_ALL: _Ptr<_Array_ptr<char *>> foo(void) {
         char * * * x = malloc(sizeof(char * *));
 	//CHECK: char * * * x = malloc<char **>(sizeof(char * *));
         char * * * y = malloc(sizeof(char * *));
-	//CHECK: _Ptr<_Ptr<_Ptr<char>>> y =  malloc<char **>(sizeof(char * *));
+	//CHECK: _Ptr<_Ptr<_Ptr<char>>> y = malloc<_Ptr<_Ptr<char>>>(sizeof(char * *));
         char *** z = sus(x, y);
 	//CHECK_NOALL: char *** z = sus(x, y);
-	//CHECK_ALL: _Ptr<_Array_ptr<char*>> z =  sus(x, y);
+	//CHECK_ALL: _Ptr<_Array_ptr<char *>> z = sus(x, y);
 return z; }
 
 char *** bar() {
 	//CHECK_NOALL: char *** bar(void) {
-	//CHECK_ALL: _Ptr<_Array_ptr<char*>> bar(void) {
+	//CHECK_ALL: _Ptr<_Array_ptr<char *>> bar(void) {
         char * * * x = malloc(sizeof(char * *));
 	//CHECK: char * * * x = malloc<char **>(sizeof(char * *));
         char * * * y = malloc(sizeof(char * *));
-	//CHECK: _Ptr<_Ptr<_Ptr<char>>> y =  malloc<char **>(sizeof(char * *));
+	//CHECK: _Ptr<_Ptr<_Ptr<char>>> y = malloc<_Ptr<_Ptr<char>>>(sizeof(char * *));
         char *** z = sus(x, y);
 	//CHECK_NOALL: char *** z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<_Array_ptr<char*>> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Array_ptr<char *>> z = sus(x, y);
 z += 2;
 return z; }
 
 char *** sus(char * * * x, char * * * y) {
-	//CHECK_NOALL: char *** sus(char ***x, _Ptr<_Ptr<_Ptr<char>>> y) {
-	//CHECK_ALL: _Array_ptr<_Array_ptr<char*>> sus(char ***x, _Ptr<_Ptr<_Ptr<char>>> y) {
+	//CHECK_NOALL: char *** sus(char * * * x, _Ptr<_Ptr<_Ptr<char>>> y) {
+	//CHECK_ALL: _Array_ptr<_Array_ptr<char *>> sus(char * * * x, _Ptr<_Ptr<_Ptr<char>>> y) {
 x = (char * * *) 5;
 	//CHECK: x = (char * * *) 5;
         char *ch = malloc(sizeof(char)); 
@@ -134,7 +142,7 @@ x = (char * * *) 5;
         *ch = 'A'; /*Capital A*/
         char *** z = malloc(5*sizeof(char**)); 
 	//CHECK_NOALL: char *** z = malloc<char **>(5*sizeof(char**)); 
-	//CHECK_ALL: _Array_ptr<_Array_ptr<char*>> z : count(5) =  malloc<char **>(5*sizeof(char**)); 
+	//CHECK_ALL: _Array_ptr<_Array_ptr<char *>> z =  malloc<_Array_ptr<char *>>(5*sizeof(char**)); 
         for(int i = 0; i < 5; i++) { 
             z[i] = malloc(5*sizeof(char *)); 
 	//CHECK: z[i] = malloc<char *>(5*sizeof(char *)); 

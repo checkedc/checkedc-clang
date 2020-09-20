@@ -1,6 +1,9 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -output-postfix=checked -alltypes %s
+// RUN: cconv-standalone -alltypes %S/b21_calleepointerstructproto.checked.c -- | count 0
+// RUN: rm %S/b21_calleepointerstructproto.checked.c
 #include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
@@ -31,10 +34,10 @@ struct r {
 
 
 struct p *sus(struct p *, struct p *);
-	//CHECK: struct p * sus(_Ptr<struct p> x, _Ptr<struct p> y);
+	//CHECK: struct p *sus(_Ptr<struct p> x, _Ptr<struct p> y);
 
 struct p *foo() {
-	//CHECK: struct p * foo(void) {
+	//CHECK: struct p *foo(void) {
   int ex1 = 2, ex2 = 3;
   struct p *x;
 	//CHECK: _Ptr<struct p> x = ((void *)0);
@@ -50,7 +53,7 @@ struct p *foo() {
 }
 
 struct p *bar() {
-	//CHECK: struct p * bar(void) {
+	//CHECK: struct p *bar(void) {
   int ex1 = 2, ex2 = 3;
   struct p *x;
 	//CHECK: _Ptr<struct p> x = ((void *)0);
@@ -66,7 +69,7 @@ struct p *bar() {
 }
 
 struct p *sus(struct p *x, struct p *y) {
-	//CHECK: struct p * sus(_Ptr<struct p> x, _Ptr<struct p> y) {
+	//CHECK: struct p *sus(_Ptr<struct p> x, _Ptr<struct p> y) {
   x->y += 1;
   struct p *z = malloc(sizeof(struct p));
 	//CHECK: struct p *z = malloc<struct p>(sizeof(struct p));

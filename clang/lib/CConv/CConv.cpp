@@ -12,7 +12,7 @@
 
 #include "clang/CConv/CConv.h"
 #include "clang/CConv/ConstraintBuilder.h"
-#include "clang/CConv/GatherTool.h"
+#include "clang/CConv/IntermediateToolHook.h"
 #include "clang/CConv/RewriteUtils.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
 
@@ -40,6 +40,7 @@ bool DumpIntermediate;
 bool Verbose;
 std::string OutputPostfix;
 std::string ConstraintOutputJson;
+std::vector<std::string> AllocatorFunctions;
 bool DumpStats;
 bool HandleVARARGS;
 bool EnablePropThruIType;
@@ -50,7 +51,10 @@ bool AllTypes;
 std::string BaseDir;
 bool AddCheckedRegions;
 bool DisableCCTypeChecker;
+bool WarnRootCause;
+bool WarnAllRootCause;
 std::set<std::string> FilePaths;
+
 
 static ClangTool *GlobalCTool = nullptr;
 
@@ -79,7 +83,7 @@ public:
   virtual std::unique_ptr<ASTConsumer>
   CreateASTConsumer(CompilerInstance &Compiler, StringRef InFile) {
     return std::unique_ptr<ASTConsumer>
-        (new T(Info, &Compiler.getASTContext(), OutputPostfix));
+        (new T(Info, OutputPostfix));
   }
 
 private:
@@ -110,13 +114,13 @@ ArgumentsAdjuster getIgnoreCheckedPointerAdjuster() {
     for (size_t i = 0, e = Args.size(); i < e; ++i) {
       StringRef Arg = Args[i];
       AdjustedArgs.push_back(Args[i]);
-      if (Arg == "-fcheckedc-convert-tool")
+      if (Arg == "-fcheckedc-convert-tool") {
         HasAdjuster = true;
+        break;
+      }
     }
-    if (!DisableCCTypeChecker && !HasAdjuster) {
-      AdjustedArgs.push_back("-Xclang");
+    if (!DisableCCTypeChecker && !HasAdjuster)
       AdjustedArgs.push_back("-fcheckedc-convert-tool");
-    }
     return AdjustedArgs;
   };
 }
@@ -183,6 +187,9 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
   AllTypes = CCopt.EnableAllTypes;
   AddCheckedRegions = CCopt.AddCheckedRegions;
   DisableCCTypeChecker = CCopt.DisableCCTypeChecker;
+  AllocatorFunctions = CCopt.AllocatorFunctions;
+  WarnRootCause = CCopt.WarnRootCause || CCopt.WarnAllRootCause;
+  WarnAllRootCause = CCopt.WarnAllRootCause;
 
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();
@@ -279,13 +286,14 @@ bool CConvInterface::SolveConstraints(bool ComputeInterimState) {
     GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
   }
 
-  // 3. Gather pre-rewrite data.
+  // 3. Run intermediate tool hook to run visitors that need to be executed
+  // after constraint solving but before rewriting.
   ClangTool &Tool = getGlobalClangTool();
-  std::unique_ptr<ToolAction> GatherTool =
+  std::unique_ptr<ToolAction> IMTool =
       newFrontendActionFactoryA
-          <RewriteAction<ArgGatherer, ProgramInfo>>(GlobalProgramInfo);
-  if (GatherTool)
-    Tool.run(GatherTool.get());
+          <GenericAction<IntermediateToolHook, ProgramInfo>>(GlobalProgramInfo);
+  if (IMTool)
+    Tool.run(IMTool.get());
   else
     llvm_unreachable("No Action");
 

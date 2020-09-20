@@ -89,11 +89,14 @@ def tryFixUp(s):
     return
 
 
-def runCheckedCConvert(checkedc_bin, compile_commands_json, checkedc_include_dir, run_individual=False):
+def runCheckedCConvert(checkedc_bin, compile_commands_json, checkedc_include_dir, skip_paths, run_individual=False):
     global INDIVIDUAL_COMMANDS_FILE
     global TOTAL_COMMANDS_FILE
     runs = 0
     cmds = None
+    filters = []
+    for i in skip_paths:
+        filters.append(re.compile(i))
     while runs < 2:
         runs = runs + 1
         try:
@@ -128,8 +131,13 @@ def runCheckedCConvert(checkedc_bin, compile_commands_json, checkedc_include_dir
             # get the directory used during compilation.
             target_directory = i['directory']
         file_to_add = os.path.realpath(file_to_add)
-        all_files.append(file_to_add)
-        s.add((frozenset(compiler_x_args), target_directory, file_to_add))
+        matched = False
+        for j in filters:
+            if j.match(file_to_add) is not None:
+                matched = True
+        if not matched:
+            all_files.append(file_to_add)
+            s.add((frozenset(compiler_x_args), target_directory, file_to_add))
 
     # get the common path of the files as the base directory
     compilation_base_dir = os.path.commonprefix(all_files)

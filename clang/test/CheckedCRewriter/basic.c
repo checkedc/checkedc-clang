@@ -1,4 +1,3 @@
-// The following test is supposed to fail with the current tool.
 // RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 // RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
@@ -11,7 +10,16 @@
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 extern _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte_count(1), size_t size) : itype(_Array_ptr<T>) byte_count(size);
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
-extern _Unchecked char *strcpy(char * restrict dest, const char * restrict src : itype(restrict _Nt_array_ptr<const char>));
+
+// From string_checked.h
+#if _FORTIFY_SOURCE == 0 || !defined(strcpy)
+#undef strcpy
+// Dest is left unchecked intentionally. There is no bound on dest, so this
+// is always an unchecked function
+_Unchecked
+char *strcpy(char * restrict dest,
+              const char * restrict src : itype(restrict _Nt_array_ptr<const char>));
+#endif
 
 void basic1() {
 	char data[] = "abcdefghijklmnop";
@@ -46,7 +54,7 @@ char* basic2(int temp) {
 		return 0;
 	}
 }
-//CHECK: char * basic2(int temp) {
+//CHECK: char* basic2(int temp) {
 //CHECK_ALL: char data _Nt_checked[17] =  "abcdefghijklmnop";
 //CHECK_ALL: char data2 _Nt_checked[65] =  "abcdefghijklmnopabcdefghijklmnopabcdefghijklmnopabcdefghijklmnop";
 //CHECK: char *buffer = malloc<char>(8);
@@ -183,7 +191,7 @@ void basic_struct(int count) {
 
 }
 //CHECK_NOALL: struct student *pstd=(struct student*)malloc<struct student>(n*sizeof(struct student));
-//CHECK_ALL:  _Array_ptr<struct student> pstd : count(n) = (struct student*)malloc<struct student>(n*sizeof(struct student)); 
+//CHECK_ALL:  _Array_ptr<struct student> pstd : count(n) =(_Array_ptr<struct student>)malloc<struct student>(n*sizeof(struct student)); 
 
 struct student * new_student() {
 		char name[] = "Bilbo Baggins";

@@ -14,8 +14,8 @@
 #include "clang/Analysis/Analyses/Dominators.h"
 #include "clang/CConv/ArrayBoundsInferenceConsumer.h"
 #include "clang/CConv/ConstraintResolver.h"
+#include "clang/CConv/CCGlobalOptions.h"
 #include <sstream>
-#include <cctype>
 
 static std::set<std::string> LengthVarNamesPrefixes = {"len", "count",
                                                                "size", "num",
@@ -101,19 +101,19 @@ static bool hasLengthKeyword(std::string VarName) {
 }
 
 // Check if the provided constraint variable is an array and it needs bounds.
-static bool needArrayBounds(ConstraintVariable *CV,
-                            EnvironmentMap &E) {
+static bool needArrayBounds(const ConstraintVariable *CV,
+                            const EnvironmentMap &E) {
   if (CV->hasArr(E, 0)) {
-    PVConstraint *PV = dyn_cast<PVConstraint>(CV);
+    const PVConstraint *PV = dyn_cast<PVConstraint>(CV);
     return !PV || PV->isTopCvarUnsizedArr();
   }
   return false;
 }
 
-static bool needNTArrayBounds(ConstraintVariable *CV,
-                              EnvironmentMap &E) {
+static bool needNTArrayBounds(const ConstraintVariable *CV,
+                              const EnvironmentMap &E) {
   if (CV->hasNtArr(E, 0)) {
-    PVConstraint *PV = dyn_cast<PVConstraint>(CV);
+    const PVConstraint *PV = dyn_cast<PVConstraint>(CV);
     return !PV || PV->isTopCvarUnsizedArr();
   }
   return false;
@@ -122,8 +122,9 @@ static bool needNTArrayBounds(ConstraintVariable *CV,
 static bool needArrayBounds(Expr *E, ProgramInfo &Info, ASTContext *C) {
   ConstraintResolver CR(Info, C);
   CVarSet ConsVar = CR.getExprConstraintVars(E);
+  const auto &EnvMap = Info.getConstraints().getVariables();
   for (auto CurrCVar : ConsVar) {
-    if (needArrayBounds(CurrCVar, Info.getConstraints().getVariables()))
+    if (needArrayBounds(CurrCVar, EnvMap) || needNTArrayBounds(CurrCVar, EnvMap))
       return true;
     return false;
   }
@@ -131,16 +132,22 @@ static bool needArrayBounds(Expr *E, ProgramInfo &Info, ASTContext *C) {
 }
 
 static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C,
-                            bool IsNtArr = false) {
-  CVarSet ConsVar = Info.getVariable(D, C);
-  auto &E = Info.getConstraints().getVariables();
-  for (auto CurrCVar : ConsVar) {
-    if ((!IsNtArr && needArrayBounds(CurrCVar, E)) ||
-        (IsNtArr && needNTArrayBounds(CurrCVar, E)))
+                            bool IsNtArr) {
+  const auto &E = Info.getConstraints().getVariables();
+  CVarOption CVar = Info.getVariable(D, C);
+  if (CVar.hasValue()) {
+    ConstraintVariable &CV = CVar.getValue();
+    if ((!IsNtArr && needArrayBounds(&CV, E)) ||
+        (IsNtArr && needNTArrayBounds(&CV, E)))
       return true;
     return false;
   }
   return false;
+}
+
+static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C) {
+  return needArrayBounds(D, Info, C, false) ||
+         needArrayBounds(D, Info, C, true);
 }
 
 // Map that contains association of allocator functions and indexes of
@@ -173,10 +180,9 @@ bool tryGetBoundsKeyVar(Expr *E, BoundsKey &BK, ProgramInfo &Info,
 bool tryGetBoundsKeyVar(Decl *D, BoundsKey &BK, ProgramInfo &Info,
                         ASTContext *Context) {
   ConstraintResolver CR(Info, Context);
-  CVarSet CVs = Info.getVariable(D, Context);
+  CVarOption CV = Info.getVariable(D, Context);
   auto &ABInfo = Info.getABoundsInfo();
-  return CR.resolveBoundsKey(CVs, BK) ||
-         ABInfo.tryGetVariable(D, BK);
+  return CR.resolveBoundsKey(CV, BK) || ABInfo.tryGetVariable(D, BK);
 }
 
 // Check if the provided expression is a call to one of the known
@@ -280,20 +286,41 @@ static void handleAllocatorCall(QualType LHSType, BoundsKey LK, Expr *E,
       // If we found BoundsKey from the allocate expression?
       auto *PrgLVar = AVarBInfo.getProgramVar(LK);
       auto *PrgRVar = AVarBInfo.getProgramVar(RK);
+      ABounds *LBounds = nullptr;
+      if (IsByteBound) {
+        LBounds = new ByteBound(RK);
+      } else {
+        LBounds = new CountBound(RK);
+      }
+
       // Either both should be in same scope or the RHS should be constant.
       if (*(PrgLVar->getScope()) == *(PrgRVar->getScope()) ||
           PrgRVar->IsNumConstant()) {
-        ABounds *LBounds = nullptr;
-        if (IsByteBound) {
-          LBounds = new ByteBound(RK);
-        } else {
-          LBounds = new CountBound(RK);
-        }
-        if (!AVarBInfo.mergeBounds(LK, LBounds)) {
+        if (!AVarBInfo.mergeBounds(LK, Allocator, LBounds)) {
           delete (LBounds);
         } else {
           ABStats.AllocatorMatch.insert(LK);
         }
+      } else if (*(PrgLVar->getScope()) != *(PrgRVar->getScope())) {
+        // This means we are using a variable in allocator that is not
+        // in the same scope of LHS.
+        // We do a little indirection trick here:
+        // We create a temporary key and create bounds for it.
+        // and then we mimic the assignment between temporary key
+        // and the LHS.
+        // Example:
+        // int count;
+        // ...
+        // p->arr = malloc(sizeof(int)*count);
+        // --- which gets translated to:
+        // tmp <- bounds(count)
+        // p->arr <- tmp
+        BoundsKey TmpKey = AVarBInfo.getRandomBKey();
+        AVarBInfo.replaceBounds(TmpKey, Declared, LBounds);
+        AVarBInfo.addAssignment(LK, TmpKey);
+      } else {
+        assert (LBounds != nullptr && "LBounds cannot be nullptr here.");
+        delete (LBounds);
       }
     }
   }
@@ -373,11 +400,11 @@ bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
             // variable name heuristic lets use it.
             if (hasLengthKeyword(LenField.first)) {
               ABStats.NamePrefixMatch.insert(PtrField.second);
-              ABInfo.replaceBounds(PtrField.second, FldBounds);
+              ABInfo.replaceBounds(PtrField.second, Heuristics, FldBounds);
               break;
             }
             ABStats.VariableNameMatch.insert(PtrField.second);
-            ABInfo.replaceBounds(PtrField.second, FldBounds);
+            ABInfo.replaceBounds(PtrField.second, Heuristics, FldBounds);
           }
         }
         // If the name-correspondence heuristics failed.
@@ -419,13 +446,13 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           // Here, we are using heuristics. So we only use heuristics when
           // there are no bounds already computed.
           if (!ABInfo.getBounds(PK)) {
-            if (needArrayBounds(PVD, Info, Context)) {
-              // Is this an array?
-              ParamArrays[i] = PVal;
-            }
             if (needArrayBounds(PVD, Info, Context, true)) {
               // Is this an NTArray?
               ParamNtArrays[i] = PVal;
+            }
+            if (needArrayBounds(PVD, Info, Context, false)) {
+              // Is this an array?
+              ParamArrays[i] = PVal;
             }
           }
 
@@ -446,7 +473,7 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           BoundsKey PBKey = ArrParamPair.second.second;
           if (LengthParams.find(PIdx +1) != LengthParams.end()) {
             ABounds *PBounds = new CountBound(LengthParams[PIdx+1].second);
-            ABInfo.replaceBounds(PBKey, PBounds);
+            ABInfo.replaceBounds(PBKey, Heuristics, PBounds);
             ABStats.NeighbourParamMatch.insert(PBKey);
             continue;
           }
@@ -457,7 +484,7 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
                              LenParamPair.second.first)) {
               FoundLen = true;
               ABounds *PBounds = new CountBound(LenParamPair.second.second);
-              ABInfo.replaceBounds(PBKey, PBounds);
+              ABInfo.replaceBounds(PBKey, Heuristics, PBounds);
               ABStats.NamePrefixMatch.insert(PBKey);
               break;
             }
@@ -466,7 +493,7 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
                                    LenParamPair.second.first)) {
               FoundLen = true;
               ABounds *PBounds = new CountBound(LenParamPair.second.second);
-              ABInfo.replaceBounds(PBKey, PBounds);
+              ABInfo.replaceBounds(PBKey, Heuristics, PBounds);
               ABStats.NamePrefixMatch.insert(PBKey);
               continue;
             }
@@ -478,7 +505,7 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
               if (fieldNameMatch(currLenParamPair.second.first)) {
                 FoundLen = true;
                 ABounds *PBounds = new CountBound(currLenParamPair.second.second);
-                ABInfo.replaceBounds(PBKey, PBounds);
+                ABInfo.replaceBounds(PBKey, Heuristics, PBounds);
                 ABStats.VariableNameMatch.insert(PBKey);
               }
             }
@@ -498,7 +525,7 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         if (LengthParams.find(PIdx +1) != LengthParams.end()) {
           if (fieldNameMatch(LengthParams[PIdx +1].first)) {
             ABounds *PBounds = new CountBound(LengthParams[PIdx +1].second);
-            ABInfo.replaceBounds(PBKey, PBounds);
+            ABInfo.replaceBounds(PBKey, Heuristics, PBounds);
             ABStats.VariableNameMatch.insert(PBKey);
             continue;
           }
@@ -509,8 +536,23 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   return true;
 }
 
+void LocalVarABVisitor::handleAssignment(BoundsKey LK, QualType LHSType, Expr *RHS) {
+  auto &ABoundsInfo = Info.getABoundsInfo();
+  handleAllocatorCall(LHSType, LK, RHS, Info, Context);
+  clang::StringLiteral *SL =
+    dyn_cast_or_null<clang::StringLiteral>(RHS->IgnoreParenCasts());
+  if (SL != nullptr) {
+    ABounds *ByBounds =
+      new ByteBound(ABoundsInfo.getConstKey(SL->getByteLength()));
+    if (!ABoundsInfo.mergeBounds(LK, Allocator, ByBounds)) {
+      delete (ByBounds);
+    } else {
+      ABoundsInfo.getBStats().AllocatorMatch.insert(LK);
+    }
+  }
+}
 
-bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
+bool LocalVarABVisitor::HandleBinAssign(BinaryOperator *O) {
   Expr *LHS = O->getLHS()->IgnoreParenCasts();
   Expr *RHS = O->getRHS()->IgnoreParenCasts();
   ConstraintResolver CR(Info, Context);
@@ -520,7 +562,7 @@ bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
   // is the RHS expression a call to allocator function?
   if (needArrayBounds(LHS, Info, Context) &&
       tryGetBoundsKeyVar(LHS, LK, Info, Context)) {
-    handleAllocatorCall(LHS->getType(), LK, RHS, Info, Context);
+    handleAssignment(LK, LHS->getType(), RHS);
   }
 
   // Any parameter directly used as a condition in ternary expression
@@ -537,15 +579,44 @@ void LocalVarABVisitor::addUsedParmVarDecl(Expr *CE) {
       NonLengthParameters.insert(PVD);
 }
 
-bool LocalVarABVisitor::VisitIfStmt(IfStmt *IFS) {
-  if (BinaryOperator *BO = dyn_cast<BinaryOperator>(IFS->getCond())) {
+bool isValidBinOpForLen(BinaryOperator::Opcode COP) {
+  bool Valid = true;
+  switch (COP) {
+    // Invalid BinOPs
+    // ==, !=, &, &=, &&, |, |=, ^, ^=
+    case BinaryOperator::Opcode::BO_EQ:
+    case BinaryOperator::Opcode::BO_NE:
+    case BinaryOperator::Opcode::BO_And:
+    case BinaryOperator::Opcode::BO_AndAssign:
+    case BinaryOperator::Opcode::BO_LAnd:
+    case BinaryOperator::Opcode::BO_Or:
+    case BinaryOperator::Opcode::BO_OrAssign:
+    case BinaryOperator::Opcode::BO_LOr:
+    case BinaryOperator::Opcode::BO_Xor:
+    case BinaryOperator::Opcode::BO_XorAssign:
+      Valid = false;
+      break;
+    // Rest all Ops are okay.
+    default: break;
+  }
+  return Valid;
+}
+
+bool LocalVarABVisitor::VisitBinaryOperator(BinaryOperator *BO) {
     BinaryOperator::Opcode BOpcode = BO->getOpcode();
-    if (BOpcode == BinaryOperator::Opcode::BO_EQ ||
-        BOpcode == BinaryOperator::Opcode::BO_NE) {
+    // Is this not a valid bin op for a potential length parameter?
+    if (!isValidBinOpForLen(BOpcode)) {
       addUsedParmVarDecl(BO->getLHS());
       addUsedParmVarDecl(BO->getRHS());
     }
-  }
+    if (BOpcode == BinaryOperator::Opcode::BO_Assign) {
+      HandleBinAssign(BO);
+    }
+    return true;
+}
+
+bool LocalVarABVisitor::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
+  addUsedParmVarDecl(E->getIdx());
   return true;
 }
 
@@ -556,23 +627,9 @@ bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
     if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       Expr *InitE = VD->getInit();
       BoundsKey DeclKey;
-      if (InitE != nullptr && (needArrayBounds(VD, Info, Context) ||
-                               needArrayBounds(VD, Info, Context, true))) {
-        clang::StringLiteral *SL =
-            dyn_cast<clang::StringLiteral>(InitE->IgnoreParenCasts());
-        if (tryGetBoundsKeyVar(VD, DeclKey, Info, Context)) {
-          handleAllocatorCall(VD->getType(), DeclKey, InitE,
-                              Info, Context);
-          if (SL != nullptr) {
-            ABounds *ByBounds =
-                new ByteBound(ABoundsInfo.getConstKey(SL->getByteLength()));
-            if (!ABoundsInfo.mergeBounds(DeclKey, ByBounds)) {
-              delete (ByBounds);
-            } else {
-              ABoundsInfo.getBStats().AllocatorMatch.insert(DeclKey);
-            }
-          }
-        }
+      if (InitE != nullptr && needArrayBounds(VD, Info, Context) &&
+          tryGetBoundsKeyVar(VD, DeclKey, Info, Context)) {
+        handleAssignment(DeclKey, VD->getType(), InitE);
       }
     }
 
@@ -616,7 +673,7 @@ void AddMainFuncHeuristic(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
             tryGetBoundsKeyVar(Argv, ArgvKey, I, C) &&
             tryGetBoundsKeyVar(FD->getParamDecl(0), ArgcKey, I, C)) {
           ABounds *ArgcBounds = new CountBound(ArgcKey);
-          ABInfo.replaceBounds(ArgvKey, ArgcBounds);
+          ABInfo.replaceBounds(ArgvKey, Declared, ArgcBounds);
         }
       }
     }
@@ -632,7 +689,7 @@ public:
   explicit ComparisionVisitor(ProgramInfo &In, ASTContext *AC,
                      BoundsKey I, std::set<BoundsKey> &PossB) : I(In),
                                     C(AC),
-                                    IndxBKey(I), PB(PossB) {
+                                    IndxBKey(I), PB(PossB), CurrStmt(nullptr) {
     CR = new ConstraintResolver(In, AC);
   }
   virtual ~ComparisionVisitor() {
@@ -640,6 +697,17 @@ public:
       delete (CR);
       CR = nullptr;
     }
+  }
+
+  // Here, we save the most recent statement we have visited.
+  // This is a way to keep track of the statement to which currently
+  // processing expression belongs.
+  // This is okay, because RecursiveASTVisitor traverses the AST in
+  // pre-order, so we always visit the parent i.e., the statement
+  // before visiting the subexpressions under it.
+  bool VisitStmt(Stmt *S) {
+    CurrStmt = S;
+    return true;
   }
 
   bool VisitBinaryOperator(BinaryOperator *BO) {
@@ -658,12 +726,30 @@ public:
             ABI.tryGetVariable(LHS, *C, LKey)) &&
             (CR->resolveBoundsKey(RHSCVars, RKey) ||
              ABI.tryGetVariable(RHS, *C, RKey))) {
-          // If this the left hand side of a < comparision and the LHS is the
-          // index used in array indexing operation? Then add the RHS to the
-          // possible bounds key.
-          if (LKey == IndxBKey) {
-            PB.insert(RKey);
+
+          // If this the left hand side of a < comparison and
+          // the LHS is the index used in array indexing operation?
+          // Then add the RHS to the possible bounds key.
+          bool IsRKeyBound = (LKey == IndxBKey);
+          if (BO->getOpcode() == BO_GE) {
+            // If we have: x >= y, then this has to be an IfStmt to
+            // consider Y as upper bound.
+            // Why? This is to distinguish between following cases:
+            // In the following case, we should not
+            // consider y as the bound.
+            // for (i=n-1; i >= y; i--) {
+            //      arr[i] = ..
+            // }
+            // Where as the following is a valid case. MAX_LEN is the bound.
+            // if (i >= MAX_LEN) {
+            //     return -1;
+            //  }
+            //  arr[i] = ..
+            IsRKeyBound &= (CurrStmt != nullptr && isa<IfStmt>(CurrStmt));
           }
+
+          if (IsRKeyBound)
+            PB.insert(RKey);
         }
       }
     }
@@ -678,6 +764,9 @@ private:
   std::set<BoundsKey> &PB;
   // Helper objects.
   ConstraintResolver *CR;
+  // Current statement: The statement to which the processing
+  // node belongs. This is to avoid walking the AST.
+  Stmt *CurrStmt;
 };
 
 LengthVarInference::LengthVarInference(ProgramInfo &In,
@@ -797,6 +886,9 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
 
 void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {
   // Run array bounds
+  for (auto FuncName : AllocatorFunctions) {
+    AllocatorSizeAssoc[FuncName] = {0};
+  }
   GlobalABVisitor GlobABV(C, I);
   TranslationUnitDecl *TUD = C->getTranslationUnitDecl();
   LocalVarABVisitor LFV = LocalVarABVisitor(C, I);

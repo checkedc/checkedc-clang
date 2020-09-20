@@ -1,6 +1,9 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-//RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: cconv-standalone -output-postfix=checked -alltypes %s
+// RUN: cconv-standalone -alltypes %S/b23_explicitunsafecast.checked.c -- | count 0
+// RUN: rm %S/b23_explicitunsafecast.checked.c
 #include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 extern _Itype_for_any(T) void free(void *pointer : itype(_Array_ptr<T>) byte_count(0));
@@ -28,13 +31,13 @@ int* foo() {
   int *y = &sy;
 	//CHECK: _Ptr<int> y =  &sy;
   int *z = (int *) sus(x, y);
-	//CHECK: _Ptr<int> z =  (int *) sus(x, y);
+	//CHECK: _Ptr<int> z =  (_Ptr<int>) sus(x, y);
   *z = *z + 1;
   return z;
 }
 
 char* bar() {
-	//CHECK: char * bar(void) {
+	//CHECK: char* bar(void) {
   int sx = 3, sy = 4; 
   int *x = &sx;
 	//CHECK: int *x = &sx;

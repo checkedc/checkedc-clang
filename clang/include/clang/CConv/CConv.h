@@ -38,6 +38,8 @@ struct CConvertOptions {
 
   std::string WildPtrInfoJson;
 
+  std::vector<std::string> AllocatorFunctions;
+
   bool HandleVARARGS;
 
   bool EnablePropThruIType;
@@ -49,6 +51,10 @@ struct CConvertOptions {
   bool AddCheckedRegions;
 
   bool DisableCCTypeChecker;
+
+  bool WarnRootCause;
+
+  bool WarnAllRootCause;
 };
 
 // The main interface exposed by the CConv to interact with the tool.

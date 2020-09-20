@@ -1,10 +1,15 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL2 %s %S/fptrarrstructcallermulti1.c
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL2 %s %S/fptrarrstructcallermulti1.c
-//RUN: %clang -c %S/fptrarrstructcallermulti1.checkedNOALL2.c %S/fptrarrstructcallermulti2.checkedNOALL2.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/fptrarrstructcallermulti2.checkedNOALL2.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/fptrarrstructcallermulti2.checkedALL2.c %s
-//RUN: rm %S/fptrarrstructcallermulti1.checkedALL2.c %S/fptrarrstructcallermulti2.checkedALL2.c
-//RUN: rm %S/fptrarrstructcallermulti1.checkedNOALL2.c %S/fptrarrstructcallermulti2.checkedNOALL2.c
+// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL2 %S/fptrarrstructcallermulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL2 %S/fptrarrstructcallermulti1.c %s
+// RUN: %clang -c %S/fptrarrstructcallermulti1.checkedNOALL2.c %S/fptrarrstructcallermulti2.checkedNOALL2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrarrstructcallermulti2.checkedNOALL2.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrarrstructcallermulti2.checkedALL2.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/fptrarrstructcallermulti1.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrarrstructcallermulti1.checked2.c %S/fptrarrstructcallermulti2.checked2.c
+// RUN: diff %S/fptrarrstructcallermulti1.checked2.convert_again.c %S/fptrarrstructcallermulti1.checked2.c
+// RUN: diff %S/fptrarrstructcallermulti2.checked2.convert_again.c %S/fptrarrstructcallermulti2.checked2.c
+// RUN: rm %S/fptrarrstructcallermulti1.checkedALL2.c %S/fptrarrstructcallermulti2.checkedALL2.c
+// RUN: rm %S/fptrarrstructcallermulti1.checkedNOALL2.c %S/fptrarrstructcallermulti2.checkedNOALL2.c
+// RUN: rm %S/fptrarrstructcallermulti1.checked2.c %S/fptrarrstructcallermulti2.checked2.c %S/fptrarrstructcallermulti1.checked2.convert_again.c %S/fptrarrstructcallermulti2.checked2.convert_again.c
 
 
 /*********************************************************************************/
@@ -70,14 +75,17 @@ struct arrfptr {
 };
 
 int add1(int x) { 
+	//CHECK: int add1(int x) _Checked { 
     return x+1;
 } 
 
 int sub1(int x) { 
+	//CHECK: int sub1(int x) _Checked { 
     return x-1; 
 } 
 
 int fact(int n) { 
+	//CHECK: int fact(int n) _Checked { 
     if(n==0) { 
         return 1;
     } 
@@ -85,17 +93,19 @@ int fact(int n) {
 } 
 
 int fib(int n) { 
+	//CHECK: int fib(int n) _Checked { 
     if(n==0) { return 0; } 
     if(n==1) { return 1; } 
     return fib(n-1) + fib(n-2);
 } 
 
 int zerohuh(int n) { 
+	//CHECK: int zerohuh(int n) _Checked { 
     return !n;
 }
 
 int *mul2(int *x) { 
-	//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }
@@ -108,7 +118,7 @@ struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
 	//CHECK: x = (struct fptrarr *) 5; 
         char name[30]; 
         struct fptrarr *z = malloc(sizeof(struct fptrarr)); 
-	//CHECK_NOALL: _Ptr<struct fptrarr> z =  malloc<struct fptrarr>(sizeof(struct fptrarr)); 
+	//CHECK_NOALL: _Ptr<struct fptrarr> z = malloc<struct fptrarr>(sizeof(struct fptrarr)); 
 	//CHECK_ALL: struct fptrarr *z = malloc<struct fptrarr>(sizeof(struct fptrarr)); 
         z->values = y->values; 
         z->name = strcpy(name, "Hello World");

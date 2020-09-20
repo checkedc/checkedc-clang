@@ -40,6 +40,12 @@ static cl::opt<std::string>
                   cl::init("-"), cl::cat(ConvertCategory));
 
 static cl::opt<std::string>
+    OptMalloc("use-malloc",
+                     cl::desc("Allows for the usage of user-specified "
+                              "versions of function allocators"),
+                     cl::init(""), cl::cat(ConvertCategory));
+
+static cl::opt<std::string>
     OptConstraintOutputJson("constraint-output",
                          cl::desc("Path to the file where all the analysis "
                                   "information will be dumped as json"),
@@ -98,6 +104,17 @@ static cl::opt<std::string>
             cl::desc("Base directory for the code we're translating"),
             cl::init(""), cl::cat(ConvertCategory));
 
+static cl::opt<bool> OptWarnRootCause
+    ("warn-root-cause",
+    cl::desc("Emit warnings indicating root causes of unchecked pointers."),
+    cl::init(false), cl::cat(ConvertCategory));
+
+static cl::opt<bool> OptWarnAllRootCause
+    ("warn-all-root-cause",
+     cl::desc("Emit warnings for all root causes, "
+              "even those unlikely to be interesting."),
+     cl::init(false), cl::cat(ConvertCategory));
+
 int main(int argc, const char **argv) {
   sys::PrintStackTraceOnErrorSignal(argv[0]);
 
@@ -125,6 +142,24 @@ int main(int argc, const char **argv) {
   CcOptions.AddCheckedRegions = OptAddCheckedRegions;
   CcOptions.EnableAllTypes = OptAllTypes;
   CcOptions.DisableCCTypeChecker = OptDiableCCTypeChecker;
+  CcOptions.WarnRootCause = OptWarnRootCause;
+  CcOptions.WarnAllRootCause = OptWarnAllRootCause;
+  //Add user specified function allocators
+  std::string Malloc = OptMalloc.getValue();
+  if (!Malloc.empty()) {
+    std::string delimiter = ",";
+    size_t pos = 0;
+    std::string token;
+    while ((pos = Malloc.find(delimiter)) != std::string::npos) {
+      token = Malloc.substr(0, pos);
+      CcOptions.AllocatorFunctions.push_back(token);
+      Malloc.erase(0, pos + delimiter.length());
+    }
+    token = Malloc;
+    CcOptions.AllocatorFunctions.push_back(token);
+  }
+  else
+    CcOptions.AllocatorFunctions = {};
 
   // Create CConv Interface.
   CConvInterface CCInterface(CcOptions,
@@ -145,7 +180,7 @@ int main(int argc, const char **argv) {
   }
 
   // Next solve the constraints.
-  if (!CCInterface.SolveConstraints()) {
+  if (!CCInterface.SolveConstraints(OptWarnRootCause)) {
     errs() << "Failure occurred while trying to solve constraints. Exiting.\n";
     return 1;
   }

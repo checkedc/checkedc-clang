@@ -1,10 +1,15 @@
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checkedALL %s %S/safefptrargcalleemulti2.c
-// RUN: cconv-standalone -base-dir=%S -output-postfix=checkedNOALL %s %S/safefptrargcalleemulti2.c
-//RUN: %clang -c %S/safefptrargcalleemulti1.checkedNOALL.c %S/safefptrargcalleemulti2.checkedNOALL.c
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL" --input-file %S/safefptrargcalleemulti1.checkedNOALL.c %s
-//RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL" --input-file %S/safefptrargcalleemulti1.checkedALL.c %s
-//RUN: rm %S/safefptrargcalleemulti1.checkedALL.c %S/safefptrargcalleemulti2.checkedALL.c
-//RUN: rm %S/safefptrargcalleemulti1.checkedNOALL.c %S/safefptrargcalleemulti2.checkedNOALL.c
+// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/safefptrargcalleemulti2.c
+// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/safefptrargcalleemulti2.c
+// RUN: %clang -c %S/safefptrargcalleemulti1.checkedNOALL.c %S/safefptrargcalleemulti2.checkedNOALL.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/safefptrargcalleemulti1.checkedNOALL.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/safefptrargcalleemulti1.checkedALL.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %S/safefptrargcalleemulti2.c %s
+// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/safefptrargcalleemulti1.checked.c %S/safefptrargcalleemulti2.checked.c
+// RUN: diff %S/safefptrargcalleemulti1.checked.convert_again.c %S/safefptrargcalleemulti1.checked.c
+// RUN: diff %S/safefptrargcalleemulti2.checked.convert_again.c %S/safefptrargcalleemulti2.checked.c
+// RUN: rm %S/safefptrargcalleemulti1.checkedALL.c %S/safefptrargcalleemulti2.checkedALL.c
+// RUN: rm %S/safefptrargcalleemulti1.checkedNOALL.c %S/safefptrargcalleemulti2.checkedNOALL.c
+// RUN: rm %S/safefptrargcalleemulti1.checked.c %S/safefptrargcalleemulti2.checked.c %S/safefptrargcalleemulti1.checked.convert_again.c %S/safefptrargcalleemulti2.checked.convert_again.c
 
 
 /*********************************************************************************/
@@ -69,14 +74,17 @@ struct arrfptr {
 };
 
 int add1(int x) { 
+	//CHECK: int add1(int x) _Checked { 
     return x+1;
 } 
 
 int sub1(int x) { 
+	//CHECK: int sub1(int x) _Checked { 
     return x-1; 
 } 
 
 int fact(int n) { 
+	//CHECK: int fact(int n) _Checked { 
     if(n==0) { 
         return 1;
     } 
@@ -84,49 +92,51 @@ int fact(int n) {
 } 
 
 int fib(int n) { 
+	//CHECK: int fib(int n) _Checked { 
     if(n==0) { return 0; } 
     if(n==1) { return 1; } 
     return fib(n-1) + fib(n-2);
 } 
 
 int zerohuh(int n) { 
+	//CHECK: int zerohuh(int n) _Checked { 
     return !n;
 }
 
 int *mul2(int *x) { 
-	//CHECK: _Ptr<int> mul2(_Ptr<int> x) { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }
 
 int * sus(int (*) (int), int (*) (int));
-	//CHECK_NOALL: int * sus(int (*)(int), _Ptr<int (int )> y);
-	//CHECK_ALL: _Nt_array_ptr<int> sus(int (*)(int), _Ptr<int (int )> y);
+	//CHECK_NOALL: int * sus(int (*) (int), _Ptr<int (int )> y);
+	//CHECK_ALL: _Array_ptr<int> sus(int (*) (int), _Ptr<int (int )> y);
 
 int * foo() {
 	//CHECK_NOALL: int * foo(void) {
-	//CHECK_ALL: _Nt_array_ptr<int> foo(void) {
+	//CHECK_ALL: _Array_ptr<int> foo(void) {
  
         int (*x)(int) = add1; 
 	//CHECK: int (*x)(int) = add1; 
         int (*y)(int) = sub1; 
-	//CHECK: _Ptr<int (int )> y =  sub1; 
+	//CHECK: _Ptr<int (int )> y = sub1; 
         int *z = sus(x, y);
 	//CHECK_NOALL: int *z = sus(x, y);
-	//CHECK_ALL: _Nt_array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
         
 return z; }
 
 int * bar() {
 	//CHECK_NOALL: int * bar(void) {
-	//CHECK_ALL: _Nt_array_ptr<int> bar(void) {
+	//CHECK_ALL: _Array_ptr<int> bar(void) {
  
         int (*x)(int) = add1; 
 	//CHECK: int (*x)(int) = add1; 
         int (*y)(int) = sub1; 
-	//CHECK: _Ptr<int (int )> y =  sub1; 
+	//CHECK: _Ptr<int (int )> y = sub1; 
         int *z = sus(x, y);
 	//CHECK_NOALL: int *z = sus(x, y);
-	//CHECK_ALL: _Nt_array_ptr<int> z =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z = sus(x, y);
         
 return z; }

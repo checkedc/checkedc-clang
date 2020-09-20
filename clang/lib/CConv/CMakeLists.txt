@@ -3,18 +3,11 @@ set( LLVM_LINK_COMPONENTS
         Option
         Support
         )
-
-if (MSVC)
-  set_source_files_properties(RewriteUtils.cpp PROPERTIES COMPILE_FLAGS /bigobj)
-  set_source_files_properties(ArrayBoundsInferenceConsumer.cpp PROPERTIES COMPILE_FLAGS /bigobj)
-endif()
-
         add_clang_library(CConv
           ABounds.cpp
           AVarBoundsInfo.cpp
           AVarGraph.cpp
           ArrayBoundsInferenceConsumer.cpp
-          ArrayBoundsInformation.cpp
           CastPlacement.cpp
           CConv.cpp
           CConvInteractiveData.cpp
@@ -24,13 +17,15 @@ endif()
           Constraints.cpp
           ConstraintsGraph.cpp
           ConstraintVariables.cpp
-          GatherTool.cpp
+          DeclRewriter.cpp
+          IntermediateToolHook.cpp
           MappingVisitor.cpp
           PersistentSourceLoc.cpp
           ProgramInfo.cpp
           ProgramVar.cpp
           RewriteUtils.cpp
           StructInit.cpp
+          TypeVariableAnalysis.cpp
           Utils.cpp
           LINK_LIBS
           clangAST
