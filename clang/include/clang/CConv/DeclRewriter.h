@@ -57,12 +57,10 @@ private:
   // one subclass of declarations.
   void rewriteParmVarDecl(ParmVarDeclReplacement *N);
 
-  template<typename DT, DeclReplacement::DRKind DK>
-  void rewriteFieldOrVarDecl(DeclReplacementTempl<DT, DK> *N, RSet &ToRewrite);
-  template<typename DT, DeclReplacement::DRKind DK>
-  void rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N, RSet &ToRewrite);
-  template<typename DT, DeclReplacement::DRKind DK>
-  void rewriteSingleDecl(DeclReplacementTempl<DT, DK> *N, RSet &ToRewrite);
+  template<typename DRType>
+  void rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite);
+  void rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite);
+  void rewriteSingleDecl(DeclReplacement *N, RSet &ToRewrite);
   void doDeclRewrite(SourceRange &SR, DeclReplacement *N);
 
   void rewriteFunctionDecl(FunctionDeclReplacement *N);

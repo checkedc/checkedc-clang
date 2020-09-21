@@ -166,10 +166,8 @@ void DeclRewriter::rewriteParmVarDecl(ParmVarDeclReplacement *N) {
 }
 
 
-template <typename DT, DeclReplacement::DRKind DK>
-void DeclRewriter::rewriteFieldOrVarDecl(DeclReplacementTempl<DT, DK> *N,
-                                         RSet &ToRewrite) {
-  using DRType = DeclReplacementTempl<DT, DK>;
+template <typename DRType>
+void DeclRewriter::rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite) {
   static_assert(std::is_same<DRType, FieldDeclReplacement>::value
                     || std::is_same<DRType, VarDeclReplacement>::value,
                 "Method expects variable or field declaration replacement.");
@@ -186,25 +184,14 @@ void DeclRewriter::rewriteFieldOrVarDecl(DeclReplacementTempl<DT, DK> *N,
   }
 }
 
-template <typename DT, DeclReplacement::DRKind DK>
-void DeclRewriter::rewriteSingleDecl(DeclReplacementTempl<DT, DK> *N,
-                                     RSet &ToRewrite) {
+void DeclRewriter::rewriteSingleDecl(DeclReplacement *N, RSet &ToRewrite) {
   assert("Declaration is not a single declaration." && isSingleDeclaration(N));
-
   // This is the easy case, we can rewrite it locally, at the declaration.
-  DT *D = N->getDecl();
-  if (Verbose) {
-    errs() << "Decl at:\n";
-    if (N->getStatement())
-      N->getStatement()->dump();
-  }
-  SourceRange TR = D->getSourceRange();
+  SourceRange TR = N->getDecl()->getSourceRange();
   doDeclRewrite(TR, N);
 }
 
-template <typename DT, DeclReplacement::DRKind DK>
-void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
-                                    RSet &ToRewrite) {
+void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite) {
   assert("Declaration is not a multi declaration." && !isSingleDeclaration(N));
   // Hack time!
   // Sometimes, like in the case of a decl on a single line, we'll need to
@@ -217,9 +204,11 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
   RSet RewritesForThisDecl(DComp(R.getSourceMgr()));
   auto I = ToRewrite.find(N);
   while (I != ToRewrite.end()) {
-    auto *Tmp = dyn_cast<DeclReplacementTempl<DT, DK>>(*I);
-    if (Tmp != nullptr && areDeclarationsOnSameLine(N, Tmp))
-      RewritesForThisDecl.insert(Tmp);
+    if (areDeclarationsOnSameLine(N, *I)) {
+      assert("Unexpected DeclReplacement kind." &&
+             (*I)->getKind() == N->getKind());
+      RewritesForThisDecl.insert(*I);
+    }
     ++I;
   }
 
@@ -233,9 +222,6 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
   bool IsFirst = true;
   SourceLocation PrevEnd;
   for (const auto &DL : SameLineDecls) {
-    DT *SDL = dyn_cast<DT>(DL);
-    assert("Could not get variable declaration of expected type." && SDL);
-
     // Find the declaration replacement object for the current declaration
     DeclReplacement *SameLineReplacement;
     bool Found = false;
@@ -252,7 +238,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
       // essentially the same as the single declaration case.
       IsFirst = false;
       if (Found) {
-        SourceRange SR(SDL->getBeginLoc(), SDL->getEndLoc());
+        SourceRange SR(DL->getBeginLoc(), DL->getEndLoc());
         doDeclRewrite(SR, SameLineReplacement);
       }
     } else  {
@@ -261,7 +247,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
       if (Found) {
         // If the type has changed, the DeclReplacement object has a replacement
         // string stored in it that should be used.
-        SourceRange SR(PrevEnd, SDL->getEndLoc());
+        SourceRange SR(PrevEnd, DL->getEndLoc());
         doDeclRewrite(SR, SameLineReplacement);
       } else {
         // When the type hasn't changed, we still need to insert the original
@@ -271,7 +257,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N,
         // the declaration without the initializer. We don't want to rewrite to
         // initializer because this causes problems when rewriting casts and
         // generic function calls later on.
-        auto *VD = dyn_cast<VarDecl>(SDL);
+        auto *VD = dyn_cast<VarDecl>(DL);
         Expr *Init = nullptr;
         if (VD && VD->hasInit()) {
           Init = VD->getInit();
