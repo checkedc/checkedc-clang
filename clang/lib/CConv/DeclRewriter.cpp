@@ -310,11 +310,18 @@ void DeclRewriter::doDeclRewrite(SourceRange &SR, DeclReplacement *N) {
       Replacement += " =";
     } else {
       // There is no initializer. Add it if we need one.
-      if (isPointerType(VD)
-          && (VD->getStorageClass() != StorageClass::SC_Extern))
-        Replacement += " = ((void *)0)";
       // MWH -- Solves issue 43. Should make it so we insert NULL if stdlib.h or
       // stdlib_checked.h is included
+      if (VD->getStorageClass() != StorageClass::SC_Extern) {
+        const std::string NullPtrStr = "((void *)0)";
+        if (isPointerType(VD)) {
+          Replacement += " = " + NullPtrStr;
+        } else if  (VD->getType()->isArrayType()) {
+          const auto *ElemType = VD->getType()->getPointeeOrArrayElementType();
+          if (ElemType->isPointerType())
+            Replacement += " = {" + NullPtrStr + "}";
+        }
+      }
     }
   }
 

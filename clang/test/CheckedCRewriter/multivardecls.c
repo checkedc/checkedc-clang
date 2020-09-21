@@ -47,7 +47,7 @@ void test() {
 //CHECK: _Ptr<int> s = ((void *)0);
 
   int *t[1], *u = malloc(2*sizeof(int)), *v;
-//CHECK_ALL: _Ptr<int> t _Checked[1];
+//CHECK_ALL: _Ptr<int> t _Checked[1] = {((void *)0)};
 //CHECK_NOALL: int *t[1];
 //CHECK_ALL: _Ptr<int> u = malloc<int>(2*sizeof(int));
 //CHECK_NOALL: int *u = malloc<int>(2*sizeof(int));
