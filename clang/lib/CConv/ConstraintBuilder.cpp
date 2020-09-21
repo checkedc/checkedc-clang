@@ -238,8 +238,10 @@ public:
             } else if (i < TargetFV->numParams()) {
               // constrain the arg CV to the param CV
               ConstraintVariable *ParameterDC = TargetFV->getParamVar(i);
+              // Do not handle bounds key here because we will be
+              // doing context-sensitive assignment next.
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
-                                  Wild_to_Safe, false, &Info);
+                                  Wild_to_Safe, false, &Info, false);
               
               if (AllTypes && TFD != nullptr) {
                 auto *PVD = TFD->getParamDecl(i);

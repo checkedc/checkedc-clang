@@ -32,6 +32,12 @@ PersistentSourceLoc::mkPSL(const Stmt *S, ASTContext &Context) {
   return mkPSL(S->getSourceRange(), S->getBeginLoc(), Context);
 }
 
+// Create a PersistentSourceLoc for an Expression.
+PersistentSourceLoc
+PersistentSourceLoc::mkPSL(const clang::Expr *E, clang::ASTContext &Context) {
+  return mkPSL(E->getSourceRange(), E->getBeginLoc(), Context);
+}
+
 // Use the PresumedLoc infrastructure to get a file name and expansion
 // line and column numbers for a SourceLocation.
 PersistentSourceLoc 

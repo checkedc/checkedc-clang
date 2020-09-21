@@ -12,7 +12,7 @@ extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_c
 
 int ***malloc3d(int y, int x, int z) {
 	//CHECK_NOALL: int ***malloc3d(int y, int x, int z) {
-	//CHECK_ALL: _Array_ptr<_Array_ptr<_Array_ptr<int>>> malloc3d(int y, int x, int z) {
+	//CHECK_ALL: _Array_ptr<_Array_ptr<_Array_ptr<int>>> malloc3d(int y, int x, int z) : count(y) {
 
 	int i, j;
 
@@ -63,7 +63,7 @@ int main(void) {
 
 	int ***t2 = malloc3d(y, x, z);
 	//CHECK_NOALL: int ***t2 = malloc3d(y, x, z);
-	//CHECK_ALL: 	_Array_ptr<_Array_ptr<_Array_ptr<int>>> t2 =  malloc3d(y, x, z);
+	//CHECK_ALL: 	_Array_ptr<_Array_ptr<_Array_ptr<int>>> t2 : count(y) = malloc3d(y, x, z);
 
 
 	for (i = 0; i < y; ++i) {
