@@ -193,58 +193,13 @@ void DeclRewriter::rewriteSingleDecl(DeclReplacementTempl<DT, DK> *N,
 
   // This is the easy case, we can rewrite it locally, at the declaration.
   DT *D = N->getDecl();
-  std::string SRewrite = N->getReplacement();
   if (Verbose) {
     errs() << "Decl at:\n";
     if (N->getStatement())
       N->getStatement()->dump();
   }
   SourceRange TR = D->getSourceRange();
-
-  // TODO: use doDeclRewrite
-
-  // Is there an initializer? If there is, change TR so that it points
-  // to the START of the SourceRange of the initializer text, and drop
-  // an '=' token into sRewrite.
-  // Only Vardecls can have initializers
-  if(auto VD = dyn_cast<VarDecl>(D)) {
-    if (VD->hasInit()) {
-      SourceLocation EqLoc = VD->getInitializerStartLoc();
-      TR.setEnd(EqLoc);
-      SRewrite = SRewrite + " =";
-    } else {
-      // There is no initializer, lets add it.
-      if (isPointerType(VD) &&
-          (VD->getStorageClass() != StorageClass::SC_Extern))
-        SRewrite = SRewrite + " = ((void *)0)";
-      //MWH -- Solves issue 43. Should make it so we insert NULL if
-      // stdlib.h or stdlib_checked.h is included
-    }
-  }
-
-  if (canRewrite(R, TR)) {
-    R.ReplaceText(TR, SRewrite);
-  } else {
-    // This can happen if SR is within a macro. If that is the case,
-    // maybe there is still something we can do because Decl refers
-    // to a non-macro line.
-
-    SourceRange Possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()),
-                         D->getEndLoc());
-
-    if (canRewrite(R, Possible)) {
-      R.ReplaceText(Possible, SRewrite);
-    } else {
-      if (Verbose) {
-        errs() << "Still don't know how to re-write VarDecl\n";
-        D->dump();
-        errs() << "at\n";
-        if (N->getStatement())
-          N->getStatement()->dump();
-        errs() << "with " << SRewrite << "\n";
-      }
-    }
-  }
+  doDeclRewrite(TR, N);
 }
 
 template <typename DT, DeclReplacement::DRKind DK>
@@ -366,14 +321,34 @@ void DeclRewriter::doDeclRewrite(SourceRange &SR, DeclReplacement *N) {
   std::string Replacement = N->getReplacement();
   if (auto *VD = dyn_cast<VarDecl>(N->getDecl())) {
     if (VD->hasInit()) {
+      // Make sure we preserve any existing initializer
       SR.setEnd(VD->getInitializerStartLoc());
       Replacement += " =";
     } else {
-      if (isPointerType(VD))
+      // There is no initializer. Add it if we need one.
+      if (isPointerType(VD)
+          && (VD->getStorageClass() != StorageClass::SC_Extern))
         Replacement += " = ((void *)0)";
+      // MWH -- Solves issue 43. Should make it so we insert NULL if stdlib.h or
+      // stdlib_checked.h is included
     }
   }
-  R.ReplaceText(SR, Replacement);
+
+  if (canRewrite(R, SR)) {
+    R.ReplaceText(SR, Replacement);
+  } else {
+    // This can happen if SR is within a macro. If that is the case, maybe there
+    // is still something we can do because Decl refers to a non-macro line.
+    SourceRange Possible(R.getSourceMgr().getExpansionLoc(SR.getBegin()),
+                         SR.getEnd());
+
+    if (canRewrite(R, Possible))
+      R.ReplaceText(Possible, Replacement);
+    else
+      llvm_unreachable(
+          "Still can't rewrite declaration."
+          "This should have been made WILD during constraint generation.");
+  }
 }
 
 void DeclRewriter::rewriteFunctionDecl(FunctionDeclReplacement *N) {
