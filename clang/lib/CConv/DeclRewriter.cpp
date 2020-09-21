@@ -193,14 +193,13 @@ void DeclRewriter::rewriteSingleDecl(DeclReplacement *N, RSet &ToRewrite) {
 
 void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite) {
   assert("Declaration is not a multi declaration." && !isSingleDeclaration(N));
-  // Hack time!
-  // Sometimes, like in the case of a decl on a single line, we'll need to
-  // do multiple NewTyps at once. In that case, in the inner loop, we'll
-  // re-scan and find all of the NewTyps related to that line and do
-  // everything at once. That means sometimes we'll get NewTyps that
-  // we don't want to process twice. We'll skip them here.
+  // Rewriting is more difficult when there are multiple variables declared in a
+  // single statement. When this happens, we need to find all the declaration
+  // replacement for this statement and apply them at the same time. We also
+  // need to avoid rewriting any of these declarations twice by updating the
+  // Skip set to include the processed declarations.
 
-  // Step 1: get the re-written types.
+  // Step 1: get declaration replacement in the same statement
   RSet RewritesForThisDecl(DComp(R.getSourceMgr()));
   auto I = ToRewrite.find(N);
   while (I != ToRewrite.end()) {
@@ -243,7 +242,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite) {
       }
     } else  {
       // The subsequent decls are more complicated because we need to insert a
-      // type string even the variables type hasn't changed.
+      // type string even if the variables type hasn't changed.
       if (Found) {
         // If the type has changed, the DeclReplacement object has a replacement
         // string stored in it that should be used.
@@ -256,7 +255,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite) {
         // This is a bit of trickery needed to get a string representation of
         // the declaration without the initializer. We don't want to rewrite to
         // initializer because this causes problems when rewriting casts and
-        // generic function calls later on.
+        // generic function calls later on. (issue 267)
         auto *VD = dyn_cast<VarDecl>(DL);
         Expr *Init = nullptr;
         if (VD && VD->hasInit()) {
@@ -265,8 +264,8 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite) {
         }
 
         // Dump the declaration (without the initializer) to a string. Printing
-        // the AST node gives a full declaration including the base type which
-        // is not present in the multi-decl.
+        // the AST node gives the full declaration including the base type which
+        // is not present in the multi-decl source code.
         std::string DeclStr = "";
         raw_string_ostream DeclStream(DeclStr);
         DL->print(DeclStream);
@@ -287,15 +286,14 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite) {
     }
 
     // Variables in a mutli-decl are delimited by commas. The rewritten decls
-    // are separate statements separated by a semicolon an newline.
+    // are separate statements separated by a semicolon and a newline.
     SourceRange End = getNextCommaOrSemicolon(DL->getEndLoc());
     R.ReplaceText(End, ";\n ");
     PrevEnd = End.getEnd();
   }
 
-  // Step 3: Be sure and skip all of the NewTyps that we dealt with
-  //         during this time of hacking, by adding them to the
-  //         skip set.
+  // Step 3: Be sure and skip all of the declarations that we just dealt with by
+  //         adding them to the skip set.
   for (const auto &TN : RewritesForThisDecl)
     Skip.insert(TN);
 }
@@ -364,10 +362,9 @@ void DeclRewriter::rewriteFunctionDecl(FunctionDeclReplacement *N) {
   }
 }
 
-// Makes use of clangs lexer to find the source location of the next comma after
+// Uses clangs lexer to find the location of the next comma or semicolon after
 // the given source location. This is used to find the end of each declaration
-// within a multi-declaration. Using the lexer is better than doing this
-// character-wise since characters comments and strings don't mess things up.
+// within a multi-declaration.
 SourceRange DeclRewriter::getNextCommaOrSemicolon(SourceLocation L) {
   SourceManager &SM = A.getSourceManager();
   auto Tok = Lexer::findNextToken(L, SM, A.getLangOpts());
