@@ -75,7 +75,7 @@ jobs:
           ninja llvm-config
           ninja FileCheck
           ninja not
-          ninja count
+          ninja count c-index-test clang-diff clang-format opt clang-check
 
 
       # Upload the built cconv-standalone and clang
