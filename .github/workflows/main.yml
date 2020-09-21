@@ -91,13 +91,6 @@ jobs:
         with:
           name: cconvscripts
           path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils
-      
-      # Upload Test files
-      - name: Upload Test files
-        uses: actions/upload-artifact@v2
-        with:
-          name: cconvtests
-          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/test
 
 
   unittests:
@@ -117,14 +110,16 @@ jobs:
           name: cconvbuild
           path: ${{runner.workspace}}/${{env.builddir}}
           
-      # Download test files
-      - name: Download test files
-        uses: actions/download-artifact@v2
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Checkout our repository
+        uses: actions/checkout@v2
         with:
-          name: cconvtests
-          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/test
+          repository: plum-umd/checkedc-clang
+          ref: BigRefactor
+          path: depsfolder/checkedc-clang
 
-      - name: Clone checked c headers
+      # clone Checked C headers
+      - name: Clone Checked C headers
         uses: actions/checkout@v2
         with:
           repository: microsoft/checkedc
@@ -136,7 +131,7 @@ jobs:
           cd ${{runner.workspace}}/${{env.builddir}}/bin
           chmod 700 *
           export CPATH=${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include
-          ! ./llvm-lit ${{github.workspace}}/deps/folder/checkedc-clang/clang/test/CheckedCRewriter/*.c | grep -e "^FAIL"
+          ! ./llvm-lit ${{github.workspace}}/depsfolder/checkedc-clang/clang/test/CheckedCRewriter/*.c | grep -e "^FAIL"
 
   testvsftpd:
     name: Build and test vsftpd
