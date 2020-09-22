@@ -126,3 +126,17 @@ int *d, e, **f;
 // CHECK: _Ptr<int> d = ((void *)0);
 // CHECK: int e;
 // CHECK: _Ptr<_Ptr<int>> f = ((void *)0);
+
+void test5() {
+  int*a,*b;int*c,*e;
+  struct foo{int a,*b;int*c,*d;};
+}
+// CHECK: _Ptr<int> a = ((void *)0);
+// CHECK: _Ptr<int> b = ((void *)0);
+// CHECK: _Ptr<int> c = ((void *)0);
+// CHECK: _Ptr<int> e = ((void *)0);
+// CHECK: struct foo{int a;
+// CHECK: _Ptr<int> b;
+// CHECK: _Ptr<int> c;
+// CHECK: _Ptr<int> d;
+// CHECK: };

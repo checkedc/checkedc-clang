@@ -288,8 +288,9 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite) {
     // Variables in a mutli-decl are delimited by commas. The rewritten decls
     // are separate statements separated by a semicolon and a newline.
     SourceRange End = getNextCommaOrSemicolon(DL->getEndLoc());
-    R.ReplaceText(End, ";\n ");
-    PrevEnd = End.getEnd();
+    R.ReplaceText(End, ";\n");
+    // Offset by one to skip past what we've just added so it isn't overwritten.
+    PrevEnd = End.getEnd().getLocWithOffset(1);
   }
 
   // Step 3: Be sure and skip all of the declarations that we just dealt with by
@@ -377,7 +378,7 @@ SourceRange DeclRewriter::getNextCommaOrSemicolon(SourceLocation L) {
   auto Tok = Lexer::findNextToken(L, SM, A.getLangOpts());
   while (Tok.hasValue() && !Tok->is(clang::tok::eof)) {
     if (Tok->is(clang::tok::comma) || Tok->is(clang::tok::semi))
-      return SourceRange(Tok->getLocation(), Tok->getEndLoc());
+      return SourceRange(Tok->getLocation(), Tok->getLocation());
     Tok = Lexer::findNextToken(Tok->getEndLoc(), A.getSourceManager(),
                                A.getLangOpts());
   }
