@@ -64,11 +64,9 @@ private:
   void doDeclRewrite(SourceRange &SR, DeclReplacement *N);
 
   void rewriteFunctionDecl(FunctionDeclReplacement *N);
-  SourceLocation deleteAllDeclarationsOnLine(DeclReplacement *N);
   void getDeclsOnSameLine(DeclReplacement *N, std::set<Decl *> &Decls);
   bool isSingleDeclaration(DeclReplacement *N);
-  bool areDeclarationsOnSameLine(DeclReplacement *N1,
-                                 DeclReplacement *N2);
+  bool areDeclarationsOnSameLine(DeclReplacement *N1, DeclReplacement *N2);
   SourceRange getNextCommaOrSemicolon(SourceLocation L);
 };
 

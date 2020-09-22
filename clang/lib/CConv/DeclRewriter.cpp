@@ -416,9 +416,6 @@ bool DeclRewriter::isSingleDeclaration(DeclReplacement *N) {
   }
 }
 
-
-
-
 void DeclRewriter::getDeclsOnSameLine(DeclReplacement *N,
                                       std::set<Decl *> &Decls) {
   if (N->getStatement() != nullptr)
@@ -427,38 +424,6 @@ void DeclRewriter::getDeclsOnSameLine(DeclReplacement *N,
   else
     Decls.insert(GP.getVarsOnSameLine(N->getDecl()).begin(),
                  GP.getVarsOnSameLine(N->getDecl()).end());
-}
-
-
-SourceLocation
-DeclRewriter::deleteAllDeclarationsOnLine(DeclReplacement *DR)
-{
-  if (DeclStmt *Stmt = DR->getStatement()) {
-    // If there is a statement, delete the entire statement.
-    R.RemoveText(Stmt->getSourceRange());
-    return Stmt->getSourceRange().getEnd();
-  } else {
-    SourceLocation BLoc;
-    SourceManager &SM = R.getSourceMgr();
-    // Remove all vars on the line.
-    for (auto *SD : GP.getVarsOnSameLine(DR->getDecl())) {
-      SourceRange ToDel = SD->getSourceRange();
-      if (BLoc.isInvalid() ||
-          SM.isBeforeInTranslationUnit(ToDel.getBegin(), BLoc))
-        BLoc = ToDel.getBegin();
-      if(dyn_cast<VarDecl>(DR->getDecl())) {
-        R.RemoveText(SD->getSourceRange());
-      } else if (dyn_cast<FieldDecl>(DR->getDecl())) {
-        // If it's a FielDecl make sure to grab the end semicolon
-        auto end = Lexer::getLocForEndOfToken(SD->getEndLoc(), 0,
-                                              SM, A.getLangOpts());
-        R.RemoveText(SourceRange(SD->getBeginLoc(), end));
-      } else {
-        llvm_unreachable("Only VarDecls or FieldDecls should be passed here");
-      }
-    }
-    return BLoc;
-  }
 }
 
 // Note: This is variable declared static in the header file in order to pass
