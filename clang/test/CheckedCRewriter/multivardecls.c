@@ -118,3 +118,11 @@ void test4() {
 // CHECK: _Ptr<_Ptr<int>> g;
   };
 }
+
+int *a; int b; int **c;
+// CHECK: _Ptr<int> a = ((void *)0); int b; _Ptr<_Ptr<int>> c = ((void *)0);
+
+int *d, e, **f;
+// CHECK: _Ptr<int> d = ((void *)0);
+// CHECK: int e;
+// CHECK: _Ptr<_Ptr<int>> f = ((void *)0);
