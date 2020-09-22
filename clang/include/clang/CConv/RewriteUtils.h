@@ -175,16 +175,12 @@ private:
 
 typedef std::set<DeclReplacement *, DComp> RSet;
 
-// Class that maintains global variables according to the line numbers
-// this groups global variables according to the line numbers in source files.
-// All global variables that belong to the same file and are on the same line
-// will be in the same group.
-// e.g., int *a,*b; // both will be in same group
-// where as
-// int *c;
-// int *d
-// will be in different groups.
-
+// This class is used to figure out which global variables are part of
+// multi-variable declarations. For local variables, all variables in a single
+// multi declaration are grouped together in a DeclStmt object. This is not the
+// case for global variables, so this class is required to correctly group
+// global variable declarations. Declarations in the same multi-declarations
+// have the same beginning source locations, so it is used to group variables.
 class GlobalVariableGroups {
 public:
   GlobalVariableGroups(SourceManager &SourceMgr) : SM(SourceMgr) { }

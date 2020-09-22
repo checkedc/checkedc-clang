@@ -174,13 +174,13 @@ void DeclRewriter::rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite) {
 
   if (isSingleDeclaration(N)) {
     rewriteSingleDecl(N, ToRewrite);
-  } else if (Skip.find(N) == Skip.end()) {
+  } else if (VisitedMultiDeclMembers.find(N) == VisitedMultiDeclMembers.end()) {
     rewriteMultiDecl(N, ToRewrite);
   } else {
     // Anything that reaches this case should be a multi-declaration that has
     // already been rewritten.
     assert("Declaration should have been rewritten." && !isSingleDeclaration(N)
-               && Skip.find(N) != Skip.end());
+           && VisitedMultiDeclMembers.find(N) != VisitedMultiDeclMembers.end());
   }
 }
 
@@ -295,7 +295,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite) {
   // Step 3: Be sure and skip all of the declarations that we just dealt with by
   //         adding them to the skip set.
   for (const auto &TN : RewritesForThisDecl)
-    Skip.insert(TN);
+    VisitedMultiDeclMembers.insert(TN);
 }
 
 // Common rewriting logic used to replace a single decl either on its own or as
