@@ -57,8 +57,6 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
 
   // Add declarations from this map into the rewriting set
   for (const auto &V : Info.getVarMap()) {
-    PersistentSourceLoc PLoc = V.first;
-    CVarSet Vars = V.second;
     // PLoc specifies the location of the variable whose type it is to
     // re-write, but not where the actual type storage is. To get that, we
     // need to turn PLoc into a Decl and then get the SourceRange for the
@@ -66,16 +64,11 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
     // of the type specifier, since we want where the text is printed before
     // the variable name, not the typedef or #define that creates the
     // name of the type.
+    PersistentSourceLoc PLoc = V.first;
     if (Decl *D = std::get<1>(PSLMap[PLoc])) {
-      // We might have one Decl for multiple Vars, however, one will be a
-      // PointerVar so we'll use that.
-      PVConstraint *PV = nullptr;
-      FVConstraint *FV = nullptr;
-      for (const auto &V : Vars)
-        if (PVConstraint *T = dyn_cast<PVConstraint>(V))
-          PV = T;
-        else if (FVConstraint *T = dyn_cast<FVConstraint>(V))
-          FV = T;
+      ConstraintVariable *CV = V.second;
+      PVConstraint *PV = dyn_cast<PVConstraint>(CV);
+      FVConstraint *FV = dyn_cast<FVConstraint>(CV);
 
       if (PV && PV->anyChanges(Info.getConstraints().getVariables()) &&
           !PV->isPartOfFunctionPrototype()) {
@@ -135,10 +128,6 @@ void DeclRewriter::rewrite(RSet &ToRewrite) {
       N->getDecl()->dump();
       errs() << "with " << N->getReplacement() << "\n";
     }
-
-    // Get a FullSourceLoc for the start location and add it to the
-    // list of file ID's we've touched.
-    SourceRange SR = N->getDecl()->getSourceRange();
 
     // Exact rewriting procedure depends on declaration type
     if (auto *PVR = dyn_cast<ParmVarDeclReplacement>(N)) {
@@ -337,7 +326,7 @@ void DeclRewriter::rewriteFunctionDecl(FunctionDeclReplacement *N) {
   //       Additionally, a source range can be (mis) identified as
   //       spanning multiple files. We don't know how to re-write that,
   //       so don't.
-  SourceRange SR = N->getSourceRange();
+  SourceRange SR = N->getSourceRange(A.getSourceManager());
   if (canRewrite(R, SR)) {
     R.ReplaceText(SR, N->getReplacement());
   } else {

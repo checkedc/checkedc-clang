@@ -5186,8 +5186,10 @@ public:
 
   enum BoundsDeclarationCheck {
       BDC_Assignment,
+      BDC_Decrement,
+      BDC_Increment,
       BDC_Initialization,
-      BDC_Statement
+      BDC_Statement,
   };
 
   /// \brief Check that address=of operation is not taking the
