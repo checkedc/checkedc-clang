@@ -26,7 +26,8 @@ using namespace clang;
 class DeclRewriter {
 public:
   DeclRewriter(Rewriter &R, ASTContext &A, GlobalVariableGroups &GP)
-      : R(R), A(A), GP(GP), Skip(DComp(A.getSourceManager())) {}
+      : R(R), A(A), GP(GP),
+        VisitedMultiDeclMembers(DComp(A.getSourceManager())) {}
 
   // The publicly accessible interface for performing declaration rewriting.
   // All declarations for variables with checked types in the variable map of
@@ -36,11 +37,14 @@ private:
   Rewriter &R;
   ASTContext &A;
   GlobalVariableGroups &GP;
-  // Skip indicates some rewrites that we should skip because they have already
-  // been applied. This is used when rewriting a single declaration that
-  // declares multiple variables into multiple declarations that each declare
-  // one variable.
-  RSet Skip;
+
+  // This set contains declarations that have already been rewritten as part of
+  // a prior declaration that was in the same multi-declaration. It is checked
+  // before rewriting in order to avoid rewriting a declaration more than once.
+  // It is not used with individual declarations outside of multi-declarations
+  // because these declarations are seen exactly once, rather than every time a
+  // declaration in the containing multi-decl is visited.
+  RSet VisitedMultiDeclMembers;
 
   // TODO: I don't like having this be static, but it needs to be static in
   //       order to pass information between different translation units. A
@@ -57,14 +61,17 @@ private:
   // one subclass of declarations.
   void rewriteParmVarDecl(ParmVarDeclReplacement *N);
 
-  template <typename DT, DeclReplacement::DRKind DK>
-  void rewriteMultiDecl(DeclReplacementTempl<DT, DK> *N, RSet &ToRewrite);
+  template<typename DRType>
+  void rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite);
+  void rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite);
+  void rewriteSingleDecl(DeclReplacement *N, RSet &ToRewrite);
+  void doDeclRewrite(SourceRange &SR, DeclReplacement *N);
+
   void rewriteFunctionDecl(FunctionDeclReplacement *N);
-  SourceLocation deleteAllDeclarationsOnLine(DeclReplacement *N);
   void getDeclsOnSameLine(DeclReplacement *N, std::set<Decl *> &Decls);
   bool isSingleDeclaration(DeclReplacement *N);
-  bool areDeclarationsOnSameLine(DeclReplacement *N1,
-                                 DeclReplacement *N2);
+  bool areDeclarationsOnSameLine(DeclReplacement *N1, DeclReplacement *N2);
+  SourceRange getNextCommaOrSemicolon(SourceLocation L);
 };
 
 // Visits function declarations and adds entries with their new rewritten
