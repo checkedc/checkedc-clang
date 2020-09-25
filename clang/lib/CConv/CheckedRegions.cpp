@@ -304,7 +304,7 @@ bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
     //TODO there are other statement positions
     //     besides child of compound stmt
     auto PSL = PersistentSourceLoc::mkPSL(C, *Context);
-    //emitCauseDiagnostic(&PSL);
+    emitCauseDiagnostic(&PSL);
     return false;
   }
 }
@@ -403,10 +403,8 @@ void CheckedRegionFinder::emitCauseDiagnostic(PersistentSourceLoc *PSL) {
     auto File = SM.getFileManager().getFile(PSL->getFileName());
     SourceLocation SL = SM.translateFileLineCol(File, PSL->getLineNo(),
                                                 PSL->getColSNo());
-    if (SL.isValid()) {
-      auto DiagBuilder = DE.Report(SL, ID);
-      DiagBuilder.AddString("here");
-    }
+    if (SL.isValid())
+      DE.Report(SL, ID).AddString("Variadic Call");
     Emitted.insert(PSL);
   }
 }
