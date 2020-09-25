@@ -88,8 +88,7 @@ bool DComp::operator()(DeclReplacement *Lhs,
     return SM.isBeforeInTranslationUnit(X2, Y1);
 }
 
-void GlobalVariableGroups::addGlobalDecl(Decl *VD,
-                                         std::set<Decl *> *VDSet) {
+void GlobalVariableGroups::addGlobalDecl(Decl *VD, std::set<Decl *> *VDSet) {
   if (VD && GlobVarGroups.find(VD) == GlobVarGroups.end()) {
     if (VDSet == nullptr)
       VDSet = new std::set<Decl *>();
@@ -97,17 +96,9 @@ void GlobalVariableGroups::addGlobalDecl(Decl *VD,
     GlobVarGroups[VD] = VDSet;
     // Process the next decl.
     Decl *NDecl = VD->getNextDeclInContext();
-    if (isa_and_nonnull<VarDecl>(NDecl) || isa_and_nonnull<FieldDecl>(NDecl)) {
-      PresumedLoc OrigDeclLoc =
-          SM.getPresumedLoc(VD->getSourceRange().getBegin());
-      PresumedLoc NewDeclLoc =
-          SM.getPresumedLoc(NDecl->getSourceRange().getBegin());
-      // Check if both declarations are on the same line.
-      if (OrigDeclLoc.isValid() && NewDeclLoc.isValid() &&
-          !strcmp(OrigDeclLoc.getFilename(), NewDeclLoc.getFilename()) &&
-          OrigDeclLoc.getLine() == NewDeclLoc.getLine())
+    if (isa_and_nonnull<VarDecl>(NDecl) || isa_and_nonnull<FieldDecl>(NDecl))
+      if (VD->getBeginLoc() == NDecl->getBeginLoc())
         addGlobalDecl(dyn_cast<Decl>(NDecl), VDSet);
-    }
   }
 }
 
@@ -351,7 +342,7 @@ std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
   // For itype we do not want to add a second ":".
   std::string Pfix = Isitype ? " " : " : ";
 
-  if (ValidBKey) {
+  if (ValidBKey && !PV->hasSomeSizedArr()) {
     ABounds *ArrB = ABInfo.getBounds(DK);
     // Only we we have bounds and no pointer arithmetic on the variable.
     if (ArrB != nullptr && !ABInfo.hasPointerArithmetic(DK)) {
@@ -364,6 +355,13 @@ std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
     BString = Pfix + PV->getBoundsStr();
   }
   return BString;
+}
+
+bool ArrayBoundsRewriter::hasNewBoundsString(PVConstraint *PV, Decl *D,
+                                             bool Isitype) {
+  std::string BStr = getBoundsString(PV, D, Isitype);
+  // There is a bounds string but has nothing declared?
+  return !BStr.empty() && !PV->hasBoundsStr();
 }
 
 std::set<PersistentSourceLoc *> RewriteConsumer::EmittedDiagnostics;

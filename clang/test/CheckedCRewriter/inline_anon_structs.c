@@ -74,7 +74,7 @@ struct alpha {
 };
 struct alpha *al[4];
 	//CHECK_NOALL: struct alpha *al[4];
-	//CHECK_ALL: _Ptr<struct alpha> al _Checked[4];
+	//CHECK_ALL: _Ptr<struct alpha> al _Checked[4] = {((void *)0)};
 
 /*be should be made wild, whereas a should be converted*/
 struct {

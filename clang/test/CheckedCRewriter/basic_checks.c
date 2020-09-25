@@ -27,7 +27,7 @@ void typd_driver(void) {
 
 //CHECK_ALL: wchar_t buf _Checked[10];
 //CHECK_ALL: _Ptr<wchar_t> a = &buf[0];
-//CHECK_ALL: _Array_ptr<wchar_t> b = &buf[0];
+//CHECK_ALL: _Array_ptr<wchar_t> b : count(10) = &buf[0];
 
 
 typedef struct _A {

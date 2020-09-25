@@ -151,8 +151,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   ArrPresent = false;
 
   bool IsDeclTy = false;
+
+  auto &ABInfo = I.getABoundsInfo();
   if (D != nullptr) {
-    auto &ABInfo = I.getABoundsInfo();
     if (ABInfo.tryGetVariable(D, BKey)) {
       ValidBoundsKey = true;
     }
@@ -210,6 +211,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   bool VarCreated = false;
   bool IsArr = false;
   bool IsIncompleteArr = false;
+  bool IsTopMost = true;
   OriginallyChecked = false;
   uint32_t TypeIdx = 0;
   std::string Npre = inFunc ? ((*inFunc)+":") : "";
@@ -268,7 +270,14 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       // See if there is a constant size to this array type at this position.
       if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
         arrSizes[TypeIdx] = std::pair<OriginalArrType,uint64_t>(
-                O_SizedArray,CAT->getSize().getZExtValue());
+                O_SizedArray, CAT->getSize().getZExtValue());
+
+        // If this is the top-most pointer variable?
+        if (hasBoundsKey() && IsTopMost) {
+          BoundsKey CBKey = ABInfo.getConstKey(CAT->getSize().getZExtValue());
+          ABounds *NB = new CountBound(CBKey);
+          ABInfo.insertDeclaredBounds(D, NB);
+        }
       } else {
         arrSizes[TypeIdx] = std::pair<OriginalArrType,uint64_t>(
                 O_UnSizedArray,0);
@@ -316,6 +325,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     TypeIdx++;
     Npre = Npre + "*";
     VK = VarAtom::V_Other; // only the outermost pointer considered a param/return
+    IsTopMost = false;
   }
   insertQualType(TypeIdx, QTy);
 
@@ -1148,6 +1158,16 @@ bool PointerVariableConstraint::isTopCvarUnsizedArr() const {
   return true;
 }
 
+bool PointerVariableConstraint::hasSomeSizedArr() const {
+  for (auto &AS : arrSizes) {
+    if (AS.second.first == O_SizedArray ||
+        AS.second.second == O_UnSizedArray) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool PointerVariableConstraint::
     solutionEqualTo(Constraints &CS, const ConstraintVariable *CV) const {
   bool Ret = false;
@@ -1396,7 +1416,8 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
 // If doEqType is true, then also do CA |- LHS <: RHS.
 void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
-                         ConsAction CA, bool doEqType, ProgramInfo *Info) {
+                         ConsAction CA, bool doEqType, ProgramInfo *Info,
+                         bool HandleBoundsKey) {
 
   // If one of the constraint is NULL, make the other constraint WILD.
   // This can happen when a non-function pointer gets assigned to
@@ -1425,7 +1446,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
         // Constrain the return values covariantly.
         // FIXME: Make neg(CA) here? Function pointers equated
         constrainConsVarGeq(FCLHS->getReturnVar(), FCRHS->getReturnVar(), CS,
-                            PL, Same_to_Same, doEqType, Info);
+                            PL, Same_to_Same, doEqType, Info, HandleBoundsKey);
 
         // Constrain the parameters contravariantly.
         if (FCLHS->numParams() == FCRHS->numParams()) {
@@ -1434,7 +1455,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
             ConstraintVariable *RHSV = FCRHS->getParamVar(i);
             // FIXME: Make neg(CA) here? Now: Function pointers equated
             constrainConsVarGeq(RHSV, LHSV, CS, PL, Same_to_Same, doEqType,
-                                Info);
+                                Info, HandleBoundsKey);
           }
         } else {
           // Constrain both to be top.
@@ -1451,7 +1472,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
       if (PVConstraint *PCRHS = dyn_cast<PVConstraint>(RHS)) {
 
         // Add assignment to bounds info graph.
-        if (PCLHS->hasBoundsKey() && PCRHS->hasBoundsKey()) {
+        if (HandleBoundsKey && PCLHS->hasBoundsKey() && PCRHS->hasBoundsKey()) {
           Info->getABoundsInfo().addAssignment(PCLHS->getBoundsKey(),
                                                PCRHS->getBoundsKey());
         }
@@ -1496,7 +1517,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
           }
           // Equate the corresponding FunctionConstraint.
           constrainConsVarGeq(PCLHS->getFV(), PCRHS->getFV(), CS, PL, CA,
-                              doEqType, Info);
+                              doEqType, Info, HandleBoundsKey);
         }
       } else
         llvm_unreachable("impossible");
@@ -1509,7 +1530,7 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
     FVConstraint *FCRHS = dyn_cast<FVConstraint>(RHS);
     if (PCLHS && FCRHS) {
       if (FVConstraint *FCLHS = PCLHS->getFV()) {
-        constrainConsVarGeq(FCLHS, FCRHS, CS, PL, CA, doEqType, Info);
+        constrainConsVarGeq(FCLHS, FCRHS, CS, PL, CA, doEqType, Info, HandleBoundsKey);
       } else {
           std::string Rsn = "Function:" + FCRHS->getName() +
                             " assigned to non-function pointer.";
@@ -1528,17 +1549,19 @@ void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
 
 void constrainConsVarGeq(ConstraintVariable *LHS, const CVarSet &RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
-                         ConsAction CA, bool doEqType, ProgramInfo *Info) {
+                         ConsAction CA, bool doEqType, ProgramInfo *Info,
+                         bool HandleBoundsKey) {
   for (const auto &J : RHS)
-    constrainConsVarGeq(LHS, J, CS, PL, CA, doEqType, Info);
+    constrainConsVarGeq(LHS, J, CS, PL, CA, doEqType, Info, HandleBoundsKey);
 }
 
 // Given an RHS and a LHS, constrain them to be equal.
 void constrainConsVarGeq(const CVarSet &LHS, const CVarSet &RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
-                         ConsAction CA, bool doEqType, ProgramInfo *Info) {
+                         ConsAction CA, bool doEqType, ProgramInfo *Info,
+                         bool HandleBoundsKey) {
   for (const auto &I : LHS)
-    constrainConsVarGeq(I, RHS, CS, PL, CA, doEqType, Info);
+    constrainConsVarGeq(I, RHS, CS, PL, CA, doEqType, Info, HandleBoundsKey);
 }
 
 // True if [C] is a PVConstraint that contains at least one Atom (i.e.,

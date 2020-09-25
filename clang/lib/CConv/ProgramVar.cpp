@@ -13,11 +13,12 @@
 #include "clang/CConv/ProgramVar.h"
 
 GlobalScope *GlobalScope::ProgScope = nullptr;
-std::map<std::string, StructScope*> StructScope::StScopeMap;
-std::map<std::pair<std::string, bool>, FunctionScope*>
-    FunctionScope::FnScopeMap;
-std::map<std::pair<std::string, bool>, FunctionParamScope*>
-    FunctionParamScope::FnParmScopeMap;
+std::set<StructScope, PVSComp> StructScope::AllStScopes;
+std::set<FunctionParamScope, PVSComp>
+  FunctionParamScope::AllFnParamScopes;
+std::set<FunctionScope, PVSComp> FunctionScope::AllFnScopes;
+std::set<CtxFunctionArgScope, PVSComp>
+  CtxFunctionArgScope::AllCtxFnArgScopes;
 
 GlobalScope *GlobalScope::getGlobalScope() {
   if (ProgScope == nullptr) {
@@ -26,28 +27,39 @@ GlobalScope *GlobalScope::getGlobalScope() {
   return ProgScope;
 }
 
-StructScope *StructScope::getStructScope(std::string StName) {
-  if (StScopeMap.find(StName) == StScopeMap.end()) {
-    StScopeMap[StName] = new StructScope(StName);
+const StructScope *StructScope::getStructScope(std::string StName) {
+  StructScope TmpS(StName);
+  if (AllStScopes.find(TmpS) == AllStScopes.end()) {
+    AllStScopes.insert(TmpS);
   }
-  return StScopeMap[StName];
+  return &(*AllStScopes.find(TmpS));
 }
 
-FunctionParamScope *FunctionParamScope::getFunctionParamScope(
+const FunctionParamScope *FunctionParamScope::getFunctionParamScope(
     std::string FnName, bool IsSt) {
-  auto MapK = std::make_pair(FnName, IsSt);
-  if (FnParmScopeMap.find(MapK) == FnParmScopeMap.end()) {
-    FnParmScopeMap[MapK] = new FunctionParamScope(FnName, IsSt);
+  FunctionParamScope TmpFPS(FnName, IsSt);
+  if (AllFnParamScopes.find(TmpFPS) == AllFnParamScopes.end()) {
+    AllFnParamScopes.insert(TmpFPS);
   }
-  return FnParmScopeMap[MapK];
+  return &(*AllFnParamScopes.find(TmpFPS));
 }
 
-FunctionScope *FunctionScope::getFunctionScope(std::string FnName, bool IsSt) {
-  auto MapK = std::make_pair(FnName, IsSt);
-  if (FnScopeMap.find(MapK) == FnScopeMap.end()) {
-    FnScopeMap[MapK] = new FunctionScope(FnName, IsSt);
+const CtxFunctionArgScope *CtxFunctionArgScope::getCtxFunctionParamScope(
+  const FunctionParamScope *FPS, const PersistentSourceLoc &PSL) {
+  CtxFunctionArgScope TmpAS(FPS->getFName(), FPS->getIsStatic(), PSL);
+  if (AllCtxFnArgScopes.find(TmpAS) == AllCtxFnArgScopes.end()) {
+    AllCtxFnArgScopes.insert(TmpAS);
   }
-  return FnScopeMap[MapK];
+  return &(*AllCtxFnArgScopes.find(TmpAS));
+}
+
+const FunctionScope *FunctionScope::getFunctionScope(std::string FnName,
+                                               bool IsSt) {
+  FunctionScope TmpFS(FnName, IsSt);
+  if (AllFnScopes.find(TmpFS) == AllFnScopes.end()) {
+    AllFnScopes.insert(TmpFS);
+  }
+  return &(*AllFnScopes.find(TmpFS));
 }
 
 
