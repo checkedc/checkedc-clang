@@ -411,7 +411,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   // Take care of some other rewriting tasks
   std::set<llvm::FoldingSetNodeID> Seen;
   std::map<llvm::FoldingSetNodeID, AnnotationNeeded> NodeMap;
-  CheckedRegionFinder CRF(&Context, R, Info, Seen, NodeMap);
+  CheckedRegionFinder CRF(&Context, R, Info, Seen, NodeMap, WarnRootCause);
   CheckedRegionAdder CRA(&Context, R, NodeMap);
   CastPlacementVisitor ECPV(&Context, Info, R);
   TypeExprRewriter TER(&Context, Info, R);
