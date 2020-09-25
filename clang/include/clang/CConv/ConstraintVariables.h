@@ -297,6 +297,8 @@ public:
   bool getArrPresent() const { return ArrPresent; }
   // Check if the outermost pointer is an unsized array.
   bool isTopCvarUnsizedArr() const;
+  // Check if any of the pointers is either a sized or unsized arr.
+  bool hasSomeSizedArr() const;
 
   // Is an itype present for this constraint? If yes,
   // what is the text of that itype?

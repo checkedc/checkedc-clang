@@ -151,7 +151,7 @@ void pullit(char *base, char *out, int *index) {
 
   return;
 }
-//CHECK_ALL: void pullit(_Array_ptr<char> base, _Ptr<char> out, _Ptr<int> index) _Checked {
+//CHECK_ALL: void pullit(_Array_ptr<char> base : count(10), _Ptr<char> out, _Ptr<int> index) _Checked {
 //CHECK_NOALL: void pullit(char *base, _Ptr<char> out, _Ptr<int> index) {
 
 void driver() {

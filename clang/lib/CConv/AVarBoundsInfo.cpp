@@ -692,15 +692,14 @@ bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
       auto *SBVar = BI->getProgramVar(SBKey);
       if (SBVar->IsNumConstant()) {
         PotentialB.insert(SBVar);
-      } else {
-        // Find all the in scope variables reachable from the current
-        // bounds variable.
-        ScopeVisitor TV(Kvar->getScope(), PotentialB, BI->PVarInfo,
-                        BI->PointerBoundsKey);
-        BKGraph.visitBreadthFirst(SBKey, [&TV](BoundsKey BK) {
-          TV.visitBoundsKey(BK);
-        });
       }
+      // Find all the in scope variables reachable from the current
+      // bounds variable.
+      ScopeVisitor TV(Kvar->getScope(), PotentialB, BI->PVarInfo,
+                      BI->PointerBoundsKey);
+      BKGraph.visitBreadthFirst(SBKey, [&TV](BoundsKey BK) {
+        TV.visitBoundsKey(BK);
+      });
 
       if (*Kvar->getScope() == *SBVar->getScope()) {
         PotentialB.insert(SBVar);
