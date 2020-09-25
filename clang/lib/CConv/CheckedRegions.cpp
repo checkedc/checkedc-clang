@@ -398,13 +398,13 @@ void CheckedRegionFinder::emitCauseDiagnostic(PersistentSourceLoc *PSL) {
   if (Emitted.find(PSL) == Emitted.end()) {
     clang::DiagnosticsEngine &DE = Context->getDiagnostics();
     unsigned ID = DE.getCustomDiagID(DiagnosticsEngine::Warning,
-                                     "Root cause of unchecked region: %0");
+                                     "Root cause of unchecked region: Variadic Call");
     SourceManager &SM = Context->getSourceManager();
     auto File = SM.getFileManager().getFile(PSL->getFileName());
     SourceLocation SL = SM.translateFileLineCol(File, PSL->getLineNo(),
                                                 PSL->getColSNo());
     if (SL.isValid())
-      DE.Report(SL, ID).AddString("Variadic Call");
+      DE.Report(SL, ID);
     Emitted.insert(PSL);
   }
 }
