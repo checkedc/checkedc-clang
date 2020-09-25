@@ -357,6 +357,13 @@ std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
   return BString;
 }
 
+bool ArrayBoundsRewriter::hasNewBoundsString(PVConstraint *PV, Decl *D,
+                                             bool Isitype) {
+  std::string BStr = getBoundsString(PV, D, Isitype);
+  // There is a bounds string but has nothing declared?
+  return !BStr.empty() && !PV->hasBoundsStr();
+}
+
 std::set<PersistentSourceLoc *> RewriteConsumer::EmittedDiagnostics;
 void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
   clang::DiagnosticsEngine &DE = Context.getDiagnostics();

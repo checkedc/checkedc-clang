@@ -573,6 +573,11 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   if (DidAnyReturn)
     NewSig = getStorageQualifierString(Definition) + ReturnVar;
 
+  // We need to rewrite params if there is a bounds strings for
+  // the return too.
+  DidAnyParams = DidAnyParams ||
+                 ABRewriter.hasNewBoundsString(Defn, FD, GeneratedRetIType);
+
   if (DidAnyReturn && DidAnyParams)
     NewSig += Defnc->getName();
 
