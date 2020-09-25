@@ -151,8 +151,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   ArrPresent = false;
 
   bool IsDeclTy = false;
+
+  auto &ABInfo = I.getABoundsInfo();
   if (D != nullptr) {
-    auto &ABInfo = I.getABoundsInfo();
     if (ABInfo.tryGetVariable(D, BKey)) {
       ValidBoundsKey = true;
     }
@@ -210,6 +211,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   bool VarCreated = false;
   bool IsArr = false;
   bool IsIncompleteArr = false;
+  bool IsTopMost = true;
   OriginallyChecked = false;
   uint32_t TypeIdx = 0;
   std::string Npre = inFunc ? ((*inFunc)+":") : "";
@@ -268,7 +270,14 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       // See if there is a constant size to this array type at this position.
       if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
         arrSizes[TypeIdx] = std::pair<OriginalArrType,uint64_t>(
-                O_SizedArray,CAT->getSize().getZExtValue());
+                O_SizedArray, CAT->getSize().getZExtValue());
+
+        // If this is the top-most pointer variable?
+        if (hasBoundsKey() && IsTopMost) {
+          BoundsKey CBKey = ABInfo.getConstKey(CAT->getSize().getZExtValue());
+          ABounds *NB = new CountBound(CBKey);
+          ABInfo.insertDeclaredBounds(D, NB);
+        }
       } else {
         arrSizes[TypeIdx] = std::pair<OriginalArrType,uint64_t>(
                 O_UnSizedArray,0);
@@ -316,6 +325,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     TypeIdx++;
     Npre = Npre + "*";
     VK = VarAtom::V_Other; // only the outermost pointer considered a param/return
+    IsTopMost = false;
   }
   insertQualType(TypeIdx, QTy);
 
@@ -1146,6 +1156,16 @@ bool PointerVariableConstraint::isTopCvarUnsizedArr() const {
     return arrSizes.at(0).first != O_SizedArray;
   }
   return true;
+}
+
+bool PointerVariableConstraint::hasSomeSizedArr() const {
+  for (auto &AS : arrSizes) {
+    if (AS.second.first == O_SizedArray ||
+        AS.second.second == O_UnSizedArray) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool PointerVariableConstraint::

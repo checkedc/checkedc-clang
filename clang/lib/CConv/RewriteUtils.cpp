@@ -342,7 +342,7 @@ std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
   // For itype we do not want to add a second ":".
   std::string Pfix = Isitype ? " " : " : ";
 
-  if (ValidBKey) {
+  if (ValidBKey && !PV->hasSomeSizedArr()) {
     ABounds *ArrB = ABInfo.getBounds(DK);
     // Only we we have bounds and no pointer arithmetic on the variable.
     if (ArrB != nullptr && !ABInfo.hasPointerArithmetic(DK)) {
