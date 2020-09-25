@@ -58,12 +58,6 @@ bool CheckedRegionAdder::VisitCallExpr(CallExpr *C) {
   ast_type_traits::DynTypedNode DTN = ast_type_traits::DynTypedNode::create(*C);
 
   C->Profile(ID, *Context, true);
-  std::string s;
-  switch (Map[ID]) {
-    case IS_CHECKED : s = "ISCHECKED"; break;
-    case IS_UNCHECKED : s = "ISUNCHECKED"; break;
-    case IS_CONTAINED : s = "ISCONTAINED"; break;
-  };
   if (FD && FD->isVariadic() &&
       Map[ID] == IS_CONTAINED && isParentChecked(DTN)) {
     auto Begin = C->getBeginLoc();
@@ -310,7 +304,7 @@ bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
     //TODO there are other statement positions
     //     besides child of compound stmt
     auto PSL = PersistentSourceLoc::mkPSL(C, *Context);
-    emitCauseDiagnostic(&PSL);
+    //emitCauseDiagnostic(&PSL);
     return false;
   }
 }

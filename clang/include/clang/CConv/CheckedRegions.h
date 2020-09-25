@@ -57,8 +57,8 @@ class CheckedRegionFinder : public clang::RecursiveASTVisitor<CheckedRegionFinde
     explicit CheckedRegionFinder(clang::ASTContext *_C, clang::Rewriter &_R, ProgramInfo &_I,
                                 std::set<llvm::FoldingSetNodeID> &S,
                                  std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &M,
-                                 bool EW)
-      : Context(_C), Writer(_R), Info(_I), Seen(S), Map(M), EmitWarnings(EW) {}
+                                 bool EmitWarnings)
+      : Context(_C), Writer(_R), Info(_I), Seen(S), Map(M), EmitWarnings(EmitWarnings) {}
     bool Wild = false;
 
     bool VisitForStmt(clang::ForStmt *S);
