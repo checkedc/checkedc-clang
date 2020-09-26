@@ -355,6 +355,8 @@ private:
   std::string VarName;
   const ProgramVarScope *VScope;
   bool IsConstant;
+  // TODO: All the ProgramVars may not be used. We should try to figure out
+  //  a way to free unused program vars.
   static std::set<ProgramVar *> AllProgramVars;
 
   ProgramVar(BoundsKey VK, std::string VName,
