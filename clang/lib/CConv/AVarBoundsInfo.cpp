@@ -233,7 +233,7 @@ BoundsKey AVarBoundsInfo::getVariable(clang::VarDecl *VD) {
       }
     }
     assert(PVS != nullptr && "Context not null");
-    auto *PVar = new ProgramVar(NK, VD->getNameAsString(), PVS);
+    auto *PVar = ProgramVar::createNewProgramVar(NK, VD->getNameAsString(), PVS);
     insertProgramVar(NK, PVar);
     if (VD->getType()->isPointerType())
       PointerBoundsKey.insert(NK);
@@ -260,7 +260,7 @@ BoundsKey AVarBoundsInfo::getVariable(clang::ParmVarDecl *PVD) {
     if (ParamName.empty())
       ParamName = "NONAMEPARAM_" + std::to_string(ParamIdx);
 
-    auto *PVar = new ProgramVar(NK, ParamName, FPS);
+    auto *PVar = ProgramVar::createNewProgramVar(NK, ParamName, FPS);
     insertProgramVar(NK, PVar);
     insertParamKey(ParamKey, NK);
     if (PVD->getType()->isPointerType())
@@ -281,7 +281,7 @@ BoundsKey AVarBoundsInfo::getVariable(clang::FunctionDecl *FD) {
           FunctionParamScope::getFunctionParamScope(FD->getNameAsString(),
                                                   FD->isStatic());
 
-    auto *PVar = new ProgramVar(NK, FD->getNameAsString(), FPS);
+    auto *PVar = ProgramVar::createNewProgramVar(NK, FD->getNameAsString(), FPS);
     insertProgramVar(NK, PVar);
     FuncDeclVarMap.insert(FuncKey, NK);
     if (FD->getReturnType()->isPointerType())
@@ -298,7 +298,7 @@ BoundsKey AVarBoundsInfo::getVariable(clang::FieldDecl *FD) {
     insertVarKey(PSL, NK);
     std::string StName = FD->getParent()->getNameAsString();
     const StructScope *SS = StructScope::getStructScope(StName);
-    auto *PVar = new ProgramVar(NK, FD->getNameAsString(), SS);
+    auto *PVar = ProgramVar::createNewProgramVar(NK, FD->getNameAsString(), SS);
     insertProgramVar(NK, PVar);
     if (FD->getType()->isPointerType())
       PointerBoundsKey.insert(NK);
@@ -509,8 +509,11 @@ BoundsKey AVarBoundsInfo::getConstKey(uint64_t value) {
     BoundsKey NK = ++BCount;
     ConstVarKeys[value] = NK;
     std::string ConsString = std::to_string(value);
-    ProgramVar *NPV = new ProgramVar(NK, ConsString,
-                                     GlobalScope::getGlobalScope(), true);
+    ProgramVar *NPV =
+              ProgramVar::createNewProgramVar(NK,
+                                              ConsString,
+                                              GlobalScope::getGlobalScope(),
+                                        true);
     insertProgramVar(NK, NPV);
   }
   return ConstVarKeys[value];
@@ -530,11 +533,6 @@ void AVarBoundsInfo::insertParamKey(AVarBoundsInfo::ParamDeclType ParamDecl,
 }
 
 void AVarBoundsInfo::insertProgramVar(BoundsKey NK, ProgramVar *PV) {
-  if (getProgramVar(NK) != nullptr) {
-    // Free the already created variable.
-    auto *E = PVarInfo[NK];
-    delete (E);
-  }
   PVarInfo[NK] = PV;
 }
 

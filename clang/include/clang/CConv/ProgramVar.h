@@ -337,15 +337,6 @@ private:
 // Class that represents a program variable along with its scope.
 class ProgramVar {
 public:
-  ProgramVar(BoundsKey VK, std::string VName,
-             const ProgramVarScope *PVS,
-             bool IsCons) :
-      K(VK), VarName(VName), VScope(PVS), IsConstant(IsCons) { }
-
-  ProgramVar(BoundsKey VK, std::string VName,
-             const ProgramVarScope *PVS) :
-      ProgramVar(VK, VName, PVS, false) { }
-
   const ProgramVarScope *getScope() { return VScope; }
   void setScope(const ProgramVarScope *PVS) { this->VScope = PVS; }
   BoundsKey getKey() { return K; }
@@ -355,11 +346,25 @@ public:
   std::string verboseStr();
   ProgramVar *makeCopy(BoundsKey NK);
   virtual ~ProgramVar() { }
+
+  static ProgramVar *createNewProgramVar(BoundsKey VK, std::string VName,
+                                         const ProgramVarScope *PVS,
+                                         bool IsCons = false);
 private:
   BoundsKey K;
   std::string VarName;
   const ProgramVarScope *VScope;
   bool IsConstant;
+  static std::set<ProgramVar *> AllProgramVars;
+
+  ProgramVar(BoundsKey VK, std::string VName,
+             const ProgramVarScope *PVS,
+             bool IsCons) :
+    K(VK), VarName(VName), VScope(PVS), IsConstant(IsCons) { }
+
+  ProgramVar(BoundsKey VK, std::string VName,
+             const ProgramVarScope *PVS) :
+    ProgramVar(VK, VName, PVS, false) { }
 };
 
 #endif // _BOUNDSVAR_H

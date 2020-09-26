@@ -62,6 +62,7 @@ const FunctionScope *FunctionScope::getFunctionScope(std::string FnName,
   return &(*AllFnScopes.find(TmpFS));
 }
 
+std::set<ProgramVar *> ProgramVar::AllProgramVars;
 
 std::string ProgramVar::mkString(bool GetKey) {
   std::string Ret = "";
@@ -84,4 +85,13 @@ ProgramVar *ProgramVar::makeCopy(BoundsKey NK) {
 std::string ProgramVar::verboseStr() {
   std::string Ret = mkString(true) + "(" + VScope->getStr() + ")";
   return Ret;
+}
+
+ProgramVar *ProgramVar::createNewProgramVar(BoundsKey VK, std::string VName,
+                                            const ProgramVarScope *PVS,
+                                            bool IsCons) {
+  ProgramVar *NewPV = new ProgramVar(VK, VName, PVS, IsCons);
+  AllProgramVars.insert(NewPV);
+  return NewPV;
+
 }
