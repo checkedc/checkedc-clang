@@ -11,6 +11,7 @@
 
 #include "llvm/ADT/StringSwitch.h"
 #include "clang/Lex/Lexer.h"
+#include "llvm/Support/CommandLine.h"
 #include <sstream>
 
 #include "clang/CConv/ConstraintVariables.h"
@@ -18,6 +19,11 @@
 #include "clang/CConv/CCGlobalOptions.h"
 
 using namespace clang;
+
+static llvm::cl::OptionCategory OptimizationCategory("Optimization category");
+static llvm::cl::opt<bool> DisableRDs("disable-rds",
+                                      llvm::cl::desc("Disable reverse edges for Checked Constraints."),
+                                      llvm::cl::init(false), llvm::cl::cat(OptimizationCategory));
 
 std::string ConstraintVariable::getRewritableOriginalTy() const {
   std::string OrigTyString = getOriginalTy();
@@ -1336,8 +1342,12 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
       }
       break;
     case Wild_to_Safe:
-      // Note: reversal.
-      CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
+      if (!DisableRDs) {
+        // Note: reversal.
+        CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
+      } else {
+        CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
+      }
       CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, false));
       if (doEqType) {
         CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
@@ -1359,7 +1369,12 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
           CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
         break;
       case Wild_to_Safe:
-	CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true)); // note reversal!
+        if (!DisableRDs) {
+          // Note: reversal.
+          CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
+        } else {
+          CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
+        }
         if (doEqType)
           CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
         break;

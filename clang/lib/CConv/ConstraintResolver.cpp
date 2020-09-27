@@ -697,11 +697,16 @@ CVarSet ConstraintResolver::PVConstraintFromType(QualType TypE) {
 }
 
 CVarSet ConstraintResolver::getBaseVarPVConstraint(DeclRefExpr *Decl) {
+  if (Info.hasPersistentConstraints(Decl, Context))
+    return Info.getPersistentConstraints(Decl, Context);
+
   assert(Decl->getType()->isRecordType() || Decl->getType()->isArithmeticType());
+
   CVarSet Ret;
   auto DN = Decl->getDecl()->getName();
   Ret.insert(PVConstraint::getNamedNonPtrPVConstraint(DN,
                                                       Info.getConstraints()));
+  Info.storePersistentConstraints(Decl, Ret, Context);
   return Ret;
 }
 

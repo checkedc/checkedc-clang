@@ -763,28 +763,54 @@ bool ProgramInfo::computeInterimConstraintState
   // Get all the valid vars of interest i.e., all the Vars that are present
   // in one of the files being compiled.
   CAtoms ValidVarsVec;
+  std::set<Atom *> AllValidVars;
   for (const auto &I : Variables) {
     std::string FileName = I.first.getFileName();
-    if (FilePaths.count(FileName)) {
-      ConstraintVariable *C = I.second;
-      if (C->isForValidDecl()) {
-        CAtoms tmp = getVarsFromConstraint(C);
+    ConstraintVariable *C = I.second;
+    if (C->isForValidDecl()) {
+      CAtoms tmp = getVarsFromConstraint(C);
+      AllValidVars.insert(tmp.begin(), tmp.end());
+      if (FilePaths.count(FileName) || FileName.find(BaseDir) != std::string::npos) {
+        //if (C->isForValidDecl()) {
         ValidVarsVec.insert(ValidVarsVec.begin(), tmp.begin(), tmp.end());
+        //}
       }
     }
   }
+
+  /*for (const auto &I : ExprConstraintVars) {
+    std::string FileName = I.first.getFileName();
+    if (FilePaths.count(FileName) || FileName.find(BaseDir) != std::string::npos) {
+      for (auto *C : I.second) {
+        //if (C->isForValidDecl()) {
+        CAtoms tmp = getVarsFromConstraint(C);
+        ValidVarsVec.insert(ValidVarsVec.begin(), tmp.begin(), tmp.end());
+        //}
+      }
+    }
+  }*/
   // Make that into set, for efficiency.
   std::set<Atom *> ValidVarsS;
   CVars ValidVarsKey;
+  CVars AllValidVarsKey;
   ValidVarsS.insert(ValidVarsVec.begin(), ValidVarsVec.end());
 
   std::transform(ValidVarsS.begin() , ValidVarsS.end(),
                  std::inserter(ValidVarsKey, ValidVarsKey.end()) ,
-                 [](const Atom *val){
+                 [](const Atom *val) {
     if (const VarAtom *VA = dyn_cast<VarAtom>(val)) {
       return VA->getLoc();
     }
     return (uint32_t)0;
+  });
+
+  std::transform(AllValidVars.begin() , AllValidVars.end(),
+                 std::inserter(AllValidVarsKey, AllValidVarsKey.end()) ,
+                 [](const Atom *val) {
+                   if (const VarAtom *VA = dyn_cast<VarAtom>(val)) {
+                     return VA->getLoc();
+                   }
+                   return (uint32_t)0;
   });
 
   CState.Clear();
@@ -809,24 +835,27 @@ bool ProgramInfo::computeInterimConstraintState
 
     TmpCGrp.clear();
     ChkCG.visitBreadthFirst(VA,
-      [VA, &DirectWildVarAtoms, &RCMap, &TmpCGrp](Atom *SearchAtom) {
+      [VA, &DirectWildVarAtoms, &AllValidVars, &RCMap, &TmpCGrp](Atom *SearchAtom) {
         auto *SearchVA = dyn_cast<VarAtom>(SearchAtom);
         if (SearchVA != nullptr &&
-              DirectWildVarAtoms.find(SearchVA) == DirectWildVarAtoms.end()) {
+              DirectWildVarAtoms.find(SearchVA) == DirectWildVarAtoms.end() &&
+              AllValidVars.find(SearchVA) != AllValidVars.end()) {
           RCMap[SearchVA->getLoc()].insert(VA->getLoc());
           TmpCGrp.insert(SearchVA->getLoc());
         }
       });
 
     TotalNDirectWPtrs.insert(TmpCGrp.begin(), TmpCGrp.end());
-    // We consider only pointers which with in the source files or external
-    // pointers that affected pointers within the source files.
-    if (!TmpCGrp.empty() || ValidVarsS.find(VA) != ValidVarsS.end()) {
-      WildPtrs.insert(VA->getLoc());
-      CVars &CGrp = SrcWMap[VA->getLoc()];
-      CGrp.insert(TmpCGrp.begin(), TmpCGrp.end());
-    }
+    // Should we consider only pointers which with in the source files or
+    // external pointers that affected pointers within the source files.
+    //if (!TmpCGrp.empty() || ValidVarsS.find(VA) != ValidVarsS.end()) {
+    WildPtrs.insert(VA->getLoc());
+    CVars &CGrp = SrcWMap[VA->getLoc()];
+    CGrp.insert(TmpCGrp.begin(), TmpCGrp.end());
+    //}
   }
+  //auto *AA = CS.getVar(11513);
+  //AA->dump();
   findIntersection(WildPtrs, ValidVarsKey, InSrcW);
   findIntersection(TotalNDirectWPtrs, ValidVarsKey, InSrInDirectWPtrs);
 

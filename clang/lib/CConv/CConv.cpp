@@ -47,6 +47,7 @@ bool EnablePropThruIType;
 bool ConsiderAllocUnsafe;
 std::string StatsOutputJson;
 std::string WildPtrInfoJson;
+std::string PerWildPtrInfoJson;
 bool AllTypes;
 std::string BaseDir;
 bool AddCheckedRegions;
@@ -184,6 +185,7 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
   ConstraintOutputJson = CCopt.ConstraintOutputJson;
   StatsOutputJson = CCopt.StatsOutputJson;
   WildPtrInfoJson = CCopt.WildPtrInfoJson;
+  PerWildPtrInfoJson = CCopt.PerPtrInfoJson;
   DumpStats = CCopt.DumpStats;
   HandleVARARGS = CCopt.HandleVARARGS;
   EnablePropThruIType = CCopt.EnablePropThruIType;
@@ -316,6 +318,7 @@ bool CConvInterface::SolveConstraints(bool ComputeInterimState) {
 
   if (DumpStats) {
     GlobalProgramInfo.print_stats(FilePaths, llvm::errs(), true);
+    GlobalProgramInfo.computeInterimConstraintState(FilePaths);
     std::error_code Ec;
     llvm::raw_fd_ostream OutputJson(StatsOutputJson, Ec);
     if (!OutputJson.has_error()) {
@@ -325,9 +328,15 @@ bool CConvInterface::SolveConstraints(bool ComputeInterimState) {
 
     llvm::raw_fd_ostream WildPtrInfo(WildPtrInfoJson, Ec);
     if (!WildPtrInfo.has_error()) {
-      GlobalProgramInfo.computeInterimConstraintState(FilePaths);
       GlobalProgramInfo.getInterimConstraintState().print_stats(WildPtrInfo);
       WildPtrInfo.close();
+    }
+
+    llvm::raw_fd_ostream PerWildPtrInfo(PerWildPtrInfoJson, Ec);
+    if (!PerWildPtrInfo.has_error()) {
+      GlobalProgramInfo.getInterimConstraintState().print_per_ptr_stats(PerWildPtrInfo,
+                                                                        GlobalProgramInfo.getConstraints());
+      PerWildPtrInfo.close();
     }
   }
 
