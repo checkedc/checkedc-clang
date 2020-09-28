@@ -310,7 +310,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
 #include "clang/AST/StmtNodes.inc"
        llvm_unreachable("cannot compare a statement");  
      case Expr::PredefinedExprClass: Cmp = Compare<PredefinedExpr>(E1, E2); break;
-     case Expr::DeclRefExprClass: return Compare<DeclRefExpr>(E1, E2);
+     case Expr::DeclRefExprClass: Cmp = Compare<DeclRefExpr>(E1, E2); break;
      case Expr::IntegerLiteralClass: return Compare<IntegerLiteral>(E1, E2);
      case Expr::FloatingLiteralClass: return Compare<FloatingLiteral>(E1, E2);
      case Expr::ImaginaryLiteralClass: break;

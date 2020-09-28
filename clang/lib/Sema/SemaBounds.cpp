@@ -571,12 +571,12 @@ namespace {
   // EqualExprsContainsExpr returns true if the set Exprs contains E.
   bool EqualExprsContainsExpr(Sema &S, const EqualExprTy Exprs, Expr *E,
                               EquivExprSets *EquivExprs) {
-      for (auto I = Exprs.begin(); I != Exprs.end(); ++I) {
+    for (auto I = Exprs.begin(); I != Exprs.end(); ++I) {
       if (Lexicographic(S.Context, EquivExprs).CompareExpr(*I, E) ==
-          Lexicographic::Result::Equal)
-          return true;
-      }
-      return false;
+        Lexicographic::Result::Equal)
+        return true;
+    }
+    return false;
   }
 
   // Helper class for collecting a vector of unique variables as rvalues from an
@@ -595,12 +595,8 @@ namespace {
     const EqualExprTy &GetVariableList() const { return VariableList; }
 
     bool VisitDeclRefExpr(DeclRefExpr *E) {
-      // We cast variables to rvalues so they can be compared with rvalues in EquivExprSet.
-      // TODO(checkedc-clang#909): avoid constructing these ImplicitCastExprs.
-      ImplicitCastExpr *CastExpr = ExprCreatorUtil::CreateImplicitCast(
-          SemaRef, E, CK_LValueToRValue, E->getType());
-      if (!EqualExprsContainsExpr(SemaRef, VariableList, CastExpr, nullptr)) {
-          VariableList.push_back(CastExpr);
+      if (!EqualExprsContainsExpr(SemaRef, VariableList, E, nullptr)) {
+        VariableList.push_back(E);
       }
 
       return true;
@@ -1465,8 +1461,7 @@ namespace {
               break;
           }
 
-          // We searched all declared variables and found neither a constant nor
-          // a match for SrcV.
+          // Find no constant or no match for SrcV in EquivExprs.
           if (It == DstVars.end()) {
             HasFreeVariables = true;
             FreeVariables.push_back(SrcV);
@@ -1492,10 +1487,24 @@ namespace {
         EqualExprTy Vars1 = CollectVariableSet(S, E1);
         EqualExprTy Vars2 = CollectVariableSet(S, E2);
 
-        if (AddFreeVariables(S, Vars1, Vars2, EquivExprs, Pos1, FreeVars))
+        // EquivVars holds sets of DeclRefExpr and IntegerLiteral filtered from
+        // EquivExprs.
+        EquivExprSets EquivVars;
+        for (auto ExprSet : *EquivExprs) {
+          EqualExprTy Vars;
+          auto It = ExprSet.begin();
+          for (; It != ExprSet.end(); It++) {
+            *It = (*It)->IgnoreCasts();
+            if (isa<IntegerLiteral>(*It) || (isa<DeclRefExpr>(*It)))
+              Vars.push_back(*It);
+          }
+          EquivVars.push_back(Vars);
+        }
+
+        if (AddFreeVariables(S, Vars1, Vars2, &EquivVars, Pos1, FreeVars))
           HasFreeVariables = true;
 
-        if (AddFreeVariables(S, Vars2, Vars1, EquivExprs, Pos2, FreeVars))
+        if (AddFreeVariables(S, Vars2, Vars1, &EquivVars, Pos2, FreeVars))
           HasFreeVariables = true;
 
         return HasFreeVariables;
