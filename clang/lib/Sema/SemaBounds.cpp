@@ -1494,7 +1494,7 @@ namespace {
           EqualExprTy Vars;
           auto It = ExprSet.begin();
           for (; It != ExprSet.end(); It++) {
-            *It = (*It)->IgnoreCasts();
+            *It = (*It)->IgnoreParenCasts();
             if (isa<IntegerLiteral>(*It) || (isa<DeclRefExpr>(*It)))
               Vars.push_back(*It);
           }
