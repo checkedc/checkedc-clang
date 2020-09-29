@@ -29,24 +29,30 @@ void PreorderAST::AddNode(Node *N, Node *Parent) {
   }
 }
 
-void PreorderAST::CoalesceNode(BinaryNode *B, BinaryNode *Parent) {
+void PreorderAST::RemoveNode(Node *N, Node *Parent) {
+  assert(isa<BinaryNode>(Parent) && "Invalid parent");
+
+  auto *P = dyn_cast<BinaryNode>(Parent);
+
   // Remove the current node from the list of children of its parent.
-  for (auto I = Parent->Children.begin(),
-            E = Parent->Children.end(); I != E; ++I) {
-    if (*I == B) {
-      Parent->Children.erase(I);
+  for (auto I = P->Children.begin(),
+            E = P->Children.end(); I != E; ++I) {
+    if (*I == N) {
+      P->Children.erase(I);
       break;
     }
   }
 
-  // Move all children of the current node to its parent.
-  for (auto *Child : B->Children) {
-    Child->Parent = Parent;
-    Parent->Children.push_back(Child);
+  if (auto *B = dyn_cast<BinaryNode>(N)) {
+    // Move all children of the current node to its parent.
+    for (auto *Child : B->Children) {
+      Child->Parent = P;
+      P->Children.push_back(Child);
+    }
   }
 
   // Delete the current node.
-  delete B;
+  delete N;
 }
 
 void PreorderAST::Create(Expr *E, Node *Parent) {
@@ -56,11 +62,31 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
   E = Lex.IgnoreValuePreservingOperations(Ctx, E->IgnoreParens());
 
   if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
-    auto *N = new BinaryNode(BO->getOpcode(), Parent);
+    BinaryOperator::Opcode BinOp = BO->getOpcode();
+    Expr *LHS = BO->getLHS();
+    Expr *RHS = BO->getRHS();
+
+    // Convert (e1 - e2) to (e1 + -e2).
+    if (BO->getOpcode() == BO_Sub) {
+      BinOp = BO_Add;
+      RHS = new (Ctx) UnaryOperator(RHS, UO_Minus, RHS->getType(),
+                                    RHS->getValueKind(), RHS->getObjectKind(),
+                                    SourceLocation(), /*CanOverflow*/ true);
+    }
+
+    auto *N = new BinaryNode(BinOp, Parent);
     AddNode(N, Parent);
 
-    Create(BO->getLHS(), /*Parent*/ N);
-    Create(BO->getRHS(), /*Parent*/ N);
+    Create(LHS, /*Parent*/ N);
+    Create(RHS, /*Parent*/ N);
+
+  } else if (!Parent) {
+    // We will enter here for expressions like "p" which are not BinaryNode and
+    // which do not yet have a parent. So we create a parent BinaryNode with
+    // addition as the operator and add "p" as a LeafExprNode of this node.
+    auto *N = new BinaryNode(BO_Add, Parent);
+    AddNode(N, Parent);
+    Create(E, /*Parent*/ N);
 
   } else {
     auto *N = new LeafExprNode(E, Parent);
@@ -91,7 +117,7 @@ void PreorderAST::Coalesce(Node *N, bool &Changed) {
   // 2. The current node is a BinaryNode with just one child (for example, as a
   // result of constant folding).
   if (Parent->Opc == B->Opc || B->Children.size() == 1) {
-    CoalesceNode(B, Parent);
+    RemoveNode(B, Parent);
     Changed = true;
   }
 }
@@ -115,9 +141,27 @@ void PreorderAST::Sort(Node *N) {
   [&](const Node *N1, const Node *N2) {
 
     if (const auto *L1 = dyn_cast<LeafExprNode>(N1)) {
-      if (const auto *L2 = dyn_cast<LeafExprNode>(N2))
+      if (const auto *L2 = dyn_cast<LeafExprNode>(N2)) {
+        // If L1 is a UnaryOperatorExpr and L2 is not, then
+        // 1. If L1 contains an integer constant then sorted order is (L2, L1)
+        // 2. Else sorted order is (L1, L2).
+        if (isa<UnaryOperator>(L1->E) && !isa<UnaryOperator>(L2->E)) {
+          llvm::APSInt IntVal;
+          return !L1->E->isIntegerConstantExpr(IntVal, Ctx);
+        }
+
+        // If L2 is a UnaryOperatorExpr and L1 is not, then
+        // 1. If L2 contains an integer constant then sorted order is (L1, L2)
+        // 2. Else sorted order is (L2, L1).
+        if (!isa<UnaryOperator>(L1->E) && isa<UnaryOperator>(L2->E)) {
+          llvm::APSInt IntVal;
+          return L2->E->isIntegerConstantExpr(IntVal, Ctx);
+        }
+
         // If both nodes are LeafExprNodes compare the exprs.
         return Lex.CompareExpr(L1->E, L2->E) == Result::LessThan;
+      }
+
       // N2:BinaryNodeExpr < N1:LeafExprNode.
       return false;
     }
@@ -230,6 +274,52 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
   Changed = true;
 }
 
+void PreorderAST::NormalizeExprsWithoutConst(Node *N) {
+  // Normalize expressions by adding an integer constant to expressions which
+  // do not have one. For example:
+  // p ==> (p + 0)
+  // (p + i) ==> (p + i + 0)
+  // (p * i) ==> (p * i * 1)
+
+  auto *B = dyn_cast_or_null<BinaryNode>(N);
+  if (!B)
+    return;
+
+  bool ConstantFound = false;
+  for (auto *Child : B->Children) {
+    // Recursively normalize constants in the children of a BinaryNode.
+    if (isa<BinaryNode>(Child))
+      NormalizeExprsWithoutConst(Child);
+
+    else if (auto *ChildLeafNode = dyn_cast<LeafExprNode>(Child)) {
+      if (!ConstantFound) {
+        llvm::APSInt IntVal;
+        if (ChildLeafNode->E->isIntegerConstantExpr(IntVal, Ctx))
+          ConstantFound = true;
+      }
+    }
+  }
+
+  if (ConstantFound)
+    return;
+
+  llvm::APInt IntConst;
+  switch(B->Opc) {
+    default: return;
+    case BO_Add:
+      IntConst = llvm::APInt(Ctx.getTargetInfo().getIntWidth(), 0);
+      break;
+    case BO_Mul:
+      IntConst = llvm::APInt(Ctx.getTargetInfo().getIntWidth(), 1);
+      break;
+  }
+
+  auto *IntLiteral = new (Ctx) IntegerLiteral(Ctx, IntConst, Ctx.IntTy,
+                                              SourceLocation());
+  auto *L = new LeafExprNode(IntLiteral, B);
+  AddNode(L, B);
+}
+
 bool PreorderAST::IsEqual(Node *N1, Node *N2) {
   // If both the nodes are null.
   if (!N1 && !N2)
@@ -287,9 +377,10 @@ void PreorderAST::Normalize() {
     Coalesce(Root, Changed);
     Sort(Root);
     ConstantFold(Root, Changed);
+    if (Error)
+      break;
+    NormalizeExprsWithoutConst(Root);
   }
-
-  PrettyPrint(Root);
 }
 
 void PreorderAST::PrettyPrint(Node *N) {
