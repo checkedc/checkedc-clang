@@ -579,7 +579,7 @@ public:
 
   void editConstraintHook(Constraint *C);
 
-  std::pair<Constraints::ConstraintSet, bool> solve();
+  std::pair<std::set<VarAtom *>, bool> solve();
   void dump() const;
   void print(llvm::raw_ostream &) const;
   void dump_json(llvm::raw_ostream &) const;
@@ -630,7 +630,7 @@ private:
   VarSolTy getDefaultSolution();
 
   // Solve constraint set via graph-based dynamic transitive closure
-  bool graph_based_solve(ConstraintSet &Conflicts);
+  bool graph_based_solve(std::set<VarAtom *> &Conflicts);
 
   // These atoms can be singletons, so we'll store them in the
   // Constraints class.

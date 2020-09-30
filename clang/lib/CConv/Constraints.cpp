@@ -16,6 +16,7 @@
 #include "clang/CConv/Constraints.h"
 #include "clang/CConv/ConstraintsGraph.h"
 #include <iostream>
+#include <clang/CConv/ConstraintVariables.h>
 
 using namespace llvm;
 
@@ -191,11 +192,11 @@ bool Constraints::check(Constraint *C) {
 //---- add k to W
 
 static bool do_solve(ConstraintsGraph &CG,
-                     std::set<Implies *> SavedImplies,
+                     std::set<Implies *> SavedImplies, // TODO: Can this be a ref?
                      ConstraintsEnv & env,
                      Constraints *CS, bool doLeastSolution,
                      std::set<VarAtom *> *InitVs,
-                     Constraints::ConstraintSet &Conflicts) {
+                     std::set<VarAtom *> &Conflicts) {
 
   std::vector<Atom *> WorkList;
   std::set<Implies *> FiredImplies;
@@ -274,16 +275,9 @@ static bool do_solve(ConstraintsGraph &CG,
         if ((doLeastSolution && *Cbound < *Csol) ||
             (!doLeastSolution && *Csol < *Cbound)) {
           ok = false;
-          // Failed. Make a constraint to represent it.
-          std::string str;
-          llvm::raw_string_ostream os(str);
-          os << "Bad solution: "; Csol->print(os);
-          os.flush();
-          Geq *failedConstraint =
-              doLeastSolution ?
-              new Geq(VA, Cbound, str, doLeastSolution) :
-              new Geq(Cbound, VA, str, doLeastSolution);
-          Conflicts.insert(failedConstraint);
+          // Save effected VarAtom in conflict set. This will be constrained to
+          // wild after pointer type solving is finished.
+          Conflicts.insert(VA);
           // Failure case.
           if (Verbose) {
             errs() << "Unsolvable constraints: ";
@@ -371,7 +365,7 @@ static std::set<VarAtom *> findBounded(ConstraintsGraph &CG,
   return Bounded;
 }
 
-bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
+bool Constraints::graph_based_solve(std::set<VarAtom *> &Conflicts) {
   ConstraintsGraph SolChkCG;
   ConstraintsGraph SolPtrTypCG;
   std::set<Implies *> SavedImplies;
@@ -479,15 +473,13 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
     if (!res) {
       std::set<VarAtom *> rest;
       env.doCheckedSolve(true);
-      for (const auto &C : Conflicts) {
-        if (Geq *geq = dyn_cast<Geq>(C)) {
-          VarAtom *VA = dyn_cast<VarAtom>(geq->getLHS());
-          if (!VA)
-            VA = dyn_cast<VarAtom>(geq->getRHS());
-          assert(VA != nullptr);
-          env.assign(VA, getWild());
-          rest.insert(VA);
-        }
+      for (VarAtom *VA : Conflicts) {
+        assert(VA != nullptr);
+        std::string Rsn = "Bad pointer type solution";
+        Geq *ConflictConstraint = createGeq(VA, getWild(), Rsn);
+        addConstraint(ConflictConstraint);
+        SolChkCG.addConstraint(ConflictConstraint, *this);
+        rest.insert(VA);
       }
       Conflicts.clear();
       /* FIXME: Should we propagate the old res? */
@@ -510,9 +502,12 @@ bool Constraints::graph_based_solve(ConstraintSet &Conflicts) {
 // the system is solved. If the system is solved, the first position is
 // an empty. If the system could not be solved, the constraints in conflict
 // are returned in the first position.
-std::pair<Constraints::ConstraintSet, bool> Constraints::solve() {
+// TODO: Returns copy of conflicts set. Can we either get rid of this return
+//       (It's not used as far as I can tell), or dynamically allocate and
+//       return a pointer.
+std::pair<std::set<VarAtom *>, bool> Constraints::solve() {
 
-  Constraints::ConstraintSet Conflicts;
+  std::set<VarAtom *> Conflicts;
 
   if (DebugSolver) {
     errs() << "constraints beginning solve\n";
@@ -525,7 +520,7 @@ std::pair<Constraints::ConstraintSet, bool> Constraints::solve() {
     environment.dump();
   }
 
-  return std::pair<Constraints::ConstraintSet, bool>(Conflicts, ok);
+  return std::make_pair(Conflicts, ok);
 }
 
 void Constraints::print(raw_ostream &O) const {

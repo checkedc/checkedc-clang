@@ -169,7 +169,7 @@ void runSolver(ProgramInfo &Info,
 
   clock_t StartTime = clock();
   // FIXME: We should be seeing whether the constraints could be solved
-  std::pair<Constraints::ConstraintSet, bool> R = CS.solve();
+  auto R = CS.solve();
   if (Verbose) {
     errs() << "Solver time:" << getTimeSpentInSeconds(StartTime) << "\n";
   }
