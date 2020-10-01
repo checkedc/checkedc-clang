@@ -275,8 +275,15 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
 }
 
 void PreorderAST::NormalizeExprsWithoutConst(Node *N) {
-  // Normalize expressions by adding an integer constant to expressions which
-  // do not have one. For example:
+  // Consider the following case:
+  // Upper bound expr: p
+  // Deref expr: p + 1
+  // In this case, we would not able able to extract the offset from the deref
+  // expression because the upper bound expression does not contain a constant.
+  // This is because the node-by-node comparison of the two expressions would
+  // fail. So we require that expressions be of the form "(variable + constant)".
+  // So, we normalize expressions by adding an integer constant to expressions
+  // which do not have one. For example:
   // p ==> (p + 0)
   // (p + i) ==> (p + i + 0)
   // (p * i) ==> (p * i * 1)
@@ -381,6 +388,8 @@ void PreorderAST::Normalize() {
       break;
     NormalizeExprsWithoutConst(Root);
   }
+
+  PrettyPrint(Root);
 }
 
 void PreorderAST::PrettyPrint(Node *N) {
