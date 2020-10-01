@@ -367,7 +367,7 @@ bool ArrayBoundsRewriter::hasNewBoundsString(PVConstraint *PV, Decl *D,
   return !BStr.empty() && !PV->hasBoundsStr();
 }
 
-std::set<const PersistentSourceLoc *> RewriteConsumer::EmittedDiagnostics;
+std::set<std::tuple<std::string, int, int>> RewriteConsumer::EmittedDiagnostics;
 void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
   clang::DiagnosticsEngine &DE = Context.getDiagnostics();
   unsigned ID = DE.getCustomDiagID(DiagnosticsEngine::Warning,
@@ -375,15 +375,27 @@ void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
   auto I = Info.getInterimConstraintState();
   SourceManager &SM = Context.getSourceManager();
   for (auto &WReason : I.RealWildPtrsWithReasons) {
-    if (I.PtrSourceMap.find(WReason.first) != I.PtrSourceMap.end()) {
-      const PersistentSourceLoc *PsInfo = I.PtrSourceMap[WReason.first];
-      // Avoid emitting the same diagnostic message twice.
-      if (EmittedDiagnostics.find(PsInfo) == EmittedDiagnostics.end()) {
-        // Convert the PSL into a clang::SourceLocation that can be used with
-        // the DiagnosticsEngine.
-        const auto *File = SM.getFileManager().getFile(PsInfo->getFileName());
-        SourceLocation SL = SM.translateFileLineCol(File, PsInfo->getLineNo(),
-                                                    PsInfo->getColSNo());
+    // Avoid emitting the same diagnostic message twice.
+    WildPointerInferenceInfo PtrInfo = WReason.second;
+    std::string FileName;
+    int Line, Column;
+    if (const PersistentSourceLoc *PsInfo = I.PtrSourceMap[WReason.first] ){
+      FileName = PsInfo->getFileName();
+      Line = PsInfo->getLineNo();
+      Column = PsInfo->getColSNo();
+    } else {
+      FileName = PtrInfo.SourceFileName;
+      Line = PtrInfo.LineNo;
+      Column = PtrInfo.ColStartS;
+    }
+    auto Location = std::make_tuple(FileName, Line, Column);
+
+    if (EmittedDiagnostics.find(Location) == EmittedDiagnostics.end()) {
+      // Convert the file/line/column tripple into a clang::SourceLocation that
+      // can be used with the DiagnosticsEngine.
+      const auto *File = SM.getFileManager().getFile(FileName);
+      if (File != nullptr) {
+        SourceLocation SL = SM.translateFileLineCol(File, Line, Column);
         // Limit emitted root causes to those that effect more than one pointer
         // or are in the main file of the TU. Alternatively, don't filter causes
         // if -warn-all-root-cause is passed.
@@ -391,7 +403,7 @@ void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
             || I.GetSrcCVars(WReason.first).size() > 1) {
           // SL is invalid when the File is not in the current translation unit.
           if (SL.isValid()) {
-            EmittedDiagnostics.insert(PsInfo);
+            EmittedDiagnostics.insert(Location);
             auto DiagBuilder = DE.Report(SL, ID);
             DiagBuilder.AddString(WReason.second.WildPtrReason);
           }
