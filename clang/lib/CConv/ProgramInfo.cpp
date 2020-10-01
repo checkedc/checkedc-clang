@@ -506,7 +506,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       // anyways. This happens if the name of the variable is a macro defined
       // differently is different parts of the program.
       std::string Rsn = "Duplicate source location. Possibly part of a macro.";
-      Variables[PLoc]->constrainToWild(CS, Rsn);
+      Variables[PLoc]->constrainToWild(CS, Rsn, &PLoc);
     }
     return;
   }
@@ -633,10 +633,11 @@ void ProgramInfo::storePersistentConstraints(Expr *E, const CVarSet &Vars,
 // someday, the Rewriter will become less lame and let us re-write stuff
 // in macros.
 void ProgramInfo::constrainWildIfMacro(ConstraintVariable *CV,
-                                       SourceLocation Location) {
+                                       SourceLocation Location,
+                                       PersistentSourceLoc *PSL) {
   std::string Rsn = "Pointer in Macro declaration.";
   if (!Rewriter::isRewritable(Location))
-    CV->constrainToWild(CS, Rsn);
+    CV->constrainToWild(CS, Rsn, PSL);
 }
 
 //std::string ProgramInfo::getUniqueDeclKey(Decl *D, ASTContext *C) {

@@ -114,7 +114,8 @@ public:
   const CallTypeParamBindingsT &getTypeParamBindings(CallExpr *CE,
                                                      ASTContext *C) const;
 
-  void constrainWildIfMacro(ConstraintVariable *CV, SourceLocation Location);
+  void constrainWildIfMacro(ConstraintVariable *CV, SourceLocation Location,
+                            PersistentSourceLoc *PSL = nullptr);
 
 private:
   // List of constraint variables for declarations, indexed by their location in

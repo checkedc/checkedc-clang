@@ -539,17 +539,18 @@ CVarSet
                                                     NewCV->getBoundsKey());
             NewCV->setBoundsKey(CSensBKey);
           }
-          
+
+          auto PSL = PersistentSourceLoc::mkPSL(CE, *Context);
           // Important: Do Safe_to_Wild from returnvar in this copy, which then
           //   might be assigned otherwise (Same_to_Same) to LHS
           if (NewCV != CV)
-            constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false,
+            constrainConsVarGeq(NewCV, CV, CS, &PSL, Safe_to_Wild, false,
                                 &Info);
           TmpCVs.insert(NewCV);
           // If this is realloc, constrain the first arg to flow to the return
           if (!ReallocFlow.empty()) {
             constrainConsVarGeq(NewCV, ReallocFlow, Info.getConstraints(),
-                                nullptr, Wild_to_Safe, false, &Info);
+                                &PSL, Wild_to_Safe, false, &Info);
           }
         }
         Ret = TmpCVs;
@@ -717,7 +718,8 @@ PVConstraint *ConstraintResolver::getRewritablePVConstraint(Expr *E) {
   PVConstraint *P = new PVConstraint(E->getType(), nullptr,
                                      E->getStmtClassName(), Info, *Context,
                                      nullptr);
-  Info.constrainWildIfMacro(P, E->getExprLoc());
+  auto PSL = PersistentSourceLoc::mkPSL(E, *Context);
+  Info.constrainWildIfMacro(P, E->getExprLoc(), &PSL);
   return P;
 }
 
