@@ -17,6 +17,7 @@
 #define LLVM_CLANG_PREORDER_AST_H
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ASTDiagnostic.h"
 #include "clang/AST/CanonBounds.h"
 #include "clang/AST/Expr.h"
 

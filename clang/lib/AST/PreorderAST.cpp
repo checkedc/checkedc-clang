@@ -66,12 +66,33 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
     Expr *LHS = BO->getLHS();
     Expr *RHS = BO->getRHS();
 
-    // Convert (e1 - e2) to (e1 + -e2).
+    // Generally, we can convert (e1 - e2) to (e1 + -e2). But in case -e2
+    // overflows we cannot do this transformation. So we peform this
+    // transformation here only if -e2 does not overflow.
     if (BO->getOpcode() == BO_Sub) {
-      BinOp = BO_Add;
       RHS = new (Ctx) UnaryOperator(RHS, UO_Minus, RHS->getType(),
-                                    RHS->getValueKind(), RHS->getObjectKind(),
-                                    SourceLocation(), /*CanOverflow*/ true);
+                                    RHS->getValueKind(),
+                                    RHS->getObjectKind(),
+                                    SourceLocation(),
+                                    /*CanOverflow*/ true);
+      bool Overflow = false;
+      if (RHS->isIntegerConstantExpr(Ctx)) {
+        SmallVector<PartialDiagnosticAt, 8> Diag;
+        llvm::APSInt IntVal =
+          RHS->EvaluateKnownConstIntCheckOverflow(Ctx, &Diag);
+
+        for (auto &PD : Diag) {
+          if (PD.second.getDiagID() == diag::note_constexpr_overflow) {
+            Overflow = true;
+            break;
+          }
+        }
+      }
+
+      if (Overflow)
+        RHS = dyn_cast<UnaryOperator>(RHS)->getSubExpr();
+      else
+        BinOp = BO_Add;
     }
 
     auto *N = new BinaryNode(BinOp, Parent);
@@ -145,18 +166,14 @@ void PreorderAST::Sort(Node *N) {
         // If L1 is a UnaryOperatorExpr and L2 is not, then
         // 1. If L1 contains an integer constant then sorted order is (L2, L1)
         // 2. Else sorted order is (L1, L2).
-        if (isa<UnaryOperator>(L1->E) && !isa<UnaryOperator>(L2->E)) {
-          llvm::APSInt IntVal;
-          return !L1->E->isIntegerConstantExpr(IntVal, Ctx);
-        }
+        if (isa<UnaryOperator>(L1->E) && !isa<UnaryOperator>(L2->E))
+          return !L1->E->isIntegerConstantExpr(Ctx);
 
         // If L2 is a UnaryOperatorExpr and L1 is not, then
         // 1. If L2 contains an integer constant then sorted order is (L1, L2)
         // 2. Else sorted order is (L2, L1).
-        if (!isa<UnaryOperator>(L1->E) && isa<UnaryOperator>(L2->E)) {
-          llvm::APSInt IntVal;
-          return L2->E->isIntegerConstantExpr(IntVal, Ctx);
-        }
+        if (!isa<UnaryOperator>(L1->E) && isa<UnaryOperator>(L2->E))
+          return L2->E->isIntegerConstantExpr(Ctx);
 
         // If both nodes are LeafExprNodes compare the exprs.
         return Lex.CompareExpr(L1->E, L2->E) == Result::LessThan;
@@ -292,23 +309,16 @@ void PreorderAST::NormalizeExprsWithoutConst(Node *N) {
   if (!B)
     return;
 
-  bool ConstantFound = false;
   for (auto *Child : B->Children) {
     // Recursively normalize constants in the children of a BinaryNode.
     if (isa<BinaryNode>(Child))
       NormalizeExprsWithoutConst(Child);
 
     else if (auto *ChildLeafNode = dyn_cast<LeafExprNode>(Child)) {
-      if (!ConstantFound) {
-        llvm::APSInt IntVal;
-        if (ChildLeafNode->E->isIntegerConstantExpr(IntVal, Ctx))
-          ConstantFound = true;
-      }
+      if (ChildLeafNode->E->isIntegerConstantExpr(Ctx))
+        return;
     }
   }
-
-  if (ConstantFound)
-    return;
 
   llvm::APInt IntConst;
   switch(B->Opc) {
