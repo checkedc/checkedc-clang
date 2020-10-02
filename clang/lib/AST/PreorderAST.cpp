@@ -66,9 +66,15 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
     Expr *LHS = BO->getLHS();
     Expr *RHS = BO->getRHS();
 
-    // Generally, we can convert (e1 - e2) to (e1 + -e2). But in case -e2
-    // overflows we cannot do this transformation. So we peform this
-    // transformation here only if -e2 does not overflow.
+    // We can convert (e1 - e2) to (e1 + -e2) if -e2 does not overflow.  One
+    // instance where -e2 can overflow is if e2 is INT_MIN. Here, instead of
+    // specifically checking whether e2 is INT_MIN, we add a unary minus to e2
+    // and then check if the resultant expression -e2 overflows. If it
+    // overflows, we undo the unary minus operator.
+
+    // TODO: Currently we only handle detection of overflow for constant
+    // expressions. We need to handle the case where e2 is a variable
+    // expression which is not known until run time.
     if (BO->getOpcode() == BO_Sub) {
       RHS = new (Ctx) UnaryOperator(RHS, UO_Minus, RHS->getType(),
                                     RHS->getValueKind(),
