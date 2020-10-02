@@ -3513,20 +3513,40 @@ namespace {
         // If checking each arm produces two different bounds contexts,
         // validate each arm's context separately.
 
-        BoundsMapTy WidenedBounds;
-        StmtDeclSetTy KilledBounds;
-
-        // Validate the variables whose bounds were updated in the true arm.
-        StateTrueArm.ObservedBounds = ContextDifference(
+        // Get the bounds that were updated in each arm.
+        BoundsContextTy TrueBounds = ContextDifference(
                                         StateTrueArm.ObservedBounds,
                                         State.ObservedBounds);
+        BoundsContextTy FalseBounds = ContextDifference(
+                                        StateFalseArm.ObservedBounds,
+                                        State.ObservedBounds);
+
+        // For any variable v whose bounds were updated in the false arm
+        // but not in the true arm, the bounds of v in the true arm should
+        // be validated as well. These bounds may be invalid, e.g. if the
+        // bounds of v were updated in the condition `e1`.
+        for (const auto &Pair : FalseBounds) {
+          const VarDecl *V = Pair.first;
+          if (TrueBounds.find(V) == TrueBounds.end())
+            TrueBounds[V] = StateTrueArm.ObservedBounds[V];
+        }
+        StateTrueArm.ObservedBounds = TrueBounds;
+
+        // For any variable v whose bounds were updated in the true arm
+        // but not in the false arm, the bounds of v in the false arm should
+        // be validated as well.
+        for (const auto &Pair : TrueBounds) {
+          const VarDecl *V = Pair.first;
+          if (FalseBounds.find(V) == FalseBounds.end())
+            FalseBounds[V] = StateFalseArm.ObservedBounds[V];
+        }
+        StateFalseArm.ObservedBounds = FalseBounds;
+
+        // Validate the bounds that were updated in either arm.
+        BoundsMapTy WidenedBounds;
+        StmtDeclSetTy KilledBounds;
         ValidateBoundsContext(E->getTrueExpr(), StateTrueArm, WidenedBounds,
                               KilledBounds, CSS);
-
-        // Validate the variables whose bounds were updated in the false arm.
-        StateFalseArm.ObservedBounds = ContextDifference(
-                                          StateFalseArm.ObservedBounds,
-                                          State.ObservedBounds);
         ValidateBoundsContext(E->getFalseExpr(), StateFalseArm, WidenedBounds,
                               KilledBounds, CSS);
 
