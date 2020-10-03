@@ -10,12 +10,20 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sstream>
 #include "clang/CConv/AVarBoundsInfo.h"
 #include "clang/CConv/ProgramInfo.h"
 #include "clang/CConv/ConstraintResolver.h"
 
 std::vector<BoundsPriority>
     AVarBoundsInfo::PrioList {Declared, Allocator, FlowInferred, Heuristics};
+
+extern cl::OptionCategory ArrBoundsInferCat;
+static cl::opt<bool> DisableInfDecls("disable-arr-missd",
+                                     cl::desc("Disable ignoring of missed "
+                                              "bounds from declarations."),
+                                     cl::init(false),
+                                     cl::cat(ArrBoundsInferCat));
 
 void AVarBoundsStats::print(llvm::raw_ostream &O,
                             const std::set<BoundsKey> *InSrcArrs,
@@ -54,14 +62,12 @@ void AVarBoundsStats::print(llvm::raw_ostream &O,
 }
 
 bool AVarBoundsInfo::isValidBoundVariable(clang::Decl *D) {
-  if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-    return !VD->getNameAsString().empty();
-  }
   if (isa<ParmVarDecl>(D) || isa<FunctionDecl>(D)) {
     // All parameters and return values are valid bound variables.
     return true;
-  }
-  if(FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
+  } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
+    return !VD->getNameAsString().empty();
+  } else if(FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
     return !FD->getNameAsString().empty();
   }
   return false;
@@ -84,17 +90,16 @@ void AVarBoundsInfo::insertDeclaredBounds(clang::Decl *D, ABounds *B) {
 
 bool AVarBoundsInfo::tryGetVariable(clang::Decl *D, BoundsKey &R) {
   if (isValidBoundVariable(D)) {
-    if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-      R = getVariable(VD);
-    }
     if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
       R = getVariable(PD);
-    }
-    if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
+    } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
+      R = getVariable(VD);
+    } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
       R = getVariable(FD);
-    }
-    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+    } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       R = getVariable(FD);
+    } else {
+      assert(false && "Invalid Declaration\n");
     }
     return true;
   }
@@ -132,7 +137,7 @@ bool AVarBoundsInfo::mergeBounds(BoundsKey L, BoundsPriority P, ABounds *B) {
   bool RetVal = false;
   if (BInfo.find(L) != BInfo.end() && BInfo[L].find(P) != BInfo[L].end()) {
     // If previous computed bounds are not same? Then release the old bounds.
-    if (!BInfo[L][P]->areSame(B)) {
+    if (!BInfo[L][P]->areSame(B, this)) {
       InvalidBounds.insert(L);
       // TODO: Should we keep bounds for other priorities?
       removeBounds(L);
@@ -505,18 +510,25 @@ BoundsKey AVarBoundsInfo::getVarKey(PersistentSourceLoc &PSL) {
 }
 
 BoundsKey AVarBoundsInfo::getConstKey(uint64_t value) {
-  if (ConstVarKeys.find(value) == ConstVarKeys.end()) {
-    BoundsKey NK = ++BCount;
-    ConstVarKeys[value] = NK;
-    std::string ConsString = std::to_string(value);
-    ProgramVar *NPV =
-              ProgramVar::createNewProgramVar(NK,
-                                              ConsString,
-                                              GlobalScope::getGlobalScope(),
-                                        true);
-    insertProgramVar(NK, NPV);
+  BoundsKey NK = ++BCount;
+  std::string ConsString = std::to_string(value);
+  ProgramVar *NPV =
+    ProgramVar::createNewProgramVar(NK,
+                                    ConsString,
+                                    GlobalScope::getGlobalScope(),
+                                    true);
+  insertProgramVar(NK, NPV);
+  ConstVarKeys[value].insert(NK);
+  return NK;
+}
+
+bool AVarBoundsInfo::fetchAllConstKeys(uint64_t value,
+                                       std::set<BoundsKey> &AllKeys) {
+  if (ConstVarKeys.find(value) != ConstVarKeys.end()) {
+    AllKeys.insert(ConstVarKeys[value].begin(), ConstVarKeys[value].end());
+    return true;
   }
-  return ConstVarKeys[value];
+  return false;
 }
 
 BoundsKey AVarBoundsInfo::getVarKey(llvm::APSInt &API) {
@@ -561,7 +573,7 @@ bool isInSrcArray(ConstraintVariable *CK, Constraints &CS) {
 // This class picks variables that are in the same scope as the provided scope.
 class ScopeVisitor {
 public:
-  ScopeVisitor(const ProgramVarScope *S, std::set<ProgramVar *> &R,
+  ScopeVisitor(const ProgramVarScope *S, std::set<BoundsKey> &R,
                std::map<BoundsKey, ProgramVar *> &VarM,
                std::set<BoundsKey> &P): TS(S), Res(R), VM(VarM)
                , PtrAtoms(P) { }
@@ -572,7 +584,7 @@ public:
       // If the variable is constant or in the same scope?
       if (S->IsNumConstant() ||
           (*(TS) == *(S->getScope()))) {
-        Res.insert(S);
+        Res.insert(V);
       }
     }
   }
@@ -584,72 +596,38 @@ public:
         auto *S = VM[BK];
         // If the variable is constant or in the same scope?
         if (S->IsNumConstant() || (*(TS) == *(S->getScope()))) {
-          Res.insert(S);
+          Res.insert(BK);
         }
       }
     }
   }
   const ProgramVarScope *TS;
-  std::set<ProgramVar *> &Res;
+  std::set<BoundsKey> &Res;
   std::map<BoundsKey, ProgramVar *> &VM;
   std::set<BoundsKey> &PtrAtoms;
 };
 
-bool AvarBoundsInference::intersectBounds(std::set<ProgramVar *> &ProgVars,
-                                          ABounds::BoundsKind BK,
-                                          std::set<ABounds *> &CurrB) {
-  std::set<ABounds *> CommonNewBounds;
-  for (auto *PVar : ProgVars) {
-    ABounds *NewB = nullptr;
-    if (BK == ABounds::CountBoundKind) {
-      NewB = new CountBound(PVar->getKey());
-    } else if (BK == ABounds::ByteBoundKind) {
-      NewB = new ByteBound(PVar->getKey());
-    } else {
-      continue;
-    }
-    assert(NewB != nullptr && "New Bounds cannot be nullptr");
-    if (CurrB.empty()) {
-      CommonNewBounds.insert(NewB);
-    } else {
-      bool found = false;
-      for (auto *OB : CurrB) {
-        if (OB->areSame(NewB)) {
-          found = true;
-          CommonNewBounds.insert(NewB);
-          break;
-        }
-      }
-      if (!found) {
-        delete (NewB);
-      }
-    }
-  }
-
-  for (auto *D : CurrB) {
-    delete(D);
-  }
-  CurrB.clear();
-  CurrB.insert(CommonNewBounds.begin(), CommonNewBounds.end());
-  return !CurrB.empty();
-}
-
 void
 AvarBoundsInference::
-    mergeReachableProgramVars(std::set<ProgramVar *> &AllVars) {
+    mergeReachableProgramVars(std::set<BoundsKey> &AllVars) {
   if (AllVars.size() > 1) {
+    // Convert the bounds key to corresponding program var.
+    std::set<ProgramVar *> AllProgVars;
+    for (auto AV : AllVars) {
+      AllProgVars.insert(BI->getProgramVar(AV));
+    }
     ProgramVar *BVar = nullptr;
     // We want to merge all bounds vars. We give preference to
     // non-constants if there are multiple non-constant variables,
     // we give up.
-    for (auto *TmpB : AllVars) {
+    for (auto *TmpB : AllProgVars) {
       if (BVar == nullptr) {
         BVar = TmpB;
       } else if (BVar->IsNumConstant()) {
         if (!TmpB->IsNumConstant()) {
           // We give preference to non-constant lengths.
           BVar = TmpB;
-        } else if (BVar->getKey() != TmpB->getKey()) {
+        } else if (!this->BI->areSameProgramVar(BVar->getKey(), TmpB->getKey())) {
           // If both are different constants?
           BVar = nullptr;
           break;
@@ -662,183 +640,320 @@ AvarBoundsInference::
     }
     AllVars.clear();
     if (BVar)
-      AllVars.insert(BVar);
+      AllVars.insert(BVar->getKey());
   }
 }
 
-bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
-                                              AVarGraph &BKGraph,
-                                              std::set<ABounds *> &EB) {
-  bool RetVal = false;
-  if (SB != nullptr) {
-    auto *Kvar = BI->getProgramVar(K);
-    bool ValidB = false;
-    auto BKind = SB->getKind();
-    BoundsKey SBKey;
-    if (CountBound *CB = dyn_cast<CountBound>(SB)) {
-      ValidB = true;
-      SBKey = CB->getCountVar();
-    } else if (ByteBound *BB = dyn_cast<ByteBound>(SB)) {
-      ValidB = true;
-      SBKey = BB->getByteVar();
+bool
+AvarBoundsInference::convergeInferredBounds() {
+  bool FoundSome = false;
+  for (auto &InfABnds : CurrIterInferBounds) {
+    auto *AB = BI->getBounds(InfABnds.first);
+    // If there are no bounds?
+    if (AB == nullptr) {
+      auto &BTypeMap = InfABnds.second;
+      for (auto &TySet : BTypeMap) {
+        mergeReachableProgramVars(TySet.second);
+      }
+      // Order of preference: Count and Byte
+      if (BTypeMap.find(ABounds::CountBoundKind) != BTypeMap.end() &&
+          !BTypeMap[ABounds::CountBoundKind].empty()) {
+        AB = new CountBound(*BTypeMap[ABounds::CountBoundKind].begin());
+      } else if (BTypeMap.find(ABounds::ByteBoundKind) != BTypeMap.end() &&
+                 !BTypeMap[ABounds::ByteBoundKind].empty()) {
+        AB = new ByteBound(*BTypeMap[ABounds::ByteBoundKind].begin());
+      }
+
+      // If we found any bounds?
+      if (AB != nullptr) {
+        // Record that we inferred bounds using data-flow.
+        BI->BoundsInferStats.DataflowMatch.insert(InfABnds.first);
+        BI->replaceBounds(InfABnds.first, BoundsPriority::FlowInferred, AB);
+        FoundSome = true;
+      }
     }
+  }
+  return FoundSome;
+}
 
-    std::set<ProgramVar *> PotentialB;
-    // If we can handle the bounds?
-    if (ValidB) {
-      // First, find all the in-scope variable to which the SBKey flow to.
-      auto *SBVar = BI->getProgramVar(SBKey);
-      if (SBVar->IsNumConstant()) {
-        PotentialB.insert(SBVar);
-      }
-      // Find all the in scope variables reachable from the current
-      // bounds variable.
-      ScopeVisitor TV(Kvar->getScope(), PotentialB, BI->PVarInfo,
-                      BI->PointerBoundsKey);
-      BKGraph.visitBreadthFirst(SBKey, [&TV](BoundsKey BK) {
-        TV.visitBoundsKey(BK);
-      });
+bool AvarBoundsInference::getReachableBoundKeys(const ProgramVarScope *DstScope,
+                                                BoundsKey FromVarK,
+                                                std::set<BoundsKey> &PotK,
+                                                AVarGraph &BKGraph,
+                                                bool CheckImmediate) {
 
-      if (*Kvar->getScope() == *SBVar->getScope()) {
-        PotentialB.insert(SBVar);
-      }
+  // First, find all the in-scope variable to which the SBKey flow to.
+  auto *SBVar = BI->getProgramVar(FromVarK);
 
-      mergeReachableProgramVars(PotentialB);
-
-      // Are there are other in-scope variables where the bounds variable
-      // has been assigned to?
-      if (!PotentialB.empty())
-        RetVal = intersectBounds(PotentialB, BKind, EB);
+  // If both are in the same scope?
+  if (*DstScope == *SBVar->getScope()) {
+    PotK.insert(FromVarK);
+    if (CheckImmediate) {
+      return true;
     }
   }
 
-  return RetVal;
+  // All constants are reachable!
+  if (SBVar->IsNumConstant()) {
+    PotK.insert(FromVarK);
+  }
+
+  // Get all bounds key that are equivalent to FromVarK
+  std::set<BoundsKey> AllFKeys;
+  AllFKeys.clear();
+  AllFKeys.insert(FromVarK);
+
+  // If this is a constant? Then get all bounds keys that
+  // correspond to the same constant
+  if (SBVar->IsNumConstant()) {
+    uint64_t ConsVal;
+    std::istringstream IS(SBVar->getVarName());
+    IS >> ConsVal;
+    BI->fetchAllConstKeys(ConsVal, AllFKeys);
+  }
+
+  for (auto CurrVarK : AllFKeys) {
+    // Find all the in scope variables reachable from the CurrVarK
+    // bounds variable.
+    ScopeVisitor TV(DstScope, PotK, BI->PVarInfo,
+                    BI->PointerBoundsKey);
+    BKGraph.visitBreadthFirst(CurrVarK, [&TV](BoundsKey BK) {
+      TV.visitBoundsKey(BK);
+    });
+  }
+
+  return !PotK.empty();
 }
 
-bool AvarBoundsInference::getRelevantBounds(std::set<BoundsKey> &RBKeys,
-                                            std::set<ABounds *> &ResBounds) {
+bool AvarBoundsInference::getRelevantBounds(BoundsKey BK,
+                                            BndsKindMap &ResBounds) {
   // Try to get the bounds of all RBKeys.
-  bool ValidB = true;
-  for (auto PrevBKey : RBKeys) {
-    // If this pointer is used in pointer arithmetic then there
-    // are no relevant bounds for this pointer.
-    if (BI->hasPointerArithmetic(PrevBKey)) {
-      continue;
-    }
-    auto *PrevBounds = BI->getBounds(PrevBKey);
+  bool HasBounds = false;
+  // If this pointer is used in pointer arithmetic then there
+  // are no relevant bounds for this pointer.
+  if (!BI->hasPointerArithmetic(BK)) {
+    auto *PrevBounds = BI->getBounds(BK);
     // Does the parent arr has bounds?
-    if (PrevBounds != nullptr)
-      ResBounds.insert(PrevBounds);
+    if (PrevBounds != nullptr) {
+      ResBounds[PrevBounds->getKind()].insert(PrevBounds->getBKey());
+      HasBounds = true;
+    } else if (CurrIterInferBounds.find(BK) != CurrIterInferBounds.end()) {
+      // get the bounds inferred from the current iteration
+      ResBounds = CurrIterInferBounds[BK];
+      HasBounds = true;
+    }
   }
-  return ValidB;
+  return HasBounds;
+}
+
+// Variable comparison. Comparator implementation: where given two BoundsKey
+// they are checked to see if they correspond to the same program variable.
+struct BVarCmp {
+public:
+  BVarCmp(AVarBoundsInfo *ABI) {
+    this->ABInfo = ABI;
+  }
+  bool operator()(BoundsKey a, BoundsKey b) const {
+    if (this->ABInfo != nullptr &&
+        this->ABInfo->areSameProgramVar(a, b)) {
+      return false;
+    }
+    return a < b;
+  };
+private:
+  AVarBoundsInfo *ABInfo;
+};
+
+bool
+AvarBoundsInference::areDeclaredBounds(BoundsKey K,
+                                       const std::pair<ABounds::BoundsKind,
+                                       std::set<BoundsKey>> &Bnds) {
+  bool IsDeclaredB = false;
+  // Get declared bounds and check that Bnds are same as the declared
+  // bounds.
+  ABounds *DeclB = this->BI->getBounds(K,
+                                       BoundsPriority::Declared,
+                                       nullptr);
+  if (DeclB && DeclB->getKind() == Bnds.first) {
+    IsDeclaredB = true;
+    for (auto TmpNBK : Bnds.second) {
+      if (!this->BI->areSameProgramVar(TmpNBK, DeclB->getBKey())) {
+        IsDeclaredB = false;
+        break;
+      }
+    }
+  }
+  return IsDeclaredB;
 }
 
 bool AvarBoundsInference::predictBounds(BoundsKey K,
                                         std::set<BoundsKey> &Neighbours,
-                                        AVarGraph &BKGraph,
-                                        ABounds **KB) {
-  std::set<ABounds *> ResBounds;
-  std::set<ABounds *> KBounds;
-  *KB = nullptr;
-  bool IsValid = false;
-  // Get all the relevant bounds from the neighbour ARRs
-  if (getRelevantBounds(Neighbours, ResBounds)) {
-    bool IsFuncRet = BI->isFunctionReturn(K);
-    // For function returns, we want all the predecessors to have bounds.
-    if (IsFuncRet && ResBounds.size() != Neighbours.size()) {
-      return IsValid;
-    }
-    if (!ResBounds.empty()) {
-      IsValid = true;
-      // Find the intersection?
-      for (auto *B : ResBounds) {
-        //TODO: check this
-        // This is stricter version i.e., there should be at least one common
-        // bounds information from an incoming ARR.
-        // Should we follow same for all the pointers?
+                                        AVarGraph &BKGraph) {
+  BndsKindMap NeighboursBnds, InferredKBnds;
+  // Bounds inferred from each of the neighbours.
+  std::map<BoundsKey, BndsKindMap> InferredNBnds;
+  bool IsChanged = false;
+  bool ErrorOccurred = false;
+  bool IsFuncRet = BI->isFunctionReturn(K);
+  ProgramVar *KVar = this->BI->getProgramVar(K);
 
-        // For function returns we should have atleast one common bound
-        // from all the return values.
-        if (!inferPossibleBounds(K, B, BKGraph, KBounds) && IsFuncRet) {
-          IsValid = false;
-          break;
+  InferredNBnds.clear();
+  // For reach of the Neighbour, try to infer possible bounds.
+  for (auto NBK : Neighbours) {
+    NeighboursBnds.clear();
+    ErrorOccurred = false;
+    if (getRelevantBounds(NBK, NeighboursBnds) && !NeighboursBnds.empty()) {
+      std::set<BoundsKey> InfBK;
+      for (auto &NKBChoice : NeighboursBnds) {
+        InfBK.clear();
+        for (auto TmpNBK : NKBChoice.second) {
+          getReachableBoundKeys(KVar->getScope(), TmpNBK, InfBK, BKGraph);
+        }
+        if (!InfBK.empty()) {
+          InferredNBnds[NBK][NKBChoice.first] = InfBK;
+        } else {
+          bool IsDeclaredB = areDeclaredBounds(NBK, NKBChoice);
+
+          if (!IsDeclaredB || DisableInfDecls) {
+            // Oh, there are bounds for neighbour NBK but no bounds
+            // can be inferred for K from it.
+            InferredNBnds.clear();
+            ErrorOccurred = true;
+            break;
+          }
         }
       }
-      // If we converge to single bounds information? We found the bounds.
-      if (KBounds.size() == 1) {
-        *KB = *KBounds.begin();
-        KBounds.clear();
-      } else {
-        IsValid = false;
-        // TODO: Should we give up when we have multiple bounds?
-        for (auto *T : KBounds) {
-          delete(T);
-        }
-      }
+    } else if (IsFuncRet) {
+      // If this is a function return we should have bounds from all
+      // neighbours.
+      ErrorOccurred = true;
+    }
+    if (ErrorOccurred) {
+      // If an error occurred while processing bounds from neighbours/
+      // clear the inferred bounds and break.
+      InferredNBnds.clear();
+      break;
     }
   }
-  return IsValid;
+
+  if (!InferredNBnds.empty()) {
+    // All the possible inferred bounds for K
+    InferredKBnds.clear();
+    std::set<BoundsKey> TmpBKeys;
+    // TODO: Figure out if there is a discrepency and try to implement
+    // root-cause analysis.
+
+    // Find intersection of all bounds from neighbours.
+    for (auto &IN : InferredNBnds) {
+      for (auto &INB : IN.second) {
+        if (InferredKBnds.find(INB.first) == InferredKBnds.end()) {
+          InferredKBnds[INB.first] = INB.second;
+        } else {
+          TmpBKeys.clear();
+          // Here, we should use intersection by taking care of comparing
+          // bounds key that correspond to the same constant.
+          // Note, DO NOT use findIntersection here, as we need to take
+          // care of comparing bounds key that correspond to the same
+          // constant.
+          auto &S1 = InferredKBnds[INB.first];
+          auto &S2 = INB.second;
+          std::set_intersection(S1.begin(), S1.end(),
+                                S2.begin(), S2.end(),
+                                std::inserter(TmpBKeys, TmpBKeys.begin()),
+                                BVarCmp(this->BI));
+          InferredKBnds[INB.first] = TmpBKeys;
+        }
+      }
+    }
+
+    // Now from the newly inferred bounds i.e., InferredKBnds, check
+    // if is is different from previously known bounds of K
+    for (auto &IKB : InferredKBnds) {
+      bool Handled = false;
+      if (CurrIterInferBounds.find(K) != CurrIterInferBounds.end()) {
+        auto &BM = CurrIterInferBounds[K];
+        if (BM.find(IKB.first) != BM.end()) {
+          Handled = true;
+          if (BM[IKB.first] != IKB.second) {
+            BM[IKB.first] = IKB.second;
+            if (IKB.second.empty())
+              BM.erase(IKB.first);
+            IsChanged = true;
+          }
+        }
+      }
+      if (!Handled) {
+        CurrIterInferBounds[K][IKB.first] = IKB.second;
+        if (IKB.second.empty()) {
+          CurrIterInferBounds[K].erase(IKB.first);
+        } else {
+          IsChanged = true;
+        }
+      }
+    }
+  } else if (ErrorOccurred) {
+    // If any error occurred during inferring bounds then
+    // remove any previously inferred bounds for K.
+    IsChanged = CurrIterInferBounds.erase(K) != 0;
+  }
+  return IsChanged;
 }
 bool AvarBoundsInference::inferBounds(BoundsKey K, AVarGraph &BKGraph, bool FromPB) {
   bool IsChanged = false;
 
   if (BI->InvalidBounds.find(K) == BI->InvalidBounds.end()) {
-    ABounds *KB = nullptr;
     // Infer from potential bounds?
     if (FromPB) {
       auto &PotBDs = BI->PotentialCntBounds;
       if (PotBDs.find(K) != PotBDs.end()) {
         ProgramVar *Kvar = BI->getProgramVar(K);
-        std::set<ProgramVar *> PotentialB;
+        std::set<BoundsKey> PotentialB;
         PotentialB.clear();
         for (auto TK : PotBDs[K]) {
           ProgramVar *TKVar = BI->getProgramVar(TK);
-          // If the count var is of different scope? Then try to find variables
-          // that are in scope.
-          if (*Kvar->getScope() != *TKVar->getScope()) {
-            // Find all the in scope variables reachable from the current
-            // bounds variable.
-            ScopeVisitor TV(Kvar->getScope(), PotentialB, BI->PVarInfo,
-                            BI->PointerBoundsKey);
-            BKGraph.visitBreadthFirst(TK, [&TV](BoundsKey BK) {
-              TV.visitBoundsKey(BK);
-            });
-          } else {
-            PotentialB.insert(TKVar);
+          getReachableBoundKeys(Kvar->getScope(), TK, PotentialB, BKGraph, true);
+        }
+
+        if (!PotentialB.empty()) {
+          bool Handled = false;
+          // Potential bounds are always count bounds.
+          // We use potential bounds
+          ABounds::BoundsKind PotKind = ABounds::CountBoundKind;
+          if (CurrIterInferBounds.find(K) != CurrIterInferBounds.end()) {
+            auto &BM = CurrIterInferBounds[K];
+            // If we have any inferred bounds for K then ignore potential
+            // bounds.
+            for (auto &PosB : BM) {
+              if (!PosB.second.empty()) {
+                Handled = true;
+                break;
+              }
+            }
+          }
+          if (!Handled) {
+            CurrIterInferBounds[K][PotKind] = PotentialB;
+            IsChanged = true;
           }
         }
-        ProgramVar *BVar = nullptr;
-        mergeReachableProgramVars(PotentialB);
-        if (!PotentialB.empty())
-          BVar = *(PotentialB.begin());
-        if (BVar != nullptr)
-          KB = new CountBound(BVar->getKey());
       }
     } else {
       // Infer from the flow-graph.
       std::set<BoundsKey> TmpBkeys;
       // Try to predict bounds from predecessors.
       BKGraph.getPredecessors(K, TmpBkeys);
-      if (!predictBounds(K, TmpBkeys, BKGraph, &KB)) {
-        KB = nullptr;
-      }
-    }
-
-    if (KB != nullptr) {
-      BI->replaceBounds(K, FlowInferred, KB);
-      IsChanged = true;
+      IsChanged = predictBounds(K, TmpBkeys, BKGraph);
     }
   }
   return IsChanged;
 }
 
-bool AVarBoundsInfo::performWorkListInference(std::set<BoundsKey> &ArrNeededBounds,
+bool AVarBoundsInfo::performWorkListInference(const std::set<BoundsKey> &ArrNeededBounds,
                                               AVarGraph &BKGraph,
+                                              AvarBoundsInference &BI,
                                               bool FromPB) {
   bool RetVal = false;
   std::set<BoundsKey> WorkList;
   WorkList.insert(ArrNeededBounds.begin(), ArrNeededBounds.end());
-  AvarBoundsInference BI(this);
   std::set<BoundsKey> NextIterArrs;
   bool Changed = true;
   while (Changed) {
@@ -851,10 +966,6 @@ bool AVarBoundsInfo::performWorkListInference(std::set<BoundsKey> &ArrNeededBoun
       WorkList.erase(CurrArrKey);
       // Can we find bounds for this Arr?
       if (BI.inferBounds(CurrArrKey, BKGraph, FromPB)) {
-        // Record the stats.
-        BoundsInferStats.DataflowMatch.insert(CurrArrKey);
-        // We found the bounds.
-        ArrNeededBounds.erase(CurrArrKey);
         RetVal = true;
         Changed = true;
         // Get all the successors of the ARR whose bounds we just found.
@@ -1051,8 +1162,27 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
   ArrPointers.insert(CtxSensBKeys.begin(), CtxSensBKeys.end());
 }
 
+void AVarBoundsInfo::getBoundsNeededArrPointers(const std::set<BoundsKey> &ArrPtrs,
+                                                std::set<BoundsKey> &AB) {
+  // Next, get the ARR pointers that has bounds.
+  // These are pointers with bounds.
+  std::set<BoundsKey> ArrWithBounds;
+  for (auto &T : BInfo) {
+    ArrWithBounds.insert(T.first);
+  }
+  // Also add arrays with invalid bounds.
+  ArrWithBounds.insert(InvalidBounds.begin(), InvalidBounds.end());
+
+  // This are the array atoms that need bounds.
+  // i.e., AB = ArrPtrs - ArrPtrsWithBounds.
+  std::set_difference(ArrPtrs.begin(), ArrPtrs.end(),
+                      ArrWithBounds.begin(), ArrWithBounds.end(),
+                      std::inserter(AB, AB.end()));
+}
+
 bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
   bool RetVal = false;
+  AvarBoundsInference ABI(this);
   // First get all the pointer vars which are ARRs
   std::set<BoundsKey> ArrPointers;
   computerArrPointers(PI, ArrPointers);
@@ -1071,35 +1201,48 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
       removeBounds(TBK, FlowInferred);
   }
 
-  // Next, get the ARR pointers that has bounds.
-  // These are pointers with bounds.
-  std::set<BoundsKey> ArrWithBounds;
-  for (auto &T : BInfo) {
-    ArrWithBounds.insert(T.first);
-  }
-  // Also add arrays with invalid bounds.
-  ArrWithBounds.insert(InvalidBounds.begin(), InvalidBounds.end());
+  std::set<BoundsKey> ArrNeededBounds, ArrNeededBoundsNew;
+  ArrNeededBounds.clear();
 
-  // This are the array atoms that need bounds.
-  // i.e., ArrNeededBounds = ArrPtrs - ArrPtrsWithBounds.
-  std::set<BoundsKey> ArrNeededBounds;
-  std::set_difference(ArrPointers.begin(), ArrPointers.end(),
-                      ArrWithBounds.begin(), ArrWithBounds.end(),
-                      std::inserter(ArrNeededBounds, ArrNeededBounds.end()));
+
+  getBoundsNeededArrPointers(ArrPointers, ArrNeededBounds);
 
   bool Changed = !ArrNeededBounds.empty();
 
   // Now compute the bounds information of all the ARR pointers that need it.
+  // We iterate until there are no new array variables whose bounds are found.
+  // The expectation is every iteration we will find bounds for at least one array
+  // variable.
   while (Changed) {
-    Changed = false;
-    // Use flow-graph.
-    Changed = performWorkListInference(ArrNeededBounds, this->ProgVarGraph) || Changed;
-    // Use potential length variables.
-    Changed = performWorkListInference(ArrNeededBounds, this->ProgVarGraph, true) || Changed;
-    // Try solving using context-sensitive BoundsKey.
-    Changed = performWorkListInference(ArrNeededBounds, this->CtxSensProgVarGraph) || Changed;
-    Changed = performWorkListInference(ArrNeededBounds, this->CtxSensProgVarGraph, true) || Changed;
+    // Clear all inferred bounds.
+    ABI.clearInferredBounds();
+    // Regular flow inference.
+    performWorkListInference(ArrNeededBounds, this->ProgVarGraph, ABI);
+    // Flow inference using potential bounds.
+    performWorkListInference(ArrNeededBounds, this->ProgVarGraph, ABI, true);
+    // Flow inference from context sensitive keys to original keys.
+    performWorkListInference(ArrNeededBounds, this->CtxSensProgVarGraph, ABI);
+    // Now, by using potential bounds.
+    performWorkListInference(ArrNeededBounds, this->CtxSensProgVarGraph, ABI, true);
+
+    // From all the sets of bounds computed for various array variables. Intersect them
+    // and find the common bound variable.
+    ABI.convergeInferredBounds();
+
+    ArrNeededBoundsNew.clear();
+    // Get array variables that still need bounds.
+    getBoundsNeededArrPointers(ArrPointers, ArrNeededBoundsNew);
+    // Did we find bounds for new array variables?
+    Changed = ArrNeededBounds != ArrNeededBoundsNew;
+    if (ArrNeededBounds.size() == ArrNeededBoundsNew.size()) {
+      assert (!Changed && "New arrays needed bounds after inference");
+    }
+    assert (ArrNeededBoundsNew.size() <= ArrNeededBounds.size() &&
+            "We should always have less number of arrays whose bounds needs "
+            "to be inferred after each round.");
+    ArrNeededBounds = ArrNeededBoundsNew;
   }
+
 
   return RetVal;
 }
@@ -1159,6 +1302,15 @@ void AVarBoundsInfo::print_stats(llvm::raw_ostream &O,
     O << "}";
     O << "}";
   }
+}
+
+bool AVarBoundsInfo::areSameProgramVar(BoundsKey B1, BoundsKey B2) {
+  if (B1 != B2) {
+    ProgramVar *P1 = getProgramVar(B1);
+    ProgramVar *P2 = getProgramVar(B2);
+    return P1->IsNumConstant() && P2->IsNumConstant() && P1->getVarName() == P2->getVarName();
+  }
+  return B1 == B2;
 }
 
 ContextSensitiveBoundsKeyVisitor::ContextSensitiveBoundsKeyVisitor(ASTContext *C,

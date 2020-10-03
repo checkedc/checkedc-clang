@@ -350,6 +350,12 @@ bool isExpressionStructField(Expr *ToCheck, FieldDecl **TargetDecl) {
   return false;
 }
 
+void AllocBasedBoundsInference::HandleTranslationUnit(ASTContext &Context) {
+  Info.enterCompilationUnit(Context);
+  HandleArrayVariablesBoundsDetection(&Context, Info, false);
+  Info.exitCompilationUnit();
+}
+
 // This visitor handles the bounds of function local array variables.
 
 void GlobalABVisitor::SetParamHeuristicInfo(LocalVarABVisitor *LAB) {
@@ -891,7 +897,8 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
 
 }
 
-void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {
+void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I,
+                                         bool UseHeuristics) {
   // Run array bounds
   for (auto FuncName : AllocatorFunctions) {
     AllocatorSizeAssoc[FuncName] = {0};
@@ -908,16 +915,22 @@ void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {
         // Try to guess the bounds information for function locals.
         Stmt *Body = FD->getBody();
         LFV.TraverseStmt(Body);
-        // Set information collected after analyzing the function body.
-        GlobABV.SetParamHeuristicInfo(&LFV);
-        GlobABV.TraverseDecl(D);
+
+        if (UseHeuristics) {
+          // Set information collected after analyzing the function body.
+          GlobABV.SetParamHeuristicInfo(&LFV);
+          GlobABV.TraverseDecl(D);
+        }
         AddMainFuncHeuristic(C, I, FD);
         GlobalTraversed = true;
       }
     }
-    // If this is not already traversed?
-    if (!GlobalTraversed)
-      GlobABV.TraverseDecl(D);
-    GlobABV.SetParamHeuristicInfo(nullptr);
+
+    if (UseHeuristics) {
+      // If this is not already traversed?
+      if (!GlobalTraversed)
+        GlobABV.TraverseDecl(D);
+      GlobABV.SetParamHeuristicInfo(nullptr);
+    }
   }
 }

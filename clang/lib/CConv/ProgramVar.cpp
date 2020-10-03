@@ -32,7 +32,8 @@ const StructScope *StructScope::getStructScope(std::string StName) {
   if (AllStScopes.find(TmpS) == AllStScopes.end()) {
     AllStScopes.insert(TmpS);
   }
-  return &(*AllStScopes.find(TmpS));
+  const auto &SS = *AllStScopes.find(TmpS);
+  return &SS;
 }
 
 const FunctionParamScope *FunctionParamScope::getFunctionParamScope(
@@ -41,7 +42,8 @@ const FunctionParamScope *FunctionParamScope::getFunctionParamScope(
   if (AllFnParamScopes.find(TmpFPS) == AllFnParamScopes.end()) {
     AllFnParamScopes.insert(TmpFPS);
   }
-  return &(*AllFnParamScopes.find(TmpFPS));
+  const auto &FPS = *AllFnParamScopes.find(TmpFPS);
+  return &FPS;
 }
 
 const CtxFunctionArgScope *CtxFunctionArgScope::getCtxFunctionParamScope(
@@ -50,7 +52,8 @@ const CtxFunctionArgScope *CtxFunctionArgScope::getCtxFunctionParamScope(
   if (AllCtxFnArgScopes.find(TmpAS) == AllCtxFnArgScopes.end()) {
     AllCtxFnArgScopes.insert(TmpAS);
   }
-  return &(*AllCtxFnArgScopes.find(TmpAS));
+  const auto &CFAS = *AllCtxFnArgScopes.find(TmpAS);
+  return &CFAS;
 }
 
 const FunctionScope *FunctionScope::getFunctionScope(std::string FnName,
@@ -59,7 +62,8 @@ const FunctionScope *FunctionScope::getFunctionScope(std::string FnName,
   if (AllFnScopes.find(TmpFS) == AllFnScopes.end()) {
     AllFnScopes.insert(TmpFS);
   }
-  return &(*AllFnScopes.find(TmpFS));
+  const auto &FS = *AllFnScopes.find(TmpFS);
+  return &FS;
 }
 
 std::set<ProgramVar *> ProgramVar::AllProgramVars;

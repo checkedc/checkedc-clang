@@ -89,35 +89,60 @@ enum BoundsPriority {
 };
 
 class AVarBoundsInfo;
-
+typedef std::map<ABounds::BoundsKind, std::set<BoundsKey>> BndsKindMap;
 // The main class that handles figuring out bounds of arr variables.
 class AvarBoundsInference {
 public:
-  AvarBoundsInference(AVarBoundsInfo *BoundsInfo) : BI(BoundsInfo) { }
+  AvarBoundsInference(AVarBoundsInfo *BoundsInfo) : BI(BoundsInfo) {
+    clearInferredBounds();
+  }
+
+  // Clear all possible inferred bounds for all the BoundsKeys
+  void clearInferredBounds() {
+    CurrIterInferBounds.clear();
+  }
 
   // Infer bounds for the given key from the set of given ARR atoms.
   // The flag FromPB requests the inference to use potential length variables.
   bool inferBounds(BoundsKey K, AVarGraph &BKGraph, bool FromPB = false);
+
+  // Get a consistent bound for all the arrays whose bounds have been
+  // inferred.
+  bool convergeInferredBounds();
 private:
-  bool inferPossibleBounds(BoundsKey K, ABounds *SB,
-                           AVarGraph &BKGraph,
-                           std::set<ABounds *> &EB);
+  // Find all the reachable variables form FromVarK that are visible
+  // in DstScope
+  bool getReachableBoundKeys(const ProgramVarScope *DstScope,
+                             BoundsKey FromVarK,
+                             std::set<BoundsKey> &PotK,
+                             AVarGraph &BKGraph,
+                             bool CheckImmediate = false);
 
   bool intersectBounds(std::set<ProgramVar *> &ProgVars,
                        ABounds::BoundsKind BK,
                        std::set<ABounds *> &CurrB);
 
-  bool getRelevantBounds(std::set<BoundsKey> &RBKeys,
-                         std::set<ABounds *> &ResBounds);
+  // Check if bounds specified by Bnds are declared bounds of K.
+  bool areDeclaredBounds(BoundsKey K,
+                         const std::pair<ABounds::BoundsKind,
+                                         std::set<BoundsKey>> &Bnds);
 
-  bool predictBounds(BoundsKey K, std::set<BoundsKey> &Neighbours,
-                     AVarGraph &BKGraph,
-                     ABounds **KB);
+  // Get all the bounds of the given array i.e., BK
+  bool getRelevantBounds(BoundsKey BK,
+                         BndsKindMap &ResBounds);
+
+  // Predict possible bounds for DstArrK from the bounds of  Neighbours.
+  // Return true if there is any change in the captured bounds information.
+  bool predictBounds(BoundsKey DstArrK, std::set<BoundsKey> &Neighbours,
+                     AVarGraph &BKGraph);
 
 
-  void mergeReachableProgramVars(std::set<ProgramVar *> &AllVars);
+  void mergeReachableProgramVars(std::set<BoundsKey> &AllVars);
 
   AVarBoundsInfo *BI;
+
+  // Potential Bounds for each bounds key inferred for the current iteration.
+  std::map<BoundsKey, BndsKindMap> CurrIterInferBounds;
 };
 
 class AVarBoundsInfo {
@@ -163,6 +188,7 @@ public:
   BoundsKey getVariable(clang::FieldDecl *FD);
   BoundsKey getVariable(clang::FunctionDecl *FD);
   BoundsKey getConstKey(uint64_t value);
+  bool fetchAllConstKeys(uint64_t value, std::set<BoundsKey> &AllKeys);
 
   // Generate a random bounds key to be used for inference.
   BoundsKey getRandomBKey();
@@ -227,6 +253,8 @@ public:
                    const CVarSet &SrcCVarSet,
                    bool JsonFormat = false) const;
 
+  bool areSameProgramVar(BoundsKey B1, BoundsKey B2);
+
 private:
   friend class AvarBoundsInference;
   
@@ -238,8 +266,8 @@ private:
   BoundsKey BCount;
   // Map of VarKeys and corresponding program variables.
   std::map<BoundsKey, ProgramVar *> PVarInfo;
-  // Map of APSInt (constants) and corresponding VarKeys.
-  std::map<uint64_t, BoundsKey> ConstVarKeys;
+  // Map of APSInt (constants) and set of BoundKeys that correspond to it.
+  std::map<uint64_t, std::set<BoundsKey>> ConstVarKeys;
   // Map of BoundsKey and corresponding prioritized bounds information.
   // Note that although each PSL could have multiple ConstraintKeys Ex: **p.
   // Only the outer most pointer can have bounds.
@@ -305,8 +333,12 @@ private:
   // Check if the provided bounds key corresponds to function return.
   bool isFunctionReturn(BoundsKey BK);
 
-  // Of all teh pointer bounds key, find arr pointers.
+  // Of all the pointer bounds key, find arr pointers.
   void computerArrPointers(ProgramInfo *PI, std::set<BoundsKey> &Ret);
+
+  // Get all the array pointers that need bounds.
+  void getBoundsNeededArrPointers(const std::set<BoundsKey> &ArrPtrs,
+                                  std::set<BoundsKey> &AB);
 
   // Keep only highest priority bounds for all the provided BoundsKeys
   // returns true if any thing changed, else false.
@@ -315,8 +347,9 @@ private:
   // Perform worklist based inference on the requested array variables using
   // the provided graph.
   // The flag FromPB requests the algorithm to use potential length variables.
-  bool performWorkListInference(std::set<BoundsKey> &ArrNeededBounds,
+  bool performWorkListInference(const std::set<BoundsKey> &ArrNeededBounds,
                                 AVarGraph &BKGraph,
+                                AvarBoundsInference &BI,
                                 bool FromPB = false);
 
   void insertParamKey(ParamDeclType ParamDecl, BoundsKey NK);

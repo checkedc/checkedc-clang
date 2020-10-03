@@ -44,7 +44,7 @@ public:
   virtual ~ABounds() { }
 
   virtual std::string mkString(AVarBoundsInfo *) = 0;
-  virtual bool areSame(ABounds *) = 0;
+  virtual bool areSame(ABounds *, AVarBoundsInfo *) = 0;
   virtual BoundsKey getBKey() = 0;
   virtual ABounds* makeCopy(BoundsKey NK) = 0;
 
@@ -66,7 +66,7 @@ public:
   virtual ~CountBound() { }
 
   std::string mkString(AVarBoundsInfo *ABI) override ;
-  bool areSame(ABounds *O) override;
+  bool areSame(ABounds *O, AVarBoundsInfo *ABI) override;
   BoundsKey getBKey() override;
   ABounds* makeCopy(BoundsKey NK) override;
 
@@ -88,7 +88,7 @@ public:
   virtual ~ByteBound() { }
 
   std::string mkString(AVarBoundsInfo *ABI) override ;
-  bool areSame(ABounds *O) override;
+  bool areSame(ABounds *O, AVarBoundsInfo *ABI) override;
   BoundsKey getBKey() override;
   ABounds* makeCopy(BoundsKey NK) override;
 
@@ -111,7 +111,7 @@ public:
   virtual ~RangeBound() { }
 
   std::string mkString(AVarBoundsInfo *ABI) override ;
-  bool areSame(ABounds *O) override;
+  bool areSame(ABounds *O, AVarBoundsInfo *ABI) override;
 
   BoundsKey getBKey() override {
     assert (false && "Not implemented.");
