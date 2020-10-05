@@ -180,32 +180,16 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS,
   return nullptr;
 }
 
-CVarSet ConstraintResolver::getInvalidCastPVCons(Expr *E) {
-  CVarSet Ret;
-  QualType SrcType, DstType;
-  // As getInvalidCastPVCons could be called from non-persistent expressions
-  // we need to explicitly store the generated PVConstraints into persistent
-  // constraints.
-  if (Info.hasPersistentConstraints(E, Context))
-    return Info.getPersistentConstraints(E, Context);
-
-  DstType = E->getType();
-  SrcType = E->getType();
-  if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E))
-    SrcType = ICE->getSubExpr()->getType();
-
-  if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(E))
-    SrcType = ECE->getSubExpr()->getType();
+CVarSet ConstraintResolver::getInvalidCastPVCons(CastExpr *E) {
+  QualType DstType = E->getType();
+  QualType SrcType = E->getSubExpr()->getType();
 
   auto *P = new PVConstraint(DstType, nullptr, "Invalid cast", Info, *Context);
-
   PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
   std::string Rsn =
       "Cast from " + SrcType.getAsString() + " to " + DstType.getAsString();
   P->constrainToWild(Info.getConstraints(), Rsn, &PL);
-  Ret = {P};
-  Info.storePersistentConstraints(E, Ret, Context);
-  return Ret;
+  return {P};
 }
 
 // Returns a set of ConstraintVariables which represent the result of
@@ -245,10 +229,10 @@ CVarSet
           !(SubTypE->isFunctionType() || SubTypE->isArrayType() ||
             SubTypE->isVoidPointerType()) &&
           !isCastSafe(TypE, SubTypE)) {
-        std::string Rsn = "Cast from " + SubTypE.getAsString() +  " to " +
-                          TypE.getAsString();
-        constraintAllCVarsToWild(CVs, Rsn, IE);
-        return getInvalidCastPVCons(E);
+        CVarSet WildCVar = getInvalidCastPVCons(IE);
+        constrainConsVarGeq(CVs, WildCVar, CS, nullptr, Safe_to_Wild, false,
+                            &Info);
+        return WildCVar;
       }
       // else, return sub-expression's result
       return CVs;
@@ -282,7 +266,10 @@ CVarSet
         // handle it as usual so the type in the cast can be rewritten.
         if (!isNULLExpression(ECE, *Context) && TypE->isPointerType()
             && !isCastSafe(TypE, TmpE->getType())) {
-          Ret = getInvalidCastPVCons(E);
+          CVarSet Vars = getExprConstraintVars(TmpE);
+          Ret = getInvalidCastPVCons(ECE);
+          constrainConsVarGeq(Vars, Ret, CS, nullptr, Safe_to_Wild, false,
+                              &Info);
           // NB: Expression ECE itself handled in
           // ConstraintBuilder::FunctionVisitor
         } else {
