@@ -167,7 +167,6 @@ public:
     // Insert into BFS cache.
     if (BFSCache.find(Start) == BFSCache.end()) {
       std::set<Data> ReachableNodes;
-      ReachableNodes.clear();
       for (auto TNode : llvm::breadth_first(*N)) {
         ReachableNodes.insert(TNode->getData());
       }
