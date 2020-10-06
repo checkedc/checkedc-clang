@@ -3,6 +3,12 @@ set( LLVM_LINK_COMPONENTS
         Option
         Support
         )
+        if (FIVE_C)
+          add_compile_definitions(FIVE_C)
+          set(five_c_source
+            DeclRewriter_5C.cpp
+          )
+        endif()
         add_clang_library(CConv
           ABounds.cpp
           AVarBoundsInfo.cpp
@@ -27,6 +33,7 @@ set( LLVM_LINK_COMPONENTS
           StructInit.cpp
           TypeVariableAnalysis.cpp
           Utils.cpp
+          ${five_c_source}
           LINK_LIBS
           clangAST
           clangAnalysis

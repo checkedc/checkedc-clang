@@ -86,7 +86,7 @@ public:
 
   bool VisitFunctionDecl(FunctionDecl *);
   bool isFunctionVisited(std::string FuncName);
-private:
+protected:
 
   ASTContext            *Context;
   ProgramInfo           &Info;
@@ -103,8 +103,15 @@ private:
 
   // Get existing itype string from constraint variables.
   std::string getExistingIType(ConstraintVariable *DeclC);
-  void buildDeclVar(PVConstraint *Defn, DeclaratorDecl *Decl, std::string &Type,
-                    std::string &IType, bool &RewriteParm, bool &RewriteRet);
+  virtual void buildDeclVar(PVConstraint *Defn, DeclaratorDecl *Decl,
+                            std::string &Type, std::string &IType,
+                            bool &RewriteParm, bool &RewriteRet);
+  void buildCheckedDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
+                        std::string &Type, std::string &IType,
+                        bool &RewriteParm, bool &RewriteRet);
+  void buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
+                      std::string &Type, std::string &IType,
+                      bool &RewriteParm, bool &RewriteRet);
 };
 
 class FieldFinder : public RecursiveASTVisitor<FieldFinder> {
