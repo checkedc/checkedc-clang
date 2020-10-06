@@ -29,4 +29,9 @@ extern bool AddCheckedRegions;
 extern bool WarnRootCause;
 extern bool WarnAllRootCause;
 
+#ifdef FIVE_C
+extern bool RemoveItypes;
+extern bool ForceItypes;
+#endif
+
 #endif //_CCGLOBALOPTIONS_H

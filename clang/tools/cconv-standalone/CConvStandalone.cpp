@@ -115,6 +115,18 @@ static cl::opt<bool> OptWarnAllRootCause
               "even those unlikely to be interesting."),
      cl::init(false), cl::cat(ConvertCategory));
 
+#ifdef FIVE_C
+static cl::opt<bool> OptRemoveItypes
+    ("remove-itypes",
+     cl::desc("Remove unneeded interoperation type annotations."),
+     cl::init(false), cl::cat(ConvertCategory));
+
+static cl::opt<bool> OptForceItypes
+    ("force-itypes",
+     cl::desc("Use interoperation types instead of regular checked pointers. "),
+     cl::init(false), cl::cat(ConvertCategory));
+#endif
+
 int main(int argc, const char **argv) {
   sys::PrintStackTraceOnErrorSignal(argv[0]);
 
@@ -144,6 +156,12 @@ int main(int argc, const char **argv) {
   CcOptions.DisableCCTypeChecker = OptDiableCCTypeChecker;
   CcOptions.WarnRootCause = OptWarnRootCause;
   CcOptions.WarnAllRootCause = OptWarnAllRootCause;
+
+#ifdef FIVE_C
+  CcOptions.RemoveItypes = OptRemoveItypes;
+  CcOptions.ForceItypes = OptForceItypes;
+#endif
+
   //Add user specified function allocators
   std::string Malloc = OptMalloc.getValue();
   if (!Malloc.empty()) {

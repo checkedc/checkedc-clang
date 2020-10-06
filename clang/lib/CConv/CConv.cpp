@@ -55,6 +55,10 @@ bool WarnRootCause;
 bool WarnAllRootCause;
 std::set<std::string> FilePaths;
 
+#ifdef FIVE_C
+bool RemoveItypes;
+bool ForceItypes;
+#endif
 
 static ClangTool *GlobalCTool = nullptr;
 
@@ -190,6 +194,11 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
   AllocatorFunctions = CCopt.AllocatorFunctions;
   WarnRootCause = CCopt.WarnRootCause || CCopt.WarnAllRootCause;
   WarnAllRootCause = CCopt.WarnAllRootCause;
+
+#ifdef FIVE_C
+  RemoveItypes = CCopt.RemoveItypes;
+  ForceItypes = CCopt.ForceItypes;
+#endif
 
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();
