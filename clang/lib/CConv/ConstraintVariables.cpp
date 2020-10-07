@@ -589,7 +589,7 @@ PointerVariableConstraint::mkString(const EnvironmentMap &E,
   bool AllArrays = true;
   // Are we in a sequence of arrays
   bool ArrayRun = false;
-  if ((EmitName == false && hasItype() == false) || getName() == RETVAR)
+  if (!EmitName || getName() == RETVAR)
     EmittedName = true;
   uint32_t TypeIdx = 0;
 
@@ -635,14 +635,11 @@ PointerVariableConstraint::mkString(const EnvironmentMap &E,
         // is constrained by a bounds safe interface. If it is,
         // then we shouldn't re-write it.
         AllArrays = false;
-        if (hasItype() == false) {
-          EmittedBase = false;
-          Ss << "_Ptr<";
-          ArrayRun = false;
-          EndStrs.push_front(">");
-          break;
-        }
-        LLVM_FALLTHROUGH;
+        EmittedBase = false;
+        Ss << "_Ptr<";
+        ArrayRun = false;
+        EndStrs.push_front(">");
+        break;
     case Atom::A_Arr:
         // If this is an array.
         getQualString(TypeIdx, Ss);
@@ -655,13 +652,10 @@ PointerVariableConstraint::mkString(const EnvironmentMap &E,
         // We need to check and see if this level of variable
         // is constrained by a bounds safe interface. If it is,
         // then we shouldn't re-write it.
-        if (hasItype() == false) {
-          EmittedBase = false;
-          Ss << "_Array_ptr<";
-          EndStrs.push_front(">");
-          break;
-        }
-        LLVM_FALLTHROUGH;
+        EmittedBase = false;
+        Ss << "_Array_ptr<";
+        EndStrs.push_front(">");
+        break;
       case Atom::A_NTArr:
 
         if (emitArraySize(CheckedArrs, TypeIdx, AllArrays, ArrayRun, true))
@@ -674,12 +668,10 @@ PointerVariableConstraint::mkString(const EnvironmentMap &E,
           // We need to check and see if this level of variable
           // is constrained by a bounds safe interface. If it is,
           // then we shouldn't re-write it.
-          if (hasItype() == false) {
-            EmittedBase = false;
-            Ss << "_Nt_array_ptr<";
-            EndStrs.push_front(">");
-            break;
-          }
+          EmittedBase = false;
+          Ss << "_Nt_array_ptr<";
+          EndStrs.push_front(">");
+          break;
         }
         LLVM_FALLTHROUGH;
       // If there is no array in the original program, then we fall through to

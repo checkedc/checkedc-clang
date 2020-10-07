@@ -18,7 +18,10 @@
 #include <sstream>
 #include "clang/CConv/StructInit.h"
 #include "clang/CConv/MappingVisitor.h"
-#include "clang/AST/RecursiveASTVisitor.h"
+
+#ifdef FIVE_C
+#include <clang/CConv/DeclRewriter_5C.h>
+#endif
 
 using namespace llvm;
 using namespace clang;
@@ -33,12 +36,21 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
   // Collect function and record declarations that need to be rewritten in a set
   // as well as their rewriten types in a map.
   RSet RewriteThese(DComp(Context.getSourceManager()));
-  FunctionDeclBuilder TRV = FunctionDeclBuilder(&Context, Info, RewriteThese,
-                                                NewFuncSig, ABRewriter);
+
+  FunctionDeclBuilder *TRV = nullptr;
+#ifdef FIVE_C
+  auto TRV_5C = FunctionDeclBuilder_5C(&Context, Info, RewriteThese, NewFuncSig,
+                                       ABRewriter);
+  TRV = &TRV_5C;
+#else
+  auto TRV_3C = FunctionDeclBuilder(&Context, Info, RewriteThese, NewFuncSig,
+                                    ABRewriter);
+  TRV = &TRV_3C;
+#endif
   StructVariableInitializer SVI = StructVariableInitializer(&Context, Info,
                                                             RewriteThese);
   for (const auto &D : Context.getTranslationUnitDecl()->decls()) {
-    TRV.TraverseDecl(D);
+    TRV->TraverseDecl(D);
     SVI.TraverseDecl(D);
   }
 
@@ -89,7 +101,7 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
         else
           llvm_unreachable("Unrecognized declaration type.");
       } else if (FV && NewFuncSig.find(FV->getName()) != NewFuncSig.end()
-          && !TRV.isFunctionVisited(FV->getName())) {
+          && !TRV->isFunctionVisited(FV->getName())) {
         auto *FD = cast<FunctionDecl>(D);
         // TODO: I don't think this branch is ever reached. Either remove it or
         //       add a test case that reaches it.
@@ -446,7 +458,6 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   // that we shouldn't make one of these visits again.
 
   auto FuncName = FD->getNameAsString();
-  auto &CS = Info.getConstraints();
 
   // Do we have a definition for this function?
   FunctionDecl *Definition = getDefinition(FD);
@@ -470,8 +481,12 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
 
   // DidAnyParams tracks if we have made any changes to the parameters for this
   // declarations. If no changes are made, then there is no need to rewrite the
-  // parameter declarations.
-  bool DidAnyParams = false;
+  // parameter declarations. This will also be set to true if an itype is added
+  // to the return, since return itypes are inserted afters params.
+  bool RewriteParams = false;
+  // Does the same job as RewriteParams, but with respect to the return value.
+  // If the return does not change, there is no need to rewrite it.
+  bool RewriteReturn = false;
 
   // Get rewritten parameter variable declarations
   std::vector<std::string> ParmStrs;
@@ -480,108 +495,41 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     assert(Defn);
 
     ParmVarDecl *PVDecl = Definition->getParamDecl(I);
-    if (isAValidPVConstraint(Defn) && Defn->anyChanges(CS.getVariables())) {
-      // This means Defn has a checked type, so we should rewrite to use this
-      // type with an itype if applicable.
-      DidAnyParams = true;
-
-      if (Defn->hasItype() || !Defn->anyArgumentIsWild(CS.getVariables())) {
-        // If the definition already has itype or there are no WILD arguments.
-        // New parameter declaration is the checked type plus any itype or array
-        // bounds.
-        std::string PtypeS =
-            Defn->mkString(Info.getConstraints().getVariables());
-        PtypeS = PtypeS + getExistingIType(Defn) +
-            ABRewriter.getBoundsString(Defn, PVDecl);
-        ParmStrs.push_back(PtypeS);
-      } else {
-        // Here, definition is checked type but at least one of the arguments
-        // is WILD. We use the original type for the parameter, but also add an
-        // itype.
-        std::string PtypeS =
-            Defn->mkString(Info.getConstraints().getVariables(), false, true);
-        std::string Bi =
-            Defn->getRewritableOriginalTy() + Defn->getName() + " : itype(" +
-                PtypeS + ")" + ABRewriter.getBoundsString(Defn, PVDecl, true);
-        ParmStrs.push_back(Bi);
-      }
-    } else {
-      // When parameter isn't checked, we just dump the original declaration.
-      ParmStrs.push_back(getSourceText(PVDecl->getSourceRange(), *Context));
-    }
+    std::string Type, IType;
+    this->buildDeclVar(Defn, PVDecl, Type, IType, RewriteParams, RewriteReturn);
+    ParmStrs.push_back(Type + IType);
   }
-
 
   if (Defnc->numParams() == 0) {
     ParmStrs.push_back("void");
     QualType ReturnTy = FD->getReturnType();
     QualType Ty = FD->getType();
     if (!Ty->isFunctionProtoType() && ReturnTy->isPointerType())
-      DidAnyParams = true;
+      RewriteParams = true;
   }
 
   // Get rewritten return variable
   auto *Defn = dyn_cast<PVConstraint>(Defnc->getReturnVar());
-
-  std::string ReturnVar = "";
-  std::string ItypeStr = "";
-  bool GeneratedRetIType = false;
-
-  // Does the same job as DidAnyParams, but with respect to the return value. If
-  // the return does not change, there is no need to rewrite it.
-  bool DidAnyReturn = false;
-
-  // Insert a bounds safe interface for the return.
-  if (isAValidPVConstraint(Defn) && Defn->anyChanges(CS.getVariables())) {
-    // This means we can infer that the return type is a checked type.
-    DidAnyReturn = true;
-    // If the definition has itype or there is no argument which is WILD?
-    if (Defn->hasItype() || !Defn->anyArgumentIsWild(CS.getVariables())) {
-      // Just get the checked itype
-      ReturnVar = Defn->mkString(Info.getConstraints().getVariables());
-      ItypeStr = getExistingIType(Defn);
-    } else {
-      // One of the argument is WILD, emit an itype.
-      std::string Itype =
-          Defn->mkString(Info.getConstraints().getVariables(), false, true);
-      ReturnVar = Defn->getRewritableOriginalTy();
-      ItypeStr = " : itype(" + Itype + ")";
-      GeneratedRetIType = true;
-
-      // A small hack here. The inserted itype comes after param declarations,
-      // so we have to rewrite the parameters if we want to insert an itype.
-      DidAnyParams = true;
-    }
-  } else {
-    // This means inside the function, the return value is WILD so the return
-    // type is what was originally declared.
-    ReturnVar = Defn->getOriginalTy() + " ";
-    // If this there is already a bounds safe interface, keep using it.
-    ItypeStr = getExistingIType(Defn);
-  }
+  std::string ReturnVar, ItypeStr;
+  this->buildDeclVar(Defn, FD, ReturnVar, ItypeStr, RewriteParams, RewriteReturn);
 
   // If the return is a function pointer, we need to rewrite the whole
   // declaration even if no actual changes were made to the parameters. It could
   // probably be done better, but getting the correct source locations is
   // painful.
-  if (FD->getReturnType()->isFunctionPointerType() && DidAnyReturn)
-    DidAnyParams = true;
+  if (FD->getReturnType()->isFunctionPointerType() && RewriteReturn)
+    RewriteParams = true;
 
   // Combine parameter and return variables rewritings into a single rewriting
   // for the entire function declaration.
   std::string NewSig = "";
-  if (DidAnyReturn)
+  if (RewriteReturn)
     NewSig = getStorageQualifierString(Definition) + ReturnVar;
 
-  // We need to rewrite params if there is a bounds strings for
-  // the return too.
-  DidAnyParams = DidAnyParams ||
-                 ABRewriter.hasNewBoundsString(Defn, FD, GeneratedRetIType);
-
-  if (DidAnyReturn && DidAnyParams)
+  if (RewriteReturn && RewriteParams)
     NewSig += Defnc->getName();
 
-  if (DidAnyParams && !ParmStrs.empty()) {
+  if (RewriteParams && !ParmStrs.empty()) {
     // Gather individual parameter strings into a single buffer
     std::ostringstream ConcatParamStr;
     copy(ParmStrs.begin(), ParmStrs.end() - 1,
@@ -597,15 +545,11 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   if (!ItypeStr.empty())
     NewSig = NewSig + ItypeStr;
 
-  if (ItypeStr.empty() || GeneratedRetIType) {
-    NewSig = NewSig + ABRewriter.getBoundsString(Defn, FD, GeneratedRetIType);
-  }
-
   // Add new declarations to RewriteThese if it has changed
-  if (DidAnyReturn || DidAnyParams) {
+  if (RewriteReturn || RewriteParams) {
     for (auto *const RD : Definition->redecls())
-      RewriteThese.insert(new FunctionDeclReplacement(RD, NewSig, DidAnyReturn,
-                                                      DidAnyParams));
+      RewriteThese.insert(new FunctionDeclReplacement(RD, NewSig, RewriteReturn,
+                                                      RewriteParams));
     // Save the modified function signature.
     if(FD->isStatic()) {
       auto FileName = PersistentSourceLoc::mkPSL(FD, *Context).getFileName();
@@ -615,6 +559,62 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   }
 
   return true;
+}
+
+void FunctionDeclBuilder::buildCheckedDecl(PVConstraint *Defn,
+                                           DeclaratorDecl *Decl,
+                                           std::string &Type,
+                                           std::string &IType,
+                                           bool &RewriteParm,
+                                           bool &RewriteRet) {
+  Type = Defn->mkString(Info.getConstraints().getVariables());
+  IType = getExistingIType(Defn);
+  IType += ABRewriter.getBoundsString(Defn, Decl, !IType.empty());
+  RewriteParm |= !IType.empty() || isa<ParmVarDecl>(Decl);
+  RewriteRet |= isa<FunctionDecl>(Decl);
+  return;
+}
+
+void FunctionDeclBuilder::buildItypeDecl(PVConstraint *Defn,
+                                         DeclaratorDecl *Decl,
+                                         std::string &Type,
+                                         std::string &IType,
+                                         bool &RewriteParm,
+                                         bool &RewriteRet) {
+  Type = Defn->getRewritableOriginalTy();
+  if (isa<ParmVarDecl>(Decl))
+    Type += Defn->getName();
+  IType = " : itype("
+      + Defn->mkString(Info.getConstraints().getVariables(), false, true) + ")"
+      + ABRewriter.getBoundsString(Defn, Decl, true);
+  RewriteParm = true;
+  RewriteRet |= isa<FunctionDecl>(Decl);
+  return;
+}
+
+void FunctionDeclBuilder::buildDeclVar(PVConstraint *Defn, DeclaratorDecl *Decl,
+                                       std::string &Type, std::string &IType,
+                                       bool &RewriteParm, bool &RewriteRet) {
+  const auto &Env = Info.getConstraints().getVariables();
+  if (isAValidPVConstraint(Defn) && Defn->isChecked(Env)) {
+    if (Defn->anyChanges(Env) && !Defn->anyArgumentIsWild(Env)) {
+      buildCheckedDecl(Defn, Decl, Type, IType, RewriteParm, RewriteRet);
+      return;
+    } else if (Defn->anyChanges(Env)) {
+      buildItypeDecl(Defn, Decl, Type, IType, RewriteParm, RewriteRet);
+      return;
+    }
+  }
+  // Variables that do not need to be rewritten fall through to here. Type
+  // strings are taken unchanged from the original source.
+  if (isa<ParmVarDecl>(Decl)) {
+    Type = getSourceText(Decl->getSourceRange(), *Context);
+    IType = "";
+  } else {
+    Type = Defn->getOriginalTy() + " ";
+    IType =
+        getExistingIType(Defn) + ABRewriter.getBoundsString(Defn, Decl, false);
+  }
 }
 
 std::string FunctionDeclBuilder::getExistingIType(ConstraintVariable *DeclC) {

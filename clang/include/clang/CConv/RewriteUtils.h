@@ -123,8 +123,10 @@ public:
 
     // If rewriting Parameters, stop at the right parenthesis of the parameters.
     // Otherwise, stop after the return type.
+    // Note: getFunctionDeclarationEnd is used instead of getRParenLoc so that
+    // itypes are deleted correctly when --remove-itypes is used.
     SourceLocation End = RewriteParams ?
-        TypeLoc.getRParenLoc() :
+        getFunctionDeclarationEnd(Decl, SM) :
         Decl->getReturnTypeSourceRange().getEnd();
 
     assert("Invalid FunctionDeclReplacement SourceRange!"

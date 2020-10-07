@@ -3,6 +3,9 @@ set( LLVM_LINK_COMPONENTS
   Option
   Support
   )
+if (FIVE_C)
+  add_compile_definitions(FIVE_C)
+endif()
 add_clang_executable(cconv-standalone
   CConvStandalone.cpp
   )

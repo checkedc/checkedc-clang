@@ -55,6 +55,11 @@ struct CConvertOptions {
   bool WarnRootCause;
 
   bool WarnAllRootCause;
+
+#ifdef FIVE_C
+  bool RemoveItypes;
+  bool ForceItypes;
+#endif
 };
 
 // The main interface exposed by the CConv to interact with the tool.
