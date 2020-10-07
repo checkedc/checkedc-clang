@@ -289,7 +289,10 @@ void PreorderAST::Normalize() {
     ConstantFold(Root, Changed);
   }
 
-  PrettyPrint(Root);
+  if (Ctx.getLangOpts().DumpPreorderAST) {
+    PrettyPrint(Root);
+    OS << "--------------------------------------\n";
+  }
 }
 
 void PreorderAST::PrettyPrint(Node *N) {
