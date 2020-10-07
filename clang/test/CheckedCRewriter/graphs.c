@@ -337,13 +337,14 @@ void printGraph(struct Graph* graph)
 
     {
 	//CHECK_NOALL: {
-	//CHECK_ALL:     _Unchecked {
+	//CHECK_ALL:     {
 
         struct node* temp = graph->adjLists[v];
 	//CHECK_NOALL: struct node* temp = graph->adjLists[v];
 	//CHECK_ALL:         _Ptr<struct node> temp =  graph->adjLists[v];
 
         printf("\n Adjacency list of vertex %d\n ", v);
+        //CHECK_ALL: _Unchecked { printf("\n Adjacency list of vertex %d\n ", v); };
 
         while (temp)
 

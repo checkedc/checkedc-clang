@@ -68,6 +68,9 @@ public:
   static
   PersistentSourceLoc mkPSL(const clang::Stmt *S, clang::ASTContext &Context);
 
+  static
+  PersistentSourceLoc mkPSL(const clang::Expr *E, clang::ASTContext &Context);
+
 private:
   // Create a PersistentSourceLoc based on absolute file path
   // from the given SourceRange and SourceLocation.

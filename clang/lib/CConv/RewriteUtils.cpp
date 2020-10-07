@@ -342,7 +342,7 @@ std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
   // For itype we do not want to add a second ":".
   std::string Pfix = Isitype ? " " : " : ";
 
-  if (ValidBKey) {
+  if (ValidBKey && !PV->hasSomeSizedArr()) {
     ABounds *ArrB = ABInfo.getBounds(DK);
     // Only we we have bounds and no pointer arithmetic on the variable.
     if (ArrB != nullptr && !ABInfo.hasPointerArithmetic(DK)) {
@@ -355,6 +355,13 @@ std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
     BString = Pfix + PV->getBoundsStr();
   }
   return BString;
+}
+
+bool ArrayBoundsRewriter::hasNewBoundsString(PVConstraint *PV, Decl *D,
+                                             bool Isitype) {
+  std::string BStr = getBoundsString(PV, D, Isitype);
+  // There is a bounds string but has nothing declared?
+  return !BStr.empty() && !PV->hasBoundsStr();
 }
 
 std::set<PersistentSourceLoc *> RewriteConsumer::EmittedDiagnostics;
@@ -404,7 +411,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   // Take care of some other rewriting tasks
   std::set<llvm::FoldingSetNodeID> Seen;
   std::map<llvm::FoldingSetNodeID, AnnotationNeeded> NodeMap;
-  CheckedRegionFinder CRF(&Context, R, Info, Seen, NodeMap);
+  CheckedRegionFinder CRF(&Context, R, Info, Seen, NodeMap, WarnRootCause);
   CheckedRegionAdder CRA(&Context, R, NodeMap);
   CastPlacementVisitor ECPV(&Context, Info, R);
   TypeExprRewriter TER(&Context, Info, R);

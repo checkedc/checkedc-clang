@@ -49,8 +49,8 @@ jobs:
       - name: Checkout our repository
         uses: actions/checkout@v2
         with:
-          repository: plum-umd/checkedc-clang
-          ref: BigRefactor
+          repository: correctcomputation/checkedc-clang
+          ref: master
           path: depsfolder/checkedc-clang
 
       # clone Checked C headers
@@ -114,8 +114,8 @@ jobs:
       - name: Checkout our repository
         uses: actions/checkout@v2
         with:
-          repository: plum-umd/checkedc-clang
-          ref: BigRefactor
+          repository: correctcomputation/checkedc-clang
+          ref: master
           path: depsfolder/checkedc-clang
 
       # clone Checked C headers

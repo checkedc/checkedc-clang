@@ -173,13 +173,20 @@ enum ConsAction {
 void constrainConsVarGeq(const std::set<ConstraintVariable *> &LHS,
                          const std::set<ConstraintVariable *> &RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
-                         ConsAction CA, bool doEqType, ProgramInfo *Info);
+                         ConsAction CA, bool doEqType,
+                         ProgramInfo *Info,
+                         bool HandleBoundsKey = true);
 void constrainConsVarGeq(ConstraintVariable *LHS, const CVarSet &RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
-                         ConsAction CA, bool doEqType, ProgramInfo *Info);
-void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
+                         ConsAction CA, bool doEqType,
+                         ProgramInfo *Info,
+                         bool HandleBoundsKey = true);
+void constrainConsVarGeq(ConstraintVariable *LHS,
+                         ConstraintVariable *RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
-                         ConsAction CA, bool doEqType, ProgramInfo *Info);
+                         ConsAction CA, bool doEqType,
+                         ProgramInfo *Info,
+                         bool HandleBoundsKey = true);
 
 // True if [C] is a PVConstraint that contains at least one Atom (i.e.,
 //   it represents a C pointer)
@@ -290,6 +297,8 @@ public:
   bool getArrPresent() const { return ArrPresent; }
   // Check if the outermost pointer is an unsized array.
   bool isTopCvarUnsizedArr() const;
+  // Check if any of the pointers is either a sized or unsized arr.
+  bool hasSomeSizedArr() const;
 
   // Is an itype present for this constraint? If yes,
   // what is the text of that itype?
