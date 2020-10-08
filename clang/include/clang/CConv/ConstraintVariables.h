@@ -204,7 +204,8 @@ public:
       RestrictQualification
   };
 
-  static PointerVariableConstraint *getWildPVConstraint(Constraints &CS);
+  static PointerVariableConstraint *
+  getWildPVConstraint(Constraints &CS, const std::string &Rsn);
   static PointerVariableConstraint *getPtrPVConstraint(Constraints &CS);
   static PointerVariableConstraint *getNonPtrPVConstraint(Constraints &CS);
   static PointerVariableConstraint *getNamedNonPtrPVConstraint(StringRef name, Constraints &CS);

@@ -463,9 +463,11 @@ CVarSet
                 }
               }
             }
-            if (!didInsert)
+            if (!didInsert) {
+              std::string Rsn = "Unsafe call to allocator function.";
               ReturnCVs.insert(
-                  PVConstraint::getWildPVConstraint(Info.getConstraints()));
+                PVConstraint::getWildPVConstraint(Info.getConstraints(), Rsn));
+            }
 
             /* Normal function call */
           } else {
@@ -667,18 +669,12 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
   }
 }
 
-CVarSet ConstraintResolver::getWildPVConstraint() {
-  CVarSet Ret;
-  Ret.insert(PVConstraint::getWildPVConstraint(Info.getConstraints()));
-  return Ret;
-}
-
 CVarSet ConstraintResolver::PVConstraintFromType(QualType TypE) {
+  assert("Pointer type CVs should be obtained through getExprConstraintVars." &&
+         !TypE->isPointerType());
   CVarSet Ret;
   if (TypE->isRecordType() || TypE->isArithmeticType())
     Ret.insert(PVConstraint::getNonPtrPVConstraint(Info.getConstraints()));
-  else if (TypE->isPointerType())
-    Ret.insert(PVConstraint::getWildPVConstraint(Info.getConstraints()));
   else
     llvm::errs() << "Warning: Returning non-base, non-wild type";
   return Ret;

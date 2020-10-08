@@ -43,16 +43,14 @@ bool ConstraintVariable::isChecked(const EnvironmentMap &E) const {
 }
 
 PointerVariableConstraint *
-PointerVariableConstraint::getWildPVConstraint(Constraints &CS) {
-  static PointerVariableConstraint *GlobalWildPV = nullptr;
-  if (GlobalWildPV == nullptr) {
-    CAtoms NewVA;
-    NewVA.push_back(CS.getWild());
-    GlobalWildPV =
-        new PVConstraint(NewVA, "unsigned", "wildvar", nullptr,
-                         false, false, "");
-  }
-  return GlobalWildPV;
+PointerVariableConstraint::getWildPVConstraint(Constraints &CS,
+                                               const std::string &Rsn) {
+  VarAtom *VA = CS.getFreshVar("wildvar", VarAtom::V_Other);
+  CS.addConstraint(CS.createGeq(VA, CS.getWild(), Rsn, true));
+  CAtoms NewAtoms = {VA};
+  PVConstraint *WildPVC = new PVConstraint(NewAtoms, "unsigned", "wildvar",
+                                           nullptr, false, false, "");
+  return WildPVC;
 }
 
 PointerVariableConstraint *

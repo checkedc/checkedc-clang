@@ -39,9 +39,12 @@ void test1() {
   void (*c)(void);
   c++;
   // CHECK-DAG: Pointer arithmetic performed on a function pointer
+
+  int *d = malloc(1);
+  // CHECK-DAG: Unsafe call to allocator function
 }
 
 extern int *glob;
 // CHECK-DAG: External global variable glob has no definition
 
-// CHECK-DAG: 9 warnings generated.
+// CHECK-DAG: 10 warnings generated.
