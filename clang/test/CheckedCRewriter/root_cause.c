@@ -28,6 +28,20 @@ void test1() {
   int *b;
   b = malloc(sizeof(int));
   b[0] = 1;
+
+  union u {
+    int *a;
+    // CHECK-DAG: External struct field or union encountered
+    int *b;
+    // CHECK-DAG: External struct field or union encountered
+  };
+
+  void (*c)(void);
+  c++;
+  // CHECK-DAG: Pointer arithmetic performed on a function pointer
 }
 
-// CHECK-DAG: 4 warnings generated.
+extern int *glob;
+// CHECK-DAG: External global variable glob has no definition
+
+// CHECK-DAG: 9 warnings generated.
