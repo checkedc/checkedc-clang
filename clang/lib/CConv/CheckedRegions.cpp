@@ -158,6 +158,7 @@ bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
     int NumChilds = 0;
     for (const auto &child : Parent->children()) {
       NumChilds++;
+      (void) child;
     }
     return NumChilds > 1;
   } else {

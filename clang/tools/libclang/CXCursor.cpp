@@ -718,6 +718,7 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
     break;
   case Stmt::BuiltinBitCastExprClass:
     K = CXCursor_BuiltinBitCastExpr;
+    break;
 
   // For now, do not expose Checked C extensions.
   case Stmt::PositionalParameterExprClass:
