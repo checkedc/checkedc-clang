@@ -371,7 +371,7 @@ std::set<std::tuple<std::string, int, int>> RewriteConsumer::EmittedDiagnostics;
 void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
   clang::DiagnosticsEngine &DE = Context.getDiagnostics();
   unsigned ID = DE.getCustomDiagID(DiagnosticsEngine::Warning,
-                                   "Root cause of unchecked pointers: %0");
+                                   "Root cause for %0 unchecked pointer%s0: %1");
   auto I = Info.getInterimConstraintState();
   SourceManager &SM = Context.getSourceManager();
   for (auto &WReason : I.RealWildPtrsWithReasons) {
@@ -391,7 +391,7 @@ void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
     auto Location = std::make_tuple(FileName, Line, Column);
 
     if (EmittedDiagnostics.find(Location) == EmittedDiagnostics.end()) {
-      // Convert the file/line/column tripple into a clang::SourceLocation that
+      // Convert the file/line/column triple into a clang::SourceLocation that
       // can be used with the DiagnosticsEngine.
       const auto *File = SM.getFileManager().getFile(FileName);
       if (File != nullptr) {
@@ -399,12 +399,14 @@ void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
         // Limit emitted root causes to those that effect more than one pointer
         // or are in the main file of the TU. Alternatively, don't filter causes
         // if -warn-all-root-cause is passed.
-        if (WarnAllRootCause || SM.isInMainFile(SL)
-            || I.GetSrcCVars(WReason.first).size() > 1) {
+        int PtrCount = I.GetSrcCVars(WReason.first).size();
+        if (WarnAllRootCause || SM.isInMainFile(SL) || PtrCount > 1) {
           // SL is invalid when the File is not in the current translation unit.
           if (SL.isValid()) {
             EmittedDiagnostics.insert(Location);
             auto DiagBuilder = DE.Report(SL, ID);
+            DiagBuilder.AddTaggedVal(PtrCount,
+                                     DiagnosticsEngine::ArgumentKind::ak_uint);
             DiagBuilder.AddString(WReason.second.WildPtrReason);
           }
         }
