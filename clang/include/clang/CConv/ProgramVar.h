@@ -215,6 +215,17 @@ public:
                       const PersistentSourceLoc &CtxPSL) :
     FunctionParamScope(FN, IsSt) {
     PSL = CtxPSL;
+    std::string FileName = PSL.getFileName();
+    CtxIDStr = "";
+    if (!FileName.empty()) {
+      llvm::sys::fs::UniqueID UId;
+      if (llvm::sys::fs::getUniqueID(FileName, UId)) {
+        CtxIDStr = std::to_string(UId.getDevice()) + ":" +
+                   std::to_string(UId.getFile()) + ":";
+      }
+    }
+    CtxIDStr += std::to_string(PSL.getLineNo()) + ":" +
+                std::to_string(PSL.getColSNo());
     this->Kind = CtxFunctionArgScopeKind;
   }
 
@@ -261,7 +272,7 @@ public:
   }
 
   std::string getStr() const {
-    return "CtxFuncArg_" + FName;
+    return FName + "_Ctx_" + CtxIDStr;
   }
 
   static const CtxFunctionArgScope *
@@ -270,7 +281,7 @@ public:
 
 private:
   PersistentSourceLoc PSL;
-
+  std::string CtxIDStr;
   static std::set<CtxFunctionArgScope, PVSComp> AllCtxFnArgScopes;
 };
 

@@ -823,7 +823,7 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
           }
         }
       }
-    } else if (IsFuncRet) {
+    } else {
       // If this is a function return we should have bounds from all
       // neighbours.
       ErrorOccurred = true;
