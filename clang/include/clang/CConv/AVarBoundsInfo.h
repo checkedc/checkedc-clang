@@ -100,6 +100,7 @@ public:
   // Clear all possible inferred bounds for all the BoundsKeys
   void clearInferredBounds() {
     CurrIterInferBounds.clear();
+    BKsFailedFlowInference.clear();
   }
 
   // Infer bounds for the given key from the set of given ARR atoms.
@@ -143,11 +144,14 @@ private:
 
   // Potential Bounds for each bounds key inferred for the current iteration.
   std::map<BoundsKey, BndsKindMap> CurrIterInferBounds;
+  // BoundsKey that failed the flow inference.
+  std::set<BoundsKey> BKsFailedFlowInference;
 };
 
 class AVarBoundsInfo {
 public:
-  AVarBoundsInfo() : ProgVarGraph(this), CtxSensProgVarGraph(this) {
+  AVarBoundsInfo() : ProgVarGraph(this), CtxSensProgVarGraph(this),
+                     RevCtxSensProgVarGraph(this) {
     BCount = 1;
     PVarInfo.clear();
     InProgramArrPtrBoundsKeys.clear();
@@ -300,9 +304,11 @@ private:
 
   // Graph of all program variables.
   AVarGraph ProgVarGraph;
-  // Graph that contains only edges between context-sensitive
-  // BoundsKey and corresponding original BoundsKey.
+  // Graph that contains only edges from normal BoundsKey to
+  // context-sensitive BoundsKey.
   AVarGraph CtxSensProgVarGraph;
+  // Same as above but in the reverse direction.
+  AVarGraph RevCtxSensProgVarGraph;
   // Stats on techniques used to find length for various variables.
   AVarBoundsStats BoundsInferStats;
   // This is the map of pointer variable bounds key and set of bounds key
@@ -345,12 +351,10 @@ private:
   bool keepHighestPriorityBounds(std::set<BoundsKey> &ArrPtrs);
 
   // Perform worklist based inference on the requested array variables using
-  // the provided graph.
-  // The flag FromPB requests the algorithm to use potential length variables.
+  // the provided graph and potential length variables.
   bool performWorkListInference(const std::set<BoundsKey> &ArrNeededBounds,
                                 AVarGraph &BKGraph,
-                                AvarBoundsInference &BI,
-                                bool FromPB = false);
+                                AvarBoundsInference &BI);
 
   void insertParamKey(ParamDeclType ParamDecl, BoundsKey NK);
 };

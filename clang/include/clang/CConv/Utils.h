@@ -124,6 +124,9 @@ bool isFunctionAllocator(std::string FuncName);
 // Is the given variable built  in type?
 bool isPointerType(clang::ValueDecl *VD);
 
+// Is this a pointer or array type?
+bool isPtrOrArrayType(const clang::QualType &QT);
+
 // Check if provided type is a var arg type?
 bool isVarArgType(const std::string &TypeName);
 

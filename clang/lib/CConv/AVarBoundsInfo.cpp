@@ -240,7 +240,7 @@ BoundsKey AVarBoundsInfo::getVariable(clang::VarDecl *VD) {
     assert(PVS != nullptr && "Context not null");
     auto *PVar = ProgramVar::createNewProgramVar(NK, VD->getNameAsString(), PVS);
     insertProgramVar(NK, PVar);
-    if (VD->getType()->isPointerType())
+    if (isPtrOrArrayType(VD->getType()))
       PointerBoundsKey.insert(NK);
   }
   return getVarKey(PSL);
@@ -268,7 +268,7 @@ BoundsKey AVarBoundsInfo::getVariable(clang::ParmVarDecl *PVD) {
     auto *PVar = ProgramVar::createNewProgramVar(NK, ParamName, FPS);
     insertProgramVar(NK, PVar);
     insertParamKey(ParamKey, NK);
-    if (PVD->getType()->isPointerType())
+    if (isPtrOrArrayType(PVD->getType()))
       PointerBoundsKey.insert(NK);
   }
   return ParamDeclVarMap.left().at(ParamKey);
@@ -289,7 +289,7 @@ BoundsKey AVarBoundsInfo::getVariable(clang::FunctionDecl *FD) {
     auto *PVar = ProgramVar::createNewProgramVar(NK, FD->getNameAsString(), FPS);
     insertProgramVar(NK, PVar);
     FuncDeclVarMap.insert(FuncKey, NK);
-    if (FD->getReturnType()->isPointerType())
+    if (isPtrOrArrayType(FD->getReturnType()))
       PointerBoundsKey.insert(NK);
   }
   return FuncDeclVarMap.left().at(FuncKey);
@@ -305,7 +305,7 @@ BoundsKey AVarBoundsInfo::getVariable(clang::FieldDecl *FD) {
     const StructScope *SS = StructScope::getStructScope(StName);
     auto *PVar = ProgramVar::createNewProgramVar(NK, FD->getNameAsString(), SS);
     insertProgramVar(NK, PVar);
-    if (FD->getType()->isPointerType())
+    if (isPtrOrArrayType(FD->getType()))
       PointerBoundsKey.insert(NK);
   }
   return getVarKey(PSL);
@@ -551,8 +551,7 @@ void AVarBoundsInfo::insertProgramVar(BoundsKey NK, ProgramVar *PV) {
 bool hasArray(ConstraintVariable *CK, Constraints &CS) {
   auto &E = CS.getVariables();
   if (PVConstraint *PV = dyn_cast<PVConstraint>(CK)) {
-    if ((PV->hasArr(E, 0) || PV->hasNtArr(E, 0)) &&
-        PV->isTopCvarUnsizedArr()) {
+    if (PV->hasArr(E, 0) || PV->hasNtArr(E, 0)) {
       return true;
     }
   }
@@ -563,7 +562,7 @@ bool isInSrcArray(ConstraintVariable *CK, Constraints &CS) {
   auto &E = CS.getVariables();
   if (PVConstraint *PV = dyn_cast<PVConstraint>(CK)) {
     if ((PV->hasArr(E, 0) || PV->hasNtArr(E, 0)) &&
-        PV->isTopCvarUnsizedArr() && PV->isForValidDecl()) {
+         PV->isForValidDecl()) {
       return true;
     }
   }
@@ -647,11 +646,11 @@ AvarBoundsInference::
 bool
 AvarBoundsInference::convergeInferredBounds() {
   bool FoundSome = false;
-  for (auto &InfABnds : CurrIterInferBounds) {
-    auto *AB = BI->getBounds(InfABnds.first);
+  for (auto &CInfABnds : CurrIterInferBounds) {
+    auto *AB = BI->getBounds(CInfABnds.first);
     // If there are no bounds?
     if (AB == nullptr) {
-      auto &BTypeMap = InfABnds.second;
+      auto BTypeMap = CInfABnds.second;
       for (auto &TySet : BTypeMap) {
         mergeReachableProgramVars(TySet.second);
       }
@@ -667,9 +666,11 @@ AvarBoundsInference::convergeInferredBounds() {
       // If we found any bounds?
       if (AB != nullptr) {
         // Record that we inferred bounds using data-flow.
-        BI->BoundsInferStats.DataflowMatch.insert(InfABnds.first);
-        BI->replaceBounds(InfABnds.first, BoundsPriority::FlowInferred, AB);
+        BI->BoundsInferStats.DataflowMatch.insert(CInfABnds.first);
+        BI->replaceBounds(CInfABnds.first, BoundsPriority::FlowInferred, AB);
         FoundSome = true;
+      } else {
+        BKsFailedFlowInference.insert(CInfABnds.first);
       }
     }
   }
@@ -732,15 +733,17 @@ bool AvarBoundsInference::getRelevantBounds(BoundsKey BK,
   // If this pointer is used in pointer arithmetic then there
   // are no relevant bounds for this pointer.
   if (!BI->hasPointerArithmetic(BK)) {
-    auto *PrevBounds = BI->getBounds(BK);
-    // Does the parent arr has bounds?
-    if (PrevBounds != nullptr) {
-      ResBounds[PrevBounds->getKind()].insert(PrevBounds->getBKey());
-      HasBounds = true;
-    } else if (CurrIterInferBounds.find(BK) != CurrIterInferBounds.end()) {
+    if (CurrIterInferBounds.find(BK) != CurrIterInferBounds.end()) {
       // get the bounds inferred from the current iteration
       ResBounds = CurrIterInferBounds[BK];
       HasBounds = true;
+    } else {
+      // Get the computed bounds?
+      auto *PrevBounds = BI->getBounds(BK);
+      if (PrevBounds != nullptr) {
+        ResBounds[PrevBounds->getKind()].insert(PrevBounds->getBKey());
+        HasBounds = true;
+      }
     }
   }
   return HasBounds;
@@ -823,7 +826,9 @@ bool AvarBoundsInference::predictBounds(BoundsKey K,
           }
         }
       }
-    } else {
+    } else if (IsFuncRet ||
+               (BKsFailedFlowInference.find(NBK) != BKsFailedFlowInference.end())) {
+
       // If this is a function return we should have bounds from all
       // neighbours.
       ErrorOccurred = true;
@@ -949,31 +954,39 @@ bool AvarBoundsInference::inferBounds(BoundsKey K, AVarGraph &BKGraph, bool From
 
 bool AVarBoundsInfo::performWorkListInference(const std::set<BoundsKey> &ArrNeededBounds,
                                               AVarGraph &BKGraph,
-                                              AvarBoundsInference &BI,
-                                              bool FromPB) {
+                                              AvarBoundsInference &BI) {
   bool RetVal = false;
   std::set<BoundsKey> WorkList;
-  WorkList.insert(ArrNeededBounds.begin(), ArrNeededBounds.end());
   std::set<BoundsKey> NextIterArrs;
-  bool Changed = true;
-  while (Changed) {
-    Changed = false;
-    NextIterArrs.clear();
-    // Are there any ARR atoms that need bounds?
-    while (!WorkList.empty()) {
-      BoundsKey CurrArrKey = *WorkList.begin();
-      // Remove the bounds key from the worklist.
-      WorkList.erase(CurrArrKey);
-      // Can we find bounds for this Arr?
-      if (BI.inferBounds(CurrArrKey, BKGraph, FromPB)) {
-        RetVal = true;
-        Changed = true;
-        // Get all the successors of the ARR whose bounds we just found.
-        BKGraph.getSuccessors(CurrArrKey, NextIterArrs);
+  std::vector<bool> FromBVals;
+  // We first infer with using only flow information
+  // i.e., without using any potential bounds.
+  FromBVals.push_back(false);
+  // Next, we try using potential bounds.
+  FromBVals.push_back(true);
+  for (auto FromPB: FromBVals) {
+    WorkList.clear();
+    WorkList.insert(ArrNeededBounds.begin(), ArrNeededBounds.end());
+    bool Changed = true;
+    while (Changed) {
+      Changed = false;
+      NextIterArrs.clear();
+      // Are there any ARR atoms that need bounds?
+      while (!WorkList.empty()) {
+        BoundsKey CurrArrKey = *WorkList.begin();
+        // Remove the bounds key from the worklist.
+        WorkList.erase(CurrArrKey);
+        // Can we find bounds for this Arr?
+        if (BI.inferBounds(CurrArrKey, BKGraph, FromPB)) {
+          RetVal = true;
+          Changed = true;
+          // Get all the successors of the ARR whose bounds we just found.
+          BKGraph.getSuccessors(CurrArrKey, NextIterArrs);
+        }
       }
-    }
-    if (Changed) {
-      findIntersection(ArrNeededBounds, NextIterArrs, WorkList);
+      if (Changed) {
+        findIntersection(ArrNeededBounds, NextIterArrs, WorkList);
+      }
     }
   }
   return RetVal;
@@ -986,7 +999,7 @@ AVarBoundsInfo::insertCtxSensBoundsKey(ProgramVar *OldPV,
   ProgramVar *NKVar = OldPV->makeCopy(NK);
   NKVar->setScope(CFAS);
   insertProgramVar(NK, NKVar);
-  ProgVarGraph.addEdge(OldPV->getKey(), NKVar->getKey());
+  RevCtxSensProgVarGraph.addEdge(OldPV->getKey(), NKVar->getKey());
   CtxSensProgVarGraph.addEdge(NKVar->getKey(), OldPV->getKey());
 }
 
@@ -1218,20 +1231,35 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
     ABI.clearInferredBounds();
     // Regular flow inference.
     performWorkListInference(ArrNeededBounds, this->ProgVarGraph, ABI);
-    // Flow inference using potential bounds.
-    performWorkListInference(ArrNeededBounds, this->ProgVarGraph, ABI, true);
-    // Flow inference from context sensitive keys to original keys.
-    performWorkListInference(ArrNeededBounds, this->CtxSensProgVarGraph, ABI);
-    // Now, by using potential bounds.
-    performWorkListInference(ArrNeededBounds, this->CtxSensProgVarGraph, ABI, true);
 
-    // From all the sets of bounds computed for various array variables. Intersect them
-    // and find the common bound variable.
+    // Converge using local bounds.
+    // From all the sets of bounds computed for various array variables.
+    // Intersect them and find the common bound variable.
     ABI.convergeInferredBounds();
 
     ArrNeededBoundsNew.clear();
+    getBoundsNeededArrPointers(ArrPointers, ArrNeededBoundsNew);
+    // Now propagate the bounds information from context-sensitive keys
+    // to original keys.
+    performWorkListInference(ArrNeededBoundsNew, this->CtxSensProgVarGraph, ABI);
+
+    ABI.convergeInferredBounds();
+    // Now clear all inferred bounds so that context-sensitive nodes do not
+    // interfere with each other.
+    ABI.clearInferredBounds();
+    ArrNeededBoundsNew.clear();
     // Get array variables that still need bounds.
     getBoundsNeededArrPointers(ArrPointers, ArrNeededBoundsNew);
+
+    // Now propagate the bounds information from normal keys to
+    // context-sensitive keys.
+    performWorkListInference(ArrNeededBoundsNew, this->RevCtxSensProgVarGraph, ABI);
+
+    ABI.convergeInferredBounds();
+    ArrNeededBoundsNew.clear();
+    // Get array variables that still need bounds.
+    getBoundsNeededArrPointers(ArrPointers, ArrNeededBoundsNew);
+
     // Did we find bounds for new array variables?
     Changed = ArrNeededBounds != ArrNeededBoundsNew;
     if (ArrNeededBounds.size() == ArrNeededBoundsNew.size()) {
