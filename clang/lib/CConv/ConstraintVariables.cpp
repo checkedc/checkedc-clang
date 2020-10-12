@@ -880,19 +880,9 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   ReturnVar = new PVConstraint(RT, D, RETVAR, I, Ctx, &N, IsGeneric);
 }
 
-void FunctionVariableConstraint::constrainToWild(Constraints &CS) const {
-  ReturnVar->constrainToWild(CS);
-
-  for (const auto &V : ParamVars)
-    V->constrainToWild(CS);
-}
-
 void FunctionVariableConstraint::constrainToWild(Constraints &CS,
                                                  const std::string &Rsn) const {
-  ReturnVar->constrainToWild(CS, Rsn);
-
-  for (const auto &V : ParamVars)
-    V->constrainToWild(CS, Rsn);
+  constrainToWild(CS, Rsn, nullptr);
 }
 
 void FunctionVariableConstraint::constrainToWild
@@ -975,41 +965,26 @@ void FunctionVariableConstraint::equateArgumentConstraints(ProgramInfo &Info) {
   }
 }
 
-void PointerVariableConstraint::constrainToWild(Constraints &CS) const {
-  ConstAtom *WA = CS.getWild();
-  for (const auto &V : vars) {
-    if (VarAtom *VA = dyn_cast<VarAtom>(V))
-      CS.addConstraint(CS.createGeq(VA, WA, true));
-  }
-
-  if (FV)
-    FV->constrainToWild(CS);
+void PointerVariableConstraint::constrainToWild(Constraints &CS,
+                                                const std::string &Rsn) const {
+  constrainToWild(CS, Rsn, nullptr);
 }
 
 void PointerVariableConstraint::constrainToWild(Constraints &CS,
                                                 const std::string &Rsn,
                                                 PersistentSourceLoc *PL) const {
-  ConstAtom *WA = CS.getWild();
-  for (const auto &V : vars) {
-    if (VarAtom *VA = dyn_cast<VarAtom>(V))
-      CS.addConstraint(CS.createGeq(VA, WA, Rsn, PL, true));
+  // Constrains the outer pointer level to WILD. Inner pointer levels are
+  // implicitly WILD because of implication constraints.
+  if (!vars.empty()) {
+    Atom *A = *vars.begin();
+    if (auto *VA = dyn_cast<VarAtom>(A))
+      CS.addConstraint(CS.createGeq(VA, CS.getWild(), Rsn, PL, true));
   }
 
   if (FV)
     FV->constrainToWild(CS, Rsn, PL);
 }
 
-void PointerVariableConstraint::constrainToWild(Constraints &CS,
-                                                const std::string &Rsn) const {
-  ConstAtom *WA = CS.getWild();
-  for (const auto &V : vars) {
-    if (VarAtom *VA = dyn_cast<VarAtom>(V))
-      CS.addConstraint(CS.createGeq(VA, WA, Rsn, true));
-  }
-
-  if (FV)
-    FV->constrainToWild(CS, Rsn);
-}
 
 void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C,
                                                  bool doLB) {

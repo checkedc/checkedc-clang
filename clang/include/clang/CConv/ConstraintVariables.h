@@ -112,8 +112,6 @@ public:
   virtual bool solutionEqualTo(Constraints &, const ConstraintVariable *) const
     = 0;
 
-  // Constrain all pointers in this ConstraintVariable to be Wild.
-  virtual void constrainToWild(Constraints &CS) const = 0;
   virtual void constrainToWild(Constraints &CS,
                                const std::string &Rsn) const = 0;
   virtual void constrainToWild(Constraints &CS, const std::string &Rsn,
@@ -362,7 +360,7 @@ public:
   void print(llvm::raw_ostream &O) const override ;
   void dump() const override { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const override;
-  void constrainToWild(Constraints &CS) const override;
+
   void constrainToWild(Constraints &CS, const std::string &Rsn) const override;
   void constrainToWild(Constraints &CS, const std::string &Rsn,
                        PersistentSourceLoc *PL) const override;
@@ -477,7 +475,7 @@ public:
   void print(llvm::raw_ostream &O) const override;
   void dump() const override { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const override;
-  void constrainToWild(Constraints &CS) const override;
+
   void constrainToWild(Constraints &CS, const std::string &Rsn) const override;
   void constrainToWild(Constraints &CS, const std::string &Rsn,
                        PersistentSourceLoc *PL) const override;
