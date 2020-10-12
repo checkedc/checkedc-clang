@@ -211,7 +211,7 @@ void ClangdServer::executeCConvCommand(ExecuteCommandParams Params,
   auto Task = [this, Params, ConvCB]() {
     std::string RplMsg;
     auto &WildPtrsInfo = CConvInter.GetWILDPtrsInfo();
-    auto &PtrSourceMap = WildPtrsInfo.PtrSourceMap;
+    auto &PtrSourceMap = WildPtrsInfo.AtomSourceMap;
     if (PtrSourceMap.find(Params.ccConvertManualFix->ptrID) !=
         PtrSourceMap.end()) {
       std::string PtrFileName =

@@ -328,14 +328,18 @@ bool CConvInterface::SolveConstraints(bool ComputeInterimState) {
 
     llvm::raw_fd_ostream WildPtrInfo(WildPtrInfoJson, Ec);
     if (!WildPtrInfo.has_error()) {
-      GlobalProgramInfo.getInterimConstraintState().print_stats(WildPtrInfo);
+      GlobalProgramInfo.getInterimConstraintState().printStats(WildPtrInfo);
       WildPtrInfo.close();
     }
 
     llvm::raw_fd_ostream PerWildPtrInfo(PerWildPtrInfoJson, Ec);
     if (!PerWildPtrInfo.has_error()) {
-      GlobalProgramInfo.getInterimConstraintState().print_per_ptr_stats(PerWildPtrInfo,
-                                                                        GlobalProgramInfo.getConstraints());
+      GlobalProgramInfo.getInterimConstraintState().printPerAtomStats(
+        PerWildPtrInfo,
+        GlobalProgramInfo.getConstraints());
+      GlobalProgramInfo.getInterimConstraintState().printPerPtrStats(
+        PerWildPtrInfo,
+        GlobalProgramInfo.getConstraints());
       PerWildPtrInfo.close();
     }
   }
@@ -395,7 +399,7 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   auto &CS = GlobalProgramInfo.getConstraints();
 
   // Get all the current WILD pointers.
-  CVars OldWildPtrs = PtrDisjointSet.AllWildPtrs;
+  CVars OldWildPtrs = PtrDisjointSet.AllWildAtoms;
 
   // Delete the constraint that make the provided targetPtr WILD.
   VarAtom *VA = CS.getOrCreateVar(targetPtr, "q", VarAtom::V_Other);
@@ -416,7 +420,7 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   GlobalProgramInfo.computeInterimConstraintState(FilePaths);
 
   // Get new WILD pointers.
-  CVars &NewWildPtrs = PtrDisjointSet.AllWildPtrs;
+  CVars &NewWildPtrs = PtrDisjointSet.AllWildAtoms;
 
   // Get the number of pointers that have now converted to non-WILD.
   std::set_difference(OldWildPtrs.begin(), OldWildPtrs.end(),
@@ -457,7 +461,7 @@ bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
   auto &PtrDisjointSet = GlobalProgramInfo.getInterimConstraintState();
   auto &CS = GlobalProgramInfo.getConstraints();
 
-  CVars OldWildPtrs = PtrDisjointSet.AllWildPtrs;
+  CVars OldWildPtrs = PtrDisjointSet.AllWildAtoms;
 
   // Delete ALL the constraints that have the same given reason.
   VarAtom *VA = CS.getOrCreateVar(PtrKey, "q", VarAtom::V_Other);
@@ -475,7 +479,7 @@ bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
   GlobalProgramInfo.computeInterimConstraintState(FilePaths);
 
   // Computed the number of removed pointers.
-  CVars &NewWildPtrs = PtrDisjointSet.AllWildPtrs;
+  CVars &NewWildPtrs = PtrDisjointSet.AllWildAtoms;
 
   std::set_difference(OldWildPtrs.begin(), OldWildPtrs.end(),
                       NewWildPtrs.begin(), NewWildPtrs.end(),

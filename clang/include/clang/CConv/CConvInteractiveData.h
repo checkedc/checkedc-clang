@@ -37,17 +37,18 @@ public:
   CVars &GetRCVars(ConstraintKey);
   CVars &GetSrcCVars(ConstraintKey);
   CVars getWildAffectedCKeys(const std::set<ConstraintKey> &DWKeys);
-  void print_stats(llvm::raw_ostream &O);
-  void print_per_ptr_stats(llvm::raw_ostream &O, Constraints &CS);
+  void printStats(llvm::raw_ostream &O);
+  void printPerAtomStats(llvm::raw_ostream &O, Constraints &CS);
+  void printPerPtrStats(raw_ostream &O, Constraints &CS);
+  int getNumPtrsAffected(ConstraintKey CK);
 
-  std::map<ConstraintKey, struct WildPointerInferenceInfo>
-      RealWildPtrsWithReasons;
-  CVars AllWildPtrs;
-  CVars InSrcWildPtrs;
-  CVars TotalNonDirectWildPointers;
-  CVars InSrcNonDirectWildPointers;
+  std::map<ConstraintKey, WildPointerInferenceInfo> RootWildAtomsWithReason;
+  CVars AllWildAtoms;
+  CVars InSrcWildAtoms;
+  CVars TotalNonDirectWildAtoms;
+  CVars InSrcNonDirectWildAtoms;
   std::set<std::string> ValidSourceFiles;
-  std::map<ConstraintKey, const PersistentSourceLoc *> PtrSourceMap;
+  std::map<ConstraintKey, const PersistentSourceLoc *> AtomSourceMap;
 
 private:
   // Root cause map: This is the map of a Constraint var and a set of
@@ -69,10 +70,15 @@ private:
   // For the above case, this contains: p -> {s}, q -> {r, s}
   std::map<ConstraintKey, CVars> SrcWMap;
 
+  std::map<ConstraintVariable *, CVars> PtrRCMap;
+  std::map<ConstraintKey, std::set<ConstraintVariable *>> PtrSrcWMap;
+
   // Get score for each of the ConstraintKeys, which are wild.
   // For the above example, the score of s would be 0.5, similarly
   // the score of r would be 1
-  float getPtrAffectedScore(const CVars &AllKeys);
+  float getAtomAffectedScore(const CVars &AllKeys);
+
+  float getPtrAffectedScore(const std::set<ConstraintVariable *> CVs);
 };
 
 #endif // _CCONVINTERACTIVEDATA_H

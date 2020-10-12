@@ -374,12 +374,12 @@ void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
                                    "Root cause for %0 unchecked pointer%s0: %1");
   auto I = Info.getInterimConstraintState();
   SourceManager &SM = Context.getSourceManager();
-  for (auto &WReason : I.RealWildPtrsWithReasons) {
+  for (auto &WReason : I.RootWildAtomsWithReason) {
     // Avoid emitting the same diagnostic message twice.
     WildPointerInferenceInfo PtrInfo = WReason.second;
     std::string FileName;
     int Line, Column;
-    if (const PersistentSourceLoc *PsInfo = I.PtrSourceMap[WReason.first] ){
+    if (const PersistentSourceLoc *PsInfo = I.AtomSourceMap[WReason.first] ){
       FileName = PsInfo->getFileName();
       Line = PsInfo->getLineNo();
       Column = PsInfo->getColSNo();
@@ -399,7 +399,7 @@ void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
         // Limit emitted root causes to those that effect more than one pointer
         // or are in the main file of the TU. Alternatively, don't filter causes
         // if -warn-all-root-cause is passed.
-        int PtrCount = I.GetSrcCVars(WReason.first).size();
+        int PtrCount = I.getNumPtrsAffected(WReason.first);
         if (WarnAllRootCause || SM.isInMainFile(SL) || PtrCount > 1) {
           // SL is invalid when the File is not in the current translation unit.
           if (SL.isValid()) {

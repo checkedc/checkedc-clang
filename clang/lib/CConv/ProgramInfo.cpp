@@ -136,27 +136,17 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
 // of 'vars'. If it either has a function pointer, or V is
 // a function, then recurses on the return and parameter
 // constraints.
-static
-CAtoms getVarsFromConstraint(ConstraintVariable *V) {
-  CAtoms R;
-  R.clear();
-
-  if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
+static void getVarsFromConstraint(ConstraintVariable *V, CAtoms &R) {
+  if (auto *PVC = dyn_cast<PVConstraint>(V)) {
     R.insert(R.begin(), PVC->getCvars().begin(), PVC->getCvars().end());
-   if (FVConstraint *FVC = PVC->getFV()) 
-     return getVarsFromConstraint(FVC);
-  } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(V)) {
-    if (FVC->getReturnVar()) {
-      CAtoms Tmp = getVarsFromConstraint(FVC->getReturnVar());
-      R.insert(R.begin(), Tmp.begin(), Tmp.end());
-    }
-    for (unsigned i = 0; i < FVC->numParams(); i++) {
-      CAtoms Tmp = getVarsFromConstraint(FVC->getParamVar(i));
-      R.insert(R.begin(), Tmp.begin(), Tmp.end());
-    }
+    if (FVConstraint *FVC = PVC->getFV())
+      getVarsFromConstraint(FVC, R);
+  } else if (auto *FVC = dyn_cast<FVConstraint>(V)) {
+    if (FVC->getReturnVar())
+      getVarsFromConstraint(FVC->getReturnVar(), R);
+    for (unsigned i = 0; i < FVC->numParams(); i++)
+      getVarsFromConstraint(FVC->getParamVar(i), R);
   }
-
-  return R;
 }
 
 // Print out statistics of constraint variables on a per-file basis.
@@ -188,7 +178,8 @@ void ProgramInfo::print_stats(const std::set<std::string> &F, raw_ostream &O,
       ConstraintVariable *C = I.second;
       if (C->isForValidDecl()) {
         InSrcCVars.insert(C);
-        CAtoms FoundVars = getVarsFromConstraint(C);
+        CAtoms FoundVars;
+        getVarsFromConstraint(C, FoundVars);
 
         varC += FoundVars.size();
         for (const auto &N : FoundVars) {
@@ -769,11 +760,12 @@ bool ProgramInfo::computeInterimConstraintState
     std::string FileName = I.first.getFileName();
     ConstraintVariable *C = I.second;
     if (C->isForValidDecl()) {
-      CAtoms tmp = getVarsFromConstraint(C);
-      AllValidVars.insert(tmp.begin(), tmp.end());
+      CAtoms Tmp;
+      getVarsFromConstraint(C, Tmp);
+      AllValidVars.insert(Tmp.begin(), Tmp.end());
       if (FilePaths.count(FileName) || FileName.find(BaseDir) != std::string::npos) {
         //if (C->isForValidDecl()) {
-        ValidVarsVec.insert(ValidVarsVec.begin(), tmp.begin(), tmp.end());
+        ValidVarsVec.insert(ValidVarsVec.begin(), Tmp.begin(), Tmp.end());
         //}
       }
     }
@@ -818,10 +810,10 @@ bool ProgramInfo::computeInterimConstraintState
 
   auto &RCMap = CState.RCMap;
   auto &SrcWMap = CState.SrcWMap;
-  auto &TotalNDirectWPtrs = CState.TotalNonDirectWildPointers;
-  auto &InSrInDirectWPtrs = CState.InSrcNonDirectWildPointers;
-  CVars &WildPtrs = CState.AllWildPtrs;
-  CVars &InSrcW = CState.InSrcWildPtrs;
+  auto &TotalNDirectWPtrs = CState.TotalNonDirectWildAtoms;
+  auto &InSrInDirectWPtrs = CState.InSrcNonDirectWildAtoms;
+  CVars &WildPtrs = CState.AllWildAtoms;
+  CVars &InSrcW = CState.InSrcWildAtoms;
   WildPtrs.clear();
   std::set<Atom *> DirectWildVarAtoms;
   std::set<Atom *> IndirectWildAtoms;
@@ -839,7 +831,6 @@ bool ProgramInfo::computeInterimConstraintState
       [VA, &DirectWildVarAtoms, &AllValidVars, &RCMap, &TmpCGrp](Atom *SearchAtom) {
         auto *SearchVA = dyn_cast<VarAtom>(SearchAtom);
         if (SearchVA != nullptr &&
-              DirectWildVarAtoms.find(SearchVA) == DirectWildVarAtoms.end() &&
               AllValidVars.find(SearchVA) != AllValidVars.end()) {
           RCMap[SearchVA->getLoc()].insert(VA->getLoc());
           TmpCGrp.insert(SearchVA->getLoc());
@@ -860,7 +851,7 @@ bool ProgramInfo::computeInterimConstraintState
   findIntersection(WildPtrs, ValidVarsKey, InSrcW);
   findIntersection(TotalNDirectWPtrs, ValidVarsKey, InSrInDirectWPtrs);
 
-  auto &WildPtrsReason = CState.RealWildPtrsWithReasons;
+  auto &WildPtrsReason = CState.RootWildAtomsWithReason;
 
   for (auto currC : CS.getConstraints()) {
     if (Geq *EC = dyn_cast<Geq>(currC)) {
@@ -884,6 +875,7 @@ bool ProgramInfo::computeInterimConstraintState
     for (auto *J : I.second)
       insertIntoPtrSourceMap(&(I.first), J);
 
+  computePtrLevelStats();
   return true;
 }
 
@@ -899,12 +891,58 @@ void ProgramInfo::insertIntoPtrSourceMap(const PersistentSourceLoc *PSL,
   if (auto *PV = dyn_cast<PVConstraint>(CV)) {
     for (auto *A : PV->getCvars())
       if (auto *VA = dyn_cast<VarAtom>(A))
-        CState.PtrSourceMap[VA->getLoc()] = PSL;
+        CState.AtomSourceMap[VA->getLoc()] = PSL;
   } else if (auto *FV = dyn_cast<FVConstraint>(CV)) {
     if (auto *RPV = dyn_cast<PVConstraint>(FV->getReturnVar()))
       for (auto *A : RPV->getCvars())
         if (auto *VA = dyn_cast<VarAtom>(A))
-          CState.PtrSourceMap[VA->getLoc()] = PSL;
+          CState.AtomSourceMap[VA->getLoc()] = PSL;
+  }
+
+}
+
+void ProgramInfo::insertCVAtoms(ConstraintVariable *CV,
+                                std::map<ConstraintKey,
+                                         ConstraintVariable *> &AtomMap) {
+  if (auto *PVC = dyn_cast<PVConstraint>(CV)) {
+    for (Atom *A : PVC->getCvars())
+      if (auto *VA = dyn_cast<VarAtom>(A)) {
+        // It is possible that VA->getLoc() already exists in the map if there
+        // is a function which is declared before it is defined.
+        assert(AtomMap.find(VA->getLoc()) == AtomMap.end() ||
+               PVC->isPartOfFunctionPrototype());
+        AtomMap[VA->getLoc()] = PVC;
+        if (FVConstraint *FVC = PVC->getFV())
+          insertCVAtoms(FVC, AtomMap);
+      }
+  } else if (auto *FVC = dyn_cast<FVConstraint>(CV)) {
+    insertCVAtoms(FVC->getReturnVar(), AtomMap);
+    for (unsigned I = 0; I < FVC->numParams(); I++)
+      insertCVAtoms(FVC->getParamVar(I), AtomMap);
+  } else {
+    llvm_unreachable("Unknown kind of constraint variable.");
+  }
+}
+
+void ProgramInfo::computePtrLevelStats() {
+  // Construct a map from ptr Atoms to their containing constraint variable
+  std::map<ConstraintKey, ConstraintVariable *> AtomPtrMap;
+  for (const auto &I : Variables)
+    insertCVAtoms(I.second, AtomPtrMap);
+
+  // Populate maps with per-pointer root cause information
+  for (auto Entry : CState.RCMap) {
+    assert("RCMap entry is not mapped to a pointer!" &&
+           AtomPtrMap.find(Entry.first) != AtomPtrMap.end());
+    ConstraintVariable *CV = AtomPtrMap[Entry.first];
+    for (auto RC : Entry.second)
+      CState.PtrRCMap[CV].insert(RC);
+  }
+  for (auto Entry : CState.SrcWMap) {
+    for (auto Key : Entry.second) {
+      assert(AtomPtrMap.find(Key) != AtomPtrMap.end());
+      CState.PtrSrcWMap[Entry.first].insert(AtomPtrMap[Key]);
+    }
   }
 }
 
