@@ -420,6 +420,13 @@ public:
   explicit ConstraintGenVisitor(ASTContext *Context, ProgramInfo &I, TypeVarInfo &TVI)
       : Context(Context), Info(I), CB(Info, Context), TVInfo(TVI) {}
 
+  bool VisitTypedefDecl(TypedefDecl* TD) { 
+      CVarSet empty;
+      auto PSL = PersistentSourceLoc::mkPSL(TD, *Context);
+      Info.typedefVars[PSL] = empty;
+      return true;
+  }
+
   bool VisitVarDecl(VarDecl *G) {
 
     if (G->hasGlobalStorage() &&
@@ -498,8 +505,9 @@ private:
 // visitor which is executed before both of the other visitors.
 class VariableAdderVisitor : public RecursiveASTVisitor<VariableAdderVisitor> {
 public:
-  explicit VariableAdderVisitor(ASTContext *Context, ProgramVariableAdder &VA)
-      : Context(Context), VarAdder(VA) {}
+  explicit VariableAdderVisitor(ASTContext *Context, ProgramVariableAdder &VA, ProgramInfo& Info)
+      : Context(Context), VarAdder(VA), Info(Info) {}
+
 
   bool VisitVarDecl(VarDecl *D) {
     FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
@@ -536,6 +544,7 @@ public:
 private:
   ASTContext *Context;
   ProgramVariableAdder &VarAdder;
+  ProgramInfo& Info;
 
   void addVariable(DeclaratorDecl *D) {
     VarAdder.addABoundsVariable(D);
@@ -557,7 +566,7 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
   }
 
 
-  VariableAdderVisitor VAV = VariableAdderVisitor(&C, Info);
+  VariableAdderVisitor VAV = VariableAdderVisitor(&C, Info, Info);
   TypeVarVisitor TV = TypeVarVisitor(&C, Info);
   ConstraintResolver CSResolver(Info, &C);
   ContextSensitiveBoundsKeyVisitor CSBV =

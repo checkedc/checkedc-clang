@@ -183,8 +183,15 @@ bool isStructOrUnionType(clang::VarDecl *VD) {
 }
 
 std::string tyToStr(const clang::Type *T) {
-  QualType QT(T, 0);
-  return QT.getAsString();
+  if (auto TDT = dyn_cast<TypedefType>(T)) {
+    auto D = TDT->getDecl();
+    std::string s = D->getNameAsString();
+    llvm::errs() << s << "\n";
+    return s;
+  } else {
+    QualType QT(T, 0);
+    return QT.getAsString();
+  }
 }
 
 Expr *removeAuxillaryCasts(Expr *E) {

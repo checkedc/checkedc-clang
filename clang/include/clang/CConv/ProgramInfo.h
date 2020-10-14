@@ -116,6 +116,8 @@ public:
 
   void constrainWildIfMacro(ConstraintVariable *CV, SourceLocation Location);
 
+  std::map<PersistentSourceLoc, CVarSet> typedefVars;
+
 private:
   // List of constraint variables for declarations, indexed by their location in
   // the source. This information persists across invocations of the constraint

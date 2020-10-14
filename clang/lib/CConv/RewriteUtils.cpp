@@ -419,7 +419,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   for (const auto &D : TUD->decls()) {
     if (AddCheckedRegions) {
-      // Adding checked regions enabled!?
+      // Adding checked regions enabled?
       // TODO: Should checked region finding happen somewhere else? This is
       //       supposed to be rewriting.
       CRF.TraverseDecl(D);
