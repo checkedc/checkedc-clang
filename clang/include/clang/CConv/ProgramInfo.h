@@ -189,7 +189,8 @@ private:
   void insertIntoPtrSourceMap(const PersistentSourceLoc *PSL,
                               ConstraintVariable *CV);
 
-  void computePtrLevelStats();
+  void computePtrLevelStats(
+    std::map<ConstraintKey, ConstraintVariable *> &AtomPtrMap);
 
   void insertCVAtoms(ConstraintVariable *CV,
                      std::map<ConstraintKey, ConstraintVariable *> &AtomMap);

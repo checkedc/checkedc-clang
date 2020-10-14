@@ -820,6 +820,23 @@ bool ProgramInfo::computeInterimConstraintState
   auto &ChkCG = CS.getChkCG();
   ChkCG.getSuccessors(CS.getWild(), DirectWildVarAtoms);
 
+  // Construct a map from Atoms to their containing constraint variable
+  std::map<ConstraintKey, ConstraintVariable *> AtomPtrMap;
+  for (const auto &I : Variables)
+    insertCVAtoms(I.second, AtomPtrMap);
+
+  // Maps each atom to the set of atoms which depend on it through an
+  // implication constraint. These atoms would not be found through a BFS
+  // because and explicit edge does not exist, but wildness can still flow
+  // between them when the implication is fired.
+  std::map<Atom *, std::set<Atom *>> ImpMap;
+  for (auto *C : getConstraints().getConstraints())
+    if (auto *Imp = dyn_cast<Implies>(C)) {
+      auto *Pre = Imp->getPremise();
+      auto *Con = Imp->getConclusion();
+      ImpMap[Pre->getLHS()].insert(Con->getLHS());
+    }
+
   CVars TmpCGrp;
   for (auto *A : DirectWildVarAtoms) {
     auto *VA = dyn_cast<VarAtom>(A);
@@ -828,14 +845,28 @@ bool ProgramInfo::computeInterimConstraintState
 
     TmpCGrp.clear();
     ChkCG.visitBreadthFirst(VA,
-      [VA, &DirectWildVarAtoms, &AllValidVars, &RCMap, &TmpCGrp](Atom *SearchAtom) {
+      [VA, &AllValidVars, &RCMap, &TmpCGrp](Atom *SearchAtom) {
         auto *SearchVA = dyn_cast<VarAtom>(SearchAtom);
         if (SearchVA != nullptr &&
-              AllValidVars.find(SearchVA) != AllValidVars.end()) {
+            AllValidVars.find(SearchVA) != AllValidVars.end()) {
           RCMap[SearchVA->getLoc()].insert(VA->getLoc());
           TmpCGrp.insert(SearchVA->getLoc());
         }
       });
+
+    for (Atom *ImpA : ImpMap[A]) {
+      if (isa<VarAtom>(ImpA)) {
+        ChkCG.visitBreadthFirst(ImpA,
+          [VA, &AllValidVars, &RCMap, &TmpCGrp](Atom *SearchAtom) {
+            auto *SearchVA = dyn_cast<VarAtom>(SearchAtom);
+            if (SearchVA != nullptr &&
+                AllValidVars.find(SearchVA) != AllValidVars.end()) {
+              RCMap[SearchVA->getLoc()].insert(VA->getLoc());
+              TmpCGrp.insert(SearchVA->getLoc());
+            }
+          });
+      }
+    }
 
     TotalNDirectWPtrs.insert(TmpCGrp.begin(), TmpCGrp.end());
     // Should we consider only pointers which with in the source files or
@@ -875,7 +906,7 @@ bool ProgramInfo::computeInterimConstraintState
     for (auto *J : I.second)
       insertIntoPtrSourceMap(&(I.first), J);
 
-  computePtrLevelStats();
+  computePtrLevelStats(AtomPtrMap);
   return true;
 }
 
@@ -924,12 +955,8 @@ void ProgramInfo::insertCVAtoms(ConstraintVariable *CV,
   }
 }
 
-void ProgramInfo::computePtrLevelStats() {
-  // Construct a map from ptr Atoms to their containing constraint variable
-  std::map<ConstraintKey, ConstraintVariable *> AtomPtrMap;
-  for (const auto &I : Variables)
-    insertCVAtoms(I.second, AtomPtrMap);
-
+void ProgramInfo::computePtrLevelStats(
+  std::map<ConstraintKey, ConstraintVariable *> &AtomPtrMap) {
   // Populate maps with per-pointer root cause information
   for (auto Entry : CState.RCMap) {
     assert("RCMap entry is not mapped to a pointer!" &&
