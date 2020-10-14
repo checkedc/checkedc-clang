@@ -228,7 +228,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     std::string TyName = tyToStr(Ty);
     if (isVarArgType(TyName)) {
       // Variable number of arguments. Make it WILD.
-      vars.push_back(CS.getWild());
+      VarAtom *WildVA = CS.getFreshVar(Npre + N, VK);
+      CS.createGeq(WildVA, CS.getWild(), "Variable number of arguments.");
+      vars.push_back(WildVA);
       VarCreated = true;
       break;
     }

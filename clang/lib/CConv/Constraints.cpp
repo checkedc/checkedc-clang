@@ -632,6 +632,7 @@ Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,
         if (PL->getFileName().c_str()[0] != '/')
             PL = nullptr;
     }
+    assert("Shouldn't be constraining WILD >= VAR" && Lhs != getWild());
     return new Geq(Lhs, Rhs, Rsn, PL, isCheckedConstraint);
 }
 
