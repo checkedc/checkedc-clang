@@ -52,6 +52,15 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
   for (const auto &D : Context.getTranslationUnitDecl()->decls()) {
     TRV->TraverseDecl(D);
     SVI.TraverseDecl(D);
+    if (const auto &TD  = dyn_cast<TypedefDecl>(D)) {
+      TD->dump();
+      auto PSL = PersistentSourceLoc::mkPSL(TD, Context);
+      auto VSet = Info.typedefVars[PSL];
+      // if ()
+      // std::string newTy =
+      //     RewriteThese.insert(new VarDeclReplacement(VD, DS, newTy));
+      // RewriteThese.insert(new TypedefDeclReplacement(TD, nullptr, newTy));
+    }
   }
 
   // Build a map of all of the PersistentSourceLoc's back to some kind of
