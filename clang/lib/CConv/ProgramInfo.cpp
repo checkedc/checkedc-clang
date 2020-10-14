@@ -763,67 +763,32 @@ bool ProgramInfo::computeInterimConstraintState
       CAtoms Tmp;
       getVarsFromConstraint(C, Tmp);
       AllValidVars.insert(Tmp.begin(), Tmp.end());
-      if (FilePaths.count(FileName) || FileName.find(BaseDir) != std::string::npos) {
-        //if (C->isForValidDecl()) {
+      if (FilePaths.count(FileName) ||
+          FileName.find(BaseDir) != std::string::npos)
         ValidVarsVec.insert(ValidVarsVec.begin(), Tmp.begin(), Tmp.end());
-        //}
-      }
     }
   }
 
-  /*for (const auto &I : ExprConstraintVars) {
-    std::string FileName = I.first.getFileName();
-    if (FilePaths.count(FileName) || FileName.find(BaseDir) != std::string::npos) {
-      for (auto *C : I.second) {
-        //if (C->isForValidDecl()) {
-        CAtoms tmp = getVarsFromConstraint(C);
-        ValidVarsVec.insert(ValidVarsVec.begin(), tmp.begin(), tmp.end());
-        //}
-      }
-    }
-  }*/
   // Make that into set, for efficiency.
   std::set<Atom *> ValidVarsS;
-  CVars ValidVarsKey;
-  CVars AllValidVarsKey;
   ValidVarsS.insert(ValidVarsVec.begin(), ValidVarsVec.end());
 
-  std::transform(ValidVarsS.begin() , ValidVarsS.end(),
-                 std::inserter(ValidVarsKey, ValidVarsKey.end()) ,
-                 [](const Atom *val) {
-    if (const VarAtom *VA = dyn_cast<VarAtom>(val)) {
+  auto GetLocOrZero = [](const Atom *val) {
+    if (const auto *VA = dyn_cast<VarAtom>(val))
       return VA->getLoc();
-    }
-    return (uint32_t)0;
-  });
-
-  std::transform(AllValidVars.begin() , AllValidVars.end(),
-                 std::inserter(AllValidVarsKey, AllValidVarsKey.end()) ,
-                 [](const Atom *val) {
-                   if (const VarAtom *VA = dyn_cast<VarAtom>(val)) {
-                     return VA->getLoc();
-                   }
-                   return (uint32_t)0;
-  });
+    return (ConstraintKey) 0;
+  };
+  CVars ValidVarsKey;
+  std::transform(ValidVarsS.begin(), ValidVarsS.end(),
+                 std::inserter(ValidVarsKey, ValidVarsKey.end()), GetLocOrZero);
+  CVars AllValidVarsKey;
+  std::transform(AllValidVars.begin(), AllValidVars.end(),
+                 std::inserter(AllValidVarsKey, AllValidVarsKey.end()),
+                 GetLocOrZero);
 
   CState.Clear();
-
-  auto &RCMap = CState.RCMap;
-  auto &SrcWMap = CState.SrcWMap;
-  auto &TotalNDirectWPtrs = CState.TotalNonDirectWildAtoms;
-  auto &InSrInDirectWPtrs = CState.InSrcNonDirectWildAtoms;
-  CVars &WildPtrs = CState.AllWildAtoms;
-  CVars &InSrcW = CState.InSrcWildAtoms;
-  WildPtrs.clear();
   std::set<Atom *> DirectWildVarAtoms;
-  std::set<Atom *> IndirectWildAtoms;
-  auto &ChkCG = CS.getChkCG();
-  ChkCG.getSuccessors(CS.getWild(), DirectWildVarAtoms);
-
-  // Construct a map from Atoms to their containing constraint variable
-  std::map<ConstraintKey, ConstraintVariable *> AtomPtrMap;
-  for (const auto &I : Variables)
-    insertCVAtoms(I.second, AtomPtrMap);
+  CS.getChkCG().getSuccessors(CS.getWild(), DirectWildVarAtoms);
 
   // Maps each atom to the set of atoms which depend on it through an
   // implication constraint. These atoms would not be found through a BFS
@@ -837,54 +802,37 @@ bool ProgramInfo::computeInterimConstraintState
       ImpMap[Pre->getLHS()].insert(Con->getLHS());
     }
 
-  CVars TmpCGrp;
   for (auto *A : DirectWildVarAtoms) {
     auto *VA = dyn_cast<VarAtom>(A);
     if (VA == nullptr)
       continue;
 
-    TmpCGrp.clear();
-    ChkCG.visitBreadthFirst(VA,
-      [VA, &AllValidVars, &RCMap, &TmpCGrp](Atom *SearchAtom) {
-        auto *SearchVA = dyn_cast<VarAtom>(SearchAtom);
-        if (SearchVA != nullptr &&
-            AllValidVars.find(SearchVA) != AllValidVars.end()) {
-          RCMap[SearchVA->getLoc()].insert(VA->getLoc());
-          TmpCGrp.insert(SearchVA->getLoc());
-        }
-      });
-
-    for (Atom *ImpA : ImpMap[A]) {
-      if (isa<VarAtom>(ImpA)) {
-        ChkCG.visitBreadthFirst(ImpA,
-          [VA, &AllValidVars, &RCMap, &TmpCGrp](Atom *SearchAtom) {
-            auto *SearchVA = dyn_cast<VarAtom>(SearchAtom);
-            if (SearchVA != nullptr &&
-                AllValidVars.find(SearchVA) != AllValidVars.end()) {
-              RCMap[SearchVA->getLoc()].insert(VA->getLoc());
-              TmpCGrp.insert(SearchVA->getLoc());
-            }
-          });
+    CVars TmpCGrp;
+    auto BFSVisitor = [&](Atom *SearchAtom) {
+      auto *SearchVA = dyn_cast<VarAtom>(SearchAtom);
+      if (SearchVA && AllValidVars.find(SearchVA) != AllValidVars.end()) {
+        CState.RCMap[SearchVA->getLoc()].insert(VA->getLoc());
+        TmpCGrp.insert(SearchVA->getLoc());
       }
-    }
+    };
+    CS.getChkCG().visitBreadthFirst(VA, BFSVisitor);
+    for (Atom *ImpA : ImpMap[A])
+      if (isa<VarAtom>(ImpA))
+        CS.getChkCG().visitBreadthFirst(ImpA, BFSVisitor);
 
-    TotalNDirectWPtrs.insert(TmpCGrp.begin(), TmpCGrp.end());
+    CState.TotalNonDirectWildAtoms.insert(TmpCGrp.begin(), TmpCGrp.end());
     // Should we consider only pointers which with in the source files or
     // external pointers that affected pointers within the source files.
-    //if (!TmpCGrp.empty() || ValidVarsS.find(VA) != ValidVarsS.end()) {
-    WildPtrs.insert(VA->getLoc());
-    CVars &CGrp = SrcWMap[VA->getLoc()];
+    CState.AllWildAtoms.insert(VA->getLoc());
+    CVars &CGrp = CState.SrcWMap[VA->getLoc()];
     CGrp.insert(TmpCGrp.begin(), TmpCGrp.end());
-    //}
   }
-  //auto *AA = CS.getVar(11513);
-  //AA->dump();
-  findIntersection(WildPtrs, ValidVarsKey, InSrcW);
-  findIntersection(TotalNDirectWPtrs, ValidVarsKey, InSrInDirectWPtrs);
+  findIntersection(CState.AllWildAtoms, ValidVarsKey, CState.InSrcWildAtoms);
+  findIntersection(CState.TotalNonDirectWildAtoms, ValidVarsKey,
+                   CState.InSrcNonDirectWildAtoms);
 
   auto &WildPtrsReason = CState.RootWildAtomsWithReason;
-
-  for (auto currC : CS.getConstraints()) {
+  for (auto *currC : CS.getConstraints()) {
     if (Geq *EC = dyn_cast<Geq>(currC)) {
       VarAtom *VLhs = dyn_cast<VarAtom>(EC->getLHS());
       if (EC->constraintIsChecked() && dyn_cast<WildAtom>(EC->getRHS())) {
@@ -906,13 +854,12 @@ bool ProgramInfo::computeInterimConstraintState
     for (auto *J : I.second)
       insertIntoPtrSourceMap(&(I.first), J);
 
-  computePtrLevelStats(AtomPtrMap);
+  computePtrLevelStats();
   return true;
 }
 
 void ProgramInfo::insertIntoPtrSourceMap(const PersistentSourceLoc *PSL,
                                          ConstraintVariable *CV) {
-
   std::string FilePath = PSL->getFileName();
   if (canWrite(FilePath))
     CState.ValidSourceFiles.insert(FilePath);
@@ -929,7 +876,6 @@ void ProgramInfo::insertIntoPtrSourceMap(const PersistentSourceLoc *PSL,
         if (auto *VA = dyn_cast<VarAtom>(A))
           CState.AtomSourceMap[VA->getLoc()] = PSL;
   }
-
 }
 
 void ProgramInfo::insertCVAtoms(ConstraintVariable *CV,
@@ -955,8 +901,12 @@ void ProgramInfo::insertCVAtoms(ConstraintVariable *CV,
   }
 }
 
-void ProgramInfo::computePtrLevelStats(
-  std::map<ConstraintKey, ConstraintVariable *> &AtomPtrMap) {
+void ProgramInfo::computePtrLevelStats() {
+  // Construct a map from Atoms to their containing constraint variable
+  std::map<ConstraintKey, ConstraintVariable *> AtomPtrMap;
+  for (const auto &I : Variables)
+    insertCVAtoms(I.second, AtomPtrMap);
+
   // Populate maps with per-pointer root cause information
   for (auto Entry : CState.RCMap) {
     assert("RCMap entry is not mapped to a pointer!" &&
