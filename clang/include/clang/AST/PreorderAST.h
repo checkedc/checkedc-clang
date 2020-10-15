@@ -88,9 +88,10 @@ namespace clang {
     // @param[in] Parent is the parent of the node to be added.
     void AddNode(Node *N, Node *Parent);
 
-    // Remove the node N.
+    // Move the children (if any) of node N to its parent and then remove N.
     // @param[in] N is the current node.
-    // @param[in] P is the parent of the node to be removed.
+    // @param[in] P is the parent of the node to be removed. P should be a
+    // BinaryNode.
     void RemoveNode(Node *N, Node *P);
 
     // Recursively coalesce binary nodes having the same commutative and

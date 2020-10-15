@@ -33,6 +33,10 @@ void PreorderAST::RemoveNode(Node *N, Node *Parent) {
   assert(isa<BinaryNode>(Parent) && "Invalid parent");
 
   auto *P = dyn_cast<BinaryNode>(Parent);
+  if (!P) {
+    SetError();
+    return;
+  }
 
   // Remove the current node from the list of children of its parent.
   for (auto I = P->Children.begin(),
@@ -72,33 +76,31 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
     // and then check if the resultant expression -e2 overflows. If it
     // overflows, we undo the unary minus operator.
 
-    // TODO: Currently we only handle detection of overflow for constant
-    // expressions. We need to handle the case where e2 is a variable
+    // TODO: Currently we only handle detection of overflow for integer
+    // constant expressions. We need to handle the case where e2 is a variable
     // expression which is not known until run time.
-    if (BO->getOpcode() == BO_Sub) {
-      RHS = new (Ctx) UnaryOperator(RHS, UO_Minus, RHS->getType(),
-                                    RHS->getValueKind(),
-                                    RHS->getObjectKind(),
-                                    SourceLocation(),
-                                    /*CanOverflow*/ true);
-      bool Overflow = false;
-      if (RHS->isIntegerConstantExpr(Ctx)) {
-        SmallVector<PartialDiagnosticAt, 8> Diag;
-        llvm::APSInt IntVal =
-          RHS->EvaluateKnownConstIntCheckOverflow(Ctx, &Diag);
+    if (BO->getOpcode() == BO_Sub &&
+        RHS->isIntegerConstantExpr(Ctx)) {
+      Expr *UOMinusRHS = new (Ctx) UnaryOperator(RHS, UO_Minus, RHS->getType(),
+                                             RHS->getValueKind(),
+                                             RHS->getObjectKind(),
+                                             SourceLocation(),
+                                             /*CanOverflow*/ true);
+      SmallVector<PartialDiagnosticAt, 8> Diag;
+      UOMinusRHS->EvaluateKnownConstIntCheckOverflow(Ctx, &Diag);
 
-        for (auto &PD : Diag) {
-          if (PD.second.getDiagID() == diag::note_constexpr_overflow) {
-            Overflow = true;
-            break;
-          }
+      bool Overflow = false;
+      for (auto &PD : Diag) {
+        if (PD.second.getDiagID() == diag::note_constexpr_overflow) {
+          Overflow = true;
+          break;
         }
       }
 
-      if (Overflow)
-        RHS = dyn_cast<UnaryOperator>(RHS)->getSubExpr();
-      else
+      if (!Overflow) {
         BinOp = BO_Add;
+        RHS = UOMinusRHS;
+      }
     }
 
     auto *N = new BinaryNode(BinOp, Parent);
@@ -108,9 +110,14 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
     Create(RHS, /*Parent*/ N);
 
   } else if (!Parent) {
-    // We will enter here for expressions like "p" which are not BinaryNode and
-    // which do not yet have a parent. So we create a parent BinaryNode with
-    // addition as the operator and add "p" as a LeafExprNode of this node.
+    // The invariant is that the root node must be a BinaryNode. So for
+    // expressions like "if (*p)", we don't have a BinaryOperator. So when we
+    // enter this function there is no root and the parent is null. So we
+    // create a new BinaryNode with + as the operator and add "p" as a
+    // LeafNodeExpr child of this BinaryNode. Later, in the function
+    // NormalizeExprsWithoutConst we normalize "p" to "p + 0" by adding 0 as a
+    // sibling of "p".
+
     auto *N = new BinaryNode(BO_Add, Parent);
     AddNode(N, Parent);
     Create(E, /*Parent*/ N);
@@ -122,6 +129,9 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
 }
 
 void PreorderAST::Coalesce(Node *N, bool &Changed) {
+  if (Error)
+    return;
+
   auto *B = dyn_cast_or_null<BinaryNode>(N);
   if (!B)
     return;
@@ -163,10 +173,8 @@ void PreorderAST::Sort(Node *N) {
   if (!B->IsOpCommutativeAndAssociative())
     return;
 
-  // Sort the children.
-  llvm::sort(B->Children.begin(), B->Children.end(),
-  [&](const Node *N1, const Node *N2) {
-
+  // Comparison function to sort nodes.
+  auto NodeComparator = [&](const Node *N1, const Node *N2) {
     if (const auto *L1 = dyn_cast<LeafExprNode>(N1)) {
       if (const auto *L2 = dyn_cast<LeafExprNode>(N2)) {
         // If L1 is a UnaryOperatorExpr and L2 is not, then
@@ -200,7 +208,10 @@ void PreorderAST::Sort(Node *N) {
     if (B1->Opc != B2->Opc)
       return B1->Opc < B2->Opc;
     return B1->Children.size() < B2->Children.size();
-  });
+  };
+
+  // Sort the children.
+  llvm::sort(B->Children.begin(), B->Children.end(), NodeComparator);
 }
 
 void PreorderAST::ConstantFold(Node *N, bool &Changed) {
@@ -371,7 +382,7 @@ bool PreorderAST::IsEqual(Node *N1, Node *N2) {
     for (size_t I = 0; I != B1->Children.size(); ++I) {
       auto *Child1 = B1->Children[I];
       auto *Child2 = B2->Children[I];
-  
+
       // If any child differs between the two nodes.
       if (!IsEqual(Child1, Child2))
         return false;
@@ -398,6 +409,8 @@ void PreorderAST::Normalize() {
   while (Changed) {
     Changed = false;
     Coalesce(Root, Changed);
+    if (Error)
+      break;
     Sort(Root);
     ConstantFold(Root, Changed);
     if (Error)
