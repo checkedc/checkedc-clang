@@ -88,22 +88,25 @@ bool DComp::operator()(DeclReplacement *Lhs,
     return SM.isBeforeInTranslationUnit(X2, Y1);
 }
 
-void GlobalVariableGroups::addGlobalDecl(Decl *VD, std::set<Decl *> *VDSet) {
+void GlobalVariableGroups::addGlobalDecl(Decl *VD, std::vector<Decl *> *VDVec) {
   if (VD && GlobVarGroups.find(VD) == GlobVarGroups.end()) {
-    if (VDSet == nullptr)
-      VDSet = new std::set<Decl *>();
-    VDSet->insert(VD);
-    GlobVarGroups[VD] = VDSet;
+    if (VDVec == nullptr)
+      VDVec = new std::vector<Decl *>();
+    assert("Decls in group are not ordered correctly." && (VDVec->empty() ||
+           SM.isBeforeInTranslationUnit(VDVec->back()->getEndLoc(),
+                                        VD->getEndLoc())));
+    VDVec->push_back(VD);
+    GlobVarGroups[VD] = VDVec;
     // Process the next decl.
     Decl *NDecl = VD->getNextDeclInContext();
     if (isa_and_nonnull<VarDecl>(NDecl) || isa_and_nonnull<FieldDecl>(NDecl))
       if (VD->getBeginLoc() == NDecl->getBeginLoc())
-        addGlobalDecl(dyn_cast<Decl>(NDecl), VDSet);
+        addGlobalDecl(dyn_cast<Decl>(NDecl), VDVec);
   }
 }
 
 
-std::set<Decl *> &GlobalVariableGroups::getVarsOnSameLine(Decl *D) {
+std::vector<Decl *> &GlobalVariableGroups::getVarsOnSameLine(Decl *D) {
   assert (GlobVarGroups.find(D) != GlobVarGroups.end() &&
          "Expected to find the group.");
   return *(GlobVarGroups[D]);
@@ -111,7 +114,7 @@ std::set<Decl *> &GlobalVariableGroups::getVarsOnSameLine(Decl *D) {
 
 
 GlobalVariableGroups::~GlobalVariableGroups() {
-  std::set<std::set<Decl *> *> VVisited;
+  std::set<std::vector<Decl *> *> VVisited;
   // Free each of the group.
   for (auto &currV : GlobVarGroups) {
     // Avoid double free by caching deleted sets.
