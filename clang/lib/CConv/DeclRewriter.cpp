@@ -227,7 +227,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite) {
   //         original decl was re-written, write that out instead. Existing
   //         initializers are preserved, any declarations that an initializer to
   //         be valid checked-c are given one.
-  std::set<Decl *> SameLineDecls;
+  std::vector<Decl *> SameLineDecls;
   getDeclsOnSameLine(N, SameLineDecls);
 
   bool IsFirst = true;
@@ -408,7 +408,7 @@ bool DeclRewriter::areDeclarationsOnSameLine(DeclReplacement *N1,
     DeclStmt *Stmt2 = N2->getStatement();
     if (Stmt1 == nullptr && Stmt2 == nullptr) {
       auto &DGroup = GP.getVarsOnSameLine(D1);
-      return DGroup.find(D2) != DGroup.end();
+      return llvm::is_contained(DGroup, D2);
     } else if (Stmt1 == nullptr || Stmt2 == nullptr) {
       return false;
     } else {
@@ -430,13 +430,20 @@ bool DeclRewriter::isSingleDeclaration(DeclReplacement *N) {
 }
 
 void DeclRewriter::getDeclsOnSameLine(DeclReplacement *N,
-                                      std::set<Decl *> &Decls) {
-  if (N->getStatement() != nullptr)
-    Decls.insert(N->getStatement()->decls().begin(),
+                                      std::vector<Decl *> &Decls) {
+  if (N->getStatement() != nullptr) {
+    Decls.insert(Decls.begin(), N->getStatement()->decls().begin(),
                  N->getStatement()->decls().end());
-  else
-    Decls.insert(GP.getVarsOnSameLine(N->getDecl()).begin(),
-                 GP.getVarsOnSameLine(N->getDecl()).end());
+  } else {
+    std::vector<Decl *> GlobalLine = GP.getVarsOnSameLine(N->getDecl());
+    Decls.insert(Decls.begin(), GlobalLine.begin(), GlobalLine.end());
+  }
+
+  assert("Invalid ordering in same line decls" &&
+    std::is_sorted(Decls.begin(), Decls.end(), [&](Decl *D0, Decl *D1) {
+      return A.getSourceManager().isBeforeInTranslationUnit(D0->getEndLoc(),
+                                                            D1->getEndLoc());
+  }));
 }
 
 // Note: This is variable declared static in the header file in order to pass
