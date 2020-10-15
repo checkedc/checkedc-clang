@@ -877,38 +877,34 @@ bool ProgramInfo::computeInterimConstraintState
     }
   }
 
-  for ( const auto &I : Variables ) {
-    PersistentSourceLoc L = I.first;
-    std::string FilePath = L.getFileName();
-    if (canWrite(FilePath)) {
-      CState.ValidSourceFiles.insert(FilePath);
-    } else {
-      continue;
-    }
-    ConstraintVariable *CV = I.second;
-    if (PVConstraint *PV = dyn_cast<PVConstraint>(CV)) {
-      for (auto ck : PV->getCvars()) {
-        if (VarAtom *VA = dyn_cast<VarAtom>(ck)) {
-          CState.PtrSourceMap[VA->getLoc()] =
-              const_cast<PersistentSourceLoc *>(&(I.first));
-        }
-      }
-    }
-    if (FVConstraint *FV = dyn_cast<FVConstraint>(CV)) {
-      if (FV->getReturnVar()) {
-        if (PVConstraint *RPV = dyn_cast<PVConstraint>(FV->getReturnVar())) {
-          for (auto ck : RPV->getCvars()) {
-            if (VarAtom *VA = dyn_cast<VarAtom>(ck)) {
-              CState.PtrSourceMap[VA->getLoc()] =
-                  const_cast<PersistentSourceLoc *>(&(I.first));
-            }
-          }
-        }
-      }
-    }
-  }
+  for (const auto &I : Variables)
+    insertIntoPtrSourceMap(&(I.first), I.second);
+  for (const auto &I : ExprConstraintVars)
+    for (auto *J : I.second)
+      insertIntoPtrSourceMap(&(I.first), J);
 
   return true;
+}
+
+void ProgramInfo::insertIntoPtrSourceMap(const PersistentSourceLoc *PSL,
+                                         ConstraintVariable *CV) {
+
+  std::string FilePath = PSL->getFileName();
+  if (canWrite(FilePath))
+    CState.ValidSourceFiles.insert(FilePath);
+  else
+    return;
+
+  if (auto *PV = dyn_cast<PVConstraint>(CV)) {
+    for (auto *A : PV->getCvars())
+      if (auto *VA = dyn_cast<VarAtom>(A))
+        CState.PtrSourceMap[VA->getLoc()] = PSL;
+  } else if (auto *FV = dyn_cast<FVConstraint>(CV)) {
+    if (auto *RPV = dyn_cast<PVConstraint>(FV->getReturnVar()))
+      for (auto *A : RPV->getCvars())
+        if (auto *VA = dyn_cast<VarAtom>(A))
+          CState.PtrSourceMap[VA->getLoc()] = PSL;
+  }
 }
 
 void ProgramInfo::setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,

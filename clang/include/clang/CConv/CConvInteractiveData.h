@@ -47,7 +47,7 @@ public:
   CVars TotalNonDirectWildPointers;
   CVars InSrcNonDirectWildPointers;
   std::set<std::string> ValidSourceFiles;
-  std::map<ConstraintKey, PersistentSourceLoc *> PtrSourceMap;
+  std::map<ConstraintKey, const PersistentSourceLoc *> PtrSourceMap;
 
 private:
   // Root cause map: This is the map of a Constraint var and a set of

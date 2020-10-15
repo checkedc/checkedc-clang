@@ -367,7 +367,7 @@ bool ArrayBoundsRewriter::hasNewBoundsString(PVConstraint *PV, Decl *D,
   return !BStr.empty() && !PV->hasBoundsStr();
 }
 
-std::set<PersistentSourceLoc *> RewriteConsumer::EmittedDiagnostics;
+std::set<const PersistentSourceLoc *> RewriteConsumer::EmittedDiagnostics;
 void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
   clang::DiagnosticsEngine &DE = Context.getDiagnostics();
   unsigned ID = DE.getCustomDiagID(DiagnosticsEngine::Warning,
@@ -376,12 +376,12 @@ void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
   SourceManager &SM = Context.getSourceManager();
   for (auto &WReason : I.RealWildPtrsWithReasons) {
     if (I.PtrSourceMap.find(WReason.first) != I.PtrSourceMap.end()) {
-      PersistentSourceLoc *PsInfo = I.PtrSourceMap[WReason.first];
+      const PersistentSourceLoc *PsInfo = I.PtrSourceMap[WReason.first];
       // Avoid emitting the same diagnostic message twice.
       if (EmittedDiagnostics.find(PsInfo) == EmittedDiagnostics.end()) {
         // Convert the PSL into a clang::SourceLocation that can be used with
         // the DiagnosticsEngine.
-        auto File = SM.getFileManager().getFile(PsInfo->getFileName());
+        const auto *File = SM.getFileManager().getFile(PsInfo->getFileName());
         SourceLocation SL = SM.translateFileLineCol(File, PsInfo->getLineNo(),
                                                     PsInfo->getColSNo());
         // Limit emitted root causes to those that effect more than one pointer

@@ -226,7 +226,7 @@ private:
   // A single header file can be included in multiple translations units. This
   // set ensures that the diagnostics for a header file are not emitted each
   // time a translation unit containing the header is vistied.
-  static std::set<PersistentSourceLoc *> EmittedDiagnostics;
+  static std::set<const PersistentSourceLoc *> EmittedDiagnostics;
 
   void emitRootCauseDiagnostics(ASTContext &Context);
 };
