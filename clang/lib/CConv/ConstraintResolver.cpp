@@ -434,6 +434,7 @@ CVarSet
         QualType ExprType = E->getType();
         Decl *D = CE->getCalleeDecl();
         CVarSet ReallocFlow;
+        bool IsAllocator = false;
         if (D == nullptr) {
           // There are a few reasons that we couldn't get a decl. For example,
           // the call could be done through an array subscript.
@@ -452,6 +453,7 @@ CVarSet
           /* Allocator call */
           if (isFunctionAllocator(FD->getName())) {
             bool didInsert = false;
+            IsAllocator = true;
             if (CE->getNumArgs() > 0) {
               QualType ArgTy;
               std::string FuncName = FD->getNameAsString();
@@ -509,19 +511,24 @@ CVarSet
         for (ConstraintVariable *CV : ReturnCVs) {
           ConstraintVariable *NewCV;
           auto *PCV = dyn_cast<PVConstraint>(CV);
-          if (PCV && PCV->getIsOriginallyChecked()) {
-            // Copying needs to be done differently if the constraint variable
-            // had a checked type in the input program because these constraint
-            // variables contain constant atoms that are reused by the copy
-            // constructor.
-            NewCV = new PVConstraint(CE->getType(), nullptr, PCV->getName(),
-                                     Info, *Context, nullptr,
-                                     PCV->getIsGeneric());
-            if (PCV->hasBoundsKey())
-              NewCV->setBoundsKey(PCV->getBoundsKey());
-              
+          if (!IsAllocator) {
+            if (PCV && PCV->getIsOriginallyChecked()) {
+              // Copying needs to be done differently if the constraint variable
+              // had a checked type in the input program because the constraint
+              // variables contain constant atoms that are reused by the copy
+              // constructor.
+              NewCV = new PVConstraint(CE->getType(), nullptr, PCV->getName(),
+                                       Info, *Context, nullptr,
+                                       PCV->getIsGeneric());
+              if (PCV->hasBoundsKey())
+                NewCV->setBoundsKey(PCV->getBoundsKey());
+            } else {
+              NewCV = CV->getCopy(CS);
+            }
           } else {
-            NewCV = CV->getCopy(CS);
+            // Allocator functions are treated specially, so they do not have
+            // separate parameter and argument return variables.
+            NewCV = CV;
           }
           
           // Make the bounds key context sensitive.
@@ -535,8 +542,9 @@ CVarSet
           
           // Important: Do Safe_to_Wild from returnvar in this copy, which then
           //   might be assigned otherwise (Same_to_Same) to LHS
-          constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false,
-                              &Info);
+          if (NewCV != CV)
+            constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false,
+                                &Info);
           TmpCVs.insert(NewCV);
           // If this is realloc, constrain the first arg to flow to the return
           if (!ReallocFlow.empty()) {
