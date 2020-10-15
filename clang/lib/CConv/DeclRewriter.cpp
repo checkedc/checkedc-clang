@@ -53,13 +53,14 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
     TRV->TraverseDecl(D);
     SVI.TraverseDecl(D);
     if (const auto &TD  = dyn_cast<TypedefDecl>(D)) {
-      TD->dump();
       auto PSL = PersistentSourceLoc::mkPSL(TD, Context);
-      auto VSet = Info.typedefVars[PSL];
-      // if ()
-      // std::string newTy =
-      //     RewriteThese.insert(new VarDeclReplacement(VD, DS, newTy));
-      // RewriteThese.insert(new TypedefDeclReplacement(TD, nullptr, newTy));
+      const auto VSet = Info.typedefVars[PSL];
+      if (!VSet.empty()) { // We ignore typedefs that are never used
+        const auto Var = VSet.begin();
+        std::string newTy = getStorageQualifierString(D) +
+          (*Var)->mkString(Info.getConstraints().getVariables());
+        RewriteThese.insert(new TypedefDeclReplacement(TD, nullptr, newTy));
+      }
     }
   }
 
@@ -160,6 +161,10 @@ void DeclRewriter::rewrite(RSet &ToRewrite) {
       rewriteFunctionDecl(FR);
     } else if (auto *FdR = dyn_cast<FieldDeclReplacement>(N)) {
       rewriteFieldOrVarDecl(FdR, ToRewrite);
+    } else if (auto *TDR = dyn_cast<TypedefDeclReplacement>(N)) {
+      rewriteTypedefDecl(TDR, ToRewrite);
+    } else {
+      assert(false && "Unknown replacement type");
     }
   }
 }
@@ -186,6 +191,10 @@ void DeclRewriter::rewriteParmVarDecl(ParmVarDeclReplacement *N) {
     }
 }
 
+void DeclRewriter::rewriteTypedefDecl(TypedefDeclReplacement *TDR, RSet &ToRewrite) {
+  rewriteSingleDecl(TDR, ToRewrite);
+}
+
 
 template <typename DRType>
 void DeclRewriter::rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite) {
@@ -206,7 +215,8 @@ void DeclRewriter::rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite) {
 }
 
 void DeclRewriter::rewriteSingleDecl(DeclReplacement *N, RSet &ToRewrite) {
-  assert("Declaration is not a single declaration." && isSingleDeclaration(N));
+  bool isSingleDecl = dyn_cast<TypedefDecl>(N->getDecl()) || isSingleDeclaration(N);
+  assert("Declaration is not a single declaration." && isSingleDecl);
   // This is the easy case, we can rewrite it locally, at the declaration.
   SourceRange TR = N->getDecl()->getSourceRange();
   doDeclRewrite(TR, N);
@@ -325,6 +335,8 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite) {
 // invoking the rewriter) is to add any required initializer expression.
 void DeclRewriter::doDeclRewrite(SourceRange &SR, DeclReplacement *N) {
   std::string Replacement = N->getReplacement();
+  if (dyn_cast<TypedefDecl>(N->getDecl()))
+    Replacement = "typedef " + Replacement;
   if (auto *VD = dyn_cast<VarDecl>(N->getDecl())) {
     if (VD->hasInit()) {
       // Make sure we preserve any existing initializer

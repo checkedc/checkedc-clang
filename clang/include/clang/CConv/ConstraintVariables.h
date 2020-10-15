@@ -76,6 +76,8 @@ protected:
   // Is this Constraint Variable for a declaration?
   bool IsForDecl;
 
+  bool IsTypedef;
+  std::string typedefString;
 
   // Only subclasses should call this
   ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) :
@@ -91,6 +93,8 @@ public:
   virtual std::string mkString(const EnvironmentMap &E,
                                bool emitName=true, bool forItype=false,
                                bool emitPointee=false) const = 0;
+
+
 
 
   // Debug printing of the constraint variable.
@@ -282,6 +286,9 @@ private:
   // should be modified during rewriting.
   bool OriginallyChecked;
 
+  bool IsTypedef;
+  std::string TypedefStr;
+
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
@@ -299,6 +306,10 @@ public:
   bool isTopCvarUnsizedArr() const;
   // Check if any of the pointers is either a sized or unsized arr.
   bool hasSomeSizedArr() const;
+
+  bool isTypedef(void);
+  void setTypedef(std::string TypedefType);
+  std::string getTypedefString(void);
 
   // Is an itype present for this constraint? If yes,
   // what is the text of that itype?

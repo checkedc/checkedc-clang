@@ -562,6 +562,21 @@ void PointerVariableConstraint::addArrayAnnotations(
   assert(CheckedArrs.empty());
 }
 
+
+bool PointerVariableConstraint::isTypedef(void) {
+  return IsTypedef;
+}
+
+void PointerVariableConstraint::setTypedef(std::string s) {
+  IsTypedef = true;
+
+}
+
+std::string PointerVariableConstraint::getTypedefString(void) {
+  assert(IsTypedef);
+  return TypedefStr;
+}
+
 // Mesh resolved constraints with the PointerVariableConstraints set of
 // variables and potentially nested function pointer declaration. Produces a
 // string that can be replaced in the source code.

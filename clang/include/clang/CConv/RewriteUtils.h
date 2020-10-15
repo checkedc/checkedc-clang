@@ -85,6 +85,7 @@ typedef DeclReplacementTempl<TypedefDecl, DeclReplacement::DRK_TypedefDecl>
     TypedefDeclReplacement;
 
 
+
 class FunctionDeclReplacement :
     public DeclReplacementTempl<FunctionDecl,
                                 DeclReplacement::DRK_FunctionDecl> {
@@ -95,6 +96,8 @@ public:
         RewriteParams(Params) {
     assert("Doesn't make sense to rewrite nothing!"
            && (RewriteReturn || RewriteParams));
+
+
   }
 
   SourceRange getSourceRange(SourceManager &SM) const override {
