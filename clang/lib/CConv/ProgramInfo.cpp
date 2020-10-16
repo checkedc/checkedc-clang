@@ -542,7 +542,9 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     // the parameters.
     for (unsigned i = 0; i < FD->getNumParams(); i++) {
       ParmVarDecl *PVD = FD->getParamDecl(i);
+      const Type *Ty = PVD->getType().getTypePtr();
       ConstraintVariable *PV = F->getParamVar(i);
+      checkTypedef(Ty, *AstContext, PVD, dyn_cast<PVConstraint>(PV));
       PV->setValidDecl();
       PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *AstContext);
       // Constraint variable is stored on the parent function, so we need to
