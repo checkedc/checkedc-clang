@@ -118,6 +118,9 @@ public:
 
   std::map<PersistentSourceLoc, CVarSet> typedefVars;
 
+  void checkTypedef(const clang::Type*, clang::ASTContext&,
+                    clang::DeclaratorDecl*, PVConstraint*);
+
 private:
   // List of constraint variables for declarations, indexed by their location in
   // the source. This information persists across invocations of the constraint
@@ -156,8 +159,6 @@ private:
   // Function to check if an external symbol is okay to leave constrained.
   bool isExternOkay(const std::string &Ext);
 
-  void checkTypedef(const clang::Type*, clang::ASTContext&,
-                    clang::DeclaratorDecl*, PVConstraint*);
 
 
   // Insert the given FVConstraint* set into the provided Map.
