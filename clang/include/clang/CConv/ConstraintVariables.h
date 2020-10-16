@@ -91,8 +91,11 @@ public:
   // The 'forIType' parameter is true when the generated string is expected
   // to be used inside an itype
   virtual std::string mkString(const EnvironmentMap &E,
-                               bool emitName=true, bool forItype=false,
-                               bool emitPointee=false) const = 0;
+                               bool emitName=true,
+                               bool forItype=false,
+                               bool emitPointee=false,
+                               bool UnmaskTypedef = false)
+    const = 0;
 
 
 
@@ -364,9 +367,12 @@ public:
     return S->getKind() == PointerVariable;
   }
 
-  std::string mkString(const EnvironmentMap &E, bool EmitName =true,
+  std::string mkString(const EnvironmentMap &E,
+                       bool EmitName =true,
                        bool ForItype = false,
-                       bool EmitPointee = false) const override;
+                       bool EmitPointee = false,
+                       bool UnmaskTypedef = false)
+    const override;
 
   FunctionVariableConstraint *getFV() const { return FV; }
 
@@ -484,7 +490,9 @@ public:
 
   std::string mkString(const EnvironmentMap &E, bool EmitName =true,
                        bool ForItype = false,
-                       bool EmitPointee = false) const override;
+                       bool EmitPointee = false,
+                       bool UnmaskTypedef = false)
+    const override;
   void print(llvm::raw_ostream &O) const override;
   void dump() const override { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const override;

@@ -563,12 +563,13 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       P->setValidDecl();
       NewCV = P;
       std::string VarName = VD->getName();
-      if (auto TDT = dyn_cast<TypedefType>(Ty)) { 
-          auto Decl = TDT->getDecl();
-          auto PSL = PersistentSourceLoc::mkPSL(Decl, *AstContext);
-          CVarSet& bounds = typedefVars[PSL];
-          constrainConsVarGeq(P, bounds, CS, &PSL, Same_to_Same, true, this);
-          bounds.insert(P);
+      if (auto TDT = dyn_cast<TypedefType>(Ty)) {
+        auto Decl = TDT->getDecl();
+        P->setTypedef(Decl->getNameAsString());
+        auto PSL = PersistentSourceLoc::mkPSL(Decl, *AstContext);
+        CVarSet& bounds = typedefVars[PSL];
+        constrainConsVarGeq(P, bounds, CS, &PSL, Same_to_Same, true, this);
+        bounds.insert(P);
       }
       if (VD->hasGlobalStorage()) {
           // if we see a definition for this global variable, indicate so in ExternGVars

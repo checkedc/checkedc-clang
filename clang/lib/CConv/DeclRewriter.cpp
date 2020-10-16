@@ -58,7 +58,8 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
       if (!VSet.empty()) { // We ignore typedefs that are never used
         const auto Var = VSet.begin();
         std::string newTy = getStorageQualifierString(D) +
-          (*Var)->mkString(Info.getConstraints().getVariables());
+          (*Var)->mkString(Info.getConstraints().getVariables(),
+                           true, false, false, true);
         RewriteThese.insert(new TypedefDeclReplacement(TD, nullptr, newTy));
       }
     }

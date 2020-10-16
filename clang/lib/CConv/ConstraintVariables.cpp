@@ -569,7 +569,7 @@ bool PointerVariableConstraint::isTypedef(void) {
 
 void PointerVariableConstraint::setTypedef(std::string s) {
   IsTypedef = true;
-
+  typedefString = s;
 }
 
 std::string PointerVariableConstraint::getTypedefString(void) {
@@ -584,7 +584,13 @@ std::string
 PointerVariableConstraint::mkString(const EnvironmentMap &E,
                                     bool EmitName,
                                     bool ForItype,
-                                    bool EmitPointee) const {
+                                    bool EmitPointee,
+                                    bool UnmaskTypedef) const {
+
+  if (IsTypedef && !UnmaskTypedef) { // TODO this is not correct yet
+    return typedefString + (EmitName ? (" " + getName()) : "");
+  }
+
   std::ostringstream Ss;
   // This deque will store all the type strings that need to pushed
   // to the end of the type string. This is typically things like
@@ -1279,7 +1285,8 @@ bool FunctionVariableConstraint::
 std::string
 FunctionVariableConstraint::mkString(const EnvironmentMap &E,
                                      bool EmitName, bool ForItype,
-                                     bool EmitPointee) const {
+                                     bool EmitPointee,
+                                     bool UnmaskTypedef) const {
   std::string Ret = "";
   Ret = ReturnVar->mkString(E);
   Ret = Ret + "(";
