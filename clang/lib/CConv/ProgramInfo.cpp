@@ -889,9 +889,9 @@ void ProgramInfo::insertCVAtoms(ConstraintVariable *CV,
         assert(AtomMap.find(VA->getLoc()) == AtomMap.end() ||
                PVC->isPartOfFunctionPrototype());
         AtomMap[VA->getLoc()] = PVC;
-        if (FVConstraint *FVC = PVC->getFV())
-          insertCVAtoms(FVC, AtomMap);
       }
+    if (FVConstraint *FVC = PVC->getFV())
+      insertCVAtoms(FVC, AtomMap);
   } else if (auto *FVC = dyn_cast<FVConstraint>(CV)) {
     insertCVAtoms(FVC->getReturnVar(), AtomMap);
     for (unsigned I = 0; I < FVC->numParams(); I++)
