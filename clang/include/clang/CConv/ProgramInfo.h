@@ -156,6 +156,10 @@ private:
   // Function to check if an external symbol is okay to leave constrained.
   bool isExternOkay(const std::string &Ext);
 
+  void checkTypedef(const clang::Type*, clang::ASTContext&,
+                    clang::DeclaratorDecl*, PVConstraint*);
+
+
   // Insert the given FVConstraint* set into the provided Map.
   // Returns true if successful else false.
   bool insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
