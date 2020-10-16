@@ -290,7 +290,8 @@ private:
   bool OriginallyChecked;
 
   bool IsTypedef;
-  std::string TypedefStr;
+  TypedefNameDecl* TDT;
+  std::string typedefString;
 
 public:
   // Constructor for when we know a CVars and a type string.
@@ -311,8 +312,7 @@ public:
   bool hasSomeSizedArr() const;
 
   bool isTypedef(void);
-  void setTypedef(std::string TypedefType);
-  std::string getTypedefString(void);
+  void setTypedef(TypedefNameDecl *TypedefType, std::string);
 
   // Is an itype present for this constraint? If yes,
   // what is the text of that itype?

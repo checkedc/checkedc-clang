@@ -565,7 +565,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       std::string VarName = VD->getName();
       if (auto TDT = dyn_cast<TypedefType>(Ty)) {
         auto Decl = TDT->getDecl();
-        P->setTypedef(Decl->getNameAsString());
+        P->setTypedef(Decl, Decl->getNameAsString());
         auto PSL = PersistentSourceLoc::mkPSL(Decl, *AstContext);
         CVarSet& bounds = typedefVars[PSL];
         constrainConsVarGeq(P, bounds, CS, &PSL, Same_to_Same, true, this);

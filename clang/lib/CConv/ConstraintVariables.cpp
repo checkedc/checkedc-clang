@@ -567,15 +567,12 @@ bool PointerVariableConstraint::isTypedef(void) {
   return IsTypedef;
 }
 
-void PointerVariableConstraint::setTypedef(std::string s) {
+void PointerVariableConstraint::setTypedef(TypedefNameDecl* T, std::string s) {
   IsTypedef = true;
+  TDT = T;
   typedefString = s;
 }
 
-std::string PointerVariableConstraint::getTypedefString(void) {
-  assert(IsTypedef);
-  return TypedefStr;
-}
 
 // Mesh resolved constraints with the PointerVariableConstraints set of
 // variables and potentially nested function pointer declaration. Produces a

@@ -59,7 +59,7 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
         const auto Var = VSet.begin();
         std::string newTy = getStorageQualifierString(D) +
           (*Var)->mkString(Info.getConstraints().getVariables(),
-                           true, false, false, true);
+                           false, false, false, true) + " " + TD->getNameAsString();
         RewriteThese.insert(new TypedefDeclReplacement(TD, nullptr, newTy));
       }
     }
