@@ -133,6 +133,8 @@ bool AVarBoundsInfo::tryGetVariable(clang::Expr *E,
   return Ret;
 }
 
+// Merging bounds B with the present bounds of key L at the same priority P
+// Returns true if we update the bounds for L (with B)
 bool AVarBoundsInfo::mergeBounds(BoundsKey L, BoundsPriority P, ABounds *B) {
   bool RetVal = false;
   if (BInfo.find(L) != BInfo.end() && BInfo[L].find(P) != BInfo[L].end()) {
@@ -643,6 +645,9 @@ AvarBoundsInference::
   }
 }
 
+// Consider all pointers, each of which may have multiple bounds,
+//   and intersect these. If they all converge to one possibility,
+//   use that. If not, give up (no bounds).
 bool
 AvarBoundsInference::convergeInferredBounds() {
   bool FoundSome = false;
@@ -1229,10 +1234,10 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
   while (Changed) {
     // Clear all inferred bounds.
     ABI.clearInferredBounds();
-    // Regular flow inference.
+    // Regular flow inference (with no edges between callers and callees).
     performWorkListInference(ArrNeededBounds, this->ProgVarGraph, ABI);
 
-    // Converge using local bounds.
+    // Converge using local bounds (i.e., within each function).
     // From all the sets of bounds computed for various array variables.
     // Intersect them and find the common bound variable.
     ABI.convergeInferredBounds();
@@ -1240,7 +1245,8 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
     ArrNeededBoundsNew.clear();
     getBoundsNeededArrPointers(ArrPointers, ArrNeededBoundsNew);
     // Now propagate the bounds information from context-sensitive keys
-    // to original keys.
+    // to original keys (i.e., edges from callers to callees are present,
+    //   but no local edges)
     performWorkListInference(ArrNeededBoundsNew, this->CtxSensProgVarGraph, ABI);
 
     ABI.convergeInferredBounds();

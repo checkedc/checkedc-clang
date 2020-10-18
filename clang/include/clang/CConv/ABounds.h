@@ -49,8 +49,8 @@ public:
   virtual ABounds* makeCopy(BoundsKey NK) = 0;
 
   // Set that maintains all the bound keys that are used inin
+  // TODO: Is this still needed?
   static std::set<BoundsKey> KeysUsedInBounds;
-
   static bool isKeyUsedInBounds(BoundsKey ToCheck);
 
   static ABounds *getBoundsInfo(AVarBoundsInfo *AVBInfo,
