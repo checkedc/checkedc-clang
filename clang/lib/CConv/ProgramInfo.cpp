@@ -816,9 +816,10 @@ bool ProgramInfo::computeInterimConstraintState
       }
     };
     CS.getChkCG().visitBreadthFirst(VA, BFSVisitor);
-    for (Atom *ImpA : ImpMap[A])
-      if (isa<VarAtom>(ImpA))
-        CS.getChkCG().visitBreadthFirst(ImpA, BFSVisitor);
+    if (ImpMap.find(A) != ImpMap.end())
+      for (Atom *ImpA : ImpMap[A])
+        if (isa<VarAtom>(ImpA))
+          CS.getChkCG().visitBreadthFirst(ImpA, BFSVisitor);
 
     CState.TotalNonDirectWildAtoms.insert(TmpCGrp.begin(), TmpCGrp.end());
     // Should we consider only pointers which with in the source files or
