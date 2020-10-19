@@ -53,6 +53,7 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
     TRV->TraverseDecl(D);
     SVI.TraverseDecl(D);
     if (const auto &TD  = dyn_cast<TypedefDecl>(D)) {
+      llvm::errs() << "Hey!\n";
       auto PSL = PersistentSourceLoc::mkPSL(TD, Context);
       if (!TD->getUnderlyingType()->isBuiltinType()) { // Don't rewrite base types like int
         const auto VSet = Info.typedefVars[PSL];
@@ -61,6 +62,8 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
           std::string newTy = getStorageQualifierString(D) +
             (*Var)->mkString(Info.getConstraints().getVariables(),
                              false, false, false, true) + " " + TD->getNameAsString();
+          llvm::errs() << "NewTy is: " << newTy << "\n";
+          // llvm::errs() << "NewType is: " << newTy << "\n";
           RewriteThese.insert(new TypedefDeclReplacement(TD, nullptr, newTy));
         }
       }

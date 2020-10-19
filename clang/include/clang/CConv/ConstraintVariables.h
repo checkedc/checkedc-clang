@@ -76,8 +76,6 @@ protected:
   // Is this Constraint Variable for a declaration?
   bool IsForDecl;
 
-  bool IsTypedef;
-  std::string typedefString;
 
   // Only subclasses should call this
   ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) :
@@ -289,7 +287,7 @@ private:
   // should be modified during rewriting.
   bool OriginallyChecked;
 
-  bool IsTypedef;
+  bool IsTypedef = false;
   TypedefNameDecl* TDT;
   std::string typedefString;
 
