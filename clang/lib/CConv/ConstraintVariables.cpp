@@ -44,9 +44,10 @@ bool ConstraintVariable::isChecked(const EnvironmentMap &E) const {
 
 PointerVariableConstraint *
 PointerVariableConstraint::getWildPVConstraint(Constraints &CS,
-                                               const std::string &Rsn) {
-  VarAtom *VA = CS.getFreshVar("wildvar", VarAtom::V_Other);
-  CS.addConstraint(CS.createGeq(VA, CS.getWild(), Rsn, true));
+                                               const std::string &Rsn,
+                                               PersistentSourceLoc *PSL) {
+  VarAtom *VA = CS.getVarGEQ("wildvar", VarAtom::V_Other,
+                             CS.getWild(), Rsn, PSL);
   CAtoms NewAtoms = {VA};
   PVConstraint *WildPVC = new PVConstraint(NewAtoms, "unsigned", "wildvar",
                                            nullptr, false, false, "");
@@ -228,8 +229,8 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     std::string TyName = tyToStr(Ty);
     if (isVarArgType(TyName)) {
       // Variable number of arguments. Make it WILD.
-      VarAtom *WildVA = CS.getFreshVar(Npre + N, VK);
-      CS.createGeq(WildVA, CS.getWild(), "Variable number of arguments.");
+      std::string Rsn = "Variable number of arguments.";
+      VarAtom *WildVA = CS.getVarGEQ(Npre + N, VK, CS.getWild(), Rsn);
       vars.push_back(WildVA);
       VarCreated = true;
       break;

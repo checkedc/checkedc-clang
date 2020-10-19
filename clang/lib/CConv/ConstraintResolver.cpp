@@ -465,8 +465,10 @@ CVarSet
             }
             if (!didInsert) {
               std::string Rsn = "Unsafe call to allocator function.";
+              PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CE, *Context);
               ReturnCVs.insert(
-                PVConstraint::getWildPVConstraint(Info.getConstraints(), Rsn));
+                PVConstraint::getWildPVConstraint(Info.getConstraints(), Rsn,
+                                                  &PL));
             }
 
             /* Normal function call */
