@@ -58,7 +58,7 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
           // mark field wild if the above is true and the field is a pointer
           if ((FieldTy->isPointerType() || FieldTy->isArrayType()) &&
               (FieldInUnionOrSysHeader || IsInLineStruct)) {
-            std::string Rsn = "External struct field or union encountered";
+            std::string Rsn = "Union or external struct field encountered";
             CVarOption CV = Info.getVariable(F, Context);
             CB.constraintCVarToWild(CV, Rsn);
           }

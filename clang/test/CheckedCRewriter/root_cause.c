@@ -31,9 +31,9 @@ void test1() {
 
   union u {
     int *a;
-    // CHECK-DAG: External struct field or union encountered
+    // CHECK-DAG: Union or external struct field encountered
     int *b;
-    // CHECK-DAG: External struct field or union encountered
+    // CHECK-DAG: Union or external struct field encountered
   };
 
   void (*c)(void);
