@@ -869,11 +869,15 @@ void ProgramInfo::insertIntoPtrSourceMap(const PersistentSourceLoc *PSL,
     for (auto *A : PV->getCvars())
       if (auto *VA = dyn_cast<VarAtom>(A))
         CState.AtomSourceMap[VA->getLoc()] = PSL;
+    // If the PVConstraint is a function pointer, create mappings for parameter
+    // and return variables.
+    if (auto *FV = PV->getFV()) {
+      insertIntoPtrSourceMap(PSL, FV->getReturnVar());
+      for (unsigned int I = 0; I < FV->numParams(); I++)
+        insertIntoPtrSourceMap(PSL, FV->getParamVar(I));
+    }
   } else if (auto *FV = dyn_cast<FVConstraint>(CV)) {
-    if (auto *RPV = dyn_cast<PVConstraint>(FV->getReturnVar()))
-      for (auto *A : RPV->getCvars())
-        if (auto *VA = dyn_cast<VarAtom>(A))
-          CState.AtomSourceMap[VA->getLoc()] = PSL;
+    insertIntoPtrSourceMap(PSL, FV->getReturnVar());
   }
 }
 

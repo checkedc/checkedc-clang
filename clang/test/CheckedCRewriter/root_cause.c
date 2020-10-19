@@ -47,4 +47,7 @@ void test1() {
 extern int *glob;
 // CHECK-DAG: External global variable glob has no definition
 
-// CHECK-DAG: 10 warnings generated.
+void (*f)(void *);
+// CHECK-DAG: Default void* type
+
+// CHECK-DAG: 11 warnings generated.
