@@ -365,7 +365,8 @@ static std::set<VarAtom *> findBounded(ConstraintsGraph &CG,
   return Bounded;
 }
 
-bool Constraints::graph_based_solve(std::set<VarAtom *> &Conflicts) {
+bool Constraints::graph_based_solve() {
+  std::set<VarAtom *> Conflicts;
   ConstraintsGraph SolChkCG;
   ConstraintsGraph SolPtrTypCG;
   std::set<Implies *> SavedImplies;
@@ -502,25 +503,17 @@ bool Constraints::graph_based_solve(std::set<VarAtom *> &Conflicts) {
 // the system is solved. If the system is solved, the first position is
 // an empty. If the system could not be solved, the constraints in conflict
 // are returned in the first position.
-// TODO: Returns copy of conflicts set. Can we either get rid of this return
-//       (It's not used as far as I can tell), or dynamically allocate and
-//       return a pointer.
-std::pair<std::set<VarAtom *>, bool> Constraints::solve() {
-
-  std::set<VarAtom *> Conflicts;
-
+void Constraints::solve() {
   if (DebugSolver) {
     errs() << "constraints beginning solve\n";
     dump();
   }
-  bool ok = graph_based_solve(Conflicts);
+  graph_based_solve();
 
   if (DebugSolver) {
     errs() << "solution, when done solving\n";
     environment.dump();
   }
-
-  return std::make_pair(Conflicts, ok);
 }
 
 void Constraints::print(raw_ostream &O) const {

@@ -168,8 +168,7 @@ void runSolver(ProgramInfo &Info,
   dumpConstraintOutputJson(INITIAL_OUTPUT_SUFFIX, Info);
 
   clock_t StartTime = clock();
-  // FIXME: We should be seeing whether the constraints could be solved
-  auto R = CS.solve();
+  CS.solve();
   if (Verbose) {
     errs() << "Solver time:" << getTimeSpentInSeconds(StartTime) << "\n";
   }
