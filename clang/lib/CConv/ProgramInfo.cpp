@@ -831,28 +831,26 @@ bool ProgramInfo::computeInterimConstraintState
   findIntersection(CState.TotalNonDirectWildAtoms, ValidVarsKey,
                    CState.InSrcNonDirectWildAtoms);
 
-  auto &WildPtrsReason = CState.RootWildAtomsWithReason;
-  for (auto *currC : CS.getConstraints()) {
-    if (Geq *EC = dyn_cast<Geq>(currC)) {
-      VarAtom *VLhs = dyn_cast<VarAtom>(EC->getLHS());
-      if (EC->constraintIsChecked() && dyn_cast<WildAtom>(EC->getRHS())) {
-        WildPtrsReason[VLhs->getLoc()].WildPtrReason = EC->getReason();
-        if (!EC->FileName.empty() && EC->LineNo != 0) {
-          WildPtrsReason[VLhs->getLoc()].IsValid = true;
-          WildPtrsReason[VLhs->getLoc()].SourceFileName = EC->FileName;
-          WildPtrsReason[VLhs->getLoc()].LineNo = EC->LineNo;
-          WildPtrsReason[VLhs->getLoc()].ColStartS = EC->ColStart;
-          WildPtrsReason[VLhs->getLoc()].ColStartE = EC->ColEnd;
-        }
-      }
-    }
-  }
-
   for (const auto &I : Variables)
     insertIntoPtrSourceMap(&(I.first), I.second);
   for (const auto &I : ExprConstraintVars)
     for (auto *J : I.second)
       insertIntoPtrSourceMap(&(I.first), J);
+
+  auto &WildPtrsReason = CState.RootWildAtomsWithReason;
+  for (auto *currC : CS.getConstraints()) {
+    if (Geq *EC = dyn_cast<Geq>(currC)) {
+      VarAtom *VLhs = dyn_cast<VarAtom>(EC->getLHS());
+      if (EC->constraintIsChecked() && dyn_cast<WildAtom>(EC->getRHS())) {
+        PersistentSourceLoc PSL = EC->getLocation();
+        const PersistentSourceLoc *APSL = CState.AtomSourceMap[VLhs->getLoc()];
+        if (!PSL.valid() && APSL && APSL->valid())
+          PSL = *APSL;
+        WildPointerInferenceInfo Info(EC->getReason(), PSL);
+        WildPtrsReason.insert(std::make_pair(VLhs->getLoc(), Info));
+      }
+    }
+  }
 
   computePtrLevelStats();
   return true;

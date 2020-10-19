@@ -27,12 +27,10 @@ static cl::opt<bool> DebugSolver("debug-solver",
 
 Constraint::Constraint(ConstraintKind K, const std::string &Rsn,
                        PersistentSourceLoc *PL): Constraint(K, Rsn) {
-  if (PL != nullptr && PL->valid()) {
-    FileName = PL->getFileName();
-    LineNo = PL->getLineNo();
-    ColStart = PL->getColSNo();
-    ColEnd = PL->getColENo();
-  }
+  if (PL != nullptr && PL->valid())
+    this->PL = *PL;
+  else
+    this->PL = PersistentSourceLoc();
 }
 
 // Remove the constraint from the global constraint set.

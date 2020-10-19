@@ -321,12 +321,11 @@ public:
   };
 private:
   const ConstraintKind Kind;
+  PersistentSourceLoc PL;
+
 public:
   std::string REASON = DEFAULT_REASON;
-  std::string FileName = "";
-  unsigned LineNo = 0;
-  unsigned ColStart = 0;
-  unsigned ColEnd = 0;
+
   Constraint(ConstraintKind K) : Kind(K) { }
   Constraint(ConstraintKind K, const std::string &rsn) : Kind(K) {
     REASON = rsn;
@@ -349,6 +348,8 @@ public:
   virtual void setReason(const std::string &Rsn) {
     REASON = Rsn;
   }
+
+  const PersistentSourceLoc &getLocation() const { return PL; }
 };
 
 // a >= b

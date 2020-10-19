@@ -333,12 +333,8 @@ bool CConvInterface::SolveConstraints(bool ComputeInterimState) {
 
     llvm::raw_fd_ostream PerWildPtrInfo(PerWildPtrInfoJson, Ec);
     if (!PerWildPtrInfo.has_error()) {
-      GlobalProgramInfo.getInterimConstraintState().printPerAtomStats(
-        PerWildPtrInfo,
-        GlobalProgramInfo.getConstraints());
-      GlobalProgramInfo.getInterimConstraintState().printPerPtrStats(
-        PerWildPtrInfo,
-        GlobalProgramInfo.getConstraints());
+      GlobalProgramInfo.getInterimConstraintState().printRootCauseStats(
+        PerWildPtrInfo, GlobalProgramInfo.getConstraints());
       PerWildPtrInfo.close();
     }
   }

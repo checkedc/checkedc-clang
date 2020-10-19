@@ -69,7 +69,7 @@ void ConstraintsInfo::printStats(llvm::raw_ostream &O) {
     std::map<std::string, std::set<ConstraintKey>> RsnBasedWildCKeys;
     for (auto &PtrR : RootWildAtomsWithReason) {
       if (AllWildAtoms.find(PtrR.first) != AllWildAtoms.end()) {
-        RsnBasedWildCKeys[PtrR.second.WildPtrReason].insert(PtrR.first);
+        RsnBasedWildCKeys[PtrR.second.getWildPtrReason()].insert(PtrR.first);
       }
     }
     bool AddComma = false;
@@ -96,45 +96,44 @@ void ConstraintsInfo::printStats(llvm::raw_ostream &O) {
     O << "}}";
 }
 
-void ConstraintsInfo::printPerAtomStats(llvm::raw_ostream &O, Constraints &CS) {
-  O << "{\"PerAtomStats\":[";
-  bool AddComma = false;
-  for (auto &T : AllWildAtoms) {
-    if (AddComma) {
-      O << ",\n";
-    }
-    O << "{\"PtrNum\":" << T << ", ";
-    O << "\"Name\":\"" << CS.getVar(T)->getStr() << "\", ";
-    O << "\"InSrc\":" << std::to_string(InSrcWildAtoms.find(T) != InSrcWildAtoms.end()) << ", ";
-    CVars InDWild, Tmp;
-    InDWild = getWildAffectedCKeys({T});
-    findIntersection(InDWild, InSrcNonDirectWildAtoms, Tmp);
-    O << "\"TotalIndirect\":" << InDWild.size() << ",";
-    O << "\"InSrcIndirect\":" << Tmp.size() << ",";
-    O << "\"InSrcScore\":" << getAtomAffectedScore(Tmp);
-    O << "}";
-    AddComma = true;
-  }
-  O << "]";
-  O << "}";
-}
-
-void ConstraintsInfo::printPerPtrStats(llvm::raw_ostream &O, Constraints &CS) {
-  O << "{\"PerPtrStats\":[";
+void ConstraintsInfo::printRootCauseStats
+    (llvm::raw_ostream &O, Constraints &CS) {
+  O << "{\"RootCauseStats\":[";
   bool AddComma = false;
   for (auto &T : AllWildAtoms) {
     if (AddComma)
       O << ",\n";
-    O << "{\"PtrNum\":" << T << ", ";
-    O << "\"Name\":\"" << CS.getVar(T)->getStr() << "\", ";
-    O << "\"InSrc\":" << std::to_string(InSrcWildAtoms.find(T) != InSrcWildAtoms.end()) << ", ";
-    std::set<ConstraintVariable *> InDWild = PtrSrcWMap[T];
-    O << "\"TotalIndirect\":" << InDWild.size() << ",";
-    O << "\"Score\":" << getPtrAffectedScore(InDWild);
-    O << "}";
+    printConstraintStats(O, CS, T);
     AddComma = true;
   }
-  O << "]";
+  O << "]}";
+}
+
+void ConstraintsInfo::printConstraintStats
+    (llvm::raw_ostream &O, Constraints &CS, ConstraintKey Cause) {
+  O << "{\"ConstraintKey\":" << Cause << ", ";
+  O << "\"Name\":\"" << CS.getVar(Cause)->getStr() << "\", ";
+  WildPointerInferenceInfo PtrInfo = RootWildAtomsWithReason.at(Cause);
+  O << "\"Reason\":\"" << PtrInfo.getWildPtrReason()
+    << "\", ";
+  O << "\"Location\":";
+  const PersistentSourceLoc &PSL = PtrInfo.getLocation();
+  if (PSL.valid()) {
+    O << "\"";
+    PSL.print(O);
+    O << "\"";
+  }
+  else
+    O << "null";
+  O << ", ";
+
+  std::set<ConstraintKey> AtomsAffected = getWildAffectedCKeys({Cause});
+  O << "\"AtomsAffected\":" << AtomsAffected.size() << ", ";
+  O << "\"AtomsScore\":" << getAtomAffectedScore(AtomsAffected) << ", ";
+
+  std::set<ConstraintVariable *> PtrsAffected = PtrSrcWMap[Cause];
+  O << "\"PtrsAffected\":" << PtrsAffected.size() << ",";
+  O << "\"PtrsScore\":" << getPtrAffectedScore(PtrsAffected);
   O << "}";
 }
 

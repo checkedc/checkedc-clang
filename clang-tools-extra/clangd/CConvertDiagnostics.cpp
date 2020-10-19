@@ -61,15 +61,15 @@ bool CConvertDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line
       NewDiag.Severity = DiagnosticsEngine::Level::Error;
       NewDiag.code = std::to_string(WReason.first);
       NewDiag.Message = "Pointer is wild because of:" +
-                        WReason.second.WildPtrReason;
+                        WReason.second.getWildPtrReason();
 
       // Create notes for the information about root cause.
-      if (WReason.second.IsValid) {
+      PersistentSourceLoc SL = WReason.second.getLocation();
+      if (SL.valid()) {
         Note DiagNote;
-        DiagNote.AbsFile = WReason.second.SourceFileName;
+        DiagNote.AbsFile = SL.getFileName();
         DiagNote.Range =
-            GetLocRange(WReason.second.LineNo, WReason.second.ColStartS,
-                        WReason.second.ColStartE);
+            GetLocRange(SL.getLineNo(), SL.getColSNo(), SL.getColENo());
         DiagNote.Message = "Go here to know the root cause for this.";
         NewDiag.Notes.push_back(DiagNote);
       }
@@ -114,7 +114,7 @@ bool CConvertDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line
                 GetLocRange(PsInfo->getLineNo(), PsInfo->getColSNo(),
                             PsInfo->getColENo());
             MaxPtrReasons--;
-            DiagNote.Message = Line.RootWildAtomsWithReason[tC].WildPtrReason;
+            DiagNote.Message = Line.RootWildAtomsWithReason[tC].getWildPtrReason();
             if (MaxPtrReasons <= 1)
               DiagNote.Message += " (others)";
             NewDiag.Notes.push_back(DiagNote);

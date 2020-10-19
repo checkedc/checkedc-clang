@@ -17,13 +17,17 @@
 #include "PersistentSourceLoc.h"
 
 // Source info and reason for each wild pointer.
-struct WildPointerInferenceInfo {
-  std::string SourceFileName = "";
+class WildPointerInferenceInfo {
+public:
+  WildPointerInferenceInfo(std::string Reason, const PersistentSourceLoc PSL) :
+      WildPtrReason(Reason), Location(PSL) {}
+
+  const std::string &getWildPtrReason() const { return WildPtrReason; }
+  const PersistentSourceLoc &getLocation() const { return Location; }
+
+private:
   std::string WildPtrReason = "";
-  bool IsValid = false;
-  unsigned LineNo = 0;
-  unsigned ColStartS = 0;
-  unsigned ColStartE = 0;
+  PersistentSourceLoc Location;
 };
 
 // Constraints information.
@@ -38,8 +42,7 @@ public:
   CVars &GetSrcCVars(ConstraintKey);
   CVars getWildAffectedCKeys(const std::set<ConstraintKey> &DWKeys);
   void printStats(llvm::raw_ostream &O);
-  void printPerAtomStats(llvm::raw_ostream &O, Constraints &CS);
-  void printPerPtrStats(raw_ostream &O, Constraints &CS);
+  void printRootCauseStats(raw_ostream &O, Constraints &CS);
   int getNumPtrsAffected(ConstraintKey CK);
 
   std::map<ConstraintKey, WildPointerInferenceInfo> RootWildAtomsWithReason;
@@ -79,6 +82,10 @@ private:
   float getAtomAffectedScore(const CVars &AllKeys);
 
   float getPtrAffectedScore(const std::set<ConstraintVariable *> CVs);
+
+  void
+  printConstraintStats(raw_ostream &O, Constraints &CS, ConstraintKey Cause);
+
 };
 
 #endif // _CCONVINTERACTIVEDATA_H
