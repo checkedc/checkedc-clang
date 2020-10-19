@@ -3487,20 +3487,16 @@ namespace {
       Check(E->getCond(), CSS, State);
 
       // Check the "true" arm `e2`.
-      // TODO: save the rvalue bounds from checking `e2`.  These bounds will
-      // be used to determine the rvalue bounds of `e`.
       CheckingState StateTrueArm;
       StateTrueArm.EquivExprs = State.EquivExprs;
       StateTrueArm.ObservedBounds = State.ObservedBounds;
-      Check(E->getTrueExpr(), CSS, StateTrueArm);
+      BoundsExpr *BoundsTrueArm = Check(E->getTrueExpr(), CSS, StateTrueArm);
 
       // Check the "false" arm `e3`.
-      // TODO: save the rvalue bounds from checking `e3`.  These bounds will
-      // be used to determine the rvalue bounds of `e`.
       CheckingState StateFalseArm;
       StateFalseArm.EquivExprs = State.EquivExprs;
       StateFalseArm.ObservedBounds = State.ObservedBounds;
-      Check(E->getFalseExpr(), CSS, StateFalseArm);
+      BoundsExpr *BoundsFalseArm = Check(E->getFalseExpr(), CSS, StateFalseArm);
 
       // TODO: handle uses of temporaries bounds in only one arm.
 
@@ -3572,12 +3568,25 @@ namespace {
       if (!CreatesNewObject(E) && CheckIsNonModifying(E) &&
           !EqualExprsContainsExpr(State.SameValue, E))
         State.SameValue.push_back(E);
-      
-      // TODO: infer correct bounds for conditional operators.
-      // The rvalue bounds for a conditional operator `e1 ? e2 : e3` is the
-      // greatest lower bound of the rvalue bounds of `e2` and the rvalue
-      // bounds of `e3`.
-      return CreateBoundsAllowedButNotComputed();
+
+      // The bounds of `e` are the greatest lower bound of the bounds of `e2`
+      // and the bounds of `e3`.
+
+      // If bounds expressions B1 and B2 are equivalent, the greatest lower
+      // bound of B1 and B2 is B1.
+      if (S.Context.EquivalentBounds(BoundsTrueArm, BoundsFalseArm, &State.EquivExprs))
+        return BoundsTrueArm;
+
+      // The greatest lower bound of bounds(any) and B is B, where B is an
+      // arbitrary bounds expression.
+      if (BoundsTrueArm->isAny())
+        return BoundsFalseArm;
+      if (BoundsFalseArm->isAny())
+        return BoundsTrueArm;
+
+      // If the bounds for `e2` and `e3` are not equivalent, and neither is
+      // bounds(any), the bounds for `e` cannot be determined.
+      return CreateBoundsAlwaysUnknown();
     }
 
   // Methods to infer both:
