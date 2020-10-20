@@ -274,7 +274,9 @@ static bool do_solve(ConstraintsGraph &CG,
             (!doLeastSolution && *Csol < *Cbound)) {
           ok = false;
           // Save effected VarAtom in conflict set. This will be constrained to
-          // wild after pointer type solving is finished.
+          // wild after pointer type solving is finished. Checked types will
+          // be resolved with this new constraint, transitively propagating the
+          // new WILD-ness.
           Conflicts.insert(VA);
           // Failure case.
           if (Verbose) {
