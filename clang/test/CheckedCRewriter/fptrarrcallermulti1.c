@@ -5,11 +5,11 @@
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrarrcallermulti1.checkedALL.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %S/fptrarrcallermulti2.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrarrcallermulti1.checked.c %S/fptrarrcallermulti2.checked.c
-// RUN: diff %S/fptrarrcallermulti1.checked.convert_again.c %S/fptrarrcallermulti1.checked.c
-// RUN: diff %S/fptrarrcallermulti2.checked.convert_again.c %S/fptrarrcallermulti2.checked.c
+// RUN: test ! -f %S/fptrarrcallermulti1.checked.convert_again.c
+// RUN: test ! -f %S/fptrarrcallermulti2.checked.convert_again.c
 // RUN: rm %S/fptrarrcallermulti1.checkedALL.c %S/fptrarrcallermulti2.checkedALL.c
 // RUN: rm %S/fptrarrcallermulti1.checkedNOALL.c %S/fptrarrcallermulti2.checkedNOALL.c
-// RUN: rm %S/fptrarrcallermulti1.checked.c %S/fptrarrcallermulti2.checked.c %S/fptrarrcallermulti1.checked.convert_again.c %S/fptrarrcallermulti2.checked.convert_again.c
+// RUN: rm %S/fptrarrcallermulti1.checked.c %S/fptrarrcallermulti2.checked.c
 
 
 /*********************************************************************************/
@@ -131,7 +131,7 @@ int ** foo() {
         } 
         int **z = sus(x, y);
 	//CHECK_NOALL: int **z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z : count(5) =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z : count(5) = sus(x, y);
         
 return z; }
 

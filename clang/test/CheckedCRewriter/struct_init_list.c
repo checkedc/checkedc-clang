@@ -2,7 +2,7 @@
 // RUN: cconv-standalone -alltypes %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 // RUN: cconv-standalone -alltypes %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
 // RUN: cconv-standalone -output-postfix=checked -alltypes %s 
-// RUN: cconv-standalone -alltypes %S/struct_init_list.checked.c -- | diff -w %S/struct_init_list.checked.c -
+// RUN: cconv-standalone -alltypes %S/struct_init_list.checked.c -- | count 0
 // RUN: rm %S/struct_init_list.checked.c
 // expected-no-diagnostics
 

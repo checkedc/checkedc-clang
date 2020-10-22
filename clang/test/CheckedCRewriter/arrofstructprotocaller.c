@@ -3,7 +3,7 @@
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 // RUN: cconv-standalone -alltypes -output-postfix=checked %s
-// RUN: cconv-standalone -alltypes %S/arrofstructprotocaller.checked.c -- | diff %S/arrofstructprotocaller.checked.c -
+// RUN: cconv-standalone -alltypes %S/arrofstructprotocaller.checked.c -- | count 0
 // RUN: rm %S/arrofstructprotocaller.checked.c
 
 
@@ -129,7 +129,7 @@ struct general ** foo() {
         }
         struct general ** z = sus(x, y);
 	//CHECK_NOALL: struct general ** z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> z : count(5) =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> z : count(5) = sus(x, y);
 return z; }
 
 struct general ** bar() {

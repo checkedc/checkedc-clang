@@ -3,7 +3,7 @@
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 // RUN: cconv-standalone -alltypes -output-postfix=checked %s
-// RUN: cconv-standalone -alltypes %S/fptrarrboth.checked.c -- | diff %S/fptrarrboth.checked.c -
+// RUN: cconv-standalone -alltypes %S/fptrarrboth.checked.c -- | count 0
 // RUN: rm %S/fptrarrboth.checked.c
 
 
@@ -110,7 +110,7 @@ int ** sus(int *x, int *y) {
 	//CHECK: x = (int *) 5;
         int **z = calloc(5, sizeof(int *)); 
 	//CHECK_NOALL: int **z = calloc<int *>(5, sizeof(int *)); 
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z =  calloc<_Array_ptr<int>>(5, sizeof(int *)); 
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z = calloc<_Array_ptr<int>>(5, sizeof(int *)); 
         int * (*mul2ptr) (int *) = mul2;
 	//CHECK_NOALL: _Ptr<int * (int *)> mul2ptr = mul2;
 	//CHECK_ALL: _Ptr<_Array_ptr<int> (_Array_ptr<int> )> mul2ptr = mul2;

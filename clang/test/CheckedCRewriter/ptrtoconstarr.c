@@ -3,7 +3,7 @@
 // RUN: cconv-standalone --addcr --alltypes %s -- | %clang_cc1  -fcheckedc-extension -x c -
 //
 // RUN: cconv-standalone -alltypes -output-postfix=checked %s
-// RUN: cconv-standalone -alltypes %S/ptrtoconstarr.checked.c -- | diff %S/ptrtoconstarr.checked.c -
+// RUN: cconv-standalone -alltypes %S/ptrtoconstarr.checked.c -- | count 0
 // RUN: rm %S/ptrtoconstarr.checked.c
 
 extern _Unchecked unsigned long strlen(const char * restrict src : itype(restrict _Nt_array_ptr<const char>));

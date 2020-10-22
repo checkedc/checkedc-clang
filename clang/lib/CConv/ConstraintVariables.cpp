@@ -113,7 +113,6 @@ PointerVariableConstraint::
   this->Parent = Ot;
   this->IsGeneric = Ot->IsGeneric;
   this->IsZeroWidthArray = Ot->IsZeroWidthArray;
-  this->OriginallyChecked = Ot->OriginallyChecked;
   // We need not initialize other members.
 }
 
@@ -217,7 +216,6 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   bool IsArr = false;
   bool IsIncompleteArr = false;
   bool IsTopMost = true;
-  OriginallyChecked = false;
   uint32_t TypeIdx = 0;
   std::string Npre = inFunc ? ((*inFunc)+":") : "";
   VarAtom::VarKind VK =
@@ -236,13 +234,12 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
       break;
     }
 
-    if (Ty->isCheckedPointerType()) {
-      OriginallyChecked = true;
+    if (Ty->isCheckedPointerType() || Ty->isCheckedArrayType()) {
       ConstAtom *CAtom = nullptr;
-      if (Ty->isCheckedPointerNtArrayType()) {
+      if (Ty->isCheckedPointerNtArrayType() || Ty->isNtCheckedArrayType()) {
         // This is an NT array type.
         CAtom = CS.getNTArr();
-      } else if (Ty->isCheckedPointerArrayType()) {
+      } else if (Ty->isCheckedPointerArrayType() || Ty->isCheckedArrayType()) {
         // This is an array type.
         CAtom = CS.getArr();
       } else if (Ty->isCheckedPointerPtrType()) {
@@ -412,7 +409,8 @@ std::string PointerVariableConstraint::extractBaseType(DeclaratorDecl *D,
                                                        const ASTContext &C) {
   std::string BaseTypeStr;
   bool FoundBaseTypeInSrc = false;
-  if (!Ty->getAs<TypedefType>() && D && D->getTypeSourceInfo()) {
+  if (!QT->isOrContainsCheckedType() && !Ty->getAs<TypedefType>() && D &&
+      D->getTypeSourceInfo()) {
     // Try to extract the type from original source to preserve defines
     TypeLoc TL = D->getTypeSourceInfo()->getTypeLoc();
     if (isa<FunctionDecl>(D)) {
@@ -901,7 +899,10 @@ void FunctionVariableConstraint::constrainToWild
 }
 
 bool FunctionVariableConstraint::anyChanges(const EnvironmentMap &E) const {
-  return ReturnVar->anyChanges(E);
+  return ReturnVar->anyChanges(E) ||
+      llvm::any_of(ParamVars, [&E](ConstraintVariable *CV) {
+        return CV->anyChanges(E);
+      });
 }
 
 bool FunctionVariableConstraint::hasWild(const EnvironmentMap &E,
@@ -1031,26 +1032,27 @@ bool PointerVariableConstraint::anyArgumentIsWild(const EnvironmentMap &E) {
 }
 
 bool PointerVariableConstraint::anyChanges(const EnvironmentMap &E) const {
-  // If a pointer variable was checked in the input program, it will have the
-  // same checked type in the output, so it cannot have changed.
-  if (OriginallyChecked)
-    return false;
-
   // If it was not checked in the input, then it has changed if it now has a
   // checked type.
-  bool Ret = false;
+  bool PtrChanged = false;
 
   // Are there any non-WILD pointers?
-  for (const auto &C : vars) {
-    const ConstAtom *CS = getSolution(C, E);
-    assert(CS != nullptr && "Atom should be either const or var");
-    Ret |= !(isa<WildAtom>(CS));
+  for (unsigned I = 0; I < vars.size(); I++) {
+    const Atom *VA = vars[I];
+    const ConstAtom *CA = getSolution(VA, E);
+    assert(CA != nullptr && "Atom should be either const or var");
+    bool OriginallyChecked = isa<ConstAtom>(VA);
+
+    // Atom has changed if it was not originally checked, and it did not solve
+    // to WILD. The pointer has changed if the atom has changed.
+    bool AtomChanged = !OriginallyChecked && !isa<WildAtom>(CA);
+    PtrChanged |= AtomChanged;
   }
 
   if (FV)
-    Ret |= FV->anyChanges(E);
+    PtrChanged |= FV->anyChanges(E);
 
-  return Ret;
+  return PtrChanged;
 }
 
 ConstraintVariable *PointerVariableConstraint::getCopy(Constraints &CS) {

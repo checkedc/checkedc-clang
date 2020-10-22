@@ -3,7 +3,7 @@
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 // RUN: cconv-standalone -alltypes -output-postfix=checked %s
-// RUN: cconv-standalone -alltypes %S/fptrarrcaller.checked.c -- | diff %S/fptrarrcaller.checked.c -
+// RUN: cconv-standalone -alltypes %S/fptrarrcaller.checked.c -- | count 0
 // RUN: rm %S/fptrarrcaller.checked.c
 
 
@@ -140,7 +140,7 @@ int ** foo() {
         } 
         int **z = sus(x, y);
 	//CHECK_NOALL: int **z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z : count(5) =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z : count(5) = sus(x, y);
         
 return z; }
 

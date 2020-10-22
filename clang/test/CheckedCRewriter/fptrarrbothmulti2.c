@@ -5,11 +5,11 @@
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrarrbothmulti2.checkedALL2.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/fptrarrbothmulti1.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrarrbothmulti1.checked2.c %S/fptrarrbothmulti2.checked2.c
-// RUN: diff %S/fptrarrbothmulti1.checked2.convert_again.c %S/fptrarrbothmulti1.checked2.c
-// RUN: diff %S/fptrarrbothmulti2.checked2.convert_again.c %S/fptrarrbothmulti2.checked2.c
+// RUN: test ! -f %S/fptrarrbothmulti1.checked2.convert_again.c
+// RUN: test ! -f %S/fptrarrbothmulti2.checked2.convert_again.c
 // RUN: rm %S/fptrarrbothmulti1.checkedALL2.c %S/fptrarrbothmulti2.checkedALL2.c
 // RUN: rm %S/fptrarrbothmulti1.checkedNOALL2.c %S/fptrarrbothmulti2.checkedNOALL2.c
-// RUN: rm %S/fptrarrbothmulti1.checked2.c %S/fptrarrbothmulti2.checked2.c %S/fptrarrbothmulti1.checked2.convert_again.c %S/fptrarrbothmulti2.checked2.convert_again.c
+// RUN: rm %S/fptrarrbothmulti1.checked2.c %S/fptrarrbothmulti2.checked2.c
 
 
 /*********************************************************************************/
@@ -118,7 +118,7 @@ int ** sus(int *x, int *y) {
 	//CHECK: x = (int *) 5;
         int **z = calloc(5, sizeof(int *)); 
 	//CHECK_NOALL: int **z = calloc<int *>(5, sizeof(int *)); 
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z =  calloc<_Array_ptr<int>>(5, sizeof(int *)); 
+	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z = calloc<_Array_ptr<int>>(5, sizeof(int *)); 
         int * (*mul2ptr) (int *) = mul2;
 	//CHECK_NOALL: _Ptr<int * (int *)> mul2ptr = mul2;
 	//CHECK_ALL: _Ptr<_Array_ptr<int> (_Array_ptr<int> )> mul2ptr = mul2;

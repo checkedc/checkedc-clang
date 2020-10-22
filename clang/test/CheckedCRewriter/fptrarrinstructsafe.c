@@ -3,7 +3,7 @@
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 // RUN: cconv-standalone -alltypes -output-postfix=checked %s
-// RUN: cconv-standalone -alltypes %S/fptrarrinstructsafe.checked.c -- | diff %S/fptrarrinstructsafe.checked.c -
+// RUN: cconv-standalone -alltypes %S/fptrarrinstructsafe.checked.c -- | count 0
 // RUN: rm %S/fptrarrinstructsafe.checked.c
 
 

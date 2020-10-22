@@ -5,11 +5,11 @@
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrofstructcalleemulti1.checkedALL.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %S/arrofstructcalleemulti2.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/arrofstructcalleemulti1.checked.c %S/arrofstructcalleemulti2.checked.c
-// RUN: diff %S/arrofstructcalleemulti1.checked.convert_again.c %S/arrofstructcalleemulti1.checked.c
-// RUN: diff %S/arrofstructcalleemulti2.checked.convert_again.c %S/arrofstructcalleemulti2.checked.c
+// RUN: test ! -f %S/arrofstructcalleemulti1.checked.convert_again.c
+// RUN: test ! -f %S/arrofstructcalleemulti2.checked.convert_again.c
 // RUN: rm %S/arrofstructcalleemulti1.checkedALL.c %S/arrofstructcalleemulti2.checkedALL.c
 // RUN: rm %S/arrofstructcalleemulti1.checkedNOALL.c %S/arrofstructcalleemulti2.checkedNOALL.c
-// RUN: rm %S/arrofstructcalleemulti1.checked.c %S/arrofstructcalleemulti2.checked.c %S/arrofstructcalleemulti1.checked.convert_again.c %S/arrofstructcalleemulti2.checked.convert_again.c
+// RUN: rm %S/arrofstructcalleemulti1.checked.c %S/arrofstructcalleemulti2.checked.c
 
 
 /*********************************************************************************/

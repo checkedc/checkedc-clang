@@ -276,12 +276,6 @@ private:
   // pointers.
   bool IsZeroWidthArray;
 
-  // Was this variable a checked pointer in the input program?
-  // This is important for two reasons: (1) externs that are checked should be
-  // kept that way during solving, (2) nothing that was originally checked
-  // should be modified during rewriting.
-  bool OriginallyChecked;
-
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
@@ -290,8 +284,8 @@ public:
           ConstraintVariable(PointerVariable, "" /*not used*/, Name),
           BaseType(T),vars(V),FV(F), ArrPresent(isArr), ItypeStr(is),
           partOFFuncPrototype(false), Parent(nullptr),
-          BoundsAnnotationStr(""), IsGeneric(Generic), IsZeroWidthArray(false),
-          OriginallyChecked(false) {}
+          BoundsAnnotationStr(""), IsGeneric(Generic), IsZeroWidthArray(false)
+          {}
 
   std::string getTy() const { return BaseType; }
   bool getArrPresent() const { return ArrPresent; }
@@ -311,7 +305,9 @@ public:
 
   bool getIsGeneric() const { return IsGeneric; }
 
-  bool getIsOriginallyChecked() const override { return OriginallyChecked; }
+  bool getIsOriginallyChecked() const override {
+    return llvm::any_of(vars, [](Atom *A) { return isa<ConstAtom>(A); });
+  }
 
   bool solutionEqualTo(Constraints &CS,
                        const ConstraintVariable *CV) const override;

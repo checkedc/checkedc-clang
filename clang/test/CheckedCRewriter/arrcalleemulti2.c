@@ -5,11 +5,11 @@
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrcalleemulti2.checkedALL2.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/arrcalleemulti1.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/arrcalleemulti1.checked2.c %S/arrcalleemulti2.checked2.c
-// RUN: diff %S/arrcalleemulti1.checked2.convert_again.c %S/arrcalleemulti1.checked2.c
-// RUN: diff %S/arrcalleemulti2.checked2.convert_again.c %S/arrcalleemulti2.checked2.c
+// RUN: test ! -f %S/arrcalleemulti1.checked2.convert_again.c
+// RUN: test ! -f %S/arrcalleemulti2.checked2.convert_again.c
 // RUN: rm %S/arrcalleemulti1.checkedALL2.c %S/arrcalleemulti2.checkedALL2.c
 // RUN: rm %S/arrcalleemulti1.checkedNOALL2.c %S/arrcalleemulti2.checkedNOALL2.c
-// RUN: rm %S/arrcalleemulti1.checked2.c %S/arrcalleemulti2.checked2.c %S/arrcalleemulti1.checked2.convert_again.c %S/arrcalleemulti2.checked2.convert_again.c
+// RUN: rm %S/arrcalleemulti1.checked2.c %S/arrcalleemulti2.checked2.c
 
 
 /*********************************************************************************/
@@ -116,7 +116,7 @@ x = (int *) 5;
 	//CHECK: x = (int *) 5;
         int *z = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *z = calloc<int>(5, sizeof(int)); 
-	//CHECK_ALL: _Array_ptr<int> z =  calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> z = calloc<int>(5, sizeof(int)); 
         int i, fac;
         int *p;
 	//CHECK_NOALL: int *p;

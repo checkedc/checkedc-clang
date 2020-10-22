@@ -5,11 +5,11 @@
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrarrstructcallermulti2.checkedALL2.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/fptrarrstructcallermulti1.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrarrstructcallermulti1.checked2.c %S/fptrarrstructcallermulti2.checked2.c
-// RUN: diff %S/fptrarrstructcallermulti1.checked2.convert_again.c %S/fptrarrstructcallermulti1.checked2.c
-// RUN: diff %S/fptrarrstructcallermulti2.checked2.convert_again.c %S/fptrarrstructcallermulti2.checked2.c
+// RUN: test ! -f %S/fptrarrstructcallermulti1.checked2.convert_again.c
+// RUN: test ! -f %S/fptrarrstructcallermulti2.checked2.convert_again.c
 // RUN: rm %S/fptrarrstructcallermulti1.checkedALL2.c %S/fptrarrstructcallermulti2.checkedALL2.c
 // RUN: rm %S/fptrarrstructcallermulti1.checkedNOALL2.c %S/fptrarrstructcallermulti2.checkedNOALL2.c
-// RUN: rm %S/fptrarrstructcallermulti1.checked2.c %S/fptrarrstructcallermulti2.checked2.c %S/fptrarrstructcallermulti1.checked2.convert_again.c %S/fptrarrstructcallermulti2.checked2.convert_again.c
+// RUN: rm %S/fptrarrstructcallermulti1.checked2.c %S/fptrarrstructcallermulti2.checked2.c
 
 
 /*********************************************************************************/
