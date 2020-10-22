@@ -47,6 +47,20 @@ void test4() {
   // CHECK: _Ptr<_Ptr<int *>> h = ((void *)0);
   // CHECK: _Ptr<_Ptr<_Ptr<int>>> i _Checked[1] = {((void *)0)};
   **h = 1;
+
+
+  _Ptr<void (int*)> j = 0;
+  // CHECK: _Ptr<void (_Ptr<int> )> j = 0;
+
+  _Ptr<int *(void)> k = 0;
+  // CHECK: _Ptr<_Ptr<int> (void)> k = 0;
+
+  _Ptr<int> (*l)(void) = 0;
+  // CHECK: _Ptr<_Ptr<int> (void)> l = 0;
+
+  _Ptr<int *(void)> m = 0, n = 0;
+  // CHECK:_Ptr<_Ptr<int> (void)> m = 0;
+  // CHECK:_Ptr<_Ptr<int> (void)> n = 0;
 }
 
 void test5(_Ptr<int *> a, _Ptr<int *> b, _Ptr<_Ptr<int>> c, int **d) {

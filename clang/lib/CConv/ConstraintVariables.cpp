@@ -1269,7 +1269,7 @@ FunctionVariableConstraint::mkString(const EnvironmentMap &E,
 
     Ret = Ret + Ss.str() + ")";
   } else {
-    Ret = Ret + ")";
+    Ret = Ret + "void)";
   }
 
   return Ret;
