@@ -180,32 +180,16 @@ static ConstAtom *analyzeAllocExpr(CallExpr *CE, Constraints &CS,
   return nullptr;
 }
 
-CVarSet ConstraintResolver::getInvalidCastPVCons(Expr *E) {
-  CVarSet Ret;
-  QualType SrcType, DstType;
-  // As getInvalidCastPVCons could be called from non-persistent expressions
-  // we need to explicitly store the generated PVConstraints into persistent
-  // constraints.
-  if (Info.hasPersistentConstraints(E, Context))
-    return Info.getPersistentConstraints(E, Context);
-
-  DstType = E->getType();
-  SrcType = E->getType();
-  if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E))
-    SrcType = ICE->getSubExpr()->getType();
-
-  if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(E))
-    SrcType = ECE->getSubExpr()->getType();
+CVarSet ConstraintResolver::getInvalidCastPVCons(CastExpr *E) {
+  QualType DstType = E->getType();
+  QualType SrcType = E->getSubExpr()->getType();
 
   auto *P = new PVConstraint(DstType, nullptr, "Invalid cast", Info, *Context);
-
   PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(E, *Context);
   std::string Rsn =
       "Cast from " + SrcType.getAsString() + " to " + DstType.getAsString();
   P->constrainToWild(Info.getConstraints(), Rsn, &PL);
-  Ret = {P};
-  Info.storePersistentConstraints(E, Ret, Context);
-  return Ret;
+  return {P};
 }
 
 // Returns a set of ConstraintVariables which represent the result of
@@ -245,10 +229,10 @@ CVarSet
           !(SubTypE->isFunctionType() || SubTypE->isArrayType() ||
             SubTypE->isVoidPointerType()) &&
           !isCastSafe(TypE, SubTypE)) {
-        std::string Rsn = "Cast from " + SubTypE.getAsString() +  " to " +
-                          TypE.getAsString();
-        constraintAllCVarsToWild(CVs, Rsn, IE);
-        return getInvalidCastPVCons(E);
+        CVarSet WildCVar = getInvalidCastPVCons(IE);
+        constrainConsVarGeq(CVs, WildCVar, CS, nullptr, Safe_to_Wild, false,
+                            &Info);
+        return WildCVar;
       }
       // else, return sub-expression's result
       return CVs;
@@ -282,7 +266,10 @@ CVarSet
         // handle it as usual so the type in the cast can be rewritten.
         if (!isNULLExpression(ECE, *Context) && TypE->isPointerType()
             && !isCastSafe(TypE, TmpE->getType())) {
-          Ret = getInvalidCastPVCons(E);
+          CVarSet Vars = getExprConstraintVars(TmpE);
+          Ret = getInvalidCastPVCons(ECE);
+          constrainConsVarGeq(Vars, Ret, CS, nullptr, Safe_to_Wild, false,
+                              &Info);
           // NB: Expression ECE itself handled in
           // ConstraintBuilder::FunctionVisitor
         } else {
@@ -476,9 +463,13 @@ CVarSet
                 }
               }
             }
-            if (!didInsert)
+            if (!didInsert) {
+              std::string Rsn = "Unsafe call to allocator function.";
+              PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(CE, *Context);
               ReturnCVs.insert(
-                  PVConstraint::getWildPVConstraint(Info.getConstraints()));
+                PVConstraint::getWildPVConstraint(Info.getConstraints(), Rsn,
+                                                  &PL));
+            }
 
             /* Normal function call */
           } else {
@@ -539,17 +530,18 @@ CVarSet
                                                     NewCV->getBoundsKey());
             NewCV->setBoundsKey(CSensBKey);
           }
-          
+
+          auto PSL = PersistentSourceLoc::mkPSL(CE, *Context);
           // Important: Do Safe_to_Wild from returnvar in this copy, which then
           //   might be assigned otherwise (Same_to_Same) to LHS
           if (NewCV != CV)
-            constrainConsVarGeq(NewCV, CV, CS, nullptr, Safe_to_Wild, false,
+            constrainConsVarGeq(NewCV, CV, CS, &PSL, Safe_to_Wild, false,
                                 &Info);
           TmpCVs.insert(NewCV);
           // If this is realloc, constrain the first arg to flow to the return
           if (!ReallocFlow.empty()) {
             constrainConsVarGeq(NewCV, ReallocFlow, Info.getConstraints(),
-                                nullptr, Wild_to_Safe, false, &Info);
+                                &PSL, Wild_to_Safe, false, &Info);
           }
         }
         Ret = TmpCVs;
@@ -679,29 +671,28 @@ void ConstraintResolver::constrainLocalAssign(Stmt *TSt, DeclaratorDecl *D,
   }
 }
 
-CVarSet ConstraintResolver::getWildPVConstraint() {
-  CVarSet Ret;
-  Ret.insert(PVConstraint::getWildPVConstraint(Info.getConstraints()));
-  return Ret;
-}
-
 CVarSet ConstraintResolver::PVConstraintFromType(QualType TypE) {
+  assert("Pointer type CVs should be obtained through getExprConstraintVars." &&
+         !TypE->isPointerType());
   CVarSet Ret;
   if (TypE->isRecordType() || TypE->isArithmeticType())
     Ret.insert(PVConstraint::getNonPtrPVConstraint(Info.getConstraints()));
-  else if (TypE->isPointerType())
-    Ret.insert(PVConstraint::getWildPVConstraint(Info.getConstraints()));
   else
     llvm::errs() << "Warning: Returning non-base, non-wild type";
   return Ret;
 }
 
 CVarSet ConstraintResolver::getBaseVarPVConstraint(DeclRefExpr *Decl) {
+  if (Info.hasPersistentConstraints(Decl, Context))
+    return Info.getPersistentConstraints(Decl, Context);
+
   assert(Decl->getType()->isRecordType() || Decl->getType()->isArithmeticType());
+
   CVarSet Ret;
   auto DN = Decl->getDecl()->getName();
   Ret.insert(PVConstraint::getNamedNonPtrPVConstraint(DN,
                                                       Info.getConstraints()));
+  Info.storePersistentConstraints(Decl, Ret, Context);
   return Ret;
 }
 
@@ -712,7 +703,8 @@ PVConstraint *ConstraintResolver::getRewritablePVConstraint(Expr *E) {
   PVConstraint *P = new PVConstraint(E->getType(), nullptr,
                                      E->getStmtClassName(), Info, *Context,
                                      nullptr);
-  Info.constrainWildIfMacro(P, E->getExprLoc());
+  auto PSL = PersistentSourceLoc::mkPSL(E, *Context);
+  Info.constrainWildIfMacro(P, E->getExprLoc(), &PSL);
   return P;
 }
 

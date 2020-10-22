@@ -47,6 +47,7 @@ bool EnablePropThruIType;
 bool ConsiderAllocUnsafe;
 std::string StatsOutputJson;
 std::string WildPtrInfoJson;
+std::string PerWildPtrInfoJson;
 bool AllTypes;
 std::string BaseDir;
 bool AddCheckedRegions;
@@ -167,8 +168,7 @@ void runSolver(ProgramInfo &Info,
   dumpConstraintOutputJson(INITIAL_OUTPUT_SUFFIX, Info);
 
   clock_t StartTime = clock();
-  // FIXME: We should be seeing whether the constraints could be solved
-  std::pair<Constraints::ConstraintSet, bool> R = CS.solve();
+  CS.solve();
   if (Verbose) {
     errs() << "Solver time:" << getTimeSpentInSeconds(StartTime) << "\n";
   }
@@ -184,6 +184,7 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
   ConstraintOutputJson = CCopt.ConstraintOutputJson;
   StatsOutputJson = CCopt.StatsOutputJson;
   WildPtrInfoJson = CCopt.WildPtrInfoJson;
+  PerWildPtrInfoJson = CCopt.PerPtrInfoJson;
   DumpStats = CCopt.DumpStats;
   HandleVARARGS = CCopt.HandleVARARGS;
   EnablePropThruIType = CCopt.EnablePropThruIType;
@@ -316,6 +317,7 @@ bool CConvInterface::SolveConstraints(bool ComputeInterimState) {
 
   if (DumpStats) {
     GlobalProgramInfo.print_stats(FilePaths, llvm::errs(), true);
+    GlobalProgramInfo.computeInterimConstraintState(FilePaths);
     std::error_code Ec;
     llvm::raw_fd_ostream OutputJson(StatsOutputJson, Ec);
     if (!OutputJson.has_error()) {
@@ -325,9 +327,15 @@ bool CConvInterface::SolveConstraints(bool ComputeInterimState) {
 
     llvm::raw_fd_ostream WildPtrInfo(WildPtrInfoJson, Ec);
     if (!WildPtrInfo.has_error()) {
-      GlobalProgramInfo.computeInterimConstraintState(FilePaths);
-      GlobalProgramInfo.getInterimConstraintState().print_stats(WildPtrInfo);
+      GlobalProgramInfo.getInterimConstraintState().printStats(WildPtrInfo);
       WildPtrInfo.close();
+    }
+
+    llvm::raw_fd_ostream PerWildPtrInfo(PerWildPtrInfoJson, Ec);
+    if (!PerWildPtrInfo.has_error()) {
+      GlobalProgramInfo.getInterimConstraintState().printRootCauseStats(
+        PerWildPtrInfo, GlobalProgramInfo.getConstraints());
+      PerWildPtrInfo.close();
     }
   }
 
@@ -386,7 +394,7 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   auto &CS = GlobalProgramInfo.getConstraints();
 
   // Get all the current WILD pointers.
-  CVars OldWildPtrs = PtrDisjointSet.AllWildPtrs;
+  CVars OldWildPtrs = PtrDisjointSet.AllWildAtoms;
 
   // Delete the constraint that make the provided targetPtr WILD.
   VarAtom *VA = CS.getOrCreateVar(targetPtr, "q", VarAtom::V_Other);
@@ -407,7 +415,7 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   GlobalProgramInfo.computeInterimConstraintState(FilePaths);
 
   // Get new WILD pointers.
-  CVars &NewWildPtrs = PtrDisjointSet.AllWildPtrs;
+  CVars &NewWildPtrs = PtrDisjointSet.AllWildAtoms;
 
   // Get the number of pointers that have now converted to non-WILD.
   std::set_difference(OldWildPtrs.begin(), OldWildPtrs.end(),
@@ -448,7 +456,7 @@ bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
   auto &PtrDisjointSet = GlobalProgramInfo.getInterimConstraintState();
   auto &CS = GlobalProgramInfo.getConstraints();
 
-  CVars OldWildPtrs = PtrDisjointSet.AllWildPtrs;
+  CVars OldWildPtrs = PtrDisjointSet.AllWildAtoms;
 
   // Delete ALL the constraints that have the same given reason.
   VarAtom *VA = CS.getOrCreateVar(PtrKey, "q", VarAtom::V_Other);
@@ -466,7 +474,7 @@ bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
   GlobalProgramInfo.computeInterimConstraintState(FilePaths);
 
   // Computed the number of removed pointers.
-  CVars &NewWildPtrs = PtrDisjointSet.AllWildPtrs;
+  CVars &NewWildPtrs = PtrDisjointSet.AllWildAtoms;
 
   std::set_difference(OldWildPtrs.begin(), OldWildPtrs.end(),
                       NewWildPtrs.begin(), NewWildPtrs.end(),

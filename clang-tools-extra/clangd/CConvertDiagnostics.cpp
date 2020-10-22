@@ -44,9 +44,9 @@ bool CConvertDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line
     return nRange;
   };
 
-  for (auto &WReason : Line.RealWildPtrsWithReasons) {
-    if (Line.PtrSourceMap.find(WReason.first) != Line.PtrSourceMap.end()) {
-      auto *PsInfo = Line.PtrSourceMap[WReason.first];
+  for (auto &WReason : Line.RootWildAtomsWithReason) {
+    if (Line.AtomSourceMap.find(WReason.first) != Line.AtomSourceMap.end()) {
+      auto *PsInfo = Line.AtomSourceMap[WReason.first];
       std::string FilePath = PsInfo->getFileName();
       // If this is not a file in a project? Then ignore.
       if (!IsValidSourceFile(Line, FilePath))
@@ -61,15 +61,15 @@ bool CConvertDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line
       NewDiag.Severity = DiagnosticsEngine::Level::Error;
       NewDiag.code = std::to_string(WReason.first);
       NewDiag.Message = "Pointer is wild because of:" +
-                        WReason.second.WildPtrReason;
+                        WReason.second.getWildPtrReason();
 
       // Create notes for the information about root cause.
-      if (WReason.second.IsValid) {
+      PersistentSourceLoc SL = WReason.second.getLocation();
+      if (SL.valid()) {
         Note DiagNote;
-        DiagNote.AbsFile = WReason.second.SourceFileName;
+        DiagNote.AbsFile = SL.getFileName();
         DiagNote.Range =
-            GetLocRange(WReason.second.LineNo, WReason.second.ColStartS,
-                        WReason.second.ColStartE);
+            GetLocRange(SL.getLineNo(), SL.getColSNo(), SL.getColENo());
         DiagNote.Message = "Go here to know the root cause for this.";
         NewDiag.Notes.push_back(DiagNote);
       }
@@ -78,11 +78,11 @@ bool CConvertDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line
   }
 
   // For non-direct wild pointers..update the reason and diag information.
-  for (auto NonWildCk : Line.TotalNonDirectWildPointers) {
+  for (auto NonWildCk : Line.TotalNonDirectWildAtoms) {
     if (ProcessedCKeys.find(NonWildCk) == ProcessedCKeys.end()) {
       ProcessedCKeys.insert(NonWildCk);
-      if (Line.PtrSourceMap.find(NonWildCk) != Line.PtrSourceMap.end()) {
-        auto *PsInfo = Line.PtrSourceMap[NonWildCk];
+      if (Line.AtomSourceMap.find(NonWildCk) != Line.AtomSourceMap.end()) {
+        auto *PsInfo = Line.AtomSourceMap[NonWildCk];
         std::string FilePath = PsInfo->getFileName();
         // If this is not a file in a project? Then ignore.
         if (!IsValidSourceFile(Line, FilePath))
@@ -106,15 +106,15 @@ bool CConvertDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line
         for (auto tC : DirectWildPtrs) {
           Note DiagNote;
 
-          if (Line.PtrSourceMap.find(tC) != Line.PtrSourceMap.end()) {
-            PsInfo = Line.PtrSourceMap[tC];
+          if (Line.AtomSourceMap.find(tC) != Line.AtomSourceMap.end()) {
+            PsInfo = Line.AtomSourceMap[tC];
             FilePath = PsInfo->getFileName();
             DiagNote.AbsFile = FilePath;
             DiagNote.Range =
                 GetLocRange(PsInfo->getLineNo(), PsInfo->getColSNo(),
                             PsInfo->getColENo());
             MaxPtrReasons--;
-            DiagNote.Message = Line.RealWildPtrsWithReasons[tC].WildPtrReason;
+            DiagNote.Message = Line.RootWildAtomsWithReason[tC].getWildPtrReason();
             if (MaxPtrReasons <= 1)
               DiagNote.Message += " (others)";
             NewDiag.Notes.push_back(DiagNote);

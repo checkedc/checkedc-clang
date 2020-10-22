@@ -60,12 +60,11 @@ private:
 
   CVarSet handleDeref(CVarSet T);
 
-  CVarSet getInvalidCastPVCons(Expr *E);
+  CVarSet getInvalidCastPVCons(CastExpr *E);
 
   // Update a PVConstraint with one additional level of indirection
   PVConstraint *addAtom(PVConstraint *PVC, ConstAtom *NewA, Constraints &CS);
   CVarSet addAtomAll(CVarSet CVS, ConstAtom *PtrTyp, Constraints &CS);
-  CVarSet getWildPVConstraint();
   CVarSet PVConstraintFromType(QualType TypE);
 
   CVarSet getAllSubExprConstraintVars(std::vector<Expr *> &Exprs);

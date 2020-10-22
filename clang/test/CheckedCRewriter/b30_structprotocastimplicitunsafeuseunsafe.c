@@ -34,12 +34,10 @@ struct r {
 
 
 struct r *sus(struct r *, struct r *);
-	//CHECK_NOALL: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct r>);
-	//CHECK_ALL: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>));
+	//CHECK: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct r>);
 
 struct r *foo() {
-	//CHECK_NOALL: _Ptr<struct r> foo(void) {
-	//CHECK_ALL: struct r *foo(void) {
+	//CHECK: _Ptr<struct r> foo(void) {
   struct r *x; 
 	//CHECK: struct r *x; 
   struct r *y;
@@ -49,8 +47,7 @@ struct r *foo() {
   x->next = &y;
   y->next = &x;
   struct r *z = (struct r *) sus(x, y);
-	//CHECK_NOALL: _Ptr<struct r> z = (_Ptr<struct r>) sus(x, y);
-	//CHECK_ALL:   struct r *z = (struct r *) sus(x, y);
+	//CHECK: _Ptr<struct r> z = (_Ptr<struct r>) sus(x, y);
   return z;
 }
 
@@ -71,12 +68,10 @@ struct np *bar() {
 }
 
 struct r *sus(struct r *x, struct r *y) {
-	//CHECK_NOALL: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct r>) {
-	//CHECK_ALL: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) {
+	//CHECK: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct r>) {
   x->next += 1;
   struct r *z = malloc(sizeof(struct r));
-	//CHECK_NOALL: _Ptr<struct r> z =  malloc<struct r>(sizeof(struct r));
-	//CHECK_ALL:   struct r *z = malloc<struct r>(sizeof(struct r));
+	//CHECK: _Ptr<struct r> z =  malloc<struct r>(sizeof(struct r));
   z->data = 1;
   z->next = 0;
   return z;
