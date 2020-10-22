@@ -581,9 +581,9 @@ VarAtom *Constraints::getVar(ConstraintKey V) const {
 // Constructs a fresh VarAtom constrained GEQ the specified constant atom. This
 // should generally be used instead of using constant atoms directly if the the
 // VarAtom will be used in the variables vector of a PVConstraint.
-VarAtom *Constraints::getVarGEQ(std::string Name, VarAtom::VarKind VK,
-                                ConstAtom *Con, std::string Rsn,
-                                PersistentSourceLoc *PSL) {
+VarAtom *Constraints::createFreshGEQ(std::string Name, VarAtom::VarKind VK,
+                                     ConstAtom *Con, std::string Rsn,
+                                     PersistentSourceLoc *PSL) {
   VarAtom *VA = getFreshVar(Name, VK);
   addConstraint(createGeq(VA, Con, Rsn, PSL));
   return VA;

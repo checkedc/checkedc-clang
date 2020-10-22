@@ -46,8 +46,8 @@ PointerVariableConstraint *
 PointerVariableConstraint::getWildPVConstraint(Constraints &CS,
                                                const std::string &Rsn,
                                                PersistentSourceLoc *PSL) {
-  VarAtom *VA = CS.getVarGEQ("wildvar", VarAtom::V_Other,
-                             CS.getWild(), Rsn, PSL);
+  VarAtom *VA = CS.createFreshGEQ("wildvar", VarAtom::V_Other,
+                                  CS.getWild(), Rsn, PSL);
   CAtoms NewAtoms = {VA};
   PVConstraint *WildPVC = new PVConstraint(NewAtoms, "unsigned", "wildvar",
                                            nullptr, false, false, "");
@@ -230,7 +230,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     if (isVarArgType(TyName)) {
       // Variable number of arguments. Make it WILD.
       std::string Rsn = "Variable number of arguments.";
-      VarAtom *WildVA = CS.getVarGEQ(Npre + N, VK, CS.getWild(), Rsn);
+      VarAtom *WildVA = CS.createFreshGEQ(Npre + N, VK, CS.getWild(), Rsn);
       vars.push_back(WildVA);
       VarCreated = true;
       break;

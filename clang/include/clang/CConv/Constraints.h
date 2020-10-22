@@ -592,9 +592,10 @@ public:
                  PersistentSourceLoc *PL, bool isCheckedConstraint = true);
   Implies *createImplies(Geq *Premise, Geq *Conclusion);
 
-  VarAtom * getVarGEQ(std::string Name, VarAtom::VarKind VK, ConstAtom *Con,
-            std::string Rsn = DEFAULT_REASON,
-            PersistentSourceLoc *PSL = nullptr);
+  VarAtom *createFreshGEQ(std::string Name, VarAtom::VarKind VK, ConstAtom *Con,
+                          std::string Rsn = DEFAULT_REASON,
+                          PersistentSourceLoc *PSL = nullptr);
+
   VarAtom *getFreshVar(std::string Name, VarAtom::VarKind VK);
   VarAtom *getOrCreateVar(ConstraintKey V, std::string Name,
                           VarAtom::VarKind VK);
