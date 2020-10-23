@@ -48,6 +48,11 @@ void PreorderAST::RemoveNode(Node *N, Node *Parent) {
   }
 
   if (auto *B = dyn_cast<BinaryNode>(N)) {
+    // We will remove a BinaryNode only if its operator is equal to its
+    // parent's operator and the operator is commutative and associative.
+    if (B->Opc != P->Opc || !B->IsOpCommutativeAndAssociative())
+      return;
+
     // Move all children of the current node to its parent.
     for (auto *Child : B->Children) {
       Child->Parent = P;
@@ -101,6 +106,10 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
         BinOp = BO_Add;
         RHS = UOMinusRHS;
       }
+
+      // TODO: In case of overflow we leak the memory allocated to UOMinusRHS.
+      // Whereas if there is no overflow we leak the memory initially allocated
+      // to RHS.
     }
 
     auto *N = new BinaryNode(BinOp, Parent);
@@ -159,6 +168,42 @@ void PreorderAST::Coalesce(Node *N, bool &Changed) {
   }
 }
 
+bool PreorderAST::CompareNodes(const Node *N1, const Node *N2) {
+  if (const auto *L1 = dyn_cast<LeafExprNode>(N1)) {
+    if (const auto *L2 = dyn_cast<LeafExprNode>(N2)) {
+      // If L1 is a UnaryOperatorExpr and L2 is not, then
+      // 1. If L1 contains an integer constant then sorted order is (L2, L1)
+      // 2. Else sorted order is (L1, L2).
+      if (isa<UnaryOperator>(L1->E) && !isa<UnaryOperator>(L2->E))
+        return !L1->E->isIntegerConstantExpr(Ctx);
+
+      // If L2 is a UnaryOperatorExpr and L1 is not, then
+      // 1. If L2 contains an integer constant then sorted order is (L1, L2)
+      // 2. Else sorted order is (L2, L1).
+      if (!isa<UnaryOperator>(L1->E) && isa<UnaryOperator>(L2->E))
+        return L2->E->isIntegerConstantExpr(Ctx);
+
+      // If both nodes are LeafExprNodes compare the exprs.
+      return Lex.CompareExpr(L1->E, L2->E) == Result::LessThan;
+    }
+
+    // N2:BinaryNodeExpr < N1:LeafExprNode.
+    return false;
+  }
+
+  // N1:BinaryNodeExpr < N2:LeafExprNode.
+  if (isa<LeafExprNode>(N2))
+    return true;
+
+  // Compare N1:BinaryNode and N2:BinaryNode.
+  const auto *B1 = dyn_cast<BinaryNode>(N1);
+  const auto *B2 = dyn_cast<BinaryNode>(N2);
+
+  if (B1->Opc != B2->Opc)
+    return B1->Opc < B2->Opc;
+  return B1->Children.size() < B2->Children.size();
+}
+
 void PreorderAST::Sort(Node *N) {
   auto *B = dyn_cast_or_null<BinaryNode>(N);
   if (!B)
@@ -173,45 +218,11 @@ void PreorderAST::Sort(Node *N) {
   if (!B->IsOpCommutativeAndAssociative())
     return;
 
-  // Comparison function to sort nodes.
-  auto NodeComparator = [&](const Node *N1, const Node *N2) {
-    if (const auto *L1 = dyn_cast<LeafExprNode>(N1)) {
-      if (const auto *L2 = dyn_cast<LeafExprNode>(N2)) {
-        // If L1 is a UnaryOperatorExpr and L2 is not, then
-        // 1. If L1 contains an integer constant then sorted order is (L2, L1)
-        // 2. Else sorted order is (L1, L2).
-        if (isa<UnaryOperator>(L1->E) && !isa<UnaryOperator>(L2->E))
-          return !L1->E->isIntegerConstantExpr(Ctx);
-
-        // If L2 is a UnaryOperatorExpr and L1 is not, then
-        // 1. If L2 contains an integer constant then sorted order is (L1, L2)
-        // 2. Else sorted order is (L2, L1).
-        if (!isa<UnaryOperator>(L1->E) && isa<UnaryOperator>(L2->E))
-          return L2->E->isIntegerConstantExpr(Ctx);
-
-        // If both nodes are LeafExprNodes compare the exprs.
-        return Lex.CompareExpr(L1->E, L2->E) == Result::LessThan;
-      }
-
-      // N2:BinaryNodeExpr < N1:LeafExprNode.
-      return false;
-    }
-
-    // N1:BinaryNodeExpr < N2:LeafExprNode.
-    if (isa<LeafExprNode>(N2))
-      return true;
-
-    // Compare N1:BinaryNode and N2:BinaryNode.
-    const auto *B1 = dyn_cast<BinaryNode>(N1);
-    const auto *B2 = dyn_cast<BinaryNode>(N2);
-
-    if (B1->Opc != B2->Opc)
-      return B1->Opc < B2->Opc;
-    return B1->Children.size() < B2->Children.size();
-  };
-
   // Sort the children.
-  llvm::sort(B->Children.begin(), B->Children.end(), NodeComparator);
+  llvm::sort(B->Children.begin(), B->Children.end(),
+             [&](const Node *N1, const Node *N2) {
+               return CompareNodes(N1, N2);
+            });
 }
 
 void PreorderAST::ConstantFold(Node *N, bool &Changed) {

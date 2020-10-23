@@ -105,6 +105,12 @@ namespace clang {
     // @param[in] N is current node of the AST. Initial value is Root.
     void Sort(Node *N);
 
+    // Compare nodes N1 and N2 to sort them. This function is invoked by a
+    // lambda which is passed to the llvm::sort function.
+    // @param[in] N1 is the first node to compare.
+    // @param[in] N2 is the second node to compare.
+    bool CompareNodes(const Node *N1, const Node *N2);
+
     // Constant fold integer expressions.
     // @param[in] N is current node of the AST. Initial value is Root.
     // @param[in] Changed indicates whether constant folding was done. We need
