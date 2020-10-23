@@ -109,6 +109,7 @@ namespace clang {
     // lambda which is passed to the llvm::sort function.
     // @param[in] N1 is the first node to compare.
     // @param[in] N2 is the second node to compare.
+    // return A boolean indicating the relative ordering between N1 and N2.
     bool CompareNodes(const Node *N1, const Node *N2);
 
     // Constant fold integer expressions.
