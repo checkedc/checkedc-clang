@@ -65,6 +65,12 @@ condition `if (*(V + high + i))`, where `i` is an unsigned integer offset, the
 widened bounds `{V:i+1}` can be added to `Gen[Bi][Bj]`, provided we have
 already tested for pointer access of the form `if (*(V + high + (i - 1)))`.
 
+Note: For this dataflow analysis the actual value at the upper bound does not
+matter and we don't explicitly check that value as part of the analysis. The
+actual value is determined at runtime. Accordingly, if the value at the upper
+bound is non-null then we would widen the bounds on the true edge of an `if`
+condition.
+
 For example:
 ```
 _Nt_array_ptr<T> V : bounds (V + low, V + high);
