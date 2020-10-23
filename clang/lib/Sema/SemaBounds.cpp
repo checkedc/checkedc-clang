@@ -2266,10 +2266,13 @@ namespace {
 
      // KilledBounds stores a mapping of statements to all variables whose
      // bounds are killed by each statement. Here we reset the bounds of all
-     // variables killed by the statement S to the normalized declared bounds.
+     // variables that are in scope at the statement S and whose bounds are
+     // killed by S to the normalized declared bounds.
      for (const VarDecl *V : I->second) {
-       if (BoundsExpr *Bounds = S.NormalizeBounds(V))
-         State.ObservedBounds[V] = Bounds;
+       if (State.ObservedBounds.find(V) != State.ObservedBounds.end()) {
+         if (BoundsExpr *Bounds = S.NormalizeBounds(V))
+           State.ObservedBounds[V] = Bounds;
+       }
      }
    }
 
