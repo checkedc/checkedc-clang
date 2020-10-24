@@ -606,11 +606,14 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
 void ProgramInfo::checkTypedef(const Type* Ty, ASTContext& Context, DeclaratorDecl* Decl, PVConstraint* P) {
   if (const auto TDT = dyn_cast<TypedefType>(Ty)) {
     auto Decl = TDT->getDecl();
-    P->setTypedef(Decl, Decl->getNameAsString());
     auto PSL = PersistentSourceLoc::mkPSL(Decl, Context);
-    CVarSet& bounds = typedefVars[PSL];
-    constrainConsVarGeq(P, bounds, CS, &PSL, Same_to_Same, true, this);
-    bounds.insert(P);
+    auto &pair = typedefVars[PSL];
+    CVarSet& bounds = pair.first;
+    if (pair.second) {
+      P->setTypedef(Decl, Decl->getNameAsString());
+      constrainConsVarGeq(P, bounds, CS, &PSL, Same_to_Same, true, this);
+      bounds.insert(P);
+    }
   }
 }
 

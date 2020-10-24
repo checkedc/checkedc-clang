@@ -31,13 +31,14 @@ vsf_sysutil_memclr(void* p_dest : itype(_Array_ptr<T>) byte_count(size), unsigne
 }
 
 typedef unsigned int (*hashfunc_t)(unsigned int, void*);
+//CHECK_ALL: typedef _Ptr<unsigned int (unsigned int , void *)> hashfunc_t;
 
 struct hash* hash_alloc(unsigned int buckets, unsigned int key_size,
                         unsigned int value_size, hashfunc_t hash_func);
 void* hash_lookup_entry(struct hash* p_hash, void* p_key);
 void hash_add_entry(struct hash* p_hash, void* p_key, void* p_value);
 void hash_free_entry(struct hash* p_hash, void* p_key);
-//CHECK_ALL: _Ptr<struct hash> hash_alloc(unsigned int buckets, unsigned int key_size, unsigned int value_size, _Ptr<unsigned int (unsigned int , void *)> hash_func);
+//CHECK_ALL: _Ptr<struct hash> hash_alloc(unsigned int buckets, unsigned int key_size, unsigned int value_size, hashfunc_t hash_func);
 //CHECK_ALL: void* hash_lookup_entry(_Ptr<struct hash> p_hash, void* p_key);
 //CHECK_ALL: void hash_add_entry(_Ptr<struct hash> p_hash, void* p_key, void* p_value);
 //CHECK_ALL: void hash_free_entry(_Ptr<struct hash> p_hash, void* p_key);
@@ -61,7 +62,7 @@ struct hash
   unsigned int value_size;
   hashfunc_t hash_func;
   struct hash_node** p_nodes;
-//CHECK_ALL:  _Ptr<unsigned int (unsigned int , void *)> hash_func;
+//CHECK_ALL: hashfunc_t hash_func;
 //CHECK_ALL:  _Array_ptr<_Ptr<struct hash_node>> p_nodes : count(buckets);
 };
 
@@ -74,7 +75,7 @@ struct hash_node* hash_get_node_by_key(struct hash* p_hash, void* p_key);
 struct hash*
 hash_alloc(unsigned int buckets, unsigned int key_size,
            unsigned int value_size, hashfunc_t hash_func)
-//CHECK_ALL: _Ptr<struct hash> hash_alloc(unsigned int buckets, unsigned int key_size, unsigned int value_size, _Ptr<unsigned int (unsigned int , void *)> hash_func)
+//CHECK_ALL: _Ptr<struct hash> hash_alloc(unsigned int buckets, unsigned int key_size, unsigned int value_size, hashfunc_t hash_func)
 {
   unsigned int size;
   struct hash* p_hash = malloc(sizeof(*p_hash));

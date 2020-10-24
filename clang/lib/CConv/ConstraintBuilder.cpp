@@ -9,6 +9,7 @@
 // visitors create constraints based on the AST of the program.
 //===----------------------------------------------------------------------===//
 
+#include <algorithm>
 #include <clang/ASTMatchers/ASTMatchers.h>
 #include "clang/CConv/ConstraintBuilder.h"
 #include "clang/CConv/ConstraintResolver.h"
@@ -412,6 +413,46 @@ private:
   TypeVarInfo &TVInfo;
 };
 
+class PtrToStructDef : public RecursiveASTVisitor<PtrToStructDef> {
+  public:
+    explicit PtrToStructDef(TypedefDecl *TDT) : TDT(TDT) {}
+
+    bool VisitPointerType(clang::PointerType *PT) {
+      ispointer = true;
+      return true;
+    }
+
+    bool VisitRecordType(RecordType *RT) {
+      auto decl = RT->getDecl();
+      auto declRange = decl->getSourceRange();
+      auto typedefRange = TDT->getSourceRange();
+      bool declContained = (typedefRange.getBegin() < declRange.getBegin())
+        && !(typedefRange.getEnd() < typedefRange.getEnd());
+      if (declContained) {
+        structDefInPtr = true;
+        return false;
+      } else {
+        return true;
+      }
+    }
+
+    bool getResult(void) {
+      return structDefInPtr;
+    }
+
+    static bool containsPtrToStructDef(TypedefDecl *TDT) {
+      PtrToStructDef traverser(TDT);
+      traverser.TraverseDecl(TDT);
+      return traverser.getResult();
+    }
+
+  private:
+    TypedefDecl* TDT = nullptr;
+    bool ispointer = false;
+    bool structDefInPtr = false;
+
+};
+
 
 // This class visits a global declaration, generating constraints
 //   for functions, variables, types, etc. that are visited
@@ -423,7 +464,8 @@ public:
   bool VisitTypedefDecl(TypedefDecl* TD) { 
       CVarSet empty;
       auto PSL = PersistentSourceLoc::mkPSL(TD, *Context);
-      Info.typedefVars[PSL] = empty;
+      bool shouldCheck = !PtrToStructDef::containsPtrToStructDef(TD);
+      Info.typedefVars[PSL] = make_pair(empty, shouldCheck);
       return true;
   }
 

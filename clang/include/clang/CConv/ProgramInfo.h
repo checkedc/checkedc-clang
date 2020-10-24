@@ -116,7 +116,7 @@ public:
 
   void constrainWildIfMacro(ConstraintVariable *CV, SourceLocation Location);
 
-  std::map<PersistentSourceLoc, CVarSet> typedefVars;
+  std::map<PersistentSourceLoc, std::pair<CVarSet, bool>> typedefVars;
 
   void checkTypedef(const clang::Type*, clang::ASTContext&,
                     clang::DeclaratorDecl*, PVConstraint*);

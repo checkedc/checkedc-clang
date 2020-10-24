@@ -78,13 +78,14 @@ int sum10pairs(struct pair (*pairs)[10]) {
 }
 
 typedef int (*compl)[5];
+//CHECK_ALL: typedef _Ptr<int _Checked[5]> compl;
 
 int example(void) { 
   int local[5] = { 0 };
   //CHECK_ALL: int local _Checked[5] = { 0 };
   //CHECK_NOALL int local[5] = { 0 };
   compl t = &local;
-  //CHECK_ALL: _Ptr<int _Checked[5]> t = &local;
+  //CHECK_ALL: compl t = &local;
   //CHECK_NOALL _Ptr<int *> t = &local;
   return (*t)[2];
 }
