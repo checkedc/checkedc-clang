@@ -84,6 +84,7 @@ jobs:
         with:
           name: cconvbuild
           path: ${{runner.workspace}}/${{env.builddir}}
+          retention-days: 3
 
       # Upload script files
       - name: Upload script files
@@ -91,6 +92,7 @@ jobs:
         with:
           name: cconvscripts
           path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils
+          retention-days: 3
 
 
   unittests:

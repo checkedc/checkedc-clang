@@ -321,12 +321,11 @@ public:
   };
 private:
   const ConstraintKind Kind;
+  PersistentSourceLoc PL;
+
 public:
   std::string REASON = DEFAULT_REASON;
-  std::string FileName = "";
-  unsigned LineNo = 0;
-  unsigned ColStart = 0;
-  unsigned ColEnd = 0;
+
   Constraint(ConstraintKind K) : Kind(K) { }
   Constraint(ConstraintKind K, const std::string &rsn) : Kind(K) {
     REASON = rsn;
@@ -349,6 +348,8 @@ public:
   virtual void setReason(const std::string &Rsn) {
     REASON = Rsn;
   }
+
+  const PersistentSourceLoc &getLocation() const { return PL; }
 };
 
 // a >= b
@@ -579,7 +580,7 @@ public:
 
   void editConstraintHook(Constraint *C);
 
-  std::pair<Constraints::ConstraintSet, bool> solve();
+  void solve();
   void dump() const;
   void print(llvm::raw_ostream &) const;
   void dump_json(llvm::raw_ostream &) const;
@@ -590,6 +591,10 @@ public:
   Geq *createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,
                  PersistentSourceLoc *PL, bool isCheckedConstraint = true);
   Implies *createImplies(Geq *Premise, Geq *Conclusion);
+
+  VarAtom *createFreshGEQ(std::string Name, VarAtom::VarKind VK, ConstAtom *Con,
+                          std::string Rsn = DEFAULT_REASON,
+                          PersistentSourceLoc *PSL = nullptr);
 
   VarAtom *getFreshVar(std::string Name, VarAtom::VarKind VK);
   VarAtom *getOrCreateVar(ConstraintKey V, std::string Name,
@@ -630,7 +635,7 @@ private:
   VarSolTy getDefaultSolution();
 
   // Solve constraint set via graph-based dynamic transitive closure
-  bool graph_based_solve(ConstraintSet &Conflicts);
+  bool graph_based_solve();
 
   // These atoms can be singletons, so we'll store them in the
   // Constraints class.

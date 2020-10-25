@@ -38,6 +38,8 @@ struct CConvertOptions {
 
   std::string WildPtrInfoJson;
 
+  std::string PerPtrInfoJson;
+
   std::vector<std::string> AllocatorFunctions;
 
   bool HandleVARARGS;

@@ -38,7 +38,7 @@ public:
   uint32_t getLineNo() const { return LineNo; }
   uint32_t getColSNo() const { return ColNoS; }
   uint32_t getColENo() const { return ColNoE; }
-  bool valid() { return isValid; }
+  bool valid() const { return isValid; }
 
   bool operator<(const PersistentSourceLoc &o) const {
     if (FileName == o.FileName)

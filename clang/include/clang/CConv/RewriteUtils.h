@@ -193,15 +193,15 @@ typedef std::set<DeclReplacement *, DComp> RSet;
 class GlobalVariableGroups {
 public:
   GlobalVariableGroups(SourceManager &SourceMgr) : SM(SourceMgr) { }
-  void addGlobalDecl(Decl *VD, std::set<Decl *> *VDSet = nullptr);
+  void addGlobalDecl(Decl *VD, std::vector<Decl *> *VDVec = nullptr);
 
-  std::set<Decl *> &getVarsOnSameLine(Decl *VD);
+  std::vector<Decl *> &getVarsOnSameLine(Decl *VD);
 
   virtual ~GlobalVariableGroups();
 
 private:
   SourceManager &SM;
-  std::map<Decl *, std::set<Decl *>*> GlobVarGroups;
+  std::map<Decl *, std::vector<Decl *>*> GlobVarGroups;
 };
 
 // Class that handles rewriting bounds information for all the
@@ -233,7 +233,7 @@ private:
   // A single header file can be included in multiple translations units. This
   // set ensures that the diagnostics for a header file are not emitted each
   // time a translation unit containing the header is vistied.
-  static std::set<PersistentSourceLoc *> EmittedDiagnostics;
+  static std::set<PersistentSourceLoc> EmittedDiagnostics;
 
   void emitRootCauseDiagnostics(ASTContext &Context);
 };

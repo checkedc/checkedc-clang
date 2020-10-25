@@ -136,27 +136,17 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
 // of 'vars'. If it either has a function pointer, or V is
 // a function, then recurses on the return and parameter
 // constraints.
-static
-CAtoms getVarsFromConstraint(ConstraintVariable *V) {
-  CAtoms R;
-  R.clear();
-
-  if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
+static void getVarsFromConstraint(ConstraintVariable *V, CAtoms &R) {
+  if (auto *PVC = dyn_cast<PVConstraint>(V)) {
     R.insert(R.begin(), PVC->getCvars().begin(), PVC->getCvars().end());
-   if (FVConstraint *FVC = PVC->getFV()) 
-     return getVarsFromConstraint(FVC);
-  } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(V)) {
-    if (FVC->getReturnVar()) {
-      CAtoms Tmp = getVarsFromConstraint(FVC->getReturnVar());
-      R.insert(R.begin(), Tmp.begin(), Tmp.end());
-    }
-    for (unsigned i = 0; i < FVC->numParams(); i++) {
-      CAtoms Tmp = getVarsFromConstraint(FVC->getParamVar(i));
-      R.insert(R.begin(), Tmp.begin(), Tmp.end());
-    }
+    if (FVConstraint *FVC = PVC->getFV())
+      getVarsFromConstraint(FVC, R);
+  } else if (auto *FVC = dyn_cast<FVConstraint>(V)) {
+    if (FVC->getReturnVar())
+      getVarsFromConstraint(FVC->getReturnVar(), R);
+    for (unsigned i = 0; i < FVC->numParams(); i++)
+      getVarsFromConstraint(FVC->getParamVar(i), R);
   }
-
-  return R;
 }
 
 // Print out statistics of constraint variables on a per-file basis.
@@ -188,7 +178,8 @@ void ProgramInfo::print_stats(const std::set<std::string> &F, raw_ostream &O,
       ConstraintVariable *C = I.second;
       if (C->isForValidDecl()) {
         InSrcCVars.insert(C);
-        CAtoms FoundVars = getVarsFromConstraint(C);
+        CAtoms FoundVars;
+        getVarsFromConstraint(C, FoundVars);
 
         varC += FoundVars.size();
         for (const auto &N : FoundVars) {
@@ -506,7 +497,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       // anyways. This happens if the name of the variable is a macro defined
       // differently is different parts of the program.
       std::string Rsn = "Duplicate source location. Possibly part of a macro.";
-      Variables[PLoc]->constrainToWild(CS, Rsn);
+      Variables[PLoc]->constrainToWild(CS, Rsn, &PLoc);
     }
     return;
   }
@@ -658,10 +649,11 @@ void ProgramInfo::storePersistentConstraints(Expr *E, const CVarSet &Vars,
 // someday, the Rewriter will become less lame and let us re-write stuff
 // in macros.
 void ProgramInfo::constrainWildIfMacro(ConstraintVariable *CV,
-                                       SourceLocation Location) {
+                                       SourceLocation Location,
+                                       PersistentSourceLoc *PSL) {
   std::string Rsn = "Pointer in Macro declaration.";
   if (!Rewriter::isRewritable(Location))
-    CV->constrainToWild(CS, Rsn);
+    CV->constrainToWild(CS, Rsn, PSL);
 }
 
 //std::string ProgramInfo::getUniqueDeclKey(Decl *D, ASTContext *C) {
@@ -788,123 +780,177 @@ bool ProgramInfo::computeInterimConstraintState
   // Get all the valid vars of interest i.e., all the Vars that are present
   // in one of the files being compiled.
   CAtoms ValidVarsVec;
+  std::set<Atom *> AllValidVars;
   for (const auto &I : Variables) {
     std::string FileName = I.first.getFileName();
-    if (FilePaths.count(FileName)) {
-      ConstraintVariable *C = I.second;
-      if (C->isForValidDecl()) {
-        CAtoms tmp = getVarsFromConstraint(C);
-        ValidVarsVec.insert(ValidVarsVec.begin(), tmp.begin(), tmp.end());
-      }
+    ConstraintVariable *C = I.second;
+    if (C->isForValidDecl()) {
+      CAtoms Tmp;
+      getVarsFromConstraint(C, Tmp);
+      AllValidVars.insert(Tmp.begin(), Tmp.end());
+      if (FilePaths.count(FileName) ||
+          FileName.find(BaseDir) != std::string::npos)
+        ValidVarsVec.insert(ValidVarsVec.begin(), Tmp.begin(), Tmp.end());
     }
   }
+
   // Make that into set, for efficiency.
   std::set<Atom *> ValidVarsS;
-  CVars ValidVarsKey;
   ValidVarsS.insert(ValidVarsVec.begin(), ValidVarsVec.end());
 
-  std::transform(ValidVarsS.begin() , ValidVarsS.end(),
-                 std::inserter(ValidVarsKey, ValidVarsKey.end()) ,
-                 [](const Atom *val){
-    if (const VarAtom *VA = dyn_cast<VarAtom>(val)) {
+  auto GetLocOrZero = [](const Atom *val) {
+    if (const auto *VA = dyn_cast<VarAtom>(val))
       return VA->getLoc();
-    }
-    return (uint32_t)0;
-  });
+    return (ConstraintKey) 0;
+  };
+  CVars ValidVarsKey;
+  std::transform(ValidVarsS.begin(), ValidVarsS.end(),
+                 std::inserter(ValidVarsKey, ValidVarsKey.end()), GetLocOrZero);
+  CVars AllValidVarsKey;
+  std::transform(AllValidVars.begin(), AllValidVars.end(),
+                 std::inserter(AllValidVarsKey, AllValidVarsKey.end()),
+                 GetLocOrZero);
 
   CState.Clear();
-
-  auto &RCMap = CState.RCMap;
-  auto &SrcWMap = CState.SrcWMap;
-  auto &TotalNDirectWPtrs = CState.TotalNonDirectWildPointers;
-  auto &InSrInDirectWPtrs = CState.InSrcNonDirectWildPointers;
-  CVars &WildPtrs = CState.AllWildPtrs;
-  CVars &InSrcW = CState.InSrcWildPtrs;
-  WildPtrs.clear();
   std::set<Atom *> DirectWildVarAtoms;
-  std::set<Atom *> IndirectWildAtoms;
-  auto &ChkCG = CS.getChkCG();
-  ChkCG.getSuccessors(CS.getWild(), DirectWildVarAtoms);
+  CS.getChkCG().getSuccessors(CS.getWild(), DirectWildVarAtoms);
 
-  CVars TmpCGrp;
+  // Maps each atom to the set of atoms which depend on it through an
+  // implication constraint. These atoms would not be associated with the
+  // correct root cause through a BFS because an explicit edge does not exist
+  // between the cause and these atoms. Implication firing adds an edge from
+  // WILD to the LHS conclusion ptr. The logical flow of WILDness, however, is
+  // from the premise LHS to conclusion LHS.
+  std::map<Atom *, std::set<Atom *>> ImpMap;
+  for (auto *C : getConstraints().getConstraints())
+    if (auto *Imp = dyn_cast<Implies>(C)) {
+      auto *Pre = Imp->getPremise();
+      auto *Con = Imp->getConclusion();
+      ImpMap[Pre->getLHS()].insert(Con->getLHS());
+    }
+
   for (auto *A : DirectWildVarAtoms) {
     auto *VA = dyn_cast<VarAtom>(A);
     if (VA == nullptr)
       continue;
 
-    TmpCGrp.clear();
-    ChkCG.visitBreadthFirst(VA,
-      [VA, &DirectWildVarAtoms, &RCMap, &TmpCGrp](Atom *SearchAtom) {
-        auto *SearchVA = dyn_cast<VarAtom>(SearchAtom);
-        if (SearchVA != nullptr &&
-              DirectWildVarAtoms.find(SearchVA) == DirectWildVarAtoms.end()) {
-          RCMap[SearchVA->getLoc()].insert(VA->getLoc());
-          TmpCGrp.insert(SearchVA->getLoc());
-        }
-      });
+    CVars TmpCGrp;
+    auto BFSVisitor = [&](Atom *SearchAtom) {
+      auto *SearchVA = dyn_cast<VarAtom>(SearchAtom);
+      if (SearchVA && AllValidVars.find(SearchVA) != AllValidVars.end()) {
+        CState.RCMap[SearchVA->getLoc()].insert(VA->getLoc());
+        TmpCGrp.insert(SearchVA->getLoc());
+      }
+    };
+    CS.getChkCG().visitBreadthFirst(VA, BFSVisitor);
+    if (ImpMap.find(A) != ImpMap.end())
+      for (Atom *ImpA : ImpMap[A])
+        if (isa<VarAtom>(ImpA))
+          CS.getChkCG().visitBreadthFirst(ImpA, BFSVisitor);
 
-    TotalNDirectWPtrs.insert(TmpCGrp.begin(), TmpCGrp.end());
-    // We consider only pointers which with in the source files or external
-    // pointers that affected pointers within the source files.
-    if (!TmpCGrp.empty() || ValidVarsS.find(VA) != ValidVarsS.end()) {
-      WildPtrs.insert(VA->getLoc());
-      CVars &CGrp = SrcWMap[VA->getLoc()];
-      CGrp.insert(TmpCGrp.begin(), TmpCGrp.end());
-    }
+    CState.TotalNonDirectWildAtoms.insert(TmpCGrp.begin(), TmpCGrp.end());
+    // Should we consider only pointers which with in the source files or
+    // external pointers that affected pointers within the source files.
+    CState.AllWildAtoms.insert(VA->getLoc());
+    CVars &CGrp = CState.SrcWMap[VA->getLoc()];
+    CGrp.insert(TmpCGrp.begin(), TmpCGrp.end());
   }
-  findIntersection(WildPtrs, ValidVarsKey, InSrcW);
-  findIntersection(TotalNDirectWPtrs, ValidVarsKey, InSrInDirectWPtrs);
+  findIntersection(CState.AllWildAtoms, ValidVarsKey, CState.InSrcWildAtoms);
+  findIntersection(CState.TotalNonDirectWildAtoms, ValidVarsKey,
+                   CState.InSrcNonDirectWildAtoms);
 
-  auto &WildPtrsReason = CState.RealWildPtrsWithReasons;
+  for (const auto &I : Variables)
+    insertIntoPtrSourceMap(&(I.first), I.second);
+  for (const auto &I : ExprConstraintVars)
+    for (auto *J : I.second)
+      insertIntoPtrSourceMap(&(I.first), J);
 
-  for (auto currC : CS.getConstraints()) {
+  auto &WildPtrsReason = CState.RootWildAtomsWithReason;
+  for (auto *currC : CS.getConstraints()) {
     if (Geq *EC = dyn_cast<Geq>(currC)) {
       VarAtom *VLhs = dyn_cast<VarAtom>(EC->getLHS());
       if (EC->constraintIsChecked() && dyn_cast<WildAtom>(EC->getRHS())) {
-        WildPtrsReason[VLhs->getLoc()].WildPtrReason = EC->getReason();
-        if (!EC->FileName.empty() && EC->LineNo != 0) {
-          WildPtrsReason[VLhs->getLoc()].IsValid = true;
-          WildPtrsReason[VLhs->getLoc()].SourceFileName = EC->FileName;
-          WildPtrsReason[VLhs->getLoc()].LineNo = EC->LineNo;
-          WildPtrsReason[VLhs->getLoc()].ColStartS = EC->ColStart;
-          WildPtrsReason[VLhs->getLoc()].ColStartE = EC->ColEnd;
-        }
+        PersistentSourceLoc PSL = EC->getLocation();
+        const PersistentSourceLoc *APSL = CState.AtomSourceMap[VLhs->getLoc()];
+        if (!PSL.valid() && APSL && APSL->valid())
+          PSL = *APSL;
+        WildPointerInferenceInfo Info(EC->getReason(), PSL);
+        WildPtrsReason.insert(std::make_pair(VLhs->getLoc(), Info));
       }
     }
   }
 
-  for ( const auto &I : Variables ) {
-    PersistentSourceLoc L = I.first;
-    std::string FilePath = L.getFileName();
-    if (canWrite(FilePath)) {
-      CState.ValidSourceFiles.insert(FilePath);
-    } else {
-      continue;
-    }
-    ConstraintVariable *CV = I.second;
-    if (PVConstraint *PV = dyn_cast<PVConstraint>(CV)) {
-      for (auto ck : PV->getCvars()) {
-        if (VarAtom *VA = dyn_cast<VarAtom>(ck)) {
-          CState.PtrSourceMap[VA->getLoc()] =
-              const_cast<PersistentSourceLoc *>(&(I.first));
-        }
-      }
-    }
-    if (FVConstraint *FV = dyn_cast<FVConstraint>(CV)) {
-      if (FV->getReturnVar()) {
-        if (PVConstraint *RPV = dyn_cast<PVConstraint>(FV->getReturnVar())) {
-          for (auto ck : RPV->getCvars()) {
-            if (VarAtom *VA = dyn_cast<VarAtom>(ck)) {
-              CState.PtrSourceMap[VA->getLoc()] =
-                  const_cast<PersistentSourceLoc *>(&(I.first));
-            }
-          }
-        }
-      }
-    }
-  }
-
+  computePtrLevelStats();
   return true;
+}
+
+void ProgramInfo::insertIntoPtrSourceMap(const PersistentSourceLoc *PSL,
+                                         ConstraintVariable *CV) {
+  std::string FilePath = PSL->getFileName();
+  if (canWrite(FilePath))
+    CState.ValidSourceFiles.insert(FilePath);
+  else
+    return;
+
+  if (auto *PV = dyn_cast<PVConstraint>(CV)) {
+    for (auto *A : PV->getCvars())
+      if (auto *VA = dyn_cast<VarAtom>(A))
+        CState.AtomSourceMap[VA->getLoc()] = PSL;
+    // If the PVConstraint is a function pointer, create mappings for parameter
+    // and return variables.
+    if (auto *FV = PV->getFV()) {
+      insertIntoPtrSourceMap(PSL, FV->getReturnVar());
+      for (unsigned int I = 0; I < FV->numParams(); I++)
+        insertIntoPtrSourceMap(PSL, FV->getParamVar(I));
+    }
+  } else if (auto *FV = dyn_cast<FVConstraint>(CV)) {
+    insertIntoPtrSourceMap(PSL, FV->getReturnVar());
+  }
+}
+
+void ProgramInfo::insertCVAtoms(ConstraintVariable *CV,
+                                std::map<ConstraintKey,
+                                         ConstraintVariable *> &AtomMap) {
+  if (auto *PVC = dyn_cast<PVConstraint>(CV)) {
+    for (Atom *A : PVC->getCvars())
+      if (auto *VA = dyn_cast<VarAtom>(A)) {
+        // It is possible that VA->getLoc() already exists in the map if there
+        // is a function which is declared before it is defined.
+        assert(AtomMap.find(VA->getLoc()) == AtomMap.end() ||
+               PVC->isPartOfFunctionPrototype());
+        AtomMap[VA->getLoc()] = PVC;
+      }
+    if (FVConstraint *FVC = PVC->getFV())
+      insertCVAtoms(FVC, AtomMap);
+  } else if (auto *FVC = dyn_cast<FVConstraint>(CV)) {
+    insertCVAtoms(FVC->getReturnVar(), AtomMap);
+    for (unsigned I = 0; I < FVC->numParams(); I++)
+      insertCVAtoms(FVC->getParamVar(I), AtomMap);
+  } else {
+    llvm_unreachable("Unknown kind of constraint variable.");
+  }
+}
+
+void ProgramInfo::computePtrLevelStats() {
+  // Construct a map from Atoms to their containing constraint variable
+  std::map<ConstraintKey, ConstraintVariable *> AtomPtrMap;
+  for (const auto &I : Variables)
+    insertCVAtoms(I.second, AtomPtrMap);
+
+  // Populate maps with per-pointer root cause information
+  for (auto Entry : CState.RCMap) {
+    assert("RCMap entry is not mapped to a pointer!" &&
+           AtomPtrMap.find(Entry.first) != AtomPtrMap.end());
+    ConstraintVariable *CV = AtomPtrMap[Entry.first];
+    for (auto RC : Entry.second)
+      CState.PtrRCMap[CV].insert(RC);
+  }
+  for (auto Entry : CState.SrcWMap) {
+    for (auto Key : Entry.second) {
+      assert(AtomPtrMap.find(Key) != AtomPtrMap.end());
+      CState.PtrSrcWMap[Entry.first].insert(AtomPtrMap[Key]);
+    }
+  }
 }
 
 void ProgramInfo::setTypeParamBinding(CallExpr *CE, unsigned int TypeVarIdx,

@@ -59,7 +59,7 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
           // mark field wild if the above is true and the field is a pointer
           if ((FieldTy->isPointerType() || FieldTy->isArrayType()) &&
               (FieldInUnionOrSysHeader || IsInLineStruct)) {
-            std::string Rsn = "External struct field or union encountered";
+            std::string Rsn = "Union or external struct field encountered";
             CVarOption CV = Info.getVariable(F, Context);
             CB.constraintCVarToWild(CV, Rsn);
           }
@@ -121,7 +121,7 @@ public:
     // Is cast compatible with LHS type?
     QualType SrcT = C->getSubExpr()->getType();
     QualType DstT = C->getType();
-    if (!isCastSafe(DstT, SrcT)) {
+    if (!isCastSafe(DstT, SrcT) && !Info.hasPersistentConstraints(C, Context)) {
       auto CVs = CB.getExprConstraintVars(C->getSubExpr());
       std::string Rsn = "Cast from " + SrcT.getAsString() +  " to " +
                         DstT.getAsString();

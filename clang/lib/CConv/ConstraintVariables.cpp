@@ -11,6 +11,7 @@
 
 #include "llvm/ADT/StringSwitch.h"
 #include "clang/Lex/Lexer.h"
+#include "llvm/Support/CommandLine.h"
 #include <sstream>
 
 #include "clang/CConv/ConstraintVariables.h"
@@ -18,6 +19,11 @@
 #include "clang/CConv/CCGlobalOptions.h"
 
 using namespace clang;
+
+static llvm::cl::OptionCategory OptimizationCategory("Optimization category");
+static llvm::cl::opt<bool> DisableRDs("disable-rds",
+                                      llvm::cl::desc("Disable reverse edges for Checked Constraints."),
+                                      llvm::cl::init(false), llvm::cl::cat(OptimizationCategory));
 
 std::string ConstraintVariable::getRewritableOriginalTy() const {
   std::string OrigTyString = getOriginalTy();
@@ -37,16 +43,15 @@ bool ConstraintVariable::isChecked(const EnvironmentMap &E) const {
 }
 
 PointerVariableConstraint *
-PointerVariableConstraint::getWildPVConstraint(Constraints &CS) {
-  static PointerVariableConstraint *GlobalWildPV = nullptr;
-  if (GlobalWildPV == nullptr) {
-    CAtoms NewVA;
-    NewVA.push_back(CS.getWild());
-    GlobalWildPV =
-        new PVConstraint(NewVA, "unsigned", "wildvar", nullptr,
-                         false, false, "");
-  }
-  return GlobalWildPV;
+PointerVariableConstraint::getWildPVConstraint(Constraints &CS,
+                                               const std::string &Rsn,
+                                               PersistentSourceLoc *PSL) {
+  VarAtom *VA = CS.createFreshGEQ("wildvar", VarAtom::V_Other,
+                                  CS.getWild(), Rsn, PSL);
+  CAtoms NewAtoms = {VA};
+  PVConstraint *WildPVC = new PVConstraint(NewAtoms, "unsigned", "wildvar",
+                                           nullptr, false, false, "");
+  return WildPVC;
 }
 
 PointerVariableConstraint *
@@ -224,7 +229,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
     std::string TyName = tyToStr(Ty);
     if (isVarArgType(TyName)) {
       // Variable number of arguments. Make it WILD.
-      vars.push_back(CS.getWild());
+      std::string Rsn = "Variable number of arguments.";
+      VarAtom *WildVA = CS.createFreshGEQ(Npre + N, VK, CS.getWild(), Rsn);
+      vars.push_back(WildVA);
       VarCreated = true;
       break;
     }
@@ -898,19 +905,9 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   ReturnVar = new PVConstraint(RT, D, RETVAR, I, Ctx, &N, IsGeneric);
 }
 
-void FunctionVariableConstraint::constrainToWild(Constraints &CS) const {
-  ReturnVar->constrainToWild(CS);
-
-  for (const auto &V : ParamVars)
-    V->constrainToWild(CS);
-}
-
 void FunctionVariableConstraint::constrainToWild(Constraints &CS,
                                                  const std::string &Rsn) const {
-  ReturnVar->constrainToWild(CS, Rsn);
-
-  for (const auto &V : ParamVars)
-    V->constrainToWild(CS, Rsn);
+  constrainToWild(CS, Rsn, nullptr);
 }
 
 void FunctionVariableConstraint::constrainToWild
@@ -993,41 +990,26 @@ void FunctionVariableConstraint::equateArgumentConstraints(ProgramInfo &Info) {
   }
 }
 
-void PointerVariableConstraint::constrainToWild(Constraints &CS) const {
-  ConstAtom *WA = CS.getWild();
-  for (const auto &V : vars) {
-    if (VarAtom *VA = dyn_cast<VarAtom>(V))
-      CS.addConstraint(CS.createGeq(VA, WA, true));
-  }
-
-  if (FV)
-    FV->constrainToWild(CS);
+void PointerVariableConstraint::constrainToWild(Constraints &CS,
+                                                const std::string &Rsn) const {
+  constrainToWild(CS, Rsn, nullptr);
 }
 
 void PointerVariableConstraint::constrainToWild(Constraints &CS,
                                                 const std::string &Rsn,
                                                 PersistentSourceLoc *PL) const {
-  ConstAtom *WA = CS.getWild();
-  for (const auto &V : vars) {
-    if (VarAtom *VA = dyn_cast<VarAtom>(V))
-      CS.addConstraint(CS.createGeq(VA, WA, Rsn, PL, true));
+  // Constrains the outer pointer level to WILD. Inner pointer levels are
+  // implicitly WILD because of implication constraints.
+  if (!vars.empty()) {
+    Atom *A = *vars.begin();
+    if (auto *VA = dyn_cast<VarAtom>(A))
+      CS.addConstraint(CS.createGeq(VA, CS.getWild(), Rsn, PL, true));
   }
 
   if (FV)
     FV->constrainToWild(CS, Rsn, PL);
 }
 
-void PointerVariableConstraint::constrainToWild(Constraints &CS,
-                                                const std::string &Rsn) const {
-  ConstAtom *WA = CS.getWild();
-  for (const auto &V : vars) {
-    if (VarAtom *VA = dyn_cast<VarAtom>(V))
-      CS.addConstraint(CS.createGeq(VA, WA, Rsn, true));
-  }
-
-  if (FV)
-    FV->constrainToWild(CS, Rsn);
-}
 
 void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C,
                                                  bool doLB) {
@@ -1380,8 +1362,12 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
       }
       break;
     case Wild_to_Safe:
-      // Note: reversal.
-      CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
+      if (!DisableRDs) {
+        // Note: reversal.
+        CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
+      } else {
+        CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
+      }
       CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, false));
       if (doEqType) {
         CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
@@ -1403,7 +1389,12 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
           CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
         break;
       case Wild_to_Safe:
-	CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true)); // note reversal!
+        if (!DisableRDs) {
+          // Note: reversal.
+          CS.addConstraint(CS.createGeq(R, L, Rsn, PSL, true));
+        } else {
+          CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
+        }
         if (doEqType)
           CS.addConstraint(CS.createGeq(L, R, Rsn, PSL, true));
         break;

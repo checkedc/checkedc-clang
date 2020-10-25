@@ -88,22 +88,25 @@ bool DComp::operator()(DeclReplacement *Lhs,
     return SM.isBeforeInTranslationUnit(X2, Y1);
 }
 
-void GlobalVariableGroups::addGlobalDecl(Decl *VD, std::set<Decl *> *VDSet) {
+void GlobalVariableGroups::addGlobalDecl(Decl *VD, std::vector<Decl *> *VDVec) {
   if (VD && GlobVarGroups.find(VD) == GlobVarGroups.end()) {
-    if (VDSet == nullptr)
-      VDSet = new std::set<Decl *>();
-    VDSet->insert(VD);
-    GlobVarGroups[VD] = VDSet;
+    if (VDVec == nullptr)
+      VDVec = new std::vector<Decl *>();
+    assert("Decls in group are not ordered correctly." && (VDVec->empty() ||
+           SM.isBeforeInTranslationUnit(VDVec->back()->getEndLoc(),
+                                        VD->getEndLoc())));
+    VDVec->push_back(VD);
+    GlobVarGroups[VD] = VDVec;
     // Process the next decl.
     Decl *NDecl = VD->getNextDeclInContext();
     if (isa_and_nonnull<VarDecl>(NDecl) || isa_and_nonnull<FieldDecl>(NDecl))
       if (VD->getBeginLoc() == NDecl->getBeginLoc())
-        addGlobalDecl(dyn_cast<Decl>(NDecl), VDSet);
+        addGlobalDecl(dyn_cast<Decl>(NDecl), VDVec);
   }
 }
 
 
-std::set<Decl *> &GlobalVariableGroups::getVarsOnSameLine(Decl *D) {
+std::vector<Decl *> &GlobalVariableGroups::getVarsOnSameLine(Decl *D) {
   assert (GlobVarGroups.find(D) != GlobVarGroups.end() &&
          "Expected to find the group.");
   return *(GlobVarGroups[D]);
@@ -111,7 +114,7 @@ std::set<Decl *> &GlobalVariableGroups::getVarsOnSameLine(Decl *D) {
 
 
 GlobalVariableGroups::~GlobalVariableGroups() {
-  std::set<std::set<Decl *> *> VVisited;
+  std::set<std::vector<Decl *> *> VVisited;
   // Free each of the group.
   for (auto &currV : GlobVarGroups) {
     // Avoid double free by caching deleted sets.
@@ -364,33 +367,37 @@ bool ArrayBoundsRewriter::hasNewBoundsString(PVConstraint *PV, Decl *D,
   return !BStr.empty() && !PV->hasBoundsStr();
 }
 
-std::set<PersistentSourceLoc *> RewriteConsumer::EmittedDiagnostics;
+std::set<PersistentSourceLoc> RewriteConsumer::EmittedDiagnostics;
 void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
   clang::DiagnosticsEngine &DE = Context.getDiagnostics();
   unsigned ID = DE.getCustomDiagID(DiagnosticsEngine::Warning,
-                                   "Root cause of unchecked pointers: %0");
+                                   "Root cause for %0 unchecked pointer%s0: %1");
   auto I = Info.getInterimConstraintState();
   SourceManager &SM = Context.getSourceManager();
-  for (auto &WReason : I.RealWildPtrsWithReasons) {
-    if (I.PtrSourceMap.find(WReason.first) != I.PtrSourceMap.end()) {
-      PersistentSourceLoc *PsInfo = I.PtrSourceMap[WReason.first];
-      // Avoid emitting the same diagnostic message twice.
-      if (EmittedDiagnostics.find(PsInfo) == EmittedDiagnostics.end()) {
-        // Convert the PSL into a clang::SourceLocation that can be used with
-        // the DiagnosticsEngine.
-        auto File = SM.getFileManager().getFile(PsInfo->getFileName());
-        SourceLocation SL = SM.translateFileLineCol(File, PsInfo->getLineNo(),
-                                                    PsInfo->getColSNo());
+  for (auto &WReason : I.RootWildAtomsWithReason) {
+    // Avoid emitting the same diagnostic message twice.
+    WildPointerInferenceInfo PtrInfo = WReason.second;
+    PersistentSourceLoc PSL = PtrInfo.getLocation();
+
+    if (PSL.valid() && EmittedDiagnostics.find(PSL) == EmittedDiagnostics.end()) {
+      // Convert the file/line/column triple into a clang::SourceLocation that
+      // can be used with the DiagnosticsEngine.
+      const auto *File = SM.getFileManager().getFile(PSL.getFileName());
+      if (File != nullptr) {
+        SourceLocation SL = SM.translateFileLineCol(File, PSL.getLineNo(),
+                                                    PSL.getColSNo());
         // Limit emitted root causes to those that effect more than one pointer
         // or are in the main file of the TU. Alternatively, don't filter causes
         // if -warn-all-root-cause is passed.
-        if (WarnAllRootCause || SM.isInMainFile(SL)
-            || I.GetSrcCVars(WReason.first).size() > 1) {
+        int PtrCount = I.getNumPtrsAffected(WReason.first);
+        if (WarnAllRootCause || SM.isInMainFile(SL) || PtrCount > 1) {
           // SL is invalid when the File is not in the current translation unit.
           if (SL.isValid()) {
-            EmittedDiagnostics.insert(PsInfo);
+            EmittedDiagnostics.insert(PSL);
             auto DiagBuilder = DE.Report(SL, ID);
-            DiagBuilder.AddString(WReason.second.WildPtrReason);
+            DiagBuilder.AddTaggedVal(PtrCount,
+                                     DiagnosticsEngine::ArgumentKind::ak_uint);
+            DiagBuilder.AddString(WReason.second.getWildPtrReason());
           }
         }
       }

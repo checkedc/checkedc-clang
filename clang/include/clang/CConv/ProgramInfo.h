@@ -114,7 +114,8 @@ public:
   const CallTypeParamBindingsT &getTypeParamBindings(CallExpr *CE,
                                                      ASTContext *C) const;
 
-  void constrainWildIfMacro(ConstraintVariable *CV, SourceLocation Location);
+  void constrainWildIfMacro(ConstraintVariable *CV, SourceLocation Location,
+                            PersistentSourceLoc *PSL = nullptr);
 
   std::map<PersistentSourceLoc, std::pair<CVarSet, bool>> typedefVars;
 
@@ -191,6 +192,14 @@ private:
   // For each pointer type in the declaration of D, add a variable to the
   // constraint system for that pointer type.
   void addVariable(clang::DeclaratorDecl *D, clang::ASTContext *AstContext);
+
+  void insertIntoPtrSourceMap(const PersistentSourceLoc *PSL,
+                              ConstraintVariable *CV);
+
+  void computePtrLevelStats();
+
+  void insertCVAtoms(ConstraintVariable *CV,
+                     std::map<ConstraintKey, ConstraintVariable *> &AtomMap);
 };
 
 #endif

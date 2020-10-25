@@ -331,12 +331,20 @@ static llvm::cl::opt<std::string>
                        llvm::cl::init("TotalConstraintStats.json"),
                        llvm::cl::cat(ConvertCategory));
 
-static llvm::cl::opt<std::string>
+static cl::opt<std::string>
     OptWildPtrInfoJson("wildptrstats-output",
-                       llvm::cl::desc("Path to the file where all the info "
-                                "related to WILD ptr will be dumped as json"),
-                       llvm::cl::init("WildPtrStats.json"),
-                       llvm::cl::cat(ConvertCategory));
+                            cl::desc("Path to the file where all the info "
+                                     "related to WILD ptr grouped by reason"
+                                     " will be dumped as json"),
+                            cl::init("WildPtrStats.json"),
+                            cl::cat(ConvertCategory));
+
+static cl::opt<std::string>
+  OptPerPtrWILDInfoJson("perptrstats-output",
+                        cl::desc("Path to the file where all the info "
+                                 "related to each WILD ptr will be dumped as json"),
+                        cl::init("PerWildPtrStats.json"),
+                        cl::cat(ConvertCategory));
 
 static llvm::cl::opt<bool> 
     OptDiableCCTypeChecker("disccty",
@@ -465,6 +473,7 @@ int main(int argc, char *argv[]) {
   CcOptions.DumpIntermediate = DumpIntermediate;
   CcOptions.ConstraintOutputJson = ConstraintOutputJson.getValue();
   CcOptions.WildPtrInfoJson = OptWildPtrInfoJson.getValue();
+  CcOptions.PerPtrInfoJson = OptPerPtrWILDInfoJson.getValue();
   CcOptions.StatsOutputJson = OptStatsOutputJson.getValue();
   CcOptions.AddCheckedRegions = AddCheckedRegions;
   CcOptions.EnableAllTypes = AllTypes;
