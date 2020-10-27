@@ -79,3 +79,20 @@ struct s0  {
 // CHECK:  _Ptr<_Ptr<int>> d;
 // CHECK:  _Ptr<int> e _Checked[1];
 };
+
+extern void thing(_Ptr<int *> a);
+// CHECK: extern void thing(_Ptr<int *> a);
+
+void test6() {
+  _Ptr<int *> a = 0;
+  // CHECK: _Ptr<int *> a = 0;
+  thing(a);
+
+  int **b = 0;
+  // CHECK: _Ptr<int *> b = 0;
+  thing(b);
+
+  _Ptr<int **> c = 0;
+  // CHECK: _Ptr<_Ptr<int *>> c = 0;
+  thing(*c);
+}

@@ -981,13 +981,19 @@ void PointerVariableConstraint::constrainToWild(Constraints &CS,
 void PointerVariableConstraint::constrainToWild(Constraints &CS,
                                                 const std::string &Rsn,
                                                 PersistentSourceLoc *PL) const {
-  // Constrains the outer pointer level to WILD. Inner pointer levels are
+  // Find the first VarAtom. All atoms before this are ConstAtoms, so
+  // constraining them isn't useful;
+  VarAtom *FirstVA = nullptr;
+  for (Atom *A : vars)
+    if (isa<VarAtom>(A)) {
+      FirstVA = cast<VarAtom>(A);
+      break;
+    }
+
+  // Constrains the outer VarAtom to WILD. Inner pointer levels are
   // implicitly WILD because of implication constraints.
-  if (!vars.empty()) {
-    Atom *A = *vars.begin();
-    if (auto *VA = dyn_cast<VarAtom>(A))
-      CS.addConstraint(CS.createGeq(VA, CS.getWild(), Rsn, PL, true));
-  }
+  if (FirstVA)
+    CS.addConstraint(CS.createGeq(FirstVA, CS.getWild(), Rsn, PL, true));
 
   if (FV)
     FV->constrainToWild(CS, Rsn, PL);
