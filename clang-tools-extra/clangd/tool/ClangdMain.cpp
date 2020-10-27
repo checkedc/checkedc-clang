@@ -495,8 +495,8 @@ int main(int argc, char *argv[]) {
     CcOptions.AllocatorFunctions = {};
 
   _3CInterface _3CInterface(CcOptions,
-                             OptionsParser.getSourcePathList(),
-                             &(OptionsParser.getCompilations()));
+                            OptionsParser.getSourcePathList(),
+                            &(OptionsParser.getCompilations()));
 #else
   llvm::cl::ParseCommandLineOptions(
       argc, argv,

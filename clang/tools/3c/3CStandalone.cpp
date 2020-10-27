@@ -190,8 +190,8 @@ int main(int argc, const char **argv) {
 
   // Create 3C Interface.
   _3CInterface _3CInterface(CcOptions,
-                             OptionsParser.getSourcePathList(),
-                             &(OptionsParser.getCompilations()));
+                            OptionsParser.getSourcePathList(),
+                            &(OptionsParser.getCompilations()));
 
   if (OptVerbose)
     errs() << "Calling Library to building Constraints.\n";

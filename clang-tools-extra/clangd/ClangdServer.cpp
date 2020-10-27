@@ -171,7 +171,7 @@ void ClangdServer::addDocument(PathRef File, llvm::StringRef Contents,
 
 #ifdef INTERACTIVE3C
 void ClangdServer::report3CDiagsForAllFiles(ConstraintsInfo &CcInfo,
-                                               _3CLSPCallBack *ConvCB) {
+                                            _3CLSPCallBack *ConvCB) {
   // Update the diag information for all the valid files.
   for (auto &SrcFileDiags : _3CDiagInfo.GetAllFilesDiagnostics()) {
     ConvCB->_3CResultsReady(SrcFileDiags.first);
@@ -179,7 +179,7 @@ void ClangdServer::report3CDiagsForAllFiles(ConstraintsInfo &CcInfo,
 }
 
 void ClangdServer::clear3CDiagsForAllFiles(ConstraintsInfo &CcInfo,
-                                              _3CLSPCallBack *ConvCB) {
+                                           _3CLSPCallBack *ConvCB) {
   for (auto &SrcFileDiags : _3CDiagInfo.GetAllFilesDiagnostics()) {
     // Clear diags for all files.
     ConvCB->_3CResultsReady(SrcFileDiags.first, true);
@@ -207,7 +207,7 @@ ClangdServer::_3CCollectAndBuildInitialConstraints(_3CLSPCallBack *ConvCB) {
 }
 
 void ClangdServer::execute3CCommand(ExecuteCommandParams Params,
-                                       _3CLSPCallBack *ConvCB) {
+                                    _3CLSPCallBack *ConvCB) {
   auto Task = [this, Params, ConvCB]() {
     std::string RplMsg;
     auto &WildPtrsInfo = _3CInter.GetWILDPtrsInfo();
@@ -222,7 +222,7 @@ void ClangdServer::execute3CCommand(ExecuteCommandParams Params,
       ExecuteCCCommand(Params, RplMsg, _3CInter);
       this->_3CDiagInfo.ClearAllDiags();
       ConvCB->send3CMessage("3C Updating new issues "
-                               "after editing constraints.");
+                            "after editing constraints.");
       this->_3CDiagInfo.PopulateDiagsFromConstraintsInfo(WildPtrsInfo);
       log("3C calling call-back\n");
       // ConvCB->_3CResultsReady(ptrFileName);

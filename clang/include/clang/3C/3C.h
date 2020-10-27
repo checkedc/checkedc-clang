@@ -73,8 +73,8 @@ public:
   std::mutex InterfaceMutex;
 
   _3CInterface(const struct _3COptions &CCopt,
-                 const std::vector<std::string> &SourceFileList,
-                 clang::tooling::CompilationDatabase *CompDB);
+               const std::vector<std::string> &SourceFileList,
+               clang::tooling::CompilationDatabase *CompDB);
 
   // Constraint Building.
 

@@ -64,7 +64,7 @@ public:
 class _3CLSPCallBack {
 public:
   virtual void _3CResultsReady(std::string FileName,
-                                  bool ClearDiags = false) = 0;
+                               bool ClearDiags = false) = 0;
   virtual void send3CMessage(std::string MsgStr) = 0;
 };
 #endif
@@ -311,7 +311,7 @@ public:
   // files.
 
   void execute3CCommand(ExecuteCommandParams Params,
-                           _3CLSPCallBack *ConvCB);
+                        _3CLSPCallBack *ConvCB);
 
   void _3CCollectAndBuildInitialConstraints(_3CLSPCallBack *ConvCB);
 

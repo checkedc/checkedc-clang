@@ -94,7 +94,7 @@ LANGOPT(CPlusPlus17       , 1, 0, "C++17")
 LANGOPT(CPlusPlus2a       , 1, 0, "C++2a")
 LANGOPT(ObjC              , 1, 0, "Objective-C")
 LANGOPT(CheckedC          , 1, 0, "Checked C extension")
-LANGOPT(_3C , 1, 0, "Automated Checked C converter mode")
+LANGOPT(_3C               , 1, 0, "Automated Checked C converter mode")
 BENIGN_LANGOPT(ObjCDefaultSynthProperties , 1, 0,
                "Objective-C auto-synthesized properties")
 BENIGN_LANGOPT(EncodeExtendedBlockSig , 1, 0,

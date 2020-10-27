@@ -530,7 +530,7 @@ void ClangdLSPServer::onFileEvent(const DidChangeWatchedFilesParams &Params) {
 
 #ifdef INTERACTIVE3C
 void ClangdLSPServer::_3CResultsReady(std::string FileName,
-                                         bool ClearDiags) {
+                                      bool ClearDiags) {
   // Get the diagnostics and update the client.
   std::vector<Diag> Diagnostics;
   Diagnostics.clear();
