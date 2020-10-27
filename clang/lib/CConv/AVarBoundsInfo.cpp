@@ -682,6 +682,9 @@ AvarBoundsInference::convergeInferredBounds() {
   return FoundSome;
 }
 
+// This function finds all the BoundsKeys (i.e., variables) in
+// scope `DstScope` that are reachable from `FromVarK` in the
+// graph `BKGraph`. All the reachable bounds key will be stored in `PotK`.
 bool AvarBoundsInference::getReachableBoundKeys(const ProgramVarScope *DstScope,
                                                 BoundsKey FromVarK,
                                                 std::set<BoundsKey> &PotK,
@@ -1198,6 +1201,19 @@ void AVarBoundsInfo::getBoundsNeededArrPointers(const std::set<BoundsKey> &ArrPt
                       std::inserter(AB, AB.end()));
 }
 
+// We first propagate all the bounds information from explicit
+// declarations and mallocs.
+// For other variables that do not have any choice of bounds,
+// we use potential bounds choices (FromPB), these are the variables
+// that are upper bounds to an index variable used in an array indexing
+// operation.
+// For example:
+// if (i < n) {
+//  ...arr[i]...
+// }
+// In the above case, we use n as a potential count bounds for arr.
+// Note: we only use potential bounds for a variable when none of its
+// predecessors have bounds.
 bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
   bool RetVal = false;
   AvarBoundsInference ABI(this);
