@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// The main interface for invoking 3C or 3c tool.
+// The main interface for invoking 3C tool.
 // This provides various methods that can be used to access different
 // aspects of the 3C tool.
 //

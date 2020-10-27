@@ -391,7 +391,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
   SupportsOffsetsInSignatureHelp = Params.capabilities.OffsetsInSignatureHelp;
 #ifdef INTERACTIVE3C
   // initialize our constraint building system.
-  log("Interactive CheckedC convert mode.\n");
+  log("Interactive 3C mode.\n");
   Server->_3CCollectAndBuildInitialConstraints(this);
   llvm::json::Object Result{
       {{"capabilities",

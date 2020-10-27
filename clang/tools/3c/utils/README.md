@@ -17,7 +17,7 @@ contains the commands to run the `3c` tool on individual source files.
 
 ### Example:
 ```
-python convert-commands.py --cc <path_to_compile_commands.json> -p <path_to_the_checked_c_convert_binary>
+python convert-commands.py --cc <path_to_compile_commands.json> -p <path_to_the_3c_binary>
 ```
 
 ### Generating `compile_commands.json`

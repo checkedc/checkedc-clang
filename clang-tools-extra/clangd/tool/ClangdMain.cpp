@@ -283,7 +283,7 @@ static llvm::cl::list<std::string> TweakList(
 static llvm::cl::OptionCategory _3CCategory("3C",
                                                 "This is "
                                                 "an interactive version "
-                                                "of checked c convert "
+                                                "of 3C "
                                                 "tool.");
 
 static llvm::cl::opt<bool> DumpIntermediate("dump-intermediate",
