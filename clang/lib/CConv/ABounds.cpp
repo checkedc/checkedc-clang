@@ -63,11 +63,10 @@ std::string CountBound::mkString(AVarBoundsInfo *ABI) {
   return "count(" + PV->mkString() + ")";
 }
 
-bool CountBound::areSame(ABounds *O) {
+bool CountBound::areSame(ABounds *O, AVarBoundsInfo *ABI) {
   if (O != nullptr) {
-    if (CountBound *OT = dyn_cast<CountBound>(O)) {
-      return OT->CountVar == CountVar;
-    }
+    if (CountBound *OT = dyn_cast<CountBound>(O))
+      return ABI->areSameProgramVar(this->CountVar, OT->CountVar);
   }
   return false;
 }
@@ -86,10 +85,10 @@ std::string ByteBound::mkString(AVarBoundsInfo *ABI) {
   return "byte_count(" + PV->mkString() + ")";
 }
 
-bool ByteBound::areSame(ABounds *O) {
+bool ByteBound::areSame(ABounds *O, AVarBoundsInfo *ABI) {
   if (O != nullptr) {
     if (ByteBound *BB = dyn_cast<ByteBound>(O)) {
-      return BB->ByteVar == ByteVar;
+      return ABI->areSameProgramVar(this->ByteVar, BB->ByteVar);
     }
   }
   return false;
@@ -111,10 +110,11 @@ std::string RangeBound::mkString(AVarBoundsInfo *ABI) {
   return "bounds(" + LBVar->mkString() + ", " + UBVar->mkString() + ")";
 }
 
-bool RangeBound::areSame(ABounds *O) {
+bool RangeBound::areSame(ABounds *O, AVarBoundsInfo *ABI) {
   if (O != nullptr) {
     if (RangeBound *RB = dyn_cast<RangeBound>(O)) {
-      return RB->LB == LB && RB->UB == UB;
+      return ABI->areSameProgramVar(this->LB, RB->LB) &&
+             ABI->areSameProgramVar(this->UB, RB->UB);
     }
   }
   return false;

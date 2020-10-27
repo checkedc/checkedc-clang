@@ -19,6 +19,8 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/CConv/PersistentSourceLoc.h"
 
+// Unique ID for a program variable or constant literal, both of
+// which could serve as bounds
 typedef uint32_t BoundsKey;
 
 // Class representing scope of a program variable.
@@ -27,9 +29,9 @@ public:
   enum ScopeKind {
     // Function scope.
     FunctionScopeKind,
-    // Function parameter scope.
+    // Parameters of a particular function.
     FunctionParamScopeKind,
-    // Context sensitive argument scope.
+    // All arguments to a particular call
     CtxFunctionArgScopeKind,
     // Struct scope.
     StructScopeKind,
@@ -215,6 +217,17 @@ public:
                       const PersistentSourceLoc &CtxPSL) :
     FunctionParamScope(FN, IsSt) {
     PSL = CtxPSL;
+    std::string FileName = PSL.getFileName();
+    CtxIDStr = "";
+    if (!FileName.empty()) {
+      llvm::sys::fs::UniqueID UId;
+      if (llvm::sys::fs::getUniqueID(FileName, UId)) {
+        CtxIDStr = std::to_string(UId.getDevice()) + ":" +
+                   std::to_string(UId.getFile()) + ":";
+      }
+    }
+    CtxIDStr += std::to_string(PSL.getLineNo()) + ":" +
+                std::to_string(PSL.getColSNo());
     this->Kind = CtxFunctionArgScopeKind;
   }
 
@@ -261,7 +274,7 @@ public:
   }
 
   std::string getStr() const {
-    return "CtxFuncArg_" + FName;
+    return FName + "_Ctx_" + CtxIDStr;
   }
 
   static const CtxFunctionArgScope *
@@ -269,8 +282,8 @@ public:
                            const PersistentSourceLoc &PSL);
 
 private:
-  PersistentSourceLoc PSL;
-
+  PersistentSourceLoc PSL; // source code location of this function call
+  std::string CtxIDStr;
   static std::set<CtxFunctionArgScope, PVSComp> AllCtxFnArgScopes;
 };
 
@@ -354,7 +367,7 @@ private:
   BoundsKey K;
   std::string VarName;
   const ProgramVarScope *VScope;
-  bool IsConstant;
+  bool IsConstant; // is a literal integer, not a variable
   // TODO: All the ProgramVars may not be used. We should try to figure out
   //  a way to free unused program vars.
   static std::set<ProgramVar *> AllProgramVars;
