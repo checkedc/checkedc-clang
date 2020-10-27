@@ -377,7 +377,7 @@ public:
   // Get the set of constraint variables corresponding to the arguments.
   const std::set<ConstraintVariable *> &getArgumentConstraints() const;
 
-  ConstraintVariable *getCopy(Constraints &CS) override;
+  PointerVariableConstraint *getCopy(Constraints &CS) override;
 
   // Retrieve the atom at the specified index. This function includes special
   // handling for generic constraint variables to create deeper pointers as
@@ -404,10 +404,10 @@ private:
   FunctionVariableConstraint(FunctionVariableConstraint *Ot,
                              Constraints &CS);
   // N constraints on the return value of the function.
-  ConstraintVariable *ReturnVar;
+  PVConstraint *ReturnVar;
   // A vector of K sets of N constraints on the parameter values, for
   // K parameters accepted by the function.
-  std::vector<ConstraintVariable *> ParamVars;
+  std::vector<PVConstraint *> ParamVars;
   // Storing of parameters in the case of untyped prototypes
   std::vector<ParamDeferment> deferredParams;
   // File name in which this declaration is found.
@@ -434,7 +434,7 @@ public:
                              clang::DeclaratorDecl *D, std::string N,
                              ProgramInfo &I, const clang::ASTContext &C);
 
-  ConstraintVariable *getReturnVar() const {
+  PVConstraint *getReturnVar() const {
     return ReturnVar;
   }
 
@@ -458,7 +458,7 @@ public:
   void brainTransplant(ConstraintVariable *From, ProgramInfo &I) override;
   void mergeDeclaration(ConstraintVariable *FromCV, ProgramInfo &I) override;
 
-  ConstraintVariable *getParamVar(unsigned i) const {
+  PVConstraint *getParamVar(unsigned i) const {
     assert(i < ParamVars.size());
     return ParamVars.at(i);
   }
@@ -484,7 +484,7 @@ public:
 
   void equateArgumentConstraints(ProgramInfo &P) override;
 
-  ConstraintVariable *getCopy(Constraints &CS) override;
+  FunctionVariableConstraint *getCopy(Constraints &CS) override;
 
   bool getIsOriginallyChecked() const override;
 

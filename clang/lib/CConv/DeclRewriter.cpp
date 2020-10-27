@@ -498,9 +498,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   // Get rewritten parameter variable declarations
   std::vector<std::string> ParmStrs;
   for (unsigned I = 0; I < Defnc->numParams(); ++I) {
-    auto *Defn = dyn_cast<PVConstraint>(Defnc->getParamVar(I));
-    assert(Defn);
-
+    PVConstraint *Defn = Defnc->getParamVar(I);
     ParmVarDecl *PVDecl = Definition->getParamDecl(I);
     std::string Type, IType;
     this->buildDeclVar(Defn, PVDecl, Type, IType, RewriteParams, RewriteReturn);
@@ -516,7 +514,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   }
 
   // Get rewritten return variable
-  auto *Defn = dyn_cast<PVConstraint>(Defnc->getReturnVar());
+  PVConstraint *Defn = Defnc->getReturnVar();
   std::string ReturnVar, ItypeStr;
   this->buildDeclVar(Defn, FD, ReturnVar, ItypeStr, RewriteParams, RewriteReturn);
 

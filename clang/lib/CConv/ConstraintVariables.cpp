@@ -920,7 +920,7 @@ bool FunctionVariableConstraint::hasNtArr(const EnvironmentMap &E,
   return ReturnVar->hasNtArr(E, AIdx);
 }
 
-ConstraintVariable *FunctionVariableConstraint::getCopy(Constraints &CS) {
+FVConstraint *FunctionVariableConstraint::getCopy(Constraints &CS) {
   return new FVConstraint(this, CS);
 }
 
@@ -1055,7 +1055,7 @@ bool PointerVariableConstraint::anyChanges(const EnvironmentMap &E) const {
   return PtrChanged;
 }
 
-ConstraintVariable *PointerVariableConstraint::getCopy(Constraints &CS) {
+PVConstraint *PointerVariableConstraint::getCopy(Constraints &CS) {
   return new PointerVariableConstraint(this, CS);
 }
 
