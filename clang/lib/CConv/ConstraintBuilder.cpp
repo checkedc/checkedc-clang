@@ -41,7 +41,7 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
         auto VarTy = VD->getType();
         unsigned int BeginLoc = VD->getBeginLoc().getRawEncoding();
         unsigned int EndLoc = VD->getEndLoc().getRawEncoding();
-        IsInLineStruct = !isPtrOrArrayType(VarTy) &&
+        IsInLineStruct = !(VarTy->isPointerType() || VarTy->isArrayType()) &&
                          !VD->hasInit() &&
                          lastRecordLocation >= BeginLoc &&
                          lastRecordLocation <= EndLoc;
@@ -56,7 +56,7 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
           bool FieldInUnionOrSysHeader =
               (FL.isInSystemHeader() || Definition->isUnion());
           // mark field wild if the above is true and the field is a pointer
-          if (isPtrOrArrayType(FieldTy) &&
+          if ((FieldTy->isPointerType() || FieldTy->isArrayType()) &&
               (FieldInUnionOrSysHeader || IsInLineStruct)) {
             std::string Rsn = "Union or external struct field encountered";
             CVarOption CV = Info.getVariable(F, Context);
@@ -92,7 +92,8 @@ public:
           FullSourceLoc FL = Context->getFullLoc(VD->getBeginLoc());
           SourceRange SR = VD->getSourceRange();
           if (SR.isValid() && FL.isValid() &&
-              isPtrOrArrayType(VD->getType())) {
+              (VD->getType()->isPointerType() ||
+               VD->getType()->isArrayType())) {
             if (lastRecordLocation == VD->getBeginLoc().getRawEncoding()) {
               CVarOption CV = Info.getVariable(VD, Context);
               CB.constraintCVarToWild(CV, "Inline struct encountered.");
@@ -422,7 +423,7 @@ public:
   bool VisitVarDecl(VarDecl *G) {
 
     if (G->hasGlobalStorage() &&
-        isPtrOrArrayType(G->getType())) {
+        (G->getType()->isPointerType() || G->getType()->isArrayType())) {
       if (G->hasInit()) {
         CB.constrainLocalAssign(nullptr, G, G->getInit());
       }
@@ -538,7 +539,7 @@ private:
 
   void addVariable(DeclaratorDecl *D) {
     VarAdder.addABoundsVariable(D);
-    if (isPtrOrArrayType(D->getType()))
+    if (D->getType()->isPointerType() || D->getType()->isArrayType())
       VarAdder.addVariable(D, Context);
   }
 };

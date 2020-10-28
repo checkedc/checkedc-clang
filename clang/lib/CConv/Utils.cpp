@@ -177,10 +177,6 @@ bool isPointerType(clang::ValueDecl *VD) {
   return VD->getType().getTypePtr()->isPointerType();
 }
 
-bool isPtrOrArrayType(const clang::QualType &QT) {
-  return QT->isPointerType() || QT->isArrayType();
-}
-
 bool isStructOrUnionType(clang::VarDecl *VD) {
   return VD->getType().getTypePtr()->isStructureType() ||
          VD->getType().getTypePtr()->isUnionType();
