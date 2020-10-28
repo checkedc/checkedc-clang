@@ -703,7 +703,7 @@ int main(int argc, char *argv[]) {
       *TransportLayer, FSProvider, CCOpts, CompileCommandsDirPath,
       /*UseDirBasedCDB=*/CompileArgsFrom == FilesystemCompileArgs,
 #ifdef INTERACTIVECCCONV
-      // Pass the cconvInterface object.
+      // Pass the CConvInterface object.
       OffsetEncodingFromFlag, Opts, CCInterface);
 #else
       OffsetEncodingFromFlag, Opts);

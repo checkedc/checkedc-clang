@@ -10,8 +10,8 @@
 // the conversion tool.
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_LIB_CCONV_DECLREWRITER_H
-#define LLVM_CLANG_LIB_CCONV_DECLREWRITER_H
+#ifndef _DECLREWRITER_H
+#define _DECLREWRITER_H
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
@@ -125,4 +125,4 @@ class FieldFinder : public RecursiveASTVisitor<FieldFinder> {
   private:
     GlobalVariableGroups &GVG;
 };
-#endif //LLVM_CLANG_LIB_CCONV_DECLREWRITER_H
+#endif //_DECLREWRITER_H

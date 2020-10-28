@@ -9,8 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #ifdef INTERACTIVECCCONV
-#ifndef LLVM_TOOLS_CLANG_TOOLS_EXTRA_CLANGD_CCONVERTCOMMANDS_H
-#define LLVM_TOOLS_CLANG_TOOLS_EXTRA_CLANGD_CCONVERTCOMMANDS_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_CCONVERTCOMMANDS_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_CCONVERTCOMMANDS_H
 
 #include "Protocol.h"
 #include "clang/CConv/CConv.h"
@@ -29,5 +29,5 @@ namespace clangd {
                         CConvInterface &CcInterface);
 }
 }
-#endif //LLVM_TOOLS_CLANG_TOOLS_EXTRA_CLANGD_CCONVERTCOMMANDS_H
+#endif //LLVM_CLANG_TOOLS_EXTRA_CLANGD_CCONVERTCOMMANDS_H
 #endif

@@ -67,7 +67,7 @@ repo
 
 -p PROG_NAME, --prog_name PROG_NAME
 
-Program name to run. i.e., path to checked-c-converts
+Program name to run. i.e., path to checked-c-convert
 
 -pr PROJECT_PATH, --project_path PROJECT_PATH
 

@@ -50,7 +50,7 @@ def parseTheArg():
                         dest='includeDir',
                         help='Path to the checkedC headers, run from a checkedCclang repo')
     parser.add_argument("-p", "--prog_name", dest='prog_name', type=str, default=checked_c_convert_bin,
-                        help='Program name to run. i.e., path to checked-c-converts')
+                        help='Program name to run. i.e., path to checked-c-convert')
 
     parser.add_argument("-pr", "--project_path", dest='project_path', type=str, required=True,
                         help='Path to the folder containing all project sources.')

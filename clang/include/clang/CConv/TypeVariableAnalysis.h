@@ -8,8 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_LIB_CCONV_TYPEVARIABLEANALYSIS_H
-#define LLVM_CLANG_LIB_CCONV_TYPEVARIABLEANALYSIS_H
+#ifndef _TYPEVARIABLEANALYSIS_H
+#define _TYPEVARIABLEANALYSIS_H
 
 #include <set>
 #include "ConstraintVariables.h"

@@ -64,7 +64,7 @@ jobs:
         run: |
           ls ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc
 
-      # Build cconv-standadlone
+      # Build cconv-standalone
       - name: Build cconv-standalone
         run: |
           mkdir -p ${{runner.workspace}}/${{env.builddir}}
