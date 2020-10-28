@@ -2,7 +2,7 @@
 // RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 // RUN: cconv-standalone -alltypes -output-postfix=checked %s
-// RUN: cconv-standalone -alltypes %S/multivardecls.checked.c -- | diff %S/multivardecls.checked.c -
+// RUN: cconv-standalone -alltypes %S/multivardecls.checked.c -- | count 0
 // RUN: rm %S/multivardecls.checked.c
 
 typedef unsigned long size_t;

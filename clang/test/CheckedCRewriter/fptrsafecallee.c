@@ -3,7 +3,7 @@
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 // RUN: cconv-standalone -alltypes -output-postfix=checked %s
-// RUN: cconv-standalone -alltypes %S/fptrsafecallee.checked.c -- | diff %S/fptrsafecallee.checked.c -
+// RUN: cconv-standalone -alltypes %S/fptrsafecallee.checked.c -- | count 0
 // RUN: rm %S/fptrsafecallee.checked.c
 
 
@@ -109,7 +109,7 @@ int * sus(struct general *x, struct general *y) {
 	//CHECK: x = (struct general *) 5;
         int *z = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *z = calloc<int>(5, sizeof(int)); 
-	//CHECK_ALL: _Array_ptr<int> z =  calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> z = calloc<int>(5, sizeof(int)); 
         struct general *p = y;
 	//CHECK: _Ptr<struct general> p = y;
         int i;

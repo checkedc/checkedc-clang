@@ -276,12 +276,6 @@ private:
   // pointers.
   bool IsZeroWidthArray;
 
-  // Was this variable a checked pointer in the input program?
-  // This is important for two reasons: (1) externs that are checked should be
-  // kept that way during solving, (2) nothing that was originally checked
-  // should be modified during rewriting.
-  bool OriginallyChecked;
-
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
@@ -290,8 +284,8 @@ public:
           ConstraintVariable(PointerVariable, "" /*not used*/, Name),
           BaseType(T),vars(V),FV(F), ArrPresent(isArr), ItypeStr(is),
           partOFFuncPrototype(false), Parent(nullptr),
-          BoundsAnnotationStr(""), IsGeneric(Generic), IsZeroWidthArray(false),
-          OriginallyChecked(false) {}
+          BoundsAnnotationStr(""), IsGeneric(Generic), IsZeroWidthArray(false)
+          {}
 
   std::string getTy() const { return BaseType; }
   bool getArrPresent() const { return ArrPresent; }
@@ -311,7 +305,9 @@ public:
 
   bool getIsGeneric() const { return IsGeneric; }
 
-  bool getIsOriginallyChecked() const override { return OriginallyChecked; }
+  bool getIsOriginallyChecked() const override {
+    return llvm::any_of(vars, [](Atom *A) { return isa<ConstAtom>(A); });
+  }
 
   bool solutionEqualTo(Constraints &CS,
                        const ConstraintVariable *CV) const override;
@@ -381,7 +377,7 @@ public:
   // Get the set of constraint variables corresponding to the arguments.
   const std::set<ConstraintVariable *> &getArgumentConstraints() const;
 
-  ConstraintVariable *getCopy(Constraints &CS) override;
+  PointerVariableConstraint *getCopy(Constraints &CS) override;
 
   // Retrieve the atom at the specified index. This function includes special
   // handling for generic constraint variables to create deeper pointers as
@@ -408,10 +404,10 @@ private:
   FunctionVariableConstraint(FunctionVariableConstraint *Ot,
                              Constraints &CS);
   // N constraints on the return value of the function.
-  ConstraintVariable *ReturnVar;
+  PVConstraint *ReturnVar;
   // A vector of K sets of N constraints on the parameter values, for
   // K parameters accepted by the function.
-  std::vector<ConstraintVariable *> ParamVars;
+  std::vector<PVConstraint *> ParamVars;
   // Storing of parameters in the case of untyped prototypes
   std::vector<ParamDeferment> deferredParams;
   // File name in which this declaration is found.
@@ -438,7 +434,7 @@ public:
                              clang::DeclaratorDecl *D, std::string N,
                              ProgramInfo &I, const clang::ASTContext &C);
 
-  ConstraintVariable *getReturnVar() const {
+  PVConstraint *getReturnVar() const {
     return ReturnVar;
   }
 
@@ -462,7 +458,7 @@ public:
   void brainTransplant(ConstraintVariable *From, ProgramInfo &I) override;
   void mergeDeclaration(ConstraintVariable *FromCV, ProgramInfo &I) override;
 
-  ConstraintVariable *getParamVar(unsigned i) const {
+  PVConstraint *getParamVar(unsigned i) const {
     assert(i < ParamVars.size());
     return ParamVars.at(i);
   }
@@ -488,7 +484,7 @@ public:
 
   void equateArgumentConstraints(ProgramInfo &P) override;
 
-  ConstraintVariable *getCopy(Constraints &CS) override;
+  FunctionVariableConstraint *getCopy(Constraints &CS) override;
 
   bool getIsOriginallyChecked() const override;
 

@@ -5,11 +5,11 @@
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrarrcallermulti2.checkedALL2.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/fptrarrcallermulti1.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrarrcallermulti1.checked2.c %S/fptrarrcallermulti2.checked2.c
-// RUN: diff %S/fptrarrcallermulti1.checked2.convert_again.c %S/fptrarrcallermulti1.checked2.c
-// RUN: diff %S/fptrarrcallermulti2.checked2.convert_again.c %S/fptrarrcallermulti2.checked2.c
+// RUN: test ! -f %S/fptrarrcallermulti1.checked2.convert_again.c
+// RUN: test ! -f %S/fptrarrcallermulti2.checked2.convert_again.c
 // RUN: rm %S/fptrarrcallermulti1.checkedALL2.c %S/fptrarrcallermulti2.checkedALL2.c
 // RUN: rm %S/fptrarrcallermulti1.checkedNOALL2.c %S/fptrarrcallermulti2.checkedNOALL2.c
-// RUN: rm %S/fptrarrcallermulti1.checked2.c %S/fptrarrcallermulti2.checked2.c %S/fptrarrcallermulti1.checked2.convert_again.c %S/fptrarrcallermulti2.checked2.convert_again.c
+// RUN: rm %S/fptrarrcallermulti1.checked2.c %S/fptrarrcallermulti2.checked2.c
 
 
 /*********************************************************************************/

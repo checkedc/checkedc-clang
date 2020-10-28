@@ -5,11 +5,11 @@
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrofstructbothmulti2.checkedALL2.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/arrofstructbothmulti1.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/arrofstructbothmulti1.checked2.c %S/arrofstructbothmulti2.checked2.c
-// RUN: diff %S/arrofstructbothmulti1.checked2.convert_again.c %S/arrofstructbothmulti1.checked2.c
-// RUN: diff %S/arrofstructbothmulti2.checked2.convert_again.c %S/arrofstructbothmulti2.checked2.c
+// RUN: test ! -f %S/arrofstructbothmulti1.checked2.convert_again.c
+// RUN: test ! -f %S/arrofstructbothmulti2.checked2.convert_again.c
 // RUN: rm %S/arrofstructbothmulti1.checkedALL2.c %S/arrofstructbothmulti2.checkedALL2.c
 // RUN: rm %S/arrofstructbothmulti1.checkedNOALL2.c %S/arrofstructbothmulti2.checkedNOALL2.c
-// RUN: rm %S/arrofstructbothmulti1.checked2.c %S/arrofstructbothmulti2.checked2.c %S/arrofstructbothmulti1.checked2.convert_again.c %S/arrofstructbothmulti2.checked2.convert_again.c
+// RUN: rm %S/arrofstructbothmulti1.checked2.c %S/arrofstructbothmulti2.checked2.c
 
 
 /*********************************************************************************/
@@ -117,7 +117,7 @@ x = (struct general *) 5;
 	//CHECK: x = (struct general *) 5; 
         struct general **z = calloc(5, sizeof(struct general *));
 	//CHECK_NOALL: struct general **z = calloc<struct general *>(5, sizeof(struct general *));
-	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> z =  calloc<_Ptr<struct general>>(5, sizeof(struct general *));
+	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> z = calloc<_Ptr<struct general>>(5, sizeof(struct general *));
         struct general *curr = y;
 	//CHECK_NOALL: struct general *curr = y;
 	//CHECK_ALL: _Ptr<struct general> curr = y;

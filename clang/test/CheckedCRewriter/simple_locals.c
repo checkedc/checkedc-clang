@@ -6,7 +6,7 @@
 // RUN: cconv-standalone -addcr %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
 // RUN: cconv-standalone -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // RUN: cconv-standalone -alltypes -output-postfix=checked %s 
-// RUN: cconv-standalone -alltypes %S/simple_locals.checked.c -- | diff -w %S/simple_locals.checked.c -
+// RUN: cconv-standalone -alltypes %S/simple_locals.checked.c -- | count 0
 // RUN: rm %S/simple_locals.checked.c
 // expected-no-diagnostics
 

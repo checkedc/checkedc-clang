@@ -2,7 +2,7 @@
 // RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 // RUN: cconv-standalone -output-postfix=checked -alltypes %s
-// RUN: cconv-standalone -alltypes %S/ptrptr.checked.c -- | diff -w %S/ptrptr.checked.c -
+// RUN: cconv-standalone -alltypes %S/ptrptr.checked.c -- | count 0
 // RUN: rm %S/ptrptr.checked.c
 
 #include <stddef.h>

@@ -340,15 +340,14 @@ bool ProgramInfo::link() {
       // If there was a checked type on a variable in the input program, it
       // should stay that way. Otherwise, we shouldn't be adding a checked type
       // to an extern function.
-      if (!G->getReturnVar()->getIsOriginallyChecked()) {
-        std::string Rsn = "Return value of an external function:" + FuncName;
+      std::string Rsn =
+        "Unchecked pointer in parameter or return of external function " +
+        FuncName;
+      if (!G->getReturnVar()->getIsGeneric())
         G->getReturnVar()->constrainToWild(CS, Rsn);
-      }
-
-      std::string rsn = "Inner pointer of a parameter to external function.";
-      for (unsigned i = 0; i < G->numParams(); i++)
-        if (!G->getParamVar(i)->getIsOriginallyChecked())
-          G->getParamVar(i)->constrainToWild(CS, rsn);
+      for (unsigned I = 0; I < G->numParams(); I++)
+        if (!G->getParamVar(I)->getIsGeneric())
+          G->getParamVar(I)->constrainToWild(CS, Rsn);
     }
   }
 
