@@ -103,10 +103,12 @@ private:
                            AVarGraph &BKGraph,
                            std::set<ABounds *> &EB);
 
-  // Check if bounds specified by Bnds are declared bounds of K.
-  bool areDeclaredBounds(BoundsKey K,
-                         const std::pair<ABounds::BoundsKind,
-                                         std::set<BoundsKey>> &Bnds);
+  bool intersectBounds(std::set<ProgramVar *> &ProgVars,
+                       ABounds::BoundsKind BK,
+                       std::set<ABounds *> &CurrB);
+
+  bool getRelevantBounds(std::set<BoundsKey> &RBKeys,
+                         std::set<ABounds *> &ResBounds);
 
   bool predictBounds(BoundsKey K, std::set<BoundsKey> &Neighbours,
                      AVarGraph &BKGraph,
@@ -236,7 +238,7 @@ private:
   BoundsKey BCount;
   // Map of VarKeys and corresponding program variables.
   std::map<BoundsKey, ProgramVar *> PVarInfo;
-  // Map of APSInt (constants) and a BoundKey that correspond to it.
+  // Map of APSInt (constants) and corresponding VarKeys.
   std::map<uint64_t, BoundsKey> ConstVarKeys;
   // Map of BoundsKey and corresponding prioritized bounds information.
   // Note that although each PSL could have multiple ConstraintKeys Ex: **p.
