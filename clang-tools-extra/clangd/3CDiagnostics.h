@@ -9,8 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #ifdef INTERACTIVECCCONV
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_CCONVERTDIAGNOSTICS_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_CCONVERTDIAGNOSTICS_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_3CDIAGNOSTICS_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_3CDIAGNOSTICS_H
 
 #include <set>
 #include "Diagnostics.h"
