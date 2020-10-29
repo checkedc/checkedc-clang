@@ -785,6 +785,8 @@ def forder_file_instrumentation : Flag<["-"], "forder-file-instrumentation">,
     Group<f_Group>, Flags<[CC1Option, CoreOption]>,
     HelpText<"Generate instrumented code to collect order file into default.profraw file (overridden by '=' form of option or LLVM_PROFILE_FILE env var)">;
 
+def f3c_tool : Flag<["-"], "f3c-tool">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Enable 3C tool mode (supposed to be run by tools that needs only AST)">;
 def faddrsig : Flag<["-"], "faddrsig">, Group<f_Group>, Flags<[CoreOption, CC1Option]>,
   HelpText<"Emit an address-significance table">;
 def fno_addrsig : Flag<["-"], "fno-addrsig">, Group<f_Group>, Flags<[CoreOption]>,
@@ -801,8 +803,6 @@ def fcheckedc_extension : Flag<["-"], "fcheckedc-extension">, Group<f_Group>, Fl
   HelpText<"Accept Checked C extension">;
 def fno_checkedc_extension : Flag<["-"], "fno-checkedc-extension">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Do not accept Checked C extension">;
-def fcheckedc_convert_tool : Flag<["-"], "fcheckedc-convert-tool">, Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Enable Checked C converter tool mode (supposed to be run by tools that needs only AST)">;
 def fdump_extracted_comparison_facts : Flag<["-"], "fdump-extracted-comparison-facts">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump extracted comparison facts">;
 def fdump_widened_bounds : Flag<["-"], "fdump-widened-bounds">, Group<f_Group>, Flags<[CC1Option]>,

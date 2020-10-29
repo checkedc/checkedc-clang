@@ -57,7 +57,7 @@ struct DiagBase {
   std::string File;
   // Absolute path to containing file, if available.
   llvm::Optional<std::string> AbsFile;
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   std::string code;
 #endif
   clangd::Range Range;
@@ -91,9 +91,9 @@ struct Diag : DiagBase {
     Unknown,
     Clang,
     ClangTidy,
-#ifdef INTERACTIVECCCONV
-    CConvMain,
-    CConvSec,
+#ifdef INTERACTIVE3C
+    _3CMain,
+    _3CSec,
 #endif
   } Source = Unknown;
   /// Elaborate on the problem, usually pointing to a related piece of code.

@@ -722,14 +722,14 @@ struct WorkspaceEdit {
 bool fromJSON(const llvm::json::Value &, WorkspaceEdit &);
 llvm::json::Value toJSON(const WorkspaceEdit &WE);
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 /// Data corresponding to the manual fix
-struct CConvertManualFix {
+struct _3CManualFix {
   int ptrID;
 };
 
-bool fromJSON(const llvm::json::Value &, CConvertManualFix &);
-llvm::json::Value toJSON(const CConvertManualFix &WE);
+bool fromJSON(const llvm::json::Value &, _3CManualFix &);
+llvm::json::Value toJSON(const _3CManualFix &WE);
 #endif
 
 /// Arguments for the 'applyTweak' command. The server sends these commands as a
@@ -760,11 +760,11 @@ struct ExecuteCommandParams {
   const static llvm::StringLiteral CLANGD_APPLY_FIX_COMMAND;
   // Command to apply the code action. Uses TweakArgs as argument.
   const static llvm::StringLiteral CLANGD_APPLY_TWEAK;
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   // Command to apply the change for this pointer only
-  const static llvm::StringLiteral CCONV_APPLY_ONLY_FOR_THIS;
+  const static llvm::StringLiteral _3C_APPLY_ONLY_FOR_THIS;
   // Command to apply the change for all pointers with same reason
-  const static llvm::StringLiteral CCONV_APPLY_FOR_ALL;
+  const static llvm::StringLiteral _3C_APPLY_FOR_ALL;
 #endif
 
   /// The command identifier, e.g. CLANGD_APPLY_FIX_COMMAND
@@ -772,8 +772,8 @@ struct ExecuteCommandParams {
 
   // Arguments
   llvm::Optional<WorkspaceEdit> workspaceEdit;
-#ifdef INTERACTIVECCCONV
-  llvm::Optional<CConvertManualFix> ccConvertManualFix;
+#ifdef INTERACTIVE3C
+  llvm::Optional<_3CManualFix> _3CManualFix;
 #endif
   llvm::Optional<TweakArgs> tweakArgs;
 };
@@ -812,7 +812,7 @@ struct CodeAction {
 };
 llvm::json::Value toJSON(const CodeAction &);
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 //
 // A code lens represents a command that should be shown along with
 // source text, like the number of references, a way to run tests, etc.

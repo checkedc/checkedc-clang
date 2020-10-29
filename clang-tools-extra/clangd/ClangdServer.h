@@ -36,8 +36,8 @@
 #include <string>
 #include <type_traits>
 #include <utility>
-#ifdef INTERACTIVECCCONV
-#include "CConvertDiagnostics.h"
+#ifdef INTERACTIVE3C
+#include "3CDiagnostics.h"
 #endif
 
 namespace clang {
@@ -60,12 +60,12 @@ public:
                        std::vector<HighlightingToken> Highlightings) {}
 };
 
-#ifdef INTERACTIVECCCONV
-class CConvLSPCallBack {
+#ifdef INTERACTIVE3C
+class _3CLSPCallBack {
 public:
-  virtual void ccConvResultsReady(std::string FileName,
-                                  bool ClearDiags = false) = 0;
-  virtual void sendCConvMessage(std::string MsgStr) = 0;
+  virtual void _3CResultsReady(std::string FileName,
+                               bool ClearDiags = false) = 0;
+  virtual void send3CMessage(std::string MsgStr) = 0;
 };
 #endif
 
@@ -168,9 +168,9 @@ public:
   /// synchronize access to shared state.
   ClangdServer(const GlobalCompilationDatabase &CDB,
                const FileSystemProvider &FSProvider,
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
                DiagnosticsConsumer &DiagConsumer, const Options &Opts,
-               CConvInterface &CCInterface);
+               _3CInterface &_3CInterface);
 #else
                DiagnosticsConsumer &DiagConsumer, const Options &Opts);
 #endif
@@ -305,19 +305,19 @@ public:
   LLVM_NODISCARD bool
   blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10);
 
-#ifdef INTERACTIVECCCONV
-  // ccconv specific commands
+#ifdef INTERACTIVE3C
+  // 3C specific commands
   // collect and build initial set of constraints on the source
   // files.
 
-  void executeCConvCommand(ExecuteCommandParams Params,
-                           CConvLSPCallBack *ConvCB);
+  void execute3CCommand(ExecuteCommandParams Params,
+                        _3CLSPCallBack *ConvCB);
 
-  void cconvCollectAndBuildInitialConstraints(CConvLSPCallBack *ConvCB);
+  void _3CCollectAndBuildInitialConstraints(_3CLSPCallBack *ConvCB);
 
-  CConvertDiagnostics CConvDiagInfo;
+  _3CDiagnostics _3CDiagInfo;
 
-  void cconvCloseDocument(std::string FileName);
+  void _3CCloseDocument(std::string FileName);
 #endif
 
 private:
@@ -327,9 +327,9 @@ private:
   formatCode(llvm::StringRef Code, PathRef File,
              ArrayRef<tooling::Range> Ranges);
 
-#ifdef INTERACTIVECCCONV
-  void reportCConvDiagsForAllFiles(ConstraintsInfo &CcInfo, CConvLSPCallBack *ConvCB);
-  void clearCConvDiagsForAllFiles(ConstraintsInfo &CcInfo, CConvLSPCallBack *ConvCB);
+#ifdef INTERACTIVE3C
+  void report3CDiagsForAllFiles(ConstraintsInfo &CcInfo, _3CLSPCallBack *ConvCB);
+  void clear3CDiagsForAllFiles(ConstraintsInfo &CcInfo, _3CLSPCallBack *ConvCB);
 #endif
 
   const FileSystemProvider &FSProvider;
@@ -368,8 +368,8 @@ private:
   // called before all other members to stop the worker thread that references
   // ClangdServer.
   TUScheduler WorkScheduler;
-#ifdef INTERACTIVECCCONV
-  CConvInterface &CConvInter;
+#ifdef INTERACTIVE3C
+  _3CInterface &_3CInter;
 #endif
 };
 
