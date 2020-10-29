@@ -3,7 +3,7 @@
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 // RUN: cconv-standalone -alltypes -output-postfix=checked %s
-// RUN: cconv-standalone -alltypes %S/arrprotosafe.checked.c -- | diff %S/arrprotosafe.checked.c -
+// RUN: cconv-standalone -alltypes %S/arrprotosafe.checked.c -- | count 0
 // RUN: rm %S/arrprotosafe.checked.c
 
 
@@ -116,7 +116,7 @@ int * foo() {
 	//CHECK: _Ptr<int> y = malloc<int>(sizeof(int));
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z : count(5) =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z : count(5) = sus(x, y);
 return z; }
 
 int * bar() {
@@ -128,7 +128,7 @@ int * bar() {
 	//CHECK: _Ptr<int> y = malloc<int>(sizeof(int));
         int * z = sus(x, y);
 	//CHECK_NOALL: int * z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z : count(5) =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z : count(5) = sus(x, y);
 return z; }
 
 int * sus(int * x, int * y) {

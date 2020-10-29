@@ -22,15 +22,6 @@
 class LocalVarABVisitor;
 class ConstraintResolver;
 
-class AllocBasedBoundsInference : public ASTConsumer {
-public:
-  explicit AllocBasedBoundsInference(ProgramInfo &I, clang::ASTContext *C) : Info(I) { }
-  virtual void HandleTranslationUnit(ASTContext &Context);
-
-private:
-  ProgramInfo &Info;
-};
-
 // This class handles determining bounds of global array variables.
 // i.e., function parameters, structure fields and global variables.
 class GlobalABVisitor: public clang::RecursiveASTVisitor<GlobalABVisitor> {
@@ -105,8 +96,7 @@ private:
   std::unique_ptr<CFG> Cfg;
 };
 
-void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I,
-                                         bool UseHeuristics = true);
+void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I);
 
 // Add constraints based on heuristics to the parameters of the
 // provided function.

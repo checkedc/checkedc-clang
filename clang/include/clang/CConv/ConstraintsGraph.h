@@ -114,7 +114,6 @@ public:
       N = nullptr;
     }
     this->Nodes.clear();
-    invalidateBFSCache();
   }
 
   void removeEdge(Data Src, Data Dst) {
@@ -127,14 +126,12 @@ public:
       (*NDst)->removeEdge(*E);
       delete E;
     }
-    invalidateBFSCache();
   }
 
   void addEdge(Data L, Data R) {
     NodeType *BL = this->findOrCreateNode(L);
     NodeType *BR = this->findOrCreateNode(R);
     BL->connectTo(*BR);
-    invalidateBFSCache();
   }
 
   void addUniqueEdge(Data L, Data R) {
@@ -174,16 +171,8 @@ public:
     auto *N = this->findNode(NodeType(Start));
     if (N == this->end())
       return;
-    // Insert into BFS cache.
-    if (BFSCache.find(Start) == BFSCache.end()) {
-      std::set<Data> ReachableNodes;
-      for (auto TNode : llvm::breadth_first(*N)) {
-        ReachableNodes.insert(TNode->getData());
-      }
-      BFSCache[Start] = ReachableNodes;
-    }
-    for (auto SN : BFSCache[Start])
-      Fn(SN);
+    for (auto TNode : llvm::breadth_first(*N))
+      Fn(TNode->getData());
   }
 
 protected:
@@ -204,11 +193,6 @@ private:
   template <typename G>
   friend struct llvm::GraphTraits;
   friend class GraphVizOutputGraph;
-  std::map<Data, std::set<Data>> BFSCache;
-
-  void invalidateBFSCache() {
-    BFSCache.clear();
-  }
 };
 
 // Specialize the graph for the checked and pointer type constraint graphs. This

@@ -5,11 +5,11 @@
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/ptrTOptrcalleemulti2.checkedALL2.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/ptrTOptrcalleemulti1.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/ptrTOptrcalleemulti1.checked2.c %S/ptrTOptrcalleemulti2.checked2.c
-// RUN: diff %S/ptrTOptrcalleemulti1.checked2.convert_again.c %S/ptrTOptrcalleemulti1.checked2.c
-// RUN: diff %S/ptrTOptrcalleemulti2.checked2.convert_again.c %S/ptrTOptrcalleemulti2.checked2.c
+// RUN: test ! -f %S/ptrTOptrcalleemulti1.checked2.convert_again.c
+// RUN: test ! -f %S/ptrTOptrcalleemulti2.checked2.convert_again.c
 // RUN: rm %S/ptrTOptrcalleemulti1.checkedALL2.c %S/ptrTOptrcalleemulti2.checkedALL2.c
 // RUN: rm %S/ptrTOptrcalleemulti1.checkedNOALL2.c %S/ptrTOptrcalleemulti2.checkedNOALL2.c
-// RUN: rm %S/ptrTOptrcalleemulti1.checked2.c %S/ptrTOptrcalleemulti2.checked2.c %S/ptrTOptrcalleemulti1.checked2.convert_again.c %S/ptrTOptrcalleemulti2.checked2.convert_again.c
+// RUN: rm %S/ptrTOptrcalleemulti1.checked2.c %S/ptrTOptrcalleemulti2.checked2.c
 
 
 /*********************************************************************************/
@@ -118,7 +118,7 @@ x = (char * * *) 5;
         *ch = 'A'; /*Capital A*/
         char *** z = malloc(5*sizeof(char**)); 
 	//CHECK_NOALL: char *** z = malloc<char **>(5*sizeof(char**)); 
-	//CHECK_ALL: _Array_ptr<_Array_ptr<char *>> z =  malloc<_Array_ptr<char *>>(5*sizeof(char**)); 
+	//CHECK_ALL: _Array_ptr<_Array_ptr<char *>> z = malloc<_Array_ptr<char *>>(5*sizeof(char**)); 
         for(int i = 0; i < 5; i++) { 
             z[i] = malloc(5*sizeof(char *)); 
 	//CHECK: z[i] = malloc<char *>(5*sizeof(char *)); 

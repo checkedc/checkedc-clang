@@ -5,11 +5,11 @@
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrinstructsafemulti2.checkedALL2.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/arrinstructsafemulti1.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/arrinstructsafemulti1.checked2.c %S/arrinstructsafemulti2.checked2.c
-// RUN: diff %S/arrinstructsafemulti1.checked2.convert_again.c %S/arrinstructsafemulti1.checked2.c
-// RUN: diff %S/arrinstructsafemulti2.checked2.convert_again.c %S/arrinstructsafemulti2.checked2.c
+// RUN: test ! -f %S/arrinstructsafemulti1.checked2.convert_again.c
+// RUN: test ! -f %S/arrinstructsafemulti2.checked2.convert_again.c
 // RUN: rm %S/arrinstructsafemulti1.checkedALL2.c %S/arrinstructsafemulti2.checkedALL2.c
 // RUN: rm %S/arrinstructsafemulti1.checkedNOALL2.c %S/arrinstructsafemulti2.checkedNOALL2.c
-// RUN: rm %S/arrinstructsafemulti1.checked2.c %S/arrinstructsafemulti2.checked2.c %S/arrinstructsafemulti1.checked2.convert_again.c %S/arrinstructsafemulti2.checked2.convert_again.c
+// RUN: rm %S/arrinstructsafemulti1.checked2.c %S/arrinstructsafemulti2.checked2.c
 
 
 /*********************************************************************************/

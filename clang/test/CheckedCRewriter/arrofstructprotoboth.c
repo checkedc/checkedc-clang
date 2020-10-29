@@ -3,7 +3,7 @@
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 // RUN: cconv-standalone -alltypes -output-postfix=checked %s
-// RUN: cconv-standalone -alltypes %S/arrofstructprotoboth.checked.c -- | diff %S/arrofstructprotoboth.checked.c -
+// RUN: cconv-standalone -alltypes %S/arrofstructprotoboth.checked.c -- | count 0
 // RUN: rm %S/arrofstructprotoboth.checked.c
 
 
@@ -163,7 +163,7 @@ x = (struct general *) 5;
 	//CHECK: x = (struct general *) 5; 
         struct general **z = calloc(5, sizeof(struct general *));
 	//CHECK_NOALL: struct general **z = calloc<struct general *>(5, sizeof(struct general *));
-	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> z =  calloc<_Ptr<struct general>>(5, sizeof(struct general *));
+	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> z = calloc<_Ptr<struct general>>(5, sizeof(struct general *));
         struct general *curr = y;
 	//CHECK_NOALL: struct general *curr = y;
 	//CHECK_ALL: _Ptr<struct general> curr = y;

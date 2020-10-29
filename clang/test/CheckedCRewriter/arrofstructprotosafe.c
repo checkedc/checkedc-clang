@@ -3,7 +3,7 @@
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 // RUN: cconv-standalone -alltypes -output-postfix=checked %s
-// RUN: cconv-standalone -alltypes %S/arrofstructprotosafe.checked.c -- | diff %S/arrofstructprotosafe.checked.c -
+// RUN: cconv-standalone -alltypes %S/arrofstructprotosafe.checked.c -- | count 0
 // RUN: rm %S/arrofstructprotosafe.checked.c
 
 
@@ -107,6 +107,7 @@ int *mul2(int *x) {
 struct general ** sus(struct general *, struct general *);
 	//CHECK_NOALL: struct general ** sus(struct general *, struct general *);
 	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> sus(struct general * x, _Ptr<struct general> y) : count(5);
+
 struct general ** foo() {
 	//CHECK_NOALL: struct general ** foo(void) {
 	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> foo(void) : count(5) {
@@ -127,7 +128,7 @@ struct general ** foo() {
         }
         struct general ** z = sus(x, y);
 	//CHECK_NOALL: struct general ** z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> z : count(5) =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> z : count(5) = sus(x, y);
 return z; }
 
 struct general ** bar() {
@@ -150,7 +151,7 @@ struct general ** bar() {
         }
         struct general ** z = sus(x, y);
 	//CHECK_NOALL: struct general ** z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> z : count(5) =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> z : count(5) = sus(x, y);
 return z; }
 
 struct general ** sus(struct general * x, struct general * y) {

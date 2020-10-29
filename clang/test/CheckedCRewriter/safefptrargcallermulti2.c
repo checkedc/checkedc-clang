@@ -5,11 +5,11 @@
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/safefptrargcallermulti2.checkedALL2.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/safefptrargcallermulti1.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/safefptrargcallermulti1.checked2.c %S/safefptrargcallermulti2.checked2.c
-// RUN: diff %S/safefptrargcallermulti1.checked2.convert_again.c %S/safefptrargcallermulti1.checked2.c
-// RUN: diff %S/safefptrargcallermulti2.checked2.convert_again.c %S/safefptrargcallermulti2.checked2.c
+// RUN: test ! -f %S/safefptrargcallermulti1.checked2.convert_again.c
+// RUN: test ! -f %S/safefptrargcallermulti2.checked2.convert_again.c
 // RUN: rm %S/safefptrargcallermulti1.checkedALL2.c %S/safefptrargcallermulti2.checkedALL2.c
 // RUN: rm %S/safefptrargcallermulti1.checkedNOALL2.c %S/safefptrargcallermulti2.checkedNOALL2.c
-// RUN: rm %S/safefptrargcallermulti1.checked2.c %S/safefptrargcallermulti2.checked2.c %S/safefptrargcallermulti1.checked2.convert_again.c %S/safefptrargcallermulti2.checked2.convert_again.c
+// RUN: rm %S/safefptrargcallermulti1.checked2.c %S/safefptrargcallermulti2.checked2.c
 
 
 /*********************************************************************************/

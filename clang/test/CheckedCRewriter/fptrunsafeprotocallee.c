@@ -3,7 +3,7 @@
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 // RUN: cconv-standalone -alltypes -output-postfix=checked %s
-// RUN: cconv-standalone -alltypes %S/fptrunsafeprotocallee.checked.c -- | diff %S/fptrunsafeprotocallee.checked.c -
+// RUN: cconv-standalone -alltypes %S/fptrunsafeprotocallee.checked.c -- | count 0
 // RUN: rm %S/fptrunsafeprotocallee.checked.c
 
 

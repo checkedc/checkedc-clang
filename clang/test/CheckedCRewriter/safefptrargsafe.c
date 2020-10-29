@@ -3,7 +3,7 @@
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 // RUN: cconv-standalone -alltypes -output-postfix=checked %s
-// RUN: cconv-standalone -alltypes %S/safefptrargsafe.checked.c -- | diff %S/safefptrargsafe.checked.c -
+// RUN: cconv-standalone -alltypes %S/safefptrargsafe.checked.c -- | count 0
 // RUN: rm %S/safefptrargsafe.checked.c
 
 
@@ -128,7 +128,7 @@ int * foo() {
 	//CHECK: _Ptr<int (int )> y = sub1; 
         int *z = sus(x, y);
 	//CHECK_NOALL: int *z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z : count(5) =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z : count(5) = sus(x, y);
         
 return z; }
 
@@ -142,6 +142,6 @@ int * bar() {
 	//CHECK: _Ptr<int (int )> y = sub1; 
         int *z = sus(x, y);
 	//CHECK_NOALL: int *z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<int> z : count(5) =  sus(x, y);
+	//CHECK_ALL: _Array_ptr<int> z : count(5) = sus(x, y);
         
 return z; }

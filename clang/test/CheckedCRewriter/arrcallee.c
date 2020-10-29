@@ -3,7 +3,7 @@
 // RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 // RUN: cconv-standalone -alltypes -output-postfix=checked %s
-// RUN: cconv-standalone -alltypes %S/arrcallee.checked.c -- | diff %S/arrcallee.checked.c -
+// RUN: cconv-standalone -alltypes %S/arrcallee.checked.c -- | count 0
 // RUN: rm %S/arrcallee.checked.c
 
 
@@ -108,7 +108,7 @@ x = (int *) 5;
 	//CHECK: x = (int *) 5;
         int *z = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *z = calloc<int>(5, sizeof(int)); 
-	//CHECK_ALL: _Array_ptr<int> z =  calloc<int>(5, sizeof(int)); 
+	//CHECK_ALL: _Array_ptr<int> z = calloc<int>(5, sizeof(int)); 
         int i, fac;
         int *p;
 	//CHECK_NOALL: int *p;

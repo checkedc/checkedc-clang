@@ -5,11 +5,11 @@
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrcalleemulti1.checkedALL.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %S/arrcalleemulti2.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/arrcalleemulti1.checked.c %S/arrcalleemulti2.checked.c
-// RUN: diff %S/arrcalleemulti1.checked.convert_again.c %S/arrcalleemulti1.checked.c
-// RUN: diff %S/arrcalleemulti2.checked.convert_again.c %S/arrcalleemulti2.checked.c
+// RUN: test ! -f %S/arrcalleemulti1.checked.convert_again.c
+// RUN: test ! -f %S/arrcalleemulti2.checked.convert_again.c
 // RUN: rm %S/arrcalleemulti1.checkedALL.c %S/arrcalleemulti2.checkedALL.c
 // RUN: rm %S/arrcalleemulti1.checkedNOALL.c %S/arrcalleemulti2.checkedNOALL.c
-// RUN: rm %S/arrcalleemulti1.checked.c %S/arrcalleemulti2.checked.c %S/arrcalleemulti1.checked.convert_again.c %S/arrcalleemulti2.checked.convert_again.c
+// RUN: rm %S/arrcalleemulti1.checked.c %S/arrcalleemulti2.checked.c
 
 
 /*********************************************************************************/

@@ -5,11 +5,11 @@
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrunsafecallermulti2.checkedALL2.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/fptrunsafecallermulti1.c %s
 // RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrunsafecallermulti1.checked2.c %S/fptrunsafecallermulti2.checked2.c
-// RUN: diff %S/fptrunsafecallermulti1.checked2.convert_again.c %S/fptrunsafecallermulti1.checked2.c
-// RUN: diff %S/fptrunsafecallermulti2.checked2.convert_again.c %S/fptrunsafecallermulti2.checked2.c
+// RUN: test ! -f %S/fptrunsafecallermulti1.checked2.convert_again.c
+// RUN: test ! -f %S/fptrunsafecallermulti2.checked2.convert_again.c
 // RUN: rm %S/fptrunsafecallermulti1.checkedALL2.c %S/fptrunsafecallermulti2.checkedALL2.c
 // RUN: rm %S/fptrunsafecallermulti1.checkedNOALL2.c %S/fptrunsafecallermulti2.checkedNOALL2.c
-// RUN: rm %S/fptrunsafecallermulti1.checked2.c %S/fptrunsafecallermulti2.checked2.c %S/fptrunsafecallermulti1.checked2.convert_again.c %S/fptrunsafecallermulti2.checked2.convert_again.c
+// RUN: rm %S/fptrunsafecallermulti1.checked2.c %S/fptrunsafecallermulti2.checked2.c
 
 
 /*********************************************************************************/
