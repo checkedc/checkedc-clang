@@ -13,7 +13,7 @@
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
 
-#include "clang/CConv/CConv.h"
+#include "clang/3C/CConv.h"
 
 using namespace clang::driver;
 using namespace clang::tooling;

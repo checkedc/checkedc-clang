@@ -14,9 +14,9 @@
 #include "llvm/Support/CommandLine.h"
 #include <sstream>
 
-#include "clang/CConv/ConstraintVariables.h"
-#include "clang/CConv/ProgramInfo.h"
-#include "clang/CConv/3CGlobalOptions.h"
+#include "clang/3C/ConstraintVariables.h"
+#include "clang/3C/ProgramInfo.h"
+#include "clang/3C/3CGlobalOptions.h"
 
 using namespace clang;
 

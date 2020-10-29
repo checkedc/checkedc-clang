@@ -18,7 +18,7 @@
 #include "Protocol.h"
 #include "Transport.h"
 #ifdef INTERACTIVECCCONV
-#include "clang/CConv/CConv.h"
+#include "clang/3C/CConv.h"
 #endif
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/Optional.h"

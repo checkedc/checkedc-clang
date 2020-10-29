@@ -9,8 +9,8 @@
 // constraints for a given expression.
 //===----------------------------------------------------------------------===//
 
-#include "clang/CConv/ConstraintResolver.h"
-#include "clang/CConv/3CGlobalOptions.h"
+#include "clang/3C/ConstraintResolver.h"
+#include "clang/3C/3CGlobalOptions.h"
 
 using namespace llvm;
 using namespace clang;

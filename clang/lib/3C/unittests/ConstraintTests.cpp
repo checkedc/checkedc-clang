@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "clang/CConv/Constraints.h"
+#include "clang/3C/Constraints.h"
 
 bool AllTypes = true;
 TEST(BasicConstraintTest, insert) {

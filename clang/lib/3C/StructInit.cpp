@@ -9,8 +9,8 @@
 // classes of StructInit.h
 //===----------------------------------------------------------------------===//
 
-#include "clang/CConv/MappingVisitor.h"
-#include "clang/CConv/StructInit.h"
+#include "clang/3C/MappingVisitor.h"
+#include "clang/3C/StructInit.h"
 #include "clang/Tooling/Refactoring/SourceCode.h"
 #include <sstream>
 

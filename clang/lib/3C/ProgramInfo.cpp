@@ -8,11 +8,11 @@
 // Implementation of ProgramInfo methods.
 //===----------------------------------------------------------------------===//
 
-#include "clang/CConv/ProgramInfo.h"
-#include "clang/CConv/ConstraintsGraph.h"
-#include "clang/CConv/3CGlobalOptions.h"
-#include "clang/CConv/MappingVisitor.h"
-#include "clang/CConv/Utils.h"
+#include "clang/3C/ProgramInfo.h"
+#include "clang/3C/ConstraintsGraph.h"
+#include "clang/3C/3CGlobalOptions.h"
+#include "clang/3C/MappingVisitor.h"
+#include "clang/3C/Utils.h"
 
 #include <sstream>
 

@@ -16,8 +16,8 @@
 #include "AVarGraph.h"
 #include "ProgramVar.h"
 #include "clang/AST/Decl.h"
-#include "clang/CConv/PersistentSourceLoc.h"
-#include "clang/CConv/ConstraintVariables.h"
+#include "clang/3C/PersistentSourceLoc.h"
+#include "clang/3C/ConstraintVariables.h"
 
 class ProgramInfo;
 class ConstraintResolver;

@@ -18,7 +18,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Rewrite/Core/Rewriter.h"
-#include "clang/CConv/RewriteUtils.h"
+#include "clang/3C/RewriteUtils.h"
 
 using namespace llvm;
 using namespace clang;

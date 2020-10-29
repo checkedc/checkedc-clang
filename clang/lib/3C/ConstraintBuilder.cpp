@@ -10,11 +10,11 @@
 //===----------------------------------------------------------------------===//
 
 #include <clang/ASTMatchers/ASTMatchers.h>
-#include "clang/CConv/ConstraintBuilder.h"
-#include "clang/CConv/ConstraintResolver.h"
-#include "clang/CConv/ArrayBoundsInferenceConsumer.h"
-#include "clang/CConv/3CGlobalOptions.h"
-#include "clang/CConv/TypeVariableAnalysis.h"
+#include "clang/3C/ConstraintBuilder.h"
+#include "clang/3C/ConstraintResolver.h"
+#include "clang/3C/ArrayBoundsInferenceConsumer.h"
+#include "clang/3C/3CGlobalOptions.h"
+#include "clang/3C/TypeVariableAnalysis.h"
 
 using namespace llvm;
 using namespace clang;

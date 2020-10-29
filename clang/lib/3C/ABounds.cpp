@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/CConv/ABounds.h"
-#include "clang/CConv/AVarBoundsInfo.h"
+#include "clang/3C/ABounds.h"
+#include "clang/3C/AVarBoundsInfo.h"
 
 std::set<BoundsKey> ABounds::KeysUsedInBounds;
 

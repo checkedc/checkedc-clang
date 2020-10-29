@@ -12,7 +12,7 @@
 #ifndef _CONSTRAINTSGRAPH_H
 #define _CONSTRAINTSGRAPH_H
 
-#include "clang/CConv/Constraints.h"
+#include "clang/3C/Constraints.h"
 #include "llvm/ADT/DirectedGraph.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/ADT/GraphTraits.h"

@@ -9,8 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/CConv/ArrayBoundsInferenceConsumer.h"
-#include "clang/CConv/IntermediateToolHook.h"
+#include "clang/3C/ArrayBoundsInferenceConsumer.h"
+#include "clang/3C/IntermediateToolHook.h"
 
 using namespace llvm;
 using namespace clang;

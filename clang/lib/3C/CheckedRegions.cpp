@@ -10,14 +10,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/ASTTypeTraits.h"
-#include "clang/CConv/ConstraintResolver.h"
-#include "clang/CConv/RewriteUtils.h"
-#include "clang/CConv/Utils.h"
-#include "clang/CConv/CheckedRegions.h"
+#include "clang/3C/ConstraintResolver.h"
+#include "clang/3C/RewriteUtils.h"
+#include "clang/3C/Utils.h"
+#include "clang/3C/CheckedRegions.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/CConv/ArrayBoundsInferenceConsumer.h"
-#include "clang/CConv/3CGlobalOptions.h"
-#include "clang/CConv/MappingVisitor.h"
+#include "clang/3C/ArrayBoundsInferenceConsumer.h"
+#include "clang/3C/3CGlobalOptions.h"
+#include "clang/3C/MappingVisitor.h"
 #include "llvm/Support/raw_ostream.h"
 #include "clang/Tooling/Refactoring/SourceCode.h"
 #include <sstream>

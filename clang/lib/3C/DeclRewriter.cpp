@@ -6,18 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 //
-#include "clang/CConv/3CGlobalOptions.h"
-#include "clang/CConv/RewriteUtils.h"
-#include "clang/CConv/Utils.h"
+#include "clang/3C/3CGlobalOptions.h"
+#include "clang/3C/RewriteUtils.h"
+#include "clang/3C/Utils.h"
 #include "llvm/Support/raw_ostream.h"
-#include "clang/CConv/DeclRewriter.h"
+#include "clang/3C/DeclRewriter.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Rewrite/Core/Rewriter.h"
 #include <sstream>
-#include "clang/CConv/StructInit.h"
-#include "clang/CConv/MappingVisitor.h"
+#include "clang/3C/StructInit.h"
+#include "clang/3C/MappingVisitor.h"
 
 #ifdef FIVE_C
 #include <clang/CConv/DeclRewriter_5C.h>

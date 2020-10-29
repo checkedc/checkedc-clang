@@ -11,7 +11,7 @@
 
 #ifndef _CASTPLACEMENT_H
 #define _CASTPLACEMENT_H
-#include "clang/CConv/ConstraintResolver.h"
+#include "clang/3C/ConstraintResolver.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 
 class CastPlacementVisitor : public RecursiveASTVisitor<CastPlacementVisitor> {

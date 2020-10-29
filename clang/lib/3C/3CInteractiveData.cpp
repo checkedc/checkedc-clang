@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/CConv/CConvInteractiveData.h"
+#include "clang/3C/CConvInteractiveData.h"
 
 void ConstraintsInfo::Clear() {
   RootWildAtomsWithReason.clear();

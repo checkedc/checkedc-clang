@@ -10,10 +10,10 @@
 //===----------------------------------------------------------------------===//
 
 #include <clang/Tooling/Refactoring/SourceCode.h>
-#include "clang/CConv/ConstraintResolver.h"
-#include "clang/CConv/CastPlacement.h"
-#include "clang/CConv/3CGlobalOptions.h"
-#include "clang/CConv/Utils.h"
+#include "clang/3C/ConstraintResolver.h"
+#include "clang/3C/CastPlacement.h"
+#include "clang/3C/3CGlobalOptions.h"
+#include "clang/3C/Utils.h"
 
 using namespace clang;
 

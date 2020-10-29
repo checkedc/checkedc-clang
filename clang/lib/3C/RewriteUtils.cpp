@@ -10,11 +10,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/CConv/CastPlacement.h"
-#include "clang/CConv/CheckedRegions.h"
-#include "clang/CConv/DeclRewriter.h"
+#include "clang/3C/CastPlacement.h"
+#include "clang/3C/CheckedRegions.h"
+#include "clang/3C/DeclRewriter.h"
 #include "clang/Tooling/Refactoring/SourceCode.h"
-#include "clang/CConv/3CGlobalOptions.h"
+#include "clang/3C/3CGlobalOptions.h"
 
 using namespace llvm;
 using namespace clang;

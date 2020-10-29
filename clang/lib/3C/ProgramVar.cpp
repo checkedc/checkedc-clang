@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/CConv/ProgramVar.h"
+#include "clang/3C/ProgramVar.h"
 
 GlobalScope *GlobalScope::ProgScope = nullptr;
 std::set<StructScope, PVSComp> StructScope::AllStScopes;

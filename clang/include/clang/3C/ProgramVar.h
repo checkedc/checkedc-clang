@@ -17,7 +17,7 @@
 #include <stdint.h>
 #include <string>
 #include "clang/AST/ASTContext.h"
-#include "clang/CConv/PersistentSourceLoc.h"
+#include "clang/3C/PersistentSourceLoc.h"
 
 typedef uint32_t BoundsKey;
 

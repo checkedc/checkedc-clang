@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/CConv/AVarBoundsInfo.h"
-#include "clang/CConv/ProgramInfo.h"
-#include "clang/CConv/ConstraintResolver.h"
+#include "clang/3C/AVarBoundsInfo.h"
+#include "clang/3C/ProgramInfo.h"
+#include "clang/3C/ConstraintResolver.h"
 
 std::vector<BoundsPriority>
     AVarBoundsInfo::PrioList {Declared, Allocator, FlowInferred, Heuristics};

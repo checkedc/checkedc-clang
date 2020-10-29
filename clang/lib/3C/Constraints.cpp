@@ -12,9 +12,9 @@
 #include <set>
 #include "llvm/Support/CommandLine.h"
 
-#include "clang/CConv/3CGlobalOptions.h"
-#include "clang/CConv/Constraints.h"
-#include "clang/CConv/ConstraintsGraph.h"
+#include "clang/3C/3CGlobalOptions.h"
+#include "clang/3C/Constraints.h"
+#include "clang/3C/ConstraintsGraph.h"
 #include <iostream>
 #include <clang/CConv/ConstraintVariables.h>
 

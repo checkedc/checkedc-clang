@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/CConv/CConv.h"
-#include "clang/CConv/ConstraintBuilder.h"
-#include "clang/CConv/IntermediateToolHook.h"
-#include "clang/CConv/RewriteUtils.h"
+#include "clang/3C/CConv.h"
+#include "clang/3C/ConstraintBuilder.h"
+#include "clang/3C/IntermediateToolHook.h"
+#include "clang/3C/RewriteUtils.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
 
 #include "llvm/Support/TargetSelect.h"
