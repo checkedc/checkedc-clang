@@ -125,7 +125,7 @@ def run3C(checkedc_bin, compile_commands_json, checkedc_include_dir, skip_paths,
         if 'arguments' in i and not 'command' in i:
             # BEAR. Need to add directory.
             file_to_add = i['directory'] + SLASH + file_to_add
-            # get the checked-c-convert and compiler arguments
+            # get the 3c and compiler arguments
             compiler_x_args = getCheckedCArgs(i["arguments"], checkedc_include_dir, i['directory'])
             total_x_args.extend(compiler_x_args)
             # get the directory used during compilation.

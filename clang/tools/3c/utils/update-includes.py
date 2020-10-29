@@ -8,7 +8,7 @@ the list of checked headers might be found in the (default) directory:
 llvm/projects/checkedc-wrapper/checkedc/include 
 
 NOTE: This program does not convert any local / project-specific headers
-that have .checked.h versions from a previous run of checked-c-convert.
+that have .checked.h versions from a previous run of 3c.
 Those must still be updated manually.
 """
 

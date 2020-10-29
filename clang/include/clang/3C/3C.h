@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// The main interface for invoking cconv or checked-c-convert tool.
+// The main interface for invoking cconv or 3c tool.
 // This provides various methods that can be used to access different
 // aspects of the cconv tool.
 //

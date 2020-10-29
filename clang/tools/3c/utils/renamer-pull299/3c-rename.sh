@@ -79,7 +79,7 @@ repl_word run{CheckedCConvert,3C}  # for clang/tools/3c/utils/cc_conv
 repl_word clangd3c clangd3c
 
 repl_word _3c_bin '_3c_bin'  # Variable in clang/tools/3c/utils
-repl_word checked-c-convert '3c'  # Various references from clang/tools/3c/utils and documentation
+repl_word 3c '3c'  # Various references from clang/tools/3c/utils and documentation
 
 repl 'Checked C rewriter tool' 3C '^clang/test/3C/'
 

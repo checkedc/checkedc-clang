@@ -1,4 +1,4 @@
-This folder contains code that runs checked-c-convert on all the source files of a project.
+This folder contains code that runs 3c on all the source files of a project.
 
   
 
@@ -67,7 +67,7 @@ repo
 
 -p PROG_NAME, --prog_name PROG_NAME
 
-Program name to run. i.e., path to checked-c-convert
+Program name to run. i.e., path to 3c
 
 -pr PROJECT_PATH, --project_path PROJECT_PATH
 
@@ -78,5 +78,5 @@ Path to the folder containing all project sources.
 Example:
 
 ```
-python convert_project.py -pr <project_folder> -p <checked_c_llvm_build_dir>/bin/checked-c-convert --includeDir <checked_c_llvm_src_dir>/llvm/projects/checkedc-wrapper/checkedc/include
+python convert_project.py -pr <project_folder> -p <checked_c_llvm_build_dir>/bin/3c --includeDir <checked_c_llvm_src_dir>/llvm/projects/checkedc-wrapper/checkedc/include
 ```

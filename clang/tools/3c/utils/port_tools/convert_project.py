@@ -1,11 +1,11 @@
 """
-Given the path to the project and checked-c-convert binary,
-this script runs checked-c-convert on all the files.
+Given the path to the project and 3c binary,
+this script runs 3c on all the files.
 
 Specifically, it changes all the .c and .h files so that
 they contain checked.h headers rather than regular header files.
 Next, it gets compilation commands from compile_commands.json
-and generate command line to run checked-c-convert.
+and generate command line to run 3c.
 
 This script requires that there exists a compile_commands.json
 in the project folder.
@@ -40,7 +40,7 @@ def parseTheArg():
         pathBasedDir = os.path.join(os.environ['LLVM_SRC'], CHECKEDC_INCLUDE_REL_PATH)
     _3c_bin = ""
     if 'LLVM_OBJ' in os.environ:
-        _3c_bin = os.path.join(os.environ['LLVM_OBJ'], "bin/checked-c-convert")
+        _3c_bin = os.path.join(os.environ['LLVM_OBJ'], "bin/3c")
 
     parser = argparse.ArgumentParser(description='Convert the provided project into Checked C.')
 
@@ -50,7 +50,7 @@ def parseTheArg():
                         dest='includeDir',
                         help='Path to the checkedC headers, run from a checkedCclang repo')
     parser.add_argument("-p", "--prog_name", dest='prog_name', type=str, default=_3c_bin,
-                        help='Program name to run. i.e., path to checked-c-convert')
+                        help='Program name to run. i.e., path to 3c')
 
     parser.add_argument("-pr", "--project_path", dest='project_path', type=str, required=True,
                         help='Path to the folder containing all project sources.')

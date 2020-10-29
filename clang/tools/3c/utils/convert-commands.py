@@ -7,7 +7,7 @@ import traceback
 import subprocess
 
 """
-This tool will invoke checked-c-convert on a compile_commands.json database. 
+This tool will invoke 3c on a compile_commands.json database. 
 It contains some work-arounds for cmake+nmake generated compile_commands.json 
 files, where the files are malformed. 
 """
@@ -90,7 +90,7 @@ def runMain(cmd_args):
     if 'arguments' in i and not 'command' in i:
       # BEAR. Need to add directory.
       file_to_add = i['directory'] + SLASH + file_to_add
-      # get the checked-c-convert and compiler arguments
+      # get the 3c and compiler arguments
       compiler_x_args = getCheckedCArgs(i["arguments"], i['directory'])
       total_x_args.extend(compiler_x_args)
       # get the directory used during compilation.
@@ -150,10 +150,10 @@ def runMain(cmd_args):
 if __name__ == '__main__':
   _3c_bin = ""
   if 'LLVM_OBJ' in os.environ:
-    _3c_bin = os.path.join(os.environ['LLVM_OBJ'], "bin/checked-c-convert")
+    _3c_bin = os.path.join(os.environ['LLVM_OBJ'], "bin/3c")
 
   parser = argparse.ArgumentParser(__file__, description="Tool that converts the compilation commands into"
-                                                         " the commands for checked-c-convert tool and also "
+                                                         " the commands for 3c tool and also "
                                                          " runs the tool.")
   parser.add_argument("-cc", "--compile_commands", dest='compile_commands',
                       type=str, required=True,
@@ -163,7 +163,7 @@ if __name__ == '__main__':
                       help='Option to enable running on individual files (default: false), '
                            'instead of all the files at once, which is the default behavior.')
   parser.add_argument("-p","--prog_name", dest='prog_name',type=str, default=_3c_bin,
-                      help='Program name to run. i.e., path to checked-c-convert')
+                      help='Program name to run. i.e., path to 3c')
   args = parser.parse_args()
   if not args.prog_name or not os.path.isfile(args.prog_name):
     print("Error: Path to the program to run is invalid.")

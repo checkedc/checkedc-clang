@@ -5,15 +5,15 @@ This directory contains a set of utilities to help with converting a codebase. P
 ## convert-commands.py
 This script takes two named arguments `compileCommands` (`-cc`)
 (the path to the `compile_commands.json` for the configuration you plan to convert) 
-and `progName` (`-p`), which is the path to the checked-c-convert binary. 
+and `progName` (`-p`), which is the path to the 3c binary. 
 It reads the `compile_commands.json` 
 (which must match the fields produced by CMake's versions of such files) and 
 produces an output file which contains a command-line invocation of `progName` with 
 some flags and all `.c` files which are compiled by this configuration 
-(and thus should be converted by `checked-c-convert`). 
+(and thus should be converted by `3c`). 
 This file is currently saved as `convert_all.sh` and can be run directly as a shell script.
 The `convert-commands.py` also creates `convert_individual.sh` file that 
-contains the commands to run the `checked-c-convert` tool on individual source files.
+contains the commands to run the `3c` tool on individual source files.
 
 ### Example:
 ```
