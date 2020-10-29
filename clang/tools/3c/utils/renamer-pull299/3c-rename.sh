@@ -33,7 +33,7 @@ repl '\<CConv(ert)?' 3C '/CMakeLists\.txt$'
 repl_cpp '#include "clang/CConv/' '#include "clang/3C/'
 repl_cpp '(#include.*["/])CConv(ert)?' '\13C'
 # Match CConvert first before CConv messes it up.
-repl '//=--CConvert([^-]*-)' '//=--3C\1------'
+repl '//=--3C([^-------]*-)' '//=--3C\1------'
 repl '//=--CConv([^-]*-)' '//=--3C\1---'
 
 # Include guards
