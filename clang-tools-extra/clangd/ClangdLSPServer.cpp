@@ -461,13 +461,13 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
 void ClangdLSPServer::onShutdown(const ShutdownParams &Params,
                                  Callback<std::nullptr_t> Reply) {
 #ifdef INTERACTIVECCCONV
-  sendCConvMessage("Writing all CheckedC files back to disk");
+  send3CMessage("Writing all CheckedC files back to disk");
   // Write all files back.
   auto &AllDiags = Server->_3CDiagInfo.GetAllFilesDiagnostics();
   for (auto &CD : AllDiags) {
     Server->_3CCloseDocument(CD.first);
   }
-  sendCConvMessage("Finished Writing all CheckedC files back to disk");
+  send3CMessage("Finished Writing all CheckedC files back to disk");
   Reply(nullptr);
 #else
   // Do essentially nothing, just say we're ready to exit.
@@ -548,7 +548,7 @@ void ClangdLSPServer::_3CResultsReady(std::string FileName,
   this->onDiagnosticsReady(FileName, Diagnostics);
 }
 
-void ClangdLSPServer::sendCConvMessage(std::string MsgStr) {
+void ClangdLSPServer::send3CMessage(std::string MsgStr) {
  // Send message as info to the client.
   notify("window/showMessage",
          llvm::json::Object{
@@ -680,7 +680,7 @@ void ClangdLSPServer::onDocumentDidClose(
 #ifdef INTERACTIVECCCONV
   PathRef File = Params.textDocument.uri.file();
   Server->_3CCloseDocument(File.str());
-  sendCConvMessage("CConv finished Rewriting the file:" + File.str());
+  send3CMessage("CConv finished Rewriting the file:" + File.str());
 #else
   PathRef File = Params.textDocument.uri.file();
   DraftMgr.removeDraft(File);

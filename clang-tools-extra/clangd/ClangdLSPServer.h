@@ -64,7 +64,7 @@ public:
 
 #ifdef INTERACTIVECCCONV
   void _3CResultsReady(std::string FileName, bool ClearDiags = false) override;
-  void sendCConvMessage(std::string MsgStr) override;
+  void send3CMessage(std::string MsgStr) override;
 #endif
 
 private:

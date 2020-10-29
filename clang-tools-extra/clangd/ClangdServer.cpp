@@ -190,17 +190,17 @@ void
 ClangdServer::_3CCollectAndBuildInitialConstraints(_3CLSPCallBack *ConvCB) {
   auto Task = [=]() {
     _3CDiagInfo.ClearAllDiags();
-    ConvCB->sendCConvMessage("Running CConv for first time.");
+    ConvCB->send3CMessage("Running CConv for first time.");
     _3CInter.BuildInitialConstraints();
     _3CInter.SolveConstraints(true);
-    ConvCB->sendCConvMessage("Finished running CConv.");
+    ConvCB->send3CMessage("Finished running CConv.");
     log("CConv: Built initial constraints successfully.\n");
     auto &WildPtrsInfo = _3CInter.GetWILDPtrsInfo();
     log("CConv: Got WILD Ptrs Info.\n");
     _3CDiagInfo.PopulateDiagsFromConstraintsInfo(WildPtrsInfo);
     log("CConv: Populated Diags from Disjoint Sets.\n");
     reportCConvDiagsForAllFiles(WildPtrsInfo, ConvCB);
-    ConvCB->sendCConvMessage("CConv: Finished updating problems.");
+    ConvCB->send3CMessage("CConv: Finished updating problems.");
     log("CConv: Updated the diag information.\n");
   };
   WorkScheduler.run("CConv: Running Initial Constraints", Task);
@@ -218,18 +218,18 @@ void ClangdServer::execute3CCommand(ExecuteCommandParams Params,
           PtrSourceMap[Params._3CManualFix->ptrID]->getFileName();
       log("CConv: File of the pointer {0}\n", PtrFileName);
       clearCConvDiagsForAllFiles(WildPtrsInfo, ConvCB);
-      ConvCB->sendCConvMessage("CConv modifying constraints.");
+      ConvCB->send3CMessage("CConv modifying constraints.");
       ExecuteCCCommand(Params, RplMsg, _3CInter);
       this->_3CDiagInfo.ClearAllDiags();
-      ConvCB->sendCConvMessage("CConv Updating new issues "
+      ConvCB->send3CMessage("CConv Updating new issues "
                                "after editing constraints.");
       this->_3CDiagInfo.PopulateDiagsFromConstraintsInfo(WildPtrsInfo);
       log("CConv calling call-back\n");
       // ConvCB->_3CResultsReady(ptrFileName);
-      ConvCB->sendCConvMessage("CConv Updated new issues.");
+      ConvCB->send3CMessage("CConv Updated new issues.");
       reportCConvDiagsForAllFiles(WildPtrsInfo, ConvCB);
     } else {
-      ConvCB->sendCConvMessage("CConv contraint key already removed.");
+      ConvCB->send3CMessage("CConv contraint key already removed.");
     }
   };
   WorkScheduler.run("Applying on demand ptr modifications", Task);
