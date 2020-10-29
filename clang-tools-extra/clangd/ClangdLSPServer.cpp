@@ -403,8 +403,8 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
             {"executeCommandProvider",
              llvm::json::Object{
                  {"commands",
-                  {ExecuteCommandParams::CCONV_APPLY_FOR_ALL,
-                   ExecuteCommandParams::CCONV_APPLY_ONLY_FOR_THIS}},
+                  {ExecuteCommandParams::_3C_APPLY_FOR_ALL,
+                   ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS}},
              }},
         }}}};
 #else

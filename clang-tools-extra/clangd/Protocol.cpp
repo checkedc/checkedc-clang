@@ -535,9 +535,9 @@ llvm::json::Value toJSON(const CConvertManualFix &WE) {
   return llvm::json::Object{{"ptrID", std::move(WE.ptrID)}};
 }
 
-const llvm::StringLiteral ExecuteCommandParams::CCONV_APPLY_ONLY_FOR_THIS =
+const llvm::StringLiteral ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS =
     "cconv.onlyThisPtr";
-const llvm::StringLiteral ExecuteCommandParams::CCONV_APPLY_FOR_ALL =
+const llvm::StringLiteral ExecuteCommandParams::_3C_APPLY_FOR_ALL =
     "cconv.applyAllPtr";
 #endif
 const llvm::StringLiteral ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND =
@@ -558,8 +558,8 @@ bool fromJSON(const llvm::json::Value &Params, ExecuteCommandParams &R) {
   if (R.command == ExecuteCommandParams::CLANGD_APPLY_TWEAK)
     return Args && Args->size() == 1 && fromJSON(Args->front(), R.tweakArgs);
 #ifdef INTERACTIVECCCONV
-  if (R.command == ExecuteCommandParams::CCONV_APPLY_ONLY_FOR_THIS ||
-      R.command == ExecuteCommandParams::CCONV_APPLY_FOR_ALL) {
+  if (R.command == ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS ||
+      R.command == ExecuteCommandParams::_3C_APPLY_FOR_ALL) {
     return Args && Args->size() == 1 &&
         fromJSON(Args->front(), R.ccConvertManualFix);
   }
