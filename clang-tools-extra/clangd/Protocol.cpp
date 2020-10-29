@@ -561,7 +561,7 @@ bool fromJSON(const llvm::json::Value &Params, ExecuteCommandParams &R) {
   if (R.command == ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS ||
       R.command == ExecuteCommandParams::_3C_APPLY_FOR_ALL) {
     return Args && Args->size() == 1 &&
-        fromJSON(Args->front(), R.ccConvertManualFix);
+        fromJSON(Args->front(), R._3CManualFix);
   }
 #endif
   return false; // Unrecognized command.
@@ -640,8 +640,8 @@ llvm::json::Value toJSON(const Command &C) {
   if (C.tweakArgs)
     Cmd["arguments"] = {*C.tweakArgs};
 #ifdef INTERACTIVECCCONV
-  if (C.ccConvertManualFix)
-    Cmd["arguments"] = {*C.ccConvertManualFix};
+  if (C._3CManualFix)
+    Cmd["arguments"] = {*C._3CManualFix};
 #endif
   return std::move(Cmd);
 }

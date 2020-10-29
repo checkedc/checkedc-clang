@@ -773,7 +773,7 @@ struct ExecuteCommandParams {
   // Arguments
   llvm::Optional<WorkspaceEdit> workspaceEdit;
 #ifdef INTERACTIVECCCONV
-  llvm::Optional<_3CManualFix> ccConvertManualFix;
+  llvm::Optional<_3CManualFix> _3CManualFix;
 #endif
   llvm::Optional<TweakArgs> tweakArgs;
 };

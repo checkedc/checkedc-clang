@@ -212,10 +212,10 @@ void ClangdServer::executeCConvCommand(ExecuteCommandParams Params,
     std::string RplMsg;
     auto &WildPtrsInfo = _3CInter.GetWILDPtrsInfo();
     auto &PtrSourceMap = WildPtrsInfo.AtomSourceMap;
-    if (PtrSourceMap.find(Params.ccConvertManualFix->ptrID) !=
+    if (PtrSourceMap.find(Params._3CManualFix->ptrID) !=
         PtrSourceMap.end()) {
       std::string PtrFileName =
-          PtrSourceMap[Params.ccConvertManualFix->ptrID]->getFileName();
+          PtrSourceMap[Params._3CManualFix->ptrID]->getFileName();
       log("CConv: File of the pointer {0}\n", PtrFileName);
       clearCConvDiagsForAllFiles(WildPtrsInfo, ConvCB);
       ConvCB->sendCConvMessage("CConv modifying constraints.");

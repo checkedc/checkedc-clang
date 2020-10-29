@@ -31,7 +31,7 @@ void AsCCCommands(const Diagnostic &D, std::vector<Command> &OutCommands) {
     Command AllPtrsCmd;
     _3CManualFix PtrFix;
     PtrFix.ptrID = PtrId;
-    AllPtrsCmd.ccConvertManualFix = PtrFix;
+    AllPtrsCmd._3CManualFix = PtrFix;
     Command SinglePtrCmd = AllPtrsCmd;
 
     AllPtrsCmd.command = Command::_3C_APPLY_FOR_ALL;
@@ -57,12 +57,12 @@ bool ExecuteCCCommand(const ExecuteCommandParams &Params,
                     _3CInterface &CcInterface) {
   ReplyMessage = "Checked C Pointer Modified.";
   if (Params.command.rfind(Command::_3C_APPLY_ONLY_FOR_THIS, 0) == 0) {
-    int PtrId = Params.ccConvertManualFix->ptrID;
+    int PtrId = Params._3CManualFix->ptrID;
     CcInterface.MakeSinglePtrNonWild(PtrId);
     return true;
   }
   if (Params.command.rfind(Command::_3C_APPLY_FOR_ALL, 0) == 0) {
-    int PtrId = Params.ccConvertManualFix->ptrID;
+    int PtrId = Params._3CManualFix->ptrID;
     CcInterface.InvalidateWildReasonGlobally(PtrId);
     return true;
   }
