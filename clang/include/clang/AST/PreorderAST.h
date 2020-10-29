@@ -122,6 +122,16 @@ namespace clang {
     // @param[in] N is current node of the AST. Initial value is Root.
     void NormalizeExprsWithoutConst(Node *N);
 
+    // Get the deref offset from the DerefExpr. The offset represents the
+    // possible amount by which the bounds of an ntptr should be widened.
+    // @param[in] UpperExpr is the upper bounds expr for the ntptr.
+    // @param[in] DerefExpr is the dereferenced expr for the ntptr.
+    // @param[out] Offset is the offset from the base by which the pointer is
+    // dereferenced.
+    // return Returns a boolean indicating whether a valid offset exists.
+    bool GetDerefOffset(Node *UpperExpr, Node *DerefExpr,
+                        llvm::APSInt &Offset);
+
     // Check if the two AST nodes N1 and N2 are equal.
     // @param[in] N1 is the first node.
     // @param[in] N2 is the second node.
@@ -150,6 +160,17 @@ namespace clang {
     // preorder AST. The Error field is set if an error is encountered during
     // transformation of the AST.
     void Normalize();
+
+    // Get the offset by which a pointer is dereferenced. This function is
+    // intended to be called from outside this class.
+    // @param[in] this is the first AST.
+    // @param[in] P is the second AST.
+    // @param[out] Offset is the dereference offset.
+    // @return Returns a bool indicating whether a valid dereference offset
+    // exists.
+    bool GetDerefOffset(PreorderAST &P, llvm::APSInt &Offset) {
+      return GetDerefOffset(/*UpperExpr*/ Root, /*DerefExpr*/ P.Root, Offset);
+    }
 
     // Check if the two ASTs are equal. This is intended to be called from
     // outside this class and invokes IsEqual on the root nodes of the two ASTs

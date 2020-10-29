@@ -377,6 +377,127 @@ void PreorderAST::NormalizeExprsWithoutConst(Node *N) {
   AddNode(L, B);
 }
 
+bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
+				 llvm::APSInt &Offset) {
+  // Extract the offset by which a pointer is dereferenced. For the pointer we
+  // compare the dereference expr with the declared upper bound expr. If the
+  // non-integer parts of the two exprs are not equal we say that a valid
+  // offset does not exist and return false. If the non-integer parts of the
+  // two exprs are equal we require that the integer part of the deref expr be
+  // numerically greater than or equal to the integer part of the upper bound
+  // expr. If this condition is not satisfied we return false. If the condition
+  // is satisfied we return true and the offset in this case is calculated as
+  // (integer part of deref expr - integer part of upper bound expr).
+
+  if (auto *B1 = dyn_cast_or_null<BinaryNode>(UpperNode)) {
+    auto *B2 = dyn_cast_or_null<BinaryNode>(DerefNode);
+
+    // While creating the preorder ASTs we normalize exprs like "*p" to "*(p +
+    // 0)". So we cannot have a case where the UpperNode is a BinaryNode and
+    // the DerefNode is not, or vice versa.
+
+    // Return false if the types of the nodes mismatch.
+    if (!B2)
+      return false;
+
+    // Return false if the opcodes mismatch.
+    // This means the two exprs are like:
+    // (p + i) and (p * i)
+    if (B1->Opc != B2->Opc)
+      return false;
+
+    // Return false if the number of children of the nodes differ.
+    // This means the two exprs are like:
+    // (p + i) and (p + i + j)
+    if (B1->Children.size() != B2->Children.size())
+      return false;
+
+    // Match each child of the two nodes.
+    for (size_t I = 0; I != B1->Children.size(); ++I) {
+      auto *Child1 = B1->Children[I];
+      auto *Child2 = B2->Children[I];
+
+      if (!GetDerefOffset(Child1, Child2, Offset))
+        return false;
+    }
+    return true;
+  }
+
+  auto *L1 = dyn_cast_or_null<LeafExprNode>(UpperNode);
+  auto *L2 = dyn_cast_or_null<LeafExprNode>(DerefNode);
+
+  // While creating the preorder ASTs we normalize exprs like "*p" to "*(p +
+  // 0)". So we cannot have a case where the UpperNode is a LeafExprNode and
+  // the DerefNode is not, or vice versa.
+
+  // Return false if the types of the nodes mismatch.
+  // This means the two exprs are like:
+  // (p + i) and (p + i + j)
+  if (!L1 || !L2)
+    return false;
+
+  Expr *UpperExpr = L1->E;
+  Expr *DerefExpr = L2->E;
+
+  // If both the LeafExprNodes are equal, the offset is the offset calculated
+  // so far.
+  // This means the two exprs are like:
+  // (p + i) and (p + i), or
+  // (p + 1) and (p + 1)
+  if (Lex.CompareExpr(UpperExpr, DerefExpr) == Result::Equal)
+    return true;
+
+  // At this point, the exprs are NOT equal. We can have the following cases:
+
+  // Case 1. Both exprs are integer exprs: In this case we could have a valid
+  // offset because the two exprs are like:
+  // (p + 1) and (p + 1), or
+  // (p + 1) and (p + 2)
+
+  // Case 2. At least one of the exprs is a non-integer expr: In this case we
+  // could NOT have a valid offset because the two exprs are like:
+  // (p + 1) and (p + i), or
+  // (p + i) and (p + j)
+
+  // Handle case 2: If at least one of the exprs is a non-integer expr, return
+  // false.
+  llvm::APSInt UpperOffset;
+  if (!UpperExpr->isIntegerConstantExpr(UpperOffset, Ctx))
+    return false;
+
+  llvm::APSInt DerefOffset;
+  if (!DerefExpr->isIntegerConstantExpr(DerefOffset, Ctx))
+    return false;
+
+  // At this point we are in case 1. The two exprs are like:
+  // (p + 1) and (p + 1), or
+  // (p + 1) and (p + 2)
+
+  // Return false if the integer part of the deref expr < integer part of the
+  // upper bound expr.
+  if (llvm::APSInt::compareValues(DerefOffset, UpperOffset) < 0)
+    return false;
+
+  // Calculate (integer part of the deref expr - integer part of the upper
+  // bound expr).
+  bool Overflow;
+  DerefOffset = DerefOffset.ssub_ov(UpperOffset, Overflow);
+  if (Overflow)
+    return false;
+
+  // Return false if the current offset is non-zero and we have already found a
+  // non-zero offset previously on some other branch of the preorder AST.
+  // This means the two exprs are like:
+  // ((p + 1) * (p + 2)) and ((p + 1) * (p + 2))
+  llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
+  if (llvm::APSInt::compareValues(DerefOffset, Zero) != 0 &&
+      llvm::APSInt::compareValues(Offset, Zero) != 0)
+    return false;
+
+  Offset = DerefOffset;
+  return true;
+}
+
 bool PreorderAST::IsEqual(Node *N1, Node *N2) {
   // If both the nodes are null.
   if (!N1 && !N2)
