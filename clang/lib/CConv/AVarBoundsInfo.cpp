@@ -400,10 +400,12 @@ bool AVarBoundsInfo::addAssignment(BoundsKey L, BoundsKey R) {
     // dependency and never will be able to find the bounds for the return
     // value.
     if (L != R)
-      ProgVarGraph.addEdge(R, L);
+      ProgVarGraph.addUniqueEdge(R, L);
   } else {
-    ProgVarGraph.addEdge(L, R);
-    ProgVarGraph.addEdge(R, L);
+    ProgVarGraph.addUniqueEdge(R, L);
+    ProgramVar *PV = getProgramVar(R);
+    if (!(PV && PV->IsNumConstant()))
+      ProgVarGraph.addUniqueEdge(L, R);
   }
   return true;
 }
@@ -512,25 +514,18 @@ BoundsKey AVarBoundsInfo::getVarKey(PersistentSourceLoc &PSL) {
 }
 
 BoundsKey AVarBoundsInfo::getConstKey(uint64_t value) {
-  BoundsKey NK = ++BCount;
-  std::string ConsString = std::to_string(value);
-  ProgramVar *NPV =
-    ProgramVar::createNewProgramVar(NK,
-                                    ConsString,
-                                    GlobalScope::getGlobalScope(),
-                                    true);
-  insertProgramVar(NK, NPV);
-  ConstVarKeys[value].insert(NK);
-  return NK;
-}
-
-bool AVarBoundsInfo::fetchAllConstKeys(uint64_t value,
-                                       std::set<BoundsKey> &AllKeys) {
-  if (ConstVarKeys.find(value) != ConstVarKeys.end()) {
-    AllKeys.insert(ConstVarKeys[value].begin(), ConstVarKeys[value].end());
-    return true;
+  if (ConstVarKeys.find(value) == ConstVarKeys.end()) {
+    BoundsKey NK = ++BCount;
+    std::string ConsString = std::to_string(value);
+    ProgramVar *NPV =
+      ProgramVar::createNewProgramVar(NK,
+                                      ConsString,
+                                      GlobalScope::getGlobalScope(),
+                                      true);
+    insertProgramVar(NK, NPV);
+    ConstVarKeys[value] = NK;
   }
-  return false;
+  return ConstVarKeys[value];
 }
 
 BoundsKey AVarBoundsInfo::getVarKey(llvm::APSInt &API) {
@@ -712,15 +707,6 @@ bool AvarBoundsInference::getReachableBoundKeys(const ProgramVarScope *DstScope,
   AllFKeys.clear();
   AllFKeys.insert(FromVarK);
 
-  // If this is a constant? Then get all bounds keys that
-  // correspond to the same constant
-  if (SBVar->IsNumConstant()) {
-    uint64_t ConsVal;
-    std::istringstream IS(SBVar->getVarName());
-    IS >> ConsVal;
-    BI->fetchAllConstKeys(ConsVal, AllFKeys);
-  }
-
   for (auto CurrVarK : AllFKeys) {
     // Find all the in scope variables reachable from the CurrVarK
     // bounds variable.
@@ -729,6 +715,24 @@ bool AvarBoundsInference::getReachableBoundKeys(const ProgramVarScope *DstScope,
     BKGraph.visitBreadthFirst(CurrVarK, [&TV](BoundsKey BK) {
       TV.visitBoundsKey(BK);
     });
+  }
+
+  // This is to get all the constants that are assigned to the variables
+  // reachable from FromVarK.
+  if (!SBVar->IsNumConstant()) {
+    std::set<BoundsKey> ReachableCons;
+    std::set<BoundsKey> Pre;
+    for (auto CK : PotK) {
+      Pre.clear();
+      BKGraph.getPredecessors(CK, Pre);
+      for (auto T : Pre) {
+        auto *TVar = BI->getProgramVar(T);
+        if (TVar->IsNumConstant()) {
+          ReachableCons.insert(T);
+        }
+      }
+    }
+    PotK.insert(ReachableCons.begin(), ReachableCons.end());
   }
 
   return !PotK.empty();
@@ -1229,11 +1233,10 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
   // Any thing changed? which means bounds of a variable changed
   // Which means we need to recompute the flow based bounds for
   // all arrays that have flow based bounds.
-  if (keepHighestPriorityBounds(ArrPointerBoundsKey)) {
-    // Remove flow inferred bounds, if exist for all the array pointers.
-    for (auto TBK : ArrPointerBoundsKey)
-      removeBounds(TBK, FlowInferred);
-  }
+  keepHighestPriorityBounds(ArrPointerBoundsKey);
+  // Remove flow inferred bounds, if exist for all the array pointers.
+  for (auto TBK : ArrPointerBoundsKey)
+    removeBounds(TBK, FlowInferred);
 
   std::set<BoundsKey> ArrNeededBounds, ArrNeededBoundsNew;
   ArrNeededBounds.clear();
