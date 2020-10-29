@@ -393,12 +393,10 @@ bool AVarBoundsInfo::addAssignment(BoundsKey L, BoundsKey R) {
     // dependency and never will be able to find the bounds for the return
     // value.
     if (L != R)
-      ProgVarGraph.addUniqueEdge(R, L);
+      ProgVarGraph.addEdge(R, L);
   } else {
-    ProgVarGraph.addUniqueEdge(R, L);
-    ProgramVar *PV = getProgramVar(R);
-    if (!(PV && PV->IsNumConstant()))
-      ProgVarGraph.addUniqueEdge(L, R);
+    ProgVarGraph.addEdge(L, R);
+    ProgVarGraph.addEdge(R, L);
   }
   return true;
 }
@@ -714,45 +712,7 @@ bool AvarBoundsInference::inferPossibleBounds(BoundsKey K, ABounds *SB,
     }
   }
 
-  // All constants are reachable!
-  if (SBVar->IsNumConstant()) {
-    PotK.insert(FromVarK);
-  }
-
-  // Get all bounds key that are equivalent to FromVarK
-  std::set<BoundsKey> AllFKeys;
-  AllFKeys.clear();
-  AllFKeys.insert(FromVarK);
-
-  for (auto CurrVarK : AllFKeys) {
-    // Find all the in scope variables reachable from the CurrVarK
-    // bounds variable.
-    ScopeVisitor TV(DstScope, PotK, BI->PVarInfo,
-                    BI->PointerBoundsKey);
-    BKGraph.visitBreadthFirst(CurrVarK, [&TV](BoundsKey BK) {
-      TV.visitBoundsKey(BK);
-    });
-  }
-
-  // This is to get all the constants that are assigned to the variables
-  // reachable from FromVarK.
-  if (!SBVar->IsNumConstant()) {
-    std::set<BoundsKey> ReachableCons;
-    std::set<BoundsKey> Pre;
-    for (auto CK : PotK) {
-      Pre.clear();
-      BKGraph.getPredecessors(CK, Pre);
-      for (auto T : Pre) {
-        auto *TVar = BI->getProgramVar(T);
-        if (TVar->IsNumConstant()) {
-          ReachableCons.insert(T);
-        }
-      }
-    }
-    PotK.insert(ReachableCons.begin(), ReachableCons.end());
-  }
-
-  return !PotK.empty();
+  return RetVal;
 }
 
 bool AvarBoundsInference::getRelevantBounds(std::set<BoundsKey> &RBKeys,
@@ -1105,10 +1065,11 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
   // Any thing changed? which means bounds of a variable changed
   // Which means we need to recompute the flow based bounds for
   // all arrays that have flow based bounds.
-  keepHighestPriorityBounds(ArrPointerBoundsKey);
-  // Remove flow inferred bounds, if exist for all the array pointers.
-  for (auto TBK : ArrPointerBoundsKey)
-    removeBounds(TBK, FlowInferred);
+  if (keepHighestPriorityBounds(ArrPointerBoundsKey)) {
+    // Remove flow inferred bounds, if exist for all the array pointers.
+    for (auto TBK : ArrPointerBoundsKey)
+      removeBounds(TBK, FlowInferred);
+  }
 
   // Next, get the ARR pointers that has bounds.
   // These are pointers with bounds.
