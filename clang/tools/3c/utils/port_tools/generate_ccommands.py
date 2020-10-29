@@ -178,8 +178,8 @@ def run3C(checkedc_bin, compile_commands_json, checkedc_include_dir, skip_paths,
     logging.debug("Saved all the individual commands into the file:" + INDIVIDUAL_COMMANDS_FILE)
 
     vcodewriter = VSCodeJsonWriter()
-    # get path to icconv
-    vcodewriter.setClangdPath(os.path.join(os.path.dirname(prog_name), "icconv"))
+    # get path to clangd3c
+    vcodewriter.setClangdPath(os.path.join(os.path.dirname(prog_name), "clangd3c"))
     args = []
     args.append(prog_name)
     args.extend(DEFAULT_ARGS)

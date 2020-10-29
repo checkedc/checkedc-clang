@@ -30,12 +30,12 @@ target_link_libraries(clangd
   ${CLANGD_XPC_LIBS}
   )
 
-add_clang_tool(icconv
+add_clang_tool(clangd3c
         ClangdMain.cpp
         $<TARGET_OBJECTS:obj.clangDaemonTweaks>
         )
 
-target_link_libraries(icconv
+target_link_libraries(clangd3c
   PRIVATE
   clangAST
   clangBasic
@@ -51,4 +51,4 @@ target_link_libraries(icconv
   ${CLANGD_XPC_LIBS}
   )
 
-target_compile_definitions(icconv PUBLIC INTERACTIVE3C=1)
+target_compile_definitions(clangd3c PUBLIC INTERACTIVE3C=1)

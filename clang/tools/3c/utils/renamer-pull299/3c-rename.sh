@@ -76,7 +76,7 @@ repl_cpp '\("CConv(:)? ' '("3C\1 '  # Logging
 
 repl_word run{CheckedCConvert,3C}  # for clang/tools/3c/utils/cc_conv
 
-repl_word icconv clangd3c
+repl_word clangd3c clangd3c
 
 repl_word checked_c_convert_bin '_3c_bin'  # Variable in clang/tools/3c/utils
 repl_word checked-c-convert '3c'  # Various references from clang/tools/3c/utils and documentation
