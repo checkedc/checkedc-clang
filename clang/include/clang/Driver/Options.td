@@ -801,7 +801,7 @@ def fcheckedc_extension : Flag<["-"], "fcheckedc-extension">, Group<f_Group>, Fl
   HelpText<"Accept Checked C extension">;
 def fno_checkedc_extension : Flag<["-"], "fno-checkedc-extension">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Do not accept Checked C extension">;
-def fcheckedc_convert_tool : Flag<["-"], "fcheckedc-convert-tool">, Group<f_Group>, Flags<[CC1Option]>,
+def f3c_tool : Flag<["-"], "fcheckedc-convert-tool">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Enable Checked C converter tool mode (supposed to be run by tools that needs only AST)">;
 def fdump_extracted_comparison_facts : Flag<["-"], "fdump-extracted-comparison-facts">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump extracted comparison facts">;

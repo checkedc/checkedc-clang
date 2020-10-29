@@ -88,5 +88,5 @@ repl_word cconvClangDaemon 3cClangDaemon '/CMakeLists\.txt$'
 # As of the original starting point, this looks right in all cases, but REVIEW IT CAREFULLY!
 repl_word '[Cc]?[Cc][Cc]onv' 3C '(^|/)3[Cc]|^clang-tools-extra/clangd|^clang/include/clang'
 
-repl fcheckedc_convert_tool f3c_tool  # Preceded by OPT_ in some instances
+repl f3c_tool f3c_tool  # Preceded by OPT_ in some instances
 repl fcheckedc-convert-tool f3c-tool
