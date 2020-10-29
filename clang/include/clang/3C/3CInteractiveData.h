@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _CCONVINTERACTIVEDATA_H
-#define _CCONVINTERACTIVEDATA_H
+#ifndef _3CINTERACTIVEDATA_H
+#define _3CINTERACTIVEDATA_H
 
 #include "ConstraintVariables.h"
 #include "PersistentSourceLoc.h"
@@ -88,4 +88,4 @@ private:
 
 };
 
-#endif // _CCONVINTERACTIVEDATA_H
+#endif // _3CINTERACTIVEDATA_H

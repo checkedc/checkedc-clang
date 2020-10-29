@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _CCONV_H
-#define _CCONV_H
+#ifndef _3C_H
+#define _3C_H
 
 #include "ConstraintVariables.h"
 #include "PersistentSourceLoc.h"
@@ -114,4 +114,4 @@ private:
 
 };
 
-#endif // _CCONV_H
+#endif // _3C_H
