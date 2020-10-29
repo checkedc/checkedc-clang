@@ -61,7 +61,7 @@ repl_cpp_word {Convert,_3C}Category
 repl_cpp_word 'CConvert(Options|ManualFix|Diagnostics)' '_3C\1'
 repl_cpp_word {ccConvert,_3C}ManualFix
 repl_cpp_word ccConvResultsReady _3CResultsReady
-repl_word CheckedCConverter _3C  # Appears in clang/include/clang/Basic/LangOptions.def too
+repl_word _3C _3C  # Appears in clang/include/clang/Basic/LangOptions.def too
 # Internal
 repl_cpp_word execute{CConv,3C}Command
 repl_cpp_word send{CConv,3C}Message

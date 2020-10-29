@@ -2106,7 +2106,7 @@ namespace {
 
       // If we are running to Checked C converter (AST only) tool, then disable
       // bounds checking.
-      if (S.getLangOpts().CheckedCConverter)
+      if (S.getLangOpts()._3C)
         return;
 
       ProofFailure Cause;
@@ -5481,7 +5481,7 @@ namespace {
         !ToType->isFunctionPointerType())
         return;
 
-      if (S.getLangOpts().CheckedCConverter)
+      if (S.getLangOpts()._3C)
         return;
 
       // Skip lvalue-to-rvalue casts because they preserve types (except that
