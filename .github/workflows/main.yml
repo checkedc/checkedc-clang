@@ -199,7 +199,7 @@ jobs:
         run: |
           chmod -R 777 ${{github.workspace}}/depsfolder
           chmod -R 777 ${{runner.workspace}}/${{env.builddir}}
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/port_tools
           python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{runner.workspace}}/${{env.vsftpddir}}/vsftpd-3.0.3
 
   testptrdist:
@@ -271,27 +271,27 @@ jobs:
         run: |
           chmod -R 777 ${{github.workspace}}/depsfolder
           chmod -R 777 ${{runner.workspace}}/${{env.builddir}}
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/port_tools
           python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{github.workspace}}/depsfolder/checkedc-eval/ptrdist-1.1/anagram
 
       - name: Test bc (PtrDist)
         run: |
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/port_tools
           python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{github.workspace}}/depsfolder/checkedc-eval/ptrdist-1.1/bc
 
       - name: Test ft (PtrDist)
         run: |
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/port_tools
           python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{github.workspace}}/depsfolder/checkedc-eval/ptrdist-1.1/ft
 
       - name: Test ks (PtrDist)
         run: |
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/port_tools
           python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{github.workspace}}/depsfolder/checkedc-eval/ptrdist-1.1/ks
 
       - name: Test yacr2 (PtrDist)
         run: |
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/port_tools
           python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{github.workspace}}/depsfolder/checkedc-eval/ptrdist-1.1/yacr2
 
   buildandtestlibarchive:
@@ -362,7 +362,7 @@ jobs:
         run: |
           chmod -R 777 ${{github.workspace}}/depsfolder
           chmod -R 777 ${{runner.workspace}}/${{env.builddir}}
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/port_tools
           python convert_project.py --skip '/.*/test/.*' --skip '/.*/test_utils/.*' --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{runner.workspace}}/depsfolder/libarchive.obj
 
   buildandtestlua:
@@ -431,7 +431,7 @@ jobs:
         run: |
           chmod -R 777 ${{github.workspace}}/depsfolder
           chmod -R 777 ${{runner.workspace}}/${{env.builddir}}
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/port_tools
           python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{github.workspace}}/depsfolder/checkedc-eval/lua
 
   buildandtestlibtiff:
@@ -503,7 +503,7 @@ jobs:
         run: |
           chmod -R 777 ${{github.workspace}}/depsfolder
           chmod -R 777 ${{runner.workspace}}/${{env.builddir}}
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/port_tools
           python convert_project.py --skip '/.*/tif_stream.cxx' --skip '.*/test/.*\.c' --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{runner.workspace}}/depsfolder/libtiff.obj
 
   buildandtestzlib:
@@ -574,5 +574,5 @@ jobs:
         run: |
           chmod -R 777 ${{github.workspace}}/depsfolder
           chmod -R 777 ${{runner.workspace}}/${{env.builddir}}
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/port_tools
           python convert_project.py --skip '/.*/test/.*' --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{runner.workspace}}/depsfolder/zlib.obj
