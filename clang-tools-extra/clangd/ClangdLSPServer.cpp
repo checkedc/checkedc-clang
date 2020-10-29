@@ -562,7 +562,7 @@ void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
                                 Callback<llvm::json::Value> Reply) {
 #ifdef INTERACTIVECCCONV
   // In this mode, we support only CConv commands.
-  if(IsCConvCommand(Params)) {
+  if(Is3CCommand(Params)) {
     Server->execute3CCommand(Params, this);
     Reply("CConv Background work scheduled.");
   } else {

@@ -47,7 +47,7 @@ void AsCCCommands(const Diagnostic &D, std::vector<Command> &OutCommands) {
   }
 }
 
-bool IsCConvCommand(const ExecuteCommandParams &Params) {
+bool Is3CCommand(const ExecuteCommandParams &Params) {
     return (Params.command.rfind(Command::_3C_APPLY_ONLY_FOR_THIS, 0) == 0) ||
            (Params.command.rfind(Command::_3C_APPLY_FOR_ALL, 0) == 0);
 }
