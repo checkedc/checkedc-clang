@@ -82,7 +82,7 @@ jobs:
       - name: Upload Build files
         uses: actions/upload-artifact@v2
         with:
-          name: cconvbuild
+          name: 3c-build
           path: ${{runner.workspace}}/${{env.builddir}}
           retention-days: 3
 
@@ -90,7 +90,7 @@ jobs:
       - name: Upload script files
         uses: actions/upload-artifact@v2
         with:
-          name: cconvscripts
+          name: 3c-scripts
           path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils
           retention-days: 3
 
@@ -109,7 +109,7 @@ jobs:
       - name: Download Build files
         uses: actions/download-artifact@v2
         with:
-          name: cconvbuild
+          name: 3c-build
           path: ${{runner.workspace}}/${{env.builddir}}
           
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
@@ -167,14 +167,14 @@ jobs:
       - name: Download Build files
         uses: actions/download-artifact@v2
         with:
-          name: cconvbuild
+          name: 3c-build
           path: ${{runner.workspace}}/${{env.builddir}}
 
       # Download script files
       - name: Download script files
         uses: actions/download-artifact@v2
         with:
-          name: cconvscripts
+          name: 3c-scripts
           path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils
 
       # clone Checked C headers
@@ -243,14 +243,14 @@ jobs:
       - name: Download Build files
         uses: actions/download-artifact@v2
         with:
-          name: cconvbuild
+          name: 3c-build
           path: ${{runner.workspace}}/${{env.builddir}}
 
       # Download script files
       - name: Download script files
         uses: actions/download-artifact@v2
         with:
-          name: cconvscripts
+          name: 3c-scripts
           path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils
 
       # clone Checked C headers
@@ -334,14 +334,14 @@ jobs:
       - name: Download Build files
         uses: actions/download-artifact@v2
         with:
-          name: cconvbuild
+          name: 3c-build
           path: ${{runner.workspace}}/${{env.builddir}}
 
       # Download script files
       - name: Download script files
         uses: actions/download-artifact@v2
         with:
-          name: cconvscripts
+          name: 3c-scripts
           path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils
 
       # clone Checked C headers
@@ -405,14 +405,14 @@ jobs:
       - name: Download Build files
         uses: actions/download-artifact@v2
         with:
-          name: cconvbuild
+          name: 3c-build
           path: ${{runner.workspace}}/${{env.builddir}}
 
       # Download script files
       - name: Download script files
         uses: actions/download-artifact@v2
         with:
-          name: cconvscripts
+          name: 3c-scripts
           path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils
 
       # clone Checked C headers
@@ -475,14 +475,14 @@ jobs:
       - name: Download Build files
         uses: actions/download-artifact@v2
         with:
-          name: cconvbuild
+          name: 3c-build
           path: ${{runner.workspace}}/${{env.builddir}}
 
       # Download script files
       - name: Download script files
         uses: actions/download-artifact@v2
         with:
-          name: cconvscripts
+          name: 3c-scripts
           path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils
 
       # clone Checked C headers
@@ -546,14 +546,14 @@ jobs:
       - name: Download Build files
         uses: actions/download-artifact@v2
         with:
-          name: cconvbuild
+          name: 3c-build
           path: ${{runner.workspace}}/${{env.builddir}}
 
       # Download script files
       - name: Download script files
         uses: actions/download-artifact@v2
         with:
-          name: cconvscripts
+          name: 3c-scripts
           path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils
 
       # clone Checked C headers
