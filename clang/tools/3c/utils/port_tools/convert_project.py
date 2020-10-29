@@ -16,7 +16,7 @@ import sys
 import argparse
 import logging
 from includes_updater import updateProjectIncludes
-from generate_ccommands import runCheckedCConvert
+from generate_ccommands import run3C
 
 logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S',
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     logging.info("Finished updating project files.")
 
     logging.info("Trying to convert all the source files to header files")
-    runCheckedCConvert(progArgs.prog_name, compileCmdsJson, progArgs.includeDir, progArgs.skip_paths)
+    run3C(progArgs.prog_name, compileCmdsJson, progArgs.includeDir, progArgs.skip_paths)
     logging.info("Finished converting all the files to checkedc files.")
 
 

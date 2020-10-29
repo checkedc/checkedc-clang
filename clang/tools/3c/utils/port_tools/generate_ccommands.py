@@ -89,7 +89,7 @@ def tryFixUp(s):
     return
 
 
-def runCheckedCConvert(checkedc_bin, compile_commands_json, checkedc_include_dir, skip_paths, run_individual=False):
+def run3C(checkedc_bin, compile_commands_json, checkedc_include_dir, skip_paths, run_individual=False):
     global INDIVIDUAL_COMMANDS_FILE
     global TOTAL_COMMANDS_FILE
     runs = 0
