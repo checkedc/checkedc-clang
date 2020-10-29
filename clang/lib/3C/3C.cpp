@@ -119,13 +119,13 @@ ArgumentsAdjuster getIgnoreCheckedPointerAdjuster() {
     for (size_t i = 0, e = Args.size(); i < e; ++i) {
       StringRef Arg = Args[i];
       AdjustedArgs.push_back(Args[i]);
-      if (Arg == "-fcheckedc-convert-tool") {
+      if (Arg == "-f3c-tool") {
         HasAdjuster = true;
         break;
       }
     }
     if (!DisableCCTypeChecker && !HasAdjuster)
-      AdjustedArgs.push_back("-fcheckedc-convert-tool");
+      AdjustedArgs.push_back("-f3c-tool");
     return AdjustedArgs;
   };
 }
