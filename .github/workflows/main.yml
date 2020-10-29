@@ -133,7 +133,7 @@ jobs:
           cd ${{runner.workspace}}/${{env.builddir}}/bin
           chmod 700 *
           export CPATH=${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include
-          ! ./llvm-lit ${{github.workspace}}/depsfolder/checkedc-clang/clang/test/CheckedCRewriter/*.c | grep -e "^FAIL"
+          ! ./llvm-lit ${{github.workspace}}/depsfolder/checkedc-clang/clang/test/3C/*.c | grep -e "^FAIL"
 
   testvsftpd:
     name: Build and test vsftpd

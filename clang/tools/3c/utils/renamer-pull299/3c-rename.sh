@@ -14,7 +14,7 @@ commit_git_mv clang/docs/checkedc/{CheckedCConvert,3C}.md
 commit_git_mv clang/tools/{3c,3c}
 commit_git_mv clang/tools/3c/utils/{cc_conv,port_tools}
 commit_git_mv clang/include/clang/CConv/{CC,3C}GlobalOptions.h
-commit_git_mv clang/test/{CheckedCRewriter,3C}
+commit_git_mv clang/test/{3C,3C}
 
 repl_basename_pfx CConvert 3C '^clang'
 repl_basename_pfx CConv 3C '^clang'
@@ -25,7 +25,7 @@ repl_basename_pfx CConv 3C '^clang'
 repl_word 3c 3c  # Catches CMakeLists, actions file, lit tests, etc.
 repl_word clang/tools/3c/utils/{cc_conv,port_tools} '^\.github/workflows/main\.yml$'
 repl_word {CC,3C}GlobalOptions
-repl_word CheckedCRewriter 3C  # Only in actions file
+repl_word 3C 3C  # Only in actions file
 repl '\<CConv(ert)?' 3C '/CMakeLists\.txt$'
 # Without this, the next line would be insufficient to handle '#include "clang/CConv/CConv.h"'.
 # This seems like a decent solution compared to running the next line twice or using a custom
