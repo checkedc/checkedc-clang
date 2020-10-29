@@ -529,7 +529,7 @@ void ClangdLSPServer::onFileEvent(const DidChangeWatchedFilesParams &Params) {
 }
 
 #ifdef INTERACTIVECCCONV
-void ClangdLSPServer::ccConvResultsReady(std::string FileName,
+void ClangdLSPServer::_3CResultsReady(std::string FileName,
                                          bool ClearDiags) {
   // Get the diagnostics and update the client.
   std::vector<Diag> Diagnostics;

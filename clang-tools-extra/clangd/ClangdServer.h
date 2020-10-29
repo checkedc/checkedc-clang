@@ -63,7 +63,7 @@ public:
 #ifdef INTERACTIVECCCONV
 class _3CLSPCallBack {
 public:
-  virtual void ccConvResultsReady(std::string FileName,
+  virtual void _3CResultsReady(std::string FileName,
                                   bool ClearDiags = false) = 0;
   virtual void sendCConvMessage(std::string MsgStr) = 0;
 };

@@ -63,7 +63,7 @@ public:
   bool run();
 
 #ifdef INTERACTIVECCCONV
-  void ccConvResultsReady(std::string FileName, bool ClearDiags = false) override;
+  void _3CResultsReady(std::string FileName, bool ClearDiags = false) override;
   void sendCConvMessage(std::string MsgStr) override;
 #endif
 

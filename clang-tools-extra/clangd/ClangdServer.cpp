@@ -174,7 +174,7 @@ void ClangdServer::reportCConvDiagsForAllFiles(ConstraintsInfo &CcInfo,
                                                _3CLSPCallBack *ConvCB) {
   // Update the diag information for all the valid files.
   for (auto &SrcFileDiags : _3CDiagInfo.GetAllFilesDiagnostics()) {
-    ConvCB->ccConvResultsReady(SrcFileDiags.first);
+    ConvCB->_3CResultsReady(SrcFileDiags.first);
   }
 }
 
@@ -182,7 +182,7 @@ void ClangdServer::clearCConvDiagsForAllFiles(ConstraintsInfo &CcInfo,
                                               _3CLSPCallBack *ConvCB) {
   for (auto &SrcFileDiags : _3CDiagInfo.GetAllFilesDiagnostics()) {
     // Clear diags for all files.
-    ConvCB->ccConvResultsReady(SrcFileDiags.first, true);
+    ConvCB->_3CResultsReady(SrcFileDiags.first, true);
   }
 }
 
@@ -225,7 +225,7 @@ void ClangdServer::executeCConvCommand(ExecuteCommandParams Params,
                                "after editing constraints.");
       this->_3CDiagInfo.PopulateDiagsFromConstraintsInfo(WildPtrsInfo);
       log("CConv calling call-back\n");
-      // ConvCB->ccConvResultsReady(ptrFileName);
+      // ConvCB->_3CResultsReady(ptrFileName);
       ConvCB->sendCConvMessage("CConv Updated new issues.");
       reportCConvDiagsForAllFiles(WildPtrsInfo, ConvCB);
     } else {
