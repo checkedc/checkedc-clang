@@ -392,7 +392,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
 #ifdef INTERACTIVECCCONV
   // initialize our constraint building system.
   log("Interactive CheckedC convert mode.\n");
-  Server->cconvCollectAndBuildInitialConstraints(this);
+  Server->_3CCollectAndBuildInitialConstraints(this);
   llvm::json::Object Result{
       {{"capabilities",
         llvm::json::Object{
@@ -465,7 +465,7 @@ void ClangdLSPServer::onShutdown(const ShutdownParams &Params,
   // Write all files back.
   auto &AllDiags = Server->CConvDiagInfo.GetAllFilesDiagnostics();
   for (auto &CD : AllDiags) {
-    Server->cconvCloseDocument(CD.first);
+    Server->_3CCloseDocument(CD.first);
   }
   sendCConvMessage("Finished Writing all CheckedC files back to disk");
   Reply(nullptr);
@@ -679,7 +679,7 @@ void ClangdLSPServer::onDocumentDidClose(
     const DidCloseTextDocumentParams &Params) {
 #ifdef INTERACTIVECCCONV
   PathRef File = Params.textDocument.uri.file();
-  Server->cconvCloseDocument(File.str());
+  Server->_3CCloseDocument(File.str());
   sendCConvMessage("CConv finished Rewriting the file:" + File.str());
 #else
   PathRef File = Params.textDocument.uri.file();

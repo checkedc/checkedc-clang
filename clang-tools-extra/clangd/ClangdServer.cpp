@@ -187,7 +187,7 @@ void ClangdServer::clearCConvDiagsForAllFiles(ConstraintsInfo &CcInfo,
 }
 
 void
-ClangdServer::cconvCollectAndBuildInitialConstraints(CConvLSPCallBack *ConvCB) {
+ClangdServer::_3CCollectAndBuildInitialConstraints(CConvLSPCallBack *ConvCB) {
   auto Task = [=]() {
     CConvDiagInfo.ClearAllDiags();
     ConvCB->sendCConvMessage("Running CConv for first time.");
@@ -235,7 +235,7 @@ void ClangdServer::executeCConvCommand(ExecuteCommandParams Params,
   WorkScheduler.run("Applying on demand ptr modifications", Task);
 }
 
-void ClangdServer::cconvCloseDocument(std::string FileName) {
+void ClangdServer::_3CCloseDocument(std::string FileName) {
   auto Task = [=]() {
     log("CConv: Trying to write back file: {0}\n", FileName);
     if (CConvInter.WriteConvertedFileToDisk(FileName)) {

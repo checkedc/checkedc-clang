@@ -313,11 +313,11 @@ public:
   void executeCConvCommand(ExecuteCommandParams Params,
                            CConvLSPCallBack *ConvCB);
 
-  void cconvCollectAndBuildInitialConstraints(CConvLSPCallBack *ConvCB);
+  void _3CCollectAndBuildInitialConstraints(CConvLSPCallBack *ConvCB);
 
   CConvertDiagnostics CConvDiagInfo;
 
-  void cconvCloseDocument(std::string FileName);
+  void _3CCloseDocument(std::string FileName);
 #endif
 
 private:
