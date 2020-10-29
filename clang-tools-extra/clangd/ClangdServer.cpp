@@ -99,7 +99,7 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
                            const FileSystemProvider &FSProvider,
                            DiagnosticsConsumer &DiagConsumer,
 #ifdef INTERACTIVECCCONV
-                           const Options &Opts, CConvInterface &CCInterface)
+                           const Options &Opts, CConvInterface &_3CInterface)
 #else
                            const Options &Opts)
 #endif
@@ -122,7 +122,7 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
               DynamicIdx.get(), DiagConsumer, Opts.SemanticHighlighting),
           Opts.UpdateDebounce, Opts.RetentionPolicy)
 #ifdef INTERACTIVECCCONV
-          , CConvInter(CCInterface)
+          , CConvInter(_3CInterface)
 #endif
   {
   // Adds an index to the stack, at higher priority than existing indexes.

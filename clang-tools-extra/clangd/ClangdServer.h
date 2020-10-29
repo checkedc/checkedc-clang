@@ -170,7 +170,7 @@ public:
                const FileSystemProvider &FSProvider,
 #ifdef INTERACTIVECCCONV
                DiagnosticsConsumer &DiagConsumer, const Options &Opts,
-               CConvInterface &CCInterface);
+               CConvInterface &_3CInterface);
 #else
                DiagnosticsConsumer &DiagConsumer, const Options &Opts);
 #endif

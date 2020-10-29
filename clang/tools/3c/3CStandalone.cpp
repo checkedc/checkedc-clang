@@ -189,14 +189,14 @@ int main(int argc, const char **argv) {
     CcOptions.AllocatorFunctions = {};
 
   // Create CConv Interface.
-  CConvInterface CCInterface(CcOptions,
+  CConvInterface _3CInterface(CcOptions,
                              OptionsParser.getSourcePathList(),
                              &(OptionsParser.getCompilations()));
 
   if (OptVerbose)
     errs() << "Calling Library to building Constraints.\n";
   // First build constraints.
-  if (!CCInterface.BuildInitialConstraints()) {
+  if (!_3CInterface.BuildInitialConstraints()) {
     errs() << "Failure occurred while trying to build constraints. Exiting.\n";
     return 1;
   }
@@ -207,7 +207,7 @@ int main(int argc, const char **argv) {
   }
 
   // Next solve the constraints.
-  if (!CCInterface.SolveConstraints(OptWarnRootCause)) {
+  if (!_3CInterface.SolveConstraints(OptWarnRootCause)) {
     errs() << "Failure occurred while trying to solve constraints. Exiting.\n";
     return 1;
   }
@@ -218,7 +218,7 @@ int main(int argc, const char **argv) {
   }
 
   // Write all the converted files back.
-  if (!CCInterface.WriteAllConvertedFilesToDisk()) {
+  if (!_3CInterface.WriteAllConvertedFilesToDisk()) {
     errs() << "Failure occurred while trying to rewrite converted files back."
               "Exiting.\n";
     return 1;

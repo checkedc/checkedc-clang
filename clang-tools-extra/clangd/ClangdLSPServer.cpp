@@ -365,7 +365,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
               ClangdServerOpts.ResourceDir);
   Server.emplace(*CDB, FSProvider, static_cast<DiagnosticsConsumer &>(*this),
 #ifdef INTERACTIVECCCONV
-                 ClangdServerOpts, CCInterface);
+                 ClangdServerOpts, _3CInterface);
 #else
                  ClangdServerOpts);
 #endif
@@ -1132,7 +1132,7 @@ ClangdLSPServer::ClangdLSPServer(
       UseDirBasedCDB(UseDirBasedCDB),
       CompileCommandsDir(std::move(CompileCommandsDir)), ClangdServerOpts(Opts),
 #ifdef INTERACTIVECCCONV
-      NegotiatedOffsetEncoding(ForcedOffsetEncoding), CCInterface(Cinter) {
+      NegotiatedOffsetEncoding(ForcedOffsetEncoding), _3CInterface(Cinter) {
 #else
       NegotiatedOffsetEncoding(ForcedOffsetEncoding) {
 #endif
