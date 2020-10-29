@@ -564,7 +564,7 @@ void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
   // In this mode, we support only CConv commands.
   if(Is3CCommand(Params)) {
     Server->execute3CCommand(Params, this);
-    Reply("CConv Background work scheduled.");
+    Reply("3C Background work scheduled.");
   } else {
     Reply(llvm::make_error<LSPError>(
         llvm::formatv("Unsupported command \"{0}\".", Params.command).str(),
@@ -680,7 +680,7 @@ void ClangdLSPServer::onDocumentDidClose(
 #ifdef INTERACTIVE3C
   PathRef File = Params.textDocument.uri.file();
   Server->_3CCloseDocument(File.str());
-  send3CMessage("CConv finished Rewriting the file:" + File.str());
+  send3CMessage("3C finished Rewriting the file:" + File.str());
 #else
   PathRef File = Params.textDocument.uri.file();
   DraftMgr.removeDraft(File);
