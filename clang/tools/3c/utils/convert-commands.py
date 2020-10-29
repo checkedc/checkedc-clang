@@ -148,9 +148,9 @@ def runMain(cmd_args):
 
 
 if __name__ == '__main__':
-  checked_c_convert_bin = ""
+  _3c_bin = ""
   if 'LLVM_OBJ' in os.environ:
-    checked_c_convert_bin = os.path.join(os.environ['LLVM_OBJ'], "bin/checked-c-convert")
+    _3c_bin = os.path.join(os.environ['LLVM_OBJ'], "bin/checked-c-convert")
 
   parser = argparse.ArgumentParser(__file__, description="Tool that converts the compilation commands into"
                                                          " the commands for checked-c-convert tool and also "
@@ -162,7 +162,7 @@ if __name__ == '__main__':
   parser.add_argument("-i", '--individual', dest='individual', action='store_true', default=False,
                       help='Option to enable running on individual files (default: false), '
                            'instead of all the files at once, which is the default behavior.')
-  parser.add_argument("-p","--prog_name", dest='prog_name',type=str, default=checked_c_convert_bin,
+  parser.add_argument("-p","--prog_name", dest='prog_name',type=str, default=_3c_bin,
                       help='Program name to run. i.e., path to checked-c-convert')
   args = parser.parse_args()
   if not args.prog_name or not os.path.isfile(args.prog_name):

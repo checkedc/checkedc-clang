@@ -38,9 +38,9 @@ def parseTheArg():
     pathBasedDir = ""
     if 'LLVM_SRC' in os.environ:
         pathBasedDir = os.path.join(os.environ['LLVM_SRC'], CHECKEDC_INCLUDE_REL_PATH)
-    checked_c_convert_bin = ""
+    _3c_bin = ""
     if 'LLVM_OBJ' in os.environ:
-        checked_c_convert_bin = os.path.join(os.environ['LLVM_OBJ'], "bin/checked-c-convert")
+        _3c_bin = os.path.join(os.environ['LLVM_OBJ'], "bin/checked-c-convert")
 
     parser = argparse.ArgumentParser(description='Convert the provided project into Checked C.')
 
@@ -49,7 +49,7 @@ def parseTheArg():
                         required=False,
                         dest='includeDir',
                         help='Path to the checkedC headers, run from a checkedCclang repo')
-    parser.add_argument("-p", "--prog_name", dest='prog_name', type=str, default=checked_c_convert_bin,
+    parser.add_argument("-p", "--prog_name", dest='prog_name', type=str, default=_3c_bin,
                         help='Program name to run. i.e., path to checked-c-convert')
 
     parser.add_argument("-pr", "--project_path", dest='project_path', type=str, required=True,
