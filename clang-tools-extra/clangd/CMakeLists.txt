@@ -140,7 +140,7 @@ add_clang_library(clangDaemon
   ${CLANGD_ATOMIC_LIB}
   )
 
-add_clang_library(cconvClangDaemon
+add_clang_library(3cClangDaemon
   AST.cpp
   3CCommands.cpp
   3CDiagnostics.cpp
@@ -247,7 +247,7 @@ add_clang_library(cconvClangDaemon
   ${CLANGD_ATOMIC_LIB}
       )
 
-  target_compile_definitions(obj.cconvClangDaemon PRIVATE INTERACTIVE3C=1)
+  target_compile_definitions(obj.3cClangDaemon PRIVATE INTERACTIVE3C=1)
 
 add_subdirectory(refactor/tweaks)
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")

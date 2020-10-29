@@ -40,7 +40,7 @@ target_link_libraries(clangd3c
   clangAST
   clangBasic
   clangTidy
-  cconvClangDaemon
+  3cClangDaemon
   3C
   clangFormat
   clangFrontend
