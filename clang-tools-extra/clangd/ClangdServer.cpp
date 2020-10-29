@@ -206,7 +206,7 @@ ClangdServer::_3CCollectAndBuildInitialConstraints(_3CLSPCallBack *ConvCB) {
   WorkScheduler.run("CConv: Running Initial Constraints", Task);
 }
 
-void ClangdServer::executeCConvCommand(ExecuteCommandParams Params,
+void ClangdServer::execute3CCommand(ExecuteCommandParams Params,
                                        _3CLSPCallBack *ConvCB) {
   auto Task = [this, Params, ConvCB]() {
     std::string RplMsg;
