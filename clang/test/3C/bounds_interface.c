@@ -1,4 +1,4 @@
-// Tests for the Checked C rewriter tool.
+// Tests for the 3C.
 //
 // RUN: 3c -addcr %s -- -fcheckedc-extension | FileCheck -match-full-lines %s
 // RUN: 3c -addcr %s -- -fcheckedc-extension | %clang_cc1  -verify -fcheckedc-extension -x c -

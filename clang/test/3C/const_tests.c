@@ -1,4 +1,4 @@
-// Tests for Checked C rewriter tool.
+// Tests for 3C.
 //
 // Checks for conversions involving const-qualified types.
 //

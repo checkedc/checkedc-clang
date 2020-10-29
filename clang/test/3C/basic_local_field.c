@@ -1,4 +1,4 @@
-// Tests for Checked C rewriter tool.
+// Tests for 3C.
 //
 // Tests properties about type re-writing and replacement of structure members
 //

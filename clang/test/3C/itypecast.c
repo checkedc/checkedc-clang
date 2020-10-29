@@ -1,4 +1,4 @@
-// Tests for Checked C rewriter tool.
+// Tests for 3C.
 //
 // Checks cast insertion while passing arguments to itype parameters.
 //

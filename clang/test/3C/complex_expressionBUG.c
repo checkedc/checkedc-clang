@@ -1,4 +1,4 @@
-// Tests for Checked C rewriter tool.
+// Tests for 3C.
 //
 // Tests 3c tool for complex expressions
 // The following test is supposed to fail with the current tool.

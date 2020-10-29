@@ -1,4 +1,4 @@
-// Tests for Checked C rewriter tool.
+// Tests for 3C.
 //
 // Tests rewriting and propagation of Nt_array_ptr constraints across functions.
 //
