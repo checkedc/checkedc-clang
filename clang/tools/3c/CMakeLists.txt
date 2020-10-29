@@ -7,12 +7,12 @@ if (FIVE_C)
   add_compile_definitions(FIVE_C)
 endif()
 add_clang_executable(3c
-  CConvStandalone.cpp
+  3CStandalone.cpp
   )
 
 target_link_libraries(3c
   PRIVATE
-  CConv
+  3C
   clangAST
   clangBasic
   clangDriver

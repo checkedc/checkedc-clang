@@ -9,14 +9,14 @@ set( LLVM_LINK_COMPONENTS
             DeclRewriter_5C.cpp
           )
         endif()
-        add_clang_library(CConv
+        add_clang_library(3C
           ABounds.cpp
           AVarBoundsInfo.cpp
           AVarGraph.cpp
           ArrayBoundsInferenceConsumer.cpp
           CastPlacement.cpp
-          CConv.cpp
-          CConvInteractiveData.cpp
+          3C.cpp
+          3CInteractiveData.cpp
           CheckedRegions.cpp
           ConstraintBuilder.cpp
           ConstraintResolver.cpp
@@ -46,4 +46,4 @@ set( LLVM_LINK_COMPONENTS
           clangToolingRefactoring
         )
         add_subdirectory(unittests)
-	target_include_directories(obj.CConv PUBLIC)
+	target_include_directories(obj.3C PUBLIC)

@@ -36,8 +36,8 @@ endif()
 
 add_clang_library(clangDaemon
   AST.cpp
-  CConvertCommands.cpp
-  CConvertDiagnostics.cpp
+  3CCommands.cpp
+  3CDiagnostics.cpp
   Cancellation.cpp
   ClangdLSPServer.cpp
   ClangdServer.cpp
@@ -142,8 +142,8 @@ add_clang_library(clangDaemon
 
 add_clang_library(cconvClangDaemon
   AST.cpp
-  CConvertCommands.cpp
-  CConvertDiagnostics.cpp
+  3CCommands.cpp
+  3CDiagnostics.cpp
   Cancellation.cpp
   ClangdLSPServer.cpp
   ClangdServer.cpp
@@ -209,7 +209,7 @@ add_clang_library(cconvClangDaemon
   refactor/Tweak.cpp
 
   LINK_LIBS
-  CConv
+  3C
   clangAST
   clangASTMatchers
   clangBasic
