@@ -332,10 +332,10 @@ void toLSPDiags(
     break;
 #ifdef INTERACTIVE3C
   case Diag::_3CMain:
-    Main.source = "CConv_RealWild";
+    Main.source = "3C_RealWild";
     break;
   case Diag::_3CSec:
-    Main.source = "CConv_AffWild";
+    Main.source = "3C_AffWild";
     break;
 #endif
   case Diag::Unknown:

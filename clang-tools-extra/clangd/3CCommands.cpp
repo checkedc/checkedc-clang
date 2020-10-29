@@ -14,7 +14,7 @@
 namespace clang {
 namespace clangd {
 
-#define _3CSOURCE "CConv_RealWild"
+#define _3CSOURCE "3C_RealWild"
 
 static bool GetPtrIDFromDiagMessage(const Diagnostic &DiagMsg,
                                     unsigned long &PtrId) {
