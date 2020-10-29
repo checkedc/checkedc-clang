@@ -762,9 +762,9 @@ struct ExecuteCommandParams {
   const static llvm::StringLiteral CLANGD_APPLY_TWEAK;
 #ifdef INTERACTIVECCCONV
   // Command to apply the change for this pointer only
-  const static llvm::StringLiteral CCONV_APPLY_ONLY_FOR_THIS;
+  const static llvm::StringLiteral _3C_APPLY_ONLY_FOR_THIS;
   // Command to apply the change for all pointers with same reason
-  const static llvm::StringLiteral CCONV_APPLY_FOR_ALL;
+  const static llvm::StringLiteral _3C_APPLY_FOR_ALL;
 #endif
 
   /// The command identifier, e.g. CLANGD_APPLY_FIX_COMMAND
