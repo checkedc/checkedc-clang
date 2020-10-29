@@ -11,7 +11,7 @@
 #include "llvm/Support/Path.h"
 
 #include "clang/CConv/MappingVisitor.h"
-#include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/3CGlobalOptions.h"
 
 using namespace clang;
 

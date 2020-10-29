@@ -10,7 +10,7 @@
 
 #include "clang/CConv/ProgramInfo.h"
 #include "clang/CConv/ConstraintsGraph.h"
-#include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/3CGlobalOptions.h"
 #include "clang/CConv/MappingVisitor.h"
 #include "clang/CConv/Utils.h"
 

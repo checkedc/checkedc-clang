@@ -13,7 +13,7 @@
 #include "clang/CConv/ConstraintBuilder.h"
 #include "clang/CConv/ConstraintResolver.h"
 #include "clang/CConv/ArrayBoundsInferenceConsumer.h"
-#include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/3CGlobalOptions.h"
 #include "clang/CConv/TypeVariableAnalysis.h"
 
 using namespace llvm;

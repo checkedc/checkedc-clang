@@ -17,7 +17,7 @@
 #include "clang/CConv/Utils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/CConv/ArrayBoundsInferenceConsumer.h"
-#include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/3CGlobalOptions.h"
 #include "clang/CConv/MappingVisitor.h"
 #include "clang/CConv/CheckedRegions.h"
 #include "clang/CConv/StructInit.h"

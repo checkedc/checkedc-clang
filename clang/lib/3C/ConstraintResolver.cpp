@@ -10,7 +10,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/CConv/ConstraintResolver.h"
-#include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/3CGlobalOptions.h"
 
 using namespace llvm;
 using namespace clang;

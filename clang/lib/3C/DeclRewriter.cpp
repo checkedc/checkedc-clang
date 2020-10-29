@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-#include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/3CGlobalOptions.h"
 #include "clang/CConv/RewriteUtils.h"
 #include "clang/CConv/Utils.h"
 #include "llvm/Support/raw_ostream.h"

@@ -14,7 +14,7 @@
 #include "clang/CConv/CheckedRegions.h"
 #include "clang/CConv/DeclRewriter.h"
 #include "clang/Tooling/Refactoring/SourceCode.h"
-#include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/3CGlobalOptions.h"
 
 using namespace llvm;
 using namespace clang;

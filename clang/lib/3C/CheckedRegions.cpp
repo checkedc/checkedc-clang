@@ -16,7 +16,7 @@
 #include "clang/CConv/CheckedRegions.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/CConv/ArrayBoundsInferenceConsumer.h"
-#include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/3CGlobalOptions.h"
 #include "clang/CConv/MappingVisitor.h"
 #include "llvm/Support/raw_ostream.h"
 #include "clang/Tooling/Refactoring/SourceCode.h"

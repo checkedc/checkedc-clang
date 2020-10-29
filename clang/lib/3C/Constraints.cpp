@@ -12,7 +12,7 @@
 #include <set>
 #include "llvm/Support/CommandLine.h"
 
-#include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/3CGlobalOptions.h"
 #include "clang/CConv/Constraints.h"
 #include "clang/CConv/ConstraintsGraph.h"
 #include <iostream>

@@ -12,7 +12,7 @@
 #include <clang/Tooling/Refactoring/SourceCode.h>
 #include "clang/CConv/ConstraintResolver.h"
 #include "clang/CConv/CastPlacement.h"
-#include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/3CGlobalOptions.h"
 #include "clang/CConv/Utils.h"
 
 using namespace clang;

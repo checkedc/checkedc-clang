@@ -11,7 +11,7 @@
 #include "llvm/Support/Path.h"
 
 #include "clang/CConv/Utils.h"
-#include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/3CGlobalOptions.h"
 #include "clang/CConv/ConstraintVariables.h"
 
 using namespace llvm;

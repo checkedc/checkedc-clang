@@ -16,7 +16,7 @@
 
 #include "clang/CConv/ConstraintVariables.h"
 #include "clang/CConv/ProgramInfo.h"
-#include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/3CGlobalOptions.h"
 
 using namespace clang;
 

@@ -14,7 +14,7 @@
 #include "clang/Analysis/Analyses/Dominators.h"
 #include "clang/CConv/ArrayBoundsInferenceConsumer.h"
 #include "clang/CConv/ConstraintResolver.h"
-#include "clang/CConv/CCGlobalOptions.h"
+#include "clang/CConv/3CGlobalOptions.h"
 #include <sstream>
 
 static std::set<std::string> LengthVarNamesPrefixes = {"len", "count",
