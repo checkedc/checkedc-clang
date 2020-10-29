@@ -134,7 +134,17 @@ public:
     BL->connectTo(*BR);
   }
 
-  bool getNeighbors(Data D, std::set<Data> &DataSet, bool Succ){
+  void addUniqueEdge(Data L, Data R) {
+    NodeType *BL = this->findOrCreateNode(L);
+    NodeType *BR = this->findOrCreateNode(R);
+    llvm::SmallVector<EdgeType*, 10> Edges;
+    BL->findEdgesTo(*BR, Edges);
+    if (Edges.empty()) {
+      addEdge(L, R);
+    }
+  }
+
+  bool getNeighbors(Data D, std::set<Data> &DataSet, bool Succ) {
     auto *N = this->findNode(NodeType(D));
     if (N == this->end())
       return false;
