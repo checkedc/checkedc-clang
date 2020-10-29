@@ -14,11 +14,11 @@
 namespace clang {
 namespace clangd {
 
-#define CCONVSOURCE "CConv_RealWild"
+#define _3CSOURCE "CConv_RealWild"
 
 static bool GetPtrIDFromDiagMessage(const Diagnostic &DiagMsg,
                                     unsigned long &PtrId) {
-  if (DiagMsg.source.rfind(CCONVSOURCE, 0) == 0) {
+  if (DiagMsg.source.rfind(_3CSOURCE, 0) == 0) {
     PtrId = atoi(DiagMsg.code.c_str());
     return true;
   }
