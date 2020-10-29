@@ -170,7 +170,7 @@ void ClangdServer::addDocument(PathRef File, llvm::StringRef Contents,
 }
 
 #ifdef INTERACTIVECCCONV
-void ClangdServer::reportCConvDiagsForAllFiles(ConstraintsInfo &CcInfo,
+void ClangdServer::report3CDiagsForAllFiles(ConstraintsInfo &CcInfo,
                                                _3CLSPCallBack *ConvCB) {
   // Update the diag information for all the valid files.
   for (auto &SrcFileDiags : _3CDiagInfo.GetAllFilesDiagnostics()) {
@@ -178,7 +178,7 @@ void ClangdServer::reportCConvDiagsForAllFiles(ConstraintsInfo &CcInfo,
   }
 }
 
-void ClangdServer::clearCConvDiagsForAllFiles(ConstraintsInfo &CcInfo,
+void ClangdServer::clear3CDiagsForAllFiles(ConstraintsInfo &CcInfo,
                                               _3CLSPCallBack *ConvCB) {
   for (auto &SrcFileDiags : _3CDiagInfo.GetAllFilesDiagnostics()) {
     // Clear diags for all files.
@@ -199,7 +199,7 @@ ClangdServer::_3CCollectAndBuildInitialConstraints(_3CLSPCallBack *ConvCB) {
     log("CConv: Got WILD Ptrs Info.\n");
     _3CDiagInfo.PopulateDiagsFromConstraintsInfo(WildPtrsInfo);
     log("CConv: Populated Diags from Disjoint Sets.\n");
-    reportCConvDiagsForAllFiles(WildPtrsInfo, ConvCB);
+    report3CDiagsForAllFiles(WildPtrsInfo, ConvCB);
     ConvCB->send3CMessage("CConv: Finished updating problems.");
     log("CConv: Updated the diag information.\n");
   };
@@ -217,7 +217,7 @@ void ClangdServer::execute3CCommand(ExecuteCommandParams Params,
       std::string PtrFileName =
           PtrSourceMap[Params._3CManualFix->ptrID]->getFileName();
       log("CConv: File of the pointer {0}\n", PtrFileName);
-      clearCConvDiagsForAllFiles(WildPtrsInfo, ConvCB);
+      clear3CDiagsForAllFiles(WildPtrsInfo, ConvCB);
       ConvCB->send3CMessage("CConv modifying constraints.");
       ExecuteCCCommand(Params, RplMsg, _3CInter);
       this->_3CDiagInfo.ClearAllDiags();
@@ -227,7 +227,7 @@ void ClangdServer::execute3CCommand(ExecuteCommandParams Params,
       log("CConv calling call-back\n");
       // ConvCB->_3CResultsReady(ptrFileName);
       ConvCB->send3CMessage("CConv Updated new issues.");
-      reportCConvDiagsForAllFiles(WildPtrsInfo, ConvCB);
+      report3CDiagsForAllFiles(WildPtrsInfo, ConvCB);
     } else {
       ConvCB->send3CMessage("CConv contraint key already removed.");
     }
