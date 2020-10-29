@@ -119,10 +119,6 @@ private:
                              AVarGraph &BKGraph,
                              bool CheckImmediate = false);
 
-  bool intersectBounds(std::set<ProgramVar *> &ProgVars,
-                       ABounds::BoundsKind BK,
-                       std::set<ABounds *> &CurrB);
-
   // Check if bounds specified by Bnds are declared bounds of K.
   bool areDeclaredBounds(BoundsKey K,
                          const std::pair<ABounds::BoundsKind,
@@ -192,7 +188,6 @@ public:
   BoundsKey getVariable(clang::FieldDecl *FD);
   BoundsKey getVariable(clang::FunctionDecl *FD);
   BoundsKey getConstKey(uint64_t value);
-  bool fetchAllConstKeys(uint64_t value, std::set<BoundsKey> &AllKeys);
 
   // Generate a random bounds key to be used for inference.
   BoundsKey getRandomBKey();
@@ -270,8 +265,8 @@ private:
   BoundsKey BCount;
   // Map of VarKeys and corresponding program variables.
   std::map<BoundsKey, ProgramVar *> PVarInfo;
-  // Map of APSInt (constants) and set of BoundKeys that correspond to it.
-  std::map<uint64_t, std::set<BoundsKey>> ConstVarKeys;
+  // Map of APSInt (constants) and a BoundKey that correspond to it.
+  std::map<uint64_t, BoundsKey> ConstVarKeys;
   // Map of BoundsKey and corresponding prioritized bounds information.
   // Note that although each PSL could have multiple ConstraintKeys Ex: **p.
   // Only the outer most pointer can have bounds.
