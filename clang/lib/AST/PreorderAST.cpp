@@ -93,9 +93,9 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
     // and then check if the resultant expression -e2 overflows. If it
     // overflows, we undo the unary minus operator.
 
-    // TODO: Currently we only handle detection of overflow for integer
-    // constant expressions. We need to handle the case where e2 is a variable
-    // expression which is not known until run time.
+    // TODO: Currently, we can only prove that integer constant expressions do
+    // not overflow. We still need to handle proving that non-constant
+    // expressions do not overflow.
     if (BO->getOpcode() == BO_Sub &&
         RHS->isIntegerConstantExpr(Ctx)) {
       Expr *UOMinusRHS = new (Ctx) UnaryOperator(RHS, UO_Minus, RHS->getType(),
