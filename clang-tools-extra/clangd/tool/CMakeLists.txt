@@ -51,4 +51,4 @@ target_link_libraries(icconv
   ${CLANGD_XPC_LIBS}
   )
 
-target_compile_definitions(icconv PUBLIC INTERACTIVECCCONV=1)
+target_compile_definitions(icconv PUBLIC INTERACTIVE3C=1)

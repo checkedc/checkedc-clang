@@ -8,7 +8,7 @@
 // Implementation of CConv command helper methods.
 //===----------------------------------------------------------------------===//
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 #include "3CCommands.h"
 
 namespace clang {

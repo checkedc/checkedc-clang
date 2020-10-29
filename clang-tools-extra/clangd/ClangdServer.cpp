@@ -23,7 +23,7 @@
 #include "index/Merge.h"
 #include "refactor/Rename.h"
 #include "refactor/Tweak.h"
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 #include "clang/3C/3C.h"
 #include "3CCommands.h"
 #endif
@@ -98,7 +98,7 @@ ClangdServer::Options ClangdServer::optsForTest() {
 ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
                            const FileSystemProvider &FSProvider,
                            DiagnosticsConsumer &DiagConsumer,
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
                            const Options &Opts, _3CInterface &_3CInterface)
 #else
                            const Options &Opts)
@@ -121,7 +121,7 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
           llvm::make_unique<UpdateIndexCallbacks>(
               DynamicIdx.get(), DiagConsumer, Opts.SemanticHighlighting),
           Opts.UpdateDebounce, Opts.RetentionPolicy)
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
           , _3CInter(_3CInterface)
 #endif
   {
@@ -169,7 +169,7 @@ void ClangdServer::addDocument(PathRef File, llvm::StringRef Contents,
     BackgroundIdx->boostRelated(File);
 }
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 void ClangdServer::report3CDiagsForAllFiles(ConstraintsInfo &CcInfo,
                                                _3CLSPCallBack *ConvCB) {
   // Update the diag information for all the valid files.

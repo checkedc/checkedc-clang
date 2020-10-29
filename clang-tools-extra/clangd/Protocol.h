@@ -722,7 +722,7 @@ struct WorkspaceEdit {
 bool fromJSON(const llvm::json::Value &, WorkspaceEdit &);
 llvm::json::Value toJSON(const WorkspaceEdit &WE);
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 /// Data corresponding to the manual fix
 struct _3CManualFix {
   int ptrID;
@@ -760,7 +760,7 @@ struct ExecuteCommandParams {
   const static llvm::StringLiteral CLANGD_APPLY_FIX_COMMAND;
   // Command to apply the code action. Uses TweakArgs as argument.
   const static llvm::StringLiteral CLANGD_APPLY_TWEAK;
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   // Command to apply the change for this pointer only
   const static llvm::StringLiteral _3C_APPLY_ONLY_FOR_THIS;
   // Command to apply the change for all pointers with same reason
@@ -772,7 +772,7 @@ struct ExecuteCommandParams {
 
   // Arguments
   llvm::Optional<WorkspaceEdit> workspaceEdit;
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   llvm::Optional<_3CManualFix> _3CManualFix;
 #endif
   llvm::Optional<TweakArgs> tweakArgs;
@@ -812,7 +812,7 @@ struct CodeAction {
 };
 llvm::json::Value toJSON(const CodeAction &);
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 //
 // A code lens represents a command that should be shown along with
 // source text, like the number of references, a way to run tests, etc.

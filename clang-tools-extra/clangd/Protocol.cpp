@@ -407,7 +407,7 @@ bool fromJSON(const llvm::json::Value &Params, FileEvent &R) {
   return O && O.map("uri", R.uri) && O.map("type", R.type);
 }
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 bool fromJSON(const llvm::json::Value &Params, CodeLensParams &L) {
   llvm::json::ObjectMapper O(Params);
   return O && O.map("textDocument", L.textDocument);
@@ -524,7 +524,7 @@ bool fromJSON(const llvm::json::Value &Params, WorkspaceEdit &R) {
   return O && O.map("changes", R.changes);
 }
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 bool fromJSON(const llvm::json::Value &Params, _3CManualFix &CCM) {
   llvm::json::ObjectMapper O(Params);
   CCM.ptrID = (*Params.getAsObject()->getInteger("ptrID"));
@@ -557,7 +557,7 @@ bool fromJSON(const llvm::json::Value &Params, ExecuteCommandParams &R) {
   }
   if (R.command == ExecuteCommandParams::CLANGD_APPLY_TWEAK)
     return Args && Args->size() == 1 && fromJSON(Args->front(), R.tweakArgs);
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   if (R.command == ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS ||
       R.command == ExecuteCommandParams::_3C_APPLY_FOR_ALL) {
     return Args && Args->size() == 1 &&
@@ -626,7 +626,7 @@ bool fromJSON(const llvm::json::Value &Params, WorkspaceSymbolParams &R) {
   return O && O.map("query", R.query);
 }
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 bool fromJSON(const llvm::json::Value &Params, CodeLens &CL) {
   llvm::json::ObjectMapper O(Params);
   return O && O.map("range", CL.range) && O.map("command", CL.command);
@@ -639,7 +639,7 @@ llvm::json::Value toJSON(const Command &C) {
     Cmd["arguments"] = {*C.workspaceEdit};
   if (C.tweakArgs)
     Cmd["arguments"] = {*C.tweakArgs};
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   if (C._3CManualFix)
     Cmd["arguments"] = {*C._3CManualFix};
 #endif
@@ -663,7 +663,7 @@ llvm::json::Value toJSON(const CodeAction &CA) {
   return std::move(CodeAction);
 }
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 llvm::json::Value toJSON(const CodeLens &CL) {
   auto CodeLens = llvm::json::Object{{"range", CL.range}};
   if (CL.command)

@@ -36,7 +36,7 @@
 #include <string>
 #include <type_traits>
 #include <utility>
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 #include "3CDiagnostics.h"
 #endif
 
@@ -60,7 +60,7 @@ public:
                        std::vector<HighlightingToken> Highlightings) {}
 };
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 class _3CLSPCallBack {
 public:
   virtual void _3CResultsReady(std::string FileName,
@@ -168,7 +168,7 @@ public:
   /// synchronize access to shared state.
   ClangdServer(const GlobalCompilationDatabase &CDB,
                const FileSystemProvider &FSProvider,
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
                DiagnosticsConsumer &DiagConsumer, const Options &Opts,
                _3CInterface &_3CInterface);
 #else
@@ -305,7 +305,7 @@ public:
   LLVM_NODISCARD bool
   blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10);
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   // ccconv specific commands
   // collect and build initial set of constraints on the source
   // files.
@@ -327,7 +327,7 @@ private:
   formatCode(llvm::StringRef Code, PathRef File,
              ArrayRef<tooling::Range> Ranges);
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   void report3CDiagsForAllFiles(ConstraintsInfo &CcInfo, _3CLSPCallBack *ConvCB);
   void clear3CDiagsForAllFiles(ConstraintsInfo &CcInfo, _3CLSPCallBack *ConvCB);
 #endif
@@ -368,7 +368,7 @@ private:
   // called before all other members to stop the worker thread that references
   // ClangdServer.
   TUScheduler WorkScheduler;
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   _3CInterface &_3CInter;
 #endif
 };

@@ -32,7 +32,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 #include "clang/3C/3C.h"
 #endif
 
@@ -279,7 +279,7 @@ static llvm::cl::list<std::string> TweakList(
         "Specify a list of Tweaks to enable (only for clangd developers)."),
     llvm::cl::Hidden, llvm::cl::CommaSeparated);
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 static llvm::cl::OptionCategory _3CCategory("cconv",
                                                 "This is "
                                                 "an interactive version "
@@ -457,7 +457,7 @@ int main(int argc, char *argv[]) {
   });
 
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   tooling::CommonOptionsParser OptionsParser(argc,
                                              (const char**)(argv),
                                              _3CCategory);
@@ -702,7 +702,7 @@ int main(int argc, char *argv[]) {
   ClangdLSPServer LSPServer(
       *TransportLayer, FSProvider, CCOpts, CompileCommandsDirPath,
       /*UseDirBasedCDB=*/CompileArgsFrom == FilesystemCompileArgs,
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
       // Pass the _3CInterface object.
       OffsetEncodingFromFlag, Opts, _3CInterface);
 #else

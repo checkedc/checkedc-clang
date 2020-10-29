@@ -8,7 +8,7 @@
 // Class that handles CConv Diagnostic messages.
 //===----------------------------------------------------------------------===//
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_3CDIAGNOSTICS_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_3CDIAGNOSTICS_H
 

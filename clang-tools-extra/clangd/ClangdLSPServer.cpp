@@ -15,7 +15,7 @@
 #include "SourceCode.h"
 #include "Trace.h"
 #include "URI.h"
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 #include "3CCommands.h"
 #endif
 #include "refactor/Tweak.h"
@@ -364,7 +364,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
   CDB.emplace(BaseCDB.get(), Params.initializationOptions.fallbackFlags,
               ClangdServerOpts.ResourceDir);
   Server.emplace(*CDB, FSProvider, static_cast<DiagnosticsConsumer &>(*this),
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
                  ClangdServerOpts, _3CInterface);
 #else
                  ClangdServerOpts);
@@ -389,7 +389,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
   SupportFileStatus = Params.initializationOptions.FileStatus;
   HoverContentFormat = Params.capabilities.HoverContentFormat;
   SupportsOffsetsInSignatureHelp = Params.capabilities.OffsetsInSignatureHelp;
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   // initialize our constraint building system.
   log("Interactive CheckedC convert mode.\n");
   Server->_3CCollectAndBuildInitialConstraints(this);
@@ -460,7 +460,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
 
 void ClangdLSPServer::onShutdown(const ShutdownParams &Params,
                                  Callback<std::nullptr_t> Reply) {
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   send3CMessage("Writing all CheckedC files back to disk");
   // Write all files back.
   auto &AllDiags = Server->_3CDiagInfo.GetAllFilesDiagnostics();
@@ -489,7 +489,7 @@ void ClangdLSPServer::onSync(const NoParams &Params,
 
 void ClangdLSPServer::onDocumentDidOpen(
     const DidOpenTextDocumentParams &Params) {
-#ifndef INTERACTIVECCCONV
+#ifndef INTERACTIVE3C
   PathRef File = Params.textDocument.uri.file();
 
   const std::string &Contents = Params.textDocument.text;
@@ -501,7 +501,7 @@ void ClangdLSPServer::onDocumentDidOpen(
 
 void ClangdLSPServer::onDocumentDidChange(
     const DidChangeTextDocumentParams &Params) {
-#ifndef INTERACTIVECCCONV
+#ifndef INTERACTIVE3C
   auto WantDiags = WantDiagnostics::Auto;
   if (Params.wantDiagnostics.hasValue())
     WantDiags = Params.wantDiagnostics.getValue() ? WantDiagnostics::Yes
@@ -528,7 +528,7 @@ void ClangdLSPServer::onFileEvent(const DidChangeWatchedFilesParams &Params) {
   Server->onFileEvent(Params);
 }
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 void ClangdLSPServer::_3CResultsReady(std::string FileName,
                                          bool ClearDiags) {
   // Get the diagnostics and update the client.
@@ -560,7 +560,7 @@ void ClangdLSPServer::send3CMessage(std::string MsgStr) {
 #endif
 void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
                                 Callback<llvm::json::Value> Reply) {
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   // In this mode, we support only CConv commands.
   if(Is3CCommand(Params)) {
     Server->execute3CCommand(Params, this);
@@ -677,7 +677,7 @@ void ClangdLSPServer::onRename(const RenameParams &Params,
 
 void ClangdLSPServer::onDocumentDidClose(
     const DidCloseTextDocumentParams &Params) {
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   PathRef File = Params.textDocument.uri.file();
   Server->_3CCloseDocument(File.str());
   send3CMessage("CConv finished Rewriting the file:" + File.str());
@@ -812,7 +812,7 @@ static llvm::Optional<Command> asCommand(const CodeAction &Action) {
 
 void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
                                    Callback<llvm::json::Value> Reply) {
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   URIForFile File = Params.textDocument.uri;
   std::vector<Command> CCommands;
   // Convert the diagnostics into CConv commands.
@@ -914,7 +914,7 @@ void ClangdLSPServer::onSignatureHelp(const TextDocumentPositionParams &Params,
                             std::move(Reply)));
 }
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 void ClangdLSPServer::onCodeLens(const CodeLensParams &Params,
                                  Callback<llvm::json::Value> Reply) {
   // This is just a beacon to display for user.
@@ -1120,7 +1120,7 @@ ClangdLSPServer::ClangdLSPServer(
     const clangd::CodeCompleteOptions &CCOpts,
     llvm::Optional<Path> CompileCommandsDir, bool UseDirBasedCDB,
     llvm::Optional<OffsetEncoding> ForcedOffsetEncoding,
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
     const ClangdServer::Options &Opts, _3CInterface &Cinter)
 #else
     const ClangdServer::Options &Opts)
@@ -1131,13 +1131,13 @@ ClangdLSPServer::ClangdLSPServer(
       SupportedCompletionItemKinds(defaultCompletionItemKinds()),
       UseDirBasedCDB(UseDirBasedCDB),
       CompileCommandsDir(std::move(CompileCommandsDir)), ClangdServerOpts(Opts),
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
       NegotiatedOffsetEncoding(ForcedOffsetEncoding), _3CInterface(Cinter) {
 #else
       NegotiatedOffsetEncoding(ForcedOffsetEncoding) {
 #endif
   // clang-format off
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   // We only support these methods in Interactive CConv mode.
   MsgHandler->bind("initialize", &ClangdLSPServer::onInitialize);
   MsgHandler->bind("shutdown", &ClangdLSPServer::onShutdown);
@@ -1256,7 +1256,7 @@ void ClangdLSPServer::onHighlightingsReady(
 void ClangdLSPServer::onDiagnosticsReady(PathRef File,
                                          std::vector<Diag> Diagnostics) {
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   auto URI = URIForFile::canonicalize(File, /*TUPath=*/File);
   std::vector<Diagnostic> LSPDiagnostics;
 

@@ -247,7 +247,7 @@ add_clang_library(cconvClangDaemon
   ${CLANGD_ATOMIC_LIB}
       )
 
-  target_compile_definitions(obj.cconvClangDaemon PRIVATE INTERACTIVECCCONV=1)
+  target_compile_definitions(obj.cconvClangDaemon PRIVATE INTERACTIVE3C=1)
 
 add_subdirectory(refactor/tweaks)
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")

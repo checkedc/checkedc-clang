@@ -8,7 +8,7 @@
 // Implementation of _3CDiagnostics methods
 //===----------------------------------------------------------------------===//
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 #include "3CDiagnostics.h"
 
 namespace clang {

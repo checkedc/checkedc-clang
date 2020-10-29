@@ -8,7 +8,7 @@
 // Helper methods used to handle CConv commands.
 //===----------------------------------------------------------------------===//
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_3CCOMMANDS_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_3CCOMMANDS_H
 
