@@ -1,6 +1,6 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone -output-postfix=checkedNOALL %s
+// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -output-postfix=checkedNOALL %s
 // RUN: %clang -c %S/arrinlinestruct.checkedNOALL.c
 // RUN: rm %S/arrinlinestruct.checkedNOALL.c
 

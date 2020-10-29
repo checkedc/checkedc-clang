@@ -1,10 +1,10 @@
-// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/arrstructbothmulti2.c
-// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/arrstructbothmulti2.c
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/arrstructbothmulti2.c
+// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/arrstructbothmulti2.c
 // RUN: %clang -c %S/arrstructbothmulti1.checkedNOALL.c %S/arrstructbothmulti2.checkedNOALL.c
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrstructbothmulti1.checkedNOALL.c %s
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrstructbothmulti1.checkedALL.c %s
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %S/arrstructbothmulti2.c %s
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/arrstructbothmulti1.checked.c %S/arrstructbothmulti2.checked.c
+// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked %S/arrstructbothmulti2.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/arrstructbothmulti1.checked.c %S/arrstructbothmulti2.checked.c
 // RUN: test ! -f %S/arrstructbothmulti1.checked.convert_again.c
 // RUN: test ! -f %S/arrstructbothmulti2.checked.convert_again.c
 // RUN: rm %S/arrstructbothmulti1.checkedALL.c %S/arrstructbothmulti2.checkedALL.c

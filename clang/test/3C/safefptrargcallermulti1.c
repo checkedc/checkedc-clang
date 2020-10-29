@@ -1,10 +1,10 @@
-// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/safefptrargcallermulti2.c
-// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/safefptrargcallermulti2.c
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/safefptrargcallermulti2.c
+// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/safefptrargcallermulti2.c
 // RUN: %clang -c %S/safefptrargcallermulti1.checkedNOALL.c %S/safefptrargcallermulti2.checkedNOALL.c
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/safefptrargcallermulti1.checkedNOALL.c %s
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/safefptrargcallermulti1.checkedALL.c %s
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %S/safefptrargcallermulti2.c %s
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/safefptrargcallermulti1.checked.c %S/safefptrargcallermulti2.checked.c
+// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked %S/safefptrargcallermulti2.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/safefptrargcallermulti1.checked.c %S/safefptrargcallermulti2.checked.c
 // RUN: test ! -f %S/safefptrargcallermulti1.checked.convert_again.c
 // RUN: test ! -f %S/safefptrargcallermulti2.checked.convert_again.c
 // RUN: rm %S/safefptrargcallermulti1.checkedALL.c %S/safefptrargcallermulti2.checkedALL.c

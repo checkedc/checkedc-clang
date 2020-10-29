@@ -1,4 +1,4 @@
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
+// RUN: 3c %s -- | FileCheck -match-full-lines %s
 
 int foo1(int x, int *y);
 //CHECK: int foo1(int x, int *y : itype(_Ptr<int>));

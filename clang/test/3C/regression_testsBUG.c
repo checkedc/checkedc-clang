@@ -1,10 +1,10 @@
 // Tests for Checked C rewriter tool.
 //
-// Tests cconv-standalone tool for any regressions.
+// Tests 3c tool for any regressions.
 //
 // The following test is supposed to fail with the current tool.
 // XFAIL: *
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines %s
 // 
 // XFAIL: *
 

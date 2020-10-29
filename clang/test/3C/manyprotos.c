@@ -1,4 +1,4 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines --check-prefixes="CHECK" %s
+// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines --check-prefixes="CHECK" %s
 
 int foo();
 //CHECK: int foo(_Array_ptr<int> x : count(y), int y);

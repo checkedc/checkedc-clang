@@ -1,9 +1,9 @@
 // Tests for the Checked C rewriter tool.
 //
-// RUN: cconv-standalone -addcr %s -- -fcheckedc-extension | FileCheck -match-full-lines %s
-// RUN: cconv-standalone -addcr %s -- -fcheckedc-extension | %clang_cc1  -verify -fcheckedc-extension -x c -
-// RUN: cconv-standalone -addcr -output-postfix=checked %s 
-// RUN: cconv-standalone -addcr %S/bounds_interface.checked.c -- | count 0
+// RUN: 3c -addcr %s -- -fcheckedc-extension | FileCheck -match-full-lines %s
+// RUN: 3c -addcr %s -- -fcheckedc-extension | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c -addcr -output-postfix=checked %s 
+// RUN: 3c -addcr %S/bounds_interface.checked.c -- | count 0
 // RUN: rm %S/bounds_interface.checked.c
 // expected-no-diagnostics
 //

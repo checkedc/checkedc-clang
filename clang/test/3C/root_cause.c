@@ -1,4 +1,4 @@
-// RUN: cconv-standalone -extra-arg="-Wno-everything" -alltypes -warn-root-cause %s 2>&1 1>/dev/null | FileCheck %s
+// RUN: 3c -extra-arg="-Wno-everything" -alltypes -warn-root-cause %s 2>&1 1>/dev/null | FileCheck %s
 
 #include <stddef.h>
 extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);

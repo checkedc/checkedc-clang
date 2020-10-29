@@ -2,7 +2,7 @@
 //
 // Tests properties about rewriter for return type when it is an itype
 //
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines %s
 //
 
 static int funcvar;

@@ -1,10 +1,10 @@
-// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/fptrarrbothmulti2.c
-// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/fptrarrbothmulti2.c
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/fptrarrbothmulti2.c
+// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/fptrarrbothmulti2.c
 // RUN: %clang -c %S/fptrarrbothmulti1.checkedNOALL.c %S/fptrarrbothmulti2.checkedNOALL.c
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrarrbothmulti1.checkedNOALL.c %s
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrarrbothmulti1.checkedALL.c %s
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %S/fptrarrbothmulti2.c %s
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrarrbothmulti1.checked.c %S/fptrarrbothmulti2.checked.c
+// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked %S/fptrarrbothmulti2.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrarrbothmulti1.checked.c %S/fptrarrbothmulti2.checked.c
 // RUN: test ! -f %S/fptrarrbothmulti1.checked.convert_again.c
 // RUN: test ! -f %S/fptrarrbothmulti2.checked.convert_again.c
 // RUN: rm %S/fptrarrbothmulti1.checkedALL.c %S/fptrarrbothmulti2.checkedALL.c

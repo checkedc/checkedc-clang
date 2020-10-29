@@ -102,11 +102,11 @@ def process_file_smart(name, cnameNOALL, cnameALL):
             else: 
                 lines[i] = line + "\n\t//CHECK_NOALL: " + noline.lstrip() + "\n\t//CHECK_ALL: " + yeline
     
-    run = "// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\",\"CHECK\" %s"
-    run += "\n// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" %s"
-    run += "\n// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -" 
-    run += "\n// RUN: cconv-standalone -output-postfix=checked -alltypes %s"
-    run += "\n// RUN: cconv-standalone -alltypes %S/{} -- | count 0".format(name + "hecked.c", name + "hecked.c") 
+    run = "// RUN: 3c -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\",\"CHECK\" %s"
+    run += "\n// RUN: 3c -addcr %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" %s"
+    run += "\n// RUN: 3c -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -" 
+    run += "\n// RUN: 3c -output-postfix=checked -alltypes %s"
+    run += "\n// RUN: 3c -alltypes %S/{} -- | count 0".format(name + "hecked.c", name + "hecked.c") 
     run += "\n// RUN: rm %S/{}\n".format(name + "hecked.c")
 
     file = open(name, "w+")
@@ -134,8 +134,8 @@ def process_smart(filename):
     file.write('\n\n'.join(test)) 
     file.close()
 
-    os.system("{}cconv-standalone -alltypes -addcr -output-postfix=checkedALL {}".format(path_to_monorepo, filename))
-    os.system("{}cconv-standalone -addcr -output-postfix=checkedNOALL {}".format(path_to_monorepo, filename)) 
+    os.system("{}3c -alltypes -addcr -output-postfix=checkedALL {}".format(path_to_monorepo, filename))
+    os.system("{}3c -addcr -output-postfix=checkedNOALL {}".format(path_to_monorepo, filename)) 
 
     process_file_smart(filename, cnameNOALL, cnameALL) 
     return

@@ -2,7 +2,7 @@
 //
 // Tests rewriting of Nt_array_ptrs within structure fields
 
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines %s
 //
 
 unsigned long strlen(const char *s : itype(_Nt_array_ptr<const char>)) ;

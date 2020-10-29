@@ -1,6 +1,6 @@
-// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines %s
-// RUN: cconv-standalone -addcr -alltypes -output-postfix=checked %s 
-// RUN: cconv-standalone -addcr -alltypes %S/pointerarithm.checked.c -- | count 0
+// RUN: 3c -alltypes -addcr %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -addcr -alltypes -output-postfix=checked %s 
+// RUN: 3c -addcr -alltypes %S/pointerarithm.checked.c -- | count 0
 // RUN: rm %S/pointerarithm.checked.c
 
 #include <stddef.h>

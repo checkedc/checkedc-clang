@@ -2,10 +2,10 @@
 //
 // Tests for malloc and friends. 
 //
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-// RUN: cconv-standalone %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
-// RUN: cconv-standalone -output-postfix=checked %s 
-// RUN: cconv-standalone %S/allocator.checked.c -- | count 0
+// RUN: 3c %s -- | FileCheck -match-full-lines %s
+// RUN: 3c %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
+// RUN: 3c -output-postfix=checked %s 
+// RUN: 3c %S/allocator.checked.c -- | count 0
 // RUN: rm %S/allocator.checked.c
 // expected-no-diagnostics
 //

@@ -1,8 +1,8 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
-// RUN: cconv-standalone -alltypes %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// RUN: cconv-standalone -alltypes %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
-// RUN: cconv-standalone -output-postfix=checked -alltypes %s 
-// RUN: cconv-standalone -alltypes %S/struct_init_list.checked.c -- | count 0
+// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -alltypes %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
+// RUN: 3c -output-postfix=checked -alltypes %s 
+// RUN: 3c -alltypes %S/struct_init_list.checked.c -- | count 0
 // RUN: rm %S/struct_init_list.checked.c
 // expected-no-diagnostics
 

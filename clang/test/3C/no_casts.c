@@ -1,4 +1,4 @@
-// RUN: cconv-standalone %s | count 0
+// RUN: 3c %s | count 0
 
 void foo(char *a);
 void bar(int *a);

@@ -2,11 +2,11 @@
 //
 // Checks properties of functions.
 //
-// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK","CHECK_NOALL","CHECK-NEXT" %s
-// RUN: cconv-standalone -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK","CHECK_ALL","CHECK-NEXT" %s
-// RUN: cconv-standalone -addcr %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
-// RUN: cconv-standalone -addcr -alltypes -output-postfix=checked %s 
-// RUN: cconv-standalone -addcr -alltypes %S/placements.checked.c -- | count 0
+// RUN: 3c -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK","CHECK_NOALL","CHECK-NEXT" %s
+// RUN: 3c -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK","CHECK_ALL","CHECK-NEXT" %s
+// RUN: 3c -addcr %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c -addcr -alltypes -output-postfix=checked %s 
+// RUN: 3c -addcr -alltypes %S/placements.checked.c -- | count 0
 // RUN: rm %S/placements.checked.c
 // expected-no-diagnostics
 void what(const char *s, int q); 

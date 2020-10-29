@@ -1,4 +1,4 @@
-// RUN: cconv-standalone -addcr  %s -- | FileCheck -match-full-lines --check-prefixes="CHECK" %s
+// RUN: 3c -addcr  %s -- | FileCheck -match-full-lines --check-prefixes="CHECK" %s
 
 int foo(int x) { 
   //CHECK: int foo(int x) {

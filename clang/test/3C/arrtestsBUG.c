@@ -1,5 +1,5 @@
 // XFAIL: *
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines %s
 // XFAIL: *
 
 /*

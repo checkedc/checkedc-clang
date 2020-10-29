@@ -3,9 +3,9 @@
 // Tests properties about type re-writing and replacement, and simple function
 // return value stuff.
 //
-// RUN: cconv-standalone -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK","CHECK_NEXT" %s
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK","CHECK-NEXT" %s
-// RUN: cconv-standalone %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK","CHECK_NEXT" %s
+// RUN: 3c %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK","CHECK-NEXT" %s
+// RUN: 3c %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 //
 

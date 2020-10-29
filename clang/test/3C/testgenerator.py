@@ -572,22 +572,22 @@ def process_file_smart(prefix, proto, suffix, name, cnameNOALL, cnameALL, name2,
                 else: 
                     lines2[i] = line + "\n\t//CHECK_NOALL: " + noline.lstrip() + "\n\t//CHECK_ALL: " + yeline.lstrip()
     
-    run = "// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\",\"CHECK\" %s"
-    run += "\n// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" %s"
-    run += "\n// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -\n"
-    run += "\n// RUN: cconv-standalone -alltypes -output-postfix=checked %s" 
-    run += "\n// RUN: cconv-standalone -alltypes %S/{} -- | diff %S/{} -".format(name + "hecked.c", name + "hecked.c") 
+    run = "// RUN: 3c -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\",\"CHECK\" %s"
+    run += "\n// RUN: 3c -addcr %s -- | FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" %s"
+    run += "\n// RUN: 3c -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -\n"
+    run += "\n// RUN: 3c -alltypes -output-postfix=checked %s" 
+    run += "\n// RUN: 3c -alltypes %S/{} -- | diff %S/{} -".format(name + "hecked.c", name + "hecked.c") 
     run += "\n// RUN: rm %S/{}".format(name + "hecked.c")
     if proto=="multi": 
-        run = "// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/" + name2  
-        run += "\n// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/" + name2 
+        run = "// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/" + name2  
+        run += "\n// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/" + name2 
         run += "\n// RUN: %clang -c %S/{} %S/{}".format(cnameNOALL, cname2NOALL)
         run += "\n// RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" --input-file %S/{} %s".format(cnameNOALL) 
         run += "\n// RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\",\"CHECK\" --input-file %S/{} %s".format(cnameALL)
-        run += "\n// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %S/{} %s".format(name2)
+        run += "\n// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked %S/{} %s".format(name2)
         cname = name + "hecked.c" 
         cname2 = name2 + "hecked.c"
-        run += "\n// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/{} %S/{}".format(cname, cname2)
+        run += "\n// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/{} %S/{}".format(cname, cname2)
         cnameALLtwice1 = cname + "onvert_again.c" 
         cnameALLtwice2 = cname2 + "onvert_again.c"
         run += "\n// RUN: diff %S/{} %S/{}".format(cnameALLtwice1, cname)
@@ -607,13 +607,13 @@ def process_file_smart(prefix, proto, suffix, name, cnameNOALL, cnameALL, name2,
         # if bug_generated: 
         #     cname21 = prefix + suffix + proto + "1_BUG.checked2.c" 
         #     cname22 = prefix + suffix + proto + "2_BUG.checked2.c"
-        run2 = "// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL2 %S/{} %s".format(name) 
-        run2 += "\n// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL2 %S/{} %s".format(name)
+        run2 = "// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL2 %S/{} %s".format(name) 
+        run2 += "\n// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL2 %S/{} %s".format(name)
         run2 += "\n// RUN: %clang -c %S/{} %S/{}".format(cnameNOALL2, cname2NOALL2)
         run2 += "\n// RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_NOALL\",\"CHECK\" --input-file %S/{} %s".format(cname2NOALL2) 
         run2 += "\n// RUN: FileCheck -match-full-lines -check-prefixes=\"CHECK_ALL\",\"CHECK\" --input-file %S/{} %s".format(cname2ALL2)
-        run2 += "\n// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked2 %S/{} %s".format(name)
-        run2 += "\n// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/{} %S/{}".format(cname, cname2)
+        run2 += "\n// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked2 %S/{} %s".format(name)
+        run2 += "\n// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/{} %S/{}".format(cname, cname2)
         run2 += "\n// RUN: diff %S/{} %S/{}".format(cnameALLtwice1, cname)
         run2 += "\n// RUN: diff %S/{} %S/{}".format(cnameALLtwice2, cname2)
         run2 += "\n// RUN: rm %S/{} %S/{}".format(cnameALL2, cname2ALL2)
@@ -668,11 +668,11 @@ def annot_gen_smart(prefix, proto, suffix):
     
     # run the porting tool on the file(s)
     if proto=="multi": 
-        os.system("{}cconv-standalone -alltypes -addcr -output-postfix=checkedALL {} {}".format(path_to_monorepo, name, name2))
-        os.system("{}cconv-standalone -addcr -output-postfix=checkedNOALL {} {}".format(path_to_monorepo, name, name2))
+        os.system("{}3c -alltypes -addcr -output-postfix=checkedALL {} {}".format(path_to_monorepo, name, name2))
+        os.system("{}3c -addcr -output-postfix=checkedNOALL {} {}".format(path_to_monorepo, name, name2))
     else: 
-        os.system("{}cconv-standalone -alltypes -addcr -output-postfix=checkedALL {}".format(path_to_monorepo, name))
-        os.system("{}cconv-standalone -addcr -output-postfix=checkedNOALL {}".format(path_to_monorepo, name))
+        os.system("{}3c -alltypes -addcr -output-postfix=checkedALL {}".format(path_to_monorepo, name))
+        os.system("{}3c -addcr -output-postfix=checkedNOALL {}".format(path_to_monorepo, name))
     
     # compile the files and if it doesn't compile, then let's indicate that a bug was generated for this file
     bug_generated = False

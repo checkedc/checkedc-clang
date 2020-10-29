@@ -1,5 +1,5 @@
-// RUN: cconv-standalone -addcr %s -- -fcheckedc-extension | FileCheck -match-full-lines %s
-// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -addcr %s -- -fcheckedc-extension | FileCheck -match-full-lines %s
+// RUN: 3c -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
 
 int foo(void *x) { 
   int *p = (int*) x;

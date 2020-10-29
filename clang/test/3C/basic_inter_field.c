@@ -2,8 +2,8 @@
 //
 // Tests properties about constraint propagation of structure fields
 // across functions
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
-// RUN: cconv-standalone %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c %s -- | FileCheck -match-full-lines %s
+// RUN: 3c %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 //
 

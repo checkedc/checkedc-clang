@@ -2,11 +2,11 @@
 //
 // Checks cast insertion while passing arguments to itype parameters.
 //
-// RUN: cconv-standalone -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// RUN: cconv-standalone -output-postfix=checked %s 
-// RUN: cconv-standalone %S/itypecast.checked.c -- | diff -w %S/itypecast.checked.c -
+// RUN: 3c -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -output-postfix=checked %s 
+// RUN: 3c %S/itypecast.checked.c -- | diff -w %S/itypecast.checked.c -
 // RUN: rm %S/itypecast.checked.c
 
 int foo(int **p:itype(_Ptr<_Ptr<int>>));

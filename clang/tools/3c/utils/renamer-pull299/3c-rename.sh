@@ -11,7 +11,7 @@ set -e
 
 # Special cases
 commit_git_mv clang/docs/checkedc/{CheckedCConvert,3C}.md
-commit_git_mv clang/tools/{cconv-standalone,3c}
+commit_git_mv clang/tools/{3c,3c}
 commit_git_mv clang/tools/3c/utils/{cc_conv,port_tools}
 commit_git_mv clang/include/clang/CConv/{CC,3C}GlobalOptions.h
 commit_git_mv clang/test/{CheckedCRewriter,3C}
@@ -22,7 +22,7 @@ repl_basename_pfx CConv 3C '^clang'
 
 # Occurrences of filenames in file content.
 
-repl_word cconv-standalone 3c  # Catches CMakeLists, actions file, lit tests, etc.
+repl_word 3c 3c  # Catches CMakeLists, actions file, lit tests, etc.
 repl_word clang/tools/3c/utils/{cc_conv,port_tools} '^\.github/workflows/main\.yml$'
 repl_word {CC,3C}GlobalOptions
 repl_word CheckedCRewriter 3C  # Only in actions file

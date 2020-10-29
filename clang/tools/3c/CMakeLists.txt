@@ -6,11 +6,11 @@ set( LLVM_LINK_COMPONENTS
 if (FIVE_C)
   add_compile_definitions(FIVE_C)
 endif()
-add_clang_executable(cconv-standalone
+add_clang_executable(3c
   CConvStandalone.cpp
   )
 
-target_link_libraries(cconv-standalone
+target_link_libraries(3c
   PRIVATE
   CConv
   clangAST
@@ -21,7 +21,7 @@ target_link_libraries(cconv-standalone
   clangStaticAnalyzerFrontend
   clangTooling
   )
-target_include_directories(cconv-standalone PUBLIC)
+target_include_directories(3c PUBLIC)
 
-install(TARGETS cconv-standalone
+install(TARGETS 3c
   RUNTIME DESTINATION bin)

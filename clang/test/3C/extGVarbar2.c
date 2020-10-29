@@ -1,4 +1,4 @@
-//RUN: cconv-standalone -base-dir=%S -output-postfix=checked2 %s %S/extGVarbar1.c
+//RUN: 3c -base-dir=%S -output-postfix=checked2 %s %S/extGVarbar1.c
 //RUN: FileCheck -match-full-lines --input-file %S/extGVarbar2.checked2.c %s
 //RUN: rm %S/extGVarbar1.checked2.c %S/extGVarbar2.checked2.c
 

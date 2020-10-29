@@ -1,5 +1,5 @@
-// RUN: cconv-standalone -alltypes %s -- | FileCheck %s
-// RUN: cconv-standalone -alltypes %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
+// RUN: 3c -alltypes %s -- | FileCheck %s
+// RUN: 3c -alltypes %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 
 // No conversions expected for these two, they just shouldn't crash

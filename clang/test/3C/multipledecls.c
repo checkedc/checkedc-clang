@@ -2,10 +2,10 @@
 //
 // Checks handling of multiple declarations.
 //
-// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines %s
-// RUN: cconv-standalone -addcr %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
-// RUN: cconv-standalone -addcr -output-postfix=checked %s 
-// RUN: cconv-standalone -addcr %S/multipledecls.checked.c -- | count 0
+// RUN: 3c -addcr %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -addcr %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
+// RUN: 3c -addcr -output-postfix=checked %s 
+// RUN: 3c -addcr %S/multipledecls.checked.c -- | count 0
 // RUN: rm %S/multipledecls.checked.c
 // expected-no-diagnostics
 

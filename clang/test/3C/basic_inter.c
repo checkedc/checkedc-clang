@@ -2,7 +2,7 @@
 //
 // Tests properties about constraint propagation between functions.
 //
-// RUN: cconv-standalone %s -- | FileCheck -match-full-lines %s
+// RUN: 3c %s -- | FileCheck -match-full-lines %s
 //
 
 int funcdecl(int *ptr, int *iptr, int *wild);

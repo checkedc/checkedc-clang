@@ -2,11 +2,11 @@
 //
 // Checks very simple inference properties for local variables.
 //
-// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone -addcr %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
-// RUN: cconv-standalone -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: cconv-standalone -alltypes -output-postfix=checked %s 
-// RUN: cconv-standalone -alltypes %S/simple_locals.checked.c -- | count 0
+// RUN: 3c -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -addcr %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -alltypes -output-postfix=checked %s 
+// RUN: 3c -alltypes %S/simple_locals.checked.c -- | count 0
 // RUN: rm %S/simple_locals.checked.c
 // expected-no-diagnostics
 

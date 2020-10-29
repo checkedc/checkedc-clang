@@ -18,7 +18,7 @@ env:
 jobs:
   # Next we build
   build:
-    name: Build cconv-standalone and clang
+    name: Build 3c and clang
     # The type of OS that the job will run on
     runs-on: ubuntu-latest
     # Steps represent a sequence of tasks that will be executed as part of the job
@@ -64,13 +64,13 @@ jobs:
         run: |
           ls ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc
 
-      # Build cconv-standalone
-      - name: Build cconv-standalone
+      # Build 3c
+      - name: Build 3c
         run: |
           mkdir -p ${{runner.workspace}}/${{env.builddir}}
           cd ${{runner.workspace}}/${{env.builddir}}
           cmake -G Ninja -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_ENABLE_RTTI=ON -DCMAKE_BUILD_TYPE="MinSizeRel" -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" ${{github.workspace}}/depsfolder/checkedc-clang/llvm
-          ninja cconv-standalone
+          ninja 3c
           ninja clang
           ninja llvm-config
           ninja FileCheck
@@ -78,7 +78,7 @@ jobs:
           ninja count c-index-test clang-diff clang-format opt clang-check
 
 
-      # Upload the built cconv-standalone and clang
+      # Upload the built 3c and clang
       - name: Upload Build files
         uses: actions/upload-artifact@v2
         with:
@@ -91,7 +91,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: cconvscripts
-          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils
+          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils
           retention-days: 3
 
 
@@ -105,7 +105,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install git python3.7 cmake build-essential wget tar ninja-build liblzma-dev libreadline-dev
 
-      # Download the built cconv-standalone and clang
+      # Download the built 3c and clang
       - name: Download Build files
         uses: actions/download-artifact@v2
         with:
@@ -163,7 +163,7 @@ jobs:
           cmake ${{github.workspace}}/depsfolder/bear
           make all
           sudo make install
-      # Download the built cconv-standalone and clang
+      # Download the built 3c and clang
       - name: Download Build files
         uses: actions/download-artifact@v2
         with:
@@ -175,7 +175,7 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: cconvscripts
-          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils
+          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils
 
       # clone Checked C headers
       - name: Clone Checked C headers
@@ -199,8 +199,8 @@ jobs:
         run: |
           chmod -R 777 ${{github.workspace}}/depsfolder
           chmod -R 777 ${{runner.workspace}}/${{env.builddir}}
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils/cc_conv
-          python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/cconv-standalone -pr ${{runner.workspace}}/${{env.vsftpddir}}/vsftpd-3.0.3
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{runner.workspace}}/${{env.vsftpddir}}/vsftpd-3.0.3
 
   testptrdist:
     name: Build and test ptrdist
@@ -239,7 +239,7 @@ jobs:
           token: ${{secrets.MACHIRY_KEY_PRIVATE_ACCESS}}
           submodules: true
 
-      # Download the built cconv-standalone and clang
+      # Download the built 3c and clang
       - name: Download Build files
         uses: actions/download-artifact@v2
         with:
@@ -251,7 +251,7 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: cconvscripts
-          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils
+          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils
 
       # clone Checked C headers
       - name: Clone Checked C headers
@@ -271,28 +271,28 @@ jobs:
         run: |
           chmod -R 777 ${{github.workspace}}/depsfolder
           chmod -R 777 ${{runner.workspace}}/${{env.builddir}}
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils/cc_conv
-          python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/cconv-standalone -pr ${{github.workspace}}/depsfolder/checkedc-eval/ptrdist-1.1/anagram
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{github.workspace}}/depsfolder/checkedc-eval/ptrdist-1.1/anagram
 
       - name: Test bc (PtrDist)
         run: |
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils/cc_conv
-          python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/cconv-standalone -pr ${{github.workspace}}/depsfolder/checkedc-eval/ptrdist-1.1/bc
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{github.workspace}}/depsfolder/checkedc-eval/ptrdist-1.1/bc
 
       - name: Test ft (PtrDist)
         run: |
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils/cc_conv
-          python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/cconv-standalone -pr ${{github.workspace}}/depsfolder/checkedc-eval/ptrdist-1.1/ft
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{github.workspace}}/depsfolder/checkedc-eval/ptrdist-1.1/ft
 
       - name: Test ks (PtrDist)
         run: |
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils/cc_conv
-          python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/cconv-standalone -pr ${{github.workspace}}/depsfolder/checkedc-eval/ptrdist-1.1/ks
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{github.workspace}}/depsfolder/checkedc-eval/ptrdist-1.1/ks
 
       - name: Test yacr2 (PtrDist)
         run: |
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils/cc_conv
-          python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/cconv-standalone -pr ${{github.workspace}}/depsfolder/checkedc-eval/ptrdist-1.1/yacr2
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{github.workspace}}/depsfolder/checkedc-eval/ptrdist-1.1/yacr2
 
   buildandtestlibarchive:
     name: Build and test libarchive
@@ -330,7 +330,7 @@ jobs:
           token: ${{secrets.MACHIRY_KEY_PRIVATE_ACCESS}}
           submodules: true
 
-      # Download the built cconv-standalone and clang
+      # Download the built 3c and clang
       - name: Download Build files
         uses: actions/download-artifact@v2
         with:
@@ -342,7 +342,7 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: cconvscripts
-          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils
+          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils
 
       # clone Checked C headers
       - name: Clone Checked C headers
@@ -362,8 +362,8 @@ jobs:
         run: |
           chmod -R 777 ${{github.workspace}}/depsfolder
           chmod -R 777 ${{runner.workspace}}/${{env.builddir}}
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils/cc_conv
-          python convert_project.py --skip '/.*/test/.*' --skip '/.*/test_utils/.*' --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/cconv-standalone -pr ${{runner.workspace}}/depsfolder/libarchive.obj
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          python convert_project.py --skip '/.*/test/.*' --skip '/.*/test_utils/.*' --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{runner.workspace}}/depsfolder/libarchive.obj
 
   buildandtestlua:
     name: Build and test lua
@@ -401,7 +401,7 @@ jobs:
           token: ${{secrets.MACHIRY_KEY_PRIVATE_ACCESS}}
           submodules: true
 
-      # Download the built cconv-standalone and clang
+      # Download the built 3c and clang
       - name: Download Build files
         uses: actions/download-artifact@v2
         with:
@@ -413,7 +413,7 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: cconvscripts
-          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils
+          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils
 
       # clone Checked C headers
       - name: Clone Checked C headers
@@ -431,8 +431,8 @@ jobs:
         run: |
           chmod -R 777 ${{github.workspace}}/depsfolder
           chmod -R 777 ${{runner.workspace}}/${{env.builddir}}
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils/cc_conv
-          python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/cconv-standalone -pr ${{github.workspace}}/depsfolder/checkedc-eval/lua
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          python convert_project.py --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{github.workspace}}/depsfolder/checkedc-eval/lua
 
   buildandtestlibtiff:
     name: Build and test libtiff
@@ -471,7 +471,7 @@ jobs:
           token: ${{secrets.MACHIRY_KEY_PRIVATE_ACCESS}}
           submodules: true
 
-      # Download the built cconv-standalone and clang
+      # Download the built 3c and clang
       - name: Download Build files
         uses: actions/download-artifact@v2
         with:
@@ -483,7 +483,7 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: cconvscripts
-          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils
+          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils
 
       # clone Checked C headers
       - name: Clone Checked C headers
@@ -503,8 +503,8 @@ jobs:
         run: |
           chmod -R 777 ${{github.workspace}}/depsfolder
           chmod -R 777 ${{runner.workspace}}/${{env.builddir}}
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils/cc_conv
-          python convert_project.py --skip '/.*/tif_stream.cxx' --skip '.*/test/.*\.c' --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/cconv-standalone -pr ${{runner.workspace}}/depsfolder/libtiff.obj
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          python convert_project.py --skip '/.*/tif_stream.cxx' --skip '.*/test/.*\.c' --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{runner.workspace}}/depsfolder/libtiff.obj
 
   buildandtestzlib:
     name: Build and test zlib
@@ -542,7 +542,7 @@ jobs:
           token: ${{secrets.MACHIRY_KEY_PRIVATE_ACCESS}}
           submodules: true
 
-      # Download the built cconv-standalone and clang
+      # Download the built 3c and clang
       - name: Download Build files
         uses: actions/download-artifact@v2
         with:
@@ -554,7 +554,7 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: cconvscripts
-          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils
+          path: ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils
 
       # clone Checked C headers
       - name: Clone Checked C headers
@@ -574,5 +574,5 @@ jobs:
         run: |
           chmod -R 777 ${{github.workspace}}/depsfolder
           chmod -R 777 ${{runner.workspace}}/${{env.builddir}}
-          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/cconv-standalone/utils/cc_conv
-          python convert_project.py --skip '/.*/test/.*' --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/cconv-standalone -pr ${{runner.workspace}}/depsfolder/zlib.obj
+          cd ${{github.workspace}}/depsfolder/checkedc-clang/clang/tools/3c/utils/cc_conv
+          python convert_project.py --skip '/.*/test/.*' --includeDir ${{github.workspace}}/depsfolder/checkedc-clang/llvm/projects/checkedc-wrapper/checkedc/include -p ${{runner.workspace}}/${{env.builddir}}/bin/3c -pr ${{runner.workspace}}/depsfolder/zlib.obj

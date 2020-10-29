@@ -1,7 +1,7 @@
-// RUN: cconv-standalone -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone -alltypes -output-postfix=checked %s
-// RUN: cconv-standalone -alltypes %S/partial_checked_arr.checked.c -- | count 0
+// RUN: 3c -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -alltypes -output-postfix=checked %s
+// RUN: 3c -alltypes %S/partial_checked_arr.checked.c -- | count 0
 // RUN: rm %S/partial_checked_arr.checked.c
 
 int strcmp(const char *src1 : itype(_Nt_array_ptr<const char>),

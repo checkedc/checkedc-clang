@@ -1,10 +1,10 @@
-// RUN: cconv-standalone -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/fptrsafecallermulti2.c
-// RUN: cconv-standalone -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/fptrsafecallermulti2.c
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/fptrsafecallermulti2.c
+// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/fptrsafecallermulti2.c
 // RUN: %clang -c %S/fptrsafecallermulti1.checkedNOALL.c %S/fptrsafecallermulti2.checkedNOALL.c
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrsafecallermulti1.checkedNOALL.c %s
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrsafecallermulti1.checkedALL.c %s
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=checked %S/fptrsafecallermulti2.c %s
-// RUN: cconv-standalone -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrsafecallermulti1.checked.c %S/fptrsafecallermulti2.checked.c
+// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked %S/fptrsafecallermulti2.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrsafecallermulti1.checked.c %S/fptrsafecallermulti2.checked.c
 // RUN: test ! -f %S/fptrsafecallermulti1.checked.convert_again.c
 // RUN: test ! -f %S/fptrsafecallermulti2.checked.convert_again.c
 // RUN: rm %S/fptrsafecallermulti1.checkedALL.c %S/fptrsafecallermulti2.checkedALL.c

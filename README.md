@@ -66,7 +66,7 @@ wiki](https://github.com/Microsoft/checkedc-clang/wiki).
 |Debug X86 Windows| Checked C and clang regression tests|![Debug X86 Windows status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/211/badge)|
 |Debug X64 Windows| Checked C and clang regression tests| ![Debug X64 Windows status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/205/badge)|
 |Debug X64 Linux  | Checked C and clang regression tests| ![Debug X64 Linux status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/217/badge)|
-|Debug X64 Linux  | cconv-standalone (Checked C Convert tool) nightly tests| ![Nightly Sanity Tests](https://github.com/correctcomputation/checkedc-clang/workflows/Nightly%20Sanity%20Tests/badge.svg?branch=master)|
+|Debug X64 Linux  | 3c (Checked C Convert tool) nightly tests| ![Nightly Sanity Tests](https://github.com/correctcomputation/checkedc-clang/workflows/Nightly%20Sanity%20Tests/badge.svg?branch=master)|
 |Release X64 Linux| Checked C, clang, and LLVM nightly tests|![Release X64 Linux status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/238/badge)|
 
 ## Contributing

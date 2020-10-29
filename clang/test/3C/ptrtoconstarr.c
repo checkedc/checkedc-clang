@@ -1,9 +1,9 @@
-// RUN: cconv-standalone -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: cconv-standalone -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: cconv-standalone --addcr --alltypes %s -- | %clang_cc1  -fcheckedc-extension -x c -
+// RUN: 3c -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c --addcr --alltypes %s -- | %clang_cc1  -fcheckedc-extension -x c -
 //
-// RUN: cconv-standalone -alltypes -output-postfix=checked %s
-// RUN: cconv-standalone -alltypes %S/ptrtoconstarr.checked.c -- | count 0
+// RUN: 3c -alltypes -output-postfix=checked %s
+// RUN: 3c -alltypes %S/ptrtoconstarr.checked.c -- | count 0
 // RUN: rm %S/ptrtoconstarr.checked.c
 
 extern _Unchecked unsigned long strlen(const char * restrict src : itype(restrict _Nt_array_ptr<const char>));
