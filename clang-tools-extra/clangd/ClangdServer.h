@@ -315,7 +315,7 @@ public:
 
   void _3CCollectAndBuildInitialConstraints(_3CLSPCallBack *ConvCB);
 
-  CConvertDiagnostics _3CDiagInfo;
+  _3CDiagnostics _3CDiagInfo;
 
   void _3CCloseDocument(std::string FileName);
 #endif

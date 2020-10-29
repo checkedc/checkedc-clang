@@ -724,12 +724,12 @@ llvm::json::Value toJSON(const WorkspaceEdit &WE);
 
 #ifdef INTERACTIVECCCONV
 /// Data corresponding to the manual fix
-struct CConvertManualFix {
+struct _3CManualFix {
   int ptrID;
 };
 
-bool fromJSON(const llvm::json::Value &, CConvertManualFix &);
-llvm::json::Value toJSON(const CConvertManualFix &WE);
+bool fromJSON(const llvm::json::Value &, _3CManualFix &);
+llvm::json::Value toJSON(const _3CManualFix &WE);
 #endif
 
 /// Arguments for the 'applyTweak' command. The server sends these commands as a
@@ -773,7 +773,7 @@ struct ExecuteCommandParams {
   // Arguments
   llvm::Optional<WorkspaceEdit> workspaceEdit;
 #ifdef INTERACTIVECCCONV
-  llvm::Optional<CConvertManualFix> ccConvertManualFix;
+  llvm::Optional<_3CManualFix> ccConvertManualFix;
 #endif
   llvm::Optional<TweakArgs> tweakArgs;
 };

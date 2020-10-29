@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Implementation of CConvertDiagnostics methods
+// Implementation of _3CDiagnostics methods
 //===----------------------------------------------------------------------===//
 
 #ifdef INTERACTIVECCCONV
@@ -16,7 +16,7 @@ namespace clangd {
 
 #define DEFAULT_PTRSIZE 4
 
-void CConvertDiagnostics::ClearAllDiags() {
+void _3CDiagnostics::ClearAllDiags() {
   std::lock_guard<std::mutex> Lock(DiagMutex);
   AllFileDiagnostics.clear();
 }
@@ -26,7 +26,7 @@ static bool IsValidSourceFile(ConstraintsInfo &CCRes, std::string &FilePath) {
 }
 
 
-bool CConvertDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line) {
+bool _3CDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line) {
   std::lock_guard<std::mutex> Lock(DiagMutex);
   std::set<ConstraintKey> ProcessedCKeys;
   ProcessedCKeys.clear();

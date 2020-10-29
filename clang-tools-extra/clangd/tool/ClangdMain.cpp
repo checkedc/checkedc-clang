@@ -463,7 +463,7 @@ int main(int argc, char *argv[]) {
                                              _3CCategory);
   LogLevel = Logger::Debug;
   // Setup options.
-  struct CConvertOptions CcOptions;
+  struct _3COptions CcOptions;
   CcOptions.BaseDir = BaseDir.getValue();
   CcOptions.EnablePropThruIType = EnablePropThruIType;
   CcOptions.HandleVARARGS = HandleVARARGS;

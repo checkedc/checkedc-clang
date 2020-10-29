@@ -29,7 +29,7 @@ void AsCCCommands(const Diagnostic &D, std::vector<Command> &OutCommands) {
   unsigned long PtrId;
   if (GetPtrIDFromDiagMessage(D, PtrId)) {
     Command AllPtrsCmd;
-    CConvertManualFix PtrFix;
+    _3CManualFix PtrFix;
     PtrFix.ptrID = PtrId;
     AllPtrsCmd.ccConvertManualFix = PtrFix;
     Command SinglePtrCmd = AllPtrsCmd;

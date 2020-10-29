@@ -525,13 +525,13 @@ bool fromJSON(const llvm::json::Value &Params, WorkspaceEdit &R) {
 }
 
 #ifdef INTERACTIVECCCONV
-bool fromJSON(const llvm::json::Value &Params, CConvertManualFix &CCM) {
+bool fromJSON(const llvm::json::Value &Params, _3CManualFix &CCM) {
   llvm::json::ObjectMapper O(Params);
   CCM.ptrID = (*Params.getAsObject()->getInteger("ptrID"));
   return O;
 }
 
-llvm::json::Value toJSON(const CConvertManualFix &WE) {
+llvm::json::Value toJSON(const _3CManualFix &WE) {
   return llvm::json::Object{{"ptrID", std::move(WE.ptrID)}};
 }
 

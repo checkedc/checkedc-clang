@@ -148,7 +148,7 @@ int main(int argc, const char **argv) {
                                     (const char**)(argv),
                                     _3CCategory);
   // Setup options.
-  struct CConvertOptions CcOptions;
+  struct _3COptions CcOptions;
   CcOptions.BaseDir = OptBaseDir.getValue();
   CcOptions.EnablePropThruIType = OptEnablePropThruIType;
   CcOptions.HandleVARARGS = OptHandleVARARGS;

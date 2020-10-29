@@ -174,7 +174,7 @@ void runSolver(ProgramInfo &Info,
   }
 }
 
-_3CInterface::_3CInterface(const struct CConvertOptions &CCopt,
+_3CInterface::_3CInterface(const struct _3COptions &CCopt,
                                const std::vector<std::string> &SourceFileList,
                                CompilationDatabase *CompDB) {
 
