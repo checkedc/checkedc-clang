@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Implementation of CConv command helper methods.
+// Implementation of 3C command helper methods.
 //===----------------------------------------------------------------------===//
 
 #ifdef INTERACTIVE3C

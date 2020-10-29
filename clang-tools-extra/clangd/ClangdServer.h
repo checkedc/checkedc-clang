@@ -306,7 +306,7 @@ public:
   blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10);
 
 #ifdef INTERACTIVE3C
-  // ccconv specific commands
+  // 3C specific commands
   // collect and build initial set of constraints on the source
   // files.
 

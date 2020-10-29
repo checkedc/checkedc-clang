@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Class that handles CConv Diagnostic messages.
+// Class that handles 3C Diagnostic messages.
 //===----------------------------------------------------------------------===//
 
 #ifdef INTERACTIVE3C
@@ -19,7 +19,7 @@
 namespace clang {
 namespace clangd {
 
-// Class that represents diagnostics messages specific to CConv.
+// Class that represents diagnostics messages specific to 3C.
 class _3CDiagnostics {
 public:
   std::mutex DiagMutex;

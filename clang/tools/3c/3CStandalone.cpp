@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// CConv tool
+// 3C tool
 //
 //===----------------------------------------------------------------------===//
 #include "clang/Tooling/CommonOptionsParser.h"
@@ -19,7 +19,7 @@ using namespace clang::driver;
 using namespace clang::tooling;
 using namespace clang;
 using namespace llvm;
-static cl::OptionCategory _3CCategory("cconv options");
+static cl::OptionCategory _3CCategory("3C options");
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp("");
 
@@ -188,7 +188,7 @@ int main(int argc, const char **argv) {
   else
     CcOptions.AllocatorFunctions = {};
 
-  // Create CConv Interface.
+  // Create 3C Interface.
   _3CInterface _3CInterface(CcOptions,
                              OptionsParser.getSourcePathList(),
                              &(OptionsParser.getCompilations()));

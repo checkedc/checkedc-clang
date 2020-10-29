@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Helper methods used to handle CConv commands.
+// Helper methods used to handle 3C commands.
 //===----------------------------------------------------------------------===//
 
 #ifdef INTERACTIVE3C
@@ -19,10 +19,10 @@ namespace clang {
 namespace clangd {
   // Convert the provided Diagnostic into Commands
   void AsCCCommands(const Diagnostic &D, std::vector<Command> &OutCommands);
-  // Check if the execute command request from the client is a CConv command.
+  // Check if the execute command request from the client is a 3C command.
   bool Is3CCommand(const ExecuteCommandParams &Params);
 
-  // Interpret the provided execute command request as CConv command
+  // Interpret the provided execute command request as 3C command
   // and execute them.
   bool ExecuteCCCommand(const ExecuteCommandParams &Params,
                         std::string &ReplyMessage,

@@ -190,10 +190,10 @@ void
 ClangdServer::_3CCollectAndBuildInitialConstraints(_3CLSPCallBack *ConvCB) {
   auto Task = [=]() {
     _3CDiagInfo.ClearAllDiags();
-    ConvCB->send3CMessage("Running CConv for first time.");
+    ConvCB->send3CMessage("Running 3C for first time.");
     _3CInter.BuildInitialConstraints();
     _3CInter.SolveConstraints(true);
-    ConvCB->send3CMessage("Finished running CConv.");
+    ConvCB->send3CMessage("Finished running 3C.");
     log("3C: Built initial constraints successfully.\n");
     auto &WildPtrsInfo = _3CInter.GetWILDPtrsInfo();
     log("3C: Got WILD Ptrs Info.\n");

@@ -280,7 +280,7 @@ static llvm::cl::list<std::string> TweakList(
     llvm::cl::Hidden, llvm::cl::CommaSeparated);
 
 #ifdef INTERACTIVE3C
-static llvm::cl::OptionCategory _3CCategory("cconv",
+static llvm::cl::OptionCategory _3CCategory("3C",
                                                 "This is "
                                                 "an interactive version "
                                                 "of checked c convert "

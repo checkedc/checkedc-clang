@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Data structures used to communicate results of CConv interactive mode
+// Data structures used to communicate results of 3C interactive mode
 //
 //===----------------------------------------------------------------------===//
 

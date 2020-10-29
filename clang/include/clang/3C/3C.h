@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// The main interface for invoking cconv or 3c tool.
+// The main interface for invoking 3C or 3c tool.
 // This provides various methods that can be used to access different
-// aspects of the cconv tool.
+// aspects of the 3C tool.
 //
 //===----------------------------------------------------------------------===//
 
@@ -22,7 +22,7 @@
 #include "ProgramInfo.h"
 #include <mutex>
 
-// Options used to initialize CConv tool.
+// Options used to initialize 3C tool.
 struct _3COptions {
   bool DumpIntermediate;
 
@@ -64,7 +64,7 @@ struct _3COptions {
 #endif
 };
 
-// The main interface exposed by the CConv to interact with the tool.
+// The main interface exposed by the 3C to interact with the tool.
 class _3CInterface {
 
 public:

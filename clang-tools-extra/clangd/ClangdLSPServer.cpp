@@ -561,7 +561,7 @@ void ClangdLSPServer::send3CMessage(std::string MsgStr) {
 void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
                                 Callback<llvm::json::Value> Reply) {
 #ifdef INTERACTIVE3C
-  // In this mode, we support only CConv commands.
+  // In this mode, we support only 3C commands.
   if(Is3CCommand(Params)) {
     Server->execute3CCommand(Params, this);
     Reply("3C Background work scheduled.");
@@ -815,7 +815,7 @@ void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
 #ifdef INTERACTIVE3C
   URIForFile File = Params.textDocument.uri;
   std::vector<Command> CCommands;
-  // Convert the diagnostics into CConv commands.
+  // Convert the diagnostics into 3C commands.
   for (const Diagnostic &D : Params.context.diagnostics) {
     AsCCCommands(D, CCommands);
   }
@@ -925,8 +925,8 @@ void ClangdLSPServer::onCodeLens(const CodeLensParams &Params,
   CcBecon.range.start.character = 13;
   CcBecon.range.end.character = 17;
   Command NewCmd;
-  NewCmd.command = "CCconv Interactive Mode On";
-  NewCmd.title = "CConv Mode On";
+  NewCmd.command = "3C Interactive Mode On";
+  NewCmd.title = "3C Mode On";
   CcBecon.command = NewCmd;
   AllCodeLens.clear();
   AllCodeLens.push_back(CcBecon);
@@ -1138,7 +1138,7 @@ ClangdLSPServer::ClangdLSPServer(
 #endif
   // clang-format off
 #ifdef INTERACTIVE3C
-  // We only support these methods in Interactive CConv mode.
+  // We only support these methods in Interactive 3C mode.
   MsgHandler->bind("initialize", &ClangdLSPServer::onInitialize);
   MsgHandler->bind("shutdown", &ClangdLSPServer::onShutdown);
   MsgHandler->bind("sync", &ClangdLSPServer::onSync);

@@ -96,7 +96,7 @@ private:
                         Callback<llvm::json::Value>);
   void onCodeAction(const CodeActionParams &, Callback<llvm::json::Value>);
 #ifdef INTERACTIVE3C
-  // code lens : used to check cconv support
+  // code lens : used to check 3C support
   void onCodeLens(const CodeLensParams &, Callback<llvm::json::Value>);
   void onCodeLensResolve(const CodeLens &Params,
                          Callback<llvm::json::Value> Reply);
