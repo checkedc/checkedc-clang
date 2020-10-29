@@ -34,7 +34,7 @@ repl_cpp '#include "clang/CConv/' '#include "clang/3C/'
 repl_cpp '(#include.*["/])CConv(ert)?' '\13C'
 # Match CConvert first before CConv messes it up.
 repl '//=--3C([^-------]*-)' '//=--3C\1------'
-repl '//=--CConv([^-]*-)' '//=--3C\1---'
+repl '//=--3C([^----]*-)' '//=--3C\1---'
 
 # Include guards
 repl_cpp '\<LLVM_CLANG_TOOLS_EXTRA_CLANGD_CCONVERT' LLVM_CLANG_TOOLS_EXTRA_CLANGD_3C
