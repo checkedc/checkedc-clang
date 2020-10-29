@@ -331,10 +331,10 @@ void toLSPDiags(
     Main.source = "clang-tidy";
     break;
 #ifdef INTERACTIVECCCONV
-  case Diag::CConvMain:
+  case Diag::_3CMain:
     Main.source = "CConv_RealWild";
     break;
-  case Diag::CConvSec:
+  case Diag::_3CSec:
     Main.source = "CConv_AffWild";
     break;
 #endif

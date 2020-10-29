@@ -65,14 +65,14 @@ struct CConvertOptions {
 };
 
 // The main interface exposed by the CConv to interact with the tool.
-class CConvInterface {
+class _3CInterface {
 
 public:
   ProgramInfo GlobalProgramInfo;
   // Mutex for this interface.
   std::mutex InterfaceMutex;
 
-  CConvInterface(const struct CConvertOptions &CCopt,
+  _3CInterface(const struct CConvertOptions &CCopt,
                  const std::vector<std::string> &SourceFileList,
                  clang::tooling::CompilationDatabase *CompDB);
 

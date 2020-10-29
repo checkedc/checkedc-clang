@@ -92,8 +92,8 @@ struct Diag : DiagBase {
     Clang,
     ClangTidy,
 #ifdef INTERACTIVECCCONV
-    CConvMain,
-    CConvSec,
+    _3CMain,
+    _3CSec,
 #endif
   } Source = Unknown;
   /// Elaborate on the problem, usually pointing to a related piece of code.

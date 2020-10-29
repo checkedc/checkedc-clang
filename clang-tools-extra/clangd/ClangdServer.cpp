@@ -99,7 +99,7 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
                            const FileSystemProvider &FSProvider,
                            DiagnosticsConsumer &DiagConsumer,
 #ifdef INTERACTIVECCCONV
-                           const Options &Opts, CConvInterface &_3CInterface)
+                           const Options &Opts, _3CInterface &_3CInterface)
 #else
                            const Options &Opts)
 #endif
@@ -122,7 +122,7 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
               DynamicIdx.get(), DiagConsumer, Opts.SemanticHighlighting),
           Opts.UpdateDebounce, Opts.RetentionPolicy)
 #ifdef INTERACTIVECCCONV
-          , CConvInter(_3CInterface)
+          , _3CInter(_3CInterface)
 #endif
   {
   // Adds an index to the stack, at higher priority than existing indexes.
@@ -171,33 +171,33 @@ void ClangdServer::addDocument(PathRef File, llvm::StringRef Contents,
 
 #ifdef INTERACTIVECCCONV
 void ClangdServer::reportCConvDiagsForAllFiles(ConstraintsInfo &CcInfo,
-                                               CConvLSPCallBack *ConvCB) {
+                                               _3CLSPCallBack *ConvCB) {
   // Update the diag information for all the valid files.
-  for (auto &SrcFileDiags : CConvDiagInfo.GetAllFilesDiagnostics()) {
+  for (auto &SrcFileDiags : _3CDiagInfo.GetAllFilesDiagnostics()) {
     ConvCB->ccConvResultsReady(SrcFileDiags.first);
   }
 }
 
 void ClangdServer::clearCConvDiagsForAllFiles(ConstraintsInfo &CcInfo,
-                                              CConvLSPCallBack *ConvCB) {
-  for (auto &SrcFileDiags : CConvDiagInfo.GetAllFilesDiagnostics()) {
+                                              _3CLSPCallBack *ConvCB) {
+  for (auto &SrcFileDiags : _3CDiagInfo.GetAllFilesDiagnostics()) {
     // Clear diags for all files.
     ConvCB->ccConvResultsReady(SrcFileDiags.first, true);
   }
 }
 
 void
-ClangdServer::_3CCollectAndBuildInitialConstraints(CConvLSPCallBack *ConvCB) {
+ClangdServer::_3CCollectAndBuildInitialConstraints(_3CLSPCallBack *ConvCB) {
   auto Task = [=]() {
-    CConvDiagInfo.ClearAllDiags();
+    _3CDiagInfo.ClearAllDiags();
     ConvCB->sendCConvMessage("Running CConv for first time.");
-    CConvInter.BuildInitialConstraints();
-    CConvInter.SolveConstraints(true);
+    _3CInter.BuildInitialConstraints();
+    _3CInter.SolveConstraints(true);
     ConvCB->sendCConvMessage("Finished running CConv.");
     log("CConv: Built initial constraints successfully.\n");
-    auto &WildPtrsInfo = CConvInter.GetWILDPtrsInfo();
+    auto &WildPtrsInfo = _3CInter.GetWILDPtrsInfo();
     log("CConv: Got WILD Ptrs Info.\n");
-    CConvDiagInfo.PopulateDiagsFromConstraintsInfo(WildPtrsInfo);
+    _3CDiagInfo.PopulateDiagsFromConstraintsInfo(WildPtrsInfo);
     log("CConv: Populated Diags from Disjoint Sets.\n");
     reportCConvDiagsForAllFiles(WildPtrsInfo, ConvCB);
     ConvCB->sendCConvMessage("CConv: Finished updating problems.");
@@ -207,10 +207,10 @@ ClangdServer::_3CCollectAndBuildInitialConstraints(CConvLSPCallBack *ConvCB) {
 }
 
 void ClangdServer::executeCConvCommand(ExecuteCommandParams Params,
-                                       CConvLSPCallBack *ConvCB) {
+                                       _3CLSPCallBack *ConvCB) {
   auto Task = [this, Params, ConvCB]() {
     std::string RplMsg;
-    auto &WildPtrsInfo = CConvInter.GetWILDPtrsInfo();
+    auto &WildPtrsInfo = _3CInter.GetWILDPtrsInfo();
     auto &PtrSourceMap = WildPtrsInfo.AtomSourceMap;
     if (PtrSourceMap.find(Params.ccConvertManualFix->ptrID) !=
         PtrSourceMap.end()) {
@@ -219,11 +219,11 @@ void ClangdServer::executeCConvCommand(ExecuteCommandParams Params,
       log("CConv: File of the pointer {0}\n", PtrFileName);
       clearCConvDiagsForAllFiles(WildPtrsInfo, ConvCB);
       ConvCB->sendCConvMessage("CConv modifying constraints.");
-      ExecuteCCCommand(Params, RplMsg, CConvInter);
-      this->CConvDiagInfo.ClearAllDiags();
+      ExecuteCCCommand(Params, RplMsg, _3CInter);
+      this->_3CDiagInfo.ClearAllDiags();
       ConvCB->sendCConvMessage("CConv Updating new issues "
                                "after editing constraints.");
-      this->CConvDiagInfo.PopulateDiagsFromConstraintsInfo(WildPtrsInfo);
+      this->_3CDiagInfo.PopulateDiagsFromConstraintsInfo(WildPtrsInfo);
       log("CConv calling call-back\n");
       // ConvCB->ccConvResultsReady(ptrFileName);
       ConvCB->sendCConvMessage("CConv Updated new issues.");
@@ -238,7 +238,7 @@ void ClangdServer::executeCConvCommand(ExecuteCommandParams Params,
 void ClangdServer::_3CCloseDocument(std::string FileName) {
   auto Task = [=]() {
     log("CConv: Trying to write back file: {0}\n", FileName);
-    if (CConvInter.WriteConvertedFileToDisk(FileName)) {
+    if (_3CInter.WriteConvertedFileToDisk(FileName)) {
       log("CConv: Finished writing back file: {0}\n", FileName);
     } else {
       log("CConv: File not included during constraint solving phase. "

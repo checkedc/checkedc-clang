@@ -174,7 +174,7 @@ void runSolver(ProgramInfo &Info,
   }
 }
 
-CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
+_3CInterface::_3CInterface(const struct CConvertOptions &CCopt,
                                const std::vector<std::string> &SourceFileList,
                                CompilationDatabase *CompDB) {
 
@@ -239,7 +239,7 @@ CConvInterface::CConvInterface(const struct CConvertOptions &CCopt,
   }
 }
 
-bool CConvInterface::BuildInitialConstraints() {
+bool _3CInterface::BuildInitialConstraints() {
 
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
 
@@ -265,7 +265,7 @@ bool CConvInterface::BuildInitialConstraints() {
   return true;
 }
 
-bool CConvInterface::SolveConstraints(bool ComputeInterimState) {
+bool _3CInterface::SolveConstraints(bool ComputeInterimState) {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
   assert(ConstraintsBuilt && "Constraints not yet built. We need to call "
                              "build constraint before trying to solve them." );
@@ -342,7 +342,7 @@ bool CConvInterface::SolveConstraints(bool ComputeInterimState) {
   return true;
 }
 
-bool CConvInterface::WriteConvertedFileToDisk(const std::string &FilePath) {
+bool _3CInterface::WriteConvertedFileToDisk(const std::string &FilePath) {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
   if (std::find(SourceFiles.begin(), SourceFiles.end(), FilePath) !=
       SourceFiles.end()) {
@@ -364,7 +364,7 @@ bool CConvInterface::WriteConvertedFileToDisk(const std::string &FilePath) {
 
 }
 
-bool CConvInterface::WriteAllConvertedFilesToDisk() {
+bool _3CInterface::WriteAllConvertedFilesToDisk() {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
 
   ClangTool &Tool = getGlobalClangTool();
@@ -381,11 +381,11 @@ bool CConvInterface::WriteAllConvertedFilesToDisk() {
   return true;
 }
 
-ConstraintsInfo &CConvInterface::GetWILDPtrsInfo() {
+ConstraintsInfo &_3CInterface::GetWILDPtrsInfo() {
   return GlobalProgramInfo.getInterimConstraintState();
 }
 
-bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
+bool _3CInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
   CVars RemovePtrs;
   RemovePtrs.clear();
@@ -426,7 +426,7 @@ bool CConvInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
 }
 
 
-void CConvInterface::InvalidateAllConstraintsWithReason(
+void _3CInterface::InvalidateAllConstraintsWithReason(
     Constraint *ConstraintToRemove) {
   // Get the reason for the current constraint.
   std::string ConstraintRsn = ConstraintToRemove->getReason();
@@ -447,7 +447,7 @@ void CConvInterface::InvalidateAllConstraintsWithReason(
   }
 }
 
-bool CConvInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
+bool _3CInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
 
   CVars RemovePtrs;

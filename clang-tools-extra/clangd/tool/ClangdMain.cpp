@@ -494,7 +494,7 @@ int main(int argc, char *argv[]) {
   else
     CcOptions.AllocatorFunctions = {};
 
-  CConvInterface _3CInterface(CcOptions,
+  _3CInterface _3CInterface(CcOptions,
                              OptionsParser.getSourcePathList(),
                              &(OptionsParser.getCompilations()));
 #else
@@ -703,7 +703,7 @@ int main(int argc, char *argv[]) {
       *TransportLayer, FSProvider, CCOpts, CompileCommandsDirPath,
       /*UseDirBasedCDB=*/CompileArgsFrom == FilesystemCompileArgs,
 #ifdef INTERACTIVECCCONV
-      // Pass the CConvInterface object.
+      // Pass the _3CInterface object.
       OffsetEncodingFromFlag, Opts, _3CInterface);
 #else
       OffsetEncodingFromFlag, Opts);

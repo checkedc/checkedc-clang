@@ -57,7 +57,7 @@ bool CConvertDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line
       Diag NewDiag;
       NewDiag.Range = GetLocRange(PsInfo->getLineNo(), PsInfo->getColSNo(),
                                   PsInfo->getColENo());
-      NewDiag.Source = Diag::CConvMain;
+      NewDiag.Source = Diag::_3CMain;
       NewDiag.Severity = DiagnosticsEngine::Level::Error;
       NewDiag.code = std::to_string(WReason.first);
       NewDiag.Message = "Pointer is wild because of:" +
@@ -94,7 +94,7 @@ bool CConvertDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line
                                     PsInfo->getColENo());
 
         NewDiag.code = std::to_string(NonWildCk);
-        NewDiag.Source = Diag::CConvSec;
+        NewDiag.Source = Diag::_3CSec;
         NewDiag.Severity = DiagnosticsEngine::Level::Warning;
         NewDiag.Message = "Pointer is wild because it transitively "
                           "depends on other pointer(s)";

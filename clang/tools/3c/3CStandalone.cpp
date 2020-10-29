@@ -189,7 +189,7 @@ int main(int argc, const char **argv) {
     CcOptions.AllocatorFunctions = {};
 
   // Create CConv Interface.
-  CConvInterface _3CInterface(CcOptions,
+  _3CInterface _3CInterface(CcOptions,
                              OptionsParser.getSourcePathList(),
                              &(OptionsParser.getCompilations()));
 

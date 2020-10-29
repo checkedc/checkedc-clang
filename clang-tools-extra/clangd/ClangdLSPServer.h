@@ -35,7 +35,7 @@ class SymbolIndex;
 /// corresponding JSON-RPC methods ("initialize").
 /// The server also supports $/cancelRequest (MessageHandler provides this).
 #ifdef INTERACTIVECCCONV
-class ClangdLSPServer : private DiagnosticsConsumer, public CConvLSPCallBack {
+class ClangdLSPServer : private DiagnosticsConsumer, public _3CLSPCallBack {
 #else
 class ClangdLSPServer : private DiagnosticsConsumer {
 #endif
@@ -50,7 +50,7 @@ public:
                   llvm::Optional<Path> CompileCommandsDir, bool UseDirBasedCDB,
                   llvm::Optional<OffsetEncoding> ForcedOffsetEncoding,
 #ifdef INTERACTIVECCCONV
-                  const ClangdServer::Options &Opts, CConvInterface &Cinter);
+                  const ClangdServer::Options &Opts, _3CInterface &Cinter);
 #else
                   const ClangdServer::Options &Opts);
 #endif
@@ -203,7 +203,7 @@ private:
   llvm::Optional<ClangdServer> Server;
   llvm::Optional<OffsetEncoding> NegotiatedOffsetEncoding;
 #ifdef INTERACTIVECCCONV
-  CConvInterface &_3CInterface;
+  _3CInterface &_3CInterface;
 #endif
 };
 } // namespace clangd

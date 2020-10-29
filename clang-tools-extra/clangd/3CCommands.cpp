@@ -54,7 +54,7 @@ bool IsCConvCommand(const ExecuteCommandParams &Params) {
 
 bool ExecuteCCCommand(const ExecuteCommandParams &Params,
                     std::string &ReplyMessage,
-                    CConvInterface &CcInterface) {
+                    _3CInterface &CcInterface) {
   ReplyMessage = "Checked C Pointer Modified.";
   if (Params.command.rfind(Command::CCONV_APPLY_ONLY_FOR_THIS, 0) == 0) {
     int PtrId = Params.ccConvertManualFix->ptrID;

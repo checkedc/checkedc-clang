@@ -463,7 +463,7 @@ void ClangdLSPServer::onShutdown(const ShutdownParams &Params,
 #ifdef INTERACTIVECCCONV
   sendCConvMessage("Writing all CheckedC files back to disk");
   // Write all files back.
-  auto &AllDiags = Server->CConvDiagInfo.GetAllFilesDiagnostics();
+  auto &AllDiags = Server->_3CDiagInfo.GetAllFilesDiagnostics();
   for (auto &CD : AllDiags) {
     Server->_3CCloseDocument(CD.first);
   }
@@ -535,8 +535,8 @@ void ClangdLSPServer::ccConvResultsReady(std::string FileName,
   std::vector<Diag> Diagnostics;
   Diagnostics.clear();
   if (!ClearDiags) {
-    std::lock_guard<std::mutex> lock(Server->CConvDiagInfo.DiagMutex);
-    auto &allDiags = Server->CConvDiagInfo.GetAllFilesDiagnostics();
+    std::lock_guard<std::mutex> lock(Server->_3CDiagInfo.DiagMutex);
+    auto &allDiags = Server->_3CDiagInfo.GetAllFilesDiagnostics();
     if (allDiags.find(FileName) !=
         allDiags.end()) {
       Diagnostics.insert(
@@ -1121,7 +1121,7 @@ ClangdLSPServer::ClangdLSPServer(
     llvm::Optional<Path> CompileCommandsDir, bool UseDirBasedCDB,
     llvm::Optional<OffsetEncoding> ForcedOffsetEncoding,
 #ifdef INTERACTIVECCCONV
-    const ClangdServer::Options &Opts, CConvInterface &Cinter)
+    const ClangdServer::Options &Opts, _3CInterface &Cinter)
 #else
     const ClangdServer::Options &Opts)
 #endif

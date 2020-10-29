@@ -26,7 +26,7 @@ namespace clangd {
   // and execute them.
   bool ExecuteCCCommand(const ExecuteCommandParams &Params,
                         std::string &ReplyMessage,
-                        CConvInterface &CcInterface);
+                        _3CInterface &CcInterface);
 }
 }
 #endif //LLVM_CLANG_TOOLS_EXTRA_CLANGD_3CCOMMANDS_H

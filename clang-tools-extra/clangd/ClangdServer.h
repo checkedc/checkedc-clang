@@ -61,7 +61,7 @@ public:
 };
 
 #ifdef INTERACTIVECCCONV
-class CConvLSPCallBack {
+class _3CLSPCallBack {
 public:
   virtual void ccConvResultsReady(std::string FileName,
                                   bool ClearDiags = false) = 0;
@@ -170,7 +170,7 @@ public:
                const FileSystemProvider &FSProvider,
 #ifdef INTERACTIVECCCONV
                DiagnosticsConsumer &DiagConsumer, const Options &Opts,
-               CConvInterface &_3CInterface);
+               _3CInterface &_3CInterface);
 #else
                DiagnosticsConsumer &DiagConsumer, const Options &Opts);
 #endif
@@ -311,11 +311,11 @@ public:
   // files.
 
   void executeCConvCommand(ExecuteCommandParams Params,
-                           CConvLSPCallBack *ConvCB);
+                           _3CLSPCallBack *ConvCB);
 
-  void _3CCollectAndBuildInitialConstraints(CConvLSPCallBack *ConvCB);
+  void _3CCollectAndBuildInitialConstraints(_3CLSPCallBack *ConvCB);
 
-  CConvertDiagnostics CConvDiagInfo;
+  CConvertDiagnostics _3CDiagInfo;
 
   void _3CCloseDocument(std::string FileName);
 #endif
@@ -328,8 +328,8 @@ private:
              ArrayRef<tooling::Range> Ranges);
 
 #ifdef INTERACTIVECCCONV
-  void reportCConvDiagsForAllFiles(ConstraintsInfo &CcInfo, CConvLSPCallBack *ConvCB);
-  void clearCConvDiagsForAllFiles(ConstraintsInfo &CcInfo, CConvLSPCallBack *ConvCB);
+  void reportCConvDiagsForAllFiles(ConstraintsInfo &CcInfo, _3CLSPCallBack *ConvCB);
+  void clearCConvDiagsForAllFiles(ConstraintsInfo &CcInfo, _3CLSPCallBack *ConvCB);
 #endif
 
   const FileSystemProvider &FSProvider;
@@ -369,7 +369,7 @@ private:
   // ClangdServer.
   TUScheduler WorkScheduler;
 #ifdef INTERACTIVECCCONV
-  CConvInterface &CConvInter;
+  _3CInterface &_3CInter;
 #endif
 };
 
