@@ -37,7 +37,7 @@
 #include <type_traits>
 #include <utility>
 #ifdef INTERACTIVECCCONV
-#include "CConvertDiagnostics.h"
+#include "3CDiagnostics.h"
 #endif
 
 namespace clang {

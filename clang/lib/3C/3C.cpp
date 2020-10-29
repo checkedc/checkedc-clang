@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/3C/CConv.h"
+#include "clang/3C/3C.h"
 #include "clang/3C/ConstraintBuilder.h"
 #include "clang/3C/IntermediateToolHook.h"
 #include "clang/3C/RewriteUtils.h"

@@ -16,7 +16,7 @@
 #include "clang/3C/Constraints.h"
 #include "clang/3C/ConstraintsGraph.h"
 #include <iostream>
-#include <clang/CConv/ConstraintVariables.h>
+#include <clang/3C/ConstraintVariables.h>
 
 using namespace llvm;
 

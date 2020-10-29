@@ -14,7 +14,7 @@
 
 #include <set>
 #include "Diagnostics.h"
-#include "clang/3C/CConv.h"
+#include "clang/3C/3C.h"
 
 namespace clang {
 namespace clangd {

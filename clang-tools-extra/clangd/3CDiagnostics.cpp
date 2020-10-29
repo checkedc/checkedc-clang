@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #ifdef INTERACTIVECCCONV
-#include "CConvertDiagnostics.h"
+#include "3CDiagnostics.h"
 
 namespace clang {
 namespace clangd {

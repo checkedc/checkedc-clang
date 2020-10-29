@@ -18,7 +18,7 @@
 #include "ConstraintVariables.h"
 #include "PersistentSourceLoc.h"
 #include "clang/Tooling/CommonOptionsParser.h"
-#include "CConvInteractiveData.h"
+#include "3CInteractiveData.h"
 #include "ProgramInfo.h"
 #include <mutex>
 

@@ -24,8 +24,8 @@
 #include "refactor/Rename.h"
 #include "refactor/Tweak.h"
 #ifdef INTERACTIVECCCONV
-#include "clang/3C/CConv.h"
-#include "CConvertCommands.h"
+#include "clang/3C/3C.h"
+#include "3CCommands.h"
 #endif
 #include "clang/Format/Format.h"
 #include "clang/Frontend/CompilerInstance.h"

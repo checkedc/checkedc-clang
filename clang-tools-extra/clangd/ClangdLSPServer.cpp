@@ -16,7 +16,7 @@
 #include "Trace.h"
 #include "URI.h"
 #ifdef INTERACTIVECCCONV
-#include "CConvertCommands.h"
+#include "3CCommands.h"
 #endif
 #include "refactor/Tweak.h"
 #include "clang/Tooling/Core/Replacement.h"

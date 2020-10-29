@@ -33,7 +33,7 @@
 #include <string>
 #include <thread>
 #ifdef INTERACTIVECCCONV
-#include "clang/3C/CConv.h"
+#include "clang/3C/3C.h"
 #endif
 
 namespace clang {

@@ -20,7 +20,7 @@
 #include "clang/3C/MappingVisitor.h"
 
 #ifdef FIVE_C
-#include <clang/CConv/DeclRewriter_5C.h>
+#include <clang/3C/DeclRewriter_5C.h>
 #endif
 
 using namespace llvm;

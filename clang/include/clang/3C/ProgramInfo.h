@@ -21,7 +21,7 @@
 #include "ConstraintVariables.h"
 #include "Utils.h"
 #include "PersistentSourceLoc.h"
-#include "CConvInteractiveData.h"
+#include "3CInteractiveData.h"
 
 
 class ProgramVariableAdder {
