@@ -536,9 +536,9 @@ llvm::json::Value toJSON(const _3CManualFix &WE) {
 }
 
 const llvm::StringLiteral ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS =
-    "cconv.onlyThisPtr";
+    "3c.onlyThisPtr";
 const llvm::StringLiteral ExecuteCommandParams::_3C_APPLY_FOR_ALL =
-    "cconv.applyAllPtr";
+    "3c.applyAllPtr";
 #endif
 const llvm::StringLiteral ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND =
     "clangd.applyFix";
