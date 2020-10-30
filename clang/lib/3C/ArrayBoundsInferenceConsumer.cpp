@@ -185,8 +185,10 @@ bool tryGetBoundsKeyVar(Decl *D, BoundsKey &BK, ProgramInfo &Info,
   return CR.resolveBoundsKey(CV, BK) || ABInfo.tryGetVariable(D, BK);
 }
 
-// Check if the provided expression is a call to one of the known
-// memory allocators.
+// Check if the provided expression E is a call to one of the known
+// memory allocators. Will only return true if the argument to the call
+// is a simple expression, and then organizes the ArgVals for determining
+// a possible bound
 static bool isAllocatorCall(Expr *E, std::string &FName, ProgramInfo &I,
                             ASTContext *C,
                             std::vector<Expr *> &ArgVals) {
@@ -251,7 +253,7 @@ static void handleAllocatorCall(QualType LHSType, BoundsKey LK, Expr *E,
   // is the RHS expression a call to allocator function?
   if (isAllocatorCall(E, FnName, Info, Context, ArgVals)) {
     BoundsKey RK;
-    bool FoundKey = false;
+    bool FoundSingleKeyInAllocExpr = false;
     // We consider everything as byte_count unless we see a sizeof
     // expression in which case if the type matches we use count bounds.
     bool IsByteBound = true;
@@ -263,26 +265,26 @@ static void handleAllocatorCall(QualType LHSType, BoundsKey LK, Expr *E,
         if (LHSType == STy) {
           IsByteBound = false;
         } else {
-          FoundKey = false;
+          FoundSingleKeyInAllocExpr = false;
           break;
         }
       } else if (tryGetBoundsKeyVar(TmpE, RK, Info, Context)) {
         // Is this variable?
-        if (!FoundKey) {
-          FoundKey = true;
+        if (!FoundSingleKeyInAllocExpr) {
+          FoundSingleKeyInAllocExpr = true;
         } else {
           // Multiple variables found.
-          FoundKey = false;
+          FoundSingleKeyInAllocExpr = false;
           break;
         }
       } else {
         // Unrecognized expression.
-        FoundKey = false;
+        FoundSingleKeyInAllocExpr = false;
         break;
       }
     }
 
-    if (FoundKey) {
+    if (FoundSingleKeyInAllocExpr) {
       // If we found BoundsKey from the allocate expression?
       auto *PrgLVar = AVarBInfo.getProgramVar(LK);
       auto *PrgRVar = AVarBInfo.getProgramVar(RK);
@@ -315,6 +317,8 @@ static void handleAllocatorCall(QualType LHSType, BoundsKey LK, Expr *E,
         // --- which gets translated to:
         // tmp <- bounds(count)
         // p->arr <- tmp
+        // TODO: This trick of introducing bounds for RHS expressions
+        //  could be useful in other places (e.g., &{1,2,3} would have bounds 3)
         BoundsKey TmpKey = AVarBInfo.getRandomBKey();
         AVarBInfo.replaceBounds(TmpKey, Declared, LBounds);
         AVarBInfo.addAssignment(LK, TmpKey);
@@ -348,6 +352,12 @@ bool isExpressionStructField(Expr *ToCheck, FieldDecl **TargetDecl) {
     }
   }
   return false;
+}
+
+void AllocBasedBoundsInference::HandleTranslationUnit(ASTContext &Context) {
+  Info.enterCompilationUnit(Context);
+  HandleArrayVariablesBoundsDetection(&Context, Info, false);
+  Info.exitCompilationUnit();
 }
 
 // This visitor handles the bounds of function local array variables.
@@ -891,7 +901,8 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
 
 }
 
-void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {
+void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I,
+                                         bool UseHeuristics) {
   // Run array bounds
   for (auto FuncName : AllocatorFunctions) {
     AllocatorSizeAssoc[FuncName] = {0};
@@ -908,16 +919,22 @@ void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {
         // Try to guess the bounds information for function locals.
         Stmt *Body = FD->getBody();
         LFV.TraverseStmt(Body);
-        // Set information collected after analyzing the function body.
-        GlobABV.SetParamHeuristicInfo(&LFV);
-        GlobABV.TraverseDecl(D);
+
+        if (UseHeuristics) {
+          // Set information collected after analyzing the function body.
+          GlobABV.SetParamHeuristicInfo(&LFV);
+          GlobABV.TraverseDecl(D);
+        }
         AddMainFuncHeuristic(C, I, FD);
         GlobalTraversed = true;
       }
     }
-    // If this is not already traversed?
-    if (!GlobalTraversed)
-      GlobABV.TraverseDecl(D);
-    GlobABV.SetParamHeuristicInfo(nullptr);
+
+    if (UseHeuristics) {
+      // If this is not already traversed?
+      if (!GlobalTraversed)
+        GlobABV.TraverseDecl(D);
+      GlobABV.SetParamHeuristicInfo(nullptr);
+    }
   }
 }

@@ -89,7 +89,8 @@ def tryFixUp(s):
     return
 
 
-def run3C(checkedc_bin, compile_commands_json, checkedc_include_dir, skip_paths, run_individual=False):
+def run3C(checkedc_bin, compile_commands_json, checkedc_include_dir, skip_paths,
+          skip_running=False, run_individual=False):
     global INDIVIDUAL_COMMANDS_FILE
     global TOTAL_COMMANDS_FILE
     runs = 0
@@ -150,6 +151,7 @@ def run3C(checkedc_bin, compile_commands_json, checkedc_include_dir, skip_paths,
         compilation_base_dir = os.path.dirname(compilation_base_dir)
     prog_name = checkedc_bin
     f = open(INDIVIDUAL_COMMANDS_FILE, 'w')
+    f.write("#!/bin/bash\n")
     for compiler_args, target_directory, src_file in s:
         args = []
         # get the command to change the working directory
@@ -176,6 +178,7 @@ def run3C(checkedc_bin, compile_commands_json, checkedc_include_dir, skip_paths,
         f.write("\n")
     f.close()
     logging.debug("Saved all the individual commands into the file:" + INDIVIDUAL_COMMANDS_FILE)
+    os.system("chmod +x " + INDIVIDUAL_COMMANDS_FILE)
 
     vcodewriter = VSCodeJsonWriter()
     # get path to clangd3c
@@ -193,10 +196,12 @@ def run3C(checkedc_bin, compile_commands_json, checkedc_include_dir, skip_paths,
     vcodewriter.writeJsonFile(VSCODE_SETTINGS_JSON)
 
     f = open(TOTAL_COMMANDS_FILE, 'w')
+    f.write("#!/bin/bash\n")
     f.write(" \\\n".join(args))
     f.close()
+    os.system("chmod +x " + TOTAL_COMMANDS_FILE)
     # run whole command
-    if not run_individual:
+    if not run_individual and not skip_running:
         logging.info("Running:" + str(' '.join(args)))
         subprocess.check_call(' '.join(args), shell=True)
     logging.debug("Saved the total command into the file:" + TOTAL_COMMANDS_FILE)

@@ -58,9 +58,12 @@ def parseTheArg():
     parser.add_argument("--skip", dest='skip_paths', action='append', type=str, default=[],
                         help='Relative path to source files that should be skipped.')
 
+    parser.add_argument("-dr", dest='skip_exec', action='store_true', default=False,
+                        help='Do not run the conversion. Just create the conversion script.')
+
     args = parser.parse_args()
 
-    if not args.prog_name or not os.path.isfile(args.prog_name):
+    if not args.skip_exec and (not args.prog_name or not os.path.isfile(args.prog_name)):
         logging.error("Error: --prog_name argument is not a valid file..")
         logging.error("Provided argument: {} is not a file.".format(args.prog_name))
         sys.exit()
@@ -93,7 +96,8 @@ if __name__ == "__main__":
     logging.info("Finished updating project files.")
 
     logging.info("Trying to convert all the source files to header files")
-    run3C(progArgs.prog_name, compileCmdsJson, progArgs.includeDir, progArgs.skip_paths)
+    run3C(progArgs.prog_name, compileCmdsJson, progArgs.includeDir,
+                       progArgs.skip_paths, progArgs.skip_exec)
     logging.info("Finished converting all the files to checkedc files.")
 
 

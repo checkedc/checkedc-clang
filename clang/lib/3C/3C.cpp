@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/3C/3C.h"
+#include "clang/3C/ArrayBoundsInferenceConsumer.h"
 #include "clang/3C/ConstraintBuilder.h"
 #include "clang/3C/IntermediateToolHook.h"
 #include "clang/3C/RewriteUtils.h"
@@ -30,7 +31,7 @@ using namespace llvm;
 #define BEFORE_SOLVING_SUFFIX "_before_solving_"
 #define AFTER_SUBTYPING_SUFFIX "_after_subtyping_"
 
-static cl::OptionCategory ArrBoundsInferCat("Array bounds inference options");
+cl::OptionCategory ArrBoundsInferCat("Array bounds inference options");
 static cl::opt<bool> DebugArrSolver("debug-arr-solver",
                                    cl::desc("Dump array bounds inference graph"),
                                    cl::init(false),
@@ -287,21 +288,38 @@ bool _3CInterface::SolveConstraints(bool ComputeInterimState) {
   if (DumpIntermediate)
     dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, GlobalProgramInfo);
 
+
+  ClangTool &Tool = getGlobalClangTool();
   if (AllTypes) {
     if (DebugArrSolver)
       GlobalProgramInfo.getABoundsInfo().dumpAVarGraph(
           "arr_bounds_initial.dot");
 
-    // Propagate initial data-flow information for Array pointers.
+    // Propagate initial data-flow information for Array pointers from
+    // bounds declarations.
     GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
+
+    // 3. Infer the bounds based on calls to malloc and calloc
+    std::unique_ptr<ToolAction> ABInfTool =
+      newFrontendActionFactoryA
+        <GenericAction<AllocBasedBoundsInference,
+                       ProgramInfo>>(GlobalProgramInfo);
+    if (ABInfTool)
+      Tool.run(ABInfTool.get());
+    else
+      llvm_unreachable("No Action");
+
+    // Propagate the information from allocator bounds.
+    GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
+
   }
 
-  // 3. Run intermediate tool hook to run visitors that need to be executed
+  // 4. Run intermediate tool hook to run visitors that need to be executed
   // after constraint solving but before rewriting.
-  ClangTool &Tool = getGlobalClangTool();
   std::unique_ptr<ToolAction> IMTool =
       newFrontendActionFactoryA
-          <GenericAction<IntermediateToolHook, ProgramInfo>>(GlobalProgramInfo);
+          <GenericAction<IntermediateToolHook,
+                         ProgramInfo>>(GlobalProgramInfo);
   if (IMTool)
     Tool.run(IMTool.get());
   else
