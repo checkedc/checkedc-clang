@@ -38,17 +38,6 @@ std::string commonPrefixUtil(std::string Str1, std::string Str2) {
   return Str1.substr(0, MRes.first - Str1.begin());
 }
 
-static bool prefixNameMatch(std::string PtrName, std::string FieldName) {
-    std::string Prefix = commonPrefixUtil(PtrName, FieldName);
-
-    if (Prefix.length() > 0) {
-      return ((Prefix.length() * 100.0) / (PtrName.length() * 1.0)) >
-             PREFIXPERCMATCH;
-    }
-
-    return false;
-}
-
 static bool nameSubStringMatch(std::string PtrName, std::string FieldName) {
   // Convert the names to lower case.
   std::transform(PtrName.begin(), PtrName.end(), PtrName.begin(),

@@ -47,7 +47,7 @@ unsigned integer implying that the bounds of `V` should be widened to
 `(V + low, V + high + i)`.
 
 Dataflow equation:
-`In[B] = ∩ Out[B*][B], where B* ∈ pred(B)`.
+`In[B] = ∩ Out[B'][B], where B' ∈ preds(B)`.
 
 ### Kill[B]
 In block `B`, the bounds for an `_Nt_array_ptr V` are said to be killed by a
@@ -60,10 +60,16 @@ whose bounds are killed in `S`.
 ### Gen[Bi][Bj]
 Given `_Nt_array_ptr V` with declared bounds `(V + low, V + high)`, the bounds
 of `V` can be widened by 1 if `V` is dereferenced at its current upper bound.
-This means that if there is an edge `Bi->Bj` whose edge condition is of the
-form `if (*(V + high + i))`, where `i` is an unsigned integer offset, the
+This means that if there is an edge `Bi->Bj` which is the "True" edge for the
+condition `if (*(V + high + i))`, where `i` is an unsigned integer offset, the
 widened bounds `{V:i+1}` can be added to `Gen[Bi][Bj]`, provided we have
 already tested for pointer access of the form `if (*(V + high + (i - 1)))`.
+
+Note: For this dataflow analysis the actual value at the upper bound does not
+matter and we don't explicitly check that value as part of the analysis. The
+actual value is determined at runtime. Accordingly, if the value at the upper
+bound is non-null then we would widen the bounds on the true edge of an `if`
+condition.
 
 For example:
 ```
@@ -82,7 +88,7 @@ Dataflow equation:
 
 ### Initial values of In and Out sets
 
-To compute `In[B]`, we compute the intersection of `Out[B*][B]`, where `B*` are
+To compute `In[B]`, we compute the intersection of `Out[B'][B]`, where `B'` are
 all preds of block `B`. When there is a back edge from block `B'` to `B` (for
 example in the case of loops), the `Out` set for block `B'` will be empty. As a
 result, the intersection operation would always result in an empty set `In[B]`.
@@ -120,7 +126,7 @@ So we initialize the `In` and `Out` sets of all blocks to `Top`, except the
 Thus, we have the following initial values for the `Entry` block:
 ```
 In[Entry] = ∅
-Out[Entry][B*] = ∅, where B* ∈ succ(Entry)
+Out[Entry][B'] = ∅, where B' ∈ succs(Entry)
 ```
 
 ## Implementation Details
