@@ -807,6 +807,8 @@ def fdump_extracted_comparison_facts : Flag<["-"], "fdump-extracted-comparison-f
   HelpText<"Dump extracted comparison facts">;
 def fdump_widened_bounds : Flag<["-"], "fdump-widened-bounds">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump widened bounds">;
+def fdump_preorder_ast : Flag<["-"], "fdump-preorder-ast">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Dump the preorder AST">;
 def fdump_checking_state : Flag<["-"], "fdump-checking-state">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump the state during bounds checking">;
 def fdump_inferred_bounds : Flag<["-"], "fdump-inferred-bounds">, Group<f_Group>, Flags<[CC1Option]>,
