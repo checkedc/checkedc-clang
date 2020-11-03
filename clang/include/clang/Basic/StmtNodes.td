@@ -191,18 +191,18 @@ def ObjCAvailabilityCheckExpr : StmtNode<Expr>;
 def ObjCBridgedCastExpr : StmtNode<ExplicitCastExpr>;
 
 // Checked C Bounds Expressions.
-def BoundsExpr : DStmt<Expr, 1>;
-def NullaryBoundsExpr : DStmt<BoundsExpr>;
-def CountBoundsExpr : DStmt<BoundsExpr>;
-def RangeBoundsExpr : DStmt<BoundsExpr>;
+def BoundsExpr : StmtNode<Expr, 1>;
+def NullaryBoundsExpr : StmtNode<BoundsExpr>;
+def CountBoundsExpr : StmtNode<BoundsExpr>;
+def RangeBoundsExpr : StmtNode<BoundsExpr>;
 
 // Other Checked C Expressions.
-def InteropTypeExpr : DStmt<Expr>;
-def PositionalParameterExpr : DStmt<Expr>;
-def BoundsCastExpr : DStmt<ExplicitCastExpr>;
-def CHKCBindTemporaryExpr : DStmt<Expr>;
-def BoundsValueExpr : DStmt<Expr>;
-def PackExpr : DStmt<Expr>;
+def InteropTypeExpr : StmtNode<Expr>;
+def PositionalParameterExpr : StmtNode<Expr>;
+def BoundsCastExpr : StmtNode<ExplicitCastExpr>;
+def CHKCBindTemporaryExpr : StmtNode<Expr>;
+def BoundsValueExpr : StmtNode<Expr>;
+def PackExpr : StmtNode<Expr>;
 
 // CUDA Expressions.
 def CUDAKernelCallExpr : StmtNode<CallExpr>;
