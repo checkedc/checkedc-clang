@@ -3935,13 +3935,13 @@ namespace {
             }
           }
           Expr *UpperBound =
-            new (Context) BinaryOperator(LowerBound, Count,
-                                          BinaryOperatorKind::BO_Add,
-                                          ResultTy,
-                                          ExprValueKind::VK_RValue,
-                                          ExprObjectKind::OK_Ordinary,
-                                          SourceLocation(),
-                                          FPOptions());
+            BinaryOperator::Create(Context, LowerBound, Count,
+                                   BinaryOperatorKind::BO_Add,
+                                   ResultTy,
+                                   ExprValueKind::VK_RValue,
+                                   ExprObjectKind::OK_Ordinary,
+                                   SourceLocation(),
+                                   FPOptionsOverride());
           RangeBoundsExpr *R = new (Context) RangeBoundsExpr(LowerBound, UpperBound,
                                                SourceLocation(),
                                                SourceLocation());
@@ -5219,10 +5219,11 @@ namespace {
 
     Expr *CreateAddressOfOperator(Expr *E) {
       QualType Ty = Context.getPointerType(E->getType(), CheckedPointerKind::Array);
-      return new (Context) UnaryOperator(E, UnaryOperatorKind::UO_AddrOf, Ty,
-                                         ExprValueKind::VK_RValue,
-                                         ExprObjectKind::OK_Ordinary,
-                                         SourceLocation(), false);
+      return UnaryOperator::Create(Context, E, UnaryOperatorKind::UO_AddrOf, Ty,
+                                   ExprValueKind::VK_RValue,
+                                   ExprObjectKind::OK_Ordinary,
+                                   SourceLocation(), false,
+                                   FPOptionsOverride());
     }
 
     // Determine if the mathemtical value of I (an unsigned integer) fits within
