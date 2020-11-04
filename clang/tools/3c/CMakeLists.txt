@@ -12,7 +12,7 @@ add_clang_executable(3c
 
 target_link_libraries(3c
   PRIVATE
-  3C
+  clang3C
   clangAST
   clangBasic
   clangDriver

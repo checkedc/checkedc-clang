@@ -41,7 +41,7 @@ target_link_libraries(clangd3c
   clangBasic
   clangTidy
   3cClangDaemon
-  3C
+  clang3C
   clangFormat
   clangFrontend
   clangSema
