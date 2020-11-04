@@ -25,7 +25,7 @@ static bool GetPtrIDFromDiagMessage(const Diagnostic &DiagMsg,
   return false;
 }
 
-void AsCCCommands(const Diagnostic &D, std::vector<Command> &OutCommands) {
+void As3CCommands(const Diagnostic &D, std::vector<Command> &OutCommands) {
   unsigned long PtrId;
   if (GetPtrIDFromDiagMessage(D, PtrId)) {
     Command AllPtrsCmd;
@@ -52,7 +52,7 @@ bool Is3CCommand(const ExecuteCommandParams &Params) {
            (Params.command.rfind(Command::_3C_APPLY_FOR_ALL, 0) == 0);
 }
 
-bool ExecuteCCCommand(const ExecuteCommandParams &Params,
+bool Execute3CCommand(const ExecuteCommandParams &Params,
                     std::string &ReplyMessage,
                     _3CInterface &CcInterface) {
   ReplyMessage = "Checked C Pointer Modified.";

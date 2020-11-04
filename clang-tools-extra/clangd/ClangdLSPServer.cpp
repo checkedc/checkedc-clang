@@ -814,12 +814,12 @@ void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
                                    Callback<llvm::json::Value> Reply) {
 #ifdef INTERACTIVE3C
   URIForFile File = Params.textDocument.uri;
-  std::vector<Command> CCommands;
+  std::vector<Command> Commands;
   // Convert the diagnostics into 3C commands.
   for (const Diagnostic &D : Params.context.diagnostics) {
-    AsCCCommands(D, CCommands);
+    As3CCommands(D, Commands);
   }
-  Reply(llvm::json::Array(CCommands));
+  Reply(llvm::json::Array(Commands));
 #else
 
   URIForFile File = Params.textDocument.uri;

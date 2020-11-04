@@ -219,7 +219,7 @@ void ClangdServer::execute3CCommand(ExecuteCommandParams Params,
       log("3C: File of the pointer {0}\n", PtrFileName);
       clear3CDiagsForAllFiles(WildPtrsInfo, ConvCB);
       ConvCB->send3CMessage("3C modifying constraints.");
-      ExecuteCCCommand(Params, RplMsg, _3CInter);
+      Execute3CCommand(Params, RplMsg, _3CInter);
       this->_3CDiagInfo.ClearAllDiags();
       ConvCB->send3CMessage("3C Updating new issues "
                             "after editing constraints.");
