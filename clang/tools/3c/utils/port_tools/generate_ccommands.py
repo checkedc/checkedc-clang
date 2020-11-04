@@ -182,6 +182,12 @@ def run3C(checkedc_bin, compile_commands_json, checkedc_include_dir, skip_paths,
 
     vcodewriter = VSCodeJsonWriter()
     # get path to clangd3c
+    #
+    # The clangd3c build target has been broken for a while and is now disabled
+    # (see clang-tools-extra/clangd/tool/CMakeLists.txt).  Since this code has
+    # been here for a while and no one has been bothered by the fact that it
+    # didn't work, we won't bother removing it now; hopefully clangd3c will
+    # eventually be back.
     vcodewriter.setClangdPath(os.path.join(os.path.dirname(prog_name), "clangd3c"))
     args = []
     args.append(prog_name)
