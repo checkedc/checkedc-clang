@@ -447,7 +447,18 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
   if (Lex.CompareExpr(UpperExpr, DerefExpr) == Result::Equal)
     return true;
 
-  // At this point, the exprs are NOT equal. We can have the following cases:
+  // We cannot have an offset with an operator that is not addition. So if the
+  // two leaf nodes are not equal and the operator is not addition we return
+  // false.
+  // This means the two exprs are like:
+  // (p * i) and (p * j), or
+  // (p * 1) and (p * 2), or
+  // (p * i) and (p * 1)
+  if (dyn_cast<BinaryNode>(L1->Parent)->Opc != BO_Add)
+    return false;
+
+  // At this point, the exprs are NOT equal and the operator is addition. We
+  // can have the following cases:
 
   // Case 1. Both exprs are integer exprs: In this case we could have a valid
   // offset because the two exprs are like:

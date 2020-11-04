@@ -123,12 +123,14 @@ namespace clang {
     void NormalizeExprsWithoutConst(Node *N);
 
     // Get the deref offset from the DerefExpr. The offset represents the
-    // possible amount by which the bounds of an ntptr should be widened.
+    // possible amount by which the bounds of an ntptr could be widened.
     // @param[in] UpperExpr is the upper bounds expr for the ntptr.
     // @param[in] DerefExpr is the dereferenced expr for the ntptr.
     // @param[out] Offset is the offset from the base by which the pointer is
     // dereferenced.
-    // return Returns a boolean indicating whether a valid offset exists.
+    // return Returns a boolean indicating whether a valid offset exists. True
+    // means a valid offset was found and is present in the "Offset" parameter.
+    // False means a valid offset was not found.
     bool GetDerefOffset(Node *UpperExpr, Node *DerefExpr,
                         llvm::APSInt &Offset);
 

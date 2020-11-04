@@ -47,12 +47,27 @@ void f3(int i, int j) {
   _Nt_array_ptr<char> p : bounds(p, p + (i * j * 2 + 2 + 1)) = "a";
 
   if (*(p + (i * j * 2 + 3)))
+    if (*(p + (i * j * 2 + 1 + 1 + 1) + 1))
   {}
 
 // CHECK: In function: f3
-// CHECK:  [B2]
+// CHECK:  [B3]
 // CHECK:    1: _Nt_array_ptr<char> p : bounds(p, p + (i * j * 2 + 2 + 1)) = "a";
 // CHECK:    2: *(p + (i * j * 2 + 3))
-// CHECK:  [B1]
+// CHECK:  [B2]
+// CHECK:    1: *(p + (i * j * 2 + 3) + 1)
 // CHECK: upper_bound(p) = 1
+// CHECK:  [B1]
+// CHECK: upper_bound(p) = 2
+}
+
+void f4(int i) {
+  _Nt_array_ptr<char> p : bounds(p, p + (i * 1)) = "a";
+
+  if (*(p + (i * 2)))
+  {}
+
+// CHECK: In function: f4
+// CHECK:  [B1]
+// CHECK-NOT: upper_bound(p)
 }
