@@ -12,7 +12,7 @@ We are open to outside contributions to 3C, though we do not yet have a sense of
 
 If your contribution does not touch any 3C-specific code (or is a codebase-wide cleanup of low risk to 3C) and you can reasonably submit it to [Microsoft's Checked C repository](https://github.com/microsoft/checkedc-clang) instead, we generally prefer that you do so.  If such a contribution has particular benefit to 3C, feel free to let us know, and we may assist you in getting your contribution accepted upstream and/or ensure it is merged quickly to CCI's repository.
 
-If the previous paragraph does not apply, just submit a pull request here.  You must grant the same license on your contribution as the existing codebase.  We do not have a formal contributor license agreement (CLA) process at this time, but we may set one up and require you to complete it before we accept your contribution.  Also be aware that we need to keep 5C working, so you may have to wait for us to address 5C-specific problems arising from your 3C pull request and/or we may ask you to make specific changes to your pull request to accommodate 5C’s code.
+If the previous paragraph does not apply, just submit a pull request here.  You must grant the same license on your contribution as the existing codebase.  We do not have a formal contributor license agreement (CLA) process at this time, but we may set one up and require you to complete it before we accept your contribution.  Also be aware that we need to keep 5C working, so you may have to wait for us to address 5C-specific problems arising from your 3C pull request and/or we may ask you to make specific changes to your pull request to accommodate 5C's code.
 
 ## Testing
 

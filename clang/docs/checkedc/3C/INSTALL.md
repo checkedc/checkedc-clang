@@ -25,7 +25,7 @@ where TARGET stands for the target(s) you want to build.  For the `3c` command-l
 Because all of LLVM and clang are built as dependencies, this may consume up to ~50 GB of disk space, take several hours (depending on the speed of your computer), and require ~10 GB of RAM.  Incremental builds will usually be faster.  Here are some things you can do that may reduce the build time and/or peak memory use:
 
 - The above instructions already assume the use of the [Ninja](https://ninja-build.org/) build tool; you may have to install it.  You can alternatively use `make` (remove `-G Ninja` from the `cmake` command and replace `ninja` with `make`), but Ninja is much faster in our experience.
-- Pass `-DLLVM_TARGETS_TO_BUILD=X86` (or whatever your machine’s architecture is, e.g., `ARM`) to `cmake` to build only the parts of `clang` needed to compile programs for your machine.
+- Pass `-DLLVM_TARGETS_TO_BUILD=X86` (or whatever your machine's architecture is, e.g., `ARM`) to `cmake` to build only the parts of `clang` needed to compile programs for your machine.
 - Pass `-DLLVM_USE_LINKER=lld`.  This requires a sufficiently recent version of `lld` to be installed on your system.
 - Pass `-DLLVM_USE_SPLIT_DWARF=ON`.  We have tested the build with this option, but it may affect some debugging tools.
 - Pass `-DLLVM_OPTIMIZED_TABLEGEN=ON`.
@@ -40,7 +40,7 @@ On some OS X versions, you have to add `-DDEFAULT_SYSROOT=/Library/Developer/Com
 
 ## CR/LF issues
 
-There is a [known problem](https://github.com/correctcomputation/checkedc-clang/issues/317) where git shows source files in a clean checkout as having modified line endings, even if you only ever use Linux.  The problem seems to occur less often with newer versions of git.  We believe the root cause is that [the root `.gitattributes` file](../../../.gitattributes) inaccurately states that all files have LF endings, but some have CRLF endings in the repository; we will try to fix that when we can.  In the meantime, running the following commands in a working tree that is experiencing the problem seems to make it go away, at least temporarily:
+There is a [known problem](https://github.com/correctcomputation/checkedc-clang/issues/317) where git shows source files in a clean checkout as having modified line endings, even if you only ever use Linux.  The problem seems to occur less often with newer versions of git.  We believe the root cause is that [the root `.gitattributes` file](../../../../.gitattributes) inaccurately states that all files have LF endings, but some have CRLF endings in the repository; we will try to fix that when we can.  In the meantime, running the following commands in a working tree that is experiencing the problem seems to make it go away, at least temporarily:
 
 ```
 git rm .gitattributes
