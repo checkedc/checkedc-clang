@@ -54,6 +54,10 @@ manual is
 For more information on Checked C and pointers to example code, see our
 [Wiki](https://github.com/Microsoft/checkedc/wiki).
 
+## 3C: Semi-automated conversion of C code to Checked C
+
+This repository includes a tool called 3C that partially automates the conversion of C code to Checked C. Here is [general information about the 3C software](clang/docs/checkedc/3C/README.md), including development status and how to contribute. Here are the [usage instructions for the `3c` command-line tool](clang/tools/3c/README.md).
+
 ## More information
 
 For more information on the Checked C clang compiler, see the [Checked C clang
