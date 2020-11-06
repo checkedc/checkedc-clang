@@ -8,13 +8,16 @@
 /*prototypes that type-check with each other are fine*/
 int * foo(_Ptr<int>, char); 
 
-/*a prototype definitin combo that type-checks is also fine*/
+/*a prototype definition combo that type-checks is also fine*/
 int *bar(int *x, float *y) { 
     return x;
 }
 
 /*a C-style prototype combined with an enumerated prototype is also fine*/ 
-int *baz(int);
+int *baz(int); 
+
+/*another consideration is that if two things are different types but have the same general pointer structure, we're OK with it!*/
+int *yoo(int *x, char y, float **z);
 
 void trivial_conversion(int *x) { 
 //CHECK: void trivial_conversion(_Ptr<int> x) {

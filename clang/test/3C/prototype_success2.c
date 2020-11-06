@@ -11,6 +11,8 @@ int *bar(int *, float *);
 
 int *baz(); 
 
+_Ptr<int> yoo(char *x, float y, int **z);
+
 void trivial_conversion2(int *x) { 
 //CHECK: void trivial_conversion2(_Ptr<int> x) {
 }

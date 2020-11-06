@@ -1592,16 +1592,12 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
                                                  ProgramInfo &Info,
                                                  std::string &ReasonFailed) {
   PVConstraint *From = dyn_cast<PVConstraint>(FromCV);
-  if (From->BaseType != this->BaseType && !From->hasItype() && !this->hasItype()) {
-    ReasonFailed = "conflicting types " + ReasonFailed;
-    return;
-  }
   std::vector<Atom *> NewVatoms;
   CAtoms CFrom = From->getCvars();
   CAtoms::iterator I = vars.begin();
   CAtoms::iterator J = CFrom.begin();
   if (CFrom.size() != vars.size()) {
-    ReasonFailed = "conflicting declaration " + ReasonFailed;
+    ReasonFailed = "conflicting types " + ReasonFailed;
     return;
   }
   while (I != vars.end()) {
@@ -1696,7 +1692,6 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
   assert(From->getDeferredParams().size() == 0);
   // Transplant returns.
   // Our first sanity check is to ensure the function's returns type-check
-  if (this->hasItype() || From->hasItype()) return;
   std::string Base = ReasonFailed = "for return value";
   ReturnVar->mergeDeclaration(From->ReturnVar, I, ReasonFailed);
   if (ReasonFailed != Base) return;
