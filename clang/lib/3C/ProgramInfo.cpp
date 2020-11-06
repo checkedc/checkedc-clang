@@ -390,7 +390,9 @@ void ProgramInfo::exitCompilationUnit() {
 bool
 ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
                                            const std::string &FuncName,
-                                           FVConstraint *newC) {
+                                           FVConstraint *newC,
+                                           FunctionDecl *FD,
+                                           ASTContext *C) {
   bool RetVal = false;
   if (Map.find(FuncName) == Map.end()) {
     Map[FuncName] = newC;
@@ -403,12 +405,38 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
         newC->brainTransplant(oldC, *this);
         Map[FuncName] = newC;
         RetVal = true;
-      } else
+      } else {
         // if the current FV constraint is not a definition?
         // then merge.
-        oldC->mergeDeclaration(newC, *this);
-    } else if (newC->hasBody())
-      llvm::errs() << "Warning: duplicate definition " << FuncName << "\n";
+        std::string BaseFailed = "";
+        std::string ReasonFailed = "";
+        oldC->mergeDeclaration(newC, *this, ReasonFailed);
+        bool MergingFailed = BaseFailed != ReasonFailed;
+        if (MergingFailed) {
+          clang::DiagnosticsEngine &DE = C->getDiagnostics();
+          unsigned MergeFailID = DE.getCustomDiagID(DiagnosticsEngine::Fatal,
+                                                    "merging failed for %q0 due to %1");
+          const auto Pointer = reinterpret_cast<intptr_t>(FD);
+          const auto Kind = clang::DiagnosticsEngine::ArgumentKind::ak_nameddecl;
+          auto DiagBuilder = DE.Report(FD->getLocation(), MergeFailID);
+          DiagBuilder.AddTaggedVal(Pointer, Kind);
+          DiagBuilder.AddString(ReasonFailed);
+        }
+        if(MergingFailed) {
+          // Kill the process and stop conversion
+          // Without this code here, 3C simply ignores this pair of functions
+          // and converts the rest of the files as it will (in semi-compliance
+          // with Mike's (2) listed on the original issue (#283)
+          exit(1);
+        }
+      }
+    } else if (newC->hasBody()) {
+      clang::DiagnosticsEngine &DE = C->getDiagnostics();
+      unsigned DuplicateDefinitionsID = DE.getCustomDiagID(DiagnosticsEngine::Fatal,
+                                                "duplicate definition for function %0");
+      DE.Report(FD->getLocation(), DuplicateDefinitionsID).AddString(FuncName);
+      exit(1);
+    }
     // else oldc->hasBody() so we can ignore the newC prototype
   }
   return RetVal;
@@ -417,13 +445,15 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
 bool ProgramInfo::insertIntoStaticFunctionMap (StaticFunctionMapType &Map,
                                                const std::string &FuncName,
                                                const std::string &FileName,
-                                               FVConstraint *ToIns) {
+                                               FVConstraint *ToIns,
+                                               FunctionDecl *FD,
+                                               ASTContext *C) {
   bool RetVal = false;
   if (Map.find(FileName) == Map.end()) {
     Map[FileName][FuncName] = ToIns;
     RetVal = true;
   } else {
-    RetVal = insertIntoExternalFunctionMap(Map[FileName],FuncName,ToIns);
+    RetVal = insertIntoExternalFunctionMap(Map[FileName],FuncName,ToIns, FD, C);
   }
   return RetVal;
 }
@@ -435,7 +465,7 @@ bool ProgramInfo::insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
   if (FD->isGlobal()) {
     // external method.
     ret = insertIntoExternalFunctionMap(ExternalFunctionFVCons,
-                                        FuncName, FVCon);
+                                        FuncName, FVCon, FD, C);
     bool isDef = FVCon->hasBody();
     if (isDef) {
       ExternFunctions[FuncName] = true;
@@ -448,7 +478,7 @@ bool ProgramInfo::insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
     auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
     std::string FuncFileName = Psl.getFileName();
     ret = insertIntoStaticFunctionMap(StaticFunctionFVCons, FuncName,
-                                      FuncFileName, FVCon);
+                                      FuncFileName, FVCon, FD, C);
   }
   return ret;
 }

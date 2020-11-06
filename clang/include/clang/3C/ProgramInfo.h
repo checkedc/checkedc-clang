@@ -159,14 +159,18 @@ private:
   // Returns true if successful else false.
   bool insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
                                      const std::string &FuncName,
-                                     FVConstraint *ToIns);
+                                     FVConstraint *ToIns,
+                                     FunctionDecl *FD,
+                                     ASTContext *C);
 
   // Inserts the given FVConstraint* set into the provided static map.
   // Returns true if successful else false.
   bool insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
                                    const std::string &FuncName,
                                    const std::string &FileName,
-                                   FVConstraint *ToIns);
+                                   FVConstraint *ToIns,
+                                   FunctionDecl *FD,
+                                   ASTContext *C);
 
 
   // Special-case handling for decl introductions. For the moment this covers:

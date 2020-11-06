@@ -1589,12 +1589,21 @@ void PointerVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
 }
 
 void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
-                                                 ProgramInfo &Info) {
+                                                 ProgramInfo &Info,
+                                                 std::string &ReasonFailed) {
   PVConstraint *From = dyn_cast<PVConstraint>(FromCV);
+  if (From->BaseType != this->BaseType && !From->hasItype() && !this->hasItype()) {
+    ReasonFailed = "conflicting types " + ReasonFailed;
+    return;
+  }
   std::vector<Atom *> NewVatoms;
   CAtoms CFrom = From->getCvars();
   CAtoms::iterator I = vars.begin();
   CAtoms::iterator J = CFrom.begin();
+  if (CFrom.size() != vars.size()) {
+    ReasonFailed = "conflicting declaration " + ReasonFailed;
+    return;
+  }
   while (I != vars.end()) {
     Atom *IAt = *I;
     Atom *JAt = *J;
@@ -1626,7 +1635,7 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
     ItypeStr = From->ItypeStr;
   if (FV) {
     assert(From->FV);
-    FV->mergeDeclaration(From->FV, Info);
+    FV->mergeDeclaration(From->FV, Info, ReasonFailed);
   }
 }
 
@@ -1678,14 +1687,20 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
 }
 
 void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
-                                                  ProgramInfo &I) {
+                                                  ProgramInfo &I,
+                                                  std::string &ReasonFailed) {
   // `this`: is the declaration the tool saw first
   // `FromCV`: is the declaration seen second, it cannot have defered constraints
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert(From != nullptr);
   assert(From->getDeferredParams().size() == 0);
   // Transplant returns.
-  ReturnVar->mergeDeclaration(From->ReturnVar, I);
+  // Our first sanity check is to ensure the function's returns type-check
+  if (this->hasItype() || From->hasItype()) return;
+  std::string Base = ReasonFailed = "for return value";
+  ReturnVar->mergeDeclaration(From->ReturnVar, I, ReasonFailed);
+  if (ReasonFailed != Base) return;
+  ReasonFailed = "";
 
   if (From->numParams() == 0) {
     // From is an untyped declaration, and adds no information
@@ -1695,11 +1710,17 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
     From->brainTransplant(this, I);
   } else {
     // Standard merge
-    assert(this->numParams() == From->numParams());
+    if (this->numParams() != From->numParams()) {
+      ReasonFailed = "differing number of arguments";
+      return;
+    }
     for (unsigned i = 0; i < From->numParams(); i++) {
       auto *FromVar = From->getParamVar(i);
       auto *Var = getParamVar(i);
-      Var->mergeDeclaration(FromVar, I);
+      Base = ReasonFailed = "for parameter " + std::to_string(i);
+      Var->mergeDeclaration(FromVar, I, ReasonFailed);
+      if (Base != ReasonFailed) return;
+      ReasonFailed = "";
     }
   }
 }
