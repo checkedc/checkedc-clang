@@ -19,6 +19,7 @@
 #include "clang/CConv/CCGlobalOptions.h"
 
 using namespace clang;
+#define IMPLIES(a,b) ((a) ? (b) : true)
 
 static llvm::cl::OptionCategory OptimizationCategory("Optimization category");
 static llvm::cl::opt<bool> DisableRDs("disable-rds",
@@ -123,6 +124,48 @@ PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
         PointerVariableConstraint(D->getType(), D, D->getName(),
                                   I, C) { }
 
+
+class TypedefLevelFinder : public RecursiveASTVisitor<TypedefLevelFinder> {
+  public:
+
+    static std::tuple<bool, int, std::string> find(const QualType &QT) {
+      TypedefLevelFinder TLF;
+      QualType tosearch;
+      if (auto TDT = dyn_cast<TypedefType>(QT))
+        tosearch = TDT->desugar();
+      else
+        tosearch = QT;
+      TLF.TraverseType(tosearch);
+      assert(IMPLIES(TLF.hastypedef, TLF.TDname != ""));
+      return std::make_tuple(TLF.hastypedef, TLF.typedeflevel, TLF.TDname);
+    }
+
+    bool VisitTypedefType(TypedefType *TT) {
+      hastypedef = true;
+      auto TDT = TT->getDecl();
+      TDname = TDT->getNameAsString();
+      return false;
+    }
+
+    bool VisitPointerType(PointerType *PT) {
+      typedeflevel++;
+      return true;
+    }
+
+    bool VisitArrayType(ArrayType *AT) {
+      typedeflevel++;
+      return true;
+    }
+
+
+  private:
+    int typedeflevel = 0;
+    std::string TDname = "";
+    bool hastypedef = false;
+
+};
+
+
 PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
                                                      DeclaratorDecl *D,
                                                      std::string N,
@@ -138,6 +181,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT,
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
   auto &CS = I.getConstraints();
+  typedeflevelinfo = TypedefLevelFinder::find(QT);
   // If the type is a decayed type, then maybe this is the result of
   // decaying an array to a pointer. If the original type is some
   // kind of array type, we want to use that instead.
@@ -591,7 +635,7 @@ PointerVariableConstraint::mkString(const EnvironmentMap &E,
                                     bool EmitPointee,
                                     bool UnmaskTypedef) const {
 
-  if (IsTypedef && !UnmaskTypedef) { // TODO this is not correct yet
+  if (IsTypedef && !UnmaskTypedef) {
     return typedefString + (EmitName && getName() != RETVAR ? (" " + getName()) : "");
   }
 
@@ -619,11 +663,12 @@ PointerVariableConstraint::mkString(const EnvironmentMap &E,
   uint32_t TypeIdx = 0;
 
   auto It = vars.begin();
+  auto i = 0;
   // Skip over first pointer level if only emitting pointee string.
   // This is needed when inserting type arguments.
   if (EmitPointee)
     ++It;
-  for (; It != vars.end(); ++It) {
+  for (; It != vars.end() && IMPLIES(std::get<0>(typedeflevelinfo), i < std::get<1>(typedeflevelinfo)); ++It, i++) {
     const auto &V = *It;
     ConstAtom *C = nullptr;
     if (ConstAtom *CA = dyn_cast<ConstAtom>(V)) {
@@ -749,6 +794,9 @@ PointerVariableConstraint::mkString(const EnvironmentMap &E,
     // type.
     if (FV) {
       Ss << FV->mkString(E);
+    } else if (std::get<0>(typedeflevelinfo)) {
+      auto name = std::get<2>(typedeflevelinfo);
+      Ss << name;
     } else {
       Ss << BaseType;
     }

@@ -109,7 +109,7 @@ baz (*(*lua_test3));
 
 typedef int *StkId;
 void lua_test4(StkId *x) {}
-// CHECK: void lua_test4(_Ptr<_Ptr<int>> x) _Checked {}
+//CHECK: void lua_test4(_Ptr<StkId> x) _Checked {}
 
 // Things declared inside macros should be WILD unless we start doing something extremely clever
 

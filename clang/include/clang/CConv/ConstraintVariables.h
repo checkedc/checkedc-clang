@@ -290,6 +290,8 @@ private:
   bool IsTypedef = false;
   TypedefNameDecl* TDT;
   std::string typedefString;
+  // Does the type internally contain a typedef, and if so: at what level and what is it's name?
+  std::tuple<bool, int, std::string> typedeflevelinfo;
 
 public:
   // Constructor for when we know a CVars and a type string.
