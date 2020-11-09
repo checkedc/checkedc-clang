@@ -328,7 +328,6 @@ void f15(int i) {
 // CHECK: upper_bound(q) = 1
 // CHECK:  [B5]
 // CHECK: upper_bound(q) = 1
-// CHECK-NOT: upper_bound(q)
 
   _Nt_array_ptr<char> r : bounds(r, r + +1) = "a";
   if (*(r + +1))
