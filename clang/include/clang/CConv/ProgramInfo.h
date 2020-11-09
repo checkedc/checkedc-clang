@@ -119,8 +119,8 @@ public:
 
   std::map<PersistentSourceLoc, std::pair<CVarSet, bool>> typedefVars;
 
-  void checkTypedef(const clang::Type*, clang::ASTContext&,
-                    clang::DeclaratorDecl*, PVConstraint*);
+  void unifyIfTypedef(const clang::Type*, clang::ASTContext&,
+                      clang::DeclaratorDecl*, PVConstraint*);
 
 private:
   // List of constraint variables for declarations, indexed by their location in

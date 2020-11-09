@@ -512,7 +512,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     // RETURN HERE
     auto *Ret_PV = dyn_cast<PVConstraint>(F->getReturnVar());
     auto Ret_Ty = FD->getReturnType();
-    checkTypedef(Ret_Ty.getTypePtr(), *AstContext, FD, Ret_PV);
+    unifyIfTypedef(Ret_Ty.getTypePtr(), *AstContext, FD, Ret_PV);
 
 
     // Handling of PSL collision for functions is different since we need to
@@ -541,7 +541,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       ParmVarDecl *PVD = FD->getParamDecl(i);
       const Type *Ty = PVD->getType().getTypePtr();
       ConstraintVariable *PV = F->getParamVar(i);
-      checkTypedef(Ty, *AstContext, PVD, dyn_cast<PVConstraint>(PV));
+      unifyIfTypedef(Ty, *AstContext, PVD, dyn_cast<PVConstraint>(PV));
       PV->setValidDecl();
       PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *AstContext);
       // Constraint variable is stored on the parent function, so we need to
@@ -562,7 +562,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       P->setValidDecl();
       NewCV = P;
       std::string VarName = VD->getName();
-      checkTypedef(Ty, *AstContext, VD, P);
+      unifyIfTypedef(Ty, *AstContext, VD, P);
       if (VD->hasGlobalStorage()) {
           // if we see a definition for this global variable, indicate so in ExternGVars
           if(VD->hasDefinition() || VD->hasDefinition(*AstContext)) {
@@ -581,7 +581,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     const Type *Ty = FlD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     if (Ty->isPointerType() || Ty->isArrayType()) {
       PVConstraint* P = new PVConstraint(D, *this, *AstContext);
-      checkTypedef(Ty, *AstContext, FlD, P);
+      unifyIfTypedef(Ty, *AstContext, FlD, P);
       NewCV = P;
       NewCV->setValidDecl();
       specialCaseVarIntros(D, AstContext);
@@ -594,7 +594,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
   Variables[PLoc] = NewCV;
 }
 
-void ProgramInfo::checkTypedef(const Type* Ty, ASTContext& Context, DeclaratorDecl* Decl, PVConstraint* P) {
+void ProgramInfo::unifyIfTypedef(const Type* Ty, ASTContext& Context, DeclaratorDecl* Decl, PVConstraint* P) {
   if (const auto TDT = dyn_cast<TypedefType>(Ty)) {
     auto Decl = TDT->getDecl();
     auto PSL = PersistentSourceLoc::mkPSL(Decl, Context);
