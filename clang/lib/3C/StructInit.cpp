@@ -49,7 +49,10 @@ void StructVariableInitializer::insertVarDecl(VarDecl *VD, DeclStmt *S) {
     if (variableNeedsInitializer(VD)) {
       // Create replacement declaration text with an initializer.
       const clang::Type *Ty = VD->getType().getTypePtr();
-      std::string ToReplace = tyToStr(Ty) + " " + VD->getName().str() + " = {}";
+      std::string ToReplace =
+          (std::string)(VD->isExternC()?"extern ":"") +
+          (VD->isStaticLocal()?"static ":"") +
+          tyToStr(Ty) + " " + VD->getName().str() + " = {}";
       RewriteThese.insert(new VarDeclReplacement(VD, S, ToReplace));
     }
   }
