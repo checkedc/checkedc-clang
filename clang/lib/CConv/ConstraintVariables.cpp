@@ -636,7 +636,7 @@ PointerVariableConstraint::mkString(const EnvironmentMap &E,
                                     bool UnmaskTypedef) const {
 
   if (IsTypedef && !UnmaskTypedef) {
-    return typedefString + (EmitName && getName() != RETVAR ? (" " + getName()) : "");
+    return typedefString + (EmitName && getName() != RETVAR ? (" " + getName()) : " ");
   }
 
   std::ostringstream Ss;
