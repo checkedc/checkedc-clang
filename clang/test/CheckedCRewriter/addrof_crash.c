@@ -1,6 +1,5 @@
 // RUN: cconv-standalone -alltypes %s -- | FileCheck %s
 // RUN: cconv-standalone -alltypes %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
-// expected-no-diagnostics
 
 // No conversions expected for these two, they just shouldn't crash
 
@@ -35,7 +34,7 @@ void test3(){
   int *d[1] = {&b};
   // CHECK: _Ptr<int> d _Checked[1] =  {&b};
 
-  int **e = &((0?c:d)[0]);
+  int **e = &((0?c:d)[0]); // expected-error {{expression has unknown bounds, cast to ptr<T> expects source to have bounds}}
   // CHECK: _Ptr<_Ptr<int>> e =  &((0?c:d)[0]);
 }
 
