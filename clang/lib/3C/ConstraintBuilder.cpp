@@ -9,12 +9,12 @@
 // visitors create constraints based on the AST of the program.
 //===----------------------------------------------------------------------===//
 
-#include <clang/ASTMatchers/ASTMatchers.h>
 #include "clang/3C/ConstraintBuilder.h"
-#include "clang/3C/ConstraintResolver.h"
-#include "clang/3C/ArrayBoundsInferenceConsumer.h"
 #include "clang/3C/3CGlobalOptions.h"
+#include "clang/3C/ArrayBoundsInferenceConsumer.h"
+#include "clang/3C/ConstraintResolver.h"
 #include "clang/3C/TypeVariableAnalysis.h"
+#include <clang/ASTMatchers/ASTMatchers.h>
 
 using namespace llvm;
 using namespace clang;
@@ -41,8 +41,7 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
         auto VarTy = VD->getType();
         unsigned int BeginLoc = VD->getBeginLoc().getRawEncoding();
         unsigned int EndLoc = VD->getEndLoc().getRawEncoding();
-        IsInLineStruct = !isPtrOrArrayType(VarTy) &&
-                         !VD->hasInit() &&
+        IsInLineStruct = !isPtrOrArrayType(VarTy) && !VD->hasInit() &&
                          lastRecordLocation >= BeginLoc &&
                          lastRecordLocation <= EndLoc;
       }
@@ -74,9 +73,7 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
 // and imposing constraints on variables it uses
 class FunctionVisitor : public RecursiveASTVisitor<FunctionVisitor> {
 public:
-  explicit FunctionVisitor(ASTContext *C,
-                           ProgramInfo &I,
-                           FunctionDecl *FD,
+  explicit FunctionVisitor(ASTContext *C, ProgramInfo &I, FunctionDecl *FD,
                            TypeVarInfo &TVI)
       : Context(C), Info(I), Function(FD), CB(Info, Context), TVInfo(TVI) {}
 
@@ -84,15 +81,14 @@ public:
   bool VisitDeclStmt(DeclStmt *S) {
     // Introduce variables as needed.
     for (const auto &D : S->decls()) {
-      if(RecordDecl *RD = dyn_cast<RecordDecl>(D)) {
+      if (RecordDecl *RD = dyn_cast<RecordDecl>(D)) {
         processRecordDecl(RD, Info, Context, CB, true);
       }
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         if (VD->isLocalVarDecl()) {
           FullSourceLoc FL = Context->getFullLoc(VD->getBeginLoc());
           SourceRange SR = VD->getSourceRange();
-          if (SR.isValid() && FL.isValid() &&
-              isPtrOrArrayType(VD->getType())) {
+          if (SR.isValid() && FL.isValid() && isPtrOrArrayType(VD->getType())) {
             if (lastRecordLocation == VD->getBeginLoc().getRawEncoding()) {
               CVarOption CV = Info.getVariable(VD, Context);
               CB.constraintCVarToWild(CV, "Inline struct encountered.");
@@ -121,8 +117,8 @@ public:
     QualType DstT = C->getType();
     if (!isCastSafe(DstT, SrcT) && !Info.hasPersistentConstraints(C, Context)) {
       auto CVs = CB.getExprConstraintVars(C->getSubExpr());
-      std::string Rsn = "Cast from " + SrcT.getAsString() +  " to " +
-                        DstT.getAsString();
+      std::string Rsn =
+          "Cast from " + SrcT.getAsString() + " to " + DstT.getAsString();
       CB.constraintAllCVarsToWild(CVs, Rsn, C);
     }
     return true;
@@ -130,7 +126,7 @@ public:
 
   // x += e
   bool VisitCompoundAssignOperator(CompoundAssignOperator *O) {
-    switch(O->getOpcode()) {
+    switch (O->getOpcode()) {
     case BO_AddAssign:
     case BO_SubAssign:
       arithBinop(O, true);
@@ -208,29 +204,26 @@ public:
         // and for each arg to the function ...
         if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
           unsigned i = 0;
-          bool callUntyped =
-            TFD ?
-              TFD->getType()->isFunctionNoProtoType() &&
-              E->getNumArgs() != 0 && TargetFV->numParams() == 0
-            :
-              false;
+          bool callUntyped = TFD ? TFD->getType()->isFunctionNoProtoType() &&
+                                       E->getNumArgs() != 0 &&
+                                       TargetFV->numParams() == 0
+                                 : false;
 
           std::vector<CVarSet> deferred;
           for (const auto &A : E->arguments()) {
             CVarSet ArgumentConstraints;
-            if(TFD != nullptr && i < TFD->getNumParams()) {
+            if (TFD != nullptr && i < TFD->getNumParams()) {
               // Remove casts to void* on polymorphic types that are used
               // consistently.
               const auto *Ty = getTypeVariableType(TFD->getParamDecl(i));
-              if (Ty != nullptr && consistentTypeParams.find(Ty->GetIndex())
-                  != consistentTypeParams.end())
+              if (Ty != nullptr && consistentTypeParams.find(Ty->GetIndex()) !=
+                                       consistentTypeParams.end())
                 ArgumentConstraints =
                     CB.getExprConstraintVars(A->IgnoreImpCasts());
               else
                 ArgumentConstraints = CB.getExprConstraintVars(A);
             } else
               ArgumentConstraints = CB.getExprConstraintVars(A);
-
 
             if (callUntyped) {
               deferred.push_back(ArgumentConstraints);
@@ -241,14 +234,13 @@ public:
               // doing context-sensitive assignment next.
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
                                   Wild_to_Safe, false, &Info, false);
-              
+
               if (AllTypes && TFD != nullptr) {
                 auto *PVD = TFD->getParamDecl(i);
                 auto &ABI = Info.getABoundsInfo();
                 // Here, we need to handle context-sensitive assignment.
-                ABI.handleContextSensitiveAssignment(E, PVD, ParameterDC, A,
-                                                  ArgumentConstraints,
-                                                     Context, &CB);
+                ABI.handleContextSensitiveAssignment(
+                    E, PVD, ParameterDC, A, ArgumentConstraints, Context, &CB);
               }
             } else {
               // The argument passed to a function ith varargs; make it wild
@@ -269,13 +261,11 @@ public:
           }
           if (callUntyped)
             TargetFV->addDeferredParams(PL, deferred);
-
         }
       }
     }
     return true;
   }
-
 
   // e1[e2]
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
@@ -287,8 +277,7 @@ public:
   // return e;
   bool VisitReturnStmt(ReturnStmt *S) {
     // Get function variable constraint of the body
-    PersistentSourceLoc PL =
-        PersistentSourceLoc::mkPSL(S, *Context);
+    PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(S, *Context);
     CVarOption CVOpt = Info.getVariable(Function, Context);
 
     // Constrain the value returned (if present) against the return value
@@ -346,11 +335,9 @@ public:
   }
 
 private:
-
   // Constraint all the provided vars to be
   // equal to the provided type i.e., (V >= type).
-  void constrainVarsTo(CVarSet &Vars,
-                       ConstAtom *CAtom) {
+  void constrainVarsTo(CVarSet &Vars, ConstAtom *CAtom) {
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Vars)
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
@@ -385,8 +372,8 @@ private:
   // Here the flag, ModifyingExpr indicates if the arithmetic operation
   // is modifying any variable.
   void arithBinop(BinaryOperator *O, bool ModifyingExpr = false) {
-      constraintPointerArithmetic(O->getLHS(), ModifyingExpr);
-      constraintPointerArithmetic(O->getRHS(), ModifyingExpr);
+    constraintPointerArithmetic(O->getLHS(), ModifyingExpr);
+    constraintPointerArithmetic(O->getRHS(), ModifyingExpr);
   }
 
   // Pointer arithmetic constrains the expression to be at least ARR,
@@ -411,18 +398,17 @@ private:
   TypeVarInfo &TVInfo;
 };
 
-
 // This class visits a global declaration, generating constraints
 //   for functions, variables, types, etc. that are visited
 class ConstraintGenVisitor : public RecursiveASTVisitor<ConstraintGenVisitor> {
 public:
-  explicit ConstraintGenVisitor(ASTContext *Context, ProgramInfo &I, TypeVarInfo &TVI)
+  explicit ConstraintGenVisitor(ASTContext *Context, ProgramInfo &I,
+                                TypeVarInfo &TVI)
       : Context(Context), Info(I), CB(Info, Context), TVInfo(TVI) {}
 
   bool VisitVarDecl(VarDecl *G) {
 
-    if (G->hasGlobalStorage() &&
-        isPtrOrArrayType(G->getType())) {
+    if (G->hasGlobalStorage() && isPtrOrArrayType(G->getType())) {
       if (G->hasInit()) {
         CB.constrainLocalAssign(nullptr, G, G->getInit());
       }
@@ -440,14 +426,15 @@ public:
     return true;
   }
 
-  bool VisitInitListExpr(InitListExpr *E){
+  bool VisitInitListExpr(InitListExpr *E) {
     if (E->getType()->isStructureType()) {
       const RecordDecl *Definition =
           E->getType()->getAsStructureType()->getDecl()->getDefinition();
 
       unsigned int initIdx = 0;
       const auto fields = Definition->fields();
-      for (auto it = fields.begin(); initIdx < E->getNumInits() && it != fields.end(); initIdx++, it++) {
+      for (auto it = fields.begin();
+           initIdx < E->getNumInits() && it != fields.end(); initIdx++, it++) {
         Expr *InitExpr = E->getInit(initIdx);
         CB.constrainLocalAssign(nullptr, *it, InitExpr);
       }
@@ -517,8 +504,8 @@ public:
   bool VisitRecordDecl(RecordDecl *Declaration) {
     if (Declaration->isThisDeclarationADefinition()) {
       RecordDecl *Definition = Declaration->getDefinition();
-      assert("Declaration is a definition, but getDefinition() is null?"
-                 && Definition);
+      assert("Declaration is a definition, but getDefinition() is null?" &&
+             Definition);
       FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
       if (FL.isValid()) {
         SourceManager &SM = Context->getSourceManager();
@@ -554,7 +541,6 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
     else
       errs() << "Analyzing\n";
   }
-
 
   VariableAdderVisitor VAV = VariableAdderVisitor(&C, Info);
   TypeVarVisitor TV = TypeVarVisitor(&C, Info);

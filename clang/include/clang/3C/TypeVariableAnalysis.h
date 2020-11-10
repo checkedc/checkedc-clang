@@ -11,18 +11,17 @@
 #ifndef _TYPEVARIABLEANALYSIS_H
 #define _TYPEVARIABLEANALYSIS_H
 
-#include <set>
-#include "ConstraintVariables.h"
 #include "ConstraintResolver.h"
+#include "ConstraintVariables.h"
 #include "ProgramInfo.h"
+#include <set>
 
 class TypeVariableEntry {
 public:
   // Note: does not initialize TyVarType!
-  TypeVariableEntry() :
-      IsConsistent(false), TypeParamConsVar(nullptr) {}
-  TypeVariableEntry(QualType Ty, std::set<ConstraintVariable *> &CVs) :
-      TypeParamConsVar(nullptr) {
+  TypeVariableEntry() : IsConsistent(false), TypeParamConsVar(nullptr) {}
+  TypeVariableEntry(QualType Ty, std::set<ConstraintVariable *> &CVs)
+      : TypeParamConsVar(nullptr) {
     // We'll need a name to provide the type arguments during rewriting, so no
     // anonymous types are allowed.
     IsConsistent = (Ty->isPointerType() || Ty->isArrayType()) &&
@@ -65,7 +64,7 @@ private:
 // index in the called function's parameter list to the type the type variable
 // becomes (or null if it is not used consistently).
 typedef std::map<CallExpr *, std::map<unsigned int, TypeVariableEntry>>
-TypeVariableMapT;
+    TypeVariableMapT;
 
 // Abstract class exposing methods for accessing the type variable map in a
 // TypeVarVisitor.
@@ -76,17 +75,18 @@ public:
   virtual void setProgramInfoTypeVars() = 0;
 };
 
-class TypeVarVisitor
-    : public RecursiveASTVisitor<TypeVarVisitor>, public TypeVarInfo {
+class TypeVarVisitor : public RecursiveASTVisitor<TypeVarVisitor>,
+                       public TypeVarInfo {
 public:
   explicit TypeVarVisitor(ASTContext *C, ProgramInfo &I)
-  : Context(C), Info(I), CR(Info, Context), TVMap() {}
+      : Context(C), Info(I), CR(Info, Context), TVMap() {}
 
   bool VisitCastExpr(CastExpr *CE);
   bool VisitCallExpr(CallExpr *CE);
 
   void getConsistentTypeParams(CallExpr *CE, std::set<unsigned int> &Types);
   void setProgramInfoTypeVars();
+
 private:
   ASTContext *Context;
   ProgramInfo &Info;

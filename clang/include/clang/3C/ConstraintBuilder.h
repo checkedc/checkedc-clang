@@ -17,8 +17,8 @@
 
 class ConstraintBuilderConsumer : public clang::ASTConsumer {
 public:
-  explicit ConstraintBuilderConsumer(ProgramInfo &I, clang::ASTContext *C) :
-    Info(I) { }
+  explicit ConstraintBuilderConsumer(ProgramInfo &I, clang::ASTContext *C)
+      : Info(I) {}
 
   virtual void HandleTranslationUnit(clang::ASTContext &);
 

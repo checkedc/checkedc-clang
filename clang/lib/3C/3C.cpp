@@ -24,7 +24,6 @@ using namespace clang::tooling;
 using namespace clang;
 using namespace llvm;
 
-
 // Suffixes for constraint output files.ParameterGatherer
 #define INITIAL_OUTPUT_SUFFIX "_initial_constraints"
 #define FINAL_OUTPUT_SUFFIX "_final_output"
@@ -32,10 +31,10 @@ using namespace llvm;
 #define AFTER_SUBTYPING_SUFFIX "_after_subtyping_"
 
 cl::OptionCategory ArrBoundsInferCat("Array bounds inference options");
-static cl::opt<bool> DebugArrSolver("debug-arr-solver",
-                                   cl::desc("Dump array bounds inference graph"),
-                                   cl::init(false),
-                                    cl::cat(ArrBoundsInferCat));
+static cl::opt<bool>
+    DebugArrSolver("debug-arr-solver",
+                   cl::desc("Dump array bounds inference graph"),
+                   cl::init(false), cl::cat(ArrBoundsInferCat));
 
 bool DumpIntermediate;
 bool Verbose;
@@ -88,8 +87,7 @@ public:
 
   virtual std::unique_ptr<ASTConsumer>
   CreateASTConsumer(CompilerInstance &Compiler, StringRef InFile) {
-    return std::unique_ptr<ASTConsumer>
-        (new T(Info, OutputPostfix));
+    return std::unique_ptr<ASTConsumer>(new T(Info, OutputPostfix));
   }
 
 private:
@@ -155,8 +153,7 @@ void dumpConstraintOutputJson(const std::string &PostfixStr,
   }
 }
 
-void runSolver(ProgramInfo &Info,
-               std::set<std::string> &SourceFiles) {
+void runSolver(ProgramInfo &Info, std::set<std::string> &SourceFiles) {
   Constraints &CS = Info.getConstraints();
 
   if (Verbose) {
@@ -215,7 +212,7 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
   BaseDir = TmpPath;
 
   if (BaseDir.empty()) {
-    SmallString<256>  cp;
+    SmallString<256> cp;
     if (std::error_code ec = sys::fs::current_path(cp)) {
       errs() << "could not get current working dir\n";
       assert(false && "Unable to get determine working directory.");
@@ -248,8 +245,7 @@ bool _3CInterface::BuildInitialConstraints() {
 
   // 1. Gather constraints.
   std::unique_ptr<ToolAction> ConstraintTool = newFrontendActionFactoryA<
-      GenericAction<ConstraintBuilderConsumer,
-  ProgramInfo>>(GlobalProgramInfo);
+      GenericAction<ConstraintBuilderConsumer, ProgramInfo>>(GlobalProgramInfo);
 
   if (ConstraintTool)
     Tool.run(ConstraintTool.get());
@@ -269,7 +265,7 @@ bool _3CInterface::BuildInitialConstraints() {
 bool _3CInterface::SolveConstraints(bool ComputeInterimState) {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
   assert(ConstraintsBuilt && "Constraints not yet built. We need to call "
-                             "build constraint before trying to solve them." );
+                             "build constraint before trying to solve them.");
   // 2. Solve constraints.
   if (Verbose)
     outs() << "Solving constraints\n";
@@ -288,7 +284,6 @@ bool _3CInterface::SolveConstraints(bool ComputeInterimState) {
   if (DumpIntermediate)
     dumpConstraintOutputJson(FINAL_OUTPUT_SUFFIX, GlobalProgramInfo);
 
-
   ClangTool &Tool = getGlobalClangTool();
   if (AllTypes) {
     if (DebugArrSolver)
@@ -300,10 +295,9 @@ bool _3CInterface::SolveConstraints(bool ComputeInterimState) {
     GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
 
     // 3. Infer the bounds based on calls to malloc and calloc
-    std::unique_ptr<ToolAction> ABInfTool =
-      newFrontendActionFactoryA
-        <GenericAction<AllocBasedBoundsInference,
-                       ProgramInfo>>(GlobalProgramInfo);
+    std::unique_ptr<ToolAction> ABInfTool = newFrontendActionFactoryA<
+        GenericAction<AllocBasedBoundsInference, ProgramInfo>>(
+        GlobalProgramInfo);
     if (ABInfTool)
       Tool.run(ABInfTool.get());
     else
@@ -311,15 +305,12 @@ bool _3CInterface::SolveConstraints(bool ComputeInterimState) {
 
     // Propagate the information from allocator bounds.
     GlobalProgramInfo.getABoundsInfo().performFlowAnalysis(&GlobalProgramInfo);
-
   }
 
   // 4. Run intermediate tool hook to run visitors that need to be executed
   // after constraint solving but before rewriting.
-  std::unique_ptr<ToolAction> IMTool =
-      newFrontendActionFactoryA
-          <GenericAction<IntermediateToolHook,
-                         ProgramInfo>>(GlobalProgramInfo);
+  std::unique_ptr<ToolAction> IMTool = newFrontendActionFactoryA<
+      GenericAction<IntermediateToolHook, ProgramInfo>>(GlobalProgramInfo);
   if (IMTool)
     Tool.run(IMTool.get());
   else
@@ -352,7 +343,7 @@ bool _3CInterface::SolveConstraints(bool ComputeInterimState) {
     llvm::raw_fd_ostream PerWildPtrInfo(PerWildPtrInfoJson, Ec);
     if (!PerWildPtrInfo.has_error()) {
       GlobalProgramInfo.getInterimConstraintState().printRootCauseStats(
-        PerWildPtrInfo, GlobalProgramInfo.getConstraints());
+          PerWildPtrInfo, GlobalProgramInfo.getConstraints());
       PerWildPtrInfo.close();
     }
   }
@@ -371,15 +362,14 @@ bool _3CInterface::WriteConvertedFileToDisk(const std::string &FilePath) {
     ClangTool Tool(*CurrCompDB, SourceFiles);
     Tool.appendArgumentsAdjuster(getIgnoreCheckedPointerAdjuster());
     std::unique_ptr<ToolAction> RewriteTool =
-        newFrontendActionFactoryA<RewriteAction<RewriteConsumer,
-    ProgramInfo>>(GlobalProgramInfo);
+        newFrontendActionFactoryA<RewriteAction<RewriteConsumer, ProgramInfo>>(
+            GlobalProgramInfo);
 
     if (RewriteTool)
       Tool.run(RewriteTool.get());
     return true;
   }
   return false;
-
 }
 
 bool _3CInterface::WriteAllConvertedFilesToDisk() {
@@ -389,8 +379,8 @@ bool _3CInterface::WriteAllConvertedFilesToDisk() {
 
   // Rewrite the input files
   std::unique_ptr<ToolAction> RewriteTool =
-      newFrontendActionFactoryA<
-          RewriteAction<RewriteConsumer, ProgramInfo>>(GlobalProgramInfo);
+      newFrontendActionFactoryA<RewriteAction<RewriteConsumer, ProgramInfo>>(
+          GlobalProgramInfo);
   if (RewriteTool)
     Tool.run(RewriteTool.get());
   else
@@ -420,7 +410,7 @@ bool _3CInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   Constraint *originalConstraint = *CS.getConstraints().find(&newE);
   CS.removeConstraint(originalConstraint);
   VA->getAllConstraints().erase(originalConstraint);
-  delete(originalConstraint);
+  delete (originalConstraint);
 
   // Reset the constraint system.
   CS.resetEnvironment();
@@ -443,7 +433,6 @@ bool _3CInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   return !RemovePtrs.empty();
 }
 
-
 void _3CInterface::InvalidateAllConstraintsWithReason(
     Constraint *ConstraintToRemove) {
   // Get the reason for the current constraint.
@@ -456,7 +445,7 @@ void _3CInterface::InvalidateAllConstraintsWithReason(
   // Free up memory by deleting all the removed constraints.
   for (auto *toDelCons : ToRemoveConstraints) {
     assert(dyn_cast<Geq>(toDelCons) && "We can only delete Geq constraints.");
-    Geq*TCons = dyn_cast<Geq>(toDelCons);
+    Geq *TCons = dyn_cast<Geq>(toDelCons);
     auto *Vatom = dyn_cast<VarAtom>(TCons->getLHS());
     assert(Vatom != nullptr && "Equality constraint with out VarAtom as LHS");
     VarAtom *VS = CS.getOrCreateVar(Vatom->getLoc(), "q", VarAtom::V_Other);

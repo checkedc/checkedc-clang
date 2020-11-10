@@ -9,11 +9,11 @@
 // classes of CastPlacement.h
 //===----------------------------------------------------------------------===//
 
-#include <clang/Tooling/Refactoring/SourceCode.h>
-#include "clang/3C/ConstraintResolver.h"
 #include "clang/3C/CastPlacement.h"
 #include "clang/3C/3CGlobalOptions.h"
+#include "clang/3C/ConstraintResolver.h"
 #include "clang/3C/Utils.h"
+#include <clang/Tooling/Refactoring/SourceCode.h>
 
 using namespace clang;
 
@@ -40,10 +40,10 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
           // removing implicit casts when on arguments with a consistently
           // used generic type.
           Expr *ArgExpr = A;
-          const TypeVariableType
-              *TyVar = getTypeVariableType(FD->getParamDecl(PIdx));
-          if (TyVar && TypeVars.find(TyVar->GetIndex()) != TypeVars.end()
-              && TypeVars[TyVar->GetIndex()] != nullptr)
+          const TypeVariableType *TyVar =
+              getTypeVariableType(FD->getParamDecl(PIdx));
+          if (TyVar && TypeVars.find(TyVar->GetIndex()) != TypeVars.end() &&
+              TypeVars[TyVar->GetIndex()] != nullptr)
             ArgExpr = ArgExpr->IgnoreImpCasts();
 
           CVarSet ArgumentConstraints = CR.getExprConstraintVars(ArgExpr);
@@ -51,8 +51,7 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
           for (auto *ArgumentC : ArgumentConstraints) {
             if (needCasting(ArgumentC, ParameterC)) {
               // We expect the cast string to end with "(".
-              std::string CastString =
-                  getCastString(ArgumentC, ParameterC);
+              std::string CastString = getCastString(ArgumentC, ParameterC);
               surroundByCast(CastString, A);
               break;
             }
@@ -65,7 +64,6 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *CE) {
   return true;
 }
 
-  
 // Check whether an explicit casting is needed when the pointer represented
 // by src variable is assigned to dst.
 bool CastPlacementVisitor::needCasting(ConstraintVariable *Src,
@@ -107,17 +105,16 @@ void CastPlacementVisitor::surroundByCast(const std::string &CastPrefix,
     if (FrontRewritable && EndRewritable) {
       bool FFail = Writer.InsertTextAfterToken(E->getEndLoc(), ")");
       bool EFail = Writer.InsertTextBefore(E->getBeginLoc(), "(" + CastPrefix);
-      assert("Locations were rewritable, fail should not be possible."
-          && !FFail && !EFail);
+      assert("Locations were rewritable, fail should not be possible." &&
+             !FFail && !EFail);
     } else {
       // This means we failed to insert the text at the end of the RHS.
       // This can happen because of Macro expansion.
       // We will see if this is a single expression statement?
       // If yes, then we will use parent statement to add ")"
       auto CRA = CharSourceRange::getTokenRange(E->getSourceRange());
-      auto NewCRA = clang::Lexer::makeFileCharRange(CRA,
-                                                    Context->getSourceManager(),
-                                                    Context->getLangOpts());
+      auto NewCRA = clang::Lexer::makeFileCharRange(
+          CRA, Context->getSourceManager(), Context->getLangOpts());
       std::string SrcText = clang::tooling::getText(CRA, *Context);
       // Only insert if there is anything to write.
       if (!SrcText.empty())

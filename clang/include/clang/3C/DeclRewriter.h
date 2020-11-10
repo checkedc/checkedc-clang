@@ -13,12 +13,12 @@
 #ifndef _DECLREWRITER_H
 #define _DECLREWRITER_H
 
-#include "clang/AST/Decl.h"
-#include "clang/AST/Stmt.h"
-#include "clang/AST/ASTContext.h"
-#include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Rewrite/Core/Rewriter.h"
 #include "clang/3C/RewriteUtils.h"
+#include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
+#include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Stmt.h"
+#include "clang/Rewrite/Core/Rewriter.h"
 
 using namespace llvm;
 using namespace clang;
@@ -33,6 +33,7 @@ public:
   // All declarations for variables with checked types in the variable map of
   // Info parameter are rewritten.
   static void rewriteDecls(ASTContext &Context, ProgramInfo &Info, Rewriter &R);
+
 private:
   Rewriter &R;
   ASTContext &A;
@@ -61,7 +62,7 @@ private:
   // one subclass of declarations.
   void rewriteParmVarDecl(ParmVarDeclReplacement *N);
 
-  template<typename DRType>
+  template <typename DRType>
   void rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite);
   void rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite);
   void rewriteSingleDecl(DeclReplacement *N, RSet &ToRewrite);
@@ -86,12 +87,12 @@ public:
 
   bool VisitFunctionDecl(FunctionDecl *);
   bool isFunctionVisited(std::string FuncName);
-protected:
 
-  ASTContext            *Context;
-  ProgramInfo           &Info;
-  RSet                  &RewriteThese;
-  ArrayBoundsRewriter   &ABRewriter;
+protected:
+  ASTContext *Context;
+  ProgramInfo &Info;
+  RSet &RewriteThese;
+  ArrayBoundsRewriter &ABRewriter;
 
   // Set containing the names of all functions visited in the AST traversal.
   // Used to ensure the new signature is only computed once for each function.
@@ -110,19 +111,19 @@ protected:
                         std::string &Type, std::string &IType,
                         bool &RewriteParm, bool &RewriteRet);
   void buildItypeDecl(PVConstraint *Defn, DeclaratorDecl *Decl,
-                      std::string &Type, std::string &IType,
-                      bool &RewriteParm, bool &RewriteRet);
+                      std::string &Type, std::string &IType, bool &RewriteParm,
+                      bool &RewriteRet);
 };
 
 class FieldFinder : public RecursiveASTVisitor<FieldFinder> {
-  public:
-    FieldFinder(GlobalVariableGroups &GVG) : GVG(GVG) { }
+public:
+  FieldFinder(GlobalVariableGroups &GVG) : GVG(GVG) {}
 
-    bool VisitFieldDecl(FieldDecl *FD);
+  bool VisitFieldDecl(FieldDecl *FD);
 
-    static void gatherSameLineFields(GlobalVariableGroups &GVG, Decl* D);
+  static void gatherSameLineFields(GlobalVariableGroups &GVG, Decl *D);
 
-  private:
-    GlobalVariableGroups &GVG;
+private:
+  GlobalVariableGroups &GVG;
 };
 #endif //_DECLREWRITER_H

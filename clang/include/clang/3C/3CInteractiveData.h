@@ -19,8 +19,8 @@
 // Source info and reason for each wild pointer.
 class WildPointerInferenceInfo {
 public:
-  WildPointerInferenceInfo(std::string Reason, const PersistentSourceLoc PSL) :
-      WildPtrReason(Reason), Location(PSL) {}
+  WildPointerInferenceInfo(std::string Reason, const PersistentSourceLoc PSL)
+      : WildPtrReason(Reason), Location(PSL) {}
 
   const std::string &getWildPtrReason() const { return WildPtrReason; }
   const PersistentSourceLoc &getLocation() const { return Location; }
@@ -33,10 +33,9 @@ private:
 // Constraints information.
 class ConstraintsInfo {
   friend class ProgramInfo;
-public:
-  ConstraintsInfo() {
 
-  }
+public:
+  ConstraintsInfo() {}
   void Clear();
   CVars &GetRCVars(ConstraintKey);
   CVars &GetSrcCVars(ConstraintKey);
@@ -83,9 +82,8 @@ private:
 
   float getPtrAffectedScore(const std::set<ConstraintVariable *> CVs);
 
-  void
-  printConstraintStats(raw_ostream &O, Constraints &CS, ConstraintKey Cause);
-
+  void printConstraintStats(raw_ostream &O, Constraints &CS,
+                            ConstraintKey Cause);
 };
 
 #endif // _3CINTERACTIVEDATA_H

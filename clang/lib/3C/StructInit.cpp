@@ -9,8 +9,8 @@
 // classes of StructInit.h
 //===----------------------------------------------------------------------===//
 
-#include "clang/3C/MappingVisitor.h"
 #include "clang/3C/StructInit.h"
+#include "clang/3C/MappingVisitor.h"
 #include "clang/Tooling/Refactoring/SourceCode.h"
 #include <sstream>
 
@@ -58,8 +58,8 @@ void StructVariableInitializer::insertVarDecl(VarDecl *VD, DeclStmt *S) {
 // Check to see if this variable require an initialization.
 bool StructVariableInitializer::VisitDeclStmt(DeclStmt *S) {
   if (S->isSingleDecl()) {
-     if (VarDecl *VD = dyn_cast<VarDecl>(S->getSingleDecl()))
-       insertVarDecl(VD, S);
+    if (VarDecl *VD = dyn_cast<VarDecl>(S->getSingleDecl()))
+      insertVarDecl(VD, S);
   } else {
     for (const auto &D : S->decls())
       if (VarDecl *VD = dyn_cast<VarDecl>(D))

@@ -17,12 +17,11 @@
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Tooling/Tooling.h"
 
+#include "3CInteractiveData.h"
 #include "AVarBoundsInfo.h"
 #include "ConstraintVariables.h"
-#include "Utils.h"
 #include "PersistentSourceLoc.h"
-#include "3CInteractiveData.h"
-
+#include "Utils.h"
 
 class ProgramVariableAdder {
 public:
@@ -31,6 +30,7 @@ public:
   void addABoundsVariable(clang::Decl *D) {
     getABoundsInfo().insertVariable(D);
   }
+
 protected:
   virtual AVarBoundsInfo &getABoundsInfo() = 0;
 };
@@ -43,7 +43,6 @@ public:
   typedef std::map<unsigned int, ConstraintVariable *> CallTypeParamBindingsT;
   typedef std::map<PersistentSourceLoc, CallTypeParamBindingsT>
       TypeParamBindingsT;
-
 
   typedef std::map<std::string, FVConstraint *> ExternalFunctionMapType;
   typedef std::map<std::string, ExternalFunctionMapType> StaticFunctionMapType;
@@ -59,13 +58,13 @@ public:
                    bool OnlySummary = false, bool JsonFormat = false);
 
   // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with
-  // AST data structures that correspond do the data stored in PDMap and 
-  // ReversePDMap. 
+  // AST data structures that correspond do the data stored in PDMap and
+  // ReversePDMap.
   void enterCompilationUnit(clang::ASTContext &Context);
 
-  // Remove any references we maintain to AST data structure pointers. 
+  // Remove any references we maintain to AST data structure pointers.
   // After this, the Variables, VarDeclToStatement, RVariables, and DepthMap
-  // should all be empty. 
+  // should all be empty.
   void exitCompilationUnit();
 
   bool hasPersistentConstraints(clang::Expr *E, ASTContext *C) const;
@@ -77,11 +76,10 @@ public:
   CVarOption getVariable(clang::Decl *D, clang::ASTContext *C);
 
   // Retrieve a function's constraints by decl, or by name; nullptr if not found
-  FVConstraint *getFuncConstraint (FunctionDecl *D, ASTContext *C) const;
-  FVConstraint *getExtFuncDefnConstraint (std::string FuncName) const;
+  FVConstraint *getFuncConstraint(FunctionDecl *D, ASTContext *C) const;
+  FVConstraint *getExtFuncDefnConstraint(std::string FuncName) const;
   FVConstraint *getStaticFuncConstraint(std::string FuncName,
                                         std::string FileName) const;
-
 
   // Check if the given function is an extern function.
   bool isAnExternFunction(const std::string &FName);
@@ -92,12 +90,10 @@ public:
   bool link();
 
   const VariableMap &getVarMap() const { return Variables; }
-  Constraints &getConstraints() { return CS;  }
+  Constraints &getConstraints() { return CS; }
   AVarBoundsInfo &getABoundsInfo() { return ArrBInfo; }
 
-  ConstraintsInfo &getInterimConstraintState() {
-    return CState;
-  }
+  ConstraintsInfo &getInterimConstraintState() { return CState; }
   bool computeInterimConstraintState(const std::set<std::string> &FilePaths);
 
   const ExternalFunctionMapType &getExternFuncDefFVMap() const {
@@ -167,7 +163,6 @@ private:
                                    const std::string &FuncName,
                                    const std::string &FileName,
                                    FVConstraint *ToIns);
-
 
   // Special-case handling for decl introductions. For the moment this covers:
   //  * void-typed variables
