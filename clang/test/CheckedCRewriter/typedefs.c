@@ -16,6 +16,9 @@ typedef intptr* PP;
 typedef int* bad;
 //CHECK: typedef int* bad;
 
+typedef intptr* badP;
+//CHECK: typedef intptr* badP;
+
 typedef struct A { 
     int* x;
     int z;
@@ -24,6 +27,10 @@ typedef struct A {
 //CHECK: _Ptr<int> x;
 //CHECK: PP p;
 
+intptr bar(intptr x) { 
+	//CHECK: intptr bar(intptr x) _Checked {
+	return x;
+}
 
 int foo(void) { 
     //CHECK: int foo(void) {
@@ -36,6 +43,7 @@ int foo(void) {
     //CHECK: A a = { &x, 3, pp };
     bad b = (int*) 3;
     //CHECK: bad b = (int*) 3;
+    badP b2 = (intptr*) 3;
 
     return *p;
 }
