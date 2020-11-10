@@ -17,7 +17,7 @@
 
 namespace clang {
 namespace clangd {
-// Convert the provided Diagnostic into Commands
+// Convert the provided Diagnostic into Commands.
 void As3CCommands(const Diagnostic &D, std::vector<Command> &OutCommands);
 // Check if the execute command request from the client is a 3C command.
 bool Is3CCommand(const ExecuteCommandParams &Params);
