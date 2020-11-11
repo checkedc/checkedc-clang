@@ -54,6 +54,10 @@ manual is
 For more information on Checked C and pointers to example code, see our
 [Wiki](https://github.com/Microsoft/checkedc/wiki).
 
+## 3C: Semi-automated conversion of C code to Checked C
+
+This repository includes a tool called 3C that partially automates the conversion of C code to Checked C. Here is [general information about the 3C software](clang/docs/checkedc/3C/README.md), including development status and how to contribute. Here are the [usage instructions for the `3c` command-line tool](clang/tools/3c/README.md).
+
 ## More information
 
 For more information on the Checked C clang compiler, see the [Checked C clang
@@ -66,7 +70,7 @@ wiki](https://github.com/Microsoft/checkedc-clang/wiki).
 |Debug X86 Windows| Checked C and clang regression tests|![Debug X86 Windows status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/211/badge)|
 |Debug X64 Windows| Checked C and clang regression tests| ![Debug X64 Windows status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/205/badge)|
 |Debug X64 Linux  | Checked C and clang regression tests| ![Debug X64 Linux status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/217/badge)|
-|Debug X64 Linux  | cconv-standalone (Checked C Convert tool) nightly tests| ![Nightly Sanity Tests](https://github.com/correctcomputation/checkedc-clang/workflows/Nightly%20Sanity%20Tests/badge.svg?branch=master)|
+|Debug X64 Linux  | 3C (Checked-C-Convert tool) nightly tests| ![Nightly Sanity Tests](https://github.com/correctcomputation/checkedc-clang/workflows/Nightly%20Sanity%20Tests/badge.svg?branch=master)|
 |Release X64 Linux| Checked C, clang, and LLVM nightly tests|![Release X64 Linux status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/238/badge)|
 
 ## Contributing

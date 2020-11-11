@@ -318,7 +318,7 @@ void toLSPDiags(
   };
 
   clangd::Diagnostic Main = FillBasicFields(D);
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   Main.code = D.code;
 #else
   Main.code = D.Name;
@@ -330,12 +330,12 @@ void toLSPDiags(
   case Diag::ClangTidy:
     Main.source = "clang-tidy";
     break;
-#ifdef INTERACTIVECCCONV
-  case Diag::CConvMain:
-    Main.source = "CConv_RealWild";
+#ifdef INTERACTIVE3C
+  case Diag::_3CMain:
+    Main.source = "3C_RealWild";
     break;
-  case Diag::CConvSec:
-    Main.source = "CConv_AffWild";
+  case Diag::_3CSec:
+    Main.source = "3C_AffWild";
     break;
 #endif
   case Diag::Unknown:

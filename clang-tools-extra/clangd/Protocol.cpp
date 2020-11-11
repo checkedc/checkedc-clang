@@ -407,7 +407,7 @@ bool fromJSON(const llvm::json::Value &Params, FileEvent &R) {
   return O && O.map("uri", R.uri) && O.map("type", R.type);
 }
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 bool fromJSON(const llvm::json::Value &Params, CodeLensParams &L) {
   llvm::json::ObjectMapper O(Params);
   return O && O.map("textDocument", L.textDocument);
@@ -524,21 +524,21 @@ bool fromJSON(const llvm::json::Value &Params, WorkspaceEdit &R) {
   return O && O.map("changes", R.changes);
 }
 
-#ifdef INTERACTIVECCCONV
-bool fromJSON(const llvm::json::Value &Params, CConvertManualFix &CCM) {
+#ifdef INTERACTIVE3C
+bool fromJSON(const llvm::json::Value &Params, _3CManualFix &CCM) {
   llvm::json::ObjectMapper O(Params);
   CCM.ptrID = (*Params.getAsObject()->getInteger("ptrID"));
   return O;
 }
 
-llvm::json::Value toJSON(const CConvertManualFix &WE) {
+llvm::json::Value toJSON(const _3CManualFix &WE) {
   return llvm::json::Object{{"ptrID", std::move(WE.ptrID)}};
 }
 
-const llvm::StringLiteral ExecuteCommandParams::CCONV_APPLY_ONLY_FOR_THIS =
-    "cconv.onlyThisPtr";
-const llvm::StringLiteral ExecuteCommandParams::CCONV_APPLY_FOR_ALL =
-    "cconv.applyAllPtr";
+const llvm::StringLiteral ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS =
+    "3c.onlyThisPtr";
+const llvm::StringLiteral ExecuteCommandParams::_3C_APPLY_FOR_ALL =
+    "3c.applyAllPtr";
 #endif
 const llvm::StringLiteral ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND =
     "clangd.applyFix";
@@ -557,11 +557,11 @@ bool fromJSON(const llvm::json::Value &Params, ExecuteCommandParams &R) {
   }
   if (R.command == ExecuteCommandParams::CLANGD_APPLY_TWEAK)
     return Args && Args->size() == 1 && fromJSON(Args->front(), R.tweakArgs);
-#ifdef INTERACTIVECCCONV
-  if (R.command == ExecuteCommandParams::CCONV_APPLY_ONLY_FOR_THIS ||
-      R.command == ExecuteCommandParams::CCONV_APPLY_FOR_ALL) {
+#ifdef INTERACTIVE3C
+  if (R.command == ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS ||
+      R.command == ExecuteCommandParams::_3C_APPLY_FOR_ALL) {
     return Args && Args->size() == 1 &&
-        fromJSON(Args->front(), R.ccConvertManualFix);
+        fromJSON(Args->front(), R._3CManualFix);
   }
 #endif
   return false; // Unrecognized command.
@@ -626,7 +626,7 @@ bool fromJSON(const llvm::json::Value &Params, WorkspaceSymbolParams &R) {
   return O && O.map("query", R.query);
 }
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 bool fromJSON(const llvm::json::Value &Params, CodeLens &CL) {
   llvm::json::ObjectMapper O(Params);
   return O && O.map("range", CL.range) && O.map("command", CL.command);
@@ -639,9 +639,9 @@ llvm::json::Value toJSON(const Command &C) {
     Cmd["arguments"] = {*C.workspaceEdit};
   if (C.tweakArgs)
     Cmd["arguments"] = {*C.tweakArgs};
-#ifdef INTERACTIVECCCONV
-  if (C.ccConvertManualFix)
-    Cmd["arguments"] = {*C.ccConvertManualFix};
+#ifdef INTERACTIVE3C
+  if (C._3CManualFix)
+    Cmd["arguments"] = {*C._3CManualFix};
 #endif
   return std::move(Cmd);
 }
@@ -663,7 +663,7 @@ llvm::json::Value toJSON(const CodeAction &CA) {
   return std::move(CodeAction);
 }
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 llvm::json::Value toJSON(const CodeLens &CL) {
   auto CodeLens = llvm::json::Object{{"range", CL.range}};
   if (CL.command)
