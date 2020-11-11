@@ -48,13 +48,12 @@ void As3CCommands(const Diagnostic &D, std::vector<Command> &OutCommands) {
 }
 
 bool Is3CCommand(const ExecuteCommandParams &Params) {
-    return (Params.command.rfind(Command::_3C_APPLY_ONLY_FOR_THIS, 0) == 0) ||
-           (Params.command.rfind(Command::_3C_APPLY_FOR_ALL, 0) == 0);
+  return (Params.command.rfind(Command::_3C_APPLY_ONLY_FOR_THIS, 0) == 0) ||
+         (Params.command.rfind(Command::_3C_APPLY_FOR_ALL, 0) == 0);
 }
 
 bool Execute3CCommand(const ExecuteCommandParams &Params,
-                    std::string &ReplyMessage,
-                    _3CInterface &CcInterface) {
+                      std::string &ReplyMessage, _3CInterface &CcInterface) {
   ReplyMessage = "Checked C Pointer Modified.";
   if (Params.command.rfind(Command::_3C_APPLY_ONLY_FOR_THIS, 0) == 0) {
     int PtrId = Params._3CManualFix->ptrID;
@@ -68,6 +67,6 @@ bool Execute3CCommand(const ExecuteCommandParams &Params,
   }
   return false;
 }
-}
-}
+} // namespace clangd
+} // namespace clang
 #endif

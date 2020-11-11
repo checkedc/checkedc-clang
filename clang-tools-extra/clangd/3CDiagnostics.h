@@ -12,9 +12,9 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_3CDIAGNOSTICS_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_3CDIAGNOSTICS_H
 
-#include <set>
 #include "Diagnostics.h"
 #include "clang/3C/3C.h"
+#include <set>
 
 namespace clang {
 namespace clangd {
@@ -33,13 +33,12 @@ public:
   std::map<std::string, std::vector<Diag>> &GetAllFilesDiagnostics() {
     return AllFileDiagnostics;
   }
+
 private:
   // Diagnostics of all files.
   std::map<std::string, std::vector<Diag>> AllFileDiagnostics;
-
-
 };
-}
-}
-#endif //LLVM_CLANG_TOOLS_EXTRA_CLANGD_
+} // namespace clangd
+} // namespace clang
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANGD_
 #endif
