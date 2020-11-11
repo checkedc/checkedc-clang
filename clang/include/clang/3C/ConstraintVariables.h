@@ -488,7 +488,7 @@ public:
 
   bool getIsOriginallyChecked() const override;
 
-  ~FunctionVariableConstraint() override {};
+  ~FunctionVariableConstraint() override {}
 };
 
 typedef FunctionVariableConstraint FVConstraint;
