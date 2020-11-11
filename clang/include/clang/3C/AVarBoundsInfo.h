@@ -164,8 +164,8 @@ public:
                      BoundsPriority *RetP = nullptr);
   bool updatePotentialCountBounds(BoundsKey BK, std::set<BoundsKey> &CntBK);
 
-  // Try and get BoundsKey, into R, for the given declaration. If the declaration
-  // does not have a BoundsKey then return false.
+  // Try and get BoundsKey, into R, for the given declaration. If the
+  // declaration does not have a BoundsKey then return false.
   bool tryGetVariable(clang::Decl *D, BoundsKey &R);
   // Try and get bounds for the expression.
   bool tryGetVariable(clang::Expr *E, const ASTContext &C, BoundsKey &R);

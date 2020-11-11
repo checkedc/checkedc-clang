@@ -76,8 +76,8 @@ CVarSet ConstraintResolver::handleDeref(CVarSet T) {
 }
 
 // For each constraint variable either invoke addAtom to add an additional level
-// of indirection (when the constraint is PVConstraint), or return the constraint
-// unchanged (when the constraint is a function constraint).
+// of indirection (when the constraint is PVConstraint), or return the
+// constraint unchanged (when the constraint is a function constraint).
 CVarSet ConstraintResolver::addAtomAll(CVarSet CVS, ConstAtom *PtrTyp,
                                        Constraints &CS) {
   CVarSet Result;

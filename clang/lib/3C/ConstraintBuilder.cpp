@@ -194,8 +194,8 @@ public:
       constraintAllArgumentsToWild(E);
     } else if (!ConstraintResolver::canFunctionBeSkipped(FuncName)) {
       // FIXME: realloc comparison is still required. See issue #176.
-      // If we are calling realloc, ignore it, so as not to constrain the first arg
-      // Else, for each function we are calling ...
+      // If we are calling realloc, ignore it, so as not to constrain the first
+      // arg. Else, for each function we are calling ...
       for (auto *TmpC : FVCons) {
         if (PVConstraint *PVC = dyn_cast<PVConstraint>(TmpC)) {
           TmpC = PVC->getFV();

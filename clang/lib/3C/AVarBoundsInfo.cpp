@@ -1211,8 +1211,8 @@ bool AVarBoundsInfo::performFlowAnalysis(ProgramInfo *PI) {
 
   // Now compute the bounds information of all the ARR pointers that need it.
   // We iterate until there are no new array variables whose bounds are found.
-  // The expectation is every iteration we will find bounds for at least one array
-  // variable.
+  // The expectation is every iteration we will find bounds for at least one
+  // array variable.
   while (Changed) {
     // Clear all inferred bounds.
     ABI.clearInferredBounds();

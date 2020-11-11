@@ -552,11 +552,13 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       NewCV = P;
       std::string VarName = VD->getName();
       if (VD->hasGlobalStorage()) {
-        // if we see a definition for this global variable, indicate so in ExternGVars
+        // if we see a definition for this global variable, indicate so in
+        // ExternGVars
         if (VD->hasDefinition() || VD->hasDefinition(*AstContext)) {
           ExternGVars[VarName] = true;
         }
-        // if we don't, check that we haven't seen one before before setting to false
+        // if we don't, check that we haven't seen one before before setting to
+        // false
         else if (!ExternGVars[VarName]) {
           ExternGVars[VarName] = false;
         }
@@ -671,7 +673,8 @@ FVConstraint *ProgramInfo::getFuncFVConstraint(FunctionDecl *FD,
   FVConstraint *FunFVar = nullptr;
   if (FD->isGlobal()) {
     FunFVar = getExtFuncDefnConstraint(FuncName);
-    // FIXME: We are being asked to access a function never declared; best action?
+    // FIXME: We are being asked to access a function never declared; best
+    // action?
     if (FunFVar == nullptr) {
       // make one
       FVConstraint *F = new FVConstraint(FD, *this, *C);

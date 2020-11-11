@@ -176,8 +176,8 @@ unsigned int getParameterIndex(clang::ParmVarDecl *PV, clang::FunctionDecl *FD);
 // returned.
 bool evaluateToInt(clang::Expr *E, const clang::ASTContext &C, int &Result);
 
-// Check if the bounds expression BE is zero width. Arrays with zero width bounds
-// can be treated as pointers.
+// Check if the bounds expression BE is zero width. Arrays with zero width
+// bounds can be treated as pointers.
 bool isZeroBoundsExpr(clang::BoundsExpr *BE, const clang::ASTContext &C);
 
 // Find the range in the source code for the base type of a type location.

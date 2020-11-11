@@ -53,11 +53,12 @@ private:
 };
 
 // This class handles determining bounds of function-local array variables.
-// This class also keeps tracks of variables that are most-likely cannot be lengths.
-// For example:
+// This class also keeps tracks of variables that are most-likely cannot be
+// lengths. For example:
 // Consider the expression: (x & y)
 // Here, it is unlikely that variables x and y cannot be length variables
-// because it is hard to imaging a variable used as length used in a bitwise AND.
+// because it is hard to imaging a variable used as length used in a bitwise
+// AND.
 class LocalVarABVisitor : public clang::RecursiveASTVisitor<LocalVarABVisitor> {
 
 public:

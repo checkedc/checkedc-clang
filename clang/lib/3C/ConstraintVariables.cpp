@@ -417,8 +417,8 @@ std::string PointerVariableConstraint::extractBaseType(DeclaratorDecl *D,
     if (!BaseLoc.getAs<TypedefTypeLoc>().isNull()) {
       FoundBaseTypeInSrc = false;
     } else {
-      // Only use this type if the type passed as a parameter to this constructor
-      // agrees with the actual type of the declaration.
+      // Only use this type if the type passed as a parameter to this
+      // constructor agrees with the actual type of the declaration.
       SourceRange SR = BaseLoc.getSourceRange();
       if (FoundBaseTypeInSrc && SR.isValid()) {
         BaseTypeStr = getSourceText(SR, C);
@@ -937,7 +937,8 @@ void FunctionVariableConstraint::equateArgumentConstraints(ProgramInfo &Info) {
   if (!IsFunctionPtr) {
     FVConstraint *DefnCons = nullptr;
 
-    // Get appropriate constraints based on whether the function is static or not.
+    // Get appropriate constraints based on whether the function is static or
+    // not.
     if (IsStatic) {
       DefnCons = Info.getStaticFuncConstraint(Name, FileName);
     } else {
@@ -1650,7 +1651,8 @@ void FunctionVariableConstraint::brainTransplant(ConstraintVariable *FromCV,
 void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
                                                   ProgramInfo &I) {
   // `this`: is the declaration the tool saw first
-  // `FromCV`: is the declaration seen second, it cannot have defered constraints
+  // `FromCV`: is the declaration seen second, it cannot have defered
+  // constraints
   FVConstraint *From = dyn_cast<FVConstraint>(FromCV);
   assert(From != nullptr);
   assert(From->getDeferredParams().size() == 0);
