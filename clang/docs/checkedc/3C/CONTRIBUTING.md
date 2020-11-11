@@ -86,3 +86,7 @@ in your code. Specifically:
 * Space after the type name, i.e., `Type *K` _not_ `Type* K`.
 
 * Space before and after `:` in iterators, i.e., `for (auto &k : List)`
+
+All files should be formatted with `clang-format` and pass `clang-tidy` ([more
+information](clang-tidy.md)), and nonempty files should have a final newline
+(surprisingly, `clang-format` cannot enforce this).
