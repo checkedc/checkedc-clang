@@ -310,8 +310,7 @@ public:
   // collect and build initial set of constraints on the source
   // files.
 
-  void execute3CCommand(ExecuteCommandParams Params,
-                        _3CLSPCallBack *ConvCB);
+  void execute3CCommand(ExecuteCommandParams Params, _3CLSPCallBack *ConvCB);
 
   void _3CCollectAndBuildInitialConstraints(_3CLSPCallBack *ConvCB);
 
@@ -328,7 +327,8 @@ private:
              ArrayRef<tooling::Range> Ranges);
 
 #ifdef INTERACTIVE3C
-  void report3CDiagsForAllFiles(ConstraintsInfo &CcInfo, _3CLSPCallBack *ConvCB);
+  void report3CDiagsForAllFiles(ConstraintsInfo &CcInfo,
+                                _3CLSPCallBack *ConvCB);
   void clear3CDiagsForAllFiles(ConstraintsInfo &CcInfo, _3CLSPCallBack *ConvCB);
 #endif
 
