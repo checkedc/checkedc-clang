@@ -198,6 +198,13 @@ bool isAValidPVConstraint(const ConstraintVariable *C);
 class PointerVariableConstraint;
 class FunctionVariableConstraint;
 
+struct InternalTypedefInfo { 
+	bool hasTypedef;
+	int typedefLevel;
+	std::string typedefName;
+};
+
+
 // Represents an individual constraint on a pointer variable.
 // This could contain a reference to a FunctionVariableConstraint
 // in the case of a function pointer declaration.
@@ -291,7 +298,7 @@ private:
   TypedefNameDecl* TDT;
   std::string typedefString;
   // Does the type internally contain a typedef, and if so: at what level and what is it's name?
-  std::tuple<bool, int, std::string> typedeflevelinfo;
+  struct InternalTypedefInfo typedeflevelinfo;
 
 public:
   // Constructor for when we know a CVars and a type string.

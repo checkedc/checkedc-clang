@@ -19,6 +19,7 @@
 #include "clang/3C/3CGlobalOptions.h"
 
 using namespace clang;
+// Macro for boolean implication
 #define IMPLIES(a,b) ((a) ? (b) : true)
 
 static llvm::cl::OptionCategory OptimizationCategory("Optimization category");
@@ -124,10 +125,12 @@ PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
                                   I, C) { }
 
 
+// Simple recursive visitor for determining if a type contains a typedef
+// entrypoint is find()
 class TypedefLevelFinder : public RecursiveASTVisitor<TypedefLevelFinder> {
   public:
 
-    static std::tuple<bool, int, std::string> find(const QualType &QT) {
+    static struct InternalTypedefInfo find(const QualType &QT) {
       TypedefLevelFinder TLF;
       QualType tosearch;
       if (auto TDT = dyn_cast<TypedefType>(QT))
@@ -135,8 +138,11 @@ class TypedefLevelFinder : public RecursiveASTVisitor<TypedefLevelFinder> {
       else
         tosearch = QT;
       TLF.TraverseType(tosearch);
+      // If we found a typedef the we need to have filled out the name field
       assert(IMPLIES(TLF.hastypedef, TLF.TDname != ""));
-      return std::make_tuple(TLF.hastypedef, TLF.typedeflevel, TLF.TDname);
+      struct InternalTypedefInfo info = 
+      	{ TLF.hastypedef, TLF.typedeflevel, TLF.TDname };
+      return info;
     }
 
     bool VisitTypedefType(TypedefType *TT) {
@@ -666,7 +672,9 @@ PointerVariableConstraint::mkString(const EnvironmentMap &E,
   // This is needed when inserting type arguments.
   if (EmitPointee)
     ++It;
-  for (; It != vars.end() && IMPLIES(std::get<0>(typedeflevelinfo), i < std::get<1>(typedeflevelinfo)); ++It, i++) {
+  // Interate through the vars(), but if we have an internal typedef, then stop once you reach the 
+  // typedef's level
+  for (; It != vars.end() && IMPLIES(typedeflevelinfo.hasTypedef, i < typedeflevelinfo.typedefLevel); ++It, i++) {  
     const auto &V = *It;
     ConstAtom *C = nullptr;
     if (ConstAtom *CA = dyn_cast<ConstAtom>(V)) {
@@ -792,8 +800,8 @@ PointerVariableConstraint::mkString(const EnvironmentMap &E,
     // type.
     if (FV) {
       Ss << FV->mkString(E);
-    } else if (std::get<0>(typedeflevelinfo)) {
-      auto name = std::get<2>(typedeflevelinfo);
+    } else if (typedeflevelinfo.hasTypedef) {
+      auto name = typedeflevelinfo.typedefName;
       Ss << name;
     } else {
       Ss << BaseType;
