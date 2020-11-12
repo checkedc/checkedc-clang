@@ -25,12 +25,12 @@
 #ifndef _CONSTRAINTVARIABLES_H
 #define _CONSTRAINTVARIABLES_H
 
-#include "llvm/ADT/StringSwitch.h"
-#include "clang/Lex/Lexer.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/Lex/Lexer.h"
+#include "llvm/ADT/StringSwitch.h"
 
-#include "ProgramVar.h"
 #include "Constraints.h"
+#include "ProgramVar.h"
 
 using namespace clang;
 
@@ -40,7 +40,7 @@ class ProgramInfo;
 // defined in the text above
 typedef std::set<ConstraintKey> CVars;
 // Holds Atoms, one for each of the pointer (*) declared in the program.
-typedef std::vector<Atom*> CAtoms;
+typedef std::vector<Atom *> CAtoms;
 
 // Base class for ConstraintVariables. A ConstraintVariable can either be a
 // PointerVariableConstraint or a FunctionVariableConstraint. The difference
@@ -48,15 +48,13 @@ typedef std::vector<Atom*> CAtoms;
 // and on each parameter.
 class ConstraintVariable {
 public:
-  enum ConstraintVariableKind {
-      PointerVariable,
-      FunctionVariable
-  };
+  enum ConstraintVariableKind { PointerVariable, FunctionVariable };
 
   ConstraintVariableKind getKind() const { return Kind; }
 
 private:
   ConstraintVariableKind Kind;
+
 protected:
   std::string OriginalType;
   // Underlying name of the C variable this ConstraintVariable represents.
@@ -76,11 +74,10 @@ protected:
   // Is this Constraint Variable for a declaration?
   bool IsForDecl;
 
-
   // Only subclasses should call this
-  ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) :
-      Kind(K),OriginalType(T),Name(N), HasEqArgumentConstraints(false),
-      ValidBoundsKey(false), IsForDecl(false) {}
+  ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N)
+      : Kind(K), OriginalType(T), Name(N), HasEqArgumentConstraints(false),
+        ValidBoundsKey(false), IsForDecl(false) {}
 
 public:
   // Create a "for-rewriting" representation of this ConstraintVariable.
@@ -88,10 +85,9 @@ public:
   // the name of the variable, false for just the type.
   // The 'forIType' parameter is true when the generated string is expected
   // to be used inside an itype
-  virtual std::string mkString(const EnvironmentMap &E,
-                               bool emitName=true, bool forItype=false,
-                               bool emitPointee=false) const = 0;
-
+  virtual std::string mkString(const EnvironmentMap &E, bool emitName = true,
+                               bool forItype = false,
+                               bool emitPointee = false) const = 0;
 
   // Debug printing of the constraint variable.
   virtual void print(llvm::raw_ostream &O) const = 0;
@@ -109,8 +105,8 @@ public:
     BKey = NK;
   }
 
-  virtual bool solutionEqualTo(Constraints &, const ConstraintVariable *) const
-    = 0;
+  virtual bool solutionEqualTo(Constraints &,
+                               const ConstraintVariable *) const = 0;
 
   virtual void constrainToWild(Constraints &CS,
                                const std::string &Rsn) const = 0;
@@ -154,7 +150,7 @@ public:
 
   virtual ConstraintVariable *getCopy(Constraints &CS) = 0;
 
-  virtual ~ConstraintVariable() {};
+  virtual ~ConstraintVariable(){};
 
   virtual bool getIsOriginallyChecked() const = 0;
 };
@@ -162,28 +158,20 @@ public:
 typedef std::set<ConstraintVariable *> CVarSet;
 typedef Option<ConstraintVariable> CVarOption;
 
-enum ConsAction {
-  Safe_to_Wild,
-  Wild_to_Safe,
-  Same_to_Same
-};
+enum ConsAction { Safe_to_Wild, Wild_to_Safe, Same_to_Same };
 
 void constrainConsVarGeq(const std::set<ConstraintVariable *> &LHS,
                          const std::set<ConstraintVariable *> &RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
-                         ConsAction CA, bool doEqType,
-                         ProgramInfo *Info,
+                         ConsAction CA, bool doEqType, ProgramInfo *Info,
                          bool HandleBoundsKey = true);
 void constrainConsVarGeq(ConstraintVariable *LHS, const CVarSet &RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
-                         ConsAction CA, bool doEqType,
-                         ProgramInfo *Info,
+                         ConsAction CA, bool doEqType, ProgramInfo *Info,
                          bool HandleBoundsKey = true);
-void constrainConsVarGeq(ConstraintVariable *LHS,
-                         ConstraintVariable *RHS,
+void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
-                         ConsAction CA, bool doEqType,
-                         ProgramInfo *Info,
+                         ConsAction CA, bool doEqType, ProgramInfo *Info,
                          bool HandleBoundsKey = true);
 
 // True if [C] is a PVConstraint that contains at least one Atom (i.e.,
@@ -199,9 +187,9 @@ class FunctionVariableConstraint;
 class PointerVariableConstraint : public ConstraintVariable {
 public:
   enum Qualification {
-      ConstQualification,
-      VolatileQualification,
-      RestrictQualification
+    ConstQualification,
+    VolatileQualification,
+    RestrictQualification
   };
 
   static PointerVariableConstraint *
@@ -209,24 +197,21 @@ public:
                       PersistentSourceLoc *PSL = nullptr);
   static PointerVariableConstraint *getPtrPVConstraint(Constraints &CS);
   static PointerVariableConstraint *getNonPtrPVConstraint(Constraints &CS);
-  static PointerVariableConstraint *getNamedNonPtrPVConstraint(StringRef name, Constraints &CS);
+  static PointerVariableConstraint *getNamedNonPtrPVConstraint(StringRef name,
+                                                               Constraints &CS);
 
 private:
   std::string BaseType;
   CAtoms vars;
   FunctionVariableConstraint *FV;
   std::map<uint32_t, std::set<Qualification>> QualMap;
-  enum OriginalArrType {
-      O_Pointer,
-      O_SizedArray,
-      O_UnSizedArray
-  };
+  enum OriginalArrType { O_Pointer, O_SizedArray, O_UnSizedArray };
   // Map from pointer idx to original type and size.
   // If the original variable U was:
   //  * A pointer, then U -> (a,b) , a = O_Pointer, b has no meaning.
   //  * A sized array, then U -> (a,b) , a = O_SizedArray, b is static size.
   //  * An unsized array, then U -(a,b) , a = O_UnSizedArray, b has no meaning.
-  std::map<uint32_t ,std::pair<OriginalArrType,uint64_t>> arrSizes;
+  std::map<uint32_t, std::pair<OriginalArrType, uint64_t>> arrSizes;
   // If for all U in arrSizes, any U -> (a,b) where a = O_SizedArray or
   // O_UnSizedArray, arrPresent is true.
   bool ArrPresent;
@@ -280,12 +265,11 @@ public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
                             FunctionVariableConstraint *F, bool isArr,
-                            bool isItype, std::string is, bool Generic=false) :
-          ConstraintVariable(PointerVariable, "" /*not used*/, Name),
-          BaseType(T),vars(V),FV(F), ArrPresent(isArr), ItypeStr(is),
-          partOFFuncPrototype(false), Parent(nullptr),
-          BoundsAnnotationStr(""), IsGeneric(Generic), IsZeroWidthArray(false)
-          {}
+                            bool isItype, std::string is, bool Generic = false)
+      : ConstraintVariable(PointerVariable, "" /*not used*/, Name), BaseType(T),
+        vars(V), FV(F), ArrPresent(isArr), ItypeStr(is),
+        partOFFuncPrototype(false), Parent(nullptr), BoundsAnnotationStr(""),
+        IsGeneric(Generic), IsZeroWidthArray(false) {}
 
   std::string getTy() const { return BaseType; }
   bool getArrPresent() const { return ArrPresent; }
@@ -315,8 +299,8 @@ public:
   // Construct a PVConstraint when the variable is generated by a specific
   // declaration (D). This constructor calls the next constructor below with
   // QT and N instantiated with information in D.
-  PointerVariableConstraint(clang::DeclaratorDecl *D,
-                            ProgramInfo &I, const clang::ASTContext &C);
+  PointerVariableConstraint(clang::DeclaratorDecl *D, ProgramInfo &I,
+                            const clang::ASTContext &C);
 
   // QT: Defines the type for the constraint variable. One atom is added for
   //     each level of pointer (or array) indirection in the type.
@@ -333,9 +317,8 @@ public:
   // IsGeneric: CheckedC supports generic types (_Itype_for_any) which need less
   //            restrictive constraints. Set to true to indicate that this
   //            variable is generic.
-  PointerVariableConstraint(const clang::QualType &QT,
-                            clang::DeclaratorDecl *D, std::string N,
-                            ProgramInfo &I,
+  PointerVariableConstraint(const clang::QualType &QT, clang::DeclaratorDecl *D,
+                            std::string N, ProgramInfo &I,
                             const clang::ASTContext &C,
                             std::string *inFunc = nullptr,
                             bool IsGeneric = false);
@@ -349,13 +332,13 @@ public:
     return S->getKind() == PointerVariable;
   }
 
-  std::string mkString(const EnvironmentMap &E, bool EmitName =true,
+  std::string mkString(const EnvironmentMap &E, bool EmitName = true,
                        bool ForItype = false,
                        bool EmitPointee = false) const override;
 
   FunctionVariableConstraint *getFV() const { return FV; }
 
-  void print(llvm::raw_ostream &O) const override ;
+  void print(llvm::raw_ostream &O) const override;
   void dump() const override { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const override;
 
@@ -371,7 +354,7 @@ public:
 
   void equateArgumentConstraints(ProgramInfo &I) override;
 
-  bool isPartOfFunctionPrototype() const  { return partOFFuncPrototype; }
+  bool isPartOfFunctionPrototype() const { return partOFFuncPrototype; }
   // Add the provided constraint variable as an argument constraint.
   bool addArgumentConstraint(ConstraintVariable *DstCons, ProgramInfo &Info);
   // Get the set of constraint variables corresponding to the arguments.
@@ -384,7 +367,7 @@ public:
   // they are needed.
   Atom *getAtom(unsigned int AtomIdx, Constraints &CS);
 
-  ~PointerVariableConstraint() override {};
+  ~PointerVariableConstraint() override{};
 };
 
 typedef PointerVariableConstraint PVConstraint;
@@ -396,13 +379,11 @@ typedef struct {
   std::vector<CVarSet> PS;
 } ParamDeferment;
 
-
 // Constraints on a function type. Also contains a 'name' parameter for
 // when a re-write of a function pointer is needed.
 class FunctionVariableConstraint : public ConstraintVariable {
 private:
-  FunctionVariableConstraint(FunctionVariableConstraint *Ot,
-                             Constraints &CS);
+  FunctionVariableConstraint(FunctionVariableConstraint *Ot, Constraints &CS);
   // N constraints on the return value of the function.
   PVConstraint *ReturnVar;
   // A vector of K sets of N constraints on the parameter values, for
@@ -422,28 +403,24 @@ private:
   void equateFVConstraintVars(ConstraintVariable *CV, ProgramInfo &Info) const;
 
 public:
-  FunctionVariableConstraint() :
-          ConstraintVariable(FunctionVariable, "", ""),
-                                 FileName(""), Hasproto(false),
-        Hasbody(false), IsStatic(false), Parent(nullptr),
-                                 IsFunctionPtr(false) { }
+  FunctionVariableConstraint()
+      : ConstraintVariable(FunctionVariable, "", ""), FileName(""),
+        Hasproto(false), Hasbody(false), IsStatic(false), Parent(nullptr),
+        IsFunctionPtr(false) {}
 
-  FunctionVariableConstraint(clang::DeclaratorDecl *D,
-                             ProgramInfo &I, const clang::ASTContext &C);
-  FunctionVariableConstraint(const clang::Type *Ty,
-                             clang::DeclaratorDecl *D, std::string N,
-                             ProgramInfo &I, const clang::ASTContext &C);
+  FunctionVariableConstraint(clang::DeclaratorDecl *D, ProgramInfo &I,
+                             const clang::ASTContext &C);
+  FunctionVariableConstraint(const clang::Type *Ty, clang::DeclaratorDecl *D,
+                             std::string N, ProgramInfo &I,
+                             const clang::ASTContext &C);
 
-  PVConstraint *getReturnVar() const {
-    return ReturnVar;
-  }
+  PVConstraint *getReturnVar() const { return ReturnVar; }
 
   const std::vector<ParamDeferment> &getDeferredParams() const {
     return deferredParams;
   }
 
-  void addDeferredParams(PersistentSourceLoc PL,
-                         std::vector<CVarSet> Ps);
+  void addDeferredParams(PersistentSourceLoc PL, std::vector<CVarSet> Ps);
 
   size_t numParams() const { return ParamVars.size(); }
 
@@ -467,7 +444,7 @@ public:
   bool solutionEqualTo(Constraints &CS,
                        const ConstraintVariable *CV) const override;
 
-  std::string mkString(const EnvironmentMap &E, bool EmitName =true,
+  std::string mkString(const EnvironmentMap &E, bool EmitName = true,
                        bool ForItype = false,
                        bool EmitPointee = false) const override;
   void print(llvm::raw_ostream &O) const override;
@@ -488,7 +465,7 @@ public:
 
   bool getIsOriginallyChecked() const override;
 
-  ~FunctionVariableConstraint() override {};
+  ~FunctionVariableConstraint() override {}
 };
 
 typedef FunctionVariableConstraint FVConstraint;

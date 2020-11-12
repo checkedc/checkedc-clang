@@ -10,16 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Analysis/CFG.h"
-#include "clang/Analysis/Analyses/Dominators.h"
 #include "clang/3C/ArrayBoundsInferenceConsumer.h"
-#include "clang/3C/ConstraintResolver.h"
 #include "clang/3C/3CGlobalOptions.h"
+#include "clang/3C/ConstraintResolver.h"
+#include "clang/Analysis/Analyses/Dominators.h"
+#include "clang/Analysis/CFG.h"
 #include <sstream>
 
-static std::set<std::string> LengthVarNamesPrefixes = {"len", "count",
-                                                               "size", "num",
-                                                               "siz"};
+static std::set<std::string> LengthVarNamesPrefixes = {"len", "count", "size",
+                                                       "num", "siz"};
 static std::set<std::string> LengthVarNamesSubstring = {"length"};
 #define PREFIXPERCMATCH 50.0
 #define COMMONSUBSEQUENCEPERCMATCH 80.0
@@ -41,13 +40,11 @@ std::string commonPrefixUtil(std::string Str1, std::string Str2) {
 static bool nameSubStringMatch(std::string PtrName, std::string FieldName) {
   // Convert the names to lower case.
   std::transform(PtrName.begin(), PtrName.end(), PtrName.begin(),
-                 [](unsigned char c){ return std::tolower(c); });
+                 [](unsigned char c) { return std::tolower(c); });
   std::transform(FieldName.begin(), FieldName.end(), FieldName.begin(),
-                 [](unsigned char c){ return std::tolower(c); });
-  unsigned SubSeqLen = longestCommonSubsequence(PtrName.c_str(),
-                                                FieldName.c_str(),
-                                                PtrName.length(),
-                                                FieldName.length());
+                 [](unsigned char c) { return std::tolower(c); });
+  unsigned SubSeqLen = longestCommonSubsequence(
+      PtrName.c_str(), FieldName.c_str(), PtrName.length(), FieldName.length());
   if (SubSeqLen > 0) {
     // Check if we get 80% match on the common subsequence matching on the
     // variable name of length and the name of array.
@@ -55,13 +52,12 @@ static bool nameSubStringMatch(std::string PtrName, std::string FieldName) {
            COMMONSUBSEQUENCEPERCMATCH;
   }
   return false;
-
 }
 
 static bool fieldNameMatch(std::string FieldName) {
   // Convert the field name to lower case.
   std::transform(FieldName.begin(), FieldName.end(), FieldName.begin(),
-                 [](unsigned char c){ return std::tolower(c); });
+                 [](unsigned char c) { return std::tolower(c); });
   for (auto &PName : LengthVarNamesPrefixes) {
     if (FieldName.rfind(PName, 0) == 0)
       return true;
@@ -77,11 +73,11 @@ static bool fieldNameMatch(std::string FieldName) {
 static bool hasLengthKeyword(std::string VarName) {
   // Convert the field name to lower case.
   std::transform(VarName.begin(), VarName.end(), VarName.begin(),
-                 [](unsigned char c){ return std::tolower(c); });
+                 [](unsigned char c) { return std::tolower(c); });
 
   std::set<std::string> LengthKeywords(LengthVarNamesPrefixes);
   LengthKeywords.insert(LengthVarNamesSubstring.begin(),
-                           LengthVarNamesSubstring.end());
+                        LengthVarNamesSubstring.end());
   for (auto &PName : LengthKeywords) {
     if (VarName.find(PName) != std::string::npos)
       return true;
@@ -113,7 +109,8 @@ static bool needArrayBounds(Expr *E, ProgramInfo &Info, ASTContext *C) {
   CVarSet ConsVar = CR.getExprConstraintVars(E);
   const auto &EnvMap = Info.getConstraints().getVariables();
   for (auto CurrCVar : ConsVar) {
-    if (needArrayBounds(CurrCVar, EnvMap) || needNTArrayBounds(CurrCVar, EnvMap))
+    if (needArrayBounds(CurrCVar, EnvMap) ||
+        needNTArrayBounds(CurrCVar, EnvMap))
       return true;
     return false;
   }
@@ -142,9 +139,7 @@ static bool needArrayBounds(Decl *D, ProgramInfo &Info, ASTContext *C) {
 // Map that contains association of allocator functions and indexes of
 // parameters that correspond to the size of the object being assigned.
 static std::map<std::string, std::set<unsigned>> AllocatorSizeAssoc = {
-                                                {"malloc", {0}},
-                                                {"calloc", {0, 1}}};
-
+    {"malloc", {0}}, {"calloc", {0, 1}}};
 
 // Get the name of the function called by this call expression.
 static std::string getCalledFunctionName(const Expr *E) {
@@ -161,9 +156,7 @@ bool tryGetBoundsKeyVar(Expr *E, BoundsKey &BK, ProgramInfo &Info,
   ConstraintResolver CR(Info, Context);
   CVarSet CVs = CR.getExprConstraintVars(E);
   auto &ABInfo = Info.getABoundsInfo();
-  return CR.resolveBoundsKey(CVs, BK) ||
-         ABInfo.tryGetVariable(E, *Context, BK);
-
+  return CR.resolveBoundsKey(CVs, BK) || ABInfo.tryGetVariable(E, *Context, BK);
 }
 
 bool tryGetBoundsKeyVar(Decl *D, BoundsKey &BK, ProgramInfo &Info,
@@ -179,37 +172,35 @@ bool tryGetBoundsKeyVar(Decl *D, BoundsKey &BK, ProgramInfo &Info,
 // is a simple expression, and then organizes the ArgVals for determining
 // a possible bound
 static bool isAllocatorCall(Expr *E, std::string &FName, ProgramInfo &I,
-                            ASTContext *C,
-                            std::vector<Expr *> &ArgVals) {
+                            ASTContext *C, std::vector<Expr *> &ArgVals) {
   bool RetVal = false;
   if (CallExpr *CE = dyn_cast<CallExpr>(removeAuxillaryCasts(E)))
     if (CE->getCalleeDecl() != nullptr) {
       // Is this a call to a named function?
       FName = getCalledFunctionName(CE);
       // check if the called function is a known allocator?
-      if (AllocatorSizeAssoc.find(FName) !=
-             AllocatorSizeAssoc.end()) {
+      if (AllocatorSizeAssoc.find(FName) != AllocatorSizeAssoc.end()) {
         RetVal = true;
         BoundsKey Tmp;
         // First get all base expressions.
         std::vector<Expr *> BaseExprs;
         BaseExprs.clear();
         for (auto Pidx : AllocatorSizeAssoc[FName]) {
-         Expr *PExpr = CE->getArg(Pidx)->IgnoreParenCasts();
-         BinaryOperator *BO = dyn_cast<BinaryOperator>(PExpr);
-         UnaryExprOrTypeTraitExpr *UExpr =
-             dyn_cast<UnaryExprOrTypeTraitExpr>(PExpr);
-         if (BO && BO->isMultiplicativeOp()) {
-           BaseExprs.push_back(BO->getLHS());
-           BaseExprs.push_back(BO->getRHS());
-         } else if (UExpr && UExpr->getKind() == UETT_SizeOf) {
-           BaseExprs.push_back(UExpr);
-         } else if (tryGetBoundsKeyVar(PExpr, Tmp, I, C)) {
-           BaseExprs.push_back(PExpr);
-         } else {
-           RetVal = false;
-           break;
-         }
+          Expr *PExpr = CE->getArg(Pidx)->IgnoreParenCasts();
+          BinaryOperator *BO = dyn_cast<BinaryOperator>(PExpr);
+          UnaryExprOrTypeTraitExpr *UExpr =
+              dyn_cast<UnaryExprOrTypeTraitExpr>(PExpr);
+          if (BO && BO->isMultiplicativeOp()) {
+            BaseExprs.push_back(BO->getLHS());
+            BaseExprs.push_back(BO->getRHS());
+          } else if (UExpr && UExpr->getKind() == UETT_SizeOf) {
+            BaseExprs.push_back(UExpr);
+          } else if (tryGetBoundsKeyVar(PExpr, Tmp, I, C)) {
+            BaseExprs.push_back(PExpr);
+          } else {
+            RetVal = false;
+            break;
+          }
         }
 
         // Check if each of the expression is either sizeof or a DeclRefExpr
@@ -312,7 +303,7 @@ static void handleAllocatorCall(QualType LHSType, BoundsKey LK, Expr *E,
         AVarBInfo.replaceBounds(TmpKey, Declared, LBounds);
         AVarBInfo.addAssignment(LK, TmpKey);
       } else {
-        assert (LBounds != nullptr && "LBounds cannot be nullptr here.");
+        assert(LBounds != nullptr && "LBounds cannot be nullptr here.");
         delete (LBounds);
       }
     }
@@ -392,8 +383,7 @@ bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
       // First check for variable name match.
       for (auto &PtrField : IdentifiedArrVars) {
         for (auto &LenField : PotLenFields) {
-          if (hasNameMatch(PtrField.first,
-                           LenField.first)) {
+          if (hasNameMatch(PtrField.first, LenField.first)) {
             ABounds *FldBounds = new CountBound(LenField.second);
             // If we find a field which matches both the pointer name and
             // variable name heuristic lets use it.
@@ -430,9 +420,9 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     const FunctionProtoType *FT = Ty->getAs<FunctionProtoType>();
     if (FT != nullptr) {
       std::map<ParmVarDecl *, std::set<ParmVarDecl *>> ArrVarLenMap;
-      std::map<unsigned , std::pair<std::string, BoundsKey>> ParamArrays;
+      std::map<unsigned, std::pair<std::string, BoundsKey>> ParamArrays;
       std::map<unsigned, std::pair<std::string, BoundsKey>> ParamNtArrays;
-      std::map<unsigned , std::pair<std::string, BoundsKey>> LengthParams;
+      std::map<unsigned, std::pair<std::string, BoundsKey>> LengthParams;
 
       for (unsigned i = 0; i < FT->getNumParams(); i++) {
         ParmVarDecl *PVD = FD->getParamDecl(i);
@@ -470,8 +460,8 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           // Then most likely this will be a length field.
           unsigned PIdx = ArrParamPair.first;
           BoundsKey PBKey = ArrParamPair.second.second;
-          if (LengthParams.find(PIdx +1) != LengthParams.end()) {
-            ABounds *PBounds = new CountBound(LengthParams[PIdx+1].second);
+          if (LengthParams.find(PIdx + 1) != LengthParams.end()) {
+            ABounds *PBounds = new CountBound(LengthParams[PIdx + 1].second);
             ABInfo.replaceBounds(PBKey, Heuristics, PBounds);
             ABStats.NeighbourParamMatch.insert(PBKey);
             continue;
@@ -503,7 +493,8 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
               // Check if the length parameter name matches our heuristics.
               if (fieldNameMatch(currLenParamPair.second.first)) {
                 FoundLen = true;
-                ABounds *PBounds = new CountBound(currLenParamPair.second.second);
+                ABounds *PBounds =
+                    new CountBound(currLenParamPair.second.second);
                 ABInfo.replaceBounds(PBKey, Heuristics, PBounds);
                 ABStats.VariableNameMatch.insert(PBKey);
               }
@@ -511,19 +502,18 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           }
 
           if (!FoundLen) {
-            llvm::errs() << "[-] Array variable length not found:" <<
-                            ArrParamPair.second.first << "\n";
+            llvm::errs() << "[-] Array variable length not found:"
+                         << ArrParamPair.second.first << "\n";
           }
-
         }
       }
 
       for (auto &CurrNtArr : ParamNtArrays) {
         unsigned PIdx = CurrNtArr.first;
         BoundsKey PBKey = CurrNtArr.second.second;
-        if (LengthParams.find(PIdx +1) != LengthParams.end()) {
-          if (fieldNameMatch(LengthParams[PIdx +1].first)) {
-            ABounds *PBounds = new CountBound(LengthParams[PIdx +1].second);
+        if (LengthParams.find(PIdx + 1) != LengthParams.end()) {
+          if (fieldNameMatch(LengthParams[PIdx + 1].first)) {
+            ABounds *PBounds = new CountBound(LengthParams[PIdx + 1].second);
             ABInfo.replaceBounds(PBKey, Heuristics, PBounds);
             ABStats.VariableNameMatch.insert(PBKey);
             continue;
@@ -535,14 +525,15 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   return true;
 }
 
-void LocalVarABVisitor::handleAssignment(BoundsKey LK, QualType LHSType, Expr *RHS) {
+void LocalVarABVisitor::handleAssignment(BoundsKey LK, QualType LHSType,
+                                         Expr *RHS) {
   auto &ABoundsInfo = Info.getABoundsInfo();
   handleAllocatorCall(LHSType, LK, RHS, Info, Context);
   clang::StringLiteral *SL =
-    dyn_cast_or_null<clang::StringLiteral>(RHS->IgnoreParenCasts());
+      dyn_cast_or_null<clang::StringLiteral>(RHS->IgnoreParenCasts());
   if (SL != nullptr) {
     ABounds *ByBounds =
-      new ByteBound(ABoundsInfo.getConstKey(SL->getByteLength()));
+        new ByteBound(ABoundsInfo.getConstKey(SL->getByteLength()));
     if (!ABoundsInfo.mergeBounds(LK, Allocator, ByBounds)) {
       delete (ByBounds);
     } else {
@@ -581,37 +572,38 @@ void LocalVarABVisitor::addUsedParmVarDecl(Expr *CE) {
 bool isValidBinOpForLen(BinaryOperator::Opcode COP) {
   bool Valid = true;
   switch (COP) {
-    // Invalid BinOPs
-    // ==, !=, &, &=, &&, |, |=, ^, ^=
-    case BinaryOperator::Opcode::BO_EQ:
-    case BinaryOperator::Opcode::BO_NE:
-    case BinaryOperator::Opcode::BO_And:
-    case BinaryOperator::Opcode::BO_AndAssign:
-    case BinaryOperator::Opcode::BO_LAnd:
-    case BinaryOperator::Opcode::BO_Or:
-    case BinaryOperator::Opcode::BO_OrAssign:
-    case BinaryOperator::Opcode::BO_LOr:
-    case BinaryOperator::Opcode::BO_Xor:
-    case BinaryOperator::Opcode::BO_XorAssign:
-      Valid = false;
-      break;
-    // Rest all Ops are okay.
-    default: break;
+  // Invalid BinOPs
+  // ==, !=, &, &=, &&, |, |=, ^, ^=
+  case BinaryOperator::Opcode::BO_EQ:
+  case BinaryOperator::Opcode::BO_NE:
+  case BinaryOperator::Opcode::BO_And:
+  case BinaryOperator::Opcode::BO_AndAssign:
+  case BinaryOperator::Opcode::BO_LAnd:
+  case BinaryOperator::Opcode::BO_Or:
+  case BinaryOperator::Opcode::BO_OrAssign:
+  case BinaryOperator::Opcode::BO_LOr:
+  case BinaryOperator::Opcode::BO_Xor:
+  case BinaryOperator::Opcode::BO_XorAssign:
+    Valid = false;
+    break;
+  // Rest all Ops are okay.
+  default:
+    break;
   }
   return Valid;
 }
 
 bool LocalVarABVisitor::VisitBinaryOperator(BinaryOperator *BO) {
-    BinaryOperator::Opcode BOpcode = BO->getOpcode();
-    // Is this not a valid bin op for a potential length parameter?
-    if (!isValidBinOpForLen(BOpcode)) {
-      addUsedParmVarDecl(BO->getLHS());
-      addUsedParmVarDecl(BO->getRHS());
-    }
-    if (BOpcode == BinaryOperator::Opcode::BO_Assign) {
-      HandleBinAssign(BO);
-    }
-    return true;
+  BinaryOperator::Opcode BOpcode = BO->getOpcode();
+  // Is this not a valid bin op for a potential length parameter?
+  if (!isValidBinOpForLen(BOpcode)) {
+    addUsedParmVarDecl(BO->getLHS());
+    addUsedParmVarDecl(BO->getRHS());
+  }
+  if (BOpcode == BinaryOperator::Opcode::BO_Assign) {
+    HandleBinAssign(BO);
+  }
+  return true;
 }
 
 bool LocalVarABVisitor::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
@@ -662,7 +654,7 @@ void AddMainFuncHeuristic(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
     auto &ABInfo = I.getABoundsInfo();
     if (FT != nullptr) {
       if (FD->getNameInfo().getAsString() == std::string("main") &&
-                 FT->getNumParams() == 2) {
+          FT->getNumParams() == 2) {
         // If the function is `main` then we know second argument is _Array_ptr.
         ParmVarDecl *Argv = FD->getParamDecl(1);
         assert(Argv != nullptr && "Argument cannot be nullptr");
@@ -677,7 +669,6 @@ void AddMainFuncHeuristic(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
       }
     }
   }
-
 }
 
 // Given a variable I, this visitor collects all the variables that are used as
@@ -685,10 +676,9 @@ void AddMainFuncHeuristic(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
 // i.e., for all I < X expressions, it collects X.
 class ComparisionVisitor : public RecursiveASTVisitor<ComparisionVisitor> {
 public:
-  explicit ComparisionVisitor(ProgramInfo &In, ASTContext *AC,
-                     BoundsKey I, std::set<BoundsKey> &PossB) : I(In),
-                                    C(AC),
-                                    IndxBKey(I), PB(PossB), CurrStmt(nullptr) {
+  explicit ComparisionVisitor(ProgramInfo &In, ASTContext *AC, BoundsKey I,
+                              std::set<BoundsKey> &PossB)
+      : I(In), C(AC), IndxBKey(I), PB(PossB), CurrStmt(nullptr) {
     CR = new ConstraintResolver(In, AC);
   }
   virtual ~ComparisionVisitor() {
@@ -722,7 +712,7 @@ public:
         BoundsKey LKey, RKey;
         auto &ABI = I.getABoundsInfo();
         if ((CR->resolveBoundsKey(LHSCVars, LKey) ||
-            ABI.tryGetVariable(LHS, *C, LKey)) &&
+             ABI.tryGetVariable(LHS, *C, LKey)) &&
             (CR->resolveBoundsKey(RHSCVars, RKey) ||
              ABI.tryGetVariable(RHS, *C, RKey))) {
 
@@ -754,6 +744,7 @@ public:
     }
     return true;
   }
+
 private:
   ProgramInfo &I;
   ASTContext *C;
@@ -768,15 +759,11 @@ private:
   Stmt *CurrStmt;
 };
 
-LengthVarInference::LengthVarInference(ProgramInfo &In,
-                                       ASTContext *AC,
-                                       FunctionDecl *F) : I(In),
-                                       C(AC),
-                                       FD(F),
-                                       CurBB(nullptr) {
+LengthVarInference::LengthVarInference(ProgramInfo &In, ASTContext *AC,
+                                       FunctionDecl *F)
+    : I(In), C(AC), FD(F), CurBB(nullptr) {
 
-  Cfg = CFG::buildCFG(nullptr, FD->getBody(),
-                      AC, CFG::BuildOptions());
+  Cfg = CFG::buildCFG(nullptr, FD->getBody(), AC, CFG::BuildOptions());
   for (auto *CBlock : *(Cfg.get())) {
     for (auto &CfgElem : *CBlock) {
       if (CfgElem.getKind() == clang::CFGElement::Statement) {
@@ -846,8 +833,8 @@ void LengthVarInference::VisitStmt(Stmt *St) {
 // (or any assignments of X to the variables of the same scope as arr) to be
 // the size of arr.
 void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
-  assert (CurBB != nullptr && "Array dereference does not belong "
-                              "to any basic block");
+  assert(CurBB != nullptr && "Array dereference does not belong "
+                             "to any basic block");
   // First, get the BoundsKey for the base.
   Expr *BE = ASE->getBase()->IgnoreParenCasts();
 
@@ -863,13 +850,12 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
   auto IdxCVars = CR->getExprConstraintVars(IdxExpr);
 
   // Get the bounds key of the base and index.
-  if (CR->containsValidCons(BaseCVars) &&
-      !CR->containsValidCons(IdxCVars)) {
+  if (CR->containsValidCons(BaseCVars) && !CR->containsValidCons(IdxCVars)) {
     BoundsKey BasePtr, IdxKey;
     auto &ABI = I.getABoundsInfo();
     if (CR->resolveBoundsKey(BaseCVars, BasePtr) &&
         (CR->resolveBoundsKey(IdxCVars, IdxKey) ||
-            ABI.tryGetVariable(IdxExpr, *C, IdxKey))) {
+         ABI.tryGetVariable(IdxExpr, *C, IdxKey))) {
       std::set<BoundsKey> PossibleLens;
       PossibleLens.clear();
       ComparisionVisitor CV(I, C, IdxKey, PossibleLens);
@@ -887,7 +873,6 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
       }
     }
   }
-
 }
 
 void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I,

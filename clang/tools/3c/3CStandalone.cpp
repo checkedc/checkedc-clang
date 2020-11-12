@@ -24,115 +24,111 @@ static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp("");
 
 static cl::opt<bool> OptDumpIntermediate("dump-intermediate",
-                                      cl::desc("Dump intermediate "
-                                               "information"),
-                                      cl::init(false),
-                                      cl::cat(_3CCategory));
+                                         cl::desc("Dump intermediate "
+                                                  "information"),
+                                         cl::init(false), cl::cat(_3CCategory));
 
-static cl::opt<bool> OptVerbose("verbose", cl::desc("Print verbose "
-                                                 "information"),
-                             cl::init(false), cl::cat(_3CCategory));
+static cl::opt<bool> OptVerbose("verbose",
+                                cl::desc("Print verbose "
+                                         "information"),
+                                cl::init(false), cl::cat(_3CCategory));
 
 static cl::opt<std::string>
     OptOutputPostfix("output-postfix",
-                  cl::desc("Postfix to add to the names of rewritten "
-                           "files, if not supplied writes to STDOUT"),
-                  cl::init("-"), cl::cat(_3CCategory));
+                     cl::desc("Postfix to add to the names of rewritten "
+                              "files, if not supplied writes to STDOUT"),
+                     cl::init("-"), cl::cat(_3CCategory));
 
 static cl::opt<std::string>
     OptMalloc("use-malloc",
-                     cl::desc("Allows for the usage of user-specified "
-                              "versions of function allocators"),
-                     cl::init(""), cl::cat(_3CCategory));
+              cl::desc("Allows for the usage of user-specified "
+                       "versions of function allocators"),
+              cl::init(""), cl::cat(_3CCategory));
 
 static cl::opt<std::string>
     OptConstraintOutputJson("constraint-output",
-                         cl::desc("Path to the file where all the analysis "
-                                  "information will be dumped as json"),
-                         cl::init("constraint_output.json"),
-                         cl::cat(_3CCategory));
+                            cl::desc("Path to the file where all the analysis "
+                                     "information will be dumped as json"),
+                            cl::init("constraint_output.json"),
+                            cl::cat(_3CCategory));
 
 static cl::opt<std::string>
     OptStatsOutputJson("stats-output",
-                            cl::desc("Path to the file where all the stats "
-                                     "will be dumped as json"),
-                            cl::init("TotalConstraintStats.json"),
-                            cl::cat(_3CCategory));
+                       cl::desc("Path to the file where all the stats "
+                                "will be dumped as json"),
+                       cl::init("TotalConstraintStats.json"),
+                       cl::cat(_3CCategory));
 static cl::opt<std::string>
     OptWildPtrInfoJson("wildptrstats-output",
-                            cl::desc("Path to the file where all the info "
-                                     "related to WILD ptr grouped by reason"
-                                     " will be dumped as json"),
-                            cl::init("WildPtrStats.json"),
-                            cl::cat(_3CCategory));
+                       cl::desc("Path to the file where all the info "
+                                "related to WILD ptr grouped by reason"
+                                " will be dumped as json"),
+                       cl::init("WildPtrStats.json"), cl::cat(_3CCategory));
 
-static cl::opt<std::string>
-  OptPerPtrWILDInfoJson("perptrstats-output",
-                        cl::desc("Path to the file where all the info "
-                                 "related to each WILD ptr will be dumped as json"),
-                        cl::init("PerWildPtrStats.json"),
-                        cl::cat(_3CCategory));
+static cl::opt<std::string> OptPerPtrWILDInfoJson(
+    "perptrstats-output",
+    cl::desc("Path to the file where all the info "
+             "related to each WILD ptr will be dumped as json"),
+    cl::init("PerWildPtrStats.json"), cl::cat(_3CCategory));
 
 static cl::opt<bool> OptDumpStats("dump-stats", cl::desc("Dump statistics"),
-                               cl::init(false),
-                               cl::cat(_3CCategory));
+                                  cl::init(false), cl::cat(_3CCategory));
 
 static cl::opt<bool> OptHandleVARARGS("handle-varargs",
-                                   cl::desc("Enable handling of varargs "
-                                            "in a "
-                                            "sound manner"),
-                                   cl::init(false),
-                                   cl::cat(_3CCategory));
+                                      cl::desc("Enable handling of varargs "
+                                               "in a "
+                                               "sound manner"),
+                                      cl::init(false), cl::cat(_3CCategory));
 
-static cl::opt<bool> OptEnablePropThruIType("enable-itypeprop",
-                                         cl::desc("Enable propagation of "
-                                                  "constraints through ityped "
-                                                  "parameters/returns."),
-                                         cl::init(false),
-                                         cl::cat(_3CCategory));
+static cl::opt<bool>
+    OptEnablePropThruIType("enable-itypeprop",
+                           cl::desc("Enable propagation of "
+                                    "constraints through ityped "
+                                    "parameters/returns."),
+                           cl::init(false), cl::cat(_3CCategory));
 
 static cl::opt<bool> OptAllTypes("alltypes",
-                              cl::desc("Consider all Checked C types for "
-                                       "conversion"),
-                              cl::init(false),
-                              cl::cat(_3CCategory));
+                                 cl::desc("Consider all Checked C types for "
+                                          "conversion"),
+                                 cl::init(false), cl::cat(_3CCategory));
 
-static cl::opt<bool> OptAddCheckedRegions("addcr", cl::desc("Add Checked "
-                                                         "Regions"),
-                                       cl::init(false),
-                                       cl::cat(_3CCategory));
+static cl::opt<bool> OptAddCheckedRegions("addcr",
+                                          cl::desc("Add Checked "
+                                                   "Regions"),
+                                          cl::init(false),
+                                          cl::cat(_3CCategory));
 
-static cl::opt<bool> OptDiableCCTypeChecker("disccty",
-                              cl::desc("Do not disable checked c type checker."),
-                              cl::init(false),
-                              cl::cat(_3CCategory));
+static cl::opt<bool>
+    OptDiableCCTypeChecker("disccty",
+                           cl::desc("Do not disable checked c type checker."),
+                           cl::init(false), cl::cat(_3CCategory));
 
 static cl::opt<std::string>
     OptBaseDir("base-dir",
-            cl::desc("Base directory for the code we're translating"),
-            cl::init(""), cl::cat(_3CCategory));
+               cl::desc("Base directory for the code we're translating"),
+               cl::init(""), cl::cat(_3CCategory));
 
-static cl::opt<bool> OptWarnRootCause
-    ("warn-root-cause",
+static cl::opt<bool> OptWarnRootCause(
+    "warn-root-cause",
     cl::desc("Emit warnings indicating root causes of unchecked pointers."),
     cl::init(false), cl::cat(_3CCategory));
 
-static cl::opt<bool> OptWarnAllRootCause
-    ("warn-all-root-cause",
-     cl::desc("Emit warnings for all root causes, "
-              "even those unlikely to be interesting."),
-     cl::init(false), cl::cat(_3CCategory));
+static cl::opt<bool>
+    OptWarnAllRootCause("warn-all-root-cause",
+                        cl::desc("Emit warnings for all root causes, "
+                                 "even those unlikely to be interesting."),
+                        cl::init(false), cl::cat(_3CCategory));
 
 #ifdef FIVE_C
-static cl::opt<bool> OptRemoveItypes
-    ("remove-itypes",
-     cl::desc("Remove unneeded interoperation type annotations."),
-     cl::init(false), cl::cat(_3CCategory));
+static cl::opt<bool> OptRemoveItypes(
+    "remove-itypes",
+    cl::desc("Remove unneeded interoperation type annotations."),
+    cl::init(false), cl::cat(_3CCategory));
 
-static cl::opt<bool> OptForceItypes
-    ("force-itypes",
-     cl::desc("Use interoperation types instead of regular checked pointers. "),
-     cl::init(false), cl::cat(_3CCategory));
+static cl::opt<bool> OptForceItypes(
+    "force-itypes",
+    cl::desc("Use interoperation types instead of regular checked pointers. "),
+    cl::init(false), cl::cat(_3CCategory));
 #endif
 
 int main(int argc, const char **argv) {
@@ -144,9 +140,7 @@ int main(int argc, const char **argv) {
   InitializeAllAsmPrinters();
   InitializeAllAsmParsers();
 
-  CommonOptionsParser OptionsParser(argc,
-                                    (const char**)(argv),
-                                    _3CCategory);
+  CommonOptionsParser OptionsParser(argc, (const char **)(argv), _3CCategory);
   // Setup options.
   struct _3COptions CcOptions;
   CcOptions.BaseDir = OptBaseDir.getValue();
@@ -184,13 +178,11 @@ int main(int argc, const char **argv) {
     }
     token = Malloc;
     CcOptions.AllocatorFunctions.push_back(token);
-  }
-  else
+  } else
     CcOptions.AllocatorFunctions = {};
 
   // Create 3C Interface.
-  _3CInterface _3CInterface(CcOptions,
-                            OptionsParser.getSourcePathList(),
+  _3CInterface _3CInterface(CcOptions, OptionsParser.getSourcePathList(),
                             &(OptionsParser.getCompilations()));
 
   if (OptVerbose)

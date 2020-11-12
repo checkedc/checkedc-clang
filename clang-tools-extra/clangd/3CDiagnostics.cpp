@@ -25,12 +25,12 @@ static bool IsValidSourceFile(ConstraintsInfo &CCRes, std::string &FilePath) {
   return CCRes.ValidSourceFiles.find(FilePath) != CCRes.ValidSourceFiles.end();
 }
 
-
 bool _3CDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line) {
   std::lock_guard<std::mutex> Lock(DiagMutex);
   std::set<ConstraintKey> ProcessedCKeys;
   ProcessedCKeys.clear();
-  auto GetLocRange = [](uint32_t Line, uint32_t ColNoS, uint32_t ColNoE) -> Range {
+  auto GetLocRange = [](uint32_t Line, uint32_t ColNoS,
+                        uint32_t ColNoE) -> Range {
     Range nRange;
     Line--;
     nRange.start.line = Line;
@@ -60,8 +60,8 @@ bool _3CDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line) {
       NewDiag.Source = Diag::_3CMain;
       NewDiag.Severity = DiagnosticsEngine::Level::Error;
       NewDiag.code = std::to_string(WReason.first);
-      NewDiag.Message = "Pointer is wild because of:" +
-                        WReason.second.getWildPtrReason();
+      NewDiag.Message =
+          "Pointer is wild because of:" + WReason.second.getWildPtrReason();
 
       // Create notes for the information about root cause.
       PersistentSourceLoc SL = WReason.second.getLocation();
@@ -110,11 +110,11 @@ bool _3CDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line) {
             PsInfo = Line.AtomSourceMap[tC];
             FilePath = PsInfo->getFileName();
             DiagNote.AbsFile = FilePath;
-            DiagNote.Range =
-                GetLocRange(PsInfo->getLineNo(), PsInfo->getColSNo(),
-                            PsInfo->getColENo());
+            DiagNote.Range = GetLocRange(
+                PsInfo->getLineNo(), PsInfo->getColSNo(), PsInfo->getColENo());
             MaxPtrReasons--;
-            DiagNote.Message = Line.RootWildAtomsWithReason[tC].getWildPtrReason();
+            DiagNote.Message =
+                Line.RootWildAtomsWithReason[tC].getWildPtrReason();
             if (MaxPtrReasons <= 1)
               DiagNote.Message += " (others)";
             NewDiag.Notes.push_back(DiagNote);
@@ -127,10 +127,9 @@ bool _3CDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line) {
     }
   }
 
-
   return true;
 }
 
-}
-}
+} // namespace clangd
+} // namespace clang
 #endif

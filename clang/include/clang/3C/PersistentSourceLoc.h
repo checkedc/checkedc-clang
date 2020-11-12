@@ -18,22 +18,21 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
-#include "clang/Tooling/Tooling.h"
-#include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Rewrite/Core/Rewriter.h"
+#include "clang/Tooling/CommonOptionsParser.h"
+#include "clang/Tooling/Tooling.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/ErrorHandling.h"
 
 class PersistentSourceLoc {
 protected:
-  PersistentSourceLoc(std::string f, uint32_t l, uint32_t c, uint32_t e) :
-                      FileName(f), LineNo(l), ColNoS(c), ColNoE(e),
-                      isValid(true) {}
-  
+  PersistentSourceLoc(std::string f, uint32_t l, uint32_t c, uint32_t e)
+      : FileName(f), LineNo(l), ColNoS(c), ColNoE(e), isValid(true) {}
+
 public:
-  PersistentSourceLoc() : FileName(""), LineNo(0), ColNoS(0), ColNoE(0),
-                          isValid(false) {}
+  PersistentSourceLoc()
+      : FileName(""), LineNo(0), ColNoS(0), ColNoE(0), isValid(false) {}
   std::string getFileName() const { return FileName; }
   uint32_t getLineNo() const { return LineNo; }
   uint32_t getColSNo() const { return ColNoS; }
@@ -62,22 +61,21 @@ public:
 
   void dump() const { print(llvm::errs()); }
 
-  static
-  PersistentSourceLoc mkPSL(const clang::Decl *D, clang::ASTContext &Context);
+  static PersistentSourceLoc mkPSL(const clang::Decl *D,
+                                   clang::ASTContext &Context);
 
-  static
-  PersistentSourceLoc mkPSL(const clang::Stmt *S, clang::ASTContext &Context);
+  static PersistentSourceLoc mkPSL(const clang::Stmt *S,
+                                   clang::ASTContext &Context);
 
-  static
-  PersistentSourceLoc mkPSL(const clang::Expr *E, clang::ASTContext &Context);
+  static PersistentSourceLoc mkPSL(const clang::Expr *E,
+                                   clang::ASTContext &Context);
 
 private:
   // Create a PersistentSourceLoc based on absolute file path
   // from the given SourceRange and SourceLocation.
-  static
-  PersistentSourceLoc mkPSL(clang::SourceRange SR,
-                            clang::SourceLocation SL,
-                            clang::ASTContext &Context);
+  static PersistentSourceLoc mkPSL(clang::SourceRange SR,
+                                   clang::SourceLocation SL,
+                                   clang::ASTContext &Context);
   // The source file name.
   std::string FileName;
   // Starting line number.
@@ -90,6 +88,6 @@ private:
 };
 
 typedef std::pair<PersistentSourceLoc, PersistentSourceLoc>
-PersistentSourceRange;
+    PersistentSourceRange;
 
 #endif

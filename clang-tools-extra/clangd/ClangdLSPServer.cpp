@@ -398,8 +398,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
         llvm::json::Object{
             {"textDocumentSync", (int)TextDocumentSyncKind::Incremental},
             {"codeActionProvider", true},
-            {"codeLensProvider", llvm::json::Object{
-                {"resolveProvider", true}}},
+            {"codeLensProvider", llvm::json::Object{{"resolveProvider", true}}},
             {"executeCommandProvider",
              llvm::json::Object{
                  {"commands",
@@ -529,40 +528,35 @@ void ClangdLSPServer::onFileEvent(const DidChangeWatchedFilesParams &Params) {
 }
 
 #ifdef INTERACTIVE3C
-void ClangdLSPServer::_3CResultsReady(std::string FileName,
-                                      bool ClearDiags) {
+void ClangdLSPServer::_3CResultsReady(std::string FileName, bool ClearDiags) {
   // Get the diagnostics and update the client.
   std::vector<Diag> Diagnostics;
   Diagnostics.clear();
   if (!ClearDiags) {
     std::lock_guard<std::mutex> lock(Server->_3CDiagInfo.DiagMutex);
     auto &allDiags = Server->_3CDiagInfo.GetAllFilesDiagnostics();
-    if (allDiags.find(FileName) !=
-        allDiags.end()) {
-      Diagnostics.insert(
-          Diagnostics.begin(),
-          allDiags[FileName].begin(),
-          allDiags[FileName].end());
+    if (allDiags.find(FileName) != allDiags.end()) {
+      Diagnostics.insert(Diagnostics.begin(), allDiags[FileName].begin(),
+                         allDiags[FileName].end());
     }
   }
   this->onDiagnosticsReady(FileName, Diagnostics);
 }
 
 void ClangdLSPServer::send3CMessage(std::string MsgStr) {
- // Send message as info to the client.
-  notify("window/showMessage",
-         llvm::json::Object{
-             // Info message.
-             {"type", 3},
-             {"message", std::move(MsgStr)},
-         });
+  // Send message as info to the client.
+  notify("window/showMessage", llvm::json::Object{
+                                   // Info message.
+                                   {"type", 3},
+                                   {"message", std::move(MsgStr)},
+                               });
 }
 #endif
 void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
                                 Callback<llvm::json::Value> Reply) {
 #ifdef INTERACTIVE3C
   // In this mode, we support only 3C commands.
-  if(Is3CCommand(Params)) {
+  if (Is3CCommand(Params)) {
     Server->execute3CCommand(Params, this);
     Reply("3C Background work scheduled.");
   } else {
@@ -1149,7 +1143,6 @@ ClangdLSPServer::ClangdLSPServer(
   MsgHandler->bind("textDocument/didOpen", &ClangdLSPServer::onDocumentDidOpen);
   MsgHandler->bind("textDocument/didClose", &ClangdLSPServer::onDocumentDidClose);
   MsgHandler->bind("textDocument/didChange", &ClangdLSPServer::onDocumentDidChange);
-  // clang-format on
 #else
   MsgHandler->bind("initialize", &ClangdLSPServer::onInitialize);
   MsgHandler->bind("shutdown", &ClangdLSPServer::onShutdown);
@@ -1179,6 +1172,7 @@ ClangdLSPServer::ClangdLSPServer(
   MsgHandler->bind("textDocument/typeHierarchy", &ClangdLSPServer::onTypeHierarchy);
   MsgHandler->bind("typeHierarchy/resolve", &ClangdLSPServer::onResolveTypeHierarchy);
 #endif
+  // clang-format on
 }
 
 ClangdLSPServer::~ClangdLSPServer() = default;

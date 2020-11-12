@@ -9,12 +9,12 @@
 // classes of RewriteUtils.h
 //===----------------------------------------------------------------------===//
 
-#include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/CastPlacement.h"
 #include "clang/3C/CheckedRegions.h"
 #include "clang/3C/DeclRewriter.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Tooling/Refactoring/SourceCode.h"
-#include "clang/3C/3CGlobalOptions.h"
 
 using namespace llvm;
 using namespace clang;
@@ -46,8 +46,7 @@ SourceRange DComp::getReplacementSourceRange(DeclReplacement *D) const {
   return Range;
 }
 
-bool DComp::operator()(DeclReplacement *Lhs,
-                       DeclReplacement *Rhs) const {
+bool DComp::operator()(DeclReplacement *Lhs, DeclReplacement *Rhs) const {
   // Does the source location of the Decl in lhs overlap at all with
   // the source location of rhs?
   SourceRange SrLhs = getReplacementSourceRange(Lhs);
@@ -79,8 +78,8 @@ bool DComp::operator()(DeclReplacement *Lhs,
     return LHsPLocB.isValid();
   }
 
-  bool Contained =  SM.isBeforeInTranslationUnit(X1, Y2) &&
-                    SM.isBeforeInTranslationUnit(Y1, X2);
+  bool Contained = SM.isBeforeInTranslationUnit(X1, Y2) &&
+                   SM.isBeforeInTranslationUnit(Y1, X2);
 
   if (Contained)
     return false;
@@ -92,9 +91,10 @@ void GlobalVariableGroups::addGlobalDecl(Decl *VD, std::vector<Decl *> *VDVec) {
   if (VD && GlobVarGroups.find(VD) == GlobVarGroups.end()) {
     if (VDVec == nullptr)
       VDVec = new std::vector<Decl *>();
-    assert("Decls in group are not ordered correctly." && (VDVec->empty() ||
-           SM.isBeforeInTranslationUnit(VDVec->back()->getEndLoc(),
-                                        VD->getEndLoc())));
+    assert("Decls in group are not ordered correctly." &&
+           (VDVec->empty() ||
+            SM.isBeforeInTranslationUnit(VDVec->back()->getEndLoc(),
+                                         VD->getEndLoc())));
     VDVec->push_back(VD);
     GlobVarGroups[VD] = VDVec;
     // Process the next decl.
@@ -105,13 +105,11 @@ void GlobalVariableGroups::addGlobalDecl(Decl *VD, std::vector<Decl *> *VDVec) {
   }
 }
 
-
 std::vector<Decl *> &GlobalVariableGroups::getVarsOnSameLine(Decl *D) {
-  assert (GlobVarGroups.find(D) != GlobVarGroups.end() &&
+  assert(GlobVarGroups.find(D) != GlobVarGroups.end() &&
          "Expected to find the group.");
   return *(GlobVarGroups[D]);
 }
-
 
 GlobalVariableGroups::~GlobalVariableGroups() {
   std::set<std::vector<Decl *> *> VVisited;
@@ -124,7 +122,6 @@ GlobalVariableGroups::~GlobalVariableGroups() {
     delete (currV.second);
   }
   GlobVarGroups.clear();
-
 }
 
 // Test to see if we can rewrite a given SourceRange.
@@ -191,23 +188,23 @@ static void emit(Rewriter &R, ASTContext &C, std::string &OutputPostfix) {
 
 // Rewrites types that inside other expressions. This includes cast expression
 // and compound literal expressions.
-class TypeExprRewriter
-    : public clang::RecursiveASTVisitor<TypeExprRewriter> {
+class TypeExprRewriter : public clang::RecursiveASTVisitor<TypeExprRewriter> {
 public:
   explicit TypeExprRewriter(ASTContext *C, ProgramInfo &I, Rewriter &R)
       : Context(C), Info(I), Writer(R) {}
 
   bool VisitCompoundLiteralExpr(CompoundLiteralExpr *CLE) {
-    SourceRange TypeSrcRange(CLE->getBeginLoc().getLocWithOffset(1),
-         CLE->getTypeSourceInfo()->getTypeLoc().getEndLoc());
+    SourceRange TypeSrcRange(
+        CLE->getBeginLoc().getLocWithOffset(1),
+        CLE->getTypeSourceInfo()->getTypeLoc().getEndLoc());
     rewriteType(CLE, TypeSrcRange);
     return true;
   }
 
   bool VisitCStyleCastExpr(CStyleCastExpr *ECE) {
-    SourceRange TypeSrcRange
-        (ECE->getBeginLoc().getLocWithOffset(1),
-          ECE->getTypeInfoAsWritten()->getTypeLoc().getEndLoc());
+    SourceRange TypeSrcRange(
+        ECE->getBeginLoc().getLocWithOffset(1),
+        ECE->getTypeInfoAsWritten()->getTypeLoc().getEndLoc());
     rewriteType(ECE, TypeSrcRange);
     return true;
   }
@@ -228,14 +225,14 @@ private:
     // constraint variables. These should have been constrained to wild, so
     // there shouldn't be any rewriting required.
     const EnvironmentMap &Vars = Info.getConstraints().getVariables();
-    assert(CVSingleton.size() == 1 || llvm::none_of(CVSingleton,
-      [&Vars](ConstraintVariable *CV) {
-        return CV->anyChanges(Vars);
-      }));
+    assert(CVSingleton.size() == 1 ||
+           llvm::none_of(CVSingleton, [&Vars](ConstraintVariable *CV) {
+             return CV->anyChanges(Vars);
+           }));
 
     for (auto *CV : CVSingleton)
       // Only rewrite if the type has changed.
-      if (CV->anyChanges(Vars)){
+      if (CV->anyChanges(Vars)) {
         // Replace the original type with this new one
         if (canRewrite(Writer, Range))
           Writer.ReplaceText(Range, CV->mkString(Vars, false));
@@ -246,8 +243,7 @@ private:
 // Adds type parameters to calls to alloc functions.
 // The basic assumption this makes is that an alloc function will be surrounded
 // by a cast expression giving its type when used as a type other than void*.
-class TypeArgumentAdder
-  : public clang::RecursiveASTVisitor<TypeArgumentAdder> {
+class TypeArgumentAdder : public clang::RecursiveASTVisitor<TypeArgumentAdder> {
 public:
   explicit TypeArgumentAdder(ASTContext *C, ProgramInfo &I, Rewriter &R)
       : Context(C), Info(I), Writer(R) {}
@@ -265,9 +261,8 @@ public:
         std::string TypeParamString;
         for (auto Entry : Info.getTypeParamBindings(CE, Context))
           if (Entry.second != nullptr) {
-            std::string TyStr =
-                Entry.second->mkString(Info.getConstraints().getVariables(),
-                                     false, false, true);
+            std::string TyStr = Entry.second->mkString(
+                Info.getConstraints().getVariables(), false, false, true);
             if (TyStr.back() == ' ')
               TyStr.pop_back();
             TypeParamString += TyStr + ",";
@@ -327,9 +322,8 @@ private:
   }
 };
 
-
-std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
-                                                 Decl *D, bool Isitype) {
+std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV, Decl *D,
+                                                 bool Isitype) {
   auto &ABInfo = Info.getABoundsInfo();
 
   // Try to find a bounds key for the constraint variable. If we can't,
@@ -338,7 +332,7 @@ std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV,
   bool ValidBKey = true;
   if (PV->hasBoundsKey())
     DK = PV->getBoundsKey();
-  else if(!ABInfo.tryGetVariable(D, DK))
+  else if (!ABInfo.tryGetVariable(D, DK))
     ValidBKey = false;
 
   std::string BString = "";
@@ -370,8 +364,8 @@ bool ArrayBoundsRewriter::hasNewBoundsString(PVConstraint *PV, Decl *D,
 std::set<PersistentSourceLoc> RewriteConsumer::EmittedDiagnostics;
 void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
   clang::DiagnosticsEngine &DE = Context.getDiagnostics();
-  unsigned ID = DE.getCustomDiagID(DiagnosticsEngine::Warning,
-                                   "Root cause for %0 unchecked pointer%s0: %1");
+  unsigned ID = DE.getCustomDiagID(
+      DiagnosticsEngine::Warning, "Root cause for %0 unchecked pointer%s0: %1");
   auto I = Info.getInterimConstraintState();
   SourceManager &SM = Context.getSourceManager();
   for (auto &WReason : I.RootWildAtomsWithReason) {
@@ -379,13 +373,14 @@ void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
     WildPointerInferenceInfo PtrInfo = WReason.second;
     PersistentSourceLoc PSL = PtrInfo.getLocation();
 
-    if (PSL.valid() && EmittedDiagnostics.find(PSL) == EmittedDiagnostics.end()) {
+    if (PSL.valid() &&
+        EmittedDiagnostics.find(PSL) == EmittedDiagnostics.end()) {
       // Convert the file/line/column triple into a clang::SourceLocation that
       // can be used with the DiagnosticsEngine.
       const auto *File = SM.getFileManager().getFile(PSL.getFileName());
       if (File != nullptr) {
-        SourceLocation SL = SM.translateFileLineCol(File, PSL.getLineNo(),
-                                                    PSL.getColSNo());
+        SourceLocation SL =
+            SM.translateFileLineCol(File, PSL.getLineNo(), PSL.getColSNo());
         // Limit emitted root causes to those that effect more than one pointer
         // or are in the main file of the TU. Alternatively, don't filter causes
         // if -warn-all-root-cause is passed.
