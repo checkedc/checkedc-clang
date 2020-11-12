@@ -17,6 +17,8 @@
 using namespace clang;
 
 bool StructVariableInitializer::variableNeedsInitializer(VarDecl *VD) {
+  if (VD->getStorageClass() == StorageClass::SC_Extern)
+    return false;
   RecordDecl *RD = VD->getType().getTypePtr()->getAsRecordDecl();
   if (RecordDecl *Definition = RD->getDefinition()) {
     // See if we already know that this structure has a checked pointer.
