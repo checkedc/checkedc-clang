@@ -408,10 +408,9 @@ ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
       } else {
         // if the current FV constraint is not a definition?
         // then merge.
-        std::string BaseFailed = "";
         std::string ReasonFailed = "";
         oldC->mergeDeclaration(newC, *this, ReasonFailed);
-        bool MergingFailed = BaseFailed != ReasonFailed;
+        bool MergingFailed = ReasonFailed != "";
         if (MergingFailed) {
           clang::DiagnosticsEngine &DE = C->getDiagnostics();
           unsigned MergeFailID = DE.getCustomDiagID(DiagnosticsEngine::Fatal,

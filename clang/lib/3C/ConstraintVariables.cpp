@@ -1597,7 +1597,7 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
   CAtoms::iterator I = vars.begin();
   CAtoms::iterator J = CFrom.begin();
   if (CFrom.size() != vars.size()) {
-    ReasonFailed = "conflicting types " + ReasonFailed;
+    ReasonFailed = "conflicting types ";
     return;
   }
   while (I != vars.end()) {
@@ -1692,10 +1692,11 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
   assert(From->getDeferredParams().size() == 0);
   // Transplant returns.
   // Our first sanity check is to ensure the function's returns type-check
-  std::string Base = ReasonFailed = "for return value";
   ReturnVar->mergeDeclaration(From->ReturnVar, I, ReasonFailed);
-  if (ReasonFailed != Base) return;
-  ReasonFailed = "";
+  if (ReasonFailed != "") {
+    ReasonFailed += "for return value";
+    return;
+  }
 
   if (From->numParams() == 0) {
     // From is an untyped declaration, and adds no information
@@ -1712,10 +1713,11 @@ void FunctionVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
     for (unsigned i = 0; i < From->numParams(); i++) {
       auto *FromVar = From->getParamVar(i);
       auto *Var = getParamVar(i);
-      Base = ReasonFailed = "for parameter " + std::to_string(i);
       Var->mergeDeclaration(FromVar, I, ReasonFailed);
-      if (Base != ReasonFailed) return;
-      ReasonFailed = "";
+      if (ReasonFailed != "") {
+        ReasonFailed += "for parameter " + std::to_string(i);
+        return;
+      }
     }
   }
 }
