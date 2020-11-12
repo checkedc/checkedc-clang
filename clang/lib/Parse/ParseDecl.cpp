@@ -2290,6 +2290,12 @@ Decl *Parser::ParseDeclarationAfterDeclarator(
   return ParseDeclarationAfterDeclaratorAndAttributes(D, TemplateInfo);
 }
 
+static bool IsCallToStrlen(CallExpr *CE) {
+  const FunctionDecl *FD = CE->getDirectCallee();
+  return CE->getNumArgs() == 1 && FD && FD->getIdentifier() &&
+         FD->getIdentifier()->isStr("strlen");
+}
+
 Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
     Declarator &D, const ParsedTemplateInfo &TemplateInfo, ForRangeInit *FRI) {
   // RAII type used to track whether we're inside an initializer.
@@ -2441,6 +2447,7 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
       }
 
       PreferredType.enterVariableInit(Tok.getLocation(), ThisDecl);
+
       ExprResult Init = ParseInitializer();
 
       // If this is the only decl in (possibly) range based for statement,
@@ -2467,6 +2474,69 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
         Actions.ActOnInitializerError(ThisDecl);
       } else {
         auto *InitExpr = Init.get(); // This won't fail, since isInvalid() was checked above.
+
+        // For an _Nt_array_ptr p, parse the syntax:
+        // int x = strlen(p) where p : bounds(lower, upper);
+        if (getLangOpts().CheckedC &&
+            Tok.is(tok::identifier) &&
+            Tok.getIdentifierInfo()->isStr("where")) {
+
+          // Consume the "where" token.
+          ConsumeToken();
+
+          CallExpr *CE = dyn_cast_or_null<CallExpr>(InitExpr);
+          if (!CE || !IsCallToStrlen(CE)) {
+            Diag(InitExpr->getBeginLoc(), diag::err_invalid_where_clause);
+            return nullptr;
+          }
+
+          DeclRefExpr *DRE =
+            dyn_cast_or_null<DeclRefExpr>(CE->getArg(0)->IgnoreParenCasts());
+          if (!DRE) {
+            Diag(InitExpr->getBeginLoc(), diag::err_invalid_where_clause);
+            return nullptr;
+          }
+
+          DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(DRE->getDecl());
+          if (!DD) {
+            Diag(InitExpr->getBeginLoc(), diag::err_invalid_where_clause);
+            return nullptr;
+          }
+
+          // The next token should be the _Nt_array_ptr that is the argument
+          // of strlen.
+          NamedDecl *ND = dyn_cast_or_null<NamedDecl>(DRE->getDecl());
+	  if (!ND ||
+              !Tok.is(tok::identifier) ||
+              !Tok.getIdentifierInfo()->isStr(ND->getName())) {
+            Diag(Tok, diag::err_invalid_where_clause);
+            return nullptr;
+          }
+
+          // Consume the name of the _Nt_array_ptr.
+          ConsumeToken();
+
+          // Next we need a colon followed by bounds declaration.
+          if (!Tok.is(tok::colon)) {
+            Diag(Tok, diag::err_invalid_where_clause);
+            return nullptr;
+          }
+
+          BoundsAnnotations Annots;
+          SourceLocation BoundsColonLoc = Tok.getLocation();
+
+          // Consume the colon.
+          ConsumeToken();
+
+          // Parse the bounds declaration.
+          if (ParseBoundsAnnotations(D, BoundsColonLoc, Annots)) {
+            SkipUntil(tok::comma, tok::equal, StopAtSemi | StopBeforeMatch);
+            DD->setInvalidDecl();
+          }
+
+          Actions.ActOnBoundsDecl(DD, Annots);
+        }
+
         if (D.getDeclSpec().isUnpackSpecified()) {
           auto TypeVars = D.getDeclSpec().typeVariables();
           if (TypeVars.size() != 1) {

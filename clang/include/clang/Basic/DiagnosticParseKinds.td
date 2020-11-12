@@ -1361,6 +1361,8 @@ def err_unpack_expected_one_type_variable : Error<
 def err_unpack_expected_existential_initializer : Error<
   "unpack specifer expects an initializer that has an existential type">;
 
+def err_invalid_where_clause : Error<"invalid where clause">;
+
  // Checked C pragmas
 def err_pragma_checked_scope_invalid_argument : Error<
   "unexpected argument '%0' to '#pragma CHECKED_SCOPE'; "
