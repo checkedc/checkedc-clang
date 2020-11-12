@@ -51,6 +51,7 @@ void StructVariableInitializer::insertVarDecl(VarDecl *VD, DeclStmt *S) {
       const clang::Type *Ty = VD->getType().getTypePtr();
       std::string ToReplace =
           getStorageQualifierString(VD) +
+          VD->getType().getQualifiers().getAsString() + " " +
           tyToStr(Ty) + " " + VD->getName().str() + " = {}";
       RewriteThese.insert(new VarDeclReplacement(VD, S, ToReplace));
     }
