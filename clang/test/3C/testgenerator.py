@@ -84,6 +84,64 @@ struct arrfptr {
     int (*funcs[5]) (int);
 };
 
+int add1(int x) { 
+    return x+1;
+} 
+
+int sub1(int x) { 
+    return x-1; 
+} 
+
+int fact(int n) { 
+    if(n==0) { 
+        return 1;
+    } 
+    return n*fact(n-1);
+} 
+
+int fib(int n) { 
+    if(n==0) { return 0; } 
+    if(n==1) { return 1; } 
+    return fib(n-1) + fib(n-2);
+} 
+
+int zerohuh(int n) { 
+    return !n;
+}
+
+int *mul2(int *x) { 
+    *x *= 2; 
+    return x;
+}
+""" 
+
+definitions2 = """
+struct general { 
+    int data; 
+    struct general *next;
+};
+
+struct warr { 
+    int data1[5];
+    char *name;
+};
+
+struct fptrarr { 
+    int *values; 
+    char *name;
+    int (*mapper)(int);
+};
+
+struct fptr { 
+    int *value; 
+    int (*func)(int);
+};  
+
+struct arrfptr { 
+    int args[5]; 
+    int (*funcs[5]) (int);
+};
+
 static int add1(int x) { 
     return x+1;
 } 
@@ -651,7 +709,7 @@ def annot_gen_smart(prefix, proto, suffix):
         cname2ALL = prefix + suffix + proto + "2.checkedALL.c"
     
     if proto=="proto": test = header + definitions + susproto + foo + bar + sus
-    elif proto=="multi": test = header + definitions + susproto + foo + bar
+    elif proto=="multi": test = header + definitions2 + susproto + foo + bar
     else: test = header + definitions + sus + foo + bar 
 
     # write the main file 
@@ -661,7 +719,7 @@ def annot_gen_smart(prefix, proto, suffix):
     
     # generate the second file if a multi example
     if proto=="multi": 
-        test2 = header + definitions + sus
+        test2 = header + definitions2 + sus
         file = open(name2, "w+") 
         file.write(test2)
         file.close()
