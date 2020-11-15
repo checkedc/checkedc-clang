@@ -51,8 +51,8 @@ _Array_ptr<int> f11(unsigned num) {
 
 _Array_ptr<int> f12(unsigned num1, unsigned num2){
   _Array_ptr<int> p : count(num1) = test_f10(num2); // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}} \
-                                                    // expected-note {{the declared upper bounds use the value of the variable 'num1', and there is no relational information between 'num1' and any of the variables used by the inferred upper bounds}} \
-                                                    // expected-note {{the inferred upper bounds use the value of the variable 'num2', and there is no relational information between 'num2' and any of the variables used by the declared upper bounds}} \
+                                                    // expected-note {{the declared upper bounds use the variable 'num1', and there is no relational information involving 'num1' and any of the expressions used by the inferred upper bounds}} \
+                                                    // expected-note {{the inferred upper bounds use the variable 'num2', and there is no relational information involving 'num2' and any of the expressions used by the declared upper bounds}} \
                                                     // expected-note {{(expanded) declared bounds are 'bounds(p, p + num1)'}} \
                                                     // expected-note {{(expanded) inferred bounds are 'bounds(value of test_f10(num2), value of test_f10(num2) + num2)'}}
   return p;
@@ -67,8 +67,8 @@ _Array_ptr<int> f14(unsigned num) {
 
 _Array_ptr<int> f15(unsigned num1, unsigned num2){
   _Array_ptr<int> p : byte_count(num1) = test_f13(num2); // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}} \
-                                                         // expected-note {{the declared upper bounds use the value of the variable 'num1', and there is no relational information between 'num1' and any of the variables used by the inferred upper bounds}} \
-                                                         // expected-note {{the inferred upper bounds use the value of the variable 'num2', and there is no relational information between 'num2' and any of the variables used by the declared upper bounds}} \
+                                                         // expected-note {{the declared upper bounds use the variable 'num1', and there is no relational information involving 'num1' and any of the expressions used by the inferred upper bounds}} \
+                                                         // expected-note {{the inferred upper bounds use the variable 'num2', and there is no relational information involving 'num2' and any of the expressions used by the declared upper bounds}} \
                                                          // expected-note {{(expanded) declared bounds are 'bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + num1)'}} \
                                                          // expected-note {{inferred bounds are 'bounds((_Array_ptr<char>)value of test_f13(num2), (_Array_ptr<char>)value of test_f13(num2) + num2)'}}
   return p;

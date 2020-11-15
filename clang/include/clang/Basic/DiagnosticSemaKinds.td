@@ -10178,15 +10178,15 @@ def err_bounds_type_annotation_lost_checking : Error<
     "%select{assignment|decrement|increment|initialization|statement}0">;
 
   def note_free_variable_decl_or_inferred : Note<
-    "the %select{declared|inferred}0 %select{lower |upper |}1bounds use the value "
-    "of the variable '%2', and there is no relational information between '%2' "
-    "and any of the variables used by the %select{inferred|declared}0 "
+    "the %select{declared|inferred}0 %select{lower |upper |}1bounds use the "
+    "variable '%2' and there is no relational information involving '%2' "
+    "and any of the expressions used by the %select{inferred|declared}0 "
     "%select{lower |upper |}1bounds">;
 
   def note_free_variable_in_expected_args : Note<
-    "the %select{expected argument|inferred}0 %select{lower |upper |}1bounds use the value "
-    "of the variable '%2', and there is no relational information between '%2' "
-    "and any of the variables used by the %select{inferred|expected argument}0 "
+    "the %select{expected argument|inferred}0 %select{lower |upper |}1bounds use the "
+    "variable '%2' and there is no relational information involving '%2' "
+    "and any of the expressions used by the %select{inferred|expected argument}0 "
     "%select{lower |upper |}1bounds">;
 
   def error_bounds_declaration_invalid : Error<

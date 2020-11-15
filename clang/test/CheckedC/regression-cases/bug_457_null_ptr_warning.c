@@ -21,7 +21,7 @@ static void myfunc2(_Array_ptr<int> data : count(len), int len) {
 int main(void) {
   int a _Checked[5];
   myfunc1(a, 0);  // expected-error {{it is not possible to prove argument meets declared bounds for 1st parameter}} \
-                  // expected-note {{the inferred bounds use the value of the variable 'a', and there is no relational information between 'a' and any of the variables used by the expected argument bounds}} \
+                  // expected-note {{the inferred bounds use the variable 'a', and there is no relational information involving 'a' and any of the expressions used by the expected argument bounds}} \
                   // expected-note {{(expanded) expected argument bounds are 'bounds((_Array_ptr<char>)0, (_Array_ptr<char>)0 + 5)'}} \
                   // expected-note {{(expanded) inferred bounds are 'bounds(a, a + 5)'}}
   myfunc2(0, 0);
