@@ -501,9 +501,7 @@ void assign5(array_ptr<int> a : count(len), int len, int size) { // expected-not
   // Observed bounds context before assignment: { a => bounds(a, a + len) }
   // Original value of len: size
   // Observed bounds context after assignment:  { a => bounds(a, a + size) }
-  len = len * 2; // expected-error {{it is not possible to prove that the inferred bounds of 'a' imply the declared bounds of 'a' after assignment}} \
-                 // expected-note {{the inferred upper bounds use the value of the variable 'size', and there is no relational information between 'size' and any of the variables used by the declared upper bounds}} \
-                 // expected-note {{the declared upper bounds use the value of the variable 'len', and there is no relational information between 'len' and any of the variables used by the inferred upper bounds}} \
+  len = len * 2; // expected-warning {{cannot prove declared bounds for 'a' are valid after assignment}} \
                  // expected-note {{(expanded) inferred bounds are 'bounds(a, a + size)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
