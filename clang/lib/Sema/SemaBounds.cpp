@@ -1462,13 +1462,67 @@ namespace {
               break;
           }
 
-          // Find no constant or no match for SrcV in EquivExprs.
           if (It == DstVars.end()) {
-            HasFreeVariables = true;
-            FreeVariables.push_back(SrcV);
+            // If SrcV is not equal to a constant or a variable in DstVars,
+            // check if there is an indirect relationship between SrcV and
+            // a variable in DstVars. If there is, SrcV is not a free variable.
+            if (!FindVarRelationship(S, SrcVar, DstVars, EquivExprs)) {
+              HasFreeVariables = true;
+              FreeVariables.push_back(SrcV);
+            }
           }
         }
         return HasFreeVariables;
+      }
+
+      // FindVarRelationship returns true if there is any relationship
+      // between the variable SrcV and any variable in the list DstVars.
+      //
+      // If EquivExprs contains a set { e1, e2 } where e1 uses the value
+      // of SrcV and e2 uses the value of DstV, where DstV is a variable in
+      // DstVars, then there is a relationship between SrcV and DstV.
+      //
+      // For example, if DstV is a variable in DstVars and EquivExprs
+      // contains the set { SrcV + 1, *DstV }, then there is a relationship
+      // between SrcV and DstV.
+      static bool FindVarRelationship(Sema &S, DeclRefExpr *SrcV,
+                                      const EqualExprTy &DstVars,
+                                      EquivExprSets *EquivExprs) {
+        auto Begin = EquivExprs->begin(), End = EquivExprs->end();
+        for (auto OuterList = Begin; OuterList != End; ++OuterList) {
+          auto InnerList = *OuterList;
+          int InnerListSize = InnerList.size();
+          int SrcVarCount = 0;
+          int SrcIndex = 0;
+
+          // Search InnerList for an expression that uses the value of SrcV.
+          for (; SrcIndex < InnerListSize; ++SrcIndex) {
+            Expr *E = InnerList[SrcIndex];
+            SrcVarCount = VariableOccurrenceCount(S, SrcV, E);
+            if (SrcVarCount > 0)
+              break;
+          }
+          if (SrcVarCount == 0)
+            continue;
+
+          // Search InnerList (except for InnerList[SrcIndex]) for an
+          // expression that uses the value of any variable in DstVars.
+          // If InnerList[SrcIndex] uses the value of any variable in DstVars,
+          // that is not sufficient to imply a relationship between SrcV and
+          // any variable in DstVars.
+          for (int DstIndex = 0; DstIndex < InnerListSize; ++DstIndex) {
+            if (DstIndex == SrcIndex) 
+              continue;
+            for (auto I = DstVars.begin(); I != DstVars.end(); ++I) {
+              DeclRefExpr *DstV = cast<DeclRefExpr>(*I);
+              Expr *E = InnerList[DstIndex];
+              if (VariableOccurrenceCount(S, DstV, E) > 0)
+                return true;
+            }
+          }
+        }
+
+        return false;
       }
 
       // Check free variables between E1 and E2. Append any found free variables
