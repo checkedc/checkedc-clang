@@ -1533,7 +1533,7 @@ namespace {
                                       FreeVariablePosition Pos2,
                                       EquivExprSets *EquivExprs,
                                       FreeVariableListTy &FreeVars) {
-        // If E1 or E2 accesses memory via poiter, we skip because we cannot
+        // If E1 or E2 accesses memory via pointer, we skip because we cannot
         // determine aliases for two indirect accesses soundly yet.
         if (ReadsMemoryViaPointer(E1) || ReadsMemoryViaPointer(E2))
           return false;
@@ -1542,24 +1542,10 @@ namespace {
         EqualExprTy Vars1 = CollectVariableSet(S, E1);
         EqualExprTy Vars2 = CollectVariableSet(S, E2);
 
-        // EquivVars holds sets of DeclRefExpr and IntegerLiteral filtered from
-        // EquivExprs.
-        EquivExprSets EquivVars;
-        for (auto ExprSet : *EquivExprs) {
-          EqualExprTy Vars;
-          auto It = ExprSet.begin();
-          for (; It != ExprSet.end(); It++) {
-            *It = (*It)->IgnoreParenCasts();
-            if (isa<IntegerLiteral>(*It) || (isa<DeclRefExpr>(*It)))
-              Vars.push_back(*It);
-          }
-          EquivVars.push_back(Vars);
-        }
-
-        if (AddFreeVariables(S, Vars1, Vars2, &EquivVars, Pos1, FreeVars))
+        if (AddFreeVariables(S, Vars1, Vars2, EquivExprs, Pos1, FreeVars))
           HasFreeVariables = true;
 
-        if (AddFreeVariables(S, Vars2, Vars1, &EquivVars, Pos2, FreeVars))
+        if (AddFreeVariables(S, Vars2, Vars1, EquivExprs, Pos2, FreeVars))
           HasFreeVariables = true;
 
         return HasFreeVariables;
