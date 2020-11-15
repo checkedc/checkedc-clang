@@ -1453,7 +1453,8 @@ namespace {
 
         // Gather free variables.
         for (const auto &SrcV : SrcVars) {
-          if (IsEqualToConstant(S, SrcV, EquivExprs))
+          DeclRefExpr *SrcVar = cast<DeclRefExpr>(SrcV);
+          if (IsEqualToConstant(S, SrcVar, EquivExprs))
             continue;
           auto It = DstVars.begin();
           for (; It != DstVars.end(); It++) {
@@ -1527,16 +1528,31 @@ namespace {
         return false;
       }
 
-      // IsEqualToConstant checks if Variable has integer type and equals to
-      // some constant. Specifically, it checks if there is a set in EquivExprs
-      // that contains both Variable and a constant (i.e. IntegerType).
-      static bool IsEqualToConstant(Sema &S, Expr *Variable,
+      // IsEqualToConstant returns true if Variable has integer type and
+      // produces the same value as some integer constant.
+      //
+      // Variable produces the same value as an integer constant if
+      // EquivExprs contains a set that contains an rvalue cast of Variable
+      // and an IntegerLiteral expression.
+      static bool IsEqualToConstant(Sema &S, DeclRefExpr *Variable,
                                     const EquivExprSets *EquivExprs) {
         if (Variable->getType()->isPointerType() || !EquivExprs)
           return false;
 
-        EqualExprTy EquivSet =
-            GetEqualExprSetContainingExpr(S, Variable, *EquivExprs);
+        // Get the set (if any) in EquivExprs that contains an rvalue
+        // cast of Variable.
+        EqualExprTy EquivSet = { };
+        for (auto OuterList = EquivExprs->begin(); OuterList != EquivExprs->end(); ++OuterList) {
+          auto InnerList = *OuterList;
+          for (auto I = InnerList.begin(); I != InnerList.end(); ++I) {
+            Expr *E = *I;
+            if (IsRValueCastOfVariable(S, E, cast<DeclRefExpr>(Variable))) {
+              EquivSet = InnerList;
+              break;
+            }
+          }
+        }
+
         for (const auto &E : EquivSet) {
           if (isa<IntegerLiteral>(E))
             return true;
@@ -5218,18 +5234,13 @@ namespace {
 
     // If e appears in a set F in EQ, GetEqualExprSetContainingExpr
     // returns F.  Otherwise, it returns an empty set.
-    static EqualExprTy GetEqualExprSetContainingExpr(Sema &S, Expr *E,
-                                                     EquivExprSets EQ) {
+    EqualExprTy GetEqualExprSetContainingExpr(Expr* E, EquivExprSets EQ) {
       for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
         EqualExprTy F = *OuterList;
         if (::EqualExprsContainsExpr(S, F, E, nullptr))
           return F;
       }
       return { };
-    }
-
-    EqualExprTy GetEqualExprSetContainingExpr(Expr* E, EquivExprSets EQ) {
-      return GetEqualExprSetContainingExpr(S, E, EQ);
     }
 
     // IsEqualExprsSubset returns true if Exprs1 is a subset of Exprs2.
@@ -5254,10 +5265,14 @@ namespace {
     // V may have value-preserving operations applied to it, such as
     // LValueBitCasts.  For example, if E is (LValueBitCast(V)), where V
     // is a variable, GetLValueVariable will return V.
-    DeclRefExpr *GetLValueVariable(Expr *E) {
+    static DeclRefExpr *GetLValueVariable(Sema &S, Expr *E) {
       Lexicographic Lex(S.Context, nullptr);
       E = Lex.IgnoreValuePreservingOperations(S.Context, E);
       return dyn_cast<DeclRefExpr>(E);
+    }
+
+    DeclRefExpr *GetLValueVariable(Expr *E) {
+      return GetLValueVariable(S, E);
     }
 
     // If E is a possibly parenthesized rvalue cast of a variable V,
@@ -5266,25 +5281,33 @@ namespace {
     // V may have value-preserving operations applied to it.  For example,
     // if E is (LValueToRValue(LValueBitCast(V))), where V is a variable,
     // GetRValueVariable will return V.
-    DeclRefExpr *GetRValueVariable(Expr *E) {
+    static DeclRefExpr *GetRValueVariable(Sema &S, Expr *E) {
       if (!E)
         return nullptr;
       if (CastExpr *CE = dyn_cast<CastExpr>(E->IgnoreParens())) {
         CastKind CK = CE->getCastKind();
         if (CK == CastKind::CK_LValueToRValue ||
             CK == CastKind::CK_ArrayToPointerDecay)
-          return GetLValueVariable(CE->getSubExpr());
+          return GetLValueVariable(S, CE->getSubExpr());
       }
       return nullptr;
     }
 
+    DeclRefExpr *GetRValueVariable(Expr *E) {
+      return GetRValueVariable(S, E);
+    }
+
     // IsRValueCastOfVariable returns true if the expression e is a possibly
     // parenthesized lvalue-to-rvalue cast of the lvalue variable v.
-    bool IsRValueCastOfVariable(Expr *E, DeclRefExpr *V) {
-      DeclRefExpr *Var = GetRValueVariable(E);
+    static bool IsRValueCastOfVariable(Sema &S, Expr *E, DeclRefExpr *V) {
+      DeclRefExpr *Var = GetRValueVariable(S, E);
       if (!Var)
         return false;
       return EqualValue(S.Context, V, Var, nullptr);
+    }
+
+    bool IsRValueCastOfVariable(Expr *E, DeclRefExpr *V) {
+      return IsRValueCastOfVariable(S, E, V);
     }
 
     // CreatesNewObject returns true if the expression e creates a new object.
