@@ -619,8 +619,8 @@ void assign7(
   a = c; // expected-error {{it is not possible to prove that the inferred bounds of 'a' imply the declared bounds of 'a' after assignment}} \
          // expected-error {{it is not possible to prove that the inferred bounds of 'b' imply the declared bounds of 'b' after assignment}} \
          // expected-error {{it is not possible to prove that the inferred bounds of 'c' imply the declared bounds of 'c' after assignment}} \
-         // expected-note 3 {{the declared bounds use the variable 'a', and there is no relational information involving 'a' and any of the expressions used by the inferred bounds}} \
-         // expected-note 3 {{the inferred bounds use the variable 'b', and there is no relational information involving 'b' and any of the expressions used by the declared bounds}} \
+         // expected-note 3 {{the declared bounds use the variable 'a' and there is no relational information involving 'a' and any of the expressions used by the inferred bounds}} \
+         // expected-note 3 {{the inferred bounds use the variable 'b' and there is no relational information involving 'b' and any of the expressions used by the declared bounds}} \
          // expected-note 3 {{(expanded) inferred bounds are 'bounds(b, b + 1)'}}
   // CHECK: Statement S:
   // CHECK-NEXT: BinaryOperator {{.*}} '='
