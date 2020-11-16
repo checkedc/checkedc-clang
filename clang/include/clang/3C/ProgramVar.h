@@ -14,10 +14,10 @@
 #ifndef _BOUNDSVAR_H
 #define _BOUNDSVAR_H
 
-#include "clang/3C/PersistentSourceLoc.h"
-#include "clang/AST/ASTContext.h"
 #include <stdint.h>
 #include <string>
+#include "clang/AST/ASTContext.h"
+#include "clang/3C/PersistentSourceLoc.h"
 
 // Unique ID for a program variable or constant literal, both of
 // which could serve as bounds
@@ -41,20 +41,21 @@ public:
   ScopeKind getKind() const { return Kind; }
 
 protected:
-  ProgramVarScope(ScopeKind K) : Kind(K) {}
+  ProgramVarScope(ScopeKind K): Kind(K) { }
   ScopeKind Kind;
-
 public:
-  virtual ~ProgramVarScope() {}
+  virtual ~ProgramVarScope() { }
 
   virtual bool operator==(const ProgramVarScope &) const = 0;
   virtual bool operator!=(const ProgramVarScope &) const = 0;
   virtual bool operator<(const ProgramVarScope &) const = 0;
   virtual std::string getStr() const = 0;
+
 };
 
 class PVSComp {
 public:
+
   bool operator()(const ProgramVarScope &Lhs,
                   const ProgramVarScope &Rhs) const {
     return Lhs < Rhs;
@@ -64,8 +65,9 @@ public:
 // Scope for all global variables and program constants.
 class GlobalScope : public ProgramVarScope {
 public:
-  GlobalScope() : ProgramVarScope(GlobalScopeKind) {}
-  virtual ~GlobalScope() {}
+  GlobalScope() :
+  ProgramVarScope(GlobalScopeKind) { }
+  virtual ~GlobalScope() { }
 
   static bool classof(const ProgramVarScope *S) {
     return S->getKind() == GlobalScopeKind;
@@ -75,23 +77,30 @@ public:
     return clang::isa<GlobalScope>(&O);
   }
 
-  bool operator!=(const ProgramVarScope &O) const { return !(*this == O); }
+  bool operator!=(const ProgramVarScope &O) const {
+    return !(*this == O);
+  }
 
-  bool operator<(const ProgramVarScope &O) const { return false; }
+  bool operator<(const ProgramVarScope &O) const {
+    return false;
+  }
 
-  std::string getStr() const { return "Global"; }
+  std::string getStr() const {
+    return "Global";
+  }
 
   static GlobalScope *getGlobalScope();
-
 private:
   static GlobalScope *ProgScope;
 };
 
 class StructScope : public ProgramVarScope {
 public:
-  StructScope(std::string SN) : ProgramVarScope(StructScopeKind), StName(SN) {}
+  StructScope(std::string SN) :
+  ProgramVarScope(StructScopeKind),
+  StName(SN) { }
 
-  virtual ~StructScope() {}
+  virtual ~StructScope() { }
 
   static bool classof(const ProgramVarScope *S) {
     return S->getKind() == StructScopeKind;
@@ -104,7 +113,9 @@ public:
     return false;
   }
 
-  bool operator!=(const ProgramVarScope &O) const { return !(*this == O); }
+  bool operator!=(const ProgramVarScope &O) const {
+    return !(*this == O);
+  }
 
   bool operator<(const ProgramVarScope &O) const {
     if (clang::isa<GlobalScope>(&O)) {
@@ -121,7 +132,9 @@ public:
     return false;
   }
 
-  std::string getStr() const { return "Struct_" + StName; }
+  std::string getStr() const {
+    return "Struct_" + StName;
+  }
 
   static const StructScope *getStructScope(std::string StName);
 
@@ -130,13 +143,15 @@ private:
   static std::set<StructScope, PVSComp> AllStScopes;
 };
 
+
 class FunctionParamScope : public ProgramVarScope {
 public:
   friend class FunctionScope;
-  FunctionParamScope(const std::string &FN, bool IsSt)
-      : ProgramVarScope(FunctionParamScopeKind), FName(FN), IsStatic(IsSt) {}
+  FunctionParamScope(const std::string &FN, bool IsSt) :
+      ProgramVarScope(FunctionParamScopeKind),
+      FName(FN), IsStatic(IsSt) { }
 
-  virtual ~FunctionParamScope() {}
+  virtual ~FunctionParamScope() { }
 
   static bool classof(const ProgramVarScope *S) {
     return S->getKind() == FunctionParamScopeKind;
@@ -149,10 +164,13 @@ public:
     return false;
   }
 
-  bool operator!=(const ProgramVarScope &O) const { return !(*this == O); }
+  bool operator!=(const ProgramVarScope &O) const {
+    return !(*this == O);
+  }
 
   bool operator<(const ProgramVarScope &O) const {
-    if (clang::isa<GlobalScope>(&O) || clang::isa<StructScope>(&O)) {
+    if (clang::isa<GlobalScope>(&O) ||
+        clang::isa<StructScope>(&O)) {
       return true;
     }
 
@@ -169,19 +187,24 @@ public:
     return false;
   }
 
-  std::string getStr() const { return "FuncParm_" + FName; }
+  std::string getStr() const {
+    return "FuncParm_" + FName;
+  }
 
-  const llvm::StringRef getFName() const { return this->FName; }
+  const llvm::StringRef getFName() const {
+    return this->FName;
+  }
 
-  bool getIsStatic() const { return IsStatic; }
+  bool getIsStatic() const {
+    return IsStatic;
+  }
 
-  static const FunctionParamScope *getFunctionParamScope(std::string FnName,
-                                                         bool IsSt);
+  static const FunctionParamScope *
+        getFunctionParamScope(std::string FnName, bool IsSt);
 
 protected:
   std::string FName;
   bool IsStatic;
-
 private:
   static std::set<FunctionParamScope, PVSComp> AllFnParamScopes;
 };
@@ -191,8 +214,8 @@ class CtxFunctionArgScope : public FunctionParamScope {
 public:
   friend class FunctionScope;
   CtxFunctionArgScope(const std::string &FN, bool IsSt,
-                      const PersistentSourceLoc &CtxPSL)
-      : FunctionParamScope(FN, IsSt) {
+                      const PersistentSourceLoc &CtxPSL) :
+    FunctionParamScope(FN, IsSt) {
     PSL = CtxPSL;
     std::string FileName = PSL.getFileName();
     CtxIDStr = "";
@@ -203,12 +226,12 @@ public:
                    std::to_string(UId.getFile()) + ":";
       }
     }
-    CtxIDStr +=
-        std::to_string(PSL.getLineNo()) + ":" + std::to_string(PSL.getColSNo());
+    CtxIDStr += std::to_string(PSL.getLineNo()) + ":" +
+                std::to_string(PSL.getColSNo());
     this->Kind = CtxFunctionArgScopeKind;
   }
 
-  virtual ~CtxFunctionArgScope() {}
+  virtual ~CtxFunctionArgScope() { }
 
   static bool classof(const ProgramVarScope *S) {
     return S->getKind() == CtxFunctionArgScopeKind;
@@ -216,16 +239,20 @@ public:
 
   bool operator==(const ProgramVarScope &O) const {
     if (auto *FPS = clang::dyn_cast<CtxFunctionArgScope>(&O)) {
-      return (FPS->FName == FName && FPS->IsStatic == IsStatic &&
+      return (FPS->FName == FName &&
+              FPS->IsStatic == IsStatic &&
               !(FPS->PSL < PSL || PSL < FPS->PSL));
     }
     return false;
   }
 
-  bool operator!=(const ProgramVarScope &O) const { return !(*this == O); }
+  bool operator!=(const ProgramVarScope &O) const {
+    return !(*this == O);
+  }
 
   bool operator<(const ProgramVarScope &O) const {
-    if (clang::isa<GlobalScope>(&O) || clang::isa<FunctionParamScope>(&O) ||
+    if (clang::isa<GlobalScope>(&O) ||
+        clang::isa<FunctionParamScope>(&O) ||
         clang::isa<StructScope>(&O)) {
       return true;
     }
@@ -246,7 +273,9 @@ public:
     return false;
   }
 
-  std::string getStr() const { return FName + "_Ctx_" + CtxIDStr; }
+  std::string getStr() const {
+    return FName + "_Ctx_" + CtxIDStr;
+  }
 
   static const CtxFunctionArgScope *
   getCtxFunctionParamScope(const FunctionParamScope *FPS,
@@ -260,10 +289,11 @@ private:
 
 class FunctionScope : public ProgramVarScope {
 public:
-  FunctionScope(std::string FN, bool IsSt)
-      : ProgramVarScope(FunctionScopeKind), FName(FN), IsStatic(IsSt) {}
+  FunctionScope(std::string FN, bool IsSt) :
+                ProgramVarScope(FunctionScopeKind),
+                FName(FN), IsStatic(IsSt) { }
 
-  virtual ~FunctionScope() {}
+  virtual ~FunctionScope() { }
 
   static bool classof(const ProgramVarScope *S) {
     return S->getKind() == FunctionScopeKind;
@@ -279,11 +309,15 @@ public:
     return false;
   }
 
-  bool operator!=(const ProgramVarScope &O) const { return !(*this == O); }
+  bool operator!=(const ProgramVarScope &O) const {
+    return !(*this == O);
+  }
 
   bool operator<(const ProgramVarScope &O) const {
-    if (clang::isa<GlobalScope>(&O) || clang::isa<FunctionParamScope>(&O) ||
-        clang::isa<CtxFunctionArgScope>(&O) || clang::isa<StructScope>(&O)) {
+    if (clang::isa<GlobalScope>(&O) ||
+        clang::isa<FunctionParamScope>(&O) ||
+        clang::isa<CtxFunctionArgScope>(&O) ||
+        clang::isa<StructScope>(&O)) {
       return true;
     }
 
@@ -299,9 +333,12 @@ public:
     return false;
   }
 
-  std::string getStr() const { return "InFunc_" + FName; }
+  std::string getStr() const {
+    return "InFunc_" + FName;
+  }
 
-  static const FunctionScope *getFunctionScope(std::string FnName, bool IsSt);
+  static const FunctionScope *getFunctionScope(std::string FnName,
+                                               bool IsSt);
 
 private:
   std::string FName;
@@ -321,12 +358,11 @@ public:
   std::string getVarName() { return VarName; }
   std::string verboseStr();
   ProgramVar *makeCopy(BoundsKey NK);
-  virtual ~ProgramVar() {}
+  virtual ~ProgramVar() { }
 
   static ProgramVar *createNewProgramVar(BoundsKey VK, std::string VName,
                                          const ProgramVarScope *PVS,
                                          bool IsCons = false);
-
 private:
   BoundsKey K;
   std::string VarName;
@@ -336,12 +372,14 @@ private:
   //  a way to free unused program vars.
   static std::set<ProgramVar *> AllProgramVars;
 
-  ProgramVar(BoundsKey VK, std::string VName, const ProgramVarScope *PVS,
-             bool IsCons)
-      : K(VK), VarName(VName), VScope(PVS), IsConstant(IsCons) {}
+  ProgramVar(BoundsKey VK, std::string VName,
+             const ProgramVarScope *PVS,
+             bool IsCons) :
+    K(VK), VarName(VName), VScope(PVS), IsConstant(IsCons) { }
 
-  ProgramVar(BoundsKey VK, std::string VName, const ProgramVarScope *PVS)
-      : ProgramVar(VK, VName, PVS, false) {}
+  ProgramVar(BoundsKey VK, std::string VName,
+             const ProgramVarScope *PVS) :
+    ProgramVar(VK, VName, PVS, false) { }
 };
 
 #endif // _BOUNDSVAR_H

@@ -24,8 +24,8 @@
 #include "refactor/Rename.h"
 #include "refactor/Tweak.h"
 #ifdef INTERACTIVE3C
-#include "3CCommands.h"
 #include "clang/3C/3C.h"
+#include "3CCommands.h"
 #endif
 #include "clang/Format/Format.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -122,10 +122,9 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
               DynamicIdx.get(), DiagConsumer, Opts.SemanticHighlighting),
           Opts.UpdateDebounce, Opts.RetentionPolicy)
 #ifdef INTERACTIVE3C
-      ,
-      _3CInter(_3CInterface)
+          , _3CInter(_3CInterface)
 #endif
-{
+  {
   // Adds an index to the stack, at higher priority than existing indexes.
   auto AddIndex = [&](SymbolIndex *Idx) {
     if (this->Index != nullptr) {
@@ -187,8 +186,8 @@ void ClangdServer::clear3CDiagsForAllFiles(ConstraintsInfo &CcInfo,
   }
 }
 
-void ClangdServer::_3CCollectAndBuildInitialConstraints(
-    _3CLSPCallBack *ConvCB) {
+void
+ClangdServer::_3CCollectAndBuildInitialConstraints(_3CLSPCallBack *ConvCB) {
   auto Task = [=]() {
     _3CDiagInfo.ClearAllDiags();
     ConvCB->send3CMessage("Running 3C for first time.");
@@ -213,7 +212,8 @@ void ClangdServer::execute3CCommand(ExecuteCommandParams Params,
     std::string RplMsg;
     auto &WildPtrsInfo = _3CInter.GetWILDPtrsInfo();
     auto &PtrSourceMap = WildPtrsInfo.AtomSourceMap;
-    if (PtrSourceMap.find(Params._3CManualFix->ptrID) != PtrSourceMap.end()) {
+    if (PtrSourceMap.find(Params._3CManualFix->ptrID) !=
+        PtrSourceMap.end()) {
       std::string PtrFileName =
           PtrSourceMap[Params._3CManualFix->ptrID]->getFileName();
       log("3C: File of the pointer {0}\n", PtrFileName);
@@ -242,8 +242,7 @@ void ClangdServer::_3CCloseDocument(std::string FileName) {
       log("3C: Finished writing back file: {0}\n", FileName);
     } else {
       log("3C: File not included during constraint solving phase. "
-          "Rewriting failed: {0}\n",
-          FileName);
+          "Rewriting failed: {0}\n", FileName);
     }
   };
   WorkScheduler.run("3C: Writing back file.", Task);

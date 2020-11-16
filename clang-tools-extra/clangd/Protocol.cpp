@@ -560,7 +560,8 @@ bool fromJSON(const llvm::json::Value &Params, ExecuteCommandParams &R) {
 #ifdef INTERACTIVE3C
   if (R.command == ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS ||
       R.command == ExecuteCommandParams::_3C_APPLY_FOR_ALL) {
-    return Args && Args->size() == 1 && fromJSON(Args->front(), R._3CManualFix);
+    return Args && Args->size() == 1 &&
+        fromJSON(Args->front(), R._3CManualFix);
   }
 #endif
   return false; // Unrecognized command.

@@ -15,13 +15,16 @@
 
 std::set<BoundsKey> ABounds::KeysUsedInBounds;
 
-void ABounds::addBoundsUsedKey(BoundsKey BK) { KeysUsedInBounds.insert(BK); }
+void ABounds::addBoundsUsedKey(BoundsKey BK) {
+  KeysUsedInBounds.insert(BK);
+}
 
 bool ABounds::isKeyUsedInBounds(BoundsKey ToCheck) {
   return KeysUsedInBounds.find(ToCheck) != KeysUsedInBounds.end();
 }
 
-ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo, BoundsExpr *BExpr,
+ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo,
+                                BoundsExpr *BExpr,
                                 const ASTContext &C) {
   ABounds *Ret = nullptr;
   CountBoundsExpr *CBE = dyn_cast<CountBoundsExpr>(BExpr->IgnoreParenCasts());
@@ -29,7 +32,7 @@ ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo, BoundsExpr *BExpr,
   BoundsKey VK;
   if (CBE && !CBE->isCompilerGenerated()) {
     if (ABInfo->tryGetVariable(CBE->getCountExpr()->IgnoreParenCasts(), C,
-                               VK)) {
+                           VK)) {
       ProgramVar *PV = ABInfo->getProgramVar(VK);
       if (PV->IsNumConstant() && PV->getVarName() == "0") {
         // Invalid bounds. This is for functions like free.
@@ -68,9 +71,13 @@ bool CountBound::areSame(ABounds *O, AVarBoundsInfo *ABI) {
   return false;
 }
 
-BoundsKey CountBound::getBKey() { return this->CountVar; }
+BoundsKey CountBound::getBKey() {
+  return this->CountVar;
+}
 
-ABounds *CountBound::makeCopy(BoundsKey NK) { return new CountBound(NK); }
+ABounds* CountBound::makeCopy(BoundsKey NK) {
+  return new CountBound(NK);
+}
 
 std::string ByteBound::mkString(AVarBoundsInfo *ABI) {
   ProgramVar *PV = ABI->getProgramVar(ByteVar);
@@ -87,9 +94,14 @@ bool ByteBound::areSame(ABounds *O, AVarBoundsInfo *ABI) {
   return false;
 }
 
-BoundsKey ByteBound::getBKey() { return this->ByteVar; }
 
-ABounds *ByteBound::makeCopy(BoundsKey NK) { return new ByteBound(NK); }
+BoundsKey ByteBound::getBKey() {
+  return this->ByteVar;
+}
+
+ABounds* ByteBound::makeCopy(BoundsKey NK) {
+  return new ByteBound(NK);
+}
 
 std::string RangeBound::mkString(AVarBoundsInfo *ABI) {
   ProgramVar *LBVar = ABI->getProgramVar(LB);

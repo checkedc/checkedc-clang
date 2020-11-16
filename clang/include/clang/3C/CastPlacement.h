@@ -1,4 +1,4 @@
-//=--CastPlacement.h----------------------------------------------*- C++-*-===//
+//=--CastPlacement.h-----------------------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -19,16 +19,15 @@ public:
   explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I, Rewriter &R)
       : Context(C), Info(I), Writer(R), CR(Info, Context) {}
 
-  bool VisitCallExpr(CallExpr *C);
-
+  bool VisitCallExpr(CallExpr* C);
 private:
-  ASTContext *Context;
-  ProgramInfo &Info;
-  Rewriter &Writer;
+  ASTContext* Context;
+  ProgramInfo& Info;
+  Rewriter& Writer;
   ConstraintResolver CR;
 
-  bool needCasting(ConstraintVariable *, ConstraintVariable *);
+  bool needCasting(ConstraintVariable*, ConstraintVariable*);
   std::string getCastString(ConstraintVariable *Src, ConstraintVariable *Dst);
-  void surroundByCast(const std::string &, Expr *);
+  void surroundByCast(const std::string&, Expr*);
 };
 #endif // _CASTPLACEMENT_H

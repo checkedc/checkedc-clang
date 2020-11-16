@@ -14,9 +14,11 @@
 
 GlobalScope *GlobalScope::ProgScope = nullptr;
 std::set<StructScope, PVSComp> StructScope::AllStScopes;
-std::set<FunctionParamScope, PVSComp> FunctionParamScope::AllFnParamScopes;
+std::set<FunctionParamScope, PVSComp>
+  FunctionParamScope::AllFnParamScopes;
 std::set<FunctionScope, PVSComp> FunctionScope::AllFnScopes;
-std::set<CtxFunctionArgScope, PVSComp> CtxFunctionArgScope::AllCtxFnArgScopes;
+std::set<CtxFunctionArgScope, PVSComp>
+  CtxFunctionArgScope::AllCtxFnArgScopes;
 
 GlobalScope *GlobalScope::getGlobalScope() {
   if (ProgScope == nullptr) {
@@ -34,8 +36,8 @@ const StructScope *StructScope::getStructScope(std::string StName) {
   return &SS;
 }
 
-const FunctionParamScope *
-FunctionParamScope::getFunctionParamScope(std::string FnName, bool IsSt) {
+const FunctionParamScope *FunctionParamScope::getFunctionParamScope(
+    std::string FnName, bool IsSt) {
   FunctionParamScope TmpFPS(FnName, IsSt);
   if (AllFnParamScopes.find(TmpFPS) == AllFnParamScopes.end()) {
     AllFnParamScopes.insert(TmpFPS);
@@ -44,9 +46,8 @@ FunctionParamScope::getFunctionParamScope(std::string FnName, bool IsSt) {
   return &FPS;
 }
 
-const CtxFunctionArgScope *
-CtxFunctionArgScope::getCtxFunctionParamScope(const FunctionParamScope *FPS,
-                                              const PersistentSourceLoc &PSL) {
+const CtxFunctionArgScope *CtxFunctionArgScope::getCtxFunctionParamScope(
+  const FunctionParamScope *FPS, const PersistentSourceLoc &PSL) {
   CtxFunctionArgScope TmpAS(FPS->getFName(), FPS->getIsStatic(), PSL);
   if (AllCtxFnArgScopes.find(TmpAS) == AllCtxFnArgScopes.end()) {
     AllCtxFnArgScopes.insert(TmpAS);
@@ -56,7 +57,7 @@ CtxFunctionArgScope::getCtxFunctionParamScope(const FunctionParamScope *FPS,
 }
 
 const FunctionScope *FunctionScope::getFunctionScope(std::string FnName,
-                                                     bool IsSt) {
+                                               bool IsSt) {
   FunctionScope TmpFS(FnName, IsSt);
   if (AllFnScopes.find(TmpFS) == AllFnScopes.end()) {
     AllFnScopes.insert(TmpFS);
@@ -80,8 +81,8 @@ std::string ProgramVar::mkString(bool GetKey) {
 }
 
 ProgramVar *ProgramVar::makeCopy(BoundsKey NK) {
-  ProgramVar *NewPVar =
-      new ProgramVar(NK, this->VarName, this->VScope, this->IsConstant);
+  ProgramVar *NewPVar = new ProgramVar(NK, this->VarName, this->VScope,
+                                       this->IsConstant);
   return NewPVar;
 }
 
@@ -96,4 +97,5 @@ ProgramVar *ProgramVar::createNewProgramVar(BoundsKey VK, std::string VName,
   ProgramVar *NewPV = new ProgramVar(VK, VName, PVS, IsCons);
   AllProgramVars.insert(NewPV);
   return NewPV;
+
 }

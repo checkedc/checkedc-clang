@@ -45,4 +45,5 @@ set( LLVM_LINK_COMPONENTS
           clangTooling
           clangToolingRefactoring
         )
+        add_subdirectory(unittests)
 	target_include_directories(obj.clang3C PUBLIC)

@@ -1,4 +1,0 @@
-# A copy of clang/lib/3C. We could consider using a symlink if we don't care
-# about Windows.
-BasedOnStyle: LLVM
-ReflowComments: false

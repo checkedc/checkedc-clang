@@ -1,0 +1,5 @@
+add_custom_target(RewriterTests)
+set_target_properties(RewriterTests PROPERTIES FOLDER "RewriterTests")
+add_unittest(RewriterTests RewriterTest ConstraintTests ConstraintTests.cpp ../Constraints.cpp)
+clang_target_link_libraries(RewriterTest PRIVATE)
+target_include_directories(RewriterTest PRIVATE)

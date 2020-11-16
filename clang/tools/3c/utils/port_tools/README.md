@@ -4,13 +4,11 @@ This folder contains code that runs 3c on all the source files of a project.
 
 ## Prereqs:
 
-Ensure that you have setup Checked C by following the instructions at
-[https://github.com/microsoft/checkedc-clang/blob/master/clang/docs/checkedc/Setup-and-Build.md](https://github.com/microsoft/checkedc-clang/blob/master/clang/docs/checkedc/Setup-and-Build.md)
+Ensure that you have setup Checked C by following the instructions at [https://github.com/microsoft/checkedc-clang/blob/master/clang/docs/checkedc/Setup-and-Build.md](https://github.com/microsoft/checkedc-clang/blob/master/clang/docs/checkedc/Setup-and-Build.md)
   
 ## Usage:
 
-Compile your project to generate `compile_commands.json` by following the below
-instructions:
+Compile your project to generate `compile_commands.json` by following the below instructions:
 
 ### Generating `compile_commands.json`
 
@@ -40,8 +38,7 @@ Prepend `bear` to your make command i.e., if you were running `make -j4`
 
 then run `bear make -j4`.
 
-The above step ensures that the `compile_commands.json` will be present at the
-root of the project folder.
+The above step ensures that the `compile_commands.json` will be present at the root of the project folder.
 
 Second, run `convert_project.py`:
 
