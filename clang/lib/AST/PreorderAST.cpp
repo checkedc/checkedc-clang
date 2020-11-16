@@ -377,6 +377,82 @@ void PreorderAST::NormalizeExprsWithoutConst(Node *N) {
   AddNode(L, B);
 }
 
+bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
+				 llvm::APSInt &Offset) {
+  // Extract the offset by which a pointer is dereferenced. For the pointer we
+  // compare the dereference expr with the declared upper bound expr. If the
+  // non-integer parts of the two exprs are not equal we say that a valid
+  // offset does not exist and return false. If the non-integer parts of the
+  // two exprs are equal the offset is calculated as:
+  // (integer part of deref expr - integer part of upper bound expr).
+
+  // Since we have already normalized exprs like "*p" to "*(p + 0)" we require
+  // that the root of the preorder AST is a BinaryNode.
+  auto *B1 = dyn_cast_or_null<BinaryNode>(UpperNode);
+  auto *B2 = dyn_cast_or_null<BinaryNode>(DerefNode);
+
+  if (!B1 || !B2)
+    return false;
+
+  // If the opcodes mismatch we cannot have a valid offset.
+  if (B1->Opc != B2->Opc)
+    return false;
+
+  // We have already constant folded the constants. So return false if the
+  // number of children mismatch.
+  if (B1->Children.size() != B2->Children.size())
+    return false;
+
+  // Check if the children are equivalent.
+  for (size_t I = 0; I != B1->Children.size(); ++I) {
+    auto *Child1 = B1->Children[I];
+    auto *Child2 = B2->Children[I];
+
+    if (IsEqual(Child1, Child2))
+      continue;
+
+    // If the children are not equal we require that they be integer constant
+    // leaf nodes. Otherwise we cannot have a valid offset.
+    auto *L1 = dyn_cast_or_null<LeafExprNode>(Child1);
+    auto *L2 = dyn_cast_or_null<LeafExprNode>(Child2);
+
+    if (!L1 || !L2)
+      return false;
+
+    // Return false if either of the leaf nodes is not an integer constant.
+    llvm::APSInt UpperOffset;
+    if (!L1->E->isIntegerConstantExpr(UpperOffset, Ctx))
+      return false;
+
+    llvm::APSInt DerefOffset;
+    if (!L2->E->isIntegerConstantExpr(DerefOffset, Ctx))
+      return false;
+
+    // Offset should always be of the form (ptr + offset). So we check for
+    // addition.
+    // Note: We have already converted (ptr - offset) to (ptr + -offset). So
+    // its okay to only check for addition.
+    if (B1->Opc != BO_Add)
+      return false;
+
+    // This guards us from a case where the constants were not folded for
+    // some reason. In theory this should never happen. But we are adding this
+    // check just in case.
+    llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
+    if (llvm::APSInt::compareValues(Offset, Zero) != 0)
+      return false;
+
+    // offset = deref offset - declared upper bound offset.
+    // Return false if we encounter an overflow.
+    bool Overflow;
+    Offset = DerefOffset.ssub_ov(UpperOffset, Overflow);
+    if (Overflow)
+      return false;
+  }
+
+  return true;
+}
+
 bool PreorderAST::IsEqual(Node *N1, Node *N2) {
   // If both the nodes are null.
   if (!N1 && !N2)
