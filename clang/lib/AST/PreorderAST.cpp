@@ -29,47 +29,48 @@ void PreorderAST::AddNode(Node *N, Node *Parent) {
   }
 }
 
-void PreorderAST::RemoveNode(Node *N, Node *Parent) {
-  // The parent should be a BinaryNode.
-  assert(isa<BinaryNode>(Parent) && "Invalid parent");
+bool PreorderAST::CanCoalesceNode(BinaryNode *B, BinaryNode *P) {
+  if (!B || !isa<BinaryNode>(B) ||
+      !P || !isa<BinaryNode>(P))
+    return false;
 
-  auto *P = dyn_cast<BinaryNode>(Parent);
-  if (!P) {
+  // We can coalesce a BinaryNode if any one of the following conditions are
+  // true:
+  // 1. The parent has the same operator as the current node OR
+  // 2. The current node has just one child (for example, as a result of
+  // constant folding) and the parent and current operators are commutative and
+  // associative.
+
+  return  B->Opc == P->Opc ||
+         (B->Children.size() == 1 &&
+          B->IsOpCommutativeAndAssociative() &&
+          P->IsOpCommutativeAndAssociative());
+}
+
+void PreorderAST::CoalesceNode(BinaryNode *B, BinaryNode *P) {
+  if (!CanCoalesceNode(B, P)) {
+    assert(0 && "Attempting to coalesce invalid node");
     SetError();
     return;
-  }
-
-  // We will remove a BinaryNode only if its operator is commutative and
-  // associative.
-  if (auto *B = dyn_cast<BinaryNode>(N)) {
-    assert(B->IsOpCommutativeAndAssociative() &&
-           "BinaryNode operator must be commutative and associative");
-
-    if (!B->IsOpCommutativeAndAssociative()) {
-      SetError();
-      return;
-    }
   }
 
   // Remove the current node from the list of children of its parent.
   for (auto I = P->Children.begin(),
             E = P->Children.end(); I != E; ++I) {
-    if (*I == N) {
+    if (*I == B) {
       P->Children.erase(I);
       break;
     }
   }
 
-  if (auto *B = dyn_cast<BinaryNode>(N)) {
-    // Move all children of the current node to its parent.
-    for (auto *Child : B->Children) {
-      Child->Parent = P;
-      P->Children.push_back(Child);
-    }
+  // Move all children of the current node to its parent.
+  for (auto *Child : B->Children) {
+    Child->Parent = P;
+    P->Children.push_back(Child);
   }
 
   // Delete the current node.
-  delete N;
+  delete B;
 }
 
 void PreorderAST::Create(Expr *E, Node *Parent) {
@@ -166,12 +167,8 @@ void PreorderAST::Coalesce(Node *N, bool &Changed) {
   if (!Parent)
     return;
 
-  // We can coalesce only if:
-  // 1. The parent has the same operator as the current node.
-  // 2. The current node is a BinaryNode with just one child (for example, as a
-  // result of constant folding).
-  if (Parent->Opc == B->Opc || B->Children.size() == 1) {
-    RemoveNode(B, Parent);
+  if (CanCoalesceNode(B, Parent)) {
+    CoalesceNode(B, Parent);
     Changed = true;
   }
 }

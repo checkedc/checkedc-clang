@@ -88,11 +88,20 @@ namespace clang {
     // @param[in] Parent is the parent of the node to be added.
     void AddNode(Node *N, Node *Parent);
 
-    // Move the children (if any) of node N to its parent and then remove N.
-    // @param[in] N is the current node.
+    // Coalesce the BinaryNode B with its parent P. This involves moving the
+    // children (if any) of node B to its parent and then removing B.
+    // @param[in] B is the current node. B should be a BinaryNode.
     // @param[in] P is the parent of the node to be removed. P should be a
     // BinaryNode.
-    void RemoveNode(Node *N, Node *P);
+    void CoalesceNode(BinaryNode *B, BinaryNode *P);
+
+    // Determines if a BinaryNode could be coalesced into its parent.
+    // @param[in] B is the current node. B should be a BinaryNode.
+    // @param[in] P is the parent of the node to be removed. P should be a
+    // BinaryNode.
+    // @return Return true if B can be coalesced into its parent P, false
+    // otherwise.
+    bool CanCoalesceNode(BinaryNode *B, BinaryNode *P);
 
     // Recursively coalesce binary nodes having the same commutative and
     // associative operator.
