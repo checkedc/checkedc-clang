@@ -12466,7 +12466,7 @@ bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType,
       }
 
       if (InitializerString) {
-        if (*DeclaredArraySize < InitializerString->getLength()) {
+        if (*DeclaredArraySize <= InitializerString->getLength()) {
           const char *StringConstant = InitializerString->getString().data();
           if (StringConstant[*DeclaredArraySize - 1] != '\0') {
             Diag(
