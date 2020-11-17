@@ -42,14 +42,10 @@ void PreorderAST::RemoveNode(Node *N, Node *Parent) {
   // We will remove a BinaryNode only if its operator is equal to its
   // parent's operator and the operator is commutative and associative.
   if (auto *B = dyn_cast<BinaryNode>(N)) {
-    assert(B->Opc == P->Opc &&
-           "BinaryNode operator must equal parent operator");
-
     assert(B->IsOpCommutativeAndAssociative() &&
            "BinaryNode operator must be commutative and associative");
 
-    if (B->Opc != P->Opc ||
-       !B->IsOpCommutativeAndAssociative()) {
+    if (!B->IsOpCommutativeAndAssociative()) {
       SetError();
       return;
     }
