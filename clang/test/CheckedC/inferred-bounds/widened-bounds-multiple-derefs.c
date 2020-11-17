@@ -328,7 +328,7 @@ void f15(int i) {
 // CHECK:    1: *(p - i + 1)
 // CHECK: upper_bound(p) = 1
 // CHECK:  [B11]
-// CHECK: upper_bound(p) = 1
+// CHECK: upper_bound(p) = 2
 
   _Nt_array_ptr<char> q : count(0) = "a";
   if (*q && *(q - 1))

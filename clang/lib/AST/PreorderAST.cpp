@@ -82,7 +82,25 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
 
   E = Lex.IgnoreValuePreservingOperations(Ctx, E->IgnoreParens());
 
-  if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
+  if (!Parent) {
+    // The invariant is that the root node must be a BinaryNode with an
+    // addition operator. So for expressions like "if (*p)", we don't have a
+    // BinaryOperator. So when we enter this function there is no root and the
+    // parent is null. So we create a new BinaryNode with + as the operator and
+    // add 0 as a LeafNodeExpr child of this BinaryNode. This helps us compare
+    // expressions like "p" and "p + 1" by normalizing "p" to "p + 0".
+
+    auto *N = new BinaryNode(BO_Add, Parent);
+    AddNode(N, Parent);
+
+    llvm::APInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
+    auto *ZeroLiteral = new (Ctx) IntegerLiteral(Ctx, Zero, Ctx.IntTy,
+                                                 SourceLocation());
+    auto *L = new LeafExprNode(ZeroLiteral, N);
+    AddNode(L, /*Parent*/ N);
+    Create(E, /*Parent*/ N);
+
+  } else if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
     BinaryOperator::Opcode BinOp = BO->getOpcode();
     Expr *LHS = BO->getLHS();
     Expr *RHS = BO->getRHS();
@@ -129,19 +147,6 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
 
     Create(LHS, /*Parent*/ N);
     Create(RHS, /*Parent*/ N);
-
-  } else if (!Parent) {
-    // The invariant is that the root node must be a BinaryNode. So for
-    // expressions like "if (*p)", we don't have a BinaryOperator. So when we
-    // enter this function there is no root and the parent is null. So we
-    // create a new BinaryNode with + as the operator and add "p" as a
-    // LeafNodeExpr child of this BinaryNode. Later, in the function
-    // NormalizeExprsWithoutConst we normalize "p" to "p + 0" by adding 0 as a
-    // sibling of "p".
-
-    auto *N = new BinaryNode(BO_Add, Parent);
-    AddNode(N, Parent);
-    Create(E, /*Parent*/ N);
 
   } else {
     auto *N = new LeafExprNode(E, Parent);
@@ -331,52 +336,6 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
   Changed = true;
 }
 
-void PreorderAST::NormalizeExprsWithoutConst(Node *N) {
-  // Consider the following case:
-  // Upper bound expr: p
-  // Deref expr: p + 1
-  // In this case, we would not able able to extract the offset from the deref
-  // expression because the upper bound expression does not contain a constant.
-  // This is because the node-by-node comparison of the two expressions would
-  // fail. So we require that expressions be of the form "(variable + constant)".
-  // So, we normalize expressions by adding an integer constant to expressions
-  // which do not have one. For example:
-  // p ==> (p + 0)
-  // (p + i) ==> (p + i + 0)
-  // (p * i) ==> (p * i * 1)
-
-  auto *B = dyn_cast_or_null<BinaryNode>(N);
-  if (!B)
-    return;
-
-  for (auto *Child : B->Children) {
-    // Recursively normalize constants in the children of a BinaryNode.
-    if (isa<BinaryNode>(Child))
-      NormalizeExprsWithoutConst(Child);
-
-    else if (auto *ChildLeafNode = dyn_cast<LeafExprNode>(Child)) {
-      if (ChildLeafNode->E->isIntegerConstantExpr(Ctx))
-        return;
-    }
-  }
-
-  llvm::APInt IntConst;
-  switch(B->Opc) {
-    default: return;
-    case BO_Add:
-      IntConst = llvm::APInt(Ctx.getTargetInfo().getIntWidth(), 0);
-      break;
-    case BO_Mul:
-      IntConst = llvm::APInt(Ctx.getTargetInfo().getIntWidth(), 1);
-      break;
-  }
-
-  auto *IntLiteral = new (Ctx) IntegerLiteral(Ctx, IntConst, Ctx.IntTy,
-                                              SourceLocation());
-  auto *L = new LeafExprNode(IntLiteral, B);
-  AddNode(L, B);
-}
-
 bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
 				 llvm::APSInt &Offset) {
   // Extract the offset by which a pointer is dereferenced. For the pointer we
@@ -514,7 +473,6 @@ void PreorderAST::Normalize() {
     ConstantFold(Root, Changed);
     if (Error)
       break;
-    NormalizeExprsWithoutConst(Root);
   }
 
   if (Ctx.getLangOpts().DumpPreorderAST) {
