@@ -10,9 +10,9 @@
 
 #include "llvm/Support/Path.h"
 
-#include "clang/3C/Utils.h"
 #include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/ConstraintVariables.h"
+#include "clang/3C/Utils.h"
 
 using namespace llvm;
 using namespace clang;
@@ -23,8 +23,7 @@ const clang::Type *getNextTy(const clang::Type *Ty) {
     //       we want to keep?
     QualType qtmp = Ty->getLocallyUnqualifiedSingleStepDesugaredType();
     return qtmp.getTypePtr()->getPointeeType().getTypePtr();
-  }
-  else
+  } else
     return Ty;
 }
 
@@ -58,9 +57,7 @@ FunctionDecl *getDefinition(FunctionDecl *FD) {
   return nullptr;
 }
 
-SourceLocation
-getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S)
-{
+SourceLocation getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S) {
   const FunctionDecl *oFD = nullptr;
 
   if (FD->hasBody(oFD) && oFD == FD) {
@@ -116,11 +113,15 @@ bool hasFunctionBody(clang::Decl *D) {
 
 static std::string storageClassToString(StorageClass SC) {
   switch (SC) {
-    case StorageClass::SC_Static: return "static ";
-    case StorageClass::SC_Extern: return "extern ";
-    case StorageClass::SC_Register: return "register ";
-    // For all other cases, we do not care.
-    default: return "";
+  case StorageClass::SC_Static:
+    return "static ";
+  case StorageClass::SC_Extern:
+    return "extern ";
+  case StorageClass::SC_Register:
+    return "register ";
+  // For all other cases, we do not care.
+  default:
+    return "";
   }
 }
 
@@ -140,14 +141,14 @@ bool isNULLExpression(clang::Expr *E, ASTContext &C) {
   QualType Typ = E->getType();
   E = removeAuxillaryCasts(E);
   return Typ->isPointerType() && E->isIntegerConstantExpr(C) &&
-         E->isNullPointerConstant(C,Expr::NPC_ValueDependentIsNotNull);
+         E->isNullPointerConstant(C, Expr::NPC_ValueDependentIsNotNull);
 }
 
 bool getAbsoluteFilePath(std::string FileName, std::string &AbsoluteFp) {
   // Get absolute path of the provided file
   // returns true if successful else false.
   SmallString<255> abs_path(FileName);
-  llvm::sys::fs::make_absolute(BaseDir,abs_path);
+  llvm::sys::fs::make_absolute(BaseDir, abs_path);
   AbsoluteFp = abs_path.str();
   return true;
 }
@@ -163,14 +164,14 @@ bool functionHasVarArgs(clang::FunctionDecl *FD) {
 
 bool isFunctionAllocator(std::string FuncName) {
   return std::find(AllocatorFunctions.begin(), AllocatorFunctions.end(),
-                   FuncName) != AllocatorFunctions.end()
-         || llvm::StringSwitch<bool>(FuncName)
+                   FuncName) != AllocatorFunctions.end() ||
+         llvm::StringSwitch<bool>(FuncName)
              .Cases("malloc", "calloc", "realloc", true)
              .Default(false);
 }
 
 float getTimeSpentInSeconds(clock_t StartTime) {
-  return float(clock() - StartTime)/CLOCKS_PER_SEC;
+  return float(clock() - StartTime) / CLOCKS_PER_SEC;
 }
 
 bool isPointerType(clang::ValueDecl *VD) {
@@ -240,9 +241,7 @@ bool isVarArgType(const std::string &TypeName) {
          TypeName == "struct __va_list_tag";
 }
 
-bool hasVoidType(clang::ValueDecl *D) {
-  return isTypeHasVoid(D->getType());
-}
+bool hasVoidType(clang::ValueDecl *D) { return isTypeHasVoid(D->getType()); }
 
 //// Check the equality of VTy and UTy. There are some specific rules that
 //// fire, and a general check is yet to be implemented.
@@ -267,8 +266,7 @@ bool hasVoidType(clang::ValueDecl *D) {
 //  return D->isPointerType() == S->isPointerType();
 //}
 
-static bool CastCheck(clang::QualType DstType,
-                      clang::QualType SrcType) {
+static bool CastCheck(clang::QualType DstType, clang::QualType SrcType) {
 
   // Check if both types are same.
   if (SrcType == DstType)
@@ -285,8 +283,8 @@ static bool CastCheck(clang::QualType DstType,
   // Both are pointers? check their pointee
   if (SrcPtrTypePtr && DstPtrTypePtr) {
     return (SrcPtrTypePtr->isVoidPointerType()) ||
-        CastCheck(DstPtrTypePtr->getPointeeType(),
-                  SrcPtrTypePtr->getPointeeType());
+           CastCheck(DstPtrTypePtr->getPointeeType(),
+                     SrcPtrTypePtr->getPointeeType());
   }
 
   if (SrcPtrTypePtr || DstPtrTypePtr)
@@ -299,23 +297,22 @@ static bool CastCheck(clang::QualType DstType,
   // Check if both types are compatible.
   bool BothNotChar = SrcTypePtr->isCharType() ^ DstTypePtr->isCharType();
   bool BothNotInt =
-      (SrcTypePtr->isIntegerType() && SrcTypePtr->isUnsignedIntegerType())
-      ^ (DstTypePtr->isIntegerType() && DstTypePtr->isUnsignedIntegerType());
+      (SrcTypePtr->isIntegerType() && SrcTypePtr->isUnsignedIntegerType()) ^
+      (DstTypePtr->isIntegerType() && DstTypePtr->isUnsignedIntegerType());
   bool BothNotFloat =
       SrcTypePtr->isFloatingType() ^ DstTypePtr->isFloatingType();
 
   return !(BothNotChar || BothNotInt || BothNotFloat);
 }
 
-bool isCastSafe(clang::QualType DstType,
-                clang::QualType SrcType) {
+bool isCastSafe(clang::QualType DstType, clang::QualType SrcType) {
   const clang::Type *DstTypePtr = DstType.getTypePtr();
   const clang::PointerType *DstPtrTypePtr =
       dyn_cast<clang::PointerType>(DstTypePtr);
   if (!DstPtrTypePtr) // Safe to cast to a non-pointer.
     return true;
   else
-    return CastCheck(DstType,SrcType);
+    return CastCheck(DstType, SrcType);
 }
 
 bool canWrite(const std::string &FilePath) {
@@ -349,7 +346,8 @@ std::string getSourceText(const clang::SourceRange &SR,
 }
 
 unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
-                                  unsigned long Str1Len, unsigned long Str2Len) {
+                                  unsigned long Str1Len,
+                                  unsigned long Str2Len) {
   if (Str1Len == 0 || Str2Len == 0)
     return 0;
   if (Str1[Str1Len - 1] == Str2[Str2Len - 1])
@@ -361,9 +359,9 @@ unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
 
 // Get the type variable used in a parameter declaration, or return null if no
 // type variable is used.
-const TypeVariableType *getTypeVariableType(DeclaratorDecl *Decl){
+const TypeVariableType *getTypeVariableType(DeclaratorDecl *Decl) {
   // This makes a lot of assumptions about how the AST will look.
-  if (auto *ITy = Decl->getInteropTypeExpr()){
+  if (auto *ITy = Decl->getInteropTypeExpr()) {
     const auto *Ty = ITy->getType().getTypePtr();
     if (Ty && Ty->isPointerType()) {
       auto *PtrTy = Ty->getPointeeType().getTypePtr();
@@ -375,8 +373,9 @@ const TypeVariableType *getTypeVariableType(DeclaratorDecl *Decl){
 }
 
 bool isTypeAnonymous(const clang::Type *T) {
-  return T->isRecordType() && !(T->getAsRecordDecl()->getIdentifier()
-      || T->getAsRecordDecl()->getTypedefNameForAnonDecl());
+  return T->isRecordType() &&
+         !(T->getAsRecordDecl()->getIdentifier() ||
+           T->getAsRecordDecl()->getTypedefNameForAnonDecl());
 }
 
 unsigned int getParameterIndex(ParmVarDecl *PV, FunctionDecl *FD) {
@@ -396,13 +395,13 @@ bool evaluateToInt(Expr *E, const ASTContext &C, int &Result) {
   E->EvaluateAsInt(ER, C, clang::Expr::SE_NoSideEffects, false);
   if (ER.Val.isInt()) {
     Result = ER.Val.getInt().getExtValue();
-    return  true;
+    return true;
   }
   return false;
 }
 
 bool isZeroBoundsExpr(BoundsExpr *BE, const ASTContext &C) {
-  if (auto *CBE = dyn_cast<CountBoundsExpr>(BE)){
+  if (auto *CBE = dyn_cast<CountBoundsExpr>(BE)) {
     // count(0) and byte_count(0)
     Expr *E = CBE->getCountExpr();
     int Result;
@@ -416,9 +415,9 @@ bool isZeroBoundsExpr(BoundsExpr *BE, const ASTContext &C) {
 }
 
 TypeLoc getBaseTypeLoc(TypeLoc T) {
-  while (!T.getNextTypeLoc().isNull()
-      && (!T.getAs<ParenTypeLoc>().isNull() || T.getTypePtr()->isPointerType()
-          || T.getTypePtr()->isArrayType()))
+  while (!T.getNextTypeLoc().isNull() &&
+         (!T.getAs<ParenTypeLoc>().isNull() ||
+          T.getTypePtr()->isPointerType() || T.getTypePtr()->isArrayType()))
     T = T.getNextTypeLoc();
   return T;
 }

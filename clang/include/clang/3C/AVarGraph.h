@@ -19,31 +19,30 @@
 class AVarGraph : public DataGraph<BoundsKey> {
 public:
   AVarGraph(AVarBoundsInfo *ABInfo) : DataGraph(), ABInfo(ABInfo) {}
+
 private:
   friend struct llvm::DOTGraphTraits<AVarGraph>;
   AVarBoundsInfo *ABInfo;
 };
 
 namespace llvm {
-template<> struct GraphTraits<AVarGraph> {
+template <> struct GraphTraits<AVarGraph> {
   using NodeRef = DataNode<BoundsKey> *;
   using EdgeType = DataEdge<BoundsKey> *;
   using nodes_iterator = AVarGraph::iterator;
 
-  static NodeRef GetTargetNode(EdgeType P) {
-    return &P->getTargetNode();
-  }
+  static NodeRef GetTargetNode(EdgeType P) { return &P->getTargetNode(); }
 
   using ChildIteratorType =
-  mapped_iterator<typename DataNode<BoundsKey>::iterator,
-                  decltype(&GetTargetNode)>;
+      mapped_iterator<typename DataNode<BoundsKey>::iterator,
+                      decltype(&GetTargetNode)>;
 
   static nodes_iterator nodes_begin(const AVarGraph &G) {
-    return const_cast<AVarGraph&>(G).Nodes.begin();
+    return const_cast<AVarGraph &>(G).Nodes.begin();
   }
 
   static nodes_iterator nodes_end(const AVarGraph &G) {
-    return const_cast<AVarGraph&>(G).Nodes.end();
+    return const_cast<AVarGraph &>(G).Nodes.end();
   }
 
   static ChildIteratorType child_begin(NodeRef N) {
@@ -55,15 +54,14 @@ template<> struct GraphTraits<AVarGraph> {
   }
 };
 
-template<> struct DOTGraphTraits<AVarGraph> :
-    public llvm::DefaultDOTGraphTraits, llvm::GraphTraits<GraphVizOutputGraph> {
+template <>
+struct DOTGraphTraits<AVarGraph> : public llvm::DefaultDOTGraphTraits,
+                                   llvm::GraphTraits<GraphVizOutputGraph> {
   DOTGraphTraits(bool simple = false) : DefaultDOTGraphTraits(simple) {}
-
 
   std::string getNodeAttributes(const DataNode<BoundsKey> *Node,
                                 const AVarGraph &CG);
-  std::string getNodeLabel(const DataNode<BoundsKey> *Node,
-                           const AVarGraph &G);
+  std::string getNodeLabel(const DataNode<BoundsKey> *Node, const AVarGraph &G);
 };
 } // namespace llvm
 #endif // _AVARGRAPH_H

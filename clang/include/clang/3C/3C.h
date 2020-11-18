@@ -15,11 +15,11 @@
 #ifndef _3C_H
 #define _3C_H
 
+#include "3CInteractiveData.h"
 #include "ConstraintVariables.h"
 #include "PersistentSourceLoc.h"
-#include "clang/Tooling/CommonOptionsParser.h"
-#include "3CInteractiveData.h"
 #include "ProgramInfo.h"
+#include "clang/Tooling/CommonOptionsParser.h"
 #include <mutex>
 
 // Options used to initialize 3C tool.
@@ -111,7 +111,6 @@ private:
   // Are constraints already built?
   bool ConstraintsBuilt;
   void InvalidateAllConstraintsWithReason(Constraint *ConstraintToRemove);
-
 };
 
 #endif // _3C_H

@@ -12,11 +12,11 @@
 #ifndef _REWRITEUTILS_H
 #define _REWRITEUTILS_H
 
+#include "ProgramInfo.h"
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/Rewrite/Core/Rewriter.h"
-#include "ProgramInfo.h"
 
 using namespace clang;
 
@@ -33,16 +33,12 @@ public:
   }
 
   // Discriminator for LLVM-style RTTI (dyn_cast<> et al.)
-  enum DRKind {
-    DRK_VarDecl,
-    DRK_ParmVarDecl,
-    DRK_FunctionDecl,
-    DRK_FieldDecl
-  };
+  enum DRKind { DRK_VarDecl, DRK_ParmVarDecl, DRK_FunctionDecl, DRK_FieldDecl };
 
   DRKind getKind() const { return Kind; }
 
   virtual ~DeclReplacement() {}
+
 protected:
   explicit DeclReplacement(DeclStmt *S, std::string R, DRKind K)
       : Statement(S), Replacement(R), Kind(K) {}
@@ -57,19 +53,16 @@ private:
   const DRKind Kind;
 };
 
-template<typename DeclT, DeclReplacement::DRKind K>
+template <typename DeclT, DeclReplacement::DRKind K>
 class DeclReplacementTempl : public DeclReplacement {
 public:
   explicit DeclReplacementTempl(DeclT *D, DeclStmt *DS, std::string R)
       : DeclReplacement(DS, R, K), Decl(D) {}
 
-  DeclT *getDecl() const override {
-    return Decl;
-  }
+  DeclT *getDecl() const override { return Decl; }
 
-  static bool classof(const DeclReplacement *S) {
-    return S->getKind() == K;
-  }
+  static bool classof(const DeclReplacement *S) { return S->getKind() == K; }
+
 protected:
   DeclT *Decl;
 };
@@ -81,16 +74,16 @@ typedef DeclReplacementTempl<ParmVarDecl, DeclReplacement::DRK_ParmVarDecl>
 typedef DeclReplacementTempl<FieldDecl, DeclReplacement::DRK_FieldDecl>
     FieldDeclReplacement;
 
-class FunctionDeclReplacement :
-    public DeclReplacementTempl<FunctionDecl,
-                                DeclReplacement::DRK_FunctionDecl> {
+class FunctionDeclReplacement
+    : public DeclReplacementTempl<FunctionDecl,
+                                  DeclReplacement::DRK_FunctionDecl> {
 public:
   explicit FunctionDeclReplacement(FunctionDecl *D, std::string R, bool Return,
                                    bool Params)
       : DeclReplacementTempl(D, nullptr, R), RewriteReturn(Return),
         RewriteParams(Params) {
-    assert("Doesn't make sense to rewrite nothing!"
-           && (RewriteReturn || RewriteParams));
+    assert("Doesn't make sense to rewrite nothing!" &&
+           (RewriteReturn || RewriteParams));
   }
 
   SourceRange getSourceRange(SourceManager &SM) const override {
@@ -98,17 +91,17 @@ public:
     if (!TSInfo)
       return SourceRange(Decl->getBeginLoc(),
                          getFunctionDeclarationEnd(Decl, SM));
-    FunctionTypeLoc TypeLoc = getBaseTypeLoc(TSInfo->getTypeLoc())
-                             .getAs<clang::FunctionTypeLoc>();
+    FunctionTypeLoc TypeLoc =
+        getBaseTypeLoc(TSInfo->getTypeLoc()).getAs<clang::FunctionTypeLoc>();
 
     assert("FunctionDecl doesn't have function type?" && !TypeLoc.isNull());
 
     // Function pointer are funky, and require special handling to rewrite the
     // return type.
-    if (Decl->getReturnType()->isFunctionPointerType()){
+    if (Decl->getReturnType()->isFunctionPointerType()) {
       if (RewriteParams && RewriteReturn) {
-        auto
-            T = getBaseTypeLoc(TypeLoc.getReturnLoc()).getAs<FunctionTypeLoc>();
+        auto T =
+            getBaseTypeLoc(TypeLoc.getReturnLoc()).getAs<FunctionTypeLoc>();
         if (!T.isNull())
           return SourceRange(Decl->getBeginLoc(), T.getRParenLoc());
       }
@@ -117,20 +110,19 @@ public:
 
     // If rewriting the return, then the range starts at the begining of the
     // decl. Otherwise, skip to the left parenthesis of parameters.
-    SourceLocation Begin = RewriteReturn ?
-        Decl->getBeginLoc() :
-        TypeLoc.getLParenLoc();
+    SourceLocation Begin =
+        RewriteReturn ? Decl->getBeginLoc() : TypeLoc.getLParenLoc();
 
     // If rewriting Parameters, stop at the right parenthesis of the parameters.
     // Otherwise, stop after the return type.
     // Note: getFunctionDeclarationEnd is used instead of getRParenLoc so that
     // itypes are deleted correctly when --remove-itypes is used.
-    SourceLocation End = RewriteParams ?
-        getFunctionDeclarationEnd(Decl, SM) :
-        Decl->getReturnTypeSourceRange().getEnd();
+    SourceLocation End = RewriteParams
+                             ? getFunctionDeclarationEnd(Decl, SM)
+                             : Decl->getReturnTypeSourceRange().getEnd();
 
-    assert("Invalid FunctionDeclReplacement SourceRange!"
-           && Begin.isValid() && End.isValid());
+    assert("Invalid FunctionDeclReplacement SourceRange!" && Begin.isValid() &&
+           End.isValid());
 
     return SourceRange(Begin, End);
   }
@@ -164,7 +156,7 @@ private:
 //    declarations.
 class DComp {
 public:
-  DComp(SourceManager &S) : SM(S) { }
+  DComp(SourceManager &S) : SM(S) {}
 
   bool operator()(DeclReplacement *Lhs, DeclReplacement *Rhs) const;
 
@@ -185,7 +177,7 @@ typedef std::set<DeclReplacement *, DComp> RSet;
 // have the same beginning source locations, so it is used to group variables.
 class GlobalVariableGroups {
 public:
-  GlobalVariableGroups(SourceManager &SourceMgr) : SM(SourceMgr) { }
+  GlobalVariableGroups(SourceManager &SourceMgr) : SM(SourceMgr) {}
   void addGlobalDecl(Decl *VD, std::vector<Decl *> *VDVec = nullptr);
 
   std::vector<Decl *> &getVarsOnSameLine(Decl *VD);
@@ -194,18 +186,19 @@ public:
 
 private:
   SourceManager &SM;
-  std::map<Decl *, std::vector<Decl *>*> GlobVarGroups;
+  std::map<Decl *, std::vector<Decl *> *> GlobVarGroups;
 };
 
 // Class that handles rewriting bounds information for all the
 // detected array variables.
 class ArrayBoundsRewriter {
 public:
-  ArrayBoundsRewriter(ASTContext *C, ProgramInfo &I): Context(C), Info(I) {}
+  ArrayBoundsRewriter(ASTContext *C, ProgramInfo &I) : Context(C), Info(I) {}
   // Get the string representation of the bounds for the given variable.
   std::string getBoundsString(PVConstraint *PV, Decl *D, bool Isitype = false);
   // Check if the constraint variable has newly created bounds string.
   bool hasNewBoundsString(PVConstraint *PV, Decl *D, bool Isitype = false);
+
 private:
   ASTContext *Context;
   ProgramInfo &Info;
@@ -213,8 +206,8 @@ private:
 
 class RewriteConsumer : public ASTConsumer {
 public:
-  explicit RewriteConsumer(ProgramInfo &I, std::string &OPostfix) :
-                           Info(I), OutputPostfix(OPostfix) {}
+  explicit RewriteConsumer(ProgramInfo &I, std::string &OPostfix)
+      : Info(I), OutputPostfix(OPostfix) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context);
 

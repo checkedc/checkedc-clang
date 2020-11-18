@@ -12,10 +12,10 @@
 #ifndef _ARRAYBOUNDSINFERENCECONSUMER_H
 #define _ARRAYBOUNDSINFERENCECONSUMER_H
 
-#include "clang/Analysis/CFG.h"
-#include "clang/Analysis/Analyses/Dominators.h"
-#include "clang/AST/StmtVisitor.h"
 #include "clang/AST/ASTConsumer.h"
+#include "clang/AST/StmtVisitor.h"
+#include "clang/Analysis/Analyses/Dominators.h"
+#include "clang/Analysis/CFG.h"
 
 #include "ProgramInfo.h"
 
@@ -24,7 +24,8 @@ class ConstraintResolver;
 
 class AllocBasedBoundsInference : public ASTConsumer {
 public:
-  explicit AllocBasedBoundsInference(ProgramInfo &I, clang::ASTContext *C) : Info(I) { }
+  explicit AllocBasedBoundsInference(ProgramInfo &I, clang::ASTContext *C)
+      : Info(I) {}
   virtual void HandleTranslationUnit(ASTContext &Context);
 
 private:
@@ -33,10 +34,10 @@ private:
 
 // This class handles determining bounds of global array variables.
 // i.e., function parameters, structure fields and global variables.
-class GlobalABVisitor: public clang::RecursiveASTVisitor<GlobalABVisitor> {
+class GlobalABVisitor : public clang::RecursiveASTVisitor<GlobalABVisitor> {
 public:
   explicit GlobalABVisitor(ASTContext *C, ProgramInfo &I)
-          : ParamInfo(nullptr), Context(C), Info(I) {}
+      : ParamInfo(nullptr), Context(C), Info(I) {}
 
   bool VisitRecordDecl(RecordDecl *RD);
 
@@ -52,16 +53,17 @@ private:
 };
 
 // This class handles determining bounds of function-local array variables.
-// This class also keeps tracks of variables that are most-likely cannot be lengths.
-// For example:
+// This class also keeps tracks of variables that are most-likely cannot be
+// lengths. For example:
 // Consider the expression: (x & y)
 // Here, it is unlikely that variables x and y cannot be length variables
-// because it is hard to imaging a variable used as length used in a bitwise AND.
+// because it is hard to imaging a variable used as length used in a bitwise
+// AND.
 class LocalVarABVisitor : public clang::RecursiveASTVisitor<LocalVarABVisitor> {
 
 public:
   explicit LocalVarABVisitor(ASTContext *C, ProgramInfo &I)
-  : Context(C), Info(I) {}
+      : Context(C), Info(I) {}
 
   bool HandleBinAssign(BinaryOperator *O);
   bool VisitDeclStmt(DeclStmt *S);
@@ -85,8 +87,7 @@ private:
 // Here, we detect that len is a potential length of arr.
 class LengthVarInference : public StmtVisitor<LengthVarInference> {
 public:
-  LengthVarInference(ProgramInfo &In, ASTContext *AC,
-                     FunctionDecl *F);
+  LengthVarInference(ProgramInfo &In, ASTContext *AC, FunctionDecl *F);
 
   virtual ~LengthVarInference();
 

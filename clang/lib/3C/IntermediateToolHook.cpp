@@ -8,18 +8,18 @@
 // Implementation of methods in IntermediateToolHook.h
 //===----------------------------------------------------------------------===//
 
-#include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/3C/ArrayBoundsInferenceConsumer.h"
 #include "clang/3C/IntermediateToolHook.h"
+#include "clang/3C/ArrayBoundsInferenceConsumer.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 
 using namespace llvm;
 using namespace clang;
 
 extern cl::OptionCategory ArrBoundsInferCat;
-static cl::opt<bool> DisableArrH("disable-arr-hu",
-                                cl::desc("Disable Array Bounds Inference Heuristics."),
-                                cl::init(false),
-                                cl::cat(ArrBoundsInferCat));
+static cl::opt<bool>
+    DisableArrH("disable-arr-hu",
+                cl::desc("Disable Array Bounds Inference Heuristics."),
+                cl::init(false), cl::cat(ArrBoundsInferCat));
 
 void IntermediateToolHook::HandleTranslationUnit(ASTContext &Context) {
   Info.enterCompilationUnit(Context);

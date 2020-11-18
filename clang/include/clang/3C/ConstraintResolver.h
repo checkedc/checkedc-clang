@@ -22,7 +22,7 @@ using namespace clang;
 class ConstraintResolver {
 
 public:
-  ConstraintResolver(ProgramInfo &I, ASTContext *C) : Info(I), Context(C) { }
+  ConstraintResolver(ProgramInfo &I, ASTContext *C) : Info(I), Context(C) {}
 
   virtual ~ConstraintResolver();
 

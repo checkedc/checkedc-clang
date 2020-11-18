@@ -15,9 +15,9 @@
 #include "ABounds.h"
 #include "AVarGraph.h"
 #include "ProgramVar.h"
-#include "clang/AST/Decl.h"
-#include "clang/3C/PersistentSourceLoc.h"
 #include "clang/3C/ConstraintVariables.h"
+#include "clang/3C/PersistentSourceLoc.h"
+#include "clang/AST/Decl.h"
 
 class ProgramInfo;
 class ConstraintResolver;
@@ -39,12 +39,8 @@ public:
   std::set<BoundsKey> DataflowMatch;
   // These are bounds keys for which the bounds are declared.
   std::set<BoundsKey> DeclaredBounds;
-  AVarBoundsStats() {
-    clear();
-  }
-  ~AVarBoundsStats() {
-    clear();
-  }
+  AVarBoundsStats() { clear(); }
+  ~AVarBoundsStats() { clear(); }
 
   bool isDataflowMatch(BoundsKey BK) {
     return DataflowMatch.find(BK) != DataflowMatch.end();
@@ -61,12 +57,12 @@ public:
   bool isNeighbourParamMatch(BoundsKey BK) {
     return NeighbourParamMatch.find(BK) != NeighbourParamMatch.end();
   }
-  void print(llvm::raw_ostream &O,
-             const std::set<BoundsKey> *InSrcArrs,
+  void print(llvm::raw_ostream &O, const std::set<BoundsKey> *InSrcArrs,
              bool JsonFormat = false) const;
   void dump(const std::set<BoundsKey> *InSrcArrs) const {
     print(llvm::errs(), InSrcArrs);
   }
+
 private:
   void clear() {
     NamePrefixMatch.clear();
@@ -76,16 +72,15 @@ private:
     DataflowMatch.clear();
     DeclaredBounds.clear();
   }
-
 };
 
 // Priority for bounds.
 enum BoundsPriority {
   Declared = 1, // Highest priority: These are declared by the user.
-  Allocator, // Second priority: allocator based bounds.
+  Allocator,    // Second priority: allocator based bounds.
   FlowInferred, // Flow based bounds.
-  Heuristics, // Least-priority, based on heuristics.
-  Invalid // Invalid priority type.
+  Heuristics,   // Least-priority, based on heuristics.
+  Invalid       // Invalid priority type.
 };
 
 class AVarBoundsInfo;
@@ -110,29 +105,26 @@ public:
   // Get a consistent bound for all the arrays whose bounds have been
   // inferred.
   bool convergeInferredBounds();
+
 private:
   // Find all the reachable variables form FromVarK that are visible
   // in DstScope
   bool getReachableBoundKeys(const ProgramVarScope *DstScope,
-                             BoundsKey FromVarK,
-                             std::set<BoundsKey> &PotK,
-                             AVarGraph &BKGraph,
-                             bool CheckImmediate = false);
+                             BoundsKey FromVarK, std::set<BoundsKey> &PotK,
+                             AVarGraph &BKGraph, bool CheckImmediate = false);
 
   // Check if bounds specified by Bnds are declared bounds of K.
-  bool areDeclaredBounds(BoundsKey K,
-                         const std::pair<ABounds::BoundsKind,
-                                         std::set<BoundsKey>> &Bnds);
+  bool areDeclaredBounds(
+      BoundsKey K,
+      const std::pair<ABounds::BoundsKind, std::set<BoundsKey>> &Bnds);
 
   // Get all the bounds of the given array i.e., BK
-  bool getRelevantBounds(BoundsKey BK,
-                         BndsKindMap &ResBounds);
+  bool getRelevantBounds(BoundsKey BK, BndsKindMap &ResBounds);
 
   // Predict possible bounds for DstArrK from the bounds of  Neighbours.
   // Return true if there is any change in the captured bounds information.
   bool predictBounds(BoundsKey DstArrK, std::set<BoundsKey> &Neighbours,
                      AVarGraph &BKGraph);
-
 
   void mergeReachableProgramVars(std::set<BoundsKey> &AllVars);
 
@@ -146,8 +138,9 @@ private:
 
 class AVarBoundsInfo {
 public:
-  AVarBoundsInfo() : ProgVarGraph(this), CtxSensProgVarGraph(this),
-                     RevCtxSensProgVarGraph(this) {
+  AVarBoundsInfo()
+      : ProgVarGraph(this), CtxSensProgVarGraph(this),
+        RevCtxSensProgVarGraph(this) {
     BCount = 1;
     PVarInfo.clear();
     InProgramArrPtrBoundsKeys.clear();
@@ -167,13 +160,12 @@ public:
   bool mergeBounds(BoundsKey L, BoundsPriority P, ABounds *B);
   bool removeBounds(BoundsKey L, BoundsPriority P = Invalid);
   bool replaceBounds(BoundsKey L, BoundsPriority P, ABounds *B);
-  ABounds *getBounds(BoundsKey L,
-                     BoundsPriority ReqP = Invalid,
+  ABounds *getBounds(BoundsKey L, BoundsPriority ReqP = Invalid,
                      BoundsPriority *RetP = nullptr);
   bool updatePotentialCountBounds(BoundsKey BK, std::set<BoundsKey> &CntBK);
 
-  // Try and get BoundsKey, into R, for the given declaration. If the declaration
-  // does not have a BoundsKey then return false.
+  // Try and get BoundsKey, into R, for the given declaration. If the
+  // declaration does not have a BoundsKey then return false.
   bool tryGetVariable(clang::Decl *D, BoundsKey &R);
   // Try and get bounds for the expression.
   bool tryGetVariable(clang::Expr *E, const ASTContext &C, BoundsKey &R);
@@ -197,16 +189,14 @@ public:
   bool addAssignment(clang::Decl *L, clang::Decl *R);
   bool addAssignment(clang::DeclRefExpr *L, clang::DeclRefExpr *R);
   bool addAssignment(BoundsKey L, BoundsKey R);
-  bool handlePointerAssignment(clang::Stmt *St, clang::Expr *L,
-                               clang::Expr *R,
-                               ASTContext *C,
-                               ConstraintResolver *CR);
-  bool handleAssignment(clang::Expr *L, const CVarSet &LCVars,
-                        clang::Expr *R, const CVarSet &RCVars,
-                        ASTContext *C, ConstraintResolver *CR);
-  bool handleAssignment(clang::Decl *L, CVarOption LCVar,
-                        clang::Expr *R, const CVarSet &RCVars,
-                        ASTContext *C, ConstraintResolver *CR);
+  bool handlePointerAssignment(clang::Stmt *St, clang::Expr *L, clang::Expr *R,
+                               ASTContext *C, ConstraintResolver *CR);
+  bool handleAssignment(clang::Expr *L, const CVarSet &LCVars, clang::Expr *R,
+                        const CVarSet &RCVars, ASTContext *C,
+                        ConstraintResolver *CR);
+  bool handleAssignment(clang::Decl *L, CVarOption LCVar, clang::Expr *R,
+                        const CVarSet &RCVars, ASTContext *C,
+                        ConstraintResolver *CR);
   // Handle context sensitive assignment.
   bool handleContextSensitiveAssignment(CallExpr *CE, clang::Decl *L,
                                         ConstraintVariable *LCVar,
@@ -234,8 +224,7 @@ public:
   void resetContextSensitiveBoundsKey();
   // Create context sensitive BoundsKey variables for the given set of
   // ConstraintVariables.
-  bool contextualizeCVar(CallExpr *CE,
-                         const std::set<ConstraintVariable *> &CV,
+  bool contextualizeCVar(CallExpr *CE, const std::set<ConstraintVariable *> &CV,
                          ASTContext *C);
   // Get the context sensitive BoundsKey for the given key.
   // If there exists no context-sensitive bounds key, we just return
@@ -248,15 +237,14 @@ public:
   void dumpAVarGraph(const std::string &DFPath);
 
   // Print the stats about computed bounds information.
-  void print_stats(llvm::raw_ostream &O,
-                   const CVarSet &SrcCVarSet,
+  void print_stats(llvm::raw_ostream &O, const CVarSet &SrcCVarSet,
                    bool JsonFormat = false) const;
 
   bool areSameProgramVar(BoundsKey B1, BoundsKey B2);
 
 private:
   friend class AvarBoundsInference;
-  
+
   friend struct llvm::DOTGraphTraits<AVarGraph>;
   // List of bounds priority in descending order of priorities.
   static std::vector<BoundsPriority> PrioList;
@@ -294,8 +282,7 @@ private:
   // BiMap of parameter keys and BoundsKey for function parameters.
   BiMap<ParamDeclType, BoundsKey> ParamDeclVarMap;
   // BiMap of function keys and BoundsKey for function return values.
-  BiMap<std::tuple<std::string, std::string, bool>,
-                     BoundsKey> FuncDeclVarMap;
+  BiMap<std::tuple<std::string, std::string, bool>, BoundsKey> FuncDeclVarMap;
 
   // Graph of all program variables.
   AVarGraph ProgVarGraph;
@@ -348,8 +335,7 @@ private:
   // Perform worklist based inference on the requested array variables using
   // the provided graph and potential length variables.
   bool performWorkListInference(const std::set<BoundsKey> &ArrNeededBounds,
-                                AVarGraph &BKGraph,
-                                AvarBoundsInference &BI);
+                                AVarGraph &BKGraph, AvarBoundsInference &BI);
 
   void insertParamKey(ParamDeclType ParamDecl, BoundsKey NK);
 };
@@ -373,8 +359,8 @@ private:
 // at a = foo(b), it is b that is passed to s and there by helps us infer that
 // the bounds of a should be b i.e., _Array_ptr<a> : count(b).
 // This class helps in maintaining the context sensitive bounds information.
-class ContextSensitiveBoundsKeyVisitor :
-    public RecursiveASTVisitor<ContextSensitiveBoundsKeyVisitor> {
+class ContextSensitiveBoundsKeyVisitor
+    : public RecursiveASTVisitor<ContextSensitiveBoundsKeyVisitor> {
 public:
   explicit ContextSensitiveBoundsKeyVisitor(ASTContext *C, ProgramInfo &I,
                                             ConstraintResolver *CResolver);
