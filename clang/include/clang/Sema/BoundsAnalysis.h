@@ -244,10 +244,10 @@ namespace clang {
     void FillGenSet(Expr *E, ElevatedCFGBlock *EB, ElevatedCFGBlock *SuccEB);
 
     // Uniformize the expr, fill Gen set for the edge EB->SuccEB.
-    // @param[in] E is an ntptr dereference or array subscript expr.
+    // @param[in] DerefExpr is an ntptr dereference or array subscript expr.
     // @param[in] Source block for the edge for which the Gen set is updated.
     // @param[in] Dest block for the edge for which the Gen set is updated.
-    void FillGenSetForEdge(const Expr *E,
+    void FillGenSetForEdge(const Expr *DerefExpr,
                            ElevatedCFGBlock *EB,
                            ElevatedCFGBlock *SuccEB);
 
@@ -300,14 +300,6 @@ namespace clang {
     // cast or an ArrayToPointerDecay cast.
     // @return The DeclRefExpr from the expression E or nullptr.
     DeclRefExpr *GetDeclOperand(const Expr *E);
-
-    // Make an expression uniform by moving all DeclRefExpr to the LHS and all
-    // IntegerLiterals to the RHS.
-    // @param[in] E is the expression which should be made uniform.
-    // @return A pair of an expression and an integer constant. The expression
-    // contains all DeclRefExprs of E and the integer constant contains all
-    // IntegerLiterals of E.
-    ExprIntPairTy SplitIntoBaseOffset(const Expr *E);
 
     // Collect all ntptrs in scope. Currently, this simply collects all ntptrs
     // defined in all blocks in the current function. This function inserts the

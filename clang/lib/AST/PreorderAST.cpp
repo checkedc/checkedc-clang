@@ -82,7 +82,25 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
 
   E = Lex.IgnoreValuePreservingOperations(Ctx, E->IgnoreParens());
 
-  if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
+  if (!Parent) {
+    // The invariant is that the root node must be a BinaryNode with an
+    // addition operator. So for expressions like "if (*p)", we don't have a
+    // BinaryOperator. So when we enter this function there is no root and the
+    // parent is null. So we create a new BinaryNode with + as the operator and
+    // add 0 as a LeafNodeExpr child of this BinaryNode. This helps us compare
+    // expressions like "p" and "p + 1" by normalizing "p" to "p + 0".
+
+    auto *N = new BinaryNode(BO_Add, Parent);
+    AddNode(N, Parent);
+
+    llvm::APInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
+    auto *ZeroLiteral = new (Ctx) IntegerLiteral(Ctx, Zero, Ctx.IntTy,
+                                                 SourceLocation());
+    auto *L = new LeafExprNode(ZeroLiteral, N);
+    AddNode(L, /*Parent*/ N);
+    Create(E, /*Parent*/ N);
+
+  } else if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
     BinaryOperator::Opcode BinOp = BO->getOpcode();
     Expr *LHS = BO->getLHS();
     Expr *RHS = BO->getRHS();
@@ -129,19 +147,6 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
 
     Create(LHS, /*Parent*/ N);
     Create(RHS, /*Parent*/ N);
-
-  } else if (!Parent) {
-    // The invariant is that the root node must be a BinaryNode. So for
-    // expressions like "if (*p)", we don't have a BinaryOperator. So when we
-    // enter this function there is no root and the parent is null. So we
-    // create a new BinaryNode with + as the operator and add "p" as a
-    // LeafNodeExpr child of this BinaryNode. Later, in the function
-    // NormalizeExprsWithoutConst we normalize "p" to "p + 0" by adding 0 as a
-    // sibling of "p".
-
-    auto *N = new BinaryNode(BO_Add, Parent);
-    AddNode(N, Parent);
-    Create(E, /*Parent*/ N);
 
   } else {
     auto *N = new LeafExprNode(E, Parent);
@@ -331,50 +336,80 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
   Changed = true;
 }
 
-void PreorderAST::NormalizeExprsWithoutConst(Node *N) {
-  // Consider the following case:
-  // Upper bound expr: p
-  // Deref expr: p + 1
-  // In this case, we would not able able to extract the offset from the deref
-  // expression because the upper bound expression does not contain a constant.
-  // This is because the node-by-node comparison of the two expressions would
-  // fail. So we require that expressions be of the form "(variable + constant)".
-  // So, we normalize expressions by adding an integer constant to expressions
-  // which do not have one. For example:
-  // p ==> (p + 0)
-  // (p + i) ==> (p + i + 0)
-  // (p * i) ==> (p * i * 1)
+bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
+				 llvm::APSInt &Offset) {
+  // Extract the offset by which a pointer is dereferenced. For the pointer we
+  // compare the dereference expr with the declared upper bound expr. If the
+  // non-integer parts of the two exprs are not equal we say that a valid
+  // offset does not exist and return false. If the non-integer parts of the
+  // two exprs are equal the offset is calculated as:
+  // (integer part of deref expr - integer part of upper bound expr).
 
-  auto *B = dyn_cast_or_null<BinaryNode>(N);
-  if (!B)
-    return;
+  // Since we have already normalized exprs like "*p" to "*(p + 0)" we require
+  // that the root of the preorder AST is a BinaryNode.
+  auto *B1 = dyn_cast_or_null<BinaryNode>(UpperNode);
+  auto *B2 = dyn_cast_or_null<BinaryNode>(DerefNode);
 
-  for (auto *Child : B->Children) {
-    // Recursively normalize constants in the children of a BinaryNode.
-    if (isa<BinaryNode>(Child))
-      NormalizeExprsWithoutConst(Child);
+  if (!B1 || !B2)
+    return false;
 
-    else if (auto *ChildLeafNode = dyn_cast<LeafExprNode>(Child)) {
-      if (ChildLeafNode->E->isIntegerConstantExpr(Ctx))
-        return;
-    }
+  // If the opcodes mismatch we cannot have a valid offset.
+  if (B1->Opc != B2->Opc)
+    return false;
+
+  // We have already constant folded the constants. So return false if the
+  // number of children mismatch.
+  if (B1->Children.size() != B2->Children.size())
+    return false;
+
+  // Check if the children are equivalent.
+  for (size_t I = 0; I != B1->Children.size(); ++I) {
+    auto *Child1 = B1->Children[I];
+    auto *Child2 = B2->Children[I];
+
+    if (IsEqual(Child1, Child2))
+      continue;
+
+    // If the children are not equal we require that they be integer constant
+    // leaf nodes. Otherwise we cannot have a valid offset.
+    auto *L1 = dyn_cast_or_null<LeafExprNode>(Child1);
+    auto *L2 = dyn_cast_or_null<LeafExprNode>(Child2);
+
+    if (!L1 || !L2)
+      return false;
+
+    // Return false if either of the leaf nodes is not an integer constant.
+    llvm::APSInt UpperOffset;
+    if (!L1->E->isIntegerConstantExpr(UpperOffset, Ctx))
+      return false;
+
+    llvm::APSInt DerefOffset;
+    if (!L2->E->isIntegerConstantExpr(DerefOffset, Ctx))
+      return false;
+
+    // Offset should always be of the form (ptr + offset). So we check for
+    // addition.
+    // Note: We have already converted (ptr - offset) to (ptr + -offset). So
+    // its okay to only check for addition.
+    if (B1->Opc != BO_Add)
+      return false;
+
+    // This guards us from a case where the constants were not folded for
+    // some reason. In theory this should never happen. But we are adding this
+    // check just in case.
+    llvm::APSInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
+    if (llvm::APSInt::compareValues(Offset, Zero) != 0)
+      return false;
+
+    // offset = deref offset - declared upper bound offset.
+    // Return false if we encounter an overflow.
+    bool Overflow;
+    Offset = DerefOffset.ssub_ov(UpperOffset, Overflow);
+    if (Overflow)
+      return false;
   }
 
-  llvm::APInt IntConst;
-  switch(B->Opc) {
-    default: return;
-    case BO_Add:
-      IntConst = llvm::APInt(Ctx.getTargetInfo().getIntWidth(), 0);
-      break;
-    case BO_Mul:
-      IntConst = llvm::APInt(Ctx.getTargetInfo().getIntWidth(), 1);
-      break;
-  }
-
-  auto *IntLiteral = new (Ctx) IntegerLiteral(Ctx, IntConst, Ctx.IntTy,
-                                              SourceLocation());
-  auto *L = new LeafExprNode(IntLiteral, B);
-  AddNode(L, B);
+  return true;
 }
 
 bool PreorderAST::IsEqual(Node *N1, Node *N2) {
@@ -438,7 +473,6 @@ void PreorderAST::Normalize() {
     ConstantFold(Root, Changed);
     if (Error)
       break;
-    NormalizeExprsWithoutConst(Root);
   }
 
   if (Ctx.getLangOpts().DumpPreorderAST) {
