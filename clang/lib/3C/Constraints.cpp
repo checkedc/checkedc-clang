@@ -12,8 +12,8 @@
 #include "llvm/Support/CommandLine.h"
 #include <set>
 
-#include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/Constraints.h"
+#include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/ConstraintsGraph.h"
 #include <clang/3C/ConstraintVariables.h>
 #include <iostream>

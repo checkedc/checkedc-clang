@@ -10,8 +10,8 @@
 
 #include "llvm/Support/Path.h"
 
-#include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/MappingVisitor.h"
+#include "clang/3C/3CGlobalOptions.h"
 
 using namespace clang;
 
