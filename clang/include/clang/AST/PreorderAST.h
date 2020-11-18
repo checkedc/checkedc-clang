@@ -118,10 +118,6 @@ namespace clang {
     // this to control when to stop recursive constant folding.
     void ConstantFold(Node *N, bool &Changed);
 
-    // Normalize expressions which do not have any integer constants.
-    // @param[in] N is current node of the AST. Initial value is Root.
-    void NormalizeExprsWithoutConst(Node *N);
-
     // Get the deref offset from the DerefExpr. The offset represents the
     // possible amount by which the bounds of an ntptr could be widened.
     // @param[in] UpperExpr is the upper bounds expr for the ntptr.
