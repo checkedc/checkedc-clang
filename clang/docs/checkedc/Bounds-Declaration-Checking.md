@@ -9,12 +9,30 @@ checking bounds for expressions are implemented in [SemaBounds.cpp](https://gith
 The bounds checking code uses the following definitions to reason about
 bounds expressions:
 - **Declared bounds**: The bounds that the programmer has declared for a
-pointer expression. For example, in `array_ptr<int> p : bounds(p, p + 1) = 0`,
-the declared bounds of `p` are `bounds(p, p + 1)`.
+pointer expression.
+  -Example: In `array_ptr<int> p : bounds(p, p + 1) = 0`, the declared bounds
+  of `p` are `bounds(p, p + 1)`.
 - **Inferred bounds**: The bounds that the compiler determines for a pointer
-expression at a particular point in checking a statement. For example, after
-checking `array_ptr<int> p : bounds(p, p + 1) = 0`, the inferred bounds of `p`
-are `bounds(any)` (since `0` by definition has bounds of `bounds(any)`).
+expression at a particular point in checking a statement.
+  -Example: After checking `array_ptr<int> p : bounds(p, p + 1) = 0`, the
+  inferred bounds of `p` are `bounds(any)` (since `0` by definition has
+  bounds of `bounds(any)`).
+- **RValue bounds**: The bounds of the value produced by an rvalue expression.
+  - Example: If `p` is a variable with declared bounds of `bounds(p, p + 1)`,
+  then the rvalue expression obtained by reading the value of the variable `p`
+  has bounds of `bounds(p, p + 1)`.
+- **LValue bounds**: The bounds of an lvalue expression `e`. These bounds
+determine whether it is valid to access memory using `e`, and should be the
+range (or a subrange) of an object in memory.
+  - Example: If `p` is a non-array-typed variable, then the lvalue bounds
+  of `p` are `bounds(&p, &p + 1)`.
+- **Target bounds**: The target bounds of an lvalue expression `e`. Values
+assigned through `e` must satisfy these bounds. Values read through `e` will
+meet these bounds.
+  - Example: If `p` is a variable with declared bounds of `bounds(p, p + 1)`,
+  then the target bounds of `p` are `bounds(p, p + 1)`. If `e` is an expression
+  that is assigned through `p`, then the bounds of `e` must imply
+  `bounds(p, p + 1)`.
 
 Examples:
 ```
@@ -64,4 +82,43 @@ expression that is currently being checked.
   - Example: If SameValue is `{ x, y, 1 }` and the current expression being
   checked is the variable `y`, then `x`, `y`, and `1` all produce the same
   value as `y`.
+
+## Checking Methods
+The entry point for bounds checking is the method [TraverseCFG](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/SemaBounds.cpp#L2317). For each statement `S` in the
+clang CFG, TraverseStmt does the following:
+
+1. Recursively traverse `S` and its subexpression by calling the Check method.
+Checking `S` updates the checking state and infers bounds for expressions that
+`S` may have modified.
+2. For each variable `v` in the ObservedBounds map in the checking state,
+validate that the inferred bounds of `v` as recorded in ObservedBounds imply
+the declared bounds of `v`.
+
+The recursive traversal for bounds checking is done in the two methods
+[Check](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/SemaBounds.cpp#L2501) and [CheckLValue](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/SemaBounds.cpp#L2501).
+These two methods check rvalue and lvalue methods, respectively. Check returns
+the bounds of the value produced by an rvalue expression. CheckLValue returns
+the lvalue bounds and target bounds of an lvalue expression.
+
+Check and CheckLValue call different methods for different kinds of clang AST
+expressions (CheckBinaryOperator, CheckUnaryOperator, CheckDeclRefExpr,
+CheckArraySubscriptExpr, etc.). Each of these methods performs the following
+actions for an expression `e`:
+1. Infer the subexpression rvalue, lvalue, and target bounds as needed by
+recursively calling Check and/or CheckLValue on the subexpressions of `e`.
+2. If needed, use the inferred lvalue bounds to add a bounds check to an
+lvalue expression `e1` (`e1` could be `e` or one of its subexpressions).
+This check performs the following actions:
+  * Checks that the memory access that the `e1` is being used to perform
+  meets the lvalue bounds.
+  * Sets the lvalue bounds of `e1`. During code generation, these lvalue
+  bounds will be used to insert a dynamic check. At runtime, the dynamic
+  check will verify that, for any access `*(e1 + i)`, `i` is within the
+  lvalue bounds of `e1`.
+3. Update the members of the CheckingState instance that maintains internal
+checking state. For example, after an assignment to a variable `i` that is
+used in the declared bounds of a variable `p`, update the ObservedBounds member
+of the CheckingState to reflect the updated inferred bounds of `p`.
+4. Use the inferred rvalue, lvalue, and target bounds of `e`'s subexpressions
+to return the inferred rvalue, lvalue and/or target bounds of `e`.
   
