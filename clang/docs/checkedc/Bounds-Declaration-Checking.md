@@ -26,16 +26,19 @@ void f(array_ptr<int> p : count(i), array_ptr<int> q : count(j)) {
   // p has inferred bounds of bounds(q, q + j).
   p = q;
 
-  // Updating after modifying a variable used in declared bounds:
-  // The value of i is lost after this assignment, so the inferred
-  // bounds of p are bounds(unknown).
-  i = 0;
-
-  // Updating after modifying a variable used in declared bounds:
-  // The original value of i before this assignment was i - 1.
+  // Updating after an invertible modification to a variable used in declared
+  // bounds: The original value of i before this assignment is i - 1.
   // This original value is substituted for i in the inferred bounds
   // of p, so the inferred bounds of p are bounds(p, p + i - 1).
   i = i + 1;
+
+  // Updating after some uninvertible modifications to a variable used in
+  // declared bounds: The compiler cannot determine an original value for i
+  // after these assignments, so the inferred bounds of p are bounds(unknown).
+  i = 0;
+  i = p[1] / 3;
+  i = *q;
+  i = 2 * i;
 }
 ```
 
