@@ -327,22 +327,21 @@ bool ProgramInfo::link() {
 
   // For every global function that is an unresolved external, constrain 
   // its parameter types to be wild. Unless it has a bounds-safe annotation. 
-  for (const auto &U : ExternFunctions) {
+  for (const auto &U : ExternalFunctionFVCons) {
+    std::string FuncName = U.first;
+    FVConstraint *G = U.second;
     // If we've seen this symbol, but never seen a body for it, constrain
     // everything about it.
-    std::string FuncName = U.first;
-    if (!U.second && !isExternOkay(FuncName)) {
-      // Some global symbols we don't need to constrain to wild, like 
-      // malloc and free. Check those here and skip if we find them. 
-      FVConstraint *G = getExtFuncDefnConstraint(FuncName);
-      assert("Function constraints could not be found!" && G != nullptr);
+    // Some global symbols we don't need to constrain to wild, like
+    // malloc and free. Check those here and skip if we find them.
+    if (!G->hasBody() && !isExternOkay(FuncName)) {
 
       // If there was a checked type on a variable in the input program, it
       // should stay that way. Otherwise, we shouldn't be adding a checked type
       // to an extern function.
       std::string Rsn =
-        "Unchecked pointer in parameter or return of external function " +
-        FuncName;
+          "Unchecked pointer in parameter or return of external function " +
+          FuncName;
       if (!G->getReturnVar()->getIsGeneric())
         G->getReturnVar()->constrainToWild(CS, Rsn);
       for (unsigned I = 0; I < G->numParams(); I++)
@@ -350,12 +349,28 @@ bool ProgramInfo::link() {
           G->getParamVar(I)->constrainToWild(CS, Rsn);
     }
   }
+  // repeat for static functions
+  for (const auto &U :StaticFunctionFVCons) {
+    for (const auto &V :U.second) {
+
+      std::string FileName = U.first;
+      std::string FuncName = V.first;
+      FVConstraint *G = V.second;
+      if (!G->hasBody() && !isExternOkay(FuncName)) {
+
+        std::string Rsn =
+            "Unchecked pointer in parameter or return of static function " +
+            FuncName + " in " + FileName;
+        if (!G->getReturnVar()->getIsGeneric())
+          G->getReturnVar()->constrainToWild(CS, Rsn);
+        for (unsigned I = 0; I < G->numParams(); I++)
+          if (!G->getParamVar(I)->getIsGeneric())
+            G->getParamVar(I)->constrainToWild(CS, Rsn);
+      }
+    }
+  }
 
   return true;
-}
-
-bool ProgramInfo::isAnExternFunction(const std::string &FName) {
-  return !ExternFunctions[FName];
 }
 
 // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with
@@ -436,13 +451,6 @@ bool ProgramInfo::insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
     // external method.
     ret = insertIntoExternalFunctionMap(ExternalFunctionFVCons,
                                         FuncName, FVCon);
-    bool isDef = FVCon->hasBody();
-    if (isDef) {
-      ExternFunctions[FuncName] = true;
-    } else {
-      if (!ExternFunctions[FuncName])
-        ExternFunctions[FuncName] = false;
-    }
   } else {
     // static method
     auto Psl = PersistentSourceLoc::mkPSL(FD, *C);

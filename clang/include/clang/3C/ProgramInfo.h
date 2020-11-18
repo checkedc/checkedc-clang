@@ -83,9 +83,6 @@ public:
                                         std::string FileName) const;
 
 
-  // Check if the given function is an extern function.
-  bool isAnExternFunction(const std::string &FName);
-
   // Called when we are done adding constraints and visiting ASTs.
   // Links information about global symbols together and adds
   // constraints where appropriate.
@@ -132,10 +129,9 @@ private:
   // Is the ProgramInfo persisted? Only tested in asserts. Starts at true.
   bool persisted;
 
-  // Map of global decls for which we don't have a body, the keys are
-  // names of external functions/vars, the value is whether the body/def
+  // Map of global decls for which we don't have a definition, the keys are
+  // names of external vars, the value is whether the def
   // has been seen before.
-  std::map<std::string, bool> ExternFunctions;
   std::map<std::string, bool> ExternGVars;
 
   // Maps for global/static functions, global variables
