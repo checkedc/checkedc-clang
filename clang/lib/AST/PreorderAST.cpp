@@ -29,9 +29,12 @@ void PreorderAST::AddNode(Node *N, Node *Parent) {
   }
 }
 
-bool PreorderAST::CanCoalesceNode(BinaryNode *B, BinaryNode *P) {
-  if (!B || !isa<BinaryNode>(B) ||
-      !P || !isa<BinaryNode>(P))
+bool PreorderAST::CanCoalesceNode(BinaryNode *B) {
+  if (!B || !isa<BinaryNode>(B))
+    return false;
+
+  auto *P = dyn_cast<BinaryNode>(B->Parent);
+  if (!P)
     return false;
 
   // We can coalesce a BinaryNode if any one of the following conditions are
@@ -47,12 +50,16 @@ bool PreorderAST::CanCoalesceNode(BinaryNode *B, BinaryNode *P) {
           P->IsOpCommutativeAndAssociative());
 }
 
-void PreorderAST::CoalesceNode(BinaryNode *B, BinaryNode *P) {
-  if (!CanCoalesceNode(B, P)) {
+void PreorderAST::CoalesceNode(BinaryNode *B) {
+  if (!CanCoalesceNode(B)) {
     assert(0 && "Attempting to coalesce invalid node");
     SetError();
     return;
   }
+
+  // In the call to CanCoalesceNode we have made sure that the parent is a
+  // BinaryNode. So we can safely dyn_cast here.
+  auto *P = dyn_cast<BinaryNode>(B->Parent);
 
   // Remove the current node from the list of children of its parent.
   for (auto I = P->Children.begin(),
@@ -167,8 +174,8 @@ void PreorderAST::Coalesce(Node *N, bool &Changed) {
   if (!Parent)
     return;
 
-  if (CanCoalesceNode(B, Parent)) {
-    CoalesceNode(B, Parent);
+  if (CanCoalesceNode(B)) {
+    CoalesceNode(B);
     Changed = true;
   }
 }
@@ -321,6 +328,12 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
   // Add the constant folded expression to list of children of the current
   // BinaryNode.
   B->Children.push_back(new LeafExprNode(ConstFoldedExpr, B));
+
+  // If the constant folded expr is the only child of this BinaryNode we can
+  // coalesce the node.
+  if (B->Children.size() == 1 && CanCoalesceNode(B))
+    CoalesceNode(B);
+
   Changed = true;
 }
 
