@@ -1435,13 +1435,16 @@ namespace {
       // GetFreeVariables gathers "free variables" in SrcVars.
       //
       // Given two variable sets SrcVars and DstVars, and a set of equivalent
-      // sets of Expr EquivExprs. A variable V in SrcVars is *free* if the two
+      // sets of Expr EquivExprs. A variable V in SrcVars is *free* if these
       // conditions are met:
-      //   1. either (1) V is not an integer type, or (2) there is no set in
-      //   EquivExprs that contains both V and a constant (i.e. an integer-typed
-      //   value); and
-      //   2. for each variable U in DstVars, there is not set in EquivExprs
-      //   that contains both V and U.
+      //   1. V is not equal to an integer constant, i.e. there is no set in
+      //      EquivExprs that contains V and an IntegerLiteral expression, and:
+      //   2. For each variable U in DstVars, V is not equivlaent to U, i.e.
+      //      there is no set in EquivExprs that contains both V and U, and:
+      //   3. For each variable U in DstVars, there is no indirect relationship
+      //      between V and U, i.e. there is no set in EquivExprs that contains
+      //      two different expressions e1 and e2, where e1 uses the value of
+      //      V and e2 uses the value of U.
       //
       // GetFreeVariables returns true if any free variable is found in SrcVars,
       // and appends the free variables to FreeVariables.
@@ -1483,7 +1486,7 @@ namespace {
       // DstVars, then there is a relationship between SrcV and DstV.
       //
       // For example, if DstV is a variable in DstVars and EquivExprs
-      // contains the set { SrcV + 1, *DstV }, then there is a relationship
+      // contains the set { SrcV + 1, &DstV }, then there is a relationship
       // between SrcV and DstV.
       static bool FindVarRelationship(Sema &S, DeclRefExpr *SrcV,
                                       const EqualExprTy &DstVars,
