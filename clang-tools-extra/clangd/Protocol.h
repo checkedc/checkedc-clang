@@ -724,6 +724,9 @@ llvm::json::Value toJSON(const WorkspaceEdit &WE);
 
 #ifdef INTERACTIVE3C
 /// Data corresponding to the manual fix
+//
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
 struct _3CManualFix {
   int ptrID;
 };
@@ -762,8 +765,14 @@ struct ExecuteCommandParams {
   const static llvm::StringLiteral CLANGD_APPLY_TWEAK;
 #ifdef INTERACTIVE3C
   // Command to apply the change for this pointer only
+  //
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
   const static llvm::StringLiteral _3C_APPLY_ONLY_FOR_THIS;
   // Command to apply the change for all pointers with same reason
+  //
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
   const static llvm::StringLiteral _3C_APPLY_FOR_ALL;
 #endif
 
@@ -773,6 +782,8 @@ struct ExecuteCommandParams {
   // Arguments
   llvm::Optional<WorkspaceEdit> workspaceEdit;
 #ifdef INTERACTIVE3C
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
   llvm::Optional<_3CManualFix> _3CManualFix;
 #endif
   llvm::Optional<TweakArgs> tweakArgs;

@@ -23,6 +23,9 @@
 #include <mutex>
 
 // Options used to initialize 3C tool.
+//
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
 struct _3COptions {
   bool DumpIntermediate;
 
@@ -65,6 +68,9 @@ struct _3COptions {
 };
 
 // The main interface exposed by the 3C to interact with the tool.
+//
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
 class _3CInterface {
 
 public:

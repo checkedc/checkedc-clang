@@ -203,6 +203,8 @@ private:
   llvm::Optional<ClangdServer> Server;
   llvm::Optional<OffsetEncoding> NegotiatedOffsetEncoding;
 #ifdef INTERACTIVE3C
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
   _3CInterface &_3CInterface;
 #endif
 };
