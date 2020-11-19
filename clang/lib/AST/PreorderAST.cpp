@@ -33,7 +33,7 @@ bool PreorderAST::CanCoalesceNode(BinaryNode *B) {
   if (!B || !isa<BinaryNode>(B))
     return false;
 
-  auto *P = dyn_cast<BinaryNode>(B->Parent);
+  auto *P = dyn_cast_or_null<BinaryNode>(B->Parent);
   if (!P)
     return false;
 
@@ -44,10 +44,19 @@ bool PreorderAST::CanCoalesceNode(BinaryNode *B) {
   // constant folding) and the parent and current operators are commutative and
   // associative.
 
-  return  B->Opc == P->Opc ||
-         (B->Children.size() == 1 &&
-          B->IsOpCommutativeAndAssociative() &&
-          P->IsOpCommutativeAndAssociative());
+  // We can only coalesce if the operators on the current and parent nodes are
+  // commutative and associative. This is because after coalescing we later
+  // need to sort the nodes and if the operator is not commutative and
+  // associative then sorting would be incorrect.
+  if (!B->IsOpCommutativeAndAssociative() ||
+      !P->IsOpCommutativeAndAssociative())
+    return false;
+
+  // We can coalesce in the following scenarios:
+  // 1. The current and parent nodes have the same operator OR
+  // 2. The current node is the only child of its operator node (maybe as a
+  // result of constant folding).
+  return B->Opc == P->Opc || B->Children.size() == 1;
 }
 
 void PreorderAST::CoalesceNode(BinaryNode *B) {
@@ -57,8 +66,8 @@ void PreorderAST::CoalesceNode(BinaryNode *B) {
     return;
   }
 
-  // In the call to CanCoalesceNode we have made sure that the parent is a
-  // BinaryNode. So we can safely dyn_cast here.
+  // In the call to CanCoalesceNode above we have made sure that the parent is
+  // a BinaryNode. So we can safely dyn_cast here.
   auto *P = dyn_cast<BinaryNode>(B->Parent);
 
   // Remove the current node from the list of children of its parent.
@@ -165,14 +174,6 @@ void PreorderAST::Coalesce(Node *N, bool &Changed) {
   for (auto *Child : B->Children)
     if (isa<BinaryNode>(Child))
       Coalesce(Child, Changed);
-
-  // We can only coalesce if the operator is commutative and associative.
-  if (!B->IsOpCommutativeAndAssociative())
-    return;
-
-  auto *Parent = dyn_cast_or_null<BinaryNode>(B->Parent);
-  if (!Parent)
-    return;
 
   if (CanCoalesceNode(B)) {
     CoalesceNode(B);
