@@ -10,7 +10,7 @@ The bounds checking code uses the following definitions to reason about
 bounds expressions:
 - **Declared bounds**: The bounds that the programmer has declared for a
 pointer expression.
-  -Example: In `array_ptr<int> p : bounds(p, p + 1) = 0`, the declared bounds
+  -Example: In `array_ptr<int> p : bounds(p, p + 1) = 0;`, the declared bounds
   of `p` are `bounds(p, p + 1)`.
 - **Inferred bounds**: The bounds that the compiler determines for a pointer
 expression at a particular point in checking a statement.
@@ -19,22 +19,34 @@ expression at a particular point in checking a statement.
   bounds of `bounds(any)`).
 - **RValue bounds**: The bounds of the value produced by an rvalue expression.
   - Example: If `p` is a variable with declared bounds of `bounds(p, p + 1)`,
-  then the rvalue expression obtained by reading the value of the variable `p`
-  has bounds of `bounds(p, p + 1)`.
+  then the rvalue expression `p + 3` has rvalue bounds of `bounds(p, p + 1)`.
+  - Example: If `p` is a variable with declared bounds of `bounds(p, p + 5)`,
+  then the rvalue expression from reading the value of `*(p + 2)` has rvalue
+  bounds of `bounds(unknown)`.
 - **LValue bounds**: The bounds of an lvalue expression `e`. These bounds
 determine whether it is valid to access memory using `e`, and should be the
-range (or a subrange) of an object in memory.
+range (or a subrange) of an object in memory. LValue bounds are used to check
+that a memory access is within bounds.
   - Example: If `p` is a non-array-typed variable, then the lvalue bounds
   of `p` are `bounds(&p, &p + 1)`.
+  - Example: If `p` is a variable with declared bounds of `bounds(p, p + 3)`,
+  then `*(p + 1)` and `p[2]` have lvalue bounds of `bounds(p, p + 3)`. The
+  compiler will check that `p + 1` and `p + 2` are within the lvalue bounds of
+  `bounds(p, p + 3)`.
 - **Target bounds**: The target bounds of an lvalue expression `e`. Values
-assigned through `e` must satisfy these bounds. Values read through `e` will
+assigned to `e` must satisfy these bounds. Values read through `e` will
 meet these bounds.
   - Example: If `p` is a variable with declared bounds of `bounds(p, p + 1)`,
-  then the target bounds of `p` are `bounds(p, p + 1)`. If `e` is an expression
-  that is assigned through `p`, then the bounds of `e` must imply
-  `bounds(p, p + 1)`.
+  then the target bounds of `p` are `bounds(p, p + 1)`.
+  - Example: If `p` is a variable of type `array_ptr<int>` with declared
+  bounds of `bounds(p, p + 7)`, then the target bounds of `p[4]` are
+  `bounds(unknown)`.
+  - Example: If S is a struct with members
+  `{ array_ptr<int> f : count(len); int len; }`, then `s.f` has target bounds
+  of `bounds(s.f, s.f + s.len)`. In an assignment `s.f = e;`, the rvalue bounds
+  of `e` must imply `bounds(s.f, s.f + s.len)`.
 
-Examples:
+Examples of declared and inferred bounds:
 ```
 // p has declared bounds of bounds(p, p + i).
 // q has declared bounds of bounds(q, q + j).
@@ -57,6 +69,76 @@ void f(array_ptr<int> p : count(i), array_ptr<int> q : count(j)) {
   i = p[1] / 3;
   i = *q;
   i = 2 * i;
+}
+```
+
+## Bounds Validity
+After checking each statement in the clang CFG, the compiler attempts to prove
+or disprove that the inferred bounds of each variable imply the target bounds
+of the variable. (The target bounds of a variable are always the declared
+bounds of the variable). In addition, after an assignment to a non-variable
+lvalue, the compiler attempts to prove that the inferred bounds of the
+right-hand side expression imply the target bounds of the left-hand side
+lvalue expression.
+
+For all bounds expressions `B`:
+1. Inferred bounds of `bounds(any)` imply target bounds of `B`.
+2. Inferred bounds of `B` imply target bounds of `bounds(unknown)`.
+3. Inferred bounds of `bounds(unknown)` do not imply target bounds
+other than `bounds(unknown)`.
+
+If both the inferred and target bounds are neither `bounds(any)` or
+`bounds(unknown)`, they are converted to ranges. A range consists of a
+base expression, a lower offset expression, and an upper offset expression.
+For example, the bounds expression `bounds(p - i, p + j)` will be converted to
+a range with base `p`, lower offset `i`, and upper offset `j`.
+
+In order for an inferred bounds range with base `S`, lower offset `Sl`, and
+upper offset `Su` to imply a target bounds range with base `D`, lower offset
+`Dl`, and upper offset `du`, the following must be true:
+1. `S == D`, and:
+2. `Sl <= Dl`, and:
+3. `Du <= Su`
+In other words, the target bounds range must be contained within the inferred
+bounds range.
+
+If the compiler can prove that inferred bounds imply target bounds, no compile-
+time errors or warnings are emitted. If the compiler can prove that inferred
+bounds do not imply target bounds, a compile-time error is emitted. If the
+compiler can neither prove nor disprove that inferred bounds imply target
+bounds, a compile-time warning is emitted.
+
+Examples of inferred bounds provably implying target bounds:
+```
+void f(array_ptr<int> small : count(2), array_ptr<int> large : count(5)) {
+  // Target LHS bounds: bounds(small, small + 2)
+  // Inferred RHS bounds: bounds(large + 5)
+  small = large + 7;
+
+  // Target LHS bounds: bounds(unknown)
+  // Inferred RHS bounds: bounds(unknown)
+  large[3] = *small;
+
+  // Target LHS bounds: bounds(small, small + 2)
+  // Inferred RHS bounds: bounds(any)
+  small = 0;
+
+  // Target LHS bounds: bounds(large, large + 5)
+  // Inferred RHS bounds: bounds(small, small + 10)
+  large = _Dynamic_bounds_cast<array_ptr<int>>(small, bounds(small, small + 10));
+}
+```
+
+Examples of inferred bounds provably not implying target bounds:
+```
+void f(array_ptr<int> small : count(2), array_ptr<int> large : count(5)) {
+  // Target LHS bounds: bounds(large, large + 5)
+  // Inferred RHS bounds: bounds(small, small + 2)
+  large = small;
+
+  // Target LHS bounds: bounds(large, large + 5)
+  // Inferred RHS bounds: bounds(small, small + 3)
+  large = _Dynamic_bounds_cast<array_ptr<int>>(small, bounds(small, small + 3));
 }
 ```
 
