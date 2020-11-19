@@ -10,9 +10,9 @@
 
 #include "llvm/Support/Path.h"
 
+#include "clang/3C/Utils.h"
 #include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/ConstraintVariables.h"
-#include "clang/3C/Utils.h"
 
 using namespace llvm;
 using namespace clang;

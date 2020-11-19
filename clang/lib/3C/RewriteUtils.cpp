@@ -9,6 +9,7 @@
 // classes of RewriteUtils.h
 //===----------------------------------------------------------------------===//
 
+#include "clang/3C/RewriteUtils.h"
 #include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/CastPlacement.h"
 #include "clang/3C/CheckedRegions.h"
