@@ -13,6 +13,7 @@
 #ifndef _AVARGRAPH_H
 #define _AVARGRAPH_H
 
+#include "ABounds.h"
 #include "ConstraintsGraph.h"
 
 // Graph that keeps tracks of direct assignments between various variables.

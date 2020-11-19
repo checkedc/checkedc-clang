@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/3C/AVarGraph.h"
 #include "clang/3C/AVarBoundsInfo.h"
 #include <iostream>
 
