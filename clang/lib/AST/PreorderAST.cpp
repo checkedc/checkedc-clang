@@ -37,14 +37,7 @@ bool PreorderAST::CanCoalesceNode(BinaryNode *B) {
   if (!P)
     return false;
 
-  // We can coalesce a BinaryNode if any one of the following conditions are
-  // true:
-  // 1. The parent has the same operator as the current node OR
-  // 2. The current node has just one child (for example, as a result of
-  // constant folding) and the parent and current operators are commutative and
-  // associative.
-
-  // We can only coalesce if the operators on the current and parent nodes are
+  // We can only coalesce if the operator of the current and parent node is
   // commutative and associative. This is because after coalescing we later
   // need to sort the nodes and if the operator is not commutative and
   // associative then sorting would be incorrect.
