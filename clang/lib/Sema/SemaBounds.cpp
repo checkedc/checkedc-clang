@@ -1432,6 +1432,49 @@ namespace {
         return ProofResult::Maybe;
       }
 
+      // CheckFreeVarInExprs returns true if there are any free variables in
+      // E1 w.r.t E2, or if there are any free variables in E2 w.r.t E1.
+      // Any free variables in E1 with position Pos1 and any free variables in
+      // E2 with position Pos2 are appended to FreeVars.
+      bool CheckFreeVarInExprs(Expr *E1, Expr *E2,
+                               FreeVariablePosition Pos1,
+                               FreeVariablePosition Pos2,
+                               EquivExprSets *EquivExprs,
+                               FreeVariableListTy &FreeVars) {
+        // If E1 or E2 accesses memory via pointer, we skip because we cannot
+        // determine aliases for two indirect accesses soundly yet.
+        if (ReadsMemoryViaPointer(E1) || ReadsMemoryViaPointer(E2))
+          return false;
+
+        bool HasFreeVariables = false;
+        EqualExprTy Vars1 = CollectVariableSet(S, E1);
+        EqualExprTy Vars2 = CollectVariableSet(S, E2);
+
+        if (AddFreeVariables(Vars1, Vars2, EquivExprs, Pos1, FreeVars))
+          HasFreeVariables = true;
+
+        if (AddFreeVariables(Vars2, Vars1, EquivExprs, Pos2, FreeVars))
+          HasFreeVariables = true;
+
+        return HasFreeVariables;
+      }
+
+      // AddFreeVariables creates a pair <Variable, Pos> for each free variable
+      // in SrcVars w.r.t. DstVars and appends the pair to FreeVariablesWithPos.
+      bool AddFreeVariables(const EqualExprTy &SrcVars,
+                            const EqualExprTy &DstVars,
+                            EquivExprSets *EquivExprs,
+                            FreeVariablePosition Pos,
+                            FreeVariableListTy &FreeVariablesWithPos) {
+        EqualExprTy FreeVariables;
+        if (GetFreeVariables(SrcVars, DstVars, EquivExprs, FreeVariables)) {
+          for (const auto V : FreeVariables)
+            FreeVariablesWithPos.push_back(std::make_pair(V, Pos));
+          return true;
+        }
+        return false;
+      }
+
       // GetFreeVariables gathers "free variables" in SrcVars.
       //
       // Given two variable sets SrcVars and DstVars, and a set of equivalent
@@ -1525,49 +1568,6 @@ namespace {
           }
         }
 
-        return false;
-      }
-
-      // Check free variables between E1 and E2. Append any found free variables
-      // to FreeVars with each free variable in E1 (resp. E2) having Pos1 (resp.
-      // Pos2).
-      bool CheckFreeVarInExprs(Expr *E1, Expr *E2,
-                               FreeVariablePosition Pos1,
-                               FreeVariablePosition Pos2,
-                               EquivExprSets *EquivExprs,
-                               FreeVariableListTy &FreeVars) {
-        // If E1 or E2 accesses memory via pointer, we skip because we cannot
-        // determine aliases for two indirect accesses soundly yet.
-        if (ReadsMemoryViaPointer(E1) || ReadsMemoryViaPointer(E2))
-          return false;
-
-        bool HasFreeVariables = false;
-        EqualExprTy Vars1 = CollectVariableSet(S, E1);
-        EqualExprTy Vars2 = CollectVariableSet(S, E2);
-
-        if (AddFreeVariables(Vars1, Vars2, EquivExprs, Pos1, FreeVars))
-          HasFreeVariables = true;
-
-        if (AddFreeVariables(Vars2, Vars1, EquivExprs, Pos2, FreeVars))
-          HasFreeVariables = true;
-
-        return HasFreeVariables;
-      }
-
-      // AddFreeVariables maps each free variable in SrcVars w.r.t. DstVars
-      // to a pair <Variable, Pos>, and appends the pair to
-      // FreeVariablesWithPos.
-      bool AddFreeVariables(const EqualExprTy &SrcVars,
-                            const EqualExprTy &DstVars,
-                            EquivExprSets *EquivExprs, FreeVariablePosition Pos,
-                            FreeVariableListTy &FreeVariablesWithPos) {
-        EqualExprTy FreeVariables;
-        if (GetFreeVariables(SrcVars, DstVars, EquivExprs, FreeVariables)) {
-          for (const auto V : FreeVariables) {
-            FreeVariablesWithPos.push_back(std::make_pair(V, Pos));
-          }
-          return true;
-        }
         return false;
       }
 
