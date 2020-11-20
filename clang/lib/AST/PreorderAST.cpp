@@ -197,12 +197,12 @@ bool PreorderAST::CompareNodes(const Node *N1, const Node *N2) {
     return true;
 
   // Compare N1:OperatorNode and N2:OperatorNode.
-  const auto *B1 = dyn_cast<OperatorNode>(N1);
-  const auto *B2 = dyn_cast<OperatorNode>(N2);
+  const auto *O1 = dyn_cast<OperatorNode>(N1);
+  const auto *O2 = dyn_cast<OperatorNode>(N2);
 
-  if (B1->Opc != B2->Opc)
-    return B1->Opc < B2->Opc;
-  return B1->Children.size() < B2->Children.size();
+  if (O1->Opc != O2->Opc)
+    return O1->Opc < O2->Opc;
+  return O1->Children.size() < O2->Children.size();
 }
 
 void PreorderAST::Sort(Node *N) {
@@ -337,25 +337,25 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
 
   // Since we have already normalized exprs like "*p" to "*(p + 0)" we require
   // that the root of the preorder AST is a OperatorNode.
-  auto *B1 = dyn_cast_or_null<OperatorNode>(UpperNode);
-  auto *B2 = dyn_cast_or_null<OperatorNode>(DerefNode);
+  auto *O1 = dyn_cast_or_null<OperatorNode>(UpperNode);
+  auto *O2 = dyn_cast_or_null<OperatorNode>(DerefNode);
 
-  if (!B1 || !B2)
+  if (!O1 || !O2)
     return false;
 
   // If the opcodes mismatch we cannot have a valid offset.
-  if (B1->Opc != B2->Opc)
+  if (O1->Opc != O2->Opc)
     return false;
 
   // We have already constant folded the constants. So return false if the
   // number of children mismatch.
-  if (B1->Children.size() != B2->Children.size())
+  if (O1->Children.size() != O2->Children.size())
     return false;
 
   // Check if the children are equivalent.
-  for (size_t I = 0; I != B1->Children.size(); ++I) {
-    auto *Child1 = B1->Children[I];
-    auto *Child2 = B2->Children[I];
+  for (size_t I = 0; I != O1->Children.size(); ++I) {
+    auto *Child1 = O1->Children[I];
+    auto *Child2 = O2->Children[I];
 
     if (IsEqual(Child1, Child2))
       continue;
@@ -381,7 +381,7 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
     // addition.
     // Note: We have already converted (ptr - offset) to (ptr + -offset). So
     // its okay to only check for addition.
-    if (B1->Opc != BO_Add)
+    if (O1->Opc != BO_Add)
       return false;
 
     // This guards us from a case where the constants were not folded for
@@ -411,25 +411,25 @@ bool PreorderAST::IsEqual(Node *N1, Node *N2) {
   if ((N1 && !N2) || (!N1 && N2))
     return false;
 
-  if (const auto *B1 = dyn_cast<OperatorNode>(N1)) {
+  if (const auto *O1 = dyn_cast<OperatorNode>(N1)) {
     // If the types of the nodes mismatch.
     if (!isa<OperatorNode>(N2))
       return false;
 
-    const auto *B2 = dyn_cast<OperatorNode>(N2);
+    const auto *O2 = dyn_cast<OperatorNode>(N2);
 
     // If the Opcodes mismatch.
-    if (B1->Opc != B2->Opc)
+    if (O1->Opc != O2->Opc)
       return false;
 
     // If the number of children of the two nodes mismatch.
-    if (B1->Children.size() != B2->Children.size())
+    if (O1->Children.size() != O2->Children.size())
       return false;
 
     // Match each child of the two nodes.
-    for (size_t I = 0; I != B1->Children.size(); ++I) {
-      auto *Child1 = B1->Children[I];
-      auto *Child2 = B2->Children[I];
+    for (size_t I = 0; I != O1->Children.size(); ++I) {
+      auto *Child1 = O1->Children[I];
+      auto *Child2 = O2->Children[I];
 
       // If any child differs between the two nodes.
       if (!IsEqual(Child1, Child2))

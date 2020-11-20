@@ -92,7 +92,7 @@ namespace clang {
     void AddNode(Node *N, OperatorNode *Parent);
 
     // Coalesce the OperatorNode O with its parent. This involves moving the
-    // children (if any) of node O to its parent and then removing B.
+    // children (if any) of node O to its parent and then removing O.
     // @param[in] O is the current node. O should be a OperatorNode.
     void CoalesceNode(OperatorNode *O);
 
