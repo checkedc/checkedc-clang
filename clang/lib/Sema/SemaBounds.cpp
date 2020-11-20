@@ -1301,7 +1301,7 @@ namespace {
           if (LowerBoundsResult == ProofResult::False ||
               UpperBoundsResult == ProofResult::False)
             return ProofResult::False;
-        } else if (CheckFreeVarInExprs(S, R.Base, Base, DeclaredBasePos,
+        } else if (CheckFreeVarInExprs(R.Base, Base, DeclaredBasePos,
                                        ObservedBasePos, EquivExprs,
                                        FreeVariables)) {
           Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
@@ -1394,7 +1394,7 @@ namespace {
         FreeVariablePosition ObservedLowerPos = CombineFreeVariablePosition(
             FreeVariablePosition::Observed, FreeVariablePosition::Lower);
 
-        if (CheckFreeVarInExprs(S, R.LowerOffsetVariable, LowerOffsetVariable,
+        if (CheckFreeVarInExprs(R.LowerOffsetVariable, LowerOffsetVariable,
                                 DeclaredLowerPos, ObservedLowerPos,
                                 EquivExprs, FreeVariables)) {
           Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
@@ -1422,7 +1422,7 @@ namespace {
         FreeVariablePosition ObservedUpperPos = CombineFreeVariablePosition(
             FreeVariablePosition::Observed, FreeVariablePosition::Upper);
 
-        if (CheckFreeVarInExprs(S, R.UpperOffsetVariable, UpperOffsetVariable,
+        if (CheckFreeVarInExprs(R.UpperOffsetVariable, UpperOffsetVariable,
                                 DeclaredUpperPos, ObservedUpperPos,
                                 EquivExprs, FreeVariables)) {
           Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
@@ -1448,16 +1448,16 @@ namespace {
       //
       // GetFreeVariables returns true if any free variable is found in SrcVars,
       // and appends the free variables to FreeVariables.
-      static bool GetFreeVariables(Sema &S, const EqualExprTy &SrcVars,
-                                   const EqualExprTy &DstVars,
-                                   EquivExprSets *EquivExprs,
-                                   EqualExprTy &FreeVariables) {
+      bool GetFreeVariables(const EqualExprTy &SrcVars,
+                            const EqualExprTy &DstVars,
+                            EquivExprSets *EquivExprs,
+                            EqualExprTy &FreeVariables) {
         bool HasFreeVariables = false;
 
         // Gather free variables.
         for (const auto &SrcV : SrcVars) {
           DeclRefExpr *SrcVar = cast<DeclRefExpr>(SrcV);
-          if (IsEqualToConstant(S, SrcVar, EquivExprs))
+          if (IsEqualToConstant(SrcVar, EquivExprs))
             continue;
           auto It = DstVars.begin();
           for (; It != DstVars.end(); It++) {
@@ -1469,7 +1469,7 @@ namespace {
             // If SrcV is not equal to a constant or a variable in DstVars,
             // check if there is an indirect relationship between SrcV and
             // a variable in DstVars. If there is, SrcV is not a free variable.
-            if (!FindVarRelationship(S, SrcVar, DstVars, EquivExprs)) {
+            if (!FindVarRelationship(SrcVar, DstVars, EquivExprs)) {
               HasFreeVariables = true;
               FreeVariables.push_back(SrcV);
             }
@@ -1488,9 +1488,9 @@ namespace {
       // For example, if DstV is a variable in DstVars and EquivExprs
       // contains the set { SrcV + 1, &DstV }, then there is a relationship
       // between SrcV and DstV.
-      static bool FindVarRelationship(Sema &S, DeclRefExpr *SrcV,
-                                      const EqualExprTy &DstVars,
-                                      EquivExprSets *EquivExprs) {
+      bool FindVarRelationship(DeclRefExpr *SrcV,
+                               const EqualExprTy &DstVars,
+                               EquivExprSets *EquivExprs) {
         auto Begin = EquivExprs->begin(), End = EquivExprs->end();
         for (auto OuterList = Begin; OuterList != End; ++OuterList) {
           auto InnerList = *OuterList;
@@ -1531,11 +1531,11 @@ namespace {
       // Check free variables between E1 and E2. Append any found free variables
       // to FreeVars with each free variable in E1 (resp. E2) having Pos1 (resp.
       // Pos2).
-      static bool CheckFreeVarInExprs(Sema &S, Expr *E1, Expr *E2,
-                                      FreeVariablePosition Pos1,
-                                      FreeVariablePosition Pos2,
-                                      EquivExprSets *EquivExprs,
-                                      FreeVariableListTy &FreeVars) {
+      bool CheckFreeVarInExprs(Expr *E1, Expr *E2,
+                               FreeVariablePosition Pos1,
+                               FreeVariablePosition Pos2,
+                               EquivExprSets *EquivExprs,
+                               FreeVariableListTy &FreeVars) {
         // If E1 or E2 accesses memory via pointer, we skip because we cannot
         // determine aliases for two indirect accesses soundly yet.
         if (ReadsMemoryViaPointer(E1) || ReadsMemoryViaPointer(E2))
@@ -1545,10 +1545,10 @@ namespace {
         EqualExprTy Vars1 = CollectVariableSet(S, E1);
         EqualExprTy Vars2 = CollectVariableSet(S, E2);
 
-        if (AddFreeVariables(S, Vars1, Vars2, EquivExprs, Pos1, FreeVars))
+        if (AddFreeVariables(Vars1, Vars2, EquivExprs, Pos1, FreeVars))
           HasFreeVariables = true;
 
-        if (AddFreeVariables(S, Vars2, Vars1, EquivExprs, Pos2, FreeVars))
+        if (AddFreeVariables(Vars2, Vars1, EquivExprs, Pos2, FreeVars))
           HasFreeVariables = true;
 
         return HasFreeVariables;
@@ -1557,12 +1557,12 @@ namespace {
       // AddFreeVariables maps each free variable in SrcVars w.r.t. DstVars
       // to a pair <Variable, Pos>, and appends the pair to
       // FreeVariablesWithPos.
-      static bool AddFreeVariables(Sema &S, const EqualExprTy &SrcVars,
-                                   const EqualExprTy &DstVars,
-                                   EquivExprSets *EquivExprs, FreeVariablePosition Pos,
-                                   FreeVariableListTy &FreeVariablesWithPos) {
+      bool AddFreeVariables(const EqualExprTy &SrcVars,
+                            const EqualExprTy &DstVars,
+                            EquivExprSets *EquivExprs, FreeVariablePosition Pos,
+                            FreeVariableListTy &FreeVariablesWithPos) {
         EqualExprTy FreeVariables;
-        if (GetFreeVariables(S, SrcVars, DstVars, EquivExprs, FreeVariables)) {
+        if (GetFreeVariables(SrcVars, DstVars, EquivExprs, FreeVariables)) {
           for (const auto V : FreeVariables) {
             FreeVariablesWithPos.push_back(std::make_pair(V, Pos));
           }
@@ -1577,8 +1577,8 @@ namespace {
       // Variable produces the same value as an integer constant if
       // EquivExprs contains a set that contains an rvalue cast of Variable
       // and an IntegerLiteral expression.
-      static bool IsEqualToConstant(Sema &S, DeclRefExpr *Variable,
-                                    const EquivExprSets *EquivExprs) {
+      bool IsEqualToConstant(DeclRefExpr *Variable,
+                             const EquivExprSets *EquivExprs) {
         if (Variable->getType()->isPointerType() || !EquivExprs)
           return false;
 
