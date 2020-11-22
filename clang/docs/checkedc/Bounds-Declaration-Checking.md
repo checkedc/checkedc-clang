@@ -18,11 +18,13 @@ expression at a particular point in checking a statement.
   inferred bounds of `p` are `bounds(any)` (since `0` by definition has
   bounds of `bounds(any)`).
 - **RValue bounds**: The bounds of the value produced by an rvalue expression.
-  - Example: If `p` is a variable with declared bounds of `bounds(p, p + 1)`,
-  then the rvalue expression `p + 3` has rvalue bounds of `bounds(p, p + 1)`.
-  - Example: If `p` is a variable with declared bounds of `bounds(p, p + 5)`,
-  then the rvalue expression from reading the value of `*(p + 2)` has rvalue
-  bounds of `bounds(unknown)`.
+  - Example: If `p` is a variable of type `array_ptr<int>` with declared bounds
+  of `bounds(p, p + 1)`, then the rvalue expression `p + 3` has type
+  `array_ptr<int>` and rvalue bounds of `bounds(p, p + 1)`.
+  - Example: If `p` is a variable of type `array_ptr<int>` with declared bounds
+  of `bounds(p, p + 5)`, then the rvalue expression from reading the value of
+  `*(p + 2)` has rvalue bounds of `bounds(unknown)`. `*(p + 2)` has type `int`,
+  and integers do not have bounds.
 - **LValue bounds**: The bounds of an lvalue expression `e`. These bounds
 determine whether it is valid to access memory using `e`, and should be the
 range (or a subrange) of an object in memory. LValue bounds are used to check
