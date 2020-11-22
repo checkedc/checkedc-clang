@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _ABOUNDS_H
-#define _ABOUNDS_H
+#ifndef LLVM_CLANG_3C_ABOUNDS_H
+#define LLVM_CLANG_3C_ABOUNDS_H
 
 #include "ProgramVar.h"
 #include <clang/AST/Decl.h>
@@ -122,7 +122,7 @@ public:
   }
 
   ABounds *makeCopy(BoundsKey NK) override {
-    assert(false && &"Not Implemented");
+    assert(false && "Not Implemented");
     return nullptr;
   }
 
@@ -134,4 +134,4 @@ private:
   BoundsKey LB;
   BoundsKey UB;
 };
-#endif // _ABOUNDS_H
+#endif // LLVM_CLANG_3C_ABOUNDS_H

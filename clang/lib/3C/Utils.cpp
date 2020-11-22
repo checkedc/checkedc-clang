@@ -8,11 +8,10 @@
 // Implementation of Utils methods.
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Support/Path.h"
-
 #include "clang/3C/Utils.h"
 #include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/ConstraintVariables.h"
+#include "llvm/Support/Path.h"
 
 using namespace llvm;
 using namespace clang;
@@ -21,10 +20,10 @@ const clang::Type *getNextTy(const clang::Type *Ty) {
   if (Ty->isPointerType()) {
     // TODO: how to keep the qualifiers around, and what qualifiers do
     //       we want to keep?
-    QualType qtmp = Ty->getLocallyUnqualifiedSingleStepDesugaredType();
-    return qtmp.getTypePtr()->getPointeeType().getTypePtr();
-  } else
-    return Ty;
+    QualType Qtmp = Ty->getLocallyUnqualifiedSingleStepDesugaredType();
+    return Qtmp.getTypePtr()->getPointeeType().getTypePtr();
+  }
+  return Ty;
 }
 
 // Walk the list of declarations and find a declaration that is NOT
@@ -35,9 +34,9 @@ FunctionDecl *getDeclaration(FunctionDecl *FD) {
     return FD;
   }
   for (const auto &D : FD->redecls())
-    if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
-      if (!tFD->isThisDeclarationADefinition())
-        return tFD;
+    if (FunctionDecl *TFD = dyn_cast<FunctionDecl>(D))
+      if (!TFD->isThisDeclarationADefinition())
+        return TFD;
 
   return nullptr;
 }
@@ -50,19 +49,19 @@ FunctionDecl *getDefinition(FunctionDecl *FD) {
     return FD;
   }
   for (const auto &D : FD->redecls())
-    if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
-      if (tFD->isThisDeclarationADefinition() && tFD->hasBody())
-        return tFD;
+    if (FunctionDecl *TFD = dyn_cast<FunctionDecl>(D))
+      if (TFD->isThisDeclarationADefinition() && TFD->hasBody())
+        return TFD;
 
   return nullptr;
 }
 
 SourceLocation getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S) {
-  const FunctionDecl *oFD = nullptr;
+  const FunctionDecl *OFd = nullptr;
 
-  if (FD->hasBody(oFD) && oFD == FD) {
+  if (FD->hasBody(OFd) && OFd == FD) {
     // Replace everything up to the beginning of the body.
-    const Stmt *Body = FD->getBody(oFD);
+    const Stmt *Body = FD->getBody(OFd);
 
     int Offset = 0;
     const char *Buf = S.getCharacterData(Body->getSourceRange().getBegin());
@@ -73,9 +72,8 @@ SourceLocation getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S) {
     }
 
     return Body->getSourceRange().getBegin().getLocWithOffset(Offset);
-  } else {
-    return FD->getSourceRange().getEnd();
   }
+  return FD->getSourceRange().getEnd();
 }
 
 clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *ItypeExpr) {
@@ -147,17 +145,17 @@ bool isNULLExpression(clang::Expr *E, ASTContext &C) {
 bool getAbsoluteFilePath(std::string FileName, std::string &AbsoluteFp) {
   // Get absolute path of the provided file
   // returns true if successful else false.
-  SmallString<255> abs_path(FileName);
-  llvm::sys::fs::make_absolute(BaseDir, abs_path);
-  AbsoluteFp = abs_path.str();
+  SmallString<255> AbsPath(FileName);
+  llvm::sys::fs::make_absolute(BaseDir, AbsPath);
+  AbsoluteFp = AbsPath.str();
   return true;
 }
 
 bool functionHasVarArgs(clang::FunctionDecl *FD) {
   if (FD && FD->getFunctionType()->isFunctionProtoType()) {
-    const FunctionProtoType *srcType =
+    const FunctionProtoType *SrcType =
         dyn_cast<FunctionProtoType>(FD->getFunctionType());
-    return srcType->isVariadic();
+    return SrcType->isVariadic();
   }
   return false;
 }
@@ -266,7 +264,7 @@ bool hasVoidType(clang::ValueDecl *D) { return isTypeHasVoid(D->getType()); }
 //  return D->isPointerType() == S->isPointerType();
 //}
 
-static bool CastCheck(clang::QualType DstType, clang::QualType SrcType) {
+static bool castCheck(clang::QualType DstType, clang::QualType SrcType) {
 
   // Check if both types are same.
   if (SrcType == DstType)
@@ -283,7 +281,7 @@ static bool CastCheck(clang::QualType DstType, clang::QualType SrcType) {
   // Both are pointers? check their pointee
   if (SrcPtrTypePtr && DstPtrTypePtr) {
     return (SrcPtrTypePtr->isVoidPointerType()) ||
-           CastCheck(DstPtrTypePtr->getPointeeType(),
+           castCheck(DstPtrTypePtr->getPointeeType(),
                      SrcPtrTypePtr->getPointeeType());
   }
 
@@ -311,8 +309,7 @@ bool isCastSafe(clang::QualType DstType, clang::QualType SrcType) {
       dyn_cast<clang::PointerType>(DstTypePtr);
   if (!DstPtrTypePtr) // Safe to cast to a non-pointer.
     return true;
-  else
-    return CastCheck(DstType, SrcType);
+  return castCheck(DstType, SrcType);
 }
 
 bool canWrite(const std::string &FilePath) {
@@ -321,9 +318,9 @@ bool canWrite(const std::string &FilePath) {
     return true;
   // Get the absolute path of the file and check that
   // the file path starts with the base directory.
-  std::string fileAbsPath = FilePath;
-  getAbsoluteFilePath(FilePath, fileAbsPath);
-  return fileAbsPath.rfind(BaseDir, 0) == 0;
+  std::string FileAbsPath = FilePath;
+  getAbsoluteFilePath(FilePath, FileAbsPath);
+  return FileAbsPath.rfind(BaseDir, 0) == 0;
 }
 
 bool isInSysHeader(clang::Decl *D) {
@@ -352,9 +349,8 @@ unsigned longestCommonSubsequence(const char *Str1, const char *Str2,
     return 0;
   if (Str1[Str1Len - 1] == Str2[Str2Len - 1])
     return 1 + longestCommonSubsequence(Str1, Str2, Str1Len - 1, Str2Len - 1);
-  else
-    return std::max(longestCommonSubsequence(Str1, Str2, Str1Len, Str2Len - 1),
-                    longestCommonSubsequence(Str1, Str2, Str1Len - 1, Str2Len));
+  return std::max(longestCommonSubsequence(Str1, Str2, Str1Len, Str2Len - 1),
+                  longestCommonSubsequence(Str1, Str2, Str1Len - 1, Str2Len));
 }
 
 // Get the type variable used in a parameter declaration, or return null if no

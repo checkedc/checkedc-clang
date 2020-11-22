@@ -22,15 +22,14 @@
 // is the lowest numbered constraint variable for a given declaration.
 //===----------------------------------------------------------------------===//
 
-#ifndef _CONSTRAINTVARIABLES_H
-#define _CONSTRAINTVARIABLES_H
-
-#include "clang/AST/ASTContext.h"
-#include "clang/Lex/Lexer.h"
-#include "llvm/ADT/StringSwitch.h"
+#ifndef LLVM_CLANG_3C_CONSTRAINTVARIABLES_H
+#define LLVM_CLANG_3C_CONSTRAINTVARIABLES_H
 
 #include "Constraints.h"
 #include "ProgramVar.h"
+#include "clang/AST/ASTContext.h"
+#include "clang/Lex/Lexer.h"
+#include "llvm/ADT/StringSwitch.h"
 
 using namespace clang;
 
@@ -85,14 +84,14 @@ public:
   // the name of the variable, false for just the type.
   // The 'forIType' parameter is true when the generated string is expected
   // to be used inside an itype
-  virtual std::string mkString(const EnvironmentMap &E, bool emitName = true,
-                               bool forItype = false,
-                               bool emitPointee = false) const = 0;
+  virtual std::string mkString(const EnvironmentMap &E, bool EmitName = true,
+                               bool ForItype = false,
+                               bool EmitPointee = false) const = 0;
 
   // Debug printing of the constraint variable.
   virtual void print(llvm::raw_ostream &O) const = 0;
   virtual void dump() const = 0;
-  virtual void dump_json(llvm::raw_ostream &O) const = 0;
+  virtual void dumpJson(llvm::raw_ostream &O) const = 0;
 
   virtual bool hasItype() const = 0;
   bool hasBoundsKey() const { return ValidBoundsKey; }
@@ -163,15 +162,15 @@ enum ConsAction { Safe_to_Wild, Wild_to_Safe, Same_to_Same };
 void constrainConsVarGeq(const std::set<ConstraintVariable *> &LHS,
                          const std::set<ConstraintVariable *> &RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
-                         ConsAction CA, bool doEqType, ProgramInfo *Info,
+                         ConsAction CA, bool DoEqType, ProgramInfo *Info,
                          bool HandleBoundsKey = true);
 void constrainConsVarGeq(ConstraintVariable *LHS, const CVarSet &RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
-                         ConsAction CA, bool doEqType, ProgramInfo *Info,
+                         ConsAction CA, bool DoEqType, ProgramInfo *Info,
                          bool HandleBoundsKey = true);
 void constrainConsVarGeq(ConstraintVariable *LHS, ConstraintVariable *RHS,
                          Constraints &CS, PersistentSourceLoc *PL,
-                         ConsAction CA, bool doEqType, ProgramInfo *Info,
+                         ConsAction CA, bool DoEqType, ProgramInfo *Info,
                          bool HandleBoundsKey = true);
 
 // True if [C] is a PVConstraint that contains at least one Atom (i.e.,
@@ -197,12 +196,12 @@ public:
                       PersistentSourceLoc *PSL = nullptr);
   static PointerVariableConstraint *getPtrPVConstraint(Constraints &CS);
   static PointerVariableConstraint *getNonPtrPVConstraint(Constraints &CS);
-  static PointerVariableConstraint *getNamedNonPtrPVConstraint(StringRef name,
+  static PointerVariableConstraint *getNamedNonPtrPVConstraint(StringRef Name,
                                                                Constraints &CS);
 
 private:
   std::string BaseType;
-  CAtoms vars;
+  CAtoms Vars;
   FunctionVariableConstraint *FV;
   std::map<uint32_t, std::set<Qualification>> QualMap;
   enum OriginalArrType { O_Pointer, O_SizedArray, O_UnSizedArray };
@@ -211,7 +210,7 @@ private:
   //  * A pointer, then U -> (a,b) , a = O_Pointer, b has no meaning.
   //  * A sized array, then U -> (a,b) , a = O_SizedArray, b is static size.
   //  * An unsized array, then U -(a,b) , a = O_UnSizedArray, b has no meaning.
-  std::map<uint32_t, std::pair<OriginalArrType, uint64_t>> arrSizes;
+  std::map<uint32_t, std::pair<OriginalArrType, uint64_t>> ArrSizes;
   // If for all U in arrSizes, any U -> (a,b) where a = O_SizedArray or
   // O_UnSizedArray, arrPresent is true.
   bool ArrPresent;
@@ -236,11 +235,11 @@ private:
 
   // Flag to indicate that this constraint is a part of function prototype
   // e.g., Parameters or Return.
-  bool partOFFuncPrototype;
+  bool PartOfFuncPrototype;
   // For the function parameters and returns,
   // this set contains the constraint variable of
   // the values used as arguments.
-  std::set<ConstraintVariable *> argumentConstraints;
+  std::set<ConstraintVariable *> ArgumentConstraints;
   // Get solution for the atom of a pointer.
   const ConstAtom *getSolution(const Atom *A, const EnvironmentMap &E) const;
 
@@ -264,11 +263,11 @@ private:
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
-                            FunctionVariableConstraint *F, bool isArr,
-                            bool isItype, std::string is, bool Generic = false)
+                            FunctionVariableConstraint *F, bool IsArr,
+                            bool IsItype, std::string Is, bool Generic = false)
       : ConstraintVariable(PointerVariable, "" /*not used*/, Name), BaseType(T),
-        vars(V), FV(F), ArrPresent(isArr), ItypeStr(is),
-        partOFFuncPrototype(false), Parent(nullptr), BoundsAnnotationStr(""),
+        Vars(V), FV(F), ArrPresent(IsArr), ItypeStr(Is),
+        PartOfFuncPrototype(false), Parent(nullptr), BoundsAnnotationStr(""),
         IsGeneric(Generic), IsZeroWidthArray(false) {}
 
   std::string getTy() const { return BaseType; }
@@ -290,7 +289,7 @@ public:
   bool getIsGeneric() const { return IsGeneric; }
 
   bool getIsOriginallyChecked() const override {
-    return llvm::any_of(vars, [](Atom *A) { return isa<ConstAtom>(A); });
+    return llvm::any_of(Vars, [](Atom *A) { return isa<ConstAtom>(A); });
   }
 
   bool solutionEqualTo(Constraints &CS,
@@ -320,10 +319,10 @@ public:
   PointerVariableConstraint(const clang::QualType &QT, clang::DeclaratorDecl *D,
                             std::string N, ProgramInfo &I,
                             const clang::ASTContext &C,
-                            std::string *inFunc = nullptr,
+                            std::string *InFunc = nullptr,
                             bool IsGeneric = false);
 
-  const CAtoms &getCvars() const { return vars; }
+  const CAtoms &getCvars() const { return Vars; }
 
   void brainTransplant(ConstraintVariable *From, ProgramInfo &I) override;
   void mergeDeclaration(ConstraintVariable *From, ProgramInfo &I) override;
@@ -340,12 +339,12 @@ public:
 
   void print(llvm::raw_ostream &O) const override;
   void dump() const override { print(llvm::errs()); }
-  void dump_json(llvm::raw_ostream &O) const override;
+  void dumpJson(llvm::raw_ostream &O) const override;
 
   void constrainToWild(Constraints &CS, const std::string &Rsn) const override;
   void constrainToWild(Constraints &CS, const std::string &Rsn,
                        PersistentSourceLoc *PL) const override;
-  void constrainOuterTo(Constraints &CS, ConstAtom *C, bool doLB = false);
+  void constrainOuterTo(Constraints &CS, ConstAtom *C, bool DoLB = false);
   bool anyChanges(const EnvironmentMap &E) const override;
   bool anyArgumentIsWild(const EnvironmentMap &E);
   bool hasWild(const EnvironmentMap &E, int AIdx = -1) const override;
@@ -354,7 +353,7 @@ public:
 
   void equateArgumentConstraints(ProgramInfo &I) override;
 
-  bool isPartOfFunctionPrototype() const { return partOFFuncPrototype; }
+  bool isPartOfFunctionPrototype() const { return PartOfFuncPrototype; }
   // Add the provided constraint variable as an argument constraint.
   bool addArgumentConstraint(ConstraintVariable *DstCons, ProgramInfo &Info);
   // Get the set of constraint variables corresponding to the arguments.
@@ -390,7 +389,7 @@ private:
   // K parameters accepted by the function.
   std::vector<PVConstraint *> ParamVars;
   // Storing of parameters in the case of untyped prototypes
-  std::vector<ParamDeferment> deferredParams;
+  std::vector<ParamDeferment> DeferredParams;
   // File name in which this declaration is found.
   std::string FileName;
   bool Hasproto;
@@ -417,7 +416,7 @@ public:
   PVConstraint *getReturnVar() const { return ReturnVar; }
 
   const std::vector<ParamDeferment> &getDeferredParams() const {
-    return deferredParams;
+    return DeferredParams;
   }
 
   void addDeferredParams(PersistentSourceLoc PL, std::vector<CVarSet> Ps);
@@ -426,7 +425,7 @@ public:
 
   bool hasProtoType() const { return Hasproto; }
   bool hasBody() const { return Hasbody; }
-  void setHasBody(bool hbody) { this->Hasbody = hbody; }
+  void setHasBody(bool Hbody) { this->Hasbody = Hbody; }
 
   static bool classof(const ConstraintVariable *S) {
     return S->getKind() == FunctionVariable;
@@ -435,9 +434,9 @@ public:
   void brainTransplant(ConstraintVariable *From, ProgramInfo &I) override;
   void mergeDeclaration(ConstraintVariable *FromCV, ProgramInfo &I) override;
 
-  PVConstraint *getParamVar(unsigned i) const {
-    assert(i < ParamVars.size());
-    return ParamVars.at(i);
+  PVConstraint *getParamVar(unsigned I) const {
+    assert(I < ParamVars.size());
+    return ParamVars.at(I);
   }
 
   bool hasItype() const override;
@@ -449,7 +448,7 @@ public:
                        bool EmitPointee = false) const override;
   void print(llvm::raw_ostream &O) const override;
   void dump() const override { print(llvm::errs()); }
-  void dump_json(llvm::raw_ostream &O) const override;
+  void dumpJson(llvm::raw_ostream &O) const override;
 
   void constrainToWild(Constraints &CS, const std::string &Rsn) const override;
   void constrainToWild(Constraints &CS, const std::string &Rsn,
@@ -470,4 +469,4 @@ public:
 
 typedef FunctionVariableConstraint FVConstraint;
 
-#endif //_CONSTRAINTVARIABLES_H
+#endif // LLVM_CLANG_3C_CONSTRAINTVARIABLES_H

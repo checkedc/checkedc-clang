@@ -84,8 +84,7 @@ bool DComp::operator()(DeclReplacement *Lhs, DeclReplacement *Rhs) const {
 
   if (Contained)
     return false;
-  else
-    return SM.isBeforeInTranslationUnit(X2, Y1);
+  return SM.isBeforeInTranslationUnit(X2, Y1);
 }
 
 void GlobalVariableGroups::addGlobalDecl(Decl *VD, std::vector<Decl *> *VDVec) {
@@ -115,12 +114,12 @@ std::vector<Decl *> &GlobalVariableGroups::getVarsOnSameLine(Decl *D) {
 GlobalVariableGroups::~GlobalVariableGroups() {
   std::set<std::vector<Decl *> *> VVisited;
   // Free each of the group.
-  for (auto &currV : GlobVarGroups) {
+  for (auto &CurrV : GlobVarGroups) {
     // Avoid double free by caching deleted sets.
-    if (VVisited.find(currV.second) != VVisited.end())
+    if (VVisited.find(CurrV.second) != VVisited.end())
       continue;
-    VVisited.insert(currV.second);
-    delete (currV.second);
+    VVisited.insert(CurrV.second);
+    delete (CurrV.second);
   }
   GlobVarGroups.clear();
 }
@@ -308,7 +307,8 @@ private:
           if (!Arg.typeName->isVoidType()) {
             // Found a non-void type argument. No doubt type args are provided.
             return true;
-          } else if (Arg.sourceInfo->getTypeLoc().getSourceRange().isValid()) {
+          }
+          if (Arg.sourceInfo->getTypeLoc().getSourceRange().isValid()) {
             // The type argument is void, but with a valid source range. This
             // means an explict void type argument was provided.
             return true;

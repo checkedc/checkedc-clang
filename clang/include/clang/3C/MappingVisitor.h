@@ -13,13 +13,13 @@
 // constructed AST.
 //===----------------------------------------------------------------------===//
 
-#ifndef _MAPPING_VISITOR_H
-#define _MAPPING_VISITOR_H
-#include "clang/AST/ASTConsumer.h"
-#include "clang/AST/RecursiveASTVisitor.h"
+#ifndef LLVM_CLANG_3C_MAPPINGVISITOR_H
+#define LLVM_CLANG_3C_MAPPINGVISITOR_H
 
 #include "PersistentSourceLoc.h"
 #include "Utils.h"
+#include "clang/AST/ASTConsumer.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 
 typedef std::tuple<clang::Stmt *, clang::Decl *> StmtDecl;
 typedef std::map<PersistentSourceLoc, StmtDecl> SourceToDeclMapType;

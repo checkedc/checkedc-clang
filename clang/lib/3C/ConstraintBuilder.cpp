@@ -20,14 +20,14 @@ using namespace llvm;
 using namespace clang;
 
 // Used to keep track of in-line struct defs
-unsigned int lastRecordLocation = -1;
+unsigned int LastRecordLocation = -1;
 
 void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
                        ASTContext *Context, ConstraintResolver CB,
                        bool IsInFunction) {
   if (RecordDecl *Definition = Declaration->getDefinition()) {
     // store current record's location to cross-ref later in a VarDecl
-    lastRecordLocation = Definition->getBeginLoc().getRawEncoding();
+    LastRecordLocation = Definition->getBeginLoc().getRawEncoding();
     FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
     if (FL.isValid()) {
       SourceManager &SM = Context->getSourceManager();
@@ -42,8 +42,8 @@ void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
         unsigned int BeginLoc = VD->getBeginLoc().getRawEncoding();
         unsigned int EndLoc = VD->getEndLoc().getRawEncoding();
         IsInLineStruct = !isPtrOrArrayType(VarTy) && !VD->hasInit() &&
-                         lastRecordLocation >= BeginLoc &&
-                         lastRecordLocation <= EndLoc;
+                         LastRecordLocation >= BeginLoc &&
+                         LastRecordLocation <= EndLoc;
       }
       if (FE && FE->isValid()) {
         // We only want to re-write a record if it contains
@@ -89,7 +89,7 @@ public:
           FullSourceLoc FL = Context->getFullLoc(VD->getBeginLoc());
           SourceRange SR = VD->getSourceRange();
           if (SR.isValid() && FL.isValid() && isPtrOrArrayType(VD->getType())) {
-            if (lastRecordLocation == VD->getBeginLoc().getRawEncoding()) {
+            if (LastRecordLocation == VD->getBeginLoc().getRawEncoding()) {
               CVarOption CV = Info.getVariable(VD, Context);
               CB.constraintCVarToWild(CV, "Inline struct encountered.");
             }
@@ -184,9 +184,9 @@ public:
 
     // Collect type parameters for this function call that are
     // consistently instantiated as single type in this function call.
-    std::set<unsigned int> consistentTypeParams;
+    std::set<unsigned int> ConsistentTypeParams;
     if (TFD != nullptr)
-      TVInfo.getConsistentTypeParams(E, consistentTypeParams);
+      TVInfo.getConsistentTypeParams(E, ConsistentTypeParams);
 
     // Now do the call: Constrain arguments to parameters (but ignore returns)
     if (FVCons.empty()) {
@@ -203,21 +203,21 @@ public:
         }
         // and for each arg to the function ...
         if (FVConstraint *TargetFV = dyn_cast<FVConstraint>(TmpC)) {
-          unsigned i = 0;
-          bool callUntyped = TFD ? TFD->getType()->isFunctionNoProtoType() &&
+          unsigned I = 0;
+          bool CallUntyped = TFD ? TFD->getType()->isFunctionNoProtoType() &&
                                        E->getNumArgs() != 0 &&
                                        TargetFV->numParams() == 0
                                  : false;
 
-          std::vector<CVarSet> deferred;
+          std::vector<CVarSet> Deferred;
           for (const auto &A : E->arguments()) {
             CVarSet ArgumentConstraints;
-            if (TFD != nullptr && i < TFD->getNumParams()) {
+            if (TFD != nullptr && I < TFD->getNumParams()) {
               // Remove casts to void* on polymorphic types that are used
               // consistently.
-              const auto *Ty = getTypeVariableType(TFD->getParamDecl(i));
-              if (Ty != nullptr && consistentTypeParams.find(Ty->GetIndex()) !=
-                                       consistentTypeParams.end())
+              const auto *Ty = getTypeVariableType(TFD->getParamDecl(I));
+              if (Ty != nullptr && ConsistentTypeParams.find(Ty->GetIndex()) !=
+                                       ConsistentTypeParams.end())
                 ArgumentConstraints =
                     CB.getExprConstraintVars(A->IgnoreImpCasts());
               else
@@ -225,18 +225,18 @@ public:
             } else
               ArgumentConstraints = CB.getExprConstraintVars(A);
 
-            if (callUntyped) {
-              deferred.push_back(ArgumentConstraints);
-            } else if (i < TargetFV->numParams()) {
+            if (CallUntyped) {
+              Deferred.push_back(ArgumentConstraints);
+            } else if (I < TargetFV->numParams()) {
               // constrain the arg CV to the param CV
-              ConstraintVariable *ParameterDC = TargetFV->getParamVar(i);
+              ConstraintVariable *ParameterDC = TargetFV->getParamVar(I);
               // Do not handle bounds key here because we will be
               // doing context-sensitive assignment next.
               constrainConsVarGeq(ParameterDC, ArgumentConstraints, CS, &PL,
                                   Wild_to_Safe, false, &Info, false);
 
               if (AllTypes && TFD != nullptr) {
-                auto *PVD = TFD->getParamDecl(i);
+                auto *PVD = TFD->getParamDecl(I);
                 auto &ABI = Info.getABoundsInfo();
                 // Here, we need to handle context-sensitive assignment.
                 ABI.handleContextSensitiveAssignment(
@@ -257,10 +257,10 @@ public:
                 }
               }
             }
-            i++;
+            I++;
           }
-          if (callUntyped)
-            TargetFV->addDeferredParams(PL, deferred);
+          if (CallUntyped)
+            TargetFV->addDeferredParams(PL, Deferred);
         }
       }
     }
@@ -346,15 +346,15 @@ private:
   }
 
   // Constraint helpers.
-  void constraintInBodyVariable(Expr *e, ConstAtom *CAtom) {
-    CVarSet Var = CB.getExprConstraintVars(e);
+  void constraintInBodyVariable(Expr *E, ConstAtom *CAtom) {
+    CVarSet Var = CB.getExprConstraintVars(E);
     constrainVarsTo(Var, CAtom);
   }
 
   // Constraint all the argument of the provided
   // call expression to be WILD.
   void constraintAllArgumentsToWild(CallExpr *E) {
-    PersistentSourceLoc psl = PersistentSourceLoc::mkPSL(E, *Context);
+    PersistentSourceLoc Psl = PersistentSourceLoc::mkPSL(E, *Context);
     for (const auto &A : E->arguments()) {
       // Get constraint from within the function body
       // of the caller.
@@ -417,7 +417,7 @@ public:
       // in order to allow the fields of the RecordDecl to be converted
       unsigned int BeginLoc = G->getBeginLoc().getRawEncoding();
       unsigned int EndLoc = G->getEndLoc().getRawEncoding();
-      if (lastRecordLocation >= BeginLoc && lastRecordLocation <= EndLoc) {
+      if (LastRecordLocation >= BeginLoc && LastRecordLocation <= EndLoc) {
         CVarOption CV = Info.getVariable(G, Context);
         CB.constraintCVarToWild(CV, "Inline struct encountered.");
       }
@@ -431,12 +431,12 @@ public:
       const RecordDecl *Definition =
           E->getType()->getAsStructureType()->getDecl()->getDefinition();
 
-      unsigned int initIdx = 0;
-      const auto fields = Definition->fields();
-      for (auto it = fields.begin();
-           initIdx < E->getNumInits() && it != fields.end(); initIdx++, it++) {
-        Expr *InitExpr = E->getInit(initIdx);
-        CB.constrainLocalAssign(nullptr, *it, InitExpr);
+      unsigned int InitIdx = 0;
+      const auto Fields = Definition->fields();
+      for (auto It = Fields.begin();
+           InitIdx < E->getNumInits() && It != Fields.end(); InitIdx++, It++) {
+        Expr *InitExpr = E->getInit(InitIdx);
+        CB.constrainLocalAssign(nullptr, *It, InitExpr);
       }
     }
     return true;

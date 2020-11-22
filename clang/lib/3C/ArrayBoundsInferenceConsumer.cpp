@@ -40,9 +40,9 @@ std::string commonPrefixUtil(std::string Str1, std::string Str2) {
 static bool nameSubStringMatch(std::string PtrName, std::string FieldName) {
   // Convert the names to lower case.
   std::transform(PtrName.begin(), PtrName.end(), PtrName.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
+                 [](unsigned char C) { return std::tolower(C); });
   std::transform(FieldName.begin(), FieldName.end(), FieldName.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
+                 [](unsigned char C) { return std::tolower(C); });
   unsigned SubSeqLen = longestCommonSubsequence(
       PtrName.c_str(), FieldName.c_str(), PtrName.length(), FieldName.length());
   if (SubSeqLen > 0) {
@@ -57,7 +57,7 @@ static bool nameSubStringMatch(std::string PtrName, std::string FieldName) {
 static bool fieldNameMatch(std::string FieldName) {
   // Convert the field name to lower case.
   std::transform(FieldName.begin(), FieldName.end(), FieldName.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
+                 [](unsigned char C) { return std::tolower(C); });
   for (auto &PName : LengthVarNamesPrefixes) {
     if (FieldName.rfind(PName, 0) == 0)
       return true;
@@ -73,7 +73,7 @@ static bool fieldNameMatch(std::string FieldName) {
 static bool hasLengthKeyword(std::string VarName) {
   // Convert the field name to lower case.
   std::transform(VarName.begin(), VarName.end(), VarName.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
+                 [](unsigned char C) { return std::tolower(C); });
 
   std::set<std::string> LengthKeywords(LengthVarNamesPrefixes);
   LengthKeywords.insert(LengthVarNamesSubstring.begin(),
@@ -108,7 +108,7 @@ static bool needArrayBounds(Expr *E, ProgramInfo &Info, ASTContext *C) {
   ConstraintResolver CR(Info, C);
   CVarSet ConsVar = CR.getExprConstraintVars(E);
   const auto &EnvMap = Info.getConstraints().getVariables();
-  for (auto CurrCVar : ConsVar) {
+  for (auto *CurrCVar : ConsVar) {
     if (needArrayBounds(CurrCVar, EnvMap) ||
         needNTArrayBounds(CurrCVar, EnvMap))
       return true;
@@ -238,9 +238,9 @@ static void handleAllocatorCall(QualType LHSType, BoundsKey LK, Expr *E,
     // expression in which case if the type matches we use count bounds.
     bool IsByteBound = true;
     for (auto *TmpE : ArgVals) {
-      UnaryExprOrTypeTraitExpr *arg = dyn_cast<UnaryExprOrTypeTraitExpr>(TmpE);
-      if (arg && arg->getKind() == UETT_SizeOf) {
-        QualType STy = Context->getPointerType(arg->getTypeOfArgument());
+      UnaryExprOrTypeTraitExpr *Arg = dyn_cast<UnaryExprOrTypeTraitExpr>(TmpE);
+      if (Arg && Arg->getKind() == UETT_SizeOf) {
+        QualType STy = Context->getPointerType(Arg->getTypeOfArgument());
         // This is a count bound.
         if (LHSType == STy) {
           IsByteBound = false;
@@ -277,7 +277,7 @@ static void handleAllocatorCall(QualType LHSType, BoundsKey LK, Expr *E,
 
       // Either both should be in same scope or the RHS should be constant.
       if (*(PrgLVar->getScope()) == *(PrgRVar->getScope()) ||
-          PrgRVar->IsNumConstant()) {
+          PrgRVar->isNumConstant()) {
         if (!AVarBInfo.mergeBounds(LK, Allocator, LBounds)) {
           delete (LBounds);
         } else {
@@ -336,17 +336,17 @@ bool isExpressionStructField(Expr *ToCheck, FieldDecl **TargetDecl) {
 
 void AllocBasedBoundsInference::HandleTranslationUnit(ASTContext &Context) {
   Info.enterCompilationUnit(Context);
-  HandleArrayVariablesBoundsDetection(&Context, Info, false);
+  handleArrayVariablesBoundsDetection(&Context, Info, false);
   Info.exitCompilationUnit();
 }
 
 // This visitor handles the bounds of function local array variables.
 
-void GlobalABVisitor::SetParamHeuristicInfo(LocalVarABVisitor *LAB) {
+void GlobalABVisitor::setParamHeuristicInfo(LocalVarABVisitor *LAB) {
   this->ParamInfo = LAB;
 }
 
-bool GlobalABVisitor::IsPotentialLengthVar(ParmVarDecl *PVD) {
+bool GlobalABVisitor::isPotentialLengthVar(ParmVarDecl *PVD) {
   if (PVD->getType().getTypePtr()->isIntegerType()) {
     return ParamInfo == nullptr || !ParamInfo->isNonLengthParameter(PVD);
   }
@@ -424,8 +424,8 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       std::map<unsigned, std::pair<std::string, BoundsKey>> ParamNtArrays;
       std::map<unsigned, std::pair<std::string, BoundsKey>> LengthParams;
 
-      for (unsigned i = 0; i < FT->getNumParams(); i++) {
-        ParmVarDecl *PVD = FD->getParamDecl(i);
+      for (unsigned I = 0; I < FT->getNumParams(); I++) {
+        ParmVarDecl *PVD = FD->getParamDecl(I);
         BoundsKey PK;
 
         // Does this parameter already has bounds?
@@ -437,17 +437,17 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           if (!ABInfo.getBounds(PK)) {
             if (needArrayBounds(PVD, Info, Context, true)) {
               // Is this an NTArray?
-              ParamNtArrays[i] = PVal;
+              ParamNtArrays[I] = PVal;
             }
             if (needArrayBounds(PVD, Info, Context, false)) {
               // Is this an array?
-              ParamArrays[i] = PVal;
+              ParamArrays[I] = PVal;
             }
           }
 
           // If this is a length field?
-          if (IsPotentialLengthVar(PVD))
-            LengthParams[i] = PVal;
+          if (isPotentialLengthVar(PVD))
+            LengthParams[I] = PVal;
         }
       }
       if (!ParamArrays.empty() && !LengthParams.empty()) {
@@ -489,12 +489,12 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           }
 
           if (!FoundLen) {
-            for (auto &currLenParamPair : LengthParams) {
+            for (auto &CurrLenParamPair : LengthParams) {
               // Check if the length parameter name matches our heuristics.
-              if (fieldNameMatch(currLenParamPair.second.first)) {
+              if (fieldNameMatch(CurrLenParamPair.second.first)) {
                 FoundLen = true;
                 ABounds *PBounds =
-                    new CountBound(currLenParamPair.second.second);
+                    new CountBound(CurrLenParamPair.second.second);
                 ABInfo.replaceBounds(PBKey, Heuristics, PBounds);
                 ABStats.VariableNameMatch.insert(PBKey);
               }
@@ -542,7 +542,7 @@ void LocalVarABVisitor::handleAssignment(BoundsKey LK, QualType LHSType,
   }
 }
 
-bool LocalVarABVisitor::HandleBinAssign(BinaryOperator *O) {
+bool LocalVarABVisitor::handleBinAssign(BinaryOperator *O) {
   Expr *LHS = O->getLHS()->IgnoreParenCasts();
   Expr *RHS = O->getRHS()->IgnoreParenCasts();
   ConstraintResolver CR(Info, Context);
@@ -601,7 +601,7 @@ bool LocalVarABVisitor::VisitBinaryOperator(BinaryOperator *BO) {
     addUsedParmVarDecl(BO->getRHS());
   }
   if (BOpcode == BinaryOperator::Opcode::BO_Assign) {
-    HandleBinAssign(BO);
+    handleBinAssign(BO);
   }
   return true;
 }
@@ -645,7 +645,7 @@ bool LocalVarABVisitor::isNonLengthParameter(ParmVarDecl *PVD) {
   return NonLengthParameters.find(PVD) != NonLengthParameters.end();
 }
 
-void AddMainFuncHeuristic(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
+void addMainFuncHeuristic(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
   if (FD->isThisDeclarationADefinition() && FD->hasBody()) {
     // Heuristic: If the function has just a single parameter
     // and we found that it is an array then it must be an Nt_array.
@@ -875,7 +875,7 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
   }
 }
 
-void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I,
+void handleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I,
                                          bool UseHeuristics) {
   // Run array bounds
   for (auto FuncName : AllocatorFunctions) {
@@ -896,10 +896,10 @@ void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I,
 
         if (UseHeuristics) {
           // Set information collected after analyzing the function body.
-          GlobABV.SetParamHeuristicInfo(&LFV);
+          GlobABV.setParamHeuristicInfo(&LFV);
           GlobABV.TraverseDecl(D);
         }
-        AddMainFuncHeuristic(C, I, FD);
+        addMainFuncHeuristic(C, I, FD);
         GlobalTraversed = true;
       }
     }
@@ -908,7 +908,7 @@ void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I,
       // If this is not already traversed?
       if (!GlobalTraversed)
         GlobABV.TraverseDecl(D);
-      GlobABV.SetParamHeuristicInfo(nullptr);
+      GlobABV.setParamHeuristicInfo(nullptr);
     }
   }
 }

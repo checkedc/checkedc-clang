@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _BOUNDSVAR_H
-#define _BOUNDSVAR_H
+#ifndef LLVM_CLANG_3C_PROGRAMVAR_H
+#define LLVM_CLANG_3C_PROGRAMVAR_H
 
 #include "clang/3C/PersistentSourceLoc.h"
 #include "clang/AST/ASTContext.h"
@@ -316,7 +316,7 @@ public:
   const ProgramVarScope *getScope() { return VScope; }
   void setScope(const ProgramVarScope *PVS) { this->VScope = PVS; }
   BoundsKey getKey() { return K; }
-  bool IsNumConstant() { return IsConstant; }
+  bool isNumConstant() { return IsConstant; }
   std::string mkString(bool GetKey = false);
   std::string getVarName() { return VarName; }
   std::string verboseStr();
@@ -344,4 +344,4 @@ private:
       : ProgramVar(VK, VName, PVS, false) {}
 };
 
-#endif // _BOUNDSVAR_H
+#endif // LLVM_CLANG_3C_PROGRAMVAR_H

@@ -16,7 +16,7 @@
 
 using namespace clang;
 
-bool StructVariableInitializer::VariableNeedsInitializer(VarDecl *VD) {
+bool StructVariableInitializer::variableNeedsInitializer(VarDecl *VD) {
   RecordDecl *RD = VD->getType().getTypePtr()->getAsRecordDecl();
   if (RecordDecl *Definition = RD->getDefinition()) {
     // See if we already know that this structure has a checked pointer.
@@ -46,7 +46,7 @@ void StructVariableInitializer::insertVarDecl(VarDecl *VD, DeclStmt *S) {
   // Check if this variable is a structure or union
   if (!VD->hasInit() && isStructOrUnionType(VD)) {
     // Check if the variable needs a initializer.
-    if (VariableNeedsInitializer(VD)) {
+    if (variableNeedsInitializer(VD)) {
       // Create replacement declaration text with an initializer.
       const clang::Type *Ty = VD->getType().getTypePtr();
       std::string ToReplace = tyToStr(Ty) + " " + VD->getName().str() + " = {}";

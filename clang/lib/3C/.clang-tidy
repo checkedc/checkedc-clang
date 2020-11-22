@@ -2,10 +2,16 @@
 # analogous to the .clang-format files, so the remarks in .clang-format in this
 # directory apply.
 
-# This is currently the same as `/.clang-tidy`. `/clang/.clang-tidy` disables
-# the readability-identifier-naming check, but we mostly comply with it.
+# This is based on `/.clang-tidy` with the following differences:
+#
+# - Disable misc-no-recursion since we make significant intentional use of
+#   recursion.
+#
+# Compared to `/.clang-tidy`, `/clang/.clang-tidy` disables the
+# readability-identifier-naming check, but we comply with it except for specific
+# suppressions.
 
-Checks: '-*,clang-diagnostic-*,llvm-*,misc-*,-misc-unused-parameters,-misc-non-private-member-variables-in-classes,readability-identifier-naming'
+Checks: '-*,clang-diagnostic-*,llvm-*,misc-*,-misc-unused-parameters,-misc-non-private-member-variables-in-classes,-misc-no-recursion,readability-identifier-naming'
 CheckOptions:
   - key:             readability-identifier-naming.ClassCase
     value:           CamelCase

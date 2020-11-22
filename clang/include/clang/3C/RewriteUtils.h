@@ -9,8 +9,8 @@
 // rewriting the source file after converting to CheckedC format.
 //===----------------------------------------------------------------------===//
 
-#ifndef _REWRITEUTILS_H
-#define _REWRITEUTILS_H
+#ifndef LLVM_CLANG_3C_REWRITEUTILS_H
+#define LLVM_CLANG_3C_REWRITEUTILS_H
 
 #include "ProgramInfo.h"
 #include "clang/AST/ASTContext.h"
@@ -226,4 +226,4 @@ private:
 
 bool canRewrite(Rewriter &R, SourceRange &SR);
 
-#endif //_REWRITEUTILS_H
+#endif // LLVM_CLANG_3C_REWRITEUTILS_H

@@ -16,32 +16,32 @@ namespace clangd {
 
 #define DEFAULT_PTRSIZE 4
 
-void _3CDiagnostics::ClearAllDiags() {
+void _3CDiagnostics::clearAllDiags() {
   std::lock_guard<std::mutex> Lock(DiagMutex);
   AllFileDiagnostics.clear();
 }
 
-static bool IsValidSourceFile(ConstraintsInfo &CCRes, std::string &FilePath) {
+static bool isValidSourceFile(ConstraintsInfo &CCRes, std::string &FilePath) {
   return CCRes.ValidSourceFiles.find(FilePath) != CCRes.ValidSourceFiles.end();
 }
 
-bool _3CDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line) {
+bool _3CDiagnostics::populateDiagsFromConstraintsInfo(ConstraintsInfo &Line) {
   std::lock_guard<std::mutex> Lock(DiagMutex);
   std::set<ConstraintKey> ProcessedCKeys;
   ProcessedCKeys.clear();
   auto GetLocRange = [](uint32_t Line, uint32_t ColNoS,
                         uint32_t ColNoE) -> Range {
-    Range nRange;
+    Range NRange;
     Line--;
-    nRange.start.line = Line;
-    nRange.end.line = Line;
-    nRange.start.character = ColNoS;
+    NRange.start.line = Line;
+    NRange.end.line = Line;
+    NRange.start.character = ColNoS;
     if (ColNoE > 0) {
-      nRange.end.character = ColNoE;
+      NRange.end.character = ColNoE;
     } else {
-      nRange.end.character = ColNoS + DEFAULT_PTRSIZE;
+      NRange.end.character = ColNoS + DEFAULT_PTRSIZE;
     }
-    return nRange;
+    return NRange;
   };
 
   for (auto &WReason : Line.RootWildAtomsWithReason) {
@@ -49,7 +49,7 @@ bool _3CDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line) {
       auto *PsInfo = Line.AtomSourceMap[WReason.first];
       std::string FilePath = PsInfo->getFileName();
       // If this is not a file in a project? Then ignore.
-      if (!IsValidSourceFile(Line, FilePath))
+      if (!isValidSourceFile(Line, FilePath))
         continue;
 
       ProcessedCKeys.insert(WReason.first);
@@ -59,7 +59,7 @@ bool _3CDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line) {
                                   PsInfo->getColENo());
       NewDiag.Source = Diag::_3CMain;
       NewDiag.Severity = DiagnosticsEngine::Level::Error;
-      NewDiag.code = std::to_string(WReason.first);
+      NewDiag.Code = std::to_string(WReason.first);
       NewDiag.Message =
           "Pointer is wild because of:" + WReason.second.getWildPtrReason();
 
@@ -85,7 +85,7 @@ bool _3CDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line) {
         auto *PsInfo = Line.AtomSourceMap[NonWildCk];
         std::string FilePath = PsInfo->getFileName();
         // If this is not a file in a project? Then ignore.
-        if (!IsValidSourceFile(Line, FilePath))
+        if (!isValidSourceFile(Line, FilePath))
           continue;
 
         ProcessedCKeys.insert(NonWildCk);
@@ -93,28 +93,33 @@ bool _3CDiagnostics::PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line) {
         NewDiag.Range = GetLocRange(PsInfo->getLineNo(), PsInfo->getColSNo(),
                                     PsInfo->getColENo());
 
-        NewDiag.code = std::to_string(NonWildCk);
+        NewDiag.Code = std::to_string(NonWildCk);
         NewDiag.Source = Diag::_3CSec;
         NewDiag.Severity = DiagnosticsEngine::Level::Warning;
         NewDiag.Message = "Pointer is wild because it transitively "
                           "depends on other pointer(s)";
 
         // find the pointer group
-        CVars &DirectWildPtrs = Line.GetRCVars(NonWildCk);
+        CVars &DirectWildPtrs = Line.getRCVars(NonWildCk);
 
         unsigned MaxPtrReasons = 4;
-        for (auto tC : DirectWildPtrs) {
+        for (auto TC : DirectWildPtrs) {
           Note DiagNote;
 
-          if (Line.AtomSourceMap.find(tC) != Line.AtomSourceMap.end()) {
-            PsInfo = Line.AtomSourceMap[tC];
+          if (Line.AtomSourceMap.find(TC) != Line.AtomSourceMap.end()) {
+            PsInfo = Line.AtomSourceMap[TC];
             FilePath = PsInfo->getFileName();
             DiagNote.AbsFile = FilePath;
             DiagNote.Range = GetLocRange(
                 PsInfo->getLineNo(), PsInfo->getColSNo(), PsInfo->getColENo());
             MaxPtrReasons--;
+            // NOTE: Matt changed [] to `at` to fix a compile error after the
+            // default constructor of WildPointerInferenceInfo was removed in
+            // 3c3098c8724889a12eba383dec9088094bced99c. Right now, we don't
+            // care because we're not running clangd3c at all, but if and when
+            // we revive it, we should consider whether this assumption is safe.
             DiagNote.Message =
-                Line.RootWildAtomsWithReason[tC].getWildPtrReason();
+                Line.RootWildAtomsWithReason.at(TC).getWildPtrReason();
             if (MaxPtrReasons <= 1)
               DiagNote.Message += " (others)";
             NewDiag.Notes.push_back(DiagNote);

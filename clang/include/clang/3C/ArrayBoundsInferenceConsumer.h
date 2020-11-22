@@ -9,15 +9,14 @@
 // for identified array variables.
 //===----------------------------------------------------------------------===//
 
-#ifndef _ARRAYBOUNDSINFERENCECONSUMER_H
-#define _ARRAYBOUNDSINFERENCECONSUMER_H
+#ifndef LLVM_CLANG_3C_ARRAYBOUNDSINFERENCECONSUMER_H
+#define LLVM_CLANG_3C_ARRAYBOUNDSINFERENCECONSUMER_H
 
+#include "ProgramInfo.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Analysis/Analyses/Dominators.h"
 #include "clang/Analysis/CFG.h"
-
-#include "ProgramInfo.h"
 
 class LocalVarABVisitor;
 class ConstraintResolver;
@@ -43,10 +42,10 @@ public:
 
   bool VisitFunctionDecl(FunctionDecl *FD);
 
-  void SetParamHeuristicInfo(LocalVarABVisitor *LAB);
+  void setParamHeuristicInfo(LocalVarABVisitor *LAB);
 
 private:
-  bool IsPotentialLengthVar(ParmVarDecl *PVD);
+  bool isPotentialLengthVar(ParmVarDecl *PVD);
   LocalVarABVisitor *ParamInfo;
   ASTContext *Context;
   ProgramInfo &Info;
@@ -65,7 +64,7 @@ public:
   explicit LocalVarABVisitor(ASTContext *C, ProgramInfo &I)
       : Context(C), Info(I) {}
 
-  bool HandleBinAssign(BinaryOperator *O);
+  bool handleBinAssign(BinaryOperator *O);
   bool VisitDeclStmt(DeclStmt *S);
   bool VisitSwitchStmt(SwitchStmt *S);
   bool VisitBinaryOperator(BinaryOperator *O);
@@ -106,11 +105,11 @@ private:
   std::unique_ptr<CFG> Cfg;
 };
 
-void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I,
+void handleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I,
                                          bool UseHeuristics = true);
 
 // Add constraints based on heuristics to the parameters of the
 // provided function.
-void AddMainFuncHeuristic(ASTContext *C, ProgramInfo &I, FunctionDecl *FD);
+void addMainFuncHeuristic(ASTContext *C, ProgramInfo &I, FunctionDecl *FD);
 
-#endif //_ARRAYBOUNDSINFERENCECONSUMER_H
+#endif // LLVM_CLANG_3C_ARRAYBOUNDSINFERENCECONSUMER_H

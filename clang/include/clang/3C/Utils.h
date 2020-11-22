@@ -8,8 +8,10 @@
 // Type declarations for map data structures and other general helper methods.
 //===----------------------------------------------------------------------===//
 
-#ifndef _UTILS_H
-#define _UTILS_H
+#ifndef LLVM_CLANG_3C_UTILS_H
+#define LLVM_CLANG_3C_UTILS_H
+
+#include "PersistentSourceLoc.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/Support/Casting.h"
@@ -19,8 +21,6 @@
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
-
-#include "PersistentSourceLoc.h"
 
 class ConstraintVariable;
 class ProgramInfo;
@@ -78,9 +78,9 @@ private:
 
 extern std::set<std::string> FilePaths;
 
-template <typename T> T getOnly(const std::set<T> &singletonSet) {
-  assert(singletonSet.size() == 1);
-  return (*singletonSet.begin());
+template <typename T> T getOnly(const std::set<T> &SingletonSet) {
+  assert(SingletonSet.size() == 1);
+  return (*SingletonSet.begin());
 }
 
 template <typename T>

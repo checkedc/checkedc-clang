@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
+
 #include "clang/3C/DeclRewriter.h"
 #include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/MappingVisitor.h"
@@ -38,13 +38,13 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
 
   FunctionDeclBuilder *TRV = nullptr;
 #ifdef FIVE_C
-  auto TRV_5C = FunctionDeclBuilder_5C(&Context, Info, RewriteThese, NewFuncSig,
-                                       ABRewriter);
-  TRV = &TRV_5C;
+  auto TRV5C = FunctionDeclBuilder5C(&Context, Info, RewriteThese, NewFuncSig,
+                                     ABRewriter);
+  TRV = &TRV5C;
 #else
-  auto TRV_3C =
+  auto TRV3C =
       FunctionDeclBuilder(&Context, Info, RewriteThese, NewFuncSig, ABRewriter);
-  TRV = &TRV_3C;
+  TRV = &TRV3C;
 #endif
   StructVariableInitializer SVI =
       StructVariableInitializer(&Context, Info, RewriteThese);
@@ -88,15 +88,15 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
         if (VDLToStmtMap.find(D) != VDLToStmtMap.end())
           DS = VDLToStmtMap[D];
 
-        std::string newTy = getStorageQualifierString(D) +
+        std::string NewTy = getStorageQualifierString(D) +
                             PV->mkString(Info.getConstraints().getVariables()) +
                             ABRewriter.getBoundsString(PV, D);
         if (auto *VD = dyn_cast<VarDecl>(D))
-          RewriteThese.insert(new VarDeclReplacement(VD, DS, newTy));
+          RewriteThese.insert(new VarDeclReplacement(VD, DS, NewTy));
         else if (auto *FD = dyn_cast<FieldDecl>(D))
-          RewriteThese.insert(new FieldDeclReplacement(FD, DS, newTy));
+          RewriteThese.insert(new FieldDeclReplacement(FD, DS, NewTy));
         else if (auto *PD = dyn_cast<ParmVarDecl>(D))
-          RewriteThese.insert(new ParmVarDeclReplacement(PD, DS, newTy));
+          RewriteThese.insert(new ParmVarDeclReplacement(PD, DS, NewTy));
         else
           llvm_unreachable("Unrecognized declaration type.");
       } else if (FV && NewFuncSig.find(FV->getName()) != NewFuncSig.end() &&
@@ -408,11 +408,11 @@ bool DeclRewriter::areDeclarationsOnSameLine(DeclReplacement *N1,
     if (Stmt1 == nullptr && Stmt2 == nullptr) {
       auto &DGroup = GP.getVarsOnSameLine(D1);
       return llvm::is_contained(DGroup, D2);
-    } else if (Stmt1 == nullptr || Stmt2 == nullptr) {
-      return false;
-    } else {
-      return Stmt1 == Stmt2;
     }
+    if (Stmt1 == nullptr || Stmt2 == nullptr) {
+      return false;
+    }
+    return Stmt1 == Stmt2;
   }
   return false;
 }
@@ -422,9 +422,8 @@ bool DeclRewriter::isSingleDeclaration(DeclReplacement *N) {
   if (Stmt == nullptr) {
     auto &VDGroup = GP.getVarsOnSameLine(N->getDecl());
     return VDGroup.size() == 1;
-  } else {
-    return Stmt->isSingleDecl();
   }
+  return Stmt->isSingleDecl();
 }
 
 void DeclRewriter::getDeclsOnSameLine(DeclReplacement *N,
@@ -599,7 +598,8 @@ void FunctionDeclBuilder::buildDeclVar(PVConstraint *Defn, DeclaratorDecl *Decl,
     if (Defn->anyChanges(Env) && !Defn->anyArgumentIsWild(Env)) {
       buildCheckedDecl(Defn, Decl, Type, IType, RewriteParm, RewriteRet);
       return;
-    } else if (Defn->anyChanges(Env)) {
+    }
+    if (Defn->anyChanges(Env)) {
       buildItypeDecl(Defn, Decl, Type, IType, RewriteParm, RewriteRet);
       return;
     }

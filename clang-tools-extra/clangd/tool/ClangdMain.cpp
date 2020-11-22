@@ -331,18 +331,19 @@ static llvm::cl::opt<std::string>
                        llvm::cl::init("TotalConstraintStats.json"),
                        llvm::cl::cat(_3CCategory));
 
-static cl::opt<std::string>
+static llvm::cl::opt<std::string>
     OptWildPtrInfoJson("wildptrstats-output",
-                       cl::desc("Path to the file where all the info "
-                                "related to WILD ptr grouped by reason"
-                                " will be dumped as json"),
-                       cl::init("WildPtrStats.json"), cl::cat(_3CCategory));
+                       llvm::cl::desc("Path to the file where all the info "
+                                      "related to WILD ptr grouped by reason"
+                                      " will be dumped as json"),
+                       llvm::cl::init("WildPtrStats.json"),
+                       llvm::cl::cat(_3CCategory));
 
-static cl::opt<std::string> OptPerPtrWILDInfoJson(
+static llvm::cl::opt<std::string> OptPerPtrWILDInfoJson(
     "perptrstats-output",
-    cl::desc("Path to the file where all the info "
-             "related to each WILD ptr will be dumped as json"),
-    cl::init("PerWildPtrStats.json"), cl::cat(_3CCategory));
+    llvm::cl::desc("Path to the file where all the info "
+                   "related to each WILD ptr will be dumped as json"),
+    llvm::cl::init("PerWildPtrStats.json"), llvm::cl::cat(_3CCategory));
 
 static llvm::cl::opt<bool> OptDiableCCTypeChecker(
     "disccty", llvm::cl::desc("Do not disable checked c type checker."),
@@ -470,16 +471,16 @@ int main(int argc, char *argv[]) {
   CcOptions.DisableCCTypeChecker = OptDiableCCTypeChecker;
   std::string Malloc = OptMalloc.getValue();
   if (!Malloc.empty()) {
-    std::string delimiter = ",";
-    size_t pos = 0;
-    std::string token;
-    while ((pos = Malloc.find(delimiter)) != std::string::npos) {
-      token = Malloc.substr(0, pos);
-      CcOptions.AllocatorFunctions.push_back(token);
-      Malloc.erase(0, pos + delimiter.length());
+    std::string Delimiter = ",";
+    size_t Pos = 0;
+    std::string Token;
+    while ((Pos = Malloc.find(Delimiter)) != std::string::npos) {
+      Token = Malloc.substr(0, Pos);
+      CcOptions.AllocatorFunctions.push_back(Token);
+      Malloc.erase(0, Pos + Delimiter.length());
     }
-    token = Malloc;
-    CcOptions.AllocatorFunctions.push_back(token);
+    Token = Malloc;
+    CcOptions.AllocatorFunctions.push_back(Token);
   } else
     CcOptions.AllocatorFunctions = {};
 

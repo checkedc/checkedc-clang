@@ -60,20 +60,20 @@ PersistentSourceLoc PersistentSourceLoc::mkPSL(clang::SourceRange SR,
       EndCol = EFESL.getExpansionColumnNumber();
     }
   }
-  std::string fn = PL.getFilename();
+  std::string Fn = PL.getFilename();
 
   // Get the absolute filename of the file.
-  FullSourceLoc tFSL(SR.getBegin(), SM);
-  if (tFSL.isValid()) {
-    const FileEntry *fe = SM.getFileEntryForID(tFSL.getFileID());
-    std::string toConv = fn;
-    std::string feAbsS = "";
-    if (fe != nullptr)
-      toConv = fe->getName();
-    if (getAbsoluteFilePath(toConv, feAbsS))
-      fn = sys::path::remove_leading_dotslash(feAbsS);
+  FullSourceLoc TFSL(SR.getBegin(), SM);
+  if (TFSL.isValid()) {
+    const FileEntry *Fe = SM.getFileEntryForID(TFSL.getFileID());
+    std::string ToConv = Fn;
+    std::string FeAbsS = "";
+    if (Fe != nullptr)
+      ToConv = Fe->getName();
+    if (getAbsoluteFilePath(ToConv, FeAbsS))
+      Fn = sys::path::remove_leading_dotslash(FeAbsS);
   }
-  PersistentSourceLoc PSL(fn, FESL.getExpansionLineNumber(),
+  PersistentSourceLoc PSL(Fn, FESL.getExpansionLineNumber(),
                           FESL.getExpansionColumnNumber(), EndCol);
 
   return PSL;

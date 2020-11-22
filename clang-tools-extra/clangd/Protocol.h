@@ -728,7 +728,7 @@ llvm::json::Value toJSON(const WorkspaceEdit &WE);
 // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
 // NOLINTNEXTLINE(readability-identifier-naming)
 struct _3CManualFix {
-  int ptrID;
+  int PtrId;
 };
 
 bool fromJSON(const llvm::json::Value &, _3CManualFix &);
@@ -782,9 +782,7 @@ struct ExecuteCommandParams {
   // Arguments
   llvm::Optional<WorkspaceEdit> workspaceEdit;
 #ifdef INTERACTIVE3C
-  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  llvm::Optional<_3CManualFix> _3CManualFix;
+  llvm::Optional<_3CManualFix> The3CManualFix;
 #endif
   llvm::Optional<TweakArgs> tweakArgs;
 };
@@ -835,12 +833,12 @@ llvm::json::Value toJSON(const CodeAction &);
 struct CodeLens {
   /// The range in which this code lens is valid, should only span a single
   /// line.
-  Range range;
+  Range TheRange;
 
   /**
    * The command this code lens represents.
    */
-  llvm::Optional<Command> command;
+  llvm::Optional<Command> TheCommand;
 
   /**
    * A data entry field that is preserved on a code lens item between

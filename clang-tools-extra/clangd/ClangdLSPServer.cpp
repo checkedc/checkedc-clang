@@ -365,7 +365,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
               ClangdServerOpts.ResourceDir);
   Server.emplace(*CDB, FSProvider, static_cast<DiagnosticsConsumer &>(*this),
 #ifdef INTERACTIVE3C
-                 ClangdServerOpts, _3CInterface);
+                 ClangdServerOpts, The3CInterface);
 #else
                  ClangdServerOpts);
 #endif
@@ -462,7 +462,7 @@ void ClangdLSPServer::onShutdown(const ShutdownParams &Params,
 #ifdef INTERACTIVE3C
   send3CMessage("Writing all CheckedC files back to disk");
   // Write all files back.
-  auto &AllDiags = Server->_3CDiagInfo.GetAllFilesDiagnostics();
+  auto &AllDiags = Server->_3CDiagInfo.getAllFilesDiagnostics();
   for (auto &CD : AllDiags) {
     Server->_3CCloseDocument(CD.first);
   }
@@ -533,11 +533,11 @@ void ClangdLSPServer::_3CResultsReady(std::string FileName, bool ClearDiags) {
   std::vector<Diag> Diagnostics;
   Diagnostics.clear();
   if (!ClearDiags) {
-    std::lock_guard<std::mutex> lock(Server->_3CDiagInfo.DiagMutex);
-    auto &allDiags = Server->_3CDiagInfo.GetAllFilesDiagnostics();
-    if (allDiags.find(FileName) != allDiags.end()) {
-      Diagnostics.insert(Diagnostics.begin(), allDiags[FileName].begin(),
-                         allDiags[FileName].end());
+    std::lock_guard<std::mutex> Lock(Server->_3CDiagInfo.DiagMutex);
+    auto &AllDiags = Server->_3CDiagInfo.getAllFilesDiagnostics();
+    if (AllDiags.find(FileName) != AllDiags.end()) {
+      Diagnostics.insert(Diagnostics.begin(), AllDiags[FileName].begin(),
+                         AllDiags[FileName].end());
     }
   }
   this->onDiagnosticsReady(FileName, Diagnostics);
@@ -556,7 +556,7 @@ void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
                                 Callback<llvm::json::Value> Reply) {
 #ifdef INTERACTIVE3C
   // In this mode, we support only 3C commands.
-  if (Is3CCommand(Params)) {
+  if (is3CCommand(Params)) {
     Server->execute3CCommand(Params, this);
     Reply("3C Background work scheduled.");
   } else {
@@ -811,7 +811,7 @@ void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
   std::vector<Command> Commands;
   // Convert the diagnostics into 3C commands.
   for (const Diagnostic &D : Params.context.diagnostics) {
-    As3CCommands(D, Commands);
+    as3CCommands(D, Commands);
   }
   Reply(llvm::json::Array(Commands));
 #else
@@ -914,14 +914,14 @@ void ClangdLSPServer::onCodeLens(const CodeLensParams &Params,
   // This is just a beacon to display for user.
   std::vector<CodeLens> AllCodeLens;
   CodeLens CcBecon;
-  CcBecon.range.start.line = 15;
-  CcBecon.range.end.line = 16;
-  CcBecon.range.start.character = 13;
-  CcBecon.range.end.character = 17;
+  CcBecon.TheRange.start.line = 15;
+  CcBecon.TheRange.end.line = 16;
+  CcBecon.TheRange.start.character = 13;
+  CcBecon.TheRange.end.character = 17;
   Command NewCmd;
   NewCmd.command = "3C Interactive Mode On";
   NewCmd.title = "3C Mode On";
-  CcBecon.command = NewCmd;
+  CcBecon.TheCommand = NewCmd;
   AllCodeLens.clear();
   AllCodeLens.push_back(CcBecon);
   Reply(llvm::json::Array(AllCodeLens));
@@ -930,7 +930,7 @@ void ClangdLSPServer::onCodeLens(const CodeLensParams &Params,
 void ClangdLSPServer::onCodeLensResolve(const CodeLens &Params,
                                         Callback<llvm::json::Value> Reply) {
   CodeLens CcBeaconResolve;
-  CcBeaconResolve.range = Params.range;
+  CcBeaconResolve.TheRange = Params.TheRange;
   Reply(clang::clangd::toJSON(CcBeaconResolve));
 }
 #endif
@@ -1126,7 +1126,7 @@ ClangdLSPServer::ClangdLSPServer(
       UseDirBasedCDB(UseDirBasedCDB),
       CompileCommandsDir(std::move(CompileCommandsDir)), ClangdServerOpts(Opts),
 #ifdef INTERACTIVE3C
-      NegotiatedOffsetEncoding(ForcedOffsetEncoding), _3CInterface(Cinter) {
+      NegotiatedOffsetEncoding(ForcedOffsetEncoding), The3CInterface(Cinter) {
 #else
       NegotiatedOffsetEncoding(ForcedOffsetEncoding) {
 #endif
