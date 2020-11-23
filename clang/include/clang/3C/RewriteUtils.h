@@ -193,14 +193,13 @@ private:
 // detected array variables.
 class ArrayBoundsRewriter {
 public:
-  ArrayBoundsRewriter(ASTContext *C, ProgramInfo &I) : Context(C), Info(I) {}
+  ArrayBoundsRewriter(ProgramInfo &I) : Info(I) {}
   // Get the string representation of the bounds for the given variable.
   std::string getBoundsString(PVConstraint *PV, Decl *D, bool Isitype = false);
   // Check if the constraint variable has newly created bounds string.
   bool hasNewBoundsString(PVConstraint *PV, Decl *D, bool Isitype = false);
 
 private:
-  ASTContext *Context;
   ProgramInfo &Info;
 };
 

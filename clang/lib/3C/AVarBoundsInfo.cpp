@@ -898,7 +898,6 @@ bool AvarBoundsInference::inferBounds(BoundsKey K, AVarGraph &BKGraph,
         std::set<BoundsKey> PotentialB;
         PotentialB.clear();
         for (auto TK : PotBDs[K]) {
-          ProgramVar *TKVar = BI->getProgramVar(TK);
           getReachableBoundKeys(Kvar->getScope(), TK, PotentialB, BKGraph,
                                 true);
         }
@@ -1333,8 +1332,8 @@ bool AVarBoundsInfo::areSameProgramVar(BoundsKey B1, BoundsKey B2) {
 }
 
 ContextSensitiveBoundsKeyVisitor::ContextSensitiveBoundsKeyVisitor(
-    ASTContext *C, ProgramInfo &I, ConstraintResolver *CResolver)
-    : Context(C), Info(I), CR(CResolver) {
+    ASTContext *C, ProgramInfo &I)
+    : Context(C), Info(I) {
   Info.getABoundsInfo().resetContextSensitiveBoundsKey();
 }
 

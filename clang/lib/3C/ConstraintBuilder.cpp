@@ -546,7 +546,7 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
   TypeVarVisitor TV = TypeVarVisitor(&C, Info);
   ConstraintResolver CSResolver(Info, &C);
   ContextSensitiveBoundsKeyVisitor CSBV =
-      ContextSensitiveBoundsKeyVisitor(&C, Info, &CSResolver);
+      ContextSensitiveBoundsKeyVisitor(&C, Info);
   ConstraintGenVisitor GV = ConstraintGenVisitor(&C, Info, TV);
   TranslationUnitDecl *TUD = C.getTranslationUnitDecl();
   // Generate constraints.

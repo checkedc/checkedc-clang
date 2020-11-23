@@ -30,7 +30,7 @@ using namespace clang;
 void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
                                 Rewriter &R) {
   // Compute the bounds information for all the array variables.
-  ArrayBoundsRewriter ABRewriter(&Context, Info);
+  ArrayBoundsRewriter ABRewriter(Info);
 
   // Collect function and record declarations that need to be rewritten in a set
   // as well as their rewriten types in a map.
