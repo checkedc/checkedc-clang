@@ -8,10 +8,9 @@
 // Implementations of the MappingVisitor functions for VisitStmt and VisitDecl.
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Support/Path.h"
-
 #include "clang/3C/MappingVisitor.h"
 #include "clang/3C/3CGlobalOptions.h"
+#include "llvm/Support/Path.h"
 
 using namespace clang;
 
@@ -50,7 +49,7 @@ bool MappingVisitor::VisitDeclStmt(DeclStmt *S) {
         if (VarDecl *VD = dyn_cast<VarDecl>(DL->getSingleDecl()))
           DeclToDeclStmt[VD] = DL;
       } else
-        for (auto I : DL->decls())
+        for (auto *I : DL->decls())
           DeclToDeclStmt[I] = DL;
     }
   }

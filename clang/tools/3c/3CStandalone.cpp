@@ -9,11 +9,11 @@
 // 3C tool
 //
 //===----------------------------------------------------------------------===//
+
+#include "clang/3C/3C.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
-
-#include "clang/3C/3C.h"
 
 using namespace clang::driver;
 using namespace clang::tooling;
@@ -170,16 +170,16 @@ int main(int argc, const char **argv) {
   //Add user specified function allocators
   std::string Malloc = OptMalloc.getValue();
   if (!Malloc.empty()) {
-    std::string delimiter = ",";
-    size_t pos = 0;
-    std::string token;
-    while ((pos = Malloc.find(delimiter)) != std::string::npos) {
-      token = Malloc.substr(0, pos);
-      CcOptions.AllocatorFunctions.push_back(token);
-      Malloc.erase(0, pos + delimiter.length());
+    std::string Delimiter = ",";
+    size_t Pos = 0;
+    std::string Token;
+    while ((Pos = Malloc.find(Delimiter)) != std::string::npos) {
+      Token = Malloc.substr(0, Pos);
+      CcOptions.AllocatorFunctions.push_back(Token);
+      Malloc.erase(0, Pos + Delimiter.length());
     }
-    token = Malloc;
-    CcOptions.AllocatorFunctions.push_back(token);
+    Token = Malloc;
+    CcOptions.AllocatorFunctions.push_back(Token);
   } else
     CcOptions.AllocatorFunctions = {};
 
@@ -193,7 +193,7 @@ int main(int argc, const char **argv) {
   if (OptVerbose)
     errs() << "Calling Library to building Constraints.\n";
   // First build constraints.
-  if (!_3CInterface.BuildInitialConstraints()) {
+  if (!_3CInterface.buildInitialConstraints()) {
     errs() << "Failure occurred while trying to build constraints. Exiting.\n";
     return 1;
   }
@@ -204,7 +204,7 @@ int main(int argc, const char **argv) {
   }
 
   // Next solve the constraints.
-  if (!_3CInterface.SolveConstraints(OptWarnRootCause)) {
+  if (!_3CInterface.solveConstraints(OptWarnRootCause)) {
     errs() << "Failure occurred while trying to solve constraints. Exiting.\n";
     return 1;
   }
@@ -215,7 +215,7 @@ int main(int argc, const char **argv) {
   }
 
   // Write all the converted files back.
-  if (!_3CInterface.WriteAllConvertedFilesToDisk()) {
+  if (!_3CInterface.writeAllConvertedFilesToDisk()) {
     errs() << "Failure occurred while trying to rewrite converted files back."
               "Exiting.\n";
     return 1;

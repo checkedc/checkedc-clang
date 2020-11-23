@@ -8,8 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _TYPEVARIABLEANALYSIS_H
-#define _TYPEVARIABLEANALYSIS_H
+#ifndef LLVM_CLANG_3C_TYPEVARIABLEANALYSIS_H
+#define LLVM_CLANG_3C_TYPEVARIABLEANALYSIS_H
 
 #include "ConstraintResolver.h"
 #include "ConstraintVariables.h"

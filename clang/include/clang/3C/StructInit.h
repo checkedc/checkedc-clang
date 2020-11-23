@@ -9,8 +9,8 @@
 // adding initializers to struct variables during the rewriting phase
 //===----------------------------------------------------------------------===//
 
-#ifndef _STRUCTINIT_H
-#define _STRUCTINIT_H
+#ifndef LLVM_CLANG_3C_STRUCTINIT_H
+#define LLVM_CLANG_3C_STRUCTINIT_H
 
 #include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/ArrayBoundsInferenceConsumer.h"
@@ -31,13 +31,13 @@ using namespace llvm;
 class StructVariableInitializer
     : public RecursiveASTVisitor<StructVariableInitializer> {
 public:
-  explicit StructVariableInitializer(ASTContext *_C, ProgramInfo &_I, RSet &R)
-      : Context(_C), I(_I), RewriteThese(R), RecordsWithCPointers() {}
+  explicit StructVariableInitializer(ASTContext *C, ProgramInfo &I, RSet &R)
+      : Context(C), I(I), RewriteThese(R), RecordsWithCPointers() {}
 
   bool VisitDeclStmt(DeclStmt *S);
 
 private:
-  bool VariableNeedsInitializer(VarDecl *VD);
+  bool variableNeedsInitializer(VarDecl *VD);
   void insertVarDecl(VarDecl *VD, DeclStmt *S);
 
   ASTContext *Context;

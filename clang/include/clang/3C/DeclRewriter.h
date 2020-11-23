@@ -10,8 +10,8 @@
 // the conversion tool.
 //===----------------------------------------------------------------------===//
 
-#ifndef _DECLREWRITER_H
-#define _DECLREWRITER_H
+#ifndef LLVM_CLANG_3C_DECLREWRITER_H
+#define LLVM_CLANG_3C_DECLREWRITER_H
 
 #include "clang/3C/RewriteUtils.h"
 #include "clang/AST/ASTContext.h"
@@ -126,4 +126,4 @@ public:
 private:
   GlobalVariableGroups &GVG;
 };
-#endif //_DECLREWRITER_H
+#endif // LLVM_CLANG_3C_DECLREWRITER_H

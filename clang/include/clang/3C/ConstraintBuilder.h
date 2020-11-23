@@ -8,12 +8,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _CONSTRAINT_BUILDER
-#define _CONSTRAINT_BUILDER
-#include "clang/AST/ASTConsumer.h"
+#ifndef LLVM_CLANG_3C_CONSTRAINTBUILDER_H
+#define LLVM_CLANG_3C_CONSTRAINTBUILDER_H
 
 #include "ProgramInfo.h"
 #include "TypeVariableAnalysis.h"
+#include "clang/AST/ASTConsumer.h"
 
 class ConstraintBuilderConsumer : public clang::ASTConsumer {
 public:

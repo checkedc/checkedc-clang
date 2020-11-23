@@ -54,7 +54,7 @@ bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
 }
 
 bool CheckedRegionAdder::VisitCallExpr(CallExpr *C) {
-  auto FD = C->getDirectCallee();
+  auto *FD = C->getDirectCallee();
   FoldingSetNodeID ID;
   ast_type_traits::DynTypedNode DTN = ast_type_traits::DynTypedNode::create(*C);
 
@@ -74,25 +74,22 @@ typedef std::pair<const CompoundStmt *, int> StmtPair;
 
 StmtPair
 CheckedRegionAdder::findParentCompound(const ast_type_traits::DynTypedNode &N,
-                                       int distance = 1) {
-  auto parents = Context->getParents(N);
-  if (parents.empty())
+                                       int Distance = 1) {
+  auto Parents = Context->getParents(N);
+  if (Parents.empty())
     return std::make_pair(nullptr, INT_MAX);
-  else {
-    std::vector<StmtPair> results;
-    results.reserve(parents.size());
-    for (auto Parent : parents)
-      if (auto S = Parent.get<CompoundStmt>())
-        results.push_back(std::make_pair(S, distance));
-      else
-        results.push_back(findParentCompound(Parent, distance + 1));
+  std::vector<StmtPair> Results;
+  Results.reserve(Parents.size());
+  for (auto Parent : Parents)
+    if (const auto *S = Parent.get<CompoundStmt>())
+      Results.push_back(std::make_pair(S, Distance));
+    else
+      Results.push_back(findParentCompound(Parent, Distance + 1));
 
-    auto min = min_element(results.begin(), results.end(),
-                           [](const StmtPair &A, const StmtPair &B) {
-                             return A.second < B.second;
-                           });
-    return *min;
-  }
+  auto Min = min_element(
+      Results.begin(), Results.end(),
+      [](const StmtPair &A, const StmtPair &B) { return A.second < B.second; });
+  return *Min;
 }
 
 bool CheckedRegionAdder::isFunctionBody(CompoundStmt *S) {
@@ -105,13 +102,12 @@ bool CheckedRegionAdder::isFunctionBody(CompoundStmt *S) {
 
 bool CheckedRegionAdder::isParentChecked(
     const ast_type_traits::DynTypedNode &DTN) {
-  if (auto Parent = findParentCompound(DTN).first) {
+  if (const auto *Parent = findParentCompound(DTN).first) {
     llvm::FoldingSetNodeID ID;
     Parent->Profile(ID, *Context, true);
     return Map[ID] == IS_CHECKED || isWrittenChecked(Parent);
-  } else {
-    return false;
   }
+  return false;
 }
 
 bool CheckedRegionAdder::isWrittenChecked(const clang::CompoundStmt *S) {
@@ -190,7 +186,7 @@ bool CheckedRegionFinder::VisitCStyleCastExpr(CStyleCastExpr *E) {
 }
 
 bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
-  auto FD = C->getDirectCallee();
+  auto *FD = C->getDirectCallee();
   FoldingSetNodeID ID;
   C->Profile(ID, *Context, true);
   if (FD && FD->isVariadic()) {
@@ -198,12 +194,12 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
     Map[ID] = isInStatementPosition(C) ? IS_CONTAINED : IS_UNCHECKED;
   } else {
     if (FD) {
-      auto type = FD->getReturnType();
+      auto Type = FD->getReturnType();
       Wild |=
           (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody())) ||
-          containsUncheckedPtr(type) ||
-          (std::any_of(FD->param_begin(), FD->param_end(), [this](Decl *param) {
-            CVarOption CV = Info.getVariable(param, Context);
+          containsUncheckedPtr(Type) ||
+          (std::any_of(FD->param_begin(), FD->param_end(), [this](Decl *Param) {
+            CVarOption CV = Info.getVariable(Param, Context);
             return isWild(CV);
           }));
     }
@@ -243,15 +239,15 @@ bool CheckedRegionFinder::VisitMemberExpr(MemberExpr *E) {
 
 bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr *DR) {
   auto T = DR->getType();
-  auto D = DR->getDecl();
+  auto *D = DR->getDecl();
   CVarOption CV = Info.getVariable(D, Context);
   bool IW = isWild(CV) || containsUncheckedPtr(T);
 
-  if (auto FD = dyn_cast<FunctionDecl>(D)) {
+  if (auto *FD = dyn_cast<FunctionDecl>(D)) {
     auto *FV = Info.getFuncConstraint(FD, Context);
     IW |= FV->hasWild(Info.getConstraints().getVariables());
-    for (const auto &param : FD->parameters()) {
-      CVarOption CV = Info.getVariable(param, Context);
+    for (const auto &Param : FD->parameters()) {
+      CVarOption CV = Info.getVariable(Param, Context);
       IW |= isWild(CV);
     }
   }
@@ -276,13 +272,13 @@ bool CheckedRegionFinder::hasUncheckedParameters(CompoundStmt *S) {
     return false;
   }
 
-  auto Parent = Parents[0].get<FunctionDecl>();
+  const auto *Parent = Parents[0].get<FunctionDecl>();
   if (!Parent) {
     return false;
   }
 
   int Localwild = false;
-  for (auto Child : Parent->parameters()) {
+  for (auto *Child : Parent->parameters()) {
     CheckedRegionFinder Sub(Context, Writer, Info, Seen, Map, EmitWarnings);
     Sub.TraverseParmVarDecl(Child);
     Localwild |= Sub.Wild;
@@ -298,19 +294,18 @@ bool CheckedRegionFinder::isInStatementPosition(CallExpr *C) {
     return false; // This case shouldn't happen,
                   // but if it does play it safe and mark WILD.
   }
-  auto Parent = Parents[0].get<CompoundStmt>();
+  const auto *Parent = Parents[0].get<CompoundStmt>();
   if (Parent) {
     //Check if we are the only child
-    auto childs = Parent->children();
-    int NumChilds = std::distance(childs.begin(), childs.end());
+    auto Childs = Parent->children();
+    int NumChilds = std::distance(Childs.begin(), Childs.end());
     return NumChilds > 1;
-  } else {
-    //TODO there are other statement positions
-    //     besides child of compound stmt
-    auto PSL = PersistentSourceLoc::mkPSL(C, *Context);
-    emitCauseDiagnostic(&PSL);
-    return false;
   }
+  //TODO there are other statement positions
+  //     besides child of compound stmt
+  auto PSL = PersistentSourceLoc::mkPSL(C, *Context);
+  emitCauseDiagnostic(&PSL);
+  return false;
 }
 
 bool CheckedRegionFinder::isWild(CVarOption Cv) {
@@ -331,49 +326,49 @@ bool CheckedRegionFinder::containsUncheckedPtrAcc(QualType Qt,
                                                   std::set<std::string> &Seen) {
   auto Ct = Qt.getCanonicalType();
   auto TyStr = Ct.getAsString();
-  bool isSeen = false;
+  bool IsSeen = false;
   auto Search = Seen.find(TyStr);
   if (Search == Seen.end()) {
     Seen.insert(TyStr);
   } else {
-    isSeen = true;
+    IsSeen = true;
   }
 
   if (Ct->isFunctionPointerType()) {
-    if (auto FPT = dyn_cast<FunctionProtoType>(Ct->getPointeeType())) {
+    if (const auto *FPT = dyn_cast<FunctionProtoType>(Ct->getPointeeType())) {
       auto PTs = FPT->getParamTypes();
-      bool params =
+      bool Params =
           std::any_of(PTs.begin(), PTs.end(), [this, &Seen](QualType QT) {
             return containsUncheckedPtrAcc(QT, Seen);
           });
-      return containsUncheckedPtrAcc(FPT->getReturnType(), Seen) || params;
-    } else {
-      return false;
+      return containsUncheckedPtrAcc(FPT->getReturnType(), Seen) || Params;
     }
-  } else if (Ct->isVoidPointerType()) {
+    return false;
+  }
+  if (Ct->isVoidPointerType()) {
     return true;
-  } else if (Ct->isVoidType()) {
+  }
+  if (Ct->isVoidType()) {
     return true;
   }
   if (Ct->isPointerType()) {
     return containsUncheckedPtrAcc(Ct->getPointeeType(), Seen);
-  } else if (Ct->isRecordType()) {
-    if (isSeen) {
-      return false;
-    } else {
-      return isUncheckedStruct(Ct, Seen);
-    }
-  } else {
-    return false;
   }
+  if (Ct->isRecordType()) {
+    if (IsSeen) {
+      return false;
+    }
+    return isUncheckedStruct(Ct, Seen);
+  }
+  return false;
 }
 
 // Iterate through all fields of the struct and find unchecked types.
 bool CheckedRegionFinder::isUncheckedStruct(QualType Qt,
                                             std::set<std::string> &Seen) {
-  auto RcdTy = dyn_cast<RecordType>(Qt);
+  const auto *RcdTy = dyn_cast<RecordType>(Qt);
   if (RcdTy) {
-    auto D = RcdTy->getDecl();
+    auto *D = RcdTy->getDecl();
     if (D) {
       bool Unsafe = false;
       for (auto const &Fld : D->fields()) {
@@ -410,7 +405,7 @@ void CheckedRegionFinder::emitCauseDiagnostic(PersistentSourceLoc *PSL) {
         DE.getCustomDiagID(DiagnosticsEngine::Warning,
                            "Root cause of unchecked region: Variadic Call");
     SourceManager &SM = Context->getSourceManager();
-    auto File = SM.getFileManager().getFile(PSL->getFileName());
+    const auto *File = SM.getFileManager().getFile(PSL->getFileName());
     SourceLocation SL =
         SM.translateFileLineCol(File, PSL->getLineNo(), PSL->getColSNo());
     if (SL.isValid())

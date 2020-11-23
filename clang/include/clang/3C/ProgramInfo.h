@@ -9,24 +9,24 @@
 // collected by the converter.
 //===----------------------------------------------------------------------===//
 
-#ifndef _PROGRAM_INFO_H
-#define _PROGRAM_INFO_H
-#include "clang/AST/ASTConsumer.h"
-#include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Frontend/CompilerInstance.h"
-#include "clang/Frontend/FrontendAction.h"
-#include "clang/Tooling/Tooling.h"
+#ifndef LLVM_CLANG_3C_PROGRAMINFO_H
+#define LLVM_CLANG_3C_PROGRAMINFO_H
 
 #include "3CInteractiveData.h"
 #include "AVarBoundsInfo.h"
 #include "ConstraintVariables.h"
 #include "PersistentSourceLoc.h"
 #include "Utils.h"
+#include "clang/AST/ASTConsumer.h"
+#include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Frontend/CompilerInstance.h"
+#include "clang/Frontend/FrontendAction.h"
+#include "clang/Tooling/Tooling.h"
 
 class ProgramVariableAdder {
 public:
   virtual void addVariable(clang::DeclaratorDecl *D,
-                           clang::ASTContext *astContext) = 0;
+                           clang::ASTContext *AstContext) = 0;
   void addABoundsVariable(clang::Decl *D) {
     getABoundsInfo().insertVariable(D);
   }
@@ -50,12 +50,12 @@ public:
   ProgramInfo();
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
-  void dump_json(llvm::raw_ostream &O) const;
-  void dump_stats(const std::set<std::string> &F) {
-    print_stats(F, llvm::errs());
+  void dumpJson(llvm::raw_ostream &O) const;
+  void dumpStats(const std::set<std::string> &F) {
+    printStats(F, llvm::errs());
   }
-  void print_stats(const std::set<std::string> &F, llvm::raw_ostream &O,
-                   bool OnlySummary = false, bool JsonFormat = false);
+  void printStats(const std::set<std::string> &F, llvm::raw_ostream &O,
+                  bool OnlySummary = false, bool JsonFormat = false);
 
   // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with
   // AST data structures that correspond do the data stored in PDMap and
@@ -126,7 +126,7 @@ private:
   // Constraint system.
   Constraints CS;
   // Is the ProgramInfo persisted? Only tested in asserts. Starts at true.
-  bool persisted;
+  bool Persisted;
 
   // Map of global decls for which we don't have a body, the keys are
   // names of external functions/vars, the value is whether the body/def
@@ -155,8 +155,7 @@ private:
   // Returns true if successful else false.
   bool insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
                                      const std::string &FuncName,
-                                     FVConstraint *ToIns,
-                                     FunctionDecl *FD,
+                                     FVConstraint *ToIns, FunctionDecl *FD,
                                      ASTContext *C);
 
   // Inserts the given FVConstraint* set into the provided static map.
@@ -164,8 +163,7 @@ private:
   bool insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
                                    const std::string &FuncName,
                                    const std::string &FileName,
-                                   FVConstraint *ToIns,
-                                   FunctionDecl *FD,
+                                   FVConstraint *ToIns, FunctionDecl *FD,
                                    ASTContext *C);
 
   // Special-case handling for decl introductions. For the moment this covers:

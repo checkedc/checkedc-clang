@@ -29,11 +29,11 @@ public:
 
   // GUARDED by DiagMutex
   // Populate diagnostics from the given disjoint set.
-  bool PopulateDiagsFromConstraintsInfo(ConstraintsInfo &Line);
+  bool populateDiagsFromConstraintsInfo(ConstraintsInfo &Line);
   // GUARDED by DiagMutex
   // Clear diagnostics of all files.
-  void ClearAllDiags();
-  std::map<std::string, std::vector<Diag>> &GetAllFilesDiagnostics() {
+  void clearAllDiags();
+  std::map<std::string, std::vector<Diag>> &getAllFilesDiagnostics() {
     return AllFileDiagnostics;
   }
 

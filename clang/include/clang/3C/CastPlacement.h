@@ -9,8 +9,9 @@
 // placing casts into the text as needing during the rewrite phase
 //===----------------------------------------------------------------------===//
 
-#ifndef _CASTPLACEMENT_H
-#define _CASTPLACEMENT_H
+#ifndef LLVM_CLANG_3C_CASTPLACEMENT_H
+#define LLVM_CLANG_3C_CASTPLACEMENT_H
+
 #include "clang/3C/ConstraintResolver.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 
@@ -31,4 +32,4 @@ private:
   std::string getCastString(ConstraintVariable *Src, ConstraintVariable *Dst);
   void surroundByCast(const std::string &, Expr *);
 };
-#endif // _CASTPLACEMENT_H
+#endif // LLVM_CLANG_3C_CASTPLACEMENT_H

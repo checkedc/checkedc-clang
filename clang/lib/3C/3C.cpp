@@ -16,7 +16,6 @@
 #include "clang/3C/IntermediateToolHook.h"
 #include "clang/3C/RewriteUtils.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
-
 #include "llvm/Support/TargetSelect.h"
 
 using namespace clang::driver;
@@ -115,9 +114,9 @@ ArgumentsAdjuster getIgnoreCheckedPointerAdjuster() {
   return [](const CommandLineArguments &Args, StringRef /*unused*/) {
     CommandLineArguments AdjustedArgs;
     bool HasAdjuster = false;
-    for (size_t i = 0, e = Args.size(); i < e; ++i) {
-      StringRef Arg = Args[i];
-      AdjustedArgs.push_back(Args[i]);
+    for (size_t I = 0, E = Args.size(); I < E; ++I) {
+      StringRef Arg = Args[I];
+      AdjustedArgs.push_back(Args[I]);
       if (Arg == "-f3c-tool") {
         HasAdjuster = true;
         break;
@@ -145,10 +144,10 @@ void dumpConstraintOutputJson(const std::string &PostfixStr,
     std::error_code Ec;
     llvm::raw_fd_ostream OutputJson(FilePath, Ec);
     if (!OutputJson.has_error()) {
-      Info.dump_json(OutputJson);
+      Info.dumpJson(OutputJson);
       OutputJson.close();
     } else {
-      Info.dump_json(llvm::errs());
+      Info.dumpJson(llvm::errs());
     }
   }
 }
@@ -212,13 +211,13 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
   BaseDir = TmpPath;
 
   if (BaseDir.empty()) {
-    SmallString<256> cp;
-    if (std::error_code ec = sys::fs::current_path(cp)) {
+    SmallString<256> Cp;
+    if (std::error_code Ec = sys::fs::current_path(Cp)) {
       errs() << "could not get current working dir\n";
       assert(false && "Unable to get determine working directory.");
     }
 
-    BaseDir = cp.str();
+    BaseDir = Cp.str();
   }
 
   SourceFiles = SourceFileList;
@@ -237,7 +236,7 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
   }
 }
 
-bool _3CInterface::BuildInitialConstraints() {
+bool _3CInterface::buildInitialConstraints() {
 
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
 
@@ -262,7 +261,7 @@ bool _3CInterface::BuildInitialConstraints() {
   return true;
 }
 
-bool _3CInterface::SolveConstraints(bool ComputeInterimState) {
+bool _3CInterface::solveConstraints(bool ComputeInterimState) {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
   assert(ConstraintsBuilt && "Constraints not yet built. We need to call "
                              "build constraint before trying to solve them.");
@@ -325,12 +324,12 @@ bool _3CInterface::SolveConstraints(bool ComputeInterimState) {
   }
 
   if (DumpStats) {
-    GlobalProgramInfo.print_stats(FilePaths, llvm::errs(), true);
+    GlobalProgramInfo.printStats(FilePaths, llvm::errs(), true);
     GlobalProgramInfo.computeInterimConstraintState(FilePaths);
     std::error_code Ec;
     llvm::raw_fd_ostream OutputJson(StatsOutputJson, Ec);
     if (!OutputJson.has_error()) {
-      GlobalProgramInfo.print_stats(FilePaths, OutputJson, false, true);
+      GlobalProgramInfo.printStats(FilePaths, OutputJson, false, true);
       OutputJson.close();
     }
 
@@ -351,7 +350,7 @@ bool _3CInterface::SolveConstraints(bool ComputeInterimState) {
   return true;
 }
 
-bool _3CInterface::WriteConvertedFileToDisk(const std::string &FilePath) {
+bool _3CInterface::writeConvertedFileToDisk(const std::string &FilePath) {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
   if (std::find(SourceFiles.begin(), SourceFiles.end(), FilePath) !=
       SourceFiles.end()) {
@@ -372,7 +371,7 @@ bool _3CInterface::WriteConvertedFileToDisk(const std::string &FilePath) {
   return false;
 }
 
-bool _3CInterface::WriteAllConvertedFilesToDisk() {
+bool _3CInterface::writeAllConvertedFilesToDisk() {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
 
   ClangTool &Tool = getGlobalClangTool();
@@ -389,11 +388,11 @@ bool _3CInterface::WriteAllConvertedFilesToDisk() {
   return true;
 }
 
-ConstraintsInfo &_3CInterface::GetWILDPtrsInfo() {
+ConstraintsInfo &_3CInterface::getWildPtrsInfo() {
   return GlobalProgramInfo.getInterimConstraintState();
 }
 
-bool _3CInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
+bool _3CInterface::makeSinglePtrNonWild(ConstraintKey TargetPtr) {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
   CVars RemovePtrs;
   RemovePtrs.clear();
@@ -405,12 +404,12 @@ bool _3CInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   CVars OldWildPtrs = PtrDisjointSet.AllWildAtoms;
 
   // Delete the constraint that make the provided targetPtr WILD.
-  VarAtom *VA = CS.getOrCreateVar(targetPtr, "q", VarAtom::V_Other);
-  Geq newE(VA, CS.getWild());
-  Constraint *originalConstraint = *CS.getConstraints().find(&newE);
-  CS.removeConstraint(originalConstraint);
-  VA->getAllConstraints().erase(originalConstraint);
-  delete (originalConstraint);
+  VarAtom *VA = CS.getOrCreateVar(TargetPtr, "q", VarAtom::V_Other);
+  Geq NewE(VA, CS.getWild());
+  Constraint *OriginalConstraint = *CS.getConstraints().find(&NewE);
+  CS.removeConstraint(OriginalConstraint);
+  VA->getAllConstraints().erase(OriginalConstraint);
+  delete (OriginalConstraint);
 
   // Reset the constraint system.
   CS.resetEnvironment();
@@ -433,7 +432,7 @@ bool _3CInterface::MakeSinglePtrNonWild(ConstraintKey targetPtr) {
   return !RemovePtrs.empty();
 }
 
-void _3CInterface::InvalidateAllConstraintsWithReason(
+void _3CInterface::invalidateAllConstraintsWithReason(
     Constraint *ConstraintToRemove) {
   // Get the reason for the current constraint.
   std::string ConstraintRsn = ConstraintToRemove->getReason();
@@ -443,18 +442,18 @@ void _3CInterface::InvalidateAllConstraintsWithReason(
   CS.removeAllConstraintsOnReason(ConstraintRsn, ToRemoveConstraints);
 
   // Free up memory by deleting all the removed constraints.
-  for (auto *toDelCons : ToRemoveConstraints) {
-    assert(dyn_cast<Geq>(toDelCons) && "We can only delete Geq constraints.");
-    Geq *TCons = dyn_cast<Geq>(toDelCons);
+  for (auto *ToDelCons : ToRemoveConstraints) {
+    assert(dyn_cast<Geq>(ToDelCons) && "We can only delete Geq constraints.");
+    Geq *TCons = dyn_cast<Geq>(ToDelCons);
     auto *Vatom = dyn_cast<VarAtom>(TCons->getLHS());
     assert(Vatom != nullptr && "Equality constraint with out VarAtom as LHS");
     VarAtom *VS = CS.getOrCreateVar(Vatom->getLoc(), "q", VarAtom::V_Other);
     VS->getAllConstraints().erase(TCons);
-    delete (toDelCons);
+    delete (ToDelCons);
   }
 }
 
-bool _3CInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
+bool _3CInterface::invalidateWildReasonGlobally(ConstraintKey PtrKey) {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
 
   CVars RemovePtrs;
@@ -469,7 +468,7 @@ bool _3CInterface::InvalidateWildReasonGlobally(ConstraintKey PtrKey) {
   VarAtom *VA = CS.getOrCreateVar(PtrKey, "q", VarAtom::V_Other);
   Geq NewE(VA, CS.getWild());
   Constraint *OriginalConstraint = *CS.getConstraints().find(&NewE);
-  InvalidateAllConstraintsWithReason(OriginalConstraint);
+  invalidateAllConstraintsWithReason(OriginalConstraint);
 
   // Reset constraint solver.
   CS.resetEnvironment();

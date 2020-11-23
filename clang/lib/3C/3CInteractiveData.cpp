@@ -12,7 +12,7 @@
 
 #include "clang/3C/3CInteractiveData.h"
 
-void ConstraintsInfo::Clear() {
+void ConstraintsInfo::clear() {
   RootWildAtomsWithReason.clear();
   AtomSourceMap.clear();
   AllWildAtoms.clear();
@@ -22,16 +22,16 @@ void ConstraintsInfo::Clear() {
   SrcWMap.clear();
 }
 
-CVars &ConstraintsInfo::GetRCVars(ConstraintKey Ckey) { return RCMap[Ckey]; }
+CVars &ConstraintsInfo::getRCVars(ConstraintKey Ckey) { return RCMap[Ckey]; }
 
-CVars &ConstraintsInfo::GetSrcCVars(ConstraintKey Ckey) {
+CVars &ConstraintsInfo::getSrcCVars(ConstraintKey Ckey) {
   return SrcWMap[Ckey];
 }
 
 CVars ConstraintsInfo::getWildAffectedCKeys(const CVars &DWKeys) {
   CVars IndirectWKeys;
   for (auto CK : DWKeys) {
-    auto &TK = GetSrcCVars(CK);
+    auto &TK = getSrcCVars(CK);
     IndirectWKeys.insert(TK.begin(), TK.end());
   }
   return IndirectWKeys;
@@ -40,7 +40,7 @@ CVars ConstraintsInfo::getWildAffectedCKeys(const CVars &DWKeys) {
 float ConstraintsInfo::getAtomAffectedScore(const CVars &AllKeys) {
   float TS = 0.0;
   for (auto CK : AllKeys) {
-    TS += (1.0 / GetRCVars(CK).size());
+    TS += (1.0 / getRCVars(CK).size());
   }
   return TS;
 }

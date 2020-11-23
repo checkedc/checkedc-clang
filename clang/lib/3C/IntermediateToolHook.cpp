@@ -23,6 +23,6 @@ static cl::opt<bool>
 
 void IntermediateToolHook::HandleTranslationUnit(ASTContext &Context) {
   Info.enterCompilationUnit(Context);
-  HandleArrayVariablesBoundsDetection(&Context, Info, !DisableArrH);
+  handleArrayVariablesBoundsDetection(&Context, Info, !DisableArrH);
   Info.exitCompilationUnit();
 }

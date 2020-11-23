@@ -16,7 +16,7 @@ namespace clangd {
 
 #define _3CSOURCE "3C_RealWild"
 
-static bool GetPtrIDFromDiagMessage(const Diagnostic &DiagMsg,
+static bool getPtrIdFromDiagMessage(const Diagnostic &DiagMsg,
                                     unsigned long &PtrId) {
   if (DiagMsg.source.rfind(_3CSOURCE, 0) == 0) {
     PtrId = atoi(DiagMsg.code.c_str());
@@ -25,13 +25,13 @@ static bool GetPtrIDFromDiagMessage(const Diagnostic &DiagMsg,
   return false;
 }
 
-void As3CCommands(const Diagnostic &D, std::vector<Command> &OutCommands) {
+void as3CCommands(const Diagnostic &D, std::vector<Command> &OutCommands) {
   unsigned long PtrId;
-  if (GetPtrIDFromDiagMessage(D, PtrId)) {
+  if (getPtrIdFromDiagMessage(D, PtrId)) {
     Command AllPtrsCmd;
     _3CManualFix PtrFix;
-    PtrFix.ptrID = PtrId;
-    AllPtrsCmd._3CManualFix = PtrFix;
+    PtrFix.PtrId = PtrId;
+    AllPtrsCmd.The3CManualFix = PtrFix;
     Command SinglePtrCmd = AllPtrsCmd;
 
     AllPtrsCmd.command = Command::_3C_APPLY_FOR_ALL;
@@ -47,22 +47,22 @@ void As3CCommands(const Diagnostic &D, std::vector<Command> &OutCommands) {
   }
 }
 
-bool Is3CCommand(const ExecuteCommandParams &Params) {
+bool is3CCommand(const ExecuteCommandParams &Params) {
   return (Params.command.rfind(Command::_3C_APPLY_ONLY_FOR_THIS, 0) == 0) ||
          (Params.command.rfind(Command::_3C_APPLY_FOR_ALL, 0) == 0);
 }
 
-bool Execute3CCommand(const ExecuteCommandParams &Params,
+bool execute3CCommand(const ExecuteCommandParams &Params,
                       std::string &ReplyMessage, _3CInterface &CcInterface) {
   ReplyMessage = "Checked C Pointer Modified.";
   if (Params.command.rfind(Command::_3C_APPLY_ONLY_FOR_THIS, 0) == 0) {
-    int PtrId = Params._3CManualFix->ptrID;
-    CcInterface.MakeSinglePtrNonWild(PtrId);
+    int PtrId = Params.The3CManualFix->PtrId;
+    CcInterface.makeSinglePtrNonWild(PtrId);
     return true;
   }
   if (Params.command.rfind(Command::_3C_APPLY_FOR_ALL, 0) == 0) {
-    int PtrId = Params._3CManualFix->ptrID;
-    CcInterface.InvalidateWildReasonGlobally(PtrId);
+    int PtrId = Params.The3CManualFix->PtrId;
+    CcInterface.invalidateWildReasonGlobally(PtrId);
     return true;
   }
   return false;

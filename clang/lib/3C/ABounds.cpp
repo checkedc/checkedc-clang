@@ -31,7 +31,7 @@ ABounds *ABounds::getBoundsInfo(AVarBoundsInfo *ABInfo, BoundsExpr *BExpr,
     if (ABInfo->tryGetVariable(CBE->getCountExpr()->IgnoreParenCasts(), C,
                                VK)) {
       ProgramVar *PV = ABInfo->getProgramVar(VK);
-      if (PV->IsNumConstant() && PV->getVarName() == "0") {
+      if (PV->isNumConstant() && PV->getVarName() == "0") {
         // Invalid bounds. This is for functions like free.
         // Where the bounds is 0.
         Ret = nullptr;

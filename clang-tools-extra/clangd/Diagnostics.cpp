@@ -319,7 +319,7 @@ void toLSPDiags(
 
   clangd::Diagnostic Main = FillBasicFields(D);
 #ifdef INTERACTIVE3C
-  Main.code = D.code;
+  Main.code = D.Code;
 #else
   Main.code = D.Name;
 #endif

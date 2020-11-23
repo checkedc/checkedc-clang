@@ -10,17 +10,15 @@
 // when enabled with the -addcr flag
 //===----------------------------------------------------------------------===//
 
-#ifndef _CHECKEDREGIONS_H
-#define _CHECKEDREGIONS_H
+#ifndef LLVM_CLANG_3C_CHECKEDREGIONS_H
+#define LLVM_CLANG_3C_CHECKEDREGIONS_H
 
-#include <utility>
-
+#include "ProgramInfo.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
 #include "clang/Rewrite/Core/Rewriter.h"
-
-#include "ProgramInfo.h"
+#include <utility>
 
 typedef enum {
   IS_UNCHECKED,
@@ -32,9 +30,9 @@ class CheckedRegionAdder
     : public clang::RecursiveASTVisitor<CheckedRegionAdder> {
 public:
   explicit CheckedRegionAdder(
-      clang::ASTContext *_C, clang::Rewriter &_R,
+      clang::ASTContext *C, clang::Rewriter &R,
       std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &M)
-      : Context(_C), Writer(_R), Map(M) {}
+      : Context(C), Writer(R), Map(M) {}
 
   bool VisitCompoundStmt(clang::CompoundStmt *S);
   bool VisitCallExpr(clang::CallExpr *C);
@@ -54,10 +52,10 @@ class CheckedRegionFinder
     : public clang::RecursiveASTVisitor<CheckedRegionFinder> {
 public:
   explicit CheckedRegionFinder(
-      clang::ASTContext *_C, clang::Rewriter &_R, ProgramInfo &_I,
+      clang::ASTContext *C, clang::Rewriter &R, ProgramInfo &I,
       std::set<llvm::FoldingSetNodeID> &S,
       std::map<llvm::FoldingSetNodeID, AnnotationNeeded> &M, bool EmitWarnings)
-      : Context(_C), Writer(_R), Info(_I), Seen(S), Map(M),
+      : Context(C), Writer(R), Info(I), Seen(S), Map(M),
         EmitWarnings(EmitWarnings) {}
   bool Wild = false;
 
@@ -95,4 +93,4 @@ private:
   bool EmitWarnings;
 };
 
-#endif //_CHECKEDREGIONS_H
+#endif // LLVM_CLANG_3C_CHECKEDREGIONS_H

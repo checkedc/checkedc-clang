@@ -18,8 +18,8 @@ that can potentially be used in multiple contexts. As of November
 documented in [the readme there](../../../tools/3c/README.md). There
 is also code for a custom build of `clangd` named `clangd3c` that can
 be used to interactively convert code from within an IDE, but it is
-currently unmaintained and fails to build and thus we have disabled
-the build target; we may revive `clangd3c` at some point.
+currently unmaintained and believed not to work; we may revive it at
+some point.
 
 ## What 3C users should know about the development process
 

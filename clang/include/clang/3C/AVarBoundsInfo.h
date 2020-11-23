@@ -9,8 +9,8 @@
 // This file contains the bounds information about various ARR atoms.
 //
 //===----------------------------------------------------------------------===//
-#ifndef _AVARBOUNDSINFO_H
-#define _AVARBOUNDSINFO_H
+#ifndef LLVM_CLANG_3C_AVARBOUNDSINFO_H
+#define LLVM_CLANG_3C_AVARBOUNDSINFO_H
 
 #include "ABounds.h"
 #include "AVarGraph.h"
@@ -179,7 +179,7 @@ public:
   BoundsKey getVariable(clang::ParmVarDecl *PVD);
   BoundsKey getVariable(clang::FieldDecl *FD);
   BoundsKey getVariable(clang::FunctionDecl *FD);
-  BoundsKey getConstKey(uint64_t value);
+  BoundsKey getConstKey(uint64_t Value);
 
   // Generate a random bounds key to be used for inference.
   BoundsKey getRandomBKey();
@@ -237,8 +237,8 @@ public:
   void dumpAVarGraph(const std::string &DFPath);
 
   // Print the stats about computed bounds information.
-  void print_stats(llvm::raw_ostream &O, const CVarSet &SrcCVarSet,
-                   bool JsonFormat = false) const;
+  void printStats(llvm::raw_ostream &O, const CVarSet &SrcCVarSet,
+                  bool JsonFormat = false) const;
 
   bool areSameProgramVar(BoundsKey B1, BoundsKey B2);
 
@@ -375,4 +375,4 @@ private:
   ConstraintResolver *CR;
 };
 
-#endif // _AVARBOUNDSINFO_H
+#endif // LLVM_CLANG_3C_AVARBOUNDSINFO_H

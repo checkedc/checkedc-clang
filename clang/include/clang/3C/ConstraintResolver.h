@@ -8,12 +8,11 @@
 // Class that helps in resolving constraints for various expressions.
 //===----------------------------------------------------------------------===//
 
-#ifndef _CONSTRAINTRESOLVER_H
-#define _CONSTRAINTRESOLVER_H
-
-#include "clang/AST/ASTConsumer.h"
+#ifndef LLVM_CLANG_3C_CONSTRAINTRESOLVER_H
+#define LLVM_CLANG_3C_CONSTRAINTRESOLVER_H
 
 #include "ProgramInfo.h"
+#include "clang/AST/ASTConsumer.h"
 
 using namespace llvm;
 using namespace clang;
@@ -65,7 +64,7 @@ private:
   // Update a PVConstraint with one additional level of indirection
   PVConstraint *addAtom(PVConstraint *PVC, ConstAtom *NewA, Constraints &CS);
   CVarSet addAtomAll(CVarSet CVS, ConstAtom *PtrTyp, Constraints &CS);
-  CVarSet PVConstraintFromType(QualType TypE);
+  CVarSet pvConstraintFromType(QualType TypE);
 
   CVarSet getAllSubExprConstraintVars(std::vector<Expr *> &Exprs);
   CVarSet getBaseVarPVConstraint(DeclRefExpr *Decl);
@@ -73,4 +72,4 @@ private:
   PVConstraint *getRewritablePVConstraint(Expr *E);
 };
 
-#endif // _CONSTRAINTRESOLVER_H
+#endif // LLVM_CLANG_3C_CONSTRAINTRESOLVER_H

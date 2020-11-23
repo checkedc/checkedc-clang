@@ -13,12 +13,11 @@
 #include "clang/3C/ConstraintsGraph.h"
 #include "clang/3C/MappingVisitor.h"
 #include "clang/3C/Utils.h"
-
 #include <sstream>
 
 using namespace clang;
 
-ProgramInfo::ProgramInfo() : persisted(true) {
+ProgramInfo::ProgramInfo() : Persisted(true) {
   ExternalFunctionFVCons.clear();
   StaticFunctionFVCons.clear();
 }
@@ -53,7 +52,7 @@ void dumpExtFuncMapJson(const ProgramInfo::ExternalFunctionMapType &EMap,
       O << ",\n";
     }
     O << "{\"FuncName\":\"" << DefM.first << "\", \"Constraints\":[";
-    DefM.second->dump_json(O);
+    DefM.second->dumpJson(O);
     O << "]}";
     AddComma = true;
   }
@@ -68,12 +67,12 @@ void dumpStaticFuncMapJson(const ProgramInfo::StaticFunctionMapType &EMap,
     }
     O << "{\"FuncName\":\"" << DefM.first << "\", \"Constraints\":[";
     bool AddComma1 = false;
-    for (const auto J : DefM.second) {
+    for (const auto &J : DefM.second) {
       if (AddComma1) {
         O << ",";
       }
       O << "{\"FileName\":\"" << J.first << "\", \"FVConstraints\":[";
-      J.second->dump_json(O);
+      J.second->dumpJson(O);
       O << "]}\n";
       AddComma1 = true;
     }
@@ -101,9 +100,9 @@ void ProgramInfo::print(raw_ostream &O) const {
   dumpStaticFuncMap(StaticFunctionFVCons, O);
 }
 
-void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
+void ProgramInfo::dumpJson(llvm::raw_ostream &O) const {
   O << "{\"Setup\":";
-  CS.dump_json(O);
+  CS.dumpJson(O);
   // Dump the constraint variables.
   O << ", \"ConstraintVariables\":[";
   bool AddComma = false;
@@ -116,7 +115,7 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
     O << "{\"line\":\"";
     L.print(O);
     O << "\",\"Variables\":[";
-    I.second->dump_json(O);
+    I.second->dumpJson(O);
     O << "]}";
     AddComma = true;
   }
@@ -142,36 +141,36 @@ static void getVarsFromConstraint(ConstraintVariable *V, CAtoms &R) {
   } else if (auto *FVC = dyn_cast<FVConstraint>(V)) {
     if (FVC->getReturnVar())
       getVarsFromConstraint(FVC->getReturnVar(), R);
-    for (unsigned i = 0; i < FVC->numParams(); i++)
-      getVarsFromConstraint(FVC->getParamVar(i), R);
+    for (unsigned I = 0; I < FVC->numParams(); I++)
+      getVarsFromConstraint(FVC->getParamVar(I), R);
   }
 }
 
 // Print out statistics of constraint variables on a per-file basis.
-void ProgramInfo::print_stats(const std::set<std::string> &F, raw_ostream &O,
-                              bool OnlySummary, bool JsonFormat) {
+void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
+                             bool OnlySummary, bool JsonFormat) {
   if (!OnlySummary && !JsonFormat) {
     O << "Enable itype propagation:" << EnablePropThruIType << "\n";
     O << "Sound handling of var args functions:" << HandleVARARGS << "\n";
   }
   std::map<std::string, std::tuple<int, int, int, int, int>> FilesToVars;
   CVarSet InSrcCVars;
-  unsigned int totC, totP, totNt, totA, totWi;
-  totC = totP = totNt = totA = totWi = 0;
+  unsigned int TotC, TotP, TotNt, TotA, TotWi;
+  TotC = TotP = TotNt = TotA = TotWi = 0;
 
   // First, build the map and perform the aggregation.
   for (auto &I : Variables) {
     std::string FileName = I.first.getFileName();
     if (F.count(FileName)) {
-      int varC = 0;
-      int pC = 0;
-      int ntAC = 0;
-      int aC = 0;
-      int wC = 0;
+      int VarC = 0;
+      int PC = 0;
+      int NtaC = 0;
+      int AC = 0;
+      int WC = 0;
 
       auto J = FilesToVars.find(FileName);
       if (J != FilesToVars.end())
-        std::tie(varC, pC, ntAC, aC, wC) = J->second;
+        std::tie(VarC, PC, NtaC, AC, WC) = J->second;
 
       ConstraintVariable *C = I.second;
       if (C->isForValidDecl()) {
@@ -179,21 +178,21 @@ void ProgramInfo::print_stats(const std::set<std::string> &F, raw_ostream &O,
         CAtoms FoundVars;
         getVarsFromConstraint(C, FoundVars);
 
-        varC += FoundVars.size();
+        VarC += FoundVars.size();
         for (const auto &N : FoundVars) {
           ConstAtom *CA = CS.getAssignment(N);
           switch (CA->getKind()) {
           case Atom::A_Arr:
-            aC += 1;
+            AC += 1;
             break;
           case Atom::A_NTArr:
-            ntAC += 1;
+            NtaC += 1;
             break;
           case Atom::A_Ptr:
-            pC += 1;
+            PC += 1;
             break;
           case Atom::A_Wild:
-            wC += 1;
+            WC += 1;
             break;
           case Atom::A_Var:
           case Atom::A_Const:
@@ -202,7 +201,7 @@ void ProgramInfo::print_stats(const std::set<std::string> &F, raw_ostream &O,
         }
       }
       FilesToVars[FileName] =
-          std::tuple<int, int, int, int, int>(varC, pC, ntAC, aC, wC);
+          std::tuple<int, int, int, int, int>(VarC, PC, NtaC, AC, WC);
     }
   }
 
@@ -221,30 +220,30 @@ void ProgramInfo::print_stats(const std::set<std::string> &F, raw_ostream &O,
   }
   bool AddComma = false;
   for (const auto &I : FilesToVars) {
-    int v, p, nt, a, w;
-    std::tie(v, p, nt, a, w) = I.second;
+    int V, P, Nt, A, W;
+    std::tie(V, P, Nt, A, W) = I.second;
 
-    totC += v;
-    totP += p;
-    totNt += nt;
-    totA += a;
-    totWi += w;
+    TotC += V;
+    TotP += P;
+    TotNt += Nt;
+    TotA += A;
+    TotWi += W;
     if (!OnlySummary) {
       if (JsonFormat) {
         if (AddComma) {
           O << ",\n";
         }
         O << "{\"" << I.first << "\":{";
-        O << "\"constraints\":" << v << ",";
-        O << "\"ptr\":" << p << ",";
-        O << "\"ntarr\":" << nt << ",";
-        O << "\"arr\":" << a << ",";
-        O << "\"wild\":" << w;
+        O << "\"constraints\":" << V << ",";
+        O << "\"ptr\":" << P << ",";
+        O << "\"ntarr\":" << Nt << ",";
+        O << "\"arr\":" << A << ",";
+        O << "\"wild\":" << W;
         O << "}}";
         AddComma = true;
       } else {
-        O << I.first << "|" << v << "|" << p << "|" << nt << "|" << a << "|"
-          << w;
+        O << I.first << "|" << V << "|" << P << "|" << Nt << "|" << A << "|"
+          << W;
         O << "\n";
       }
     }
@@ -255,15 +254,15 @@ void ProgramInfo::print_stats(const std::set<std::string> &F, raw_ostream &O,
 
   if (!JsonFormat) {
     O << "Summary\nTotalConstraints|TotalPtrs|TotalNTArr|TotalArr|TotalWild\n";
-    O << totC << "|" << totP << "|" << totNt << "|" << totA << "|" << totWi
+    O << TotC << "|" << TotP << "|" << TotNt << "|" << TotA << "|" << TotWi
       << "\n";
   } else {
     O << "\"Summary\":{";
-    O << "\"TotalConstraints\":" << totC << ",";
-    O << "\"TotalPtrs\":" << totP << ",";
-    O << "\"TotalNTArr\":" << totNt << ",";
-    O << "\"TotalArr\":" << totA << ",";
-    O << "\"TotalWild\":" << totWi;
+    O << "\"TotalConstraints\":" << TotC << ",";
+    O << "\"TotalPtrs\":" << TotP << ",";
+    O << "\"TotalNTArr\":" << TotNt << ",";
+    O << "\"TotalArr\":" << TotA << ",";
+    O << "\"TotalWild\":" << TotWi;
     O << "}},\n";
   }
 
@@ -271,7 +270,7 @@ void ProgramInfo::print_stats(const std::set<std::string> &F, raw_ostream &O,
     if (JsonFormat) {
       O << "\"BoundsStats\":";
     }
-    ArrBInfo.print_stats(O, InSrcCVars, JsonFormat);
+    ArrBInfo.printStats(O, InSrcCVars, JsonFormat);
   }
 
   if (JsonFormat) {
@@ -361,7 +360,7 @@ bool ProgramInfo::isAnExternFunction(const std::string &FName) {
 // AST data structures that correspond do the data stored in PDMap and
 // ReversePDMap.
 void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
-  assert(persisted);
+  assert(Persisted);
   // Get a set of all of the PersistentSourceLoc's we need to fill in.
   std::set<PersistentSourceLoc> P;
   //for (auto I : PersistentVariables)
@@ -373,7 +372,7 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
   for (const auto &D : TUD->decls())
     V.TraverseDecl(D);
 
-  persisted = false;
+  Persisted = false;
   return;
 }
 
@@ -381,45 +380,46 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
 // After this, the Variables, VarDeclToStatement, RVariables, and DepthMap
 // should all be empty.
 void ProgramInfo::exitCompilationUnit() {
-  assert(!persisted);
-  persisted = true;
+  assert(!Persisted);
+  Persisted = true;
   return;
 }
 
 bool ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
                                                 const std::string &FuncName,
-                                                FVConstraint *newC,
+                                                FVConstraint *NewC,
                                                 FunctionDecl *FD,
                                                 ASTContext *C) {
   bool RetVal = false;
   if (Map.find(FuncName) == Map.end()) {
-    Map[FuncName] = newC;
+    Map[FuncName] = NewC;
     RetVal = true;
   } else {
-    auto *oldC = Map[FuncName];
-    if (!oldC->hasBody()) {
-      if (newC->hasBody() ||
-          (oldC->numParams() == 0 && newC->numParams() != 0)) {
-        newC->brainTransplant(oldC, *this);
-        Map[FuncName] = newC;
+    auto *OldC = Map[FuncName];
+    if (!OldC->hasBody()) {
+      if (NewC->hasBody() ||
+          (OldC->numParams() == 0 && NewC->numParams() != 0)) {
+        NewC->brainTransplant(OldC, *this);
+        Map[FuncName] = NewC;
         RetVal = true;
       } else {
         // if the current FV constraint is not a definition?
         // then merge.
         std::string ReasonFailed = "";
-        oldC->mergeDeclaration(newC, *this, ReasonFailed);
+        OldC->mergeDeclaration(NewC, *this, ReasonFailed);
         bool MergingFailed = ReasonFailed != "";
         if (MergingFailed) {
           clang::DiagnosticsEngine &DE = C->getDiagnostics();
-          unsigned MergeFailID = DE.getCustomDiagID(DiagnosticsEngine::Fatal,
-                                                    "merging failed for %q0 due to %1");
+          unsigned MergeFailID = DE.getCustomDiagID(
+              DiagnosticsEngine::Fatal, "merging failed for %q0 due to %1");
           const auto Pointer = reinterpret_cast<intptr_t>(FD);
-          const auto Kind = clang::DiagnosticsEngine::ArgumentKind::ak_nameddecl;
+          const auto Kind =
+              clang::DiagnosticsEngine::ArgumentKind::ak_nameddecl;
           auto DiagBuilder = DE.Report(FD->getLocation(), MergeFailID);
           DiagBuilder.AddTaggedVal(Pointer, Kind);
           DiagBuilder.AddString(ReasonFailed);
         }
-        if(MergingFailed) {
+        if (MergingFailed) {
           // Kill the process and stop conversion
           // Without this code here, 3C simply ignores this pair of functions
           // and converts the rest of the files as it will (in semi-compliance
@@ -427,10 +427,10 @@ bool ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
           exit(1);
         }
       }
-    } else if (newC->hasBody()) {
+    } else if (NewC->hasBody()) {
       clang::DiagnosticsEngine &DE = C->getDiagnostics();
-      unsigned DuplicateDefinitionsID = DE.getCustomDiagID(DiagnosticsEngine::Fatal,
-                                                "duplicate definition for function %0");
+      unsigned DuplicateDefinitionsID = DE.getCustomDiagID(
+          DiagnosticsEngine::Fatal, "duplicate definition for function %0");
       DE.Report(FD->getLocation(), DuplicateDefinitionsID).AddString(FuncName);
       exit(1);
     }
@@ -443,28 +443,28 @@ bool ProgramInfo::insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
                                               const std::string &FuncName,
                                               const std::string &FileName,
                                               FVConstraint *ToIns,
-                                              FunctionDecl *FD,
-                                              ASTContext *C) {
+                                              FunctionDecl *FD, ASTContext *C) {
   bool RetVal = false;
   if (Map.find(FileName) == Map.end()) {
     Map[FileName][FuncName] = ToIns;
     RetVal = true;
   } else {
-    RetVal = insertIntoExternalFunctionMap(Map[FileName], FuncName, ToIns, FD, C);
+    RetVal =
+        insertIntoExternalFunctionMap(Map[FileName], FuncName, ToIns, FD, C);
   }
   return RetVal;
 }
 
 bool ProgramInfo::insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
                                         ASTContext *C) {
-  bool ret = false;
+  bool Ret = false;
   std::string FuncName = FD->getNameAsString();
   if (FD->isGlobal()) {
     // external method.
-    ret = insertIntoExternalFunctionMap(ExternalFunctionFVCons,
-                                        FuncName, FVCon, FD, C);
-    bool isDef = FVCon->hasBody();
-    if (isDef) {
+    Ret = insertIntoExternalFunctionMap(ExternalFunctionFVCons, FuncName, FVCon,
+                                        FD, C);
+    bool IsDef = FVCon->hasBody();
+    if (IsDef) {
       ExternFunctions[FuncName] = true;
     } else {
       if (!ExternFunctions[FuncName])
@@ -474,10 +474,10 @@ bool ProgramInfo::insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
     // static method
     auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
     std::string FuncFileName = Psl.getFileName();
-    ret = insertIntoStaticFunctionMap(StaticFunctionFVCons, FuncName,
+    Ret = insertIntoStaticFunctionMap(StaticFunctionFVCons, FuncName,
                                       FuncFileName, FVCon, FD, C);
   }
-  return ret;
+  return Ret;
 }
 
 void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context) {
@@ -505,7 +505,7 @@ void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context) {
 // constraint system for that pointer type.
 void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
                               clang::ASTContext *AstContext) {
-  assert(!persisted);
+  assert(!Persisted);
 
   PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(D, *AstContext);
   assert(PLoc.valid());
@@ -557,9 +557,9 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     NewCV = F;
     // Add mappings from the parameters PLoc to the constraint variables for
     // the parameters.
-    for (unsigned i = 0; i < FD->getNumParams(); i++) {
-      ParmVarDecl *PVD = FD->getParamDecl(i);
-      ConstraintVariable *PV = F->getParamVar(i);
+    for (unsigned I = 0; I < FD->getNumParams(); I++) {
+      ParmVarDecl *PVD = FD->getParamDecl(I);
+      ConstraintVariable *PV = F->getParamVar(I);
       PV->setValidDecl();
       PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *AstContext);
       // Constraint variable is stored on the parent function, so we need to
@@ -688,12 +688,11 @@ FVConstraint *ProgramInfo::getFuncConstraint(FunctionDecl *D,
   if (D->isGlobal()) {
     // Is this a global (externally visible) function?
     return getExtFuncDefnConstraint(FuncName);
-  } else {
-    // Static function.
-    auto Psl = PersistentSourceLoc::mkPSL(D, *C);
-    std::string FileName = Psl.getFileName();
-    return getStaticFuncConstraint(FuncName, FileName);
   }
+  // Static function.
+  auto Psl = PersistentSourceLoc::mkPSL(D, *C);
+  std::string FileName = Psl.getFileName();
+  return getStaticFuncConstraint(FuncName, FileName);
 }
 
 FVConstraint *ProgramInfo::getFuncFVConstraint(FunctionDecl *FD,
@@ -726,7 +725,7 @@ FVConstraint *ProgramInfo::getFuncFVConstraint(FunctionDecl *FD,
 // Given a decl, return the variables for the constraints of the Decl.
 // Returns null if a constraint variable could not be found for the decl.
 CVarOption ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C) {
-  assert(!persisted);
+  assert(!Persisted);
 
   if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
     DeclContext *DC = PD->getParentFunctionOrMethod();
@@ -740,20 +739,19 @@ CVarOption ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C) {
     FVConstraint *FunFVar = getFuncFVConstraint(FD, C);
     assert(FunFVar != nullptr && "Unable to find function constraints.");
     return CVarOption(*FunFVar->getParamVar(PIdx));
-
-  } else if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+  }
+  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     FVConstraint *FunFVar = getFuncFVConstraint(FD, C);
     if (FunFVar == nullptr) {
       llvm::errs() << "No fun constraints for " << FD->getName() << "?!\n";
     }
     return CVarOption(*FunFVar);
-
-  } else /* neither function nor function parameter */ {
-    auto I = Variables.find(PersistentSourceLoc::mkPSL(D, *C));
-    if (I != Variables.end())
-      return CVarOption(*I->second);
-    return CVarOption();
   }
+  /* neither function nor function parameter */
+  auto I = Variables.find(PersistentSourceLoc::mkPSL(D, *C));
+  if (I != Variables.end())
+    return CVarOption(*I->second);
+  return CVarOption();
 }
 
 FVConstraint *
@@ -802,8 +800,8 @@ bool ProgramInfo::computeInterimConstraintState(
   std::set<Atom *> ValidVarsS;
   ValidVarsS.insert(ValidVarsVec.begin(), ValidVarsVec.end());
 
-  auto GetLocOrZero = [](const Atom *val) {
-    if (const auto *VA = dyn_cast<VarAtom>(val))
+  auto GetLocOrZero = [](const Atom *Val) {
+    if (const auto *VA = dyn_cast<VarAtom>(Val))
       return VA->getLoc();
     return (ConstraintKey)0;
   };
@@ -815,7 +813,7 @@ bool ProgramInfo::computeInterimConstraintState(
                  std::inserter(AllValidVarsKey, AllValidVarsKey.end()),
                  GetLocOrZero);
 
-  CState.Clear();
+  CState.clear();
   std::set<Atom *> DirectWildVarAtoms;
   CS.getChkCG().getSuccessors(CS.getWild(), DirectWildVarAtoms);
 
@@ -870,8 +868,8 @@ bool ProgramInfo::computeInterimConstraintState(
       insertIntoPtrSourceMap(&(I.first), J);
 
   auto &WildPtrsReason = CState.RootWildAtomsWithReason;
-  for (auto *currC : CS.getConstraints()) {
-    if (Geq *EC = dyn_cast<Geq>(currC)) {
+  for (auto *CurrC : CS.getConstraints()) {
+    if (Geq *EC = dyn_cast<Geq>(CurrC)) {
       VarAtom *VLhs = dyn_cast<VarAtom>(EC->getLHS());
       if (EC->constraintIsChecked() && dyn_cast<WildAtom>(EC->getRHS())) {
         PersistentSourceLoc PSL = EC->getLocation();

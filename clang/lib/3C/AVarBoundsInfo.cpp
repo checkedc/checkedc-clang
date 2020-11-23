@@ -65,9 +65,11 @@ bool AVarBoundsInfo::isValidBoundVariable(clang::Decl *D) {
   if (isa<ParmVarDecl>(D) || isa<FunctionDecl>(D)) {
     // All parameters and return values are valid bound variables.
     return true;
-  } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
+  }
+  if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
     return !VD->getNameAsString().empty();
-  } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
+  }
+  if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
     return !FD->getNameAsString().empty();
   }
   return false;
@@ -393,7 +395,7 @@ bool AVarBoundsInfo::addAssignment(BoundsKey L, BoundsKey R) {
   } else {
     ProgVarGraph.addUniqueEdge(R, L);
     ProgramVar *PV = getProgramVar(R);
-    if (!(PV && PV->IsNumConstant()))
+    if (!(PV && PV->isNumConstant()))
       ProgVarGraph.addUniqueEdge(L, R);
   }
   return true;
@@ -496,16 +498,16 @@ BoundsKey AVarBoundsInfo::getVarKey(PersistentSourceLoc &PSL) {
   return DeclVarMap.left().at(PSL);
 }
 
-BoundsKey AVarBoundsInfo::getConstKey(uint64_t value) {
-  if (ConstVarKeys.find(value) == ConstVarKeys.end()) {
+BoundsKey AVarBoundsInfo::getConstKey(uint64_t Value) {
+  if (ConstVarKeys.find(Value) == ConstVarKeys.end()) {
     BoundsKey NK = ++BCount;
-    std::string ConsString = std::to_string(value);
+    std::string ConsString = std::to_string(Value);
     ProgramVar *NPV = ProgramVar::createNewProgramVar(
         NK, ConsString, GlobalScope::getGlobalScope(), true);
     insertProgramVar(NK, NPV);
-    ConstVarKeys[value] = NK;
+    ConstVarKeys[Value] = NK;
   }
-  return ConstVarKeys[value];
+  return ConstVarKeys[Value];
 }
 
 BoundsKey AVarBoundsInfo::getVarKey(llvm::APSInt &API) {
@@ -556,7 +558,7 @@ public:
     if (VM.find(V) != VM.end() && PtrAtoms.find(V) == PtrAtoms.end()) {
       auto *S = VM[V];
       // If the variable is constant or in the same scope?
-      if (S->IsNumConstant() || (*(TS) == *(S->getScope()))) {
+      if (S->isNumConstant() || (*(TS) == *(S->getScope()))) {
         Res.insert(V);
       }
     }
@@ -568,7 +570,7 @@ public:
       if (PtrAtoms.find(BK) == PtrAtoms.end()) {
         auto *S = VM[BK];
         // If the variable is constant or in the same scope?
-        if (S->IsNumConstant() || (*(TS) == *(S->getScope()))) {
+        if (S->isNumConstant() || (*(TS) == *(S->getScope()))) {
           Res.insert(BK);
         }
       }
@@ -595,8 +597,8 @@ void AvarBoundsInference::mergeReachableProgramVars(
     for (auto *TmpB : AllProgVars) {
       if (BVar == nullptr) {
         BVar = TmpB;
-      } else if (BVar->IsNumConstant()) {
-        if (!TmpB->IsNumConstant()) {
+      } else if (BVar->isNumConstant()) {
+        if (!TmpB->isNumConstant()) {
           // We give preference to non-constant lengths.
           BVar = TmpB;
         } else if (!this->BI->areSameProgramVar(BVar->getKey(),
@@ -605,7 +607,7 @@ void AvarBoundsInference::mergeReachableProgramVars(
           BVar = nullptr;
           break;
         }
-      } else if (!TmpB->IsNumConstant() && BVar->getKey() != TmpB->getKey()) {
+      } else if (!TmpB->isNumConstant() && BVar->getKey() != TmpB->getKey()) {
         // If they are different variables?
         BVar = nullptr;
         break;
@@ -674,7 +676,7 @@ bool AvarBoundsInference::getReachableBoundKeys(const ProgramVarScope *DstScope,
   }
 
   // All constants are reachable!
-  if (SBVar->IsNumConstant()) {
+  if (SBVar->isNumConstant()) {
     PotK.insert(FromVarK);
   }
 
@@ -693,7 +695,7 @@ bool AvarBoundsInference::getReachableBoundKeys(const ProgramVarScope *DstScope,
 
   // This is to get all the constants that are assigned to the variables
   // reachable from FromVarK.
-  if (!SBVar->IsNumConstant()) {
+  if (!SBVar->isNumConstant()) {
     std::set<BoundsKey> ReachableCons;
     std::set<BoundsKey> Pre;
     for (auto CK : PotK) {
@@ -701,7 +703,7 @@ bool AvarBoundsInference::getReachableBoundKeys(const ProgramVarScope *DstScope,
       BKGraph.getPredecessors(CK, Pre);
       for (auto T : Pre) {
         auto *TVar = BI->getProgramVar(T);
-        if (TVar->IsNumConstant()) {
+        if (TVar->isNumConstant()) {
           ReachableCons.insert(T);
         }
       }
@@ -740,11 +742,11 @@ bool AvarBoundsInference::getRelevantBounds(BoundsKey BK,
 struct BVarCmp {
 public:
   BVarCmp(AVarBoundsInfo *ABI) { this->ABInfo = ABI; }
-  bool operator()(BoundsKey a, BoundsKey b) const {
-    if (this->ABInfo != nullptr && this->ABInfo->areSameProgramVar(a, b)) {
+  bool operator()(BoundsKey A, BoundsKey B) const {
+    if (this->ABInfo != nullptr && this->ABInfo->areSameProgramVar(A, B)) {
       return false;
     }
-    return a < b;
+    return A < B;
   };
 
 private:
@@ -993,8 +995,8 @@ bool AVarBoundsInfo::contextualizeCVar(CallExpr *CE, const CVarSet &CSet,
     // parameters.
     if (FVConstraint *FV = dyn_cast_or_null<FVConstraint>(CV)) {
       contextualizeCVar(CE, {FV->getReturnVar()}, C);
-      for (unsigned i = 0; i < FV->numParams(); i++) {
-        contextualizeCVar(CE, {FV->getParamVar(i)}, C);
+      for (unsigned I = 0; I < FV->numParams(); I++) {
+        contextualizeCVar(CE, {FV->getParamVar(I)}, C);
       }
     }
 
@@ -1292,9 +1294,8 @@ bool AVarBoundsInfo::isFunctionReturn(BoundsKey BK) {
   return (FuncDeclVarMap.right().find(BK) != FuncDeclVarMap.right().end());
 }
 
-void AVarBoundsInfo::print_stats(llvm::raw_ostream &O,
-                                 const CVarSet &SrcCVarSet,
-                                 bool JsonFormat) const {
+void AVarBoundsInfo::printStats(llvm::raw_ostream &O, const CVarSet &SrcCVarSet,
+                                bool JsonFormat) const {
   std::set<BoundsKey> InSrcBKeys, InSrcArrBKeys, Tmp;
   for (auto *C : SrcCVarSet) {
     if (C->isForValidDecl() && C->hasBoundsKey())
@@ -1325,7 +1326,7 @@ bool AVarBoundsInfo::areSameProgramVar(BoundsKey B1, BoundsKey B2) {
   if (B1 != B2) {
     ProgramVar *P1 = getProgramVar(B1);
     ProgramVar *P2 = getProgramVar(B2);
-    return P1->IsNumConstant() && P2->IsNumConstant() &&
+    return P1->isNumConstant() && P2->isNumConstant() &&
            P1->getVarName() == P2->getVarName();
   }
   return B1 == B2;

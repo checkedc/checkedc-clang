@@ -9,8 +9,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _CONSTRAINTSGRAPH_H
-#define _CONSTRAINTSGRAPH_H
+#ifndef LLVM_CLANG_3C_CONSTRAINTSGRAPH_H
+#define LLVM_CLANG_3C_CONSTRAINTSGRAPH_H
 
 #include "clang/3C/Constraints.h"
 #include "llvm/ADT/BreadthFirstIterator.h"
@@ -69,18 +69,22 @@ template <typename Data, typename EdgeType>
 struct GraphTraits<DataNode<Data, EdgeType> *> {
   using NodeRef = DataNode<Data, EdgeType> *;
 
-  static NodeRef GetTargetNode(EdgeType *P) { return &P->getTargetNode(); }
+  static NodeRef getTargetNode(EdgeType *P) { return &P->getTargetNode(); }
 
   using ChildIteratorType =
       mapped_iterator<typename DataNode<Data, EdgeType>::iterator,
-                      decltype(&GetTargetNode)>;
+                      decltype(&getTargetNode)>;
 
   static NodeRef getEntryNode(NodeRef N) { return N; }
+  // See clang/doc/checkedc/3C/clang-tidy.md#names-referenced-by-templates
+  // NOLINTNEXTLINE(readability-identifier-naming)
   static ChildIteratorType child_begin(NodeRef N) {
-    return ChildIteratorType(N->begin(), &GetTargetNode);
+    return ChildIteratorType(N->begin(), &getTargetNode);
   }
+  // See clang/doc/checkedc/3C/clang-tidy.md#names-referenced-by-templates
+  // NOLINTNEXTLINE(readability-identifier-naming)
   static ChildIteratorType child_end(NodeRef N) {
-    return ChildIteratorType(N->end(), &GetTargetNode);
+    return ChildIteratorType(N->end(), &getTargetNode);
   }
 };
 } // namespace llvm
@@ -282,26 +286,34 @@ template <> struct GraphTraits<GraphVizOutputGraph> {
   using NodeRef = DataNode<Atom *, GraphVizEdge> *;
   using nodes_iterator = GraphVizOutputGraph::iterator;
 
-  static NodeRef GetTargetNode(GraphVizEdge *P) { return &P->getTargetNode(); }
+  static NodeRef getTargetNode(GraphVizEdge *P) { return &P->getTargetNode(); }
 
   using ChildIteratorType =
       mapped_iterator<typename DataNode<Atom *, GraphVizEdge>::iterator,
-                      decltype(&GetTargetNode)>;
+                      decltype(&getTargetNode)>;
 
+  // See clang/doc/checkedc/3C/clang-tidy.md#names-referenced-by-templates
+  // NOLINTNEXTLINE(readability-identifier-naming)
   static nodes_iterator nodes_begin(const GraphVizOutputGraph &G) {
     return const_cast<GraphVizOutputGraph &>(G).Nodes.begin();
   }
 
+  // See clang/doc/checkedc/3C/clang-tidy.md#names-referenced-by-templates
+  // NOLINTNEXTLINE(readability-identifier-naming)
   static nodes_iterator nodes_end(const GraphVizOutputGraph &G) {
     return const_cast<GraphVizOutputGraph &>(G).Nodes.end();
   }
 
+  // See clang/doc/checkedc/3C/clang-tidy.md#names-referenced-by-templates
+  // NOLINTNEXTLINE(readability-identifier-naming)
   static ChildIteratorType child_begin(NodeRef N) {
-    return {N->begin(), &GetTargetNode};
+    return {N->begin(), &getTargetNode};
   }
 
+  // See clang/doc/checkedc/3C/clang-tidy.md#names-referenced-by-templates
+  // NOLINTNEXTLINE(readability-identifier-naming)
   static ChildIteratorType child_end(NodeRef N) {
-    return {N->end(), &GetTargetNode};
+    return {N->end(), &getTargetNode};
   }
 };
 
@@ -309,7 +321,7 @@ template <>
 struct DOTGraphTraits<GraphVizOutputGraph>
     : public llvm::DefaultDOTGraphTraits,
       llvm::GraphTraits<GraphVizOutputGraph> {
-  DOTGraphTraits(bool simple = false) : DefaultDOTGraphTraits(simple) {}
+  DOTGraphTraits(bool Simple = false) : DefaultDOTGraphTraits(Simple) {}
 
   std::string getNodeLabel(const DataNode<Atom *, GraphVizEdge> *Node,
                            const GraphVizOutputGraph &CG);
@@ -319,4 +331,4 @@ struct DOTGraphTraits<GraphVizOutputGraph>
 };
 } // namespace llvm
 
-#endif // _CONSTRAINTSGRAPH_H
+#endif // LLVM_CLANG_3C_CONSTRAINTSGRAPH_H

@@ -527,12 +527,12 @@ bool fromJSON(const llvm::json::Value &Params, WorkspaceEdit &R) {
 #ifdef INTERACTIVE3C
 bool fromJSON(const llvm::json::Value &Params, _3CManualFix &CCM) {
   llvm::json::ObjectMapper O(Params);
-  CCM.ptrID = (*Params.getAsObject()->getInteger("ptrID"));
+  CCM.PtrId = (*Params.getAsObject()->getInteger("PtrId"));
   return O;
 }
 
 llvm::json::Value toJSON(const _3CManualFix &WE) {
-  return llvm::json::Object{{"ptrID", std::move(WE.ptrID)}};
+  return llvm::json::Object{{"PtrId", std::move(WE.PtrId)}};
 }
 
 const llvm::StringLiteral ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS =
@@ -560,7 +560,8 @@ bool fromJSON(const llvm::json::Value &Params, ExecuteCommandParams &R) {
 #ifdef INTERACTIVE3C
   if (R.command == ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS ||
       R.command == ExecuteCommandParams::_3C_APPLY_FOR_ALL) {
-    return Args && Args->size() == 1 && fromJSON(Args->front(), R._3CManualFix);
+    return Args && Args->size() == 1 &&
+           fromJSON(Args->front(), R.The3CManualFix);
   }
 #endif
   return false; // Unrecognized command.
@@ -628,7 +629,7 @@ bool fromJSON(const llvm::json::Value &Params, WorkspaceSymbolParams &R) {
 #ifdef INTERACTIVE3C
 bool fromJSON(const llvm::json::Value &Params, CodeLens &CL) {
   llvm::json::ObjectMapper O(Params);
-  return O && O.map("range", CL.range) && O.map("command", CL.command);
+  return O && O.map("range", CL.TheRange) && O.map("command", CL.TheCommand);
 }
 #endif
 
@@ -639,8 +640,8 @@ llvm::json::Value toJSON(const Command &C) {
   if (C.tweakArgs)
     Cmd["arguments"] = {*C.tweakArgs};
 #ifdef INTERACTIVE3C
-  if (C._3CManualFix)
-    Cmd["arguments"] = {*C._3CManualFix};
+  if (C.The3CManualFix)
+    Cmd["arguments"] = {*C.The3CManualFix};
 #endif
   return std::move(Cmd);
 }
@@ -664,9 +665,9 @@ llvm::json::Value toJSON(const CodeAction &CA) {
 
 #ifdef INTERACTIVE3C
 llvm::json::Value toJSON(const CodeLens &CL) {
-  auto CodeLens = llvm::json::Object{{"range", CL.range}};
-  if (CL.command)
-    CodeLens["command"] = *CL.command;
+  auto CodeLens = llvm::json::Object{{"range", CL.TheRange}};
+  if (CL.TheCommand)
+    CodeLens["command"] = *CL.TheCommand;
   return std::move(CodeLens);
 }
 #endif

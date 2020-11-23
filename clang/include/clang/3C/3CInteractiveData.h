@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _3CINTERACTIVEDATA_H
-#define _3CINTERACTIVEDATA_H
+#ifndef LLVM_CLANG_3C_3CINTERACTIVEDATA_H
+#define LLVM_CLANG_3C_3CINTERACTIVEDATA_H
 
 #include "ConstraintVariables.h"
 #include "PersistentSourceLoc.h"
@@ -36,9 +36,9 @@ class ConstraintsInfo {
 
 public:
   ConstraintsInfo() {}
-  void Clear();
-  CVars &GetRCVars(ConstraintKey);
-  CVars &GetSrcCVars(ConstraintKey);
+  void clear();
+  CVars &getRCVars(ConstraintKey);
+  CVars &getSrcCVars(ConstraintKey);
   CVars getWildAffectedCKeys(const std::set<ConstraintKey> &DWKeys);
   void printStats(llvm::raw_ostream &O);
   void printRootCauseStats(raw_ostream &O, Constraints &CS);
@@ -86,4 +86,4 @@ private:
                             ConstraintKey Cause);
 };
 
-#endif // _3CINTERACTIVEDATA_H
+#endif // LLVM_CLANG_3C_3CINTERACTIVEDATA_H

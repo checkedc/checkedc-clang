@@ -18,13 +18,13 @@
 namespace clang {
 namespace clangd {
 // Convert the provided Diagnostic into Commands.
-void As3CCommands(const Diagnostic &D, std::vector<Command> &OutCommands);
+void as3CCommands(const Diagnostic &D, std::vector<Command> &OutCommands);
 // Check if the execute command request from the client is a 3C command.
-bool Is3CCommand(const ExecuteCommandParams &Params);
+bool is3CCommand(const ExecuteCommandParams &Params);
 
 // Interpret the provided execute command request as 3C command
 // and execute them.
-bool Execute3CCommand(const ExecuteCommandParams &Params,
+bool execute3CCommand(const ExecuteCommandParams &Params,
                       std::string &ReplyMessage, _3CInterface &CcInterface);
 } // namespace clangd
 } // namespace clang
