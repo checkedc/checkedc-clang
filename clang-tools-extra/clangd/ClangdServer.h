@@ -61,8 +61,12 @@ public:
 };
 
 #ifdef INTERACTIVE3C
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
 class _3CLSPCallBack {
 public:
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
   virtual void _3CResultsReady(std::string FileName,
                                bool ClearDiags = false) = 0;
   virtual void send3CMessage(std::string MsgStr) = 0;
@@ -170,6 +174,8 @@ public:
                const FileSystemProvider &FSProvider,
 #ifdef INTERACTIVE3C
                DiagnosticsConsumer &DiagConsumer, const Options &Opts,
+               // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+               // NOLINTNEXTLINE(readability-identifier-naming)
                _3CInterface &_3CInterface);
 #else
                DiagnosticsConsumer &DiagConsumer, const Options &Opts);
@@ -312,10 +318,16 @@ public:
 
   void execute3CCommand(ExecuteCommandParams Params, _3CLSPCallBack *ConvCB);
 
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
   void _3CCollectAndBuildInitialConstraints(_3CLSPCallBack *ConvCB);
 
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
   _3CDiagnostics _3CDiagInfo;
 
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
   void _3CCloseDocument(std::string FileName);
 #endif
 
@@ -369,6 +381,8 @@ private:
   // ClangdServer.
   TUScheduler WorkScheduler;
 #ifdef INTERACTIVE3C
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
   _3CInterface &_3CInter;
 #endif
 };

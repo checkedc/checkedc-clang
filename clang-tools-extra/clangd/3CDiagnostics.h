@@ -20,6 +20,9 @@ namespace clang {
 namespace clangd {
 
 // Class that represents diagnostics messages specific to 3C.
+//
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
 class _3CDiagnostics {
 public:
   std::mutex DiagMutex;

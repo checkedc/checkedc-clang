@@ -1,0 +1,24 @@
+# Standard clang-tidy options for 3C C++ code. The .clang-tidy files are mostly
+# analogous to the .clang-format files, so the remarks in .clang-format in this
+# directory apply.
+
+# This is currently the same as `/.clang-tidy`. `/clang/.clang-tidy` disables
+# the readability-identifier-naming check, but we mostly comply with it.
+
+Checks: '-*,clang-diagnostic-*,llvm-*,misc-*,-misc-unused-parameters,-misc-non-private-member-variables-in-classes,readability-identifier-naming'
+CheckOptions:
+  - key:             readability-identifier-naming.ClassCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.EnumCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.FunctionCase
+    value:           camelBack
+  - key:             readability-identifier-naming.MemberCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.ParameterCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.UnionCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.VariableCase
+    value:           CamelCase
+

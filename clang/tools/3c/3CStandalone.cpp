@@ -19,6 +19,8 @@ using namespace clang::driver;
 using namespace clang::tooling;
 using namespace clang;
 using namespace llvm;
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
 static cl::OptionCategory _3CCategory("3C options");
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp("");
@@ -182,6 +184,9 @@ int main(int argc, const char **argv) {
     CcOptions.AllocatorFunctions = {};
 
   // Create 3C Interface.
+  //
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
   _3CInterface _3CInterface(CcOptions, OptionsParser.getSourcePathList(),
                             &(OptionsParser.getCompilations()));
 

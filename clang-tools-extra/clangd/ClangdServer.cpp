@@ -99,6 +99,9 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
                            const FileSystemProvider &FSProvider,
                            DiagnosticsConsumer &DiagConsumer,
 #ifdef INTERACTIVE3C
+                           // See
+                           // clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+                           // NOLINTNEXTLINE(readability-identifier-naming)
                            const Options &Opts, _3CInterface &_3CInterface)
 #else
                            const Options &Opts)

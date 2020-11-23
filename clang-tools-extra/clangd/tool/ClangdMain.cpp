@@ -280,6 +280,8 @@ static llvm::cl::list<std::string> TweakList(
     llvm::cl::Hidden, llvm::cl::CommaSeparated);
 
 #ifdef INTERACTIVE3C
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
 static llvm::cl::OptionCategory _3CCategory("3C", "This is "
                                                   "an interactive version "
                                                   "of 3C "
@@ -481,6 +483,8 @@ int main(int argc, char *argv[]) {
   } else
     CcOptions.AllocatorFunctions = {};
 
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
   _3CInterface _3CInterface(CcOptions, OptionsParser.getSourcePathList(),
                             &(OptionsParser.getCompilations()));
 #else
