@@ -350,13 +350,18 @@ bool ProgramInfo::link() {
     }
   }
   // repeat for static functions
+  //
+  // Static functions that don't have a body will always cause a linking
+  // error during compilation. They may still be useful as code is developed,
+  // so we treat them as if they are external, and constrain parameters
+  // to wild as appropriate.
   for (const auto &U :StaticFunctionFVCons) {
     for (const auto &V :U.second) {
 
       std::string FileName = U.first;
       std::string FuncName = V.first;
       FVConstraint *G = V.second;
-      if (!G->hasBody() && !isExternOkay(FuncName)) {
+      if (!G->hasBody()) {
 
         std::string Rsn =
             "Unchecked pointer in parameter or return of static function " +
