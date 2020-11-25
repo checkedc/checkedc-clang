@@ -507,8 +507,6 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     // Function Decls have FVConstraints.
     FVConstraint *F = new FVConstraint(D, *this, *AstContext);
     F->setValidDecl();
-    // Handle a function returning a typedef'd type
-    // RETURN HERE
     auto *Ret_PV = dyn_cast<PVConstraint>(F->getReturnVar());
     auto Ret_Ty = FD->getReturnType();
     unifyIfTypedef(Ret_Ty.getTypePtr(), *AstContext, FD, Ret_PV);

@@ -464,7 +464,9 @@ public:
       CVarSet empty;
       auto PSL = PersistentSourceLoc::mkPSL(TD, *Context);
       bool shouldCheck = !PtrToStructDef::containsPtrToStructDef(TD);
-      Info.typedefVars[PSL] = make_pair(empty, shouldCheck);
+      if (Info.typedefVars.count(PSL) == 0) {
+        Info.typedefVars[PSL] = make_pair(empty, shouldCheck);
+      }
       return true;
   }
 
