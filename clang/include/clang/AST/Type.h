@@ -4525,6 +4525,18 @@ public:
   static bool classof(const Type *T) { return T->getTypeClass() == Existential; }
 };
 
+/// \brief Represents a Checked C where clause.
+class WhereClause {
+public:
+  llvm::SmallVector<Expr *, 2> Facts;
+
+public:
+  void addFact(Expr *E) { Facts.push_back(E); }
+  bool getNumFacts() const { return Facts.size(); }
+  static bool classof(const WhereClause *) { return true; }
+};
+
+
 /// Sugar type that represents a type that was qualified by a qualifier written
 /// as a macro invocation.
 class MacroQualifiedType : public Type {

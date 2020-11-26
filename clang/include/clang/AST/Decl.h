@@ -708,10 +708,11 @@ protected:
                  DeclarationName N, QualType T, TypeSourceInfo *TInfo,
                  SourceLocation StartL)
       : ValueDecl(DK, DC, L, N, T), DeclInfo(TInfo), InnerLocStart(StartL),
-        Annotations(nullptr), NormalizedBounds(nullptr) {}
+        Annotations(nullptr), NormalizedBounds(nullptr), WClause(nullptr) {}
 
   BoundsAnnotations *Annotations;
   BoundsExpr *NormalizedBounds;
+  WhereClause *WClause;
 public:
   friend class ASTDeclReader;
   friend class ASTDeclWriter;
@@ -897,6 +898,20 @@ public:
 
   bool hasBoundsAnnotations() const {
     return Annotations != nullptr && !(Annotations->IsEmpty());
+  }
+
+  void addWhereClause(ASTContext &Context, Expr *E) {
+    if (!WClause)
+      WClause = new (Context) WhereClause();
+    WClause->addFact(E);
+  }
+
+  WhereClause *getWhereClause() const {
+    return WClause;
+  }
+
+  bool hasWhereClause() const {
+    return WClause && WClause->getNumFacts();
   }
 };
 

@@ -18733,3 +18733,19 @@ void Sema::ActOnPragmaWeakAlias(IdentifierInfo* Name,
 Decl *Sema::getObjCDeclContext() const {
   return (dyn_cast_or_null<ObjCContainerDecl>(CurContext));
 }
+
+// Checked C: Process a where clause for a decl.
+bool Sema::ActOnWhereClause(DeclaratorDecl *D, Expr *E) {
+  // Returns true on error.
+
+  if (!D || D->isInvalidDecl())
+    return true;
+
+  assert(!isa<FunctionDecl>(D) && "unexpected function decl");
+  QualType Ty = D->getType();
+  if (Ty.isNull())
+    return true;
+
+  D->addWhereClause(getASTContext(), E);
+  return false;
+}

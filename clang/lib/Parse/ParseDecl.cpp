@@ -2467,6 +2467,7 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
         Actions.ActOnInitializerError(ThisDecl);
       } else {
         auto *InitExpr = Init.get(); // This won't fail, since isInvalid() was checked above.
+
         if (D.getDeclSpec().isUnpackSpecified()) {
           auto TypeVars = D.getDeclSpec().typeVariables();
           if (TypeVars.size() != 1) {
@@ -2566,6 +2567,14 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
 
   } else {
     Actions.ActOnUninitializedDecl(ThisDecl);
+  }
+
+  // Checked C: Parse a where clause if it exists.
+  // TODO: Parse where clauses outside of variable declarations, like inside
+  // conditionals, switch cases and loops.
+  if (getLangOpts().CheckedC && StartsWhereClause(Tok)) {
+    if (ParseWhereClause())
+      Actions.ActOnInitializerError(ThisDecl);
   }
 
   Actions.FinalizeDeclaration(ThisDecl);
@@ -7891,5 +7900,53 @@ bool Parser::TryAltiVecTokenOutOfLine(DeclSpec &DS, SourceLocation Loc,
     isInvalid = DS.SetTypeAltiVecBool(true, Loc, PrevSpec, DiagID, Policy);
     return true;
   }
+  return false;
+}
+
+bool Parser::StartsWhereClause(Token &T) {
+  return T.getKind() == tok::kw__Where;
+}
+
+bool Parser::ParseWhereClause() {
+  // Returns true if error.
+
+  if (!StartsWhereClause(Tok))
+    return true;
+
+  // Consume the "_Where" token.
+  ConsumeToken();
+
+  ExprResult E1 =
+    Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+  if (E1.isInvalid())
+    return true;
+
+  // Parse a where clause that redeclares the bounds of a checked pointer.
+  if (Tok.is(tok::colon)) {
+    ConsumeToken();
+
+    auto *DRE = dyn_cast<DeclRefExpr>(E1.get());
+    if (!DRE)
+      return true;
+
+    auto *DD = dyn_cast<DeclaratorDecl>(DRE->getDecl());
+    if (!DD)
+      return true;
+
+    ExprResult E2 = ParseBoundsExpression();
+    if (E2.isInvalid())
+      return true;
+
+    BoundsExpr *Bounds = dyn_cast<BoundsExpr>(E2.get());
+    if (!Bounds)
+      return true;
+
+    return Actions.ActOnWhereClause(DD, Bounds);
+
+  } else {
+    // TODO: Handle other where clauses like here. For example, where x == e1;
+    // TODO: Handle multiple facts. For example, where x > e1 && x < e2.
+  }
+
   return false;
 }

@@ -1969,6 +1969,13 @@ private:
 
   DeclResult ParseRecordTypeApplication(RecordDecl *Base, bool IsItypeGeneric);
 
+  // Checked C: Determine if the token begins a where clause.
+  bool StartsWhereClause(Token &T);
+
+  // Checked C: Parse a where clause.
+  bool ParseWhereClause();
+
+
   /// Parse a pack expression of the form '_Pack(expr, existential_type, substitution_type)'.
   ExprResult ParsePackExpression();
 
