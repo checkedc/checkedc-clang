@@ -605,7 +605,7 @@ std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
     if (!ForItype && BaseType == "void")
       K = Atom::A_Wild;
 
-    if (PrevArr && arrSizes.at(TypeIdx).first != O_SizedArray && !EmittedName) {
+    if (PrevArr && ArrSizes.at(TypeIdx).first != O_SizedArray && !EmittedName) {
       EmittedName = true;
       addArrayAnnotations(CheckedArrs, EndStrs);
       EndStrs.push_front(" " + getName());
