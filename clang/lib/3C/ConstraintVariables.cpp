@@ -620,7 +620,7 @@ void PointerVariableConstraint::setTypedef(TypedefNameDecl* T, std::string s) {
 
 std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
                                                 bool EmitName, bool ForItype,
-                                                bool EmitPointee) const {
+                                                bool EmitPointee, bool UnmaskTypedef) const {
   if (IsTypedef && !UnmaskTypedef) {
     return typedefString + (EmitName && getName() != RETVAR ? (" " + getName()) : " ");
   }
@@ -656,7 +656,7 @@ std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
     ++It;
   // Interate through the vars(), but if we have an internal typedef, then stop once you reach the
   // typedef's level
-  for (; It != vars.end() && IMPLIES(typedeflevelinfo.hasTypedef, i < typedeflevelinfo.typedefLevel); ++It, i++) {  
+  for (; It != Vars.end() && IMPLIES(typedeflevelinfo.hasTypedef, i < typedeflevelinfo.typedefLevel); ++It, i++) {
     const auto &V = *It;
     ConstAtom *C = nullptr;
     if (ConstAtom *CA = dyn_cast<ConstAtom>(V)) {

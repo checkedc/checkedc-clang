@@ -536,8 +536,8 @@ private:
 // visitor which is executed before both of the other visitors.
 class VariableAdderVisitor : public RecursiveASTVisitor<VariableAdderVisitor> {
 public:
-  explicit VariableAdderVisitor(ASTContext *Context, ProgramVariableAdder &VA, ProgramInfo& Info)
-      : Context(Context), VarAdder(VA), Info(Info) {}
+  explicit VariableAdderVisitor(ASTContext *Context, ProgramVariableAdder &VA)
+    : Context(Context), VarAdder(VA) {}
 
 
   bool VisitVarDecl(VarDecl *D) {
@@ -575,7 +575,6 @@ public:
 private:
   ASTContext *Context;
   ProgramVariableAdder &VarAdder;
-  ProgramInfo& Info;
 
   void addVariable(DeclaratorDecl *D) {
     VarAdder.addABoundsVariable(D);
@@ -597,8 +596,7 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
   }
 
 
-  // TODO fix the double info thing?
-  VariableAdderVisitor VAV = VariableAdderVisitor(&C, Info, Info);
+  VariableAdderVisitor VAV = VariableAdderVisitor(&C, Info);
   TypeVarVisitor TV = TypeVarVisitor(&C, Info);
   ConstraintResolver CSResolver(Info, &C);
   ContextSensitiveBoundsKeyVisitor CSBV =
