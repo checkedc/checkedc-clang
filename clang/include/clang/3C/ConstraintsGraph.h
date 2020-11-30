@@ -9,18 +9,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _CONSTRAINTSGRAPH_H
-#define _CONSTRAINTSGRAPH_H
+#ifndef LLVM_CLANG_3C_CONSTRAINTSGRAPH_H
+#define LLVM_CLANG_3C_CONSTRAINTSGRAPH_H
 
 #include "clang/3C/Constraints.h"
-#include "llvm/ADT/DirectedGraph.h"
-#include "llvm/Support/GraphWriter.h"
-#include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/BreadthFirstIterator.h"
+#include "llvm/ADT/DirectedGraph.h"
+#include "llvm/ADT/GraphTraits.h"
+#include "llvm/Support/GraphWriter.h"
 
-template<class DataType> struct DataEdge;
+template <class DataType> struct DataEdge;
 
-template<typename DataType, typename EdgeType = DataEdge<DataType>>
+template <typename DataType, typename EdgeType = DataEdge<DataType>>
 class DataNode : public llvm::DGNode<DataNode<DataType, EdgeType>, EdgeType> {
 public:
   typedef DataNode<DataType, EdgeType> NodeType;
@@ -60,33 +60,36 @@ private:
   // edges in the opposite direction. This set contains an edge entry pointing
   // back to every node that has an edge to this node.
   llvm::SetVector<EdgeType *> PredecessorEdges;
-  void addPredecessor(EdgeType &E){ PredecessorEdges.insert(&E); }
+  void addPredecessor(EdgeType &E) { PredecessorEdges.insert(&E); }
 };
 
 namespace llvm {
 // Boilerplate template specialization
-template<typename Data, typename EdgeType>
+template <typename Data, typename EdgeType>
 struct GraphTraits<DataNode<Data, EdgeType> *> {
   using NodeRef = DataNode<Data, EdgeType> *;
 
-  static NodeRef GetTargetNode(EdgeType *P) {
-    return &P->getTargetNode();
-  }
+  static NodeRef getTargetNode(EdgeType *P) { return &P->getTargetNode(); }
 
-  using ChildIteratorType = mapped_iterator
-      <typename DataNode<Data, EdgeType>::iterator, decltype(&GetTargetNode)>;
+  using ChildIteratorType =
+      mapped_iterator<typename DataNode<Data, EdgeType>::iterator,
+                      decltype(&getTargetNode)>;
 
   static NodeRef getEntryNode(NodeRef N) { return N; }
+  // See clang/doc/checkedc/3C/clang-tidy.md#names-referenced-by-templates
+  // NOLINTNEXTLINE(readability-identifier-naming)
   static ChildIteratorType child_begin(NodeRef N) {
-    return ChildIteratorType(N->begin(), &GetTargetNode);
+    return ChildIteratorType(N->begin(), &getTargetNode);
   }
+  // See clang/doc/checkedc/3C/clang-tidy.md#names-referenced-by-templates
+  // NOLINTNEXTLINE(readability-identifier-naming)
   static ChildIteratorType child_end(NodeRef N) {
-    return ChildIteratorType(N->end(), &GetTargetNode);
+    return ChildIteratorType(N->end(), &getTargetNode);
   }
 };
-}
+} // namespace llvm
 
-template<class DataType>
+template <class DataType>
 struct DataEdge : public llvm::DGEdge<DataNode<DataType>, DataEdge<DataType>> {
   typedef llvm::DGEdge<DataNode<DataType>, DataEdge<DataType>> SuperType;
   explicit DataEdge(DataNode<DataType> &Node) : SuperType(Node) {}
@@ -99,9 +102,9 @@ class GraphVizOutputGraph;
 // stores some data at each node in the graph. This is used by the checked and
 // pointer type constraint graphs (which store atoms at each node) as well as
 // the array bounds graph (which stores BoundsKeys).
-template<typename Data, typename EdgeType = DataEdge<Data>>
-class DataGraph :
-    public llvm::DirectedGraph<DataNode<Data, EdgeType>, EdgeType> {
+template <typename Data, typename EdgeType = DataEdge<Data>>
+class DataGraph
+    : public llvm::DirectedGraph<DataNode<Data, EdgeType>, EdgeType> {
 public:
   typedef DataNode<Data, EdgeType> NodeType;
 
@@ -121,7 +124,7 @@ public:
     auto *NSrc = this->findNode(NodeType(Src));
     auto *NDst = this->findNode(NodeType(Dst));
     assert(NSrc != this->end() && NDst != this->end());
-    llvm::SmallVector<EdgeType*, 10> Edges;
+    llvm::SmallVector<EdgeType *, 10> Edges;
     (*NDst)->findEdgesTo(**NSrc, Edges);
     for (EdgeType *E : Edges) {
       (*NDst)->removeEdge(*E);
@@ -140,7 +143,7 @@ public:
   void addUniqueEdge(Data L, Data R) {
     NodeType *BL = this->findOrCreateNode(L);
     NodeType *BR = this->findOrCreateNode(R);
-    llvm::SmallVector<EdgeType*, 10> Edges;
+    llvm::SmallVector<EdgeType *, 10> Edges;
     BL->findEdgesTo(*BR, Edges);
     if (Edges.empty()) {
       addEdge(L, R);
@@ -201,14 +204,11 @@ protected:
   }
 
 private:
-  template <typename G>
-  friend struct llvm::GraphTraits;
+  template <typename G> friend struct llvm::GraphTraits;
   friend class GraphVizOutputGraph;
   std::map<Data, std::set<Data>> BFSCache;
 
-  void invalidateBFSCache() {
-    BFSCache.clear();
-  }
+  void invalidateBFSCache() { BFSCache.clear(); }
 };
 
 // Specialize the graph for the checked and pointer type constraint graphs. This
@@ -221,16 +221,16 @@ public:
 
   // Const atoms are the starting points for the solving algorithm so, we need
   // be able to retrieve them from the graph.
-  std::set<ConstAtom*> &getAllConstAtoms();
+  std::set<ConstAtom *> &getAllConstAtoms();
 
 protected:
   // Add vertex is overridden to save const atoms as they are added to the graph
   // so that getAllConstAtoms can efficiently retrieve them.
   NodeType *findOrCreateNode(Atom *A) override;
-private:
-  std::set<ConstAtom*> AllConstAtoms;
-};
 
+private:
+  std::set<ConstAtom *> AllConstAtoms;
+};
 
 // Below this point we define a graph class specialized for generating the
 // graphviz output for the combine checked and ptype graphs.
@@ -239,8 +239,8 @@ private:
 // or the checked constraint graph. We also combine edges to render a pair of
 // edges pointing in different directions between the same pair of nodes as a
 // single bidirectional edge.
-class GraphVizEdge :
-    public llvm::DGEdge<DataNode<Atom*, GraphVizEdge>, GraphVizEdge> {
+class GraphVizEdge
+    : public llvm::DGEdge<DataNode<Atom *, GraphVizEdge>, GraphVizEdge> {
 public:
   enum EdgeKind { EK_Checked, EK_Ptype };
   explicit GraphVizEdge(DataNode<Atom *, GraphVizEdge> &Node, EdgeKind Kind)
@@ -256,7 +256,7 @@ public:
 // hold the extra information required. It also provides the methods for
 // merging the checked and ptype graphs as well as a static function to do the
 // actual conversion and output to file.
-class GraphVizOutputGraph : public DataGraph<Atom*, GraphVizEdge> {
+class GraphVizOutputGraph : public DataGraph<Atom *, GraphVizEdge> {
 public:
   // Merge the provided graphs and dump the graphviz visualization to the given
   // file name. The first graph argument is the checked graph while the second
@@ -270,8 +270,9 @@ public:
   // pair of nodes. When there is both a checked an a ptype edge between two
   // nodes, these maps ensure that each is output exactly once and has the
   // correct color when it is output.
-  mutable std::set<std::pair<Atom *,Atom *>> DoneChecked;
-  mutable std::set<std::pair<Atom *,Atom *>> DonePtyp;
+  mutable std::set<std::pair<Atom *, Atom *>> DoneChecked;
+  mutable std::set<std::pair<Atom *, Atom *>> DonePtyp;
+
 private:
   void mergeConstraintGraph(const ConstraintsGraph &Graph,
                             GraphVizEdge::EdgeKind EdgeType);
@@ -281,46 +282,53 @@ private:
 // functions.
 
 namespace llvm {
-template<> struct GraphTraits<GraphVizOutputGraph> {
-  using NodeRef = DataNode<Atom*, GraphVizEdge> *;
+template <> struct GraphTraits<GraphVizOutputGraph> {
+  using NodeRef = DataNode<Atom *, GraphVizEdge> *;
   using nodes_iterator = GraphVizOutputGraph::iterator;
 
-  static NodeRef GetTargetNode(GraphVizEdge *P) {
-    return &P->getTargetNode();
-  }
+  static NodeRef getTargetNode(GraphVizEdge *P) { return &P->getTargetNode(); }
 
   using ChildIteratorType =
-  mapped_iterator<typename DataNode<Atom *, GraphVizEdge>::iterator,
-                  decltype(&GetTargetNode)>;
+      mapped_iterator<typename DataNode<Atom *, GraphVizEdge>::iterator,
+                      decltype(&getTargetNode)>;
 
+  // See clang/doc/checkedc/3C/clang-tidy.md#names-referenced-by-templates
+  // NOLINTNEXTLINE(readability-identifier-naming)
   static nodes_iterator nodes_begin(const GraphVizOutputGraph &G) {
     return const_cast<GraphVizOutputGraph &>(G).Nodes.begin();
   }
 
+  // See clang/doc/checkedc/3C/clang-tidy.md#names-referenced-by-templates
+  // NOLINTNEXTLINE(readability-identifier-naming)
   static nodes_iterator nodes_end(const GraphVizOutputGraph &G) {
     return const_cast<GraphVizOutputGraph &>(G).Nodes.end();
   }
 
+  // See clang/doc/checkedc/3C/clang-tidy.md#names-referenced-by-templates
+  // NOLINTNEXTLINE(readability-identifier-naming)
   static ChildIteratorType child_begin(NodeRef N) {
-    return {N->begin(), &GetTargetNode};
+    return {N->begin(), &getTargetNode};
   }
 
+  // See clang/doc/checkedc/3C/clang-tidy.md#names-referenced-by-templates
+  // NOLINTNEXTLINE(readability-identifier-naming)
   static ChildIteratorType child_end(NodeRef N) {
-    return {N->end(), &GetTargetNode};
+    return {N->end(), &getTargetNode};
   }
 };
 
-template<> struct DOTGraphTraits<GraphVizOutputGraph>
+template <>
+struct DOTGraphTraits<GraphVizOutputGraph>
     : public llvm::DefaultDOTGraphTraits,
       llvm::GraphTraits<GraphVizOutputGraph> {
-  DOTGraphTraits(bool simple = false) : DefaultDOTGraphTraits(simple) {}
+  DOTGraphTraits(bool Simple = false) : DefaultDOTGraphTraits(Simple) {}
 
   std::string getNodeLabel(const DataNode<Atom *, GraphVizEdge> *Node,
                            const GraphVizOutputGraph &CG);
-  static std::string getEdgeAttributes
-      (const DataNode<Atom *, GraphVizEdge> *Node, ChildIteratorType T,
-       const GraphVizOutputGraph &CG);
+  static std::string
+  getEdgeAttributes(const DataNode<Atom *, GraphVizEdge> *Node,
+                    ChildIteratorType T, const GraphVizOutputGraph &CG);
 };
 } // namespace llvm
 
-#endif // _CONSTRAINTSGRAPH_H
+#endif // LLVM_CLANG_3C_CONSTRAINTSGRAPH_H

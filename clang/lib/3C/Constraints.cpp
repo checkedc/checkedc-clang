@@ -9,24 +9,24 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <set>
-#include "llvm/Support/CommandLine.h"
-
-#include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/Constraints.h"
+#include "clang/3C/3CGlobalOptions.h"
+#include "clang/3C/ConstraintVariables.h"
 #include "clang/3C/ConstraintsGraph.h"
+#include "llvm/Support/CommandLine.h"
 #include <iostream>
-#include <clang/3C/ConstraintVariables.h>
+#include <set>
 
 using namespace llvm;
 
 static cl::OptionCategory SolverCategory("solver options");
 static cl::opt<bool> DebugSolver("debug-solver",
-  cl::desc("Dump intermediate solver state"),
-  cl::init(false), cl::cat(SolverCategory));
+                                 cl::desc("Dump intermediate solver state"),
+                                 cl::init(false), cl::cat(SolverCategory));
 
 Constraint::Constraint(ConstraintKind K, const std::string &Rsn,
-                       PersistentSourceLoc *PL): Constraint(K, Rsn) {
+                       PersistentSourceLoc *PL)
+    : Constraint(K, Rsn) {
   if (PL != nullptr && PL->valid())
     this->PL = *PL;
   else
@@ -39,10 +39,9 @@ bool Constraints::removeConstraint(Constraint *C) {
   Geq *GE = dyn_cast<Geq>(C);
   assert(GE != nullptr && "Invalid constrains requested to be removed.");
   // We can only remove constraints from ConstAtoms.
-  if (isa<ConstAtom>(GE->getRHS()) &&
-      isa<VarAtom>(GE->getLHS())) {
+  if (isa<ConstAtom>(GE->getRHS()) && isa<VarAtom>(GE->getLHS())) {
     removeReasonBasedConstraint(C);
-    RetVal = constraints.erase(C) != 0;
+    RetVal = TheConstraints.erase(C) != 0;
     // Delete from graph.
     ConstraintsGraph *TG = nullptr;
     TG = GE->constraintIsChecked() ? ChkCG : PtrTypCG;
@@ -72,7 +71,7 @@ void Constraints::editConstraintHook(Constraint *C) {
             E->setReason(POINTER_IS_ARRAY_REASON);
           }
         } else {
-          assert (LHSA && "Adding constraint between constants?!");
+          assert(LHSA && "Adding constraint between constants?!");
           if (!dyn_cast<PtrAtom>(E->getRHS())) {
             E->setChecked(getWild());
             E->setReason(POINTER_IS_ARRAY_REASON);
@@ -83,8 +82,8 @@ void Constraints::editConstraintHook(Constraint *C) {
   }
 }
 
-// Add a constraint to the set of constraints. If the constraint is already 
-// present (by syntactic equality) return false. 
+// Add a constraint to the set of constraints. If the constraint is already
+// present (by syntactic equality) return false.
 bool Constraints::addConstraint(Constraint *C) {
   // Validate the constraint to be added.
   if (!check(C)) {
@@ -94,9 +93,9 @@ bool Constraints::addConstraint(Constraint *C) {
 
   editConstraintHook(C);
 
-  // Check if C is already in the set of constraints. 
-  if (constraints.find(C) == constraints.end()) {
-    constraints.insert(C);
+  // Check if C is already in the set of constraints.
+  if (TheConstraints.find(C) == TheConstraints.end()) {
+    TheConstraints.insert(C);
 
     if (Geq *G = dyn_cast<Geq>(C)) {
       if (G->constraintIsChecked())
@@ -109,18 +108,16 @@ bool Constraints::addConstraint(Constraint *C) {
 
     // Update the variables that depend on this constraint.
     if (Geq *E = dyn_cast<Geq>(C)) {
-      if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
-        vLHS->Constraints.insert(C);
-      else if (VarAtom *vRHS = dyn_cast<VarAtom>(E->getRHS())) {
-        vRHS->Constraints.insert(C);
+      if (VarAtom *VLhs = dyn_cast<VarAtom>(E->getLHS()))
+        VLhs->Constraints.insert(C);
+      else if (VarAtom *VRhs = dyn_cast<VarAtom>(E->getRHS())) {
+        VRhs->Constraints.insert(C);
       }
-    }
-    else if (Implies *I = dyn_cast<Implies>(C)) {
+    } else if (Implies *I = dyn_cast<Implies>(C)) {
       Geq *PEQ = I->getPremise();
-      if (VarAtom *vLHS = dyn_cast<VarAtom>(PEQ->getLHS()))
-        vLHS->Constraints.insert(C);
-    }
-    else
+      if (VarAtom *VLhs = dyn_cast<VarAtom>(PEQ->getLHS()))
+        VLhs->Constraints.insert(C);
+    } else
       llvm_unreachable("unsupported constraint");
     return true;
   }
@@ -131,18 +128,18 @@ bool Constraints::addConstraint(Constraint *C) {
 bool Constraints::addReasonBasedConstraint(Constraint *C) {
   // Only insert if this is an Eq constraint and has a valid reason.
   if (Geq *E = dyn_cast<Geq>(C)) {
-      if (E->getReason() != DEFAULT_REASON && !E->getReason().empty())
-          return this->constraintsByReason[E->getReason()].insert(E).second;
+    if (E->getReason() != DEFAULT_REASON && !E->getReason().empty())
+      return this->ConstraintsByReason[E->getReason()].insert(E).second;
   }
   return false;
 }
 
 bool Constraints::removeReasonBasedConstraint(Constraint *C) {
   if (Geq *E = dyn_cast<Geq>(C)) {
-      // Remove if the constraint is present.
-      if (this->constraintsByReason.find(E->getReason()) !=
-          this->constraintsByReason.end())
-          return this->constraintsByReason[E->getReason()].erase(E) > 0;
+    // Remove if the constraint is present.
+    if (this->ConstraintsByReason.find(E->getReason()) !=
+        this->ConstraintsByReason.end())
+      return this->ConstraintsByReason[E->getReason()].erase(E) > 0;
   }
   return false;
 }
@@ -160,11 +157,9 @@ bool Constraints::check(Constraint *C) {
     if (!isa<VarAtom>(P->getLHS()) || isa<VarAtom>(P->getRHS()) ||
         !isa<VarAtom>(CO->getLHS()) || isa<VarAtom>(CO->getRHS()))
       return false;
-  }
-  else if (dyn_cast<Geq>(C) != nullptr) {
-      // all good!
-  }
-  else
+  } else if (dyn_cast<Geq>(C) != nullptr) {
+    // all good!
+  } else
     return false; // Not Eq, Geq, or Implies; what is it?!
 
   return true;
@@ -189,12 +184,11 @@ bool Constraints::check(Constraint *C) {
 //---- for all edges (k --> q) in G, confirm that sol(k) <: q; else fail
 //---- add k to W
 
-static bool do_solve(ConstraintsGraph &CG,
-                     std::set<Implies *> SavedImplies, // TODO: Can this be a ref?
-                     ConstraintsEnv & env,
-                     Constraints *CS, bool doLeastSolution,
-                     std::set<VarAtom *> *InitVs,
-                     std::set<VarAtom *> &Conflicts) {
+static bool
+doSolve(ConstraintsGraph &CG,
+        std::set<Implies *> SavedImplies, // TODO: Can this be a ref?
+        ConstraintsEnv &Env, Constraints *CS, bool DoLeastSolution,
+        std::set<VarAtom *> *InitVs, std::set<VarAtom *> &Conflicts) {
 
   std::vector<Atom *> WorkList;
   std::set<Implies *> FiredImplies;
@@ -212,24 +206,24 @@ static bool do_solve(ConstraintsGraph &CG,
       auto *Curr = *(WorkList.begin());
       // Remove the first element, get its solution.
       WorkList.erase(WorkList.begin());
-      ConstAtom *CurrSol = env.getAssignment(Curr);
+      ConstAtom *CurrSol = Env.getAssignment(Curr);
 
       // get its neighbors.
       std::set<Atom *> Neighbors;
-      CG.getNeighbors(Curr, Neighbors, doLeastSolution);
+      CG.getNeighbors(Curr, Neighbors, DoLeastSolution);
       // update each successor's solution.
       for (auto *NeighborA : Neighbors) {
         bool Changed = false;
         if (VarAtom *Neighbor = dyn_cast<VarAtom>(NeighborA)) {
-          ConstAtom *NghSol = env.getAssignment(Neighbor);
+          ConstAtom *NghSol = Env.getAssignment(Neighbor);
           // update solution if doing so would change it
           // checked? --- if sol(Neighbor) <> (sol(Neighbor) JOIN Cur)
           //   else   --- if sol(Neighbor) <> (sol(Neighbor) MEET Cur)
-          if ((doLeastSolution && *NghSol < *CurrSol) ||
-              (!doLeastSolution && *CurrSol < *NghSol)) {
+          if ((DoLeastSolution && *NghSol < *CurrSol) ||
+              (!DoLeastSolution && *CurrSol < *NghSol)) {
             // ---- set sol(k) := (sol(k) JOIN/MEET Q)
-            Changed = env.assign(Neighbor, CurrSol);
-            assert (Changed);
+            Changed = Env.assign(Neighbor, CurrSol);
+            assert(Changed);
             WorkList.push_back(Neighbor);
           }
         } // ignore ConstAtoms for now; will confirm solution below
@@ -243,8 +237,8 @@ static bool do_solve(ConstraintsGraph &CG,
       for (auto *Imp : SavedImplies) {
         Geq *Pre = Imp->getPremise();
         Geq *Con = Imp->getConclusion();
-        ConstAtom *Cca = env.getAssignment(Pre->getRHS());
-        ConstAtom *Cva = env.getAssignment(Pre->getLHS());
+        ConstAtom *Cca = Env.getAssignment(Pre->getRHS());
+        ConstAtom *Cva = Env.getAssignment(Pre->getLHS());
         // Premise is true, so fire the conclusion.
         if (*Cca < *Cva || *Cca == *Cva) {
           CG.addConstraint(Con, *CS);
@@ -262,17 +256,17 @@ static bool do_solve(ConstraintsGraph &CG,
 
   // Check Upper/lower bounds hold; collect failures in conflicts set.
   std::set<Atom *> Neighbors;
-  bool ok = true;
+  bool Ok = true;
   for (ConstAtom *Cbound : CG.getAllConstAtoms()) {
-    if (CG.getNeighbors(Cbound, Neighbors, !doLeastSolution)) {
+    if (CG.getNeighbors(Cbound, Neighbors, !DoLeastSolution)) {
       for (Atom *A : Neighbors) {
         VarAtom *VA = dyn_cast<VarAtom>(A);
         if (VA == nullptr)
           continue;
-        ConstAtom *Csol = env.getAssignment(VA);
-        if ((doLeastSolution && *Cbound < *Csol) ||
-            (!doLeastSolution && *Csol < *Cbound)) {
-          ok = false;
+        ConstAtom *Csol = Env.getAssignment(VA);
+        if ((DoLeastSolution && *Cbound < *Csol) ||
+            (!DoLeastSolution && *Csol < *Cbound)) {
+          Ok = false;
           // Save effected VarAtom in conflict set. This will be constrained to
           // wild after pointer type solving is finished. Checked types will
           // be resolved with this new constraint, transitively propagating the
@@ -284,7 +278,7 @@ static bool do_solve(ConstraintsGraph &CG,
             VA->print(errs());
             errs() << "=";
             Csol->print(errs());
-            errs() << (doLeastSolution? "<" : ">");
+            errs() << (DoLeastSolution ? "<" : ">");
             Cbound->print(errs());
             errs() << " var will be made WILD\n";
           }
@@ -293,17 +287,17 @@ static bool do_solve(ConstraintsGraph &CG,
     }
   }
 
-  return ok;
+  return Ok;
 }
 
-VarAtomPred isReturn = [](VarAtom *VA) -> bool {
+VarAtomPred IsReturn = [](VarAtom *VA) -> bool {
   return VA->getVarKind() == VarAtom::V_Return;
 };
-VarAtomPred isParam = [](VarAtom *VA) -> bool {
+VarAtomPred IsParam = [](VarAtom *VA) -> bool {
   return VA->getVarKind() == VarAtom::V_Param;
 };
-VarAtomPred isNonParamReturn = [](VarAtom *VA) -> bool {
-  return !isReturn(VA) && !isParam(VA);
+VarAtomPred IsNonParamReturn = [](VarAtom *VA) -> bool {
+  return !IsReturn(VA) && !IsParam(VA);
 };
 
 // Remove from S all elements that don't match the predicate P
@@ -365,19 +359,19 @@ static std::set<VarAtom *> findBounded(ConstraintsGraph &CG,
   return Bounded;
 }
 
-bool Constraints::graph_based_solve() {
+bool Constraints::graphBasedSolve() {
   std::set<VarAtom *> Conflicts;
   ConstraintsGraph SolChkCG;
   ConstraintsGraph SolPtrTypCG;
   std::set<Implies *> SavedImplies;
   std::set<Implies *> Empty;
-  ConstraintsEnv &env = environment;
+  ConstraintsEnv &Env = Environment;
 
   // Checked well-formedness.
-  environment.checkAssignment(getDefaultSolution());
+  Environment.checkAssignment(getDefaultSolution());
 
   // Setup the Checked Constraint Graph.
-  for (const auto &C : constraints) {
+  for (const auto &C : TheConstraints) {
     if (Geq *G = dyn_cast<Geq>(C)) {
       if (G->constraintIsChecked())
         SolChkCG.addConstraint(G, *this);
@@ -387,7 +381,7 @@ bool Constraints::graph_based_solve() {
     // Save the implies to solve them later.
     else if (Implies *Imp = dyn_cast<Implies>(C)) {
       assert(Imp->getConclusion()->constraintIsChecked() &&
-          Imp->getPremise()->constraintIsChecked());
+             Imp->getPremise()->constraintIsChecked());
       SavedImplies.insert(Imp);
     }
   }
@@ -397,41 +391,41 @@ bool Constraints::graph_based_solve() {
                                               SolChkCG, SolPtrTypCG);
 
   // Solve Checked/unchecked constraints first.
-  env.doCheckedSolve(true);
-  
-  bool res = do_solve(SolChkCG, SavedImplies, env, this, true, nullptr, Conflicts);
+  Env.doCheckedSolve(true);
+
+  bool Res =
+      doSolve(SolChkCG, SavedImplies, Env, this, true, nullptr, Conflicts);
 
   // Now solve PtrType constraints
-  if (res && AllTypes) {
-    env.doCheckedSolve(false);
+  if (Res && AllTypes) {
+    Env.doCheckedSolve(false);
 
     // Step 1: Greatest solution
-    res = do_solve(SolPtrTypCG, Empty, env, this, false, nullptr, Conflicts);
-
+    Res = doSolve(SolPtrTypCG, Empty, Env, this, false, nullptr, Conflicts);
 
     // Step 2: Reset all solutions but for function params,
     // and compute the least.
-    if (res) {
+    if (Res) {
 
       // We want to find all local variables with an upper bound that provide a
       // lower bound for return variables that are not otherwise bounded.
 
       // 1. Find return vars with a lower bound.
-      std::set<VarAtom *> ParamVars = env.filterAtoms(isParam);
+      std::set<VarAtom *> ParamVars = Env.filterAtoms(IsParam);
       std::set<VarAtom *> LowerBoundedRet =
           findBounded(SolPtrTypCG, &ParamVars, true);
-      filter(isReturn, LowerBoundedRet);
+      filter(IsReturn, LowerBoundedRet);
 
       // 2. Find local vars where one of the return vars is an upper bound.
       //    Conversely, these are an alternative lower bound for the return var.
       std::set<VarAtom *> RetUpperBoundedLocals =
           findBounded(SolPtrTypCG, &LowerBoundedRet, false, false);
-      filter(isNonParamReturn, RetUpperBoundedLocals);
+      filter(IsNonParamReturn, RetUpperBoundedLocals);
 
       // 3. Find local vars upper bounded by a const var.
       std::set<VarAtom *> ConstUpperBoundedLocals =
           findBounded(SolPtrTypCG, nullptr, false);
-      filter(isNonParamReturn, ConstUpperBoundedLocals);
+      filter(IsNonParamReturn, ConstUpperBoundedLocals);
 
       // 4. Take set difference of 2 and 3 to find bounded vars that do not
       //    effect an existing lower bound.
@@ -442,61 +436,57 @@ bool Constraints::graph_based_solve() {
           std::inserter(Diff, Diff.begin()));
 
       // 5. Reset var to NTArr if not a param var and not in the previous set.
-      std::set<VarAtom *> rest = env.resetSolution(
+      std::set<VarAtom *> Rest = Env.resetSolution(
           [Diff](VarAtom *VA) -> bool {
-            return !(isParam(VA) || Diff.find(VA) != Diff.end());
+            return !(IsParam(VA) || Diff.find(VA) != Diff.end());
           },
           getNTArr());
 
       // Remember which variables have a concrete lower bound. Variables without
       // a lower bound will be resolved in the final greatest solution.
-      std::set<VarAtom *> LowerBounded =
-          findBounded(SolPtrTypCG, &rest, true);
+      std::set<VarAtom *> LowerBounded = findBounded(SolPtrTypCG, &Rest, true);
 
-      res = do_solve(SolPtrTypCG, Empty, env, this, true, &rest, Conflicts);
+      Res = doSolve(SolPtrTypCG, Empty, Env, this, true, &Rest, Conflicts);
 
       // Step 3: Reset local variable solutions, compute greatest
-      if (res) {
-        rest.clear();
+      if (Res) {
+        Rest.clear();
 
-        rest = env.resetSolution(
+        Rest = Env.resetSolution(
             [LowerBounded](VarAtom *VA) -> bool {
-              return isNonParamReturn(VA) ||
-                  LowerBounded.find(VA) == LowerBounded.end();
+              return IsNonParamReturn(VA) ||
+                     LowerBounded.find(VA) == LowerBounded.end();
             },
             getPtr());
 
-        res = do_solve(SolPtrTypCG, Empty, env, this, false, &rest,
-                       Conflicts);
+        Res = doSolve(SolPtrTypCG, Empty, Env, this, false, &Rest, Conflicts);
       }
     }
     // If PtrType solving (partly) failed, make the affected VarAtoms wild.
-    if (!res) {
-      std::set<VarAtom *> rest;
-      env.doCheckedSolve(true);
+    if (!Res) {
+      std::set<VarAtom *> Rest;
+      Env.doCheckedSolve(true);
       for (VarAtom *VA : Conflicts) {
         assert(VA != nullptr);
         std::string Rsn = "Bad pointer type solution";
         Geq *ConflictConstraint = createGeq(VA, getWild(), Rsn);
         addConstraint(ConflictConstraint);
         SolChkCG.addConstraint(ConflictConstraint, *this);
-        rest.insert(VA);
+        Rest.insert(VA);
       }
       Conflicts.clear();
       /* FIXME: Should we propagate the old res? */
-      res = do_solve(SolChkCG, SavedImplies, env, this, true, &rest,
-                     Conflicts);
-
+      Res = doSolve(SolChkCG, SavedImplies, Env, this, true, &Rest, Conflicts);
     }
     // Final Step: Merge ptyp solution with checked solution.
-    env.mergePtrTypes();
+    Env.mergePtrTypes();
   }
 
   if (DebugSolver)
     GraphVizOutputGraph::dumpConstraintGraphs(
         "implication_constraints_graph.dot", SolChkCG, SolPtrTypCG);
 
-  return res;
+  return Res;
 }
 
 // Solve the system of constraints. Return true in the second position if
@@ -508,53 +498,50 @@ void Constraints::solve() {
     errs() << "constraints beginning solve\n";
     dump();
   }
-  graph_based_solve();
+  graphBasedSolve();
 
   if (DebugSolver) {
     errs() << "solution, when done solving\n";
-    environment.dump();
+    Environment.dump();
   }
 }
 
 void Constraints::print(raw_ostream &O) const {
   O << "CONSTRAINTS: \n";
-  for (const auto &C : constraints) {
+  for (const auto &C : TheConstraints) {
     C->print(O);
     O << "\n";
   }
-  environment.print(O);
+  Environment.print(O);
 }
 
-void Constraints::dump(void) const {
-  print(errs());
-}
+void Constraints::dump(void) const { print(errs()); }
 
-void Constraints::dump_json(llvm::raw_ostream &O) const {
+void Constraints::dumpJson(llvm::raw_ostream &O) const {
   O << "{\"Constraints\":[";
-  bool addComma = false;
-  for (const auto &C : constraints) {
-    if (addComma) {
+  bool AddComma = false;
+  for (const auto &C : TheConstraints) {
+    if (AddComma) {
       O << ",\n";
     }
-    C->dump_json(O);
-    addComma = true;
+    C->dumpJson(O);
+    AddComma = true;
   }
   O << "],\n";
 
-  environment.dump_json(O);
+  Environment.dumpJson(O);
 }
 
-bool
-Constraints::removeAllConstraintsOnReason(std::string &Reason,
-                                          ConstraintSet &RemovedCons) {
+bool Constraints::removeAllConstraintsOnReason(std::string &Reason,
+                                               ConstraintSet &RemovedCons) {
   // Are there any constraints with this reason?
   bool Removed = false;
-  if (this->constraintsByReason.find(Reason) !=
-      this->constraintsByReason.end()) {
-    RemovedCons.insert(this->constraintsByReason[Reason].begin(),
-                  this->constraintsByReason[Reason].end());
-    for (auto cToDel : RemovedCons) {
-      Removed = this->removeConstraint(cToDel) || Removed;
+  if (this->ConstraintsByReason.find(Reason) !=
+      this->ConstraintsByReason.end()) {
+    RemovedCons.insert(this->ConstraintsByReason[Reason].begin(),
+                       this->ConstraintsByReason[Reason].end());
+    for (auto *CToDel : RemovedCons) {
+      Removed = this->removeConstraint(CToDel) || Removed;
     }
     return Removed;
   }
@@ -563,7 +550,7 @@ Constraints::removeAllConstraintsOnReason(std::string &Reason,
 
 VarAtom *Constraints::getOrCreateVar(ConstraintKey V, std::string Name,
                                      VarAtom::VarKind VK) {
-  return environment.getOrCreateVar(V, getDefaultSolution(), Name, VK);
+  return Environment.getOrCreateVar(V, getDefaultSolution(), Name, VK);
 }
 
 VarSolTy Constraints::getDefaultSolution() {
@@ -571,11 +558,11 @@ VarSolTy Constraints::getDefaultSolution() {
 }
 
 VarAtom *Constraints::getFreshVar(std::string Name, VarAtom::VarKind VK) {
-  return environment.getFreshVar(getDefaultSolution(), Name, VK);
+  return Environment.getFreshVar(getDefaultSolution(), Name, VK);
 }
 
 VarAtom *Constraints::getVar(ConstraintKey V) const {
-  return environment.getVar(V);
+  return Environment.getVar(V);
 }
 
 // Constructs a fresh VarAtom constrained GEQ the specified constant atom. This
@@ -589,68 +576,58 @@ VarAtom *Constraints::createFreshGEQ(std::string Name, VarAtom::VarKind VK,
   return VA;
 }
 
-PtrAtom *Constraints::getPtr() const {
-  return PrebuiltPtr;
-}
-ArrAtom *Constraints::getArr() const {
-  return PrebuiltArr;
-}
-NTArrAtom *Constraints::getNTArr() const {
-  return PrebuiltNTArr;
-}
-WildAtom *Constraints::getWild() const {
-  return PrebuiltWild;
-}
+PtrAtom *Constraints::getPtr() const { return PrebuiltPtr; }
+ArrAtom *Constraints::getArr() const { return PrebuiltArr; }
+NTArrAtom *Constraints::getNTArr() const { return PrebuiltNTArr; }
+WildAtom *Constraints::getWild() const { return PrebuiltWild; }
 
 ConstAtom *Constraints::getAssignment(Atom *A) {
-  environment.doCheckedSolve(true);
-  return environment.getAssignment(A);
+  Environment.doCheckedSolve(true);
+  return Environment.getAssignment(A);
 }
 
 ConstraintsGraph &Constraints::getChkCG() {
-  assert (ChkCG != nullptr &&
-         "Checked Constraint graph cannot be nullptr");
+  assert(ChkCG != nullptr && "Checked Constraint graph cannot be nullptr");
   return *ChkCG;
 }
 
 ConstraintsGraph &Constraints::getPtrTypCG() {
-  assert (PtrTypCG != nullptr && "Pointer type Constraint graph "
-                                       "cannot be nullptr");
+  assert(PtrTypCG != nullptr && "Pointer type Constraint graph "
+                                "cannot be nullptr");
   return *PtrTypCG;
 }
 
-Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, bool isCheckedConstraint) {
-    return new Geq(Lhs, Rhs, isCheckedConstraint);
+Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, bool IsCheckedConstraint) {
+  return new Geq(Lhs, Rhs, IsCheckedConstraint);
 }
 
 Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,
-                            bool isCheckedConstraint) {
-    return new Geq(Lhs, Rhs, Rsn, isCheckedConstraint);
+                            bool IsCheckedConstraint) {
+  return new Geq(Lhs, Rhs, Rsn, IsCheckedConstraint);
 }
 
 Geq *Constraints::createGeq(Atom *Lhs, Atom *Rhs, const std::string &Rsn,
-                            PersistentSourceLoc *PL, bool isCheckedConstraint) {
-    if (PL != nullptr && PL->valid()) {
-        // Make this invalid, if the source location is not absolute path
-        // this is to avoid crashes in clangd.
-        if (PL->getFileName().c_str()[0] != '/')
-            PL = nullptr;
-    }
-    assert("Shouldn't be constraining WILD >= VAR" && Lhs != getWild());
-    return new Geq(Lhs, Rhs, Rsn, PL, isCheckedConstraint);
+                            PersistentSourceLoc *PL, bool IsCheckedConstraint) {
+  if (PL != nullptr && PL->valid()) {
+    // Make this invalid, if the source location is not absolute path
+    // this is to avoid crashes in clangd.
+    if (PL->getFileName().c_str()[0] != '/')
+      PL = nullptr;
+  }
+  assert("Shouldn't be constraining WILD >= VAR" && Lhs != getWild());
+  return new Geq(Lhs, Rhs, Rsn, PL, IsCheckedConstraint);
 }
 
-Implies *Constraints::createImplies(Geq *Premise,
-                                    Geq *Conclusion) {
+Implies *Constraints::createImplies(Geq *Premise, Geq *Conclusion) {
   return new Implies(Premise, Conclusion);
 }
 
 void Constraints::resetEnvironment() {
-  environment.resetFullSolution(getDefaultSolution());
+  Environment.resetFullSolution(getDefaultSolution());
 }
 
 bool Constraints::checkInitialEnvSanity() {
-  return environment.checkAssignment(getDefaultSolution());
+  return Environment.checkAssignment(getDefaultSolution());
 }
 
 Constraints::Constraints() {
@@ -675,13 +652,11 @@ Constraints::~Constraints() {
 
 /* ConstraintsEnv methods */
 
-void ConstraintsEnv::dump(void) const {
-  print(errs());
-}
+void ConstraintsEnv::dump(void) const { print(errs()); }
 
 void ConstraintsEnv::print(raw_ostream &O) const {
   O << "ENVIRONMENT: \n";
-  for (const auto &V : environment) {
+  for (const auto &V : Environment) {
     V.first->print(O);
     O << " = [";
     O << "Checked=";
@@ -693,73 +668,69 @@ void ConstraintsEnv::print(raw_ostream &O) const {
   }
 }
 
-void ConstraintsEnv::dump_json(llvm::raw_ostream &O) const {
-  bool addComma = false;
+void ConstraintsEnv::dumpJson(llvm::raw_ostream &O) const {
+  bool AddComma = false;
   O << "\"Environment\":[";
-  for (const auto &V : environment) {
-    if (addComma) {
+  for (const auto &V : Environment) {
+    if (AddComma) {
       O << ",\n";
     }
     O << "{\"var\":";
-    V.first->dump_json(O);
+    V.first->dumpJson(O);
     O << ", \"value:\":{\"checked\":";
-    V.second.first->dump_json(O);
+    V.second.first->dumpJson(O);
     O << ", \"PtrType\":";
-    V.second.second->dump_json(O);
+    V.second.second->dumpJson(O);
     O << "}}";
-    addComma = true;
+    AddComma = true;
   }
   O << "]}";
 }
 
 VarAtom *ConstraintsEnv::getFreshVar(VarSolTy InitC, std::string Name,
                                      VarAtom::VarKind VK) {
-  VarAtom *NewVA = getOrCreateVar(consFreeKey, InitC, Name, VK);
-  consFreeKey++;
+  VarAtom *NewVA = getOrCreateVar(ConsFreeKey, InitC, Name, VK);
+  ConsFreeKey++;
   return NewVA;
 }
 
 VarAtom *ConstraintsEnv::getOrCreateVar(ConstraintKey V, VarSolTy InitC,
                                         std::string Name, VarAtom::VarKind VK) {
-  VarAtom Tv(V,Name,VK);
-  EnvironmentMap::iterator I = environment.find(&Tv);
+  VarAtom Tv(V, Name, VK);
+  EnvironmentMap::iterator I = Environment.find(&Tv);
 
-  if (I != environment.end())
+  if (I != Environment.end())
     return I->first;
-  else {
-    VarAtom *VA = new VarAtom(Tv);
-    environment[VA] = InitC;
-    return VA;
-  }
+  VarAtom *VA = new VarAtom(Tv);
+  Environment[VA] = InitC;
+  return VA;
 }
 
 VarAtom *ConstraintsEnv::getVar(ConstraintKey V) const {
   VarAtom Tv(V);
-  EnvironmentMap::const_iterator I = environment.find(&Tv);
+  EnvironmentMap::const_iterator I = Environment.find(&Tv);
 
-  if (I != environment.end())
+  if (I != Environment.end())
     return I->first;
-  else
-    return nullptr;
+  return nullptr;
 }
-
 
 ConstAtom *ConstraintsEnv::getAssignment(Atom *A) {
   if (VarAtom *VA = dyn_cast<VarAtom>(A)) {
-    if (useChecked) {
-      return environment[VA].first;
-    } else {
-      return environment[VA].second;
+    if (UseChecked) {
+      return Environment[VA].first;
     }
+    return Environment[VA].second;
   }
   assert(dyn_cast<ConstAtom>(A) != nullptr &&
          "This is not a VarAtom or ConstAtom");
   return dyn_cast<ConstAtom>(A);
 }
 
-bool ConstraintsEnv::checkAssignment(VarSolTy sol) {
-  for (const auto &EnvVar : environment) {
-    if (EnvVar.second.first != sol.first || EnvVar.second.second != sol.second) {
+bool ConstraintsEnv::checkAssignment(VarSolTy Sol) {
+  for (const auto &EnvVar : Environment) {
+    if (EnvVar.second.first != Sol.first ||
+        EnvVar.second.second != Sol.second) {
       return false;
     }
   }
@@ -767,8 +738,8 @@ bool ConstraintsEnv::checkAssignment(VarSolTy sol) {
 }
 
 bool ConstraintsEnv::assign(VarAtom *V, ConstAtom *C) {
-  auto VI = environment.find(V);
-  if (useChecked) {
+  auto VI = Environment.find(V);
+  if (UseChecked) {
     VI->second.first = C;
   } else {
     VI->second.second = C;
@@ -779,7 +750,7 @@ bool ConstraintsEnv::assign(VarAtom *V, ConstAtom *C) {
 // Find VarAtoms in the environment that match a predicate.
 std::set<VarAtom *> ConstraintsEnv::filterAtoms(VarAtomPred Pred) {
   std::set<VarAtom *> Matches;
-  for (const auto &CurrE : environment) {
+  for (const auto &CurrE : Environment) {
     VarAtom *VA = CurrE.first;
     if (Pred(VA))
       Matches.insert(VA);
@@ -789,12 +760,13 @@ std::set<VarAtom *> ConstraintsEnv::filterAtoms(VarAtomPred Pred) {
 
 // Reset solution of all VarAtoms that satisfy the given predicate
 //  to be the given ConstAtom.
-std::set<VarAtom *> ConstraintsEnv::resetSolution(VarAtomPred Pred, ConstAtom *C) {
+std::set<VarAtom *> ConstraintsEnv::resetSolution(VarAtomPred Pred,
+                                                  ConstAtom *C) {
   std::set<VarAtom *> Unchanged;
-  for (auto &CurrE : environment) {
+  for (auto &CurrE : Environment) {
     VarAtom *VA = CurrE.first;
     if (Pred(VA)) {
-      if (useChecked) {
+      if (UseChecked) {
         CurrE.second.first = C;
       } else {
         CurrE.second.second = C;
@@ -807,7 +779,7 @@ std::set<VarAtom *> ConstraintsEnv::resetSolution(VarAtomPred Pred, ConstAtom *C
 }
 
 void ConstraintsEnv::resetFullSolution(VarSolTy InitC) {
-  for (auto &CurrE : environment) {
+  for (auto &CurrE : Environment) {
     CurrE.second = InitC;
   }
 }
@@ -815,14 +787,14 @@ void ConstraintsEnv::resetFullSolution(VarSolTy InitC) {
 // Copy solutions from the ptyp map into the checked one
 //   if the checked solution is non-WILD.
 void ConstraintsEnv::mergePtrTypes() {
-  useChecked = true;
-  for (auto &Elem : environment) {
+  UseChecked = true;
+  for (auto &Elem : Environment) {
     VarAtom *VA = dyn_cast<VarAtom>(Elem.first);
     ConstAtom *CAssign = Elem.second.first;
     if (dyn_cast<WildAtom>(CAssign) == nullptr) {
       ConstAtom *OAssign = Elem.second.second;
       assert(dyn_cast<WildAtom>(OAssign) == nullptr &&
-          "Expected a checked pointer type.");
+             "Expected a checked pointer type.");
       assign(VA, OAssign);
     }
   }

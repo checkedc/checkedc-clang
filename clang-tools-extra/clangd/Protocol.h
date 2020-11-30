@@ -724,8 +724,11 @@ llvm::json::Value toJSON(const WorkspaceEdit &WE);
 
 #ifdef INTERACTIVE3C
 /// Data corresponding to the manual fix
+//
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
 struct _3CManualFix {
-  int ptrID;
+  int PtrId;
 };
 
 bool fromJSON(const llvm::json::Value &, _3CManualFix &);
@@ -762,8 +765,14 @@ struct ExecuteCommandParams {
   const static llvm::StringLiteral CLANGD_APPLY_TWEAK;
 #ifdef INTERACTIVE3C
   // Command to apply the change for this pointer only
+  //
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
   const static llvm::StringLiteral _3C_APPLY_ONLY_FOR_THIS;
   // Command to apply the change for all pointers with same reason
+  //
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
   const static llvm::StringLiteral _3C_APPLY_FOR_ALL;
 #endif
 
@@ -773,7 +782,7 @@ struct ExecuteCommandParams {
   // Arguments
   llvm::Optional<WorkspaceEdit> workspaceEdit;
 #ifdef INTERACTIVE3C
-  llvm::Optional<_3CManualFix> _3CManualFix;
+  llvm::Optional<_3CManualFix> The3CManualFix;
 #endif
   llvm::Optional<TweakArgs> tweakArgs;
 };
@@ -817,23 +826,25 @@ llvm::json::Value toJSON(const CodeAction &);
 // A code lens represents a command that should be shown along with
 // source text, like the number of references, a way to run tests, etc.
 //
-//  A code lens is _unresolved_ when no command is associated to it. For performance
-//  reasons the creation of a code lens and resolving should be done in two stages.
+//  A code lens is _unresolved_ when no command is associated to it. For
+//  performance reasons the creation of a code lens and resolving should be done
+//  in two stages.
 //
 struct CodeLens {
-  /// The range in which this code lens is valid, should only span a single line.
-  Range range;
+  /// The range in which this code lens is valid, should only span a single
+  /// line.
+  Range TheRange;
 
   /**
    * The command this code lens represents.
-  */
-  llvm::Optional<Command> command;
+   */
+  llvm::Optional<Command> TheCommand;
 
   /**
    * A data entry field that is preserved on a code lens item between
    * a code lens and a code lens resolve request.
    */
-  //data?: any
+  // data?: any
 };
 
 llvm::json::Value toJSON(const CodeLens &);

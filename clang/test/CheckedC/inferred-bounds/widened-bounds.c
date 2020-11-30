@@ -314,7 +314,7 @@ void f15(int i) {
 // CHECK:  [B9]
 // CHECK:    2: *(p - i)
 // CHECK:  [B8]
-// CHECK-NOT: upper_bound(p)
+// CHECK: upper_bound(p) = 1
 
   _Nt_array_ptr<char> q : count(0) = "a";
   if (*q)
@@ -328,7 +328,6 @@ void f15(int i) {
 // CHECK: upper_bound(q) = 1
 // CHECK:  [B5]
 // CHECK: upper_bound(q) = 1
-// CHECK-NOT: upper_bound(q)
 
   _Nt_array_ptr<char> r : bounds(r, r + +1) = "a";
   if (*(r + +1))

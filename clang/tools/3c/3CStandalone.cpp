@@ -9,130 +9,128 @@
 // 3C tool
 //
 //===----------------------------------------------------------------------===//
+
+#include "clang/3C/3C.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
-
-#include "clang/3C/3C.h"
 
 using namespace clang::driver;
 using namespace clang::tooling;
 using namespace clang;
 using namespace llvm;
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
 static cl::OptionCategory _3CCategory("3C options");
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp("");
 
 static cl::opt<bool> OptDumpIntermediate("dump-intermediate",
-                                      cl::desc("Dump intermediate "
-                                               "information"),
-                                      cl::init(false),
-                                      cl::cat(_3CCategory));
+                                         cl::desc("Dump intermediate "
+                                                  "information"),
+                                         cl::init(false), cl::cat(_3CCategory));
 
-static cl::opt<bool> OptVerbose("verbose", cl::desc("Print verbose "
-                                                 "information"),
-                             cl::init(false), cl::cat(_3CCategory));
+static cl::opt<bool> OptVerbose("verbose",
+                                cl::desc("Print verbose "
+                                         "information"),
+                                cl::init(false), cl::cat(_3CCategory));
 
 static cl::opt<std::string>
     OptOutputPostfix("output-postfix",
-                  cl::desc("Postfix to add to the names of rewritten "
-                           "files, if not supplied writes to STDOUT"),
-                  cl::init("-"), cl::cat(_3CCategory));
+                     cl::desc("Postfix to add to the names of rewritten "
+                              "files, if not supplied writes to STDOUT"),
+                     cl::init("-"), cl::cat(_3CCategory));
 
 static cl::opt<std::string>
     OptMalloc("use-malloc",
-                     cl::desc("Allows for the usage of user-specified "
-                              "versions of function allocators"),
-                     cl::init(""), cl::cat(_3CCategory));
+              cl::desc("Allows for the usage of user-specified "
+                       "versions of function allocators"),
+              cl::init(""), cl::cat(_3CCategory));
 
 static cl::opt<std::string>
     OptConstraintOutputJson("constraint-output",
-                         cl::desc("Path to the file where all the analysis "
-                                  "information will be dumped as json"),
-                         cl::init("constraint_output.json"),
-                         cl::cat(_3CCategory));
+                            cl::desc("Path to the file where all the analysis "
+                                     "information will be dumped as json"),
+                            cl::init("constraint_output.json"),
+                            cl::cat(_3CCategory));
 
 static cl::opt<std::string>
     OptStatsOutputJson("stats-output",
-                            cl::desc("Path to the file where all the stats "
-                                     "will be dumped as json"),
-                            cl::init("TotalConstraintStats.json"),
-                            cl::cat(_3CCategory));
+                       cl::desc("Path to the file where all the stats "
+                                "will be dumped as json"),
+                       cl::init("TotalConstraintStats.json"),
+                       cl::cat(_3CCategory));
 static cl::opt<std::string>
     OptWildPtrInfoJson("wildptrstats-output",
-                            cl::desc("Path to the file where all the info "
-                                     "related to WILD ptr grouped by reason"
-                                     " will be dumped as json"),
-                            cl::init("WildPtrStats.json"),
-                            cl::cat(_3CCategory));
+                       cl::desc("Path to the file where all the info "
+                                "related to WILD ptr grouped by reason"
+                                " will be dumped as json"),
+                       cl::init("WildPtrStats.json"), cl::cat(_3CCategory));
 
-static cl::opt<std::string>
-  OptPerPtrWILDInfoJson("perptrstats-output",
-                        cl::desc("Path to the file where all the info "
-                                 "related to each WILD ptr will be dumped as json"),
-                        cl::init("PerWildPtrStats.json"),
-                        cl::cat(_3CCategory));
+static cl::opt<std::string> OptPerPtrWILDInfoJson(
+    "perptrstats-output",
+    cl::desc("Path to the file where all the info "
+             "related to each WILD ptr will be dumped as json"),
+    cl::init("PerWildPtrStats.json"), cl::cat(_3CCategory));
 
 static cl::opt<bool> OptDumpStats("dump-stats", cl::desc("Dump statistics"),
-                               cl::init(false),
-                               cl::cat(_3CCategory));
+                                  cl::init(false), cl::cat(_3CCategory));
 
 static cl::opt<bool> OptHandleVARARGS("handle-varargs",
-                                   cl::desc("Enable handling of varargs "
-                                            "in a "
-                                            "sound manner"),
-                                   cl::init(false),
-                                   cl::cat(_3CCategory));
+                                      cl::desc("Enable handling of varargs "
+                                               "in a "
+                                               "sound manner"),
+                                      cl::init(false), cl::cat(_3CCategory));
 
-static cl::opt<bool> OptEnablePropThruIType("enable-itypeprop",
-                                         cl::desc("Enable propagation of "
-                                                  "constraints through ityped "
-                                                  "parameters/returns."),
-                                         cl::init(false),
-                                         cl::cat(_3CCategory));
+static cl::opt<bool>
+    OptEnablePropThruIType("enable-itypeprop",
+                           cl::desc("Enable propagation of "
+                                    "constraints through ityped "
+                                    "parameters/returns."),
+                           cl::init(false), cl::cat(_3CCategory));
 
 static cl::opt<bool> OptAllTypes("alltypes",
-                              cl::desc("Consider all Checked C types for "
-                                       "conversion"),
-                              cl::init(false),
-                              cl::cat(_3CCategory));
+                                 cl::desc("Consider all Checked C types for "
+                                          "conversion"),
+                                 cl::init(false), cl::cat(_3CCategory));
 
-static cl::opt<bool> OptAddCheckedRegions("addcr", cl::desc("Add Checked "
-                                                         "Regions"),
-                                       cl::init(false),
-                                       cl::cat(_3CCategory));
+static cl::opt<bool> OptAddCheckedRegions("addcr",
+                                          cl::desc("Add Checked "
+                                                   "Regions"),
+                                          cl::init(false),
+                                          cl::cat(_3CCategory));
 
-static cl::opt<bool> OptDiableCCTypeChecker("disccty",
-                              cl::desc("Do not disable checked c type checker."),
-                              cl::init(false),
-                              cl::cat(_3CCategory));
+static cl::opt<bool>
+    OptDiableCCTypeChecker("disccty",
+                           cl::desc("Do not disable checked c type checker."),
+                           cl::init(false), cl::cat(_3CCategory));
 
 static cl::opt<std::string>
     OptBaseDir("base-dir",
-            cl::desc("Base directory for the code we're translating"),
-            cl::init(""), cl::cat(_3CCategory));
+               cl::desc("Base directory for the code we're translating"),
+               cl::init(""), cl::cat(_3CCategory));
 
-static cl::opt<bool> OptWarnRootCause
-    ("warn-root-cause",
+static cl::opt<bool> OptWarnRootCause(
+    "warn-root-cause",
     cl::desc("Emit warnings indicating root causes of unchecked pointers."),
     cl::init(false), cl::cat(_3CCategory));
 
-static cl::opt<bool> OptWarnAllRootCause
-    ("warn-all-root-cause",
-     cl::desc("Emit warnings for all root causes, "
-              "even those unlikely to be interesting."),
-     cl::init(false), cl::cat(_3CCategory));
+static cl::opt<bool>
+    OptWarnAllRootCause("warn-all-root-cause",
+                        cl::desc("Emit warnings for all root causes, "
+                                 "even those unlikely to be interesting."),
+                        cl::init(false), cl::cat(_3CCategory));
 
 #ifdef FIVE_C
-static cl::opt<bool> OptRemoveItypes
-    ("remove-itypes",
-     cl::desc("Remove unneeded interoperation type annotations."),
-     cl::init(false), cl::cat(_3CCategory));
+static cl::opt<bool> OptRemoveItypes(
+    "remove-itypes",
+    cl::desc("Remove unneeded interoperation type annotations."),
+    cl::init(false), cl::cat(_3CCategory));
 
-static cl::opt<bool> OptForceItypes
-    ("force-itypes",
-     cl::desc("Use interoperation types instead of regular checked pointers. "),
-     cl::init(false), cl::cat(_3CCategory));
+static cl::opt<bool> OptForceItypes(
+    "force-itypes",
+    cl::desc("Use interoperation types instead of regular checked pointers. "),
+    cl::init(false), cl::cat(_3CCategory));
 #endif
 
 int main(int argc, const char **argv) {
@@ -144,9 +142,7 @@ int main(int argc, const char **argv) {
   InitializeAllAsmPrinters();
   InitializeAllAsmParsers();
 
-  CommonOptionsParser OptionsParser(argc,
-                                    (const char**)(argv),
-                                    _3CCategory);
+  CommonOptionsParser OptionsParser(argc, (const char **)(argv), _3CCategory);
   // Setup options.
   struct _3COptions CcOptions;
   CcOptions.BaseDir = OptBaseDir.getValue();
@@ -174,29 +170,30 @@ int main(int argc, const char **argv) {
   //Add user specified function allocators
   std::string Malloc = OptMalloc.getValue();
   if (!Malloc.empty()) {
-    std::string delimiter = ",";
-    size_t pos = 0;
-    std::string token;
-    while ((pos = Malloc.find(delimiter)) != std::string::npos) {
-      token = Malloc.substr(0, pos);
-      CcOptions.AllocatorFunctions.push_back(token);
-      Malloc.erase(0, pos + delimiter.length());
+    std::string Delimiter = ",";
+    size_t Pos = 0;
+    std::string Token;
+    while ((Pos = Malloc.find(Delimiter)) != std::string::npos) {
+      Token = Malloc.substr(0, Pos);
+      CcOptions.AllocatorFunctions.push_back(Token);
+      Malloc.erase(0, Pos + Delimiter.length());
     }
-    token = Malloc;
-    CcOptions.AllocatorFunctions.push_back(token);
-  }
-  else
+    Token = Malloc;
+    CcOptions.AllocatorFunctions.push_back(Token);
+  } else
     CcOptions.AllocatorFunctions = {};
 
   // Create 3C Interface.
-  _3CInterface _3CInterface(CcOptions,
-                            OptionsParser.getSourcePathList(),
+  //
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  _3CInterface _3CInterface(CcOptions, OptionsParser.getSourcePathList(),
                             &(OptionsParser.getCompilations()));
 
   if (OptVerbose)
     errs() << "Calling Library to building Constraints.\n";
   // First build constraints.
-  if (!_3CInterface.BuildInitialConstraints()) {
+  if (!_3CInterface.buildInitialConstraints()) {
     errs() << "Failure occurred while trying to build constraints. Exiting.\n";
     return 1;
   }
@@ -207,7 +204,7 @@ int main(int argc, const char **argv) {
   }
 
   // Next solve the constraints.
-  if (!_3CInterface.SolveConstraints(OptWarnRootCause)) {
+  if (!_3CInterface.solveConstraints(OptWarnRootCause)) {
     errs() << "Failure occurred while trying to solve constraints. Exiting.\n";
     return 1;
   }
@@ -218,7 +215,7 @@ int main(int argc, const char **argv) {
   }
 
   // Write all the converted files back.
-  if (!_3CInterface.WriteAllConvertedFilesToDisk()) {
+  if (!_3CInterface.writeAllConvertedFilesToDisk()) {
     errs() << "Failure occurred while trying to rewrite converted files back."
               "Exiting.\n";
     return 1;

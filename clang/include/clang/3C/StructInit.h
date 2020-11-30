@@ -9,40 +9,40 @@
 // adding initializers to struct variables during the rewriting phase
 //===----------------------------------------------------------------------===//
 
-#ifndef _STRUCTINIT_H
-#define _STRUCTINIT_H
+#ifndef LLVM_CLANG_3C_STRUCTINIT_H
+#define LLVM_CLANG_3C_STRUCTINIT_H
 
+#include "clang/3C/3CGlobalOptions.h"
+#include "clang/3C/ArrayBoundsInferenceConsumer.h"
+#include "clang/3C/CheckedRegions.h"
 #include "clang/3C/ConstraintResolver.h"
+#include "clang/3C/MappingVisitor.h"
 #include "clang/3C/RewriteUtils.h"
+#include "clang/3C/StructInit.h"
 #include "clang/3C/Utils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/3C/ArrayBoundsInferenceConsumer.h"
-#include "clang/3C/3CGlobalOptions.h"
-#include "clang/3C/MappingVisitor.h"
-#include "clang/3C/CheckedRegions.h"
-#include "clang/3C/StructInit.h"
-#include "llvm/Support/raw_ostream.h"
 #include "clang/Tooling/Refactoring/SourceCode.h"
+#include "llvm/Support/raw_ostream.h"
 #include <sstream>
 
 using namespace clang;
 using namespace llvm;
 
-class StructVariableInitializer 
-  : public RecursiveASTVisitor<StructVariableInitializer> {
+class StructVariableInitializer
+    : public RecursiveASTVisitor<StructVariableInitializer> {
 public:
-  explicit StructVariableInitializer(ASTContext *_C, ProgramInfo &_I, RSet &R)
-      : Context(_C), I(_I), RewriteThese(R), RecordsWithCPointers() {}
+  explicit StructVariableInitializer(ASTContext *C, ProgramInfo &I, RSet &R)
+      : Context(C), I(I), RewriteThese(R), RecordsWithCPointers() {}
 
   bool VisitDeclStmt(DeclStmt *S);
 
 private:
-  bool VariableNeedsInitializer(VarDecl *VD);
+  bool variableNeedsInitializer(VarDecl *VD);
   void insertVarDecl(VarDecl *VD, DeclStmt *S);
 
-  ASTContext* Context;
-  ProgramInfo& I;
-  RSet& RewriteThese;
-  std::set<RecordDecl*> RecordsWithCPointers;
+  ASTContext *Context;
+  ProgramInfo &I;
+  RSet &RewriteThese;
+  std::set<RecordDecl *> RecordsWithCPointers;
 };
 #endif

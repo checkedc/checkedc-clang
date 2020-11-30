@@ -19,34 +19,32 @@ using namespace llvm;
 // This currently the expansion location for the declarations source location.
 // If we want to add more complete source for macros in the future, I expect we
 // will need to the spelling location instead.
-PersistentSourceLoc
-PersistentSourceLoc::mkPSL(const Decl *D, ASTContext &C) {
+PersistentSourceLoc PersistentSourceLoc::mkPSL(const Decl *D, ASTContext &C) {
   SourceLocation SL = C.getSourceManager().getExpansionLoc(D->getLocation());
   return mkPSL(D->getSourceRange(), SL, C);
 }
 
-
 // Create a PersistentSourceLoc for a Stmt.
-PersistentSourceLoc
-PersistentSourceLoc::mkPSL(const Stmt *S, ASTContext &Context) {
+PersistentSourceLoc PersistentSourceLoc::mkPSL(const Stmt *S,
+                                               ASTContext &Context) {
   return mkPSL(S->getSourceRange(), S->getBeginLoc(), Context);
 }
 
 // Create a PersistentSourceLoc for an Expression.
-PersistentSourceLoc
-PersistentSourceLoc::mkPSL(const clang::Expr *E, clang::ASTContext &Context) {
+PersistentSourceLoc PersistentSourceLoc::mkPSL(const clang::Expr *E,
+                                               clang::ASTContext &Context) {
   return mkPSL(E->getSourceRange(), E->getBeginLoc(), Context);
 }
 
 // Use the PresumedLoc infrastructure to get a file name and expansion
 // line and column numbers for a SourceLocation.
-PersistentSourceLoc 
-PersistentSourceLoc::mkPSL(clang::SourceRange SR, SourceLocation SL,
-                           ASTContext &Context) {
+PersistentSourceLoc PersistentSourceLoc::mkPSL(clang::SourceRange SR,
+                                               SourceLocation SL,
+                                               ASTContext &Context) {
   SourceManager &SM = Context.getSourceManager();
   PresumedLoc PL = SM.getPresumedLoc(SL);
 
-  // If there is no PresumedLoc, create a nullary PersistentSourceLoc.  
+  // If there is no PresumedLoc, create a nullary PersistentSourceLoc.
   if (!PL.isValid())
     return PersistentSourceLoc();
 
@@ -62,23 +60,21 @@ PersistentSourceLoc::mkPSL(clang::SourceRange SR, SourceLocation SL,
       EndCol = EFESL.getExpansionColumnNumber();
     }
   }
-  std::string fn = PL.getFilename();
+  std::string Fn = PL.getFilename();
 
   // Get the absolute filename of the file.
-  FullSourceLoc tFSL(SR.getBegin(), SM);
-  if (tFSL.isValid()) {
-    const FileEntry *fe = SM.getFileEntryForID(tFSL.getFileID());
-    std::string toConv = fn;
-    std::string feAbsS = "";
-    if (fe != nullptr)
-      toConv = fe->getName();
-    if (getAbsoluteFilePath(toConv, feAbsS))
-      fn = sys::path::remove_leading_dotslash(feAbsS);
+  FullSourceLoc TFSL(SR.getBegin(), SM);
+  if (TFSL.isValid()) {
+    const FileEntry *Fe = SM.getFileEntryForID(TFSL.getFileID());
+    std::string ToConv = Fn;
+    std::string FeAbsS = "";
+    if (Fe != nullptr)
+      ToConv = Fe->getName();
+    if (getAbsoluteFilePath(ToConv, FeAbsS))
+      Fn = sys::path::remove_leading_dotslash(FeAbsS);
   }
-  PersistentSourceLoc PSL(fn, 
-                          FESL.getExpansionLineNumber(),
-                          FESL.getExpansionColumnNumber(),
-                          EndCol);
+  PersistentSourceLoc PSL(Fn, FESL.getExpansionLineNumber(),
+                          FESL.getExpansionColumnNumber(), EndCol);
 
   return PSL;
 }

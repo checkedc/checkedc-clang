@@ -248,6 +248,32 @@ bool Lexicographic::CompareExprSemantically(const Expr *Arg1,
   return Res;
 }
 
+bool Lexicographic::GetDerefOffset(const Expr *UpperExpr,
+                                   const Expr *DerefExpr,
+                                   llvm::APSInt &Offset) {
+  Expr *E1 = const_cast<Expr *>(UpperExpr);
+  Expr *E2 = const_cast<Expr *>(DerefExpr);
+
+  PreorderAST P1(Context, E1);
+  P1.Normalize();
+  if (P1.GetError()) {
+    P1.Cleanup();
+    return false;
+  }
+
+  PreorderAST P2(Context, E2);
+  P2.Normalize();
+  if (P2.GetError()) {
+    P2.Cleanup();
+    return false;
+  }
+
+  bool Res = P1.GetDerefOffset(P2, Offset);
+  P1.Cleanup();
+  P2.Cleanup();
+  return Res;
+}
+
 Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
    if (Trace) {
      raw_ostream &OS = llvm::outs();

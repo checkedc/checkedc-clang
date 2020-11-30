@@ -10,26 +10,25 @@
 // heuristics in the case of array bounds inference.
 //===----------------------------------------------------------------------===//
 
-#ifndef _INTERMEDIATETOOLHOOK_H
-#define _INTERMEDIATETOOLHOOK_H
-
-#include "clang/AST/Decl.h"
-#include "clang/AST/Stmt.h"
-#include "clang/AST/ASTContext.h"
-#include "clang/Rewrite/Core/Rewriter.h"
+#ifndef LLVM_CLANG_3C_INTERMEDIATETOOLHOOK_H
+#define LLVM_CLANG_3C_INTERMEDIATETOOLHOOK_H
 
 #include "ProgramInfo.h"
+#include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
+#include "clang/AST/Stmt.h"
+#include "clang/Rewrite/Core/Rewriter.h"
 
 using namespace clang;
 
-
 class IntermediateToolHook : public ASTConsumer {
 public:
-  explicit IntermediateToolHook(ProgramInfo &I, clang::ASTContext *C) : Info(I) { }
+  explicit IntermediateToolHook(ProgramInfo &I, clang::ASTContext *C)
+      : Info(I) {}
   virtual void HandleTranslationUnit(ASTContext &Context);
 
 private:
   ProgramInfo &Info;
 };
 
-#endif // _INTERMEDIATETOOLHOOK_H
+#endif // LLVM_CLANG_3C_INTERMEDIATETOOLHOOK_H

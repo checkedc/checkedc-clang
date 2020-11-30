@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _3CGLOBALOPTIONS_H
-#define _3CGLOBALOPTIONS_H
+#ifndef LLVM_CLANG_3C_3CGLOBALOPTIONS_H
+#define LLVM_CLANG_3C_3CGLOBALOPTIONS_H
 
 #include "llvm/Support/CommandLine.h"
 
@@ -34,4 +34,4 @@ extern bool RemoveItypes;
 extern bool ForceItypes;
 #endif
 
-#endif //_3CGLOBALOPTIONS_H
+#endif // LLVM_CLANG_3C_3CGLOBALOPTIONS_H

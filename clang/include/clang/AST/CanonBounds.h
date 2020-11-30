@@ -123,6 +123,12 @@ namespace clang {
     /// expressions are equivalent semantically.
     bool CompareExprSemantically(const Expr *E1, const Expr *E2);
 
+    /// \brief Given the upper bound expr and the dereference expr for an
+    /// _Nt_array_ptr gets the offset by which the pointer is dereferenced.
+    /// The boolean return value indicates whether a valid offset exists.
+    bool GetDerefOffset(const Expr *UpperExpr, const Expr *DerefExpr,
+                        llvm::APSInt &Offset);
+
     /// \brief Compare declarations that may be used by expressions or
     /// or types.
     Result CompareDecl(const NamedDecl *D1, const NamedDecl *D2) const;

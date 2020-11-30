@@ -74,38 +74,38 @@ struct arrfptr {
 	//CHECK_ALL: _Ptr<int (int )> funcs _Checked[5];
 };
 
-int add1(int x) { 
-	//CHECK: int add1(int x) _Checked { 
+static int add1(int x) { 
+	//CHECK: static int add1(int x) _Checked { 
     return x+1;
 } 
 
-int sub1(int x) { 
-	//CHECK: int sub1(int x) _Checked { 
+static int sub1(int x) { 
+	//CHECK: static int sub1(int x) _Checked { 
     return x-1; 
 } 
 
-int fact(int n) { 
-	//CHECK: int fact(int n) _Checked { 
+static int fact(int n) { 
+	//CHECK: static int fact(int n) _Checked { 
     if(n==0) { 
         return 1;
     } 
     return n*fact(n-1);
 } 
 
-int fib(int n) { 
-	//CHECK: int fib(int n) _Checked { 
+static int fib(int n) { 
+	//CHECK: static int fib(int n) _Checked { 
     if(n==0) { return 0; } 
     if(n==1) { return 1; } 
     return fib(n-1) + fib(n-2);
 } 
 
-int zerohuh(int n) { 
-	//CHECK: int zerohuh(int n) _Checked { 
+static int zerohuh(int n) { 
+	//CHECK: static int zerohuh(int n) _Checked { 
     return !n;
 }
 
-int *mul2(int *x) { 
-	//CHECK: _Ptr<int> mul2(_Ptr<int> x) _Checked { 
+static int *mul2(int *x) { 
+	//CHECK: static _Ptr<int> mul2(_Ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }

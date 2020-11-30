@@ -12,17 +12,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _3C_H
-#define _3C_H
+#ifndef LLVM_CLANG_3C_3C_H
+#define LLVM_CLANG_3C_3C_H
 
+#include "3CInteractiveData.h"
 #include "ConstraintVariables.h"
 #include "PersistentSourceLoc.h"
-#include "clang/Tooling/CommonOptionsParser.h"
-#include "3CInteractiveData.h"
 #include "ProgramInfo.h"
+#include "clang/Tooling/CommonOptionsParser.h"
 #include <mutex>
 
 // Options used to initialize 3C tool.
+//
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
 struct _3COptions {
   bool DumpIntermediate;
 
@@ -65,6 +68,9 @@ struct _3COptions {
 };
 
 // The main interface exposed by the 3C to interact with the tool.
+//
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
 class _3CInterface {
 
 public:
@@ -79,39 +85,38 @@ public:
   // Constraint Building.
 
   // Build initial constraints.
-  bool BuildInitialConstraints();
+  bool buildInitialConstraints();
 
   // Constraint Solving. The flag: ComputeInterimState requests to compute
   // interim constraint solver state.
-  bool SolveConstraints(bool ComputeInterimState = false);
+  bool solveConstraints(bool ComputeInterimState = false);
 
   // Interactivity.
 
   // Get all the WILD pointers and corresponding reason why they became WILD.
-  ConstraintsInfo &GetWILDPtrsInfo();
+  ConstraintsInfo &getWildPtrsInfo();
 
   // Given a constraint key make the corresponding constraint var
   // to be non-WILD.
-  bool MakeSinglePtrNonWild(ConstraintKey targetPtr);
+  bool makeSinglePtrNonWild(ConstraintKey TargetPtr);
 
   // Make the provided pointer non-WILD and also make all the
   // pointers, which are wild because of the same reason, as non-wild
   // as well.
-  bool InvalidateWildReasonGlobally(ConstraintKey PtrKey);
+  bool invalidateWildReasonGlobally(ConstraintKey PtrKey);
 
   // Rewriting.
 
   // Write all converted versions of the files in the source file list
   // to disk
-  bool WriteAllConvertedFilesToDisk();
+  bool writeAllConvertedFilesToDisk();
   // Write the current converted state of the provided file.
-  bool WriteConvertedFileToDisk(const std::string &FilePath);
+  bool writeConvertedFileToDisk(const std::string &FilePath);
 
 private:
   // Are constraints already built?
   bool ConstraintsBuilt;
-  void InvalidateAllConstraintsWithReason(Constraint *ConstraintToRemove);
-
+  void invalidateAllConstraintsWithReason(Constraint *ConstraintToRemove);
 };
 
-#endif // _3C_H
+#endif // LLVM_CLANG_3C_3C_H
