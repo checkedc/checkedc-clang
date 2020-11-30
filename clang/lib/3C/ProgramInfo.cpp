@@ -1001,3 +1001,16 @@ ProgramInfo::getTypeParamBindings(CallExpr *CE, ASTContext *C) const {
          TypeParamBindings.find(PSL) != TypeParamBindings.end());
   return TypeParamBindings.at(PSL);
 }
+
+std::pair<CVarSet, bool> ProgramInfo::lookupTypedef(PersistentSourceLoc PSL) {
+  return typedefVars[PSL];
+}
+
+bool ProgramInfo::seenTypedef(PersistentSourceLoc PSL) {
+  return typedefVars.count(PSL) != 0;
+}
+
+void ProgramInfo::addTypedef(PersistentSourceLoc PSL, bool ShouldCheck) {
+  CVarSet empty;
+  typedefVars[PSL] = make_pair(empty, ShouldCheck);
+}

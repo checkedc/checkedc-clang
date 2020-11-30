@@ -452,8 +452,11 @@ public:
       CVarSet empty;
       auto PSL = PersistentSourceLoc::mkPSL(TD, *Context);
       bool shouldCheck = !PtrToStructDef::containsPtrToStructDef(TD);
-      if (Info.typedefVars.count(PSL) == 0) {
-        Info.typedefVars[PSL] = make_pair(empty, shouldCheck);
+      // If we haven't seen this typedef before, initialize it's entry in the
+      // typedef map. If we have seen it before, and we need to preserve the
+      // constraints contained within it
+      if (!Info.seenTypedef(PSL)) {
+        Info.addTypedef(PSL, shouldCheck);
       }
       return true;
   }
