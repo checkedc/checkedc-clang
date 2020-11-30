@@ -1970,7 +1970,7 @@ private:
   DeclResult ParseRecordTypeApplication(RecordDecl *Base, bool IsItypeGeneric);
 
   // Checked C: Determine if the token begins a where clause.
-  bool StartsWhereClause(Token &T);
+  bool StartsWhereClause(Token &T) const;
 
   // Checked C: Parse a where clause.
   bool ParseWhereClause();

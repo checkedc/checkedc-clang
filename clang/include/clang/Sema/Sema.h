@@ -5041,7 +5041,7 @@ public:
   /// \brief When non-NULL, the type of the '_Return_value' expression.
   QualType BoundsExprReturnValue;
 
-  /// \brief Checked C: Parse a where clause for a decl.
+  /// \brief Checked C: Parse where clause facts.
   bool ActOnWhereClause(DeclaratorDecl *D, Expr *E);
 
   /// \brief RAII object used to temporarily set the the type of _Return_value

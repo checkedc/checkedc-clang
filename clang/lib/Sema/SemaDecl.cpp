@@ -18734,7 +18734,7 @@ Decl *Sema::getObjCDeclContext() const {
   return (dyn_cast_or_null<ObjCContainerDecl>(CurContext));
 }
 
-// Checked C: Process a where clause for a decl.
+// Checked C: Process where clause facts.
 bool Sema::ActOnWhereClause(DeclaratorDecl *D, Expr *E) {
   // Returns true on error.
 

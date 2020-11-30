@@ -2467,7 +2467,6 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
         Actions.ActOnInitializerError(ThisDecl);
       } else {
         auto *InitExpr = Init.get(); // This won't fail, since isInvalid() was checked above.
-
         if (D.getDeclSpec().isUnpackSpecified()) {
           auto TypeVars = D.getDeclSpec().typeVariables();
           if (TypeVars.size() != 1) {
@@ -7903,7 +7902,7 @@ bool Parser::TryAltiVecTokenOutOfLine(DeclSpec &DS, SourceLocation Loc,
   return false;
 }
 
-bool Parser::StartsWhereClause(Token &T) {
+bool Parser::StartsWhereClause(Token &T) const {
   return T.getKind() == tok::kw__Where;
 }
 
@@ -7944,8 +7943,8 @@ bool Parser::ParseWhereClause() {
     return Actions.ActOnWhereClause(DD, Bounds);
 
   } else {
-    // TODO: Handle other where clauses like here. For example, where x == e1;
-    // TODO: Handle multiple facts. For example, where x > e1 && x < e2.
+    // TODO: Handle other where clauses here. For example, where x == e1;
+    // TODO: Handle multiple facts. For example, where x > e1 && x < e2;
   }
 
   return false;
