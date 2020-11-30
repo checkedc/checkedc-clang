@@ -1975,7 +1975,6 @@ private:
   // Checked C: Parse a where clause.
   bool ParseWhereClause();
 
-
   /// Parse a pack expression of the form '_Pack(expr, existential_type, substitution_type)'.
   ExprResult ParsePackExpression();
 
