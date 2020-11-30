@@ -4536,7 +4536,6 @@ public:
   static bool classof(const WhereClause *) { return true; }
 };
 
-
 /// Sugar type that represents a type that was qualified by a qualifier written
 /// as a macro invocation.
 class MacroQualifiedType : public Type {
