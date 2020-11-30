@@ -17,6 +17,8 @@
 using namespace clang;
 
 bool StructVariableInitializer::variableNeedsInitializer(VarDecl *VD) {
+  if (VD->getStorageClass() == StorageClass::SC_Extern)
+    return false;
   RecordDecl *RD = VD->getType().getTypePtr()->getAsRecordDecl();
   if (RecordDecl *Definition = RD->getDefinition()) {
     // See if we already know that this structure has a checked pointer.
@@ -49,7 +51,11 @@ void StructVariableInitializer::insertVarDecl(VarDecl *VD, DeclStmt *S) {
     if (variableNeedsInitializer(VD)) {
       // Create replacement declaration text with an initializer.
       const clang::Type *Ty = VD->getType().getTypePtr();
-      std::string ToReplace = tyToStr(Ty) + " " + VD->getName().str() + " = {}";
+      std::string TQ = VD->getType().getQualifiers().getAsString();
+      if (!TQ.empty()) { TQ += " "; }
+      std::string ToReplace =
+          getStorageQualifierString(VD) + TQ +
+          tyToStr(Ty) + " " + VD->getName().str() + " = {}";
       RewriteThese.insert(new VarDeclReplacement(VD, S, ToReplace));
     }
   }

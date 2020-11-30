@@ -52,3 +52,17 @@ void mixed() {
 }
 //CHECK: const volatile restrict _Ptr<int> a = ((void *)0);
 //CHECK: restrict _Ptr<const volatile _Ptr<const _Ptr<const volatile int>>> b = ((void *)0);
+
+struct qualifier_struct { int *a; };
+void structs() {
+  struct qualifier_struct a0;
+  static struct qualifier_struct a;
+  volatile static struct qualifier_struct b;
+  const static struct qualifier_struct *c;
+  const extern struct qualifier_struct d;
+}
+//CHECK: struct qualifier_struct a0 = {};
+//CHECK: static struct qualifier_struct a = {};
+//CHECK: static volatile struct qualifier_struct b = {};
+//CHECK: static _Ptr<const struct qualifier_struct> c = ((void *)0);
+//CHECK: const extern struct qualifier_struct d;
