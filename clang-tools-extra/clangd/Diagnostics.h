@@ -58,7 +58,7 @@ struct DiagBase {
   // Absolute path to containing file, if available.
   llvm::Optional<std::string> AbsFile;
 #ifdef INTERACTIVE3C
-  std::string code;
+  std::string Code;
 #endif
   clangd::Range Range;
   DiagnosticsEngine::Level Severity = DiagnosticsEngine::Note;

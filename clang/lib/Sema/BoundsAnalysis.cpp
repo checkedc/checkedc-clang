@@ -274,53 +274,28 @@ void BoundsAnalysis::CollectNtPtrsInScope(FunctionDecl *FD) {
   }
 }
 
-void BoundsAnalysis::FillGenSetForEdge(const Expr *E,
+void BoundsAnalysis::FillGenSetForEdge(const Expr *DerefExpr,
                                        ElevatedCFGBlock *EB,
                                        ElevatedCFGBlock *SuccEB) {
-
-  // TODO: Handle accesses of the form:
-  // "if (*(p + i) && *(p + j) && *(p + k))"
-
   // The deref expr can be of 2 forms:
   // 1. Ptr deref or array subscript: if (*p) or p[i]
   // 2. BinaryOperator: if (*(p + e))
-
-  // SplitIntoBaseOffset tries to uniformize the expr. It returns a "Base" and
-  // an "Offset". Base is an expr containing only DeclRefExprs and Offset is an
-  // expr containing only IntegerLiterals. Here are some examples: Note: p and
-  // q are DelRefExprs, i and j are IntegerLiterals.
-
-  // Expr ==> Return Value
-  // p ==> (p, nullptr)
-  // p + i ==> (p, i)
-  // i + p ==> (p, i)
-  // p + i + j ==> (p, i + j)
-  // i + p + j + q ==> (p + q, i + j)
-
-  ExprIntPairTy DerefExprIntPair = SplitIntoBaseOffset(E);
-  const Expr *DerefBase = DerefExprIntPair.first;
-  if (!DerefBase)
-    return;
-  llvm::APSInt DerefOffset = DerefExprIntPair.second;
 
   // For bounds widening, the base of the deref expr and the declared upper
   // bounds expr for all ntptrs in scope should be the same.
 
   // For example:
   // _Nt_array_ptr<T> p : bounds(p, p + i);
-  // _Nt_array_ptr<T> q : bounds(p, p + i);
   // _Nt_array_ptr<T> r : bounds(r, r + i);
 
-  // if (*(p + i)) // widen p and q by 1
-  //   if (*(p + i + 1)) // widen p and q by 2
-  //     if (*(p + i + 2)) // widen p and q by 3
+  // if (*(p + i)) // widen p by 1
+  //   if (*(p + i + 1)) // widen p by 2
 
-  // if (*(p + i)) // widen p and q by 1
-  //   if (*(p + i + 2)) // no widening
+  // if (*(p + j)) // no widening
 
   // if (*p) // no widening
-  //   if (*(p + 1)) // no widening
-  //     if (*(p + i)) // widen p and q by 1
+
+  // if (*(p + i + 0) // widen p by 1
 
   for (auto item : NtPtrsInScope) {
     const VarDecl *V = item.first;
@@ -345,19 +320,8 @@ void BoundsAnalysis::FillGenSetForEdge(const Expr *E,
     if (EB->Gen[SuccEB->Block].count(V))
       continue;
 
-    const Expr *UE = RBE->getUpperExpr();
-    assert(UE && "invalid upper bounds expr");
-
-    // Split the upper bounds expr into base and offset for matching with the
-    // DerefBase.
-    ExprIntPairTy UpperExprIntPair = SplitIntoBaseOffset(UE);
-    const Expr *UpperBase = UpperExprIntPair.first;
-    if (!UpperBase)
-      continue;
-    llvm::APSInt UpperOffset = UpperExprIntPair.second;
-
-    if (!Lex.CompareExprSemantically(DerefBase, UpperBase))
-      continue;
+    const Expr *UpperExpr = RBE->getUpperExpr();
+    assert(UpperExpr && "invalid upper bounds expr");
 
     // We cannot widen the bounds if the offset in the deref expr is less than
     // the offset in the declared upper bounds expr. For example:
@@ -379,20 +343,15 @@ void BoundsAnalysis::FillGenSetForEdge(const Expr *E,
     // We widen p by 1 only if the bounds of p in (In - Kill) == Gen[p].
     // See the comments in ComputeOutSets for more details.
 
-    if (llvm::APSInt::compareValues(DerefOffset, UpperOffset) < 0)
+    // GetDerefOffset gives the offset of the memory dereference relative to
+    // the declared upper bound expression. This offset is used in the widening
+    // computation in ComputeOutSets.
+
+    llvm::APSInt Offset;
+    if (!Lex.GetDerefOffset(UpperExpr, DerefExpr, Offset))
       continue;
 
-    // (DerefOffset - UpperOffset) gives the offset of the memory dereference
-    // relative to the declared upper bound expression. This offset is used in
-    // the widening computation in ComputeOutSets.
-
-    // Check if the difference overflows.
-    bool Overflow;
-    UpperOffset = DerefOffset.ssub_ov(UpperOffset, Overflow);
-    if (Overflow)
-      continue;
-
-    EB->Gen[SuccEB->Block][V] = UpperOffset.getLimitedValue();
+    EB->Gen[SuccEB->Block][V] = Offset.getLimitedValue();
 
     // Top represents the union of the Gen sets of all edges. We have chosen
     // the offsets of ptr variables in Top to be the max unsigned int. The
@@ -403,142 +362,6 @@ void BoundsAnalysis::FillGenSetForEdge(const Expr *E,
     // easier as we do not need to explicitly store edge info.
     Top[V] = std::numeric_limits<unsigned>::max();
   }
-}
-
-ExprIntPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
-  // In order to make an expression uniform, we want to keep all DeclRefExprs
-  // on the LHS and all IntegerLiterals on the RHS.
-
-  llvm::APSInt Zero (Ctx.getTypeSize(Ctx.IntTy), 0);
-
-  if (!E)
-    return std::make_pair(nullptr, Zero);
-
-  E = E->IgnoreParens();
-
-  if (DeclRefExpr *D = GetDeclOperand(E))
-    return std::make_pair(D, Zero);
-
-  if (!isa<BinaryOperator>(E))
-    return std::make_pair(nullptr, Zero);
-
-  const BinaryOperator *BO = dyn_cast<BinaryOperator>(E);
-  // TODO: Currently we only handle exprs containing additive operations.
-  if (BO->getOpcode() != BO_Add)
-    return std::make_pair(nullptr, Zero);
-
-  Expr *LHS = BO->getLHS()->IgnoreParens();
-  Expr *RHS = BO->getRHS()->IgnoreParens();
-
-  assert((LHS && RHS) && "invalid BinaryOperator expression");
-
-  // Note: Assume p, q, r are DeclRefExprs and i, j are IntegerLiterals.
-
-  // Case 1: LHS is DeclRefExpr and RHS is IntegerLiteral. This expr is already
-  // uniform.
-  // p + i ==> return (p, i)
-  llvm::APSInt IntVal;
-
-  if (DeclRefExpr *D = GetDeclOperand(LHS))
-    if (RHS->isIntegerConstantExpr(IntVal, Ctx))
-      return std::make_pair(D, IntVal);
-
-  // Case 2: LHS is IntegerLiteral and RHS is DeclRefExpr. We simply need to
-  // swap LHS and RHS to make expr uniform.
-  // i + p ==> return (p, i)
-  if (DeclRefExpr *D = GetDeclOperand(RHS))
-    if (LHS->isIntegerConstantExpr(IntVal, Ctx))
-      return std::make_pair(D, IntVal);
-
-  // Case 3: LHS and RHS are both DeclRefExprs. This means there is no
-  // IntegerLiteral in the expr. In this case, we return the incoming
-  // BinaryOperator expr with a nullptr for the RHS.
-  // p + q ==> return (p + q, nullptr)
-  if (GetDeclOperand(LHS) && GetDeclOperand(RHS))
-    return std::make_pair(BO, Zero);
-
-  // To make parsing simpler, we always try to keep BinaryOperator on the LHS.
-  if (!isa<BinaryOperator>(LHS) && isa<BinaryOperator>(RHS))
-    std::swap(LHS, RHS);
-
-  // By this time the LHS should be a BinaryOperator; either because it already
-  // was a BinaryOperator, or because the RHS was a BinaryOperator and was
-  // swapped with the LHS.
-  if (!isa<BinaryOperator>(LHS))
-    return std::make_pair(nullptr, Zero);
-
-  // If we reach here, the expr is one of these:
-  // Case 4: (p + q) + i
-  // Case 5: (p + j) + i
-  // Case 6: (p + q) + r
-  // Case 7: (p + j) + r
-
-  // TODO: Currently we assume that the RHS cannot be a BinaryOperator. So we
-  // do not handle cases like: (p + q) + (i + j).
-
-  auto *BE = dyn_cast<BinaryOperator>(LHS);
-
-  // Recursively, make the LHS uniform.
-  ExprIntPairTy ExprIntPair = SplitIntoBaseOffset(BE);
-  const Expr *BinOpLHS = ExprIntPair.first;
-  llvm::APSInt BinOpRHS = ExprIntPair.second;
-
-  // Expr is either Case 4 or Case 5 from above. ie: LHS is BinaryOperator
-  // and RHS is IntegerLiteral.
-  // (p + q) + i OR (p + j) + i
-  if (RHS->isIntegerConstantExpr(IntVal, Ctx)) {
-
-    // Expr is Case 4. ie: The BinaryOperator expr does not have an
-    // IntegerLiteral on the RHS.
-    // (p + q) + i ==> return (p + q, i)
-    if (llvm::APSInt::compareValues(BinOpRHS, Zero) == 0)
-      return std::make_pair(BE, IntVal);
-
-    // Expr is Case 5. ie: The BinaryOperator expr has an IntegerLiteral on
-    // the RHS.
-    // (p + j) + i ==> return (p, j + i)
-
-    // Since we are reassociating integers here, check if the value
-    // overflows.
-    bool Overflow;
-    IntVal = IntVal.sadd_ov(BinOpRHS, Overflow);
-    if (Overflow)
-      return std::make_pair(nullptr, Zero);
-
-    return std::make_pair(BinOpLHS, IntVal);
-  }
-
-  // If we are here it means expr is either Case 6 or Case 7 from above. ie:
-  // LHS is BinaryOperator and RHS is a DeclRefExpr.
-  // (p + q) + r OR (p + j) + r
-
-  // Expr is Case 6. ie: The BinaryOperator expr does not have an
-  // IntegerLiteral on the RHS.
-  // (p + q) + r ==> return (p + q + r, nullptr)
-  if (llvm::APSInt::compareValues(BinOpRHS, Zero) == 0)
-    return std::make_pair(BO, Zero);
-
-  // Expr is Case 7. ie: The BinaryOperator expr has an IntegerLiteral on
-  // the RHS.
-  // (p + j) + r ==> return (p + r, j) OR
-  // (j + p) + r ==> return (r + p, j)
-
-  // TmpBE is either (p + j) or (j + p) and RHS is r.
-  auto *TmpBE =
-    new (Ctx) BinaryOperator(BE->getLHS(), BE->getRHS(), BE->getOpcode(),
-                             BE->getType(), BE->getValueKind(),
-                             BE->getObjectKind(), BE->getExprLoc(),
-                             BE->getFPFeatures());
-
-  // TmpBE is (j + p) and RHS is r. So make the TmpBE as (r + p).
-  assert(TmpBE->getLHS() && "invalid BinaryOperator expression");
-
-  if (TmpBE->getLHS()->isIntegerConstantExpr(IntVal, Ctx))
-    TmpBE->setLHS(RHS);
-  // TmpBE is (p + j) and RHS is r. So make the TmpBE as (p + r).
-  else
-    TmpBE->setRHS(RHS);
-  return std::make_pair(TmpBE, BinOpRHS);
 }
 
 void BoundsAnalysis::FillGenSet(Expr *E,
@@ -565,20 +388,20 @@ void BoundsAnalysis::FillGenSet(Expr *E,
     // An array access can be written A[4] or 4[A] (both are equivalent).
     // getBase() and getIdx() always present the normalized view: A[4].
     // In this case getBase() returns "A" and getIdx() returns "4".
-    const auto *BO =
+    const auto *DerefExpr =
       new (Ctx) BinaryOperator(AE->getBase(), AE->getIdx(),
                                BinaryOperatorKind::BO_Add, AE->getType(),
                                AE->getValueKind(), AE->getObjectKind(),
                                AE->getExprLoc(), FPOptions());
 
-    FillGenSetForEdge(BO, EB, SuccEB);
+    FillGenSetForEdge(DerefExpr, EB, SuccEB);
 
   } else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
     if (UO->getOpcode() == UO_Deref) {
       assert(UO->getSubExpr() && "invalid UnaryOperator expression");
 
-      const Expr *UE = IgnoreCasts(UO->getSubExpr());
-      FillGenSetForEdge(UE, EB, SuccEB);
+      const Expr *DerefExpr = IgnoreCasts(UO->getSubExpr());
+      FillGenSetForEdge(DerefExpr, EB, SuccEB);
     }
   }
 }

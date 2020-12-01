@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 This program takes a list of .c or .h files, e.g. in a convert.sh file,
 and converts any included c library headers which have _checked versions
@@ -17,9 +18,14 @@ import argparse
 
 # This default value will be overwritten if an alternate path is provided
 # in an argument.
+#
+# Relative path from "llvm" dir (LLVM_SRC if specified)
 CHECKEDC_INCLUDE_REL_PATH = "projects/checkedc-wrapper/checkedc/include"
+
 checkedcHeaderDir = os.path.abspath(
-    os.path.join("../../../../..",
+    os.path.join(os.path.dirname(__file__),
+                 # Relative path from clang/tools/3c/utils to llvm
+                 "../../../../llvm",
                  CHECKEDC_INCLUDE_REL_PATH))
 
 

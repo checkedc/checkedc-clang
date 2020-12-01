@@ -19,7 +19,7 @@ ConstraintsGraph::NodeType *ConstraintsGraph::findOrCreateNode(Atom *A) {
   return DataGraph::findOrCreateNode(A);
 }
 
-std::set<ConstAtom*> &ConstraintsGraph::getAllConstAtoms() {
+std::set<ConstAtom *> &ConstraintsGraph::getAllConstAtoms() {
   return AllConstAtoms;
 }
 
@@ -35,18 +35,18 @@ void ConstraintsGraph::addConstraint(Geq *C, const Constraints &CS) {
   addEdge(A2, A1);
 }
 
-std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getNodeLabel
-    (const DataNode<Atom*, GraphVizEdge> *Node, const GraphVizOutputGraph &CG) {
+std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getNodeLabel(
+    const DataNode<Atom *, GraphVizEdge> *Node, const GraphVizOutputGraph &CG) {
   return Node->getData()->getStr();
 }
 
-std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getEdgeAttributes
-    (const DataNode<Atom *, GraphVizEdge> *Node, ChildIteratorType T,
-     const GraphVizOutputGraph &CG) {
-  static const std::string EdgeTypeColors[2] = {"red", "blue" };
-  static const std::string EdgeDirections[2] = { "forward", "both" };
+std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getEdgeAttributes(
+    const DataNode<Atom *, GraphVizEdge> *Node, ChildIteratorType T,
+    const GraphVizOutputGraph &CG) {
+  static const std::string EdgeTypeColors[2] = {"red", "blue"};
+  static const std::string EdgeDirections[2] = {"forward", "both"};
 
-  llvm::SmallVector<GraphVizEdge*, 2> Edges;
+  llvm::SmallVector<GraphVizEdge *, 2> Edges;
   Node->findEdgesTo(**T, Edges);
   assert(Edges.size() == 1 || Edges.size() == 2);
 
@@ -55,11 +55,11 @@ std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getEdgeAttributes
   GraphVizEdge *GE = nullptr;
   auto EPair = std::make_pair(Node->getData(), (*T)->getData());
   for (auto *E : Edges) {
-    if (E->Kind == GraphVizEdge::EK_Checked
-        && CG.DoneChecked.find(EPair) == CG.DoneChecked.end()) {
+    if (E->Kind == GraphVizEdge::EK_Checked &&
+        CG.DoneChecked.find(EPair) == CG.DoneChecked.end()) {
       GE = E;
-    } else if (E->Kind == GraphVizEdge::EK_Ptype
-               && CG.DonePtyp.find(EPair) == CG.DonePtyp.end()) {
+    } else if (E->Kind == GraphVizEdge::EK_Ptype &&
+               CG.DonePtyp.find(EPair) == CG.DonePtyp.end()) {
       GE = E;
     }
   }
@@ -69,8 +69,8 @@ std::string llvm::DOTGraphTraits<GraphVizOutputGraph>::getEdgeAttributes
   else if (GE->Kind == GraphVizEdge::EK_Ptype)
     CG.DonePtyp.insert(EPair);
 
-  return "color=" + EdgeTypeColors[GE->Kind] + ","
-      + "dir=" + EdgeDirections[GE->IsBidirectional];
+  return "color=" + EdgeTypeColors[GE->Kind] + "," +
+         "dir=" + EdgeDirections[GE->IsBidirectional];
 }
 
 void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph &Graph,
@@ -88,7 +88,7 @@ void GraphVizOutputGraph::mergeConstraintGraph(const ConstraintsGraph &Graph,
       if (D->hasEdgeTo(*S)) {
         // If an edge of the same type exists in the opposite direction, then
         // make the edge bidirectional instead of creating a new edge.
-        llvm::SmallVector<GraphVizEdge*, 2> Edges;
+        llvm::SmallVector<GraphVizEdge *, 2> Edges;
         D->findEdgesTo(*S, Edges);
         for (auto *OldE : Edges)
           if (OldE->Kind == EK) {

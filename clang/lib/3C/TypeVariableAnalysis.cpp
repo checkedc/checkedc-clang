@@ -17,17 +17,17 @@ std::set<ConstraintVariable *> &TypeVariableEntry::getConstraintVariables() {
   return ArgConsVars;
 }
 
-void TypeVariableEntry::insertConstraintVariables
-    (std::set<ConstraintVariable *> &CVs) {
+void TypeVariableEntry::insertConstraintVariables(
+    std::set<ConstraintVariable *> &CVs) {
   ArgConsVars.insert(CVs.begin(), CVs.end());
 }
 
 void TypeVariableEntry::setTypeParamConsVar(ConstraintVariable *CV) {
   assert("Accessing constraint variable for inconsistent Type Variable." &&
-      IsConsistent);
+         IsConsistent);
   assert("Setting constraint variable to null" && CV != nullptr);
   assert("Changing already set constraint variable" &&
-      TypeParamConsVar == nullptr);
+         TypeParamConsVar == nullptr);
   TypeParamConsVar = CV;
 }
 
@@ -41,8 +41,8 @@ void TypeVariableEntry::updateEntry(QualType Ty, CVarSet &CVs) {
     // is not consistent. We also make it inconsistent if the type is anonymous
     // since we'll need a name to fill the type arguments during rewriting.
     const clang::Type *PtrTy = Ty->getPointeeOrArrayElementType();
-    if (IsConsistent && (isTypeAnonymous(PtrTy)
-        || getType()->getPointeeOrArrayElementType() != PtrTy))
+    if (IsConsistent && (isTypeAnonymous(PtrTy) ||
+                         getType()->getPointeeOrArrayElementType() != PtrTy))
       IsConsistent = false;
   }
   // Record new constraints for the entry. These are used even when the variable
@@ -52,20 +52,17 @@ void TypeVariableEntry::updateEntry(QualType Ty, CVarSet &CVs) {
 
 ConstraintVariable *TypeVariableEntry::getTypeParamConsVar() {
   assert("Accessing constraint variable for inconsistent Type Variable." &&
-      IsConsistent);
+         IsConsistent);
   assert("Accessing null constraint variable" && TypeParamConsVar != nullptr);
   return TypeParamConsVar;
 }
 
 QualType TypeVariableEntry::getType() {
-  assert("Accessing Type for inconsistent Type Variable." &&
-      IsConsistent);
+  assert("Accessing Type for inconsistent Type Variable." && IsConsistent);
   return TyVarType;
 }
 
-bool TypeVariableEntry::getIsConsistent() const {
-  return IsConsistent;
-}
+bool TypeVariableEntry::getIsConsistent() const { return IsConsistent; }
 
 // Finds cast expression that contain function call to a generic function. If
 // the return type of the function uses a type variable, a binding for the
@@ -79,8 +76,7 @@ bool TypeVarVisitor::VisitCastExpr(CastExpr *CE) {
     if (auto *FD = dyn_cast_or_null<FunctionDecl>(Call->getCalleeDecl()))
       if (const auto *TyVar = getTypeVariableType(FD)) {
         clang::QualType Ty = CE->getType();
-        std::set<ConstraintVariable *>
-            CVs = CR.getExprConstraintVars(SubExpr);
+        std::set<ConstraintVariable *> CVs = CR.getExprConstraintVars(SubExpr);
         insertBinding(Call, TyVar, Ty, CVs);
       }
   return true;
@@ -116,8 +112,8 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
         // variable so if any of them are wild, the type argument will also be
         // an unchecked pointer.
         constrainConsVarGeq(P, TVEntry.second.getConstraintVariables(),
-                            Info.getConstraints(), nullptr, Safe_to_Wild,
-                            false, &Info);
+                            Info.getConstraints(), nullptr, Safe_to_Wild, false,
+                            &Info);
 
         TVEntry.second.setTypeParamConsVar(P);
       } else {
@@ -135,7 +131,7 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
 void TypeVarVisitor::insertBinding(CallExpr *CE, const TypeVariableType *TyV,
                                    clang::QualType Ty, CVarSet &CVs) {
   auto &CallTypeVarMap = TVMap[CE];
-  if (CallTypeVarMap.find(TyV->GetIndex()) == CallTypeVarMap.end()){
+  if (CallTypeVarMap.find(TyV->GetIndex()) == CallTypeVarMap.end()) {
     // If the type variable hasn't been seen before, add it to the map.
     TypeVariableEntry TVEntry = TypeVariableEntry(Ty, CVs);
     CallTypeVarMap[TyV->GetIndex()] = TVEntry;

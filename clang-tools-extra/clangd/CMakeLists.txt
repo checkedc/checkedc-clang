@@ -209,7 +209,7 @@ add_clang_library(3cClangDaemon
   refactor/Tweak.cpp
 
   LINK_LIBS
-  3C
+  clang3C
   clangAST
   clangASTMatchers
   clangBasic

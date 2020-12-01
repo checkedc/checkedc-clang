@@ -7590,7 +7590,7 @@ void Parser::ParseUnpackSpecifier(DeclSpec &DS) {
   // iterating over the current scope and counting how many previous
   // _Unpacks have been desugared.
   // TODO: is this robust enough?
-  auto Pos = 0;
+  unsigned Pos = 0;
   for (auto *Decl : getCurScope()->decls()) {
     auto *TdefDecl = dyn_cast<TypedefDecl>(Decl);
     if (!TdefDecl) continue;

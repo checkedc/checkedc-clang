@@ -5,19 +5,19 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-#include "clang/3C/3CGlobalOptions.h"
-#include "clang/3C/RewriteUtils.h"
-#include "clang/3C/Utils.h"
-#include "llvm/Support/raw_ostream.h"
+
 #include "clang/3C/DeclRewriter.h"
+#include "clang/3C/3CGlobalOptions.h"
+#include "clang/3C/MappingVisitor.h"
+#include "clang/3C/RewriteUtils.h"
+#include "clang/3C/StructInit.h"
+#include "clang/3C/Utils.h"
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/Rewrite/Core/Rewriter.h"
+#include "llvm/Support/raw_ostream.h"
 #include <sstream>
-#include "clang/3C/StructInit.h"
-#include "clang/3C/MappingVisitor.h"
 
 #ifdef FIVE_C
 #include <clang/3C/DeclRewriter_5C.h>
@@ -25,7 +25,6 @@
 
 using namespace llvm;
 using namespace clang;
-
 
 // This function is the public entry point for declaration rewriting.
 void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
@@ -39,16 +38,16 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
 
   FunctionDeclBuilder *TRV = nullptr;
 #ifdef FIVE_C
-  auto TRV_5C = FunctionDeclBuilder_5C(&Context, Info, RewriteThese, NewFuncSig,
-                                       ABRewriter);
-  TRV = &TRV_5C;
+  auto TRV5C = FunctionDeclBuilder5C(&Context, Info, RewriteThese, NewFuncSig,
+                                     ABRewriter);
+  TRV = &TRV5C;
 #else
-  auto TRV_3C = FunctionDeclBuilder(&Context, Info, RewriteThese, NewFuncSig,
-                                    ABRewriter);
-  TRV = &TRV_3C;
+  auto TRV3C =
+      FunctionDeclBuilder(&Context, Info, RewriteThese, NewFuncSig, ABRewriter);
+  TRV = &TRV3C;
 #endif
-  StructVariableInitializer SVI = StructVariableInitializer(&Context, Info,
-                                                            RewriteThese);
+  StructVariableInitializer SVI =
+      StructVariableInitializer(&Context, Info, RewriteThese);
   for (const auto &D : Context.getTranslationUnitDecl()->decls()) {
     TRV->TraverseDecl(D);
     SVI.TraverseDecl(D);
@@ -89,27 +88,27 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
         if (VDLToStmtMap.find(D) != VDLToStmtMap.end())
           DS = VDLToStmtMap[D];
 
-        std::string newTy = getStorageQualifierString(D) +
-            PV->mkString(Info.getConstraints().getVariables()) +
-            ABRewriter.getBoundsString(PV, D);
+        std::string NewTy = getStorageQualifierString(D) +
+                            PV->mkString(Info.getConstraints().getVariables()) +
+                            ABRewriter.getBoundsString(PV, D);
         if (auto *VD = dyn_cast<VarDecl>(D))
-          RewriteThese.insert(new VarDeclReplacement(VD, DS, newTy));
+          RewriteThese.insert(new VarDeclReplacement(VD, DS, NewTy));
         else if (auto *FD = dyn_cast<FieldDecl>(D))
-          RewriteThese.insert(new FieldDeclReplacement(FD, DS, newTy));
+          RewriteThese.insert(new FieldDeclReplacement(FD, DS, NewTy));
         else if (auto *PD = dyn_cast<ParmVarDecl>(D))
-          RewriteThese.insert(new ParmVarDeclReplacement(PD, DS, newTy));
+          RewriteThese.insert(new ParmVarDeclReplacement(PD, DS, NewTy));
         else
           llvm_unreachable("Unrecognized declaration type.");
-      } else if (FV && NewFuncSig.find(FV->getName()) != NewFuncSig.end()
-          && !TRV->isFunctionVisited(FV->getName())) {
+      } else if (FV && NewFuncSig.find(FV->getName()) != NewFuncSig.end() &&
+                 !TRV->isFunctionVisited(FV->getName())) {
         auto *FD = cast<FunctionDecl>(D);
         // TODO: I don't think this branch is ever reached. Either remove it or
         //       add a test case that reaches it.
         // If this function already has a modified signature? and it is not
         // visited by our cast placement visitor then rewrite it.
         std::string NewSig = NewFuncSig[FV->getName()];
-        RewriteThese.insert(new FunctionDeclReplacement(FD, NewSig, true,
-                                                        true));
+        RewriteThese.insert(
+            new FunctionDeclReplacement(FD, NewSig, true, true));
       }
     }
   }
@@ -177,11 +176,10 @@ void DeclRewriter::rewriteParmVarDecl(ParmVarDeclReplacement *N) {
     }
 }
 
-
 template <typename DRType>
 void DeclRewriter::rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite) {
-  static_assert(std::is_same<DRType, FieldDeclReplacement>::value
-                    || std::is_same<DRType, VarDeclReplacement>::value,
+  static_assert(std::is_same<DRType, FieldDeclReplacement>::value ||
+                    std::is_same<DRType, VarDeclReplacement>::value,
                 "Method expects variable or field declaration replacement.");
 
   if (isSingleDeclaration(N)) {
@@ -191,8 +189,9 @@ void DeclRewriter::rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite) {
   } else {
     // Anything that reaches this case should be a multi-declaration that has
     // already been rewritten.
-    assert("Declaration should have been rewritten." && !isSingleDeclaration(N)
-           && VisitedMultiDeclMembers.find(N) != VisitedMultiDeclMembers.end());
+    assert("Declaration should have been rewritten." &&
+           !isSingleDeclaration(N) &&
+           VisitedMultiDeclMembers.find(N) != VisitedMultiDeclMembers.end());
   }
 }
 
@@ -252,7 +251,7 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite) {
         SourceRange SR(DL->getBeginLoc(), DL->getEndLoc());
         doDeclRewrite(SR, SameLineReplacement);
       }
-    } else  {
+    } else {
       // The subsequent decls are more complicated because we need to insert a
       // type string even if the variables type hasn't changed.
       if (Found) {
@@ -329,7 +328,7 @@ void DeclRewriter::doDeclRewrite(SourceRange &SR, DeclReplacement *N) {
         const std::string NullPtrStr = "((void *)0)";
         if (isPointerType(VD)) {
           Replacement += " = " + NullPtrStr;
-        } else if  (VD->getType()->isArrayType()) {
+        } else if (VD->getType()->isArrayType()) {
           const auto *ElemType = VD->getType()->getPointeeOrArrayElementType();
           if (ElemType->isPointerType())
             Replacement += " = {" + NullPtrStr + "}";
@@ -409,24 +408,22 @@ bool DeclRewriter::areDeclarationsOnSameLine(DeclReplacement *N1,
     if (Stmt1 == nullptr && Stmt2 == nullptr) {
       auto &DGroup = GP.getVarsOnSameLine(D1);
       return llvm::is_contained(DGroup, D2);
-    } else if (Stmt1 == nullptr || Stmt2 == nullptr) {
-      return false;
-    } else {
-      return Stmt1 == Stmt2;
     }
+    if (Stmt1 == nullptr || Stmt2 == nullptr) {
+      return false;
+    }
+    return Stmt1 == Stmt2;
   }
   return false;
 }
-
 
 bool DeclRewriter::isSingleDeclaration(DeclReplacement *N) {
   DeclStmt *Stmt = N->getStatement();
   if (Stmt == nullptr) {
     auto &VDGroup = GP.getVarsOnSameLine(N->getDecl());
     return VDGroup.size() == 1;
-  } else {
-    return Stmt->isSingleDecl();
   }
+  return Stmt->isSingleDecl();
 }
 
 void DeclRewriter::getDeclsOnSameLine(DeclReplacement *N,
@@ -440,10 +437,10 @@ void DeclRewriter::getDeclsOnSameLine(DeclReplacement *N,
   }
 
   assert("Invalid ordering in same line decls" &&
-    std::is_sorted(Decls.begin(), Decls.end(), [&](Decl *D0, Decl *D1) {
-      return A.getSourceManager().isBeforeInTranslationUnit(D0->getEndLoc(),
-                                                            D1->getEndLoc());
-  }));
+         std::is_sorted(Decls.begin(), Decls.end(), [&](Decl *D0, Decl *D1) {
+           return A.getSourceManager().isBeforeInTranslationUnit(
+               D0->getEndLoc(), D1->getEndLoc());
+         }));
 }
 
 // Note: This is variable declared static in the header file in order to pass
@@ -516,7 +513,8 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   // Get rewritten return variable
   PVConstraint *Defn = Defnc->getReturnVar();
   std::string ReturnVar, ItypeStr;
-  this->buildDeclVar(Defn, FD, ReturnVar, ItypeStr, RewriteParams, RewriteReturn);
+  this->buildDeclVar(Defn, FD, ReturnVar, ItypeStr, RewriteParams,
+                     RewriteReturn);
 
   // If the return is a function pointer, we need to rewrite the whole
   // declaration even if no actual changes were made to the parameters. It could
@@ -538,7 +536,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
     // Gather individual parameter strings into a single buffer
     std::ostringstream ConcatParamStr;
     copy(ParmStrs.begin(), ParmStrs.end() - 1,
-              std::ostream_iterator<std::string>(ConcatParamStr, ", "));
+         std::ostream_iterator<std::string>(ConcatParamStr, ", "));
     ConcatParamStr << ParmStrs.back();
 
     NewSig += "(" + ConcatParamStr.str();
@@ -556,7 +554,7 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
       RewriteThese.insert(new FunctionDeclReplacement(RD, NewSig, RewriteReturn,
                                                       RewriteParams));
     // Save the modified function signature.
-    if(FD->isStatic()) {
+    if (FD->isStatic()) {
       auto FileName = PersistentSourceLoc::mkPSL(FD, *Context).getFileName();
       FuncName = FileName + "::" + FuncName;
     }
@@ -566,12 +564,9 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   return true;
 }
 
-void FunctionDeclBuilder::buildCheckedDecl(PVConstraint *Defn,
-                                           DeclaratorDecl *Decl,
-                                           std::string &Type,
-                                           std::string &IType,
-                                           bool &RewriteParm,
-                                           bool &RewriteRet) {
+void FunctionDeclBuilder::buildCheckedDecl(
+    PVConstraint *Defn, DeclaratorDecl *Decl, std::string &Type,
+    std::string &IType, bool &RewriteParm, bool &RewriteRet) {
   Type = Defn->mkString(Info.getConstraints().getVariables());
   IType = getExistingIType(Defn);
   IType += ABRewriter.getBoundsString(Defn, Decl, !IType.empty());
@@ -582,16 +577,14 @@ void FunctionDeclBuilder::buildCheckedDecl(PVConstraint *Defn,
 
 void FunctionDeclBuilder::buildItypeDecl(PVConstraint *Defn,
                                          DeclaratorDecl *Decl,
-                                         std::string &Type,
-                                         std::string &IType,
-                                         bool &RewriteParm,
-                                         bool &RewriteRet) {
+                                         std::string &Type, std::string &IType,
+                                         bool &RewriteParm, bool &RewriteRet) {
   Type = Defn->getRewritableOriginalTy();
   if (isa<ParmVarDecl>(Decl))
     Type += Defn->getName();
-  IType = " : itype("
-      + Defn->mkString(Info.getConstraints().getVariables(), false, true) + ")"
-      + ABRewriter.getBoundsString(Defn, Decl, true);
+  IType = " : itype(" +
+          Defn->mkString(Info.getConstraints().getVariables(), false, true) +
+          ")" + ABRewriter.getBoundsString(Defn, Decl, true);
   RewriteParm = true;
   RewriteRet |= isa<FunctionDecl>(Decl);
   return;
@@ -605,7 +598,8 @@ void FunctionDeclBuilder::buildDeclVar(PVConstraint *Defn, DeclaratorDecl *Decl,
     if (Defn->anyChanges(Env) && !Defn->anyArgumentIsWild(Env)) {
       buildCheckedDecl(Defn, Decl, Type, IType, RewriteParm, RewriteRet);
       return;
-    } else if (Defn->anyChanges(Env)) {
+    }
+    if (Defn->anyChanges(Env)) {
       buildItypeDecl(Defn, Decl, Type, IType, RewriteParm, RewriteRet);
       return;
     }

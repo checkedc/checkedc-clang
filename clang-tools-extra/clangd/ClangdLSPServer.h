@@ -203,7 +203,7 @@ private:
   llvm::Optional<ClangdServer> Server;
   llvm::Optional<OffsetEncoding> NegotiatedOffsetEncoding;
 #ifdef INTERACTIVE3C
-  _3CInterface &_3CInterface;
+  _3CInterface &The3CInterface;
 #endif
 };
 } // namespace clangd

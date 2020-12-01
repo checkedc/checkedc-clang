@@ -30,6 +30,9 @@ target_link_libraries(clangd
   ${CLANGD_XPC_LIBS}
   )
 
+# clangd3c is unmaintained and believed not to work, but as of 2020-11-22, it
+# builds successfully and we continue to include it in some bulk code edits. We
+# may revive it in the future.
 add_clang_tool(clangd3c
         ClangdMain.cpp
         $<TARGET_OBJECTS:obj.clangDaemonTweaks>
@@ -41,7 +44,7 @@ target_link_libraries(clangd3c
   clangBasic
   clangTidy
   3cClangDaemon
-  3C
+  clang3C
   clangFormat
   clangFrontend
   clangSema

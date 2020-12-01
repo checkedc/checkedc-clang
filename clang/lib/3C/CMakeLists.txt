@@ -9,7 +9,7 @@ set( LLVM_LINK_COMPONENTS
             DeclRewriter_5C.cpp
           )
         endif()
-        add_clang_library(3C
+        add_clang_library(clang3C
           ABounds.cpp
           AVarBoundsInfo.cpp
           AVarGraph.cpp
@@ -45,5 +45,4 @@ set( LLVM_LINK_COMPONENTS
           clangTooling
           clangToolingRefactoring
         )
-        add_subdirectory(unittests)
-	target_include_directories(obj.3C PUBLIC)
+	target_include_directories(obj.clang3C PUBLIC)

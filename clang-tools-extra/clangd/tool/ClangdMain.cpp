@@ -280,11 +280,12 @@ static llvm::cl::list<std::string> TweakList(
     llvm::cl::Hidden, llvm::cl::CommaSeparated);
 
 #ifdef INTERACTIVE3C
-static llvm::cl::OptionCategory _3CCategory("3C",
-                                                "This is "
-                                                "an interactive version "
-                                                "of 3C "
-                                                "tool.");
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
+static llvm::cl::OptionCategory _3CCategory("3C", "This is "
+                                                  "an interactive version "
+                                                  "of 3C "
+                                                  "tool.");
 
 static llvm::cl::opt<bool> DumpIntermediate("dump-intermediate",
                                             llvm::cl::desc("Dump "
@@ -308,16 +309,15 @@ static llvm::cl::opt<std::string>
 
 static llvm::cl::opt<std::string>
     OptMalloc("use-malloc",
-                     llvm::cl::desc("Allows for the usage of user-specified "
-                              "versions of function allocators"),
-                     llvm::cl::init(""), llvm::cl::cat(_3CCategory));
+              llvm::cl::desc("Allows for the usage of user-specified "
+                             "versions of function allocators"),
+              llvm::cl::init(""), llvm::cl::cat(_3CCategory));
 
 static llvm::cl::opt<std::string> ConstraintOutputJson(
     "constraint-output",
     llvm::cl::desc("Path to the file where all the analysis "
                    "information will be dumped as json"),
-    llvm::cl::init("constraint_output.json"),
-    llvm::cl::cat(_3CCategory));
+    llvm::cl::init("constraint_output.json"), llvm::cl::cat(_3CCategory));
 
 static llvm::cl::opt<bool> DumpStats("dump-stats",
                                      llvm::cl::desc("Dump statistics"),
@@ -327,47 +327,41 @@ static llvm::cl::opt<bool> DumpStats("dump-stats",
 static llvm::cl::opt<std::string>
     OptStatsOutputJson("stats-output",
                        llvm::cl::desc("Path to the file where all the stats "
-                                "will be dumped as json"),
+                                      "will be dumped as json"),
                        llvm::cl::init("TotalConstraintStats.json"),
                        llvm::cl::cat(_3CCategory));
 
-static cl::opt<std::string>
+static llvm::cl::opt<std::string>
     OptWildPtrInfoJson("wildptrstats-output",
-                            cl::desc("Path to the file where all the info "
-                                     "related to WILD ptr grouped by reason"
-                                     " will be dumped as json"),
-                            cl::init("WildPtrStats.json"),
-                            cl::cat(_3CCategory));
+                       llvm::cl::desc("Path to the file where all the info "
+                                      "related to WILD ptr grouped by reason"
+                                      " will be dumped as json"),
+                       llvm::cl::init("WildPtrStats.json"),
+                       llvm::cl::cat(_3CCategory));
 
-static cl::opt<std::string>
-  OptPerPtrWILDInfoJson("perptrstats-output",
-                        cl::desc("Path to the file where all the info "
-                                 "related to each WILD ptr will be dumped as json"),
-                        cl::init("PerWildPtrStats.json"),
-                        cl::cat(_3CCategory));
+static llvm::cl::opt<std::string> OptPerPtrWILDInfoJson(
+    "perptrstats-output",
+    llvm::cl::desc("Path to the file where all the info "
+                   "related to each WILD ptr will be dumped as json"),
+    llvm::cl::init("PerWildPtrStats.json"), llvm::cl::cat(_3CCategory));
 
-static llvm::cl::opt<bool> 
-    OptDiableCCTypeChecker("disccty",
-                           llvm::cl::desc("Do not disable checked c type checker."),
-                           llvm::cl::init(false),
-                           llvm::cl::cat(_3CCategory));
+static llvm::cl::opt<bool> OptDiableCCTypeChecker(
+    "disccty", llvm::cl::desc("Do not disable checked c type checker."),
+    llvm::cl::init(false), llvm::cl::cat(_3CCategory));
 
 static llvm::cl::opt<bool>
     HandleVARARGS("handle-varargs",
                   llvm::cl::desc("Enable handling of varargs "
                                  "in a "
                                  "sound manner"),
-                  llvm::cl::init(false),
-                  llvm::cl::cat(_3CCategory));
+                  llvm::cl::init(false), llvm::cl::cat(_3CCategory));
 
 static llvm::cl::opt<bool>
     EnablePropThruIType("enable-itypeprop",
                         llvm::cl::desc("Enable propagation of "
                                        "constraints through ityped "
                                        "parameters/returns."),
-                        llvm::cl::init(false),
-                        llvm::cl::cat(_3CCategory));
-
+                        llvm::cl::init(false), llvm::cl::cat(_3CCategory));
 
 static llvm::cl::opt<bool>
     AllTypes("alltypes",
@@ -375,12 +369,11 @@ static llvm::cl::opt<bool>
                             "conversion"),
              llvm::cl::init(false), llvm::cl::cat(_3CCategory));
 
-static llvm::cl::opt<bool>
-    AddCheckedRegions("addcr",
-                      llvm::cl::desc("Add Checked "
-                                     "Regions"),
-                                     llvm::cl::init(false),
-                                     llvm::cl::cat(_3CCategory));
+static llvm::cl::opt<bool> AddCheckedRegions("addcr",
+                                             llvm::cl::desc("Add Checked "
+                                                            "Regions"),
+                                             llvm::cl::init(false),
+                                             llvm::cl::cat(_3CCategory));
 
 static llvm::cl::opt<std::string>
     BaseDir("base-dir",
@@ -456,10 +449,8 @@ int main(int argc, char *argv[]) {
     OS << clang::getClangToolFullVersion("clangd") << "\n";
   });
 
-
 #ifdef INTERACTIVE3C
-  tooling::CommonOptionsParser OptionsParser(argc,
-                                             (const char**)(argv),
+  tooling::CommonOptionsParser OptionsParser(argc, (const char **)(argv),
                                              _3CCategory);
   LogLevel = Logger::Debug;
   // Setup options.
@@ -480,22 +471,22 @@ int main(int argc, char *argv[]) {
   CcOptions.DisableCCTypeChecker = OptDiableCCTypeChecker;
   std::string Malloc = OptMalloc.getValue();
   if (!Malloc.empty()) {
-    std::string delimiter = ",";
-    size_t pos = 0;
-    std::string token;
-    while ((pos = Malloc.find(delimiter)) != std::string::npos) {
-      token = Malloc.substr(0, pos);
-      CcOptions.AllocatorFunctions.push_back(token);
-      Malloc.erase(0, pos + delimiter.length());
+    std::string Delimiter = ",";
+    size_t Pos = 0;
+    std::string Token;
+    while ((Pos = Malloc.find(Delimiter)) != std::string::npos) {
+      Token = Malloc.substr(0, Pos);
+      CcOptions.AllocatorFunctions.push_back(Token);
+      Malloc.erase(0, Pos + Delimiter.length());
     }
-    token = Malloc;
-    CcOptions.AllocatorFunctions.push_back(token);
-  }
-  else
+    Token = Malloc;
+    CcOptions.AllocatorFunctions.push_back(Token);
+  } else
     CcOptions.AllocatorFunctions = {};
 
-  _3CInterface _3CInterface(CcOptions,
-                            OptionsParser.getSourcePathList(),
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  _3CInterface _3CInterface(CcOptions, OptionsParser.getSourcePathList(),
                             &(OptionsParser.getCompilations()));
 #else
   llvm::cl::ParseCommandLineOptions(
