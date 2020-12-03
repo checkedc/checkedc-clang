@@ -3922,3 +3922,51 @@ ExprResult Parser::ParseAvailabilityCheckExpr(SourceLocation BeginLoc) {
   return Actions.ActOnObjCAvailabilityCheckExpr(AvailSpecs, BeginLoc,
                                                 Parens.getCloseLocation());
 }
+
+bool Parser::StartsWhereClause(Token &T) const {
+  return T.getKind() == tok::kw__Where;
+}
+
+bool Parser::ParseWhereClause() {
+  // Returns true if error.
+
+  if (!StartsWhereClause(Tok))
+    return true;
+
+  // Consume the "_Where" token.
+  ConsumeToken();
+
+  ExprResult E1 =
+    Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+  if (E1.isInvalid())
+    return true;
+
+  // Parse a where clause that redeclares the bounds of a checked pointer.
+  if (Tok.is(tok::colon)) {
+    ConsumeToken();
+
+    auto *DRE = dyn_cast<DeclRefExpr>(E1.get());
+    if (!DRE)
+      return true;
+
+    auto *DD = dyn_cast<DeclaratorDecl>(DRE->getDecl());
+    if (!DD)
+      return true;
+
+    ExprResult E2 = ParseBoundsExpression();
+    if (E2.isInvalid())
+      return true;
+
+    BoundsExpr *Bounds = dyn_cast<BoundsExpr>(E2.get());
+    if (!Bounds)
+      return true;
+
+    return Actions.ActOnWhereClause(DD, Bounds);
+
+  } else {
+    // TODO: Handle other where clauses here. For example, where x == e1;
+    // TODO: Handle multiple facts. For example, where x > e1 && x < e2;
+  }
+
+  return false;
+}

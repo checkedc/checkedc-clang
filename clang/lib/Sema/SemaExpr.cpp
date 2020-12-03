@@ -18606,3 +18606,19 @@ ExprResult Sema::ActOnObjCAvailabilityCheckExpr(
   return new (Context)
       ObjCAvailabilityCheckExpr(Version, AtLoc, RParen, Context.BoolTy);
 }
+
+// Checked C: Process where clause facts.
+bool Sema::ActOnWhereClause(DeclaratorDecl *D, Expr *E) {
+  // Returns true on error.
+
+  if (!D || D->isInvalidDecl())
+    return true;
+
+  assert(!isa<FunctionDecl>(D) && "unexpected function decl");
+  QualType Ty = D->getType();
+  if (Ty.isNull())
+    return true;
+
+  D->addWhereClause(getASTContext(), E);
+  return false;
+}
