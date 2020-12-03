@@ -2568,14 +2568,6 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
     Actions.ActOnUninitializedDecl(ThisDecl);
   }
 
-  // Checked C: Parse a where clause if it exists.
-  // TODO: Parse where clauses outside of variable declarations, like inside
-  // conditionals, switch cases and loops.
-  if (getLangOpts().CheckedC && StartsWhereClause(Tok)) {
-    if (ParseWhereClause())
-      Actions.ActOnInitializerError(ThisDecl);
-  }
-
   Actions.FinalizeDeclaration(ThisDecl);
 
   return ThisDecl;

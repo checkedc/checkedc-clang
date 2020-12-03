@@ -1500,6 +1500,15 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
   return Res;
 }
 
+static bool IsCallToStrlen(Expr *E) {
+  if (const CallExpr *CE = dyn_cast_or_null<CallExpr>(E)) {
+    if (const FunctionDecl *FD = CE->getDirectCallee()) {
+      return FD->getIdentifier() && FD->getIdentifier()->isStr("strlen");
+    }
+  }
+  return false;
+}
+
 /// Once the leading part of a postfix-expression is parsed, this
 /// method parses any suffixes that apply.
 ///
@@ -1736,9 +1745,23 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
         LHS = Actions.ActOnCallExpr(getCurScope(), LHS.get(), Loc,
                                     ArgExprs, Tok.getLocation(),
                                     ExecConfig);
-        if (getLangOpts().CheckedC)
-          LHS = Actions.CreateTemporaryForCallIfNeeded(LHS);
         PT.consumeClose();
+
+        if (getLangOpts().CheckedC) {
+          LHS = Actions.CreateTemporaryForCallIfNeeded(LHS);
+
+          if (StartsWhereClause(Tok)) {
+            Token &WhereTok = Tok;
+
+            bool WhereClauseError = !IsCallToStrlen(LHS.get()) ? true :
+                                    ParseWhereClause();
+
+            if (WhereClauseError) {
+              Diag(WhereTok, diag::err_incorrect_where_clause);
+              LHS = ExprError();
+            }
+          }
+        }
       }
 
       break;
