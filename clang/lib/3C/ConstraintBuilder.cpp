@@ -415,7 +415,7 @@ class PtrToStructDef : public RecursiveASTVisitor<PtrToStructDef> {
       bool declContained = (typedefRange.getBegin() < declRange.getBegin())
         && !(typedefRange.getEnd() < typedefRange.getEnd());
       if (declContained) {
-        structDefInPtr = true;
+        structDefInTD = true;
         return false;
       } else {
         return true;
@@ -428,7 +428,7 @@ class PtrToStructDef : public RecursiveASTVisitor<PtrToStructDef> {
     }
 
     bool getResult(void) {
-      return structDefInPtr;
+      return structDefInTD;
     }
 
     static bool containsPtrToStructDef(TypedefDecl *TDT) {
@@ -440,7 +440,7 @@ class PtrToStructDef : public RecursiveASTVisitor<PtrToStructDef> {
   private:
     TypedefDecl* TDT = nullptr;
     bool ispointer = false;
-    bool structDefInPtr = false;
+    bool structDefInTD = false;
 
 };
 
@@ -456,13 +456,14 @@ public:
   bool VisitTypedefDecl(TypedefDecl* TD) { 
       CVarSet empty;
       auto PSL = PersistentSourceLoc::mkPSL(TD, *Context);
-      bool shouldCheck = !PtrToStructDef::containsPtrToStructDef(TD);
       // If we haven't seen this typedef before, initialize it's entry in the
       // typedef map. If we have seen it before, and we need to preserve the
       // constraints contained within it
-      if (!Info.seenTypedef(PSL)) {
-        Info.addTypedef(PSL, shouldCheck);
-      }
+      if (!Info.seenTypedef(PSL))
+        // Add this typedef to the program info, if it contains a ptr to
+        // an anonymous struct we mark as not being rewritable
+        Info.addTypedef(PSL, !PtrToStructDef::containsPtrToStructDef(TD));
+
       return true;
   }
 
