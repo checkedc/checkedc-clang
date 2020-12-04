@@ -422,6 +422,11 @@ class PtrToStructDef : public RecursiveASTVisitor<PtrToStructDef> {
       }
     }
 
+    bool VisitFunctionProtoType(FunctionProtoType *FPT) {
+      ispointer = true;
+      return true;
+    }
+
     bool getResult(void) {
       return structDefInPtr;
     }
