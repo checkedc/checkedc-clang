@@ -169,3 +169,15 @@ void f14(int i) {
 // CHECK:  [B1]
 // CHECK-NOT: upper_bound(p)
 }
+
+void f15(_Nt_array_ptr<char> p : count(6)) {
+  if (*(p + (1 * (2 * 3))))
+  {}
+
+// CHECK: In function: f15
+//  [B2]
+//    1: _Nt_array_ptr<char> p : count(6) = "a";
+//    2: *(p + (1 * (2 * 3)))
+//  [B1]
+// upper_bound(p) = 1
+}

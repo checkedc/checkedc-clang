@@ -17,80 +17,76 @@
 
 using namespace clang;
 
-void PreorderAST::AddNode(Node *N, Node *Parent) {
+void PreorderAST::AddNode(Node *N, OperatorNode *Parent) {
   // If the root is null, make the current node the root.
   if (!Root)
     Root = N;
 
   // Add the current node to the list of children of its parent.
-  if (Parent) {
-    assert(isa<BinaryNode>(Parent) && "Invalid parent");
-    dyn_cast<BinaryNode>(Parent)->Children.push_back(N);
-  }
+  if (Parent)
+    Parent->Children.push_back(N);
 }
 
-void PreorderAST::RemoveNode(Node *N, Node *Parent) {
-  // The parent should be a BinaryNode.
-  assert(isa<BinaryNode>(Parent) && "Invalid parent");
+bool PreorderAST::CanCoalesceNode(OperatorNode *O) {
+  if (!O || !isa<OperatorNode>(O) || !O->Parent)
+    return false;
 
-  auto *P = dyn_cast<BinaryNode>(Parent);
-  if (!P) {
+  // We can only coalesce if the operator of the current and parent node is
+  // commutative and associative. This is because after coalescing we later
+  // need to sort the nodes and if the operator is not commutative and
+  // associative then sorting would be incorrect.
+  if (!O->IsOpCommutativeAndAssociative() ||
+      !O->Parent->IsOpCommutativeAndAssociative())
+    return false;
+
+  // We can coalesce in the following scenarios:
+  // 1. The current and parent nodes have the same operator OR
+  // 2. The current node is the only child of its operator node (maybe as a
+  // result of constant folding).
+  return O->Opc == O->Parent->Opc || O->Children.size() == 1;
+}
+
+void PreorderAST::CoalesceNode(OperatorNode *O) {
+  if (!CanCoalesceNode(O)) {
+    assert(0 && "Attempting to coalesce invalid node");
     SetError();
     return;
   }
 
-  // We will remove a BinaryNode only if its operator is equal to its
-  // parent's operator and the operator is commutative and associative.
-  if (auto *B = dyn_cast<BinaryNode>(N)) {
-    assert(B->Opc == P->Opc &&
-           "BinaryNode operator must equal parent operator");
-
-    assert(B->IsOpCommutativeAndAssociative() &&
-           "BinaryNode operator must be commutative and associative");
-
-    if (B->Opc != P->Opc ||
-       !B->IsOpCommutativeAndAssociative()) {
-      SetError();
-      return;
-    }
-  }
-
   // Remove the current node from the list of children of its parent.
-  for (auto I = P->Children.begin(),
-            E = P->Children.end(); I != E; ++I) {
-    if (*I == N) {
-      P->Children.erase(I);
+  for (auto I = O->Parent->Children.begin(),
+            E = O->Parent->Children.end(); I != E; ++I) {
+    if (*I == O) {
+      O->Parent->Children.erase(I);
       break;
     }
   }
 
-  if (auto *B = dyn_cast<BinaryNode>(N)) {
-    // Move all children of the current node to its parent.
-    for (auto *Child : B->Children) {
-      Child->Parent = P;
-      P->Children.push_back(Child);
-    }
+  // Move all children of the current node to its parent.
+  for (auto *Child : O->Children) {
+    Child->Parent = O->Parent;
+    O->Parent->Children.push_back(Child);
   }
 
   // Delete the current node.
-  delete N;
+  delete O;
 }
 
-void PreorderAST::Create(Expr *E, Node *Parent) {
+void PreorderAST::Create(Expr *E, OperatorNode *Parent) {
   if (!E)
     return;
 
   E = Lex.IgnoreValuePreservingOperations(Ctx, E->IgnoreParens());
 
   if (!Parent) {
-    // The invariant is that the root node must be a BinaryNode with an
+    // The invariant is that the root node must be a OperatorNode with an
     // addition operator. So for expressions like "if (*p)", we don't have a
     // BinaryOperator. So when we enter this function there is no root and the
-    // parent is null. So we create a new BinaryNode with + as the operator and
-    // add 0 as a LeafNodeExpr child of this BinaryNode. This helps us compare
-    // expressions like "p" and "p + 1" by normalizing "p" to "p + 0".
+    // parent is null. So we create a new OperatorNode with + as the operator
+    // and add 0 as a LeafExprNode child of this OperatorNode. This helps us
+    // compare expressions like "p" and "p + 1" by normalizing "p" to "p + 0".
 
-    auto *N = new BinaryNode(BO_Add, Parent);
+    auto *N = new OperatorNode(BO_Add, Parent);
     AddNode(N, Parent);
 
     llvm::APInt Zero(Ctx.getTargetInfo().getIntWidth(), 0);
@@ -142,7 +138,7 @@ void PreorderAST::Create(Expr *E, Node *Parent) {
       // to RHS.
     }
 
-    auto *N = new BinaryNode(BinOp, Parent);
+    auto *N = new OperatorNode(BinOp, Parent);
     AddNode(N, Parent);
 
     Create(LHS, /*Parent*/ N);
@@ -158,29 +154,17 @@ void PreorderAST::Coalesce(Node *N, bool &Changed) {
   if (Error)
     return;
 
-  auto *B = dyn_cast_or_null<BinaryNode>(N);
-  if (!B)
+  auto *O = dyn_cast_or_null<OperatorNode>(N);
+  if (!O)
     return;
 
   // Coalesce the children first.
-  for (auto *Child : B->Children)
-    if (isa<BinaryNode>(Child))
+  for (auto *Child : O->Children)
+    if (isa<OperatorNode>(Child))
       Coalesce(Child, Changed);
 
-  // We can only coalesce if the operator is commutative and associative.
-  if (!B->IsOpCommutativeAndAssociative())
-    return;
-
-  auto *Parent = dyn_cast_or_null<BinaryNode>(B->Parent);
-  if (!Parent)
-    return;
-
-  // We can coalesce only if:
-  // 1. The parent has the same operator as the current node.
-  // 2. The current node is a BinaryNode with just one child (for example, as a
-  // result of constant folding).
-  if (Parent->Opc == B->Opc || B->Children.size() == 1) {
-    RemoveNode(B, Parent);
+  if (CanCoalesceNode(O)) {
+    CoalesceNode(O);
     Changed = true;
   }
 }
@@ -204,71 +188,71 @@ bool PreorderAST::CompareNodes(const Node *N1, const Node *N2) {
       return Lex.CompareExpr(L1->E, L2->E) == Result::LessThan;
     }
 
-    // N2:BinaryNodeExpr < N1:LeafExprNode.
+    // N2:OperatorNodeExpr < N1:LeafExprNode.
     return false;
   }
 
-  // N1:BinaryNodeExpr < N2:LeafExprNode.
+  // N1:OperatorNodeExpr < N2:LeafExprNode.
   if (isa<LeafExprNode>(N2))
     return true;
 
-  // Compare N1:BinaryNode and N2:BinaryNode.
-  const auto *B1 = dyn_cast<BinaryNode>(N1);
-  const auto *B2 = dyn_cast<BinaryNode>(N2);
+  // Compare N1:OperatorNode and N2:OperatorNode.
+  const auto *O1 = dyn_cast<OperatorNode>(N1);
+  const auto *O2 = dyn_cast<OperatorNode>(N2);
 
-  if (B1->Opc != B2->Opc)
-    return B1->Opc < B2->Opc;
-  return B1->Children.size() < B2->Children.size();
+  if (O1->Opc != O2->Opc)
+    return O1->Opc < O2->Opc;
+  return O1->Children.size() < O2->Children.size();
 }
 
 void PreorderAST::Sort(Node *N) {
-  auto *B = dyn_cast_or_null<BinaryNode>(N);
-  if (!B)
+  auto *O = dyn_cast_or_null<OperatorNode>(N);
+  if (!O)
     return;
 
   // Sort the children first.
-  for (auto *Child : B->Children)
-    if (isa<BinaryNode>(Child))
+  for (auto *Child : O->Children)
+    if (isa<OperatorNode>(Child))
       Sort(Child);
 
   // We can only sort if the operator is commutative and associative.
-  if (!B->IsOpCommutativeAndAssociative())
+  if (!O->IsOpCommutativeAndAssociative())
     return;
 
   // Sort the children.
-  llvm::sort(B->Children.begin(), B->Children.end(),
+  llvm::sort(O->Children.begin(), O->Children.end(),
              [&](const Node *N1, const Node *N2) {
                return CompareNodes(N1, N2);
             });
 }
 
 void PreorderAST::ConstantFold(Node *N, bool &Changed) {
-  // Note: This function assumes that the children of each BinaryNode of the
+  // Note: This function assumes that the children of each OperatorNode of the
   // preorder AST have already been sorted.
 
   if (Error)
     return;
 
-  auto *B = dyn_cast_or_null<BinaryNode>(N);
-  if (!B)
+  auto *O = dyn_cast_or_null<OperatorNode>(N);
+  if (!O)
     return;
 
   size_t ConstStartIdx = 0;
   unsigned NumConsts = 0;
   llvm::APSInt ConstFoldedVal;
 
-  for (size_t I = 0; I != B->Children.size(); ++I) {
-    auto *Child = B->Children[I];
+  for (size_t I = 0; I != O->Children.size(); ++I) {
+    auto *Child = O->Children[I];
 
-    // Recursively constant fold the children of a BinaryNode.
-    if (isa<BinaryNode>(Child)) {
+    // Recursively constant fold the children of a OperatorNode.
+    if (isa<OperatorNode>(Child)) {
       ConstantFold(Child, Changed);
       continue;
     }
 
     // We can only constant fold if the operator is commutative and
     // associative.
-    if (!B->IsOpCommutativeAndAssociative())
+    if (!O->IsOpCommutativeAndAssociative())
       continue;
 
     auto *ChildLeafNode = dyn_cast_or_null<LeafExprNode>(Child);
@@ -291,7 +275,7 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
     } else {
       // Constant fold based on the operator.
       bool Overflow;
-      switch(B->Opc) {
+      switch(O->Opc) {
         default: continue;
         case BO_Add:
           ConstFoldedVal = ConstFoldedVal.sadd_ov(CurrConstVal, Overflow);
@@ -318,10 +302,10 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
   // erase the iterator automatically points to the new location of the element
   // following the one we just erased.
   llvm::SmallVector<Node *, 2>::iterator I =
-    B->Children.begin() + ConstStartIdx;
+    O->Children.begin() + ConstStartIdx;
   while (NumConsts--) {
     delete(*I);
-    B->Children.erase(I);
+    O->Children.erase(I);
   }
 
   llvm::APInt IntVal(Ctx.getTargetInfo().getIntWidth(),
@@ -331,8 +315,14 @@ void PreorderAST::ConstantFold(Node *N, bool &Changed) {
                                                    SourceLocation());
 
   // Add the constant folded expression to list of children of the current
-  // BinaryNode.
-  B->Children.push_back(new LeafExprNode(ConstFoldedExpr, B));
+  // OperatorNode.
+  O->Children.push_back(new LeafExprNode(ConstFoldedExpr, O));
+
+  // If the constant folded expr is the only child of this OperatorNode we can
+  // coalesce the node.
+  if (O->Children.size() == 1 && CanCoalesceNode(O))
+    CoalesceNode(O);
+
   Changed = true;
 }
 
@@ -346,26 +336,26 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
   // (integer part of deref expr - integer part of upper bound expr).
 
   // Since we have already normalized exprs like "*p" to "*(p + 0)" we require
-  // that the root of the preorder AST is a BinaryNode.
-  auto *B1 = dyn_cast_or_null<BinaryNode>(UpperNode);
-  auto *B2 = dyn_cast_or_null<BinaryNode>(DerefNode);
+  // that the root of the preorder AST is a OperatorNode.
+  auto *O1 = dyn_cast_or_null<OperatorNode>(UpperNode);
+  auto *O2 = dyn_cast_or_null<OperatorNode>(DerefNode);
 
-  if (!B1 || !B2)
+  if (!O1 || !O2)
     return false;
 
   // If the opcodes mismatch we cannot have a valid offset.
-  if (B1->Opc != B2->Opc)
+  if (O1->Opc != O2->Opc)
     return false;
 
   // We have already constant folded the constants. So return false if the
   // number of children mismatch.
-  if (B1->Children.size() != B2->Children.size())
+  if (O1->Children.size() != O2->Children.size())
     return false;
 
   // Check if the children are equivalent.
-  for (size_t I = 0; I != B1->Children.size(); ++I) {
-    auto *Child1 = B1->Children[I];
-    auto *Child2 = B2->Children[I];
+  for (size_t I = 0; I != O1->Children.size(); ++I) {
+    auto *Child1 = O1->Children[I];
+    auto *Child2 = O2->Children[I];
 
     if (IsEqual(Child1, Child2))
       continue;
@@ -391,7 +381,7 @@ bool PreorderAST::GetDerefOffset(Node *UpperNode, Node *DerefNode,
     // addition.
     // Note: We have already converted (ptr - offset) to (ptr + -offset). So
     // its okay to only check for addition.
-    if (B1->Opc != BO_Add)
+    if (O1->Opc != BO_Add)
       return false;
 
     // This guards us from a case where the constants were not folded for
@@ -421,25 +411,25 @@ bool PreorderAST::IsEqual(Node *N1, Node *N2) {
   if ((N1 && !N2) || (!N1 && N2))
     return false;
 
-  if (const auto *B1 = dyn_cast<BinaryNode>(N1)) {
+  if (const auto *O1 = dyn_cast<OperatorNode>(N1)) {
     // If the types of the nodes mismatch.
-    if (!isa<BinaryNode>(N2))
+    if (!isa<OperatorNode>(N2))
       return false;
 
-    const auto *B2 = dyn_cast<BinaryNode>(N2);
+    const auto *O2 = dyn_cast<OperatorNode>(N2);
 
     // If the Opcodes mismatch.
-    if (B1->Opc != B2->Opc)
+    if (O1->Opc != O2->Opc)
       return false;
 
     // If the number of children of the two nodes mismatch.
-    if (B1->Children.size() != B2->Children.size())
+    if (O1->Children.size() != O2->Children.size())
       return false;
 
     // Match each child of the two nodes.
-    for (size_t I = 0; I != B1->Children.size(); ++I) {
-      auto *Child1 = B1->Children[I];
-      auto *Child2 = B2->Children[I];
+    for (size_t I = 0; I != O1->Children.size(); ++I) {
+      auto *Child1 = O1->Children[I];
+      auto *Child2 = O2->Children[I];
 
       // If any child differs between the two nodes.
       if (!IsEqual(Child1, Child2))
@@ -482,10 +472,10 @@ void PreorderAST::Normalize() {
 }
 
 void PreorderAST::PrettyPrint(Node *N) {
-  if (const auto *B = dyn_cast_or_null<BinaryNode>(N)) {
-    OS << BinaryOperator::getOpcodeStr(B->Opc) << "\n";
+  if (const auto *O = dyn_cast_or_null<OperatorNode>(N)) {
+    OS << BinaryOperator::getOpcodeStr(O->Opc) << "\n";
 
-    for (auto *Child : B->Children)
+    for (auto *Child : O->Children)
       PrettyPrint(Child);
   }
   else if (const auto *L = dyn_cast_or_null<LeafExprNode>(N))
@@ -493,8 +483,8 @@ void PreorderAST::PrettyPrint(Node *N) {
 }
 
 void PreorderAST::Cleanup(Node *N) {
-  if (auto *B = dyn_cast_or_null<BinaryNode>(N))
-    for (auto *Child : B->Children)
+  if (auto *O = dyn_cast_or_null<OperatorNode>(N))
+    for (auto *Child : O->Children)
       Cleanup(Child);
 
   if (N)
