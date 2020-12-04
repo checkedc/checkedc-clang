@@ -9,6 +9,13 @@ set( LLVM_LINK_COMPONENTS
             DeclRewriter_5C.cpp
           )
         endif()
+
+        if (MSVC)
+          set_source_files_properties(ArrayBoundsInferenceConsumer.cpp PROPERTIES COMPILE_FLAGS /bigobj)
+          set_source_files_properties(ConstraintBuilder.cpp PROPERTIES COMPILE_FLAGS /bigobj)
+          set_source_files_properties(RewriteUtils.cpp PROPERTIES COMPILE_FLAGS /bigobj)
+        endif()
+
         add_clang_library(clang3C
           ABounds.cpp
           AVarBoundsInfo.cpp
