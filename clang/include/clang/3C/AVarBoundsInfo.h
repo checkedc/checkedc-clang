@@ -362,8 +362,7 @@ private:
 class ContextSensitiveBoundsKeyVisitor
     : public RecursiveASTVisitor<ContextSensitiveBoundsKeyVisitor> {
 public:
-  explicit ContextSensitiveBoundsKeyVisitor(ASTContext *C, ProgramInfo &I,
-                                            ConstraintResolver *CResolver);
+  explicit ContextSensitiveBoundsKeyVisitor(ASTContext *C, ProgramInfo &I);
 
   virtual ~ContextSensitiveBoundsKeyVisitor();
 
@@ -372,7 +371,6 @@ public:
 private:
   ASTContext *Context;
   ProgramInfo &Info;
-  ConstraintResolver *CR;
 };
 
 #endif // LLVM_CLANG_3C_AVARBOUNDSINFO_H
