@@ -42,10 +42,11 @@ here. You must grant the same license on your contribution as the
 existing codebase. We do not have a formal contributor license
 agreement (CLA) process at this time, but we may set one up and
 require you to complete it before we accept your contribution. Also be
-aware that we need to keep 5C working, so you may have to wait for us
-to address 5C-specific problems arising from your 3C pull request
-and/or we may ask you to make specific changes to your pull request to
-accommodate 5C's code.
+aware that we need to keep 5C ([our proprietary extension of
+3C](README.md#what-3c-users-should-know-about-the-development-process))
+working, so you may have to wait for us to address 5C-specific
+problems arising from your 3C pull request and/or we may ask you to
+make specific changes to your pull request to accommodate 5C's code.
 
 ## Testing
 
