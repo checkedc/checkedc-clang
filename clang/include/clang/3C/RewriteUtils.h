@@ -76,8 +76,6 @@ typedef DeclReplacementTempl<FieldDecl, DeclReplacement::DRK_FieldDecl>
 typedef DeclReplacementTempl<TypedefDecl, DeclReplacement::DRK_TypedefDecl>
     TypedefDeclReplacement;
 
-
-
 class FunctionDeclReplacement
     : public DeclReplacementTempl<FunctionDecl,
                                   DeclReplacement::DRK_FunctionDecl> {

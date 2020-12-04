@@ -181,10 +181,14 @@ bool isAValidPVConstraint(const ConstraintVariable *C);
 class PointerVariableConstraint;
 class FunctionVariableConstraint;
 
-struct InternalTypedefInfo { 
-	bool hasTypedef;
-	int typedefLevel;
-	std::string typedefName;
+// We need to store the level inside the type AST at which the first
+// typedef occurs. This allows us to stop rewriting once we hit the
+// first typedef. (All subsequent typedefs will not be rewritten, as
+// rewriting will stop)
+struct InternalTypedefInfo {
+  bool hasTypedef;
+  int typedefLevel;
+  std::string typedefName;
 };
 
 
