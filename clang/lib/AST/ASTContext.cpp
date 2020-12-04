@@ -8806,7 +8806,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
         // The merged type includes the bounds.
         // Ignore the error if we do not want to consider checked pointers.
         if (!retType->isUncheckedPointerType() &&
-            !getLangOpts().CheckedCConverter)
+            !getLangOpts()._3C)
           return QualType();
         if (!lReturnAnnots.IsEmpty() && rReturnAnnots.IsEmpty()) {
           ReturnAnnots = lReturnAnnots;
@@ -8862,7 +8862,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
           // The merged type includes the bounds.
           // Ignored the error if we do not want to consider checked pointers.
           if (!paramType->isUncheckedPointerType() &&
-              !getLangOpts().CheckedCConverter)
+              !getLangOpts()._3C)
             return QualType();
           if (!lBounds.IsEmpty() && rBounds.IsEmpty()) {
             bounds.push_back(lBounds);

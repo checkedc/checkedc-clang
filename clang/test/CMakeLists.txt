@@ -55,7 +55,7 @@ list(APPEND CLANG_TEST_DEPS
   clang-tblgen
   clang-offload-bundler
   clang-import-test
-  cconv-standalone
+  3c
   clang-rename
   clang-refactor
   clang-diff

@@ -15,8 +15,8 @@
 #include "SourceCode.h"
 #include "Trace.h"
 #include "URI.h"
-#ifdef INTERACTIVECCCONV
-#include "CConvertCommands.h"
+#ifdef INTERACTIVE3C
+#include "3CCommands.h"
 #endif
 #include "refactor/Tweak.h"
 #include "clang/Tooling/Core/Replacement.h"
@@ -364,8 +364,8 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
   CDB.emplace(BaseCDB.get(), Params.initializationOptions.fallbackFlags,
               ClangdServerOpts.ResourceDir);
   Server.emplace(*CDB, FSProvider, static_cast<DiagnosticsConsumer &>(*this),
-#ifdef INTERACTIVECCCONV
-                 ClangdServerOpts, CCInterface);
+#ifdef INTERACTIVE3C
+                 ClangdServerOpts, The3CInterface);
 #else
                  ClangdServerOpts);
 #endif
@@ -389,22 +389,21 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
   SupportFileStatus = Params.initializationOptions.FileStatus;
   HoverContentFormat = Params.capabilities.HoverContentFormat;
   SupportsOffsetsInSignatureHelp = Params.capabilities.OffsetsInSignatureHelp;
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   // initialize our constraint building system.
-  log("Interactive CheckedC convert mode.\n");
-  Server->cconvCollectAndBuildInitialConstraints(this);
+  log("Interactive 3C mode.\n");
+  Server->_3CCollectAndBuildInitialConstraints(this);
   llvm::json::Object Result{
       {{"capabilities",
         llvm::json::Object{
             {"textDocumentSync", (int)TextDocumentSyncKind::Incremental},
             {"codeActionProvider", true},
-            {"codeLensProvider", llvm::json::Object{
-                {"resolveProvider", true}}},
+            {"codeLensProvider", llvm::json::Object{{"resolveProvider", true}}},
             {"executeCommandProvider",
              llvm::json::Object{
                  {"commands",
-                  {ExecuteCommandParams::CCONV_APPLY_FOR_ALL,
-                   ExecuteCommandParams::CCONV_APPLY_ONLY_FOR_THIS}},
+                  {ExecuteCommandParams::_3C_APPLY_FOR_ALL,
+                   ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS}},
              }},
         }}}};
 #else
@@ -460,14 +459,14 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
 
 void ClangdLSPServer::onShutdown(const ShutdownParams &Params,
                                  Callback<std::nullptr_t> Reply) {
-#ifdef INTERACTIVECCCONV
-  sendCConvMessage("Writing all CheckedC files back to disk");
+#ifdef INTERACTIVE3C
+  send3CMessage("Writing all CheckedC files back to disk");
   // Write all files back.
-  auto &AllDiags = Server->CConvDiagInfo.GetAllFilesDiagnostics();
+  auto &AllDiags = Server->_3CDiagInfo.getAllFilesDiagnostics();
   for (auto &CD : AllDiags) {
-    Server->cconvCloseDocument(CD.first);
+    Server->_3CCloseDocument(CD.first);
   }
-  sendCConvMessage("Finished Writing all CheckedC files back to disk");
+  send3CMessage("Finished Writing all CheckedC files back to disk");
   Reply(nullptr);
 #else
   // Do essentially nothing, just say we're ready to exit.
@@ -489,7 +488,7 @@ void ClangdLSPServer::onSync(const NoParams &Params,
 
 void ClangdLSPServer::onDocumentDidOpen(
     const DidOpenTextDocumentParams &Params) {
-#ifndef INTERACTIVECCCONV
+#ifndef INTERACTIVE3C
   PathRef File = Params.textDocument.uri.file();
 
   const std::string &Contents = Params.textDocument.text;
@@ -501,7 +500,7 @@ void ClangdLSPServer::onDocumentDidOpen(
 
 void ClangdLSPServer::onDocumentDidChange(
     const DidChangeTextDocumentParams &Params) {
-#ifndef INTERACTIVECCCONV
+#ifndef INTERACTIVE3C
   auto WantDiags = WantDiagnostics::Auto;
   if (Params.wantDiagnostics.hasValue())
     WantDiags = Params.wantDiagnostics.getValue() ? WantDiagnostics::Yes
@@ -528,43 +527,38 @@ void ClangdLSPServer::onFileEvent(const DidChangeWatchedFilesParams &Params) {
   Server->onFileEvent(Params);
 }
 
-#ifdef INTERACTIVECCCONV
-void ClangdLSPServer::ccConvResultsReady(std::string FileName,
-                                         bool ClearDiags) {
+#ifdef INTERACTIVE3C
+void ClangdLSPServer::_3CResultsReady(std::string FileName, bool ClearDiags) {
   // Get the diagnostics and update the client.
   std::vector<Diag> Diagnostics;
   Diagnostics.clear();
   if (!ClearDiags) {
-    std::lock_guard<std::mutex> lock(Server->CConvDiagInfo.DiagMutex);
-    auto &allDiags = Server->CConvDiagInfo.GetAllFilesDiagnostics();
-    if (allDiags.find(FileName) !=
-        allDiags.end()) {
-      Diagnostics.insert(
-          Diagnostics.begin(),
-          allDiags[FileName].begin(),
-          allDiags[FileName].end());
+    std::lock_guard<std::mutex> Lock(Server->_3CDiagInfo.DiagMutex);
+    auto &AllDiags = Server->_3CDiagInfo.getAllFilesDiagnostics();
+    if (AllDiags.find(FileName) != AllDiags.end()) {
+      Diagnostics.insert(Diagnostics.begin(), AllDiags[FileName].begin(),
+                         AllDiags[FileName].end());
     }
   }
   this->onDiagnosticsReady(FileName, Diagnostics);
 }
 
-void ClangdLSPServer::sendCConvMessage(std::string MsgStr) {
- // Send message as info to the client.
-  notify("window/showMessage",
-         llvm::json::Object{
-             // Info message.
-             {"type", 3},
-             {"message", std::move(MsgStr)},
-         });
+void ClangdLSPServer::send3CMessage(std::string MsgStr) {
+  // Send message as info to the client.
+  notify("window/showMessage", llvm::json::Object{
+                                   // Info message.
+                                   {"type", 3},
+                                   {"message", std::move(MsgStr)},
+                               });
 }
 #endif
 void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
                                 Callback<llvm::json::Value> Reply) {
-#ifdef INTERACTIVECCCONV
-  // In this mode, we support only CConv commands.
-  if(IsCConvCommand(Params)) {
-    Server->executeCConvCommand(Params, this);
-    Reply("CConv Background work scheduled.");
+#ifdef INTERACTIVE3C
+  // In this mode, we support only 3C commands.
+  if (is3CCommand(Params)) {
+    Server->execute3CCommand(Params, this);
+    Reply("3C Background work scheduled.");
   } else {
     Reply(llvm::make_error<LSPError>(
         llvm::formatv("Unsupported command \"{0}\".", Params.command).str(),
@@ -677,10 +671,10 @@ void ClangdLSPServer::onRename(const RenameParams &Params,
 
 void ClangdLSPServer::onDocumentDidClose(
     const DidCloseTextDocumentParams &Params) {
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   PathRef File = Params.textDocument.uri.file();
-  Server->cconvCloseDocument(File.str());
-  sendCConvMessage("CConv finished Rewriting the file:" + File.str());
+  Server->_3CCloseDocument(File.str());
+  send3CMessage("3C finished Rewriting the file:" + File.str());
 #else
   PathRef File = Params.textDocument.uri.file();
   DraftMgr.removeDraft(File);
@@ -812,14 +806,14 @@ static llvm::Optional<Command> asCommand(const CodeAction &Action) {
 
 void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
                                    Callback<llvm::json::Value> Reply) {
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   URIForFile File = Params.textDocument.uri;
-  std::vector<Command> CCommands;
-  // Convert the diagnostics into CConv commands.
+  std::vector<Command> Commands;
+  // Convert the diagnostics into 3C commands.
   for (const Diagnostic &D : Params.context.diagnostics) {
-    AsCCCommands(D, CCommands);
+    as3CCommands(D, Commands);
   }
-  Reply(llvm::json::Array(CCommands));
+  Reply(llvm::json::Array(Commands));
 #else
 
   URIForFile File = Params.textDocument.uri;
@@ -914,20 +908,20 @@ void ClangdLSPServer::onSignatureHelp(const TextDocumentPositionParams &Params,
                             std::move(Reply)));
 }
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 void ClangdLSPServer::onCodeLens(const CodeLensParams &Params,
                                  Callback<llvm::json::Value> Reply) {
   // This is just a beacon to display for user.
   std::vector<CodeLens> AllCodeLens;
   CodeLens CcBecon;
-  CcBecon.range.start.line = 15;
-  CcBecon.range.end.line = 16;
-  CcBecon.range.start.character = 13;
-  CcBecon.range.end.character = 17;
+  CcBecon.TheRange.start.line = 15;
+  CcBecon.TheRange.end.line = 16;
+  CcBecon.TheRange.start.character = 13;
+  CcBecon.TheRange.end.character = 17;
   Command NewCmd;
-  NewCmd.command = "CCconv Interactive Mode On";
-  NewCmd.title = "CConv Mode On";
-  CcBecon.command = NewCmd;
+  NewCmd.command = "3C Interactive Mode On";
+  NewCmd.title = "3C Mode On";
+  CcBecon.TheCommand = NewCmd;
   AllCodeLens.clear();
   AllCodeLens.push_back(CcBecon);
   Reply(llvm::json::Array(AllCodeLens));
@@ -936,7 +930,7 @@ void ClangdLSPServer::onCodeLens(const CodeLensParams &Params,
 void ClangdLSPServer::onCodeLensResolve(const CodeLens &Params,
                                         Callback<llvm::json::Value> Reply) {
   CodeLens CcBeaconResolve;
-  CcBeaconResolve.range = Params.range;
+  CcBeaconResolve.TheRange = Params.TheRange;
   Reply(clang::clangd::toJSON(CcBeaconResolve));
 }
 #endif
@@ -1120,8 +1114,8 @@ ClangdLSPServer::ClangdLSPServer(
     const clangd::CodeCompleteOptions &CCOpts,
     llvm::Optional<Path> CompileCommandsDir, bool UseDirBasedCDB,
     llvm::Optional<OffsetEncoding> ForcedOffsetEncoding,
-#ifdef INTERACTIVECCCONV
-    const ClangdServer::Options &Opts, CConvInterface &Cinter)
+#ifdef INTERACTIVE3C
+    const ClangdServer::Options &Opts, _3CInterface &Cinter)
 #else
     const ClangdServer::Options &Opts)
 #endif
@@ -1131,14 +1125,14 @@ ClangdLSPServer::ClangdLSPServer(
       SupportedCompletionItemKinds(defaultCompletionItemKinds()),
       UseDirBasedCDB(UseDirBasedCDB),
       CompileCommandsDir(std::move(CompileCommandsDir)), ClangdServerOpts(Opts),
-#ifdef INTERACTIVECCCONV
-      NegotiatedOffsetEncoding(ForcedOffsetEncoding), CCInterface(Cinter) {
+#ifdef INTERACTIVE3C
+      NegotiatedOffsetEncoding(ForcedOffsetEncoding), The3CInterface(Cinter) {
 #else
       NegotiatedOffsetEncoding(ForcedOffsetEncoding) {
 #endif
   // clang-format off
-#ifdef INTERACTIVECCCONV
-  // We only support these methods in Interactive CConv mode.
+#ifdef INTERACTIVE3C
+  // We only support these methods in Interactive 3C mode.
   MsgHandler->bind("initialize", &ClangdLSPServer::onInitialize);
   MsgHandler->bind("shutdown", &ClangdLSPServer::onShutdown);
   MsgHandler->bind("sync", &ClangdLSPServer::onSync);
@@ -1149,7 +1143,6 @@ ClangdLSPServer::ClangdLSPServer(
   MsgHandler->bind("textDocument/didOpen", &ClangdLSPServer::onDocumentDidOpen);
   MsgHandler->bind("textDocument/didClose", &ClangdLSPServer::onDocumentDidClose);
   MsgHandler->bind("textDocument/didChange", &ClangdLSPServer::onDocumentDidChange);
-  // clang-format on
 #else
   MsgHandler->bind("initialize", &ClangdLSPServer::onInitialize);
   MsgHandler->bind("shutdown", &ClangdLSPServer::onShutdown);
@@ -1179,6 +1172,7 @@ ClangdLSPServer::ClangdLSPServer(
   MsgHandler->bind("textDocument/typeHierarchy", &ClangdLSPServer::onTypeHierarchy);
   MsgHandler->bind("typeHierarchy/resolve", &ClangdLSPServer::onResolveTypeHierarchy);
 #endif
+  // clang-format on
 }
 
 ClangdLSPServer::~ClangdLSPServer() = default;
@@ -1256,7 +1250,7 @@ void ClangdLSPServer::onHighlightingsReady(
 void ClangdLSPServer::onDiagnosticsReady(PathRef File,
                                          std::vector<Diag> Diagnostics) {
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   auto URI = URIForFile::canonicalize(File, /*TUPath=*/File);
   std::vector<Diagnostic> LSPDiagnostics;
 
