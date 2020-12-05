@@ -1,3 +1,4 @@
+// UNSUPPORTED: system-windows
 // RUN: 3c -extra-arg="-Wno-everything" -alltypes -warn-root-cause %s 2>&1 1>/dev/null | FileCheck %s
 
 #include <stddef.h>

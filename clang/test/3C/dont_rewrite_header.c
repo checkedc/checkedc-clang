@@ -1,3 +1,4 @@
+// UNSUPPORTED: system-windows
 // RUN: 3c -alltypes -addcr --output-postfix=checked %S/dont_rewrite_header.c %S/dont_rewrite_header.h
 // RUN: FileCheck -match-full-lines -check-prefixes="CHECK" %S/dont_rewrite_header.checked.c < %S/dont_rewrite_header.checked.c
 // RUN: test ! -f %S/dont_rewrite_header.checked.h
