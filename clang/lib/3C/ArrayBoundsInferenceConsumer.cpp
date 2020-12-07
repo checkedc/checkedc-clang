@@ -613,7 +613,6 @@ bool LocalVarABVisitor::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
 
 bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
   // Build rules based on initializers.
-  auto &ABoundsInfo = Info.getABoundsInfo();
   for (const auto &D : S->decls())
     if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       Expr *InitE = VD->getInit();
