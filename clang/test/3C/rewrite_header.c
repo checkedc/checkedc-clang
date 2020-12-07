@@ -1,7 +1,6 @@
-// UNSUPPORTED: system-windows
 // RUN: 3c -alltypes -addcr --output-postfix=checked %S/rewrite_header.c %S/rewrite_header.h
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK" %S/rewrite_header.checked.c < %S/rewrite_header.checked.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK" %S/rewrite_header.checked.h < %S/rewrite_header.checked.h
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK" %S/rewrite_header.checked.c --input-file=%S/rewrite_header.checked.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK" %S/rewrite_header.checked.h --input-file=%S/rewrite_header.checked.h
 // RUN: sed -i -e "s!rewrite_header\.h!%S/rewrite_header\.checked\.h!" %S/rewrite_header.checked.c
 // RUN: %clang -c -fcheckedc-extension -x c -o /dev/null %S/rewrite_header.checked.c
 // RUN: 3c -alltypes -addcr --output-postfix=checked2 %S/rewrite_header.checked.c %S/rewrite_header.checked.h
