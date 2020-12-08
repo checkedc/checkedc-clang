@@ -1,4 +1,7 @@
-// RUN: 3c -addcr  %s -- | FileCheck -match-full-lines --check-prefixes="CHECK" %s
+// RUN: 3c -addcr %s | FileCheck -match-full-lines --check-prefixes="CHECK" %s
+
+// Currently not running clang on the output,
+// since it cannot find "dummy.h", even with -L%S
 
 #include "dummy.h"
 // Dummy to cause output

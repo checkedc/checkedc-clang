@@ -1,5 +1,7 @@
-// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s | FileCheck -match-full-lines %s
 
+// Currently not possible to run clang on the output,
+// since 3c cannot yet determine array bounds for intarr
 
 /*
 Advanced array-bounds inference (based on control-dependencies).

@@ -1,5 +1,6 @@
 //RUN: 3c -base-dir=%S -output-postfix=checked2 %s %S/extGVarm1.c %S/extGVarm3.c
 //RUN: FileCheck -match-full-lines --input-file %S/extGVarm2.checked2.c %s
+//RUN: %clang -c %S/extGVarm2.checked2.c %S/extGVarm3.checked2.c %S/extGVarm1.checked2.c
 //RUN: rm %S/extGVarm1.checked2.c %S/extGVarm2.checked2.c %S/extGVarm3.checked2.c
 
 extern int *x;

@@ -1,4 +1,8 @@
-// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -alltypes %s | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+
+// Currently not possible to run clang on the output,
+// since 3c cannot yet determine array bounds for hash_get_bucket
+
 /*
  * Based on hash.c in Very Secure FTPd
  */

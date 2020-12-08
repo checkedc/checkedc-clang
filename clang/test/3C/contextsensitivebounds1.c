@@ -2,8 +2,11 @@
 Test for context sensitive bounds for internal functions.
 **/
 
-// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: 3c %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -alltypes %s | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -alltypes %s | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c %s | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c %s | %clang -c -fcheckedc-extension -x c -o /dev/null -
+
 _Itype_for_any(T) void *somefunc(unsigned long size) : itype(_Array_ptr<T>) byte_count(size);
 struct hash_node
 {

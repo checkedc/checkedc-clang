@@ -2,7 +2,8 @@
 //
 // Tests properties about rewriter for return type when it is an itype
 //
-// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s | %clang -c -fcheckedc-extension -x c -o /dev/null -
 //
 
 static int funcvar;
