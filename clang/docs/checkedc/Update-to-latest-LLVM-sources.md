@@ -23,13 +23,20 @@ The third step is to merge your changes back into your baseline and master branc
 First create remote to the mirrored GitHub repo that contains the updated sources
 for LLVM/Clang. Go to your LLVM/Clang repo and do:
 
-    git remote add mirror https://github.com/llvm-mirror/llvm-project
+    git remote add mirror https://github.com/llvm/llvm-project
 
 Then branch your baseline branch and merge changes into it:
 
     git checkout baseline
     git checkout -b updated-baseline
     git pull mirror master
+    git reset --hard <llvm-commit>
+
+`<llvm-commit>` is the commit on https://github.com/llvm/llvm-project that contains the desired version of the LLVM/Clang sources. For example, to update to LLVM/Clang version 11.0:
+
+    git reset --hard 176249bd6732a8044d457092ed932768724a6f06
+
+To help ensure stability, `<llvm-commit>` should be a commit on an `llvmorg-<version>` tag. These tags are final LLVM/Clang releases (see https://llvm.org/docs/HowToReleaseLLVM.html#tag-the-llvm-final-release). For example, the LLVM/Clang 11.0 commit is the [latest commit](176249bd6732a8044d457092ed932768724a6f06) on the [llvmorg-11.0.0](https://github.com/llvm/llvm-project/tree/llvmorg-11.0.0) tag.
 
 ## Run testing on your branched baseline branches.
 
@@ -46,6 +53,7 @@ that first.
 You can now branch your baseline branches to create a new master branch:
 
     git checkout -b updated-master
+    git config --local merge.renamelimit 26000
     git merge master
 
 You will very likely have merge conflicts and some test failures.  The test
