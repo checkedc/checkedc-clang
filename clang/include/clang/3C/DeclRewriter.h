@@ -69,6 +69,7 @@ private:
   void doDeclRewrite(SourceRange &SR, DeclReplacement *N);
 
   void rewriteFunctionDecl(FunctionDeclReplacement *N);
+  void rewriteTypedefDecl(TypedefDeclReplacement *TDT, RSet &ToRewrite);
   void getDeclsOnSameLine(DeclReplacement *N, std::vector<Decl *> &Decls);
   bool isSingleDeclaration(DeclReplacement *N);
   bool areDeclarationsOnSameLine(DeclReplacement *N1, DeclReplacement *N2);

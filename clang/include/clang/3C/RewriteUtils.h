@@ -33,7 +33,7 @@ public:
   }
 
   // Discriminator for LLVM-style RTTI (dyn_cast<> et al.)
-  enum DRKind { DRK_VarDecl, DRK_ParmVarDecl, DRK_FunctionDecl, DRK_FieldDecl };
+  enum DRKind { DRK_VarDecl, DRK_ParmVarDecl, DRK_FunctionDecl, DRK_FieldDecl, DRK_TypedefDecl };
 
   DRKind getKind() const { return Kind; }
 
@@ -73,6 +73,8 @@ typedef DeclReplacementTempl<ParmVarDecl, DeclReplacement::DRK_ParmVarDecl>
     ParmVarDeclReplacement;
 typedef DeclReplacementTempl<FieldDecl, DeclReplacement::DRK_FieldDecl>
     FieldDeclReplacement;
+typedef DeclReplacementTempl<TypedefDecl, DeclReplacement::DRK_TypedefDecl>
+    TypedefDeclReplacement;
 
 class FunctionDeclReplacement
     : public DeclReplacementTempl<FunctionDecl,

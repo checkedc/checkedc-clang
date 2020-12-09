@@ -18,6 +18,8 @@
 #include <sstream>
 
 using namespace clang;
+// Macro for boolean implication
+#define IMPLIES(a,b) ((a) ? (b) : true)
 
 static llvm::cl::OptionCategory OptimizationCategory("Optimization category");
 static llvm::cl::opt<bool>
@@ -112,8 +114,58 @@ PointerVariableConstraint::PointerVariableConstraint(
 
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
                                                      ProgramInfo &I,
-                                                     const ASTContext &C)
-    : PointerVariableConstraint(D->getType(), D, D->getName(), I, C) {}
+                                                     const ASTContext &C) :
+        PointerVariableConstraint(D->getType(), D, D->getName(),
+                                  I, C) { }
+
+
+// Simple recursive visitor for determining if a type contains a typedef
+// entrypoint is find()
+class TypedefLevelFinder : public RecursiveASTVisitor<TypedefLevelFinder> {
+  public:
+
+    static struct InternalTypedefInfo find(const QualType &QT) {
+      TypedefLevelFinder TLF;
+      QualType tosearch;
+      // If the type is currently a typedef, desugar that.
+      // This is so we can see if the type _contains_ a typedef
+      if (auto TDT = dyn_cast<TypedefType>(QT))
+        tosearch = TDT->desugar();
+      else
+        tosearch = QT;
+      TLF.TraverseType(tosearch);
+      // If we found a typedef the we need to have filled out the name field
+      assert(IMPLIES(TLF.hastypedef, TLF.TDname != ""));
+      struct InternalTypedefInfo info = 
+      	{ TLF.hastypedef, TLF.typedeflevel, TLF.TDname };
+      return info;
+    }
+
+    bool VisitTypedefType(TypedefType *TT) {
+      hastypedef = true;
+      auto TDT = TT->getDecl();
+      TDname = TDT->getNameAsString();
+      return false;
+    }
+
+    bool VisitPointerType(PointerType *PT) {
+      typedeflevel++;
+      return true;
+    }
+
+    bool VisitArrayType(ArrayType *AT) {
+      typedeflevel++;
+      return true;
+    }
+
+
+  private:
+    int typedeflevel = 0;
+    std::string TDname = "";
+    bool hastypedef = false;
+
+};
+
 
 PointerVariableConstraint::PointerVariableConstraint(
     const QualType &QT, DeclaratorDecl *D, std::string N, ProgramInfo &I,
@@ -125,6 +177,7 @@ PointerVariableConstraint::PointerVariableConstraint(
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
   auto &CS = I.getConstraints();
+  typedeflevelinfo = TypedefLevelFinder::find(QT);
   // If the type is a decayed type, then maybe this is the result of
   // decaying an array to a pointer. If the original type is some
   // kind of array type, we want to use that instead.
@@ -551,12 +604,29 @@ void PointerVariableConstraint::addArrayAnnotations(
   assert(CheckedArrs.empty());
 }
 
+
+bool PointerVariableConstraint::isTypedef(void) {
+  return IsTypedef;
+}
+
+void PointerVariableConstraint::setTypedef(TypedefNameDecl* T, std::string s) {
+  IsTypedef = true;
+  TDT = T;
+  typedefString = s;
+}
+
+
 // Mesh resolved constraints with the PointerVariableConstraints set of
 // variables and potentially nested function pointer declaration. Produces a
 // string that can be replaced in the source code.
+
 std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
                                                 bool EmitName, bool ForItype,
-                                                bool EmitPointee) const {
+                                                bool EmitPointee, bool UnmaskTypedef) const {
+  if (IsTypedef && !UnmaskTypedef) {
+    return typedefString + (EmitName && getName() != RETVAR ? (" " + getName()) : " ");
+  }
+
   std::ostringstream Ss;
   // This deque will store all the type strings that need to pushed
   // to the end of the type string. This is typically things like
@@ -581,11 +651,14 @@ std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
   uint32_t TypeIdx = 0;
 
   auto It = Vars.begin();
+  auto i = 0;
   // Skip over first pointer level if only emitting pointee string.
   // This is needed when inserting type arguments.
   if (EmitPointee)
     ++It;
-  for (; It != Vars.end(); ++It) {
+  // Interate through the vars(), but if we have an internal typedef, then stop once you reach the
+  // typedef's level
+  for (; It != Vars.end() && IMPLIES(typedeflevelinfo.hasTypedef, i < typedeflevelinfo.typedefLevel); ++It, i++) {
     const auto &V = *It;
     ConstAtom *C = nullptr;
     if (ConstAtom *CA = dyn_cast<ConstAtom>(V)) {
@@ -708,6 +781,9 @@ std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
     // type.
     if (FV) {
       Ss << FV->mkString(E);
+    } else if (typedeflevelinfo.hasTypedef) {
+      auto name = typedeflevelinfo.typedefName;
+      Ss << name;
     } else {
       Ss << BaseType;
     }
@@ -1227,7 +1303,7 @@ bool FunctionVariableConstraint::solutionEqualTo(
 
 std::string FunctionVariableConstraint::mkString(const EnvironmentMap &E,
                                                  bool EmitName, bool ForItype,
-                                                 bool EmitPointee) const {
+                                                 bool EmitPointee, bool UnmaskTypedef) const {
   std::string Ret = "";
   Ret = ReturnVar->mkString(E);
   Ret = Ret + "(";
