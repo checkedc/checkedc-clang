@@ -127,6 +127,8 @@ class TypedefLevelFinder : public RecursiveASTVisitor<TypedefLevelFinder> {
     static struct InternalTypedefInfo find(const QualType &QT) {
       TypedefLevelFinder TLF;
       QualType tosearch;
+      // If the type is currently a typedef, desugar that.
+      // This is so we can see if the type _contains_ a typedef
       if (auto TDT = dyn_cast<TypedefType>(QT))
         tosearch = TDT->desugar();
       else
