@@ -59,6 +59,12 @@ void foobar(void) {
 	startschecked pp = &p;
 }
 
+typedef int *intptr;
+//CHECK: typedef _Ptr<int> intptr;
+void barfoo(intptr x) {
+//CHECK: void barfoo(intptr x) _Checked {
+	  *x = 5;
+}
 
 
 
