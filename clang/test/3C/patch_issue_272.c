@@ -1,12 +1,9 @@
 // RUN: 3c -alltypes %s | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o /dev/null -
 
 /********************************************************************/
 /* Tests to keep pointer level from                                 */
 /* https://github.com/correctcomputation/checkedc-clang/issues/272  */
-/*                                                                  */
-/* Currently not possible to run clang on the output,               */
-/* since 3c cannot yet determine full array bounds in this case     */
-/*                                                                  */
 /********************************************************************/
 
 int *a[];

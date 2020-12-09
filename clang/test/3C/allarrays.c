@@ -1,7 +1,5 @@
 // RUN: 3c -alltypes %s | FileCheck -match-full-lines --check-prefixes="CHECK" %s
-
-// Currently not possible to run clang on the output,
-// since 3c cannot yet determine array bounds for q
+// RUN: 3c -alltypes %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o /dev/null -
 
 int* foo();
 //CHECK: _Array_ptr<int> foo(_Array_ptr<int> r);

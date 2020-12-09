@@ -3,7 +3,7 @@
 //RUN: %clang -c %S/extGVarm3.checked3.c %S/extGVarm2.checked3.c %S/extGVarm1.checked3.c
 //RUN: rm %S/extGVarm1.checked3.c %S/extGVarm2.checked3.c %S/extGVarm3.checked3.c 
 
-// This test cannot use pipes because it uses multiple input files
+// This test cannot use pipes because it requires multiple output files
 
 extern int *x; 
 //CHECK: extern int *x;

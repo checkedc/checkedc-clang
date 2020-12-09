@@ -1,11 +1,9 @@
 // RUN: 3c -addcr -alltypes %s | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -addcr -alltypes %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o /dev/null -
 // RUN: 3c -addcr %s | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -alltypes -output-postfix=checked %s
-// RUN: 3c -alltypes %S/partial_checked_arr.checked.c | count 0
-// RUN: rm %S/partial_checked_arr.checked.c
-
-// Currently not possible to run clang on the output,
-// since 3c cannot yet determine array bounds in this case
+// RUN: 3c -addcr %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -alltypes %s > %t
+// RUN: 3c -alltypes %t | count 0
 
 int strcmp(const char *src1 : itype(_Nt_array_ptr<const char>),
            const char *src2 : itype(_Nt_array_ptr<const char>));
