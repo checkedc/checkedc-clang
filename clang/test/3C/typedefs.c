@@ -47,3 +47,22 @@ int foo(void) {
 
     return *p;
 }
+
+typedef int* startswild;
+//CHECK: typedef _Ptr<int> startswild;
+typedef _Ptr<startswild> startschecked;
+//CHECK: typedef _Ptr<startswild> startschecked;
+
+void foobar(void) { 
+	int x = 3;
+	startswild p = &x;
+	startschecked pp = &p;
+}
+
+
+
+
+
+
+
+
