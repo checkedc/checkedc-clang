@@ -15,6 +15,7 @@
 #include "clang/3C/ConstraintResolver.h"
 #include "clang/Analysis/Analyses/Dominators.h"
 #include "clang/Analysis/CFG.h"
+#include <cctype>
 #include <sstream>
 
 static std::set<std::string> LengthVarNamesPrefixes = {"len", "count", "size",
