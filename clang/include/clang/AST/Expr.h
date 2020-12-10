@@ -107,6 +107,7 @@ struct SubobjectAdjustment {
 /// required.
 class Expr : public ValueStmt {
   QualType TR;
+  WhereClause *WClause;
 
 public:
   Expr() = delete;
@@ -118,7 +119,7 @@ public:
 protected:
   Expr(StmtClass SC, QualType T, ExprValueKind VK, ExprObjectKind OK,
        bool TD, bool VD, bool ID, bool ContainsUnexpandedParameterPack)
-    : ValueStmt(SC)
+    : ValueStmt(SC), WClause(nullptr)
   {
     ExprBits.TypeDependent = TD;
     ExprBits.ValueDependent = VD;
@@ -925,6 +926,20 @@ public:
   static bool classof(const Stmt *T) {
     return T->getStmtClass() >= firstExprConstant &&
            T->getStmtClass() <= lastExprConstant;
+  }
+
+  void addWhereClause(ASTContext &Context, Expr *E) {
+    if (!WClause)
+      WClause = new (Context) WhereClause();
+    WClause->addFact(E);
+  }
+
+  WhereClause *getWhereClause() const {
+    return WClause;
+  }
+
+  bool hasWhereClause() const {
+    return WClause && WClause->getNumFacts();
   }
 };
 

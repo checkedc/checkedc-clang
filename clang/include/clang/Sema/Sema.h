@@ -5042,7 +5042,7 @@ public:
   QualType BoundsExprReturnValue;
 
   /// \brief Checked C: Parse where clause facts.
-  bool ActOnWhereClause(DeclaratorDecl *D, Expr *E);
+  ExprResult ActOnWhereClause(Expr *E1, Expr *E2);
 
   /// \brief RAII object used to temporarily set the the type of _Return_value
   class CheckedCReturnValueRAII {

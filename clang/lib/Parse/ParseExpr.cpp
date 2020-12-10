@@ -1501,12 +1501,20 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
 }
 
 static bool IsCallToStrlen(Expr *E) {
-  if (const CallExpr *CE = dyn_cast_or_null<CallExpr>(E)) {
-    if (const FunctionDecl *FD = CE->getDirectCallee()) {
-      return FD->getIdentifier() && FD->getIdentifier()->isStr("strlen");
-    }
-  }
-  return false;
+  if (!E)
+    return false;
+
+  E = E->IgnoreImpCasts();
+
+  if (auto *BO = dyn_cast<BinaryOperator>(E))
+    E = BO->getRHS()->IgnoreImpCasts();
+
+  auto *CE = dyn_cast<CallExpr>(E);
+  if (!CE)
+    return false;
+
+  FunctionDecl *FD = CE->getDirectCallee();
+  return FD && FD->getIdentifier() && FD->getIdentifier()->isStr("strlen");
 }
 
 /// Once the leading part of a postfix-expression is parsed, this
@@ -1746,22 +1754,6 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
                                     ArgExprs, Tok.getLocation(),
                                     ExecConfig);
         PT.consumeClose();
-
-        if (getLangOpts().CheckedC) {
-          LHS = Actions.CreateTemporaryForCallIfNeeded(LHS);
-
-          if (StartsWhereClause(Tok)) {
-            Token &WhereTok = Tok;
-
-            bool WhereClauseError = !IsCallToStrlen(LHS.get()) ? true :
-                                    ParseWhereClause();
-
-            if (WhereClauseError) {
-              Diag(WhereTok, diag::err_incorrect_where_clause);
-              LHS = ExprError();
-            }
-          }
-        }
       }
 
       break;
@@ -3927,46 +3919,33 @@ bool Parser::StartsWhereClause(Token &T) const {
   return T.getKind() == tok::kw__Where;
 }
 
-bool Parser::ParseWhereClause() {
-  // Returns true if error.
-
+ExprResult Parser::ParseWhereClause(Expr *Init) {
   if (!StartsWhereClause(Tok))
-    return true;
+    return ExprError();
 
   // Consume the "_Where" token.
   ConsumeToken();
 
-  ExprResult E1 =
-    Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+  ExprResult E1(ParseExpression());
   if (E1.isInvalid())
-    return true;
+    return ExprError();
 
-  // Parse a where clause that redeclares the bounds of a checked pointer.
   if (Tok.is(tok::colon)) {
+    // Consume the ":" token.
     ConsumeToken();
 
-    auto *DRE = dyn_cast<DeclRefExpr>(E1.get());
-    if (!DRE)
-      return true;
-
-    auto *DD = dyn_cast<DeclaratorDecl>(DRE->getDecl());
-    if (!DD)
-      return true;
-
-    ExprResult E2 = ParseBoundsExpression();
+    // We expect a bounds decl.
+    ExprResult E2(ParseBoundsExpression());
     if (E2.isInvalid())
-      return true;
+      return ExprError();
 
-    BoundsExpr *Bounds = dyn_cast<BoundsExpr>(E2.get());
-    if (!Bounds)
-      return true;
+    // We see that bounds are being redeclared. So if PrevE is a function call
+    // we require it to be a call to strlen.
+    if (Init && !IsCallToStrlen(Init))
+      return ExprError();
 
-    return Actions.ActOnWhereClause(DD, Bounds);
-
-  } else {
-    // TODO: Handle other where clauses here. For example, where x == e1;
-    // TODO: Handle multiple facts. For example, where x > e1 && x < e2;
+    return Actions.ActOnWhereClause(E1.get(), E2.get());
   }
 
-  return false;
+  return ExprError();
 }

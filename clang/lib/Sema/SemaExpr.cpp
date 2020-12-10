@@ -18608,17 +18608,10 @@ ExprResult Sema::ActOnObjCAvailabilityCheckExpr(
 }
 
 // Checked C: Process where clause facts.
-bool Sema::ActOnWhereClause(DeclaratorDecl *D, Expr *E) {
-  // Returns true on error.
+ExprResult Sema::ActOnWhereClause(Expr *E1, Expr *E2) {
+  if (!E1 || !E2)
+    return ExprError();
 
-  if (!D || D->isInvalidDecl())
-    return true;
-
-  assert(!isa<FunctionDecl>(D) && "unexpected function decl");
-  QualType Ty = D->getType();
-  if (Ty.isNull())
-    return true;
-
-  D->addWhereClause(getASTContext(), E);
-  return false;
+  E1->addWhereClause(getASTContext(), E2);
+  return E1;
 }

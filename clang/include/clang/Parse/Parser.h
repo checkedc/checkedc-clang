@@ -1973,7 +1973,7 @@ private:
   bool StartsWhereClause(Token &T) const;
 
   // Checked C: Parse a where clause.
-  bool ParseWhereClause();
+  ExprResult ParseWhereClause(Expr *E = nullptr);
 
   /// Parse a pack expression of the form '_Pack(expr, existential_type, substitution_type)'.
   ExprResult ParsePackExpression();

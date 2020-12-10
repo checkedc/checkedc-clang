@@ -215,6 +215,17 @@ Retry:
     // Fall through
     LLVM_FALLTHROUGH;
   }
+  case tok::kw__Where: {
+    if (!getLangOpts().CheckedC)
+      return StmtError();
+    Token &WhereTok = Tok;
+    ExprResult Res = ParseWhereClause();
+    if (Res.isInvalid()) {
+      Diag(WhereTok, diag::err_incorrect_where_clause);
+      return StmtError();
+    }
+    return StmtResult(Res.getAs<Stmt>());
+  }
 
   default: {
     FallThrough:
@@ -450,6 +461,13 @@ StmtResult Parser::ParseExprStatement(ParsedStmtContext StmtCtx) {
 
     // Recover parsing as a case statement.
     return ParseCaseStatement(StmtCtx, /*MissingCase=*/true, Expr);
+  }
+
+  if (getLangOpts().CheckedC && StartsWhereClause(Tok)) {
+    Token &WhereTok = Tok;
+    ExprResult Res = ParseWhereClause(Expr.get());
+    if (Res.isInvalid())
+      Diag(WhereTok, diag::err_incorrect_where_clause);
   }
 
   // Otherwise, eat the semicolon.

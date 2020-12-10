@@ -2176,6 +2176,18 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
   if (FirstDecl)
     DeclsInGroup.push_back(FirstDecl);
 
+  if (getLangOpts().CheckedC && StartsWhereClause(Tok)) {
+    Token &WhereTok = Tok;
+
+    Expr *Init = nullptr;
+    if (auto *VD = dyn_cast<VarDecl>(FirstDecl))
+      Init = VD->getInit();
+
+    ExprResult Res = ParseWhereClause(Init);
+    if (Res.isInvalid())
+      Diag(WhereTok, diag::err_incorrect_where_clause);
+  }
+
   bool ExpectSemi = Context != DeclaratorContext::ForContext;
 
   // If we don't have a comma, it is either the end of the list (a ';') or an
