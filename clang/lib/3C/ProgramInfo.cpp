@@ -547,6 +547,10 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     // Function Decls have FVConstraints.
     FVConstraint *F = new FVConstraint(D, *this, *AstContext);
     F->setValidDecl();
+    auto *Ret_PV = dyn_cast<PVConstraint>(F->getReturnVar());
+    auto Ret_Ty = FD->getReturnType();
+    unifyIfTypedef(Ret_Ty.getTypePtr(), *AstContext, FD, Ret_PV);
+
 
     // Handling of PSL collision for functions is different since we need to
     // consider the static and extern function maps.
@@ -570,9 +574,11 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     NewCV = F;
     // Add mappings from the parameters PLoc to the constraint variables for
     // the parameters.
-    for (unsigned I = 0; I < FD->getNumParams(); I++) {
-      ParmVarDecl *PVD = FD->getParamDecl(I);
-      ConstraintVariable *PV = F->getParamVar(I);
+    for (unsigned i = 0; i < FD->getNumParams(); i++) {
+      ParmVarDecl *PVD = FD->getParamDecl(i);
+      const Type *Ty = PVD->getType().getTypePtr();
+      ConstraintVariable *PV = F->getParamVar(i);
+      unifyIfTypedef(Ty, *AstContext, PVD, dyn_cast<PVConstraint>(PV));
       PV->setValidDecl();
       PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *AstContext);
       // Constraint variable is stored on the parent function, so we need to
@@ -593,6 +599,7 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
       P->setValidDecl();
       NewCV = P;
       std::string VarName = VD->getName();
+      unifyIfTypedef(Ty, *AstContext, VD, P);
       if (VD->hasGlobalStorage()) {
         // if we see a definition for this global variable, indicate so in
         // ExternGVars
@@ -612,7 +619,9 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
   } else if (FieldDecl *FlD = dyn_cast<FieldDecl>(D)) {
     const Type *Ty = FlD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     if (Ty->isPointerType() || Ty->isArrayType()) {
-      NewCV = new PVConstraint(D, *this, *AstContext);
+      PVConstraint* P = new PVConstraint(D, *this, *AstContext);
+      unifyIfTypedef(Ty, *AstContext, FlD, P);
+      NewCV = P;
       NewCV->setValidDecl();
       specialCaseVarIntros(D, AstContext);
     }
@@ -622,6 +631,20 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
   assert("We shouldn't be adding a null CV to Variables map." && NewCV);
   constrainWildIfMacro(NewCV, D->getLocation());
   Variables[PLoc] = NewCV;
+}
+
+void ProgramInfo::unifyIfTypedef(const Type* Ty, ASTContext& Context, DeclaratorDecl* Decl, PVConstraint* P) {
+  if (const auto TDT = dyn_cast<TypedefType>(Ty)) {
+    auto Decl = TDT->getDecl();
+    auto PSL = PersistentSourceLoc::mkPSL(Decl, Context);
+    auto &pair = typedefVars[PSL];
+    CVarSet& bounds = pair.first;
+    if (pair.second) {
+      P->setTypedef(Decl, Decl->getNameAsString());
+      constrainConsVarGeq(P, bounds, CS, &PSL, Same_to_Same, true, this);
+      bounds.insert(P);
+    }
+  }
 }
 
 bool ProgramInfo::hasPersistentConstraints(Expr *E, ASTContext *C) const {
@@ -990,4 +1013,17 @@ ProgramInfo::getTypeParamBindings(CallExpr *CE, ASTContext *C) const {
   assert("Type parameter bindings could not be found." &&
          TypeParamBindings.find(PSL) != TypeParamBindings.end());
   return TypeParamBindings.at(PSL);
+}
+
+std::pair<CVarSet, bool> ProgramInfo::lookupTypedef(PersistentSourceLoc PSL) {
+  return typedefVars[PSL];
+}
+
+bool ProgramInfo::seenTypedef(PersistentSourceLoc PSL) {
+  return typedefVars.count(PSL) != 0;
+}
+
+void ProgramInfo::addTypedef(PersistentSourceLoc PSL, bool ShouldCheck) {
+  CVarSet empty;
+  typedefVars[PSL] = make_pair(empty, ShouldCheck);
 }

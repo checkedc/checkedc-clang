@@ -110,11 +110,29 @@ public:
   void constrainWildIfMacro(ConstraintVariable *CV, SourceLocation Location,
                             PersistentSourceLoc *PSL = nullptr);
 
+
+  void unifyIfTypedef(const clang::Type*, clang::ASTContext&,
+                      clang::DeclaratorDecl*, PVConstraint*);
+
+  std::pair<CVarSet, bool> lookupTypedef(PersistentSourceLoc PSL);
+
+  bool seenTypedef(PersistentSourceLoc PSL);
+
+  void addTypedef(PersistentSourceLoc PSL, bool ShouldCheck);
+
 private:
   // List of constraint variables for declarations, indexed by their location in
   // the source. This information persists across invocations of the constraint
   // analysis from compilation unit to compilation unit.
   VariableMap Variables;
+
+  // Map storing constraint information for typedefed types
+  // The set contains all the constraint variables that also use this tyepdef
+  // TODO this could be replaced w/ a signle CVar
+  // The bool informs the rewriter whether or not this typedef should be
+  // rewritten. It will be false for typedefs we don't support rewritting,
+  // such as typedefs that are pointers to anonymous structs
+  std::map<PersistentSourceLoc, std::pair<CVarSet, bool>> typedefVars;
 
   // Map with the same purpose as the Variables map, this stores constraint
   // variables for non-declaration expressions.

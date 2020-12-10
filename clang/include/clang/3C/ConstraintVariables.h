@@ -86,7 +86,7 @@ public:
   // to be used inside an itype
   virtual std::string mkString(const EnvironmentMap &E, bool EmitName = true,
                                bool ForItype = false,
-                               bool EmitPointee = false) const = 0;
+                               bool EmitPointee = false, bool UnmaskTypedef = false) const = 0;
 
   // Debug printing of the constraint variable.
   virtual void print(llvm::raw_ostream &O) const = 0;
@@ -181,6 +181,17 @@ bool isAValidPVConstraint(const ConstraintVariable *C);
 class PointerVariableConstraint;
 class FunctionVariableConstraint;
 
+// We need to store the level inside the type AST at which the first
+// typedef occurs. This allows us to stop rewriting once we hit the
+// first typedef. (All subsequent typedefs will not be rewritten, as
+// rewriting will stop)
+struct InternalTypedefInfo {
+  bool hasTypedef;
+  int typedefLevel;
+  std::string typedefName;
+};
+
+
 // Represents an individual constraint on a pointer variable.
 // This could contain a reference to a FunctionVariableConstraint
 // in the case of a function pointer declaration.
@@ -261,6 +272,18 @@ private:
   // pointers.
   bool IsZeroWidthArray;
 
+  // Was this variable a checked pointer in the input program?
+  // This is important for two reasons: (1) externs that are checked should be
+  // kept that way during solving, (2) nothing that was originally checked
+  // should be modified during rewriting.
+  bool OriginallyChecked;
+
+  bool IsTypedef = false;
+  TypedefNameDecl* TDT;
+  std::string typedefString;
+  // Does the type internally contain a typedef, and if so: at what level and what is it's name?
+  struct InternalTypedefInfo typedeflevelinfo;
+
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CAtoms V, std::string T, std::string Name,
@@ -277,6 +300,9 @@ public:
   bool isTopCvarUnsizedArr() const;
   // Check if any of the pointers is either a sized or unsized arr.
   bool hasSomeSizedArr() const;
+
+  bool isTypedef(void);
+  void setTypedef(TypedefNameDecl *TypedefType, std::string);
 
   // Is an itype present for this constraint? If yes,
   // what is the text of that itype?
@@ -335,7 +361,9 @@ public:
 
   std::string mkString(const EnvironmentMap &E, bool EmitName = true,
                        bool ForItype = false,
-                       bool EmitPointee = false) const override;
+                       bool EmitPointee = false,
+                       bool UnmaskTypedef = false)
+    const override;
 
   FunctionVariableConstraint *getFV() const { return FV; }
 
@@ -448,7 +476,9 @@ public:
 
   std::string mkString(const EnvironmentMap &E, bool EmitName = true,
                        bool ForItype = false,
-                       bool EmitPointee = false) const override;
+                       bool EmitPointee = false,
+                       bool UnmaskTypedef = false)
+    const override;
   void print(llvm::raw_ostream &O) const override;
   void dump() const override { print(llvm::errs()); }
   void dumpJson(llvm::raw_ostream &O) const override;

@@ -9,6 +9,7 @@
 // visitors create constraints based on the AST of the program.
 //===----------------------------------------------------------------------===//
 
+#include <algorithm>
 #include "clang/3C/ConstraintBuilder.h"
 #include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/ArrayBoundsInferenceConsumer.h"
@@ -398,6 +399,52 @@ private:
   TypeVarInfo &TVInfo;
 };
 
+class PtrToStructDef : public RecursiveASTVisitor<PtrToStructDef> {
+  public:
+    explicit PtrToStructDef(TypedefDecl *TDT) : TDT(TDT) {}
+
+    bool VisitPointerType(clang::PointerType *PT) {
+      ispointer = true;
+      return true;
+    }
+
+    bool VisitRecordType(RecordType *RT) {
+      auto decl = RT->getDecl();
+      auto declRange = decl->getSourceRange();
+      auto typedefRange = TDT->getSourceRange();
+      bool declContained = (typedefRange.getBegin() < declRange.getBegin())
+        && !(typedefRange.getEnd() < typedefRange.getEnd());
+      if (declContained) {
+        structDefInTD = true;
+        return false;
+      } else {
+        return true;
+      }
+    }
+
+    bool VisitFunctionProtoType(FunctionProtoType *FPT) {
+      ispointer = true;
+      return true;
+    }
+
+    bool getResult(void) {
+      return structDefInTD;
+    }
+
+    static bool containsPtrToStructDef(TypedefDecl *TDT) {
+      PtrToStructDef traverser(TDT);
+      traverser.TraverseDecl(TDT);
+      return traverser.getResult();
+    }
+
+  private:
+    TypedefDecl* TDT = nullptr;
+    bool ispointer = false;
+    bool structDefInTD = false;
+
+};
+
+
 // This class visits a global declaration, generating constraints
 //   for functions, variables, types, etc. that are visited
 class ConstraintGenVisitor : public RecursiveASTVisitor<ConstraintGenVisitor> {
@@ -405,6 +452,20 @@ public:
   explicit ConstraintGenVisitor(ASTContext *Context, ProgramInfo &I,
                                 TypeVarInfo &TVI)
       : Context(Context), Info(I), CB(Info, Context), TVInfo(TVI) {}
+
+  bool VisitTypedefDecl(TypedefDecl* TD) { 
+      CVarSet empty;
+      auto PSL = PersistentSourceLoc::mkPSL(TD, *Context);
+      // If we haven't seen this typedef before, initialize it's entry in the
+      // typedef map. If we have seen it before, and we need to preserve the
+      // constraints contained within it
+      if (!Info.seenTypedef(PSL))
+        // Add this typedef to the program info, if it contains a ptr to
+        // an anonymous struct we mark as not being rewritable
+        Info.addTypedef(PSL, !PtrToStructDef::containsPtrToStructDef(TD));
+
+      return true;
+  }
 
   bool VisitVarDecl(VarDecl *G) {
 
@@ -485,7 +546,8 @@ private:
 class VariableAdderVisitor : public RecursiveASTVisitor<VariableAdderVisitor> {
 public:
   explicit VariableAdderVisitor(ASTContext *Context, ProgramVariableAdder &VA)
-      : Context(Context), VarAdder(VA) {}
+    : Context(Context), VarAdder(VA) {}
+
 
   bool VisitVarDecl(VarDecl *D) {
     FullSourceLoc FL = Context->getFullLoc(D->getBeginLoc());
@@ -541,6 +603,7 @@ void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
     else
       errs() << "Analyzing\n";
   }
+
 
   VariableAdderVisitor VAV = VariableAdderVisitor(&C, Info);
   TypeVarVisitor TV = TypeVarVisitor(&C, Info);
