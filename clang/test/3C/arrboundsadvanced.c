@@ -1,5 +1,5 @@
 // RUN: 3c -alltypes %s | FileCheck -match-full-lines %s
-// RUN: 3c -alltypes %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -alltypes %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o %t1.unused -
 
 /*
 Advanced array-bounds inference (based on control-dependencies).

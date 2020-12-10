@@ -1,5 +1,5 @@
 // RUN: 3c -alltypes %s | FileCheck -match-full-lines --check-prefixes="CHECK" %s
-// RUN: 3c -alltypes %s | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -alltypes %s | %clang -c -fcheckedc-extension -x c -o %t1.unused -
 
 int foo();
 //CHECK: int foo(_Array_ptr<int> x : count(y), int y);

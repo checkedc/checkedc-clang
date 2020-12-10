@@ -1,5 +1,5 @@
 // RUN: 3c -alltypes %s | FileCheck -match-full-lines %s
-// RUN: 3c -alltypes %s | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -alltypes %s | %clang -c -fcheckedc-extension -x c -o %t1.unused -
 
 
 /*

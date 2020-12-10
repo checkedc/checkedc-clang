@@ -3,8 +3,9 @@
 // Checks wrong array heuristics.
 //
 // RUN: 3c -alltypes %s | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -alltypes %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o %t1.unused -
 // RUN: 3c %s | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c %s | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c %s | %clang -c -fcheckedc-extension -x c -o %t2.unused -
 
 int *glob;
 int lenplusone;

@@ -1,5 +1,5 @@
 // RUN: 3c -alltypes -addcr %s | FileCheck -match-full-lines %s
-// RUN: 3c -alltypes -addcr %s | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -alltypes -addcr %s | %clang -c -fcheckedc-extension -x c -o %t.unused -
 // RUN: 3c -addcr -alltypes -output-postfix=checked %s 
 // RUN: 3c -addcr -alltypes %S/pointerarithm.checked.c | count 0
 // RUN: rm %S/pointerarithm.checked.c

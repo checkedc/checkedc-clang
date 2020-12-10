@@ -3,7 +3,7 @@
 //RUN: %clang -c %S/extGVarbar1.checked.c %S/extGVarbar2.checked.c
 //RUN: rm %S/extGVarbar1.checked.c %S/extGVarbar2.checked.c
 
-/*first of the bar files*/ 
+// This test cannot use pipes because it requires multiple output files
 
 extern int *x; 
 /*y will be defined in bar2.c*/
