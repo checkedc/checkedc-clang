@@ -133,7 +133,7 @@ def process_smart(filename):
     elif susproto != "": test = [header, susproto, foo, bar, sus]
 
     file = open(filename, "w+") 
-    file.write('\n\n'.join(test)) 
+    file.write('\n\n'.join(test) + '\n') 
     file.close()
 
     os.system("{}3c -alltypes -addcr -output-postfix=checkedALL {}".format(bin_path, filename))
