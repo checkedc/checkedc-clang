@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # Author: Shilpa Roy 
 # Last updated: June 16, 2020
 
@@ -5,10 +6,8 @@ import itertools as it
 import os
 import subprocess
 
-#### USERS PUT YOUR INFO HERE ##### 
-
-# Please remember to add a '/' at the very end!
-path_to_monorepo = "/Users/shilpa-roy/checkedc/checkedc-clang/build/bin/"
+import find_bin
+bin_path = find_bin.bin_path
 
 
 
@@ -726,23 +725,23 @@ def annot_gen_smart(prefix, proto, suffix):
     
     # run the porting tool on the file(s)
     if proto=="multi": 
-        os.system("{}3c -alltypes -addcr -output-postfix=checkedALL {} {}".format(path_to_monorepo, name, name2))
-        os.system("{}3c -addcr -output-postfix=checkedNOALL {} {}".format(path_to_monorepo, name, name2))
+        os.system("{}3c -alltypes -addcr -output-postfix=checkedALL {} {}".format(bin_path, name, name2))
+        os.system("{}3c -addcr -output-postfix=checkedNOALL {} {}".format(bin_path, name, name2))
     else: 
-        os.system("{}3c -alltypes -addcr -output-postfix=checkedALL {}".format(path_to_monorepo, name))
-        os.system("{}3c -addcr -output-postfix=checkedNOALL {}".format(path_to_monorepo, name))
+        os.system("{}3c -alltypes -addcr -output-postfix=checkedALL {}".format(bin_path, name))
+        os.system("{}3c -addcr -output-postfix=checkedNOALL {}".format(bin_path, name))
     
     # compile the files and if it doesn't compile, then let's indicate that a bug was generated for this file
     bug_generated = False
     if proto != "multi":
-        out = subprocess.Popen(['{}clang'.format(path_to_monorepo), '-c', cnameNOALL], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) 
+        out = subprocess.Popen(['{}clang'.format(bin_path), '-c', cnameNOALL], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) 
         stdout, stderr = out.communicate()
         stdout = str(stdout) 
         if "error:" in stdout: 
             bug_generated = True
             # name = prefix + proto + suffix + "_BUG.c" 
     else: 
-        out = subprocess.Popen(['{}clang'.format(path_to_monorepo), '-c', cnameNOALL, cname2NOALL], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) 
+        out = subprocess.Popen(['{}clang'.format(bin_path), '-c', cnameNOALL, cname2NOALL], stdout=subprocess.PIPE, stderr=subprocess.STDOUT) 
         stdout, stderr = out.communicate()
         stdout = str(stdout) 
         if "error:" in stdout: 

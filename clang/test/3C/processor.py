@@ -1,8 +1,10 @@
+#!/usr/bin/env python
 import fileinput 
 import sys
 import os
 
-path_to_monorepo = "/Users/shilpa-roy/checkedc-clang/build/bin/"
+import find_bin
+bin_path = find_bin.bin_path
 
 structs = """
 struct np {
@@ -134,8 +136,8 @@ def process_smart(filename):
     file.write('\n\n'.join(test)) 
     file.close()
 
-    os.system("{}3c -alltypes -addcr -output-postfix=checkedALL {}".format(path_to_monorepo, filename))
-    os.system("{}3c -addcr -output-postfix=checkedNOALL {}".format(path_to_monorepo, filename)) 
+    os.system("{}3c -alltypes -addcr -output-postfix=checkedALL {}".format(bin_path, filename))
+    os.system("{}3c -addcr -output-postfix=checkedNOALL {}".format(bin_path, filename)) 
 
     process_file_smart(filename, cnameNOALL, cnameALL) 
     return
