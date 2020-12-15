@@ -388,11 +388,11 @@ BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
 #ifndef NDEBUG
     llvm::outs() << "Failed concretizing\n";
     llvm::outs() << "Bounds:\n";
-    Bounds->dump(llvm::outs());
+    Bounds->dump(llvm::outs(), Context);
     int count = Args.size();
     for (int i = 0; i < count; i++) {
       llvm::outs() << "Dumping arg " << i << "\n";
-      Args[i]->dump(llvm::outs());
+      Args[i]->dump(llvm::outs(), Context);
     }
     llvm::outs().flush();
 #endif
@@ -806,14 +806,14 @@ namespace {
                               BoundsExpr *LValueTargetBounds,
                               BoundsExpr *RHSBounds) {
       OS << "\n";
-      E->dump(OS);
+      E->dump(OS, Context);
       if (LValueTargetBounds) {
         OS << "Target Bounds:\n";
-        LValueTargetBounds->dump(OS);
+        LValueTargetBounds->dump(OS, Context);
       }
       if (RHSBounds) {
         OS << "RHS Bounds:\n ";
-        RHSBounds->dump(OS);
+        RHSBounds->dump(OS, Context);
       }
     }
 
@@ -821,18 +821,18 @@ namespace {
                               BoundsExpr *Declared, BoundsExpr *NormalizedDeclared,
                               BoundsExpr *SubExprBounds) {
       OS << "\n";
-      E->dump(OS);
+      E->dump(OS, Context);
       if (Declared) {
         OS << "Declared Bounds:\n";
-        Declared->dump(OS);
+        Declared->dump(OS, Context);
       }
       if (NormalizedDeclared) {
         OS << "Normalized Declared Bounds:\n ";
-        NormalizedDeclared->dump(OS);
+        NormalizedDeclared->dump(OS, Context);
       }
       if (SubExprBounds) {
         OS << "Inferred Subexpression Bounds:\n ";
-        SubExprBounds->dump(OS);
+        SubExprBounds->dump(OS, Context);
       }
     }
 
@@ -841,14 +841,14 @@ namespace {
       OS << "\n";
       D->dump(OS);
       OS << "Declared Bounds:\n";
-      Target->dump(OS);
+      Target->dump(OS, Context);
       OS << "Initializer Bounds:\n ";
-      B->dump(OS);
+      B->dump(OS, Context);
     }
 
     void DumpExpression(raw_ostream &OS, Expr *E) {
       OS << "\n";
-      E->dump(OS);
+      E->dump(OS, Context);
     }
 
     void DumpCallArgumentBounds(raw_ostream &OS, BoundsExpr *Param,
@@ -858,25 +858,25 @@ namespace {
       OS << "\n";
       if (Param) {
         OS << "Original parameter bounds\n";
-        Param->dump(OS);
+        Param->dump(OS, Context);
       }
       if (Arg) {
         OS << "Argument:\n";
-        Arg->dump(OS);
+        Arg->dump(OS, Context);
       }
       if (ParamBounds) {
         OS << "Parameter Bounds:\n";
-        ParamBounds->dump(OS);
+        ParamBounds->dump(OS, Context);
       }
       if (ArgBounds) {
         OS << "Argument Bounds:\n ";
-        ArgBounds->dump(OS);
+        ArgBounds->dump(OS, Context);
       }
     }
 
     void DumpCheckingState(raw_ostream &OS, Stmt *S, CheckingState &State) {
       OS << "\nStatement S:\n";
-      S->dump(OS);
+      S->dump(OS, Context);
 
       OS << "Observed bounds context after checking S:\n";
       DumpBoundsContext(OS, State.ObservedBounds);
@@ -1339,7 +1339,7 @@ namespace {
         OS << "Range:\n";
         OS << "Base: ";
         if (Base)
-          Base->dump(OS);
+          Base->dump(OS, S.getASTContext());
         else
           OS << "nullptr\n";
         if (IsLowerOffsetConstant()) {
@@ -1354,11 +1354,11 @@ namespace {
         }
         if (IsLowerOffsetVariable()) {
           OS << "Lower offset:\n";
-          LowerOffsetVariable->dump(OS);
+          LowerOffsetVariable->dump(OS, S.getASTContext());
         }
         if (IsUpperOffsetVariable()) {
           OS << "Upper offset:\n";
-          UpperOffsetVariable->dump(OS);
+          UpperOffsetVariable->dump(OS, S.getASTContext());
         }
       }
     };
