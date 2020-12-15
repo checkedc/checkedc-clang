@@ -9118,7 +9118,7 @@ QualType ASTContext::matchArrayCheckedness(QualType LHS, QualType RHS) {
                                                 rhsTy->getElementType());
       if (rhsTypeClass == Type::ConstantArray) {
           const ConstantArrayType *rhsca = cast<ConstantArrayType>(rhsTy);
-          QualType result = getConstantArrayType(elemTy, rhsca->getSize(),
+          QualType result = getConstantArrayType(elemTy, rhsca->getSize(), rhsca->getSizeExpr(),
                                                  rhsca->getSizeModifier(), RHS.getCVRQualifiers(),
                                                  CheckedArrayKind::Checked);
           return result;
