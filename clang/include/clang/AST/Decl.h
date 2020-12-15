@@ -1972,7 +1972,7 @@ private:
     LazyDeclStmtPtr Body;
     /// Information about a future defaulted function definition.
     DefaultedFunctionInfo *DefaultedInfo;
-=======
+  };
   /// TypeVarInfo - new []'d array of pointers to TypedefDecls for the type
   /// variables of this function.  This is null if not generic function.
   TypedefDecl **TypeVarInfo;
