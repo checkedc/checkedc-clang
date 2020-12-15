@@ -100,6 +100,20 @@ if config.has_plugins and config.llvm_plugin_ext:
 if config.clang_default_cxx_stdlib != '':
     config.available_features.add('default-cxx-stdlib-set')
 
+# Enabled/disabled features
+if config.clang_staticanalyzer:
+    config.available_features.add('staticanalyzer')
+
+    if config.clang_staticanalyzer_z3 == '1':
+        config.available_features.add('z3')
+
+def is_there(name):
+    from distutils.spawn import find_executable
+    return find_executable(name) is not None
+
+if is_there("seahorn"):
+    config.available_features.add('seahorn')
+
 # As of 2011.08, crash-recovery tests still do not pass on FreeBSD.
 if platform.system() not in ['FreeBSD']:
     config.available_features.add('crash-recovery')
@@ -208,3 +222,11 @@ if config.enable_shared:
 # Add a vendor-specific feature.
 if config.clang_vendor_uti:
     config.available_features.add('clang-vendor=' + config.clang_vendor_uti)
+
+# Substitutions for Seahorn verifier
+# some of the arguments clashed with buitin substitutions
+# so we define these new substitutions
+config.substitutions.append(('%sea_pp', config.sea_pp))
+config.substitutions.append(('%sea_ms', config.sea_ms))
+config.substitutions.append(('%sea_opt', config.sea_opt))
+config.substitutions.append(('%sea_horn', config.sea_horn))

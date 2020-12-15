@@ -567,6 +567,30 @@ void TextNodeDumper::Visit(const APValue &Value, QualType Ty) {
   llvm_unreachable("Unknown APValue kind!");
 }
 
+//===----------------------------------------------------------------------===//
+// Checked C bounds expressions
+//===----------------------------------------------------------------------===//
+
+void TextNodeDumper::Visit(BoundsExpr::Kind K) {
+  switch (K) {
+    case BoundsExpr::Kind::Invalid: OS << " Invalid"; break;
+    case BoundsExpr::Kind::Unknown: OS << " Unknown"; break;
+    case BoundsExpr::Kind::Any: OS << " Any"; break;
+    case BoundsExpr::Kind::ElementCount: OS << " Element"; break;
+    case BoundsExpr::Kind::ByteCount: OS << " Byte"; break;
+    case BoundsExpr::Kind::Range: OS << " Range"; break;
+  }
+}
+
+void TextNodeDumper::Visit(BoundsCheckKind K) {
+  switch (K) {
+    case BoundsCheckKind::BCK_None: OS << "None"; break;
+    case BoundsCheckKind::BCK_Normal: OS << "Normal"; break;
+    case BoundsCheckKind::BCK_NullTermRead: OS << "Null-terminated read"; break;
+    case BoundsCheckKind::BCK_NullTermWriteAssign: OS << "Null-terminated assignment"; break;
+  }
+}
+
 void TextNodeDumper::dumpPointer(const void *Ptr) {
   ColorScope Color(OS, ShowColors, AddressColor);
   OS << ' ' << Ptr;
@@ -955,6 +979,9 @@ void TextNodeDumper::VisitCastExpr(const CastExpr *Node) {
   }
   dumpBasePath(OS, Node);
   OS << ">";
+
+  if (Node->isBoundsSafeInterface())
+    OS << " BoundsSafeInterface";
 }
 
 void TextNodeDumper::VisitImplicitCastExpr(const ImplicitCastExpr *Node) {
@@ -965,6 +992,10 @@ void TextNodeDumper::VisitImplicitCastExpr(const ImplicitCastExpr *Node) {
 
 void TextNodeDumper::VisitDeclRefExpr(const DeclRefExpr *Node) {
   OS << " ";
+  if (Node->GetTypeArgumentInfo() &&
+      !Node->GetTypeArgumentInfo()->typeArgumentss().empty()) {
+    OS << "instantiated ";
+  }
   dumpBareDeclRef(Node->getDecl());
   if (Node->getDecl() != Node->getFoundDecl()) {
     OS << " (";
@@ -1326,6 +1357,31 @@ void TextNodeDumper::VisitOMPIteratorExpr(const OMPIteratorExpr *Node) {
     }
   }
 }
+void TextNodeDumper::VisitNullaryBoundsExpr(const NullaryBoundsExpr *Node) {
+  Visit(Node->getKind());
+}
+
+void TextNodeDumper::VisitCountBoundsExpr(const CountBoundsExpr *Node) {
+  Visit(Node->getKind());
+}
+
+//===----------------------------------------------------------------------===//
+// Checked C bounds expressions
+//===----------------------------------------------------------------------===//
+
+void TextNodeDumper::VisitPositionalParameterExpr(
+  const PositionalParameterExpr *Node) {
+  OS << " arg #";
+  OS << Node->getIndex();
+}
+
+void TextNodeDumper::VisitBoundsValueExpr(const BoundsValueExpr *Node) {
+  if (Node->getKind() == BoundsValueExpr::Kind::Temporary) {
+    OS << " _BoundTemporary ";
+    dumpPointer(Node->getTemporaryBinding());
+  } else
+    OS << " _Return_value";
+}
 
 void TextNodeDumper::VisitRValueReferenceType(const ReferenceType *T) {
   if (T->isSpelledAsLValue())
@@ -1520,6 +1576,15 @@ void TextNodeDumper::VisitRecordDecl(const RecordDecl *D) {
   dumpName(D);
   if (D->isModulePrivate())
     OS << " __module_private__";
+  // If the record is generic, it's ok to print only the number of type
+  // parameters, becaue the type variables are already printed _before_ the
+  // record declaration is dumped.
+  if (D->isGeneric())
+    OS << " _For_any(" << D->typeParams().size() << ")";
+  if (D->isItypeGeneric())
+    OS << "_Itype_for_any(" << D->typeParams().size() << ")";
+  if (D->isInstantiated())
+    dumpType(D->getASTContext().getTypeDeclType(D));
   if (D->isCompleteDefinition())
     OS << " definition";
 }
@@ -1563,6 +1628,14 @@ void TextNodeDumper::VisitFunctionDecl(const FunctionDecl *D) {
   if (D->isTrivial())
     OS << " trivial";
 
+  // Checked C specific.
+  switch (D->getWrittenCheckedSpecifier()) {
+    case CSS_None: break;
+    case CSS_Bounds: OS << " checked bounds_only"; break;
+    case CSS_Memory: OS << " checked"; break;
+    case CSS_Unchecked: OS << " unchecked"; break;
+  }
+
   if (const auto *FPT = D->getType()->getAs<FunctionProtoType>()) {
     FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
     switch (EPI.ExceptionSpec.Type) {
@@ -1574,6 +1647,24 @@ void TextNodeDumper::VisitFunctionDecl(const FunctionDecl *D) {
     case EST_Uninstantiated:
       OS << " noexcept-uninstantiated " << EPI.ExceptionSpec.SourceTemplate;
       break;
+    }
+  }
+
+  // Checked C specific.
+  // If the function is generic function or an itype generic function, dump
+  // information about type variables. The type variable name is stored as a
+  // TypedefDecl.
+  if ((D->isGenericFunction() || D->isItypeGenericFunction()) &&
+      D->getNumTypeVars() > 0) {
+    for (const TypedefDecl* Typevar : D->typeVariables()) {
+      AddChild([=] {
+        OS << "TypeVariable";
+        dumpPointer(Typevar);
+        OS << " ";
+        dumpLocation(Typevar->getLocation());
+        OS << " " << Typevar->getIdentifier()->getName();
+        dumpType(Typevar->getUnderlyingType());
+      });
     }
   }
 

@@ -55,6 +55,7 @@ add_clang_library(clangCodeGen
   CGDebugInfo.cpp
   CGDecl.cpp
   CGDeclCXX.cpp
+  CGDynamicCheck.cpp
   CGException.cpp
   CGExpr.cpp
   CGExprAgg.cpp

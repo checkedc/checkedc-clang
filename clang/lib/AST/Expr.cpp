@@ -379,7 +379,8 @@ DeclRefExpr::DeclRefExpr(const ASTContext &Ctx, ValueDecl *D,
                          ExprValueKind VK, SourceLocation L,
                          const DeclarationNameLoc &LocInfo,
                          NonOdrUseReason NOUR)
-    : Expr(DeclRefExprClass, T, VK, OK_Ordinary), D(D), DNLoc(LocInfo) {
+    : Expr(DeclRefExprClass, T, VK, OK_Ordinary), D(D),
+      TypeArgumentInfo(nullptr), DNLoc(LocInfo) {
   DeclRefExprBits.HasQualifier = false;
   DeclRefExprBits.HasTemplateKWAndArgsInfo = false;
   DeclRefExprBits.HasFoundDecl = false;
@@ -399,7 +400,7 @@ DeclRefExpr::DeclRefExpr(const ASTContext &Ctx,
                          const TemplateArgumentListInfo *TemplateArgs,
                          QualType T, ExprValueKind VK, NonOdrUseReason NOUR)
     : Expr(DeclRefExprClass, T, VK, OK_Ordinary), D(D),
-      DNLoc(NameInfo.getInfo()) {
+      TypeArgumentInfo(nullptr), DNLoc(NameInfo.getInfo()) {
   DeclRefExprBits.Loc = NameInfo.getLoc();
   DeclRefExprBits.HasQualifier = QualifierLoc ? 1 : 0;
   if (QualifierLoc)
@@ -493,6 +494,20 @@ SourceLocation DeclRefExpr::getEndLoc() const {
   if (hasExplicitTemplateArgs())
     return getRAngleLoc();
   return getNameInfo().getEndLoc();
+}
+
+DeclRefExpr::GenericInstInfo
+  *DeclRefExpr::GenericInstInfo::Create(ASTContext &C,
+  ArrayRef<TypeArgument> NewTypeVariableNames) {
+  GenericInstInfo *retVal = new (C) GenericInstInfo();
+
+  if (!NewTypeVariableNames.empty()) {
+    retVal->NumTypeArguments = NewTypeVariableNames.size();
+    retVal->TypeArguments = new (C) TypeArgument[retVal->NumTypeArguments];
+    std::copy(NewTypeVariableNames.begin(),
+      NewTypeVariableNames.end(), retVal->TypeArguments);
+  }
+  return retVal;
 }
 
 PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentKind IK,
@@ -1552,7 +1567,8 @@ MemberExpr::MemberExpr(Expr *Base, bool IsArrow, SourceLocation OperatorLoc,
                        ExprValueKind VK, ExprObjectKind OK,
                        NonOdrUseReason NOUR)
     : Expr(MemberExprClass, T, VK, OK), Base(Base), MemberDecl(MemberDecl),
-      MemberDNLoc(NameInfo.getInfo()), MemberLoc(NameInfo.getLoc()) {
+      MemberDNLoc(NameInfo.getInfo()), MemberLoc(NameInfo.getLoc()),
+      Bounds(nullptr) {
   assert(!NameInfo.getName() ||
          MemberDecl->getDeclName() == NameInfo.getName());
   MemberExprBits.IsArrow = IsArrow;
@@ -1764,6 +1780,8 @@ bool CastExpr::CastConsistency() const {
 
   case CK_Dependent:
   case CK_LValueToRValue:
+  case CK_DynamicPtrBounds:
+  case CK_AssumePtrBounds:
   case CK_NoOp:
   case CK_AtomicToNonAtomic:
   case CK_NonAtomicToAtomic:
@@ -1909,7 +1927,6 @@ ImplicitCastExpr *ImplicitCastExpr::CreateEmpty(const ASTContext &C,
   return new (Buffer) ImplicitCastExpr(EmptyShell(), PathSize);
 }
 
-
 CStyleCastExpr *CStyleCastExpr::Create(const ASTContext &C, QualType T,
                                        ExprValueKind VK, CastKind K, Expr *Op,
                                        const CXXCastPath *BasePath,
@@ -1930,6 +1947,30 @@ CStyleCastExpr *CStyleCastExpr::CreateEmpty(const ASTContext &C,
   void *Buffer = C.Allocate(totalSizeToAlloc<CXXBaseSpecifier *>(PathSize));
   return new (Buffer) CStyleCastExpr(EmptyShell(), PathSize);
 }
+
+BoundsCastExpr *BoundsCastExpr::Create(const ASTContext &C, QualType T,
+                                       ExprValueKind VK, CastKind K, Expr *Op,
+                                       const CXXCastPath *BasePath,
+                                       TypeSourceInfo *WrittenTy,
+                                       SourceLocation L, SourceLocation R,
+                                       SourceRange Angle, BoundsExpr *bounds) {
+
+  unsigned PathSize = (BasePath ? BasePath->size() : 0);
+  void *Buffer = C.Allocate(totalSizeToAlloc<CXXBaseSpecifier *>(PathSize));
+  BoundsCastExpr *E = new (Buffer) BoundsCastExpr(
+      T, VK, K, Op, PathSize, WrittenTy, L, R, Angle, bounds);
+  if (PathSize)
+    std::uninitialized_copy_n(BasePath->data(), BasePath->size(),
+                              E->getTrailingObjects<CXXBaseSpecifier *>());
+  return E;
+}
+
+BoundsCastExpr *BoundsCastExpr::CreateEmpty(const ASTContext &C,
+                                            unsigned PathSize) {
+  void *Buffer = C.Allocate(totalSizeToAlloc<CXXBaseSpecifier *>(PathSize));
+  return new (Buffer) BoundsCastExpr(EmptyShell(), PathSize);
+}
+
 
 /// getOpcodeStr - Turn an Opcode enum value into the punctuation char it
 /// corresponds to, e.g. "<<=".
@@ -2211,6 +2252,30 @@ bool InitListExpr::isIdiomaticZeroInitializer(const LangOptions &LangOpts) const
 
   const IntegerLiteral *Lit = dyn_cast<IntegerLiteral>(getInit(0)->IgnoreImplicit());
   return Lit && Lit->getValue() == 0;
+}
+
+bool InitListExpr::isNullTerminated(ASTContext &C, unsigned DeclArraySize) const {
+  assert(isSemanticForm() && "Null terminator check must be performed "
+                             "after semantic initialization of all "
+                             "sub-objects are made explicit");
+
+  if (getNumInits() == 0) {
+    return true;
+  }
+
+  if (getNumInits() == 1 && getInit(0))
+    if (const StringLiteral *InitializerString =
+         dyn_cast<StringLiteral>(getInit(0)->IgnoreExprTmp())) {
+      if (DeclArraySize < InitializerString->getLength()) {
+        const char *StringConstant = InitializerString->getString().data();
+        return (StringConstant[DeclArraySize - 1] == '\0');
+      }
+      return true;
+    }
+
+  const Expr *LastItem = getInit(getNumInits() - 1);
+  Expr::NullPointerConstantKind E = LastItem->isNullPointerConstant(C, Expr::NPC_ValueDependentIsNull);
+  return E != NPCK_NotNull;
 }
 
 SourceLocation InitListExpr::getBeginLoc() const {
@@ -2693,6 +2758,9 @@ bool Expr::isUnusedResultAWarning(const Expr *&WarnE, SourceLocation &Loc,
   case CXXBindTemporaryExprClass:
     return cast<CXXBindTemporaryExpr>(this)->getSubExpr()
                ->isUnusedResultAWarning(WarnE, Loc, R1, R2, Ctx);
+  case CHKCBindTemporaryExprClass:
+    return cast<CHKCBindTemporaryExpr>(this)->getSubExpr()
+               ->isUnusedResultAWarning(WarnE, Loc, R1, R2, Ctx);
   case ExprWithCleanupsClass:
     return cast<ExprWithCleanups>(this)->getSubExpr()
                ->isUnusedResultAWarning(WarnE, Loc, R1, R2, Ctx);
@@ -2794,6 +2862,9 @@ static Expr *IgnoreImpCastsExtraSingleStep(Expr *E) {
   if (auto *NTTP = dyn_cast<SubstNonTypeTemplateParmExpr>(E))
     return NTTP->getReplacement();
 
+  if (CHKCBindTemporaryExpr *Binding = dyn_cast<CHKCBindTemporaryExpr>(E))
+    return Binding->getSubExpr();
+
   return E;
 }
 
@@ -2809,6 +2880,9 @@ static Expr *IgnoreCastsSingleStep(Expr *E) {
 
   if (auto *NTTP = dyn_cast<SubstNonTypeTemplateParmExpr>(E))
     return NTTP->getReplacement();
+
+  if (CHKCBindTemporaryExpr *Binding = dyn_cast<CHKCBindTemporaryExpr>(E))
+    return Binding->getSubExpr();
 
   return E;
 }
@@ -3020,6 +3094,18 @@ Expr *Expr::IgnoreUnlessSpelledInSource() {
   return E;
 }
 
+Expr* Expr::IgnoreParenTmp() {
+  return this->IgnoreParens()->IgnoreExprTmp()->IgnoreParens();
+}
+
+Expr *Expr::IgnoreExprTmp() {
+  Expr *E = this;
+  if (CHKCBindTemporaryExpr *Binding = dyn_cast<CHKCBindTemporaryExpr>(E))
+    return Binding->getSubExpr();
+
+  return E;
+}
+
 bool Expr::isDefaultArgument() const {
   const Expr *E = this;
   if (const MaterializeTemporaryExpr *M = dyn_cast<MaterializeTemporaryExpr>(E))
@@ -3046,6 +3132,9 @@ static const Expr *skipTemporaryBindingsNoOpCastsAndParens(const Expr *E) {
 
   while (const CXXBindTemporaryExpr *BE = dyn_cast<CXXBindTemporaryExpr>(E))
     E = BE->getSubExpr();
+
+  while (const CHKCBindTemporaryExpr *CB = dyn_cast<CHKCBindTemporaryExpr>(E))
+    E = CB->getSubExpr();
 
   while (const ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E)) {
     if (ICE->getCastKind() == CK_NoOp)
@@ -3324,7 +3413,11 @@ bool Expr::isConstantInitializer(ASTContext &Ctx, bool IsForRef,
   case CXXDefaultInitExprClass:
     return cast<CXXDefaultInitExpr>(this)->getExpr()
       ->isConstantInitializer(Ctx, false, Culprit);
+  case CHKCBindTemporaryExprClass:
+    return cast<CHKCBindTemporaryExpr>(this)->getSubExpr()
+      ->isConstantInitializer(Ctx, false, Culprit);
   }
+
   // Allow certain forms of UB in constant initializers: signed integer
   // overflow and floating-point division by zero. We'll give a warning on
   // these, but they're common enough that we have to accept them.
@@ -3455,6 +3548,14 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case SourceLocExprClass:
   case ConceptSpecializationExprClass:
   case RequiresExprClass:
+  // Checked C bounds expressions are not allowed to have assignments
+  // embedded within them.
+  case CountBoundsExprClass:
+  case InteropTypeExprClass:
+  case NullaryBoundsExprClass:
+  case RangeBoundsExprClass:
+  case PositionalParameterExprClass:
+  case BoundsValueExprClass:
     // These never have a side-effect.
     return false;
 
@@ -3483,6 +3584,9 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
     if (!IncludePossibleEffects)
       break;
     return true;
+  case CHKCBindTemporaryExprClass:
+    // These have a side-effect if the subexpression has a side-effect.
+    break;
 
   case MSPropertyRefExprClass:
   case MSPropertySubscriptExprClass:
@@ -3584,6 +3688,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
     LLVM_FALLTHROUGH;
   case ImplicitCastExprClass:
   case CStyleCastExprClass:
+  case BoundsCastExprClass:
   case CXXStaticCastExprClass:
   case CXXReinterpretCastExprClass:
   case CXXConstCastExprClass:
@@ -3738,6 +3843,14 @@ bool Expr::hasNonTrivialCall(const ASTContext &Ctx) const {
 Expr::NullPointerConstantKind
 Expr::isNullPointerConstant(ASTContext &Ctx,
                             NullPointerConstantValueDependence NPC) const {
+  // Bounds expressions are not null pointer constants.
+  if (isa<BoundsExpr>(this))
+    return NPCK_NotNull;
+  
+  // TempBinding(e) is a null pointer constant if e is a null pointer constant.
+  if (const CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(this))
+    return Temp->getSubExpr()->isNullPointerConstant(Ctx, NPC);
+
   if (isValueDependent() &&
       (!Ctx.getLangOpts().CPlusPlus11 || Ctx.getLangOpts().MSVCCompat)) {
     switch (NPC) {
@@ -4554,7 +4667,7 @@ UnaryOperator::UnaryOperator(const ASTContext &Ctx, Expr *input, Opcode opc,
                              QualType type, ExprValueKind VK, ExprObjectKind OK,
                              SourceLocation l, bool CanOverflow,
                              FPOptionsOverride FPFeatures)
-    : Expr(UnaryOperatorClass, type, VK, OK), Val(input) {
+    : Expr(UnaryOperatorClass, type, VK, OK), Val(input), Bounds(nullptr) {
   UnaryOperatorBits.Opc = opc;
   UnaryOperatorBits.CanOverflow = CanOverflow;
   UnaryOperatorBits.Loc = l;
@@ -4641,6 +4754,22 @@ PseudoObjectExpr::PseudoObjectExpr(QualType type, ExprValueKind VK,
   }
 
   setDependence(computeDependence(this));
+}
+
+bool BoundsExpr::validateKind(Kind K) {
+  if (K == Invalid)
+    return true;
+
+  switch (getStmtClass()) {
+    case NullaryBoundsExprClass:
+      return (K == Unknown || K == Any);
+    case CountBoundsExprClass:
+      return K == ElementCount || K == ByteCount;
+    case RangeBoundsExprClass:
+      return K == Range;
+    default:
+      return false;
+  }
 }
 
 //===----------------------------------------------------------------------===//

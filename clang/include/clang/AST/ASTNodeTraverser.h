@@ -83,6 +83,15 @@ public:
 
   void SetTraversalKind(TraversalKind TK) { Traversal = TK; }
 
+  // Checked C specific.
+  void dumpBoundsAnnotations(BoundsAnnotations BA) {
+    if (const BoundsExpr *Bounds = BA.getBoundsExpr())
+      Visit(Bounds);
+
+    if (const InteropTypeExpr *IT = BA.getInteropTypeExpr())
+      Visit(IT);
+  }
+
   void Visit(const Decl *D) {
     getNodeDelegate().AddChild([=] {
       getNodeDelegate().Visit(D);
@@ -392,6 +401,8 @@ public:
     if (const Expr *TRC = D->getTrailingRequiresClause())
       Visit(TRC);
 
+    dumpBoundsAnnotations(D->getBoundsAnnotations());
+
     if (const auto *C = dyn_cast<CXXConstructorDecl>(D))
       for (const auto *I : C->inits())
         Visit(I);
@@ -403,11 +414,16 @@ public:
   void VisitFieldDecl(const FieldDecl *D) {
     if (D->isBitField())
       Visit(D->getBitWidth());
+
+    dumpBoundsAnnotations(D->getBoundsAnnotations());
+
     if (Expr *Init = D->getInClassInitializer())
       Visit(Init);
   }
 
   void VisitVarDecl(const VarDecl *D) {
+    dumpBoundsAnnotations(D->getBoundsAnnotations());
+
     if (D->hasInit())
       Visit(D->getInit());
   }

@@ -857,6 +857,13 @@ struct CodeActionParams {
 };
 bool fromJSON(const llvm::json::Value &, CodeActionParams &);
 
+struct CodeLensParams {
+  /// The document in which the command was invoked.
+  TextDocumentIdentifier textDocument;
+};
+
+bool fromJSON(const llvm::json::Value &, CodeLensParams &);
+
 struct WorkspaceEdit {
   /// Holds changes to existing resources.
   llvm::Optional<std::map<std::string, std::vector<TextEdit>>> changes;
@@ -866,6 +873,19 @@ struct WorkspaceEdit {
 };
 bool fromJSON(const llvm::json::Value &, WorkspaceEdit &);
 llvm::json::Value toJSON(const WorkspaceEdit &WE);
+
+#ifdef INTERACTIVE3C
+/// Data corresponding to the manual fix
+//
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
+struct _3CManualFix {
+  int PtrId;
+};
+
+bool fromJSON(const llvm::json::Value &, _3CManualFix &);
+llvm::json::Value toJSON(const _3CManualFix &WE);
+#endif
 
 /// Arguments for the 'applyTweak' command. The server sends these commands as a
 /// response to the textDocument/codeAction request. The client can later send a
@@ -895,12 +915,27 @@ struct ExecuteCommandParams {
   const static llvm::StringLiteral CLANGD_APPLY_FIX_COMMAND;
   // Command to apply the code action. Uses TweakArgs as argument.
   const static llvm::StringLiteral CLANGD_APPLY_TWEAK;
+#ifdef INTERACTIVE3C
+  // Command to apply the change for this pointer only
+  //
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  const static llvm::StringLiteral _3C_APPLY_ONLY_FOR_THIS;
+  // Command to apply the change for all pointers with same reason
+  //
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  const static llvm::StringLiteral _3C_APPLY_FOR_ALL;
+#endif
 
   /// The command identifier, e.g. CLANGD_APPLY_FIX_COMMAND
   std::string command;
 
   // Arguments
   llvm::Optional<WorkspaceEdit> workspaceEdit;
+#ifdef INTERACTIVE3C
+  llvm::Optional<_3CManualFix> The3CManualFix;
+#endif
   llvm::Optional<TweakArgs> tweakArgs;
 };
 bool fromJSON(const llvm::json::Value &, ExecuteCommandParams &);
@@ -937,6 +972,36 @@ struct CodeAction {
   llvm::Optional<Command> command;
 };
 llvm::json::Value toJSON(const CodeAction &);
+
+#ifdef INTERACTIVE3C
+//
+// A code lens represents a command that should be shown along with
+// source text, like the number of references, a way to run tests, etc.
+//
+//  A code lens is _unresolved_ when no command is associated to it. For
+//  performance reasons the creation of a code lens and resolving should be done
+//  in two stages.
+//
+struct CodeLens {
+  /// The range in which this code lens is valid, should only span a single
+  /// line.
+  Range TheRange;
+
+  /**
+   * The command this code lens represents.
+   */
+  llvm::Optional<Command> TheCommand;
+
+  /**
+   * A data entry field that is preserved on a code lens item between
+   * a code lens and a code lens resolve request.
+   */
+  // data?: any
+};
+
+llvm::json::Value toJSON(const CodeLens &);
+bool fromJSON(const llvm::json::Value &, CodeLens &);
+#endif
 
 /// Represents programming constructs like variables, classes, interfaces etc.
 /// that appear in a document. Document symbols can be hierarchical and they

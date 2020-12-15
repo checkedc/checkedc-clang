@@ -1554,6 +1554,18 @@ class DeclContext {
     /// have a body, once we're done parsing it.
     uint64_t WillHaveBody : 1;
 
+    // Checked C extensions
+    uint64_t IsGenericFunction : 1;
+    uint64_t IsItypeGenericFunction : 1; // Function specifier _Itype_for_any
+    // WrittenCheckedScopeSpecifier: whether the function is declared as
+    // _Checked, _Checked _Bounds_only, or _Unchecked.
+    uint64_t WrittenCheckedSpecifier : 2;
+    // CheckedScopeSpecifier: the checked scope specifier as inferred by semantic
+    // analysis.
+    uint64_t CheckedSpecifier: 2;
+
+    // End of Checked C extensions
+
     /// Indicates that this function is a multiversioned
     /// function using attribute 'target'.
     uint64_t IsMultiVersion : 1;
@@ -1571,7 +1583,7 @@ class DeclContext {
   };
 
   /// Number of non-inherited bits in FunctionDeclBitfields.
-  enum { NumFunctionDeclBits = 27 };
+  enum { NumFunctionDeclBits = 31 };
 
   /// Stores the bits used by CXXConstructorDecl. If modified
   /// NumCXXConstructorDeclBits and the accessor

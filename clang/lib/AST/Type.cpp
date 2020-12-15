@@ -116,7 +116,8 @@ bool QualType::isConstant(QualType T, const ASTContext &Ctx) {
 //       size is specified by a constant expression that is
 //       value-dependent,
 ArrayType::ArrayType(TypeClass tc, QualType et, QualType can,
-                     ArraySizeModifier sm, unsigned tq, const Expr *sz)
+                     ArraySizeModifier sm, unsigned tq, CheckedArrayKind k,
+                     const Expr *sz)
     // Note, we need to check for DependentSizedArrayType explicitly here
     // because we use a DependentSizedArrayType with no size expression as the
     // type of a dependent array of unknown bound with a dependent braced
@@ -136,6 +137,21 @@ ArrayType::ArrayType(TypeClass tc, QualType et, QualType can,
       ElementType(et) {
   ArrayTypeBits.IndexTypeQuals = tq;
   ArrayTypeBits.SizeModifier = sm;
+  ArrayTypeBits.CheckedArrayKind = (unsigned)k;
+}
+
+void BoundsAnnotations::Profile(llvm::FoldingSetNodeID &ID,
+                                const ASTContext &Ctx) const {
+  BoundsExpr *Bounds = getBoundsExpr();
+  InteropTypeExpr *IType = getInteropTypeExpr();
+  if (Bounds)
+    Bounds->Profile(ID, Ctx, true);
+  else
+    ID.AddPointer(nullptr);
+  if (IType)
+    IType->Profile(ID, Ctx, true);
+  else
+    ID.AddPointer(nullptr);
 }
 
 unsigned ConstantArrayType::getNumAddressingBits(const ASTContext &Context,
@@ -189,12 +205,13 @@ void ConstantArrayType::Profile(llvm::FoldingSetNodeID &ID,
                                 const ASTContext &Context, QualType ET,
                                 const llvm::APInt &ArraySize,
                                 const Expr *SizeExpr, ArraySizeModifier SizeMod,
-                                unsigned TypeQuals) {
+                                unsigned TypeQuals, CheckedArrayKind kind) {
   ID.AddPointer(ET.getAsOpaquePtr());
   ID.AddInteger(ArraySize.getZExtValue());
   ID.AddInteger(SizeMod);
   ID.AddInteger(TypeQuals);
   ID.AddBoolean(SizeExpr != 0);
+  ID.AddInteger((unsigned)kind);
   if (SizeExpr)
     SizeExpr->Profile(ID, Context, true);
 }
@@ -204,7 +221,8 @@ DependentSizedArrayType::DependentSizedArrayType(const ASTContext &Context,
                                                  Expr *e, ArraySizeModifier sm,
                                                  unsigned tq,
                                                  SourceRange brackets)
-    : ArrayType(DependentSizedArray, et, can, sm, tq, e),
+    : ArrayType(DependentSizedArray, et, can, sm, tq,
+                CheckedArrayKind::Unchecked, e),
       Context(Context), SizeExpr((Stmt*) e), Brackets(brackets) {}
 
 void DependentSizedArrayType::Profile(llvm::FoldingSetNodeID &ID,
@@ -958,7 +976,8 @@ public:
 
     return Ctx.getConstantArrayType(elementType, T->getSize(), T->getSizeExpr(),
                                     T->getSizeModifier(),
-                                    T->getIndexTypeCVRQualifiers());
+                                    T->getIndexTypeCVRQualifiers(),
+                                    T->getKind());
   }
 
   QualType VisitVariableArrayType(const VariableArrayType *T) {
@@ -984,7 +1003,8 @@ public:
       return QualType(T, 0);
 
     return Ctx.getIncompleteArrayType(elementType, T->getSizeModifier(),
-                                      T->getIndexTypeCVRQualifiers());
+                                      T->getIndexTypeCVRQualifiers(),
+                                      T->getKind());
   }
 
   QualType VisitVectorType(const VectorType *T) {
@@ -2218,6 +2238,9 @@ bool Type::isIncompleteType(NamedDecl **Def) const {
     // Void is the only incomplete builtin type.  Per C99 6.2.5p19, it can never
     // be completed.
     return isVoidType();
+  case TypeVariable:
+    // Type Variables are treated like Void type - An incomplete type.
+    return true;
   case Enum: {
     EnumDecl *EnumD = cast<EnumType>(CanonicalType)->getDecl();
     if (Def)
@@ -3093,7 +3116,12 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
                                      QualType canonical,
                                      const ExtProtoInfo &epi)
     : FunctionType(FunctionProto, result, canonical, result->getDependence(),
-                   epi.ExtInfo) {
+                   epi.ExtInfo),
+      NumTypeVars(epi.NumTypeVars),
+      GenericFunction(epi.GenericFunction),
+      ItypeGenericFunction(epi.ItypeGenericFunction),
+      HasParamAnnots(epi.ParamAnnots != nullptr),
+      ReturnAnnots(epi.ReturnAnnots) {
   FunctionTypeBits.FastTypeQuals = epi.TypeQuals.getFastQualifiers();
   FunctionTypeBits.RefQualifier = epi.RefQualifier;
   FunctionTypeBits.NumParams = params.size();
@@ -3117,6 +3145,13 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
     argSlot[i] = params[i];
   }
 
+  // Fill in the Checked C parameter annotations array.
+  if (hasParamAnnots()) {
+    BoundsAnnotations *boundsSlot = getTrailingObjects<BoundsAnnotations>();
+    for (unsigned i = 0; i != getNumParams(); ++i)
+      boundsSlot[i] = epi.ParamAnnots[i];
+  }
+
   // Fill in the exception type array if present.
   if (getExceptionSpecType() == EST_Dynamic) {
     assert(hasExtraBitfields() && "missing trailing extra bitfields!");
@@ -3134,6 +3169,7 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
       exnSlot[I++] = ExceptionType;
     }
   }
+
   // Fill in the Expr * in the exception specification if present.
   else if (isComputedNoexcept(getExceptionSpecType())) {
     assert(epi.ExceptionSpec.NoexceptExpr && "computed noexcept with no expr");
@@ -3283,12 +3319,16 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
   ID.AddPointer(Result.getAsOpaquePtr());
   for (unsigned i = 0; i != NumParams; ++i)
     ID.AddPointer(ArgTys[i].getAsOpaquePtr());
+
   // This method is relatively performance sensitive, so as a performance
   // shortcut, use one AddInteger call instead of four for the next four
   // fields.
   assert(!(unsigned(epi.Variadic) & ~1) &&
          !(unsigned(epi.RefQualifier) & ~3) &&
          !(unsigned(epi.ExceptionSpec.Type) & ~15) &&
+         !(unsigned(epi.NumTypeVars & ~32767)) &&
+         !(unsigned(epi.GenericFunction) & ~1) &&
+         !(unsigned(epi.ItypeGenericFunction) & ~1) &&
          "Values larger than expected.");
   ID.AddInteger(unsigned(epi.Variadic) +
                 (epi.RefQualifier << 1) +
@@ -3303,12 +3343,24 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
              epi.ExceptionSpec.Type == EST_Unevaluated) {
     ID.AddPointer(epi.ExceptionSpec.SourceDecl->getCanonicalDecl());
   }
+
+  // Checked C bounds annotations.
+  if (epi.ParamAnnots) {
+    auto ParamAnnots = epi.ParamAnnots;
+    for (unsigned i = 0; i != NumParams; ++i)
+      ParamAnnots[i].Profile(ID, Context);
+  }
+  epi.ReturnAnnots.Profile(ID, Context);
+
   if (epi.ExtParameterInfos) {
     for (unsigned i = 0; i != NumParams; ++i)
       ID.AddInteger(epi.ExtParameterInfos[i].getOpaqueValue());
   }
   epi.ExtInfo.Profile(ID);
   ID.AddBoolean(epi.HasTrailingReturn);
+  ID.AddInteger(epi.NumTypeVars);
+  ID.AddBoolean(epi.GenericFunction);
+  ID.AddBoolean(epi.ItypeGenericFunction);
 }
 
 void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID,
@@ -3837,6 +3889,11 @@ static CachedProperties computeCachedProperties(const Type *T) {
     return Cache::get(cast<AtomicType>(T)->getValueType());
   case Type::Pipe:
     return Cache::get(cast<PipeType>(T)->getElementType());
+  case Type::TypeVariable:
+    return CachedProperties(ExternalLinkage, false);
+  case Type::Existential:
+    // TODO: add test for this case (checkedc issue #661)
+    return Cache::get(cast<ExistentialType>(T)->innerType());
   }
 
   llvm_unreachable("unhandled type class");
@@ -3925,6 +3982,10 @@ LinkageInfo LinkageComputer::computeTypeLinkageInfo(const Type *T) {
     return computeTypeLinkageInfo(cast<AtomicType>(T)->getValueType());
   case Type::Pipe:
     return computeTypeLinkageInfo(cast<PipeType>(T)->getElementType());
+  case Type::TypeVariable:
+    return LinkageInfo::external();
+  case Type::Existential:
+    return computeTypeLinkageInfo(cast<ExistentialType>(T)->innerType());
   }
 
   llvm_unreachable("unhandled type class");
@@ -4085,6 +4146,8 @@ bool Type::canHaveNullability(bool ResultIfUnknown) const {
   case Type::Pipe:
   case Type::ExtInt:
   case Type::DependentExtInt:
+  case Type::TypeVariable:
+  case Type::Existential:
     return false;
   }
   llvm_unreachable("bad type kind!");
@@ -4266,6 +4329,180 @@ bool Type::hasSizedVLAType() const {
   }
 
   return false;
+}
+
+// isOrContainsCheckedType - check whether a type is a checked type or is a
+// constructed type (array, pointer, function) that uses a checked type.
+bool Type::isOrContainsCheckedType() const {
+  const Type *current = CanonicalType.getTypePtr();
+  switch (current->getTypeClass()) {
+    case Type::Pointer: {
+      const PointerType *ptr = cast<PointerType>(current);
+      if (ptr->isCheckedPointerType()) {
+        return true;
+      }
+      return ptr->getPointeeType()->isOrContainsCheckedType();
+    }
+    case Type::ConstantArray:
+    case Type::DependentSizedArray:
+    case Type::IncompleteArray:
+    case Type::VariableArray: {
+     const ArrayType *arr = cast<ArrayType>(current);
+      if (arr->isChecked())
+        return true;
+      return arr->getElementType()->isOrContainsCheckedType();
+    }
+    case Type::FunctionProto: {
+      const FunctionProtoType *fpt =  cast<FunctionProtoType>(current);
+      if (fpt->getReturnType()->isOrContainsCheckedType())
+        return true;
+      unsigned int paramCount = fpt->getNumParams();
+      for (unsigned int i = 0; i < paramCount; i++) {
+        if (fpt->getParamType(i)->isOrContainsCheckedType())
+          return true;
+      }
+      return false;
+    }
+    default:
+      return false;
+  }
+}
+
+// isOrContainsUncheckedType - check whether a type is a unchecked type or is a
+// constructed type (array, pointer, function) that uses a unchecked type.
+bool Type::isOrContainsUncheckedType() const {
+  const Type *current = CanonicalType.getTypePtr();
+  switch (current->getTypeClass()) {
+    case Type::Pointer: {
+      const PointerType *ptr = cast<PointerType>(current);
+      if (ptr->isUncheckedPointerType())
+        return true;
+      return ptr->getPointeeType()->isOrContainsUncheckedType();
+    }
+    case Type::ConstantArray:
+    case Type::DependentSizedArray:
+    case Type::IncompleteArray:
+    case Type::VariableArray: {
+     const ArrayType *arr = cast<ArrayType>(current);
+      if (!arr->isChecked())
+        return true;
+      return arr->getElementType()->isOrContainsUncheckedType();
+    }
+    case Type::FunctionProto: {
+      const FunctionProtoType *fpt =  cast<FunctionProtoType>(current);
+      if (fpt->getReturnType()->isOrContainsUncheckedType())
+        return true;
+      unsigned int paramCount = fpt->getNumParams();
+      for (unsigned int i = 0; i < paramCount; i++) {
+        if (fpt->getParamType(i)->isOrContainsUncheckedType())
+          return true;
+      }
+      return false;
+    }
+    default:
+      return false;
+  }
+}
+
+// containsCheckedValue: check whether an array, or an object of struct/union type contains a checked value
+// a checked value can be:
+// (1) a checked pointer;
+// (2) an unchecked pointer with bounds expr in a checked scope;
+// (3) an integer with bounds expr;
+// (4) an array/struct/union with (1) or (2) or (3) in their elements/members
+Type::CheckedValueKind Type::containsCheckedValue(bool InCheckedScope) const {
+  const Type *current = CanonicalType.getTypePtr();
+  switch (current->getTypeClass()) {
+  case Type::Pointer: {
+    const PointerType *ptr = cast<PointerType>(current);
+    return ptr->isCheckedPointerType() ? Type::HasCheckedValue : Type::NoCheckedValue;
+  }
+  case Type::ConstantArray:
+  case Type::DependentSizedArray:
+  case Type::IncompleteArray:
+  case Type::VariableArray: {
+    return current->getPointeeOrArrayElementType()->containsCheckedValue(InCheckedScope);
+  }
+  //Use RecordType to process Struct/Union
+  case Type::Record: {
+    const RecordType *RT = cast<RecordType>(current);
+    // if this is an illegal type, we don't proceed (e.g. struct S{ S s; int a;...})
+    if (RT->getDecl()->isInvalidDecl())
+      return Type::NoCheckedValue;
+    
+    Type::CheckedValueKind hasCheckedField = Type::NoCheckedValue;
+    // if this is a struct/union type, iterate over all its members
+    for (FieldDecl *FD : RT->getDecl()->fields()) {
+       // An integer with a bounds expression must be initialized
+      if (FD->getType()->isIntegerType() && FD->hasBoundsExpr())
+        return Type::HasIntWithBounds;
+      
+      // An unchecked pointer in a checked scope with a bounds expression must be initialized
+      if (FD->getType()->isUncheckedPointerType() && FD->hasBoundsExpr() && InCheckedScope)
+        return Type::HasUncheckedPointer;
+
+      if (FD->getType()->isRecordType())
+          hasCheckedField = FD->getType()->containsCheckedValue(InCheckedScope);
+     
+      // if this field is not a RecordType variable but contains a checked pointer, 
+      // its type must be (1) _Ptr (2) _Array_ptr or (3) _Nt_array_ptr
+      else if (FD->getType()->containsCheckedValue(InCheckedScope)) {
+        // Case 1: _Ptr always needs to be initialized
+        if (FD->getType()->isCheckedPointerPtrType())
+          hasCheckedField = Type::HasCheckedValue;
+        // Case 2: _Array_ptr needs to be initialized if it has bounds and the bounds are NOT unknown;
+        // Case 3: _Nt_array_ptr needs to be initialized if (1) it has no bounds specified
+        // or (2) it has bounds but the bounds are unknown;
+        // since for _Nt_array_ptr we always attach default bounds of count(0) to a decl, 
+        // if no bounds are specified (done in ActOnBoundsDecl and before this checking),
+        // we can simplified the checking by combining case 2 and 3
+        else if (FD->getType()->isCheckedPointerArrayType() && FD->hasBoundsExpr()) {
+          if (!FD->getBoundsExpr()->isUnknown())
+            hasCheckedField = Type::HasCheckedValue;
+        }
+        break;
+      }
+    }
+    return hasCheckedField;
+  }
+    default:
+      return Type::NoCheckedValue;
+  }
+}
+
+
+// hasVariadicType - check whether a type has variable arguments
+// or is a constructed type(array, pointer, function) having variable arguments.
+bool Type::hasVariadicType() const {
+  const Type *current = CanonicalType.getTypePtr();
+  switch (current->getTypeClass()) {
+    case Type::Pointer: {
+      const PointerType *ptr = cast<PointerType>(current);
+      return ptr->getPointeeType()->hasVariadicType();
+    }
+    case Type::ConstantArray:
+    case Type::DependentSizedArray:
+    case Type::IncompleteArray:
+    case Type::VariableArray: {
+     const ArrayType *arr = cast<ArrayType>(current);
+      return arr->getElementType()->hasVariadicType();
+    }
+    case Type::FunctionProto: {
+      const FunctionProtoType *fpt =  cast<FunctionProtoType>(current);
+      if (fpt->getReturnType()->hasVariadicType())
+        return true;
+      unsigned int paramCount = fpt->getNumParams();
+      for (unsigned int i = 0; i < paramCount; i++) {
+        if (fpt->getParamType(i)->hasVariadicType())
+          return true;
+      }
+      if (fpt->isVariadic())
+        return true;
+      return false;
+    }
+    default:
+      return false;
+  }
 }
 
 QualType::DestructionKind QualType::isDestructedTypeImpl(QualType type) {

@@ -18,6 +18,9 @@
 #include "Transport.h"
 #include "support/Context.h"
 #include "support/Path.h"
+#ifdef INTERACTIVE3C
+#include "clang/3C/3C.h"
+#endif
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringSet.h"
@@ -34,7 +37,11 @@ class SymbolIndex;
 /// MessageHandler binds the implemented LSP methods (e.g. onInitialize) to
 /// corresponding JSON-RPC methods ("initialize").
 /// The server also supports $/cancelRequest (MessageHandler provides this).
+#ifdef INTERACTIVE3C
+class ClangdLSPServer : private ClangdServer::Callbacks, public _3CLSPCallBack {
+#else
 class ClangdLSPServer : private ClangdServer::Callbacks {
+#endif
 public:
   /// If \p CompileCommandsDir has a value, compile_commands.json will be
   /// loaded only from \p CompileCommandsDir. Otherwise, clangd will look
@@ -46,7 +53,12 @@ public:
                   const clangd::RenameOptions &RenameOpts,
                   llvm::Optional<Path> CompileCommandsDir, bool UseDirBasedCDB,
                   llvm::Optional<OffsetEncoding> ForcedOffsetEncoding,
+#ifdef INTERACTIVE3C
+                  const ClangdServer::Options &Opts, _3CInterface &Cinter);
+#else
                   const ClangdServer::Options &Opts);
+#endif
+
   /// The destructor blocks on any outstanding background tasks.
   ~ClangdLSPServer();
 
@@ -55,6 +67,11 @@ public:
   ///
   /// \return Whether we shut down cleanly with a 'shutdown' -> 'exit' sequence.
   bool run();
+
+#ifdef INTERACTIVE3C
+  void _3CResultsReady(std::string FileName, bool ClearDiags = false) override;
+  void send3CMessage(std::string MsgStr) override;
+#endif
 
 private:
   // Implement ClangdServer::Callbacks.
@@ -90,6 +107,12 @@ private:
   void onFoldingRange(const FoldingRangeParams &,
                       Callback<std::vector<FoldingRange>>);
   void onCodeAction(const CodeActionParams &, Callback<llvm::json::Value>);
+#ifdef INTERACTIVE3C
+  // code lens : used to check 3C support
+  void onCodeLens(const CodeLensParams &, Callback<llvm::json::Value>);
+  void onCodeLensResolve(const CodeLens &Params,
+                         Callback<llvm::json::Value> Reply);
+#endif
   void onCompletion(const CompletionParams &, Callback<CompletionList>);
   void onSignatureHelp(const TextDocumentPositionParams &,
                        Callback<SignatureHelp>);
@@ -261,6 +284,9 @@ private:
   llvm::Optional<OffsetEncoding> NegotiatedOffsetEncoding;
   // The ClangdServer is created by the "initialize" LSP method.
   llvm::Optional<ClangdServer> Server;
+#ifdef INTERACTIVE3C
+  _3CInterface &The3CInterface;
+#endif
 };
 } // namespace clangd
 } // namespace clang

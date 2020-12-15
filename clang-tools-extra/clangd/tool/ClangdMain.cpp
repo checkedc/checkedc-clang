@@ -39,6 +39,9 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#ifdef INTERACTIVE3C
+#include "clang/3C/3C.h"
+#endif
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -448,6 +451,108 @@ opt<bool> EnableConfig{
         "Configuration is documented at https://clangd.llvm.org/config.html"),
     init(true),
 };
+#ifdef INTERACTIVE3C
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
+static llvm::cl::OptionCategory _3CCategory("3C", "This is "
+                                                  "an interactive version "
+                                                  "of 3C "
+                                                  "tool.");
+
+static llvm::cl::opt<bool> DumpIntermediate("dump-intermediate",
+                                            llvm::cl::desc("Dump "
+                                                           "intermediate "
+                                                           "information"),
+                                            llvm::cl::init(false),
+                                            llvm::cl::cat(_3CCategory));
+
+static llvm::cl::opt<bool> Verbose("verbose",
+                                   llvm::cl::desc("Print verbose "
+                                                  "information"),
+                                   llvm::cl::init(false),
+                                   llvm::cl::cat(_3CCategory));
+
+static llvm::cl::opt<std::string>
+    OutputPostfix("output-postfix",
+                  llvm::cl::desc("Postfix to add to the names of "
+                                 "rewritten files, if not supplied writes to "
+                                 "STDOUT"),
+                  llvm::cl::init("-"), llvm::cl::cat(_3CCategory));
+
+static llvm::cl::opt<std::string>
+    OptMalloc("use-malloc",
+              llvm::cl::desc("Allows for the usage of user-specified "
+                             "versions of function allocators"),
+              llvm::cl::init(""), llvm::cl::cat(_3CCategory));
+
+static llvm::cl::opt<std::string> ConstraintOutputJson(
+    "constraint-output",
+    llvm::cl::desc("Path to the file where all the analysis "
+                   "information will be dumped as json"),
+    llvm::cl::init("constraint_output.json"), llvm::cl::cat(_3CCategory));
+
+static llvm::cl::opt<bool> DumpStats("dump-stats",
+                                     llvm::cl::desc("Dump statistics"),
+                                     llvm::cl::init(false),
+                                     llvm::cl::cat(_3CCategory));
+
+static llvm::cl::opt<std::string>
+    OptStatsOutputJson("stats-output",
+                       llvm::cl::desc("Path to the file where all the stats "
+                                      "will be dumped as json"),
+                       llvm::cl::init("TotalConstraintStats.json"),
+                       llvm::cl::cat(_3CCategory));
+
+static llvm::cl::opt<std::string>
+    OptWildPtrInfoJson("wildptrstats-output",
+                       llvm::cl::desc("Path to the file where all the info "
+                                      "related to WILD ptr grouped by reason"
+                                      " will be dumped as json"),
+                       llvm::cl::init("WildPtrStats.json"),
+                       llvm::cl::cat(_3CCategory));
+
+static llvm::cl::opt<std::string> OptPerPtrWILDInfoJson(
+    "perptrstats-output",
+    llvm::cl::desc("Path to the file where all the info "
+                   "related to each WILD ptr will be dumped as json"),
+    llvm::cl::init("PerWildPtrStats.json"), llvm::cl::cat(_3CCategory));
+
+static llvm::cl::opt<bool> OptDiableCCTypeChecker(
+    "disccty", llvm::cl::desc("Do not disable checked c type checker."),
+    llvm::cl::init(false), llvm::cl::cat(_3CCategory));
+
+static llvm::cl::opt<bool>
+    HandleVARARGS("handle-varargs",
+                  llvm::cl::desc("Enable handling of varargs "
+                                 "in a "
+                                 "sound manner"),
+                  llvm::cl::init(false), llvm::cl::cat(_3CCategory));
+
+static llvm::cl::opt<bool>
+    EnablePropThruIType("enable-itypeprop",
+                        llvm::cl::desc("Enable propagation of "
+                                       "constraints through ityped "
+                                       "parameters/returns."),
+                        llvm::cl::init(false), llvm::cl::cat(_3CCategory));
+
+static llvm::cl::opt<bool>
+    AllTypes("alltypes",
+             llvm::cl::desc("Consider all Checked C types for "
+                            "conversion"),
+             llvm::cl::init(false), llvm::cl::cat(_3CCategory));
+
+static llvm::cl::opt<bool> AddCheckedRegions("addcr",
+                                             llvm::cl::desc("Add Checked "
+                                                            "Regions"),
+                                             llvm::cl::init(false),
+                                             llvm::cl::cat(_3CCategory));
+
+static llvm::cl::opt<std::string>
+    BaseDir("base-dir",
+            llvm::cl::desc("Base directory for the code we're "
+                           "translating"),
+            llvm::cl::init(""), llvm::cl::cat(_3CCategory));
+#endif
 
 /// Supports a test URI scheme with relaxed constraints for lit tests.
 /// The path in a test URI will be combined with a platform-specific fake
@@ -514,6 +619,46 @@ int main(int argc, char *argv[]) {
   llvm::cl::SetVersionPrinter([](llvm::raw_ostream &OS) {
     OS << clang::getClangToolFullVersion("clangd") << "\n";
   });
+#ifdef INTERACTIVE3C
+  tooling::CommonOptionsParser OptionsParser(argc, (const char **)(argv),
+                                             _3CCategory);
+  LogLevel = Logger::Debug;
+  // Setup options.
+  struct _3COptions CcOptions;
+  CcOptions.BaseDir = BaseDir.getValue();
+  CcOptions.EnablePropThruIType = EnablePropThruIType;
+  CcOptions.HandleVARARGS = HandleVARARGS;
+  CcOptions.DumpStats = DumpStats;
+  CcOptions.OutputPostfix = OutputPostfix.getValue();
+  CcOptions.Verbose = Verbose;
+  CcOptions.DumpIntermediate = DumpIntermediate;
+  CcOptions.ConstraintOutputJson = ConstraintOutputJson.getValue();
+  CcOptions.WildPtrInfoJson = OptWildPtrInfoJson.getValue();
+  CcOptions.PerPtrInfoJson = OptPerPtrWILDInfoJson.getValue();
+  CcOptions.StatsOutputJson = OptStatsOutputJson.getValue();
+  CcOptions.AddCheckedRegions = AddCheckedRegions;
+  CcOptions.EnableAllTypes = AllTypes;
+  CcOptions.DisableCCTypeChecker = OptDiableCCTypeChecker;
+  std::string Malloc = OptMalloc.getValue();
+  if (!Malloc.empty()) {
+    std::string Delimiter = ",";
+    size_t Pos = 0;
+    std::string Token;
+    while ((Pos = Malloc.find(Delimiter)) != std::string::npos) {
+      Token = Malloc.substr(0, Pos);
+      CcOptions.AllocatorFunctions.push_back(Token);
+      Malloc.erase(0, Pos + Delimiter.length());
+    }
+    Token = Malloc;
+    CcOptions.AllocatorFunctions.push_back(Token);
+  } else
+    CcOptions.AllocatorFunctions = {};
+
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  _3CInterface _3CInterface(CcOptions, OptionsParser.getSourcePathList(),
+                            &(OptionsParser.getCompilations()));
+#else
   const char *FlagsEnvVar = "CLANGD_FLAGS";
   const char *Overview =
       R"(clangd is a language server that provides IDE-like features to editors.
@@ -527,6 +672,8 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   llvm::cl::HideUnrelatedOptions(ClangdCategories);
   llvm::cl::ParseCommandLineOptions(argc, argv, Overview,
                                     /*Errs=*/nullptr, FlagsEnvVar);
+#endif
+
   if (Test) {
     Sync = true;
     InputStyle = JSONStreamStyle::Delimited;
@@ -818,7 +965,12 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   ClangdLSPServer LSPServer(
       *TransportLayer, TFS, CCOpts, RenameOpts, CompileCommandsDirPath,
       /*UseDirBasedCDB=*/CompileArgsFrom == FilesystemCompileArgs,
+#ifdef INTERACTIVE3C
+      // Pass the _3CInterface object.
+      OffsetEncodingFromFlag, Opts, _3CInterface);
+#else
       OffsetEncodingFromFlag, Opts);
+#endif
   llvm::set_thread_name("clangd.main");
   int ExitCode = LSPServer.run()
                      ? 0

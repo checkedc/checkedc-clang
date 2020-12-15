@@ -37,9 +37,42 @@
 #include <string>
 #include <type_traits>
 #include <utility>
+#ifdef INTERACTIVE3C
+#include "3CDiagnostics.h"
+#endif
 
 namespace clang {
 namespace clangd {
+
+// FIXME: find a better name.
+class DiagnosticsConsumer {
+public:
+  virtual ~DiagnosticsConsumer() = default;
+
+  /// Called by ClangdServer when \p Diagnostics for \p File are ready.
+  virtual void onDiagnosticsReady(PathRef File,
+                                  std::vector<Diag> Diagnostics) = 0;
+  /// Called whenever the file status is updated.
+  virtual void onFileUpdated(PathRef File, const TUStatus &Status){};
+
+  /// Called by ClangdServer when some \p Highlightings for \p File are ready.
+  virtual void
+  onHighlightingsReady(PathRef File,
+                       std::vector<HighlightingToken> Highlightings) {}
+};
+
+#ifdef INTERACTIVE3C
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
+class _3CLSPCallBack {
+public:
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  virtual void _3CResultsReady(std::string FileName,
+                               bool ClearDiags = false) = 0;
+  virtual void send3CMessage(std::string MsgStr) = 0;
+};
+#endif
 
 /// When set, used by ClangdServer to get clang-tidy options for each particular
 /// file. Must be thread-safe. We use this instead of ClangTidyOptionsProvider
@@ -179,7 +212,15 @@ public:
   /// those arguments for subsequent reparses. However, ClangdServer will check
   /// if compilation arguments changed on calls to forceReparse().
   ClangdServer(const GlobalCompilationDatabase &CDB, const ThreadsafeFS &TFS,
-               const Options &Opts, Callbacks *Callbacks = nullptr);
+#ifdef INTERACTIVE3C
+               const Options &Opts,
+               // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+               // NOLINTNEXTLINE(readability-identifier-naming)
+               _3CInterface &_3CInterface,
+#else
+               const Options &Opts,
+#endif
+               Callbacks *Callbacks = nullptr);
 
   /// Add a \p File to the list of tracked C++ files or update the contents if
   /// \p File is already tracked. Also schedules parsing of the AST for it on a
@@ -331,6 +372,26 @@ public:
   LLVM_NODISCARD bool
   blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10);
 
+#ifdef INTERACTIVE3C
+  // 3C specific commands
+  // collect and build initial set of constraints on the source
+  // files.
+
+  void execute3CCommand(ExecuteCommandParams Params, _3CLSPCallBack *ConvCB);
+
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void _3CCollectAndBuildInitialConstraints(_3CLSPCallBack *ConvCB);
+
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  _3CDiagnostics _3CDiagInfo;
+
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void _3CCloseDocument(std::string FileName);
+#endif
+
 private:
   void formatCode(PathRef File, llvm::StringRef Code,
                   ArrayRef<tooling::Range> Ranges,
@@ -346,6 +407,14 @@ private:
   config::Provider *ConfigProvider = nullptr;
 
   const ThreadsafeFS &TFS;
+
+#ifdef INTERACTIVE3C
+  void report3CDiagsForAllFiles(ConstraintsInfo &CcInfo,
+                                _3CLSPCallBack *ConvCB);
+  void clear3CDiagsForAllFiles(ConstraintsInfo &CcInfo, _3CLSPCallBack *ConvCB);
+#endif
+
+  const FileSystemProvider &FSProvider;
 
   Path ResourceDir;
   // The index used to look up symbols. This could be:
@@ -385,6 +454,11 @@ private:
   // called before all other members to stop the worker thread that references
   // ClangdServer.
   TUScheduler WorkScheduler;
+#ifdef INTERACTIVE3C
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  _3CInterface &_3CInter;
+#endif
 };
 
 } // namespace clangd

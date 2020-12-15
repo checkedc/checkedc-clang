@@ -486,6 +486,13 @@ bool fromJSON(const llvm::json::Value &Params, FileEvent &R) {
   return O && O.map("uri", R.uri) && O.map("type", R.type);
 }
 
+#ifdef INTERACTIVE3C
+bool fromJSON(const llvm::json::Value &Params, CodeLensParams &L) {
+  llvm::json::ObjectMapper O(Params);
+  return O && O.map("textDocument", L.textDocument);
+}
+#endif
+
 bool fromJSON(const llvm::json::Value &Params, DidChangeWatchedFilesParams &R) {
   llvm::json::ObjectMapper O(Params);
   return O && O.map("changes", R.changes);
@@ -607,6 +614,22 @@ bool fromJSON(const llvm::json::Value &Params, WorkspaceEdit &R) {
   return O && O.map("changes", R.changes);
 }
 
+#ifdef INTERACTIVE3C
+bool fromJSON(const llvm::json::Value &Params, _3CManualFix &CCM) {
+  llvm::json::ObjectMapper O(Params);
+  CCM.PtrId = (*Params.getAsObject()->getInteger("PtrId"));
+  return O;
+}
+
+llvm::json::Value toJSON(const _3CManualFix &WE) {
+  return llvm::json::Object{{"PtrId", std::move(WE.PtrId)}};
+}
+
+const llvm::StringLiteral ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS =
+    "3c.onlyThisPtr";
+const llvm::StringLiteral ExecuteCommandParams::_3C_APPLY_FOR_ALL =
+    "3c.applyAllPtr";
+#endif
 const llvm::StringLiteral ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND =
     "clangd.applyFix";
 const llvm::StringLiteral ExecuteCommandParams::CLANGD_APPLY_TWEAK =
@@ -624,6 +647,13 @@ bool fromJSON(const llvm::json::Value &Params, ExecuteCommandParams &R) {
   }
   if (R.command == ExecuteCommandParams::CLANGD_APPLY_TWEAK)
     return Args && Args->size() == 1 && fromJSON(Args->front(), R.tweakArgs);
+#ifdef INTERACTIVE3C
+  if (R.command == ExecuteCommandParams::_3C_APPLY_ONLY_FOR_THIS ||
+      R.command == ExecuteCommandParams::_3C_APPLY_FOR_ALL) {
+    return Args && Args->size() == 1 &&
+           fromJSON(Args->front(), R.The3CManualFix);
+  }
+#endif
   return false; // Unrecognized command.
 }
 
@@ -686,12 +716,23 @@ bool fromJSON(const llvm::json::Value &Params, WorkspaceSymbolParams &R) {
   return O && O.map("query", R.query);
 }
 
+#ifdef INTERACTIVE3C
+bool fromJSON(const llvm::json::Value &Params, CodeLens &CL) {
+  llvm::json::ObjectMapper O(Params);
+  return O && O.map("range", CL.TheRange) && O.map("command", CL.TheCommand);
+}
+#endif
+
 llvm::json::Value toJSON(const Command &C) {
   auto Cmd = llvm::json::Object{{"title", C.title}, {"command", C.command}};
   if (C.workspaceEdit)
     Cmd["arguments"] = {*C.workspaceEdit};
   if (C.tweakArgs)
     Cmd["arguments"] = {*C.tweakArgs};
+#ifdef INTERACTIVE3C
+  if (C.The3CManualFix)
+    Cmd["arguments"] = {*C.The3CManualFix};
+#endif
   return std::move(Cmd);
 }
 
@@ -712,6 +753,14 @@ llvm::json::Value toJSON(const CodeAction &CA) {
   return std::move(CodeAction);
 }
 
+#ifdef INTERACTIVE3C
+llvm::json::Value toJSON(const CodeLens &CL) {
+  auto CodeLens = llvm::json::Object{{"range", CL.TheRange}};
+  if (CL.TheCommand)
+    CodeLens["command"] = *CL.TheCommand;
+  return std::move(CodeLens);
+}
+#endif
 llvm::raw_ostream &operator<<(llvm::raw_ostream &O, const DocumentSymbol &S) {
   return O << S.name << " - " << toJSON(S);
 }

@@ -1126,6 +1126,8 @@ public:
     // These don't need to be handled here because Evaluate knows how to
     // evaluate them in the cases where they can be folded.
     case CK_BitCast:
+    case CK_DynamicPtrBounds:
+    case CK_AssumePtrBounds:
     case CK_ToVoid:
     case CK_Dynamic:
     case CK_LValueBitCast:
@@ -1185,6 +1187,11 @@ public:
 
   llvm::Constant *VisitMaterializeTemporaryExpr(MaterializeTemporaryExpr *E,
                                                 QualType T) {
+    return Visit(E->getSubExpr(), T);
+  }
+
+  llvm::Constant *VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E,
+                                             QualType T) {
     return Visit(E->getSubExpr(), T);
   }
 

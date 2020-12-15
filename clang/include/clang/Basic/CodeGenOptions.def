@@ -392,6 +392,9 @@ CODEGENOPT(KeepStaticConsts, 1, 0)
 /// Whether to not follow the AAPCS that enforce at least one read before storing to a volatile bitfield
 CODEGENOPT(ForceAAPCSBitfieldLoad, 1, 0)
 
+/// Whether to add dynamic checks for null pointer arithmetic.
+CODEGENOPT(CheckedCNullPtrArith, 1, 1)
+
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT
 #undef VALUE_CODEGENOPT

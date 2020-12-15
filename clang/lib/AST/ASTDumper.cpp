@@ -286,3 +286,132 @@ LLVM_DUMP_METHOD void APValue::dump(raw_ostream &OS,
                    Context.getDiagnostics().getShowColors());
   Dumper.Visit(*this, /*Ty=*/Context.getPointerType(Context.CharTy));
 }
+
+// Checked C specific methods.
+void ASTDumper::VisitCastExpr(const CastExpr *Node) {
+  if (const BoundsExpr *NormalizedBounds = Node->getNormalizedBoundsExpr())
+    NodeDumper.AddChild([=] {
+      OS << "Normalized Bounds";
+      Visit(NormalizedBounds);
+    });
+
+  if (const BoundsExpr *SubExprBounds = Node->getSubExprBoundsExpr())
+    NodeDumper.AddChild([=] {
+      OS << "Inferred SubExpr Bounds";
+      Visit(SubExprBounds);
+    });
+}
+
+void ASTDumper::VisitDeclRefExpr(const DeclRefExpr *Node) {
+  if (Node->GetTypeArgumentInfo() &&
+      !Node->GetTypeArgumentInfo()->typeArgumentss().empty()) {
+    for (const auto& tn : Node->GetTypeArgumentInfo()->typeArgumentss()) {
+      Visit(tn.typeName);
+    }
+  }
+}
+
+void ASTDumper::VisitArraySubscriptExpr(const ArraySubscriptExpr *Node) {
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    NodeDumper.AddChild([=] {
+      OS << "Bounds ";
+      NodeDumper.Visit(Node->getBoundsCheckKind());
+      Visit(Bounds);
+    });
+  }
+}
+
+void ASTDumper::VisitMemberExpr(const MemberExpr *Node) {
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    NodeDumper.AddChild([=] {
+      OS << "Base Expr Bounds";
+      Visit(Bounds);
+    });
+  }
+}
+
+void ASTDumper::VisitUnaryOperator(const UnaryOperator *Node) {
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    NodeDumper.AddChild([=] {
+      OS << "Bounds ";
+      NodeDumper.Visit(Node->getBoundsCheckKind());
+      Visit(Bounds);
+    });
+  }
+}
+
+void ASTDumper::VisitCompoundStmt(const CompoundStmt *Node) {
+  VisitStmt(Node);
+  CheckedScopeSpecifier WrittenCSS = Node->getWrittenCheckedSpecifier();
+  switch (WrittenCSS) {
+    case CSS_None: break;
+    case CSS_Unchecked: OS << " _Unchecked "; break;
+    case CSS_Bounds: OS <<  " _Checked _Bounds_only "; break;
+    case CSS_Memory: OS << " _Checked "; break;
+  }
+
+  CheckedScopeSpecifier CSS = Node->getCheckedSpecifier();
+  if (CSS != CSS_Unchecked) {
+     OS << "checking-state ";
+     OS << (CSS == CSS_Bounds ? "bounds" :"bounds-and-types");
+  }
+}
+
+void ASTDumper::VisitRangeBoundsExpr(const RangeBoundsExpr *Node) {
+  if (Node->getKind() != BoundsExpr::Kind::Range)
+    NodeDumper.Visit(Node->getKind());
+  if (Node->hasRelativeBoundsClause()) {
+    RelativeBoundsClause *Expr =
+        cast<RelativeBoundsClause>(Node->getRelativeBoundsClause());
+    OS << " rel_align : ";
+    if (Expr->getClauseKind() == RelativeBoundsClause::Kind::Type) {
+      QualType Ty = cast<RelativeTypeBoundsClause>(Expr)->getType();
+      NodeDumper.dumpType(Ty);
+    } else if (Expr->getClauseKind() == RelativeTypeBoundsClause::Kind::Const) {
+      Visit(cast<RelativeConstExprBoundsClause>(Expr)->getConstExpr());
+    } else {
+      llvm_unreachable("unexpected kind field of relative bounds clause");
+    }
+  }
+}
+
+void ASTDumper::VisitInteropTypeExpr(const InteropTypeExpr *Node) {
+  Visit(Node->getType());
+}
+
+void ASTDumper::VisitFunctionProtoType(const FunctionProtoType *T) {
+  VisitFunctionType(T);
+
+  unsigned numParams = T->getNumParams();
+  for (unsigned i = 0; i < numParams; i++) {
+    QualType PT = T->getParamType(i);
+    Visit(PT);
+
+    const BoundsAnnotations Annots = T->getParamAnnots(i);
+    if (const BoundsExpr *Bounds = Annots.getBoundsExpr())
+      NodeDumper.AddChild([=] {
+        OS << "Bounds";
+        Visit(Bounds);
+      });
+    if (const InteropTypeExpr *IT = Annots.getInteropTypeExpr())
+      NodeDumper.AddChild([=] {
+        OS << "InteropType";
+        Visit(IT);
+      });
+  }
+
+  if (T->getExtProtoInfo().Variadic)
+    NodeDumper.AddChild([=] { OS << "..."; });
+
+  BoundsAnnotations ReturnAnnots = T->getReturnAnnots();
+  if (const BoundsExpr *Bounds = ReturnAnnots.getBoundsExpr())
+    NodeDumper.AddChild([=] {
+      OS << "Return bounds";
+      Visit(Bounds);
+    });
+  if (const InteropTypeExpr *IT = ReturnAnnots.getInteropTypeExpr())
+    NodeDumper.AddChild([=] {
+      OS << "Return interopType";
+      Visit(IT);
+    });
+}

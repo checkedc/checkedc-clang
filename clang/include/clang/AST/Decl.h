@@ -77,6 +77,7 @@ class TypeAliasTemplateDecl;
 class TypeLoc;
 class UnresolvedSetImpl;
 class VarTemplateDecl;
+class TypedefDecl;
 
 /// The top declaration context.
 class TranslationUnitDecl : public Decl, public DeclContext {
@@ -691,8 +692,11 @@ protected:
   DeclaratorDecl(Kind DK, DeclContext *DC, SourceLocation L,
                  DeclarationName N, QualType T, TypeSourceInfo *TInfo,
                  SourceLocation StartL)
-      : ValueDecl(DK, DC, L, N, T), DeclInfo(TInfo), InnerLocStart(StartL) {}
+      : ValueDecl(DK, DC, L, N, T), DeclInfo(TInfo), InnerLocStart(StartL),
+        Annotations(nullptr), NormalizedBounds(nullptr) {}
 
+  BoundsAnnotations *Annotations;
+  BoundsExpr *NormalizedBounds;
 public:
   friend class ASTDeclReader;
   friend class ASTDeclWriter;
@@ -775,6 +779,125 @@ public:
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) {
     return K >= firstDeclarator && K <= lastDeclarator;
+  }
+
+  // Checked C bounds information
+  // For function declarations, this is the return bounds of the function.
+
+  /// \brief Whether this declaration has a bounds expresssion
+  /// associated with it.  This could be a bounds declaration or
+  /// bounds-safe interface, depending on the type of the declaration
+  /// (or it if is a function, the return type).
+  bool hasBoundsExpr() const;
+
+  /// \brief Whether this declaration has a bounds declaration .
+  bool hasBoundsDeclaration(const ASTContext &Ctx) const;
+
+  /// \brief Whether this declaration has a bounds-safe interface.
+  bool hasBoundsSafeInterface(const ASTContext &Ctx) const;
+
+  /// \brief The bounds expression for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  const BoundsExpr *getBoundsExpr() const {
+    return const_cast<DeclaratorDecl *>(this)->getBoundsExpr();
+  }
+
+  /// \brief The bounds expression for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  BoundsExpr *getBoundsExpr() {
+    return (Annotations ? Annotations->getBoundsExpr() : nullptr);
+  }
+
+  /// \brief Set the bounds expression for this declaration. For function
+  /// declarations, this is the return bounds of the function.
+  void setBoundsExpr(ASTContext &Context, BoundsExpr *E) {
+     // If E is null and we have no annotations, do nothing.
+    if (!E && !Annotations)
+      return;
+    if (!Annotations)
+      Annotations = new (Context) BoundsAnnotations();
+    Annotations->setBoundsExpr(E);
+  }
+
+  // \brief The bounds expression for this declaration, expanded to a
+  // range bounds expression.
+  BoundsExpr *getNormalizedBounds() const {
+    return const_cast<DeclaratorDecl *>(this)->getNormalizedBounds();
+  }
+
+  // \brief The bounds expression for this declaration, expanded to a
+  // range bounds expression.
+  BoundsExpr *getNormalizedBounds() {
+    return NormalizedBounds;
+  }
+
+  // \brief Set the bounds expression for this declaration, expanded to a
+  // range bounds expression.
+  void setNormalizedBounds(BoundsExpr *E) const {
+    const_cast<DeclaratorDecl *>(this)->setNormalizedBounds(E);
+  }
+
+  // \brief Set the bounds expression for this declaration, expanded to a
+  // range bounds expression.
+  void setNormalizedBounds(BoundsExpr *E) {
+    NormalizedBounds = E;
+  }
+
+  /// \brief The Checked C interop type declared or inferred for this
+  /// declaration.  For function declarations, this is the return
+  /// interop type of the function.  Null if none has been declared
+  /// or inferred.
+  const InteropTypeExpr *getInteropTypeExpr() const {
+    return const_cast<DeclaratorDecl *>(this)->getInteropTypeExpr();
+  }
+
+  /// \brief The Checked C interop type declared or inferred for this
+  /// declaration.  For function declarations, this is the rreturn
+  /// interop type of the function.  Null if none has been declared
+  /// or inferred.
+  InteropTypeExpr *getInteropTypeExpr() {
+    return (Annotations ? Annotations->getInteropTypeExpr() : nullptr);
+  }
+
+  QualType getInteropType() const {
+    return const_cast<DeclaratorDecl *>(this)->getInteropType();
+  }
+
+  QualType getInteropType();
+
+  bool hasInteropTypeExpr() const {
+    return getInteropTypeExpr() != nullptr;
+  }
+
+  /// \brief Set the Checked C interop type for this declaration.  For function
+  /// declarations, this is the return interop type of the function.
+  void setInteropTypeExpr(ASTContext &Context, InteropTypeExpr *IT) {
+    // If IT is null and we have no annotations, do nothing.
+    if (!IT && !Annotations)
+      return;
+    if (!Annotations)
+      Annotations = new (Context) BoundsAnnotations();
+    Annotations->setInteropTypeExpr(IT);
+  }
+
+  void setBoundsAnnotations(ASTContext &Context, BoundsAnnotations BA) {
+    setBoundsExpr(Context, BA.getBoundsExpr());
+    setInteropTypeExpr(Context, BA.getInteropTypeExpr());
+  }
+
+  BoundsAnnotations getBoundsAnnotations() const {
+    if (Annotations)
+      return *Annotations;
+    else {
+      BoundsAnnotations Empty;
+      return Empty;
+    }
+  }
+
+  bool hasBoundsAnnotations() const {
+    return Annotations != nullptr && !(Annotations->IsEmpty());
   }
 };
 
@@ -861,6 +984,8 @@ protected:
   /// The initializer for this variable or, for a ParmVarDecl, the
   /// C++ default argument.
   mutable InitType Init;
+
+  SourceLocation InitializerStartLoc;
 
 private:
   friend class ASTDeclReader;
@@ -975,7 +1100,6 @@ protected:
     /// Defines kind of the ImplicitParamDecl: 'this', 'self', 'vtt', '_cmd' or
     /// something else.
     unsigned ImplicitParamKind : 3;
-
     unsigned EscapingByref : 1;
   };
 
@@ -1242,6 +1366,20 @@ public:
   VarDecl *getInitializingDeclaration();
   const VarDecl *getInitializingDeclaration() const {
     return const_cast<VarDecl *>(this)->getInitializingDeclaration();
+  }
+
+  /// \brief Set the location of the first token of the initializer
+  /// expression.  For C-style intializers, this is the location of
+  /// the equal token.
+  void setInitializerStartLoc(SourceLocation Loc) {
+    InitializerStartLoc = Loc;
+  }
+
+  /// \brief Get the location of the first token of the initializer
+  /// expression.  For C-style intializers, this is the location of
+  /// the equal token.
+  SourceLocation getInitializerStartLoc() {
+    return InitializerStartLoc;
   }
 
   /// Determine whether this variable's value might be usable in a
@@ -1834,7 +1972,10 @@ private:
     LazyDeclStmtPtr Body;
     /// Information about a future defaulted function definition.
     DefaultedFunctionInfo *DefaultedInfo;
-  };
+=======
+  /// TypeVarInfo - new []'d array of pointers to TypedefDecls for the type
+  /// variables of this function.  This is null if not generic function.
+  TypedefDecl **TypeVarInfo;
 
   unsigned ODRHash;
 
@@ -1904,6 +2045,7 @@ private:
                                         TemplateSpecializationKind TSK);
 
   void setParams(ASTContext &C, ArrayRef<ParmVarDecl *> NewParamInfo);
+  void setTypeVars(ASTContext &C, ArrayRef<TypedefDecl *> NewTypeVarInfo);
 
   // This is unfortunately needed because ASTDeclWriter::VisitFunctionDecl
   // need to access this bit but we want to avoid making ASTDeclWriter
@@ -2017,6 +2159,26 @@ public:
   bool hasBody() const override {
     const FunctionDecl* Definition;
     return hasBody(Definition);
+  }
+
+  void setGenericFunctionFlag(bool f) { FunctionDeclBits.IsGenericFunction = f; }
+  bool isGenericFunction() const { return FunctionDeclBits.IsGenericFunction; }
+
+  void setItypeGenericFunctionFlag(bool f) { FunctionDeclBits.IsItypeGenericFunction = f; }
+  bool isItypeGenericFunction() const { return FunctionDeclBits.IsItypeGenericFunction; }
+
+  void setWrittenCheckedSpecifier(CheckedScopeSpecifier CSS) {
+    FunctionDeclBits.WrittenCheckedSpecifier = CSS;
+  }
+
+  CheckedScopeSpecifier getWrittenCheckedSpecifier() const {
+    return (CheckedScopeSpecifier) FunctionDeclBits.WrittenCheckedSpecifier;
+  }
+
+  void setCheckedSpecifier(CheckedScopeSpecifier CS) { FunctionDeclBits.CheckedSpecifier = CS; }
+
+  CheckedScopeSpecifier getCheckedSpecifier() const {
+    return (CheckedScopeSpecifier) FunctionDeclBits.CheckedSpecifier;
   }
 
   /// Returns whether the function has a trivial body that does not require any
@@ -2406,6 +2568,13 @@ public:
     return {ParamInfo, getNumParams()};
   }
 
+  ArrayRef<TypedefDecl *> typeVariables() const {
+    return{ TypeVarInfo, getNumTypeVars() };
+  }
+  MutableArrayRef<TypedefDecl *> typeVariables() {
+    return{ TypeVarInfo, getNumTypeVars() };
+  }
+
   // Iterator access to formal parameters.
   using param_iterator = MutableArrayRef<ParmVarDecl *>::iterator;
   using param_const_iterator = ArrayRef<ParmVarDecl *>::const_iterator;
@@ -2421,6 +2590,7 @@ public:
   /// FunctionType.  This is the length of the ParamInfo array after it has been
   /// created.
   unsigned getNumParams() const;
+  unsigned getNumTypeVars() const;
 
   const ParmVarDecl *getParamDecl(unsigned i) const {
     assert(i < getNumParams() && "Illegal param #");
@@ -2432,6 +2602,9 @@ public:
   }
   void setParams(ArrayRef<ParmVarDecl *> NewParamInfo) {
     setParams(getASTContext(), NewParamInfo);
+  }
+  void setTypeVars(ArrayRef<TypedefDecl *> NewTypeVarInfo) {
+    setTypeVars(getASTContext(), NewTypeVarInfo);
   }
 
   /// Returns the minimum number of arguments needed to call this function. This
@@ -3795,15 +3968,45 @@ public:
     APK_CanNeverPassInRegs
   };
 
+  // Checked C
+
+  /// Denotes the kind of generic a RecordDecl is.
+  enum Genericity {
+    /// The record isn't generic.
+    NonGeneric,
+    /// The record is a true generic (has a 'for_any' clause).
+    Generic,
+    /// The record has a generic interface (via a 'itype_for_any' clause).
+    ItypeGeneric
+  };
+
 protected:
-  RecordDecl(Kind DK, TagKind TK, const ASTContext &C, DeclContext *DC,
-             SourceLocation StartLoc, SourceLocation IdLoc,
-             IdentifierInfo *Id, RecordDecl *PrevDecl);
+  RecordDecl(Kind DK,
+             TagKind TK,
+             const ASTContext &C,
+             DeclContext *DC,
+             SourceLocation StartLoc,
+             SourceLocation IdLoc,
+             IdentifierInfo *Id,
+             RecordDecl *PrevDecl,
+             Genericity GenericKind = NonGeneric,
+             ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>(nullptr, static_cast<size_t>(0)),
+             RecordDecl *GenericBaseDecl = nullptr,
+             ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, static_cast<size_t>(0)));
 
 public:
-  static RecordDecl *Create(const ASTContext &C, TagKind TK, DeclContext *DC,
-                            SourceLocation StartLoc, SourceLocation IdLoc,
-                            IdentifierInfo *Id, RecordDecl* PrevDecl = nullptr);
+  static RecordDecl *Create(const ASTContext &C,
+                            TagKind TK,
+                            DeclContext *DC,
+                            SourceLocation StartLoc,
+                            SourceLocation IdLoc,
+                            IdentifierInfo *Id,
+                            RecordDecl *PrevDecl = nullptr,
+                            Genericity GenericKind = NonGeneric,
+                            ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>(nullptr, static_cast<size_t>(0)),
+                            RecordDecl *GenericBaseDecl = nullptr,
+                            ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, static_cast<size_t>(0)));
+
   static RecordDecl *CreateDeserialized(const ASTContext &C, unsigned ID);
 
   RecordDecl *getPreviousDecl() {
@@ -4021,9 +4224,61 @@ public:
   /// nullptr is returned if no named data member exists.
   const FieldDecl *findFirstNamedDataMember() const;
 
+  // Checked C
+
+  /// Whether the record is generic. At most one of 'isGeneric' and 'isItypeGeneric' will be set.
+  bool isGeneric() const;
+  /// Whether the record has a generic interface. At most one of 'isTypeGeneric' and 'isGeneric' will be set.
+  bool isItypeGeneric() const;
+  /// Whether the record is generic or has a generic bounds interface (itype).
+  bool isGenericOrItypeGeneric() const;
+
+  /// Returns the record's type parameters.
+  /// If there are no type parameters, then the array will be empty.
+  ArrayRef<TypedefDecl *> typeParams() const;
+
+  /// Whether the record is a (fully) instantiated generic.
+  bool isInstantiated() const;
+  /// If this is an instantiated RecordDecl, return the underlying generic RecordDecl.
+  RecordDecl *genericBaseDecl() const;
+  /// Returns the record's type arguments.
+  /// If there are no type arguments, then the array will be empty.
+  ArrayRef<TypeArgument> typeArgs() const;
+
+  /// Whether this record represents a delayed type application.
+  /// If so, then 'isInstantiated()' will return 'true', and the type arguments will be populated.
+  /// However, the record's fields won't be set yet.
+  bool isDelayedTypeApp() const;
+  /// Indicate whether this record is currently a delayed type application.
+  void setDelayedTypeApp(bool IsDelayed);
+
 private:
   /// Deserialize just the fields.
   void LoadFieldsFromExternalStorage() const;
+
+  // Checked C
+  // There are two sets of fields we add below to support generic structs:
+  //   - 'GenericKind' and type-params-related fields are set for _definitions_ of generic structs:
+  //      e.g. 'struct List _For_any(T) { /* generic list definition */ }; '
+  //   - 'isInstantiated' and type-args-related fields are set for _instantiations_ of generic structs:
+  //      e.g. 'struct List<int> li;'
+  // In particular, it doesn't make sense to set _both_ 'isGeneric' and 'isInstantiated', since a struct
+  // is either generic or instantiated (we don't support partial instantiations).
+
+  /// The kind of generic the record is.
+  const Genericity GenericKind;
+
+  /// Type parameters for this record. Empty iff this isn't a generic record.
+  std::vector<TypedefDecl *> TypeParams;
+
+  /// The underlying generic RecordDecl that was instantiated.
+  RecordDecl *GenericBaseDecl;
+  /// Type parameters for this record. Empty iff this isn't a type application.
+  std::vector<TypeArgument> TypeArgs;
+
+  /// Whether this record represents a delayed type application.
+  /// A delayed type application won't contain any fields, until it is completed via 'Sema::CompleteTypeAppFields'.
+  bool IsDelayed = false;
 };
 
 class FileScopeAsmDecl : public Decl {

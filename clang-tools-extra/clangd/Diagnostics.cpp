@@ -396,7 +396,12 @@ void toLSPDiags(
     Main.range = It->Range;
   }
 
+  clangd::Diagnostic Main = FillBasicFields(D);
+#ifdef INTERACTIVE3C
+  Main.code = D.Code;
+#else
   Main.code = D.Name;
+#endif
   switch (D.Source) {
   case Diag::Clang:
     Main.source = "clang";
@@ -404,6 +409,14 @@ void toLSPDiags(
   case Diag::ClangTidy:
     Main.source = "clang-tidy";
     break;
+#ifdef INTERACTIVE3C
+  case Diag::_3CMain:
+    Main.source = "3C_RealWild";
+    break;
+  case Diag::_3CSec:
+    Main.source = "3C_AffWild";
+    break;
+#endif
   case Diag::Unknown:
     break;
   }

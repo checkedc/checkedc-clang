@@ -1001,6 +1001,8 @@ static bool rewriteToNumericBoxedExpression(const ObjCMessageExpr *Msg,
   if (const ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(Arg)) {
     switch (ICE->getCastKind()) {
     case CK_LValueToRValue:
+    case CK_DynamicPtrBounds:
+    case CK_AssumePtrBounds:
     case CK_NoOp:
     case CK_UserDefinedConversion:
       break;

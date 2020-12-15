@@ -869,6 +869,29 @@ public:
   }
   Value *VisitAsTypeExpr(AsTypeExpr *CE);
   Value *VisitAtomicExpr(AtomicExpr *AE);
+
+  Value *VisitBoundsValueExpr(BoundsValueExpr *E) {
+    Value *Result = nullptr;
+    if (E->getKind() == BoundsValueExpr::Kind::Temporary) {
+      CHKCBindTemporaryExpr *Temp = E->getTemporaryBinding();
+      assert(!Temp->getSubExpr()->isLValue());
+      Result = CGF.getBoundsTemporaryRValueMapping(Temp).getScalarVal();
+    } else
+       llvm_unreachable("unexpected bounds value expr");
+    assert(Result);
+    return Result;
+  }
+
+  Value *VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+    if (E->getSubExpr()->isLValue()) {
+      LValue LV = CGF.EmitLValue(E->getSubExpr());
+      CGF.setBoundsTemporaryLValueMapping(E, LV);
+      return EmitLoadOfLValue(LV, E->getExprLoc());
+    }
+    Value *Result = Visit(E->getSubExpr());
+    CGF.setBoundsTemporaryRValueMapping(E, RValue::get(Result));
+    return Result;
+  }
 };
 }  // end anonymous namespace.
 
@@ -2142,6 +2165,10 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     return CGF.EmitDynamicCast(V, DCE);
   }
 
+  case CK_DynamicPtrBounds:
+  case CK_AssumePtrBounds:
+    return CGF.EmitBoundsCast(CE);
+
   case CK_ArrayToPointerDecay:
     return CGF.EmitArrayToPointerDecay(E).getPointer();
   case CK_FunctionToPointerDecay:
@@ -2199,7 +2226,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     llvm_unreachable("scalar cast to non-scalar value");
 
   case CK_LValueToRValue:
-    assert(CGF.getContext().hasSameUnqualifiedType(E->getType(), DestTy));
+    assert(CGF.getContext().hasSameUnqualifiedUncheckedType(E->getType(), DestTy));
     assert(E->isGLValue() && "lvalue-to-rvalue applied to r-value!");
     return Visit(const_cast<Expr*>(E));
 
@@ -2373,6 +2400,14 @@ static BinOpInfo createBinOpInfoFromIncDec(const UnaryOperator *E,
   return BinOp;
 }
 
+static void emitDynamicNonNullCheck(CodeGenFunction &CGF,
+                                    Value *Val, QualType Ty) {
+  if (!CGF.CGM.getCodeGenOpts().CheckedCNullPtrArith)
+    return;
+
+  CGF.EmitDynamicNonNullCheck(Val, Ty);
+}
+
 llvm::Value *ScalarExprEmitter::EmitIncDecConsiderOverflowBehavior(
     const UnaryOperator *E, llvm::Value *InVal, bool IsInc) {
   llvm::Value *Amount =
@@ -2544,6 +2579,9 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
 
   // Next most common: pointer increment.
   } else if (const PointerType *ptr = type->getAs<PointerType>()) {
+    // Insert a dynamic check for arithmetic on null checked pointers.
+    emitDynamicNonNullCheck(CGF, value, type);
+
     QualType type = ptr->getPointeeType();
 
     // VLA types don't have constant size.
@@ -3333,6 +3371,9 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
     std::swap(pointer, index);
     std::swap(pointerOperand, indexOperand);
   }
+
+  // Insert a dynamic check for arithmetic on null checked pointers.
+  emitDynamicNonNullCheck(CGF, pointer, pointerOperand->getType());
 
   bool isSigned = indexOperand->getType()->isSignedIntegerOrEnumerationType();
 
@@ -4173,6 +4214,13 @@ Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
     // this should improve codegen just a little.
     RHS = Visit(E->getRHS());
     LHS = EmitCheckedLValue(E->getLHS(), CodeGenFunction::TCK_Store);
+    if (E->getOpcode() == BO_Assign) {
+      BoundsExpr *BoundsCheck = CGF.GetNullTermBoundsCheck(E->getLHS());
+      if (BoundsCheck)
+        CGF.EmitDynamicBoundsCheck(LHS.getAddress(), BoundsCheck,
+                                   BoundsCheckKind::BCK_NullTermWriteAssign,
+                                   RHS);
+    }
 
     // Store the value into the LHS.  Bit-fields are handled specially
     // because the result is altered by the store, i.e., [C99 6.5.16p1]

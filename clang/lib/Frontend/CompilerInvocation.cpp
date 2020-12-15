@@ -1442,6 +1442,9 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
       std::string(Args.getLastArgValue(OPT_fsymbol_partition_EQ));
 
   Opts.ForceAAPCSBitfieldLoad = Args.hasArg(OPT_ForceAAPCSBitfieldLoad);
+
+  Opts.CheckedCNullPtrArith = !Args.hasArg(OPT_fno_checkedc_null_ptr_arith);
+
   return Success;
 }
 
@@ -2397,6 +2400,8 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
 
   // Enable [[]] attributes in C++11 and C2x by default.
   Opts.DoubleSquareBracketAttributes = Opts.CPlusPlus11 || Opts.C2x;
+
+  Opts.CheckedC = (IK.getLanguage() == InputKind::C);
 }
 
 /// Attempt to parse a visibility value out of the given argument.
@@ -2797,6 +2802,56 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.setVtorDispMode(
       MSVtorDispMode(getLastArgIntValue(Args, OPT_vtordisp_mode_EQ, 1, Diags)));
   Opts.Borland = Args.hasArg(OPT_fborland_extensions);
+  if (Args.hasArg(OPT_fcheckedc_extension)) {
+    std::string disallowed;
+    if (Opts.CUDA)
+      disallowed = "CUDA";
+    else if (Opts.OpenCL)
+      disallowed = "OpenCL";
+    else if (Opts.ObjC) {
+      if (Opts.CPlusPlus)
+        disallowed = "Objective C/C++";
+      else
+        disallowed = "Objective C";
+    }
+    else if (Opts.CPlusPlus) {
+      disallowed = "C++";
+    }
+
+    if (disallowed.size() > 0) {
+      Diags.Report(diag::warn_drv_checkedc_extension_notsupported) <<
+        "-fcheckedc-extension" << disallowed;
+    } else
+      Opts.CheckedC = true;
+  }
+
+  if (Args.hasArg(OPT_f3c_tool))
+    Opts._3C = true;
+
+  if (Args.hasArg(OPT_fno_checkedc_extension))
+    Opts.CheckedC = false;
+
+  if (Args.hasArg(OPT_fdump_inferred_bounds))
+    Opts.DumpInferredBounds = true;
+
+  if (Args.hasArg(OPT_finject_verifier_calls))
+    Opts.InjectVerifierCalls = true;
+
+  if (Args.hasArg(OPT_funchecked_pointers_dynamic_check))
+    Opts.UncheckedPointersDynamicCheck = true;
+
+  if (Args.hasArg(OPT_fdump_extracted_comparison_facts))
+    Opts.DumpExtractedComparisonFacts = true;
+
+  if (Args.hasArg(OPT_fdump_widened_bounds))
+    Opts.DumpWidenedBounds = true;
+
+  if (Args.hasArg(OPT_fdump_preorder_ast))
+    Opts.DumpPreorderAST = true;
+
+  if (Args.hasArg(OPT_fdump_checking_state))
+    Opts.DumpCheckingState = true;
+
   Opts.WritableStrings = Args.hasArg(OPT_fwritable_strings);
   Opts.ConstStrings = Args.hasFlag(OPT_fconst_strings, OPT_fno_const_strings,
                                    Opts.ConstStrings);

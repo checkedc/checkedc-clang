@@ -123,6 +123,15 @@ protected:
   /// rather than in the subclass (e.g., lambda closure types).
   llvm::DenseMap<Decl *, Decl *> TransformedLocalDecls;
 
+  /// \brief The set of bound temporaries that have been transformed.  This
+  /// is needed so that we can keep uses in sync.
+  llvm::DenseMap<CHKCBindTemporaryExpr *, CHKCBindTemporaryExpr *>
+    TransformedTemporaries;
+
+  /// \brief The set of parameters that have been transformed.  Used
+  /// to update positional parameter expression type information.
+  llvm::SmallVector<QualType, 16> TransformedPositionalParameters;
+
 public:
   /// Initializes a new tree transformer.
   TreeTransform(Sema &SemaRef) : SemaRef(SemaRef) { }
@@ -158,12 +167,18 @@ public:
   /// existing lambdas.
   bool ReplacingOriginal() { return false; }
 
-  /// Wether CXXConstructExpr can be skipped when they are implicit.
+  /// Whether CXXConstructExpr can be skipped when they are implicit.
   /// They will be reconstructed when used if needed.
   /// This is usefull when the user that cause rebuilding of the
   /// CXXConstructExpr is outside of the expression at which the TreeTransform
   /// started.
   bool AllowSkippingCXXConstructExpr() { return true; }
+
+  ///  Whether this use of TreeTransform is being used for template
+  /// instantiation.
+  ///
+  /// Subclasses may override this function when it isn't.
+  bool IsInstantiation() { return true; }
 
   /// Returns the location of the entity being transformed, if that
   /// information was not available elsewhere in the AST.
@@ -453,6 +468,20 @@ public:
     return D;
   }
 
+  /// \brief Transform the given temporary variable binding, which is referenced from
+  /// a type or expression.
+  ///
+  /// If the transformer had to transform the temporary variable binding, return
+  /// the new binding.  Otherwise act as the identity function.
+  CHKCBindTemporaryExpr *TransformTemporary(SourceLocation Loc, CHKCBindTemporaryExpr *B) {
+    llvm::DenseMap<CHKCBindTemporaryExpr *, CHKCBindTemporaryExpr *>::iterator Known
+      = TransformedTemporaries.find(B);
+    if (Known != TransformedTemporaries.end())
+      return Known->second;
+
+    return B;
+  }
+
   /// Transform the specified condition.
   ///
   /// By default, this transforms the variable and expression and rebuilds
@@ -479,6 +508,13 @@ public:
     assert(New.size() == 1 &&
            "must override transformedLocalDecl if performing pack expansion");
     TransformedLocalDecls[Old] = New.front();
+  }
+
+  /// \brief Note that a temporary variable binding has been transformed by this
+  /// transformer.
+  void transformedLocalTemporary(CHKCBindTemporaryExpr *Old,
+                                 CHKCBindTemporaryExpr *New) {
+    TransformedTemporaries[Old] = New;
   }
 
   /// Transform the definition of the given declaration.
@@ -670,6 +706,16 @@ public:
   /// The result vectors should be kept in sync; null entries in the
   /// variables vector are acceptable.
   ///
+  /// Inputs: Params, ParamTypes, and ParamInfos.
+  ///
+  /// Outputs: PTypes, PVars, and PInfos:
+  /// - The updated parameter types are stored in PTypes.
+  /// - The updated parameter variable declarations are stored in PVars.
+  /// - The updated extend parameter info is stored in PInfos.
+  ///
+  /// For correctness, the inputs and outputs shoudl be disjoint data
+  /// structures.
+  ///
   /// Return true on error.
   bool TransformFunctionTypeParams(
       SourceLocation Loc, ArrayRef<ParmVarDecl *> Params,
@@ -677,6 +723,48 @@ public:
       const FunctionProtoType::ExtParameterInfo *ParamInfos,
       SmallVectorImpl<QualType> &PTypes, SmallVectorImpl<ParmVarDecl *> *PVars,
       Sema::ExtParameterInfoBuilder &PInfos);
+
+  /// Transform the bounds annotation Annot, updating Annot. Set Changed to
+  /// true if Annot changed.
+  bool TransformBoundsAnnotations(BoundsAnnotations &Annot, bool &Changed);
+
+  /// \brief Transform return bounds annotations.  We provide a separate method for
+  /// doing this so subclasses can override this if desired.
+  bool TransformReturnBoundsAnnotations(BoundsAnnotations &Annot, bool &Changed);
+
+  /// \brief Transform the extended parameter information for
+  /// a function prototype.
+  ///
+  /// \param EPI: The current extended parameter information. Updated
+  /// with transformed information.
+  ///
+  /// \param EPIChanged: set to true if something changed, left
+  /// unchanged otherwise.
+  ///
+  /// \param ParamTypes: the new parameter types.  Not changed.
+  ///
+
+  /// \param ParamListAnnots: pre-allocated for holding parameter list
+  /// annotations. Modified by method if there are parameter bounds
+  /// annotations.
+  ///
+  /// \param ExtParamInfo: external parameter info builder. May be modified
+  /// if the number of parameters has changed.
+  ///
+  /// \param TL: the existing type location information (before transformation)
+  ///
+  /// \param TransformExceptionSpec: transforms exception specification.
+  ///
+  /// Return true on error, false on success.
+  template<typename Fn>
+  bool TransformExtendedParameterInfo(
+    FunctionProtoType::ExtProtoInfo &EPI,
+    bool &EPIChanged,
+    const SmallVector<QualType, 4> &ParamTypes,
+    SmallVector<BoundsAnnotations, 4> &ParamListAnnots,
+    Sema::ExtParameterInfoBuilder &ExtParamInfos,
+    const FunctionProtoTypeLoc &TL,
+    Fn TransformExceptionSpec);
 
   /// Transforms a single function-type parameter.  Return null
   /// on error.
@@ -747,7 +835,7 @@ public:
   ///
   /// By default, performs semantic analysis when building the pointer type.
   /// Subclasses may override this routine to provide different behavior.
-  QualType RebuildPointerType(QualType PointeeType, SourceLocation Sigil);
+  QualType RebuildPointerType(QualType PointeeType, CheckedPointerKind kind, SourceLocation Sigil);
 
   /// Build a new block pointer type given its pointee type.
   ///
@@ -814,6 +902,7 @@ public:
                             const llvm::APInt *Size,
                             Expr *SizeExpr,
                             unsigned IndexTypeQuals,
+                            CheckedArrayKind Kind,
                             SourceRange BracketsRange);
 
   /// Build a new constant array type given the element type, size
@@ -826,6 +915,7 @@ public:
                                     const llvm::APInt &Size,
                                     Expr *SizeExpr,
                                     unsigned IndexTypeQuals,
+                                    CheckedArrayKind Kind,
                                     SourceRange BracketsRange);
 
   /// Build a new incomplete array type given the element type, size
@@ -836,6 +926,7 @@ public:
   QualType RebuildIncompleteArrayType(QualType ElementType,
                                       ArrayType::ArraySizeModifier SizeMod,
                                       unsigned IndexTypeQuals,
+                                      CheckedArrayKind Kind,
                                       SourceRange BracketsRange);
 
   /// Build a new variable-length array type given the element type,
@@ -1257,9 +1348,12 @@ public:
   StmtResult RebuildCompoundStmt(SourceLocation LBraceLoc,
                                        MultiStmtArg Statements,
                                        SourceLocation RBraceLoc,
-                                       bool IsStmtExpr) {
+                                       bool IsStmtExpr,
+                                       CheckedScopeSpecifier WrittenCSS,
+                                       SourceLocation CSSLoc,
+                                       SourceLocation CSMLoc) {
     return getSema().ActOnCompoundStmt(LBraceLoc, RBraceLoc, Statements,
-                                       IsStmtExpr);
+                                       IsStmtExpr, WrittenCSS, CSSLoc, CSMLoc);
   }
 
   /// Build a new case statement.
@@ -2585,6 +2679,15 @@ public:
                                          SubExpr);
   }
 
+  ExprResult RebuildBoundsCastExpr(SourceLocation OpLoc, tok::TokenKind Kind,
+                                   TypeSourceInfo *TInfo,
+                                   SourceRange AngleBrackets,
+                                   SourceLocation RParenLoc, Expr *SubExpr,
+                                   BoundsExpr *Bounds) {
+    return getSema().BuildBoundsCastExpr(OpLoc, Kind, TInfo, AngleBrackets,
+                                         RParenLoc, SubExpr, Bounds);
+  }
+
   /// Build a new compound literal expression.
   ///
   /// By default, performs semantic analysis to build the new expression.
@@ -2720,6 +2823,50 @@ public:
                                          ArrayRef<Expr *> Exprs) {
     return getSema().CreateGenericSelectionExpr(KeyLoc, DefaultLoc, RParenLoc,
                                                 ControllingExpr, Types, Exprs);
+  }
+
+  ExprResult RebuildCountBoundsExpr(SourceLocation StartLoc,
+                                    BoundsExpr::Kind Kind,
+                                    Expr * CountExpr,
+                                    SourceLocation RParenLoc) {
+    return getSema().ActOnCountBoundsExpr(StartLoc, Kind, CountExpr, RParenLoc);
+  }
+
+  ExprResult RebuildNullaryBoundsExpr(SourceLocation StartLoc,
+                                      BoundsExpr::Kind Kind,
+                                      SourceLocation RParenLoc) {
+    return getSema().ActOnNullaryBoundsExpr(StartLoc, Kind, RParenLoc);
+  }
+
+  ExprResult RebuildRangeBoundsExpr(SourceLocation StartLoc, Expr *Lower,
+                                    Expr *Upper, RelativeBoundsClause *Relative,
+                                    SourceLocation RParenLoc) {
+    return getSema().CreateRangeBoundsExpr(StartLoc, Lower, Upper, Relative,
+                                           RParenLoc);
+  }
+
+  ExprResult RebuildInteropTypeExpr(SourceLocation StartLoc,
+                                    TypeSourceInfo *Ty,
+                                    SourceLocation RParenLoc) {
+    return getSema().CreateBoundsInteropTypeExpr(StartLoc, Ty, RParenLoc);
+  }
+
+  ExprResult RebuildPositionalParameterExpr(unsigned Index, QualType QT) {
+    return getSema().CreatePositionalParameterExpr(Index, QT);
+  }
+
+  ExprResult RebuildCHKCBindTemporaryExpr(Expr *SE) {
+    return new (getSema().Context) CHKCBindTemporaryExpr(SE);
+  }
+
+  ExprResult RebuildBoundsValueExpr(SourceLocation Loc, QualType Ty,
+                                    BoundsValueExpr::Kind K,
+                                    CHKCBindTemporaryExpr *Tmp) {
+    if (Tmp) {
+      assert(K == BoundsValueExpr::Kind::Temporary);
+      return new (getSema().Context) BoundsValueExpr(Loc, Tmp);
+    } else
+      return new (getSema().Context) BoundsValueExpr(Loc, Ty, K);
   }
 
   /// Build a new overloaded operator call expression.
@@ -4845,7 +4992,7 @@ QualType TreeTransform<Derived>::TransformPointerType(TypeLocBuilder &TLB,
 
   if (getDerived().AlwaysRebuild() ||
       PointeeType != TL.getPointeeLoc().getType()) {
-    Result = getDerived().RebuildPointerType(PointeeType, TL.getSigilLoc());
+    Result = getDerived().RebuildPointerType(PointeeType, TL.getKind(), TL.getKWLoc());
     if (Result.isNull())
       return QualType();
   }
@@ -4855,7 +5002,9 @@ QualType TreeTransform<Derived>::TransformPointerType(TypeLocBuilder &TLB,
   TLB.TypeWasModifiedSafely(Result->getPointeeType());
 
   PointerTypeLoc NewT = TLB.push<PointerTypeLoc>(Result);
-  NewT.setSigilLoc(TL.getSigilLoc());
+  NewT.setLeftSymLoc(TL.getLeftSymLoc());
+  NewT.setRightSymLoc(TL.getRightSymLoc());
+  NewT.setKWLoc(TL.getKWLoc());
   return Result;
 }
 
@@ -5018,6 +5167,7 @@ TreeTransform<Derived>::TransformConstantArrayType(TypeLocBuilder &TLB,
                                                    T->getSizeModifier(),
                                                    T->getSize(), NewSize,
                                              T->getIndexTypeCVRQualifiers(),
+                                                   T->getKind(),
                                                    TL.getBracketsRange());
     if (Result.isNull())
       return QualType();
@@ -5050,6 +5200,7 @@ QualType TreeTransform<Derived>::TransformIncompleteArrayType(
     Result = getDerived().RebuildIncompleteArrayType(ElementType,
                                                      T->getSizeModifier(),
                                            T->getIndexTypeCVRQualifiers(),
+                                                     T->getKind(),
                                                      TL.getBracketsRange());
     if (Result.isNull())
       return QualType();
@@ -5698,6 +5849,120 @@ bool TreeTransform<Derived>::TransformFunctionTypeParams(
 }
 
 template<typename Derived>
+bool TreeTransform<Derived>::TransformBoundsAnnotations(
+  BoundsAnnotations &Annot, bool &Changed) {
+  BoundsExpr *ExistingBounds = Annot.getBoundsExpr();
+  BoundsExpr *NewBounds = ExistingBounds;
+  if (ExistingBounds) {
+    ExprResult Result = getDerived().TransformExpr(ExistingBounds);
+    if (Result.isInvalid())
+      return true;
+    NewBounds = dyn_cast<BoundsExpr>(Result.get());
+    if (!NewBounds) {
+      llvm_unreachable("unexpected dynamic cast failure");
+      return true;
+    }
+  }
+
+  InteropTypeExpr *ExistingIType = Annot.getInteropTypeExpr();
+  InteropTypeExpr *NewIType = ExistingIType;
+  if (ExistingIType) {
+    ExprResult Result = getDerived().TransformExpr(ExistingIType);
+    if (Result.isInvalid())
+      return true;
+    NewIType = dyn_cast<InteropTypeExpr>(Result.get());
+    if (!NewIType) {
+      llvm_unreachable("unexpected dynamic cast failure");
+      return true;
+    }
+  }
+
+  if (ExistingBounds != NewBounds || ExistingIType != NewIType) {
+    Annot = BoundsAnnotations(NewBounds, NewIType);
+    Changed = true;
+  }
+  return false;
+}
+
+template<typename Derived>
+bool TreeTransform<Derived>::TransformReturnBoundsAnnotations(
+  BoundsAnnotations &Annot, bool &Changed) {
+  return getDerived().TransformBoundsAnnotations(Annot, Changed);
+}
+
+template <typename Derived> template<typename Fn>
+bool TreeTransform<Derived>::TransformExtendedParameterInfo(
+  FunctionProtoType::ExtProtoInfo &EPI,
+  bool &EPIChanged,
+  const SmallVector<QualType, 4> &ParamTypes,
+  SmallVector<BoundsAnnotations, 4> &ParamListAnnots,
+  Sema::ExtParameterInfoBuilder &ExtParamInfos,
+  const FunctionProtoTypeLoc &TL,
+  Fn TransformExceptionSpec) {
+  EPIChanged = false;
+  if (TransformExceptionSpec(EPI.ExceptionSpec, EPIChanged))
+    return false;
+
+  // Handle extended parameter information.
+  if (auto NewExtParamInfos =
+      ExtParamInfos.getPointerOrNull(ParamTypes.size())) {
+    if (!EPI.ExtParameterInfos ||
+        llvm::makeArrayRef(EPI.ExtParameterInfos, TL.getNumParams())
+        != llvm::makeArrayRef(NewExtParamInfos, ParamTypes.size())) {
+      EPIChanged = true;
+    }
+    EPI.ExtParameterInfos = NewExtParamInfos;
+  }
+  else if (EPI.ExtParameterInfos) {
+    EPIChanged = true;
+    EPI.ExtParameterInfos = nullptr;
+  }
+
+  // Return now if there are no bounds annotations to process.
+  if (EPI.ReturnAnnots.IsEmpty() && !EPI.ParamAnnots)
+    return false;
+
+  // Set up transformed type information, for positional parameters (if there
+  // are any).
+  llvm::SmallVector<QualType, 16> ExistingInfo(TransformedPositionalParameters);
+  TransformedPositionalParameters.assign(ParamTypes.begin(),
+                                         ParamTypes.end());
+
+  // Handle bounds annotations for return
+  if (getDerived().TransformReturnBoundsAnnotations(EPI.ReturnAnnots, EPIChanged))
+    return true;
+
+  // Handle bounds annotations for parameters.
+  const BoundsAnnotations *ExistingParamListAnnots = EPI.ParamAnnots;
+  if (ExistingParamListAnnots) {
+    bool ParamListAnnotsChanged = false;
+    unsigned ExistingParamCount = TL.getNumParams();
+    unsigned NewParamCount = ParamTypes.size();
+    ParamListAnnots.reserve(NewParamCount);
+    for (unsigned i = 0; i < NewParamCount; i++) {
+      BoundsAnnotations ParamAnnotations;
+      if (i < ExistingParamCount) {
+        ParamAnnotations = ExistingParamListAnnots[i];
+        if (getDerived().TransformBoundsAnnotations(ParamAnnotations,
+                                                    ParamListAnnotsChanged))
+          return true;
+      }
+      ParamListAnnots.push_back(ParamAnnotations);
+    }
+    if (ParamListAnnotsChanged) {
+      EPIChanged = true;
+      EPI.ParamAnnots = ParamListAnnots.data();
+    }
+  }
+
+  // Restore the transformed parameter information.
+  TransformedPositionalParameters.assign(ExistingInfo.begin(),
+                                         ExistingInfo.end());
+
+  return false;
+}
+
+template<typename Derived>
 QualType
 TreeTransform<Derived>::TransformFunctionProtoType(TypeLocBuilder &TLB,
                                                    FunctionProtoTypeLoc TL) {
@@ -5723,8 +5988,9 @@ QualType TreeTransform<Derived>::TransformFunctionProtoType(
   // parameters before the return type,  since the return type can then refer
   // to the parameters themselves (via decltype, sizeof, etc.).
   //
-  SmallVector<QualType, 4> ParamTypes;
-  SmallVector<ParmVarDecl*, 4> ParamDecls;
+  SmallVector<QualType, 4> ParamTypes;           // New parameter types.
+  SmallVector<ParmVarDecl*, 4> ParamDecls;       // New parameter declarations.
+  SmallVector<BoundsAnnotations, 4> ParamAnnots; // New parameter annotations.
   Sema::ExtParameterInfoBuilder ExtParamInfos;
   const FunctionProtoType *T = TL.getTypePtr();
 
@@ -5766,24 +6032,11 @@ QualType TreeTransform<Derived>::TransformFunctionProtoType(
   }
 
   FunctionProtoType::ExtProtoInfo EPI = T->getExtProtoInfo();
-
   bool EPIChanged = false;
-  if (TransformExceptionSpec(EPI.ExceptionSpec, EPIChanged))
+  if (getDerived().TransformExtendedParameterInfo(EPI, EPIChanged, ParamTypes, ParamAnnots,
+                                                  ExtParamInfos, TL,
+                                                  TransformExceptionSpec))
     return QualType();
-
-  // Handle extended parameter information.
-  if (auto NewExtParamInfos =
-        ExtParamInfos.getPointerOrNull(ParamTypes.size())) {
-    if (!EPI.ExtParameterInfos ||
-        llvm::makeArrayRef(EPI.ExtParameterInfos, TL.getNumParams())
-          != llvm::makeArrayRef(NewExtParamInfos, ParamTypes.size())) {
-      EPIChanged = true;
-    }
-    EPI.ExtParameterInfos = NewExtParamInfos;
-  } else if (EPI.ExtParameterInfos) {
-    EPIChanged = true;
-    EPI.ExtParameterInfos = nullptr;
-  }
 
   QualType Result = TL.getType();
   if (getDerived().AlwaysRebuild() || ResultType != T->getReturnType() ||
@@ -6000,6 +6253,34 @@ QualType TreeTransform<Derived>::TransformTypeOfExprType(TypeLocBuilder &TLB,
   NewTL.setLParenLoc(TL.getLParenLoc());
   NewTL.setRParenLoc(TL.getRParenLoc());
 
+  return Result;
+}
+
+template<typename Derived>
+QualType TreeTransform<Derived>::TransformTypeVariableType(TypeLocBuilder &TLB,
+                                                           TypeVariableTypeLoc TL) {
+  TypeVariableTypeLoc NewT = TLB.push<TypeVariableTypeLoc>(TL.getType());
+  NewT.setNameLoc(TL.getNameLoc());
+  return TL.getType();
+}
+
+template<typename Derived>
+QualType TreeTransform<Derived>::TransformExistentialType(TypeLocBuilder &TLB,
+                                                          ExistentialTypeLoc TL) {
+  // TODO: be smarter about rebuilding these.
+  // TODO: the proper way to do the rebuilding is to have a RebuildExistentialType method. Add one?
+  auto *ExistType = TL.getTypePtr();
+  auto Quals = TL.getType().getQualifiers().getAsOpaqueValue();
+  auto TypeVar = QualType(ExistType->typeVar(), 0 /* Quals */);
+  QualType NewTypeVar = getDerived().TransformType(TypeVar);
+  if (NewTypeVar.isNull()) return QualType();
+  QualType NewInnerType = getDerived().TransformType(ExistType->innerType());
+  if (NewInnerType.isNull()) return QualType();
+  auto RawRes = SemaRef.ActOnExistentialType(SemaRef.Context, NewTypeVar.getTypePtr(), NewInnerType);
+  if (!RawRes) return QualType();
+  auto Result = QualType(RawRes, Quals);
+  ExistentialTypeLoc NewT = TLB.push<ExistentialTypeLoc>(Result);
+  NewT.setNameLoc(TL.getNameLoc());
   return Result;
 }
 
@@ -7075,7 +7356,7 @@ template<typename Derived>
 StmtResult
 TreeTransform<Derived>::TransformCompoundStmt(CompoundStmt *S,
                                               bool IsStmtExpr) {
-  Sema::CompoundScopeRAII CompoundScope(getSema());
+  Sema::CompoundScopeRAII CompoundScope(getSema(), S->getCheckedSpecifier());
 
   const Stmt *ExprResult = S->getStmtExprResult();
   bool SubStmtInvalid = false;
@@ -7110,7 +7391,10 @@ TreeTransform<Derived>::TransformCompoundStmt(CompoundStmt *S,
   return getDerived().RebuildCompoundStmt(S->getLBracLoc(),
                                           Statements,
                                           S->getRBracLoc(),
-                                          IsStmtExpr);
+                                          IsStmtExpr,
+                                          S->getWrittenCheckedSpecifier(),
+                                          S->getCheckedSpecifierLoc(),
+                                          S->getCheckedSpecifierLoc());
 }
 
 template<typename Derived>
@@ -9959,8 +10243,8 @@ TreeTransform<Derived>::TransformDeclRefExpr(DeclRefExpr *E) {
       !E->hasExplicitTemplateArgs()) {
 
     // Mark it referenced in the new context regardless.
-    // FIXME: this is a bit instantiation-specific.
-    SemaRef.MarkDeclRefReferenced(E);
+    if (getDerived().IsInstantiation())
+      SemaRef.MarkDeclRefReferenced(E);
 
     return E;
   }
@@ -10090,6 +10374,7 @@ template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformUnaryOperator(UnaryOperator *E) {
   ExprResult SubExpr;
+
   if (E->getOpcode() == UO_AddrOf)
     SubExpr = TransformAddressOfOperand(E->getSubExpr());
   else
@@ -12235,7 +12520,8 @@ TreeTransform<Derived>::TransformCXXConstructExpr(CXXConstructExpr *E) {
       !ArgumentChanged) {
     // Mark the constructor as referenced.
     // FIXME: Instantiation-specific
-    SemaRef.MarkFunctionReferenced(E->getBeginLoc(), Constructor);
+    if (getDerived().IsInstantiation())
+      SemaRef.MarkFunctionReferenced(E->getBeginLoc(), Constructor);
     return E;
   }
 
@@ -12263,7 +12549,8 @@ ExprResult TreeTransform<Derived>::TransformCXXInheritedCtorInitExpr(
       Constructor == E->getConstructor()) {
     // Mark the constructor as referenced.
     // FIXME: Instantiation-specific
-    SemaRef.MarkFunctionReferenced(E->getBeginLoc(), Constructor);
+    if (getDerived().IsInstantiation())
+      SemaRef.MarkFunctionReferenced(E->getBeginLoc(), Constructor);
     return E;
   }
 
@@ -12280,6 +12567,26 @@ template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCXXBindTemporaryExpr(CXXBindTemporaryExpr *E) {
   return getDerived().TransformExpr(E->getSubExpr());
+}
+
+/// \brief Transform a Checked C temporary-binding expression.
+///
+/// We transform the subexpression and re-use the temporary name.
+template<typename Derived>
+ExprResult TreeTransform<Derived>::
+TransformCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+  ExprResult SE = getDerived().TransformExpr(E->getSubExpr());
+  if (SE.isInvalid())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() &&
+      SE.get() == E->getSubExpr())
+    return E;
+
+  ExprResult R = getDerived().RebuildCHKCBindTemporaryExpr(SE.get());
+  if (!R.isInvalid())
+    transformedLocalTemporary(E, cast<CHKCBindTemporaryExpr>(R.get()));
+  return R;
 }
 
 /// Transform a C++ expression that contains cleanups that should
@@ -12324,7 +12631,8 @@ TreeTransform<Derived>::TransformCXXTemporaryObjectExpr(
       Constructor == E->getConstructor() &&
       !ArgumentChanged) {
     // FIXME: Instantiation-specific
-    SemaRef.MarkFunctionReferenced(E->getBeginLoc(), Constructor);
+    if (getDerived().IsInstantiation())
+      SemaRef.MarkFunctionReferenced(E->getBeginLoc(), Constructor);
     return SemaRef.MaybeBindToTemporary(E);
   }
 
@@ -13746,7 +14054,8 @@ TreeTransform<Derived>::TransformBlockExpr(BlockExpr *E) {
       VarDecl *newCapture =
         cast<VarDecl>(getDerived().TransformDecl(E->getCaretLocation(),
                                                  oldCapture));
-      assert(blockScope->CaptureMap.count(newCapture));
+      assert(blockScope->CaptureMap.count(newCapture) ==
+             blockScope->CaptureMap.count(oldCapture));
     }
     assert(oldBlock->capturesCXXThis() == blockScope->isCXXThisCaptured());
   }
@@ -13780,14 +14089,144 @@ TreeTransform<Derived>::TransformAtomicExpr(AtomicExpr *E) {
                                         E->getOp(), E->getRParenLoc());
 }
 
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformCountBoundsExpr(CountBoundsExpr *E) {
+  ExprResult CountExpr = getDerived().TransformExpr(E->getCountExpr());
+  if (CountExpr.isInvalid())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() &&
+      CountExpr.get() == E->getCountExpr())
+    return E;
+
+  return getDerived().RebuildCountBoundsExpr(E->getBeginLoc(),
+                                             E->getKind(),
+                                             CountExpr.get(),
+                                             E->getRParenLoc());
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformNullaryBoundsExpr(NullaryBoundsExpr *E) {
+   return E;
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
+  RelativeBoundsClause *Relative;
+  ExprResult LowerExpr = getDerived().TransformExpr(E->getLowerExpr());
+  if (LowerExpr.isInvalid())
+    return ExprError();
+
+  ExprResult UpperExpr = getDerived().TransformExpr(E->getUpperExpr());
+  if (UpperExpr.isInvalid())
+    return ExprError();
+  bool HasRelative = E->hasRelativeBoundsClause();
+  if (HasRelative) 
+    Relative = E->getRelativeBoundsClause();
+  else
+    Relative = nullptr;
+
+  if (!getDerived().AlwaysRebuild() &&
+      LowerExpr.get() == E->getLowerExpr() && 
+      UpperExpr.get() == E->getUpperExpr())
+    return E;
+
+  return getDerived().RebuildRangeBoundsExpr(E->getBeginLoc(),
+                                             LowerExpr.get(),
+                                             UpperExpr.get(),
+                                             Relative,
+                                             E->getRParenLoc());
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformPackExpr(PackExpr *E) {
+   return E;
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformInteropTypeExpr(InteropTypeExpr *E) {
+  TypeSourceInfo *TInfo =
+    getDerived().TransformType(E->getTypeInfoAsWritten());
+  return getDerived().
+    RebuildInteropTypeExpr(E->getBeginLoc(), TInfo,
+                                       E->getRParenLoc());
+}
+
+template <typename Derived>
+ExprResult TreeTransform<Derived>::TransformBoundsCastExpr(BoundsCastExpr *E) {
+  TypeSourceInfo *Type = getDerived().TransformType(E->getTypeInfoAsWritten());
+  if (!Type)
+    return ExprError();
+
+  ExprResult SubExpr = getDerived().TransformExpr(E->getSubExprAsWritten());
+  if (SubExpr.isInvalid())
+    return ExprError();
+
+  ExprResult BoundsExprResult = getDerived().TransformExpr(E->getBoundsExpr());
+  if (BoundsExprResult.isInvalid())
+    return ExprError();
+  BoundsExpr *Bounds = dyn_cast<BoundsExpr>(BoundsExprResult.get());
+  if (!Bounds) {
+    llvm_unreachable("unexpected dyn_cast failure");
+    return ExprError();
+  }
+
+  if (!getDerived().AlwaysRebuild() && Type == E->getTypeInfoAsWritten() &&
+      SubExpr.get() == E->getSubExpr() && Bounds == E->getBoundsExpr())
+    return E;
+
+  return getDerived().RebuildBoundsCastExpr(
+      E->getOperatorLoc(), (E->getCastKind() == CK_DynamicPtrBounds)
+                               ? tok::TokenKind::kw__Dynamic_bounds_cast
+                               : tok::TokenKind::kw__Assume_bounds_cast,
+      Type, E->getAngleBrackets(), E->getRParenLoc(), SubExpr.get(), Bounds);
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformPositionalParameterExpr(
+  PositionalParameterExpr *E) {
+  unsigned Index = E->getIndex();
+  assert(Index < TransformedPositionalParameters.size());
+  QualType QT = TransformedPositionalParameters[Index];
+
+  if (!getDerived().AlwaysRebuild() && QT == E->getType())
+    return E;
+
+  return getDerived().
+    RebuildPositionalParameterExpr(Index, QT);
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformBoundsValueExpr(
+  BoundsValueExpr *E) {
+  QualType QT = getDerived().TransformType(E->getType());
+  CHKCBindTemporaryExpr *Tmp = TransformTemporary(E->getEndLoc(),
+                                                  E->getTemporaryBinding());
+
+  if (!getDerived().AlwaysRebuild() && QT == E->getType() &&
+       Tmp == E->getTemporaryBinding())
+    return E;
+
+  return getDerived().
+    RebuildBoundsValueExpr(E->getLocation(), QT, E->getKind(), Tmp);
+}
+
 //===----------------------------------------------------------------------===//
 // Type reconstruction
 //===----------------------------------------------------------------------===//
 
 template<typename Derived>
 QualType TreeTransform<Derived>::RebuildPointerType(QualType PointeeType,
+                                                    CheckedPointerKind Kind,
                                                     SourceLocation Star) {
-  return SemaRef.BuildPointerType(PointeeType, Star,
+  return SemaRef.BuildPointerType(PointeeType, Kind, Star,
                                   getDerived().getBaseEntity());
 }
 
@@ -13861,10 +14300,12 @@ TreeTransform<Derived>::RebuildArrayType(QualType ElementType,
                                          const llvm::APInt *Size,
                                          Expr *SizeExpr,
                                          unsigned IndexTypeQuals,
+                                         CheckedArrayKind Kind,
                                          SourceRange BracketsRange) {
   if (SizeExpr || !Size)
     return SemaRef.BuildArrayType(ElementType, SizeMod, SizeExpr,
-                                  IndexTypeQuals, BracketsRange,
+                                  IndexTypeQuals, Kind,
+                                  BracketsRange,
                                   getDerived().getBaseEntity());
 
   QualType Types[] = {
@@ -13886,8 +14327,8 @@ TreeTransform<Derived>::RebuildArrayType(QualType ElementType,
       = IntegerLiteral::Create(SemaRef.Context, *Size, SizeType,
                                /*FIXME*/BracketsRange.getBegin());
   return SemaRef.BuildArrayType(ElementType, SizeMod, ArraySize,
-                                IndexTypeQuals, BracketsRange,
-                                getDerived().getBaseEntity());
+                                IndexTypeQuals, Kind,
+                                BracketsRange,getDerived().getBaseEntity());
 }
 
 template<typename Derived>
@@ -13897,9 +14338,10 @@ TreeTransform<Derived>::RebuildConstantArrayType(QualType ElementType,
                                                  const llvm::APInt &Size,
                                                  Expr *SizeExpr,
                                                  unsigned IndexTypeQuals,
+                                                 CheckedArrayKind Kind,
                                                  SourceRange BracketsRange) {
   return getDerived().RebuildArrayType(ElementType, SizeMod, &Size, SizeExpr,
-                                        IndexTypeQuals, BracketsRange);
+                                        IndexTypeQuals, Kind, BracketsRange);
 }
 
 template<typename Derived>
@@ -13907,9 +14349,11 @@ QualType
 TreeTransform<Derived>::RebuildIncompleteArrayType(QualType ElementType,
                                           ArrayType::ArraySizeModifier SizeMod,
                                                  unsigned IndexTypeQuals,
+                                                   CheckedArrayKind Kind,
                                                    SourceRange BracketsRange) {
   return getDerived().RebuildArrayType(ElementType, SizeMod, nullptr, nullptr,
-                                       IndexTypeQuals, BracketsRange);
+                                       IndexTypeQuals, Kind,
+                                       BracketsRange);
 }
 
 template<typename Derived>
@@ -13921,7 +14365,9 @@ TreeTransform<Derived>::RebuildVariableArrayType(QualType ElementType,
                                                  SourceRange BracketsRange) {
   return getDerived().RebuildArrayType(ElementType, SizeMod, nullptr,
                                        SizeExpr,
-                                       IndexTypeQuals, BracketsRange);
+                                       IndexTypeQuals,
+                                       CheckedArrayKind::Unchecked,
+                                       BracketsRange);
 }
 
 template<typename Derived>
@@ -13933,7 +14379,9 @@ TreeTransform<Derived>::RebuildDependentSizedArrayType(QualType ElementType,
                                                    SourceRange BracketsRange) {
   return getDerived().RebuildArrayType(ElementType, SizeMod, nullptr,
                                        SizeExpr,
-                                       IndexTypeQuals, BracketsRange);
+                                       IndexTypeQuals,
+                                       CheckedArrayKind::Unchecked,
+                                       BracketsRange);
 }
 
 template <typename Derived>

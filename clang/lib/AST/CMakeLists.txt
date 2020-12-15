@@ -25,6 +25,8 @@ add_clang_library(clangAST
   ASTStructuralEquivalence.cpp
   ASTTypeTraits.cpp
   AttrImpl.cpp
+  CanonBounds.cpp
+  CXXInheritance.cpp
   Comment.cpp
   CommentBriefParser.cpp
   CommentCommandTraits.cpp
@@ -89,6 +91,7 @@ add_clang_library(clangAST
   OpenMPClause.cpp
   OSLog.cpp
   ParentMap.cpp
+  PreorderAST.cpp
   PrintfFormatString.cpp
   QualTypeNames.cpp
   RawCommentList.cpp

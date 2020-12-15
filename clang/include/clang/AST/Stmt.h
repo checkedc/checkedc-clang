@@ -20,6 +20,7 @@
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/Specifiers.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/ADT/PointerIntPair.h"
@@ -126,7 +127,6 @@ protected:
     friend class CompoundStmt;
 
     unsigned : NumStmtBits;
-
     unsigned NumStmts : 32 - NumStmtBits;
 
     /// The location of the opening "{".
@@ -420,6 +420,8 @@ protected:
     unsigned Kind : 3;
   };
 
+  enum { NumBoundsCheckKindBits = 2 };
+
   class UnaryOperatorBitfields {
     friend class UnaryOperator;
 
@@ -432,6 +434,8 @@ protected:
     /// types when additional values need to be in trailing storage.
     /// It is 0 otherwise.
     unsigned HasFPFeatures : 1;
+
+    unsigned BoundsCheckKind : NumBoundsCheckKindBits;
 
     SourceLocation Loc;
   };
@@ -451,6 +455,7 @@ protected:
 
     unsigned : NumExprBits;
 
+    unsigned BoundsCheckKind : NumBoundsCheckKindBits;
     SourceLocation RBracketLoc;
   };
 
@@ -516,7 +521,9 @@ protected:
     unsigned : NumExprBits;
 
     unsigned Kind : 6;
+
     unsigned PartOfExplicitCast : 1; // Only set for ImplicitCastExpr.
+    unsigned BoundsSafeInterface : 1;
 
     /// The number of CXXBaseSpecifiers in the cast. 14 bits would be enough
     /// here. ([implimits] Direct and indirect base classes [16384]).
@@ -992,6 +999,27 @@ protected:
     SourceLocation Loc;
   };
 
+  enum { NumBoundsExprKindBits = 3 };
+
+  class BoundsExprBitfields {
+    friend class BoundsExpr;
+
+    unsigned : NumExprBits;
+    unsigned Kind : NumBoundsExprKindBits;
+    unsigned IsCompilerGenerated : 1;
+  };
+
+
+  enum { NumInteropTypeExprKindBits = 1 };
+
+  class InteropTypeExprBitfields {
+    friend class InteropTypeExpr;
+
+    unsigned : NumExprBits;
+    unsigned IsCompilerGenerated : 1;
+  };
+
+
   union {
     // Same order as in StmtNodes.td.
     // Statements
@@ -1063,6 +1091,9 @@ protected:
 
     // C++ Coroutines TS expressions
     CoawaitExprBitfields CoawaitBits;
+
+    BoundsExprBitfields BoundsExprBits;
+    InteropTypeExprBitfields InteropTypeExprBits;
 
     // Obj-C Expressions
     ObjCIndirectCopyRestoreExprBitfields ObjCIndirectCopyRestoreExprBits;
@@ -1360,6 +1391,19 @@ public:
   }
 };
 
+  // The kind of Checked C checking to do in a scope.
+  enum class CheckedScopeKind {
+    // No checking.
+    Unchecked = 0x1,
+
+    /// Check properties for bounds safety.
+    Bounds = 0x2,
+
+    /// Check properties for bounds safety and preventing type confusion.
+    BoundsAndTypes = 0x4
+  };
+
+
 /// CompoundStmt - This represents a group of statements like { stmt stmt }.
 class CompoundStmt final : public Stmt,
                            private llvm::TrailingObjects<CompoundStmt, Stmt *> {
@@ -1369,18 +1413,40 @@ class CompoundStmt final : public Stmt,
   /// The location of the closing "}". LBraceLoc is stored in CompoundStmtBits.
   SourceLocation RBraceLoc;
 
-  CompoundStmt(ArrayRef<Stmt *> Stmts, SourceLocation LB, SourceLocation RB);
-  explicit CompoundStmt(EmptyShell Empty) : Stmt(CompoundStmtClass, Empty) {}
+    // Written checked scope specifier.
+  unsigned WrittenCSS : 2;
+  // Inferred checked scope specifier, using information from parent
+  // scope also.
+  unsigned CSS : 2;
+  // Checked scope keyword (_Checked / _Unchecked) location.
+  SourceLocation CSSLoc;
+
+  // Checked scope modifier (_Bounds_only) location.
+  SourceLocation CSMLoc;
+
+  CompoundStmt(ArrayRef<Stmt *> Stmts, SourceLocation LB, SourceLocation RB,
+               CheckedScopeSpecifier WrittenCSS = CSS_None,
+               CheckedScopeSpecifier CSS = CSS_Unchecked,
+               SourceLocation CSSLoc = SourceLocation(),
+               SourceLocation CSMLoc = SourceLocation());
+
+  explicit CompoundStmt(EmptyShell Empty) : Stmt(CompoundStmtClass, Empty),
+        WrittenCSS(CSS_None), CSS(CSS_Unchecked), CSSLoc(), CSMLoc() {}
 
   void setStmts(ArrayRef<Stmt *> Stmts);
 
 public:
-  static CompoundStmt *Create(const ASTContext &C, ArrayRef<Stmt *> Stmts,
-                              SourceLocation LB, SourceLocation RB);
+  static CompoundStmt *Create(const ASTContext &C, ArrayRef<Stmt*> Stmts,
+               SourceLocation LB, SourceLocation RB,
+               CheckedScopeSpecifier WrittenCSS = CSS_None,
+               CheckedScopeSpecifier CSS = CSS_Unchecked,
+               SourceLocation CSSLoc = SourceLocation(),
+               SourceLocation CSMLoc = SourceLocation());
 
   // Build an empty compound statement with a location.
   explicit CompoundStmt(SourceLocation Loc)
-      : Stmt(CompoundStmtClass), RBraceLoc(Loc) {
+      : Stmt(CompoundStmtClass), RBraceLoc(Loc),
+        WrittenCSS(CSS_None), CSS(CSS_Unchecked), CSSLoc(Loc), CSMLoc(Loc) {
     CompoundStmtBits.NumStmts = 0;
     CompoundStmtBits.LBraceLoc = Loc;
   }
@@ -1390,6 +1456,18 @@ public:
 
   bool body_empty() const { return CompoundStmtBits.NumStmts == 0; }
   unsigned size() const { return CompoundStmtBits.NumStmts; }
+
+  CheckedScopeSpecifier getWrittenCheckedSpecifier() const {
+    return (CheckedScopeSpecifier) WrittenCSS;
+  }
+
+  CheckedScopeSpecifier getCheckedSpecifier() const {
+    return (CheckedScopeSpecifier) CSS;
+  }
+
+  void setWrittenCheckedSpecifiers(CheckedScopeSpecifier NS) { WrittenCSS = NS; }
+  void setCheckedSpecifiers(CheckedScopeSpecifier NS) { CSS = NS; }
+  bool isCheckedScope() const { return CSS != CSS_Unchecked; }
 
   using body_iterator = Stmt **;
   using body_range = llvm::iterator_range<body_iterator>;
@@ -1470,6 +1548,8 @@ public:
 
   SourceLocation getLBracLoc() const { return CompoundStmtBits.LBraceLoc; }
   SourceLocation getRBracLoc() const { return RBraceLoc; }
+  SourceLocation getCheckedSpecifierLoc() const { return CSSLoc; }
+  SourceLocation getSpecifierModifierLoc() const { return CSMLoc; }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CompoundStmtClass;

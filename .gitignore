@@ -23,6 +23,8 @@
 
 # Nested build directory
 /build*
+# Visual Studio nested build directory
+/llvm/out
 
 #==============================================================================#
 # Explicit files to ignore (only matches one).

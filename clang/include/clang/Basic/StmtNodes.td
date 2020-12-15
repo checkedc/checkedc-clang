@@ -190,6 +190,20 @@ def ObjCAvailabilityCheckExpr : StmtNode<Expr>;
 // Obj-C ARC Expressions.
 def ObjCBridgedCastExpr : StmtNode<ExplicitCastExpr>;
 
+// Checked C Bounds Expressions.
+def BoundsExpr : DStmt<Expr, 1>;
+def NullaryBoundsExpr : DStmt<BoundsExpr>;
+def CountBoundsExpr : DStmt<BoundsExpr>;
+def RangeBoundsExpr : DStmt<BoundsExpr>;
+
+// Other Checked C Expressions.
+def InteropTypeExpr : DStmt<Expr>;
+def PositionalParameterExpr : DStmt<Expr>;
+def BoundsCastExpr : DStmt<ExplicitCastExpr>;
+def CHKCBindTemporaryExpr : DStmt<Expr>;
+def BoundsValueExpr : DStmt<Expr>;
+def PackExpr : DStmt<Expr>;
+
 // CUDA Expressions.
 def CUDAKernelCallExpr : StmtNode<CallExpr>;
 

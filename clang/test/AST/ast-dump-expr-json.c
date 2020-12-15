@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple x86_64-unknown-unknown -Wno-unused-value -std=gnu11 -ast-dump=json %s | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-unknown-unknown -Wno-unused-value -std=gnu11 -ast-dump=json -fno-checkedc-extension %s | FileCheck %s
 
 void Comma(void) {
   1, 2, 3;
