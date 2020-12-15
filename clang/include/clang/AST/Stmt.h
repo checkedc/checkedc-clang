@@ -459,6 +459,15 @@ protected:
     SourceLocation RBracketLoc;
   };
 
+  class ArraySubscriptExprBitfields {
+    friend class ArraySubscriptExpr;
+
+    unsigned : NumExprBits;
+
+    unsigned BoundsCheckKind : NumBoundsCheckKindBits;
+    SourceLocation RBracketLoc;
+  };
+
   class CallExprBitfields {
     friend class CallExpr;
 
@@ -1050,6 +1059,7 @@ protected:
     UnaryOperatorBitfields UnaryOperatorBits;
     UnaryExprOrTypeTraitExprBitfields UnaryExprOrTypeTraitExprBits;
     ArrayOrMatrixSubscriptExprBitfields ArrayOrMatrixSubscriptExprBits;
+    ArraySubscriptExprBitfields ArraySubscriptExprBits;
     CallExprBitfields CallExprBits;
     MemberExprBitfields MemberExprBits;
     CastExprBitfields CastExprBits;
