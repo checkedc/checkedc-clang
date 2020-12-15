@@ -479,7 +479,7 @@ void PreorderAST::PrettyPrint(Node *N) {
       PrettyPrint(Child);
   }
   else if (const auto *L = dyn_cast_or_null<LeafExprNode>(N))
-    L->E->dump(OS);
+    L->E->dump(OS, Ctx);
 }
 
 void PreorderAST::Cleanup(Node *N) {

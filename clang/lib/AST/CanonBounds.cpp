@@ -279,9 +279,9 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      raw_ostream &OS = llvm::outs();
      OS << "Lexicographic comparing expressions\n";
      OS << "E1:\n";
-     Arg1->dump(OS);
+     Arg1->dump(OS, Context);
      OS << "E2:\n";
-     Arg2->dump(OS);
+     Arg2->dump(OS, Context);
    }
 
    Expr *E1 = const_cast<Expr *>(Arg1);
