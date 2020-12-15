@@ -3717,7 +3717,7 @@ class CastExpr : public Expr {
 protected:
   CastExpr(StmtClass SC, QualType ty, ExprValueKind VK, const CastKind kind,
            Expr *op, unsigned BasePathSize)
-      : Expr(SC, ty, VK, OK_Ordinary), Op(op) {
+      : Expr(SC, ty, VK, OK_Ordinary) {
     SubExprs[OP] = op;
     SubExprs[BOUNDS] = nullptr;
     SubExprs[NORMALIZED_BOUNDS] = nullptr;
