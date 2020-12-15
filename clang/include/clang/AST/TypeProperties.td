@@ -893,3 +893,27 @@ let Class = DependentExtIntType in {
     return ctx.getDependentExtIntType(isUnsigned, numBitsExpr);
   }]>;
 }
+
+let Class = ExistentialType in {
+  // TODO: ASTContext does not have a getExistentialType method.
+  // ExistentialType does not have a Profile method - see checkedc-clang/#661.
+  def : Creator<[{
+    assert(false && "not implemented");
+    return QualType();
+  }]>;
+}
+
+let Class = TypeVariableType in {
+  def : Property<"depth", UInt32> {
+    let Read = [{ node->GetDepth() }];
+  }
+  def : Property <"index", UInt32> {
+    let Read = [{ node->GetIndex() }];
+  }
+  def : Property<"isBoundsInterfaceType", Bool> {
+    let Read = [{ node->IsBoundsInterfaceType() }];
+  }
+  def : Creator<[{
+    return ctx.getTypeVariableType(depth, index, isBoundsInterfaceType);
+  }]>;
+}
