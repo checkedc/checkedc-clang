@@ -1253,6 +1253,62 @@ void ASTStmtWriter::VisitAtomicExpr(AtomicExpr *E) {
 }
 
 //===----------------------------------------------------------------------===//
+// Checked C Expressions and Statements.
+//===----------------------------------------------------------------------===//
+
+void ASTStmtWriter::VisitCountBoundsExpr(CountBoundsExpr *E) {
+  VisitExpr(E);
+  Record.push_back(E->getKind());
+  Record.AddStmt(E->getCountExpr());
+  Record.AddSourceLocation(E->getBeginLoc());
+  Record.AddSourceLocation(E->getRParenLoc());
+  Code = serialization::EXPR_COUNT_BOUNDS_EXPR;
+}
+
+void ASTStmtWriter::VisitNullaryBoundsExpr(NullaryBoundsExpr *E) {
+  VisitExpr(E);
+  Record.push_back(E->getKind());
+  Record.AddSourceLocation(E->getBeginLoc());
+  Record.AddSourceLocation(E->getRParenLoc());
+  Code = serialization::EXPR_NULLARY_BOUNDS_EXPR;
+}
+
+void ASTStmtWriter::VisitRangeBoundsExpr(RangeBoundsExpr *E) {
+  VisitExpr(E);
+  Record.push_back(E->getKind());
+  Record.AddStmt(E->getLowerExpr());
+  Record.AddStmt(E->getUpperExpr());
+  Record.AddSourceLocation(E->getBeginLoc());
+  Record.AddSourceLocation(E->getRParenLoc());
+  Code = serialization::EXPR_RANGE_BOUNDS_EXPR;
+}
+
+void ASTStmtWriter::VisitInteropTypeExpr(
+  InteropTypeExpr *E) {
+  VisitExpr(E);
+  Record.AddTypeSourceInfo(E->getTypeInfoAsWritten());
+  Record.AddSourceLocation(E->getBeginLoc());
+  Record.AddSourceLocation(E->getEndLoc());
+  Code = serialization::EXPR_INTEROPTYPE_BOUNDS_ANNOTATION;
+}
+
+void ASTStmtWriter::VisitPositionalParameterExpr(
+  PositionalParameterExpr *E) {
+  VisitExpr(E);
+  Record.push_back(E->getIndex());
+  Code = serialization::EXPR_POSITIONAL_PARAMETER_EXPR;
+}
+
+void ASTStmtWriter::VisitBoundsValueExpr(
+  BoundsValueExpr *E) {
+  VisitExpr(E);
+  if (E ->getKind() == BoundsValueExpr::Kind::Temporary)
+    llvm_unreachable("should not write use of bounds temporary");
+  Record.push_back(E->getKind());
+  Code = serialization::EXPR_BOUNDS_VALUE_EXPR;
+}
+
+//===----------------------------------------------------------------------===//
 // Objective-C Expressions and Statements.
 //===----------------------------------------------------------------------===//
 

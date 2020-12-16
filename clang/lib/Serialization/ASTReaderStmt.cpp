@@ -1381,6 +1381,57 @@ void ASTStmtReader::VisitAtomicExpr(AtomicExpr *E) {
 }
 
 //===----------------------------------------------------------------------===//
+// Checked C Expressions and Statements
+
+void ASTStmtReader::VisitCountBoundsExpr(CountBoundsExpr *E) {
+  VisitExpr(E);
+  E->setKind((BoundsExpr::Kind)Record.readInt());
+  E->setCountExpr(Record.readSubExpr());
+  E->StartLoc = readSourceLocation();
+  E->EndLoc = readSourceLocation();
+}
+
+void ASTStmtReader::VisitNullaryBoundsExpr(NullaryBoundsExpr *E) {
+  VisitExpr(E);
+  E->setKind((BoundsExpr::Kind)Record.readInt());
+  E->StartLoc = readSourceLocation();
+  E->EndLoc = readSourceLocation();
+}
+
+void ASTStmtReader::VisitRangeBoundsExpr(RangeBoundsExpr *E) {
+  VisitExpr(E);
+  E->setKind((BoundsExpr::Kind)Record.readInt());
+  E->setLowerExpr(Record.readSubExpr());
+  E->setUpperExpr(Record.readSubExpr());
+  E->StartLoc = readSourceLocation();
+  E->EndLoc = readSourceLocation();
+  // TODO: Github issue #332.  RelativeBoundsClause expressions are
+  // not being serialized.
+  E->setRelativeBoundsClause(nullptr);
+}
+
+void ASTStmtReader::VisitInteropTypeExpr(InteropTypeExpr *E) {
+  VisitExpr(E);
+  E->setTypeInfoAsWritten(readTypeSourceInfo());
+  E->StartLoc = readSourceLocation();
+  E->EndLoc = readSourceLocation();
+}
+
+void ASTStmtReader::VisitPositionalParameterExpr(
+  PositionalParameterExpr *E) {
+  VisitExpr(E);
+  E->Index = Record.readInt();
+}
+
+void ASTStmtReader::VisitBoundsValueExpr(
+  BoundsValueExpr *E) {
+  VisitExpr(E);
+  E->setKind((BoundsValueExpr::Kind) Record.readInt());
+  if (E->getKind() == BoundsValueExpr::Kind::Temporary)
+    llvm_unreachable("should not read use of bounds temporary");
+}
+
+//===----------------------------------------------------------------------===//
 // Objective-C Expressions and Statements
 
 void ASTStmtReader::VisitObjCStringLiteral(ObjCStringLiteral *E) {
