@@ -130,6 +130,12 @@ public:
   /// Reads an expression.
   Expr *readExpr() { return Reader->ReadExpr(*F); }
 
+  /// Read a bounds expression.
+  BoundsExpr *readBoundsExpr() { return Reader->ReadBoundsExpr(*F); }
+
+  /// Read bounds annotations.
+  BoundsAnnotations readBoundsAnnotations() { return Reader->ReadBoundsAnnotations(*F); }
+
   /// Reads a sub-statement operand during statement reading.
   Stmt *readSubStmt() { return Reader->ReadSubStmt(); }
 
