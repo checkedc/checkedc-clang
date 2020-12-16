@@ -4427,6 +4427,10 @@ public:
             : State.get<LifetimeExtendedTemporaryDecl *>()->getTemporaryExpr());
   }
 
+  /// Retrieve the temporary-generating subexpression whose value will
+  /// be materialized into a glvalue.
+  Expr *GetTemporaryExpr() const { return static_cast<Expr *>(getSubExpr()); }
+
   /// Retrieve the storage duration for the materialized temporary.
   StorageDuration getStorageDuration() const {
     return State.is<Stmt *>() ? SD_FullExpression
