@@ -2401,7 +2401,7 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
   // Enable [[]] attributes in C++11 and C2x by default.
   Opts.DoubleSquareBracketAttributes = Opts.CPlusPlus11 || Opts.C2x;
 
-  Opts.CheckedC = (IK.getLanguage() == InputKind::C);
+  Opts.CheckedC = (IK.getLanguage() == Language::C);
 }
 
 /// Attempt to parse a visibility value out of the given argument.
