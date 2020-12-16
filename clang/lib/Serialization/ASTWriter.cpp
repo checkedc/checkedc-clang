@@ -334,6 +334,15 @@ void TypeLocWriter::VisitTypedefTypeLoc(TypedefTypeLoc TL) {
   Record.AddSourceLocation(TL.getNameLoc());
 }
 
+void TypeLocWriter::VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
+  Record.AddSourceLocation(TL.getNameLoc());
+}
+
+void TypeLocWriter::VisitExistentialTypeLoc(ExistentialTypeLoc TL) {
+  // TODO: implement
+  assert(false && "currently unimplemented");
+}
+
 void TypeLocWriter::VisitObjCTypeParamTypeLoc(ObjCTypeParamTypeLoc TL) {
   if (TL.getNumProtocols()) {
     Record.AddSourceLocation(TL.getProtocolLAngleLoc());

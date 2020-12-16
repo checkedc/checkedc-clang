@@ -6613,6 +6613,15 @@ void TypeLocReader::VisitTypedefTypeLoc(TypedefTypeLoc TL) {
   TL.setNameLoc(readSourceLocation());
 }
 
+void TypeLocReader::VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
+  TL.setNameLoc(readSourceLocation());
+}
+
+void TypeLocReader::VisitExistentialTypeLoc(ExistentialTypeLoc TL) {
+  // TODO: implement (checkedc issue #661)
+  assert(false && "currently unimplemented");
+}
+
 void TypeLocReader::VisitTypeOfExprTypeLoc(TypeOfExprTypeLoc TL) {
   TL.setTypeofLoc(readSourceLocation());
   TL.setLParenLoc(readSourceLocation());
