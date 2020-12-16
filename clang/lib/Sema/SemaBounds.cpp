@@ -895,8 +895,8 @@ namespace {
       DumpExprsSet(OS, State.SameValue);
     }
 
-    void DumpBoundsContext(raw_ostream &OS, BoundsContextTy &Context) {
-      if (Context.empty())
+    void DumpBoundsContext(raw_ostream &OS, BoundsContextTy &BoundsContext) {
+      if (BoundsContext.empty())
         OS << "{ }\n";
       else {
         // The keys in an llvm::DenseMap are unordered.  Create a set of
@@ -904,7 +904,7 @@ namespace {
         // then by location in order to guarantee a deterministic output
         // so that printing the bounds context can be tested.
         std::vector<const VarDecl *> OrderedDecls;
-        for (auto const &Pair : Context)
+        for (auto const &Pair : BoundsContext)
           OrderedDecls.push_back(Pair.first);
         llvm::sort(OrderedDecls.begin(), OrderedDecls.end(),
              [] (const VarDecl *A, const VarDecl *B) {
@@ -917,13 +917,13 @@ namespace {
         OS << "{\n";
         for (auto I = OrderedDecls.begin(); I != OrderedDecls.end(); ++I) {
           const VarDecl *Variable = *I;
-          auto It = Context.find(Variable);
-          if (It == Context.end())
+          auto It = BoundsContext.find(Variable);
+          if (It == BoundsContext.end())
             continue;
           OS << "Variable:\n";
           Variable->dump(OS);
           OS << "Bounds:\n";
-          It->second->dump(OS);
+          It->second->dump(OS, Context);
         }
         OS << "}\n";
       }
@@ -936,7 +936,7 @@ namespace {
         OS << "{\n";
         for (auto I = Exprs.begin(); I != Exprs.end(); ++I) {
           Expr *E = *I;
-          E->dump(OS);
+          E->dump(OS, Context);
         }
         OS << "}\n";
       }
