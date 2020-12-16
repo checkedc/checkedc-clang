@@ -1014,6 +1014,19 @@ void ASTStmtWriter::VisitCStyleCastExpr(CStyleCastExpr *E) {
   Code = serialization::EXPR_CSTYLE_CAST;
 }
 
+void ASTStmtWriter::VisitBoundsCastExpr(BoundsCastExpr *E) {
+  VisitExplicitCastExpr(E);
+  Record.AddSourceRange(SourceRange(E->getOperatorLoc(), E->getRParenLoc()));
+  Record.AddSourceRange(E->getAngleBrackets());  
+  Record.AddStmt(E->getBoundsExpr());
+  Code = serialization::EXPR_BOUNDS_CAST;
+}
+
+void ASTStmtWriter::VisitPackExpr(PackExpr *E) {
+  // TODO: implement
+  llvm_unreachable("unimplemented");
+}
+
 void ASTStmtWriter::VisitCompoundLiteralExpr(CompoundLiteralExpr *E) {
   VisitExpr(E);
   Record.AddSourceLocation(E->getLParenLoc());
@@ -1251,10 +1264,6 @@ void ASTStmtWriter::VisitAtomicExpr(AtomicExpr *E) {
   Record.AddSourceLocation(E->getRParenLoc());
   Code = serialization::EXPR_ATOMIC;
 }
-
-//===----------------------------------------------------------------------===//
-// Checked C Expressions and Statements.
-//===----------------------------------------------------------------------===//
 
 void ASTStmtWriter::VisitCountBoundsExpr(CountBoundsExpr *E) {
   VisitExpr(E);
@@ -1799,6 +1808,12 @@ void ASTStmtWriter::VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *E) {
   Record.AddCXXTemporary(E->getTemporary());
   Record.AddStmt(E->getSubExpr());
   Code = serialization::EXPR_CXX_BIND_TEMPORARY;
+}
+
+void ASTStmtWriter::VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+  VisitExpr(E);
+  Record.AddStmt(E->getSubExpr());
+  Code = serialization::EXPR_CHKC_BIND_TEMPORARY_EXPR;
 }
 
 void ASTStmtWriter::VisitCXXScalarValueInitExpr(CXXScalarValueInitExpr *E) {

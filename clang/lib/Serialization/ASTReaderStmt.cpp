@@ -1139,6 +1139,21 @@ void ASTStmtReader::VisitCStyleCastExpr(CStyleCastExpr *E) {
   E->setRParenLoc(readSourceLocation());
 }
 
+void ASTStmtReader::VisitBoundsCastExpr(BoundsCastExpr *E) {
+  VisitExplicitCastExpr(E);
+  SourceRange R = readSourceRange();
+  E->LPLoc = R.getBegin();
+  E->RParenLoc = R.getEnd();
+  R= readSourceRange();
+  E->AngleBrackets=R;
+  E->setBoundsExpr(dyn_cast<BoundsExpr>(Record.readSubExpr()));
+}
+
+void ASTStmtReader::VisitPackExpr(PackExpr *E) {
+  // TODO: implement
+  llvm_unreachable("unimplemented");
+}
+
 void ASTStmtReader::VisitCompoundLiteralExpr(CompoundLiteralExpr *E) {
   VisitExpr(E);
   E->setLParenLoc(readSourceLocation());
@@ -1379,9 +1394,6 @@ void ASTStmtReader::VisitAtomicExpr(AtomicExpr *E) {
   E->BuiltinLoc = readSourceLocation();
   E->RParenLoc = readSourceLocation();
 }
-
-//===----------------------------------------------------------------------===//
-// Checked C Expressions and Statements
 
 void ASTStmtReader::VisitCountBoundsExpr(CountBoundsExpr *E) {
   VisitExpr(E);
@@ -1880,6 +1892,11 @@ void ASTStmtReader::VisitCXXDefaultInitExpr(CXXDefaultInitExpr *E) {
 void ASTStmtReader::VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *E) {
   VisitExpr(E);
   E->setTemporary(Record.readCXXTemporary());
+  E->setSubExpr(Record.readSubExpr());
+}
+
+void ASTStmtReader::VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+  VisitExpr(E);
   E->setSubExpr(Record.readSubExpr());
 }
 
