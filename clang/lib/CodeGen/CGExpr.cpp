@@ -3674,7 +3674,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     LValue LHS = EmitLValue(E->getBase());
     auto *Idx = EmitIdxAfterBase(/*Promote*/false);
     assert(LHS.isSimple() && "Can only subscript lvalue vectors here!");
-    EmitDynamicNonNullCheck(LHS.getAddress(), BaseTy);
+    EmitDynamicNonNullCheck(LHS.getAddress(*this), BaseTy);
 
     LValue LV = LValue::MakeVectorElt(LHS.getAddress(*this), Idx,
       E->getBase()->getType(), LHS.getBaseInfo(), TBAAAccessInfo());
@@ -3781,7 +3781,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
       ArrayLV = EmitLValue(Array);
     auto *Idx = EmitIdxAfterBase(/*Promote*/true);
 
-    EmitDynamicNonNullCheck(ArrayLV.getAddress(), BaseTy);
+    EmitDynamicNonNullCheck(ArrayLV.getAddress(*this), BaseTy);
 
     // Propagate the alignment from the array itself to the result.
     QualType arrayType = Array->getType();

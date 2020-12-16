@@ -4217,7 +4217,7 @@ Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
     if (E->getOpcode() == BO_Assign) {
       BoundsExpr *BoundsCheck = CGF.GetNullTermBoundsCheck(E->getLHS());
       if (BoundsCheck)
-        CGF.EmitDynamicBoundsCheck(LHS.getAddress(), BoundsCheck,
+        CGF.EmitDynamicBoundsCheck(LHS.getAddress(CGF), BoundsCheck,
                                    BoundsCheckKind::BCK_NullTermWriteAssign,
                                    RHS);
     }
