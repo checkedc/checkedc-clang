@@ -4406,6 +4406,7 @@ QualType Sema::MakeCheckedArrayType(QualType T, bool Diagnose,
         const ConstantArrayType *constArrTy = cast<ConstantArrayType>(ty);
         return Context.getConstantArrayType(elemTy,
                                             constArrTy->getSize(),
+                                            constArrTy->getSizeExpr(),
                                             constArrTy->getSizeModifier(),
                                             T.getCVRQualifiers(),
                                             CheckedArrayKind::Checked);
