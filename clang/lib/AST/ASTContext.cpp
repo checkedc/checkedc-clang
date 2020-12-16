@@ -4164,6 +4164,7 @@ QualType ASTContext::getFunctionTypeInternal(
       FunctionType::ExceptionType, Expr *, FunctionDecl *,
       FunctionProtoType::ExtParameterInfo, Qualifiers>(
       NumArgs, EPI.Variadic,
+      EPI.ParamAnnots ? NumArgs : 0,
       FunctionProtoType::hasExtraBitfields(EPI.ExceptionSpec.Type),
       ESH.NumExceptionType, ESH.NumExprPtr, ESH.NumFunctionDeclPtr,
       EPI.ExtParameterInfos ? NumArgs : 0,
