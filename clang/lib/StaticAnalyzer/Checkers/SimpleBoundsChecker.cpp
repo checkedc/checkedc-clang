@@ -265,12 +265,11 @@ void SimpleBoundsChecker::reportOutofBoundsAccess(ProgramStateRef OutBound,
           this, "Out-of-bound array access",
           "Access out-of-bound array element (buffer overflow)"));
 
-  // TODO: checkedc-clang issue #931: uncomment below to generate a BugReport.
   // Generate a report for this bug.
-  // auto Report = std::make_unique<BugReport>(*BT, BT->getDescription(), N);
+  auto Report = std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), N);
 
-  // Report->addRange(LoadS->getSourceRange());
-  // C.emitReport(std::move(Report));
+  Report->addRange(LoadS->getSourceRange());
+  C.emitReport(std::move(Report));
   return;
 }
 
