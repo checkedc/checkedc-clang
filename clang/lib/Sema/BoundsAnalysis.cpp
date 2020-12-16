@@ -389,10 +389,10 @@ void BoundsAnalysis::FillGenSet(Expr *E,
     // getBase() and getIdx() always present the normalized view: A[4].
     // In this case getBase() returns "A" and getIdx() returns "4".
     const auto *DerefExpr =
-      BinaryOperator::Create(AE->getBase(), AE->getIdx(),
+      BinaryOperator::Create(Ctx, AE->getBase(), AE->getIdx(),
                              BinaryOperatorKind::BO_Add, AE->getType(),
                              AE->getValueKind(), AE->getObjectKind(),
-                             AE->getExprLoc(), FPOptions());
+                             AE->getExprLoc(), FPOptionsOverride());
 
     FillGenSetForEdge(DerefExpr, EB, SuccEB);
 

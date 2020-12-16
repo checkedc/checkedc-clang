@@ -128,12 +128,10 @@ namespace {
         RHS = EnsureRValue(SemaRef, RHS);
         if (BinaryOperator::isCompoundAssignmentOp(Op))
           Op = BinaryOperator::getOpForCompoundAssignment(Op);
-        return new (SemaRef.Context) BinaryOperator(LHS, RHS, Op,
-                                                    LHS->getType(),
-                                                    LHS->getValueKind(),
-                                                    LHS->getObjectKind(),
-                                                    SourceLocation(),
-                                                    FPOptions());
+        return BinaryOperator::Create(SemaRef.Context, LHS, RHS, Op,
+                                      LHS->getType(), LHS->getValueKind(),
+                                      LHS->getObjectKind(), SourceLocation(),
+                                      FPOptionsOverride());
       }
 
       // Create an unsigned integer literal.
@@ -4567,12 +4565,13 @@ namespace {
         else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
           Expr *Base = ArraySubExpr->getBase();
           Expr *Index = ArraySubExpr->getIdx();
-          BinaryOperator Sum(Base, Index, BinaryOperatorKind::BO_Add,
+          BinaryOperator Sum(Context, Base, Index,
+                             BinaryOperatorKind::BO_Add,
                              Base->getType(),
                              Base->getValueKind(),
                              Base->getObjectKind(),
                              SourceLocation(),
-                             FPOptions());
+                             FPOptionsOverride());
           return IsInvertible(X, &Sum);
         }
       }
@@ -4728,12 +4727,13 @@ namespace {
         else if (ArraySubscriptExpr *ArraySubExpr = dyn_cast<ArraySubscriptExpr>(SubExpr)) {
           Expr *Base = ArraySubExpr->getBase();
           Expr *Index = ArraySubExpr->getIdx();
-          BinaryOperator Sum(Base, Index, BinaryOperatorKind::BO_Add,
+          BinaryOperator Sum(Context, Base, Index,
+                             BinaryOperatorKind::BO_Add,
                              Base->getType(),
                              Base->getValueKind(),
                              Base->getObjectKind(),
                              SourceLocation(),
-                             FPOptions());
+                             FPOptionsOverride());
           return Inverse(X, F, &Sum);
         }
       }
@@ -4750,11 +4750,13 @@ namespace {
       // Inverse(f, -e1) = Inverse(-f, e1)
       // Inverse(f, +e1) = Inverse(+f, e1)
       Expr *Child = ExprCreatorUtil::EnsureRValue(S, F);
-      Expr *F1 = new (S.Context) UnaryOperator(Child, Op, E->getType(),
-                                               E->getValueKind(),
-                                               E->getObjectKind(),
-                                               SourceLocation(),
-                                               E->canOverflow());
+      Expr *F1 = UnaryOperator::Create(S.Context, Child, Op,
+                                       E->getType(),
+                                       E->getValueKind(),
+                                       E->getObjectKind(),
+                                       SourceLocation(),
+                                       E->canOverflow(),
+                                       FPOptionsOverride());
       return Inverse(X, F1, SubExpr);
     }
 

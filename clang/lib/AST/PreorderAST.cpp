@@ -112,11 +112,12 @@ void PreorderAST::Create(Expr *E, OperatorNode *Parent) {
     // expressions do not overflow.
     if (BO->getOpcode() == BO_Sub &&
         RHS->isIntegerConstantExpr(Ctx)) {
-      Expr *UOMinusRHS = new (Ctx) UnaryOperator(RHS, UO_Minus, RHS->getType(),
-                                             RHS->getValueKind(),
-                                             RHS->getObjectKind(),
-                                             SourceLocation(),
-                                             /*CanOverflow*/ true);
+      Expr *UOMinusRHS =
+        UnaryOperator::Create(Ctx, RHS, UO_Minus, RHS->getType(),
+                              RHS->getValueKind(), RHS->getObjectKind(),
+                              SourceLocation(), /*CanOverflow*/ true,
+                              FPOptionsOverride());
+
       SmallVector<PartialDiagnosticAt, 8> Diag;
       UOMinusRHS->EvaluateKnownConstIntCheckOverflow(Ctx, &Diag);
 
