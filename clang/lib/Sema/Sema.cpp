@@ -1437,7 +1437,7 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
   }
 
   if (DisableSubstitionDiagnostics) {
-     Diags.setLastDiagnosticIgnored();
+     Diags.setLastDiagnosticIgnored(true);
      Diags.Clear();
      return;
   }
