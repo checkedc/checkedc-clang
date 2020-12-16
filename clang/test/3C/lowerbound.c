@@ -1,7 +1,8 @@
 // Generates graph q0 --> ARR --> q1, to confirm that bound bound
 //   constraints are properly solved
 // The following test is supposed to fail with the current tool.
-// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o %t.unused -
 //
 
 _Array_ptr<int> foo(_Array_ptr<int> x);

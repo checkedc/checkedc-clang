@@ -1,5 +1,6 @@
-// XFAIL: *
 // RUN: 3c -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o %t1.unused -
+
 // XFAIL: *
 
 /*

@@ -2,7 +2,8 @@
 //
 // Tests basic rewriting of Nt_array_ptrs
 
-// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o %t1.unused -
 //
 
 unsigned long strlen(const char *s : itype(_Nt_array_ptr<const char>));
@@ -18,7 +19,7 @@ int main() {
   int b;
   // this will make a as NTARR
   b = strlen(a);
-  // this will make C as NTArr
+  // this will make C as PTR
   c = strstr("Hello", "World");
   // this should mark d as WILD.
   d = (int*)0xdeadbeef;

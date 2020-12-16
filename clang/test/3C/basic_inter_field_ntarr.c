@@ -2,7 +2,8 @@
 //
 // Tests rewriting of Nt_array_ptrs within structure fields
 
-// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o %t1.unused -
 //
 
 unsigned long strlen(const char *s : itype(_Nt_array_ptr<const char>)) ;

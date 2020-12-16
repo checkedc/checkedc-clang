@@ -1,5 +1,5 @@
-// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines %s
-
+// RUN: 3c -alltypes %s | FileCheck -match-full-lines %s
+// RUN: 3c -alltypes %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o %t1.unused -
 
 /*
 Advanced array-bounds inference (based on control-dependencies).
@@ -17,12 +17,12 @@ struct foo1 {
     unsigned ml;    
 };
 //CHECK:     _Array_ptr<int> x : count(ml);
+unsigned FooLenD;
+unsigned FooLen;
 struct foo **FL;
 int *intarr;
 //CHECK: _Array_ptr<_Ptr<struct foo>> FL : count(FooLen) = ((void *)0);
 //CHECK: _Array_ptr<int> intarr = ((void *)0);
-unsigned FooLenD;
-unsigned FooLen;
 void intcopy(int *arr, int *ptr, int len) {
     int i;
     for (i=0; i<len; i++) {
