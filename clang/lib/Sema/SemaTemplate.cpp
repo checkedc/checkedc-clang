@@ -1234,8 +1234,11 @@ bool Sema::AttachTypeConstraint(AutoTypeLoc TL, NonTypeTemplateParmDecl *NTTP,
   }
   // FIXME: Concepts: This should be the type of the placeholder, but this is
   // unclear in the wording right now.
-  DeclRefExpr *Ref = BuildDeclRefExpr(NTTP, NTTP->getType(), VK_RValue,
-                                      NTTP->getLocation());
+  ExprResult ER = BuildDeclRefExpr(NTTP, NTTP->getType(), VK_RValue,
+                                   NTTP->getLocation());
+  if (ER.isInvalid())
+    return true;
+  DeclRefExpr *Ref = dyn_cast_or_null<DeclRefExpr>(ER.get());
   if (!Ref)
     return true;
   ExprResult ImmediatelyDeclaredConstraint =
