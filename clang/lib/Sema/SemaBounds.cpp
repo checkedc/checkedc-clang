@@ -229,7 +229,7 @@ namespace {
         clang::NestedNameSpecifierLoc QualifierLoc  = E->getQualifierLoc();
         clang::DeclarationNameInfo NameInfo = E->getNameInfo();
         return getDerived().RebuildDeclRefExpr(QualifierLoc, ND, NameInfo,
-                                                nullptr);
+                                                nullptr, nullptr);
       }
     }
   };
