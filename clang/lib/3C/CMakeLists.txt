@@ -50,6 +50,6 @@ set( LLVM_LINK_COMPONENTS
           clangRewriteFrontend
           clangStaticAnalyzerFrontend
           clangTooling
-          clangToolingRefactoring
+          clangTransformer
         )
 	target_include_directories(obj.clang3C PUBLIC)
