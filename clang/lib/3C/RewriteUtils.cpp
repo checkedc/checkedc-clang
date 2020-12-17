@@ -378,10 +378,11 @@ void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
         EmittedDiagnostics.find(PSL) == EmittedDiagnostics.end()) {
       // Convert the file/line/column triple into a clang::SourceLocation that
       // can be used with the DiagnosticsEngine.
-      const auto *File = SM.getFileManager().getFile(PSL.getFileName());
-      if (File != nullptr) {
+      llvm::ErrorOr<const clang::FileEntry *> File =
+          SM.getFileManager().getFile(PSL.getFileName());
+      if (!File.getError()) {
         SourceLocation SL =
-            SM.translateFileLineCol(File, PSL.getLineNo(), PSL.getColSNo());
+            SM.translateFileLineCol(*File, PSL.getLineNo(), PSL.getColSNo());
         // Limit emitted root causes to those that effect more than one pointer
         // or are in the main file of the TU. Alternatively, don't filter causes
         // if -warn-all-root-cause is passed.

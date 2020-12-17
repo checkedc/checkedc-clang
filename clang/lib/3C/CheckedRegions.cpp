@@ -406,9 +406,12 @@ void CheckedRegionFinder::emitCauseDiagnostic(PersistentSourceLoc *PSL) {
         DE.getCustomDiagID(DiagnosticsEngine::Warning,
                            "Root cause of unchecked region: Variadic Call");
     SourceManager &SM = Context->getSourceManager();
-    const auto *File = SM.getFileManager().getFile(PSL->getFileName());
+    llvm::ErrorOr<const clang::FileEntry *> File =
+        SM.getFileManager().getFile(PSL->getFileName());
+    if (File.getError())
+      return;
     SourceLocation SL =
-        SM.translateFileLineCol(File, PSL->getLineNo(), PSL->getColSNo());
+        SM.translateFileLineCol(*File, PSL->getLineNo(), PSL->getColSNo());
     if (SL.isValid())
       DE.Report(SL, ID);
     Emitted.insert(PSL);
