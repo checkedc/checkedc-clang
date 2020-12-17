@@ -598,7 +598,7 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
     } else {
       if (Verbose) {
         llvm::errs() << "WARNING! Initialization expression ignored: ";
-        E->dump(llvm::errs());
+        E->dump(llvm::errs(), *Context);
         llvm::errs() << "\n";
       }
     }
