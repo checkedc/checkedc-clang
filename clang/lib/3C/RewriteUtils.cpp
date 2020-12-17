@@ -164,8 +164,8 @@ static void emit(Rewriter &R, ASTContext &C, std::string &OutputPostfix) {
 
         // Write this file if it was specified as a file on the command line.
         std::string FeAbsS = "";
-        if (getAbsoluteFilePath(FE->getName(), FeAbsS))
-          FeAbsS = sys::path::remove_leading_dotslash(FeAbsS);
+        if (getAbsoluteFilePath(std::string(FE->getName()), FeAbsS))
+          FeAbsS = std::string(sys::path::remove_leading_dotslash(FeAbsS));
 
         if (canWrite(FeAbsS)) {
           std::error_code EC;

@@ -147,7 +147,7 @@ bool getAbsoluteFilePath(std::string FileName, std::string &AbsoluteFp) {
   // returns true if successful else false.
   SmallString<255> AbsPath(FileName);
   llvm::sys::fs::make_absolute(BaseDir, AbsPath);
-  AbsoluteFp = AbsPath.str();
+  AbsoluteFp = std::string(AbsPath.str());
   return true;
 }
 

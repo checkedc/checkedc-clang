@@ -147,7 +147,7 @@ static std::string getCalledFunctionName(const Expr *E) {
   assert(CE && "The provided expression should be a call expression.");
   const FunctionDecl *CalleeDecl = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
   if (CalleeDecl && CalleeDecl->getDeclName().isIdentifier())
-    return CalleeDecl->getName();
+    return std::string(CalleeDecl->getName());
   return "";
 }
 

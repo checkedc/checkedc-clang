@@ -217,7 +217,7 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
       assert(false && "Unable to get determine working directory.");
     }
 
-    BaseDir = Cp.str();
+    BaseDir = std::string(Cp.str());
   }
 
   SourceFiles = SourceFileList;
