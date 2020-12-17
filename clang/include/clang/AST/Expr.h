@@ -6820,6 +6820,7 @@ public:
   WhereClause() = default;
 
   void addFact(Expr *E) { Facts.push_back(E); }
+  void setFacts(FactListTy F) { Facts = F; }
   bool getNumFacts() const { return Facts.size(); }
   llvm::SmallVector<Expr *, 2> getFacts() { return Facts; }
   static bool classof(const WhereClause *) { return true; }

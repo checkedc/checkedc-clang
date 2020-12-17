@@ -4419,11 +4419,11 @@ StmtResult Sema::ActOnCapturedRegionEnd(Stmt *S) {
   return Res;
 }
 
-WhereClause *Sema::ActOnWhereClause(ParsedFactListTy &ParsedFacts) {
+WhereClause *Sema::ActOnWhereClause(ParsedFactsTy &ParsedFacts) {
   if (ParsedFacts.isEmpty())
     return nullptr;
 
-  FactListTy FactList;
+  FactsTy Facts;
 
   for (auto &Pair : ParsedFacts) {
     Expr *Fact = Pair.first;
@@ -4448,10 +4448,10 @@ WhereClause *Sema::ActOnWhereClause(ParsedFactListTy &ParsedFacts) {
       DD->setRedeclaredBounds(BE);
     }
 
-    FactList.push_back(Fact);
+    Facts.push_back(Fact);
   }
 
   WhereClause *WClause = new (Context) WhereClause();
-  WClause->addFact(Fact);
+  WClause->setFacts(Facts);
   return WClause;
 }
