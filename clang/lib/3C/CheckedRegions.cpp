@@ -18,7 +18,7 @@
 #include "clang/3C/Utils.h"
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Tooling/Refactoring/SourceCode.h"
+#include "clang/Tooling/Transformer/SourceCode.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <sstream>

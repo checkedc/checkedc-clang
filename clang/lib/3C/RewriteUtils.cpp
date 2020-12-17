@@ -15,7 +15,7 @@
 #include "clang/3C/CheckedRegions.h"
 #include "clang/3C/DeclRewriter.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Tooling/Refactoring/SourceCode.h"
+#include "clang/Tooling/Transformer/SourceCode.h"
 
 using namespace llvm;
 using namespace clang;

@@ -11,7 +11,7 @@
 
 #include "clang/3C/StructInit.h"
 #include "clang/3C/MappingVisitor.h"
-#include "clang/Tooling/Refactoring/SourceCode.h"
+#include "clang/Tooling/Transformer/SourceCode.h"
 #include <sstream>
 
 using namespace clang;
