@@ -17,6 +17,7 @@
 #include "clang/3C/RewriteUtils.h"
 #include "clang/3C/Utils.h"
 #include "clang/AST/ASTTypeTraits.h"
+#include "clang/AST/ParentMapContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Tooling/Transformer/SourceCode.h"
 #include "llvm/Support/raw_ostream.h"
