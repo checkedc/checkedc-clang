@@ -4418,3 +4418,40 @@ StmtResult Sema::ActOnCapturedRegionEnd(Stmt *S) {
 
   return Res;
 }
+
+WhereClause *Sema::ActOnWhereClause(ParsedFactListTy &ParsedFacts) {
+  if (ParsedFacts.isEmpty())
+    return nullptr;
+
+  FactListTy FactList;
+
+  for (auto &Pair : ParsedFacts) {
+    Expr *Fact = Pair.first;
+    Expr *Bounds = Pair.second;
+
+    if (Bounds) {
+      // Bounds are non-null means we are redeclaring bounds.
+      if (!Fact->getType()->isCheckedPointerArrayType())
+        return nullptr;
+
+      if (!isa<BoundsExpr>(Bounds))
+        return nullptr;
+      auto *BE = dyn_cast<BoundsExpr>(Bounds);
+
+      DeclaratorDecl *DD = nullptr;
+      if (auto *DRE = dyn_cast<DeclRefExpr>(Fact))
+        DD = dyn_cast<DeclaratorDecl>(DRE->getDecl());
+
+      if (!DD)
+        return nullptr;
+
+      DD->setRedeclaredBounds(BE);
+    }
+
+    FactList.push_back(Fact);
+  }
+
+  WhereClause *WClause = new (Context) WhereClause();
+  WClause->addFact(Fact);
+  return WClause;
+}

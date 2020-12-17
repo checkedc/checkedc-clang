@@ -246,7 +246,22 @@ Retry:
     bool HasLeadingEmptyMacro = Tok.hasLeadingEmptyMacro();
     return Actions.ActOnNullStmt(ConsumeToken(), HasLeadingEmptyMacro);
   }
+  case tok::kw__Where: {
+    Token &WhereTok = Tok;
+    WhereClause *Clause = ParseWhereClause();
+    if (!Clause) {
+      Diag(WhereTok, diag::err_incorrect_where_clause);
+      SkipUntil(tok::semi);
+      return StmtError();
+    }
 
+    StmtResult NullStmtRes = Actions.ActOnNullStmt(SourceLocation());
+    if (!NullStmtRes.isInvalid()) {
+      if (auto *NS = dyn_cast<NullStmt>(NullStmtRes.get()))
+        NS->setWhereClause(Clause);
+    }
+    return NullStmtRes;
+  }
   case tok::kw_if:                  // C99 6.8.4.1: if-statement
     return ParseIfStatement(TrailingElseLoc);
   case tok::kw_switch:              // C99 6.8.4.2: switch-statement
@@ -2426,4 +2441,48 @@ bool Parser::ParseOpenCLUnrollHintAttribute(ParsedAttributes &Attrs) {
     return false;
   }
   return true;
+}
+
+WhereClause *Parser::ParseWhereClauseFacts(ParsedFactListTy &ParsedFacts) {
+  Token &PrevTok = Tok;
+  ExprResult FactRes(ParseExpression());
+  if (FactRes.isInvalid())
+    return nullptr;
+
+  Expr *Fact = FactRes.get();
+  Expr *Bounds = nullptr;
+
+  if (PrevTok.is(tok::identifier)) {
+    if (Tok.is(tok::colon)) {
+      // Consume the ':' token.
+      ConsumeToken();
+
+      // We expect a bounds decl here.
+      ExprResult BoundsRes(ParseBoundsExpression());
+      if (BoundsRes.isInvalid())
+        return nullptr;
+      Bounds = BoundsRes.get();
+    }
+  }
+
+  ParsedFacts.push_back(std::make_pair(Fact, Bounds));
+
+  if (Tok.is(tok::ampamp)) {
+    // Consume the "&&" token.
+    ConsumeToken();
+    return ParseWhereClauseFacts(ParsedFacts);
+  }
+
+  return Actions.ActOnWhereClause(ParsedFacts);
+}
+
+WhereClause *Parser::ParseWhereClause() {
+  if (!getLangOpts().CheckedC)
+    return nullptr;
+
+  // Consume the "_Where" token.
+  ConsumeToken();
+
+  ParsedFactListTy ParsedFacts;
+  return ParseWhereClauseFacts(ParsedFacts);
 }

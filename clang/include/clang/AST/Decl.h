@@ -708,10 +708,12 @@ protected:
                  DeclarationName N, QualType T, TypeSourceInfo *TInfo,
                  SourceLocation StartL)
       : ValueDecl(DK, DC, L, N, T), DeclInfo(TInfo), InnerLocStart(StartL),
-        Annotations(nullptr), NormalizedBounds(nullptr) {}
+        Annotations(nullptr), NormalizedBounds(nullptr),
+        RedeclaredBounds(nullptr) {}
 
   BoundsAnnotations *Annotations;
   BoundsExpr *NormalizedBounds;
+  BoundsExpr *RedeclaredBounds;
 public:
   friend class ASTDeclReader;
   friend class ASTDeclWriter;
@@ -842,6 +844,30 @@ public:
   // range bounds expression.
   void setNormalizedBounds(BoundsExpr *E) {
     NormalizedBounds = E;
+  }
+
+  // \brief The redeclared bounds expression for this declaration, expanded to
+  // a range bounds expression.
+  BoundsExpr *getRedeclaredBounds() const {
+    return const_cast<DeclaratorDecl *>(this)->getRedeclaredBounds();
+  }
+
+  // \brief The bounds expression for this declaration, expanded to a
+  // range bounds expression.
+  BoundsExpr *getRedeclaredBounds() {
+    return RedeclaredBounds;
+  }
+
+  // \brief Set the bounds expression for this declaration, expanded to a
+  // range bounds expression.
+  void setRedeclaredBounds(BoundsExpr *E) const {
+    const_cast<DeclaratorDecl *>(this)->setRedeclaredBounds(E);
+  }
+
+  // \brief Set the bounds expression for this declaration, expanded to a
+  // range bounds expression.
+  void setRedeclaredBounds(BoundsExpr *E) {
+    RedeclaredBounds = E;
   }
 
   /// \brief The Checked C interop type declared or inferred for this

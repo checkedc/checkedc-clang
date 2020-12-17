@@ -3453,8 +3453,10 @@ class CastExpr : public Expr {
   // BOUNDS - declared bounds of a bounds cast expression.  Null
   // for other cast expressions.
   // NORMALIZED_BOUNDS - normalized version of declared bounds.
+  // REDECLARED_BOUNDS - bounds redeclared in a where clause.
   // SUBEXPRBOUNDS - inferred bounds of subexpression
-  enum { OP, BOUNDS, NORMALIZED_BOUNDS, SUBEXPRBOUNDS, END_EXPR = 4 };
+  enum { OP, BOUNDS, NORMALIZED_BOUNDS, REDECLARED_BOUNDS, SUBEXPRBOUNDS,
+         END_EXPR = 5 };
   Stmt *SubExprs[END_EXPR];
 
   bool CastConsistency() const;
@@ -3484,6 +3486,7 @@ protected:
     SubExprs[OP] = op;
     SubExprs[BOUNDS] = nullptr;
     SubExprs[NORMALIZED_BOUNDS] = nullptr;
+    SubExprs[REDECLARED_BOUNDS] = nullptr;
     SubExprs[SUBEXPRBOUNDS] = nullptr;
     CastExprBits.Kind = kind;
     CastExprBits.PartOfExplicitCast = false;
@@ -3500,6 +3503,7 @@ protected:
     SubExprs[OP] = nullptr;
     SubExprs[BOUNDS] = nullptr;
     SubExprs[NORMALIZED_BOUNDS] = nullptr;
+    SubExprs[REDECLARED_BOUNDS] = nullptr;
     SubExprs[SUBEXPRBOUNDS] = nullptr;
     CastExprBits.PartOfExplicitCast = false;
     CastExprBits.BasePathSize = BasePathSize;
@@ -3626,6 +3630,23 @@ public:
   }
   void setNormalizedBoundsExpr(BoundsExpr *E) {
     SubExprs[NORMALIZED_BOUNDS] = E;
+  }
+
+  bool hasRedeclaredBounds() const {
+    return SubExprs[NORMALIZED_BOUNDS] != nullptr;
+  }
+
+  // \brief Redeclared bounds for the cast expression (getBoundsExpr).
+  BoundsExpr *getRedeclaredBounds() {
+    return cast_or_null<BoundsExpr>(SubExprs[REDECLARED_BOUNDS]);
+  }
+
+  const BoundsExpr *getRedeclaredBounds() const {
+    return const_cast<BoundsExpr*>(cast_or_null<BoundsExpr>(
+                                     SubExprs[REDECLARED_BOUNDS]));
+  }
+  void setRedeclaredBounds(BoundsExpr *E) {
+    SubExprs[REDECLARED_BOUNDS] = E;
   }
 
   // The inferred bounds of the subexpression of the cast expression.  This is used
@@ -6787,6 +6808,21 @@ public:
     return T->getStmtClass() == TypoExprClass;
   }
 
+};
+
+/// \brief Represents a Checked C where clause.
+using ParsedFactListTy = llvm::SmallVector<std::pair<Expr *, Expr *>, 2>;
+using FactListTy = llvm::SmallVector<Expr *, 2>;
+class WhereClause {
+  FactListTy Facts;
+
+public:
+  WhereClause() = default;
+
+  void addFact(Expr *E) { Facts.push_back(E); }
+  bool getNumFacts() const { return Facts.size(); }
+  llvm::SmallVector<Expr *, 2> getFacts() { return Facts; }
+  static bool classof(const WhereClause *) { return true; }
 };
 } // end namespace clang
 

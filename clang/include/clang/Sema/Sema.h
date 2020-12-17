@@ -4024,6 +4024,9 @@ public:
     void disable() { Active = false; }
   };
 
+  // Checked C: Perform semantic analysis for where clause.
+  WhereClause *ActOnWhereClause(ParsedFactListTy &ParsedFacts);
+
   StmtResult ActOnDeclStmt(DeclGroupPtrTy Decl,
                                    SourceLocation StartLoc,
                                    SourceLocation EndLoc);
