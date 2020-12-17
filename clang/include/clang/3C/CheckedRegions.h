@@ -39,8 +39,8 @@ public:
 
 private:
   std::pair<const clang::CompoundStmt *, int>
-  findParentCompound(const clang::ast_type_traits::DynTypedNode &N, int);
-  bool isParentChecked(const clang::ast_type_traits::DynTypedNode &N);
+  findParentCompound(const clang::DynTypedNode &N, int);
+  bool isParentChecked(const clang::DynTypedNode &N);
   bool isWrittenChecked(const clang::CompoundStmt *);
   bool isFunctionBody(clang::CompoundStmt *S);
   clang::ASTContext *Context;
