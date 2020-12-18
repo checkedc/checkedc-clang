@@ -80,3 +80,10 @@ void baz(void) {
     bad();
   }
 }
+
+int* g() { 
+	//CHECK: int* g(void) {
+	return 1;
+}
+
+

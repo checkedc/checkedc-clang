@@ -92,12 +92,17 @@ CheckedRegionAdder::findParentCompound(const ast_type_traits::DynTypedNode &N,
   return *Min;
 }
 
-bool CheckedRegionAdder::isFunctionBody(CompoundStmt *S) {
+
+bool isTopLevel(ASTContext *Context, CompoundStmt *S) {
   const auto &Parents = Context->getParents(*S);
   if (Parents.empty()) {
     return false;
   }
   return Parents[0].get<FunctionDecl>();
+}
+
+bool CheckedRegionAdder::isFunctionBody(CompoundStmt *S) {
+  return isTopLevel(Context, S);
 }
 
 bool CheckedRegionAdder::isParentChecked(
@@ -154,11 +159,24 @@ bool CheckedRegionFinder::VisitDoStmt(DoStmt *S) {
 
 bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
   // Visit all subblocks, find all unchecked types
-  bool Localwild = 0;
+  bool Localwild = false;
   for (const auto &SubStmt : S->children()) {
     CheckedRegionFinder Sub(Context, Writer, Info, Seen, Map, EmitWarnings);
     Sub.TraverseStmt(SubStmt);
     Localwild |= Sub.Wild;
+  }
+
+  // If we are a function def, need to check return type
+  if (isTopLevel(Context, S)) {
+    const auto &Parents = Context->getParents(*S);
+    assert(!Parents.empty());
+    FunctionDecl* Parent = const_cast<FunctionDecl*>(Parents[0].get<FunctionDecl>());
+    assert(Parent != NULL);
+    auto retType = Parent->getReturnType().getTypePtr();
+    if (retType->isPointerType()) {
+      CVarOption CV = Info.getVariable(Parent, Context);
+      Localwild |= isWild(CV) || containsUncheckedPtr(Parent->getReturnType());
+    }
   }
 
   markChecked(S, Localwild);
