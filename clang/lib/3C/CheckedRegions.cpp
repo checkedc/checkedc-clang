@@ -26,6 +26,18 @@
 using namespace llvm;
 using namespace clang;
 
+
+// Check if the compound statement is a function body
+// Used in both visitors so abstracted to a function
+bool isTopLevel(ASTContext *Context, CompoundStmt *S) {
+  const auto &Parents = Context->getParents(*S);
+  if (Parents.empty()) {
+    return false;
+  }
+  // Ensure that our parent is a functiondecl
+  return Parents[0].get<FunctionDecl>() != nullptr;
+}
+
 // CheckedRegionAdder
 
 bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
@@ -93,13 +105,6 @@ CheckedRegionAdder::findParentCompound(const ast_type_traits::DynTypedNode &N,
 }
 
 
-bool isTopLevel(ASTContext *Context, CompoundStmt *S) {
-  const auto &Parents = Context->getParents(*S);
-  if (Parents.empty()) {
-    return false;
-  }
-  return Parents[0].get<FunctionDecl>();
-}
 
 bool CheckedRegionAdder::isFunctionBody(CompoundStmt *S) {
   return isTopLevel(Context, S);
@@ -171,7 +176,7 @@ bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
     const auto &Parents = Context->getParents(*S);
     assert(!Parents.empty());
     FunctionDecl* Parent = const_cast<FunctionDecl*>(Parents[0].get<FunctionDecl>());
-    assert(Parent != NULL);
+    assert(Parent != nullptr);
     auto retType = Parent->getReturnType().getTypePtr();
     if (retType->isPointerType()) {
       CVarOption CV = Info.getVariable(Parent, Context);
