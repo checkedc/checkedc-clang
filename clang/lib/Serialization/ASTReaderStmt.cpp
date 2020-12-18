@@ -3088,6 +3088,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
                        /*PathSize*/ Record[ASTStmtReader::NumExprFields]);
       break;
 
+    case EXPR_BOUNDS_CAST:
+      S = BoundsCastExpr::CreateEmpty(Context,
+                       /*PathSize*/ Record[ASTStmtReader::NumExprFields]);
+      break;
+
     case EXPR_COMPOUND_LITERAL:
       S = new (Context) CompoundLiteralExpr(Empty);
       break;
@@ -3914,6 +3919,34 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_ATOMIC:
       S = new (Context) AtomicExpr(Empty);
+      break;
+
+    case EXPR_COUNT_BOUNDS_EXPR:
+      S = new (Context) CountBoundsExpr(Empty);
+      break;
+
+    case EXPR_NULLARY_BOUNDS_EXPR:
+      S = new (Context) NullaryBoundsExpr(Empty);
+      break;
+
+    case EXPR_RANGE_BOUNDS_EXPR:
+      S = new (Context) RangeBoundsExpr(Empty);
+      break;
+
+    case EXPR_INTEROPTYPE_BOUNDS_ANNOTATION:
+      S = new (Context) InteropTypeExpr(Empty);
+      break;
+
+    case EXPR_POSITIONAL_PARAMETER_EXPR:
+      S = new (Context) PositionalParameterExpr(Empty);
+      break;
+
+    case EXPR_BOUNDS_VALUE_EXPR:
+      S = new (Context) BoundsValueExpr(Empty);
+      break;
+
+    case EXPR_CHKC_BIND_TEMPORARY_EXPR:
+      S = new (Context) CHKCBindTemporaryExpr(Empty);
       break;
 
     case EXPR_LAMBDA: {
