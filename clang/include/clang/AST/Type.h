@@ -1627,7 +1627,7 @@ protected:
   class ConstantArrayTypeBitfields {
     friend class ConstantArrayType;
 
-    unsigned : NumTypeBits + 3 + 3;
+    unsigned : NumTypeBits + 3 + 3 + 2;
 
     /// Whether we have a stored size expression.
     unsigned HasStoredSizeExpr : 1;
