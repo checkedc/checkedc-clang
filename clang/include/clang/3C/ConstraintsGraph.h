@@ -121,13 +121,13 @@ public:
   }
 
   void removeEdge(Data Src, Data Dst) {
-    auto *NSrc = this->findNode(NodeType(Src));
-    auto *NDst = this->findNode(NodeType(Dst));
-    assert(NSrc != this->end() && NDst != this->end());
+    NodeType *NSrc = this->findNode(Src);
+    NodeType *NDst = this->findNode(Dst);
+    assert(NSrc && NDst);
     llvm::SmallVector<EdgeType *, 10> Edges;
-    (*NDst)->findEdgesTo(**NSrc, Edges);
+    NDst->findEdgesTo(*NSrc, Edges);
     for (EdgeType *E : Edges) {
-      (*NDst)->removeEdge(*E);
+      NDst->removeEdge(*E);
       delete E;
     }
     invalidateBFSCache();
@@ -151,15 +151,15 @@ public:
   }
 
   bool getNeighbors(Data D, std::set<Data> &DataSet, bool Succ) {
-    auto *N = this->findNode(NodeType(D));
-    if (N == this->end())
+    NodeType *N = this->findNode(D);
+    if (N == nullptr)
       return false;
     DataSet.clear();
     llvm::SetVector<EdgeType *> Edges;
     if (Succ)
-      Edges = (*N)->getEdges();
+      Edges = N->getEdges();
     else
-      Edges = (*N)->getPredecessors();
+      Edges = N->getPredecessors();
     for (auto *E : Edges)
       DataSet.insert(E->getTargetNode().getData());
     return !DataSet.empty();
@@ -173,14 +173,20 @@ public:
     return getNeighbors(D, DataSet, false);
   }
 
+  NodeType *findNode(Data D) {
+    if (NodeSet.find(D) != NodeSet.end())
+      return NodeSet[D];
+    return nullptr;
+  }
+
   void visitBreadthFirst(Data Start, llvm::function_ref<void(Data)> Fn) {
-    auto *N = this->findNode(NodeType(Start));
-    if (N == this->end())
+    NodeType *N = this->findNode(Start);
+    if (N == nullptr)
       return;
     // Insert into BFS cache.
     if (BFSCache.find(Start) == BFSCache.end()) {
       std::set<Data> ReachableNodes;
-      for (auto TNode : llvm::breadth_first(*N)) {
+      for (auto TNode : llvm::breadth_first(N)) {
         ReachableNodes.insert(TNode->getData());
       }
       BFSCache[Start] = ReachableNodes;
@@ -194,12 +200,12 @@ protected:
   // is allocated. Node equality is defined only by the data stored in a node,
   // so if any node already contains the data, this node will be found.
   virtual NodeType *findOrCreateNode(Data D) {
-    auto *OldN = this->findNode(NodeType(D));
-    if (OldN != this->end())
-      return *OldN;
+    if (NodeSet.find(D) != NodeSet.end())
+      return NodeSet[D];
 
     auto *NewN = new NodeType(D);
-    this->addNode(*NewN);
+    this->Nodes.push_back(NewN);
+    NodeSet[D] = NewN;
     return NewN;
   }
 
@@ -207,6 +213,7 @@ private:
   template <typename G> friend struct llvm::GraphTraits;
   friend class GraphVizOutputGraph;
   std::map<Data, std::set<Data>> BFSCache;
+  std::map<Data, NodeType*> NodeSet;
 
   void invalidateBFSCache() { BFSCache.clear(); }
 };
