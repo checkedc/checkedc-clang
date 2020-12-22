@@ -1972,6 +1972,10 @@ private:
   /// Parse a pack expression of the form '_Pack(expr, existential_type, substitution_type)'.
   ExprResult ParsePackExpression();
 
+  /// Parse a Checked C where clause.
+  WhereClause *ParseWhereClause();
+  void ParseWhereClause(WhereClause *WClause);
+
   //===--------------------------------------------------------------------===//
   // clang Expressions
 

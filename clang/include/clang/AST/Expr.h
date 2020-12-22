@@ -6788,6 +6788,65 @@ public:
   }
 
 };
+
+/// \brief Represents a Checked C where clause fact.
+class WhereClauseFact {
+public:
+  enum class FactKind { BoundsFact, RelopFact };
+  FactKind Kind;
+
+private:
+  SourceLocation Loc;
+
+public:
+  WhereClauseFact(FactKind Kind, SourceLocation Loc)
+    : Kind(Kind), Loc(Loc) {}
+};
+
+/// \brief Represents a Checked C where clause bounds fact.
+class BoundsFact : public WhereClauseFact {
+public:
+  Decl *Param;
+  BoundsExpr *Bounds;
+
+  BoundsFact(Decl *Param, BoundsExpr *Bounds, SourceLocation Loc)
+    : WhereClauseFact(FactKind::BoundsFact, Loc),
+      Param(Param), Bounds(Bounds) {}
+
+  static bool classof(const WhereClauseFact *Fact) {
+    return Fact->Kind == FactKind::BoundsFact;
+  }
+};
+
+/// \brief Represents a Checked C relational operator fact.
+class RelopFact : public WhereClauseFact {
+public:
+  Expr *RelopExpr;
+
+  RelopFact(Expr *RelopExpr, SourceLocation Loc)
+    : WhereClauseFact(FactKind::RelopFact, Loc),
+      RelopExpr(RelopExpr) {}
+
+  static bool classof(const WhereClauseFact *Fact) {
+    return Fact->Kind == FactKind::RelopFact;
+  }
+};
+
+using FactListTy = llvm::SmallVector<WhereClauseFact *, 2>;
+
+/// \brief Represents a Checked C where clause.
+class WhereClause {
+  FactListTy Facts;
+
+public:
+  WhereClause() = default;
+
+  void addFact(WhereClauseFact *Fact) { Facts.push_back(Fact); }
+  bool hasFacts() const { return Facts.size() != 0; }
+  FactListTy getFacts() { return Facts; }
+  static bool classof(const WhereClause *) { return true; }
+};
+
 } // end namespace clang
 
 #endif // LLVM_CLANG_AST_EXPR_H

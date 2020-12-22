@@ -4418,3 +4418,38 @@ StmtResult Sema::ActOnCapturedRegionEnd(Stmt *S) {
 
   return Res;
 }
+
+void Sema::ActOnWhereClause(WhereClause *WClause,
+                            ExprResult ExprRes) {
+  if (ExprRes.isInvalid())
+    return;
+
+  Expr *RelopExpr = ExprRes.get();
+  RelopFact *Fact = new (Context) RelopFact(RelopExpr,
+                                            RelopExpr->getLocation());
+  WClause->addFact(Fact);
+  return WClause;
+}
+
+void Sema::ActOnWhereClause(WhereClause *WClause, IdentifierInfo *ParamName,
+                            SourceLocation ParamLoc, ExprResult BoundsRes) {
+  if (BoundsRes.isInvalid())
+    return;
+
+  LabelDecl *LD = Actions.LookupOrCreateLabel(ParamName, ParamLoc);
+  if (!LD || !LD->getStmt() || !LD->getStmt()->getDecl())
+    return;
+
+  Decl *Param = LD->getStmt()->getDecl();
+  if (!Param->getType()->isCheckedPointerArrayType();
+    return;
+
+  BoundsExpr *Bounds = dyn_cast<BoundsExpr>(BoundsRes.get());
+  if (!Bounds)
+    return;
+
+  BoundsFact *Fact = new (Context) BoundsFact(Param, Bounds, ParamLoc);
+
+  WClause->addFact(Fact);
+  return WClause;
+}
