@@ -2450,11 +2450,12 @@ void Parser::ParseWhereClause(WhereClause *WClause) {
   // Consume the "_Where" token.
   if (Tok.is(tok::kw__Where))
     ConsumeToken();
+  SourceLocation Loc = Tok.getLocation();
 
+  bool ParsedFact = false;
   if (Tok.is(tok::identifier)) {
     if (NextToken().is(tok::colon)) {
       IdentifierInfo *ParamName = Tok.getIdentifierInfo();
-      SourceLocation ParamLoc = Tok.getLocation();
 
       // Consume the identifier.
       ConsumeToken();
@@ -2464,12 +2465,15 @@ void Parser::ParseWhereClause(WhereClause *WClause) {
 
       // Parse bounds expression.
       ExprResult BoundsRes(ParseBoundsExpression());
-      Actions.ActOnWhereClause(WClause, ParamName, ParamLoc, BoundsRes);
+      Actions.ActOnWhereClause(WClause, ParamName, BoundsRes, Loc);
+      ParsedFact = true;
     }
   }
 
-  ExprResult ExprRes(ParseExpression());
-  Actions.ActOnWhereClause(WClause, ExprRes);
+  if (!ParsedFact) {
+    ExprResult ExprRes(ParseExpression());
+    Actions.ActOnWhereClause(WClause, ExprRes, Loc);
+  }
 
   if (Tok.is(tok::ampamp)) {
     // Consume the "&&" token.

@@ -4420,23 +4420,23 @@ StmtResult Sema::ActOnCapturedRegionEnd(Stmt *S) {
 }
 
 void Sema::ActOnWhereClause(WhereClause *WClause,
-                            ExprResult ExprRes) {
+                            ExprResult ExprRes,
+                            SourceLocation Loc) {
   if (ExprRes.isInvalid())
     return;
 
   Expr *RelopExpr = ExprRes.get();
-  RelopFact *Fact = new (Context) RelopFact(RelopExpr,
-                                            RelopExpr->getLocation());
+  RelopFact *Fact = new (Context) RelopFact(RelopExpr, Loc);
   WClause->addFact(Fact);
   return WClause;
 }
 
 void Sema::ActOnWhereClause(WhereClause *WClause, IdentifierInfo *ParamName,
-                            SourceLocation ParamLoc, ExprResult BoundsRes) {
+                            ExprResult BoundsRes, SourceLocation Loc) {
   if (BoundsRes.isInvalid())
     return;
 
-  LabelDecl *LD = Actions.LookupOrCreateLabel(ParamName, ParamLoc);
+  LabelDecl *LD = Actions.LookupOrCreateLabel(ParamName, Loc);
   if (!LD || !LD->getStmt() || !LD->getStmt()->getDecl())
     return;
 
