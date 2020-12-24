@@ -6806,12 +6806,12 @@ public:
 /// \brief Represents a Checked C where clause bounds fact.
 class BoundsFact : public WhereClauseFact {
 public:
-  Decl *Param;
+  VarDecl *Var;
   BoundsExpr *Bounds;
 
-  BoundsFact(Decl *Param, BoundsExpr *Bounds, SourceLocation Loc)
+  BoundsFact(VarDecl *Var, BoundsExpr *Bounds, SourceLocation Loc)
     : WhereClauseFact(FactKind::BoundsFact, Loc),
-      Param(Param), Bounds(Bounds) {}
+      Var(Var), Bounds(Bounds) {}
 
   static bool classof(const WhereClauseFact *Fact) {
     return Fact->Kind == FactKind::BoundsFact;
@@ -6836,13 +6836,15 @@ using FactListTy = llvm::SmallVector<WhereClauseFact *, 2>;
 
 /// \brief Represents a Checked C where clause.
 class WhereClause {
+private:
+  SourceLocation Loc;
   FactListTy Facts;
 
 public:
-  WhereClause() = default;
+  WhereClause(SourceLocation Loc) : Loc(Loc) {}
 
   void addFact(WhereClauseFact *Fact) { Facts.push_back(Fact); }
-  bool hasFacts() const { return Facts.size() != 0; }
+  bool isInvalid() const { return Facts.size() == 0; }
   FactListTy getFacts() { return Facts; }
   static bool classof(const WhereClause *) { return true; }
 };

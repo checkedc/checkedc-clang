@@ -4419,37 +4419,51 @@ StmtResult Sema::ActOnCapturedRegionEnd(Stmt *S) {
   return Res;
 }
 
-void Sema::ActOnWhereClause(WhereClause *WClause,
-                            ExprResult ExprRes,
-                            SourceLocation Loc) {
-  if (ExprRes.isInvalid())
-    return;
-
-  Expr *RelopExpr = ExprRes.get();
-  RelopFact *Fact = new (Context) RelopFact(RelopExpr, Loc);
-  WClause->addFact(Fact);
-  return WClause;
+WhereClause *Sema::ActOnWhereClause(SourceLocation Loc) {
+  return new (Context) WhereClause(Loc);
 }
 
-void Sema::ActOnWhereClause(WhereClause *WClause, IdentifierInfo *ParamName,
-                            ExprResult BoundsRes, SourceLocation Loc) {
+bool Sema::ActOnRelopFact(WhereClause *WClause, ExprResult ExprRes,
+                          SourceLocation Loc) {
+  bool IsError = true;
+
+  if (!WClause)
+    return IsError;
+
+  if (ExprRes.isInvalid())
+    return IsError;
+
+  RelopFact *Fact = new (Context) RelopFact(ExprRes.get(), Loc);
+  WClause->addFact(Fact);
+
+  return false;
+}
+
+bool Sema::ActOnBoundsFact(WhereClause *WClause, IdentifierInfo *VarName,
+                           ExprResult BoundsRes, Scope *CurScope,
+                           SourceLocation Loc) {
+  bool IsError = true;
+  if (!WClause)
+    return IsError;
+
   if (BoundsRes.isInvalid())
-    return;
-
-  LabelDecl *LD = Actions.LookupOrCreateLabel(ParamName, Loc);
-  if (!LD || !LD->getStmt() || !LD->getStmt()->getDecl())
-    return;
-
-  Decl *Param = LD->getStmt()->getDecl();
-  if (!Param->getType()->isCheckedPointerArrayType();
-    return;
+    return IsError;
 
   BoundsExpr *Bounds = dyn_cast<BoundsExpr>(BoundsRes.get());
   if (!Bounds)
-    return;
+    return IsError;
 
-  BoundsFact *Fact = new (Context) BoundsFact(Param, Bounds, ParamLoc);
+  LookupResult Lookup(*this, VarName, Loc, Sema::LookupOrdinaryName);
+  LookupParsedName(Lookup, CurScope, nullptr, true);
+  if (Lookup.empty())
+    return IsError;
 
+  VarDecl *VD = Lookup.getAsSingle<VarDecl>();
+  if (!VD)
+    return IsError;
+
+  BoundsFact *Fact = new (Context) BoundsFact(VD, Bounds, Loc);
   WClause->addFact(Fact);
-  return WClause;
+
+  return false;
 }

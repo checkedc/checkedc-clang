@@ -4024,11 +4024,19 @@ public:
     void disable() { Active = false; }
   };
 
-  // Checked C: Perform semantic analysis on where clause.
-  void ActOnWhereClause(WhereClause *WClause, ExprResult ExprRes,
-                        SourceLocation Loc);
-  void ActOnWhereClause(WhereClause *WClause, IdentifierInfo *ParamName,
-                        ExprResult BoundsRes, SourceLocation Loc);
+  // Checked C: Perform semantic analysis on a where clause.
+  WhereClause *ActOnWhereClause(SourceLocation Loc);
+
+  // Checked C: Perform semantic analysis on a where clause bounds fact.
+  // Returns true on error.
+  bool ActOnBoundsFact(WhereClause *WClause, IdentifierInfo *VarName,
+                       ExprResult BoundsRes, Scope *CurScope,
+                       SourceLocation Loc);
+
+  // Checked C: Perform semantic analysis on a where clause relop fact.
+  // Returns true on error.
+  bool ActOnRelopFact(WhereClause *WClause, ExprResult ExprRes,
+                      SourceLocation Loc);
 
   StmtResult ActOnDeclStmt(DeclGroupPtrTy Decl,
                                    SourceLocation StartLoc,

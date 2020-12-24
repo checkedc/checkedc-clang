@@ -250,19 +250,19 @@ Retry:
   // Parse Checked C _Where token.
   case tok::kw__Where: {
     Token &WhereTok = Tok;
-    WhereClause *WC = ParseWhereClause();
-    if (!WC || !WC->hasFacts()) {
+    WhereClause *WClause = ParseWhereClause();
+    if (!WClause || WClause->isInvalid()) {
       Diag(WhereTok, diag::err_incorrect_where_clause);
       SkipUntil(tok::semi);
       return StmtError();
     }
 
-    StmtResult NullStmtRes = Actions.ActOnNullStmt(SourceLocation());
-    if (!NullStmtRes.isInvalid()) {
-      if (auto *NS = dyn_cast<NullStmt>(NullStmtRes.get()))
-        NS->setWhereClause(WC);
+    StmtResult StmtRes = Actions.ActOnNullStmt(SourceLocation());
+    if (!StmtRes.isInvalid()) {
+      if (auto *NS = dyn_cast<NullStmt>(StmtRes.get()))
+        NS->setWhereClause(WClause);
     }
-    return NullStmtRes;
+    return StmtRes;
   }
 
   case tok::kw_if:                  // C99 6.8.4.1: if-statement
@@ -2446,44 +2446,46 @@ bool Parser::ParseOpenCLUnrollHintAttribute(ParsedAttributes &Attrs) {
   return true;
 }
 
-void Parser::ParseWhereClause(WhereClause *WClause) {
-  // Consume the "_Where" token.
-  if (Tok.is(tok::kw__Where))
-    ConsumeToken();
+bool Parser::ParseWhereClauseFact(WhereClause *WClause) {
   SourceLocation Loc = Tok.getLocation();
 
-  bool ParsedFact = false;
-  if (Tok.is(tok::identifier)) {
-    if (NextToken().is(tok::colon)) {
-      IdentifierInfo *ParamName = Tok.getIdentifierInfo();
+  if (Tok.is(tok::identifier) && NextToken().is(tok::colon)) {
+    IdentifierInfo *VarName = Tok.getIdentifierInfo();
 
-      // Consume the identifier.
-      ConsumeToken();
-
-      // Consume the ':' token.
-      ConsumeToken();
-
-      // Parse bounds expression.
-      ExprResult BoundsRes(ParseBoundsExpression());
-      Actions.ActOnWhereClause(WClause, ParamName, BoundsRes, Loc);
-      ParsedFact = true;
-    }
-  }
-
-  if (!ParsedFact) {
-    ExprResult ExprRes(ParseExpression());
-    Actions.ActOnWhereClause(WClause, ExprRes, Loc);
-  }
-
-  if (Tok.is(tok::ampamp)) {
-    // Consume the "&&" token.
+    // Consume the identifier.
     ConsumeToken();
-    ParseWhereClause(WClause);
+    // Consume the ':' token.
+    ConsumeToken();
+
+    // Parse bounds expression.
+    ExprResult BoundsRes(ParseBoundsExpression());
+    return Actions.ActOnBoundsFact(WClause, VarName, BoundsRes,
+                                   getCurScope(), Loc);
   }
+
+  ExprResult ExprRes(ParseExpression());
+  return Actions.ActOnRelopFact(WClause, ExprRes, Loc);
 }
 
 WhereClause *Parser::ParseWhereClause() {
-  WhereClause *WClause = new WhereClause();
-  ParseWhereClause(WClause);
+  SourceLocation Loc = Tok.getLocation();
+
+  // Consume the "_Where" token.
+  if (ExpectAndConsume(tok::kw__Where))
+    return nullptr;
+
+  WhereClause *WClause = Actions.ActOnWhereClause(Loc);
+
+  while (true) {
+    if (ParseWhereClauseFact(WClause))
+      return nullptr;
+
+    if (Tok.isNot(tok::ampamp))
+      break;
+
+    // Consume the "&&" token.
+    ConsumeToken();
+  }
+
   return WClause;
 }

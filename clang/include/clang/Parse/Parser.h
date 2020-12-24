@@ -1974,7 +1974,9 @@ private:
 
   /// Parse a Checked C where clause.
   WhereClause *ParseWhereClause();
-  void ParseWhereClause(WhereClause *WClause);
+
+  /// Parse a Checked C where clause fact.
+  bool ParseWhereClauseFact(WhereClause *WClause);
 
   //===--------------------------------------------------------------------===//
   // clang Expressions
