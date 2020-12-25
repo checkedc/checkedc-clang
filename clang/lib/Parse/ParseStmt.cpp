@@ -262,6 +262,8 @@ Retry:
       if (auto *NS = dyn_cast<NullStmt>(StmtRes.get()))
         NS->setWhereClause(WClause);
     }
+
+    // TODO: Should we handle other kinds of statements here?
     return StmtRes;
   }
 

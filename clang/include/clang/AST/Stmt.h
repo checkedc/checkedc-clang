@@ -1340,7 +1340,6 @@ public:
 
   void setWhereClause(WhereClause *WC) { WClause = WC; }
   WhereClause *getWhereClause() const { return WClause; }
-  bool hasWhereClause() const { return WClause != nullptr; }
 };
 
   // The kind of Checked C checking to do in a scope.
