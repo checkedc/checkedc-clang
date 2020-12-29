@@ -1975,8 +1975,8 @@ private:
   /// Parse a Checked C where clause.
   WhereClause *ParseWhereClause();
 
-  /// Parse a Checked C where clause fact. Returns true in case of an error.
-  bool ParseWhereClauseFact(WhereClause *WClause);
+  /// Parse a Checked C where clause fact.
+  WhereClauseFact *ParseWhereClauseFact();
 
   //===--------------------------------------------------------------------===//
   // clang Expressions

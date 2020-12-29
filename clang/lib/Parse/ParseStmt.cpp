@@ -257,13 +257,15 @@ Retry:
       return StmtError();
     }
 
-    StmtResult StmtRes = Actions.ActOnNullStmt(SourceLocation());
-    if (!StmtRes.isInvalid()) {
-      if (auto *NS = dyn_cast<NullStmt>(StmtRes.get()))
-        NS->setWhereClause(WClause);
-    }
+    if (ExpectAndConsume(tok::semi))
+      return StmtError();
 
-    // TODO: Should we handle other kinds of statements here?
+    StmtResult StmtRes = Actions.ActOnNullStmt(SourceLocation());
+    if (StmtRes.isInvalid() || !isa<NullStmt>(StmtRes.get()))
+      return StmtError();
+
+    auto *NS = dyn_cast<NullStmt>(StmtRes.get());
+    NS->setWhereClause(WClause);
     return StmtRes;
   }
 
@@ -2448,7 +2450,7 @@ bool Parser::ParseOpenCLUnrollHintAttribute(ParsedAttributes &Attrs) {
   return true;
 }
 
-bool Parser::ParseWhereClauseFact(WhereClause *WClause) {
+WhereClauseFact *Parser::ParseWhereClauseFact() {
   SourceLocation Loc = Tok.getLocation();
 
   if (Tok.is(tok::identifier) && NextToken().is(tok::colon)) {
@@ -2461,12 +2463,16 @@ bool Parser::ParseWhereClauseFact(WhereClause *WClause) {
 
     // Parse bounds expression.
     ExprResult BoundsRes(ParseBoundsExpression());
-    return Actions.ActOnBoundsFact(WClause, VarName, BoundsRes,
+    if (BoundsRes.isInvalid())
+      return nullptr;
+    return Actions.ActOnBoundsFact(VarName, BoundsRes.get(),
                                    getCurScope(), Loc);
   }
 
-  ExprResult ExprRes(ParseExpression());
-  return Actions.ActOnRelopFact(WClause, ExprRes, Loc);
+  ExprResult ExprRes = Actions.CorrectDelayedTyposInExpr(ParseExpression());
+  if (ExprRes.isInvalid())
+    return nullptr;
+  return Actions.ActOnRelopFact(ExprRes.get(), Loc);
 }
 
 WhereClause *Parser::ParseWhereClause() {
@@ -2477,10 +2483,14 @@ WhereClause *Parser::ParseWhereClause() {
     return nullptr;
 
   WhereClause *WClause = Actions.ActOnWhereClause(Loc);
+  if (!WClause)
+    return nullptr;
 
   while (true) {
-    if (ParseWhereClauseFact(WClause))
+    WhereClauseFact *Fact = ParseWhereClauseFact();
+    if (!Fact)
       return nullptr;
+    WClause->addFact(Fact);
 
     if (Tok.isNot(tok::ampamp))
       break;

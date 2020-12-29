@@ -4423,47 +4423,39 @@ WhereClause *Sema::ActOnWhereClause(SourceLocation Loc) {
   return new (Context) WhereClause(Loc);
 }
 
-bool Sema::ActOnRelopFact(WhereClause *WClause, ExprResult ExprRes,
-                          SourceLocation Loc) {
-  bool IsError = true;
+WhereClauseFact *Sema::ActOnRelopFact(Expr *RelopExpr,
+                                      SourceLocation Loc) {
+  // A relop fact should be of one of the following forms:
+  // 1. variable relop non-modifying-exp
+  // 2. non-modifying-exp relop variable
 
-  if (!WClause)
-    return IsError;
+  BinaryOperator *BO = dyn_cast<BinaryOperator>(RelopExpr);
+  if (!BO || !BO->isRelationalOp())
+    return nullptr;
 
-  if (ExprRes.isInvalid())
-    return IsError;
+  DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(BO->getLHS());
+  if (!DRE && !dyn_cast_or_null<DeclRefExpr>(BO->getRHS()))
+    return nullptr;
 
-  RelopFact *Fact = new (Context) RelopFact(ExprRes.get(), Loc);
-  WClause->addFact(Fact);
-
-  return false;
+  return new (Context) RelopFact(RelopExpr, Loc);
 }
 
-bool Sema::ActOnBoundsFact(WhereClause *WClause, IdentifierInfo *VarName,
-                           ExprResult BoundsRes, Scope *CurScope,
-                           SourceLocation Loc) {
-  bool IsError = true;
-  if (!WClause)
-    return IsError;
-
-  if (BoundsRes.isInvalid())
-    return IsError;
-
-  BoundsExpr *Bounds = dyn_cast<BoundsExpr>(BoundsRes.get());
+WhereClauseFact *Sema::ActOnBoundsFact(IdentifierInfo *VarName,
+                                       Expr *BoundsExp,
+                                       Scope *CurScope,
+                                       SourceLocation Loc) {
+  BoundsExpr *Bounds = dyn_cast<BoundsExpr>(BoundsExp);
   if (!Bounds)
-    return IsError;
+    return nullptr;
 
   LookupResult Lookup(*this, VarName, Loc, Sema::LookupOrdinaryName);
   LookupParsedName(Lookup, CurScope, nullptr, true);
   if (Lookup.empty())
-    return IsError;
+    return nullptr;
 
   VarDecl *VD = Lookup.getAsSingle<VarDecl>();
   if (!VD)
-    return IsError;
+    return nullptr;
 
-  BoundsFact *Fact = new (Context) BoundsFact(VD, Bounds, Loc);
-  WClause->addFact(Fact);
-
-  return false;
+  return new (Context) BoundsFact(VD, Bounds, Loc);
 }
