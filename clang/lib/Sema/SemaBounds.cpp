@@ -6028,18 +6028,12 @@ namespace {
     bool isNonModifyingExpr() { return !FoundModifyingExpr; }
 
     // Assignments are of course modifying
-    bool VisitBinAssign(BinaryOperator* E) {
-      addError(E, MEK_Assign);
-      FoundModifyingExpr = true;
-
-      return true;
-    }
-
-    // Assignments are of course modifying
-    bool VisitCompoundAssignOperator(CompoundAssignOperator *E) {
-      addError(E, MEK_Assign);
-      FoundModifyingExpr = true;
-
+    bool VisitBinaryOperator(BinaryOperator *E) {
+      if (E->isAssignmentOp()) {
+        addError(E, MEK_Assign);
+        FoundModifyingExpr = true;
+      }
+      
       return true;
     }
 
