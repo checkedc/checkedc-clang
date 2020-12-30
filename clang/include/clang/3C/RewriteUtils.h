@@ -90,13 +90,14 @@ public:
 
   SourceRange getSourceRange(SourceManager &SM) const override {
     TypeSourceInfo *TSInfo = Decl->getTypeSourceInfo();
-    if (!TSInfo)
+    FunctionTypeLoc TypeLoc;
+    if (TSInfo) {
+      auto TSInfoLoc = TSInfo->getTypeLoc();
+      TypeLoc = getBaseTypeLoc(TSInfoLoc).getAs<clang::FunctionTypeLoc>();
+    }
+    if (!TSInfo || TypeLoc.isNull())
       return SourceRange(Decl->getBeginLoc(),
                          getFunctionDeclarationEnd(Decl, SM));
-    FunctionTypeLoc TypeLoc =
-        getBaseTypeLoc(TSInfo->getTypeLoc()).getAs<clang::FunctionTypeLoc>();
-
-    assert("FunctionDecl doesn't have function type?" && !TypeLoc.isNull());
 
     // Function pointer are funky, and require special handling to rewrite the
     // return type.

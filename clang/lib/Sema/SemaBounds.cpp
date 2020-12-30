@@ -647,13 +647,12 @@ namespace {
   // that are currently known to be valid for the variable.
   using BoundsContextTy = llvm::DenseMap<const VarDecl *, BoundsExpr *>;
 
-  // EqualExprTy denotes a set of expressions that produce the same value
-  // as an expression e.
-  using EqualExprTy = SmallVector<Expr *, 4>;
+  // ExprSetTy denotes a set of expressions.
+  using ExprSetTy = SmallVector<Expr *, 4>;
 
   // ExprEqualMapTy denotes a map of an expression e to the set of
   // expressions that produce the same value as e.
-  using ExprEqualMapTy = llvm::DenseMap<Expr *, EqualExprTy>;
+  using ExprEqualMapTy = llvm::DenseMap<Expr *, ExprSetTy>;
 
   // CheckingState stores the outputs of bounds checking methods.
   // These members represent the state during bounds checking
@@ -686,7 +685,7 @@ namespace {
       // expression e once checking of e is complete.
       //
       // SameValue is named G in the Checked C spec.
-      EqualExprTy SameValue;
+      ExprSetTy SameValue;
 
       // LostVariables maps a variable declaration V whose observed bounds
       // are unknown to a pair <B, W>, where the initial observed bounds B
@@ -932,7 +931,7 @@ namespace {
       }
     }
 
-    void DumpExprsSet(raw_ostream &OS, EqualExprTy Exprs) {
+    void DumpExprsSet(raw_ostream &OS, ExprSetTy Exprs) {
       if (Exprs.size() == 0)
         OS << "{ }\n";
       else {
@@ -4270,7 +4269,7 @@ namespace {
       // Adjust EquivExprs to account for any uses of V in PrevState.EquivExprs.
       State.EquivExprs.clear();
       for (auto I = PrevState.EquivExprs.begin(); I != PrevState.EquivExprs.end(); ++I) {
-        EqualExprTy ExprList;
+        ExprSetTy ExprList;
         for (auto InnerList = (*I).begin(); InnerList != (*I).end(); ++InnerList) {
           Expr *E = *InnerList;
           Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OriginalValue, CSS);
@@ -4387,8 +4386,8 @@ namespace {
     // Val is an optional expression that may be contained in the updated
     // SameValue set. If Val is not provided, e is used instead.  If Val
     // and e are null, SameValue is not updated.
-    void UpdateSameValue(Expr *E, const EqualExprTy SubExprSameValue,
-                         EqualExprTy &SameValue, Expr *Val = nullptr) {
+    void UpdateSameValue(Expr *E, const ExprSetTy SubExprSameValue,
+                         ExprSetTy &SameValue, Expr *Val = nullptr) {
       Expr *SubExpr = dyn_cast<Expr>(*(E->child_begin()));
       assert(SubExpr);
       ExprEqualMapTy SubExprSameValueSets;
@@ -4412,7 +4411,7 @@ namespace {
     // SameValue set. If Val is not provided, e is used instead.  If Val
     // and e are null, SameValue is not updated.
     void UpdateSameValue(Expr *E, ExprEqualMapTy SubExprSameValueSets,
-                         EqualExprTy &SameValue, Expr *Val = nullptr) {
+                         ExprSetTy &SameValue, Expr *Val = nullptr) {
       SameValue.clear();
 
       if (!Val) Val = E;
@@ -4438,13 +4437,13 @@ namespace {
       // the same value as Val.
       else {
         Expr *ValPrime = nullptr;
-        for (llvm::detail::DenseMapPair<Expr *, EqualExprTy> Pair : SubExprSameValueSets) {
+        for (llvm::detail::DenseMapPair<Expr *, ExprSetTy> Pair : SubExprSameValueSets) {
           Expr *SubExpr_i = Pair.first;
           // For any modifying subexpression SubExpr_i of e, try to set
           // ValPrime to a nonmodifying expression from the set SameValue_i
           // of expressions that produce the same value as SubExpr_i.
           if (!CheckIsNonModifying(SubExpr_i)) {
-            EqualExprTy SameValue_i = Pair.second;
+            ExprSetTy SameValue_i = Pair.second;
             for (auto I = SameValue_i.begin(); I != SameValue_i.end(); ++I) {
               Expr *E_i = *I;
               if (CheckIsNonModifying(E_i)) {
@@ -4500,7 +4499,7 @@ namespace {
       
       // Check EQ for a variable w != v that produces the same value as v.
       Expr *ValuePreservingV = nullptr;
-      EqualExprTy F = GetEqualExprSetContainingExpr(Target, EQ, ValuePreservingV);
+      ExprSetTy F = GetEqualExprSetContainingExpr(Target, EQ, ValuePreservingV);
       for (auto I = F.begin(); I != F.end(); ++I) {
         // Account for value-preserving operations on w when searching for
         // a variable w in F. For example, if F contains (T)LValueToRValue(w),
@@ -4922,10 +4921,10 @@ namespace {
                                       const EquivExprSets EQ2) {
       EquivExprSets IntersectedEQ;
       for (auto I1 = EQ1.begin(); I1 != EQ1.end(); ++I1) {
-        EqualExprTy Set1 = *I1;
+        ExprSetTy Set1 = *I1;
         for (auto I2 = EQ2.begin(); I2 != EQ2.end(); ++I2) {
-          EqualExprTy Set2 = *I2;
-          EqualExprTy IntersectedExprSet = IntersectExprSets(Set1, Set2);
+          ExprSetTy Set2 = *I2;
+          ExprSetTy IntersectedExprSet = IntersectExprSets(Set1, Set2);
           if (IntersectedExprSet.size() > 1)
             IntersectedEQ.push_back(IntersectedExprSet);
         }
@@ -4934,9 +4933,8 @@ namespace {
     }
 
     // IntersectExprSets returns the intersection of two sets of expressions.
-    EqualExprTy IntersectExprSets(const EqualExprTy Set1,
-                                  const EqualExprTy Set2) {
-      EqualExprTy IntersectedSet;
+    ExprSetTy IntersectExprSets(const ExprSetTy Set1, const ExprSetTy Set2) {
+      ExprSetTy IntersectedSet;
       for (auto I = Set1.begin(); I != Set1.end(); ++I) {
         Expr *E1 = *I;
         if (EqualExprsContainsExpr(Set2, E1))
@@ -4965,11 +4963,11 @@ namespace {
     // e1 may include value-preserving operations.  For example, if a set F
     // in EQ contains (T)e, where (T) is a value-preserving cast,
     // ValuePreservingE will be set to (T)e.
-    EqualExprTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ,
-                                              Expr *&ValuePreservingE) {
+    ExprSetTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ,
+                                            Expr *&ValuePreservingE) {
       ValuePreservingE = nullptr;
       for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
-        EqualExprTy F = *OuterList;
+        ExprSetTy F = *OuterList;
         for (auto InnerList = F.begin(); InnerList != F.end(); ++InnerList) {
           Expr *E1 = *InnerList;
           if (EqualValue(S.Context, E, E1, nullptr)) {
@@ -4983,9 +4981,9 @@ namespace {
 
     // If e appears in a set F in EQ, GetEqualExprSetContainingExpr
     // returns F.  Otherwise, it returns an empty set.
-    EqualExprTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ) {
+    ExprSetTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ) {
       for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
-        EqualExprTy F = *OuterList;
+        ExprSetTy F = *OuterList;
         if (EqualExprsContainsExpr(F, E))
           return F;
       }
@@ -4993,8 +4991,7 @@ namespace {
     }
 
     // IsEqualExprsSubset returns true if Exprs1 is a subset of Exprs2.
-    bool IsEqualExprsSubset(const EqualExprTy Exprs1,
-                            const EqualExprTy Exprs2) {
+    bool IsEqualExprsSubset(const ExprSetTy Exprs1, const ExprSetTy Exprs2) {
       for (auto I = Exprs1.begin(); I != Exprs1.end(); ++I) {
         Expr *E = *I;
         if (!EqualExprsContainsExpr(Exprs2, E))
@@ -5005,8 +5002,7 @@ namespace {
 
     // DoExprSetsIntersect returns true if the intersection of Exprs1 and
     // Exprs2 is nonempty.
-    bool DoExprSetsIntersect(const EqualExprTy Exprs1,
-                             const EqualExprTy Exprs2) {
+    bool DoExprSetsIntersect(const ExprSetTy Exprs1, const ExprSetTy Exprs2) {
       for (auto I = Exprs1.begin(); I != Exprs1.end(); ++I) {
         Expr *E = *I;
         if (EqualExprsContainsExpr(Exprs2, E))
@@ -5016,7 +5012,7 @@ namespace {
     }
 
     // EqualExprsContainsExpr returns true if the set Exprs contains E.
-    bool EqualExprsContainsExpr(const EqualExprTy Exprs, Expr *E) {
+    bool EqualExprsContainsExpr(const ExprSetTy Exprs, Expr *E) {
       for (auto I = Exprs.begin(); I != Exprs.end(); ++I) {
         if (EqualValue(S.Context, E, *I, nullptr))
           return true;

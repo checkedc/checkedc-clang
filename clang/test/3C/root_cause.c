@@ -1,4 +1,4 @@
-// RUN: 3c -extra-arg="-Wno-everything" -alltypes -warn-root-cause %s 2>&1 1>%t.unused | FileCheck %s
+// RUN: 3c -extra-arg="-Wno-everything" -alltypes -warn-root-cause %s 2>&1 >%t.unused | FileCheck %s
 
 // This test is unusual in that it checks for the errors in the code
 

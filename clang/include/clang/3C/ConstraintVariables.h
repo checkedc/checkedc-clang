@@ -240,10 +240,18 @@ private:
   void addArrayAnnotations(std::stack<std::string> &CheckedArrs,
                            std::deque<std::string> &EndStrs) const;
 
-  // Utility used by the constructor to extract string representation of the
-  // base type that preserves macros where possible.
+  // Utility used by the constructor to obtain a string representation of a
+  // declaration's base type. To preserve macros, this we first try to take
+  // the type directly from source code. Where that is not possible, the type
+  // is regenerated from the type in the clang AST.
   static std::string extractBaseType(DeclaratorDecl *D, QualType QT,
                                      const Type *Ty, const ASTContext &C);
+
+  // Try to extract string representation of the base type for a declaration
+  // from the source code. If the base type cannot be extracted from source, an
+  // empty string is returned instead.
+  static std::string tryExtractBaseType(DeclaratorDecl *D, QualType QT,
+                                        const Type *Ty, const ASTContext &C);
 
   // Flag to indicate that this constraint is a part of function prototype
   // e.g., Parameters or Return.

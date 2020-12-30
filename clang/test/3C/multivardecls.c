@@ -5,7 +5,7 @@
 // RUN: 3c -alltypes %S/multivardecls.checked.c -- | count 0
 // RUN: rm %S/multivardecls.checked.c
 
-typedef unsigned long size_t;
+#include <stddef.h>
 _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 
 void test() {

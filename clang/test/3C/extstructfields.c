@@ -1,3 +1,8 @@
+// This regression test is for a 3C bug that affected vsftpd, which only builds
+// on Linux. Windows does not have `struct sigaction`, and we couldn't find a
+// reasonable way to write an analogous test that works on Windows.
+// UNSUPPORTED: system-windows
+
 // RUN: 3c -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // RUN: 3c -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 // RUN: 3c -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
