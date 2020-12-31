@@ -1688,9 +1688,9 @@ namespace {
 #ifdef TRACE_RANGE
         llvm::outs() << "Found constant ranges:\n";
         llvm::outs() << "Declared bounds";
-        DeclaredBounds->dump(llvm::outs());
+        DeclaredBounds->dump(llvm::outs(), Context);
         llvm::outs() << "\nSource bounds";
-        SrcBounds->dump(llvm::outs());
+        SrcBounds->dump(llvm::outs(), Context);
         llvm::outs() << "\nDeclared range:";
         DeclaredRange.Dump(llvm::outs());
         llvm::outs() << "\nSource range:";
@@ -1727,14 +1727,14 @@ namespace {
                                          ProofFailure &Cause) {
 #ifdef TRACE_RANGE
       llvm::outs() << "Examining:\nPtrBase\n";
-      PtrBase->dump(llvm::outs());
+      PtrBase->dump(llvm::outs(), Context);
       llvm::outs() << "Offset = ";
       if (Offset != nullptr) {
-        Offset->dump(llvm::outs());
+        Offset->dump(llvm::outs(), Context);
       } else
         llvm::outs() << "nullptr\n";
       llvm::outs() << "Bounds\n";
-      Bounds->dump(llvm::outs());
+      Bounds->dump(llvm::outs(), Context);
 #endif
       assert(BoundsUtil::IsStandardForm(Bounds) &&
              "bounds not in standard form");
@@ -2315,7 +2315,7 @@ namespace {
      assert(Cfg && "expected CFG to exist");
 #if TRACE_CFG
      llvm::outs() << "Dumping AST";
-     Body->dump(llvm::outs());
+     Body->dump(llvm::outs(), Context);
      llvm::outs() << "Dumping CFG:\n";
      Cfg->print(llvm::outs(), S.getLangOpts(), true);
      llvm::outs() << "Traversing CFG:\n";
@@ -2392,7 +2392,7 @@ namespace {
 
 #if TRACE_CFG
             llvm::outs() << "Visiting ";
-            S->dump(llvm::outs());
+            S->dump(llvm::outs(), Context);
             llvm::outs().flush();
 #endif
             // Modify the ObservedBounds context to include any variables with
