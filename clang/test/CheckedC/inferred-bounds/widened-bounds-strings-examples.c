@@ -89,6 +89,7 @@ int my_strcmp(_Nt_array_ptr<char> s, _Nt_array_ptr<char> t) {
 
 // CHECK: In function: my_strcmp
 // CHECK:  [B3]
-// CHECK:    1: return 0;
+// CHECK:    1: 0
+// CHECK:    2: return [B3.1];
 // CHECK: upper_bound(s) = 1
 }
