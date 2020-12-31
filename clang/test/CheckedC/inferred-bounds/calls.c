@@ -52,21 +52,21 @@ void f0(_Array_ptr<int> a) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
 // CHECK: Declared Bounds:
-// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
-// CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
-// CHECK: IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
+// CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' '+'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
+// CHECK: IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
 // CHECK: Initializer Bounds:
-// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
-// CHECK: DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
-// CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
-// CHECK: IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
+// CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' '+'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
+// CHECK: IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
 
 void f1(int i) {
     _Array_ptr<int> b : count(i) = f_count(i, i);
@@ -85,16 +85,16 @@ void f1(int i) {
 // CHECK:    ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
 // CHECK:   `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Declared Bounds:
-// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Initializer Bounds:
-// CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK:   BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' _BoundTemporary  [[TEMP1]]
-// CHECK:   `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
-// CHECK:   BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' _BoundTemporary  [[TEMP1]]
-// CHECK:   `-ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
-// CHECK:     `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
+// CHECK:   BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' _BoundTemporary  [[TEMP1]]
+// CHECK:   `-BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' '+'
+// CHECK:   BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' _BoundTemporary  [[TEMP1]]
+// CHECK:   `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK:     `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 
 void f2(int i) {
     _Array_ptr<int> b : byte_count(i) = f_byte(i, i);
@@ -113,18 +113,18 @@ void f2(int i) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Declared Bounds:
-// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Byte
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Byte
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Initializer Bounds:
-// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK:   CStyleCastExpr {{0x[0-9a-f]+}} '_Array_ptr<char>' <BitCast>
-// CHECK:     BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' _BoundTemporary  [[TEMP2]]
-// CHECK:   BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<char>' '+'
-// CHECK:     CStyleCastExpr {{0x[0-9a-f]+}} '_Array_ptr<char>' <BitCast>
-// CHECK:       BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' _BoundTemporary  [[TEMP2]]
-// CHECK:         ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
-// CHECK:           DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
+// CHECK:   CStyleCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' <BitCast>
+// CHECK:     BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' _BoundTemporary  [[TEMP2]]
+// CHECK:   BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' '+'
+// CHECK:     CStyleCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' <BitCast>
+// CHECK:       BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' _BoundTemporary  [[TEMP2]]
+// CHECK:         ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK:           DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 
 
 //
@@ -151,21 +151,21 @@ void f10(_Array_ptr<int> a, _Array_ptr<int> b) {
 // CHECK: UnaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' postfix '++'
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<int>'
 // CHECK: Declared Bounds:
-// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
-// CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
-// CHECK: IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
+// CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' '+'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
+// CHECK: IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
 // CHECK: Initializer Bounds:
-// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
-// CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
-// CHECK: IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
+// CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' '+'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
+// CHECK: IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
 
 void f11(_Array_ptr<int> a, _Array_ptr<int> b) {
     _Array_ptr<int> c : bounds(a, a+1) = f_bounds(b++, a); // \
@@ -190,15 +190,15 @@ void f11(_Array_ptr<int> a, _Array_ptr<int> b) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
 // CHECK: Declared Bounds:
-// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
-// CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
-// CHECK: IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
+// CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' '+'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
+// CHECK: IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
 // CHECK: Initializer Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Invalid
 
 void f12(int i, int j) {
     _Array_ptr<int> b : count(i) = f_count(i, j++);
@@ -217,16 +217,16 @@ void f12(int i, int j) {
 // CHECK: UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int' postfix '++'
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'j' 'int'
 // CHECK: Declared Bounds:
-// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Initializer Bounds:
-// CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK:    BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' _BoundTemporary  [[TEMP3]]
-// CHECK:    BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
-// CHECK:      BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' _BoundTemporary  [[TEMP3]]
-// CHECK:      ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
-// CHECK:       DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
+// CHECK:    BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' _BoundTemporary  [[TEMP3]]
+// CHECK:    BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' '+'
+// CHECK:      BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' _BoundTemporary  [[TEMP3]]
+// CHECK:      ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK:       DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 
 void f13(int i, int j) {
     _Array_ptr<int> b : count(i) = f_count(j++, i); // \
@@ -247,11 +247,11 @@ void f13(int i, int j) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Declared Bounds:
-// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Initializer Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Invalid
 
 void f14(int i, int j) {
     _Array_ptr<int> b : byte_count(i) = f_byte(i, j++);
@@ -270,18 +270,18 @@ void f14(int i, int j) {
 // CHECK: UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int' postfix '++'
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'j' 'int'
 // CHECK: Declared Bounds:
-// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Byte
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Byte
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Initializer Bounds:
-// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK:   CStyleCastExpr {{0x[0-9a-f]+}} '_Array_ptr<char>' <BitCast>
-// CHECK:     BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' _BoundTemporary  [[TEMP4]]
-// CHECK:   BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<char>' '+'
-// CHECK:    CStyleCastExpr {{0x[0-9a-f]+}} '_Array_ptr<char>' <BitCast>
-// CHECK:      BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' _BoundTemporary  [[TEMP4]]
-// CHECK:    ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
-// CHECK:      DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
+// CHECK:   CStyleCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' <BitCast>
+// CHECK:     BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' _BoundTemporary  [[TEMP4]]
+// CHECK:   BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' '+'
+// CHECK:    CStyleCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' <BitCast>
+// CHECK:      BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' _BoundTemporary  [[TEMP4]]
+// CHECK:    ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK:      DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 
 void f15(int i, int j) {
     _Array_ptr<int> b : byte_count(i) = f_byte(j++, i); // \
@@ -302,11 +302,11 @@ void f15(int i, int j) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Declared Bounds:
-// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Byte
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Byte
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Initializer Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Invalid
 
 // Interoperation Types
 
@@ -331,21 +331,21 @@ void f20(int* a, int* b) {
 // CHECK: UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' postfix '++'
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *' lvalue ParmVar {{0x[0-9a-f]+}} 'b' 'int *'
 // CHECK: Declared Bounds:
-// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int *' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int *' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'int *'
-// CHECK: BinaryOperator {{0x[0-9a-f]+}} 'int *' '+'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int *' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int *' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'int *'
-// CHECK: IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'int *'
+// CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' '+'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'int *'
+// CHECK: IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
 // CHECK: Initializer Bounds:
-// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int *' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int *' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'int *'
-// CHECK: BinaryOperator {{0x[0-9a-f]+}} 'int *' '+'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int *' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int *' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'int *'
-// CHECK: IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'int *'
+// CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' '+'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'int *'
+// CHECK: IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
 
 void f21(int* a, int* b) {
     _Array_ptr<int> c : bounds(a, a+1) = f_boundsi(b++, a); // \
@@ -371,15 +371,15 @@ void f21(int* a, int* b) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'int *'
 // CHECK: Declared Bounds:
-// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int *' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int *' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'int *'
-// CHECK: BinaryOperator {{0x[0-9a-f]+}} 'int *' '+'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int *' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int *' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'int *'
-// CHECK: IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'int *'
+// CHECK: BinaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' '+'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'int *'
+// CHECK: IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
 // CHECK: Initializer Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Invalid
 
 void f22(int i, int j) {
     _Array_ptr<int> b : count(i) = f_counti(i, j++);
@@ -399,16 +399,16 @@ void f22(int i, int j) {
 // CHECK: UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int' postfix '++'
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'j' 'int'
 // CHECK: Declared Bounds:
-// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Initializer Bounds:
-// CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK:    BoundsValueExpr {{0x[0-9a-f]+}} 'int *' _BoundTemporary  [[TEMP5]]
-// CHECK:    BinaryOperator {{0x[0-9a-f]+}} 'int *' '+'
-// CHECK:      BoundsValueExpr {{0x[0-9a-f]+}} 'int *' _BoundTemporary  [[TEMP5]]
-// CHECK:      ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
-// CHECK:       DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
+// CHECK:    BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} 'int *' _BoundTemporary  [[TEMP5]]
+// CHECK:    BinaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' '+'
+// CHECK:      BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} 'int *' _BoundTemporary  [[TEMP5]]
+// CHECK:      ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK:       DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 
 void f23(int i, int j) {
     _Array_ptr<int> b : count(i) = f_counti(j++, i); // \
@@ -430,11 +430,11 @@ void f23(int i, int j) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Declared Bounds:
-// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Initializer Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Invalid
 
 void f24(int i, int j) {
     _Array_ptr<int> b : byte_count(i) = f_bytei(i, j++);
@@ -454,18 +454,18 @@ void f24(int i, int j) {
 // CHECK: UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int' postfix '++'
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'j' 'int'
 // CHECK: Declared Bounds:
-// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Byte
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Byte
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Initializer Bounds:
-// CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK:    CStyleCastExpr {{0x[0-9a-f]+}} '_Array_ptr<char>' <BitCast>
-// CHECK:      BoundsValueExpr {{0x[0-9a-f]+}} 'int *' _BoundTemporary [[TEMP6]]
-// CHECK:    BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<char>' '+'
-// CHECK:      CStyleCastExpr {{0x[0-9a-f]+}} '_Array_ptr<char>' <BitCast>
-// CHECK:        BoundsValueExpr {{0x[0-9a-f]+}} 'int *' _BoundTemporary [[TEMP6]]
-// CHECK:      ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
-// CHECK:        DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE'
+// CHECK:    CStyleCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' <BitCast>
+// CHECK:      BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} 'int *' _BoundTemporary [[TEMP6]]
+// CHECK:    BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' '+'
+// CHECK:      CStyleCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' <BitCast>
+// CHECK:        BoundsValueExpr {{0x[0-9a-f]+}} {{.*}} 'int *' _BoundTemporary [[TEMP6]]
+// CHECK:      ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK:        DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 
 void f25(int i, int j) {
     _Array_ptr<int> b : byte_count(i) = f_bytei(j++, i); // \
@@ -487,8 +487,8 @@ void f25(int i, int j) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Declared Bounds:
-// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Byte
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Byte
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Initializer Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Invalid
