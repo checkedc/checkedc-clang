@@ -337,6 +337,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
        llvm_unreachable("cannot compare a statement");  
      case Expr::PredefinedExprClass: Cmp = Compare<PredefinedExpr>(E1, E2); break;
      case Expr::DeclRefExprClass: return Compare<DeclRefExpr>(E1, E2);
+     case Expr::ConstantExprClass: return Compare<ConstantExpr>(E1, E2);
      case Expr::IntegerLiteralClass: return Compare<IntegerLiteral>(E1, E2);
      case Expr::FloatingLiteralClass: return Compare<FloatingLiteral>(E1, E2);
      case Expr::ImaginaryLiteralClass: break;
@@ -536,6 +537,11 @@ Lexicographic::CompareImpl(const PredefinedExpr *E1, const PredefinedExpr *E2) {
 Result
 Lexicographic::CompareImpl(const DeclRefExpr *E1, const DeclRefExpr *E2) {
   return CompareDecl(E1->getDecl(), E2->getDecl());
+}
+
+Result
+Lexicographic::CompareImpl(const ConstantExpr *E1, const ConstantExpr *E2) {
+  return CompareExpr(E1->getSubExpr(), E2->getSubExpr());
 }
 
 Result

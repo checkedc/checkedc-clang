@@ -80,6 +80,7 @@ namespace clang {
 
     Result CompareImpl(const PredefinedExpr *E1, const PredefinedExpr *E2);
     Result CompareImpl(const DeclRefExpr *E1, const DeclRefExpr *E2);
+    Result CompareImpl(const ConstantExpr *E1, const ConstantExpr *E2);
     Result CompareImpl(const IntegerLiteral *E1, const IntegerLiteral *E2);
     Result CompareImpl(const FloatingLiteral *E1, const FloatingLiteral *E2);
     Result CompareImpl(const StringLiteral *E1, const StringLiteral *E2);
