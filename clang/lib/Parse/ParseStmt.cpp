@@ -257,9 +257,6 @@ Retry:
       return StmtError();
     }
 
-    if (ExpectAndConsume(tok::semi))
-      return StmtError();
-
     StmtResult StmtRes = Actions.ActOnNullStmt(SourceLocation());
     if (StmtRes.isInvalid() || !isa<NullStmt>(StmtRes.get()))
       return StmtError();
@@ -2498,6 +2495,10 @@ WhereClause *Parser::ParseWhereClause() {
     // Consume the "&&" token.
     ConsumeToken();
   }
+
+  // The where clause should end with a semicolon.
+  if (ExpectAndConsume(tok::semi))
+    return nullptr;
 
   return WClause;
 }

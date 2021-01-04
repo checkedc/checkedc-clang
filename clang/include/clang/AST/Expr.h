@@ -6821,8 +6821,6 @@ public:
 /// \brief Represents a Checked C relational operator fact.
 class RelopFact : public WhereClauseFact {
 public:
-  // TODO: Validate the LHS and RHS of the RelopExpr according to the Checked C
-  // spec.
   Expr *RelopExpr;
 
   RelopFact(Expr *RelopExpr, SourceLocation Loc)
