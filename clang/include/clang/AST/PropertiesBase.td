@@ -78,6 +78,7 @@ def AutoTypeKeyword : EnumPropertyType;
 def Bool : PropertyType<"bool">;
 def BuiltinTypeKind : EnumPropertyType<"BuiltinType::Kind">;
 def CallingConv : EnumPropertyType;
+def CheckedPointerKind : EnumPropertyType;
 def DeclarationName : PropertyType;
 def DeclarationNameKind : EnumPropertyType<"DeclarationName::NameKind">;
 def DeclRef : RefPropertyType<"Decl"> { let ConstWhenWriting = 1; }

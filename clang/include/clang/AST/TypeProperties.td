@@ -22,7 +22,11 @@ let Class = PointerType in {
     let Read = [{ node->getPointeeType() }];
   }
 
-  def : Creator<[{ return ctx.getPointerType(pointeeType); }]>;
+  def : Property<"kind", CheckedPointerKind> {
+    let Read = [{ node->getKind() }];
+  }
+
+  def : Creator<[{ return ctx.getPointerType(pointeeType, kind); }]>;
 }
 
 let Class = AdjustedType in {
