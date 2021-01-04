@@ -123,6 +123,9 @@ public:
   }
 
   void AddBoundsAnnotations(BoundsAnnotations BA);
+  void writeBoundsAnnotations(BoundsAnnotations BA) {
+    AddBoundsAnnotations(BA);
+  }
 
   /// Add a definition for the given function to the queue of statements
   /// to emit.

@@ -76,6 +76,7 @@ def ArraySizeModifier : EnumPropertyType<"ArrayType::ArraySizeModifier">;
 def AttrKind : EnumPropertyType<"attr::Kind">;
 def AutoTypeKeyword : EnumPropertyType;
 def Bool : PropertyType<"bool">;
+def BoundsAnnotations : PropertyType<"BoundsAnnotations">;
 def BuiltinTypeKind : EnumPropertyType<"BuiltinType::Kind">;
 def CallingConv : EnumPropertyType;
 def CheckedArrayKind : EnumPropertyType;

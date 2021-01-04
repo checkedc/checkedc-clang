@@ -336,6 +336,23 @@ let Class = FunctionProtoType in {
                     ? node->getExtParameterInfos()
                     : llvm::ArrayRef<FunctionProtoType::ExtParameterInfo>() }];
   }
+  def : Property<"paramAnnots", Array<BoundsAnnotations>> {
+    let Read = [{ node->hasParamAnnots()
+                    ? node->getParamAnnots()
+                    : llvm::ArrayRef<BoundsAnnotations>() }];
+  }
+  def : Property<"returnAnnots", BoundsAnnotations> {
+    let Read = [{ node->getReturnAnnots() }];
+  }
+  def : Property<"numTypeVars", UInt32> {
+    let Read = [{ node->getNumTypeVars() }];
+  }
+  def : Property<"isGenericFunction", Bool> {
+    let Read = [{ node->isGenericFunction() }];
+  }
+  def : Property<"isItypeGenericFunction", Bool> {
+    let Read = [{ node->isItypeGenericFunction() }];
+  }
 
   def : Creator<[{
     auto extInfo = FunctionType::ExtInfo(noReturn, hasRegParm, regParm,
@@ -349,6 +366,11 @@ let Class = FunctionProtoType in {
     epi.TypeQuals = methodQualifiers;
     epi.RefQualifier = refQualifier;
     epi.ExceptionSpec = exceptionSpecifier;
+    epi.ParamAnnots = paramAnnots.empty() ? nullptr : paramAnnots.data();
+    epi.ReturnAnnots = returnAnnots;
+    epi.NumTypeVars = numTypeVars;
+    epi.GenericFunction = isGenericFunction;
+    epi.ItypeGenericFunction = isItypeGenericFunction;
     epi.ExtParameterInfos =
       extParameterInfo.empty() ? nullptr : extParameterInfo.data();
     return ctx.getFunctionType(returnType, parameters, epi);

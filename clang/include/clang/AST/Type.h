@@ -4308,6 +4308,12 @@ public:
     return Result;
   }
 
+  ArrayRef<BoundsAnnotations> getParamAnnots() const {
+    assert(hasParamAnnots());
+    return ArrayRef<BoundsAnnotations>(getTrailingObjects<BoundsAnnotations>(),
+                                       getNumParams());
+  }
+
   ExtProtoInfo getExtProtoInfo() const {
     ExtProtoInfo EPI;
     EPI.ExtInfo = getExtInfo();
