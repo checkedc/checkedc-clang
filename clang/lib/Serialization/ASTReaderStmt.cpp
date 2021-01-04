@@ -2823,6 +2823,13 @@ BoundsExpr *ASTReader::ReadBoundsExpr(ModuleFile &F) {
   return B;
 }
 
+BoundsAnnotations ASTReader::ReadBoundsAnnotations(ModuleFile &F) {
+  Expr *Bounds = ReadExpr(F);
+  Expr *IType = ReadExpr(F);
+  return BoundsAnnotations(cast_or_null<BoundsExpr>(Bounds),
+                           cast_or_null<InteropTypeExpr>(IType));
+}
+
 Expr *ASTReader::ReadSubExpr() {
   return cast_or_null<Expr>(ReadSubStmt());
 }
