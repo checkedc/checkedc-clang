@@ -2215,7 +2215,7 @@ class UnaryOperator final
   }
 
   // Compiler-inferred bounds used for inserting a bounds check.
-  BoundsExpr *Bounds;
+  BoundsExpr *Bounds = nullptr;
 
 public:
   typedef UnaryOperatorKind Opcode;
@@ -2719,7 +2719,7 @@ class ArraySubscriptExpr : public Expr {
   Stmt *SubExprs[END_EXPR];
 
   // Compiler-inferred bounds used for inserting a bounds check.
-  BoundsExpr *Bounds;
+  BoundsExpr *Bounds = nullptr;
 
   bool lhsIsBase() const { return getRHS()->getType()->isIntegerType(); }
 
@@ -3242,7 +3242,7 @@ class MemberExpr final
 
   /// Compiler-inferred bounds expression to be used to bounds check the base
   /// expression X of X->F, if a bounds check is needed.
-  BoundsExpr *Bounds;
+  BoundsExpr *Bounds = nullptr;
 
   MemberExpr(Expr *Base, bool IsArrow, SourceLocation OperatorLoc,
              ValueDecl *MemberDecl, const DeclarationNameInfo &NameInfo,
