@@ -743,6 +743,10 @@ void ASTStmtWriter::VisitUnaryOperator(UnaryOperator *E) {
   Record.push_back(E->getOpcode()); // FIXME: stable encoding
   Record.AddSourceLocation(E->getOperatorLoc());
   Record.push_back(E->canOverflow());
+  Record.push_back(E->hasBoundsExpr());
+  if (E->hasBoundsExpr()) {
+    Record.AddStmt(E->getBoundsExpr());
+  }
   if (HasFPFeatures)
     Record.push_back(E->getStoredFPFeatures().getAsOpaqueInt());
   Code = serialization::EXPR_UNARY_OPERATOR;
@@ -802,6 +806,10 @@ void ASTStmtWriter::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
   Record.AddStmt(E->getLHS());
   Record.AddStmt(E->getRHS());
   Record.AddSourceLocation(E->getRBracketLoc());
+  Record.push_back(E->hasBoundsExpr());
+  if (E->hasBoundsExpr()) {
+    Record.AddStmt(E->getBoundsExpr());
+  }
   Code = serialization::EXPR_ARRAY_SUBSCRIPT;
 }
 
@@ -928,6 +936,10 @@ void ASTStmtWriter::VisitMemberExpr(MemberExpr *E) {
     AddTemplateKWAndArgsInfo(*E->getTrailingObjects<ASTTemplateKWAndArgsInfo>(),
                              E->getTrailingObjects<TemplateArgumentLoc>());
 
+  Record.push_back(E->hasBoundsExpr());
+  if (E->hasBoundsExpr())
+    Record.AddStmt(E->getBoundsExpr());
+
   Code = serialization::EXPR_MEMBER;
 }
 
@@ -961,6 +973,20 @@ void ASTStmtWriter::VisitCastExpr(CastExpr *E) {
   Record.push_back(E->path_size());
   Record.AddStmt(E->getSubExpr());
   Record.push_back(E->getCastKind()); // FIXME: stable encoding
+  Record.push_back(E->isBoundsSafeInterface());
+  Record.push_back(E->hasBoundsExpr());
+  if (E->hasBoundsExpr()) {
+    Record.AddStmt(E->getBoundsExpr());
+  }
+  Record.push_back(E->hasNormalizedBoundsExpr());
+  if (E->hasNormalizedBoundsExpr()) {
+    Record.AddStmt(E->getNormalizedBoundsExpr());
+  }
+
+  Record.push_back(E->hasSubExprBoundsExpr());
+  if (E->hasSubExprBoundsExpr()) {
+    Record.AddStmt(E->getSubExprBoundsExpr());
+  }
 
   for (CastExpr::path_iterator
          PI = E->path_begin(), PE = E->path_end(); PI != PE; ++PI)
