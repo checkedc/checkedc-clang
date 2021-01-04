@@ -153,11 +153,15 @@ void ASTStmtReader::VisitCompoundStmt(CompoundStmt *S) {
   VisitStmt(S);
   SmallVector<Stmt *, 16> Stmts;
   unsigned NumStmts = Record.readInt();
+  S->setCheckedSpecifiers(static_cast<CheckedScopeSpecifier>(Record.readInt()));
+  S->setWrittenCheckedSpecifiers(static_cast<CheckedScopeSpecifier>(Record.readInt()));
   while (NumStmts--)
     Stmts.push_back(Record.readSubStmt());
   S->setStmts(Stmts);
   S->CompoundStmtBits.LBraceLoc = readSourceLocation();
   S->RBraceLoc = readSourceLocation();
+  S->CSSLoc = readSourceLocation();
+  S->CSMLoc = readSourceLocation();
 }
 
 void ASTStmtReader::VisitSwitchCase(SwitchCase *S) {

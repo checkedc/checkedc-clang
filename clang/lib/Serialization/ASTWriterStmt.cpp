@@ -81,10 +81,14 @@ void ASTStmtWriter::VisitNullStmt(NullStmt *S) {
 void ASTStmtWriter::VisitCompoundStmt(CompoundStmt *S) {
   VisitStmt(S);
   Record.push_back(S->size());
+  Record.push_back(S->getCheckedSpecifier());
+  Record.push_back(S->getWrittenCheckedSpecifier());
   for (auto *CS : S->body())
     Record.AddStmt(CS);
   Record.AddSourceLocation(S->getLBracLoc());
   Record.AddSourceLocation(S->getRBracLoc());
+  Record.AddSourceLocation(S->getCheckedSpecifierLoc());
+  Record.AddSourceLocation(S->getSpecifierModifierLoc());
   Code = serialization::STMT_COMPOUND;
 }
 
