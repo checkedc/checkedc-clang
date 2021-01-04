@@ -9780,7 +9780,7 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   }
   case Type::FunctionNoProto:
     return mergeFunctionTypes(LHS, RHS, OfBlockPointer, Unqualified,
-                              IgnoreBounds);
+                              /*AllowCXX=*/false, IgnoreBounds);
   case Type::Record:
   case Type::Enum:
     return {};
