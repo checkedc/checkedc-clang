@@ -113,18 +113,27 @@ let Class = ConstantArrayType in {
   def : Property<"size", ExprRef> {
     let Read = [{ node->getSizeExpr() }];
   }
+  def : Property<"kind", CheckedArrayKind> {
+    let Read = [{ node->getKind() }];
+  }
 
   def : Creator<[{
     return ctx.getConstantArrayType(elementType, sizeValue, size,
                                     sizeModifier,
-                                    indexQualifiers.getCVRQualifiers());
+                                    indexQualifiers.getCVRQualifiers(),
+                                    kind);
   }]>;
 }
 
 let Class = IncompleteArrayType in {
+  def : Property<"kind", CheckedArrayKind> {
+    let Read = [{ node->getKind() }];
+  }
+
   def : Creator<[{
     return ctx.getIncompleteArrayType(elementType, sizeModifier,
-                                      indexQualifiers.getCVRQualifiers());
+                                      indexQualifiers.getCVRQualifiers(),
+                                      kind);
   }]>;
 }
 
