@@ -246,9 +246,11 @@ bool _3CInterface::buildInitialConstraints() {
   std::unique_ptr<ToolAction> ConstraintTool = newFrontendActionFactoryA<
       GenericAction<ConstraintBuilderConsumer, ProgramInfo>>(GlobalProgramInfo);
 
-  if (ConstraintTool)
-    Tool.run(ConstraintTool.get());
-  else
+  if (ConstraintTool) {
+    int ToolExitCode = Tool.run(ConstraintTool.get());
+    if (ToolExitCode != 0)
+      return false;
+  } else
     llvm_unreachable("No action");
 
   if (!GlobalProgramInfo.link()) {
@@ -297,9 +299,11 @@ bool _3CInterface::solveConstraints(bool ComputeInterimState) {
     std::unique_ptr<ToolAction> ABInfTool = newFrontendActionFactoryA<
         GenericAction<AllocBasedBoundsInference, ProgramInfo>>(
         GlobalProgramInfo);
-    if (ABInfTool)
-      Tool.run(ABInfTool.get());
-    else
+    if (ABInfTool) {
+      int ToolExitCode = Tool.run(ABInfTool.get());
+      if (ToolExitCode != 0)
+        return false;
+    } else
       llvm_unreachable("No Action");
 
     // Propagate the information from allocator bounds.
@@ -310,9 +314,11 @@ bool _3CInterface::solveConstraints(bool ComputeInterimState) {
   // after constraint solving but before rewriting.
   std::unique_ptr<ToolAction> IMTool = newFrontendActionFactoryA<
       GenericAction<IntermediateToolHook, ProgramInfo>>(GlobalProgramInfo);
-  if (IMTool)
-    Tool.run(IMTool.get());
-  else
+  if (IMTool) {
+    int ToolExitCode = Tool.run(IMTool.get());
+    if (ToolExitCode != 0)
+      return false;
+  } else
     llvm_unreachable("No Action");
 
   if (AllTypes) {
@@ -364,8 +370,11 @@ bool _3CInterface::writeConvertedFileToDisk(const std::string &FilePath) {
         newFrontendActionFactoryA<RewriteAction<RewriteConsumer, ProgramInfo>>(
             GlobalProgramInfo);
 
-    if (RewriteTool)
-      Tool.run(RewriteTool.get());
+    if (RewriteTool) {
+      int ToolExitCode = Tool.run(RewriteTool.get());
+      if (ToolExitCode != 0)
+        return false;
+    }
     return true;
   }
   return false;
@@ -380,9 +389,11 @@ bool _3CInterface::writeAllConvertedFilesToDisk() {
   std::unique_ptr<ToolAction> RewriteTool =
       newFrontendActionFactoryA<RewriteAction<RewriteConsumer, ProgramInfo>>(
           GlobalProgramInfo);
-  if (RewriteTool)
-    Tool.run(RewriteTool.get());
-  else
+  if (RewriteTool) {
+    int ToolExitCode = Tool.run(RewriteTool.get());
+    if (ToolExitCode != 0)
+      return false;
+  } else
     llvm_unreachable("No action");
 
   return true;
