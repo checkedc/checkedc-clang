@@ -711,6 +711,11 @@ void ASTStmtReader::VisitUnaryOperator(UnaryOperator *E) {
   E->setOpcode((UnaryOperator::Opcode)Record.readInt());
   E->setOperatorLoc(readSourceLocation());
   E->setCanOverflow(Record.readInt());
+  bool hasBoundsExpr = Record.readInt();
+  BoundsExpr *Bounds = nullptr;
+  if (hasBoundsExpr)
+    Bounds = Record.readBoundsExpr();
+  E->setBoundsExpr(Bounds);
   if (hasFP_Features)
     E->setStoredFPFeatures(FPOptionsOverride(Record.readInt()));
 }
@@ -928,6 +933,11 @@ void ASTStmtReader::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
   E->setLHS(Record.readSubExpr());
   E->setRHS(Record.readSubExpr());
   E->setRBracketLoc(readSourceLocation());
+  bool hasBoundsExpr = Record.readInt();
+  BoundsExpr *Bounds = nullptr;
+  if (hasBoundsExpr)
+    Bounds = Record.readBoundsExpr();
+  E->setBoundsExpr(Bounds);
 }
 
 void ASTStmtReader::VisitMatrixSubscriptExpr(MatrixSubscriptExpr *E) {
@@ -1049,6 +1059,13 @@ void ASTStmtReader::VisitMemberExpr(MemberExpr *E) {
     ReadTemplateKWAndArgsInfo(
         *E->getTrailingObjects<ASTTemplateKWAndArgsInfo>(),
         E->getTrailingObjects<TemplateArgumentLoc>(), NumTemplateArgs);
+
+  // Checked C: Set bounds for the MemberExpr.
+  bool HasBoundsExpr = Record.readInt();
+  BoundsExpr *Bounds = nullptr;
+  if (HasBoundsExpr)
+    Bounds = Record.readBoundsExpr();
+  E->setBoundsExpr(Bounds);
 }
 
 void ASTStmtReader::VisitObjCIsaExpr(ObjCIsaExpr *E) {
@@ -1079,6 +1096,21 @@ void ASTStmtReader::VisitCastExpr(CastExpr *E) {
   assert(NumBaseSpecs == E->path_size());
   E->setSubExpr(Record.readSubExpr());
   E->setCastKind((CastKind)Record.readInt());
+  E->setBoundsSafeInterface((bool)Record.readInt());
+  bool hasBoundsExpr = Record.readInt();
+  BoundsExpr *Bounds = nullptr;
+  if (hasBoundsExpr)
+    Bounds = Record.readBoundsExpr();
+  E->setBoundsExpr(Bounds);
+
+  bool hasCastBoundsExpr = Record.readInt();
+  if (hasCastBoundsExpr) {
+    E->setNormalizedBoundsExpr(Record.readBoundsExpr());
+  }
+  bool hasSubExprBoundsExpr = Record.readInt();
+  if (hasSubExprBoundsExpr) {
+    E->setSubExprBoundsExpr(Record.readBoundsExpr());
+  }
   CastExpr::path_iterator BaseI = E->path_begin();
   while (NumBaseSpecs--) {
     auto *BaseSpec = new (Record.getContext()) CXXBaseSpecifier;
@@ -2779,6 +2811,16 @@ Stmt *ASTReader::ReadStmt(ModuleFile &F) {
 
 Expr *ASTReader::ReadExpr(ModuleFile &F) {
   return cast_or_null<Expr>(ReadStmt(F));
+}
+
+BoundsExpr *ASTReader::ReadBoundsExpr(ModuleFile &F) {
+  Expr *E = ReadExpr(F);
+  BoundsExpr *B = nullptr;
+  if (E) {
+    B = dyn_cast<BoundsExpr>(E);
+    assert(B && "failure reading BoundsExpr");
+  }
+  return B;
 }
 
 Expr *ASTReader::ReadSubExpr() {
