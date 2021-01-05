@@ -121,6 +121,20 @@ static cl::opt<bool>
                                  "even those unlikely to be interesting."),
                         cl::init(false), cl::cat(_3CCategory));
 
+// https://clang.llvm.org/doxygen/classclang_1_1VerifyDiagnosticConsumer.html#details
+//
+// Analogous to the -verify option of `clang -cc1`, but currently applies only
+// to the rewriting phase (because it is the only phase that generates
+// diagnostics, except for the declaration merging diagnostics that are
+// currently fatal). No checking of diagnostics from the other phases is
+// performed. We cannot simply have the caller pass `-extra-arg=-Xclang
+// -extra-arg=-verify` because that would expect each phase to produce the same
+// set of diagnostics.
+static cl::opt<bool> OptVerifyDiagnosticOutput(
+    "verify",
+    cl::desc("Verify diagnostic output (for automated testing of 3C)."),
+    cl::init(false), cl::cat(_3CCategory), cl::Hidden);
+
 #ifdef FIVE_C
 static cl::opt<bool> OptRemoveItypes(
     "remove-itypes",
@@ -161,6 +175,7 @@ int main(int argc, const char **argv) {
   CcOptions.DisableCCTypeChecker = OptDiableCCTypeChecker;
   CcOptions.WarnRootCause = OptWarnRootCause;
   CcOptions.WarnAllRootCause = OptWarnAllRootCause;
+  CcOptions.VerifyDiagnosticOutput = OptVerifyDiagnosticOutput;
 
 #ifdef FIVE_C
   CcOptions.RemoveItypes = OptRemoveItypes;

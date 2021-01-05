@@ -54,6 +54,7 @@ bool DisableCCTypeChecker;
 bool WarnRootCause;
 bool WarnAllRootCause;
 std::set<std::string> FilePaths;
+bool VerifyDiagnosticOutput;
 
 #ifdef FIVE_C
 bool RemoveItypes;
@@ -95,19 +96,39 @@ private:
 
 template <typename T>
 std::unique_ptr<FrontendActionFactory>
-newFrontendActionFactoryA(ProgramInfo &I) {
+newFrontendActionFactoryA(ProgramInfo &I, bool VerifyTheseDiagnostics = false) {
   class ArgFrontendActionFactory : public FrontendActionFactory {
   public:
-    explicit ArgFrontendActionFactory(ProgramInfo &I) : Info(I) {}
+    explicit ArgFrontendActionFactory(ProgramInfo &I,
+                                      bool VerifyTheseDiagnostics)
+        : Info(I), VerifyTheseDiagnostics(VerifyTheseDiagnostics) {}
 
     FrontendAction *create() override { return new T(Info); }
 
+    bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
+                       FileManager *Files,
+                       std::shared_ptr<PCHContainerOperations> PCHContainerOps,
+                       DiagnosticConsumer *DiagConsumer) override {
+      if (VerifyTheseDiagnostics) {
+        // Mirroring the logic of clang::ParseDiagnosticArgs in
+        // clang/lib/Frontend/CompilerInvocation.cpp. In particular, note that
+        // VerifyPrefixes is assumed to be sorted, in case we add more in the
+        // future.
+        DiagnosticOptions &DiagOpts = Invocation->getDiagnosticOpts();
+        DiagOpts.VerifyDiagnostics = true;
+        DiagOpts.VerifyPrefixes.push_back("expected");
+      }
+      return FrontendActionFactory::runInvocation(
+          Invocation, Files, PCHContainerOps, DiagConsumer);
+    }
+
   private:
     ProgramInfo &Info;
+    bool VerifyTheseDiagnostics;
   };
 
   return std::unique_ptr<FrontendActionFactory>(
-      new ArgFrontendActionFactory(I));
+      new ArgFrontendActionFactory(I, VerifyTheseDiagnostics));
 }
 
 ArgumentsAdjuster getIgnoreCheckedPointerAdjuster() {
@@ -192,6 +213,7 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
   AllocatorFunctions = CCopt.AllocatorFunctions;
   WarnRootCause = CCopt.WarnRootCause || CCopt.WarnAllRootCause;
   WarnAllRootCause = CCopt.WarnAllRootCause;
+  VerifyDiagnosticOutput = CCopt.VerifyDiagnosticOutput;
 
 #ifdef FIVE_C
   RemoveItypes = CCopt.RemoveItypes;
@@ -246,9 +268,11 @@ bool _3CInterface::buildInitialConstraints() {
   std::unique_ptr<ToolAction> ConstraintTool = newFrontendActionFactoryA<
       GenericAction<ConstraintBuilderConsumer, ProgramInfo>>(GlobalProgramInfo);
 
-  if (ConstraintTool)
-    Tool.run(ConstraintTool.get());
-  else
+  if (ConstraintTool) {
+    int ToolExitCode = Tool.run(ConstraintTool.get());
+    if (ToolExitCode != 0)
+      return false;
+  } else
     llvm_unreachable("No action");
 
   if (!GlobalProgramInfo.link()) {
@@ -297,9 +321,11 @@ bool _3CInterface::solveConstraints(bool ComputeInterimState) {
     std::unique_ptr<ToolAction> ABInfTool = newFrontendActionFactoryA<
         GenericAction<AllocBasedBoundsInference, ProgramInfo>>(
         GlobalProgramInfo);
-    if (ABInfTool)
-      Tool.run(ABInfTool.get());
-    else
+    if (ABInfTool) {
+      int ToolExitCode = Tool.run(ABInfTool.get());
+      if (ToolExitCode != 0)
+        return false;
+    } else
       llvm_unreachable("No Action");
 
     // Propagate the information from allocator bounds.
@@ -310,9 +336,11 @@ bool _3CInterface::solveConstraints(bool ComputeInterimState) {
   // after constraint solving but before rewriting.
   std::unique_ptr<ToolAction> IMTool = newFrontendActionFactoryA<
       GenericAction<IntermediateToolHook, ProgramInfo>>(GlobalProgramInfo);
-  if (IMTool)
-    Tool.run(IMTool.get());
-  else
+  if (IMTool) {
+    int ToolExitCode = Tool.run(IMTool.get());
+    if (ToolExitCode != 0)
+      return false;
+  } else
     llvm_unreachable("No Action");
 
   if (AllTypes) {
@@ -362,10 +390,13 @@ bool _3CInterface::writeConvertedFileToDisk(const std::string &FilePath) {
     Tool.appendArgumentsAdjuster(getIgnoreCheckedPointerAdjuster());
     std::unique_ptr<ToolAction> RewriteTool =
         newFrontendActionFactoryA<RewriteAction<RewriteConsumer, ProgramInfo>>(
-            GlobalProgramInfo);
+            GlobalProgramInfo, VerifyDiagnosticOutput);
 
-    if (RewriteTool)
-      Tool.run(RewriteTool.get());
+    if (RewriteTool) {
+      int ToolExitCode = Tool.run(RewriteTool.get());
+      if (ToolExitCode != 0)
+        return false;
+    }
     return true;
   }
   return false;
@@ -379,10 +410,12 @@ bool _3CInterface::writeAllConvertedFilesToDisk() {
   // Rewrite the input files
   std::unique_ptr<ToolAction> RewriteTool =
       newFrontendActionFactoryA<RewriteAction<RewriteConsumer, ProgramInfo>>(
-          GlobalProgramInfo);
-  if (RewriteTool)
-    Tool.run(RewriteTool.get());
-  else
+          GlobalProgramInfo, VerifyDiagnosticOutput);
+  if (RewriteTool) {
+    int ToolExitCode = Tool.run(RewriteTool.get());
+    if (ToolExitCode != 0)
+      return false;
+  } else
     llvm_unreachable("No action");
 
   return true;

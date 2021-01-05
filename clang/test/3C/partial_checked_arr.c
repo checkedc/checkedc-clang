@@ -2,8 +2,9 @@
 // RUN: 3c -addcr -alltypes %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o %t1.unused -
 // RUN: 3c -addcr %s | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
 // RUN: 3c -addcr %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o %t2.unused -
-// RUN: 3c -alltypes %s > %t
-// RUN: 3c -alltypes %t | count 0
+// RUN: 3c -alltypes -output-postfix=checked %s
+// RUN: 3c -alltypes %S/partial_checked_arr.checked.c -- | count 0
+// RUN: rm %S/partial_checked_arr.checked.c
 
 int strcmp(const char *src1 : itype(_Nt_array_ptr<const char>),
            const char *src2 : itype(_Nt_array_ptr<const char>));
