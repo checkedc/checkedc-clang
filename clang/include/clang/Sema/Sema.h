@@ -4028,11 +4028,14 @@ public:
   WhereClause *ActOnWhereClause(SourceLocation Loc);
 
   // Checked C: Perform semantic analysis on a where clause bounds fact.
-  WhereClauseFact *ActOnBoundsFact(IdentifierInfo *VarName, Expr *BoundsExp,
+  WhereClauseFact *ActOnBoundsFact(IdentifierInfo *Id, Expr *E,
                                    Scope *CurScope, SourceLocation Loc);
 
   // Checked C: Perform semantic analysis on a where clause relop fact.
-  WhereClauseFact *ActOnRelopFact(Expr *RelopExpr, SourceLocation Loc);
+  WhereClauseFact *ActOnRelopFact(Expr *E, SourceLocation Loc);
+
+  // Ignore value preserving casts.
+  Expr *IgnoreCasts(Expr *E);
 
   StmtResult ActOnDeclStmt(DeclGroupPtrTy Decl,
                                    SourceLocation StartLoc,

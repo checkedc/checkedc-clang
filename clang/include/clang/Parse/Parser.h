@@ -1978,6 +1978,8 @@ private:
   /// Parse a Checked C where clause fact.
   WhereClauseFact *ParseWhereClauseFact();
 
+  void EmitDiag(const Token &Tok);
+
   //===--------------------------------------------------------------------===//
   // clang Expressions
 

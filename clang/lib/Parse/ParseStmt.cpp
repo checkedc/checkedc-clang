@@ -249,13 +249,9 @@ Retry:
 
   // Parse Checked C _Where token.
   case tok::kw__Where: {
-    Token &WhereTok = Tok;
     WhereClause *WClause = ParseWhereClause();
-    if (!WClause || WClause->isInvalid()) {
-      Diag(WhereTok, diag::err_incorrect_where_clause);
-      SkipUntil(tok::semi);
+    if (!WClause)
       return StmtError();
-    }
 
     StmtResult StmtRes = Actions.ActOnNullStmt(SourceLocation());
     if (StmtRes.isInvalid() || !isa<NullStmt>(StmtRes.get()))
@@ -2473,20 +2469,25 @@ WhereClauseFact *Parser::ParseWhereClauseFact() {
 }
 
 WhereClause *Parser::ParseWhereClause() {
-  SourceLocation Loc = Tok.getLocation();
-
   // Consume the "_Where" token.
-  if (ExpectAndConsume(tok::kw__Where))
+  if (ExpectAndConsume(tok::kw__Where)) {
+    EmitDiag(Tok);
     return nullptr;
+  }
 
-  WhereClause *WClause = Actions.ActOnWhereClause(Loc);
-  if (!WClause)
+  WhereClause *WClause = Actions.ActOnWhereClause(Tok.getLocation());
+  if (!WClause) {
+    EmitDiag(Tok);
     return nullptr;
+  }
 
   while (true) {
     WhereClauseFact *Fact = ParseWhereClauseFact();
-    if (!Fact)
+    if (!Fact) {
+      EmitDiag(Tok);
       return nullptr;
+    }
+
     WClause->addFact(Fact);
 
     if (Tok.isNot(tok::ampamp))
@@ -2496,9 +2497,21 @@ WhereClause *Parser::ParseWhereClause() {
     ConsumeToken();
   }
 
-  // The where clause should end with a semicolon.
-  if (ExpectAndConsume(tok::semi))
+  if (WClause->isInvalid()) {
+    EmitDiag(Tok);
     return nullptr;
+  }
+
+  // The where clause should end with a semicolon.
+  if (ExpectAndConsume(tok::semi)) {
+    EmitDiag(Tok);
+    return nullptr;
+  }
 
   return WClause;
+}
+
+void Parser::EmitDiag(const Token &Tok) {
+  Diag(Tok, diag::err_incorrect_where_clause);
+  SkipUntil(tok::semi);
 }

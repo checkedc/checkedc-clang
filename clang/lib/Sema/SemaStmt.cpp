@@ -4423,39 +4423,58 @@ WhereClause *Sema::ActOnWhereClause(SourceLocation Loc) {
   return new (Context) WhereClause(Loc);
 }
 
-WhereClauseFact *Sema::ActOnRelopFact(Expr *RelopExpr,
-                                      SourceLocation Loc) {
-  // A relop fact should be of one of the following forms:
-  // 1. variable relop non-modifying-exp
-  // 2. non-modifying-exp relop variable
-
-  BinaryOperator *BO = dyn_cast<BinaryOperator>(RelopExpr);
-  if (!BO || !BO->isRelationalOp())
-    return nullptr;
-
-  DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(BO->getLHS());
-  if (!DRE && !dyn_cast_or_null<DeclRefExpr>(BO->getRHS()))
-    return nullptr;
-
-  return new (Context) RelopFact(RelopExpr, Loc);
-}
-
-WhereClauseFact *Sema::ActOnBoundsFact(IdentifierInfo *VarName,
-                                       Expr *BoundsExp,
-                                       Scope *CurScope,
-                                       SourceLocation Loc) {
-  BoundsExpr *Bounds = dyn_cast<BoundsExpr>(BoundsExp);
+WhereClauseFact *Sema::ActOnBoundsFact(IdentifierInfo *Id, Expr *E,
+                                       Scope *CurScope, SourceLocation Loc) {
+  BoundsExpr *Bounds = dyn_cast<BoundsExpr>(E);
   if (!Bounds)
     return nullptr;
 
-  LookupResult Lookup(*this, VarName, Loc, Sema::LookupOrdinaryName);
+  LookupResult Lookup(*this, Id, Loc, Sema::LookupOrdinaryName);
   LookupParsedName(Lookup, CurScope, nullptr, true);
-  if (Lookup.empty())
+  if (Lookup.empty()) {
+    Diag(Loc, diag::err_undeclared_var_use) << Id->getName();
     return nullptr;
+  }
 
   VarDecl *VD = Lookup.getAsSingle<VarDecl>();
   if (!VD)
     return nullptr;
 
   return new (Context) BoundsFact(VD, Bounds, Loc);
+}
+
+WhereClauseFact *Sema::ActOnRelopFact(Expr *E, SourceLocation Loc) {
+  // A relop fact should be of one of the following forms:
+  // 1. variable relop non-modifying-exp
+  // 2. non-modifying-exp relop variable
+
+  E = IgnoreCasts(E);
+
+  BinaryOperator *BO = dyn_cast<BinaryOperator>(E);
+  if (!BO || !BO->isComparisonOp())
+    return nullptr;
+
+  Expr *LHS = IgnoreCasts(BO->getLHS());
+  Expr *RHS = IgnoreCasts(BO->getRHS());
+
+  // TODO: Use the preorder AST to more precisely validate the RelopExpr. This
+  // may involve constant folding the constants in the expression.
+
+  if (!isa<DeclRefExpr>(LHS) && !isa<DeclRefExpr>(RHS))
+    return nullptr;
+
+  return new (Context) RelopFact(E, Loc);
+}
+
+Expr *Sema::IgnoreCasts(Expr *E) {
+  Expr *TmpE = E;
+
+  if (auto *CE = dyn_cast<CastExpr>(TmpE))
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
+      TmpE = CE->getSubExpr();
+
+  Lexicographic Lex(Context, nullptr);
+  TmpE = Lex.IgnoreValuePreservingOperations(Context, TmpE);
+
+  return E == TmpE ? E : IgnoreCasts(TmpE);
 }
