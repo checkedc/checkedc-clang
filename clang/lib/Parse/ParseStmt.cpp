@@ -2490,10 +2490,10 @@ WhereClause *Parser::ParseWhereClause() {
 
     WClause->addFact(Fact);
 
-    if (Tok.isNot(tok::ampamp))
+    if (Tok.isNot(tok::kw__And))
       break;
 
-    // Consume the "&&" token.
+    // Consume the "_And" token.
     ConsumeToken();
   }
 

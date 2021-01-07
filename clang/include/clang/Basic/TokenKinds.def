@@ -680,6 +680,7 @@ KEYWORD(_Bounds_only               , KEYCHECKEDC)
 KEYWORD(_Exists                    , KEYCHECKEDC)
 KEYWORD(_Pack                      , KEYCHECKEDC)
 KEYWORD(_Unpack                    , KEYCHECKEDC)
+KEYWORD(_And                       , KEYCHECKEDC)
 
 // Borland Extensions which should be disabled in strict conformance mode.
 ALIAS("_pascal"      , __pascal   , KEYBORLAND)
