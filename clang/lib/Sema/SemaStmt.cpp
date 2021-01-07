@@ -4444,5 +4444,39 @@ WhereClauseFact *Sema::ActOnBoundsFact(IdentifierInfo *Id, Expr *E,
 }
 
 WhereClauseFact *Sema::ActOnRelopFact(Expr *E, SourceLocation Loc) {
+  // A relop fact should be of one of the following forms:
+  // 1. variable relop non-modifying-exp
+  // 2. non-modifying-exp relop variable
+
+  E = IgnoreCasts(E);
+
+  BinaryOperator *BO = dyn_cast<BinaryOperator>(E);
+  if (!BO || !BO->isComparisonOp())
+    return nullptr;
+
+  Expr *LHS = IgnoreCasts(BO->getLHS());
+  Expr *RHS = IgnoreCasts(BO->getRHS());
+
+  // TODO: Use the preorder AST to more precisely validate the RelopExpr. This
+  // may involve constant folding the constants in the expression.
+
+  if (!(isa<DeclRefExpr>(LHS) && CheckIsNonModifying(RHS)) &&
+      !(isa<DeclRefExpr>(RHS) && CheckIsNonModifying(LHS)))
+    return nullptr;
+
   return new (Context) RelopFact(E, Loc);
+}
+
+Expr *Sema::IgnoreCasts(Expr *E) {
+  Expr *TmpE = E;
+
+  if (auto *CE = dyn_cast<CastExpr>(TmpE)) {
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
+      TmpE = CE->getSubExpr();
+  }
+
+  Lexicographic Lex(Context, nullptr);
+  TmpE = Lex.IgnoreValuePreservingOperations(Context, TmpE);
+
+  return E == TmpE ? E : IgnoreCasts(TmpE);
 }

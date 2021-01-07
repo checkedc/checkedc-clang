@@ -4034,6 +4034,9 @@ public:
   // Checked C: Perform semantic analysis on a where clause relop fact.
   WhereClauseFact *ActOnRelopFact(Expr *E, SourceLocation Loc);
 
+  // Ignore value preserving casts.
+  Expr *IgnoreCasts(Expr *E);
+
   StmtResult ActOnDeclStmt(DeclGroupPtrTy Decl,
                                    SourceLocation StartLoc,
                                    SourceLocation EndLoc);
