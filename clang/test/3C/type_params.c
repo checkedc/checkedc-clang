@@ -1,6 +1,6 @@
-// RUN: 3c -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: 3c -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -addcr -alltypes %s | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -addcr %s | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -addcr %s | %clang -c -fcheckedc-extension -x c -o %t1.unused -
 
 // General demonstration
 _Itype_for_any(T) void *test_single(void *a : itype(_Ptr<T>), void *b : itype(_Ptr<T>)) : itype(_Ptr<T>);
@@ -156,4 +156,18 @@ void *example1(void * ptr, unsigned int size) {
     ret = realloc(ptr, size);
     // CHECK: ret = realloc<void>(ptr, size);
     return ret;
+}
+
+// Issue #349. Check that the parameter doesn't inherit the double pointer argument within do_doubleptr
+_Itype_for_any(T)
+void incoming_doubleptr(void* ptr : itype(_Array_ptr<T>)) {
+// CHECK_ALL: void incoming_doubleptr(_Array_ptr<T> ptr : itype(_Array_ptr<T>)) {
+  return;
+}
+
+void do_doubleptr(int count) {
+  int **arr = malloc(sizeof(int*) * count);
+  // CHECK_ALL: _Array_ptr<_Ptr<int>> arr : count(count) = malloc<_Ptr<int>>(sizeof(int*) * count);
+  incoming_doubleptr(arr);
+  // CHECK_ALL: incoming_doubleptr<_Ptr<int>>(arr);
 }

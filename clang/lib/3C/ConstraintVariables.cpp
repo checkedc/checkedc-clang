@@ -177,7 +177,6 @@ PointerVariableConstraint::PointerVariableConstraint(
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
   auto &CS = I.getConstraints();
-  typedeflevelinfo = TypedefLevelFinder::find(QT);
   // If the type is a decayed type, then maybe this is the result of
   // decaying an array to a pointer. If the original type is some
   // kind of array type, we want to use that instead.
@@ -252,6 +251,11 @@ PointerVariableConstraint::PointerVariableConstraint(
       }
     }
   }
+
+  // At this point `QTy` holds the computed type (and `QT` still holds the
+  // input type). It will be consumed to create atoms, so any code that needs
+  // to be coordinated with the atoms should access it here first.
+  typedeflevelinfo = TypedefLevelFinder::find(QTy);
 
   bool VarCreated = false;
   bool IsArr = false;

@@ -1,7 +1,5 @@
 // RUN: 3c -alltypes %s | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-
-// Currently not possible to run clang on the output,
-// there is an error reported at https://github.com/correctcomputation/checkedc-clang/issues/349
+// RUN: 3c -alltypes %s | %clang -f3c-tool -c -fcheckedc-extension -x c -o %t1.unused -
 
 /*
  * Based on hash.c in Very Secure FTPd
@@ -25,6 +23,7 @@ extern int memcmp(const void *src1 : byte_count(n), const void *src2 : byte_coun
 
 _Itype_for_any(T) void
 vsf_sysutil_memclr(void* p_dest : itype(_Array_ptr<T>) byte_count(size), unsigned int size)
+// CHECK_ALL: vsf_sysutil_memclr(_Array_ptr<T> p_dest : itype(_Array_ptr<T>) byte_count(size), unsigned int size)
 {
   /* Safety */
   if (size == 0)
