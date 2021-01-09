@@ -4416,6 +4416,14 @@ namespace {
       if (!Val)
         return;
 
+      // StmtExprs should not be included in SameValue.  When StmtExprs are
+      // lexicographically compared, there is an assertion failure since
+      // the children of StmtExprs are Stmts and not Exprs, so StmtExprs
+      // should not be included in any sets that involve comparisons,
+      // such as CheckingState.SameValue or CheckingState.EquivExprs.
+      if (isa<StmtExpr>(Val))
+        return;
+
       // Expressions that create new objects should not be included
       // in SameValue.
       if (CreatesNewObject(Val))
