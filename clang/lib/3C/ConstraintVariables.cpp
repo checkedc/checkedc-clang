@@ -803,8 +803,12 @@ std::string PointerVariableConstraint::mkString(const EnvironmentMap &E,
     Ss << " " << getName();
 
   // Final array dropping
-  if (!CheckedArrs.empty())
-    addArrayAnnotations(CheckedArrs, EndStrs);
+  if (!CheckedArrs.empty()) {
+    std::deque<std::string> ArrStrs;
+    addArrayAnnotations(CheckedArrs, ArrStrs);
+    for (std::string Str : ArrStrs)
+      Ss << Str;
+  }
 
   //TODO remove comparison to RETVAR
   if (getName() == RETVAR && !ForItype)
