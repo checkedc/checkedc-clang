@@ -13,6 +13,7 @@ void valid_cases(_Nt_array_ptr<char> p, _Nt_array_ptr<char> q,
   _Where a == 0;
   _Where a != 0;
   _Where p : bounds(p, p + 1);
+  _Where p : bounds(q, q + a);
   _Where p : count(0);
   _Where a < 0 _And b > 0;
   _Where p : bounds(p, p + 1) _And q : bounds(q, q + 1);

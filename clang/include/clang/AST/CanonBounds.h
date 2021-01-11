@@ -138,6 +138,8 @@ namespace clang {
 
     Result CompareAPInt(const llvm::APInt &I1, const llvm::APInt &I2) const;
     Expr *IgnoreValuePreservingOperations(ASTContext &Ctx, Expr *E);
+    Expr *IgnoreLValueAndOtherValuePreservingOperations(ASTContext &Ctx,
+                                                        Expr *E);
   };
 }  // end namespace clang
 

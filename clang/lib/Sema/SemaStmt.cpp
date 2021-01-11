@@ -4423,8 +4423,8 @@ WhereClause *Sema::ActOnWhereClause(SourceLocation Loc) {
   return new (Context) WhereClause(Loc);
 }
 
-WhereClauseFact *Sema::ActOnBoundsFact(IdentifierInfo *Id, Expr *E,
-                                       Scope *CurScope, SourceLocation Loc) {
+BoundsFact *Sema::ActOnBoundsFact(IdentifierInfo *Id, Expr *E,
+                                  Scope *CurScope, SourceLocation Loc) {
   BoundsExpr *Bounds = dyn_cast<BoundsExpr>(E);
   if (!Bounds)
     return nullptr;
@@ -4443,40 +4443,26 @@ WhereClauseFact *Sema::ActOnBoundsFact(IdentifierInfo *Id, Expr *E,
   return new (Context) BoundsFact(VD, Bounds, Loc);
 }
 
-WhereClauseFact *Sema::ActOnRelopFact(Expr *E, SourceLocation Loc) {
+RelopFact *Sema::ActOnRelopFact(Expr *E, SourceLocation Loc) {
   // A relop fact should be of one of the following forms:
   // 1. variable relop non-modifying-exp
   // 2. non-modifying-exp relop variable
 
-  E = IgnoreCasts(E);
+  Lexicographic Lex(Context, nullptr);
+  Expr *TmpE = Lex.IgnoreLValueAndOtherValuePreservingOperations(Context, E);
 
-  BinaryOperator *BO = dyn_cast<BinaryOperator>(E);
+  BinaryOperator *BO = dyn_cast<BinaryOperator>(TmpE);
   if (!BO || !BO->isComparisonOp())
     return nullptr;
 
-  Expr *LHS = IgnoreCasts(BO->getLHS());
-  Expr *RHS = IgnoreCasts(BO->getRHS());
-
-  // TODO: Use the preorder AST to more precisely validate the RelopExpr. This
-  // may involve constant folding the constants in the expression.
+  Expr *LHS = Lex.IgnoreLValueAndOtherValuePreservingOperations(
+                Context, BO->getLHS());
+  Expr *RHS = Lex.IgnoreLValueAndOtherValuePreservingOperations(
+                Context, BO->getRHS());
 
   if (!(isa<DeclRefExpr>(LHS) && CheckIsNonModifying(RHS)) &&
       !(isa<DeclRefExpr>(RHS) && CheckIsNonModifying(LHS)))
     return nullptr;
 
   return new (Context) RelopFact(E, Loc);
-}
-
-Expr *Sema::IgnoreCasts(Expr *E) {
-  Expr *TmpE = E;
-
-  if (auto *CE = dyn_cast<CastExpr>(TmpE)) {
-    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
-      TmpE = CE->getSubExpr();
-  }
-
-  Lexicographic Lex(Context, nullptr);
-  TmpE = Lex.IgnoreValuePreservingOperations(Context, TmpE);
-
-  return E == TmpE ? E : IgnoreCasts(TmpE);
 }

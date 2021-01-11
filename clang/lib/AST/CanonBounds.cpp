@@ -892,3 +892,12 @@ Expr *Lexicographic::IgnoreValuePreservingOperations(ASTContext &Ctx,
     return E;
   }
 }
+
+Expr *Lexicographic::IgnoreLValueAndOtherValuePreservingOperations(
+  ASTContext &Ctx, Expr *E) {
+  if (auto *CE = dyn_cast<CastExpr>(E)) {
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
+      E = CE->getSubExpr();
+  }
+  return IgnoreValuePreservingOperations(Ctx, E);
+}
