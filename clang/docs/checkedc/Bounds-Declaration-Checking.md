@@ -10,11 +10,11 @@ The bounds checking code uses the following definitions to reason about
 bounds expressions:
 - **Declared bounds**: The bounds that the programmer has declared for a
 pointer expression.
-  -Example: In `array_ptr<int> p : bounds(p, p + 1) = 0;`, the declared bounds
+  - Example: In `array_ptr<int> p : bounds(p, p + 1) = 0;`, the declared bounds
   of `p` are `bounds(p, p + 1)`.
 - **Inferred bounds**: The bounds that the compiler determines for a pointer
 expression at a particular point in checking a statement.
-  -Example: After checking `array_ptr<int> p : bounds(p, p + 1) = 0`, the
+  - Example: After checking `array_ptr<int> p : bounds(p, p + 1) = 0`, the
   inferred bounds of `p` are `bounds(any)` (since `0` by definition has
   bounds of `bounds(any)`).
 - **RValue bounds**: The bounds of the value produced by an rvalue expression.
@@ -26,9 +26,9 @@ expression at a particular point in checking a statement.
   `*(p + 2)` has rvalue bounds of `bounds(unknown)`. `*(p + 2)` has type `int`,
   and integers do not have bounds.
 - **LValue bounds**: The bounds of an lvalue expression `e`. These bounds
-determine whether it is valid to access memory using `e`, and should be the
-range (or a subrange) of an object in memory. LValue bounds are used to check
-that a memory access is within bounds.
+determine whether it is valid to access memory using the lvalue produced by
+`e`, and should be the range (or a subrange) of an object in memory. LValue
+bounds are used to check that a memory access is within bounds.
   - Example: If `p` is a non-array-typed variable, then the lvalue bounds
   of `p` are `bounds(&p, &p + 1)`.
   - Example: If `p` is a variable with declared bounds of `bounds(p, p + 3)`,
@@ -97,18 +97,19 @@ a range with base `p`, lower offset `i`, and upper offset `j`.
 
 In order for an inferred bounds range with base `S`, lower offset `Sl`, and
 upper offset `Su` to imply a target bounds range with base `D`, lower offset
-`Dl`, and upper offset `du`, the following must be true:
+`Dl`, and upper offset `Du`, the following must be true:
 1. `S == D`, and:
 2. `Sl <= Dl`, and:
 3. `Du <= Su`
+
 In other words, the target bounds range must be contained within the inferred
 bounds range.
 
-If the compiler can prove that inferred bounds imply target bounds, no compile-
-time errors or warnings are emitted. If the compiler can prove that inferred
-bounds do not imply target bounds, a compile-time error is emitted. If the
-compiler can neither prove nor disprove that inferred bounds imply target
-bounds, a compile-time warning is emitted.
+If the compiler can prove that inferred bounds imply target bounds, no
+compile-time errors or warnings are emitted. If the compiler can prove that
+inferred bounds do not imply target bounds, a compile-time error is emitted.
+If the compiler can neither prove nor disprove that inferred bounds imply
+target bounds, a compile-time warning is emitted.
 
 Examples of inferred bounds provably implying target bounds:
 ```
@@ -193,7 +194,7 @@ recursively calling Check and/or CheckLValue on the subexpressions of `e`.
 2. If needed, use the inferred lvalue bounds to add a bounds check to an
 lvalue expression `e1` (`e1` could be `e` or one of its subexpressions).
 This check performs the following actions:
-  * Checks that the memory access that the `e1` is being used to perform
+  * Checks that the memory access that `e1` is being used to perform
   meets the lvalue bounds.
   * Sets the lvalue bounds of `e1`. During code generation, these lvalue
   bounds will be used to insert a dynamic check. At runtime, the dynamic
