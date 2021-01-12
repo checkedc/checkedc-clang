@@ -1485,6 +1485,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     break;
   case tok::kw___builtin_unique_stable_name:
     Res = ParseUniqueStableNameExpression();
+    break;
   case tok::kw__Assume_bounds_cast:
   case tok::kw__Dynamic_bounds_cast:
     Res = ParseBoundsCastExpression();
