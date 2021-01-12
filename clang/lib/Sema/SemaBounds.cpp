@@ -1482,7 +1482,7 @@ namespace {
       // conditions are met:
       //   1. V is not equal to an integer constant, i.e. there is no set in
       //      EquivExprs that contains V and an IntegerLiteral expression, and:
-      //   2. For each variable U in DstVars, V is not equivlaent to U, i.e.
+      //   2. For each variable U in DstVars, V is not equivalent to U, i.e.
       //      there is no set in EquivExprs that contains both V and U, and:
       //   3. For each variable U in DstVars, there is no indirect relationship
       //      between V and U, i.e. there is no set in EquivExprs that contains
