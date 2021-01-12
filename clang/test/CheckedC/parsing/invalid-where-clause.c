@@ -17,5 +17,5 @@ void invalid_cases(_Nt_array_ptr<char> p, int a, int b) {
   _Where (); //expected-error {{expected expression}} expected-error {{incorrect where clause}}
   _Where a = 0; // expected-error {{incorrect where clause}}
   _Where a < 0 && b > 0; // expected-error {{incorrect where clause}}
-  _Where a + b < 1; // expected-error {{incorrect where clause}}
+  _Where 1; // expected-error {{incorrect where clause}}
 }

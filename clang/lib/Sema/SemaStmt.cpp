@@ -4444,22 +4444,21 @@ BoundsFact *Sema::ActOnBoundsFact(IdentifierInfo *Id, Expr *E,
 }
 
 RelopFact *Sema::ActOnRelopFact(Expr *E, SourceLocation Loc) {
-  // A relop fact should be of one of the following forms:
-  // 1. variable relop non-modifying-exp
-  // 2. non-modifying-exp relop variable
+  // A relop fact has the following syntax:
+  // non-modifying-exp relop non-modifying-exp
 
   Lexicographic Lex(Context, nullptr);
   Expr *TmpE = Lex.IgnoreValuePreservingOperations(Context, E);
 
-  BinaryOperator *BO = dyn_cast<BinaryOperator>(TmpE);
+  // TODO: Handle relop exprs with logical operators, like
+  // _Where relopexpr && relopexpr || relopexpr.
+
+  auto *BO = dyn_cast<BinaryOperator>(TmpE);
   if (!BO || !BO->isComparisonOp())
     return nullptr;
 
-  Expr *LHS = Lex.IgnoreValuePreservingOperations(Context, BO->getLHS());
-  Expr *RHS = Lex.IgnoreValuePreservingOperations(Context, BO->getRHS());
-
-  if (!(isa<DeclRefExpr>(LHS) && CheckIsNonModifying(RHS)) &&
-      !(isa<DeclRefExpr>(RHS) && CheckIsNonModifying(LHS)))
+  if (!CheckIsNonModifying(BO->getLHS()) ||
+      !CheckIsNonModifying(BO->getRHS()))
     return nullptr;
 
   return new (Context) RelopFact(E, Loc);
