@@ -96,40 +96,40 @@ int zerohuh(int n) {
 }
 
 int *mul2(int *x) { 
-	//CHECK_NOALL: int *mul2(int *x) { 
-	//CHECK_ALL: _Array_ptr<int> mul2(_Array_ptr<int> x) _Checked { 
+	//CHECK: _Ptr<int> mul2(_Ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }
 
 int ** sus(int *x, int *y) {
-	//CHECK_NOALL: int ** sus(int *x, int *y) {
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> sus(int *x, _Array_ptr<int> y : count(5)) {
+	//CHECK_NOALL: int **sus(int *x : itype(_Ptr<int>), int *y : itype(_Ptr<int>)) : itype(_Ptr<int *>) {
+	//CHECK_ALL: _Array_ptr<_Ptr<int>> sus(int *x : itype(_Ptr<int>), _Array_ptr<int> y : count(5)) {
 
         x = (int *) 5;
 	//CHECK: x = (int *) 5;
         int **z = calloc(5, sizeof(int *)); 
 	//CHECK_NOALL: int **z = calloc<int *>(5, sizeof(int *)); 
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z = calloc<_Array_ptr<int>>(5, sizeof(int *)); 
+	//CHECK_ALL: _Array_ptr<_Ptr<int>> z = calloc<_Ptr<int>>(5, sizeof(int *)); 
         int * (*mul2ptr) (int *) = mul2;
-	//CHECK_NOALL: _Ptr<int * (int *)> mul2ptr = mul2;
-	//CHECK_ALL: _Ptr<_Array_ptr<int> (_Array_ptr<int> )> mul2ptr = mul2;
+	//CHECK: _Ptr<_Ptr<int> (_Ptr<int> )> mul2ptr = mul2;
         int i;
         for(i = 0; i < 5; i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; i++) { 
 	//CHECK_ALL: for(i = 0; i < 5; i++) _Checked { 
             z[i] = mul2ptr(&y[i]);
+	//CHECK_NOALL: z[i] = ((int *)mul2ptr(_Assume_bounds_cast<_Ptr<int>>(&y[i])));
+	//CHECK_ALL: z[i] = mul2ptr(&y[i]);
         } 
         
 z += 2;
 return z; }
 
 int ** foo() {
-	//CHECK_NOALL: int ** foo(void) {
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> foo(void) {
+	//CHECK_NOALL: _Ptr<int *> foo(void) {
+	//CHECK_ALL: _Array_ptr<_Ptr<int>> foo(void) {
 
         int *x = malloc(sizeof(int)); 
-	//CHECK: int *x = malloc<int>(sizeof(int)); 
+	//CHECK: _Ptr<int> x = malloc<int>(sizeof(int)); 
         int *y = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *y = calloc<int>(5, sizeof(int)); 
 	//CHECK_ALL: _Array_ptr<int> y : count(5) = calloc<int>(5, sizeof(int)); 
@@ -140,17 +140,17 @@ int ** foo() {
             y[i] = i+1;
         } 
         int **z = sus(x, y);
-	//CHECK_NOALL: int **z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z = sus(x, y);
+	//CHECK_NOALL: _Ptr<int *> z = sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Ptr<int>> z = sus(x, y);
         
 return z; }
 
 int ** bar() {
-	//CHECK_NOALL: int ** bar(void) {
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> bar(void) {
+	//CHECK_NOALL: _Ptr<int *> bar(void) {
+	//CHECK_ALL: _Array_ptr<_Ptr<int>> bar(void) {
 
         int *x = malloc(sizeof(int)); 
-	//CHECK: int *x = malloc<int>(sizeof(int)); 
+	//CHECK: _Ptr<int> x = malloc<int>(sizeof(int)); 
         int *y = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *y = calloc<int>(5, sizeof(int)); 
 	//CHECK_ALL: _Array_ptr<int> y : count(5) = calloc<int>(5, sizeof(int)); 
@@ -161,7 +161,7 @@ int ** bar() {
             y[i] = i+1;
         } 
         int **z = sus(x, y);
-	//CHECK_NOALL: int **z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z = sus(x, y);
+	//CHECK_NOALL: _Ptr<int *> z = sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Ptr<int>> z = sus(x, y);
         
 return z; }

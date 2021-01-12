@@ -181,4 +181,8 @@ bool isZeroBoundsExpr(clang::BoundsExpr *BE, const clang::ASTContext &C);
 // Find the range in the source code for the base type of a type location.
 // The base type is the type after removing all
 clang::TypeLoc getBaseTypeLoc(clang::TypeLoc T);
+
+// Ignore all CheckedC temporary and clang implicit expression on E. This
+// combines the behavior of IgnoreExprTmp and IgnoreImplicit.
+clang::Expr *ignoreCheckedCImplicit(clang::Expr *E);
 #endif

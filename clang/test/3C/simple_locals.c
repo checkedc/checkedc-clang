@@ -45,7 +45,7 @@ void upd(BarRec *P, int a) {
 void canthelp(int *a, int b, int c) {
   *(a + b) = c;
 }
-//CHECK_NOALL: void canthelp(int *a, int b, int c) { 
+//CHECK_NOALL: void canthelp(int *a : itype(_Ptr<int>), int b, int c) {
 //CHECK_ALL: void canthelp(_Array_ptr<int> a : count(b), int b, int c) _Checked {
 //CHECK:  *(a + b) = c;
 //CHECK-NEXT: }
@@ -56,7 +56,7 @@ void partialhelp(int *a, int b, int c) {
   *(a + b) = c;
 }
 //CHECK_ALL: void partialhelp(_Array_ptr<int> a : count(b), int b, int c) _Checked {
-//CHECK_NOALL: void partialhelp(int *a, int b, int c) {
+//CHECK_NOALL: void partialhelp(int *a : itype(_Ptr<int>), int b, int c) {
 //CHECK_NOALL: int *d = a;
 //CHECK_ALL: _Ptr<int> d = a;
 //CHECK: *d = 0;
@@ -132,7 +132,7 @@ int arrcheck(int *a, int b) {
   return a[b];
 } 
 //CHECK_ALL: int arrcheck(_Array_ptr<int> a : count(b), int b) _Checked {
-//CHECK_NOALL: int arrcheck(int *a, int b) {
+//CHECK_NOALL: int arrcheck(int *a : itype(_Ptr<int>), int b) {
 //CHECK: return a[b];
 //CHECK-NEXT: }
 
@@ -140,7 +140,7 @@ int badcall(int *a, int b) {
   return arrcheck(a, b);
 }
 //CHECK_ALL: int badcall(_Array_ptr<int> a : count(b), int b) _Checked {
-//CHECK_NOALL: int badcall(int *a, int b) {
+//CHECK_NOALL: int badcall(_Ptr<int> a, int b) _Checked {
 //CHECK: return arrcheck(a, b); 
 //CHECK-NEXT: }
 
@@ -152,7 +152,7 @@ void pullit(char *base, char *out, int *index) {
   return;
 }
 //CHECK_ALL: void pullit(_Array_ptr<char> base : count(10), _Ptr<char> out, _Ptr<int> index) _Checked {
-//CHECK_NOALL: void pullit(char *base, _Ptr<char> out, _Ptr<int> index) {
+//CHECK_NOALL: void pullit(char *base : itype(_Ptr<char>), _Ptr<char> out, _Ptr<int> index) {
 
 void driver() {
   char buf[10] = { 0 };

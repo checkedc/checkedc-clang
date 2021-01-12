@@ -14,10 +14,10 @@ extern int printf(const char * restrict format : itype(restrict _Nt_array_ptr<co
 extern _Unchecked char *strcpy(char * restrict dest, const char * restrict src : itype(restrict _Nt_array_ptr<const char>));
 
 int *sus(int *x, int*y) {
-	//CHECK_NOALL: int *sus(int *x, _Ptr<int> y) : itype(_Ptr<int>) {
-	//CHECK_ALL: int *sus(int *x : itype(_Array_ptr<int>), _Ptr<int> y) {
+	//CHECK_NOALL: _Ptr<int> sus(int *x : itype(_Ptr<int>), _Ptr<int> y) {
+	//CHECK_ALL: int *sus(_Array_ptr<int> x, _Ptr<int> y) : itype(_Array_ptr<int>) {
   int *z = malloc(sizeof(int));
-	//CHECK_NOALL: _Ptr<int> z =  malloc<int>(sizeof(int));
+	//CHECK_NOALL: _Ptr<int> z = malloc<int>(sizeof(int));
 	//CHECK_ALL:   int *z = malloc<int>(sizeof(int));
   *z = 1;
   x++;
@@ -26,31 +26,35 @@ int *sus(int *x, int*y) {
 }
 
 int* foo() {
-	//CHECK_NOALL: _Ptr<int> foo(void) {
-	//CHECK_ALL: int* foo(void) {
+	//CHECK_NOALL: _Ptr<int> foo(void) _Checked {
+	//CHECK_ALL: _Ptr<int> foo(void) {
   int sx = 3;
   int sy = 4;
   int *x = &sx; 
-	//CHECK: int *x = &sx; 
+	//CHECK_NOALL: _Ptr<int> x = &sx; 
+	//CHECK_ALL:   int *x = &sx; 
   int *y = &sy;
-	//CHECK: _Ptr<int> y =  &sy;
+	//CHECK: _Ptr<int> y = &sy;
   int *z = sus(x, y);
-	//CHECK_NOALL: _Ptr<int> z =  sus(x, y);
-	//CHECK_ALL:   int *z = sus(x, y);
+	//CHECK_NOALL: _Ptr<int> z = sus(x, y);
+	//CHECK_ALL:   _Ptr<int> z = sus(_Assume_bounds_cast<_Array_ptr<int>>(x, byte_count(0)), y);
   *z = *z + 1;
   return z;
 }
 
 int* bar() {
-	//CHECK: int* bar(void) {
+	//CHECK_NOALL: int *bar(void) : itype(_Ptr<int>) {
+	//CHECK_ALL: _Ptr<int> bar(void) {
   int sx = 3;
   int sy = 4;
   int *x = &sx; 
-	//CHECK: int *x = &sx; 
+	//CHECK_NOALL: _Ptr<int> x = &sx; 
+	//CHECK_ALL:   int *x = &sx; 
   int *y = &sy;
-	//CHECK: _Ptr<int> y =  &sy;
+	//CHECK: _Ptr<int> y = &sy;
   int *z = sus(x, y);
-	//CHECK: int *z = sus(x, y);
+	//CHECK_NOALL: int *z = ((int *)sus(x, y));
+	//CHECK_ALL:   _Array_ptr<int> z = sus(_Assume_bounds_cast<_Array_ptr<int>>(x, byte_count(0)), y);
   z += 2;
   *z = -17;
   return z;

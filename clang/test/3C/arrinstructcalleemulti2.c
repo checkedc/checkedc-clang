@@ -110,8 +110,8 @@ static int *mul2(int *x) {
 }
 
 struct warr * sus(struct warr * x, struct warr * y) {
-	//CHECK_NOALL: struct warr * sus(struct warr * x, struct warr * y) {
-	//CHECK_ALL: _Ptr<struct warr> sus(struct warr * x, struct warr *y : itype(_Array_ptr<struct warr>)) {
+	//CHECK_NOALL: struct warr *sus(struct warr *x : itype(_Ptr<struct warr>), struct warr *y : itype(_Ptr<struct warr>)) : itype(_Ptr<struct warr>) {
+	//CHECK_ALL: _Ptr<struct warr> sus(struct warr *x : itype(_Ptr<struct warr>), _Array_ptr<struct warr> y) {
 x = (struct warr *) 5;
 	//CHECK: x = (struct warr *) 5;
         char name[20]; 

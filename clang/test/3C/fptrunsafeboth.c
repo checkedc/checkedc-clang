@@ -119,7 +119,7 @@ z += 2;
 return z; }
 
 int * foo() {
-	//CHECK: int * foo(void) {
+	//CHECK: int *foo(void) : itype(_Ptr<int>) {
 
         struct general *x = malloc(sizeof(struct general)); 
 	//CHECK: struct general *x = malloc<struct general>(sizeof(struct general)); 
@@ -141,7 +141,8 @@ int * foo() {
 return z; }
 
 int * bar() {
-	//CHECK: int * bar(void) {
+	//CHECK_NOALL: int *bar(void) : itype(_Ptr<int>) {
+	//CHECK_ALL: int *bar(void) : itype(_Array_ptr<int>) {
 
         struct general *x = malloc(sizeof(struct general)); 
 	//CHECK: struct general *x = malloc<struct general>(sizeof(struct general)); 

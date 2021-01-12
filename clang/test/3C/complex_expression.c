@@ -14,8 +14,7 @@ int * func(int *a, int *b) {
     // This is a checked pointer
     return *a?(2+0):b;	
 }
-//CHECK_ALL: int * func(_Ptr<int> a, int *b) {
-//CHECK_NOALL: int * func(int *a : itype(_Ptr<int>), int *b) { 
+//CHECK: int *func(_Ptr<int> a, int *b : itype(_Ptr<int>)) : itype(_Ptr<int>) {
 
 int main() {
   int *arr;
@@ -25,7 +24,7 @@ int main() {
   return 0;
 }
 //CHECK_ALL: _Array_ptr<int> arr = ((void *)0);
-//CHECK: int *c;
+//CHECK: _Ptr<int> c = ((void *)0);
 //CHECK-NEXT: int *b;
 
 int * bar(int *x) { x = (int*)5; return x; }
@@ -34,20 +33,20 @@ int *foo(int *y, int *w) {
   z = (w = bar(w), y);
   return z;
 }
-//CHECK: int * bar(int *x) { x = (int*)5; return x; }
-//CHECK_ALL: _Array_ptr<int> foo(_Array_ptr<int> y, int *w) {
+//CHECK: int *bar(int *x : itype(_Ptr<int>)) : itype(_Ptr<int>) { x = (int*)5; return x; }
+//CHECK_ALL: _Array_ptr<int> foo(_Array_ptr<int> y, _Ptr<int> w) _Checked {
 //CHECK_ALL: _Array_ptr<int> z =  0;
-//CHECK_NOALL: int *foo(_Ptr<int> y, int *w) : itype(_Ptr<int>) { 
+//CHECK_NOALL: _Ptr<int> foo(_Ptr<int> y, _Ptr<int> w) _Checked {
 //CHECK_NOALL: _Ptr<int> z =  0;
 
 void baz(int *p) {
   int *q = 0 ? p : foo(0,0);
   q++;
 }
-//CHECK_ALL: void baz(_Array_ptr<int> p) {
-//CHECK_NOALL: void baz(int *p) {
+//CHECK_ALL: void baz(_Array_ptr<int> p) _Checked {
+//CHECK_NOALL: void baz(int *p : itype(_Ptr<int>)) {
 //CHECK_ALL:  _Array_ptr<int> q =  0 ? p : foo(0,0);
-//CHECK_NOALL: int *q = 0 ? p : foo(0,0);
+//CHECK_NOALL: int *q = 0 ? p : ((int *)foo(0,0));
 
 void test() {
   int *a = (int*) 0;

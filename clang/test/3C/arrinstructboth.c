@@ -102,8 +102,8 @@ int *mul2(int *x) {
 }
 
 struct warr * sus(struct warr * x, struct warr * y) {
-	//CHECK_NOALL: struct warr * sus(struct warr * x, struct warr * y) {
-	//CHECK_ALL: _Array_ptr<struct warr> sus(struct warr * x, struct warr *y : itype(_Array_ptr<struct warr>)) {
+	//CHECK_NOALL: struct warr *sus(struct warr *x : itype(_Ptr<struct warr>), struct warr *y : itype(_Ptr<struct warr>)) : itype(_Ptr<struct warr>) {
+	//CHECK_ALL: _Array_ptr<struct warr> sus(struct warr *x : itype(_Ptr<struct warr>), _Array_ptr<struct warr> y) {
 x = (struct warr *) 5;
 	//CHECK: x = (struct warr *) 5;
         char name[20]; 
@@ -123,26 +123,27 @@ z += 2;
 return z; }
 
 struct warr * foo() {
-	//CHECK_NOALL: struct warr * foo(void) {
-	//CHECK_ALL: _Ptr<struct warr> foo(void) {
+	//CHECK: _Ptr<struct warr> foo(void) {
         struct warr * x = malloc(sizeof(struct warr));
-	//CHECK: struct warr * x = malloc<struct warr>(sizeof(struct warr));
+	//CHECK: _Ptr<struct warr> x = malloc<struct warr>(sizeof(struct warr));
         struct warr * y = malloc(sizeof(struct warr));
-	//CHECK: struct warr * y = malloc<struct warr>(sizeof(struct warr));
+	//CHECK_NOALL: _Ptr<struct warr> y = malloc<struct warr>(sizeof(struct warr));
+	//CHECK_ALL: struct warr * y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
-	//CHECK_NOALL: struct warr * z = sus(x, y);
-	//CHECK_ALL: _Ptr<struct warr> z = sus(x, y);
+	//CHECK_NOALL: _Ptr<struct warr> z = sus(x, y);
+	//CHECK_ALL: _Ptr<struct warr> z = sus(x, _Assume_bounds_cast<_Array_ptr<struct warr>>(y, byte_count(0)));
 return z; }
 
 struct warr * bar() {
-	//CHECK_NOALL: struct warr * bar(void) {
+	//CHECK_NOALL: struct warr *bar(void) : itype(_Ptr<struct warr>) {
 	//CHECK_ALL: _Ptr<struct warr> bar(void) {
         struct warr * x = malloc(sizeof(struct warr));
-	//CHECK: struct warr * x = malloc<struct warr>(sizeof(struct warr));
+	//CHECK: _Ptr<struct warr> x = malloc<struct warr>(sizeof(struct warr));
         struct warr * y = malloc(sizeof(struct warr));
-	//CHECK: struct warr * y = malloc<struct warr>(sizeof(struct warr));
+	//CHECK_NOALL: _Ptr<struct warr> y = malloc<struct warr>(sizeof(struct warr));
+	//CHECK_ALL: struct warr * y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
 	//CHECK_NOALL: struct warr * z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<struct warr> z = sus(x, y);
+	//CHECK_ALL: _Array_ptr<struct warr> z = sus(x, _Assume_bounds_cast<_Array_ptr<struct warr>>(y, byte_count(0)));
 z += 2;
 return z; }

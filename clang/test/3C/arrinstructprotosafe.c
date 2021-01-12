@@ -104,12 +104,12 @@ int *mul2(int *x) {
 }
 
 struct warr * sus(struct warr *, struct warr *);
-	//CHECK: _Ptr<struct warr> sus(struct warr * x, _Ptr<struct warr> y);
+	//CHECK: _Ptr<struct warr> sus(struct warr *x : itype(_Ptr<struct warr>), _Ptr<struct warr> y);
 
 struct warr * foo() {
 	//CHECK: _Ptr<struct warr> foo(void) {
         struct warr * x = malloc(sizeof(struct warr));
-	//CHECK: struct warr * x = malloc<struct warr>(sizeof(struct warr));
+	//CHECK: _Ptr<struct warr> x = malloc<struct warr>(sizeof(struct warr));
         struct warr * y = malloc(sizeof(struct warr));
 	//CHECK: _Ptr<struct warr> y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
@@ -119,7 +119,7 @@ return z; }
 struct warr * bar() {
 	//CHECK: _Ptr<struct warr> bar(void) {
         struct warr * x = malloc(sizeof(struct warr));
-	//CHECK: struct warr * x = malloc<struct warr>(sizeof(struct warr));
+	//CHECK: _Ptr<struct warr> x = malloc<struct warr>(sizeof(struct warr));
         struct warr * y = malloc(sizeof(struct warr));
 	//CHECK: _Ptr<struct warr> y = malloc<struct warr>(sizeof(struct warr));
         struct warr * z = sus(x, y);
@@ -127,7 +127,7 @@ struct warr * bar() {
 return z; }
 
 struct warr * sus(struct warr * x, struct warr * y) {
-	//CHECK: _Ptr<struct warr> sus(struct warr * x, _Ptr<struct warr> y) {
+	//CHECK: _Ptr<struct warr> sus(struct warr *x : itype(_Ptr<struct warr>), _Ptr<struct warr> y) {
 x = (struct warr *) 5;
 	//CHECK: x = (struct warr *) 5;
         char name[20]; 

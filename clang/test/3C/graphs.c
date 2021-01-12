@@ -36,8 +36,7 @@ struct node
 /*Some declarations*/
 
 struct node* createNode(int v);
-	//CHECK_NOALL: struct node *createNode(int v) : itype(_Ptr<struct node>);
-	//CHECK_ALL: _Ptr<struct node> createNode(int v);
+	//CHECK: _Ptr<struct node>  createNode(int v);
 
 struct Graph
 
@@ -71,7 +70,7 @@ struct Stack
 };
 
 struct Graph* createGraph(int);
-	//CHECK: _Ptr<struct Graph> createGraph(int);
+	//CHECK: _Ptr<struct Graph>  createGraph(int);
 
 void addEdge(struct Graph*, int, int);
 	//CHECK: void addEdge(_Ptr<struct Graph> graph, int src, int dest);
@@ -108,7 +107,7 @@ int main()
 	scanf("%d",&vertices);
 
 	struct Graph* graph = createGraph(vertices);
-	//CHECK: _Ptr<struct Graph> graph =  createGraph(vertices);
+	//CHECK: _Ptr<struct Graph> graph = createGraph(vertices);
 
 	printf("Enter the number of edges\n");
 
@@ -141,7 +140,7 @@ int main()
 	/*Uncomment below part to get a ready-made example*/
 
     struct Graph* graph2 = createGraph(4);
-	//CHECK: _Ptr<struct Graph> graph2 =  createGraph(4);
+	//CHECK: _Ptr<struct Graph> graph2 = createGraph(4);
 
     addEdge(graph2, 0, 1);
 
@@ -171,11 +170,11 @@ void topologicalSortHelper(int vertex, struct Graph* graph, struct Stack* stack)
 
 	struct node* adjList = graph->adjLists[vertex];
 	//CHECK_NOALL: struct node* adjList = graph->adjLists[vertex];
-	//CHECK_ALL: 	_Ptr<struct node> adjList =  graph->adjLists[vertex];
+	//CHECK_ALL: 	_Ptr<struct node> adjList = graph->adjLists[vertex];
 
     struct node* temp = adjList;
 	//CHECK_NOALL: struct node* temp = adjList;
-	//CHECK_ALL:     _Ptr<struct node> temp =  adjList;
+	//CHECK_ALL:     _Ptr<struct node> temp = adjList;
 
     /*First add all dependents (that is, children) to stack*/
 
@@ -248,13 +247,12 @@ void topologicalSort(struct Graph* graph)
 /*Allocate memory for a node*/
 
 struct node* createNode(int v)
-	//CHECK_NOALL: struct node *createNode(int v) : itype(_Ptr<struct node>)
-	//CHECK_ALL: _Ptr<struct node> createNode(int v)
+	//CHECK: _Ptr<struct node>  createNode(int v)
 
 {
 
     struct node* newNode = malloc(sizeof(struct node));
-	//CHECK: _Ptr<struct node> newNode =  malloc<struct node>(sizeof(struct node));
+	//CHECK: _Ptr<struct node> newNode = malloc<struct node>(sizeof(struct node));
 
     newNode->vertex = v;
 
@@ -267,12 +265,12 @@ struct node* createNode(int v)
 /*Allocate memory for the entire graph structure*/
 
 struct Graph* createGraph(int vertices)
-	//CHECK: _Ptr<struct Graph> createGraph(int vertices)
+	//CHECK: _Ptr<struct Graph>  createGraph(int vertices)
 
 {
 
     struct Graph* graph = malloc(sizeof(struct Graph));
-	//CHECK: _Ptr<struct Graph> graph =  malloc<struct Graph>(sizeof(struct Graph));
+	//CHECK: _Ptr<struct Graph> graph = malloc<struct Graph>(sizeof(struct Graph));
 
     graph->numVertices = vertices;
 
@@ -288,8 +286,6 @@ struct Graph* createGraph(int vertices)
     int i;
 
     for (i = 0; i < vertices; i++) {
-	//CHECK_NOALL: for (i = 0; i < vertices; i++) {
-	//CHECK_ALL:     for (i = 0; i < vertices; i++) {
 
         graph->adjLists[i] = NULL;
 
@@ -313,8 +309,8 @@ void addEdge(struct Graph* graph, int src, int dest)
     /* Add edge from src to dest*/
 
     struct node* newNode = createNode(dest);
-	//CHECK_NOALL: struct node* newNode = createNode(dest);
-	//CHECK_ALL:     _Ptr<struct node> newNode =  createNode(dest);
+	//CHECK_NOALL: struct node* newNode = ((struct node *)createNode(dest));
+	//CHECK_ALL:     _Ptr<struct node> newNode = createNode(dest);
 
     newNode->next = graph->adjLists[src];
 
@@ -336,27 +332,30 @@ void printGraph(struct Graph* graph)
     for (v = 0; v < graph->numVertices; v++)
 
     {
-	//CHECK_NOALL: {
-	//CHECK_ALL:     {
 
         struct node* temp = graph->adjLists[v];
 	//CHECK_NOALL: struct node* temp = graph->adjLists[v];
-	//CHECK_ALL:         _Ptr<struct node> temp =  graph->adjLists[v];
+	//CHECK_ALL:         _Ptr<struct node> temp = graph->adjLists[v];
 
         printf("\n Adjacency list of vertex %d\n ", v);
-        //CHECK_ALL: _Unchecked { printf("\n Adjacency list of vertex %d\n ", v); };
+	//CHECK_NOALL: printf("\n Adjacency list of vertex %d\n ", v);
+	//CHECK_ALL:         _Unchecked { printf("\n Adjacency list of vertex %d\n ", v); };
 
         while (temp)
 
         {
 
             printf("%d -> ", temp->vertex);
+	//CHECK_NOALL: printf("%d -> ", temp->vertex);
+	//CHECK_ALL:             _Unchecked { printf("%d -> ", temp->vertex); };
 
             temp = temp->next;
 
         }
 
         printf("\n");
+	//CHECK_NOALL: printf("\n");
+	//CHECK_ALL:         _Unchecked { printf("\n"); };
 
     }
 

@@ -110,14 +110,14 @@ static int *mul2(int *x) {
 }
 
 struct fptrarr * sus(struct fptrarr *, struct fptrarr *);
-	//CHECK: _Ptr<struct fptrarr> sus(struct fptrarr *, _Ptr<struct fptrarr> y);
+	//CHECK: _Ptr<struct fptrarr> sus(struct fptrarr *x : itype(_Ptr<struct fptrarr>), _Ptr<struct fptrarr> y);
 
 struct fptrarr * foo() {
 	//CHECK: _Ptr<struct fptrarr> foo(void) {
  
         char name[20]; 
         struct fptrarr * x = malloc(sizeof(struct fptrarr));
-	//CHECK: struct fptrarr * x = malloc<struct fptrarr>(sizeof(struct fptrarr));
+	//CHECK: _Ptr<struct fptrarr> x = malloc<struct fptrarr>(sizeof(struct fptrarr));
         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
 	//CHECK: _Ptr<struct fptrarr> y =  malloc<struct fptrarr>(sizeof(struct fptrarr));
         int *yvals = calloc(5, sizeof(int)); 
@@ -143,7 +143,7 @@ struct fptrarr * bar() {
  
         char name[20]; 
         struct fptrarr * x = malloc(sizeof(struct fptrarr));
-	//CHECK: struct fptrarr * x = malloc<struct fptrarr>(sizeof(struct fptrarr));
+	//CHECK: _Ptr<struct fptrarr> x = malloc<struct fptrarr>(sizeof(struct fptrarr));
         struct fptrarr *y =  malloc(sizeof(struct fptrarr));
 	//CHECK: _Ptr<struct fptrarr> y =  malloc<struct fptrarr>(sizeof(struct fptrarr));
         int *yvals = calloc(5, sizeof(int)); 

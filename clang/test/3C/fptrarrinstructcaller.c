@@ -102,8 +102,8 @@ int *mul2(int *x) {
 }
 
 struct arrfptr * sus(struct arrfptr *x, struct arrfptr *y) {
-	//CHECK_NOALL: struct arrfptr *sus(struct arrfptr *x, _Ptr<struct arrfptr> y) : itype(_Ptr<struct arrfptr>) {
-	//CHECK_ALL: struct arrfptr * sus(struct arrfptr *x, _Ptr<struct arrfptr> y) {
+	//CHECK_NOALL: _Ptr<struct arrfptr> sus(struct arrfptr *x : itype(_Ptr<struct arrfptr>), _Ptr<struct arrfptr> y) {
+	//CHECK_ALL: struct arrfptr *sus(struct arrfptr *x : itype(_Ptr<struct arrfptr>), _Ptr<struct arrfptr> y) : itype(_Array_ptr<struct arrfptr>) {
  
         x = (struct arrfptr *) 5; 
 	//CHECK: x = (struct arrfptr *) 5; 
@@ -123,36 +123,40 @@ struct arrfptr * sus(struct arrfptr *x, struct arrfptr *y) {
 return z; }
 
 struct arrfptr * foo() {
-	//CHECK_NOALL: _Ptr<struct arrfptr> foo(void) {
-	//CHECK_ALL: struct arrfptr * foo(void) {
+	//CHECK: _Ptr<struct arrfptr> foo(void) {
  
         struct arrfptr * x = malloc(sizeof(struct arrfptr));
-	//CHECK: struct arrfptr * x = malloc<struct arrfptr>(sizeof(struct arrfptr));
+	//CHECK: _Ptr<struct arrfptr> x = malloc<struct arrfptr>(sizeof(struct arrfptr));
         struct arrfptr * y =  malloc(sizeof(struct arrfptr));
 	//CHECK: _Ptr<struct arrfptr> y =  malloc<struct arrfptr>(sizeof(struct arrfptr));
        
         struct arrfptr *z = sus(x, y); 
-	//CHECK_NOALL: _Ptr<struct arrfptr> z = sus(x, y); 
-	//CHECK_ALL: struct arrfptr *z = sus(x, y); 
+	//CHECK: _Ptr<struct arrfptr> z = sus(x, y); 
         int i;
         for(i = 0; i < 5; i++) { 
+	//CHECK_NOALL: for(i = 0; i < 5; i++) { 
+	//CHECK_ALL: for(i = 0; i < 5; i++) _Checked { 
             z->args[i] = z->funcs[i](z->args[i]);
         }
         
 return z; }
 
 struct arrfptr * bar() {
-	//CHECK: struct arrfptr * bar(void) {
+	//CHECK_NOALL: struct arrfptr *bar(void) : itype(_Ptr<struct arrfptr>) {
+	//CHECK_ALL: _Ptr<struct arrfptr> bar(void) {
  
         struct arrfptr * x = malloc(sizeof(struct arrfptr));
-	//CHECK: struct arrfptr * x = malloc<struct arrfptr>(sizeof(struct arrfptr));
+	//CHECK: _Ptr<struct arrfptr> x = malloc<struct arrfptr>(sizeof(struct arrfptr));
         struct arrfptr * y =  malloc(sizeof(struct arrfptr));
 	//CHECK: _Ptr<struct arrfptr> y =  malloc<struct arrfptr>(sizeof(struct arrfptr));
        
         struct arrfptr *z = sus(x, y); 
-	//CHECK: struct arrfptr *z = sus(x, y); 
+	//CHECK_NOALL: struct arrfptr *z = ((struct arrfptr *)sus(x, y)); 
+	//CHECK_ALL: _Array_ptr<struct arrfptr> z = sus(x, y); 
         int i;
         for(i = 0; i < 5; i++) { 
+	//CHECK_NOALL: for(i = 0; i < 5; i++) { 
+	//CHECK_ALL: for(i = 0; i < 5; i++) _Checked { 
             z->args[i] = z->funcs[i](z->args[i]);
         }
         

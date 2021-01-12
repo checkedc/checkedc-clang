@@ -31,7 +31,7 @@ DescribeChannel(void)
 #define integer int
 integer foo(int *p, int l) {
 // CHECK_ALL: integer foo(_Array_ptr<int> p : count(l), int l)  _Checked {
-// CHECK_NOALL: integer foo(int *p, int l) {
+// CHECK_NOALL: integer foo(int *p : itype(_Ptr<int>), int l) {
    return p[l-1];
 }
 
@@ -148,7 +148,7 @@ void parm_test(parm_decl) {}
 
 #define declare_single_var(x) int *x = 0; 
 int *another_test(void) {
-// CHECK: int *another_test(void) {
+// CHECK: int *another_test(void) : itype(_Ptr<int>) {
   declare_single_var(z)
   // CHECK: declare_single_var(z)
   declare_single_var(y)

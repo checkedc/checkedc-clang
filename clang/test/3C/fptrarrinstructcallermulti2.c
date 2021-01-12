@@ -110,8 +110,8 @@ static int *mul2(int *x) {
 }
 
 struct arrfptr * sus(struct arrfptr *x, struct arrfptr *y) {
-	//CHECK_NOALL: struct arrfptr *sus(struct arrfptr *x, _Ptr<struct arrfptr> y) : itype(_Ptr<struct arrfptr>) {
-	//CHECK_ALL: struct arrfptr * sus(struct arrfptr *x, _Ptr<struct arrfptr> y) {
+	//CHECK_NOALL: _Ptr<struct arrfptr> sus(struct arrfptr *x : itype(_Ptr<struct arrfptr>), _Ptr<struct arrfptr> y) {
+	//CHECK_ALL: struct arrfptr *sus(struct arrfptr *x : itype(_Ptr<struct arrfptr>), _Ptr<struct arrfptr> y) : itype(_Array_ptr<struct arrfptr>) {
  
         x = (struct arrfptr *) 5; 
 	//CHECK: x = (struct arrfptr *) 5; 

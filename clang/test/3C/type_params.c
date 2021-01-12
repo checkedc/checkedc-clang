@@ -12,7 +12,7 @@ void t0(int *a, int *b){
 }
 
 void t1(int *a, int *b){
-//CHECK: void t1(int *a, _Ptr<int> b){
+//CHECK: void t1(int *a : itype(_Ptr<int>), _Ptr<int> b){
   float c;
   test_single(a, &c);
   //CHECK: test_single(a, &c);
@@ -33,20 +33,20 @@ void t2(int *a, int *b, float *c, float *d) {
 }
 
 void t3(int *a, int *b, float *c, float *d) {
-//CHECK: void t3(int *a, int *b, float *c, float *d) {
+//CHECK: void t3(int *a : itype(_Ptr<int>), int *b : itype(_Ptr<int>), float *c : itype(_Ptr<float>), float *d : itype(_Ptr<float>)) {
   test_double(a, c, b, d);
   //CHECK: test_double(a, c, b, d);
 }
 
 void t4(int *a, int *b, float *c, float *d) {
-//CHECK: void t4(int *a, _Ptr<int> b, _Ptr<float> c, _Ptr<float> d) {
+//CHECK: void t4(int *a : itype(_Ptr<int>), _Ptr<int> b, _Ptr<float> c, _Ptr<float> d) {
   float e;
   test_double(a, &e, c, d);
   //CHECK: test_double<void,float>(a, &e, c, d);
 }
 
 void t5(int *a, int *b, float *c, float *d) {
-//CHECK: void t5(_Ptr<int> a, _Ptr<int> b, float *c, _Ptr<float> d) {
+//CHECK: void t5(_Ptr<int> a, _Ptr<int> b, float *c : itype(_Ptr<float>), _Ptr<float> d) {
   int e;
   test_double(a, b, c, &e);
   //CHECK: test_double<int,void>(a, b, c, &e);
@@ -61,14 +61,14 @@ void t6(int *a, int *b, int *c, int *d, int *e) {
 }
 
 void t7(int *a, int *b, int *c, int *d, int *e) {
-//CHECK: void t7(int *a, int *b, _Ptr<int> c, int *d, int *e) {
+//CHECK: void t7(int *a : itype(_Ptr<int>), int *b : itype(_Ptr<int>), _Ptr<int> c, int *d : itype(_Ptr<int>), int *e : itype(_Ptr<int>)) {
   float f;
   test_many(a, b, &f, d, e);
   //CHECK: test_many(a, b, &f, d, e);
 }
 
 void unsafe(int *a) {
-// CHECK: void unsafe(int *a) {
+// CHECK: void unsafe(int *a : itype(_Ptr<int>)) {
   int b = 0;
   test_single(a, b);
   // CHECK: test_single(a, b);
@@ -118,7 +118,7 @@ void f1(int **a, float **b) {
 }
 
 void f2(int **a, int **c) {
-// CHECK: void f2(_Ptr<_Ptr<int>> a, int **c) {
+// CHECK: void f2(_Ptr<_Ptr<int>> a, int **c : itype(_Ptr<_Ptr<int>>)) {
   int **b = test1(a);
   // CHECK: _Ptr<_Ptr<int>> b =  test1<_Ptr<int>>(a);
   int *d = test1(c);
@@ -126,7 +126,8 @@ void f2(int **a, int **c) {
 }
 
 void deep(int ****v, int ****w, int ****x, int ****y, int ****z) {
-  // CHECK: void deep(_Ptr<_Ptr<_Ptr<int *>>> v, _Ptr<_Ptr<_Ptr<int *>>> w, _Ptr<_Ptr<_Ptr<int *>>> x, _Ptr<_Ptr<_Ptr<int *>>> y, _Ptr<_Ptr<_Ptr<int *>>> z) {
+  // CHECK: void deep(int ****v : itype(_Ptr<_Ptr<_Ptr<_Ptr<int>>>>), int ****w : itype(_Ptr<_Ptr<_Ptr<_Ptr<int>>>>), int ****x : itype(_Ptr<_Ptr<_Ptr<_Ptr<int>>>>), int ****y : itype(_Ptr<_Ptr<_Ptr<_Ptr<int>>>>), int ****z : itype(_Ptr<_Ptr<_Ptr<_Ptr<int>>>>)) {
+
   int ****u = test_many(v, w, x, y, z);
   // CHECK: _Ptr<_Ptr<_Ptr<int *>>> u =  test_many<_Ptr<_Ptr<int *>>>(v, w, x, y, z);
   ***w = (int*) 1;

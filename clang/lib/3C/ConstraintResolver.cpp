@@ -63,11 +63,10 @@ CVarSet ConstraintResolver::handleDeref(CVarSet T) {
       CA.erase(CA.begin());
       if (CA.size() > 0) {
         bool A = PVC->getArrPresent();
-        bool C = PVC->hasItype();
         std::string D = PVC->getItype();
         FVConstraint *B = PVC->getFV();
         PVConstraint *TmpPV =
-            new PVConstraint(CA, PVC->getTy(), PVC->getName(), B, A, C, D);
+            new PVConstraint(CA, PVC->getTy(), PVC->getName(), B, A, D);
         Tmp.insert(TmpPV);
       }
     }
@@ -112,10 +111,9 @@ PVConstraint *ConstraintResolver::addAtom(PVConstraint *PVC, ConstAtom *PtrTyp,
   CA.insert(CA.begin(), NewA);
   bool A = PVC->getArrPresent();
   FVConstraint *B = PVC->getFV();
-  bool C = PVC->hasItype();
   std::string D = PVC->getItype();
   PVConstraint *TmpPV =
-      new PVConstraint(CA, PVC->getTy(), PVC->getName(), B, A, C, D);
+      new PVConstraint(CA, PVC->getTy(), PVC->getName(), B, A, D);
   TmpPV->constrainOuterTo(CS, PtrTyp, true);
   return TmpPV;
 }
@@ -212,26 +210,6 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
     }
     if (!isa<ExplicitCastExpr>(E) && isNULLExpression(E, *Context)) {
       return EmptyCSet;
-      // Implicit cast, e.g., T* from T[] or int (*)(int) from int (int),
-      //   but also weird int->int * conversions (and back)
-    }
-    if (ImplicitCastExpr *IE = dyn_cast<ImplicitCastExpr>(E)) {
-      // We should not use persistent source location for compiler
-      // generated constructs.
-      QualType SubTypE = IE->getSubExpr()->getType();
-      auto CVs = getExprConstraintVars(IE->getSubExpr());
-      // if TypE is a pointer type, and the cast is unsafe, return WildPtr
-      if (TypE->isPointerType() &&
-          !(SubTypE->isFunctionType() || SubTypE->isArrayType() ||
-            SubTypE->isVoidPointerType()) &&
-          !isCastSafe(TypE, SubTypE)) {
-        CVarSet WildCVar = getInvalidCastPVCons(IE);
-        constrainConsVarGeq(CVs, WildCVar, CS, nullptr, Safe_to_Wild, false,
-                            &Info);
-        return WildCVar;
-      }
-      // else, return sub-expression's result
-      return CVs;
       // variable (x)
     }
     if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
@@ -249,6 +227,7 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
     if (CHKCBindTemporaryExpr *CE = dyn_cast<CHKCBindTemporaryExpr>(E)) {
       return getExprConstraintVars(CE->getSubExpr());
     }
+
     // Apart from the above expressions constraints for all the other
     // expressions can be cached.
     // First, check if the expression has constraints that are cached?
@@ -256,7 +235,29 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
       return Info.getPersistentConstraints(E, Context);
 
     CVarSet Ret = EmptyCSet;
-    if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(E)) {
+    // Implicit cast, e.g., T* from T[] or int (*)(int) from int (int),
+    //   but also weird int->int * conversions (and back)
+    if (ImplicitCastExpr *IE = dyn_cast<ImplicitCastExpr>(E)) {
+      // ImplicitCastExpr is a compiler generated AST node, so we would not
+      // typically want to depend on its source location being unique, but
+      // their constraint var sets are stored in a separate map, avoiding
+      // source location collision with other expressions.
+      QualType SubTypE = IE->getSubExpr()->getType();
+      auto CVs = getExprConstraintVars(IE->getSubExpr());
+      // if TypE is a pointer type, and the cast is unsafe, return WildPtr
+      if (TypE->isPointerType() &&
+          !(SubTypE->isFunctionType() || SubTypE->isArrayType() ||
+            SubTypE->isVoidPointerType()) &&
+          !isCastSafe(TypE, SubTypE)) {
+        CVarSet WildCVar = getInvalidCastPVCons(IE);
+        constrainConsVarGeq(CVs, WildCVar, CS, nullptr, Safe_to_Wild, false,
+                            &Info);
+        Ret = WildCVar;
+      } else {
+        // else, return sub-expression's result
+        Ret = CVs;
+      }
+    } else if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(E)) {
       assert(ECE->getType() == TypE);
       Expr *TmpE = ECE->getSubExpr();
       // Is cast internally safe? Return WILD if not.
@@ -266,7 +267,8 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
           !isCastSafe(TypE, TmpE->getType())) {
         CVarSet Vars = getExprConstraintVars(TmpE);
         Ret = getInvalidCastPVCons(ECE);
-        constrainConsVarGeq(Vars, Ret, CS, nullptr, Safe_to_Wild, false, &Info);
+        constrainConsVarGeq(Vars, Ret, CS, nullptr, Safe_to_Wild, false,
+                            &Info);
         // NB: Expression ECE itself handled in
         // ConstraintBuilder::FunctionVisitor
       } else {
@@ -279,8 +281,8 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
         // constraining GEQ these vars would be the cast always be WILD.
         if (!isNULLExpression(ECE, *Context)) {
           PersistentSourceLoc PL = PersistentSourceLoc::mkPSL(ECE, *Context);
-          constrainConsVarGeq(P, Vars, Info.getConstraints(), &PL, Same_to_Same,
-                              false, &Info);
+          constrainConsVarGeq(P, Vars, Info.getConstraints(), &PL,
+                              Same_to_Same, false, &Info);
         }
       }
     }
@@ -427,10 +429,10 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
 
         for (ConstraintVariable *C : Tmp) {
           if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
-            ReturnCVs.insert(FV->getReturnVar());
+            ReturnCVs.insert(FV->getExternalReturn());
           } else if (PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
             if (FVConstraint *FV = PV->getFV())
-              ReturnCVs.insert(FV->getReturnVar());
+              ReturnCVs.insert(FV->getExternalReturn());
           }
         }
       } else if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
@@ -473,13 +475,13 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
           assert(CV.hasValue() && "Function without constraint variable.");
           /* Direct function call */
           if (FVConstraint *FVC = dyn_cast<FVConstraint>(&CV.getValue()))
-            ReturnCVs.insert(FVC->getReturnVar());
+            ReturnCVs.insert(FVC->getExternalReturn());
           /* Call via function pointer */
           else {
             PVConstraint *Tmp = dyn_cast<PVConstraint>(&CV.getValue());
             assert(Tmp != nullptr);
             if (FVConstraint *FVC = Tmp->getFV())
-              ReturnCVs.insert(FVC->getReturnVar());
+              ReturnCVs.insert(FVC->getExternalReturn());
             else {
               // No FVConstraint -- make WILD
               auto *TmpFV = new FVConstraint();
@@ -686,6 +688,20 @@ CVarSet ConstraintResolver::getBaseVarPVConstraint(DeclRefExpr *Decl) {
       PVConstraint::getNamedNonPtrPVConstraint(DN, Info.getConstraints()));
   Info.storePersistentConstraints(Decl, Ret, Context);
   return Ret;
+}
+
+CVarSet ConstraintResolver::getCalleeConstraintVars(CallExpr *CE) {
+  CVarSet FVCons;
+  Decl *D = CE->getCalleeDecl();
+  if (isa_and_nonnull<FunctionDecl>(D) || isa_and_nonnull<DeclaratorDecl>(D)) {
+    CVarOption CV = Info.getVariable(D, Context);
+    if (CV.hasValue())
+      FVCons.insert(&CV.getValue());
+  } else {
+    Expr *CalledExpr = CE->getCallee();
+    FVCons = getExprConstraintVars(CalledExpr);
+  }
+  return FVCons;
 }
 
 // Construct a PVConstraint for an expression that can safely be used when

@@ -28,16 +28,16 @@ void f() {
 void g() {
   int *x = malloc(sizeof(int)*1);
 	//CHECK_NOALL: int *x = malloc<int>(sizeof(int)*1);
-	//CHECK_ALL:   _Array_ptr<int> x : count(1) =  malloc<int>(sizeof(int)*1);
+	//CHECK_ALL:   _Array_ptr<int> x : count(1) = malloc<int>(sizeof(int)*1);
   int y[5];
 	//CHECK_NOALL: int y[5];
 	//CHECK_ALL:   int y _Checked[5];
   int **p = &x;
-	//CHECK_NOALL: _Ptr<int *> p =  &x;
-	//CHECK_ALL:   _Ptr<_Array_ptr<int>> p =  &x;
+	//CHECK_NOALL: _Ptr<int *> p = &x;
+	//CHECK_ALL:   _Ptr<_Array_ptr<int>> p = &x;
   int **r = 0;
-	//CHECK_NOALL: _Ptr<int *> r =  0;
-	//CHECK_ALL:   _Ptr<_Array_ptr<int>> r =  0;
+	//CHECK_NOALL: _Ptr<int *> r = 0;
+	//CHECK_ALL:   _Ptr<_Array_ptr<int>> r = 0;
   *p = y;
   (*p)[0] = 1;
   r = p;
@@ -51,9 +51,9 @@ void g() {
 void foo(void) {
   int x;
   int *y = &x;
-	//CHECK: _Ptr<int> y =  &x;
+	//CHECK: _Ptr<int> y = &x;
   int **z = &y;
-	//CHECK: _Ptr<_Ptr<int>> z =  &y;
+	//CHECK: _Ptr<_Ptr<int>> z = &y;
 
   int *p = &x;
 	//CHECK: int *p = &x;
@@ -67,5 +67,5 @@ void foo(void) {
   p2 = (int *)5;
 	//CHECK: p2 = (int *)5;
   int **q2 = &p2;
-	//CHECK: _Ptr<int *> q2 =  &p2;
+	//CHECK: _Ptr<int *> q2 = &p2;
 }

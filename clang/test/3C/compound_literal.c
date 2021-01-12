@@ -53,32 +53,32 @@ void lists() {
 
   int a[1] = (int[1]){1};
 	//CHECK_NOALL: int a[1] = (int[1]){1};
-	//CHECK_ALL:   int a _Checked[1] =  (int  _Checked[1]){1};
+	//CHECK_ALL:   int a _Checked[1] = (int _Checked[1]){1};
 
   int *b[1] = (int*[1]){&x};
 	//CHECK_NOALL: int *b[1] = (int*[1]){&x};
-	//CHECK_ALL:   _Ptr<int> b _Checked[1] =  (_Ptr<int>  _Checked[1]){&x};
+	//CHECK_ALL:   _Ptr<int> b _Checked[1] = (_Ptr<int> _Checked[1]){&x};
 
   int *c[1] = (int*[1]){&x};
 	//CHECK_NOALL: int *c[1] = (int*[1]){&x};
-	//CHECK_ALL:   _Ptr<int> c _Checked[1] =  (_Ptr<int>  _Checked[1]){&x};
+	//CHECK_ALL:   _Ptr<int> c _Checked[1] = (_Ptr<int> _Checked[1]){&x};
   int *c0 = c[0];
 	//CHECK_NOALL: int *c0 = c[0];
-	//CHECK_ALL:   _Ptr<int> c0 =  c[0];
+	//CHECK_ALL:   _Ptr<int> c0 = c[0];
 
   int *d[2] = (int*[2]){&x, (int*)1};
 	//CHECK_NOALL: int *d[2] = (int*[2]){&x, (int*)1};
-	//CHECK_ALL:   int * d _Checked[2] =  (int *  _Checked[2]){&x, (int*)1};
+	//CHECK_ALL:   int * d _Checked[2] = (int * _Checked[2]){&x, (int*)1};
   int *d0 = d[0];
 	//CHECK: int *d0 = d[0];
 
   int *e = (int*[1]){&x}[0];
 	//CHECK_NOALL: int *e = (int*[1]){&x}[0];
-	//CHECK_ALL:   _Ptr<int> e =  (_Ptr<int>  _Checked[1]){&x}[0];
+	//CHECK_ALL:   _Ptr<int> e = (_Ptr<int> _Checked[1]){&x}[0];
 
   int *f = (int*[1]){(int*)1}[0];
 	//CHECK_NOALL: int *f = (int*[1]){(int*)1}[0];
-	//CHECK_ALL:   int *f = (int *  _Checked[1]){(int*)1}[0];
+	//CHECK_ALL:   int *f = (int * _Checked[1]){(int*)1}[0];
 }
 
 
@@ -96,11 +96,11 @@ void nested(int* x) {
 	//CHECK: void nested(_Ptr<int> x) {
   struct d a[1] = (struct d[1]){(struct d){x}};
 	//CHECK_NOALL: struct d a[1] = (struct d[1]){(struct d){x}};
-	//CHECK_ALL:   struct d a _Checked[1] =  (struct d  _Checked[1]){(struct d){x}};
+	//CHECK_ALL:   struct d a _Checked[1] = (struct d _Checked[1]){(struct d){x}};
 
   struct e b[1] = (struct e[1]){(struct e){(int*)1}};
 	//CHECK_NOALL: struct e b[1] = (struct e[1]){(struct e){(int*)1}};
-	//CHECK_ALL:   struct e b _Checked[1] =  (struct e  _Checked[1]){(struct e){(int*)1}};
+	//CHECK_ALL:   struct e b _Checked[1] = (struct e _Checked[1]){(struct e){(int*)1}};
 }
 
 void silly(int *x) {

@@ -220,11 +220,10 @@ bool CheckedRegionFinder::VisitCallExpr(CallExpr *C) {
       auto Type = FD->getReturnType();
       Wild |=
           (!(FD->hasPrototype() || FD->doesThisDeclarationHaveABody())) ||
-          containsUncheckedPtr(Type) ||
-          (std::any_of(FD->param_begin(), FD->param_end(), [this](Decl *Param) {
-            CVarOption CV = Info.getVariable(Param, Context);
-            return isWild(CV);
-          }));
+          containsUncheckedPtr(Type);
+      auto *FV = Info.getFuncConstraint(FD, Context);
+      for (unsigned I = 0; I < FV->numParams(); I++)
+        Wild |= isWild(*FV->getExternalParam(I));
     }
     handleChildren(C->children());
     Map[ID] = Wild ? IS_UNCHECKED : IS_CHECKED;
@@ -269,9 +268,9 @@ bool CheckedRegionFinder::VisitDeclRefExpr(DeclRefExpr *DR) {
   if (auto *FD = dyn_cast<FunctionDecl>(D)) {
     auto *FV = Info.getFuncConstraint(FD, Context);
     IW |= FV->hasWild(Info.getConstraints().getVariables());
-    for (const auto &Param : FD->parameters()) {
-      CVarOption CV = Info.getVariable(Param, Context);
-      IW |= isWild(CV);
+    for (unsigned I = 0; I < FV->numParams(); I++) {
+      PVConstraint *ParamCV = FV->getExternalParam(I);
+      IW |= isWild(*ParamCV);
     }
   }
 

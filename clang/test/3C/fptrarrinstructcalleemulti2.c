@@ -110,7 +110,7 @@ static int *mul2(int *x) {
 }
 
 struct arrfptr * sus(struct arrfptr *x, struct arrfptr *y) {
-	//CHECK: struct arrfptr * sus(struct arrfptr *x, _Ptr<struct arrfptr> y) {
+	//CHECK: struct arrfptr *sus(struct arrfptr *x : itype(_Ptr<struct arrfptr>), _Ptr<struct arrfptr> y) : itype(_Ptr<struct arrfptr>) {
  
         x = (struct arrfptr *) 5; 
 	//CHECK: x = (struct arrfptr *) 5; 

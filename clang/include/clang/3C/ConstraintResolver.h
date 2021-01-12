@@ -35,6 +35,8 @@ public:
   // ignore parts of it that do not contribute to the final result
   CVarSet getExprConstraintVars(Expr *E);
 
+  CVarSet getCalleeConstraintVars(CallExpr *CE);
+
   // Handle assignment of RHS expression to LHS expression using the
   // given action.
   void constrainLocalAssign(Stmt *TSt, Expr *LHS, Expr *RHS,

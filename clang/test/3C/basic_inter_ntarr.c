@@ -3,7 +3,7 @@
 // Tests rewriting and propagation of Nt_array_ptr constraints across functions.
 //
 // RUN: 3c -alltypes %s | FileCheck -match-full-lines %s
-// RUN: 3c -alltypes %s | %clang -c -fcheckedc-extension -x c -o %t1.unused -
+// RUN: 3c -alltypes %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o %t1.unused -
 //
 char *strstr(const char *s1 : itype(_Nt_array_ptr<const char>),
              const char *s2 : itype(_Nt_array_ptr<const char>)) : itype(_Nt_array_ptr<char>);
@@ -21,8 +21,8 @@ int funcdecl(char *ntiptr, int *iptr, int *wild) {
   wild = (int*)0xdeadbeef;
   return 0;
 }
-//CHECK: int funcdecl(char *ntiptr : itype(_Ptr<char>), int *iptr : itype(_Ptr<int>), int *wild);
-//CHECK-NEXT: int funcdecl(char *ntiptr : itype(_Ptr<char>), int *iptr : itype(_Ptr<int>), int *wild) {
+//CHECK: int funcdecl(_Ptr<char> ntiptr, _Ptr<int> iptr, int *wild : itype(_Ptr<int>));
+//CHECK-NEXT: int funcdecl(_Ptr<char> ntiptr, _Ptr<int> iptr, int *wild : itype(_Ptr<int>)) {
 
 // ptr is a ARR ptr
 // iptr will be itype
@@ -34,7 +34,7 @@ int func(int *ptr, int *iptr, int *wild) {
   wild = (int*)0xdeadbeef;
   return 0;
 }
-//CHECK: int func(int *ptr : itype(_Array_ptr<int>), int *iptr : itype(_Ptr<int>), int *wild) {
+//CHECK: int func(_Array_ptr<int> ptr, _Ptr<int> iptr, int *wild : itype(_Ptr<int>)) {
 
 int main() {
   int a, b, c;
@@ -69,9 +69,9 @@ int main() {
 //CHECK-NEXT: int a, b, c;
 //CHECK-NEXT: int *ap =  0;
 //CHECK-NEXT: int *bp = 0;
-//CHECK-NEXT: int *cp = 0;
+//CHECK-NEXT: _Ptr<int> cp = 0;
 //CHECK-NEXT: char *ap1 = 0;
 //CHECK-NEXT: int *bp1 = 0;
-//CHECK-NEXT: int *cp1 = 0;
+//CHECK-NEXT: _Ptr<int> cp1 = 0;
 
 

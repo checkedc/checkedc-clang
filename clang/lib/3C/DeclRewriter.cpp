@@ -588,10 +588,12 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   // Get rewritten parameter variable declarations
   std::vector<std::string> ParmStrs;
   for (unsigned I = 0; I < Defnc->numParams(); ++I) {
-    PVConstraint *Defn = Defnc->getParamVar(I);
+    PVConstraint *ExtCV = Defnc->getExternalParam(I);
+    PVConstraint *IntCV = Defnc->getInternalParam(I);
     ParmVarDecl *PVDecl = Definition->getParamDecl(I);
     std::string Type, IType;
-    this->buildDeclVar(Defn, PVDecl, Type, IType, RewriteParams, RewriteReturn);
+    this->buildDeclVar(IntCV, ExtCV, PVDecl, Type, IType, RewriteParams,
+                       RewriteReturn);
     ParmStrs.push_back(Type + IType);
   }
 
@@ -604,10 +606,9 @@ bool FunctionDeclBuilder::VisitFunctionDecl(FunctionDecl *FD) {
   }
 
   // Get rewritten return variable
-  PVConstraint *Defn = Defnc->getReturnVar();
   std::string ReturnVar, ItypeStr;
-  this->buildDeclVar(Defn, FD, ReturnVar, ItypeStr, RewriteParams,
-                     RewriteReturn);
+  this->buildDeclVar(Defnc->getInternalReturn(), Defnc->getExternalReturn(), FD,
+                     ReturnVar, ItypeStr, RewriteParams, RewriteReturn);
 
   // If the return is a function pointer, we need to rewrite the whole
   // declaration even if no actual changes were made to the parameters. It could
@@ -683,19 +684,26 @@ void FunctionDeclBuilder::buildItypeDecl(PVConstraint *Defn,
   return;
 }
 
-void FunctionDeclBuilder::buildDeclVar(PVConstraint *Defn, DeclaratorDecl *Decl,
-                                       std::string &Type, std::string &IType,
-                                       bool &RewriteParm, bool &RewriteRet) {
+void
+FunctionDeclBuilder::buildDeclVar(PVConstraint *IntCV, PVConstraint *ExtCV,
+                                  DeclaratorDecl *Decl, std::string &Type,
+                                  std::string &IType, bool &RewriteParm,
+                                  bool &RewriteRet) {
   const auto &Env = Info.getConstraints().getVariables();
-  if (isAValidPVConstraint(Defn) && Defn->isChecked(Env)) {
-    if (Defn->anyChanges(Env) && !Defn->anyArgumentIsWild(Env)) {
-      buildCheckedDecl(Defn, Decl, Type, IType, RewriteParm, RewriteRet);
-      return;
-    }
-    if (Defn->anyChanges(Env)) {
-      buildItypeDecl(Defn, Decl, Type, IType, RewriteParm, RewriteRet);
-      return;
-    }
+  // If the external constraint variable is checked, then the parameter should
+  // be advertised as checked to callers. This requires adding either an itype
+  // or a checked type. If the constraint variable type did not change, then
+  // the type does not need to be rewritten. The type in the source is correct.
+  if (isAValidPVConstraint(ExtCV) && ExtCV->isChecked(Env) &&
+      ExtCV->anyChanges(Env)) {
+    // If the internal and external constraint variables solve to the same type,
+    // then they are both checked and we can use a _Ptr type. Otherwise, an
+    // itype is used.
+    if (IntCV->solutionEqualTo(Info.getConstraints(), ExtCV))
+      buildCheckedDecl(ExtCV, Decl, Type, IType, RewriteParm, RewriteRet);
+    else
+      buildItypeDecl(ExtCV, Decl, Type, IType, RewriteParm, RewriteRet);
+    return;
   }
   // Variables that do not need to be rewritten fall through to here. Type
   // strings are taken unchanged from the original source.
@@ -703,15 +711,15 @@ void FunctionDeclBuilder::buildDeclVar(PVConstraint *Defn, DeclaratorDecl *Decl,
     Type = getSourceText(Decl->getSourceRange(), *Context);
     IType = "";
   } else {
-    Type = Defn->getOriginalTy() + " ";
+    Type = ExtCV->getOriginalTy() + " ";
     IType =
-        getExistingIType(Defn) + ABRewriter.getBoundsString(Defn, Decl, false);
+      getExistingIType(ExtCV) + ABRewriter.getBoundsString(ExtCV, Decl, false);
   }
 }
 
 std::string FunctionDeclBuilder::getExistingIType(ConstraintVariable *DeclC) {
   auto *PVC = dyn_cast<PVConstraint>(DeclC);
-  if (PVC != nullptr && PVC->hasItype())
+  if (PVC != nullptr && !PVC->getItype().empty())
     return " : " + PVC->getItype();
   return "";
 }

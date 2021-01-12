@@ -294,6 +294,20 @@ static bool castCheck(clang::QualType DstType, clang::QualType SrcType) {
   if (SrcPtrTypePtr || DstPtrTypePtr)
     return false;
 
+  // Check function cast by comparing parameter and return types individually
+  const auto *SrcFnType = dyn_cast<clang::FunctionProtoType>(SrcTypePtr);
+  const auto *DstFnType = dyn_cast<clang::FunctionProtoType>(DstTypePtr);
+  if (SrcFnType && DstFnType) {
+    if (SrcFnType->getNumParams() != DstFnType->getNumParams())
+      return false;
+
+    for (unsigned I = 0; I < SrcFnType->getNumParams(); I++)
+      if (!castCheck(SrcFnType->getParamType(I), DstFnType->getParamType(I)))
+        return false;
+
+    return castCheck(SrcFnType->getReturnType(), DstFnType->getReturnType());
+  }
+
   // If both are not scalar types? Then the types must be exactly same.
   if (!(SrcTypePtr->isScalarType() && DstTypePtr->isScalarType()))
     return SrcTypePtr == DstTypePtr;
@@ -408,4 +422,14 @@ TypeLoc getBaseTypeLoc(TypeLoc T) {
           T.getTypePtr()->isPointerType() || T.getTypePtr()->isArrayType()))
     T = T.getNextTypeLoc();
   return T;
+}
+
+Expr *ignoreCheckedCImplicit(Expr *E) {
+  Expr *Old = nullptr;
+  Expr *New = E;
+  while (Old != New) {
+    Old = New;
+    New = Old->IgnoreExprTmp()->IgnoreImplicit();
+  }
+  return New;
 }

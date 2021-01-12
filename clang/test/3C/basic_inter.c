@@ -14,8 +14,8 @@ int funcdecl(int *ptr, int *iptr, int *wild) {
   wild = (int*)0xdeadbeef;
   return 0;
 }
-//CHECK: int funcdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int>), int *wild);
-//CHECK-NEXT: int funcdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int>), int *wild) {
+//CHECK: int funcdecl(_Ptr<int> ptr, _Ptr<int> iptr, int *wild : itype(_Ptr<int>));
+//CHECK-NEXT: int funcdecl(_Ptr<int> ptr, _Ptr<int> iptr, int *wild : itype(_Ptr<int>)) {
 
 // ptr is a regular _Ptr
 // iptr will be itype
@@ -27,7 +27,7 @@ int func(int *ptr, int *iptr, int *wild) {
   wild = (int*)0xdeadbeef;
   return 0;
 }
-//CHECK: int func(_Ptr<int> ptr, int *iptr : itype(_Ptr<int>), int *wild) {
+//CHECK: int func(_Ptr<int> ptr, _Ptr<int> iptr, int *wild : itype(_Ptr<int>)) {
 
 int main() {
   int a, b, c;

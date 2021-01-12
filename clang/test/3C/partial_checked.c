@@ -12,12 +12,12 @@ void test1(_Ptr<int **> a) { }
 // CHECK: void test1(_Ptr<_Ptr<_Ptr<int>>> a) _Checked { }
 
 void test2(_Ptr<int **> a) { 
-// CHECK: void test2(_Ptr<_Ptr<int *>> a) { 
+// CHECK: void test2(_Ptr<int **> a : itype(_Ptr<_Ptr<_Ptr<int>>>)) { 
   **a = 1;
 }
 
 void test3(_Ptr<int *> a) {
-// CHECK: void test3(_Ptr<int *> a) {
+// CHECK: void test3(_Ptr<int *> a : itype(_Ptr<_Ptr<int>>)) {
   *a = 1;
 }
 
@@ -64,7 +64,7 @@ void test4() {
 }
 
 void test5(_Ptr<int *> a, _Ptr<int *> b, _Ptr<_Ptr<int>> c, int **d) {
-// CHECK: void test5(_Ptr<_Ptr<int>> a, _Ptr<int *> b, _Ptr<_Ptr<int>> c, _Ptr<_Ptr<int>> d) {
+// CHECK: void test5(_Ptr<_Ptr<int>> a, _Ptr<int *> b : itype(_Ptr<_Ptr<int>>), _Ptr<_Ptr<int>> c, _Ptr<_Ptr<int>> d) {
   *b  = 1;
 }
 

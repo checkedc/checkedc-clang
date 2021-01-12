@@ -102,8 +102,8 @@ int *mul2(int *x) {
 }
 
 struct fptr * sus(struct fptr *x, struct fptr *y) {
-	//CHECK_NOALL: struct fptr *sus(struct fptr *x, _Ptr<struct fptr> y) : itype(_Ptr<struct fptr>) {
-	//CHECK_ALL: struct fptr * sus(struct fptr *x, _Ptr<struct fptr> y) {
+	//CHECK_NOALL: _Ptr<struct fptr> sus(struct fptr *x : itype(_Ptr<struct fptr>), _Ptr<struct fptr> y) {
+	//CHECK_ALL: struct fptr *sus(struct fptr *x : itype(_Ptr<struct fptr>), _Ptr<struct fptr> y) : itype(_Array_ptr<struct fptr>) {
  
         x = (struct fptr *) 5; 
 	//CHECK: x = (struct fptr *) 5; 
@@ -116,28 +116,28 @@ struct fptr * sus(struct fptr *x, struct fptr *y) {
 return z; }
 
 struct fptr * foo() {
-	//CHECK_NOALL: _Ptr<struct fptr> foo(void) {
-	//CHECK_ALL: struct fptr * foo(void) {
+	//CHECK: _Ptr<struct fptr> foo(void) {
  
         struct fptr * x = malloc(sizeof(struct fptr)); 
-	//CHECK: struct fptr * x = malloc<struct fptr>(sizeof(struct fptr)); 
+	//CHECK: _Ptr<struct fptr> x = malloc<struct fptr>(sizeof(struct fptr)); 
         struct fptr *y =  malloc(sizeof(struct fptr));
 	//CHECK: _Ptr<struct fptr> y =  malloc<struct fptr>(sizeof(struct fptr));
         struct fptr *z = sus(x, y);
-	//CHECK_NOALL: _Ptr<struct fptr> z = sus(x, y);
-	//CHECK_ALL: struct fptr *z = sus(x, y);
+	//CHECK: _Ptr<struct fptr> z = sus(x, y);
         
 return z; }
 
 struct fptr * bar() {
-	//CHECK: struct fptr * bar(void) {
+	//CHECK_NOALL: struct fptr *bar(void) : itype(_Ptr<struct fptr>) {
+	//CHECK_ALL: _Ptr<struct fptr> bar(void) {
  
         struct fptr * x = malloc(sizeof(struct fptr)); 
-	//CHECK: struct fptr * x = malloc<struct fptr>(sizeof(struct fptr)); 
+	//CHECK: _Ptr<struct fptr> x = malloc<struct fptr>(sizeof(struct fptr)); 
         struct fptr *y =  malloc(sizeof(struct fptr));
 	//CHECK: _Ptr<struct fptr> y =  malloc<struct fptr>(sizeof(struct fptr));
         struct fptr *z = sus(x, y);
-	//CHECK: struct fptr *z = sus(x, y);
+	//CHECK_NOALL: struct fptr *z = ((struct fptr *)sus(x, y));
+	//CHECK_ALL: _Array_ptr<struct fptr> z = sus(x, y);
         
 z += 2;
 return z; }

@@ -10,7 +10,7 @@ int f(int *p);
 	//CHECK: int f(int *p);
 void bar() {
   int (*fp)(int *p) = f;
-	//CHECK: _Ptr<int (int *)> fp =  f;
+	//CHECK: _Ptr<int (int *)> fp = f;
   f((void*)0);
 }
 

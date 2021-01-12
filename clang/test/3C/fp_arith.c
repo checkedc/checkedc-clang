@@ -17,7 +17,7 @@ int add(int,int);
 void basic_fn_ptr() {
 	//CHECK: void basic_fn_ptr() _Checked {
     int (*x0) (int, int) = add;
-	//CHECK: _Ptr<int (int , int )> x0 =  add;
+	//CHECK: _Ptr<int (int , int )> x0 = add;
 }
 
 /* Tests of bad Pointer arithmetic that should result in WILD pointers.

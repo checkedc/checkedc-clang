@@ -34,10 +34,10 @@ struct r {
 
 
 struct p *sus(struct p *, struct p *);
-	//CHECK: struct p *sus(_Ptr<struct p> x, _Ptr<struct p> y);
+	//CHECK: struct p *sus(_Ptr<struct p> x, _Ptr<struct p> y) : itype(_Ptr<struct p>);
 
 struct p *foo() {
-	//CHECK: struct p *foo(void) {
+	//CHECK: _Ptr<struct p> foo(void) {
   int ex1 = 2, ex2 = 3;
   struct p *x;
 	//CHECK: _Ptr<struct p> x = ((void *)0);
@@ -48,12 +48,12 @@ struct p *foo() {
   x->y = &ex2;
   y->y = &ex1;
   struct p *z = (struct p *) sus(x, y);
-	//CHECK: struct p *z = (struct p *) sus(x, y);
+	//CHECK: _Ptr<struct p> z = (_Ptr<struct p>) sus(x, y);
   return z;
 }
 
 struct p *bar() {
-	//CHECK: struct p *bar(void) {
+	//CHECK: _Ptr<struct p> bar(void) {
   int ex1 = 2, ex2 = 3;
   struct p *x;
 	//CHECK: _Ptr<struct p> x = ((void *)0);
@@ -64,12 +64,12 @@ struct p *bar() {
   x->y = &ex2;
   y->y = &ex1;
   struct p *z = (struct p *) sus(x, y);
-	//CHECK: struct p *z = (struct p *) sus(x, y);
+	//CHECK: _Ptr<struct p> z = (_Ptr<struct p>) sus(x, y);
   return z;
 }
 
 struct p *sus(struct p *x, struct p *y) {
-	//CHECK: struct p *sus(_Ptr<struct p> x, _Ptr<struct p> y) {
+	//CHECK: struct p *sus(_Ptr<struct p> x, _Ptr<struct p> y) : itype(_Ptr<struct p>) {
   x->y += 1;
   struct p *z = malloc(sizeof(struct p));
 	//CHECK: struct p *z = malloc<struct p>(sizeof(struct p));

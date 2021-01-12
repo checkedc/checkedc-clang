@@ -993,9 +993,9 @@ bool AVarBoundsInfo::contextualizeCVar(CallExpr *CE, const CVarSet &CSet,
     // If this is a FV Constraint the contextualize its returns and
     // parameters.
     if (FVConstraint *FV = dyn_cast_or_null<FVConstraint>(CV)) {
-      contextualizeCVar(CE, {FV->getReturnVar()}, C);
+      contextualizeCVar(CE, {FV->getExternalReturn()}, C);
       for (unsigned I = 0; I < FV->numParams(); I++) {
-        contextualizeCVar(CE, {FV->getParamVar(I)}, C);
+        contextualizeCVar(CE, {FV->getExternalParam(I)}, C);
       }
     }
 
@@ -1085,11 +1085,11 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
         FV = PI->getExtFuncDefnConstraint(FuncName);
       }
 
-      if (hasArray(FV->getParamVar(ParmNum), CS)) {
+      if (hasArray(FV->getExternalParam(ParmNum), CS)) {
         ArrPointers.insert(Bkey);
       }
       // Does this array belongs to a valid program variable?
-      if (isInSrcArray(FV->getParamVar(ParmNum), CS)) {
+      if (isInSrcArray(FV->getExternalParam(ParmNum), CS)) {
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }
 
@@ -1113,11 +1113,11 @@ void AVarBoundsInfo::computerArrPointers(ProgramInfo *PI,
         FV = getOnly(Tmp);
       }
 
-      if (hasArray(FV->getReturnVar(), CS)) {
+      if (hasArray(FV->getExternalReturn(), CS)) {
         ArrPointers.insert(Bkey);
       }
       // Does this array belongs to a valid program variable?
-      if (isInSrcArray(FV->getReturnVar(), CS)) {
+      if (isInSrcArray(FV->getExternalReturn(), CS)) {
         InProgramArrPtrBoundsKeys.insert(Bkey);
       }
       continue;

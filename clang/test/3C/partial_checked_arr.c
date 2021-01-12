@@ -47,7 +47,7 @@ void test0() {
 
 _Ptr<char *> test1(_Ptr<char *> d) {
 // CHECK_ALL: _Ptr<_Array_ptr<char>> test1(_Ptr<_Array_ptr<char>> d) _Checked {
-// CHECK_NOALL: _Ptr<char *> test1(_Ptr<char *> d) {
+// CHECK_NOALL: _Ptr<char *> test1(_Ptr<char *> d : itype(_Ptr<_Ptr<char>>)) {
   (*d)[0] = 0;
   return d;
 }

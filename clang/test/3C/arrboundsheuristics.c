@@ -18,7 +18,7 @@ void foo(int *p, int idx) {
     p[idx] = 0;
 }
 //CHECK_ALL: void foo(_Array_ptr<int> p, int idx) {
-//CHECK_NOALL: void foo(int *p, int idx) {
+//CHECK_NOALL: void foo(int *p : itype(_Ptr<int>), int idx) {
 
 void bar(int *p, int flag) {
    if (flag&0x2) {
@@ -26,7 +26,7 @@ void bar(int *p, int flag) {
    }
 }
 //CHECK_ALL: void bar(_Array_ptr<int> p, int flag) {
-//CHECK_NOALL: void bar(int *p, int flag) {
+//CHECK_NOALL: void bar(int *p : itype(_Ptr<int>), int flag) {
 
 int gl() {
     int len;

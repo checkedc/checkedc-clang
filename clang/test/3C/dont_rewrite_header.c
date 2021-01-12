@@ -12,7 +12,7 @@ int *foo(int *x) {
   return x;
 }
 
-int bar(int *x) {
+int bar(int *x : itype(_Ptr<int>)) {
   x = (int*) 1;
   return 0;
 }

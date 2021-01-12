@@ -110,7 +110,7 @@ static int *mul2(int *x) {
 }
 
 struct fptr * sus(struct fptr *x, struct fptr *y) {
-	//CHECK: struct fptr * sus(struct fptr *x, _Ptr<struct fptr> y) {
+	//CHECK: struct fptr *sus(struct fptr *x : itype(_Ptr<struct fptr>), _Ptr<struct fptr> y) : itype(_Ptr<struct fptr>) {
  
         x = (struct fptr *) 5; 
 	//CHECK: x = (struct fptr *) 5; 

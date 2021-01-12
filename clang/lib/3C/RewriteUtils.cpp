@@ -323,8 +323,9 @@ private:
   }
 };
 
-std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV, Decl *D,
-                                                 bool Isitype) {
+std::string
+ArrayBoundsRewriter::getBoundsString(const PVConstraint *PV, Decl *D,
+                                     bool Isitype) {
   auto &ABInfo = Info.getABoundsInfo();
 
   // Try to find a bounds key for the constraint variable. If we can't,
@@ -349,17 +350,17 @@ std::string ArrayBoundsRewriter::getBoundsString(PVConstraint *PV, Decl *D,
         BString = Pfix + BString;
     }
   }
-  if (BString.empty() && PV->hasBoundsStr()) {
+  if (BString.empty() && PV->srcHasBounds()) {
     BString = Pfix + PV->getBoundsStr();
   }
   return BString;
 }
 
-bool ArrayBoundsRewriter::hasNewBoundsString(PVConstraint *PV, Decl *D,
+bool ArrayBoundsRewriter::hasNewBoundsString(const PVConstraint *PV, Decl *D,
                                              bool Isitype) {
   std::string BStr = getBoundsString(PV, D, Isitype);
   // There is a bounds string but has nothing declared?
-  return !BStr.empty() && !PV->hasBoundsStr();
+  return !BStr.empty() && !PV->srcHasBounds();
 }
 
 std::set<PersistentSourceLoc> RewriteConsumer::EmittedDiagnostics;
@@ -416,7 +417,8 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   std::map<llvm::FoldingSetNodeID, AnnotationNeeded> NodeMap;
   CheckedRegionFinder CRF(&Context, R, Info, Seen, NodeMap, WarnRootCause);
   CheckedRegionAdder CRA(&Context, R, NodeMap);
-  CastPlacementVisitor ECPV(&Context, Info, R);
+  CastLocatorVisitor CLV(&Context);
+  CastPlacementVisitor ECPV(&Context, Info, R, CLV.getExprsWithCast());
   TypeExprRewriter TER(&Context, Info, R);
   TypeArgumentAdder TPA(&Context, Info, R);
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
@@ -432,6 +434,9 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
     // Cast placement must happen after type expression rewriting (i.e. cast and
     // compound literal) so that casts to unchecked pointer on itype function
     // calls can override rewritings of casts to checked types.
+    // The cast locator must also run before the cast placement visitor so that
+    // the cast placement visitor is aware of all existing cast expressions.
+    CLV.TraverseDecl(D);
     ECPV.TraverseDecl(D);
     TPA.TraverseDecl(D);
   }

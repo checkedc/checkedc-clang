@@ -1,1 +1,1 @@
-int bar(int *x);
+int bar(int *x : itype(_Ptr<int>));

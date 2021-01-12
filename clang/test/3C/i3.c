@@ -6,7 +6,7 @@
 // RUN: rm %S/i3.checked.c
 
 static int * f(int *x) {
-	//CHECK: static int * f(int *x) {
+	//CHECK: static int *f(int *x : itype(_Ptr<int>)) : itype(_Ptr<int>) {
   x = (int *)5;
 	//CHECK: x = (int *)5;
   return x;

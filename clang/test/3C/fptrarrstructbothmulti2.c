@@ -111,7 +111,8 @@ static int *mul2(int *x) {
 }
 
 struct fptrarr * sus(struct fptrarr *x, struct fptrarr *y) {
-	//CHECK: struct fptrarr * sus(struct fptrarr *x, _Ptr<struct fptrarr> y) {
+	//CHECK_NOALL: struct fptrarr *sus(struct fptrarr *x : itype(_Ptr<struct fptrarr>), _Ptr<struct fptrarr> y) : itype(_Ptr<struct fptrarr>) {
+	//CHECK_ALL: struct fptrarr *sus(struct fptrarr *x : itype(_Ptr<struct fptrarr>), _Ptr<struct fptrarr> y) : itype(_Array_ptr<struct fptrarr>) {
  
         x = (struct fptrarr *) 5; 
 	//CHECK: x = (struct fptrarr *) 5; 

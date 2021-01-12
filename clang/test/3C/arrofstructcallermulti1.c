@@ -37,8 +37,7 @@ extern _Unchecked char *strcpy(char * restrict dest, const char * restrict src :
 struct general { 
     int data; 
     struct general *next;
-	//CHECK_NOALL: struct general *next;
-	//CHECK_ALL: _Ptr<struct general> next;
+	//CHECK: _Ptr<struct general> next;
 };
 
 struct warr { 
@@ -111,21 +110,19 @@ static int *mul2(int *x) {
 }
 
 struct general ** sus(struct general *, struct general *);
-	//CHECK_NOALL: struct general ** sus(struct general *, struct general *);
-	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> sus(struct general *, _Ptr<struct general> y) : count(5);
+	//CHECK_NOALL: struct general **sus(struct general *x : itype(_Ptr<struct general>), struct general *y : itype(_Ptr<struct general>)) : itype(_Ptr<struct general *>);
+	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> sus(struct general *x : itype(_Ptr<struct general>), _Ptr<struct general> y) : count(5);
 
 struct general ** foo() {
-	//CHECK_NOALL: struct general ** foo(void) {
+	//CHECK_NOALL: _Ptr<struct general *> foo(void) {
 	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> foo(void) : count(5) {
         struct general * x = malloc(sizeof(struct general));
-	//CHECK: struct general * x = malloc<struct general>(sizeof(struct general));
+	//CHECK: _Ptr<struct general> x = malloc<struct general>(sizeof(struct general));
         struct general * y = malloc(sizeof(struct general));
-	//CHECK_NOALL: struct general * y = malloc<struct general>(sizeof(struct general));
-	//CHECK_ALL: _Ptr<struct general> y = malloc<struct general>(sizeof(struct general));
+	//CHECK: _Ptr<struct general> y = malloc<struct general>(sizeof(struct general));
         
         struct general *curr = y;
-	//CHECK_NOALL: struct general *curr = y;
-	//CHECK_ALL: _Ptr<struct general> curr = y;
+	//CHECK: _Ptr<struct general> curr = y;
         int i;
         for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;
@@ -133,22 +130,20 @@ struct general ** foo() {
             curr->next->data = i+1;
         }
         struct general ** z = sus(x, y);
-	//CHECK_NOALL: struct general ** z = sus(x, y);
+	//CHECK_NOALL: _Ptr<struct general *> z = sus(x, y);
 	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> z : count(5) = sus(x, y);
 return z; }
 
 struct general ** bar() {
-	//CHECK_NOALL: struct general ** bar(void) {
+	//CHECK_NOALL: struct general **bar(void) : itype(_Ptr<struct general *>) {
 	//CHECK_ALL: _Array_ptr<_Ptr<struct general>> bar(void) {
         struct general * x = malloc(sizeof(struct general));
-	//CHECK: struct general * x = malloc<struct general>(sizeof(struct general));
+	//CHECK: _Ptr<struct general> x = malloc<struct general>(sizeof(struct general));
         struct general * y = malloc(sizeof(struct general));
-	//CHECK_NOALL: struct general * y = malloc<struct general>(sizeof(struct general));
-	//CHECK_ALL: _Ptr<struct general> y = malloc<struct general>(sizeof(struct general));
+	//CHECK: _Ptr<struct general> y = malloc<struct general>(sizeof(struct general));
         
         struct general *curr = y;
-	//CHECK_NOALL: struct general *curr = y;
-	//CHECK_ALL: _Ptr<struct general> curr = y;
+	//CHECK: _Ptr<struct general> curr = y;
         int i;
         for(i = 1; i < 5; i++, curr = curr->next) { 
             curr->data = i;

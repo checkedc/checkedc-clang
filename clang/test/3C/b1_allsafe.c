@@ -13,10 +13,10 @@ extern int printf(const char * restrict format : itype(restrict _Nt_array_ptr<co
 extern _Unchecked char *strcpy(char * restrict dest, const char * restrict src : itype(restrict _Nt_array_ptr<const char>));
 
 int *sus(int *x, int*y) {
-	//CHECK_NOALL: _Ptr<int> sus(int *x, _Ptr<int> y) {
-	//CHECK_ALL: _Ptr<int> sus(int *x : itype(_Array_ptr<int>), _Ptr<int> y) {
+	//CHECK_NOALL: _Ptr<int> sus(int *x : itype(_Ptr<int>), _Ptr<int> y) {
+	//CHECK_ALL: _Ptr<int> sus(_Array_ptr<int> x, _Ptr<int> y) {
   int *z = malloc(sizeof(int));
-	//CHECK: _Ptr<int> z =  malloc<int>(sizeof(int));
+	//CHECK: _Ptr<int> z = malloc<int>(sizeof(int));
   *z = 1;
   x++;
   *x = 2;
@@ -24,26 +24,32 @@ int *sus(int *x, int*y) {
 }
 
 int* foo() {
-	//CHECK: _Ptr<int> foo(void) {
+	//CHECK_NOALL: _Ptr<int> foo(void) _Checked {
+	//CHECK_ALL: _Ptr<int> foo(void) {
   int sx = 3, sy = 4; 
   int *x = &sx;
-	//CHECK: int *x = &sx;
+	//CHECK_NOALL: _Ptr<int> x = &sx;
+	//CHECK_ALL:   int *x = &sx;
   int *y = &sy;
-	//CHECK: _Ptr<int> y =  &sy;
+	//CHECK: _Ptr<int> y = &sy;
   int *z = sus(x, y);
-	//CHECK: _Ptr<int> z =  sus(x, y);
+	//CHECK_NOALL: _Ptr<int> z = sus(x, y);
+	//CHECK_ALL:   _Ptr<int> z = sus(_Assume_bounds_cast<_Array_ptr<int>>(x, byte_count(0)), y);
   *z = *z + 1;
   return z;
 }
 
 int* bar() {
-	//CHECK: _Ptr<int> bar(void) {
+	//CHECK_NOALL: _Ptr<int> bar(void) _Checked {
+	//CHECK_ALL: _Ptr<int> bar(void) {
   int sx = 3, sy = 4; 
   int *x = &sx;
-	//CHECK: int *x = &sx;
+	//CHECK_NOALL: _Ptr<int> x = &sx;
+	//CHECK_ALL:   int *x = &sx;
   int *y = &sy;
-	//CHECK: _Ptr<int> y =  &sy;
+	//CHECK: _Ptr<int> y = &sy;
   int *z = (sus(x, y));
-	//CHECK: _Ptr<int> z =  (sus(x, y));
+	//CHECK_NOALL: _Ptr<int> z = (sus(x, y));
+	//CHECK_ALL:   _Ptr<int> z = (sus(_Assume_bounds_cast<_Array_ptr<int>>(x, byte_count(0)), y));
   return z;
 }

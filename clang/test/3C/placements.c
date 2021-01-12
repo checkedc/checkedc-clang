@@ -10,13 +10,13 @@
 // RUN: rm %S/placements.checked.c
 // expected-no-diagnostics
 void what(const char *s, int q); 
-//CHECK_NOALL: void what(const char *s, int q);
+//CHECK_NOALL: void what(const char *s : itype(_Ptr<const char>), int q);
 //CHECK_ALL: void what(_Array_ptr<const char> s : count(q), int q);
 
 void what(const char *s, int q) {
   char v = s[5];
 }
-//CHECK_NOALL: void what(const char *s, int q) {
+//CHECK_NOALL: void what(const char *s : itype(_Ptr<const char>), int q) {
 //CHECK_ALL: void what(_Array_ptr<const char> s : count(q), int q) _Checked {
 
 void foo(_Ptr<int> a) {

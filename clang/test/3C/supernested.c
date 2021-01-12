@@ -7,21 +7,21 @@ struct vsf_sysutil_statbuf {
 };
 
 void vsf_sysutil_fstat(int fd, struct vsf_sysutil_statbuf** ptr) { 
-  //CHECK: void vsf_sysutil_fstat(int fd, _Ptr<struct vsf_sysutil_statbuf *> ptr) {
+  //CHECK: void vsf_sysutil_fstat(int fd, struct vsf_sysutil_statbuf **ptr : itype(_Ptr<_Ptr<struct vsf_sysutil_statbuf>>)) { 
   *ptr = (struct vsf_sysutil_statbuf*) 3;
 }
 
 int vsf_sysutil_statbuf_is_socket(struct vsf_sysutil_statbuf* ptr) { 
-  //CHECK: int vsf_sysutil_statbuf_is_socket(struct vsf_sysutil_statbuf *ptr : itype(_Ptr<struct vsf_sysutil_statbuf>)) _Checked {
+  //CHECK: int vsf_sysutil_statbuf_is_socket(_Ptr<struct vsf_sysutil_statbuf> ptr) _Checked { 
   return 1;
 }
 
 void vsf_sysutil_free(struct vsf_sysutil_statbuf* ptr) { 
-//CHECK: void vsf_sysutil_free(struct vsf_sysutil_statbuf *ptr : itype(_Ptr<struct vsf_sysutil_statbuf>)) _Checked {
+//CHECK: void vsf_sysutil_free(_Ptr<struct vsf_sysutil_statbuf> ptr) _Checked { 
 }
 
 void die(const char *s) {
-//CHECK: void die(const char *s) {
+//CHECK: void die(const char *s : itype(_Ptr<const char>)) {
   s = (char*) 3;
 }
 
@@ -43,7 +43,7 @@ do_sanity_checks(void)
   {
     //CHECK: _Unchecked {
     struct vsf_sysutil_statbuf* p_statbuf = 0;
-    //CHECK: struct vsf_sysutil_statbuf* p_statbuf = 0;
+    //CHECK: _Ptr<struct vsf_sysutil_statbuf> p_statbuf = 0;
     vsf_sysutil_fstat(VSFTP_COMMAND_FD, &p_statbuf);
     if (!vsf_sysutil_statbuf_is_socket(p_statbuf))
     {

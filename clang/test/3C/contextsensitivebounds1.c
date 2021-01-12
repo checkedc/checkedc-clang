@@ -28,9 +28,9 @@ struct hash_node
 //CHECK_ALL: _Array_ptr<int> r_key : byte_count(r_len);
 //CHECK_NOALL: int *r_key;
 //CHECK_ALL: _Array_ptr<int> w_key : count(xo);
-//CHECK_NOALL: int *w_key;
+//CHECK_NOALL: _Ptr<int> w_key;
 //CHECK_ALL: _Array_ptr<int> y_key : count(lo);
-//CHECK_NOALL: int *y_key;
+//CHECK_NOALL: _Ptr<int> y_key;
   
 int bar(struct hash_node *p) {
     p->p_key = p->q_key;
@@ -47,7 +47,7 @@ void ctxsensfunc(int *p, unsigned n) {
     }
 }
 //CHECK_ALL: void ctxsensfunc(_Array_ptr<int> p : count(n), unsigned n) {
-//CHECK_NOALL: void ctxsensfunc(int *p, unsigned n) {
+//CHECK_NOALL: void ctxsensfunc(int *p : itype(_Ptr<int>), unsigned n) {
 
 int foo() {
     unsigned i,j;

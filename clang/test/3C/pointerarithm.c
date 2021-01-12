@@ -1,5 +1,5 @@
 // RUN: 3c -alltypes -addcr %s | FileCheck -match-full-lines %s
-// RUN: 3c -alltypes -addcr %s | %clang -c -fcheckedc-extension -x c -o %t.unused -
+// RUN: 3c -alltypes -addcr %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o %t.unused -
 // RUN: 3c -addcr -alltypes -output-postfix=checked %s 
 // RUN: 3c -addcr -alltypes %S/pointerarithm.checked.c | count 0
 // RUN: rm %S/pointerarithm.checked.c
@@ -19,7 +19,7 @@ int *sus(int *x, int*y) {
   *x = 2;
   return z;
 }
-//CHECK: _Array_ptr<int> sus(int *x : itype(_Array_ptr<int>), _Ptr<int> y) : count(2) {
+//CHECK: _Array_ptr<int> sus(_Array_ptr<int> x, _Ptr<int> y) : count(2) {
 //CHECK-NEXT:  _Array_ptr<int> z : count(2) =  malloc<int>(sizeof(int)*2);
 
 int* foo() {
@@ -30,7 +30,7 @@ int* foo() {
 }
 //CHECK: _Ptr<int> foo(void) {
 //CHECK: _Ptr<int> y = &sy;
-//CHECK: _Ptr<int> z =  sus(x, y);
+//CHECK: _Ptr<int> z = sus(_Assume_bounds_cast<_Array_ptr<int>>(x, byte_count(0)), y);
 
 
 int* bar() {
@@ -41,5 +41,5 @@ int* bar() {
 }
 //CHECK: _Ptr<int> bar(void) {
 //CHECK: _Ptr<int> y = &sy;
-//CHECK: _Ptr<int> z =  sus(x, y) + 2;
+//CHECK: _Ptr<int> z = sus(_Assume_bounds_cast<_Array_ptr<int>>(x, byte_count(0)), y) + 2;
 

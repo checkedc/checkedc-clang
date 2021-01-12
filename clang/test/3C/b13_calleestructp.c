@@ -38,7 +38,7 @@ struct r {
 struct p sus(struct p x) {
   x.x += 1;
   struct p *n = malloc(sizeof(struct p));
-	//CHECK: _Ptr<struct p> n =  malloc<struct p>(sizeof(struct p));
+	//CHECK: _Ptr<struct p> n = malloc<struct p>(sizeof(struct p));
   return *n;
 }
 

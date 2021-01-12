@@ -198,9 +198,12 @@ class ArrayBoundsRewriter {
 public:
   ArrayBoundsRewriter(ProgramInfo &I) : Info(I) {}
   // Get the string representation of the bounds for the given variable.
-  std::string getBoundsString(PVConstraint *PV, Decl *D, bool Isitype = false);
+  std::string
+  getBoundsString(const PVConstraint *PV, Decl *D, bool Isitype = false);
+
   // Check if the constraint variable has newly created bounds string.
-  bool hasNewBoundsString(PVConstraint *PV, Decl *D, bool Isitype = false);
+  bool
+  hasNewBoundsString(const PVConstraint *PV, Decl *D, bool Isitype = false);
 
 private:
   ProgramInfo &Info;

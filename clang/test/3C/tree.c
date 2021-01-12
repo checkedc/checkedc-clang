@@ -44,7 +44,7 @@ struct tree *new_node(int val, unsigned int num_childs, struct tree *parent) {
 
 int add_child(struct tree *p, struct tree *c) {
 //CHECK_ALL: int add_child(_Ptr<struct tree> p, _Ptr<struct tree> c) {
-//CHECK_NOALL: int add_child(_Ptr<struct tree> p, struct tree *c) { 
+//CHECK_NOALL: int add_child(_Ptr<struct tree> p, struct tree *c : itype(_Ptr<struct tree>)) { 
   if (p->child_count >= p->len) {
     unsigned int len = p->len * 2;
     struct tree **children = malloc(len*sizeof(struct tree *));
@@ -69,7 +69,7 @@ int add_child(struct tree *p, struct tree *c) {
 
 int sum(struct tree *p) {
 //CHECK_ALL: int sum(_Ptr<struct tree> p) {
-//CHECK_NOALL: int sum(struct tree *p : itype(_Ptr<struct tree>)) {
+//CHECK_NOALL: int sum(_Ptr<struct tree> p) {
   int n = 0;
   if (!p) return 0;
   n += p->val;

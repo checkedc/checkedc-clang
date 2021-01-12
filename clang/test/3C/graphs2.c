@@ -39,13 +39,13 @@ void createGraph(struct Graph* G,int V){
 
 		int ** toadd = malloc(V * sizeof(int*));
 	//CHECK_NOALL: int ** toadd = malloc<int *>(V * sizeof(int*));
-	//CHECK_ALL: 		_Array_ptr<_Array_ptr<int>> toadd : count(V) =  malloc<_Array_ptr<int>>(V * sizeof(int*));
+	//CHECK_ALL: 		_Array_ptr<_Array_ptr<int>> toadd : count(V) = malloc<_Array_ptr<int>>(V * sizeof(int*));
 		G->edges = toadd;
 
 		for(int i=0; i<V; i++){
 			int *adder = malloc(V * sizeof(int));
 	//CHECK_NOALL: int *adder = malloc<int>(V * sizeof(int));
-	//CHECK_ALL: 			_Array_ptr<int> adder : count(V) =  malloc<int>(V * sizeof(int));
+	//CHECK_ALL: 			_Array_ptr<int> adder : count(V) = malloc<int>(V * sizeof(int));
 			G->edges[i] = adder;
 
 			for(int j=0; j<V; j++)

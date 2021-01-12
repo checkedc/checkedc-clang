@@ -16,7 +16,7 @@ void foo(int *w) {
 	//CHECK: void foo(_Ptr<int> w) { 
     int *x = calloc(5, sizeof(int));
 	//CHECK_NOALL: int *x = calloc<int>(5, sizeof(int));
-	//CHECK_ALL:     _Array_ptr<int> x : count(5) =  calloc<int>(5, sizeof(int));
+	//CHECK_ALL:     _Array_ptr<int> x : count(5) = calloc<int>(5, sizeof(int));
     x[2] = 3; 
     func(x);
 }

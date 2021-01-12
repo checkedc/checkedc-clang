@@ -17,7 +17,7 @@ int baz(int ((*compar)(const int *, const int *)) :
 int func(void) {
     int ((*fptr1)(const int *, const int *));
     int ((*fptr2)(const int *, const int *));
-    //CHECK: _Ptr<int (const int *, _Ptr<const int> )> fptr1 = ((void *)0);
+    //CHECK: _Ptr<int (_Ptr<const int> , _Ptr<const int> )> fptr1 = ((void *)0);
     //CHECK-NEXT: _Ptr<int (_Ptr<const int> , _Ptr<const int> )> fptr2 = ((void *)0);
 
     int **fp1;
@@ -45,8 +45,8 @@ int func(void) {
 //CHECK-NEXT: foo(((int **)fp2));
 //CHECK-NEXT: bar(bp1);
 //CHECK: bar(bp2);
-//CHECK-NEXT: fptr1(2, 0);
-//CHECK-NEXT: baz(((int ((*)(const int *, const int *)) )fptr1));
+//CHECK-NEXT: fptr1(_Assume_bounds_cast<_Ptr<const int>>(2), 0);
+//CHECK-NEXT: baz(fptr1);
 //CHECK-NEXT: baz(fptr2);
 
 int func2(void) {

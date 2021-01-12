@@ -34,10 +34,10 @@ struct r {
 
 
 struct np *sus(struct r *, struct r *);
-	//CHECK: struct np *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct np>);
+	//CHECK: _Ptr<struct np> sus(_Ptr<struct r> x, _Ptr<struct r> y);
 
 struct np *foo() {
-	//CHECK: struct np *foo(void) {
+	//CHECK: struct np *foo(void) : itype(_Ptr<struct np>) {
   struct r *x;
 	//CHECK: struct r *x;
   struct r *y;
@@ -47,12 +47,12 @@ struct np *foo() {
   x->next = &y;
   y->next = &x;
   struct np *z = (struct r *) sus(x, y);
-	//CHECK: struct np *z = (struct r *) sus(x, y);
+	//CHECK: struct np *z = (struct r *) sus(_Assume_bounds_cast<_Ptr<struct r>>(x), _Assume_bounds_cast<_Ptr<struct r>>(y));
   return z;
 }
 
 struct r *bar() {
-	//CHECK: struct r *bar(void) {
+	//CHECK: struct r *bar(void) : itype(_Ptr<struct r>) {
   struct r *x; 
 	//CHECK: struct r *x; 
   struct r *y;
@@ -62,15 +62,15 @@ struct r *bar() {
   x->next = &y;
   y->next = &x;
   struct r *z = sus(x, y);
-	//CHECK: struct r *z = sus(x, y);
+	//CHECK: struct r *z = ((struct np *)sus(_Assume_bounds_cast<_Ptr<struct r>>(x), _Assume_bounds_cast<_Ptr<struct r>>(y)));
   return z;
 }
 
 struct np *sus(struct r *x, struct r *y) {
-	//CHECK: struct np *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct np>) {
+	//CHECK: _Ptr<struct np> sus(_Ptr<struct r> x, _Ptr<struct r> y) {
   x->next += 1;
   struct np *z = malloc(sizeof(struct np));
-	//CHECK: _Ptr<struct np> z =  malloc<struct np>(sizeof(struct np));
+	//CHECK: _Ptr<struct np> z = malloc<struct np>(sizeof(struct np));
   z->x = 1;
   z->y = 0;
   return z;

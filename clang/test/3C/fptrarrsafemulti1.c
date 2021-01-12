@@ -109,15 +109,15 @@ static int *mul2(int *x) {
 }
 
 int ** sus(int *, int *);
-	//CHECK_NOALL: int ** sus(int *, int *);
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> sus(int *, _Array_ptr<int> y : count(5)) : count(5);
+	//CHECK_NOALL: int **sus(int *x : itype(_Ptr<int>), int *y : itype(_Ptr<int>)) : itype(_Ptr<int *>);
+	//CHECK_ALL: _Array_ptr<_Ptr<int>> sus(int *x : itype(_Ptr<int>), _Array_ptr<int> y : count(5)) : count(5);
 
 int ** foo() {
-	//CHECK_NOALL: int ** foo(void) {
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> foo(void) : count(5) {
+	//CHECK_NOALL: _Ptr<int *> foo(void) {
+	//CHECK_ALL: _Array_ptr<_Ptr<int>> foo(void) : count(5) {
 
         int *x = malloc(sizeof(int)); 
-	//CHECK: int *x = malloc<int>(sizeof(int)); 
+	//CHECK: _Ptr<int> x = malloc<int>(sizeof(int)); 
         int *y = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *y = calloc<int>(5, sizeof(int)); 
 	//CHECK_ALL: _Array_ptr<int> y : count(5) = calloc<int>(5, sizeof(int)); 
@@ -128,17 +128,17 @@ int ** foo() {
             y[i] = i+1;
         } 
         int **z = sus(x, y);
-	//CHECK_NOALL: int **z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z : count(5) = sus(x, y);
+	//CHECK_NOALL: _Ptr<int *> z = sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Ptr<int>> z : count(5) = sus(x, y);
         
 return z; }
 
 int ** bar() {
-	//CHECK_NOALL: int ** bar(void) {
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> bar(void) : count(5) {
+	//CHECK_NOALL: _Ptr<int *> bar(void) {
+	//CHECK_ALL: _Array_ptr<_Ptr<int>> bar(void) : count(5) {
 
         int *x = malloc(sizeof(int)); 
-	//CHECK: int *x = malloc<int>(sizeof(int)); 
+	//CHECK: _Ptr<int> x = malloc<int>(sizeof(int)); 
         int *y = calloc(5, sizeof(int)); 
 	//CHECK_NOALL: int *y = calloc<int>(5, sizeof(int)); 
 	//CHECK_ALL: _Array_ptr<int> y : count(5) = calloc<int>(5, sizeof(int)); 
@@ -149,7 +149,7 @@ int ** bar() {
             y[i] = i+1;
         } 
         int **z = sus(x, y);
-	//CHECK_NOALL: int **z = sus(x, y);
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z : count(5) = sus(x, y);
+	//CHECK_NOALL: _Ptr<int *> z = sus(x, y);
+	//CHECK_ALL: _Array_ptr<_Ptr<int>> z : count(5) = sus(x, y);
         
 return z; }

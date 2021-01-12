@@ -6,16 +6,17 @@
 // RUN: rm %S/funcptr1.checked.c
 
 void f(int *(*fp)(int *)) {
-	//CHECK: void f(_Ptr<int * (int *)> fp) {
+	//CHECK: void f(_Ptr<_Ptr<int> (int * : itype(_Ptr<int>))> fp) {
   int *x = (int *)5;
 	//CHECK: int *x = (int *)5;
   int *z = (int *)5;
 	//CHECK: int *z = (int *)5;
   z = fp(x);
+	//CHECK: z = ((int *)fp(x));
 }
 
 int *g(int *x) {
-	//CHECK: int *g(int *x) {
+	//CHECK: _Ptr<int> g(int *x : itype(_Ptr<int>)) {
   x = (int *)5;
 	//CHECK: x = (int *)5;
   return 0;

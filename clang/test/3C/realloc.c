@@ -14,10 +14,10 @@ void foo(int *w) {
 	//CHECK: void foo(_Ptr<int> w) { 
     int *y = malloc(2*sizeof(int)); 
 	//CHECK_NOALL: int *y = malloc<int>(2*sizeof(int)); 
-	//CHECK_ALL:     _Array_ptr<int> y : count(2) =  malloc<int>(2*sizeof(int)); 
+	//CHECK_ALL:     _Array_ptr<int> y : count(2) = malloc<int>(2*sizeof(int)); 
     y[1] = 3;
     int *z = realloc(y, 5*sizeof(int)); 
 	//CHECK_NOALL: int *z = realloc<int>(y, 5*sizeof(int)); 
-	//CHECK_ALL:     _Array_ptr<int> z =  realloc<int>(y, 5*sizeof(int)); 
+	//CHECK_ALL:     _Array_ptr<int> z = realloc<int>(y, 5*sizeof(int)); 
     z[3] =  2;
 } 

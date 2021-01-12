@@ -10,21 +10,21 @@
  propagates to everything else. */
 
 int * f(int *x) {
-	//CHECK: int * f(int *x) {
+	//CHECK: int *f(int *x : itype(_Ptr<int>)) : itype(_Ptr<int>) {
   return x;
 }
 
 int * g(int *y) {
-	//CHECK: int * g(int *y) {
+	//CHECK: int *g(int *y : itype(_Ptr<int>)) : itype(_Ptr<int>) {
   y = (int*)5;
 	//CHECK: y = (int*)5;
   return 0;
 }
 
 void foo(int *z) {
-	//CHECK: void foo(int *z) {
+	//CHECK: void foo(_Ptr<int> z) _Checked {
   int *w = (0 ? f : g)(z);
-	//CHECK: int *w = (0 ? f : g)(z);
+	//CHECK: _Ptr<int> w = (0 ? f : g)(z);
 }
 
 
@@ -44,30 +44,30 @@ int * g1(int *y) {
 void foo1(int *z) {
 	//CHECK: void foo1(_Ptr<int> z) _Checked {
   int *w = (0 ? f1 : g1)(z);
-	//CHECK: _Ptr<int> w =  (0 ? f1 : g1)(z);
+	//CHECK: _Ptr<int> w = (0 ? f1 : g1)(z);
 }
 
 
 /* Testing Something with a larger set of functions */
 
 int *a() {
-	//CHECK: int *a(void)  {
+	//CHECK: int *a(void) : itype(_Ptr<int>) _Checked {
   return 0;
 }
 int *b() {
-	//CHECK: int *b(void)  {
+	//CHECK: int *b(void) : itype(_Ptr<int>) _Checked {
   return 0;
 }
 int *c() {
-	//CHECK: int *c(void)  {
+	//CHECK: int *c(void) : itype(_Ptr<int>) _Checked {
   return 0;
 }
 int *d() {
-	//CHECK: int *d(void)  {
+	//CHECK: int *d(void) : itype(_Ptr<int>) _Checked {
   return 0;
 }
 int *e() {
-	//CHECK: int *e(void) {
+	//CHECK: int *e(void) : itype(_Ptr<int>) {
   return (int*) 1;
 	//CHECK: return (int*) 1;
 }
@@ -77,10 +77,11 @@ int *i() {
 }
 
 void bar() {
+	//CHECK: void bar() _Checked {
   int *w = (0 ? (0 ? a : b) : (0 ? c : (0 ? d : e)))();
-	//CHECK: int *w = (0 ? (0 ? a : b) : (0 ? c : (0 ? d : e)))();
+	//CHECK: _Ptr<int> w = (0 ? (0 ? a : b) : (0 ? c : (0 ? d : e)))();
   int *x = a();
-	//CHECK: int *x = a();
+	//CHECK: _Ptr<int> x = a();
   int *y = i();
-	//CHECK: _Ptr<int> y =  i();
+	//CHECK: _Ptr<int> y = i();
 }

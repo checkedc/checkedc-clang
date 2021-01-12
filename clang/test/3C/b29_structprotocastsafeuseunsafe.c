@@ -34,12 +34,11 @@ struct r {
 
 
 struct r *sus(struct r *, struct r *);
-	//CHECK_NOALL: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct r>);
-	//CHECK_ALL: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>));
+	//CHECK_NOALL: _Ptr<struct r> sus(_Ptr<struct r> x, _Ptr<struct r> y);
+	//CHECK_ALL: struct r *sus(_Ptr<struct r> x, _Ptr<struct r> y) : itype(_Array_ptr<struct r>);
 
 struct r *foo() {
-	//CHECK_NOALL: _Ptr<struct r> foo(void) {
-	//CHECK_ALL: struct r *foo(void) {
+	//CHECK: _Ptr<struct r> foo(void) {
   struct r *x; 
 	//CHECK: struct r *x; 
   struct r *y;
@@ -49,13 +48,13 @@ struct r *foo() {
   x->next = &y;
   y->next = &x;
   struct r *z = (struct r *) sus(x, y);
-	//CHECK_NOALL: _Ptr<struct r> z = (_Ptr<struct r>) sus(x, y);
-	//CHECK_ALL:   struct r *z = (struct r *) sus(x, y);
+	//CHECK: _Ptr<struct r> z = (_Ptr<struct r>) sus(_Assume_bounds_cast<_Ptr<struct r>>(x), _Assume_bounds_cast<_Ptr<struct r>>(y));
   return z;
 }
 
 struct r *bar() {
-	//CHECK: struct r *bar(void) {
+	//CHECK_NOALL: struct r *bar(void) : itype(_Ptr<struct r>) {
+	//CHECK_ALL: _Ptr<struct r> bar(void) {
   struct r *x; 
 	//CHECK: struct r *x; 
   struct r *y;
@@ -65,17 +64,18 @@ struct r *bar() {
   x->next = &y;
   y->next = &x;
   struct r *z = sus(x, y);
-	//CHECK: struct r *z = sus(x, y);
+	//CHECK_NOALL: struct r *z = ((struct r *)sus(_Assume_bounds_cast<_Ptr<struct r>>(x), _Assume_bounds_cast<_Ptr<struct r>>(y)));
+	//CHECK_ALL:   _Array_ptr<struct r> z = sus(_Assume_bounds_cast<_Ptr<struct r>>(x), _Assume_bounds_cast<_Ptr<struct r>>(y));
   z += 2;
   return z;
 }
 
 struct r *sus(struct r *x, struct r *y) {
-	//CHECK_NOALL: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) : itype(_Ptr<struct r>) {
-	//CHECK_ALL: struct r *sus(struct r *x : itype(_Ptr<struct r>), struct r *y : itype(_Ptr<struct r>)) {
+	//CHECK_NOALL: _Ptr<struct r> sus(_Ptr<struct r> x, _Ptr<struct r> y) {
+	//CHECK_ALL: struct r *sus(_Ptr<struct r> x, _Ptr<struct r> y) : itype(_Array_ptr<struct r>) {
   x->next += 1;
   struct r *z = malloc(sizeof(struct r));
-	//CHECK_NOALL: _Ptr<struct r> z =  malloc<struct r>(sizeof(struct r));
+	//CHECK_NOALL: _Ptr<struct r> z = malloc<struct r>(sizeof(struct r));
 	//CHECK_ALL:   struct r *z = malloc<struct r>(sizeof(struct r));
   z->data = 1;
   z->next = 0;

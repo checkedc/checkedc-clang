@@ -108,8 +108,8 @@ static int *mul2(int *x) {
 }
 
 char *** sus(char * * * x, char * * * y) {
-	//CHECK_NOALL: char *** sus(char * * * x, _Ptr<_Ptr<_Ptr<char>>> y) {
-	//CHECK_ALL: _Ptr<_Array_ptr<char *>> sus(char * * * x, _Ptr<_Ptr<_Ptr<char>>> y) {
+	//CHECK_NOALL: char ***sus(char ***x : itype(_Ptr<_Ptr<_Ptr<char>>>), _Ptr<_Ptr<_Ptr<char>>> y) : itype(_Ptr<char **>) {
+	//CHECK_ALL: _Ptr<_Array_ptr<char *>> sus(char ***x : itype(_Ptr<_Ptr<_Ptr<char>>>), _Ptr<_Ptr<_Ptr<char>>> y) {
 x = (char * * *) 5;
 	//CHECK: x = (char * * *) 5;
         char *ch = malloc(sizeof(char)); 

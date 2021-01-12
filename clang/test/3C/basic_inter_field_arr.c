@@ -24,7 +24,7 @@ int* func(int *ptr, char *arrptr) {
   obj1.arrptr = arrptr;
   return ptr;
 }
-//CHECK: _Ptr<int> func(_Ptr<int> ptr, char *arrptr) {
+//CHECK: _Ptr<int> func(_Ptr<int> ptr, char *arrptr : itype(_Ptr<char>)) {
 
 int main() {
   int a;

@@ -139,10 +139,10 @@ static void getVarsFromConstraint(ConstraintVariable *V, CAtoms &R) {
     if (FVConstraint *FVC = PVC->getFV())
       getVarsFromConstraint(FVC, R);
   } else if (auto *FVC = dyn_cast<FVConstraint>(V)) {
-    if (FVC->getReturnVar())
-      getVarsFromConstraint(FVC->getReturnVar(), R);
+    if (FVC->getExternalReturn())
+      getVarsFromConstraint(FVC->getExternalReturn(), R);
     for (unsigned I = 0; I < FVC->numParams(); I++)
-      getVarsFromConstraint(FVC->getParamVar(I), R);
+      getVarsFromConstraint(FVC->getExternalParam(I), R);
   }
 }
 
@@ -278,12 +278,6 @@ void ProgramInfo::printStats(const std::set<std::string> &F, raw_ostream &O,
   }
 }
 
-bool ProgramInfo::isExternOkay(const std::string &Ext) {
-  return llvm::StringSwitch<bool>(Ext)
-      .Cases("malloc", "free", true)
-      .Default(false);
-}
-
 bool ProgramInfo::link() {
   // For every global symbol in all the global symbols that we have found
   // go through and apply rules for whether they are functions or variables.
@@ -332,7 +326,7 @@ bool ProgramInfo::link() {
     // everything about it.
     // Some global symbols we don't need to constrain to wild, like
     // malloc and free. Check those here and skip if we find them.
-    if (!G->hasBody() && !isExternOkay(FuncName)) {
+    if (!G->hasBody()) {
 
       // If there was a checked type on a variable in the input program, it
       // should stay that way. Otherwise, we shouldn't be adding a checked type
@@ -340,11 +334,14 @@ bool ProgramInfo::link() {
       std::string Rsn =
           "Unchecked pointer in parameter or return of external function " +
           FuncName;
-      if (!G->getReturnVar()->getIsGeneric())
-        G->getReturnVar()->constrainToWild(CS, Rsn);
-      for (unsigned I = 0; I < G->numParams(); I++)
-        if (!G->getParamVar(I)->getIsGeneric())
-          G->getParamVar(I)->constrainToWild(CS, Rsn);
+      G->getInternalReturn()->constrainToWild(CS, Rsn);
+      if (!G->getExternalReturn()->getIsGeneric())
+        G->getExternalReturn()->constrainToWild(CS, Rsn);
+      for (unsigned I = 0; I < G->numParams(); I++) {
+        G->getInternalParam(I)->constrainToWild(CS, Rsn);
+        if (!G->getExternalParam(I)->getIsGeneric())
+          G->getExternalParam(I)->constrainToWild(CS, Rsn);
+      }
     }
   }
   // repeat for static functions
@@ -364,11 +361,11 @@ bool ProgramInfo::link() {
         std::string Rsn =
             "Unchecked pointer in parameter or return of static function " +
             FuncName + " in " + FileName;
-        if (!G->getReturnVar()->getIsGeneric())
-          G->getReturnVar()->constrainToWild(CS, Rsn);
+        if (!G->getExternalReturn()->getIsGeneric())
+          G->getExternalReturn()->constrainToWild(CS, Rsn);
         for (unsigned I = 0; I < G->numParams(); I++)
-          if (!G->getParamVar(I)->getIsGeneric())
-            G->getParamVar(I)->constrainToWild(CS, Rsn);
+          if (!G->getExternalParam(I)->getIsGeneric())
+            G->getExternalParam(I)->constrainToWild(CS, Rsn);
       }
     }
   }
@@ -551,9 +548,11 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     // Function Decls have FVConstraints.
     FVConstraint *F = new FVConstraint(D, *this, *AstContext);
     F->setValidDecl();
-    auto *Ret_PV = dyn_cast<PVConstraint>(F->getReturnVar());
+    PVConstraint *RetExternal = F->getExternalReturn();
+    PVConstraint *RetInternal = F->getInternalReturn();
     auto Ret_Ty = FD->getReturnType();
-    unifyIfTypedef(Ret_Ty.getTypePtr(), *AstContext, FD, Ret_PV);
+    unifyIfTypedef(Ret_Ty.getTypePtr(), *AstContext, FD, RetExternal);
+    unifyIfTypedef(Ret_Ty.getTypePtr(), *AstContext, FD, RetInternal);
 
 
     // Handling of PSL collision for functions is different since we need to
@@ -578,21 +577,23 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     NewCV = F;
     // Add mappings from the parameters PLoc to the constraint variables for
     // the parameters.
-    for (unsigned i = 0; i < FD->getNumParams(); i++) {
-      ParmVarDecl *PVD = FD->getParamDecl(i);
+    for (unsigned I = 0; I < FD->getNumParams(); I++) {
+      ParmVarDecl *PVD = FD->getParamDecl(I);
       const Type *Ty = PVD->getType().getTypePtr();
-      ConstraintVariable *PV = F->getParamVar(i);
-      unifyIfTypedef(Ty, *AstContext, PVD, dyn_cast<PVConstraint>(PV));
-      PV->setValidDecl();
+      PVConstraint *PVInternal = F->getInternalParam(I);
+      PVConstraint *PVExternal = F->getExternalParam(I);
+      unifyIfTypedef(Ty, *AstContext, PVD, PVInternal);
+      unifyIfTypedef(Ty, *AstContext, PVD, PVExternal);
+      PVInternal->setValidDecl();
       PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *AstContext);
       // Constraint variable is stored on the parent function, so we need to
       // constrain to WILD even if we don't end up storing this in the map.
-      constrainWildIfMacro(PV, PVD->getLocation());
+      constrainWildIfMacro(PVExternal, PVD->getLocation());
       specialCaseVarIntros(PVD, AstContext);
       // It is possible to have a parameter delc in a macro when function is not
       if (Variables.find(PSL) != Variables.end())
         continue;
-      Variables[PSL] = PV;
+      Variables[PSL] = PVInternal;
     }
 
   } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
@@ -653,10 +654,16 @@ void ProgramInfo::unifyIfTypedef(const Type* Ty, ASTContext& Context, Declarator
 
 bool ProgramInfo::hasPersistentConstraints(Expr *E, ASTContext *C) const {
   auto PSL = PersistentSourceLoc::mkPSL(E, *C);
+  bool HasImpCastConstraint =
+    isa<ImplicitCastExpr>(E) &&
+    ImplicitCastConstraintVars.find(PSL) != ImplicitCastConstraintVars.end() &&
+    !ImplicitCastConstraintVars.at(PSL).empty();
+  bool HasExprConstraint =
+    !isa<ImplicitCastExpr>(E) &&
+    ExprConstraintVars.find(PSL) != ExprConstraintVars.end() &&
+    !ExprConstraintVars.at(PSL).empty();
   // Has constraints only if the PSL is valid.
-  return PSL.valid() &&
-         ExprConstraintVars.find(PSL) != ExprConstraintVars.end() &&
-         !ExprConstraintVars.at(PSL).empty();
+  return PSL.valid() && (HasExprConstraint || HasImpCastConstraint);
 }
 
 // Get the set of constraint variables for an expression that will persist
@@ -669,7 +676,10 @@ const CVarSet &ProgramInfo::getPersistentConstraints(Expr *E,
   assert(hasPersistentConstraints(E, C) &&
          "Persistent constraints not present.");
   PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(E, *C);
-  return ExprConstraintVars.at(PLoc);
+  if (isa<ImplicitCastExpr>(E))
+    return ImplicitCastConstraintVars.at(PLoc);
+  else
+    return ExprConstraintVars.at(PLoc);
 }
 
 void ProgramInfo::storePersistentConstraints(Expr *E, const CVarSet &Vars,
@@ -683,8 +693,11 @@ void ProgramInfo::storePersistentConstraints(Expr *E, const CVarSet &Vars,
   // have been computed and cached when the expression has not in fact been
   // visited before. To avoid this, the expression is not cached and instead is
   // recomputed each time it's needed.
-  if (PSL.valid() && Rewriter::isRewritable(E->getBeginLoc()))
-    ExprConstraintVars[PSL].insert(Vars.begin(), Vars.end());
+  if (PSL.valid() && Rewriter::isRewritable(E->getBeginLoc())) {
+    auto &ExprMap = isa<ImplicitCastExpr>(E) ? ImplicitCastConstraintVars
+                                             : ExprConstraintVars;
+    ExprMap[PSL].insert(Vars.begin(), Vars.end());
+  }
 }
 
 // The Rewriter won't let us re-write things that are in macros. So, we
@@ -778,7 +791,7 @@ CVarOption ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C) {
     // Get corresponding FVConstraint vars.
     FVConstraint *FunFVar = getFuncFVConstraint(FD, C);
     assert(FunFVar != nullptr && "Unable to find function constraints.");
-    return CVarOption(*FunFVar->getParamVar(PIdx));
+    return CVarOption(*FunFVar->getInternalParam(PIdx));
   }
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     FVConstraint *FunFVar = getFuncFVConstraint(FD, C);
@@ -941,12 +954,12 @@ void ProgramInfo::insertIntoPtrSourceMap(const PersistentSourceLoc *PSL,
     // If the PVConstraint is a function pointer, create mappings for parameter
     // and return variables.
     if (auto *FV = PV->getFV()) {
-      insertIntoPtrSourceMap(PSL, FV->getReturnVar());
+      insertIntoPtrSourceMap(PSL, FV->getExternalReturn());
       for (unsigned int I = 0; I < FV->numParams(); I++)
-        insertIntoPtrSourceMap(PSL, FV->getParamVar(I));
+        insertIntoPtrSourceMap(PSL, FV->getExternalParam(I));
     }
   } else if (auto *FV = dyn_cast<FVConstraint>(CV)) {
-    insertIntoPtrSourceMap(PSL, FV->getReturnVar());
+    insertIntoPtrSourceMap(PSL, FV->getExternalReturn());
   }
 }
 
@@ -965,9 +978,9 @@ void ProgramInfo::insertCVAtoms(
     if (FVConstraint *FVC = PVC->getFV())
       insertCVAtoms(FVC, AtomMap);
   } else if (auto *FVC = dyn_cast<FVConstraint>(CV)) {
-    insertCVAtoms(FVC->getReturnVar(), AtomMap);
+    insertCVAtoms(FVC->getExternalReturn(), AtomMap);
     for (unsigned I = 0; I < FVC->numParams(); I++)
-      insertCVAtoms(FVC->getParamVar(I), AtomMap);
+      insertCVAtoms(FVC->getExternalParam(I), AtomMap);
   } else {
     llvm_unreachable("Unknown kind of constraint variable.");
   }

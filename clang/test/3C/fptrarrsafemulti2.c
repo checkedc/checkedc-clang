@@ -103,29 +103,29 @@ static int zerohuh(int n) {
 }
 
 static int *mul2(int *x) { 
-	//CHECK_NOALL: static int *mul2(int *x) { 
-	//CHECK_ALL: static _Array_ptr<int> mul2(_Array_ptr<int> x) _Checked { 
+	//CHECK: static _Ptr<int> mul2(_Ptr<int> x) _Checked { 
     *x *= 2; 
     return x;
 }
 
 int ** sus(int *x, int *y) {
-	//CHECK_NOALL: int ** sus(int *x, int *y) {
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> sus(int *x, _Array_ptr<int> y : count(5)) : count(5) {
+	//CHECK_NOALL: int **sus(int *x : itype(_Ptr<int>), int *y : itype(_Ptr<int>)) : itype(_Ptr<int *>) {
+	//CHECK_ALL: _Array_ptr<_Ptr<int>> sus(int *x : itype(_Ptr<int>), _Array_ptr<int> y : count(5)) : count(5) {
 
         x = (int *) 5;
 	//CHECK: x = (int *) 5;
         int **z = calloc(5, sizeof(int *)); 
 	//CHECK_NOALL: int **z = calloc<int *>(5, sizeof(int *)); 
-	//CHECK_ALL: _Array_ptr<_Array_ptr<int>> z : count(5) = calloc<_Array_ptr<int>>(5, sizeof(int *)); 
+	//CHECK_ALL: _Array_ptr<_Ptr<int>> z : count(5) = calloc<_Ptr<int>>(5, sizeof(int *)); 
         int * (*mul2ptr) (int *) = mul2;
-	//CHECK_NOALL: _Ptr<int * (int *)> mul2ptr = mul2;
-	//CHECK_ALL: _Ptr<_Array_ptr<int> (_Array_ptr<int> )> mul2ptr = mul2;
+	//CHECK: _Ptr<_Ptr<int> (_Ptr<int> )> mul2ptr = mul2;
         int i;
         for(i = 0; i < 5; i++) { 
 	//CHECK_NOALL: for(i = 0; i < 5; i++) { 
 	//CHECK_ALL: for(i = 0; i < 5; i++) _Checked { 
             z[i] = mul2ptr(&y[i]);
+	//CHECK_NOALL: z[i] = ((int *)mul2ptr(_Assume_bounds_cast<_Ptr<int>>(&y[i])));
+	//CHECK_ALL: z[i] = mul2ptr(&y[i]);
         } 
         
 return z; }

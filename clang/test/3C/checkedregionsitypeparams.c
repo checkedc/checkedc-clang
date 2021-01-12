@@ -6,12 +6,12 @@ struct A {
 };
 
 int foo(struct A *a) { 
-  //CHECK: int foo(struct A *a : itype(_Ptr<struct A>)) _Checked {
+  //CHECK: int foo(_Ptr<struct A> a) _Checked {
   return a->b + 1;
 }
 
 int bar(struct A *a) { 
-//CHECK: int bar(struct A *a) {
+//CHECK: int bar(struct A *a : itype(_Ptr<struct A>)) { 
   a = (struct A*) 5;
   if(1) { 
     // CHECK:if(1) {

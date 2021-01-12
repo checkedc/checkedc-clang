@@ -103,7 +103,7 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
         // This can happen with varargs
         if (I >= FVCon->numParams())
           break;
-        const int TyIdx = FVCon->getParamVar(I)->getGenericIndex();
+        const int TyIdx = FVCon->getExternalParam(I)->getGenericIndex();
         if (TyIdx >= 0) {
           Expr *Uncast = A->IgnoreImpCasts();
           std::set<ConstraintVariable *> CVs = CR.getExprConstraintVars(Uncast);

@@ -36,7 +36,7 @@ struct r {
 struct np *sus(struct p x, struct p y) {
 	//CHECK: _Ptr<struct np> sus(struct p x, struct p y) {
   struct np *z = malloc(sizeof(struct np));
-	//CHECK: _Ptr<struct np> z =  malloc<struct np>(sizeof(struct np));
+	//CHECK: _Ptr<struct np> z = malloc<struct np>(sizeof(struct np));
   z->x = 1;
   z->x = 2;
   return z;
@@ -50,7 +50,7 @@ struct np *foo() {
   y.x = 3;
   y.y = 4;
   struct np *z = sus(x, y);
-	//CHECK: _Ptr<struct np> z =  sus(x, y);
+	//CHECK: _Ptr<struct np> z = sus(x, y);
   return z;
 }
 
@@ -62,6 +62,6 @@ struct np *bar() {
   y.x = 3;
   y.y = 4;
   struct np *z = sus(x, y);
-	//CHECK: _Ptr<struct np> z =  sus(x, y);
+	//CHECK: _Ptr<struct np> z = sus(x, y);
   return z;
 }
