@@ -5905,6 +5905,15 @@ Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
       CHKCBindTemporaryExpr *Temp = cast<CHKCBindTemporaryExpr>(E);
       return GetArrayPtrDereference(Temp->getSubExpr(), Result);
     }
+    case Expr::MatrixSubscriptExprClass: {
+      MatrixSubscriptExpr *MS = cast<MatrixSubscriptExpr>(E);
+      if (MS->getBase()->getType()->isCheckedPointerArrayType()) {
+        Result = MS->getBase()->getType();
+        return E;
+      }
+
+      return nullptr;
+    }
     default: {
       llvm_unreachable("unexpected lvalue expression");
       return nullptr;
