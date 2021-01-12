@@ -5,6 +5,8 @@
 // RUN: 3c -alltypes %S/inline_anon_structs.checked.c -- | count 0
 // RUN: rm %S/inline_anon_structs.checked.c
 
+#include <stddef.h>
+extern _Itype_for_any(T) void *malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
 
 /*This code ensures conversion happens as expected when 
 an inlinestruct and its associated VarDecl have different locations*/
@@ -28,7 +30,8 @@ array[] =
 
  /* one decl; x rewrites to _Ptr<int> */
 struct foo1 { int *x; } *a;
-	//CHECK: struct foo1 { _Ptr<int> x; } *a;
+	//CHECK: struct foo1 { _Ptr<int> x; }; 
+	//CHECK: _Ptr<struct foo1> a = ((void *)0);
 
 struct baz { int *z; };
 	//CHECK: struct baz { _Ptr<int> z; };
@@ -36,11 +39,15 @@ struct baz *d;
 	//CHECK: _Ptr<struct baz> d = ((void *)0);
 
 struct bad { int* y; } *b, *c; 
-	//CHECK: struct bad { int* y; } *b, *c; 
+	//CHECK: struct bad { int* y; }; 
+	//CHECK: _Ptr<struct bad> b = ((void *)0);
+	//CHECK: _Ptr<struct bad> c = ((void *)0); 
 
  /* two decls, y should be converted */
 struct bar { int* y; } *e, *f;
-	//CHECK: struct bar { _Ptr<int> y; } *e, *f; 
+	//CHECK: struct bar { _Ptr<int> y; };
+	//CHECK: _Ptr<struct bar> e = ((void *)0);
+	//CHECK: _Ptr<struct bar> f = ((void *)0);
 
 
 void foo(void) {
@@ -53,11 +60,13 @@ void foo(void) {
 struct { 
 	/*the fields of the anonymous struct are free to be marked checked*/
     int *data; 
-	//CHECK_NOALL: int *data; 
-	//CHECK_ALL: _Array_ptr<int> data : count(4); 
+	//CHECK_NOALL: int *data;
 
-/* but the actual pointer can't be */
-} *x; 
+/* but the actual pointer can't be when alltypes is disabled */ 
+/* when alltypes is enabled, this whole structure is rewritten 
+   improperly, but that's OK, because we signal a warning to the user*/
+} *x;  
+//CHECK_ALL: _Ptr<struct> x = ((void *)0);
 
 /*ensure trivial conversion*/
 void foo1(int *w) { 
@@ -79,14 +88,15 @@ struct alpha *al[4];
 /*be should be made wild, whereas a should be converted*/
 struct {
   int *a;
-	//CHECK: _Ptr<int> a;
+	//CHECK_NOALL: _Ptr<int> a;
 } *be[4]; 
 
 /*this code checks inline structs withiin functions*/
 void foo2(int *x) {
 	//CHECK: void foo2(_Ptr<int> x) {
   struct bar { int *x; } *y = 0;
-	//CHECK: struct bar { _Ptr<int> x; } *y = 0; 
+	//CHECK: struct bar { _Ptr<int> x; }; 
+	//CHECK: _Ptr<struct bar> y = 0; 
 
   /*A non-pointer struct without an init will be marked wild*/
   struct something { int *x; } z; 

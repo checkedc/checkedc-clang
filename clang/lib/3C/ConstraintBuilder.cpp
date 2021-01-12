@@ -20,53 +20,109 @@
 using namespace llvm;
 using namespace clang;
 
-// Used to keep track of in-line struct defs
-unsigned int LastRecordLocation = -1;
+// This class is intended to locate inline struct definitions
+// in order to mark them wild or signal a warning as appropriate
+class InlineStructDetector {
+public:
+  explicit InlineStructDetector() : LastRecordDecl(nullptr) {}
 
-void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
-                       ASTContext *Context, ConstraintResolver CB,
-                       bool IsInFunction) {
-  if (RecordDecl *Definition = Declaration->getDefinition()) {
-    // store current record's location to cross-ref later in a VarDecl
-    LastRecordLocation = Definition->getBeginLoc().getRawEncoding();
-    FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
-    if (FL.isValid()) {
-      SourceManager &SM = Context->getSourceManager();
-      FileID FID = FL.getFileID();
-      const FileEntry *FE = SM.getFileEntryForID(FID);
+  void processRecordDecl(RecordDecl *Declaration, ProgramInfo &Info,
+                         ASTContext *Context, ConstraintResolver CB) {
+    LastRecordDecl = Declaration;
+    if (RecordDecl *Definition = Declaration->getDefinition()) {
+      auto LastRecordLocation = Definition->getBeginLoc();
+      FullSourceLoc FL = Context->getFullLoc(Definition->getBeginLoc());
+      if (FL.isValid()) {
+        SourceManager &SM = Context->getSourceManager();
+        FileID FID = FL.getFileID();
+        const FileEntry *FE = SM.getFileEntryForID(FID);
 
-      //detect whether this RecordDecl is part of an inline struct
-      bool IsInLineStruct = false;
-      Decl *D = Declaration->getNextDeclInContext();
-      if (VarDecl *VD = dyn_cast_or_null<VarDecl>(D)) {
-        auto VarTy = VD->getType();
-        unsigned int BeginLoc = VD->getBeginLoc().getRawEncoding();
-        unsigned int EndLoc = VD->getEndLoc().getRawEncoding();
-        IsInLineStruct = !isPtrOrArrayType(VarTy) && !VD->hasInit() &&
-                         LastRecordLocation >= BeginLoc &&
-                         LastRecordLocation <= EndLoc;
-      }
-      if (FE && FE->isValid()) {
-        // We only want to re-write a record if it contains
-        // any pointer types, to include array types.
-        for (const auto &F : Definition->fields()) {
-          auto FieldTy = F->getType();
-          // If the RecordDecl is a union or in a system header
-          // and this field is a pointer, we need to mark it wild;
-          bool FieldInUnionOrSysHeader =
-              (FL.isInSystemHeader() || Definition->isUnion());
-          // mark field wild if the above is true and the field is a pointer
-          if (isPtrOrArrayType(FieldTy) &&
-              (FieldInUnionOrSysHeader || IsInLineStruct)) {
-            std::string Rsn = "Union or external struct field encountered";
-            CVarOption CV = Info.getVariable(F, Context);
-            CB.constraintCVarToWild(CV, Rsn);
+        //detect whether this RecordDecl is part of an inline struct
+        bool IsInLineStruct = false;
+        Decl *D = Declaration->getNextDeclInContext();
+        if (VarDecl *VD = dyn_cast_or_null<VarDecl>(D)) {
+          auto VarTy = VD->getType();
+          auto BeginLoc = VD->getBeginLoc();
+          auto EndLoc = VD->getEndLoc();
+          SourceManager &SM = Context->getSourceManager();
+          IsInLineStruct =
+              !isPtrOrArrayType(VarTy) && !VD->hasInit() &&
+              SM.isPointWithin(LastRecordLocation, BeginLoc, EndLoc);
+        }
+
+        if (FE && FE->isValid()) {
+          // We only want to re-write a record if it contains
+          // any pointer types, to include array types.
+          for (const auto &F : Definition->fields()) {
+            auto FieldTy = F->getType();
+            // If the RecordDecl is a union or in a system header
+            // and this field is a pointer, we need to mark it wild;
+            bool FieldInUnionOrSysHeader =
+                (FL.isInSystemHeader() || Definition->isUnion());
+            // mark field wild if the above is true and the field is a pointer
+            if (isPtrOrArrayType(FieldTy) &&
+                (FieldInUnionOrSysHeader || IsInLineStruct)) {
+              std::string Rsn = "Union or external struct field encountered";
+              CVarOption CV = Info.getVariable(F, Context);
+              CB.constraintCVarToWild(CV, Rsn);
+            }
           }
         }
       }
     }
   }
-}
+
+  void processVarDecl(VarDecl *VD, ProgramInfo &Info, ASTContext *Context,
+                      ConstraintResolver CB) {
+    // If the last seen RecordDecl is non-null and coincides with the current
+    // VarDecl (i.e. via an inline struct), we proceed as follows:
+    // if the struct is named, do nothing
+    // if the struct is anonymous:
+    //      when alltypes is on, do nothing, but signal a warning to
+    //                           the user indicating its presence
+    //      when alltypes is off, mark the VarDecl WILD in order to
+    //                           ensure the converted program compiles.
+    if (LastRecordDecl != nullptr) {
+      auto lastRecordLocation = LastRecordDecl->getBeginLoc();
+      auto BeginLoc = VD->getBeginLoc();
+      auto EndLoc = VD->getEndLoc();
+      auto VarTy = VD->getType();
+      SourceManager &SM = Context->getSourceManager();
+      bool IsInLineStruct =
+          SM.isPointWithin(lastRecordLocation, BeginLoc, EndLoc) &&
+          isPtrOrArrayType(VarTy);
+      bool IsNamedInLineStruct =
+          IsInLineStruct && LastRecordDecl->getNameAsString() != "";
+      if (IsInLineStruct && !IsNamedInLineStruct) {
+        if (!AllTypes) {
+          CVarOption CV = Info.getVariable(VD, Context);
+          CB.constraintCVarToWild(CV, "Inline struct encountered.");
+        } else {
+          clang::DiagnosticsEngine &DE = Context->getDiagnostics();
+          unsigned InlineStructWarning =
+              DE.getCustomDiagID(DiagnosticsEngine::Warning,
+                                 "\n Rewriting failed"
+                                 "for %q0 because an inline "
+                                 "or anonymous struct instance "
+                                 "was detected.\n Consider manually "
+                                 "rewriting by inserting the struct "
+                                 "definition inside the _Ptr "
+                                 "annotation.\n "
+                                 "EX. struct {int *a; int *b;} x; "
+                                 "_Ptr<struct {int *a; _Ptr<int> b;}>;");
+          const auto Pointer = reinterpret_cast<intptr_t>(VD);
+          const auto Kind =
+              clang::DiagnosticsEngine::ArgumentKind::ak_nameddecl;
+          auto DiagBuilder = DE.Report(VD->getLocation(), InlineStructWarning);
+          DiagBuilder.AddTaggedVal(Pointer, Kind);
+        }
+      }
+    }
+  }
+
+private:
+  RecordDecl *LastRecordDecl;
+};
 
 // This class visits functions and adds constraints to the
 // Constraints instance assigned to it.
@@ -76,24 +132,21 @@ class FunctionVisitor : public RecursiveASTVisitor<FunctionVisitor> {
 public:
   explicit FunctionVisitor(ASTContext *C, ProgramInfo &I, FunctionDecl *FD,
                            TypeVarInfo &TVI)
-      : Context(C), Info(I), Function(FD), CB(Info, Context), TVInfo(TVI) {}
+      : Context(C), Info(I), Function(FD), CB(Info, Context), TVInfo(TVI), ISD() {}
 
   // T x = e
   bool VisitDeclStmt(DeclStmt *S) {
     // Introduce variables as needed.
     for (const auto &D : S->decls()) {
       if (RecordDecl *RD = dyn_cast<RecordDecl>(D)) {
-        processRecordDecl(RD, Info, Context, CB, true);
+        ISD.processRecordDecl(RD, Info, Context, CB);
       }
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         if (VD->isLocalVarDecl()) {
           FullSourceLoc FL = Context->getFullLoc(VD->getBeginLoc());
           SourceRange SR = VD->getSourceRange();
           if (SR.isValid() && FL.isValid() && isPtrOrArrayType(VD->getType())) {
-            if (LastRecordLocation == VD->getBeginLoc().getRawEncoding()) {
-              CVarOption CV = Info.getVariable(VD, Context);
-              CB.constraintCVarToWild(CV, "Inline struct encountered.");
-            }
+            ISD.processVarDecl(VD, Info, Context, CB);
           }
         }
       }
@@ -397,6 +450,7 @@ private:
   FunctionDecl *Function;
   ConstraintResolver CB;
   TypeVarInfo &TVInfo;
+  InlineStructDetector ISD;
 };
 
 class PtrToStructDef : public RecursiveASTVisitor<PtrToStructDef> {
@@ -451,7 +505,7 @@ class ConstraintGenVisitor : public RecursiveASTVisitor<ConstraintGenVisitor> {
 public:
   explicit ConstraintGenVisitor(ASTContext *Context, ProgramInfo &I,
                                 TypeVarInfo &TVI)
-      : Context(Context), Info(I), CB(Info, Context), TVInfo(TVI) {}
+      : Context(Context), Info(I), CB(Info, Context), TVInfo(TVI), ISD() {}
 
   bool VisitTypedefDecl(TypedefDecl* TD) { 
       CVarSet empty;
@@ -473,17 +527,8 @@ public:
       if (G->hasInit()) {
         CB.constrainLocalAssign(nullptr, G, G->getInit());
       }
-      // If the location of the previous RecordDecl and the current VarDecl
-      // coincide with one another, we constrain the VarDecl to be wild
-      // in order to allow the fields of the RecordDecl to be converted
-      unsigned int BeginLoc = G->getBeginLoc().getRawEncoding();
-      unsigned int EndLoc = G->getEndLoc().getRawEncoding();
-      if (LastRecordLocation >= BeginLoc && LastRecordLocation <= EndLoc) {
-        CVarOption CV = Info.getVariable(G, Context);
-        CB.constraintCVarToWild(CV, "Inline struct encountered.");
-      }
+      ISD.processVarDecl(G, Info, Context, CB);
     }
-
     return true;
   }
 
@@ -529,7 +574,7 @@ public:
   }
 
   bool VisitRecordDecl(RecordDecl *Declaration) {
-    processRecordDecl(Declaration, Info, Context, CB, false);
+    ISD.processRecordDecl(Declaration, Info, Context, CB);
     return true;
   }
 
@@ -538,6 +583,7 @@ private:
   ProgramInfo &Info;
   ConstraintResolver CB;
   TypeVarInfo &TVInfo;
+  InlineStructDetector ISD;
 };
 
 // Some information about variables in the program is required by the type

@@ -14,6 +14,7 @@
 #define LLVM_CLANG_3C_DECLREWRITER_H
 
 #include "clang/3C/RewriteUtils.h"
+#include "clang/3C/ConstraintBuilder.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -35,6 +36,9 @@ public:
   static void rewriteDecls(ASTContext &Context, ProgramInfo &Info, Rewriter &R);
 
 private:
+  static RecordDecl *LastRecordDecl;
+  static std::map<Decl *, Decl *> VDToRDMap;
+  static std::set<Decl *> InlineVarDecls;
   Rewriter &R;
   ASTContext &A;
   GlobalVariableGroups &GP;
@@ -64,16 +68,18 @@ private:
 
   template <typename DRType>
   void rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite);
-  void rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite);
+  void rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite,
+                        std::vector<Decl *> SameLineDecls,
+                        bool ContainsInlineStruct);
   void rewriteSingleDecl(DeclReplacement *N, RSet &ToRewrite);
   void doDeclRewrite(SourceRange &SR, DeclReplacement *N);
-
   void rewriteFunctionDecl(FunctionDeclReplacement *N);
   void rewriteTypedefDecl(TypedefDeclReplacement *TDT, RSet &ToRewrite);
   void getDeclsOnSameLine(DeclReplacement *N, std::vector<Decl *> &Decls);
   bool isSingleDeclaration(DeclReplacement *N);
   bool areDeclarationsOnSameLine(DeclReplacement *N1, DeclReplacement *N2);
   SourceRange getNextCommaOrSemicolon(SourceLocation L);
+  static void detectInlineStruct(Decl *D, SourceManager &SM);
 };
 
 // Visits function declarations and adds entries with their new rewritten

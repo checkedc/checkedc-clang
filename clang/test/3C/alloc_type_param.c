@@ -55,11 +55,10 @@ void buz() {
   struct {int a;} *b = malloc(10);
 	//CHECK: struct {int a;} *b = malloc(10);
 
-  /* Inline structs work just fine as long as they've been named.
-   Note that c isn't made checked due to limitation in how inline structs are converted.
-   If this test fails because it's made checked, that's great. */
+  /* Named inline structs can be separated and made checked */
   struct test {int a;} *c = malloc(sizeof(struct test));
-	//CHECK: struct test {int a;} *c = malloc<struct test>(sizeof(struct test));
+	//CHECK: struct test {int a;}; 
+  //CHECK: _Ptr<struct test> c = malloc<struct test>(sizeof(struct test));
 
   /* typedefs are also OK. */
   typedef struct {int a;} other;

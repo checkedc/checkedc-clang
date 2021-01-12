@@ -77,8 +77,17 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
   for (const auto &I : Info.getVarMap())
     Keys.insert(I.first);
   MappingVisitor MV(Keys, Context);
-  for (const auto &D : TUD->decls())
+  for (const auto &D : TUD->decls()) {
     MV.TraverseDecl(D);
+    detectInlineStruct(D, Context.getSourceManager());
+    if(FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+      if (FD->hasBody() && FD->isThisDeclarationADefinition()) {
+        for (auto &D : FD->decls()) {
+          detectInlineStruct(D, Context.getSourceManager());
+        }
+      }
+    }
+  }
   SourceToDeclMapType PSLMap;
   VariableDecltoStmtMap VDLToStmtMap;
   std::tie(PSLMap, VDLToStmtMap) = MV.getResults();
@@ -208,10 +217,21 @@ void DeclRewriter::rewriteFieldOrVarDecl(DRType *N, RSet &ToRewrite) {
                     std::is_same<DRType, VarDeclReplacement>::value,
                 "Method expects variable or field declaration replacement.");
 
-  if (isSingleDeclaration(N)) {
+  if (InlineVarDecls.find(N->getDecl()) != InlineVarDecls.end()
+      && VisitedMultiDeclMembers.find(N) == VisitedMultiDeclMembers.end()) {
+    std::vector<Decl *> SameLineDecls;
+    getDeclsOnSameLine(N, SameLineDecls);
+    if (std::find(SameLineDecls.begin(), SameLineDecls.end(),
+                  VDToRDMap[N->getDecl()]) == SameLineDecls.end())
+      SameLineDecls.insert(SameLineDecls.begin(), VDToRDMap[N->getDecl()]);
+    rewriteMultiDecl(N, ToRewrite, SameLineDecls, true);
+  }
+  else if (isSingleDeclaration(N)) {
     rewriteSingleDecl(N, ToRewrite);
   } else if (VisitedMultiDeclMembers.find(N) == VisitedMultiDeclMembers.end()) {
-    rewriteMultiDecl(N, ToRewrite);
+    std::vector<Decl *> SameLineDecls;
+    getDeclsOnSameLine(N, SameLineDecls);
+    rewriteMultiDecl(N, ToRewrite, SameLineDecls, false);
   } else {
     // Anything that reaches this case should be a multi-declaration that has
     // already been rewritten.
@@ -229,8 +249,9 @@ void DeclRewriter::rewriteSingleDecl(DeclReplacement *N, RSet &ToRewrite) {
   doDeclRewrite(TR, N);
 }
 
-void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite) {
-  assert("Declaration is not a multi declaration." && !isSingleDeclaration(N));
+void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite,
+                                    std::vector<Decl *> SameLineDecls,
+                                    bool ContainsInlineStruct) {
   // Rewriting is more difficult when there are multiple variables declared in a
   // single statement. When this happens, we need to find all the declaration
   // replacement for this statement and apply them at the same time. We also
@@ -253,12 +274,12 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite) {
   //         original decl was re-written, write that out instead. Existing
   //         initializers are preserved, any declarations that an initializer to
   //         be valid checked-c are given one.
-  std::vector<Decl *> SameLineDecls;
-  getDeclsOnSameLine(N, SameLineDecls);
+
 
   bool IsFirst = true;
   SourceLocation PrevEnd;
   for (const auto &DL : SameLineDecls) {
+    std::string ReplaceText = ";\n";
     // Find the declaration replacement object for the current declaration
     DeclReplacement *SameLineReplacement;
     bool Found = false;
@@ -269,7 +290,11 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite) {
         break;
       }
 
-    if (IsFirst) {
+    if (IsFirst && ContainsInlineStruct) {
+      // If it is an inline struct, the first thing we have to do
+      // is separate the RecordDecl from the VarDecl.
+      ReplaceText = "};\n";
+    } else if (IsFirst) {
       // Rewriting the first declaration is easy. Nothing should change if its
       // type does not to be rewritten. When rewriting is required, it is
       // essentially the same as the single declaration case.
@@ -323,10 +348,20 @@ void DeclRewriter::rewriteMultiDecl(DeclReplacement *N, RSet &ToRewrite) {
       }
     }
 
+
+    SourceRange End;
+    // In the event that IsFirst was not set to false, that implies we are
+    // separating the RecordDecl and VarDecl, so instead of searching for
+    // the next comma, we simply specify the end of the RecordDecl
+    if (IsFirst) {
+      IsFirst = false;
+      End = DL->getEndLoc();
+    }
     // Variables in a mutli-decl are delimited by commas. The rewritten decls
     // are separate statements separated by a semicolon and a newline.
-    SourceRange End = getNextCommaOrSemicolon(DL->getEndLoc());
-    R.ReplaceText(End, ";\n");
+    else
+      End = getNextCommaOrSemicolon(DL->getEndLoc());
+    R.ReplaceText(End, ReplaceText);
     // Offset by one to skip past what we've just added so it isn't overwritten.
     PrevEnd = End.getEnd().getLocWithOffset(1);
   }
@@ -406,6 +441,35 @@ void DeclRewriter::rewriteFunctionDecl(FunctionDeclReplacement *N) {
       if (N->getStatement())
         N->getStatement()->dump();
       errs() << "with " << N->getReplacement() << "\n";
+    }
+  }
+}
+
+// A function to detect the presence of inline struct declarations
+// by tracking VarDecls and RecordDecls and populating data structures
+// later used in rewriting
+
+// These variables are duplicated in the header file and here because
+// static vars need to be initialized in the cpp file where the class is defined
+/*static*/ RecordDecl *DeclRewriter::LastRecordDecl = nullptr;
+/*static*/ std::map<Decl *, Decl *> DeclRewriter::VDToRDMap;
+/*static*/ std::set<Decl *> DeclRewriter::InlineVarDecls;
+void DeclRewriter::detectInlineStruct(Decl *D, SourceManager &SM) {
+  if (RecordDecl *RD = dyn_cast<RecordDecl>(D)) {
+    LastRecordDecl = RD;
+  }
+  if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
+    if(LastRecordDecl != nullptr) {
+      auto lastRecordLocation = LastRecordDecl->getBeginLoc();
+      auto Begin = VD->getBeginLoc();
+      auto End = VD->getEndLoc();
+      bool IsInLineStruct = SM.isPointWithin(lastRecordLocation, Begin, End);
+      bool IsNamedInLineStruct = IsInLineStruct &&
+                                 LastRecordDecl->getNameAsString() != "";
+      if (IsNamedInLineStruct) {
+        VDToRDMap[VD] = LastRecordDecl;
+        InlineVarDecls.insert(VD);
+      }
     }
   }
 }
