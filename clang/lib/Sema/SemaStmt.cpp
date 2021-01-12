@@ -4449,16 +4449,14 @@ RelopFact *Sema::ActOnRelopFact(Expr *E, SourceLocation Loc) {
   // 2. non-modifying-exp relop variable
 
   Lexicographic Lex(Context, nullptr);
-  Expr *TmpE = Lex.IgnoreLValueAndOtherValuePreservingOperations(Context, E);
+  Expr *TmpE = Lex.IgnoreValuePreservingOperations(Context, E);
 
   BinaryOperator *BO = dyn_cast<BinaryOperator>(TmpE);
   if (!BO || !BO->isComparisonOp())
     return nullptr;
 
-  Expr *LHS = Lex.IgnoreLValueAndOtherValuePreservingOperations(
-                Context, BO->getLHS());
-  Expr *RHS = Lex.IgnoreLValueAndOtherValuePreservingOperations(
-                Context, BO->getRHS());
+  Expr *LHS = Lex.IgnoreValuePreservingOperations(Context, BO->getLHS());
+  Expr *RHS = Lex.IgnoreValuePreservingOperations(Context, BO->getRHS());
 
   if (!(isa<DeclRefExpr>(LHS) && CheckIsNonModifying(RHS)) &&
       !(isa<DeclRefExpr>(RHS) && CheckIsNonModifying(LHS)))
