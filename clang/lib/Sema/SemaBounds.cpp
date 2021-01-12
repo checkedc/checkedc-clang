@@ -1432,10 +1432,12 @@ namespace {
         return ProofResult::Maybe;
       }
 
-      // CheckFreeVarInExprs returns true if there are any free variables in
-      // E1 w.r.t E2, or if there are any free variables in E2 w.r.t E1.
-      // Any free variables in E1 with position Pos1 and any free variables in
-      // E2 with position Pos2 are appended to FreeVars.
+      // CheckFreeVarInExprs appends any free variables in E1 and any free
+      // variables in E2 to FreeVars, and returns true if there are any free
+      // variables in either E1 or E2.  Pos1 and Pos2 are the positions in
+      // which E1 and E2 appear in bounds expressions.  Free variables are
+      // appended with the position of the expression in which they are free
+      // (free variables in E1 are appended with Pos1, for example).
       bool CheckFreeVarInExprs(Expr *E1, Expr *E2,
                                FreeVariablePosition Pos1,
                                FreeVariablePosition Pos2,
