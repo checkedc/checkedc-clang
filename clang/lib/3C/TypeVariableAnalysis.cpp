@@ -73,30 +73,44 @@ bool TypeVarVisitor::VisitCastExpr(CastExpr *CE) {
     SubExpr = TempE->getSubExpr();
 
   if (auto *Call = dyn_cast<CallExpr>(SubExpr))
-    if (auto *FD = dyn_cast_or_null<FunctionDecl>(Call->getCalleeDecl()))
-      if (const auto *TyVar = getTypeVariableType(FD)) {
-        clang::QualType Ty = CE->getType();
-        std::set<ConstraintVariable *> CVs = CR.getExprConstraintVars(SubExpr);
-        insertBinding(Call, TyVar, Ty, CVs);
+    if (auto *FD = dyn_cast_or_null<FunctionDecl>(Call->getCalleeDecl())) {
+      FunctionDecl *FDef = getDefinition(FD);
+      if (FDef == nullptr)
+        FDef = FD;
+      if (auto *FVCon = Info.getFuncConstraint(FDef, Context)) {
+        const int TyIdx = FVCon->getGenericIndex();
+        if (TyIdx >= 0) {
+          clang::QualType Ty = CE->getType();
+          std::set<ConstraintVariable *> CVs =
+              CR.getExprConstraintVars(SubExpr);
+          insertBinding(Call, TyIdx, Ty, CVs);
+        }
       }
+    }
   return true;
 }
 
 bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
-  if (FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(CE->getCalleeDecl())) {
-    // Visit each function argument, and if it use a type variable, insert it
-    // into the type variable binding map.
-    unsigned int I = 0;
-    for (auto *const A : CE->arguments()) {
-      // This can happen with varargs
-      if (I >= FD->getNumParams())
-        break;
-      if (const auto *TyVar = getTypeVariableType(FD->getParamDecl(I))) {
-        Expr *Uncast = A->IgnoreImpCasts();
-        std::set<ConstraintVariable *> CVs = CR.getExprConstraintVars(Uncast);
-        insertBinding(CE, TyVar, Uncast->getType(), CVs);
+  if (auto *FD = dyn_cast_or_null<FunctionDecl>(CE->getCalleeDecl())) {
+    FunctionDecl *FDef = getDefinition(FD);
+    if (FDef == nullptr)
+      FDef = FD;
+    if (auto *FVCon = Info.getFuncConstraint(FDef, Context)) {
+      // Visit each function argument, and if it use a type variable, insert it
+      // into the type variable binding map.
+      unsigned int I = 0;
+      for (auto *const A : CE->arguments()) {
+        // This can happen with varargs
+        if (I >= FVCon->numParams())
+          break;
+        const int TyIdx = FVCon->getParamVar(I)->getGenericIndex();
+        if (TyIdx >= 0) {
+          Expr *Uncast = A->IgnoreImpCasts();
+          std::set<ConstraintVariable *> CVs = CR.getExprConstraintVars(Uncast);
+          insertBinding(CE, TyIdx, Uncast->getType(), CVs);
+        }
+        ++I;
       }
-      ++I;
     }
 
     // For each type variable added above, make a new constraint variable to
@@ -106,7 +120,8 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
         std::string Name =
             FD->getNameAsString() + "_tyarg_" + std::to_string(TVEntry.first);
         PVConstraint *P = new PVConstraint(TVEntry.second.getType(), nullptr,
-                                           Name, Info, *Context, nullptr);
+                                           Name, Info, *Context, nullptr,
+                                           TVEntry.first);
 
         // Constrain this variable GEQ the function arguments using the type
         // variable so if any of them are wild, the type argument will also be
@@ -128,16 +143,18 @@ bool TypeVarVisitor::VisitCallExpr(CallExpr *CE) {
 // Update the type variable map for a new use of a type variable. For each use
 // the exact type variable is identified by the call expression where it is
 // used and the index of the type variable type in the function declaration.
-void TypeVarVisitor::insertBinding(CallExpr *CE, const TypeVariableType *TyV,
+void TypeVarVisitor::insertBinding(CallExpr *CE, const int TyIdx,
                                    clang::QualType Ty, CVarSet &CVs) {
+  assert(TyIdx >= 0 &&
+         "Creating a type variable binding without a type variable.");
   auto &CallTypeVarMap = TVMap[CE];
-  if (CallTypeVarMap.find(TyV->GetIndex()) == CallTypeVarMap.end()) {
+  if (CallTypeVarMap.find(TyIdx) == CallTypeVarMap.end()) {
     // If the type variable hasn't been seen before, add it to the map.
     TypeVariableEntry TVEntry = TypeVariableEntry(Ty, CVs);
-    CallTypeVarMap[TyV->GetIndex()] = TVEntry;
+    CallTypeVarMap[TyIdx] = TVEntry;
   } else {
     // Otherwise, update entry with new type and constraints
-    CallTypeVarMap[TyV->GetIndex()].updateEntry(Ty, CVs);
+    CallTypeVarMap[TyIdx].updateEntry(Ty, CVs);
   }
 }
 

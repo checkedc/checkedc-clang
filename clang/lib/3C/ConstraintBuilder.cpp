@@ -266,12 +266,11 @@ public:
           std::vector<CVarSet> Deferred;
           for (const auto &A : E->arguments()) {
             CVarSet ArgumentConstraints;
-            if (TFD != nullptr && I < TFD->getNumParams()) {
+            if (I < TargetFV->numParams()) {
               // Remove casts to void* on polymorphic types that are used
               // consistently.
-              const auto *Ty = getTypeVariableType(TFD->getParamDecl(I));
-              if (Ty != nullptr && ConsistentTypeParams.find(Ty->GetIndex()) !=
-                                       ConsistentTypeParams.end())
+              const int TyIdx = TargetFV->getParamVar(I)->getGenericIndex();
+              if (ConsistentTypeParams.find(TyIdx) != ConsistentTypeParams.end())
                 ArgumentConstraints =
                     CB.getExprConstraintVars(A->IgnoreImpCasts());
               else

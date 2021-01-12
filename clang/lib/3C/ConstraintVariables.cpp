@@ -107,7 +107,7 @@ PointerVariableConstraint::PointerVariableConstraint(
     this->FV = dyn_cast<FVConstraint>(Ot->FV->getCopy(CS));
   }
   this->Parent = Ot;
-  this->IsGeneric = Ot->IsGeneric;
+  this->GenericIndex = Ot->GenericIndex;
   this->IsZeroWidthArray = Ot->IsZeroWidthArray;
   // We need not initialize other members.
 }
@@ -169,11 +169,10 @@ class TypedefLevelFinder : public RecursiveASTVisitor<TypedefLevelFinder> {
 
 PointerVariableConstraint::PointerVariableConstraint(
     const QualType &QT, DeclaratorDecl *D, std::string N, ProgramInfo &I,
-    const ASTContext &C, std::string *InFunc, bool Generic)
+    const ASTContext &C, std::string *InFunc, int ForceGenericIndex)
     : ConstraintVariable(ConstraintVariable::PointerVariable,
                          tyToStr(QT.getTypePtr()), N),
-      FV(nullptr), PartOfFuncPrototype(InFunc != nullptr), Parent(nullptr),
-      IsGeneric(Generic) {
+      FV(nullptr), PartOfFuncPrototype(InFunc != nullptr), Parent(nullptr) {
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
   auto &CS = I.getConstraints();
@@ -252,10 +251,27 @@ PointerVariableConstraint::PointerVariableConstraint(
     }
   }
 
-  // At this point `QTy` holds the computed type (and `QT` still holds the
+  // At this point `QTy`/`Ty` hold the computed type (and `QT` still holds the
   // input type). It will be consumed to create atoms, so any code that needs
   // to be coordinated with the atoms should access it here first.
+
   typedeflevelinfo = TypedefLevelFinder::find(QTy);
+
+  if (ForceGenericIndex >= 0) {
+    GenericIndex = ForceGenericIndex;
+  } else {
+    GenericIndex = -1;
+    // This makes a lot of assumptions about how the AST will look, and limits
+    // it to one level.
+    // TODO: Enhance TypedefLevelFinder to get this info
+    if (Ty->isPointerType()) {
+      auto *PtrTy = Ty->getPointeeType().getTypePtr();
+      if (auto *TypdefTy = dyn_cast_or_null<TypedefType>(PtrTy)) {
+        const auto *Tv = dyn_cast<TypeVariableType>(TypdefTy->desugar());
+        if (Tv) GenericIndex = Tv->GetIndex();
+      }
+    }
+  }
 
   bool VarCreated = false;
   bool IsArr = false;
@@ -407,7 +423,7 @@ PointerVariableConstraint::PointerVariableConstraint(
   // Get a string representing the type without pointer and array indirection.
   BaseType = extractBaseType(D, QT, Ty, C);
 
-  bool IsWild = !IsGeneric && (isVarArgType(BaseType) || isTypeHasVoid(QT));
+  bool IsWild = !getIsGeneric() && (isVarArgType(BaseType) || isTypeHasVoid(QT));
   if (IsWild) {
     std::string Rsn =
         isTypeHasVoid(QT) ? "Default void* type" : "Default Var arg list type";
@@ -879,6 +895,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   FileName = "";
   HasEqArgumentConstraints = false;
   IsFunctionPtr = true;
+  TypeParams = 0;
 
   // Metadata about function
   FunctionDecl *FD = nullptr;
@@ -925,10 +942,11 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
           PName = PVD->getName();
         }
       }
-      bool IsGeneric =
-          ParmVD != nullptr && getTypeVariableType(ParmVD) != nullptr;
-      ParamVars.push_back(
-          new PVConstraint(QT, ParmVD, PName, I, Ctx, &N, IsGeneric));
+      auto *ParamVar = new PVConstraint(QT, ParmVD, PName, I, Ctx, &N);
+      int GenericIdx = ParamVar->getGenericIndex();
+      if (GenericIdx >= 0)
+        TypeParams = std::max(TypeParams, GenericIdx + 1);
+      ParamVars.push_back(ParamVar);
     }
 
     Hasproto = true;
@@ -941,8 +959,11 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   }
 
   // ConstraintVariable for the return
-  bool IsGeneric = FD != nullptr && getTypeVariableType(FD) != nullptr;
-  ReturnVar = new PVConstraint(RT, D, RETVAR, I, Ctx, &N, IsGeneric);
+  auto *ReturnVC = new PVConstraint(RT, D, RETVAR, I, Ctx, &N);
+  int GenericIdx = ReturnVC->getGenericIndex();
+  if (GenericIdx >= 0)
+    TypeParams = std::max(TypeParams, GenericIdx + 1);
+  ReturnVar = ReturnVC;
 }
 
 void FunctionVariableConstraint::constrainToWild(Constraints &CS,
@@ -1214,7 +1235,7 @@ bool PointerVariableConstraint::solutionEqualTo(
   if (CV != nullptr) {
     if (const auto *PV = dyn_cast<PVConstraint>(CV)) {
       auto &OthCVars = PV->Vars;
-      if (IsGeneric || PV->IsGeneric || Vars.size() == OthCVars.size()) {
+      if (getIsGeneric() || PV->getIsGeneric() || Vars.size() == OthCVars.size()) {
         Ret = true;
 
         auto I = Vars.begin();
@@ -1683,6 +1704,8 @@ void PointerVariableConstraint::mergeDeclaration(ConstraintVariable *FromCV,
   Vars = NewVatoms;
   if (!From->ItypeStr.empty())
     ItypeStr = From->ItypeStr;
+  if (From->GenericIndex >= 0)
+    GenericIndex = From->GenericIndex;
   if (FV) {
     assert(From->FV);
     FV->mergeDeclaration(From->FV, Info, ReasonFailed);
@@ -1694,7 +1717,7 @@ Atom *PointerVariableConstraint::getAtom(unsigned AtomIdx, Constraints &CS) {
     // If index is in bounds, just return the atom.
     return Vars[AtomIdx];
   }
-  if (IsGeneric && AtomIdx == Vars.size()) {
+  if (getIsGeneric() && AtomIdx == Vars.size()) {
     // Polymorphic types don't know how "deep" their pointers are beforehand so,
     // we need to create new atoms for new pointer levels on the fly.
     std::string Stars(Vars.size(), '*');

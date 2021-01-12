@@ -93,7 +93,6 @@ private:
   ConstraintResolver CR;
   TypeVariableMapT TVMap;
 
-  void insertBinding(CallExpr *CE, const TypeVariableType *TyV, QualType Ty,
-                     CVarSet &CVs);
+  void insertBinding(CallExpr *CE, const int TyIdx, QualType Ty, CVarSet &CVs);
 };
 #endif
