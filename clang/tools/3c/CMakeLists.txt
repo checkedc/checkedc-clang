@@ -23,5 +23,13 @@ target_link_libraries(3c
   )
 target_include_directories(3c PUBLIC)
 
+# Based on clang/tools/driver/CMakeLists.txt
+add_dependencies(3c clang-resource-headers)
+
+if (CHECKEDC_IN_TREE)
+  add_dependencies(3c checkedc-headers)
+endif()
+# End of part based on clang/tools/driver/CMakeLists.txt
+
 install(TARGETS 3c
   RUNTIME DESTINATION bin)
