@@ -595,6 +595,8 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
       if (Expr *ESE = dyn_cast<Expr>(Res)) {
         return getExprConstraintVars(ESE);
       }
+    } else if (DesignatedInitExpr *DIE = dyn_cast<DesignatedInitExpr>(E)) {
+      Ret = getExprConstraintVars(DIE->getInit());
     } else {
       if (Verbose) {
         llvm::errs() << "WARNING! Initialization expression ignored: ";
