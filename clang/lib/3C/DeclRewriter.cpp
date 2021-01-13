@@ -77,6 +77,7 @@ void DeclRewriter::rewriteDecls(ASTContext &Context, ProgramInfo &Info,
   for (const auto &I : Info.getVarMap())
     Keys.insert(I.first);
   MappingVisitor MV(Keys, Context);
+  LastRecordDecl = nullptr;
   for (const auto &D : TUD->decls()) {
     MV.TraverseDecl(D);
     detectInlineStruct(D, Context.getSourceManager());
