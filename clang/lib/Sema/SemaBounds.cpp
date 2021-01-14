@@ -1301,7 +1301,7 @@ namespace {
           if (LowerBoundsResult == ProofResult::False ||
               UpperBoundsResult == ProofResult::False)
             return ProofResult::False;
-        } else if (CheckFreeVarInExprs(S, R.Base, Base, DeclaredBasePos,
+        } else if (CheckFreeVarInExprs(R.Base, Base, DeclaredBasePos,
                                        ObservedBasePos, EquivExprs,
                                        FreeVariables)) {
           Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
@@ -1394,7 +1394,7 @@ namespace {
         FreeVariablePosition ObservedLowerPos = CombineFreeVariablePosition(
             FreeVariablePosition::Observed, FreeVariablePosition::Lower);
 
-        if (CheckFreeVarInExprs(S, R.LowerOffsetVariable, LowerOffsetVariable,
+        if (CheckFreeVarInExprs(R.LowerOffsetVariable, LowerOffsetVariable,
                                 DeclaredLowerPos, ObservedLowerPos,
                                 EquivExprs, FreeVariables)) {
           Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
@@ -1422,7 +1422,7 @@ namespace {
         FreeVariablePosition ObservedUpperPos = CombineFreeVariablePosition(
             FreeVariablePosition::Observed, FreeVariablePosition::Upper);
 
-        if (CheckFreeVarInExprs(S, R.UpperOffsetVariable, UpperOffsetVariable,
+        if (CheckFreeVarInExprs(R.UpperOffsetVariable, UpperOffsetVariable,
                                 DeclaredUpperPos, ObservedUpperPos,
                                 EquivExprs, FreeVariables)) {
           Cause = CombineFailures(Cause, ProofFailure::HasFreeVariables);
@@ -1432,53 +1432,18 @@ namespace {
         return ProofResult::Maybe;
       }
 
-      // GetFreeVariables gathers "free variables" in SrcVars.
-      //
-      // Given two variable sets SrcVars and DstVars, and a set of equivalent
-      // sets of Expr EquivExprs. A variable V in SrcVars is *free* if the two
-      // conditions are met:
-      //   1. either (1) V is not an integer type, or (2) there is no set in
-      //   EquivExprs that contains both V and a constant (i.e. an integer-typed
-      //   value); and
-      //   2. for each variable U in DstVars, there is not set in EquivExprs
-      //   that contains both V and U.
-      //
-      // GetFreeVariables returns true if any free variable is found in SrcVars,
-      // and appends the free variables to FreeVariables.
-      static bool GetFreeVariables(Sema &S, const EqualExprTy &SrcVars,
-                                   const EqualExprTy &DstVars,
-                                   EquivExprSets *EquivExprs,
-                                   EqualExprTy &FreeVariables) {
-        bool HasFreeVariables = false;
-
-        // Gather free variables.
-        for (const auto &SrcV : SrcVars) {
-          if (IsEqualToConstant(S, SrcV, EquivExprs))
-            continue;
-          auto It = DstVars.begin();
-          for (; It != DstVars.end(); It++) {
-            if (EqualValue(S.Context, SrcV, *It, EquivExprs))
-              break;
-          }
-
-          // Find no constant or no match for SrcV in EquivExprs.
-          if (It == DstVars.end()) {
-            HasFreeVariables = true;
-            FreeVariables.push_back(SrcV);
-          }
-        }
-        return HasFreeVariables;
-      }
-
-      // Check free variables between E1 and E2. Append any found free variables
-      // to FreeVars with each free variable in E1 (resp. E2) having Pos1 (resp.
-      // Pos2).
-      static bool CheckFreeVarInExprs(Sema &S, Expr *E1, Expr *E2,
-                                      FreeVariablePosition Pos1,
-                                      FreeVariablePosition Pos2,
-                                      EquivExprSets *EquivExprs,
-                                      FreeVariableListTy &FreeVars) {
-        // If E1 or E2 accesses memory via poiter, we skip because we cannot
+      // CheckFreeVarInExprs appends any free variables in E1 and any free
+      // variables in E2 to FreeVars, and returns true if there are any free
+      // variables in either E1 or E2.  Pos1 and Pos2 are the positions in
+      // which E1 and E2 appear in bounds expressions.  Free variables are
+      // appended with the position of the expression in which they are free
+      // (free variables in E1 are appended with Pos1, for example).
+      bool CheckFreeVarInExprs(Expr *E1, Expr *E2,
+                               FreeVariablePosition Pos1,
+                               FreeVariablePosition Pos2,
+                               EquivExprSets *EquivExprs,
+                               FreeVariableListTy &FreeVars) {
+        // If E1 or E2 accesses memory via pointer, we skip because we cannot
         // determine aliases for two indirect accesses soundly yet.
         if (ReadsMemoryViaPointer(E1) || ReadsMemoryViaPointer(E2))
           return false;
@@ -1487,56 +1452,152 @@ namespace {
         EqualExprTy Vars1 = CollectVariableSet(S, E1);
         EqualExprTy Vars2 = CollectVariableSet(S, E2);
 
-        // EquivVars holds sets of DeclRefExpr and IntegerLiteral filtered from
-        // EquivExprs.
-        EquivExprSets EquivVars;
-        for (auto ExprSet : *EquivExprs) {
-          EqualExprTy Vars;
-          auto It = ExprSet.begin();
-          for (; It != ExprSet.end(); It++) {
-            *It = (*It)->IgnoreParenCasts();
-            if (isa<IntegerLiteral>(*It) || (isa<DeclRefExpr>(*It)))
-              Vars.push_back(*It);
-          }
-          EquivVars.push_back(Vars);
-        }
-
-        if (AddFreeVariables(S, Vars1, Vars2, &EquivVars, Pos1, FreeVars))
+        if (AddFreeVariables(Vars1, Vars2, EquivExprs, Pos1, FreeVars))
           HasFreeVariables = true;
 
-        if (AddFreeVariables(S, Vars2, Vars1, &EquivVars, Pos2, FreeVars))
+        if (AddFreeVariables(Vars2, Vars1, EquivExprs, Pos2, FreeVars))
           HasFreeVariables = true;
 
         return HasFreeVariables;
       }
 
-      // AddFreeVariables maps each free variable in SrcVars w.r.t. DstVars
-      // to a pair <Variable, Pos>, and appends the pair to
-      // FreeVariablesWithPos.
-      static bool AddFreeVariables(Sema &S, const EqualExprTy &SrcVars,
-                                   const EqualExprTy &DstVars,
-                                   EquivExprSets *EquivExprs, FreeVariablePosition Pos,
-                                   FreeVariableListTy &FreeVariablesWithPos) {
+      // AddFreeVariables creates a pair <Variable, Pos> for each free variable
+      // in SrcVars w.r.t. DstVars and appends the pair to FreeVariablesWithPos.
+      bool AddFreeVariables(const EqualExprTy &SrcVars,
+                            const EqualExprTy &DstVars,
+                            EquivExprSets *EquivExprs,
+                            FreeVariablePosition Pos,
+                            FreeVariableListTy &FreeVariablesWithPos) {
         EqualExprTy FreeVariables;
-        if (GetFreeVariables(S, SrcVars, DstVars, EquivExprs, FreeVariables)) {
-          for (const auto V : FreeVariables) {
+        if (GetFreeVariables(SrcVars, DstVars, EquivExprs, FreeVariables)) {
+          for (const auto V : FreeVariables)
             FreeVariablesWithPos.push_back(std::make_pair(V, Pos));
-          }
           return true;
         }
         return false;
       }
 
-      // IsEqualToConstant checks if Variable has integer type and equals to
-      // some constant. Specifically, it checks if there is a set in EquivExprs
-      // that contains both Variable and a constant (i.e. IntegerType).
-      static bool IsEqualToConstant(Sema &S, Expr *Variable,
-                                    const EquivExprSets *EquivExprs) {
+      // GetFreeVariables gathers "free variables" in SrcVars.
+      //
+      // Given two variable sets SrcVars and DstVars, and a set of equivalent
+      // sets of Expr EquivExprs. A variable V in SrcVars is *free* if these
+      // conditions are met:
+      //   1. V is not equal to an integer constant, i.e. there is no set in
+      //      EquivExprs that contains V and an IntegerLiteral expression, and:
+      //   2. For each variable U in DstVars, V is not equivalent to U, i.e.
+      //      there is no set in EquivExprs that contains both V and U, and:
+      //   3. For each variable U in DstVars, there is no indirect relationship
+      //      between V and U, i.e. there is no set in EquivExprs that contains
+      //      two different expressions e1 and e2, where e1 uses the value of
+      //      V and e2 uses the value of U.
+      //
+      // GetFreeVariables returns true if any free variable is found in SrcVars,
+      // and appends the free variables to FreeVariables.
+      bool GetFreeVariables(const EqualExprTy &SrcVars,
+                            const EqualExprTy &DstVars,
+                            EquivExprSets *EquivExprs,
+                            EqualExprTy &FreeVariables) {
+        bool HasFreeVariables = false;
+
+        // Gather free variables.
+        for (const auto &SrcV : SrcVars) {
+          DeclRefExpr *SrcVar = cast<DeclRefExpr>(SrcV);
+          if (IsEqualToConstant(SrcVar, EquivExprs))
+            continue;
+          auto It = DstVars.begin();
+          for (; It != DstVars.end(); It++) {
+            if (EqualValue(S.Context, SrcV, *It, EquivExprs))
+              break;
+          }
+
+          if (It == DstVars.end()) {
+            // If SrcV is not equal to a constant or a variable in DstVars,
+            // check if there is an indirect relationship between SrcV and
+            // a variable in DstVars. If there is, SrcV is not a free variable.
+            if (!FindVarRelationship(SrcVar, DstVars, EquivExprs)) {
+              HasFreeVariables = true;
+              FreeVariables.push_back(SrcV);
+            }
+          }
+        }
+        return HasFreeVariables;
+      }
+
+      // FindVarRelationship returns true if there is any relationship
+      // between the variable SrcV and any variable in the list DstVars.
+      //
+      // If EquivExprs contains a set { e1, e2 } where e1 uses the value
+      // of SrcV and e2 uses the value of DstV, where DstV is a variable in
+      // DstVars, then there is a relationship between SrcV and DstV.
+      //
+      // For example, if DstV is a variable in DstVars and EquivExprs
+      // contains the set { SrcV + 1, &DstV }, then there is a relationship
+      // between SrcV and DstV.
+      bool FindVarRelationship(DeclRefExpr *SrcV,
+                               const EqualExprTy &DstVars,
+                               EquivExprSets *EquivExprs) {
+        auto Begin = EquivExprs->begin(), End = EquivExprs->end();
+        for (auto OuterList = Begin; OuterList != End; ++OuterList) {
+          auto InnerList = *OuterList;
+          int InnerListSize = InnerList.size();
+          int SrcVarCount = 0;
+          int SrcIndex = 0;
+
+          // Search InnerList for an expression that uses the value of SrcV.
+          for (; SrcIndex < InnerListSize; ++SrcIndex) {
+            Expr *E = InnerList[SrcIndex];
+            SrcVarCount = VariableOccurrenceCount(S, SrcV, E);
+            if (SrcVarCount > 0)
+              break;
+          }
+          if (SrcVarCount == 0)
+            continue;
+
+          // Search InnerList (except for InnerList[SrcIndex]) for an
+          // expression that uses the value of any variable in DstVars.
+          // If InnerList[SrcIndex] uses the value of any variable in DstVars,
+          // that is not sufficient to imply a relationship between SrcV and
+          // any variable in DstVars.
+          for (int DstIndex = 0; DstIndex < InnerListSize; ++DstIndex) {
+            if (DstIndex == SrcIndex) 
+              continue;
+            for (auto I = DstVars.begin(); I != DstVars.end(); ++I) {
+              DeclRefExpr *DstV = cast<DeclRefExpr>(*I);
+              Expr *E = InnerList[DstIndex];
+              if (VariableOccurrenceCount(S, DstV, E) > 0)
+                return true;
+            }
+          }
+        }
+
+        return false;
+      }
+
+      // IsEqualToConstant returns true if Variable has integer type and
+      // produces the same value as some integer constant.
+      //
+      // Variable produces the same value as an integer constant if
+      // EquivExprs contains a set that contains an rvalue cast of Variable
+      // and an IntegerLiteral expression.
+      bool IsEqualToConstant(DeclRefExpr *Variable,
+                             const EquivExprSets *EquivExprs) {
         if (Variable->getType()->isPointerType() || !EquivExprs)
           return false;
 
-        EqualExprTy EquivSet =
-            GetEqualExprSetContainingExpr(S, Variable, *EquivExprs);
+        // Get the set (if any) in EquivExprs that contains an rvalue
+        // cast of Variable.
+        EqualExprTy EquivSet = { };
+        for (auto OuterList = EquivExprs->begin(); OuterList != EquivExprs->end(); ++OuterList) {
+          auto InnerList = *OuterList;
+          for (auto I = InnerList.begin(); I != InnerList.end(); ++I) {
+            Expr *E = *I;
+            if (IsRValueCastOfVariable(S, E, cast<DeclRefExpr>(Variable))) {
+              EquivSet = InnerList;
+              break;
+            }
+          }
+        }
+
         for (const auto &E : EquivSet) {
           if (isa<IntegerLiteral>(E))
             return true;
@@ -5218,18 +5279,13 @@ namespace {
 
     // If e appears in a set F in EQ, GetEqualExprSetContainingExpr
     // returns F.  Otherwise, it returns an empty set.
-    static EqualExprTy GetEqualExprSetContainingExpr(Sema &S, Expr *E,
-                                                     EquivExprSets EQ) {
+    EqualExprTy GetEqualExprSetContainingExpr(Expr* E, EquivExprSets EQ) {
       for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
         EqualExprTy F = *OuterList;
         if (::EqualExprsContainsExpr(S, F, E, nullptr))
           return F;
       }
       return { };
-    }
-
-    EqualExprTy GetEqualExprSetContainingExpr(Expr* E, EquivExprSets EQ) {
-      return GetEqualExprSetContainingExpr(S, E, EQ);
     }
 
     // IsEqualExprsSubset returns true if Exprs1 is a subset of Exprs2.
@@ -5254,10 +5310,14 @@ namespace {
     // V may have value-preserving operations applied to it, such as
     // LValueBitCasts.  For example, if E is (LValueBitCast(V)), where V
     // is a variable, GetLValueVariable will return V.
-    DeclRefExpr *GetLValueVariable(Expr *E) {
+    static DeclRefExpr *GetLValueVariable(Sema &S, Expr *E) {
       Lexicographic Lex(S.Context, nullptr);
       E = Lex.IgnoreValuePreservingOperations(S.Context, E);
       return dyn_cast<DeclRefExpr>(E);
+    }
+
+    DeclRefExpr *GetLValueVariable(Expr *E) {
+      return GetLValueVariable(S, E);
     }
 
     // If E is a possibly parenthesized rvalue cast of a variable V,
@@ -5266,25 +5326,33 @@ namespace {
     // V may have value-preserving operations applied to it.  For example,
     // if E is (LValueToRValue(LValueBitCast(V))), where V is a variable,
     // GetRValueVariable will return V.
-    DeclRefExpr *GetRValueVariable(Expr *E) {
+    static DeclRefExpr *GetRValueVariable(Sema &S, Expr *E) {
       if (!E)
         return nullptr;
       if (CastExpr *CE = dyn_cast<CastExpr>(E->IgnoreParens())) {
         CastKind CK = CE->getCastKind();
         if (CK == CastKind::CK_LValueToRValue ||
             CK == CastKind::CK_ArrayToPointerDecay)
-          return GetLValueVariable(CE->getSubExpr());
+          return GetLValueVariable(S, CE->getSubExpr());
       }
       return nullptr;
     }
 
+    DeclRefExpr *GetRValueVariable(Expr *E) {
+      return GetRValueVariable(S, E);
+    }
+
     // IsRValueCastOfVariable returns true if the expression e is a possibly
     // parenthesized lvalue-to-rvalue cast of the lvalue variable v.
-    bool IsRValueCastOfVariable(Expr *E, DeclRefExpr *V) {
-      DeclRefExpr *Var = GetRValueVariable(E);
+    static bool IsRValueCastOfVariable(Sema &S, Expr *E, DeclRefExpr *V) {
+      DeclRefExpr *Var = GetRValueVariable(S, E);
       if (!Var)
         return false;
       return EqualValue(S.Context, V, Var, nullptr);
+    }
+
+    bool IsRValueCastOfVariable(Expr *E, DeclRefExpr *V) {
+      return IsRValueCastOfVariable(S, E, V);
     }
 
     // CreatesNewObject returns true if the expression e creates a new object.
