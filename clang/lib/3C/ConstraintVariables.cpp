@@ -1136,12 +1136,12 @@ void PointerVariableConstraint::constrainOuterTo(Constraints &CS, ConstAtom *C,
         if (*CA < *C) {
           llvm::errs() << "Warning: " << CA->getStr() << " not less than "
                        << C->getStr() << "\n";
-          assert(CA == CS.getWild()); // definitely bogus if not
+          //assert(CA == CS.getWild()); // definitely bogus if not
         }
       } else if (*C < *CA) {
         llvm::errs() << "Warning: " << C->getStr() << " not less than "
                      << CA->getStr() << "\n";
-        assert(CA == CS.getWild()); // definitely bogus if not
+        //assert(CA == CS.getWild()); // definitely bogus if not
       }
     }
   }
@@ -1457,27 +1457,31 @@ static void createAtomGeq(Constraints &CS, Atom *L, Atom *R, std::string &Rsn,
   VAL = clang::dyn_cast<VarAtom>(L);
   VAR = clang::dyn_cast<VarAtom>(R);
 
-  // Check constant atom relationships hold
   if (CAR != nullptr && CAL != nullptr) {
-    if (DoEqType) { // check equality, no matter the atom
-      assert(*CAR == *CAL && "Invalid: RHS ConstAtom != LHS ConstAtom");
-    } else {
-      if (CAL != Wild && CAR != Wild) { // pType atom, disregard CAct
-        assert(!(*CAL < *CAR) && "Invalid: LHS ConstAtom < RHS ConstAtom");
-      } else { // checked atom (Wild/Ptr); respect CAct
-        switch (CAct) {
-        case Same_to_Same:
-          assert(*CAR == *CAL && "Invalid: RHS ConstAtom != LHS ConstAtom");
-          break;
-        case Safe_to_Wild:
-          assert(!(*CAL < *CAR) && "LHS ConstAtom < RHS ConstAtom");
-          break;
-        case Wild_to_Safe:
-          assert(!(*CAR < *CAL) && "RHS ConstAtom < LHS ConstAtom");
-          break;
-        }
-      }
-    }
+    // These checks were used to verify that the relationships between constant
+    // atom were valid. While we do not generally intend to rewrite code in a
+    // way that violates these relationships, it is possible for a user of 3C
+    // to manually modify their code so that it does while still having valid
+    // CheckedC code.
+    //if (DoEqType) { // check equality, no matter the atom
+    //  assert(*CAR == *CAL && "Invalid: RHS ConstAtom != LHS ConstAtom");
+    //} else {
+    //  if (CAL != Wild && CAR != Wild) { // pType atom, disregard CAct
+    //    assert(!(*CAL < *CAR) && "Invalid: LHS ConstAtom < RHS ConstAtom");
+    //  } else { // checked atom (Wild/Ptr); respect CAct
+    //    switch (CAct) {
+    //    case Same_to_Same:
+    //      assert(*CAR == *CAL && "Invalid: RHS ConstAtom != LHS ConstAtom");
+    //      break;
+    //    case Safe_to_Wild:
+    //      assert(!(*CAL < *CAR) && "LHS ConstAtom < RHS ConstAtom");
+    //      break;
+    //    case Wild_to_Safe:
+    //      assert(!(*CAR < *CAL) && "RHS ConstAtom < LHS ConstAtom");
+    //      break;
+    //    }
+    //  }
+    //}
   } else if (VAL != nullptr && VAR != nullptr) {
     switch (CAct) {
     case Same_to_Same:
