@@ -373,9 +373,18 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
                        dyn_cast<ArraySubscriptExpr>(UOExpr)) {
           Ret = getExprConstraintVars(ASE->getBase());
         } else {
-          // add a VarAtom to UOExpr's PVConstraint, for &
           CVarSet T = getExprConstraintVars(UOExpr);
           assert("Empty constraint vars in AddrOf!" && !T.empty());
+          // CheckedC prohibits taking the address of a variable with bounds. To
+          // avoid doing this, constrain the target of AddrOf expressions to
+          // PTR. This prevents it from solving to either ARR or NTARR. CheckedC
+          // does permit taking the address of an _Array_ptr when the array
+          // pointer has no declared bounds. With this constraint added however,
+          // 3C will not generate such code.
+          for (auto *CV : T)
+            if (auto *PCV = dyn_cast<PVConstraint>(CV))
+              PCV->constrainOuterTo(CS, CS.getPtr(), true);
+          // add a VarAtom to UOExpr's PVConstraint, for &
           Ret = addAtomAll(T, CS.getPtr(), CS);
         }
         break;
