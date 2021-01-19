@@ -383,7 +383,10 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
           // 3C will not generate such code.
           for (auto *CV : T)
             if (auto *PCV = dyn_cast<PVConstraint>(CV))
-              PCV->constrainOuterTo(CS, CS.getPtr(), true);
+              // On the other hand, CheckedC does let you take the address of
+              // constant sized arrays.
+              if (!PCV->getArrPresent())
+                PCV->constrainOuterTo(CS, CS.getPtr(), true);
           // add a VarAtom to UOExpr's PVConstraint, for &
           Ret = addAtomAll(T, CS.getPtr(), CS);
         }
