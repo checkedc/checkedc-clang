@@ -123,6 +123,7 @@ Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) cons
 
   switch (DC1->getDeclKind()) {
     case Decl::TranslationUnit: return Result::Equal;
+    case Decl::Captured: return Result::Equal;
     case Decl::Function: 
     case Decl::Enum:
     case Decl::Record: {
