@@ -596,6 +596,9 @@ namespace {
     const EqualExprTy &GetVariableList() const { return VariableList; }
 
     bool VisitDeclRefExpr(DeclRefExpr *E) {
+      // TODO: GitHub checkedc-clang issue #966. This method is quadratic
+      // in the number of variables in an expression. It should use a
+      // hashtable to determine whether E should be added to VariableList.
       if (!EqualExprsContainsExpr(SemaRef, VariableList, E, nullptr)) {
         VariableList.push_back(E);
       }
