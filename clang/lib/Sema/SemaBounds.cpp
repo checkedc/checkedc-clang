@@ -1260,27 +1260,29 @@ namespace {
         return ProofResult::Maybe;
       }
 
-      // InRangeWithFreeVars is an extension of InRange. It tries to prove
-      // that R is within this range. If R is not provably within this range,
-      // it sets Cause to explain reasons why. This function takes into
+      // InRangeWithFreeVars is an extension of InRange.  It tries to prove
+      // that R is within this range.  If R is not provably within this range,
+      // it sets Cause to explain reasons why.  This function takes into
       // account variables that are free in one of the lower/upper bounds
       // expressions that are being compared.
       //
       // InRangeWithFreeVars compares the lower bounds from the two ranges
-      // and then the upper bounds from the two ranges. Given a pair of lower
+      // and then the upper bounds from the two ranges.  Given a pair of lower
       // (or upper) bounds expressions, a variable is free if it appears in
       // one expression but does not appear in the other expression, and there
       // is no known relation between that variable and variables in the other
-      // expression. In that situation, it is impossible to prove that the
+      // expression.  In that situation, it is impossible to prove that the
       // comparison is true, given the facts that the compiler has.
       ProofResult
       InRangeWithFreeVars(BaseRange &R, ProofFailure &Cause,
                           EquivExprSets *EquivExprs,
                           std::pair<ComparisonSet, ComparisonSet> &Facts,
                           FreeVariableListTy &FreeVariables) {
-        // If we do not have equivalence relational information (EquivExprs
-        // is nullptr), we don't catch free variables. Invoke the normal
-        // InRange instead.
+        // If there is no relational information at all, then the compiler
+        // didn't attempt to gather any.  To avoid confusing programmers,
+        // don't try to take free variables into account.  There may be some
+        // simple fact the compiler doesn't know that would cause confusion
+        // about why the compiler is claiming that no fact is known.
         if (!EquivExprs)
           return InRange(R, Cause, nullptr, Facts);
 
