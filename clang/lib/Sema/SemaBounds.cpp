@@ -1260,8 +1260,19 @@ namespace {
         return ProofResult::Maybe;
       }
 
-      // InRangeWithFreeVars is the same as InRange, but gathers free variables
-      // betweeen the source and declared BaseRanges in addition.
+      // InRangeWithFreeVars is an extension of InRange. It tries to prove
+      // that R is within this range. If R is not provably within this range,
+      // it sets Cause to explain reasons why. This function takes into
+      // account variables that are free in one of the lower/upper bounds
+      // expressions that are being compared.
+      //
+      // InRangeWithFreeVars compares the lower bounds from the two ranges
+      // and then the upper bounds from the two ranges. Given a pair of lower
+      // (or upper) bounds expressions, a variable is free if it appears in
+      // one expression but does not appear in the other expression, and there
+      // is no known relation between that variable and variables in the other
+      // expression. In that situation, it is impossible to prove that the
+      // comparison is true, given the facts that the compiler has.
       ProofResult
       InRangeWithFreeVars(BaseRange &R, ProofFailure &Cause,
                           EquivExprSets *EquivExprs,
