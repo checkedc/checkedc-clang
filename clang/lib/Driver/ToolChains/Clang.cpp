@@ -4816,7 +4816,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_fcheckedc_extension);
   Args.AddLastArg(CmdArgs, options::OPT_fno_checkedc_extension);
   Args.AddLastArg(CmdArgs, options::OPT_fdump_inferred_bounds);
-  Args.AddLastArg(CmdArgs, options::OPT_fcheckedc_convert_tool);
+  Args.AddLastArg(CmdArgs, options::OPT_f3c_tool);
   Args.AddLastArg(CmdArgs, options::OPT_finject_verifier_calls);
   Args.AddLastArg(CmdArgs, options::OPT_funchecked_pointers_dynamic_check);
 

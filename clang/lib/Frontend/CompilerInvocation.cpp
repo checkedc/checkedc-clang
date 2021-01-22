@@ -2635,8 +2635,8 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
       Opts.CheckedC = true;
   }
 
-  if (Args.hasArg(OPT_fcheckedc_convert_tool))
-    Opts.CheckedCConverter = true;
+  if (Args.hasArg(OPT_f3c_tool))
+    Opts._3C = true;
 
   if (Args.hasArg(OPT_fno_checkedc_extension))
     Opts.CheckedC = false;
@@ -2655,6 +2655,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
 
   if (Args.hasArg(OPT_fdump_widened_bounds))
     Opts.DumpWidenedBounds = true;
+
+  if (Args.hasArg(OPT_fdump_preorder_ast))
+    Opts.DumpPreorderAST = true;
 
   if (Args.hasArg(OPT_fdump_checking_state))
     Opts.DumpCheckingState = true;

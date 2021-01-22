@@ -698,13 +698,12 @@ namespace {
   // that are currently known to be valid for the variable.
   using BoundsContextTy = llvm::DenseMap<const VarDecl *, BoundsExpr *>;
 
-  // EqualExprTy denotes a set of expressions that produce the same value
-  // as an expression e.
-  using EqualExprTy = SmallVector<Expr *, 4>;
+  // ExprSetTy denotes a set of expressions.
+  using ExprSetTy = SmallVector<Expr *, 4>;
 
   // ExprEqualMapTy denotes a map of an expression e to the set of
   // expressions that produce the same value as e.
-  using ExprEqualMapTy = llvm::DenseMap<Expr *, EqualExprTy>;
+  using ExprEqualMapTy = llvm::DenseMap<Expr *, ExprSetTy>;
 
   // Describes the position of a free variable (FR).
   enum class FreeVariablePosition {
@@ -751,7 +750,7 @@ namespace {
       // expression e once checking of e is complete.
       //
       // SameValue is named G in the Checked C spec.
-      EqualExprTy SameValue;
+      ExprSetTy SameValue;
 
       // LostVariables maps a variable declaration V whose observed bounds
       // are unknown to a pair <B, W>, where the initial observed bounds B
@@ -997,7 +996,7 @@ namespace {
       }
     }
 
-    void DumpExprsSet(raw_ostream &OS, EqualExprTy Exprs) {
+    void DumpExprsSet(raw_ostream &OS, ExprSetTy Exprs) {
       if (Exprs.size() == 0)
         OS << "{ }\n";
       else {
@@ -2562,9 +2561,9 @@ namespace {
                                    CheckedScopeSpecifier CSS,
                                    EquivExprSets *EquivExprs) {
 
-      // If we are running to Checked C converter (AST only) tool, then disable
+      // If we are running the 3C (AST only) tool, then disable
       // bounds checking.
-      if (S.getLangOpts().CheckedCConverter)
+      if (S.getLangOpts()._3C)
         return;
 
       ProofFailure Cause;
@@ -2724,10 +2723,13 @@ namespace {
 
      // KilledBounds stores a mapping of statements to all variables whose
      // bounds are killed by each statement. Here we reset the bounds of all
-     // variables killed by the statement S to the normalized declared bounds.
+     // variables that are in scope at the statement S and whose bounds are
+     // killed by S to the normalized declared bounds.
      for (const VarDecl *V : I->second) {
-       if (BoundsExpr *Bounds = S.NormalizeBounds(V))
-         State.ObservedBounds[V] = Bounds;
+       if (State.ObservedBounds.find(V) != State.ObservedBounds.end()) {
+         if (BoundsExpr *Bounds = S.NormalizeBounds(V))
+           State.ObservedBounds[V] = Bounds;
+       }
      }
    }
 
@@ -3937,13 +3939,114 @@ namespace {
     }
 
     // CheckConditionalOperator returns the bounds for the value produced by e.
-    // e is an rvalue.
+    // e is an rvalue of the form `e1 ? e2 : e3`.
     BoundsExpr *CheckConditionalOperator(AbstractConditionalOperator *E,
                                          CheckedScopeSpecifier CSS,
                                          CheckingState &State) {
-      CheckChildren(E, CSS, State);
-      // TODO: infer correct bounds for conditional operators
-      return CreateBoundsAllowedButNotComputed();
+      // Check the condition `e1`.
+      Check(E->getCond(), CSS, State);
+
+      // Check the "true" arm `e2`.
+      CheckingState StateTrueArm;
+      StateTrueArm.EquivExprs = State.EquivExprs;
+      StateTrueArm.ObservedBounds = State.ObservedBounds;
+      BoundsExpr *BoundsTrueArm = Check(E->getTrueExpr(), CSS, StateTrueArm);
+
+      // Check the "false" arm `e3`.
+      CheckingState StateFalseArm;
+      StateFalseArm.EquivExprs = State.EquivExprs;
+      StateFalseArm.ObservedBounds = State.ObservedBounds;
+      BoundsExpr *BoundsFalseArm = Check(E->getFalseExpr(), CSS, StateFalseArm);
+
+      // TODO: handle uses of temporaries bounds in only one arm.
+
+      if (EqualContexts(StateTrueArm.ObservedBounds,
+                        StateFalseArm.ObservedBounds)) {
+        // If checking each arm produces two identical bounds contexts,
+        // the final context is the context from checking the true arm.
+        State.ObservedBounds = StateTrueArm.ObservedBounds;
+      } else {
+        // If checking each arm produces two different bounds contexts,
+        // validate each arm's context separately.
+
+        // Get the bounds that were updated in each arm.
+        BoundsContextTy TrueBounds = ContextDifference(
+                                        StateTrueArm.ObservedBounds,
+                                        State.ObservedBounds);
+        BoundsContextTy FalseBounds = ContextDifference(
+                                        StateFalseArm.ObservedBounds,
+                                        State.ObservedBounds);
+
+        // For any variable v whose bounds were updated in the false arm
+        // but not in the true arm, the bounds of v in the true arm should
+        // be validated as well. These bounds may be invalid, e.g. if the
+        // bounds of v were updated in the condition `e1`.
+        for (const auto &Pair : FalseBounds) {
+          const VarDecl *V = Pair.first;
+          if (TrueBounds.find(V) == TrueBounds.end())
+            TrueBounds[V] = StateTrueArm.ObservedBounds[V];
+        }
+        StateTrueArm.ObservedBounds = TrueBounds;
+
+        // For any variable v whose bounds were updated in the true arm
+        // but not in the false arm, the bounds of v in the false arm should
+        // be validated as well.
+        for (const auto &Pair : TrueBounds) {
+          const VarDecl *V = Pair.first;
+          if (FalseBounds.find(V) == FalseBounds.end())
+            FalseBounds[V] = StateFalseArm.ObservedBounds[V];
+        }
+        StateFalseArm.ObservedBounds = FalseBounds;
+
+        // Validate the bounds that were updated in either arm.
+        BoundsMapTy WidenedBounds;
+        StmtDeclSetTy KilledBounds;
+        ValidateBoundsContext(E->getTrueExpr(), StateTrueArm, WidenedBounds,
+                              KilledBounds, CSS);
+        ValidateBoundsContext(E->getFalseExpr(), StateFalseArm, WidenedBounds,
+                              KilledBounds, CSS);
+
+        // For each variable v whose bounds were updated in the true or false arm,
+        // reset the observed bounds of v to the declared bounds of v.
+        for (const auto &Pair : StateTrueArm.ObservedBounds) {
+          const VarDecl *V = Pair.first;
+          BoundsExpr *DeclaredBounds = S.NormalizeBounds(V);
+          State.ObservedBounds[V] = DeclaredBounds;
+        }
+        for (const auto &Pair : StateFalseArm.ObservedBounds) {
+          const VarDecl *V = Pair.first;
+          BoundsExpr *DeclaredBounds = S.NormalizeBounds(V);
+          State.ObservedBounds[V] = DeclaredBounds;
+        }
+      }
+
+      State.EquivExprs = IntersectEquivExprs(StateTrueArm.EquivExprs,
+                                             StateFalseArm.EquivExprs);
+
+      State.SameValue = IntersectExprSets(StateTrueArm.SameValue,
+                                          StateFalseArm.SameValue);
+      if (!CreatesNewObject(E) && CheckIsNonModifying(E) &&
+          !EqualExprsContainsExpr(State.SameValue, E))
+        State.SameValue.push_back(E);
+
+      // The bounds of `e` are the greatest lower bound of the bounds of `e2`
+      // and the bounds of `e3`.
+
+      // If bounds expressions B1 and B2 are equivalent, the greatest lower
+      // bound of B1 and B2 is B1.
+      if (S.Context.EquivalentBounds(BoundsTrueArm, BoundsFalseArm, &State.EquivExprs))
+        return BoundsTrueArm;
+
+      // The greatest lower bound of bounds(any) and B is B, where B is an
+      // arbitrary bounds expression.
+      if (BoundsTrueArm->isAny())
+        return BoundsFalseArm;
+      if (BoundsFalseArm->isAny())
+        return BoundsTrueArm;
+
+      // If the bounds for `e2` and `e3` are not equivalent, and neither is
+      // bounds(any), the bounds for `e` cannot be determined.
+      return CreateBoundsAlwaysUnknown();
     }
 
   // Methods to infer both:
@@ -4602,7 +4705,7 @@ namespace {
         const VarDecl *W = Pair.first;
         BoundsExpr *Bounds = Pair.second;
         BoundsExpr *AdjustedBounds = ReplaceVariableInBounds(Bounds, V, OriginalValue, CSS);
-        if (!Pair.second->isUnknown() && AdjustedBounds->isUnknown())
+        if (!Bounds->isUnknown() && AdjustedBounds->isUnknown())
           State.LostVariables[W] = std::make_pair(Bounds, V);
 
         // If E modifies the bounds of W, add the pair to BlameAssignments.  We
@@ -4635,7 +4738,7 @@ namespace {
       // Adjust EquivExprs to account for any uses of V in PrevState.EquivExprs.
       State.EquivExprs.clear();
       for (auto I = PrevState.EquivExprs.begin(); I != PrevState.EquivExprs.end(); ++I) {
-        EqualExprTy ExprList;
+        ExprSetTy ExprList;
         for (auto InnerList = (*I).begin(); InnerList != (*I).end(); ++InnerList) {
           Expr *E = *InnerList;
           Expr *AdjustedE = ReplaceVariableReferences(S, E, V, OriginalValue, CSS);
@@ -4685,12 +4788,19 @@ namespace {
       // should contain { 1, x, y } rather than { 1, x } and { 1, x, y }.
       if (State.SameValue.size() > 0) {
         for (auto F = State.EquivExprs.begin(); F != State.EquivExprs.end(); ++F) {
-          if (IsEqualExprsSubset(State.SameValue, *F)) {
+          if (DoExprSetsIntersect(*F, State.SameValue)) {
+            // Add all expressions in SameValue to F that are not already in F.
+            // Any expressions in SameValue that are not already in F must be
+            // at the end of SameValue. For example, F may be { 0, x, y } and
+            // SameValue may be { 0, x, y, i ? x : y }.
+            for (auto i = F->size(), SameValueSize = State.SameValue.size(); i < SameValueSize; ++i)
+              F->push_back(State.SameValue[i]);
+
+            // Add the target to F if necessary.
             if (!EqualExprsContainsExpr(*F, Target))
               F->push_back(Target);
 
-            // Add the target to SameValue if SameValue does not already
-            // contain the target.
+            // Add the target to SameValue if necessary.
             if (!EqualExprsContainsExpr(State.SameValue, Target))
               State.SameValue.push_back(Target);
             return;
@@ -4745,8 +4855,8 @@ namespace {
     // Val is an optional expression that may be contained in the updated
     // SameValue set. If Val is not provided, e is used instead.  If Val
     // and e are null, SameValue is not updated.
-    void UpdateSameValue(Expr *E, const EqualExprTy SubExprSameValue,
-                         EqualExprTy &SameValue, Expr *Val = nullptr) {
+    void UpdateSameValue(Expr *E, const ExprSetTy SubExprSameValue,
+                         ExprSetTy &SameValue, Expr *Val = nullptr) {
       Expr *SubExpr = dyn_cast<Expr>(*(E->child_begin()));
       assert(SubExpr);
       ExprEqualMapTy SubExprSameValueSets;
@@ -4770,7 +4880,7 @@ namespace {
     // SameValue set. If Val is not provided, e is used instead.  If Val
     // and e are null, SameValue is not updated.
     void UpdateSameValue(Expr *E, ExprEqualMapTy SubExprSameValueSets,
-                         EqualExprTy &SameValue, Expr *Val = nullptr) {
+                         ExprSetTy &SameValue, Expr *Val = nullptr) {
       SameValue.clear();
 
       if (!Val) Val = E;
@@ -4796,13 +4906,13 @@ namespace {
       // the same value as Val.
       else {
         Expr *ValPrime = nullptr;
-        for (llvm::detail::DenseMapPair<Expr *, EqualExprTy> Pair : SubExprSameValueSets) {
+        for (llvm::detail::DenseMapPair<Expr *, ExprSetTy> Pair : SubExprSameValueSets) {
           Expr *SubExpr_i = Pair.first;
           // For any modifying subexpression SubExpr_i of e, try to set
           // ValPrime to a nonmodifying expression from the set SameValue_i
           // of expressions that produce the same value as SubExpr_i.
           if (!CheckIsNonModifying(SubExpr_i)) {
-            EqualExprTy SameValue_i = Pair.second;
+            ExprSetTy SameValue_i = Pair.second;
             for (auto I = SameValue_i.begin(); I != SameValue_i.end(); ++I) {
               Expr *E_i = *I;
               if (CheckIsNonModifying(E_i)) {
@@ -4858,7 +4968,7 @@ namespace {
       
       // Check EQ for a variable w != v that produces the same value as v.
       Expr *ValuePreservingV = nullptr;
-      EqualExprTy F = GetEqualExprSetContainingExpr(Target, EQ, ValuePreservingV);
+      ExprSetTy F = GetEqualExprSetContainingExpr(Target, EQ, ValuePreservingV);
       for (auto I = F.begin(); I != F.end(); ++I) {
         // Account for value-preserving operations on w when searching for
         // a variable w in F. For example, if F contains (T)LValueToRValue(w),
@@ -5218,6 +5328,39 @@ namespace {
       return BlockState;
     }
 
+    // ContextDifference returns a bounds context containing all variables
+    // v in Context1 where Context1[v] != Context2[v].
+    BoundsContextTy ContextDifference(BoundsContextTy Context1,
+                                      BoundsContextTy Context2) {
+      BoundsContextTy Difference;
+      for (const auto &Pair : Context1) {
+        const VarDecl *V = Pair.first;
+        BoundsExpr *B = Pair.second;
+        auto It = Context2.find(V);
+        if (It == Context2.end() || !EqualValue(Context, B, It->second, nullptr)) {
+          Difference[V] = B;
+        }
+      }
+      return Difference;
+    }
+
+    // EqualContexts returns true if Context1 and Context2 contain the same
+    // sets of variables, and for each variable v, Context1[v] == Context2[v].
+    bool EqualContexts(BoundsContextTy Context1, BoundsContextTy Context2) {
+      if (Context1.size() != Context2.size())
+        return false;
+
+      for (const auto &Pair : Context1) {
+        auto It = Context2.find(Pair.first);
+        if (It == Context2.end())
+          return false;
+        if (!EqualValue(Context, Pair.second, It->second, nullptr))
+          return false;
+      }
+
+      return true;
+    }
+
     // IntersectBoundsContexts returns a bounds context resulting from taking
     // the intersection of the contexts Context1 and Context2.
     //
@@ -5247,10 +5390,10 @@ namespace {
                                       const EquivExprSets EQ2) {
       EquivExprSets IntersectedEQ;
       for (auto I1 = EQ1.begin(); I1 != EQ1.end(); ++I1) {
-        EqualExprTy Set1 = *I1;
+        ExprSetTy Set1 = *I1;
         for (auto I2 = EQ2.begin(); I2 != EQ2.end(); ++I2) {
-          EqualExprTy Set2 = *I2;
-          EqualExprTy IntersectedExprSet = IntersectExprSets(Set1, Set2);
+          ExprSetTy Set2 = *I2;
+          ExprSetTy IntersectedExprSet = IntersectExprSets(Set1, Set2);
           if (IntersectedExprSet.size() > 1)
             IntersectedEQ.push_back(IntersectedExprSet);
         }
@@ -5259,15 +5402,26 @@ namespace {
     }
 
     // IntersectExprSets returns the intersection of two sets of expressions.
-    EqualExprTy IntersectExprSets(const EqualExprTy Set1,
-                                       const EqualExprTy Set2) {
-      EqualExprTy IntersectedSet;
+    ExprSetTy IntersectExprSets(const ExprSetTy Set1, const ExprSetTy Set2) {
+      ExprSetTy IntersectedSet;
       for (auto I = Set1.begin(); I != Set1.end(); ++I) {
         Expr *E1 = *I;
         if (EqualExprsContainsExpr(Set2, E1))
           IntersectedSet.push_back(E1);
       }
       return IntersectedSet;
+    }
+
+    // IntersectDeclSets returns the intersection of Set1 and Set2.
+    DeclSetTy IntersectDeclSets(DeclSetTy Set1, DeclSetTy Set2) {
+      DeclSetTy Intersection;
+      for (auto I = Set1.begin(), E = Set1.end(); I != E; ++I) {
+        const VarDecl *V = *I;
+        if (Set2.find(V) != Set2.end()) {
+          Intersection.insert(V);
+        }
+      }
+      return Intersection;
     }
 
     // GetEqualExprSetContainingExpr returns the set F in EQ that contains e
@@ -5278,11 +5432,11 @@ namespace {
     // e1 may include value-preserving operations.  For example, if a set F
     // in EQ contains (T)e, where (T) is a value-preserving cast,
     // ValuePreservingE will be set to (T)e.
-    EqualExprTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ,
-                                              Expr *&ValuePreservingE) {
+    ExprSetTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ,
+                                            Expr *&ValuePreservingE) {
       ValuePreservingE = nullptr;
       for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
-        EqualExprTy F = *OuterList;
+        ExprSetTy F = *OuterList;
         for (auto InnerList = F.begin(); InnerList != F.end(); ++InnerList) {
           Expr *E1 = *InnerList;
           if (EqualValue(S.Context, E, E1, nullptr)) {
@@ -5296,9 +5450,9 @@ namespace {
 
     // If e appears in a set F in EQ, GetEqualExprSetContainingExpr
     // returns F.  Otherwise, it returns an empty set.
-    EqualExprTy GetEqualExprSetContainingExpr(Expr* E, EquivExprSets EQ) {
+    ExprSetTy GetEqualExprSetContainingExpr(Expr *E, EquivExprSets EQ) {
       for (auto OuterList = EQ.begin(); OuterList != EQ.end(); ++OuterList) {
-        EqualExprTy F = *OuterList;
+        ExprSetTy F = *OuterList;
         if (::EqualExprsContainsExpr(S, F, E, nullptr))
           return F;
       }
@@ -5306,8 +5460,7 @@ namespace {
     }
 
     // IsEqualExprsSubset returns true if Exprs1 is a subset of Exprs2.
-    bool IsEqualExprsSubset(const EqualExprTy Exprs1,
-                            const EqualExprTy Exprs2) {
+    bool IsEqualExprsSubset(const ExprSetTy Exprs1, const ExprSetTy Exprs2) {
       for (auto I = Exprs1.begin(); I != Exprs1.end(); ++I) {
         Expr *E = *I;
         if (!EqualExprsContainsExpr(Exprs2, E))
@@ -5316,8 +5469,19 @@ namespace {
       return true;
     }
 
+    // DoExprSetsIntersect returns true if the intersection of Exprs1 and
+    // Exprs2 is nonempty.
+    bool DoExprSetsIntersect(const ExprSetTy Exprs1, const ExprSetTy Exprs2) {
+      for (auto I = Exprs1.begin(); I != Exprs1.end(); ++I) {
+        Expr *E = *I;
+        if (EqualExprsContainsExpr(Exprs2, E))
+          return true;
+      }
+      return false;
+    }
+
     // EqualExprsContainsExpr returns true if the set Exprs contains E.
-    bool EqualExprsContainsExpr(const EqualExprTy Exprs, Expr *E) {
+    bool EqualExprsContainsExpr(const ExprSetTy Exprs, Expr *E) {
       return ::EqualExprsContainsExpr(S, Exprs, E, nullptr);
     }
 
@@ -5961,7 +6125,7 @@ namespace {
         !ToType->isFunctionPointerType())
         return;
 
-      if (S.getLangOpts().CheckedCConverter)
+      if (S.getLangOpts()._3C)
         return;
 
       // Skip lvalue-to-rvalue casts because they preserve types (except that

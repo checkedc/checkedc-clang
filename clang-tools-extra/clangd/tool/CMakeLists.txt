@@ -6,11 +6,6 @@ add_clang_tool(clangd
   $<TARGET_OBJECTS:obj.clangDaemonTweaks>
   )
 
-add_clang_tool(icconv
-   ClangdMain.cpp
-   $<TARGET_OBJECTS:obj.clangDaemonTweaks>
-   )
-
 set(LLVM_LINK_COMPONENTS
   support
   )
@@ -35,13 +30,21 @@ target_link_libraries(clangd
   ${CLANGD_XPC_LIBS}
   )
 
-target_link_libraries(icconv
+# clangd3c is unmaintained and believed not to work, but as of 2020-11-22, it
+# builds successfully and we continue to include it in some bulk code edits. We
+# may revive it in the future.
+add_clang_tool(clangd3c
+        ClangdMain.cpp
+        $<TARGET_OBJECTS:obj.clangDaemonTweaks>
+        )
+
+target_link_libraries(clangd3c
   PRIVATE
   clangAST
   clangBasic
   clangTidy
-  cconvClangDaemon
-  CConv
+  3cClangDaemon
+  clang3C
   clangFormat
   clangFrontend
   clangSema
@@ -51,4 +54,4 @@ target_link_libraries(icconv
   ${CLANGD_XPC_LIBS}
   )
 
-target_compile_definitions(icconv PUBLIC INTERACTIVECCCONV=1)
+target_compile_definitions(clangd3c PUBLIC INTERACTIVE3C=1)

@@ -314,7 +314,7 @@ void f15(int i) {
 // CHECK:  [B9]
 // CHECK:    2: *(p - i)
 // CHECK:  [B8]
-// CHECK-NOT: upper_bound(p)
+// CHECK: upper_bound(p) = 1
 
   _Nt_array_ptr<char> q : count(0) = "a";
   if (*q)
@@ -328,7 +328,6 @@ void f15(int i) {
 // CHECK: upper_bound(q) = 1
 // CHECK:  [B5]
 // CHECK: upper_bound(q) = 1
-// CHECK-NOT: upper_bound(q)
 
   _Nt_array_ptr<char> r : bounds(r, r + +1) = "a";
   if (*(r + +1))
@@ -1264,5 +1263,33 @@ void f34(_Nt_array_ptr<char> p : count(i), int i, int flag) {
 // CHECK: upper_bound(p) = 1
 // CHECK:  [B2]
 // CHECK:    2: *(p + i + 1)
+// CHECK: upper_bound(p) = 1
+}
+
+void f35(void) {
+  int i, j;
+  for (;;) {
+    i = 1;
+    j = 2;
+    _Nt_array_ptr<char> p : count(i + j) = 0;
+    if (p[i + j]) {
+      return;
+    }
+  }
+
+// CHECK: In function: f35
+// CHECK:  [B5]
+// CHECK:    1: int i;
+// CHECK:    2: int j;
+// CHECK:  [B4]
+// CHECK:    T: for (; ; )
+// CHECK:  [B3]
+// CHECK:    1: i = 1
+// CHECK:    2: j = 2
+// CHECK:    3: _Nt_array_ptr<char> p : count(i + j) = 0;
+// CHECK:    4: p[i + j] (ImplicitCastExpr, LValueToRValue, char)
+// CHECK:    T: if [B3.4]
+// CHECK:  [B2]
+// CHECK:    1: return;
 // CHECK: upper_bound(p) = 1
 }

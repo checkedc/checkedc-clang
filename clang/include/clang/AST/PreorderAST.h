@@ -17,34 +17,38 @@
 #define LLVM_CLANG_PREORDER_AST_H
 
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ASTDiagnostic.h"
 #include "clang/AST/CanonBounds.h"
 #include "clang/AST/Expr.h"
 
 namespace clang {
   using Result = Lexicographic::Result;
+  class OperatorNode;
 
   class Node {
   public:
-    enum class NodeKind { BinaryNode, LeafExprNode };
+    enum class NodeKind { OperatorNode, LeafExprNode };
 
     NodeKind Kind;
-    Node *Parent;
+    OperatorNode *Parent;
 
-    Node(NodeKind Kind, Node *Parent) :
+    Node(NodeKind Kind, OperatorNode *Parent) :
       Kind(Kind), Parent(Parent) {}
   };
 
-  class BinaryNode : public Node {
+  class OperatorNode : public Node {
   public:
     BinaryOperator::Opcode Opc;
+    // Note: An OperatorNode has a list of children because the preorder AST is
+    // an n-ary tree.
     llvm::SmallVector<Node *, 2> Children;
 
-    BinaryNode(BinaryOperator::Opcode Opc, Node *Parent) :
-      Node(NodeKind::BinaryNode, Parent),
+    OperatorNode(BinaryOperator::Opcode Opc, OperatorNode *Parent) :
+      Node(NodeKind::OperatorNode, Parent),
       Opc(Opc) {}
 
     static bool classof(const Node *N) {
-      return N->Kind == NodeKind::BinaryNode;
+      return N->Kind == NodeKind::OperatorNode;
     }
 
     // Is the operator commutative and associative?
@@ -57,7 +61,7 @@ namespace clang {
   public:
     Expr *E;
 
-    LeafExprNode(Expr *E, Node *Parent) :
+    LeafExprNode(Expr *E, OperatorNode *Parent) :
       Node(NodeKind::LeafExprNode, Parent),
       E(E) {}
 
@@ -80,28 +84,59 @@ namespace clang {
     // Create a PreorderAST for the expression E.
     // @param[in] E is the sub expression to be added to a new node.
     // @param[in] Parent is the parent of the new node.
-    void Create(Expr *E, Node *Parent = nullptr);
+    void Create(Expr *E, OperatorNode *Parent = nullptr);
 
     // Add a new node to the AST.
     // @param[in] Node is the current node to be added.
     // @param[in] Parent is the parent of the node to be added.
-    void AddNode(Node *N, Node *Parent);
+    void AddNode(Node *N, OperatorNode *Parent);
 
-    // Coalesce the BinaryNode with its parent.
-    // @param[in] B is the current BinaryNode.
-    // @param[in] Parent is the parent of the node to be coalesced.
-    void CoalesceNode(BinaryNode *B, BinaryNode *Parent);
+    // Coalesce the OperatorNode O with its parent. This involves moving the
+    // children (if any) of node O to its parent and then removing O.
+    // @param[in] O is the current node. O should be a OperatorNode.
+    void CoalesceNode(OperatorNode *O);
 
-    // Recursively coalesce binary nodes having the same commutative and
+    // Determines if a OperatorNode could be coalesced into its parent.
+    // @param[in] O is the current node. O should be a OperatorNode.
+    // @return Return true if O can be coalesced into its parent, false
+    // otherwise.
+    bool CanCoalesceNode(OperatorNode *O);
+
+    // Recursively coalesce OperatoreNodes having the same commutative and
     // associative operator.
     // @param[in] N is current node of the AST. Initial value is Root.
     // @param[in] Changed indicates whether a node was coalesced. We need this
     // to control when to stop recursive coalescing.
     void Coalesce(Node *N, bool &Changed);
 
-    // Sort the children expressions in a binary node of the AST.
+    // Sort the children expressions in a OperatorNode of the AST.
     // @param[in] N is current node of the AST. Initial value is Root.
     void Sort(Node *N);
+
+    // Compare nodes N1 and N2 to sort them. This function is invoked by a
+    // lambda which is passed to the llvm::sort function.
+    // @param[in] N1 is the first node to compare.
+    // @param[in] N2 is the second node to compare.
+    // return A boolean indicating the relative ordering between N1 and N2.
+    bool CompareNodes(const Node *N1, const Node *N2);
+
+    // Constant fold integer expressions.
+    // @param[in] N is current node of the AST. Initial value is Root.
+    // @param[in] Changed indicates whether constant folding was done. We need
+    // this to control when to stop recursive constant folding.
+    void ConstantFold(Node *N, bool &Changed);
+
+    // Get the deref offset from the DerefExpr. The offset represents the
+    // possible amount by which the bounds of an ntptr could be widened.
+    // @param[in] UpperExpr is the upper bounds expr for the ntptr.
+    // @param[in] DerefExpr is the dereferenced expr for the ntptr.
+    // @param[out] Offset is the offset from the base by which the pointer is
+    // dereferenced.
+    // return Returns a boolean indicating whether a valid offset exists. True
+    // means a valid offset was found and is present in the "Offset" parameter.
+    // False means a valid offset was not found.
+    bool GetDerefOffset(Node *UpperExpr, Node *DerefExpr,
+                        llvm::APSInt &Offset);
 
     // Check if the two AST nodes N1 and N2 are equal.
     // @param[in] N1 is the first node.
@@ -131,6 +166,17 @@ namespace clang {
     // preorder AST. The Error field is set if an error is encountered during
     // transformation of the AST.
     void Normalize();
+
+    // Get the offset by which a pointer is dereferenced. This function is
+    // intended to be called from outside this class.
+    // @param[in] this is the first AST.
+    // @param[in] P is the second AST.
+    // @param[out] Offset is the dereference offset.
+    // @return Returns a bool indicating whether a valid dereference offset
+    // exists.
+    bool GetDerefOffset(PreorderAST &P, llvm::APSInt &Offset) {
+      return GetDerefOffset(/*UpperExpr*/ Root, /*DerefExpr*/ P.Root, Offset);
+    }
 
     // Check if the two ASTs are equal. This is intended to be called from
     // outside this class and invokes IsEqual on the root nodes of the two ASTs

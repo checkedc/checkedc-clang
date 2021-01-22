@@ -722,14 +722,17 @@ struct WorkspaceEdit {
 bool fromJSON(const llvm::json::Value &, WorkspaceEdit &);
 llvm::json::Value toJSON(const WorkspaceEdit &WE);
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 /// Data corresponding to the manual fix
-struct CConvertManualFix {
-  int ptrID;
+//
+// See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+// NOLINTNEXTLINE(readability-identifier-naming)
+struct _3CManualFix {
+  int PtrId;
 };
 
-bool fromJSON(const llvm::json::Value &, CConvertManualFix &);
-llvm::json::Value toJSON(const CConvertManualFix &WE);
+bool fromJSON(const llvm::json::Value &, _3CManualFix &);
+llvm::json::Value toJSON(const _3CManualFix &WE);
 #endif
 
 /// Arguments for the 'applyTweak' command. The server sends these commands as a
@@ -760,11 +763,17 @@ struct ExecuteCommandParams {
   const static llvm::StringLiteral CLANGD_APPLY_FIX_COMMAND;
   // Command to apply the code action. Uses TweakArgs as argument.
   const static llvm::StringLiteral CLANGD_APPLY_TWEAK;
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
   // Command to apply the change for this pointer only
-  const static llvm::StringLiteral CCONV_APPLY_ONLY_FOR_THIS;
+  //
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  const static llvm::StringLiteral _3C_APPLY_ONLY_FOR_THIS;
   // Command to apply the change for all pointers with same reason
-  const static llvm::StringLiteral CCONV_APPLY_FOR_ALL;
+  //
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  const static llvm::StringLiteral _3C_APPLY_FOR_ALL;
 #endif
 
   /// The command identifier, e.g. CLANGD_APPLY_FIX_COMMAND
@@ -772,8 +781,8 @@ struct ExecuteCommandParams {
 
   // Arguments
   llvm::Optional<WorkspaceEdit> workspaceEdit;
-#ifdef INTERACTIVECCCONV
-  llvm::Optional<CConvertManualFix> ccConvertManualFix;
+#ifdef INTERACTIVE3C
+  llvm::Optional<_3CManualFix> The3CManualFix;
 #endif
   llvm::Optional<TweakArgs> tweakArgs;
 };
@@ -812,28 +821,30 @@ struct CodeAction {
 };
 llvm::json::Value toJSON(const CodeAction &);
 
-#ifdef INTERACTIVECCCONV
+#ifdef INTERACTIVE3C
 //
 // A code lens represents a command that should be shown along with
 // source text, like the number of references, a way to run tests, etc.
 //
-//  A code lens is _unresolved_ when no command is associated to it. For performance
-//  reasons the creation of a code lens and resolving should be done in two stages.
+//  A code lens is _unresolved_ when no command is associated to it. For
+//  performance reasons the creation of a code lens and resolving should be done
+//  in two stages.
 //
 struct CodeLens {
-  /// The range in which this code lens is valid, should only span a single line.
-  Range range;
+  /// The range in which this code lens is valid, should only span a single
+  /// line.
+  Range TheRange;
 
   /**
    * The command this code lens represents.
-  */
-  llvm::Optional<Command> command;
+   */
+  llvm::Optional<Command> TheCommand;
 
   /**
    * A data entry field that is preserved on a code lens item between
    * a code lens and a code lens resolve request.
    */
-  //data?: any
+  // data?: any
 };
 
 llvm::json::Value toJSON(const CodeLens &);
