@@ -4461,5 +4461,5 @@ RelopFact *Sema::ActOnRelopFact(Expr *E, SourceLocation Loc) {
       !CheckIsNonModifying(BO->getRHS()))
     return nullptr;
 
-  return new (Context) RelopFact(E, Loc);
+  return new (Context) RelopFact(BO, Loc);
 }

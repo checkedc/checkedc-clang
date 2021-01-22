@@ -4029,7 +4029,7 @@ public:
 
   // Checked C: Perform semantic analysis on a where clause bounds fact.
   BoundsFact *ActOnBoundsFact(IdentifierInfo *Id, Expr *E,
-                                   Scope *CurScope, SourceLocation Loc);
+                              Scope *CurScope, SourceLocation Loc);
 
   // Checked C: Perform semantic analysis on a where clause relop fact.
   RelopFact *ActOnRelopFact(Expr *E, SourceLocation Loc);

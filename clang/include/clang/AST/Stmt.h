@@ -1314,7 +1314,8 @@ public:
   }
 
   /// Build an empty null statement.
-  explicit NullStmt(EmptyShell Empty) : Stmt(NullStmtClass, Empty) {}
+  explicit NullStmt(EmptyShell Empty) : Stmt(NullStmtClass, Empty),
+                                        WClause(nullptr) {}
 
   SourceLocation getSemiLoc() const { return NullStmtBits.SemiLoc; }
   void setSemiLoc(SourceLocation L) { NullStmtBits.SemiLoc = L; }

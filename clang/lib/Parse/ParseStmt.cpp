@@ -259,6 +259,11 @@ Retry:
 
     auto *NS = dyn_cast<NullStmt>(StmtRes.get());
     NS->setWhereClause(WClause);
+
+    // The where clause should end with a semicolon.
+    if (ExpectAndConsume(tok::semi))
+      return StmtError();
+
     return StmtRes;
   }
 
@@ -2498,12 +2503,6 @@ WhereClause *Parser::ParseWhereClause() {
   }
 
   if (WClause->isInvalid()) {
-    EmitDiag(Tok);
-    return nullptr;
-  }
-
-  // The where clause should end with a semicolon.
-  if (ExpectAndConsume(tok::semi)) {
     EmitDiag(Tok);
     return nullptr;
   }

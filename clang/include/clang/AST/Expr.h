@@ -6796,6 +6796,12 @@ public:
   FactKind Kind;
 
 private:
+  // For a BoundsFact, Loc gives the location of the variable whose bounds are
+  // being redeclared in the where clause. For example, "_Where p : bounds(p, p
+  // + 1)".                                                     ^
+  // For a RelopFact, Loc gives the location of the start of the relop expr.
+  // For example, "_Where a < 1".
+  //                      ^
   SourceLocation Loc;
 
 public:
@@ -6821,9 +6827,9 @@ public:
 /// \brief Represents a Checked C relational operator fact.
 class RelopFact : public WhereClauseFact {
 public:
-  Expr *RelopExpr;
+  BinaryOperator *RelopExpr;
 
-  RelopFact(Expr *RelopExpr, SourceLocation Loc)
+  RelopFact(BinaryOperator *RelopExpr, SourceLocation Loc)
     : WhereClauseFact(FactKind::RelopFact, Loc),
       RelopExpr(RelopExpr) {}
 
