@@ -568,7 +568,8 @@ namespace {
 namespace {
   using EqualExprTy = SmallVector<Expr *, 4>;
 
-  // EqualExprsContainsExpr returns true if the set Exprs contains E.
+  // EqualExprsContainsExpr returns true if the set Exprs contains an
+  // expression that is equivalent to E.
   bool EqualExprsContainsExpr(Sema &S, const EqualExprTy Exprs, Expr *E,
                               EquivExprSets *EquivExprs) {
     for (auto I = Exprs.begin(); I != Exprs.end(); ++I) {
