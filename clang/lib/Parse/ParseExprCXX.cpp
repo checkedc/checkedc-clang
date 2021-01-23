@@ -1390,7 +1390,7 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
                       /*ReturnInteropTypeExpr=*/nullptr,
                        /*ReturnBounds=*/nullptr,
                       D,
-                      TrailingReturnType),
+                      TrailingReturnType, &DS),
                   std::move(Attr), DeclEndLoc);
 
     // Parse requires-clause[opt].
