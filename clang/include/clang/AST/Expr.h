@@ -6792,16 +6792,18 @@ public:
 /// \brief Represents a Checked C where clause fact.
 class WhereClauseFact {
 public:
-  enum class FactKind { BoundsFact, RelopFact };
+  enum class FactKind { BoundsFact, EqualityOpFact };
   FactKind Kind;
 
 private:
   // For a BoundsFact, Loc gives the location of the variable whose bounds are
   // being redeclared in the where clause. For example, "_Where p : bounds(p, p
   // + 1)".                                                     ^
-  // For a RelopFact, Loc gives the location of the start of the relop expr.
-  // For example, "_Where a < 1".
-  //                      ^
+  // For an EqualityOpFact, Loc gives the location of the start of the equality
+  // expression. For example, "_Where a < 1".
+  //                                  ^
+  // TODO: Implement richer location information by capturing the start and end
+  // locations of where clauses.
   SourceLocation Loc;
 
 public:
@@ -6825,16 +6827,16 @@ public:
 };
 
 /// \brief Represents a Checked C relational operator fact.
-class RelopFact : public WhereClauseFact {
+class EqualityOpFact : public WhereClauseFact {
 public:
-  BinaryOperator *RelopExpr;
+  BinaryOperator *EqualityOp;
 
-  RelopFact(BinaryOperator *RelopExpr, SourceLocation Loc)
-    : WhereClauseFact(FactKind::RelopFact, Loc),
-      RelopExpr(RelopExpr) {}
+  EqualityOpFact(BinaryOperator *EqualityOp, SourceLocation Loc)
+    : WhereClauseFact(FactKind::EqualityOpFact, Loc),
+      EqualityOp(EqualityOp) {}
 
   static bool classof(const WhereClauseFact *Fact) {
-    return Fact->Kind == FactKind::RelopFact;
+    return Fact->Kind == FactKind::EqualityOpFact;
   }
 };
 

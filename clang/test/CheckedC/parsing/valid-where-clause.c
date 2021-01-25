@@ -27,4 +27,6 @@ void valid_cases(_Nt_array_ptr<char> p, _Nt_array_ptr<char> q,
   _Where a > 0 _And a > 1 _And a > 2 _And b < 0 _And b < 1 _And b < 2;
   _Where p : count(a) _And p : count(a + 1) _And p : count(a + 2);
   _Where q : count(0) _And q : bounds(q, q + 1) _And q : count(a);
+  _Where (((((a == 0)))));
+  _Where (a == 0) _And ((a == 0)) _And (((a == 0)));
 }

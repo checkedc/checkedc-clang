@@ -2470,7 +2470,7 @@ WhereClauseFact *Parser::ParseWhereClauseFact() {
   ExprResult ExprRes = Actions.CorrectDelayedTyposInExpr(ParseExpression());
   if (ExprRes.isInvalid())
     return nullptr;
-  return Actions.ActOnRelopFact(ExprRes.get(), Loc);
+  return Actions.ActOnEqualityOpFact(ExprRes.get(), Loc);
 }
 
 WhereClause *Parser::ParseWhereClause() {

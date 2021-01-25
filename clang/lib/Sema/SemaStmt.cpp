@@ -4443,17 +4443,26 @@ BoundsFact *Sema::ActOnBoundsFact(IdentifierInfo *Id, Expr *E,
   return new (Context) BoundsFact(VD, Bounds, Loc);
 }
 
-RelopFact *Sema::ActOnRelopFact(Expr *E, SourceLocation Loc) {
-  // A relop fact has the following syntax:
-  // non-modifying-exp relop non-modifying-exp
+EqualityOpFact *Sema::ActOnEqualityOpFact(Expr *E, SourceLocation Loc) {
+  // We define an equality-op fact in terms of equality-expressions as defined
+  // in section 6.5.9 of the C11 spec. Equality-op facts have an added
+  // constraint that the equality-expressions should be non-modifying
+  // expressions
+
+  // equality-expression:
+  //   relational-expression
+  //   equality-expression == equality-expression
+  //   equality-expression != equality-expression
 
   Lexicographic Lex(Context, nullptr);
   Expr *TmpE = Lex.IgnoreValuePreservingOperations(Context, E);
 
-  // TODO: Handle relop exprs with logical operators, like
-  // _Where relopexpr && relopexpr || relopexpr.
+  // TODO: Handle equality-op facts joined by logical operators, like
+  // _Where equality-op-fact && equality-op-fact || equality-op-fact.
 
   auto *BO = dyn_cast<BinaryOperator>(TmpE);
+  // Note: isComparisonOp is a function which checks for equality and
+  // relational operators.
   if (!BO || !BO->isComparisonOp())
     return nullptr;
 
@@ -4461,5 +4470,5 @@ RelopFact *Sema::ActOnRelopFact(Expr *E, SourceLocation Loc) {
       !CheckIsNonModifying(BO->getRHS()))
     return nullptr;
 
-  return new (Context) RelopFact(BO, Loc);
+  return new (Context) EqualityOpFact(BO, Loc);
 }
