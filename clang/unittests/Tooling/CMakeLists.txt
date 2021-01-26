@@ -10,6 +10,7 @@ if (MSVC)
   set_source_files_properties(RecursiveASTVisitorTest.cpp PROPERTIES COMPILE_FLAGS /bigobj)
   set_source_files_properties(RecursiveASTVisitorTestExprVisitor.cpp PROPERTIES COMPILE_FLAGS /bigobj)
   set_source_files_properties(RecursiveASTVisitorTests/Callbacks.cpp PROPERTIES COMPILE_FLAGS /bigobj)
+  set_source_files_properties(RefactoringTest.cpp PROPERTIES COMPILE_FLAGS /bigobj)
   set_source_files_properties(SourceCodeTest.cpp PROPERTIES COMPILE_FLAGS /bigobj)
 endif()
 
