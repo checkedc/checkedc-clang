@@ -2451,6 +2451,11 @@ bool Parser::ParseOpenCLUnrollHintAttribute(ParsedAttributes &Attrs) {
 WhereClauseFact *Parser::ParseWhereClauseFact() {
   SourceLocation Loc = Tok.getLocation();
 
+  // TODO: Handle bounds expression surrounded by parentheses, like:
+  // _Where ((((p : bounds(p, p + 1))))).
+  // Equality expressions surrounded by parentheses are already handled by
+  // invoking IgnoreValuePreservingCasts in ActOnEqualityOpFact.
+
   if (Tok.is(tok::identifier) && NextToken().is(tok::colon)) {
     IdentifierInfo *VarName = Tok.getIdentifierInfo();
 
