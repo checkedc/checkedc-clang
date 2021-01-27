@@ -11293,6 +11293,23 @@ def err_bounds_type_annotation_lost_checking : Error<
     "%select{assignment|decrement|increment|initialization|statement}0">,
     InGroup<CheckBoundsDeclsChecked>;
 
+  def error_bounds_declaration_unprovable : Error<
+    "it is not possible to prove that the inferred bounds of %1 "
+    "imply the declared bounds of %1 after "
+    "%select{assignment|decrement|increment|initialization|statement}0">;
+
+  def note_free_variable_decl_or_inferred : Note<
+    "the %select{declared|inferred}0 %select{lower |upper |}1bounds use the "
+    "variable '%2' and there is no relational information involving '%2' "
+    "and any of the expressions used by the %select{inferred|declared}0 "
+    "%select{lower |upper |}1bounds">;
+
+  def note_free_variable_in_expected_args : Note<
+    "the %select{expected argument|inferred}0 %select{lower |upper |}1bounds use the "
+    "variable '%2' and there is no relational information involving '%2' "
+    "and any of the expressions used by the %select{inferred|expected argument}0 "
+    "%select{lower |upper |}1bounds">;
+
   def error_bounds_declaration_invalid : Error<
     "declared bounds for %1 are invalid after "
     "%select{assignment|decrement|increment|initialization|statement}0">;
@@ -11323,6 +11340,9 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_modifying_expr_not_supported : Error<
    "argument must be a non-modifying expression because %ordinal0 parameter "
    "is used in a bounds expression">;
+
+  def error_argument_bounds_unprovable : Error<
+    "it is not possible to prove argument meets declared bounds for %ordinal0 parameter">;
 
   def warn_argument_bounds_invalid : Warning<
     "cannot prove argument meets declared bounds for %ordinal0 parameter">,

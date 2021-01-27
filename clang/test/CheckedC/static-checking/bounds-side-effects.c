@@ -38,7 +38,7 @@ void f1(int i) {
      // Declare a bounds declaration that goes out of scope;
      g1_len = i;
      _Array_ptr<int> x1 : count(g1_len) = alloc(i * sizeof(int));
-     g1_len = 5;
+     g1_len = 5; // expected-error {{it is not possible to prove that the inferred bounds of 'x1' imply the declared bounds of 'x1' after assignment}}
   }
 }
 
@@ -91,7 +91,7 @@ void f5(int i) {
 // Test different forms of bounds declarations.
 void f20(int len, _Array_ptr<int> p : count(len), int i) {
   len = i, p = alloc(i * sizeof(int));  // correct
-  len = 5;                              // incorrect
+  len = 5;                              // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after assignment}}
 }
 
 void f21(int len, _Array_ptr<int> p : byte_count(len), int i) {
@@ -145,7 +145,7 @@ void f40(int i) {
   int len = 0;
   _Array_ptr<int> p : count(len) = 0;
   len = i, p = alloc(i * sizeof(int));  // correct
-  len = 5;                              // incorrect
+  len = 5;                              // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after assignment}}
 }
 
 void f41(int i) {
