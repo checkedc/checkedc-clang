@@ -55,6 +55,7 @@ bool WarnRootCause;
 bool WarnAllRootCause;
 std::set<std::string> FilePaths;
 bool VerifyDiagnosticOutput;
+bool DumpUnwritableChanges;
 
 #ifdef FIVE_C
 bool RemoveItypes;
@@ -214,6 +215,7 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
   WarnRootCause = CCopt.WarnRootCause || CCopt.WarnAllRootCause;
   WarnAllRootCause = CCopt.WarnAllRootCause;
   VerifyDiagnosticOutput = CCopt.VerifyDiagnosticOutput;
+  DumpUnwritableChanges = CCopt.DumpUnwritableChanges;
 
 #ifdef FIVE_C
   RemoveItypes = CCopt.RemoveItypes;
@@ -285,7 +287,7 @@ bool _3CInterface::buildInitialConstraints() {
   return true;
 }
 
-bool _3CInterface::solveConstraints(bool ComputeInterimState) {
+bool _3CInterface::solveConstraints() {
   std::lock_guard<std::mutex> Lock(InterfaceMutex);
   assert(ConstraintsBuilt && "Constraints not yet built. We need to call "
                              "build constraint before trying to solve them.");
@@ -301,7 +303,7 @@ bool _3CInterface::solveConstraints(bool ComputeInterimState) {
   if (Verbose)
     outs() << "Constraints solved\n";
 
-  if (ComputeInterimState)
+  if (WarnRootCause)
     GlobalProgramInfo.computeInterimConstraintState(FilePaths);
 
   if (DumpIntermediate)

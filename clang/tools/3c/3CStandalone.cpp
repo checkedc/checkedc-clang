@@ -135,6 +135,15 @@ static cl::opt<bool> OptVerifyDiagnosticOutput(
     cl::desc("Verify diagnostic output (for automated testing of 3C)."),
     cl::init(false), cl::cat(_3CCategory), cl::Hidden);
 
+// In the future, we may enhance this to write the output to individual files.
+// For now, the user has to copy and paste the correct portions of stderr.
+static cl::opt<bool> OptDumpUnwritableChanges(
+    "dump-unwritable-changes",
+    cl::desc("When 3C generates changes to a file it cannot write (due to "
+             "stdout mode or implementation limitations), dump the new version "
+             "of the file to stderr for troubleshooting."),
+    cl::init(false), cl::cat(_3CCategory));
+
 #ifdef FIVE_C
 static cl::opt<bool> OptRemoveItypes(
     "remove-itypes",
@@ -176,6 +185,7 @@ int main(int argc, const char **argv) {
   CcOptions.WarnRootCause = OptWarnRootCause;
   CcOptions.WarnAllRootCause = OptWarnAllRootCause;
   CcOptions.VerifyDiagnosticOutput = OptVerifyDiagnosticOutput;
+  CcOptions.DumpUnwritableChanges = OptDumpUnwritableChanges;
 
 #ifdef FIVE_C
   CcOptions.RemoveItypes = OptRemoveItypes;
@@ -219,7 +229,7 @@ int main(int argc, const char **argv) {
   }
 
   // Next solve the constraints.
-  if (!_3CInterface.solveConstraints(OptWarnRootCause)) {
+  if (!_3CInterface.solveConstraints()) {
     errs() << "Failure occurred while trying to solve constraints. Exiting.\n";
     return 1;
   }

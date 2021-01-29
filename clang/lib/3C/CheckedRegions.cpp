@@ -27,15 +27,14 @@ using namespace llvm;
 using namespace clang;
 
 
-// Check if the compound statement is a function body
+// If S is a function body, then return the FunctionDecl, otherwise return null.
 // Used in both visitors so abstracted to a function
-bool isTopLevel(ASTContext *Context, CompoundStmt *S) {
+FunctionDecl *getFunctionDeclOfBody(ASTContext *Context, CompoundStmt *S) {
   const auto &Parents = Context->getParents(*S);
   if (Parents.empty()) {
-    return false;
+    return nullptr;
   }
-  // Ensure that our parent is a functiondecl
-  return Parents[0].get<FunctionDecl>() != nullptr;
+  return const_cast<FunctionDecl *>(Parents[0].get<FunctionDecl>());
 }
 
 // CheckedRegionAdder
@@ -47,7 +46,7 @@ bool CheckedRegionAdder::VisitCompoundStmt(CompoundStmt *S) {
   S->Profile(Id, *Context, true);
   switch (Map[Id]) {
   case IS_UNCHECKED:
-    if (isParentChecked(DTN) && !isFunctionBody(S)) {
+    if (isParentChecked(DTN) && getFunctionDeclOfBody(Context, S) == nullptr) {
       auto Loc = S->getBeginLoc();
       Writer.InsertTextBefore(Loc, "_Unchecked ");
     }
@@ -106,10 +105,6 @@ CheckedRegionAdder::findParentCompound(const ast_type_traits::DynTypedNode &N,
 
 
 
-bool CheckedRegionAdder::isFunctionBody(CompoundStmt *S) {
-  return isTopLevel(Context, S);
-}
-
 bool CheckedRegionAdder::isParentChecked(
     const ast_type_traits::DynTypedNode &DTN) {
   if (const auto *Parent = findParentCompound(DTN).first) {
@@ -163,25 +158,39 @@ bool CheckedRegionFinder::VisitDoStmt(DoStmt *S) {
 }
 
 bool CheckedRegionFinder::VisitCompoundStmt(CompoundStmt *S) {
-  // Visit all subblocks, find all unchecked types
   bool Localwild = false;
+
+  // Is this compound statement the body of a function?
+  FunctionDecl *FD = getFunctionDeclOfBody(Context, S);
+  if (FD != nullptr) {
+    auto PSL = PersistentSourceLoc::mkPSL(FD, *Context);
+    if (!canWrite(PSL.getFileName())) {
+      // The "location" of the function is in an unwritable file. Processing it
+      // might result in modifying an unwritable file, so skip it completely.
+      // This check could have both false positives and false negatives if the
+      // code uses `#include` to assemble a function definition from multiple
+      // files, some writable and some not, but that would be "unusual c code -
+      // low priority".
+      //
+      // Currently, it's OK to perform this check only at the function level
+      // because a function is normally in a single file and 3C doesn't add
+      // checked annotations at higher levels (e.g., `#pragma CHECKED_SCOPE`)
+      return false;
+    }
+
+    // Need to check return type
+    auto retType = FD->getReturnType().getTypePtr();
+    if (retType->isPointerType()) {
+      CVarOption CV = Info.getVariable(FD, Context);
+      Localwild |= isWild(CV) || containsUncheckedPtr(FD->getReturnType());
+    }
+  }
+
+  // Visit all subblocks, find all unchecked types
   for (const auto &SubStmt : S->children()) {
     CheckedRegionFinder Sub(Context, Writer, Info, Seen, Map, EmitWarnings);
     Sub.TraverseStmt(SubStmt);
     Localwild |= Sub.Wild;
-  }
-
-  // If we are a function def, need to check return type
-  if (isTopLevel(Context, S)) {
-    const auto &Parents = Context->getParents(*S);
-    assert(!Parents.empty());
-    FunctionDecl* Parent = const_cast<FunctionDecl*>(Parents[0].get<FunctionDecl>());
-    assert(Parent != nullptr);
-    auto retType = Parent->getReturnType().getTypePtr();
-    if (retType->isPointerType()) {
-      CVarOption CV = Info.getVariable(Parent, Context);
-      Localwild |= isWild(CV) || containsUncheckedPtr(Parent->getReturnType());
-    }
   }
 
   markChecked(S, Localwild);

@@ -136,52 +136,93 @@ static void emit(Rewriter &R, ASTContext &C, std::string &OutputPostfix) {
   if (Verbose)
     errs() << "Writing files out\n";
 
-  // Check if we are outputing to stdout or not, if we are, just output the
-  // main file ID to stdout.
   SourceManager &SM = C.getSourceManager();
-  if (OutputPostfix == "-") {
-    if (const RewriteBuffer *B = R.getRewriteBufferFor(SM.getMainFileID()))
-      B->write(outs());
-  } else {
-    // Iterate over each modified rewrite buffer
-    for (auto Buffer = R.buffer_begin(); Buffer != R.buffer_end(); ++Buffer) {
-      if (const FileEntry *FE = SM.getFileEntryForID(Buffer->first)) {
-        assert(FE->isValid());
+  // Iterate over each modified rewrite buffer
+  for (auto Buffer = R.buffer_begin(); Buffer != R.buffer_end(); ++Buffer) {
+    if (const FileEntry *FE = SM.getFileEntryForID(Buffer->first)) {
+      assert(FE->isValid());
 
-        // Produce a path/file name for the rewritten source file.
-        // That path should be the same as the old one, with a
-        // suffix added between the file name and the extension.
-        // For example \foo\bar\a.c should become \foo\bar\a.checked.c
-        // if the OutputPostfix parameter is "checked" .
-        std::string PfName = sys::path::filename(FE->getName()).str();
-        std::string DirName = sys::path::parent_path(FE->getName()).str();
-        std::string FileName = sys::path::remove_leading_dotslash(PfName).str();
-        std::string Ext = sys::path::extension(FileName).str();
-        std::string Stem = sys::path::stem(FileName).str();
-        std::string NFile = Stem + "." + OutputPostfix + Ext;
-        if (!DirName.empty())
-          NFile = DirName + sys::path::get_separator().str() + NFile;
-
-        // Write this file if it was specified as a file on the command line.
-        std::string FeAbsS = "";
-        if (getAbsoluteFilePath(FE->getName(), FeAbsS))
-          FeAbsS = sys::path::remove_leading_dotslash(FeAbsS);
-
-        if (canWrite(FeAbsS)) {
-          std::error_code EC;
-          raw_fd_ostream Out(NFile, EC, sys::fs::F_None);
-
-          if (!EC) {
-            if (Verbose)
-              outs() << "writing out " << NFile << "\n";
-            Buffer->second.write(Out);
-          } else
-            errs() << "could not open file " << NFile << "\n";
-          // This is awkward. What to do? Since we're iterating, we could have
-          // created other files successfully. Do we go back and erase them? Is
-          // that surprising? For now, let's just keep going.
+      auto MaybeDumpUnwritableChange = [&]() {
+        if (DumpUnwritableChanges) {
+          errs() << "=== Beginning of new version of " << FE->getName() << " ===\n";
+          Buffer->second.write(errs());
+          errs() << "=== End of new version of " << FE->getName() << " ===\n";
+        } else {
+          DiagnosticsEngine &DE = C.getDiagnostics();
+          unsigned ID = DE.getCustomDiagID(
+              DiagnosticsEngine::Note,
+              "use the -dump-unwritable-changes option to see the new version "
+              "of the file");
+          DE.Report(SM.translateFileLineCol(FE, 1, 1), ID);
         }
+      };
+
+      // Check whether we are allowed to write this file.
+      std::string FeAbsS = "";
+      if (getAbsoluteFilePath(FE->getName(), FeAbsS))
+        FeAbsS = sys::path::remove_leading_dotslash(FeAbsS);
+      if (!canWrite(FeAbsS)) {
+        DiagnosticsEngine &DE = C.getDiagnostics();
+        unsigned ID = DE.getCustomDiagID(
+            DiagnosticsEngine::Error,
+            "3C internal error: 3C generated changes to this file even though it "
+            "is not allowed to write to the file "
+            "(https://github.com/correctcomputation/checkedc-clang/issues/387)");
+        DE.Report(SM.translateFileLineCol(FE, 1, 1), ID);
+        MaybeDumpUnwritableChange();
+        continue;
       }
+
+      if (OutputPostfix == "-") {
+        // Stdout mode
+        // TODO: If we don't have a rewrite buffer for the main file, that means
+        // we generated no changes to the file and we should print its original
+        // content
+        // (https://github.com/correctcomputation/checkedc-clang/issues/328#issuecomment-760243604).
+        if (Buffer->first == SM.getMainFileID()) {
+          // This is the new version of the main file. Print it to stdout.
+          Buffer->second.write(outs());
+        } else {
+          DiagnosticsEngine &DE = C.getDiagnostics();
+          unsigned ID = DE.getCustomDiagID(
+              DiagnosticsEngine::Error,
+              "3C generated changes to this file, which is under the base dir "
+              "but is not the main file and thus cannot be written in stdout "
+              "mode");
+          DE.Report(SM.translateFileLineCol(FE, 1, 1), ID);
+          MaybeDumpUnwritableChange();
+        }
+        continue;
+      }
+
+      // -output-postfix mode
+
+      // Produce a path/file name for the rewritten source file.
+      // That path should be the same as the old one, with a
+      // suffix added between the file name and the extension.
+      // For example \foo\bar\a.c should become \foo\bar\a.checked.c
+      // if the OutputPostfix parameter is "checked" .
+      std::string PfName = sys::path::filename(FE->getName()).str();
+      std::string DirName = sys::path::parent_path(FE->getName()).str();
+      std::string FileName = sys::path::remove_leading_dotslash(PfName).str();
+      std::string Ext = sys::path::extension(FileName).str();
+      std::string Stem = sys::path::stem(FileName).str();
+      std::string NFile = Stem + "." + OutputPostfix + Ext;
+      if (!DirName.empty())
+        NFile = DirName + sys::path::get_separator().str() + NFile;
+
+      std::error_code EC;
+      raw_fd_ostream Out(NFile, EC, sys::fs::F_None);
+
+      if (!EC) {
+        if (Verbose)
+          outs() << "writing out " << NFile << "\n";
+        Buffer->second.write(Out);
+      } else
+        errs() << "could not open file " << NFile << "\n";
+      // This is awkward. What to do? Since we're iterating, we could have
+      // created other files successfully. Do we go back and erase them? Is
+      // that surprising? For now, let's just keep going.
     }
   }
 }

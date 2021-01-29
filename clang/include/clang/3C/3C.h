@@ -70,6 +70,8 @@ struct _3COptions {
   // that generates diagnostics, except for the declaration merging diagnostics
   // that are currently fatal) and uses the default "expected" prefix.
   bool VerifyDiagnosticOutput;
+
+  bool DumpUnwritableChanges;
 };
 
 // The main interface exposed by the 3C to interact with the tool.
@@ -92,9 +94,8 @@ public:
   // Build initial constraints.
   bool buildInitialConstraints();
 
-  // Constraint Solving. The flag: ComputeInterimState requests to compute
-  // interim constraint solver state.
-  bool solveConstraints(bool ComputeInterimState = false);
+  // Constraint Solving.
+  bool solveConstraints();
 
   // Interactivity.
 
