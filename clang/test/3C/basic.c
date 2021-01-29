@@ -1,7 +1,6 @@
 // RUN: 3c -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // RUN: 3c %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-
+// RUN: 3c %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null - 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,7 +11,7 @@ extern _Itype_for_any(T) void *realloc(void *pointer : itype(_Array_ptr<T>) byte
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
 
 // From string_checked.h
-#if _FORTIFY_SOURCE == 0 || !defined(strcpy)
+#if _FORTIFY_SOURCE == 0 || _FORTIFY_SOURCE == 2 || !defined(strcpy)
 #undef strcpy
 // Dest is left unchecked intentionally. There is no bound on dest, so this
 // is always an unchecked function
