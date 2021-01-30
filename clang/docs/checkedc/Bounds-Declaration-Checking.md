@@ -176,6 +176,140 @@ Example: If SameValue is `{ x, y, 1 }` and the current expression being
 checked is the variable `y`, then `x`, `y`, and `1` all produce the same
 value as `y`.
 
+## Updating the Checking State
+
+The `ObservedBounds` and `EquivExprs` members of the `CheckingState` instance
+are updated before, during, and after checking each statement `S` in a CFG
+block `B`.
+
+**Before** checking `S`:
+
+`ObservedBounds` will contain a mapping for each variable `v` that:
+
+1. Is in scope at `S` or is declared in `S`, and:
+2. Has declared bounds.
+
+For each variable `v` in `ObservedBounds`,
+`ObservedBounds[v]` will be either:
+
+1. The widened bounds of `v`, if `v` has widened bounds in the block `B` and
+   the widened bounds of `v` were not killed by a previous statement in `B`, or:
+2. The declared bounds of `v`.
+
+**While** checking `S`:
+
+`ObservedBounds` and `EquivExprs` may be updated by individual checking
+methods. For example, `UpdateAfterAssignment` updates the checking state
+after assignments, increments, and decrements.
+
+**After** checking `S`:
+
+The updated checking state is used to validate that the observed bounds of
+each variable imply the declared bounds of the variable.
+
+After validating the bounds, `ObservedBounds` is reset to its value from before
+checking `S`. Any observed bounds that were updated while checking `S` are only
+used to validate the bounds. They do not persist across multiple statements in
+a CFG block. Finally, `ObservedBounds` is updated so that, for each variable
+`x` whose widened bounds in `B` were killed by `S`, `ObservedBounds[x]` is the
+declared bounds of `x`.
+
+The following methods are responsible for updating the `ObservedBounds` and
+`EquivExprs` members of the checking state.
+
+### TraverseCFG
+
+This method traverses each block in the body of a function. Before traversing
+the function body, each function parameter `p` with declared bounds is added
+to ObservedBounds. For example:
+
+```
+void f(_Array_ptr<int> a : count(len), int len) {
+	// ObservedBounds = { a => bounds(a, a + len) }.
+
+	...Body of f
+}
+```
+
+### GetIncomingBlockState
+
+Before traversing a CFG block `B`, this method sets `ObservedBounds` and
+`EquivExprs` to the intersection of the `ObservedBounds_i` and `EquivExprs_i`
+from each predecessor block `B_i` of `B`. This ensures, that, before checking
+a statement `S` within block `B`, `ObservedBounds` contains only variables that
+are in scope at `S`. For example:
+
+```
+void f(int flag) {
+	// Block B1.
+	// At the end of this block, ObservedBounds contains bounds for a.
+	_Array_ptr<int> a : count(1) = 0;
+
+	if (flag) {
+		// Block B2. Predecessors: B1.
+		// At the beginning of this block: ObservedBounds contains a.
+		// At the end of this block: ObservedBounds contains a and b.
+		_Array_ptr<int> b : count(2) = 0;
+	}
+
+	// Block B3. Predecessors: B1, B2.
+	// B1's ObservedBounds contains a. B2's observed bounds contains a and b.
+	// At the beginning of this block: ObservedBounds contains a.
+	// At the end of this block: ObservedBounds contains a and c.
+	_Array_ptr<int> c : count(3) = 0;
+}
+```
+
+### UpdateCtxWithWidenedBounds
+
+Before checking a CFG block `B`, this method updates `ObservedBounds` to map
+each variable that has widened bounds in `B` to its widened bounds. For
+example:
+
+```
+void f(_Nt_array_ptr<char> p : count(1)) {
+	if (*(p + 1)) {
+		// CFG block B.
+		// Within this block, the bounds of p are widened by 1.
+
+		// p[1] is within the (widened) observed bounds of (p, p + 2).
+		char c = p[1];
+	}
+}
+```
+
+`p` initially has observed bounds of `bounds(p, p + 1)` (the declared bounds
+of `p`). In block `B`, `p` has widened bounds of `bounds(p, p + 2)`. Before
+checking block `B`, `UpdateCtxWithWidenedBounds` updates `ObservedBounds` so
+that `ObservedBounds[p] = bounds(p, p + 2)`.
+
+### GetDeclaredBounds
+
+Before checking a statement `S` within a CFG block `B`, this method updates
+`ObservedBounds` so that, for each variable `x` declared in `S` that has
+declared bounds `D`, `ObservedBounds[x] = D`.
+
+### ResetKilledBounds
+
+A statement `S` within a CFG block `B` may kill the widened bounds of a
+variable `v` if `S` modifies any variables that are used by the widened
+bounds of `v`. After checking `S`, this method updates `ObservedBounds`
+so that, for each variable `x` whose widened bounds are killed by `S`,
+`ObservedBounds[x]` is the declared bounds of `x`.
+
+### UpdateAfterAssignment
+
+After an assignment to a variable `v`, this method updates each bounds
+expression in `ObservedBounds` that uses `v`, and updates any sets in
+`EquivExprs` that use `v`.
+
+### ValidateBoundsContext
+
+After checking a statement `S`, this method checks that, for each variable
+declaration `v` in `ObservedBounds`, the inferred bounds `ObservedBounds[v]`
+imply the declared bounds of `v` (`v->getBoundsExpr()`). The bounds validation
+uses the expression equality recorded in `EquivExprs`.
+
 ## Checking Methods
 The entry point for bounds checking is the method [TraverseCFG](https://github.com/microsoft/checkedc-clang/blob/master/clang/lib/Sema/SemaBounds.cpp#L2317). For each statement `S` in the
 clang CFG, TraverseStmt does the following:
