@@ -1459,9 +1459,12 @@ namespace {
                                FreeVariablePosition Pos2,
                                EquivExprSets *EquivExprs,
                                FreeVariableListTy &FreeVars) {
-        // If E1 or E2 accesses memory via pointer, we skip because we cannot
+        // If E1 or E2 accesses memory via a pointer, we skip because we cannot
         // determine aliases for two indirect accesses soundly yet.
-        if (ReadsMemoryViaPointer(E1) || ReadsMemoryViaPointer(E2))
+        // We also skip checking free variables if E1 or E2 is or contains a
+        // non-arrow member expression, since the compiler currently does
+        // not track equality information for member expressions.
+        if (ReadsMemoryViaPointer(E1, true) || ReadsMemoryViaPointer(E2, true))
           return false;
 
         bool HasFreeVariables = false;
