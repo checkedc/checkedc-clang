@@ -225,9 +225,9 @@ to ObservedBounds. For example:
 
 ```
 void f(_Array_ptr<int> a : count(len), int len) {
-	// ObservedBounds = { a => bounds(a, a + len) }.
+  // ObservedBounds = { a => bounds(a, a + len) }.
 
-	...Body of f
+  ...Body of f
 }
 ```
 
@@ -241,22 +241,25 @@ are in scope at `S`. For example:
 
 ```
 void f(int flag) {
-	// Block B1.
-	// At the end of this block, ObservedBounds contains bounds for a.
-	_Array_ptr<int> a : count(1) = 0;
+  // Block B1.
+  // At the end of this block: ObservedBounds contains bounds for a.
+  // EquivExprs = { { 0, a } }.
+  _Array_ptr<int> a : count(1) = 0;
 
-	if (flag) {
-		// Block B2. Predecessors: B1.
-		// At the beginning of this block: ObservedBounds contains a.
-		// At the end of this block: ObservedBounds contains a and b.
-		_Array_ptr<int> b : count(2) = 0;
-	}
+  if (flag) {
+    // Block B2. Predecessors: B1.
+    // At the beginning of this block: ObservedBounds contains a.
+    // At the end of this block: ObservedBounds contains a and b.
+    // EquivExprs = { { 0, a, b } }.
+    _Array_ptr<int> b : count(2) = 0;
+  }
 
-	// Block B3. Predecessors: B1, B2.
-	// B1's ObservedBounds contains a. B2's observed bounds contains a and b.
-	// At the beginning of this block: ObservedBounds contains a.
-	// At the end of this block: ObservedBounds contains a and c.
-	_Array_ptr<int> c : count(3) = 0;
+  // Block B3. Predecessors: B1, B2.
+  // B1's ObservedBounds contains a. B2's observed bounds contains a and b.
+  // At the beginning of this block: ObservedBounds contains a.
+  // At the end of this block: ObservedBounds contains a and c.
+  // EquivExprs = { { 0, a, c } }.
+  _Array_ptr<int> c : count(3) = 0;
 }
 ```
 
@@ -268,13 +271,13 @@ example:
 
 ```
 void f(_Nt_array_ptr<char> p : count(1)) {
-	if (*(p + 1)) {
-		// CFG block B.
-		// Within this block, the bounds of p are widened by 1.
+  if (*(p + 1)) {
+    // CFG block B.
+    // Within this block, the bounds of p are widened by 1.
 
-		// p[1] is within the (widened) observed bounds of (p, p + 2).
-		char c = p[1];
-	}
+    // p[1] is within the (widened) observed bounds of (p, p + 2).
+    char c = p[1];
+  }
 }
 ```
 
@@ -287,7 +290,17 @@ that `ObservedBounds[p] = bounds(p, p + 2)`.
 
 Before checking a statement `S` within a CFG block `B`, this method updates
 `ObservedBounds` so that, for each variable `x` declared in `S` that has
-declared bounds `D`, `ObservedBounds[x] = D`.
+declared bounds `D`, `ObservedBounds[x] = D`. For example:
+
+```
+void f(_Array_ptr<int> a : count(1)) {
+  // Before calling GetDeclaredBounds:
+  // ObservedBounds = { a => bounds(a, a + 1) }
+  // After calling GetDeclaredBounds:
+  // ObservedBounds = { a => bounds(a, a + 1), b => bounds(b, b + 2) }
+  _Array_ptr<int> b : count(2) = 0;
+}
+```
 
 ### ResetKilledBounds
 
@@ -295,13 +308,64 @@ A statement `S` within a CFG block `B` may kill the widened bounds of a
 variable `v` if `S` modifies any variables that are used by the widened
 bounds of `v`. After checking `S`, this method updates `ObservedBounds`
 so that, for each variable `x` whose widened bounds are killed by `S`,
-`ObservedBounds[x]` is the declared bounds of `x`.
+`ObservedBounds[x]` is the declared bounds of `x`. For example:
+
+```
+void f(_Nt_array_ptr<char> p : count(1)) {
+  if (*(p + 1)) {
+    // This statement kills the widened bounds of p.
+    // Before checking this statement:
+    // ObservedBounds = { p => bounds(p, p + 2) }
+    // After checking this statement (before validating the bounds):
+    // ObservedBounds = { p => bounds(any) }.
+    // After calling ResetKilledBounds:
+    // ObservedBounds = { p => bounds(p, p + 1) }.
+    p = 0;
+
+    // p now has observed bounds of bounds(p, p + 1), so this is an
+    // out-of-bounds error.
+    int c = p[1];
+  }
+}
+```
 
 ### UpdateAfterAssignment
 
 After an assignment to a variable `v`, this method updates each bounds
 expression in `ObservedBounds` that uses `v`, and updates any sets in
 `EquivExprs` that use `v`.
+
+After certain assignments to a variable `v`, `v` may have an original value
+from before the assignment. For example, in the assignment `v = v + 1`, where
+`v` is an unsigned integer or a checked pointer, the original value of `v` is
+`v - 1`.
+
+For each variable `x` in `ObservedBounds`:
+1. Let `B` = `ObservedBounds[x]`.
+2. If `B` uses the value of `v`, and the original value of `v` is a non-null
+expression `e`, replace all uses of `v` in `B` with `e`.
+3. If `B` uses the value of `v`, and the original value of `v` is null, set
+`ObservedBounds[x]` to `bounds(unknown)`.
+
+For example:
+
+```
+void f(_Array_ptr<int> a : count(i), unsigned i) {
+  // Before checking each statement: a's observed bounds are bounds(a, a + i).
+
+  // The original value of i is null. After checking this statement,
+  // the observed bounds of a are bounds(unknown).
+  i = 0;
+
+  // The original value of i is i + 1. After checking this statement,
+  // the observed bounds of a are bounds(a, a + i + 1).
+  i--;
+
+  // The original value of a is a - 2. After checking this statement,
+  // the observed bounds of a are bounds(a - 2, a - 2 + 1).
+  a += 2;
+}
+```
 
 ### ValidateBoundsContext
 
