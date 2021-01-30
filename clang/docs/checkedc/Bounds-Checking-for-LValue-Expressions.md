@@ -140,8 +140,8 @@ expression in `ObservedBounds` that uses `v`, and updates any sets in
 
 After checking a statement `S`, this method checks that, for each variable
 declaration `v` in `ObservedBounds`, the inferred bounds `ObservedBounds[v]`
-`ObservedBounds[v]` imply the declared bounds of `v` (`v->getBoundsExpr()`).
-The bounds validation uses the expression equality recorded in `EquivExprs`.
+imply the declared bounds of `v` (`v->getBoundsExpr()`). The bounds validation
+uses the expression equality recorded in `EquivExprs`.
 
 ### RValueCastBounds
 
@@ -173,7 +173,7 @@ of `(*a).f`, since `(*a).f` and `a->f` are identical lvalue expressions.
 
 In general, for lvalue expressions `e1` and `e2`, updating the inferred bounds
 of `e1` should also update the bounds of `e2` if and only if `e1` and `e2`
-are guranteed to be **identical lvalue expressions**. That is, if:
+are guaranteed to be **identical lvalue expressions**. That is, if:
 
 1. `e1` and `e2` point to the same location in memory, and:
 2. `e1` and `e2` have the same range in memory.
@@ -187,10 +187,10 @@ as defined above. We may consider aliasing issues in future work.
 ### ObservedBounds Keys
 
 Currently, the `ObservedBounds` map uses `VarDecl *` as its keys. This ensures
-that updating the inferred bounds for a `DeclExpr *` `x` updates the inferred
-bounds for all other `DeclRefExpr *` `y` where `x` and `y` have the same
-`VarDecl *`. However, `VarDecl *` will not work as a key for general lvalue
-expressions.
+that updating the inferred bounds for a `DeclRefExpr *` `x` updates the
+inferred bounds for all other `DeclRefExpr *` `y` where `x` and `y` have the
+same `VarDecl *`. However, `VarDecl *` will not work as a key for general
+lvalue expressions.
 
 If the `ObservedBounds` map uses `Expr *` as its keys, then updating the
 inferred bounds of `(*a).f` will not update the inferred bounds of `a->f`
