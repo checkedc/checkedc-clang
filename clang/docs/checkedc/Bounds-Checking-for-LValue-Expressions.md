@@ -114,21 +114,28 @@ that `ObservedBounds[p] = bounds(p, p + 2)`.
 
 Before checking a statement `S` within a CFG block `B`, this method updates
 `ObservedBounds` so that, for each variable `x` declared in `S` that has
-declared bounds `D`, `ObservedBounds[x] = D`. Before checking `S`, the observed
-bounds for each variable `v` that is in scope at `S` will be either:
-
-1. The widened bounds for `v`, if `v` has widened bounds within the current CFG
-   block `B`, or:
-2. The declared bounds for `v`, if `v` has declared bounds, or:
-3. `ObservedBounds` will not contain an entry for `v` (e.g. `v` is an `int`).
+declared bounds `D`, `ObservedBounds[x] = D`.
 
 ### ResetKilledBounds
 
 A statement `S` within a CFG block `B` may kill the widened bounds of a
-variable `v` if `S` modified any variables that are used by the widened
+variable `v` if `S` modifies any variables that are used by the widened
 bounds of `v`. After checking `S`, this method updates `ObservedBounds`
 so that, for each variable `x` whose widened bounds are killed by `S`,
 `ObservedBounds[x]` is the declared bounds of `x`.
+
+The above methods work together to set up the `ObservedBounds` map before
+checking each statment `S` in a CFG block `B`.
+
+Before checking a statement `S` in a CFG block `B`, `ObservedBounds` will
+contain a mapping for each variable `v` that:
+1. Is in scope at `S` or is declared in `S`, and:
+2. Has declared bounds.
+
+Before checking `S`, `ObservedBounds[v]` will be either:
+1. The widened bounds of `v`, if `v` has widened bounds in the block `B` and
+the widened bounds of `v` were not killed by a previous statement in `B`, or:
+2. The declared bounds of `v`.
 
 ### UpdateAfterAssignment
 
