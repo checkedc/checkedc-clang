@@ -5596,12 +5596,12 @@ namespace {
           // e1.f reads memory via a pointer if and only if e1 reads
           // memory via a pointer.
           else
-            return ReadsMemoryViaPointer(ME->getBase());
+            return ReadsMemoryViaPointer(ME->getBase(), IncludeAllMemberExprs);
         }
         default: {
           for (auto I = E->child_begin(); I != E->child_end(); ++I) {
             if (Expr *SubExpr = dyn_cast<Expr>(*I)) {
-              if (ReadsMemoryViaPointer(SubExpr))
+              if (ReadsMemoryViaPointer(SubExpr, IncludeAllMemberExprs))
                 return true;
             }
           }
