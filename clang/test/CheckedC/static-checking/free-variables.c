@@ -117,19 +117,16 @@ void f1(struct S1 *s) {
 }
 
 void f2(struct S1 a3) {
-  //int l = a3->len2;
   struct S1 a4 = {};
   array_ptr<int> p : count(5) = 0;
-  //array_ptr<int> p : count(l) = local_arr1;
   a3 = a4;
 }
 
 void f3(struct S1 a3) {
-  //int l = a3->len2;
   struct S1 a4 = {};
   array_ptr<int> p : count(5) = 0;
 
-  // Warning but no free variables since a3.p is a member expression.
+  // We current do not detect free variables for member accesses.
   a3.p = p; // expected-warning {{cannot prove declared bounds for a3.p are valid after assignment}} \
             // expected-note {{(expanded) declared bounds are 'bounds(a3.p, a3.p + a3.len2)'}} \
             // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 5)'}}
