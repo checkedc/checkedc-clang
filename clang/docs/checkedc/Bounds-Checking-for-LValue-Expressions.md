@@ -67,11 +67,12 @@ are guaranteed to be **identical lvalue expressions**. That is, if:
 1. `e1` and `e2` point to the same location in memory, and:
 2. `e1` and `e2` have the same range in memory.
 
-This definition does not account for aliasing concerns. It is possible for
-lvalue expressions to partially or completely overlap (for example, struct
-variables `a` and `b` may share some or all of their fields). For the initial
-planned work for lvalue generalization, we will only consider lvalue identity
-as defined above. We may consider aliasing issues in future work.
+For the initial planned work for lvalue generalization, we will only generalize
+across lvalue expressions that we are able to determine as identical based on
+the definition stated above. Further, while determining identical lvalue
+expressions, we will initially ignore aliasing concerns and ignore lvalue
+expressions that do not fully overlap in memory. We may consider aliasing
+issues in future work.
 
 ### ObservedBounds Keys
 
