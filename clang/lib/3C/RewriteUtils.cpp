@@ -142,6 +142,9 @@ static void emit(Rewriter &R, ASTContext &C, std::string &OutputPostfix) {
     if (const FileEntry *FE = SM.getFileEntryForID(Buffer->first)) {
       assert(FE->isValid());
 
+      DiagnosticsEngine::Level UnwritableChangeDiagnosticLevel =
+          AllowUnwritableChanges ? DiagnosticsEngine::Warning
+                                 : DiagnosticsEngine::Error;
       auto MaybeDumpUnwritableChange = [&]() {
         if (DumpUnwritableChanges) {
           errs() << "=== Beginning of new version of " << FE->getName() << " ===\n";
@@ -164,7 +167,7 @@ static void emit(Rewriter &R, ASTContext &C, std::string &OutputPostfix) {
       if (!canWrite(FeAbsS)) {
         DiagnosticsEngine &DE = C.getDiagnostics();
         unsigned ID = DE.getCustomDiagID(
-            DiagnosticsEngine::Error,
+            UnwritableChangeDiagnosticLevel,
             "3C internal error: 3C generated changes to this file even though it "
             "is not allowed to write to the file "
             "(https://github.com/correctcomputation/checkedc-clang/issues/387)");
@@ -185,7 +188,7 @@ static void emit(Rewriter &R, ASTContext &C, std::string &OutputPostfix) {
         } else {
           DiagnosticsEngine &DE = C.getDiagnostics();
           unsigned ID = DE.getCustomDiagID(
-              DiagnosticsEngine::Error,
+              UnwritableChangeDiagnosticLevel,
               "3C generated changes to this file, which is under the base dir "
               "but is not the main file and thus cannot be written in stdout "
               "mode");

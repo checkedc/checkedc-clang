@@ -72,6 +72,7 @@ struct _3COptions {
   bool VerifyDiagnosticOutput;
 
   bool DumpUnwritableChanges;
+  bool AllowUnwritableChanges;
 };
 
 // The main interface exposed by the 3C to interact with the tool.

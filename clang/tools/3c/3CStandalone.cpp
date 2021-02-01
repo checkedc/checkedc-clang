@@ -144,6 +144,17 @@ static cl::opt<bool> OptDumpUnwritableChanges(
              "of the file to stderr for troubleshooting."),
     cl::init(false), cl::cat(_3CCategory));
 
+static cl::opt<bool> OptAllowUnwritableChanges(
+    "allow-unwritable-changes",
+    cl::desc("When 3C generates changes to a file it cannot write (due to "
+             "stdout mode or implementation limitations), issue a warning "
+             "instead of an error. This option is intended to be used "
+             "temporarily until you fix the root cause of the problem (by "
+             "correcting your usage of stdout mode or reporting the "
+             "implementation limitation to the 3C team to get it fixed) and "
+             "may be removed in the future."),
+    cl::init(false), cl::cat(_3CCategory));
+
 #ifdef FIVE_C
 static cl::opt<bool> OptRemoveItypes(
     "remove-itypes",
@@ -186,6 +197,7 @@ int main(int argc, const char **argv) {
   CcOptions.WarnAllRootCause = OptWarnAllRootCause;
   CcOptions.VerifyDiagnosticOutput = OptVerifyDiagnosticOutput;
   CcOptions.DumpUnwritableChanges = OptDumpUnwritableChanges;
+  CcOptions.AllowUnwritableChanges = OptAllowUnwritableChanges;
 
 #ifdef FIVE_C
   CcOptions.RemoveItypes = OptRemoveItypes;

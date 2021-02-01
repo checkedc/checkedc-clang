@@ -56,6 +56,7 @@ bool WarnAllRootCause;
 std::set<std::string> FilePaths;
 bool VerifyDiagnosticOutput;
 bool DumpUnwritableChanges;
+bool AllowUnwritableChanges;
 
 #ifdef FIVE_C
 bool RemoveItypes;
@@ -216,6 +217,7 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
   WarnAllRootCause = CCopt.WarnAllRootCause;
   VerifyDiagnosticOutput = CCopt.VerifyDiagnosticOutput;
   DumpUnwritableChanges = CCopt.DumpUnwritableChanges;
+  AllowUnwritableChanges = CCopt.AllowUnwritableChanges;
 
 #ifdef FIVE_C
   RemoveItypes = CCopt.RemoveItypes;
