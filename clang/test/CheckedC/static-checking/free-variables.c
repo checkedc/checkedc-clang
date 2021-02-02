@@ -117,19 +117,17 @@ void f1(struct S1 *s) {
 }
 
 void f2(struct S1 a3) {
-  //int l = a3->len2;
   struct S1 a4 = {};
   array_ptr<int> p : count(5) = 0;
-  //array_ptr<int> p : count(l) = local_arr1;
   a3 = a4;
 }
 
 void f3(struct S1 a3) {
-  //int l = a3->len2;
   struct S1 a4 = {};
   array_ptr<int> p : count(5) = 0;
-  a3.p = p; // expected-error {{it is not possible to prove that the inferred bounds of a3.p imply the declared bounds of a3.p after assignment}} \
-            // expected-note {{the declared upper bounds use the variable 'a3' and there is no relational information involving 'a3' and any of the expressions used by the inferred upper bounds}} \
+
+  // We current do not detect free variables for member accesses.
+  a3.p = p; // expected-warning {{cannot prove declared bounds for a3.p are valid after assignment}} \
             // expected-note {{(expanded) declared bounds are 'bounds(a3.p, a3.p + a3.len2)'}} \
             // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 5)'}}
 }

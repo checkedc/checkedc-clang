@@ -1459,9 +1459,12 @@ namespace {
                                FreeVariablePosition Pos2,
                                EquivExprSets *EquivExprs,
                                FreeVariableListTy &FreeVars) {
-        // If E1 or E2 accesses memory via pointer, we skip because we cannot
+        // If E1 or E2 accesses memory via a pointer, we skip because we cannot
         // determine aliases for two indirect accesses soundly yet.
-        if (ReadsMemoryViaPointer(E1) || ReadsMemoryViaPointer(E2))
+        // We also skip checking free variables if E1 or E2 is or contains a
+        // non-arrow member expression, since the compiler currently does
+        // not track equality information for member expressions.
+        if (ReadsMemoryViaPointer(E1, true) || ReadsMemoryViaPointer(E2, true))
           return false;
 
         bool HasFreeVariables = false;
@@ -5596,12 +5599,12 @@ namespace {
           // e1.f reads memory via a pointer if and only if e1 reads
           // memory via a pointer.
           else
-            return ReadsMemoryViaPointer(ME->getBase());
+            return ReadsMemoryViaPointer(ME->getBase(), IncludeAllMemberExprs);
         }
         default: {
           for (auto I = E->child_begin(); I != E->child_end(); ++I) {
             if (Expr *SubExpr = dyn_cast<Expr>(*I)) {
-              if (ReadsMemoryViaPointer(SubExpr))
+              if (ReadsMemoryViaPointer(SubExpr, IncludeAllMemberExprs))
                 return true;
             }
           }
