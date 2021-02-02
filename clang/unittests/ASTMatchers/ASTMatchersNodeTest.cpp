@@ -1501,7 +1501,7 @@ TEST_P(ASTMatchersTest, IgnoringParens) {
   EXPECT_TRUE(matches("const char* str = (\"my-string\");",
                       traverse(ast_type_traits::TK_AsIs,
                                implicitCastExpr(hasSourceExpression(
-                                   ignoringParens(stringLiteral()))))));
+                                   ignoringParenTmp(stringLiteral()))))));
 }
 
 TEST_P(ASTMatchersTest, QualType) {
