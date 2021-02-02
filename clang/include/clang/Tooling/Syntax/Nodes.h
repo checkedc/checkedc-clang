@@ -44,6 +44,7 @@ enum class NodeKind : uint16_t {
   PostfixUnaryOperatorExpression,
   BinaryOperatorExpression,
   ParenExpression,
+  CHKCBindTemporaryExpression,
   IntegerLiteralExpression,
   CharacterLiteralExpression,
   FloatingLiteralExpression,
@@ -167,7 +168,8 @@ enum class NodeRole : uint8_t {
   IdExpression_id,
   IdExpression_qualifier,
   NestedNameSpecifier_specifier,
-  ParenExpression_subExpression
+  ParenExpression_subExpression,
+  CHKCBindTemporaryExpression_subExpression
 };
 /// For debugging purposes.
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, NodeRole R);
@@ -265,6 +267,17 @@ public:
   syntax::Leaf *openParen();
   syntax::Expression *subExpression();
   syntax::Leaf *closeParen();
+};
+
+/// Models binding the result of evaluating an expression
+/// to an anonymous temporary. Checked C-specific.
+class CHKCBindTemporaryExpression final : public Expression {
+public:
+  CHKCBindTemporaryExpression() : Expression(NodeKind::CHKCBindTemporaryExpression) {}
+  static bool classof(const Node *N) {
+    return N->kind() == NodeKind::CHKCBindTemporaryExpression;
+  }
+  syntax::Expression *subExpression();
 };
 
 /// Expression for integer literals. C++ [lex.icon]

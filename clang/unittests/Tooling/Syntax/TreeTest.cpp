@@ -1669,6 +1669,42 @@ void test() {
 }
 
 TEST_P(SyntaxTreeTest, StringLiteral) {
+  // Checked C wraps each StringLiteral expression in a CHKCBindTemporary
+  // expression. When the test language is C, Checked C is enabled by default.
+  if (!GetParam().isCXX()) {
+    EXPECT_TRUE(treeDumpEqual(
+      R"cpp(
+void test() {
+  "a\n\0\x20";
+  L"αβ";
+}
+)cpp",
+      R"txt(
+*: TranslationUnit
+`-SimpleDeclaration
+  |-void
+  |-SimpleDeclarator
+  | |-test
+  | `-ParametersAndQualifiers
+  |   |-(
+  |   `-)
+  `-CompoundStatement
+    |-{
+    |-ExpressionStatement
+    | |-CHKCBindTemporaryExpression
+    | | `-StringLiteralExpression
+    | |   `-"a\n\0\x20"
+    | `-;
+    |-ExpressionStatement
+    | |-CHKCBindTemporaryExpression
+    | | `-StringLiteralExpression
+    | |   `-L"αβ"
+    | `-;
+    `-}
+)txt"));
+    return;
+  }
+
   EXPECT_TRUE(treeDumpEqual(
       R"cpp(
 void test() {

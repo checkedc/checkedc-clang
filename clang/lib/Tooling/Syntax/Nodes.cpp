@@ -20,6 +20,8 @@ llvm::raw_ostream &syntax::operator<<(llvm::raw_ostream &OS, NodeKind K) {
     return OS << "UnknownExpression";
   case NodeKind::ParenExpression:
     return OS << "ParenExpression";
+  case NodeKind::CHKCBindTemporaryExpression:
+    return OS << "CHKCBindTemporaryExpression";
   case NodeKind::IntegerLiteralExpression:
     return OS << "IntegerLiteralExpression";
   case NodeKind::CharacterLiteralExpression:
@@ -192,6 +194,8 @@ llvm::raw_ostream &syntax::operator<<(llvm::raw_ostream &OS, NodeRole R) {
     return OS << "NestedNameSpecifier_specifier";
   case syntax::NodeRole::ParenExpression_subExpression:
     return OS << "ParenExpression_subExpression";
+  case syntax::NodeRole::CHKCBindTemporaryExpression_subExpression:
+    return OS << "CHKCBindTemporaryExpression_subExpression";
   }
   llvm_unreachable("invalid role");
 }
@@ -228,6 +232,11 @@ syntax::Expression *syntax::ParenExpression::subExpression() {
 syntax::Leaf *syntax::ParenExpression::closeParen() {
   return llvm::cast_or_null<syntax::Leaf>(
       findChild(syntax::NodeRole::CloseParen));
+}
+
+syntax::Expression *syntax::CHKCBindTemporaryExpression::subExpression() {
+  return llvm::cast_or_null<syntax::Expression>(
+      findChild(syntax::NodeRole::CHKCBindTemporaryExpression_subExpression));
 }
 
 syntax::Leaf *syntax::IntegerLiteralExpression::literalToken() {
