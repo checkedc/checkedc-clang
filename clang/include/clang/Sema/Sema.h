@@ -4025,14 +4025,15 @@ public:
   };
 
   // Checked C: Perform semantic analysis on a where clause.
-  WhereClause *ActOnWhereClause(SourceLocation Loc);
+  WhereClause *ActOnWhereClause(SourceLocation WhereLoc);
 
-  // Checked C: Perform semantic analysis on a where clause bounds fact.
-  BoundsFact *ActOnBoundsFact(IdentifierInfo *Id, Expr *E,
-                              Scope *CurScope, SourceLocation Loc);
+  // Checked C: Perform semantic analysis on a where clause bounds decl fact.
+  BoundsDeclFact *ActOnBoundsDeclFact(IdentifierInfo *Id, Expr *E,
+                                      Scope *CurScope, SourceLocation IdLoc,
+                                      SourceLocation BoundsLoc);
 
   // Checked C: Perform semantic analysis on a where clause equality-op fact.
-  EqualityOpFact *ActOnEqualityOpFact(Expr *E, SourceLocation Loc);
+  EqualityOpFact *ActOnEqualityOpFact(Expr *E, SourceLocation ExprLoc);
 
   StmtResult ActOnDeclStmt(DeclGroupPtrTy Decl,
                                    SourceLocation StartLoc,

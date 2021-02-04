@@ -1361,11 +1361,16 @@ def err_unpack_expected_one_type_variable : Error<
 def err_unpack_expected_existential_initializer : Error<
   "unpack specifer expects an initializer that has an existential type">;
 
-def err_incorrect_where_clause : Error<"incorrect where clause">;
-
  // Checked C pragmas
 def err_pragma_checked_scope_invalid_argument : Error<
   "unexpected argument '%0' to '#pragma CHECKED_SCOPE'; "
   "expected 'on','off', '_Bounds_only', 'push', or 'pop'">;
+
+// Checked C where clause diagnostics.
+def err_where_clause_bounds_expr_invalid : Error<
+  "invalid bounds expression in where clause">;
+
+def err_where_clause_equality_expr_invalid : Error<
+  "invalid equality expression in where clause">;
 
 } // end of Parser diagnostics

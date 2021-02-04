@@ -4419,36 +4419,44 @@ StmtResult Sema::ActOnCapturedRegionEnd(Stmt *S) {
   return Res;
 }
 
-WhereClause *Sema::ActOnWhereClause(SourceLocation Loc) {
-  return new (Context) WhereClause(Loc);
+WhereClause *Sema::ActOnWhereClause(SourceLocation WhereLoc) {
+  return new (Context) WhereClause(WhereLoc);
 }
 
-BoundsFact *Sema::ActOnBoundsFact(IdentifierInfo *Id, Expr *E,
-                                  Scope *CurScope, SourceLocation Loc) {
+BoundsDeclFact
+*Sema::ActOnBoundsDeclFact(IdentifierInfo *Id, Expr *E,
+                           Scope *CurScope,
+                           SourceLocation IdLoc,
+                           SourceLocation BoundsLoc) {
   BoundsExpr *Bounds = dyn_cast<BoundsExpr>(E);
-  if (!Bounds)
+  if (!Bounds) {
+    Diag(BoundsLoc, diag::err_where_clause_bounds_expr_null);
     return nullptr;
+  }
 
-  LookupResult Lookup(*this, Id, Loc, Sema::LookupOrdinaryName);
+  LookupResult Lookup(*this, Id, IdLoc, Sema::LookupOrdinaryName);
   LookupParsedName(Lookup, CurScope, nullptr, true);
   if (Lookup.empty()) {
-    Diag(Loc, diag::err_undeclared_var_use) << Id->getName();
+    Diag(IdLoc, diag::err_undeclared_var_use) << Id->getName();
     return nullptr;
   }
 
   VarDecl *VD = Lookup.getAsSingle<VarDecl>();
-  if (!VD)
+  if (!VD) {
+    Diag(IdLoc, diag::err_undeclared_var_use) << Id->getName();
     return nullptr;
+  }
 
-  return new (Context) BoundsFact(VD, Bounds, Loc);
+  return new (Context) BoundsDeclFact(VD, Bounds, IdLoc);
 }
 
-EqualityOpFact *Sema::ActOnEqualityOpFact(Expr *E, SourceLocation Loc) {
+EqualityOpFact *Sema::ActOnEqualityOpFact(Expr *E, SourceLocation ExprLoc) {
   // We define an equality-op fact in terms of equality-expressions as defined
   // in section 6.5.9 of the C11 spec. Equality-op facts have an added
   // constraint that the equality-expressions should be non-modifying
   // expressions
 
+  // Here, we are checking whether E is an equality expression defined as:
   // equality-expression:
   //   relational-expression
   //   equality-expression == equality-expression
@@ -4463,12 +4471,16 @@ EqualityOpFact *Sema::ActOnEqualityOpFact(Expr *E, SourceLocation Loc) {
   auto *BO = dyn_cast<BinaryOperator>(TmpE);
   // Note: isComparisonOp is a function which checks for equality and
   // relational operators.
-  if (!BO || !BO->isComparisonOp())
+  if (!BO || !BO->isComparisonOp()) {
+    Diag(ExprLoc, diag::err_where_clause_equality_expr_op_invalid);
     return nullptr;
+  }
 
   if (!CheckIsNonModifying(BO->getLHS()) ||
-      !CheckIsNonModifying(BO->getRHS()))
+      !CheckIsNonModifying(BO->getRHS())) {
+    Diag(ExprLoc, diag::err_where_clause_equality_expr_type_invalid);
     return nullptr;
+  }
 
-  return new (Context) EqualityOpFact(BO, Loc);
+  return new (Context) EqualityOpFact(BO, ExprLoc);
 }

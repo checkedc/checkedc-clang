@@ -2449,8 +2449,6 @@ bool Parser::ParseOpenCLUnrollHintAttribute(ParsedAttributes &Attrs) {
 }
 
 WhereClauseFact *Parser::ParseWhereClauseFact() {
-  SourceLocation Loc = Tok.getLocation();
-
   // TODO: Handle bounds expression surrounded by parentheses, like:
   // _Where ((((p : bounds(p, p + 1))))).
   // Equality expressions surrounded by parentheses are already handled by
@@ -2460,41 +2458,53 @@ WhereClauseFact *Parser::ParseWhereClauseFact() {
     IdentifierInfo *VarName = Tok.getIdentifierInfo();
 
     // Consume the identifier.
-    ConsumeToken();
+    SourceLocation IdLoc = ConsumeToken();
     // Consume the ':' token.
     ConsumeToken();
 
-    // Parse bounds expression.
+    // Get the location of the start of bounds expr.
+    SourceLocation BoundsLoc = Tok.getLocation();
+
+    // Parse a bounds decl expression.
     ExprResult BoundsRes(ParseBoundsExpression());
-    if (BoundsRes.isInvalid())
+    if (BoundsRes.isInvalid()) {
+      Diag(BoundsLoc, diag::err_where_clause_bounds_expr_invalid);
       return nullptr;
-    return Actions.ActOnBoundsFact(VarName, BoundsRes.get(),
-                                   getCurScope(), Loc);
+    }
+
+    return Actions.ActOnBoundsDeclFact(VarName, BoundsRes.get(),
+                                       getCurScope(), IdLoc, BoundsLoc);
   }
 
+  // Parse an equality expression.
+  SourceLocation ExprLoc = Tok.getLocation();
   ExprResult ExprRes = Actions.CorrectDelayedTyposInExpr(ParseExpression());
-  if (ExprRes.isInvalid())
+  if (ExprRes.isInvalid()) {
+    Diag(ExprLoc, diag::err_where_clause_equality_expr_invalid);
     return nullptr;
-  return Actions.ActOnEqualityOpFact(ExprRes.get(), Loc);
+  }
+
+  return Actions.ActOnEqualityOpFact(ExprRes.get(), ExprLoc);
 }
 
 WhereClause *Parser::ParseWhereClause() {
+  SourceLocation WhereLoc = Tok.getLocation();
+
   // Consume the "_Where" token.
   if (ExpectAndConsume(tok::kw__Where)) {
-    EmitDiag(Tok);
+    SkipUntil(tok::semi, StopBeforeMatch);
     return nullptr;
   }
 
-  WhereClause *WClause = Actions.ActOnWhereClause(Tok.getLocation());
-  if (!WClause) {
-    EmitDiag(Tok);
+  WhereClause *WClause = Actions.ActOnWhereClause(WhereLoc);
+  if (!WClause)
     return nullptr;
-  }
 
   while (true) {
     WhereClauseFact *Fact = ParseWhereClauseFact();
     if (!Fact) {
-      EmitDiag(Tok);
+      // Skip until _And or semicolon, don't consume it.
+      SkipUntil(tok::kw__And, StopAtSemi | StopBeforeMatch);
       return nullptr;
     }
 
@@ -2507,15 +2517,5 @@ WhereClause *Parser::ParseWhereClause() {
     ConsumeToken();
   }
 
-  if (WClause->isInvalid()) {
-    EmitDiag(Tok);
-    return nullptr;
-  }
-
   return WClause;
-}
-
-void Parser::EmitDiag(const Token &Tok) {
-  Diag(Tok, diag::err_incorrect_where_clause);
-  SkipUntil(tok::semi);
 }

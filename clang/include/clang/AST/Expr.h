@@ -6792,18 +6792,18 @@ public:
 /// \brief Represents a Checked C where clause fact.
 class WhereClauseFact {
 public:
-  enum class FactKind { BoundsFact, EqualityOpFact };
+  enum class FactKind { BoundsDeclFact, EqualityOpFact };
   FactKind Kind;
 
 private:
-  // For a BoundsFact, Loc gives the location of the variable whose bounds are
-  // being redeclared in the where clause. For example, "_Where p : bounds(p, p
-  // + 1)".                                                     ^
+  // For a BoundsDeclFact, Loc gives the location of the variable whose bounds
+  // are being redeclared in the where clause. For example, "_Where p :
+  // bounds(p, p + 1)".                                                     ^
   // For an EqualityOpFact, Loc gives the location of the start of the equality
   // expression. For example, "_Where a < 1".
   //                                  ^
   // TODO: Implement richer location information by capturing the start and end
-  // locations of where clauses.
+  // locations of where clause facts.
   SourceLocation Loc;
 
 public:
@@ -6811,18 +6811,18 @@ public:
     : Kind(Kind), Loc(Loc) {}
 };
 
-/// \brief Represents a Checked C where clause bounds fact.
-class BoundsFact : public WhereClauseFact {
+/// \brief Represents a Checked C where clause bounds decl fact.
+class BoundsDeclFact : public WhereClauseFact {
 public:
   VarDecl *Var;
   BoundsExpr *Bounds;
 
-  BoundsFact(VarDecl *Var, BoundsExpr *Bounds, SourceLocation Loc)
-    : WhereClauseFact(FactKind::BoundsFact, Loc),
+  BoundsDeclFact(VarDecl *Var, BoundsExpr *Bounds, SourceLocation Loc)
+    : WhereClauseFact(FactKind::BoundsDeclFact, Loc),
       Var(Var), Bounds(Bounds) {}
 
   static bool classof(const WhereClauseFact *Fact) {
-    return Fact->Kind == FactKind::BoundsFact;
+    return Fact->Kind == FactKind::BoundsDeclFact;
   }
 };
 
