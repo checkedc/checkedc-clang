@@ -605,14 +605,21 @@ namespace {
 
       return true;
     }
+
+    // Ensure that any variables within bounds value expressions are detected
+    // by explicitly traversing the child of a bounds value expression.
+    bool VisitBoundsValueExpr(BoundsValueExpr *E) {
+      TraverseStmt(E->getTemporaryBinding());
+      return true;
+    }
   };
 
   // Collect variables in E without duplication. If E is nullptr, return an
   // empty vector.
   EqualExprTy CollectVariableSet(Sema &SemaRef, Expr *E) {
-      CollectVariableSetHelper Helper(SemaRef);
-      Helper.TraverseStmt(E);
-      return Helper.GetVariableList();
+    CollectVariableSetHelper Helper(SemaRef);
+    Helper.TraverseStmt(E);
+    return Helper.GetVariableList();
   }
 }
 
