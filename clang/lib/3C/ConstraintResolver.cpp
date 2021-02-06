@@ -190,6 +190,8 @@ CVarSet ConstraintResolver::getInvalidCastPVCons(CastExpr *E) {
 // ignore parts of it that do not contribute to the final result
 CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
   CVarSet EmptyCSet;
+  auto &ABInfo = Info.getABoundsInfo();
+
   if (E != nullptr) {
     auto &CS = Info.getConstraints();
     QualType TypE = E->getType();
@@ -535,7 +537,6 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
 
         // Make the bounds key context sensitive.
         if (NewCV->hasBoundsKey()) {
-          auto &ABInfo = Info.getABoundsInfo();
           auto CSensBKey =
               ABInfo.getContextSensitiveBoundsKey(CE, NewCV->getBoundsKey());
           NewCV->setBoundsKey(CSensBKey);
@@ -600,6 +601,15 @@ CVarSet ConstraintResolver::getExprConstraintVars(Expr *E) {
           new PVConstraint(Str->getType(), nullptr, Str->getStmtClassName(),
                            Info, *Context, nullptr);
       P->constrainOuterTo(CS, CS.getNTArr()); // NB: ARR already there
+
+      BoundsKey TmpKey = ABInfo.getRandomBKey();
+      P->setBoundsKey(TmpKey);
+
+      BoundsKey CBKey = ABInfo.getConstKey(Str->getByteLength());
+      ABounds *NB = new CountBound(CBKey);
+      ABInfo.replaceBounds(TmpKey, Declared, NB);
+
+
       T = {P};
 
       Ret = T;

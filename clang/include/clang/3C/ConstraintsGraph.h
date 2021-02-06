@@ -150,11 +150,13 @@ public:
     }
   }
 
-  bool getNeighbors(Data D, std::set<Data> &DataSet, bool Succ) {
+  bool getNeighbors(Data D, std::set<Data> &DataSet, bool Succ,
+                    bool Append = false) {
     NodeType *N = this->findNode(D);
     if (N == nullptr)
       return false;
-    DataSet.clear();
+    if (!Append)
+      DataSet.clear();
     llvm::SetVector<EdgeType *> Edges;
     if (Succ)
       Edges = N->getEdges();
@@ -165,12 +167,12 @@ public:
     return !DataSet.empty();
   }
 
-  bool getSuccessors(Data D, std::set<Data> &DataSet) {
-    return getNeighbors(D, DataSet, true);
+  bool getSuccessors(Data D, std::set<Data> &DataSet, bool Append = false) {
+    return getNeighbors(D, DataSet, true, Append);
   }
 
-  bool getPredecessors(Data D, std::set<Data> &DataSet) {
-    return getNeighbors(D, DataSet, false);
+  bool getPredecessors(Data D, std::set<Data> &DataSet, bool Append = false) {
+    return getNeighbors(D, DataSet, false, Append);
   }
 
   NodeType *findNode(Data D) {
