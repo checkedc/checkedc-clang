@@ -402,15 +402,13 @@ void ProgramInfo::exitCompilationUnit() {
   return;
 }
 
-bool ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
+void ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
                                                 const std::string &FuncName,
                                                 FVConstraint *NewC,
                                                 FunctionDecl *FD,
                                                 ASTContext *C) {
-  bool RetVal = false;
   if (Map.find(FuncName) == Map.end()) {
     Map[FuncName] = NewC;
-    RetVal = true;
   } else {
     auto *OldC = Map[FuncName];
     if (!OldC->hasBody()) {
@@ -418,7 +416,6 @@ bool ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
           (OldC->numParams() == 0 && NewC->numParams() != 0)) {
         NewC->brainTransplant(OldC, *this);
         Map[FuncName] = NewC;
-        RetVal = true;
       } else {
         // if the current FV constraint is not a definition?
         // then merge.
@@ -450,44 +447,42 @@ bool ProgramInfo::insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
           DiagnosticsEngine::Fatal, "duplicate definition for function %0");
       DE.Report(FD->getLocation(), DuplicateDefinitionsID).AddString(FuncName);
       exit(1);
+    } else {
+      // The old constraint has a body, but we've encountered another prototype
+      // for the function.
+      assert(OldC->hasBody() && !NewC->hasBody());
+      // By transplanting the atoms of OldC into NewC, we ensure that any
+      // constraints applied to NewC later on constrain the atoms of OldC.
+      NewC->brainTransplant(OldC, *this);
     }
-    // else oldc->hasBody() so we can ignore the newC prototype
   }
-  return RetVal;
 }
 
-bool ProgramInfo::insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
+void ProgramInfo::insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
                                               const std::string &FuncName,
                                               const std::string &FileName,
                                               FVConstraint *ToIns,
                                               FunctionDecl *FD, ASTContext *C) {
-  bool RetVal = false;
-  if (Map.find(FileName) == Map.end()) {
+  if (Map.find(FileName) == Map.end())
     Map[FileName][FuncName] = ToIns;
-    RetVal = true;
-  } else {
-    RetVal =
-        insertIntoExternalFunctionMap(Map[FileName], FuncName, ToIns, FD, C);
-  }
-  return RetVal;
+  else
+    insertIntoExternalFunctionMap(Map[FileName], FuncName, ToIns, FD, C);
 }
 
-bool ProgramInfo::insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
+void ProgramInfo::insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
                                         ASTContext *C) {
-  bool Ret = false;
   std::string FuncName = FD->getNameAsString();
   if (FD->isGlobal()) {
     // external method.
-    Ret = insertIntoExternalFunctionMap(ExternalFunctionFVCons, FuncName, FVCon,
-                                        FD, C);
+    insertIntoExternalFunctionMap(ExternalFunctionFVCons, FuncName, FVCon, FD,
+                                  C);
   } else {
     // static method
     auto Psl = PersistentSourceLoc::mkPSL(FD, *C);
     std::string FuncFileName = Psl.getFileName();
-    Ret = insertIntoStaticFunctionMap(StaticFunctionFVCons, FuncName,
-                                      FuncFileName, FVCon, FD, C);
+    insertIntoStaticFunctionMap(StaticFunctionFVCons, FuncName, FuncFileName,
+                                FVCon, FD, C);
   }
-  return Ret;
 }
 
 void ProgramInfo::specialCaseVarIntros(ValueDecl *D, ASTContext *Context) {
@@ -548,31 +543,38 @@ void ProgramInfo::addVariable(clang::DeclaratorDecl *D,
     // Function Decls have FVConstraints.
     FVConstraint *F = new FVConstraint(D, *this, *AstContext);
     F->setValidDecl();
-    PVConstraint *RetExternal = F->getExternalReturn();
-    PVConstraint *RetInternal = F->getInternalReturn();
-    auto Ret_Ty = FD->getReturnType();
-    unifyIfTypedef(Ret_Ty.getTypePtr(), *AstContext, FD, RetExternal);
-    unifyIfTypedef(Ret_Ty.getTypePtr(), *AstContext, FD, RetInternal);
-
 
     // Handling of PSL collision for functions is different since we need to
     // consider the static and extern function maps.
     if (Variables.find(PLoc) != Variables.end()) {
       // Try to find a previous definition based on function name
       if (!getFuncConstraint(FD, AstContext)) {
-        constrainWildIfMacro(F, FD->getLocation());
+        // No function with the same name exists. It's concerning that
+        // something already exists at this source location, but we add the
+        // function to the function map anyways. The function map indexes by
+        // function name, so there's no collision.
         insertNewFVConstraint(FD, F, AstContext);
+        constrainWildIfMacro(F, FD->getLocation());
       } else {
-        // FIXME: Visiting same function in same source location twice.
-        //        This shouldn't happen, but it does for some std lib functions
-        //        on our benchmarks programs (vsftpd, lua, etc.). Bailing for
-        //        now, but a real fix will catch and prevent this earlier.
+        // A function with the same name exists in the same source location.
+        // This happens when a function is defined in a header file which is
+        // included in multiple translation units. getFuncConstraint returned
+        // non-null, so we know that the definition has been processed already,
+        // and there is no more work to do.
       }
       return;
     }
 
-    /* Store the FVConstraint in the global and Variables maps */
+    // Store the FVConstraint in the global and Variables maps. In doing this,
+    // insertNewFVConstraint might replace the atoms in F with the atoms of a
+    // FVConstraint that already exists in the map. Doing this loses any
+    // constraints that might have effected the original atoms, so do not create
+    // any constraint on F before this function is called.
     insertNewFVConstraint(FD, F, AstContext);
+
+    auto RetTy = FD->getReturnType();
+    unifyIfTypedef(RetTy.getTypePtr(), *AstContext, FD, F->getExternalReturn());
+    unifyIfTypedef(RetTy.getTypePtr(), *AstContext, FD, F->getInternalReturn());
 
     NewCV = F;
     // Add mappings from the parameters PLoc to the constraint variables for

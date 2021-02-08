@@ -169,15 +169,13 @@ private:
   TypeParamBindingsT TypeParamBindings;
 
   // Insert the given FVConstraint* set into the provided Map.
-  // Returns true if successful else false.
-  bool insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
+  void insertIntoExternalFunctionMap(ExternalFunctionMapType &Map,
                                      const std::string &FuncName,
-                                     FVConstraint *ToIns, FunctionDecl *FD,
+                                     FVConstraint *NewC, FunctionDecl *FD,
                                      ASTContext *C);
 
   // Inserts the given FVConstraint* set into the provided static map.
-  // Returns true if successful else false.
-  bool insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
+  void insertIntoStaticFunctionMap(StaticFunctionMapType &Map,
                                    const std::string &FuncName,
                                    const std::string &FileName,
                                    FVConstraint *ToIns, FunctionDecl *FD,
@@ -188,9 +186,14 @@ private:
   //  * va_list-typed variables
   void specialCaseVarIntros(ValueDecl *D, ASTContext *Context);
 
-  // Inserts the given FVConstraint* set into the global map, depending
-  // on whether static or not; returns true on success
-  bool insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
+  // Inserts the given FVConstraint set into the extern or static function map.
+  // Note: This can trigger a brainTransplant from an existing FVConstraint into
+  // the argument FVConstraint. The brainTransplant copies the atoms of the
+  // existing FVConstraint into the argument. This effectively throws out any
+  // constraints that may been applied to the argument FVConstraint, so do not
+  // call this function any time other than immediately after constructing an
+  // FVConstraint.
+  void insertNewFVConstraint(FunctionDecl *FD, FVConstraint *FVCon,
                              ASTContext *C);
 
   // Retrieves a FVConstraint* from a Decl (which could be static, or global)
