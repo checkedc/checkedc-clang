@@ -97,7 +97,7 @@ public:
     }
     if (!TSInfo || TypeLoc.isNull())
       return SourceRange(Decl->getBeginLoc(),
-                         getFunctionDeclarationEnd(Decl, SM));
+                         getFunctionDeclRParen(Decl, SM));
 
     // Function pointer are funky, and require special handling to rewrite the
     // return type.
@@ -118,11 +118,38 @@ public:
 
     // If rewriting Parameters, stop at the right parenthesis of the parameters.
     // Otherwise, stop after the return type.
-    // Note: getFunctionDeclarationEnd is used instead of getRParenLoc so that
-    // itypes are deleted correctly when --remove-itypes is used.
-    SourceLocation End = RewriteParams
-                             ? getFunctionDeclarationEnd(Decl, SM)
-                             : Decl->getReturnTypeSourceRange().getEnd();
+    SourceLocation End;
+    if (RewriteParams) {
+      // When there are no bounds or itypes on a function, the declaration ends
+      // at the right paren of the declaration parameter list.
+      End = TypeLoc.getRParenLoc();
+
+      // If there's a bounds expression, this comes after the right paren of the
+      // function declaration parameter list.
+      if (auto *BoundsE = Decl->getBoundsExpr()) {
+        SourceLocation BoundsEnd = BoundsE->getEndLoc();
+        if (BoundsEnd.isValid())
+          End = BoundsEnd;
+      }
+
+      // If there's an itype, this also comes after the right paren. In the case
+      // that there is both a bounds expression and an itype, we need check
+      // which is later in the file and use that as the declaration end.
+      if (auto *InteropE = Decl->getInteropTypeExpr()) {
+        SourceLocation InteropEnd = InteropE->getEndLoc();
+        if (InteropEnd.isValid() &&
+            (!End.isValid() || SM.isBeforeInTranslationUnit(End, InteropEnd)))
+          End = InteropEnd;
+      }
+
+      // SourceLocations are weird and turn up invalid for reasons I don't
+      // understand. Fallback to extracting r paren location from source
+      // character buffer.
+      if (!End.isValid())
+        End = getFunctionDeclRParen(Decl, SM);
+    } else {
+      End = Decl->getReturnTypeSourceRange().getEnd();
+    }
 
     assert("Invalid FunctionDeclReplacement SourceRange!" && Begin.isValid() &&
            End.isValid());

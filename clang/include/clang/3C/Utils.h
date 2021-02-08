@@ -133,8 +133,8 @@ bool isStructOrUnionType(clang::VarDecl *VD);
 std::string tyToStr(const clang::Type *T);
 
 // Get the end source location of the end of the provided function.
-clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD,
-                                                clang::SourceManager &S);
+clang::SourceLocation getFunctionDeclRParen(clang::FunctionDecl *FD,
+                                            clang::SourceManager &S);
 
 // Remove auxillary casts from the provided expression.
 clang::Expr *removeAuxillaryCasts(clang::Expr *SrcExpr);

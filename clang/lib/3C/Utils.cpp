@@ -56,7 +56,16 @@ FunctionDecl *getDefinition(FunctionDecl *FD) {
   return nullptr;
 }
 
-SourceLocation getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S) {
+// Get the source location for the right paren of a function declaration
+// using the source character data buffer. Because this uses the character
+// buffer directly, it sees character data prior to preprocessing. This
+// means characters that are in comments, macros or otherwise not part of the
+// final preprocessed source code are seen and can cause this function to give
+// an incorrect result. This should only be used as a fall back for when the
+// clang library function FunctionTypeLoc::getRParenLoc cannot be called due to
+// a null FunctionTypeLoc or for when the function returns an invalid source
+// location.
+SourceLocation getFunctionDeclRParen(FunctionDecl *FD, SourceManager &S) {
   const FunctionDecl *OFd = nullptr;
 
   if (FD->hasBody(OFd) && OFd == FD) {

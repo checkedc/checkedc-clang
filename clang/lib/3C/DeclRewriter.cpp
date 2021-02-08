@@ -713,8 +713,8 @@ FunctionDeclBuilder::buildDeclVar(PVConstraint *IntCV, PVConstraint *ExtCV,
     IType = "";
   } else {
     Type = ExtCV->getOriginalTy() + " ";
-    IType =
-      getExistingIType(ExtCV) + ABRewriter.getBoundsString(ExtCV, Decl, false);
+    IType = getExistingIType(ExtCV);
+    IType += ABRewriter.getBoundsString(ExtCV, Decl, !IType.empty());
   }
 }
 
