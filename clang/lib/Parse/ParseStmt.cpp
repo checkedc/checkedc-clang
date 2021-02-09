@@ -2480,7 +2480,7 @@ WhereClauseFact *Parser::ParseWhereClauseFact() {
   SourceLocation ExprLoc = Tok.getLocation();
   ExprResult ExprRes = Actions.CorrectDelayedTyposInExpr(ParseExpression());
   if (ExprRes.isInvalid()) {
-    Diag(ExprLoc, diag::err_where_clause_equality_expr_invalid);
+    Diag(ExprLoc, diag::err_where_clause_invalid);
     return nullptr;
   }
 

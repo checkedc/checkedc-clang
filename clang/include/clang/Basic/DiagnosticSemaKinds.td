@@ -9793,9 +9793,9 @@ def err_where_clause_bounds_expr_null : Error<
   "bounds expression in where clause cannot be null">;
 
 def err_where_clause_equality_expr_op_invalid : Error<
-  "expected equality or relational operator in where clause equality expression">;
+  "expected comparison operator in where clause equality expression">;
 
-def err_where_clause_equality_expr_type_invalid : Error<
+def err_where_clause_equality_expr_invalid : Error<
   "expected a non-modifying equality expression in where clause">;
 
 // Checked C diagnostic messages

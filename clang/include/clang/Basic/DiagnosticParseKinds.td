@@ -1370,7 +1370,7 @@ def err_pragma_checked_scope_invalid_argument : Error<
 def err_where_clause_bounds_expr_invalid : Error<
   "invalid bounds expression in where clause">;
 
-def err_where_clause_equality_expr_invalid : Error<
-  "invalid equality expression in where clause">;
+def err_where_clause_invalid : Error<
+  "invalid where clause">;
 
 } // end of Parser diagnostics

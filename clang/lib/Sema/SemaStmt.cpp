@@ -4454,7 +4454,7 @@ EqualityOpFact *Sema::ActOnEqualityOpFact(Expr *E, SourceLocation ExprLoc) {
   // We define an equality-op fact in terms of equality-expressions as defined
   // in section 6.5.9 of the C11 spec. Equality-op facts have an added
   // constraint that the equality-expressions should be non-modifying
-  // expressions
+  // expressions.
 
   // Here, we are checking whether E is an equality expression defined as:
   // equality-expression:
@@ -4478,7 +4478,7 @@ EqualityOpFact *Sema::ActOnEqualityOpFact(Expr *E, SourceLocation ExprLoc) {
 
   if (!CheckIsNonModifying(BO->getLHS()) ||
       !CheckIsNonModifying(BO->getRHS())) {
-    Diag(ExprLoc, diag::err_where_clause_equality_expr_type_invalid);
+    Diag(ExprLoc, diag::err_where_clause_equality_expr_invalid);
     return nullptr;
   }
 
