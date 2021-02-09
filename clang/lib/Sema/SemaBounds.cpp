@@ -6573,6 +6573,14 @@ namespace {
       return true;
     }
 
+    // Do not traverse the children of a BoundsValueExpr. Any expressions
+    // that are wrapped in a BoundsValueExpr should not be considered
+    // modifying expressions. For example, BoundsValue(TempBinding(f()))
+    // should not be considered modifying.
+    bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
+      return true;
+    }
+
 
   private:
     Sema &S;
