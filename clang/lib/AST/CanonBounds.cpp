@@ -23,6 +23,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/PreorderAST.h"
 #include "clang/AST/Stmt.h"
+#include "clang/Basic/SourceManager.h"
 
 using namespace clang;
 using Result = Lexicographic::Result;
@@ -109,6 +110,46 @@ static Result ComparePointers(T *P1, T *P2, bool &ordered) {
   return Result::LessThan;
 }
 
+// \brief Order two source locations based on the lexicographic
+// ordering of filenames if the two source locationsi are in
+// different source files, and based on line/column numbers if
+// the two source locations are in the same source file.
+Result
+Lexicographic::CompareLoc(const SourceLocation *SL1,
+                          const SourceLocation *SL2) const {
+  if (SL1 && SL2) {
+    if (SL1 == SL2)
+      return Result::Equal;
+    const SourceManager *SM = &Context.getSourceManager();
+    if (!SM) {
+      llvm_unreachable("unexpected null SourceManager");
+      return Result::LessThan;
+    }
+    const SourceLocation SLoc1 = SM->getSpellingLoc(*SL1);
+    const SourceLocation SLoc2 = SM->getSpellingLoc(*SL2);
+    const PresumedLoc PLoc1 = SM->getPresumedLoc(SLoc1);
+    const PresumedLoc PLoc2 = SM->getPresumedLoc(SLoc2);
+    if (PLoc1.isInvalid() || PLoc2.isInvalid()) {
+      llvm_unreachable("unexpected invalid source locations");
+      return Result::LessThan;
+    }
+    Result Cmp = TranslateInt(strcmp(PLoc1.getFilename(), PLoc2.getFilename()));
+    if (Cmp != Result::Equal)
+      return Cmp;
+
+    Cmp = TranslateInt((int)PLoc1.getLine() - (int)PLoc2.getLine());
+    if (Cmp != Result::Equal)
+      return Cmp;
+
+    Cmp = TranslateInt((int)PLoc1.getColumn() - (int)PLoc2.getColumn());
+    if (Cmp != Result::Equal)
+      return Cmp;
+  }
+
+  llvm_unreachable("unexpected source locations");
+  return Result::LessThan;
+}
+
 Result
 Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) const {
    DC1 = DC1->getPrimaryContext();
@@ -123,7 +164,11 @@ Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) cons
 
   switch (DC1->getDeclKind()) {
     case Decl::TranslationUnit: return Result::Equal;
-    case Decl::Captured: return Result::Equal;
+    case Decl::Captured: {
+      const CapturedDecl *CD1 = dyn_cast<CapturedDecl>(DC1);
+      const CapturedDecl *CD2 = dyn_cast<CapturedDecl>(DC2);
+      return CompareDecl(CD1, CD2);
+    }
     case Decl::Function: 
     case Decl::Enum:
     case Decl::Record: {
@@ -135,6 +180,20 @@ Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) cons
       llvm_unreachable("unexpected scope type");
       return Result::LessThan;
   }
+}
+
+Result
+Lexicographic::CompareDecl(const CapturedDecl *CD1,
+                           const CapturedDecl *CD2) const {
+  Stmt *SList1 = CD1->getBody();
+  Stmt *SList2 = CD2->getBody();
+  if (SList1 && SList2) {
+    const SourceLocation SL1 = SList1->getSourceRange().getBegin();
+    const SourceLocation SL2 = SList2->getSourceRange().getBegin();
+    return CompareLoc(&SL1, &SL2);
+  }
+  llvm_unreachable("unexpected captured scope type");
+  return Result::LessThan;
 }
 
 Result
