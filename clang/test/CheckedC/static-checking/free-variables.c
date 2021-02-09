@@ -172,3 +172,17 @@ void g(void) {
                                               // expected-note {{inferred bounds are}}
 }
 
+void f_itype(int *p : itype(ptr<int>));
+void f_arrayptr(array_ptr<int> p : count(2));
+
+void h(void) {
+  int *p = 0;
+  f_itype(_Assume_bounds_cast<ptr<int>>(p)); // expected-warning {{cannot prove argument meets declared bounds for 1st parameter}} \
+                                             // expected-note {{(expanded) expected argument bounds are 'bounds((_Array_ptr<int>)_Assume_bounds_cast<_Ptr<int>>p(count(1)), (_Array_ptr<int>)_Assume_bounds_cast<_Ptr<int>>p(count(1)) + 1)'}} \
+                                             // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<int>)value of p, (_Array_ptr<int>)value of p + 1)'}}
+
+  array_ptr<int> a : count(2) = 0;
+  f_arrayptr(_Assume_bounds_cast<array_ptr<int>>(a, count(2))); // expected-warning {{cannot prove argument meets declared bounds for 1st parameter}} \
+                                                                // expected-note {{(expanded) expected argument bounds are 'bounds(_Assume_bounds_cast<_Array_ptr<int>>a(count(2)), _Assume_bounds_cast<_Array_ptr<int>>a(count(2)) + 2)'}} \
+                                                                // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<int>)value of a, (_Array_ptr<int>)value of a + 2)'}}
+}
