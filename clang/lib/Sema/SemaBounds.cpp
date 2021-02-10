@@ -555,6 +555,15 @@ namespace {
           ++Count;
         return true;
       }
+
+      // Do not traverse the child of a BoundsValueExpr.
+      // If a BoundsValueExpr uses the variable V, this should not count
+      // toward the total occurrence count of V in the expression.
+      // For example, for the expression BoundsValue(TempBinding(v)) + v, the
+      // total occurrence count of the variable v should be 1, not 2.
+      bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
+        return true;
+      }
   };
 
   // VariableOccurrenceCount returns the number of occurrences of V in E.
@@ -667,6 +676,14 @@ namespace {
         else
           return ExprCreatorUtil::CreateImplicitCast(SemaRef, Child,
                                                      CK, E->getType());
+      }
+
+      // Do not replace expressions within a BoundsValueExpr.
+      // For example, the result of replacing `v` with `v + 1` in
+      // BoundsValue(TempBinding(v)) should be BoundsValue(TempBinding(v)),
+      // not BoundsValue(TempBinding(v + 1)).
+      bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
+        return true;
       }
   };
 
