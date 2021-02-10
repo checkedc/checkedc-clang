@@ -76,8 +76,6 @@ namespace clang {
     Result CompareInteger(unsigned I1, unsigned I2) const;
     Result CompareRelativeBoundsClause(const RelativeBoundsClause *RC1,
                                        const RelativeBoundsClause *RC2);
-    Result CompareLoc(const SourceLocation *SL1,
-                      const SourceLocation *SL2) const;
     Result CompareScope(const DeclContext *DC1, const DeclContext *DC2) const;
 
     Result CompareImpl(const PredefinedExpr *E1, const PredefinedExpr *E2);
@@ -135,7 +133,6 @@ namespace clang {
     /// \brief Compare declarations that may be used by expressions or
     /// or types.
     Result CompareDecl(const NamedDecl *D1, const NamedDecl *D2) const;
-    Result CompareDecl(const CapturedDecl *D1, const CapturedDecl *D2) const;
     Result CompareType(QualType T1, QualType T2) const;
     Result CompareTypeIgnoreCheckedness(QualType QT1, QualType QT2) const;
     Result CompareTypeLexicographically(QualType QT1, QualType QT2) const;

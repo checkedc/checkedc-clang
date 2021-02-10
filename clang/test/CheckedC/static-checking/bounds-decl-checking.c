@@ -690,35 +690,3 @@ void f85(_Ptr<struct st_80_arr> arr, int b) {
     arr->c = b * b;
   }
 }
-
-void f86(void) {
-#pragma omp parallel
-  for (int i = 0; i < 10; ++i)
-    ;
-#pragma omp parallel
-  for (int i = 0; i < 10; ++i)
-    ;
-}
-
-void f87(void) {
-#pragma omp target
-#pragma omp parallel
-  for (int i = 0; i < 10; ++i)
-    ;
-#pragma omp parallel
-  for (int i = 0; i < 10; ++i)
-    ;
-}
-
-void f88(void) {
-#pragma omp parallel
-  for (int i = 0; i < 10; ++i) ; for (int i = 0; i < 10; ++i) ; // exprected-warning {{for loop has empty body}} \
-                                                                // expected-note {{put the semicolon on a separate line to silence this warning}} \
-                                                                // expected-warning {{for loop has empty body}}
-#pragma omp parallel
-  for (int i = 0; i < 10; ++i) ;
-}
-
-void f89(void) {
-#pragma omp parallel
-}
