@@ -1366,11 +1366,4 @@ def err_pragma_checked_scope_invalid_argument : Error<
   "unexpected argument '%0' to '#pragma CHECKED_SCOPE'; "
   "expected 'on','off', '_Bounds_only', 'push', or 'pop'">;
 
-// Checked C where clause diagnostics.
-def err_where_clause_bounds_expr_invalid : Error<
-  "invalid bounds expression in where clause">;
-
-def err_where_clause_invalid : Error<
-  "invalid where clause">;
-
 } // end of Parser diagnostics

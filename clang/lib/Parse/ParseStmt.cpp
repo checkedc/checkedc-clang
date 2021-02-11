@@ -2467,11 +2467,8 @@ WhereClauseFact *Parser::ParseWhereClauseFact() {
 
     // Parse a bounds decl expression.
     ExprResult BoundsRes(ParseBoundsExpression());
-    if (BoundsRes.isInvalid()) {
-      Diag(BoundsLoc, diag::err_where_clause_bounds_expr_invalid);
+    if (BoundsRes.isInvalid())
       return nullptr;
-    }
-
     return Actions.ActOnBoundsDeclFact(VarName, BoundsRes.get(),
                                        getCurScope(), IdLoc, BoundsLoc);
   }
@@ -2479,11 +2476,8 @@ WhereClauseFact *Parser::ParseWhereClauseFact() {
   // Parse an equality expression.
   SourceLocation ExprLoc = Tok.getLocation();
   ExprResult ExprRes = Actions.CorrectDelayedTyposInExpr(ParseExpression());
-  if (ExprRes.isInvalid()) {
-    Diag(ExprLoc, diag::err_where_clause_invalid);
+  if (ExprRes.isInvalid())
     return nullptr;
-  }
-
   return Actions.ActOnEqualityOpFact(ExprRes.get(), ExprLoc);
 }
 
@@ -2502,13 +2496,8 @@ WhereClause *Parser::ParseWhereClause() {
 
   while (true) {
     WhereClauseFact *Fact = ParseWhereClauseFact();
-    if (!Fact) {
-      // Skip until _And or semicolon, don't consume it.
-      SkipUntil(tok::kw__And, StopAtSemi | StopBeforeMatch);
-      return nullptr;
-    }
-
-    WClause->addFact(Fact);
+    if (Fact)
+      WClause->addFact(Fact);
 
     if (Tok.isNot(tok::kw__And))
       break;
@@ -2517,5 +2506,7 @@ WhereClause *Parser::ParseWhereClause() {
     ConsumeToken();
   }
 
+  if (WClause->isInvalid())
+    return nullptr;
   return WClause;
 }

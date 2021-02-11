@@ -4468,7 +4468,7 @@ EqualityOpFact *Sema::ActOnEqualityOpFact(Expr *E, SourceLocation ExprLoc) {
   // TODO: Handle equality-op facts joined by logical operators, like
   // _Where equality-op-fact && equality-op-fact || equality-op-fact.
 
-  auto *BO = dyn_cast<BinaryOperator>(TmpE);
+  auto *BO = dyn_cast_or_null<BinaryOperator>(TmpE);
   // Note: isComparisonOp is a function which checks for equality and
   // relational operators.
   if (!BO || !BO->isComparisonOp()) {
@@ -4477,10 +4477,7 @@ EqualityOpFact *Sema::ActOnEqualityOpFact(Expr *E, SourceLocation ExprLoc) {
   }
 
   if (!CheckIsNonModifying(BO->getLHS()) ||
-      !CheckIsNonModifying(BO->getRHS())) {
-    Diag(ExprLoc, diag::err_where_clause_equality_expr_invalid);
+      !CheckIsNonModifying(BO->getRHS()))
     return nullptr;
-  }
-
   return new (Context) EqualityOpFact(BO, ExprLoc);
 }

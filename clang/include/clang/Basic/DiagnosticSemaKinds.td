@@ -9793,10 +9793,7 @@ def err_where_clause_bounds_expr_null : Error<
   "bounds expression in where clause cannot be null">;
 
 def err_where_clause_equality_expr_op_invalid : Error<
-  "expected comparison operator in where clause equality expression">;
-
-def err_where_clause_equality_expr_invalid : Error<
-  "expected a non-modifying equality expression in where clause">;
+  "expected comparison operator in equality expression">;
 
 // Checked C diagnostic messages
 let CategoryName = "Checked C" in {
