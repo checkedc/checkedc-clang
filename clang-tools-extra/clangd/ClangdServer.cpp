@@ -196,7 +196,9 @@ void ClangdServer::_3CCollectAndBuildInitialConstraints(
     _3CDiagInfo.clearAllDiags();
     ConvCB->send3CMessage("Running 3C for first time.");
     _3CInter.buildInitialConstraints();
-    _3CInter.solveConstraints(true);
+    // NOTE: If and when we revive clangd3c, revisit this to make sure
+    // computeInterimConstraintState gets called if clangd3c needs it.
+    _3CInter.solveConstraints();
     ConvCB->send3CMessage("Finished running 3C.");
     log("3C: Built initial constraints successfully.\n");
     auto &WildPtrsInfo = _3CInter.getWildPtrsInfo();

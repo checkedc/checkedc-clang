@@ -833,45 +833,49 @@ void LengthVarInference::VisitStmt(Stmt *St) {
 // (or any assignments of X to the variables of the same scope as arr) to be
 // the size of arr.
 void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
-  assert(CurBB != nullptr && "Array dereference does not belong "
-                             "to any basic block");
-  // First, get the BoundsKey for the base.
-  Expr *BE = ASE->getBase()->IgnoreParenCasts();
+  if (CurBB != nullptr) {
+    // First, get the BoundsKey for the base.
+    Expr *BE = ASE->getBase()->IgnoreParenCasts();
 
-  // If this is a multi-level array dereference i.e., a[i][j],
-  // then try-processing the base ASE i.e., a[i].
-  if (ArraySubscriptExpr *SubASE = dyn_cast_or_null<ArraySubscriptExpr>(BE)) {
-    VisitArraySubscriptExpr(SubASE);
-    return;
-  }
-  auto BaseCVars = CR->getExprConstraintVars(BE);
-  // Next get the index used.
-  Expr *IdxExpr = ASE->getIdx()->IgnoreParenCasts();
-  auto IdxCVars = CR->getExprConstraintVars(IdxExpr);
+    // If this is a multi-level array dereference i.e., a[i][j],
+    // then try-processing the base ASE i.e., a[i].
+    if (ArraySubscriptExpr *SubASE = dyn_cast_or_null<ArraySubscriptExpr>(BE)) {
+      VisitArraySubscriptExpr(SubASE);
+      return;
+    }
+    auto BaseCVars = CR->getExprConstraintVars(BE);
+    // Next get the index used.
+    Expr *IdxExpr = ASE->getIdx()->IgnoreParenCasts();
+    auto IdxCVars = CR->getExprConstraintVars(IdxExpr);
 
-  // Get the bounds key of the base and index.
-  if (CR->containsValidCons(BaseCVars) && !CR->containsValidCons(IdxCVars)) {
-    BoundsKey BasePtr, IdxKey;
-    auto &ABI = I.getABoundsInfo();
-    if (CR->resolveBoundsKey(BaseCVars, BasePtr) &&
-        (CR->resolveBoundsKey(IdxCVars, IdxKey) ||
-         ABI.tryGetVariable(IdxExpr, *C, IdxKey))) {
-      std::set<BoundsKey> PossibleLens;
-      PossibleLens.clear();
-      ComparisionVisitor CV(I, C, IdxKey, PossibleLens);
-      auto &CDNodes = CDG->getControlDependencies(CurBB);
-      if (!CDNodes.empty()) {
-        // Next try to find all the nodes that the CurBB is
-        // control dependent on.
-        // For each of the control dependent node, check if we are comparing the
-        // index variable with another variable.
-        for (auto &CDGNode : CDNodes) {
-          // Collect the possible length bounds keys.
-          CV.TraverseStmt(CDGNode->getTerminatorStmt());
+    // Get the bounds key of the base and index.
+    if (CR->containsValidCons(BaseCVars) && !CR->containsValidCons(IdxCVars)) {
+      BoundsKey BasePtr, IdxKey;
+      auto &ABI = I.getABoundsInfo();
+      if (CR->resolveBoundsKey(BaseCVars, BasePtr) &&
+          (CR->resolveBoundsKey(IdxCVars, IdxKey) ||
+           ABI.tryGetVariable(IdxExpr, *C, IdxKey))) {
+        std::set<BoundsKey> PossibleLens;
+        PossibleLens.clear();
+        ComparisionVisitor CV(I, C, IdxKey, PossibleLens);
+        auto &CDNodes = CDG->getControlDependencies(CurBB);
+        if (!CDNodes.empty()) {
+          // Next try to find all the nodes that the CurBB is
+          // control dependent on.
+          // For each of the control dependent node, check if we are comparing the
+          // index variable with another variable.
+          for (auto &CDGNode : CDNodes) {
+            // Collect the possible length bounds keys.
+            CV.TraverseStmt(CDGNode->getTerminatorStmt());
+          }
+          ABI.updatePotentialCountBounds(BasePtr, PossibleLens);
         }
-        ABI.updatePotentialCountBounds(BasePtr, PossibleLens);
       }
     }
+  } else {
+    llvm::dbgs() << "Array dereference";
+    ASE->dump(llvm::dbgs());
+    llvm::dbgs() << " does not belong to any basic block.\n";
   }
 }
 
