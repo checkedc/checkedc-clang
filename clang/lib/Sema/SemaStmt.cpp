@@ -4430,7 +4430,7 @@ BoundsDeclFact
                            SourceLocation BoundsLoc) {
   BoundsExpr *Bounds = dyn_cast<BoundsExpr>(E);
   if (!Bounds) {
-    Diag(BoundsLoc, diag::err_where_clause_bounds_expr_null);
+    Diag(BoundsLoc, diag::err_expected_bounds_expr_for_member);
     return nullptr;
   }
 
@@ -4469,13 +4469,15 @@ EqualityOpFact *Sema::ActOnEqualityOpFact(Expr *E, SourceLocation ExprLoc) {
   // _Where equality-op-fact && equality-op-fact || equality-op-fact.
 
   auto *BO = dyn_cast_or_null<BinaryOperator>(TmpE);
-  // Note: isComparisonOp is a function which checks for equality and
-  // relational operators.
+
+  // isComparisonOp checks for equality and relational operators.
   if (!BO || !BO->isComparisonOp()) {
-    Diag(ExprLoc, diag::err_where_clause_equality_expr_op_invalid);
+    Diag(ExprLoc, diag::err_expected_equality_op_in_expr);
     return nullptr;
   }
 
+  // CheckIsNonModifying issues a diagnostic if its argument is not
+  // non-modifying.
   if (!CheckIsNonModifying(BO->getLHS()) ||
       !CheckIsNonModifying(BO->getRHS()))
     return nullptr;
