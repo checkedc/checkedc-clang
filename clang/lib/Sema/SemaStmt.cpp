@@ -4472,7 +4472,7 @@ EqualityOpFact *Sema::ActOnEqualityOpFact(Expr *E, SourceLocation ExprLoc) {
 
   // isComparisonOp checks for equality and relational operators.
   if (!BO || !BO->isComparisonOp()) {
-    Diag(ExprLoc, diag::err_expected_equality_op_in_expr);
+    Diag(ExprLoc, diag::err_expected_comparison_op_in_equality_expr);
     return nullptr;
   }
 

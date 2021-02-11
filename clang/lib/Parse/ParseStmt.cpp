@@ -2494,9 +2494,12 @@ WhereClause *Parser::ParseWhereClause() {
   if (!WClause)
     return nullptr;
 
+  bool IsError = false;
   while (true) {
     WhereClauseFact *Fact = ParseWhereClauseFact();
-    if (Fact)
+    if (!Fact)
+      IsError = true;
+    else
       WClause->addFact(Fact);
 
     if (Tok.isNot(tok::kw__And))
@@ -2506,7 +2509,7 @@ WhereClause *Parser::ParseWhereClause() {
     ConsumeToken();
   }
 
-  if (WClause->isInvalid())
+  if (IsError)
     return nullptr;
   return WClause;
 }

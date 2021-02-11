@@ -9788,7 +9788,7 @@ def err_bit_cast_non_trivially_copyable : Error<
 def err_bit_cast_type_size_mismatch : Error<
   "__builtin_bit_cast source size does not equal destination size (%0 vs %1)">;
 
-def err_expected_equality_op_in_expr : Error<
+def err_expected_comparison_op_in_equality_expr : Error<
   "expected comparison operator in equality expression">;
 
 // Checked C diagnostic messages
