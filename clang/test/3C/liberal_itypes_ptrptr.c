@@ -1,6 +1,6 @@
 // RUN: 3c -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
 // RUN: 3c -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -alltypes -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -alltypes -addcr %s -- | %clang -c -fcheckedc-extension -Xclang -verify -Xclang -verify-ignore-unexpected=warning,note -x c -o /dev/null -
 // RUN: 3c -alltypes -output-postfix=checked %s
 // RUN: 3c -alltypes %S/liberal_itypes_ptrptr.checked.c -- | count 0
 // RUN: rm %S/liberal_itypes_ptrptr.checked.c
@@ -142,6 +142,11 @@ void itype_defined_caller() {
 
   int **e;
   *e = 1;
+  // This expected error is due to
+  // https://github.com/microsoft/checkedc-clang/issues/974. When we merge the
+  // fix for that bug, diagnostic verification will fail and we will know to
+  // remove the expected error.
+  // expected-error@+1 {{it is not possible to prove argument meets declared bounds for 1st parameter}}
   itype_defined_ptrptr(e);
   //CHECK: _Ptr<int *> e = ((void *)0);
   //CHECK: itype_defined_ptrptr(_Assume_bounds_cast<_Ptr<_Ptr<int>>>(e));
