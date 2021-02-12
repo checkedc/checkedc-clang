@@ -11,7 +11,7 @@
 // This line is for the clang test infrastructure:
 // RUN: %clang_cc1 -fcheckedc-extension -fdump-inferred-bounds -verify -verify-ignore-unexpected=warning -verify-ignore-unexpected=note -fdump-inferred-bounds %s | FileCheck %s
 // expected-no-diagnostics
- 
+
 struct S1 {
   _Array_ptr<int> p : count(len);
   int len;
@@ -265,7 +265,7 @@ void f10(struct Interop_S1 a1, struct Interop_S2 b2,
 _Checked void f11(struct Interop_S1 a1, struct Interop_S2 b2,
                   struct Interop_S4 c3) {
   _Array_ptr<int> ap : count(a1.len) = a1.p;
-  
+
 // CHECK: VarDecl {{.*}}  '_Array_ptr<int>' cinit
 // CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} <col:24, col:36> 'NULL TYPE' Element
 // CHECK: | `-ImplicitCastExpr {{0x[0-9a-f]+}} <col:30, col:33> 'int' <LValueToRValue>
