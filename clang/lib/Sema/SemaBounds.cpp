@@ -677,14 +677,6 @@ namespace {
           return ExprCreatorUtil::CreateImplicitCast(SemaRef, Child,
                                                      CK, E->getType());
       }
-
-      // Do not replace expressions within a BoundsValueExpr.
-      // For example, the result of replacing `v` with `v + 1` in
-      // BoundsValue(TempBinding(v)) should be BoundsValue(TempBinding(v)),
-      // not BoundsValue(TempBinding(v + 1)).
-      bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
-        return true;
-      }
   };
 
   // If an original value is provided, ReplaceVariableReferences returns
