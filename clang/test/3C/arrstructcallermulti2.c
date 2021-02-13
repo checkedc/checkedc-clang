@@ -1,15 +1,13 @@
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL2 %S/arrstructcallermulti1.c %s
-// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL2 %S/arrstructcallermulti1.c %s
-// RUN: %clang -c %S/arrstructcallermulti1.checkedNOALL2.c %S/arrstructcallermulti2.checkedNOALL2.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrstructcallermulti2.checkedNOALL2.c %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrstructcallermulti2.checkedALL2.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked2 %S/arrstructcallermulti1.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/arrstructcallermulti1.checked2.c %S/arrstructcallermulti2.checked2.c
-// RUN: test ! -f %S/arrstructcallermulti1.checked2.convert_again.c
-// RUN: test ! -f %S/arrstructcallermulti2.checked2.convert_again.c
-// RUN: rm %S/arrstructcallermulti1.checkedALL2.c %S/arrstructcallermulti2.checkedALL2.c
-// RUN: rm %S/arrstructcallermulti1.checkedNOALL2.c %S/arrstructcallermulti2.checkedNOALL2.c
-// RUN: rm %S/arrstructcallermulti1.checked2.c %S/arrstructcallermulti2.checked2.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL2 %S/arrstructcallermulti1.c %s --
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL2 %S/arrstructcallermulti1.c %s --
+// RUN: %clang -working-directory=%t.checkedNOALL2 -c arrstructcallermulti1.c arrstructcallermulti2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL2/arrstructcallermulti2.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL2/arrstructcallermulti2.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/arrstructcallermulti1.c %s --
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/arrstructcallermulti1.c %t.checked/arrstructcallermulti2.c --
+// RUN: test ! -f %t.convert_again/arrstructcallermulti1.c
+// RUN: test ! -f %t.convert_again/arrstructcallermulti2.c
 
 
 /*********************************************************************************/

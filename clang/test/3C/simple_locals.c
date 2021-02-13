@@ -2,12 +2,12 @@
 //
 // Checks very simple inference properties for local variables.
 //
-// RUN: 3c -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -addcr %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
-// RUN: 3c -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: 3c -alltypes -output-postfix=checked %s 
-// RUN: 3c -alltypes %S/simple_locals.checked.c -- | count 0
-// RUN: rm %S/simple_locals.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
+// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/simple_locals.c -- | diff %t.checked/simple_locals.c -
 // expected-no-diagnostics
 
 void f1(void) {

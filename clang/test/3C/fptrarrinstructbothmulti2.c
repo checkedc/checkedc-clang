@@ -1,15 +1,13 @@
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL2 %S/fptrarrinstructbothmulti1.c %s
-// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL2 %S/fptrarrinstructbothmulti1.c %s
-// RUN: %clang -c %S/fptrarrinstructbothmulti1.checkedNOALL2.c %S/fptrarrinstructbothmulti2.checkedNOALL2.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrarrinstructbothmulti2.checkedNOALL2.c %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrarrinstructbothmulti2.checkedALL2.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked2 %S/fptrarrinstructbothmulti1.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrarrinstructbothmulti1.checked2.c %S/fptrarrinstructbothmulti2.checked2.c
-// RUN: test ! -f %S/fptrarrinstructbothmulti1.checked2.convert_again.c
-// RUN: test ! -f %S/fptrarrinstructbothmulti2.checked2.convert_again.c
-// RUN: rm %S/fptrarrinstructbothmulti1.checkedALL2.c %S/fptrarrinstructbothmulti2.checkedALL2.c
-// RUN: rm %S/fptrarrinstructbothmulti1.checkedNOALL2.c %S/fptrarrinstructbothmulti2.checkedNOALL2.c
-// RUN: rm %S/fptrarrinstructbothmulti1.checked2.c %S/fptrarrinstructbothmulti2.checked2.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL2 %S/fptrarrinstructbothmulti1.c %s --
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL2 %S/fptrarrinstructbothmulti1.c %s --
+// RUN: %clang -working-directory=%t.checkedNOALL2 -c fptrarrinstructbothmulti1.c fptrarrinstructbothmulti2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL2/fptrarrinstructbothmulti2.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL2/fptrarrinstructbothmulti2.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/fptrarrinstructbothmulti1.c %s --
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/fptrarrinstructbothmulti1.c %t.checked/fptrarrinstructbothmulti2.c --
+// RUN: test ! -f %t.convert_again/fptrarrinstructbothmulti1.c
+// RUN: test ! -f %t.convert_again/fptrarrinstructbothmulti2.c
 
 
 /*********************************************************************************/

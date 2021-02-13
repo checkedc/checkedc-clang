@@ -1,10 +1,10 @@
 // Tests for the 3C.
 //
-// RUN: 3c -addcr %s -- -fcheckedc-extension | FileCheck -match-full-lines %s
-// RUN: 3c -addcr %s -- -fcheckedc-extension | %clang_cc1  -verify -fcheckedc-extension -x c -
-// RUN: 3c -addcr -output-postfix=checked %s 
-// RUN: 3c -addcr %S/bounds_interface.checked.c -- | count 0
-// RUN: rm %S/bounds_interface.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -base-dir=%S -addcr %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checked %s --
+// RUN: 3c -base-dir=%t.checked -addcr %t.checked/bounds_interface.c -- | diff %t.checked/bounds_interface.c -
 // expected-no-diagnostics
 //
 

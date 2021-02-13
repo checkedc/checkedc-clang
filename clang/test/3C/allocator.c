@@ -2,11 +2,11 @@
 //
 // Tests for malloc and friends. 
 //
-// RUN: 3c %s -- | FileCheck -match-full-lines %s
-// RUN: 3c %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
-// RUN: 3c -output-postfix=checked %s 
-// RUN: 3c %S/allocator.checked.c -- | count 0
-// RUN: rm %S/allocator.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -base-dir=%S %s -- | %clang_cc1  -fno-builtin -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S -output-dir=%t.checked %s --
+// RUN: 3c -base-dir=%t.checked %t.checked/allocator.c -- | diff %t.checked/allocator.c -
 // expected-no-diagnostics
 //
 typedef __SIZE_TYPE__ size_t;

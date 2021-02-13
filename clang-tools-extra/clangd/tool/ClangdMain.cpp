@@ -486,8 +486,16 @@ int main(int argc, char *argv[]) {
 
   // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
   // NOLINTNEXTLINE(readability-identifier-naming)
-  _3CInterface _3CInterface(CcOptions, OptionsParser.getSourcePathList(),
-                            &(OptionsParser.getCompilations()));
+  std::unique_ptr<_3CInterface> _3CInterfacePtr(
+      _3CInterface::create(CcOptions, OptionsParser.getSourcePathList(),
+                           &(OptionsParser.getCompilations())));
+  if (!_3CInterfacePtr) {
+    // _3CInterface::create has already printed an error message. Just exit.
+    return 1;
+  }
+  // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  _3CInterface &_3CInterface = *_3CInterfacePtr;
 #else
   llvm::cl::ParseCommandLineOptions(
       argc, argv,

@@ -1,4 +1,4 @@
-// RUN: 3c %s > %S/temp_bodiless.c
+// RUN: 3c -base-dir=%S %s > %S/temp_bodiless.c --
 // RUN: %clang -c %S/temp_bodiless.c
 // RUN: FileCheck -match-full-lines --input-file %S/temp_bodiless.c %s
 // RUN: rm %S/temp_bodiless.c

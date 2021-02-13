@@ -2,9 +2,9 @@
 //
 // Checks very simple inference properties for local variables.
 //
-// RUN: 3c %s -- | FileCheck -match-full-lines %s
-// RUN: 3c -alltypes %s -- | FileCheck -match-full-lines %s
-// RUN: 3c %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -base-dir=%S -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -base-dir=%S %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 #include <stdarg.h>
 

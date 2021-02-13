@@ -1,15 +1,13 @@
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/fptrinstructcallermulti2.c
-// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/fptrinstructcallermulti2.c
-// RUN: %clang -c %S/fptrinstructcallermulti1.checkedNOALL.c %S/fptrinstructcallermulti2.checkedNOALL.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrinstructcallermulti1.checkedNOALL.c %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrinstructcallermulti1.checkedALL.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked %S/fptrinstructcallermulti2.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrinstructcallermulti1.checked.c %S/fptrinstructcallermulti2.checked.c
-// RUN: test ! -f %S/fptrinstructcallermulti1.checked.convert_again.c
-// RUN: test ! -f %S/fptrinstructcallermulti2.checked.convert_again.c
-// RUN: rm %S/fptrinstructcallermulti1.checkedALL.c %S/fptrinstructcallermulti2.checkedALL.c
-// RUN: rm %S/fptrinstructcallermulti1.checkedNOALL.c %S/fptrinstructcallermulti2.checkedNOALL.c
-// RUN: rm %S/fptrinstructcallermulti1.checked.c %S/fptrinstructcallermulti2.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL %s %S/fptrinstructcallermulti2.c --
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL %s %S/fptrinstructcallermulti2.c --
+// RUN: %clang -working-directory=%t.checkedNOALL -c fptrinstructcallermulti1.c fptrinstructcallermulti2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL/fptrinstructcallermulti1.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL/fptrinstructcallermulti1.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/fptrinstructcallermulti2.c %s --
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/fptrinstructcallermulti1.c %t.checked/fptrinstructcallermulti2.c --
+// RUN: test ! -f %t.convert_again/fptrinstructcallermulti1.c
+// RUN: test ! -f %t.convert_again/fptrinstructcallermulti2.c
 
 
 /*********************************************************************************/

@@ -2,12 +2,12 @@
 //
 // Checks properties of functions.
 //
-// RUN: 3c -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK","CHECK_NOALL","CHECK-NEXT" %s
-// RUN: 3c -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK","CHECK_ALL","CHECK-NEXT" %s
-// RUN: 3c -addcr %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
-// RUN: 3c -addcr -alltypes -output-postfix=checked %s 
-// RUN: 3c -addcr -alltypes %S/placements.checked.c -- | count 0
-// RUN: rm %S/placements.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK","CHECK_NOALL","CHECK-NEXT" %s
+// RUN: 3c -base-dir=%S -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK","CHECK_ALL","CHECK-NEXT" %s
+// RUN: 3c -base-dir=%S -addcr %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checked %s --
+// RUN: 3c -base-dir=%t.checked -addcr -alltypes %t.checked/placements.c -- | diff %t.checked/placements.c -
 // expected-no-diagnostics
 void what(const char *s, int q); 
 //CHECK_NOALL: void what(const char *s : itype(_Ptr<const char>), int q);

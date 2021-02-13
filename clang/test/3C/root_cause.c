@@ -1,4 +1,4 @@
-// RUN: 3c -extra-arg="-Wno-everything" -verify -alltypes -warn-root-cause %s
+// RUN: 3c -base-dir=%S -extra-arg="-Wno-everything" -verify -alltypes -warn-root-cause %s --
 
 // This test is unusual in that it checks for the errors in the code
 

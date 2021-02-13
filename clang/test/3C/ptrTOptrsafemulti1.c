@@ -1,15 +1,13 @@
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/ptrTOptrsafemulti2.c
-// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/ptrTOptrsafemulti2.c
-// RUN: %clang -c %S/ptrTOptrsafemulti1.checkedNOALL.c %S/ptrTOptrsafemulti2.checkedNOALL.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/ptrTOptrsafemulti1.checkedNOALL.c %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/ptrTOptrsafemulti1.checkedALL.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked %S/ptrTOptrsafemulti2.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/ptrTOptrsafemulti1.checked.c %S/ptrTOptrsafemulti2.checked.c
-// RUN: test ! -f %S/ptrTOptrsafemulti1.checked.convert_again.c
-// RUN: test ! -f %S/ptrTOptrsafemulti2.checked.convert_again.c
-// RUN: rm %S/ptrTOptrsafemulti1.checkedALL.c %S/ptrTOptrsafemulti2.checkedALL.c
-// RUN: rm %S/ptrTOptrsafemulti1.checkedNOALL.c %S/ptrTOptrsafemulti2.checkedNOALL.c
-// RUN: rm %S/ptrTOptrsafemulti1.checked.c %S/ptrTOptrsafemulti2.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL %s %S/ptrTOptrsafemulti2.c --
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL %s %S/ptrTOptrsafemulti2.c --
+// RUN: %clang -working-directory=%t.checkedNOALL -c ptrTOptrsafemulti1.c ptrTOptrsafemulti2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL/ptrTOptrsafemulti1.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL/ptrTOptrsafemulti1.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/ptrTOptrsafemulti2.c %s --
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/ptrTOptrsafemulti1.c %t.checked/ptrTOptrsafemulti2.c --
+// RUN: test ! -f %t.convert_again/ptrTOptrsafemulti1.c
+// RUN: test ! -f %t.convert_again/ptrTOptrsafemulti2.c
 
 
 /*********************************************************************************/

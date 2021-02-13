@@ -2,11 +2,11 @@
 //
 // Checks for conversions involving const-qualified types.
 //
-// RUN: 3c -addcr %s -- | FileCheck -match-full-lines %s
-// RUN: 3c -addcr %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
-// RUN: 3c -addcr -output-postfix=checked %s 
-// RUN: 3c -addcr %S/const_tests.checked.c -- | count 0
-// RUN: rm %S/const_tests.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -base-dir=%S -addcr %s -- | %clang_cc1  -verify -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checked %s --
+// RUN: 3c -base-dir=%t.checked -addcr %t.checked/const_tests.c -- | diff %t.checked/const_tests.c -
 // expected-no-diagnostics
 
 void cst1(const int *a) {

@@ -1,15 +1,13 @@
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/ptrTOptrcalleemulti2.c
-// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/ptrTOptrcalleemulti2.c
-// RUN: %clang -c %S/ptrTOptrcalleemulti1.checkedNOALL.c %S/ptrTOptrcalleemulti2.checkedNOALL.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/ptrTOptrcalleemulti1.checkedNOALL.c %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/ptrTOptrcalleemulti1.checkedALL.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked %S/ptrTOptrcalleemulti2.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/ptrTOptrcalleemulti1.checked.c %S/ptrTOptrcalleemulti2.checked.c
-// RUN: test ! -f %S/ptrTOptrcalleemulti1.checked.convert_again.c
-// RUN: test ! -f %S/ptrTOptrcalleemulti2.checked.convert_again.c
-// RUN: rm %S/ptrTOptrcalleemulti1.checkedALL.c %S/ptrTOptrcalleemulti2.checkedALL.c
-// RUN: rm %S/ptrTOptrcalleemulti1.checkedNOALL.c %S/ptrTOptrcalleemulti2.checkedNOALL.c
-// RUN: rm %S/ptrTOptrcalleemulti1.checked.c %S/ptrTOptrcalleemulti2.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL %s %S/ptrTOptrcalleemulti2.c --
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL %s %S/ptrTOptrcalleemulti2.c --
+// RUN: %clang -working-directory=%t.checkedNOALL -c ptrTOptrcalleemulti1.c ptrTOptrcalleemulti2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL/ptrTOptrcalleemulti1.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL/ptrTOptrcalleemulti1.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/ptrTOptrcalleemulti2.c %s --
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/ptrTOptrcalleemulti1.c %t.checked/ptrTOptrcalleemulti2.c --
+// RUN: test ! -f %t.convert_again/ptrTOptrcalleemulti1.c
+// RUN: test ! -f %t.convert_again/ptrTOptrcalleemulti2.c
 
 
 /*********************************************************************************/

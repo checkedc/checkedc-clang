@@ -1,7 +1,7 @@
-//RUN: 3c -base-dir=%S -output-postfix=checked3 %s %S/extGVarm1.c %S/extGVarm2.c
-//RUN: FileCheck -match-full-lines --input-file %S/extGVarm3.checked3.c %s
-//RUN: %clang -c %S/extGVarm3.checked3.c %S/extGVarm2.checked3.c %S/extGVarm1.checked3.c
-//RUN: rm %S/extGVarm1.checked3.c %S/extGVarm2.checked3.c %S/extGVarm3.checked3.c 
+//RUN: rm -rf %t*
+//RUN: 3c -base-dir=%S -output-dir=%t.checked3 %s %S/extGVarm1.c %S/extGVarm2.c --
+//RUN: FileCheck -match-full-lines --input-file %t.checked3/extGVarm3.c %s
+//RUN: %clang -c %t.checked3/extGVarm3.c %t.checked3/extGVarm2.c %t.checked3/extGVarm1.c
 
 // This test cannot use pipes because it requires multiple output files
 

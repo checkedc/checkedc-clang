@@ -1,6 +1,7 @@
-// RUN: 3c -addcr -alltypes %s | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: 3c -addcr %s | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -addcr %s | %clang -c -fcheckedc-extension -x c -o %t1.unused -
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- | %clang -c -fcheckedc-extension -x c -o %t1.unused -
 
 // General demonstration
 _Itype_for_any(T) void *test_single(void *a : itype(_Ptr<T>), void *b : itype(_Ptr<T>)) : itype(_Ptr<T>);

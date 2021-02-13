@@ -104,7 +104,19 @@ bool hasFunctionBody(clang::Decl *D);
 
 std::string getStorageQualifierString(clang::Decl *D);
 
-bool getAbsoluteFilePath(std::string FileName, std::string &AbsoluteFp);
+// Use this version for user input that has not yet been validated.
+std::error_code tryGetCanonicalFilePath(const std::string &FileName,
+                                        std::string &AbsoluteFp);
+
+// This version asserts success. It may be used for convenience for files we are
+// already accessing and thus believe should exist, modulo race conditions and
+// the like.
+void getCanonicalFilePath(const std::string &FileName, std::string &AbsoluteFp);
+
+// This compares entire path components: it's smart enough to know that "foo.c"
+// does not start with "foo". It's not smart about anything else, so you should
+// probably put both paths through getCanonicalFilePath first.
+bool filePathStartsWith(const std::string &Path, const std::string &Prefix);
 
 bool isNULLExpression(clang::Expr *E, clang::ASTContext &C);
 
@@ -147,6 +159,9 @@ bool isCastSafe(clang::QualType DstType, clang::QualType SrcType);
 
 // Check if the provided file path belongs to the input project
 // and can be rewritten.
+//
+// For accurate results, the path must have gone through getCanonicalFilePath.
+// Note that the file name of a PersistentSourceLoc is always canonical.
 bool canWrite(const std::string &FilePath);
 
 // Check if the provided variable has void as one of its type.

@@ -1,9 +1,9 @@
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=checkedALL %s
-// RUN: 3c -base-dir=%S -output-postfix=checkedNOALL %s
-// RUN: %clang -c %S/qualifiers.checkedNOALL.c
-// RUN: FileCheck -match-full-lines --input-file %S/qualifiers.checkedNOALL.c %s
-// RUN: FileCheck -match-full-lines --input-file %S/qualifiers.checkedALL.c %s
-// RUN: rm %S/qualifiers.checkedALL.c %S/qualifiers.checkedNOALL.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checkedALL %s --
+// RUN: 3c -base-dir=%S -output-dir=%t.checkedNOALL %s --
+// RUN: %clang -c %t.checkedNOALL/qualifiers.c
+// RUN: FileCheck -match-full-lines --input-file %t.checkedNOALL/qualifiers.c %s
+// RUN: FileCheck -match-full-lines --input-file %t.checkedALL/qualifiers.c %s
 
 void consts() {
   const int a;

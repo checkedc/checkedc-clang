@@ -238,15 +238,13 @@ private:
 
 class RewriteConsumer : public ASTConsumer {
 public:
-  explicit RewriteConsumer(ProgramInfo &I, std::string &OPostfix)
-      : Info(I), OutputPostfix(OPostfix) {}
+  explicit RewriteConsumer(ProgramInfo &I) : Info(I) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context);
 
 private:
   ProgramInfo &Info;
   static std::map<std::string, std::string> ModifiedFuncSignatures;
-  std::string &OutputPostfix;
 
   // A single header file can be included in multiple translations units. This
   // set ensures that the diagnostics for a header file are not emitted each

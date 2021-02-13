@@ -1,15 +1,13 @@
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL2 %S/arrbothmulti1.c %s
-// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL2 %S/arrbothmulti1.c %s
-// RUN: %clang -c %S/arrbothmulti1.checkedNOALL2.c %S/arrbothmulti2.checkedNOALL2.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrbothmulti2.checkedNOALL2.c %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrbothmulti2.checkedALL2.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked2 %S/arrbothmulti1.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/arrbothmulti1.checked2.c %S/arrbothmulti2.checked2.c
-// RUN: test ! -f %S/arrbothmulti1.checked2.convert_again.c
-// RUN: test ! -f %S/arrbothmulti2.checked2.convert_again.c
-// RUN: rm %S/arrbothmulti1.checkedALL2.c %S/arrbothmulti2.checkedALL2.c
-// RUN: rm %S/arrbothmulti1.checkedNOALL2.c %S/arrbothmulti2.checkedNOALL2.c
-// RUN: rm %S/arrbothmulti1.checked2.c %S/arrbothmulti2.checked2.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL2 %S/arrbothmulti1.c %s --
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL2 %S/arrbothmulti1.c %s --
+// RUN: %clang -working-directory=%t.checkedNOALL2 -c arrbothmulti1.c arrbothmulti2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL2/arrbothmulti2.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL2/arrbothmulti2.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/arrbothmulti1.c %s --
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/arrbothmulti1.c %t.checked/arrbothmulti2.c --
+// RUN: test ! -f %t.convert_again/arrbothmulti1.c
+// RUN: test ! -f %t.convert_again/arrbothmulti2.c
 
 
 /*********************************************************************************/

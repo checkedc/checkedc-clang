@@ -1,15 +1,13 @@
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL2 %S/fptrunsafecallermulti1.c %s
-// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL2 %S/fptrunsafecallermulti1.c %s
-// RUN: %clang -c %S/fptrunsafecallermulti1.checkedNOALL2.c %S/fptrunsafecallermulti2.checkedNOALL2.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrunsafecallermulti2.checkedNOALL2.c %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrunsafecallermulti2.checkedALL2.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked2 %S/fptrunsafecallermulti1.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrunsafecallermulti1.checked2.c %S/fptrunsafecallermulti2.checked2.c
-// RUN: test ! -f %S/fptrunsafecallermulti1.checked2.convert_again.c
-// RUN: test ! -f %S/fptrunsafecallermulti2.checked2.convert_again.c
-// RUN: rm %S/fptrunsafecallermulti1.checkedALL2.c %S/fptrunsafecallermulti2.checkedALL2.c
-// RUN: rm %S/fptrunsafecallermulti1.checkedNOALL2.c %S/fptrunsafecallermulti2.checkedNOALL2.c
-// RUN: rm %S/fptrunsafecallermulti1.checked2.c %S/fptrunsafecallermulti2.checked2.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL2 %S/fptrunsafecallermulti1.c %s --
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL2 %S/fptrunsafecallermulti1.c %s --
+// RUN: %clang -working-directory=%t.checkedNOALL2 -c fptrunsafecallermulti1.c fptrunsafecallermulti2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL2/fptrunsafecallermulti2.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL2/fptrunsafecallermulti2.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/fptrunsafecallermulti1.c %s --
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/fptrunsafecallermulti1.c %t.checked/fptrunsafecallermulti2.c --
+// RUN: test ! -f %t.convert_again/fptrunsafecallermulti1.c
+// RUN: test ! -f %t.convert_again/fptrunsafecallermulti2.c
 
 
 /*********************************************************************************/

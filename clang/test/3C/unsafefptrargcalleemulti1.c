@@ -1,15 +1,13 @@
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/unsafefptrargcalleemulti2.c
-// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/unsafefptrargcalleemulti2.c
-// RUN: %clang -c %S/unsafefptrargcalleemulti1.checkedNOALL.c %S/unsafefptrargcalleemulti2.checkedNOALL.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/unsafefptrargcalleemulti1.checkedNOALL.c %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/unsafefptrargcalleemulti1.checkedALL.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked %S/unsafefptrargcalleemulti2.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/unsafefptrargcalleemulti1.checked.c %S/unsafefptrargcalleemulti2.checked.c
-// RUN: test ! -f %S/unsafefptrargcalleemulti1.checked.convert_again.c
-// RUN: test ! -f %S/unsafefptrargcalleemulti2.checked.convert_again.c
-// RUN: rm %S/unsafefptrargcalleemulti1.checkedALL.c %S/unsafefptrargcalleemulti2.checkedALL.c
-// RUN: rm %S/unsafefptrargcalleemulti1.checkedNOALL.c %S/unsafefptrargcalleemulti2.checkedNOALL.c
-// RUN: rm %S/unsafefptrargcalleemulti1.checked.c %S/unsafefptrargcalleemulti2.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL %s %S/unsafefptrargcalleemulti2.c --
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL %s %S/unsafefptrargcalleemulti2.c --
+// RUN: %clang -working-directory=%t.checkedNOALL -c unsafefptrargcalleemulti1.c unsafefptrargcalleemulti2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL/unsafefptrargcalleemulti1.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL/unsafefptrargcalleemulti1.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/unsafefptrargcalleemulti2.c %s --
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/unsafefptrargcalleemulti1.c %t.checked/unsafefptrargcalleemulti2.c --
+// RUN: test ! -f %t.convert_again/unsafefptrargcalleemulti1.c
+// RUN: test ! -f %t.convert_again/unsafefptrargcalleemulti2.c
 
 
 /*********************************************************************************/

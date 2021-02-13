@@ -12,6 +12,7 @@
 #include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/ConstraintVariables.h"
 #include "llvm/Support/Path.h"
+#include <errno.h>
 
 using namespace llvm;
 using namespace clang;
@@ -151,13 +152,42 @@ bool isNULLExpression(clang::Expr *E, ASTContext &C) {
          E->isNullPointerConstant(C, Expr::NPC_ValueDependentIsNotNull);
 }
 
-bool getAbsoluteFilePath(std::string FileName, std::string &AbsoluteFp) {
-  // Get absolute path of the provided file
-  // returns true if successful else false.
-  SmallString<255> AbsPath(FileName);
-  llvm::sys::fs::make_absolute(BaseDir, AbsPath);
+std::error_code tryGetCanonicalFilePath(const std::string &FileName, std::string &AbsoluteFp) {
+  SmallString<255> AbsPath;
+  std::error_code EC;
+  if (FileName.empty()) {
+    // Strangely, llvm::sys::fs::real_path successfully returns the empty string
+    // in this case. Return ENOENT, as realpath(3) would.
+    EC = std::error_code(ENOENT, std::generic_category());
+  } else {
+    EC = llvm::sys::fs::real_path(FileName, AbsPath);
+  }
+  if (EC) {
+    return EC;
+  }
   AbsoluteFp = AbsPath.str();
-  return true;
+  return EC;
+}
+
+void getCanonicalFilePath(const std::string &FileName, std::string &AbsoluteFp) {
+  std::error_code EC = tryGetCanonicalFilePath(FileName, AbsoluteFp);
+  assert(!EC && "tryGetCanonicalFilePath failed");
+}
+
+bool filePathStartsWith(const std::string &Path, const std::string &Prefix) {
+  // If the path exactly equals the prefix, don't ruin it by appending a
+  // separator to the prefix. (This may never happen in 3C, but let's get it
+  // right.)
+  if (Prefix.empty() || Path == Prefix) {
+    return true;
+  }
+  StringRef separator = llvm::sys::path::get_separator();
+  std::string PrefixWithTrailingSeparator = Prefix;
+  if (!StringRef(Prefix).endswith(separator)) {
+    PrefixWithTrailingSeparator += separator;
+  }
+  return Path.substr(0, PrefixWithTrailingSeparator.size()) ==
+         PrefixWithTrailingSeparator;
 }
 
 bool functionHasVarArgs(clang::FunctionDecl *FD) {
@@ -347,9 +377,7 @@ bool canWrite(const std::string &FilePath) {
     return true;
   // Get the absolute path of the file and check that
   // the file path starts with the base directory.
-  std::string FileAbsPath = FilePath;
-  getAbsoluteFilePath(FilePath, FileAbsPath);
-  return FileAbsPath.rfind(BaseDir, 0) == 0;
+  return filePathStartsWith(FilePath, BaseDir);
 }
 
 bool isInSysHeader(clang::Decl *D) {

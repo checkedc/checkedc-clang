@@ -1,15 +1,13 @@
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/unsafefptrargsafemulti2.c
-// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/unsafefptrargsafemulti2.c
-// RUN: %clang -c %S/unsafefptrargsafemulti1.checkedNOALL.c %S/unsafefptrargsafemulti2.checkedNOALL.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/unsafefptrargsafemulti1.checkedNOALL.c %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/unsafefptrargsafemulti1.checkedALL.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked %S/unsafefptrargsafemulti2.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/unsafefptrargsafemulti1.checked.c %S/unsafefptrargsafemulti2.checked.c
-// RUN: test ! -f %S/unsafefptrargsafemulti1.checked.convert_again.c
-// RUN: test ! -f %S/unsafefptrargsafemulti2.checked.convert_again.c
-// RUN: rm %S/unsafefptrargsafemulti1.checkedALL.c %S/unsafefptrargsafemulti2.checkedALL.c
-// RUN: rm %S/unsafefptrargsafemulti1.checkedNOALL.c %S/unsafefptrargsafemulti2.checkedNOALL.c
-// RUN: rm %S/unsafefptrargsafemulti1.checked.c %S/unsafefptrargsafemulti2.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL %s %S/unsafefptrargsafemulti2.c --
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL %s %S/unsafefptrargsafemulti2.c --
+// RUN: %clang -working-directory=%t.checkedNOALL -c unsafefptrargsafemulti1.c unsafefptrargsafemulti2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL/unsafefptrargsafemulti1.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL/unsafefptrargsafemulti1.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/unsafefptrargsafemulti2.c %s --
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/unsafefptrargsafemulti1.c %t.checked/unsafefptrargsafemulti2.c --
+// RUN: test ! -f %t.convert_again/unsafefptrargsafemulti1.c
+// RUN: test ! -f %t.convert_again/unsafefptrargsafemulti2.c
 
 
 /*********************************************************************************/

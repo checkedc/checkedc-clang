@@ -1,15 +1,13 @@
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/fptrinstructsafemulti2.c
-// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/fptrinstructsafemulti2.c
-// RUN: %clang -c %S/fptrinstructsafemulti1.checkedNOALL.c %S/fptrinstructsafemulti2.checkedNOALL.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrinstructsafemulti1.checkedNOALL.c %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrinstructsafemulti1.checkedALL.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked %S/fptrinstructsafemulti2.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrinstructsafemulti1.checked.c %S/fptrinstructsafemulti2.checked.c
-// RUN: test ! -f %S/fptrinstructsafemulti1.checked.convert_again.c
-// RUN: test ! -f %S/fptrinstructsafemulti2.checked.convert_again.c
-// RUN: rm %S/fptrinstructsafemulti1.checkedALL.c %S/fptrinstructsafemulti2.checkedALL.c
-// RUN: rm %S/fptrinstructsafemulti1.checkedNOALL.c %S/fptrinstructsafemulti2.checkedNOALL.c
-// RUN: rm %S/fptrinstructsafemulti1.checked.c %S/fptrinstructsafemulti2.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL %s %S/fptrinstructsafemulti2.c --
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL %s %S/fptrinstructsafemulti2.c --
+// RUN: %clang -working-directory=%t.checkedNOALL -c fptrinstructsafemulti1.c fptrinstructsafemulti2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL/fptrinstructsafemulti1.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL/fptrinstructsafemulti1.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/fptrinstructsafemulti2.c %s --
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/fptrinstructsafemulti1.c %t.checked/fptrinstructsafemulti2.c --
+// RUN: test ! -f %t.convert_again/fptrinstructsafemulti1.c
+// RUN: test ! -f %t.convert_again/fptrinstructsafemulti2.c
 
 
 /*********************************************************************************/

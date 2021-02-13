@@ -17,6 +17,8 @@
 
 extern bool Verbose;
 extern bool DumpIntermediate;
+extern std::string OutputPostfix;
+extern std::string OutputDir;
 extern bool HandleVARARGS;
 extern bool SeperateMultipleFuncDecls;
 extern bool EnablePropThruIType;

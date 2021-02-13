@@ -2,8 +2,9 @@
 //
 // Tests 3c tool for any regressions.
 //
-// RUN: 3c -alltypes %s | FileCheck -match-full-lines %s
-// RUN: 3c -alltypes %s | %clang -c -fcheckedc-extension -x c -o %t.unused -
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -alltypes %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -base-dir=%S -alltypes %s -- | %clang -c -fcheckedc-extension -x c -o %t.unused -
 // 
 // XFAIL: *
 

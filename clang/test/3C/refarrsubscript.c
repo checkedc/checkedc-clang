@@ -1,9 +1,9 @@
-// RUN: 3c -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: 3c -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
-// RUN: 3c -output-postfix=checked -alltypes %s
-// RUN: 3c -alltypes %S/refarrsubscript.checked.c -- | count 0
-// RUN: rm %S/refarrsubscript.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- | %clang -c -fcheckedc-extension -x c -o /dev/null -
+// RUN: 3c -base-dir=%S -output-dir=%t.checked -alltypes %s --
+// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/refarrsubscript.c -- | diff %t.checked/refarrsubscript.c -
 
 int **func(int **p, int *x) {
 	//CHECK_NOALL: int **func(int **p : itype(_Ptr<_Ptr<int>>), _Ptr<int> x) : itype(_Ptr<int *>) {

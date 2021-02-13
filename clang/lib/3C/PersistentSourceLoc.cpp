@@ -70,8 +70,8 @@ PersistentSourceLoc PersistentSourceLoc::mkPSL(clang::SourceRange SR,
     std::string FeAbsS = "";
     if (Fe != nullptr)
       ToConv = Fe->getName();
-    if (getAbsoluteFilePath(ToConv, FeAbsS))
-      Fn = sys::path::remove_leading_dotslash(FeAbsS);
+    getCanonicalFilePath(ToConv, FeAbsS);
+    Fn = sys::path::remove_leading_dotslash(FeAbsS);
   }
   PersistentSourceLoc PSL(Fn, FESL.getExpansionLineNumber(),
                           FESL.getExpansionColumnNumber(), EndCol);

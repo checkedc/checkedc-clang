@@ -1,7 +1,7 @@
-//RUN: 3c -base-dir=%S -output-postfix=checked2 %s %S/extGVarbar1.c
-//RUN: FileCheck -match-full-lines --input-file %S/extGVarbar2.checked2.c %s
-//RUN: %clang -c %S/extGVarbar2.checked2.c %S/extGVarbar1.checked2.c
-//RUN: rm %S/extGVarbar1.checked2.c %S/extGVarbar2.checked2.c
+//RUN: rm -rf %t*
+//RUN: 3c -base-dir=%S -output-dir=%t.checked2 %s %S/extGVarbar1.c --
+//RUN: FileCheck -match-full-lines --input-file %t.checked2/extGVarbar2.c %s
+//RUN: %clang -c %t.checked2/extGVarbar2.c %t.checked2/extGVarbar1.c
 
 // This test cannot use pipes because it requires multiple output files
 

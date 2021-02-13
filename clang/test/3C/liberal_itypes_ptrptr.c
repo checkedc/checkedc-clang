@@ -1,9 +1,9 @@
-// RUN: 3c -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: 3c -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
-// RUN: 3c -alltypes -addcr %s -- | %clang -c -fcheckedc-extension -Xclang -verify -Xclang -verify-ignore-unexpected=warning,note -x c -o /dev/null -
-// RUN: 3c -alltypes -output-postfix=checked %s
-// RUN: 3c -alltypes %S/liberal_itypes_ptrptr.checked.c -- | count 0
-// RUN: rm %S/liberal_itypes_ptrptr.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -base-dir=%S -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" %s
+// RUN: 3c -base-dir=%S -alltypes -addcr %s -- | %clang -c -fcheckedc-extension -Xclang -verify -Xclang -verify-ignore-unexpected=warning,note -x c -o /dev/null -
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s --
+// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/liberal_itypes_ptrptr.c -- | diff %t.checked/liberal_itypes_ptrptr.c -
 
 void ptrptr(int **g) {}
 //CHECK: void ptrptr(_Ptr<int *> g) {}

@@ -1,9 +1,8 @@
-// RUN: 3c -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
-// RUN: 3c --addcr --alltypes %s -- | %clang_cc1  -fcheckedc-extension -x c -
-//
-// 3c -alltypes -output-postfix=checked %s
-// 3c -alltypes %S/typedefs.checked.c -- | diff %S/typedefs.checked.c -
-// rm %S/typedefs.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -alltypes -addcr %s -- | FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" %s
+// RUN: 3c -base-dir=%S --addcr --alltypes %s -- | %clang_cc1  -fcheckedc-extension -x c -
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %s
+// RUN: 3c -base-dir=%t.checked -alltypes %t.checked/typedefbounds.c -- | diff %t.checked/typedefbounds.c -
 
 typedef char* string;
 //CHECK_ALL: typedef _Array_ptr<char> string;

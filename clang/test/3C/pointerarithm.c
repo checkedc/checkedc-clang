@@ -1,8 +1,8 @@
-// RUN: 3c -alltypes -addcr %s | FileCheck -match-full-lines %s
-// RUN: 3c -alltypes -addcr %s | %clang -c -f3c-tool -fcheckedc-extension -x c -o %t.unused -
-// RUN: 3c -addcr -alltypes -output-postfix=checked %s 
-// RUN: 3c -addcr -alltypes %S/pointerarithm.checked.c | count 0
-// RUN: rm %S/pointerarithm.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -alltypes -addcr %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -base-dir=%S -alltypes -addcr %s -- | %clang -c -f3c-tool -fcheckedc-extension -x c -o %t.unused -
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checked %s --
+// RUN: 3c -base-dir=%t.checked -addcr -alltypes %t.checked/pointerarithm.c -- | diff %t.checked/pointerarithm.c -
 
 #include <stddef.h>
 extern _Itype_for_any(T) void *calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);

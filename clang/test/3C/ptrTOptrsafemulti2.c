@@ -1,15 +1,13 @@
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL2 %S/ptrTOptrsafemulti1.c %s
-// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL2 %S/ptrTOptrsafemulti1.c %s
-// RUN: %clang -c %S/ptrTOptrsafemulti1.checkedNOALL2.c %S/ptrTOptrsafemulti2.checkedNOALL2.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/ptrTOptrsafemulti2.checkedNOALL2.c %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/ptrTOptrsafemulti2.checkedALL2.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked2 %S/ptrTOptrsafemulti1.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/ptrTOptrsafemulti1.checked2.c %S/ptrTOptrsafemulti2.checked2.c
-// RUN: test ! -f %S/ptrTOptrsafemulti1.checked2.convert_again.c
-// RUN: test ! -f %S/ptrTOptrsafemulti2.checked2.convert_again.c
-// RUN: rm %S/ptrTOptrsafemulti1.checkedALL2.c %S/ptrTOptrsafemulti2.checkedALL2.c
-// RUN: rm %S/ptrTOptrsafemulti1.checkedNOALL2.c %S/ptrTOptrsafemulti2.checkedNOALL2.c
-// RUN: rm %S/ptrTOptrsafemulti1.checked2.c %S/ptrTOptrsafemulti2.checked2.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL2 %S/ptrTOptrsafemulti1.c %s --
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL2 %S/ptrTOptrsafemulti1.c %s --
+// RUN: %clang -working-directory=%t.checkedNOALL2 -c ptrTOptrsafemulti1.c ptrTOptrsafemulti2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL2/ptrTOptrsafemulti2.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL2/ptrTOptrsafemulti2.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/ptrTOptrsafemulti1.c %s --
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/ptrTOptrsafemulti1.c %t.checked/ptrTOptrsafemulti2.c --
+// RUN: test ! -f %t.convert_again/ptrTOptrsafemulti1.c
+// RUN: test ! -f %t.convert_again/ptrTOptrsafemulti2.c
 
 
 /*********************************************************************************/

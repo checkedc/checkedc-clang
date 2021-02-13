@@ -38,6 +38,7 @@ static cl::opt<bool>
 bool DumpIntermediate;
 bool Verbose;
 std::string OutputPostfix;
+std::string OutputDir;
 std::string ConstraintOutputJson;
 std::vector<std::string> AllocatorFunctions;
 bool DumpStats;
@@ -89,7 +90,7 @@ public:
 
   virtual std::unique_ptr<ASTConsumer>
   CreateASTConsumer(CompilerInstance &Compiler, StringRef InFile) {
-    return std::unique_ptr<ASTConsumer>(new T(Info, OutputPostfix));
+    return std::unique_ptr<ASTConsumer>(new T(Info));
   }
 
 private:
@@ -194,13 +195,27 @@ void runSolver(ProgramInfo &Info, std::set<std::string> &SourceFiles) {
   }
 }
 
+std::unique_ptr<_3CInterface>
+_3CInterface::create(const struct _3COptions &CCopt,
+                     const std::vector<std::string> &SourceFileList,
+                     CompilationDatabase *CompDB) {
+  bool Failed = false;
+  std::unique_ptr<_3CInterface> _3CInter(
+      new _3CInterface(CCopt, SourceFileList, CompDB, Failed));
+  if (Failed) {
+    return nullptr;
+  }
+  return _3CInter;
+}
+
 _3CInterface::_3CInterface(const struct _3COptions &CCopt,
                            const std::vector<std::string> &SourceFileList,
-                           CompilationDatabase *CompDB) {
+                           CompilationDatabase *CompDB, bool &Failed) {
 
   DumpIntermediate = CCopt.DumpIntermediate;
   Verbose = CCopt.Verbose;
   OutputPostfix = CCopt.OutputPostfix;
+  OutputDir = CCopt.OutputDir;
   ConstraintOutputJson = CCopt.ConstraintOutputJson;
   StatsOutputJson = CCopt.StatsOutputJson;
   WildPtrInfoJson = CCopt.WildPtrInfoJson;
@@ -231,35 +246,97 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
 
   ConstraintsBuilt = false;
 
-  // Get the absolute path of the base directory.
-  std::string TmpPath = BaseDir;
-  getAbsoluteFilePath(BaseDir, TmpPath);
-  BaseDir = TmpPath;
+  if (OutputPostfix != "-" && !OutputDir.empty()) {
+    errs() << "3C initialization error: Cannot use both -output-postfix and "
+              "-output-dir\n";
+    Failed = true;
+    return;
+  }
+  if (OutputPostfix == "-" && OutputDir.empty() && SourceFileList.size() > 1) {
+    errs() << "3C initialization error: Cannot specify more than one input "
+              "file when output is to stdout\n";
+    Failed = true;
+    return;
+  }
+
+  std::string TmpPath;
+  std::error_code EC;
 
   if (BaseDir.empty()) {
-    SmallString<256> Cp;
-    if (std::error_code Ec = sys::fs::current_path(Cp)) {
-      errs() << "could not get current working dir\n";
-      assert(false && "Unable to get determine working directory.");
-    }
+    BaseDir = ".";
+  }
 
-    BaseDir = Cp.str();
+  // Get the canonical path of the base directory.
+  TmpPath = BaseDir;
+  EC = tryGetCanonicalFilePath(BaseDir, TmpPath);
+  if (EC) {
+    errs() << "3C initialization error: Failed to canonicalize base directory "
+              "\"" << BaseDir << "\": " << EC.message() << "\n";
+    Failed = true;
+    return;
+  }
+  BaseDir = TmpPath;
+
+  if (!OutputDir.empty()) {
+    // tryGetCanonicalFilePath will fail if the output dir doesn't exist yet, so
+    // create it first.
+    EC = llvm::sys::fs::create_directories(OutputDir);
+    if (EC) {
+      errs() << "3C initialization error: Failed to create output directory \""
+             << OutputDir << "\": " << EC.message() << "\n";
+      Failed = true;
+      return;
+    }
+    TmpPath = OutputDir;
+    EC = tryGetCanonicalFilePath(OutputDir, TmpPath);
+    if (EC) {
+      errs() << "3C initialization error: Failed to canonicalize output "
+                "directory \"" << OutputDir << "\": " << EC.message() << "\n";
+      Failed = true;
+      return;
+    }
+    OutputDir = TmpPath;
   }
 
   SourceFiles = SourceFileList;
 
+  bool SawInputOutsideBaseDir = false;
   for (const auto &S : SourceFiles) {
     std::string AbsPath;
-    if (getAbsoluteFilePath(S, AbsPath))
-      FilePaths.insert(AbsPath);
+    EC = tryGetCanonicalFilePath(S, AbsPath);
+    if (EC) {
+      errs() << "3C initialization error: Failed to canonicalize source file "
+                "path \"" << S << "\": " << EC.message() << "\n";
+      Failed = true;
+      continue;
+    }
+    FilePaths.insert(AbsPath);
+    if (!filePathStartsWith(AbsPath, BaseDir)) {
+      errs()
+          << "3C initialization "
+          << (OutputDir != "" || !CCopt.AllowSourcesOutsideBaseDir ? "error"
+                                                                   : "warning")
+          << ": File \"" << AbsPath
+          << "\" specified on the command line is outside the base directory\n";
+      SawInputOutsideBaseDir = true;
+    }
+  }
+  if (SawInputOutsideBaseDir) {
+    errs() << "The base directory is currently \"" << BaseDir
+           << "\" and can be changed with the -base-dir option.\n";
+    if (OutputDir != "") {
+      Failed = true;
+      errs() << "When using -output-dir, input files outside the base "
+                "directory cannot be handled because there is no way to "
+                "compute their output paths.\n";
+    } else if (!CCopt.AllowSourcesOutsideBaseDir) {
+      Failed = true;
+      errs() << "You can use the -allow-sources-outside-base-dir option to "
+                "temporarily downgrade this error to a warning.\n";
+    }
   }
 
   CurrCompDB = CompDB;
-
-  if (OutputPostfix == "-" && FilePaths.size() > 1) {
-    errs() << "If rewriting more than one , can't output to stdout\n";
-    assert(false && "Rewriting more than one files requires OutputPostfix");
-  }
 }
 
 bool _3CInterface::buildInitialConstraints() {
@@ -295,7 +372,7 @@ bool _3CInterface::solveConstraints() {
                              "build constraint before trying to solve them.");
   // 2. Solve constraints.
   if (Verbose)
-    outs() << "Solving constraints\n";
+    errs() << "Solving constraints\n";
 
   if (DumpIntermediate)
     GlobalProgramInfo.dump();
@@ -303,7 +380,7 @@ bool _3CInterface::solveConstraints() {
   runSolver(GlobalProgramInfo, FilePaths);
 
   if (Verbose)
-    outs() << "Constraints solved\n";
+    errs() << "Constraints solved\n";
 
   if (WarnRootCause)
     GlobalProgramInfo.computeInterimConstraintState(FilePaths);

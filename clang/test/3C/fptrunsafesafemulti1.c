@@ -1,15 +1,13 @@
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/fptrunsafesafemulti2.c
-// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/fptrunsafesafemulti2.c
-// RUN: %clang -c %S/fptrunsafesafemulti1.checkedNOALL.c %S/fptrunsafesafemulti2.checkedNOALL.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrunsafesafemulti1.checkedNOALL.c %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrunsafesafemulti1.checkedALL.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked %S/fptrunsafesafemulti2.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrunsafesafemulti1.checked.c %S/fptrunsafesafemulti2.checked.c
-// RUN: test ! -f %S/fptrunsafesafemulti1.checked.convert_again.c
-// RUN: test ! -f %S/fptrunsafesafemulti2.checked.convert_again.c
-// RUN: rm %S/fptrunsafesafemulti1.checkedALL.c %S/fptrunsafesafemulti2.checkedALL.c
-// RUN: rm %S/fptrunsafesafemulti1.checkedNOALL.c %S/fptrunsafesafemulti2.checkedNOALL.c
-// RUN: rm %S/fptrunsafesafemulti1.checked.c %S/fptrunsafesafemulti2.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL %s %S/fptrunsafesafemulti2.c --
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL %s %S/fptrunsafesafemulti2.c --
+// RUN: %clang -working-directory=%t.checkedNOALL -c fptrunsafesafemulti1.c fptrunsafesafemulti2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL/fptrunsafesafemulti1.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL/fptrunsafesafemulti1.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/fptrunsafesafemulti2.c %s --
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/fptrunsafesafemulti1.c %t.checked/fptrunsafesafemulti2.c --
+// RUN: test ! -f %t.convert_again/fptrunsafesafemulti1.c
+// RUN: test ! -f %t.convert_again/fptrunsafesafemulti2.c
 
 
 /*********************************************************************************/

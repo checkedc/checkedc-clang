@@ -1,15 +1,13 @@
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL %s %S/fptrarrinstructcallermulti2.c
-// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL %s %S/fptrarrinstructcallermulti2.c
-// RUN: %clang -c %S/fptrarrinstructcallermulti1.checkedNOALL.c %S/fptrarrinstructcallermulti2.checkedNOALL.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/fptrarrinstructcallermulti1.checkedNOALL.c %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/fptrarrinstructcallermulti1.checkedALL.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked %S/fptrarrinstructcallermulti2.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/fptrarrinstructcallermulti1.checked.c %S/fptrarrinstructcallermulti2.checked.c
-// RUN: test ! -f %S/fptrarrinstructcallermulti1.checked.convert_again.c
-// RUN: test ! -f %S/fptrarrinstructcallermulti2.checked.convert_again.c
-// RUN: rm %S/fptrarrinstructcallermulti1.checkedALL.c %S/fptrarrinstructcallermulti2.checkedALL.c
-// RUN: rm %S/fptrarrinstructcallermulti1.checkedNOALL.c %S/fptrarrinstructcallermulti2.checkedNOALL.c
-// RUN: rm %S/fptrarrinstructcallermulti1.checked.c %S/fptrarrinstructcallermulti2.checked.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL %s %S/fptrarrinstructcallermulti2.c --
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL %s %S/fptrarrinstructcallermulti2.c --
+// RUN: %clang -working-directory=%t.checkedNOALL -c fptrarrinstructcallermulti1.c fptrarrinstructcallermulti2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL/fptrarrinstructcallermulti1.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL/fptrarrinstructcallermulti1.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/fptrarrinstructcallermulti2.c %s --
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/fptrarrinstructcallermulti1.c %t.checked/fptrarrinstructcallermulti2.c --
+// RUN: test ! -f %t.convert_again/fptrarrinstructcallermulti1.c
+// RUN: test ! -f %t.convert_again/fptrarrinstructcallermulti2.c
 
 
 /*********************************************************************************/

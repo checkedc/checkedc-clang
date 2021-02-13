@@ -1,4 +1,4 @@
-// RUN: 3c -addcr -alltypes %s | FileCheck -match-full-lines %s
+// RUN: 3c -base-dir=%S -addcr -alltypes %s -- | FileCheck -match-full-lines %s
 
 // XFAIL: *
 

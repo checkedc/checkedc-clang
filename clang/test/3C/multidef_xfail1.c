@@ -1,4 +1,5 @@
-// RUN: 3c -base-dir=%S -output-postfix=checked %s %S/multidef_xfail2.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -output-dir=%t.checked %s %S/multidef_xfail2.c --
 
 // XFAIL: *
 

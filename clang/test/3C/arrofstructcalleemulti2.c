@@ -1,15 +1,13 @@
-// RUN: 3c -base-dir=%S -addcr -alltypes -output-postfix=checkedALL2 %S/arrofstructcalleemulti1.c %s
-// RUN: 3c -base-dir=%S -addcr -output-postfix=checkedNOALL2 %S/arrofstructcalleemulti1.c %s
-// RUN: %clang -c %S/arrofstructcalleemulti1.checkedNOALL2.c %S/arrofstructcalleemulti2.checkedNOALL2.c
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %S/arrofstructcalleemulti2.checkedNOALL2.c %s
-// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %S/arrofstructcalleemulti2.checkedALL2.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=checked2 %S/arrofstructcalleemulti1.c %s
-// RUN: 3c -base-dir=%S -alltypes -output-postfix=convert_again %S/arrofstructcalleemulti1.checked2.c %S/arrofstructcalleemulti2.checked2.c
-// RUN: test ! -f %S/arrofstructcalleemulti1.checked2.convert_again.c
-// RUN: test ! -f %S/arrofstructcalleemulti2.checked2.convert_again.c
-// RUN: rm %S/arrofstructcalleemulti1.checkedALL2.c %S/arrofstructcalleemulti2.checkedALL2.c
-// RUN: rm %S/arrofstructcalleemulti1.checkedNOALL2.c %S/arrofstructcalleemulti2.checkedNOALL2.c
-// RUN: rm %S/arrofstructcalleemulti1.checked2.c %S/arrofstructcalleemulti2.checked2.c
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S -addcr -alltypes -output-dir=%t.checkedALL2 %S/arrofstructcalleemulti1.c %s --
+// RUN: 3c -base-dir=%S -addcr -output-dir=%t.checkedNOALL2 %S/arrofstructcalleemulti1.c %s --
+// RUN: %clang -working-directory=%t.checkedNOALL2 -c arrofstructcalleemulti1.c arrofstructcalleemulti2.c
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_NOALL","CHECK" --input-file %t.checkedNOALL2/arrofstructcalleemulti2.c %s
+// RUN: FileCheck -match-full-lines -check-prefixes="CHECK_ALL","CHECK" --input-file %t.checkedALL2/arrofstructcalleemulti2.c %s
+// RUN: 3c -base-dir=%S -alltypes -output-dir=%t.checked %S/arrofstructcalleemulti1.c %s --
+// RUN: 3c -base-dir=%t.checked -alltypes -output-dir=%t.convert_again %t.checked/arrofstructcalleemulti1.c %t.checked/arrofstructcalleemulti2.c --
+// RUN: test ! -f %t.convert_again/arrofstructcalleemulti1.c
+// RUN: test ! -f %t.convert_again/arrofstructcalleemulti2.c
 
 
 /*********************************************************************************/

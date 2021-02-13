@@ -1,4 +1,4 @@
-// Used by base_subdir/canwrite_constraints_function_and_variable.c .
+// Used by base_subdir/canwrite_constraints.c .
 
 // Note: Only the test in which this file is non-writable verifies diagnostics
 // and will use the expected warning comments below. The test in which this file

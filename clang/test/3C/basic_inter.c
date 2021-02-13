@@ -2,8 +2,9 @@
 //
 // Tests properties about constraint propagation between functions.
 //
-// RUN: 3c %s | FileCheck -match-full-lines %s
-// RUN: 3c %s | %clang -c -fcheckedc-extension -x c -o %t1.unused -
+// RUN: rm -rf %t*
+// RUN: 3c -base-dir=%S %s -- | FileCheck -match-full-lines %s
+// RUN: 3c -base-dir=%S %s -- | %clang -c -fcheckedc-extension -x c -o %t1.unused -
 //
 
 int funcdecl(int *ptr, int *iptr, int *wild);

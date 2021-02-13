@@ -132,10 +132,12 @@ bool canRewrite(Rewriter &R, SourceRange &SR) {
   return SR.isValid() && (R.getRangeSize(SR) != -1);
 }
 
-static void emit(Rewriter &R, ASTContext &C, std::string &OutputPostfix) {
+static void emit(Rewriter &R, ASTContext &C) {
   if (Verbose)
     errs() << "Writing files out\n";
 
+  bool StdoutMode = (OutputPostfix == "-" && OutputDir.empty());
+  bool StdoutModeSawMainFile = false;
   SourceManager &SM = C.getSourceManager();
   // Iterate over each modified rewrite buffer
   for (auto Buffer = R.buffer_begin(); Buffer != R.buffer_end(); ++Buffer) {
@@ -162,8 +164,7 @@ static void emit(Rewriter &R, ASTContext &C, std::string &OutputPostfix) {
 
       // Check whether we are allowed to write this file.
       std::string FeAbsS = "";
-      if (getAbsoluteFilePath(FE->getName(), FeAbsS))
-        FeAbsS = sys::path::remove_leading_dotslash(FeAbsS);
+      getCanonicalFilePath(FE->getName(), FeAbsS);
       if (!canWrite(FeAbsS)) {
         DiagnosticsEngine &DE = C.getDiagnostics();
         unsigned ID = DE.getCustomDiagID(
@@ -176,15 +177,11 @@ static void emit(Rewriter &R, ASTContext &C, std::string &OutputPostfix) {
         continue;
       }
 
-      if (OutputPostfix == "-") {
-        // Stdout mode
-        // TODO: If we don't have a rewrite buffer for the main file, that means
-        // we generated no changes to the file and we should print its original
-        // content
-        // (https://github.com/correctcomputation/checkedc-clang/issues/328#issuecomment-760243604).
+      if (StdoutMode) {
         if (Buffer->first == SM.getMainFileID()) {
           // This is the new version of the main file. Print it to stdout.
           Buffer->second.write(outs());
+          StdoutModeSawMainFile = true;
         } else {
           DiagnosticsEngine &DE = C.getDiagnostics();
           unsigned ID = DE.getCustomDiagID(
@@ -198,35 +195,71 @@ static void emit(Rewriter &R, ASTContext &C, std::string &OutputPostfix) {
         continue;
       }
 
-      // -output-postfix mode
-
       // Produce a path/file name for the rewritten source file.
-      // That path should be the same as the old one, with a
-      // suffix added between the file name and the extension.
-      // For example \foo\bar\a.c should become \foo\bar\a.checked.c
-      // if the OutputPostfix parameter is "checked" .
-      std::string PfName = sys::path::filename(FE->getName()).str();
-      std::string DirName = sys::path::parent_path(FE->getName()).str();
-      std::string FileName = sys::path::remove_leading_dotslash(PfName).str();
-      std::string Ext = sys::path::extension(FileName).str();
-      std::string Stem = sys::path::stem(FileName).str();
-      std::string NFile = Stem + "." + OutputPostfix + Ext;
-      if (!DirName.empty())
-        NFile = DirName + sys::path::get_separator().str() + NFile;
-
+      std::string NFile;
       std::error_code EC;
+      // We now know that we are using either OutputPostfix or OutputDir mode
+      // because stdout mode is handled above. OutputPostfix defaults to "-"
+      // when it's not provided, so any other value means that we should use
+      // OutputPostfix. Otherwise, we must be in OutputDir mode.
+      if (OutputPostfix != "-") {
+        // That path should be the same as the old one, with a
+        // suffix added between the file name and the extension.
+        // For example \foo\bar\a.c should become \foo\bar\a.checked.c
+        // if the OutputPostfix parameter is "checked" .
+        std::string PfName = sys::path::filename(FE->getName()).str();
+        std::string DirName = sys::path::parent_path(FE->getName()).str();
+        std::string FileName = sys::path::remove_leading_dotslash(PfName).str();
+        std::string Ext = sys::path::extension(FileName).str();
+        std::string Stem = sys::path::stem(FileName).str();
+        NFile = Stem + "." + OutputPostfix + Ext;
+        if (!DirName.empty())
+          NFile = DirName + sys::path::get_separator().str() + NFile;
+      } else {
+        assert(!OutputDir.empty());
+        // If this does not hold when OutputDir is set, it should have been a
+        // fatal error in the _3CInterface constructor.
+        assert(filePathStartsWith(FeAbsS, BaseDir));
+        // replace_path_prefix is not smart about separators, but this should be
+        // OK because getCanonicalFilePath should ensure that neither BaseDir
+        // nor OutputDir has a trailing separator.
+        SmallString<255> Tmp(FeAbsS);
+        llvm::sys::path::replace_path_prefix(Tmp, BaseDir, OutputDir);
+        NFile = Tmp.str();
+        EC = llvm::sys::fs::create_directories(sys::path::parent_path(NFile));
+        if (EC) {
+          DiagnosticsEngine &DE = C.getDiagnostics();
+          unsigned ID = DE.getCustomDiagID(
+              DiagnosticsEngine::Error,
+              "failed to create parent directory of output file \"%0\"");
+          auto DiagBuilder = DE.Report(SM.translateFileLineCol(FE, 1, 1), ID);
+          DiagBuilder.AddString(NFile);
+          continue;
+        }
+      }
+
       raw_fd_ostream Out(NFile, EC, sys::fs::F_None);
 
       if (!EC) {
         if (Verbose)
-          outs() << "writing out " << NFile << "\n";
+          errs() << "writing out " << NFile << "\n";
         Buffer->second.write(Out);
-      } else
-        errs() << "could not open file " << NFile << "\n";
-      // This is awkward. What to do? Since we're iterating, we could have
-      // created other files successfully. Do we go back and erase them? Is
-      // that surprising? For now, let's just keep going.
+      } else {
+        DiagnosticsEngine &DE = C.getDiagnostics();
+        unsigned ID = DE.getCustomDiagID(DiagnosticsEngine::Error,
+                                         "failed to write output file \"%0\"");
+        auto DiagBuilder = DE.Report(SM.translateFileLineCol(FE, 1, 1), ID);
+        DiagBuilder.AddString(NFile);
+        // This is awkward. What to do? Since we're iterating, we could have
+        // created other files successfully. Do we go back and erase them? Is
+        // that surprising? For now, let's just keep going.
+      }
     }
+  }
+
+  if (StdoutMode && !StdoutModeSawMainFile) {
+    // The main file is unchanged. Write out its original content.
+    outs() << SM.getBuffer(SM.getMainFileID())->getBuffer();
   }
 }
 
@@ -486,7 +519,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   }
 
   // Output files.
-  emit(R, Context, OutputPostfix);
+  emit(R, Context);
 
   Info.exitCompilationUnit();
   return;
