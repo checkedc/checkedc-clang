@@ -6,7 +6,7 @@ int foo();
 
 int bar(int *x, int c) { 
 //CHECK: int bar(_Array_ptr<int> x : count(c), int c) { 
-  return foo(x, 1) + 3;
+  return foo(x, c) + 3;
 }
 
 int foo(int *x, int y);

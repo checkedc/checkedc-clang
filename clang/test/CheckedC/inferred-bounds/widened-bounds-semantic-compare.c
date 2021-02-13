@@ -1,12 +1,10 @@
 // Tests for bounds widening of _Nt_array_ptr's using function to semantically
 // compare two expressions.
 //
-// RUN: %clang_cc1 -fdump-widened-bounds -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s 2>&1 | FileCheck %s
-
-// expected-no-diagnostics
+// RUN: %clang_cc1 -fdump-widened-bounds -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s | FileCheck %s
 
 void f1(int i) {
-  _Nt_array_ptr<char> p : bounds(p, p + i) = "a";
+  _Nt_array_ptr<char> p : bounds(p, p + i) = "a"; // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}}
 
   if (*(i + p)) {}
 
@@ -16,7 +14,7 @@ void f1(int i) {
 }
 
 void f2(int i, int j) {
-  _Nt_array_ptr<char> p : bounds(p, p + (i + j)) = "a";
+  _Nt_array_ptr<char> p : bounds(p, p + (i + j)) = "a"; // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}}
 
   if (*(p + (j + i))) {}
 
@@ -26,7 +24,7 @@ void f2(int i, int j) {
 }
 
 void f3(int i, int j) {
-  _Nt_array_ptr<char> p : bounds(p, p + (i * j)) = "a";
+  _Nt_array_ptr<char> p : bounds(p, p + (i * j)) = "a"; // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}}
 
   if (*(p + (j * i))) {}
 
@@ -66,7 +64,7 @@ void f6(int i, int j) {
 }
 
 void f7(int i, int j) {
-  _Nt_array_ptr<char> p : bounds(p, p + i * j) = "a";
+  _Nt_array_ptr<char> p : bounds(p, p + i * j) = "a"; // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}}
 
   if (*(p + i + j)) {}
 
@@ -142,7 +140,7 @@ void f12() {
 }
 
 void f13(int i, int j) {
-  _Nt_array_ptr<char> p : bounds(p, p + (i * j * 2 + 2 + 1)) = "a";
+  _Nt_array_ptr<char> p : bounds(p, p + (i * j * 2 + 2 + 1)) = "a"; // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}}
 
   if (*(p + (i * j * 2 + 3)))
     if (*(p + (i * j * 2 + 1 + 1 + 1) + 1))
@@ -160,7 +158,7 @@ void f13(int i, int j) {
 }
 
 void f14(int i) {
-  _Nt_array_ptr<char> p : bounds(p, p + (i * 1)) = "a";
+  _Nt_array_ptr<char> p : bounds(p, p + (i * 1)) = "a"; // expected-error {{it is not possible to prove that the inferred bounds of 'p' imply the declared bounds of 'p' after initialization}}
 
   if (*(p + (i * 2)))
   {}
