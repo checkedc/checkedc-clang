@@ -99,41 +99,63 @@ int pop(struct Stack*);
 int main()
 
 {
+	//CHECK_NOALL: {
+	//CHECK_ALL: _Checked {
 
 	int vertices,edges,i,src,dst;
 
 	printf("Enter the number of vertices\n");
+	//CHECK_NOALL: printf("Enter the number of vertices\n");
+	//CHECK_ALL: 	_Unchecked { printf("Enter the number of vertices\n"); };
 
 	scanf("%d",&vertices);
+	//CHECK_NOALL: scanf("%d",&vertices);
+	//CHECK_ALL: 	_Unchecked { scanf("%d",&vertices); };
 
 	struct Graph* graph = createGraph(vertices);
 	//CHECK: _Ptr<struct Graph> graph = createGraph(vertices);
 
 	printf("Enter the number of edges\n");
+	//CHECK_NOALL: printf("Enter the number of edges\n");
+	//CHECK_ALL: 	_Unchecked { printf("Enter the number of edges\n"); };
 
 	scanf("%d",&edges);
+	//CHECK_NOALL: scanf("%d",&edges);
+	//CHECK_ALL: 	_Unchecked { scanf("%d",&edges); };
 
 	for(i=0; i<edges; i++)
 
 	{
 
 		printf("Edge %d \nEnter source: ",i+1);
+	//CHECK_NOALL: printf("Edge %d \nEnter source: ",i+1);
+	//CHECK_ALL: 		_Unchecked { printf("Edge %d \nEnter source: ",i+1); };
 
 		scanf("%d",&src);
+	//CHECK_NOALL: scanf("%d",&src);
+	//CHECK_ALL: 		_Unchecked { scanf("%d",&src); };
 
 		printf("Enter destination: ");
+	//CHECK_NOALL: printf("Enter destination: ");
+	//CHECK_ALL: 		_Unchecked { printf("Enter destination: "); };
 
 		scanf("%d",&dst);
+	//CHECK_NOALL: scanf("%d",&dst);
+	//CHECK_ALL: 		_Unchecked { scanf("%d",&dst); };
 
 		addEdge(graph, src, dst);
 
 	}
 
 	printf("One topological sort order is:\n");
+	//CHECK_NOALL: printf("One topological sort order is:\n");
+	//CHECK_ALL: 	_Unchecked { printf("One topological sort order is:\n"); };
 
 	topologicalSort(graph);
 
 	printf("\n");
+	//CHECK_NOALL: printf("\n");
+	//CHECK_ALL: 	_Unchecked { printf("\n"); };
 
 
 
@@ -151,10 +173,14 @@ int main()
     addEdge(graph2, 2, 3);
 
     printf("One topological sort is:\n");
+	//CHECK_NOALL: printf("One topological sort is:\n");
+	//CHECK_ALL:     _Unchecked { printf("One topological sort is:\n"); };
 
     topologicalSort(graph2);
 
 	printf("\n");
+	//CHECK_NOALL: printf("\n");
+	//CHECK_ALL: 	_Unchecked { printf("\n"); };
 
     return 0;
 
@@ -185,8 +211,6 @@ void topologicalSortHelper(int vertex, struct Graph* graph, struct Stack* stack)
         int connectedVertex = temp->vertex;
 
         if(graph->visited[connectedVertex] == 0) {
-	//CHECK_NOALL: if(graph->visited[connectedVertex] == 0) {
-	//CHECK_ALL:         if(graph->visited[connectedVertex] == 0) _Unchecked {
 
                topologicalSortHelper(connectedVertex, graph, stack);
 
@@ -227,8 +251,6 @@ void topologicalSort(struct Graph* graph)
 		if(graph->visited[i]==0)
 
 		{
-	//CHECK_NOALL: {
-	//CHECK_ALL: 		_Unchecked {
 
 			topologicalSortHelper(i,graph,stack);
 

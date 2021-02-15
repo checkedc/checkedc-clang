@@ -27,7 +27,7 @@
 
 int *bar(int *q) {
   // CHECK_LOWER: int *bar(int *q : itype(_Ptr<int>)) : itype(_Ptr<int>) {
-  // CHECK_HIGHER: _Ptr<int> bar(_Ptr<int> q) {
+  // CHECK_HIGHER: _Ptr<int> bar(_Ptr<int> q) _Checked {
   foo(q);
   return foo_var;
 }

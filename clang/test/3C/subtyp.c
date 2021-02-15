@@ -9,7 +9,7 @@ void take(int *p : itype(_Nt_array_ptr<int>));
 	//CHECK: void take(int *p : itype(_Nt_array_ptr<int>));
 int *foo(int *x) {
 	//CHECK_NOALL: int *foo(int *x : itype(_Ptr<int>)) : itype(_Ptr<int>) {
-	//CHECK_ALL: _Nt_array_ptr<int> foo(_Nt_array_ptr<int> x) {
+	//CHECK_ALL: _Nt_array_ptr<int> foo(_Nt_array_ptr<int> x) _Checked {
   take(x);
   return x;
 }

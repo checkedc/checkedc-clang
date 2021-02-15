@@ -379,9 +379,6 @@ bool CheckedRegionFinder::containsUncheckedPtrAcc(QualType Qt,
   if (Ct->isVoidPointerType()) {
     return true;
   }
-  if (Ct->isVoidType()) {
-    return true;
-  }
   if (Ct->isPointerType()) {
     return containsUncheckedPtrAcc(Ct->getPointeeType(), Seen);
   }
