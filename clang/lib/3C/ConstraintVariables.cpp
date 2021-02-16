@@ -921,17 +921,8 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     // we'll check if the declaration that has the body is different
     // from the current declaration.
     const FunctionDecl *OFd = nullptr;
-    if (FD->hasBody(OFd) && OFd == FD) {
-      // Some function (e.g, atoi) are given definitions inside the system
-      // headers. Here we ensure that such functions are treated the same as
-      // function without bodies.
-      bool InSysHeader = false;
-      if (FD->getDefinition()) {
-        SourceLocation DefnLoc = FD->getDefinition()->getLocation();
-        InSysHeader = Ctx.getSourceManager().isInSystemHeader(DefnLoc);
-      }
-      Hasbody = !InSysHeader;
-    }
+    if (FD->hasBody(OFd) && OFd == FD)
+      Hasbody = true;
     IsStatic = !(FD->isGlobal());
     ASTContext *TmpCtx = const_cast<ASTContext *>(&Ctx);
     auto PSL = PersistentSourceLoc::mkPSL(D, *TmpCtx);
