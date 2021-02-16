@@ -117,34 +117,34 @@ static Result ComparePointers(T *P1, T *P2, bool &ordered) {
 Result
 Lexicographic::CompareLoc(const SourceLocation *SL1,
                           const SourceLocation *SL2) const {
-  if (SL1 && SL2) {
-    if (SL1 == SL2)
-      return Result::Equal;
-    const SourceManager *SM = &Context.getSourceManager();
-    if (!SM) {
-      llvm_unreachable("unexpected null SourceManager");
-      return Result::LessThan;
-    }
-    const SourceLocation SLoc1 = SM->getSpellingLoc(*SL1);
-    const SourceLocation SLoc2 = SM->getSpellingLoc(*SL2);
-    const PresumedLoc PLoc1 = SM->getPresumedLoc(SLoc1);
-    const PresumedLoc PLoc2 = SM->getPresumedLoc(SLoc2);
-    if (PLoc1.isInvalid() || PLoc2.isInvalid()) {
-      llvm_unreachable("unexpected invalid source locations");
-      return Result::LessThan;
-    }
-    Result Cmp = TranslateInt(strcmp(PLoc1.getFilename(), PLoc2.getFilename()));
-    if (Cmp != Result::Equal)
-      return Cmp;
-
-    Cmp = CompareInteger(PLoc1.getLine(), PLoc2.getLine());
-    if (Cmp != Result::Equal)
-      return Cmp;
-
-    return CompareInteger(PLoc1.getColumn(), PLoc2.getColumn());
+  if (!SL1 || !SL2) {
+    llvm_unreachable("unexpected source locations");
+    return Result::LessThan;
   }
-  llvm_unreachable("unexpected source locations");
-  return Result::LessThan;
+  if (SL1 == SL2)
+    return Result::Equal;
+  const SourceManager *SM = &Context.getSourceManager();
+  if (!SM) {
+    llvm_unreachable("unexpected null SourceManager");
+    return Result::LessThan;
+  }
+  const SourceLocation SLoc1 = SM->getSpellingLoc(*SL1);
+  const SourceLocation SLoc2 = SM->getSpellingLoc(*SL2);
+  const PresumedLoc PLoc1 = SM->getPresumedLoc(SLoc1);
+  const PresumedLoc PLoc2 = SM->getPresumedLoc(SLoc2);
+  if (PLoc1.isInvalid() || PLoc2.isInvalid()) {
+    llvm_unreachable("unexpected invalid source locations");
+    return Result::LessThan;
+  }
+  Result Cmp = TranslateInt(strcmp(PLoc1.getFilename(), PLoc2.getFilename()));
+  if (Cmp != Result::Equal)
+    return Cmp;
+
+  Cmp = CompareInteger(PLoc1.getLine(), PLoc2.getLine());
+  if (Cmp != Result::Equal)
+    return Cmp;
+
+  return CompareInteger(PLoc1.getColumn(), PLoc2.getColumn());
 }
 
 Result
@@ -180,17 +180,26 @@ Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) cons
 }
 
 Result
-Lexicographic::CompareDecl(const CapturedDecl *CD1,
-                           const CapturedDecl *CD2) const {
+Lexicographic::CompareDecl(const CapturedDecl *CD1Arg,
+                           const CapturedDecl *CD2Arg) const {
+  const CapturedDecl *CD1 = dyn_cast<CapturedDecl>(CD1Arg->getCanonicalDecl());
+  const CapturedDecl *CD2 = dyn_cast<CapturedDecl>(CD2Arg->getCanonicalDecl());
+  if (CD1 == CD2)
+    return Result::Equal;
+
+  if (!CD1 || !CD2) {
+    assert(false && "unexpected cast failure");
+    return Result::LessThan;
+  }
   Stmt *SList1 = CD1->getBody();
   Stmt *SList2 = CD2->getBody();
-  if (SList1 && SList2) {
-    const SourceLocation SL1 = SList1->getSourceRange().getBegin();
-    const SourceLocation SL2 = SList2->getSourceRange().getBegin();
-    return CompareLoc(&SL1, &SL2);
+  if (!SList1 || !SList2) {
+    llvm_unreachable("unexpected captured scopes");
+    return Result::LessThan;
   }
-  llvm_unreachable("unexpected captured scopes");
-  return Result::LessThan;
+  const SourceLocation SL1 = SList1->getSourceRange().getBegin();
+  const SourceLocation SL2 = SList2->getSourceRange().getBegin();
+  return CompareLoc(&SL1, &SL2);
 }
 
 Result
