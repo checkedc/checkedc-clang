@@ -2494,20 +2494,16 @@ WhereClause *Parser::ParseWhereClause() {
   if (!WClause)
     return nullptr;
 
+  // Parse each where clause fact. We want to issue diagnostics for as many
+  // parsing errors a possible. So we do not break on the first error.
   bool IsError = false;
-  while (true) {
+  do {
     WhereClauseFact *Fact = ParseWhereClauseFact();
     if (!Fact)
       IsError = true;
     else
       WClause->addFact(Fact);
-
-    if (Tok.isNot(tok::kw__And))
-      break;
-
-    // Consume the "_And" token.
-    ConsumeToken();
-  }
+  } while (TryConsumeToken(tok::kw__And));
 
   if (IsError)
     return nullptr;
