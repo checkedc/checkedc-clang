@@ -1970,6 +1970,8 @@ private:
 
   friend struct DeclaratorChunk;
 
+  WhereClause *WClause;
+
 public:
   Declarator(const DeclSpec &ds, DeclaratorContext C)
       : DS(ds), Range(ds.getSourceRange()), Context(C),
@@ -1978,7 +1980,7 @@ public:
         Redeclaration(false), Extension(false), ObjCIvar(false),
         ObjCWeakProperty(false), InlineStorageUsed(false),
         Attrs(ds.getAttributePool().getFactory()), AsmLabel(nullptr),
-        ReturnBounds(nullptr) {}
+        ReturnBounds(nullptr), WClause(nullptr) {}
 
   ~Declarator() {
     clear();
@@ -2620,6 +2622,9 @@ public:
 
   void setRedeclaration(bool Val) { Redeclaration = Val; }
   bool isRedeclaration() const { return Redeclaration; }
+
+  void setWhereClause(WhereClause *WC) { WClause = WC; }
+  WhereClause *getWhereClause() const { return WClause; }
 };
 
 /// This little struct is used to capture information about

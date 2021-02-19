@@ -1969,7 +1969,8 @@ VarDecl::VarDecl(Kind DK, ASTContext &C, DeclContext *DC,
                  IdentifierInfo *Id, QualType T, TypeSourceInfo *TInfo,
                  StorageClass SC)
     : DeclaratorDecl(DK, DC, IdLoc, Id, T, TInfo, StartLoc),
-      redeclarable_base(C) {
+      redeclarable_base(C),
+      WClause(nullptr) {
   static_assert(sizeof(VarDeclBitfields) <= sizeof(unsigned),
                 "VarDeclBitfields too large!");
   static_assert(sizeof(ParmVarDeclBitfields) <= sizeof(unsigned),

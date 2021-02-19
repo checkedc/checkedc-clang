@@ -2005,6 +2005,18 @@ void Parser::ExitQuantifiedTypeScope(DeclSpec &DS) {
   }
 }
 
+void Parser::AttachWhereClause(Decl *D) {
+  if (!getLangOpts().CheckedC || !Tok.is(tok::kw__Where))
+    return;
+
+  WhereClause *WClause = ParseWhereClause();
+  if (!WClause)
+    return;
+
+  if (auto *VD = dyn_cast_or_null<VarDecl>(D))
+    VD->setWhereClause(WClause);
+}
+
 /// ParseDeclGroup - Having concluded that this is either a function
 /// definition or a group of object declarations, actually parse the
 /// result.
@@ -2173,8 +2185,10 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
   if (LateParsedAttrs.size() > 0)
     ParseLexedAttributeList(LateParsedAttrs, FirstDecl, true, false);
   D.complete(FirstDecl);
-  if (FirstDecl)
+  if (FirstDecl) {
     DeclsInGroup.push_back(FirstDecl);
+    AttachWhereClause(FirstDecl);
+  }
 
   bool ExpectSemi = Context != DeclaratorContext::ForContext;
 
@@ -2213,8 +2227,10 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
     if (!D.isInvalidType()) {
       Decl *ThisDecl = ParseDeclarationAfterDeclarator(D);
       D.complete(ThisDecl);
-      if (ThisDecl)
+      if (ThisDecl) {
         DeclsInGroup.push_back(ThisDecl);
+        AttachWhereClause(ThisDecl);
+      }
     }
   }
 
@@ -6212,6 +6228,11 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
       ConsumeToken();
       goto PastIdentifier;
     }
+
+  } else if (getLangOpts().CheckedC && Tok.is(tok::kw__Where)) {
+    D.SetIdentifier(nullptr, Tok.getLocation());
+    D.setWhereClause(ParseWhereClause());
+    goto PastIdentifier;
   }
 
   if (Tok.is(tok::l_paren)) {

@@ -1978,6 +1978,9 @@ private:
   /// Parse a Checked C where clause fact.
   WhereClauseFact *ParseWhereClauseFact();
 
+  /// Attach a where clause to a Decl.
+  void AttachWhereClause(Decl *D);
+
   //===--------------------------------------------------------------------===//
   // clang Expressions
 
