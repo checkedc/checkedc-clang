@@ -114,6 +114,8 @@ static Result ComparePointers(T *P1, T *P2, bool &ordered) {
 // ordering of filenames if the two source locations are in
 // different source files, and based on line/column numbers if
 // the two source locations are in the same source file.
+// This function assumes that the two input SourceLocations
+// are not invalid.
 Result
 Lexicographic::CompareLoc(const SourceLocation *SL1,
                           const SourceLocation *SL2) const {
@@ -199,7 +201,28 @@ Lexicographic::CompareDecl(const CapturedDecl *CD1Arg,
   }
   const SourceLocation SL1 = SList1->getSourceRange().getBegin();
   const SourceLocation SL2 = SList2->getSourceRange().getBegin();
-  return CompareLoc(&SL1, &SL2);
+
+  if (!SL1.isInvalid() && !SL2.isInvalid())
+    return CompareLoc(&SL1, &SL2);
+  else {
+    assert(false && "unexpected invalid source location(s)");
+    if (!SL2.isInvalid())
+      return Result::LessThan;
+    else if (!SL1.isInvalid())
+      return Result::GreaterThan;
+    else {
+      // We avoid an abnormal compiler exit due to invalid source locations by
+      // resorting to pointer comparison of two statement lists as a last resort
+      // to impose an ordering between the two CapturedDecl contexts corresponding
+      // to the statement lists.
+      if (SList1 == SList2)
+        return Result::Equal;
+      else if (SList1 < SList2)
+        return Result::LessThan;
+      else
+        return Result::GreaterThan;
+    }
+  }
 }
 
 Result
