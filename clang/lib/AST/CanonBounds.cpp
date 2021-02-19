@@ -23,7 +23,6 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/PreorderAST.h"
 #include "clang/AST/Stmt.h"
-#include "clang/Basic/SourceManager.h"
 
 using namespace clang;
 using Result = Lexicographic::Result;
@@ -110,45 +109,6 @@ static Result ComparePointers(T *P1, T *P2, bool &ordered) {
   return Result::LessThan;
 }
 
-// \brief Order two source locations based on the lexicographic
-// ordering of filenames if the two source locations are in
-// different source files, and based on line/column numbers if
-// the two source locations are in the same source file.
-// This function assumes that the two input SourceLocations
-// are not invalid.
-Result
-Lexicographic::CompareLoc(const SourceLocation *SL1,
-                          const SourceLocation *SL2) const {
-  if (!SL1 || !SL2) {
-    llvm_unreachable("unexpected source locations");
-    return Result::LessThan;
-  }
-  if (SL1 == SL2)
-    return Result::Equal;
-  const SourceManager *SM = &Context.getSourceManager();
-  if (!SM) {
-    llvm_unreachable("unexpected null SourceManager");
-    return Result::LessThan;
-  }
-  const SourceLocation SLoc1 = SM->getSpellingLoc(*SL1);
-  const SourceLocation SLoc2 = SM->getSpellingLoc(*SL2);
-  const PresumedLoc PLoc1 = SM->getPresumedLoc(SLoc1);
-  const PresumedLoc PLoc2 = SM->getPresumedLoc(SLoc2);
-  if (PLoc1.isInvalid() || PLoc2.isInvalid()) {
-    llvm_unreachable("unexpected invalid source locations");
-    return Result::LessThan;
-  }
-  Result Cmp = TranslateInt(strcmp(PLoc1.getFilename(), PLoc2.getFilename()));
-  if (Cmp != Result::Equal)
-    return Cmp;
-
-  Cmp = CompareInteger(PLoc1.getLine(), PLoc2.getLine());
-  if (Cmp != Result::Equal)
-    return Cmp;
-
-  return CompareInteger(PLoc1.getColumn(), PLoc2.getColumn());
-}
-
 Result
 Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) const {
    DC1 = DC1->getPrimaryContext();
@@ -202,18 +162,13 @@ Lexicographic::CompareDecl(const CapturedDecl *CD1Arg,
   const SourceLocation SL1 = SList1->getSourceRange().getBegin();
   const SourceLocation SL2 = SList2->getSourceRange().getBegin();
 
-  if (!SL1.isInvalid() && !SL2.isInvalid())
-    return CompareLoc(&SL1, &SL2);
-
-  assert(false && "unexpected invalid source location(s)");
-  if (!SL2.isInvalid())
-    return Result::LessThan;
-  if (!SL1.isInvalid())
-    return Result::GreaterThan;
-  // We avoid an abnormal compiler exit due to invalid source locations by
-  // resorting to pointer comparison of two statement lists as a last resort
-  // to impose an ordering between the two CapturedDecl contexts corresponding
-  // to the statement lists.
+  // We resort to pointer comparison of statement lists to impose an ordering
+  // between the two CapturedDecl contexts corresponding to the statement lists.
+  // TODO: This is non-deterministic across compiler runs, and is an interim
+  // solution.
+  // TODO: We need to order two CapturedDecls using an approach similar to the
+  // one that orders two NamedDecls, which is by looking at the ancestor Decl
+  // contexts that nest the compared CapturedDecls.
   if (SList1 == SList2)
     return Result::Equal;
   if (SList1 < SList2)

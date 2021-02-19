@@ -76,8 +76,6 @@ namespace clang {
     Result CompareInteger(unsigned I1, unsigned I2) const;
     Result CompareRelativeBoundsClause(const RelativeBoundsClause *RC1,
                                        const RelativeBoundsClause *RC2);
-    Result CompareLoc(const SourceLocation *SL1,
-                      const SourceLocation *SL2) const;
     Result CompareScope(const DeclContext *DC1, const DeclContext *DC2) const;
 
     Result CompareImpl(const PredefinedExpr *E1, const PredefinedExpr *E2);
