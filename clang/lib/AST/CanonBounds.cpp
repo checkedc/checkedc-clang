@@ -159,9 +159,6 @@ Lexicographic::CompareDecl(const CapturedDecl *CD1Arg,
     llvm_unreachable("unexpected captured scopes");
     return Result::LessThan;
   }
-  const SourceLocation SL1 = SList1->getSourceRange().getBegin();
-  const SourceLocation SL2 = SList2->getSourceRange().getBegin();
-
   // We resort to pointer comparison of statement lists to impose an ordering
   // between the two CapturedDecl contexts corresponding to the statement lists.
   // TODO: This is non-deterministic across compiler runs, and is an interim
