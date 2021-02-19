@@ -204,25 +204,21 @@ Lexicographic::CompareDecl(const CapturedDecl *CD1Arg,
 
   if (!SL1.isInvalid() && !SL2.isInvalid())
     return CompareLoc(&SL1, &SL2);
-  else {
-    assert(false && "unexpected invalid source location(s)");
-    if (!SL2.isInvalid())
-      return Result::LessThan;
-    else if (!SL1.isInvalid())
-      return Result::GreaterThan;
-    else {
-      // We avoid an abnormal compiler exit due to invalid source locations by
-      // resorting to pointer comparison of two statement lists as a last resort
-      // to impose an ordering between the two CapturedDecl contexts corresponding
-      // to the statement lists.
-      if (SList1 == SList2)
-        return Result::Equal;
-      else if (SList1 < SList2)
-        return Result::LessThan;
-      else
-        return Result::GreaterThan;
-    }
-  }
+
+  assert(false && "unexpected invalid source location(s)");
+  if (!SL2.isInvalid())
+    return Result::LessThan;
+  if (!SL1.isInvalid())
+    return Result::GreaterThan;
+  // We avoid an abnormal compiler exit due to invalid source locations by
+  // resorting to pointer comparison of two statement lists as a last resort
+  // to impose an ordering between the two CapturedDecl contexts corresponding
+  // to the statement lists.
+  if (SList1 == SList2)
+    return Result::Equal;
+  if (SList1 < SList2)
+    return Result::LessThan;
+  return Result::GreaterThan;
 }
 
 Result
