@@ -123,7 +123,11 @@ Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) cons
 
   switch (DC1->getDeclKind()) {
     case Decl::TranslationUnit: return Result::Equal;
-    case Decl::Captured: return Result::Equal;
+    case Decl::Captured: {
+      const CapturedDecl *CD1 = dyn_cast<CapturedDecl>(DC1);
+      const CapturedDecl *CD2 = dyn_cast<CapturedDecl>(DC2);
+      return CompareDecl(CD1, CD2);
+    }
     case Decl::Function: 
     case Decl::Enum:
     case Decl::Record: {
@@ -135,6 +139,38 @@ Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) cons
       llvm_unreachable("unexpected scope type");
       return Result::LessThan;
   }
+}
+
+Result
+Lexicographic::CompareDecl(const CapturedDecl *CD1Arg,
+                           const CapturedDecl *CD2Arg) const {
+  const CapturedDecl *CD1 = dyn_cast<CapturedDecl>(CD1Arg->getCanonicalDecl());
+  const CapturedDecl *CD2 = dyn_cast<CapturedDecl>(CD2Arg->getCanonicalDecl());
+  if (CD1 == CD2)
+    return Result::Equal;
+
+  if (!CD1 || !CD2) {
+    assert(false && "unexpected cast failure");
+    return Result::LessThan;
+  }
+  Stmt *SList1 = CD1->getBody();
+  Stmt *SList2 = CD2->getBody();
+  if (!SList1 || !SList2) {
+    llvm_unreachable("unexpected captured scopes");
+    return Result::LessThan;
+  }
+  // We resort to pointer comparison of statement lists to impose an ordering
+  // between the two CapturedDecl contexts corresponding to the statement lists.
+  // TODO: This is non-deterministic across compiler runs, and is an interim
+  // solution.
+  // TODO: We need to order two CapturedDecls using an approach similar to the
+  // one that orders two NamedDecls, which is by looking at the ancestor Decl
+  // contexts that nest the compared CapturedDecls.
+  if (SList1 == SList2)
+    return Result::Equal;
+  if (SList1 < SList2)
+    return Result::LessThan;
+  return Result::GreaterThan;
 }
 
 Result
