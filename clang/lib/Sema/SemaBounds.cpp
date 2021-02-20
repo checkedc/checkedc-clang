@@ -555,6 +555,15 @@ namespace {
           ++Count;
         return true;
       }
+
+      // Do not traverse the child of a BoundsValueExpr.
+      // If a BoundsValueExpr uses the variable V, this should not count
+      // toward the total occurrence count of V in the expression.
+      // For example, for the expression BoundsValue(TempBinding(v)) + v, the
+      // total occurrence count of the variable v should be 1, not 2.
+      bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
+        return true;
+      }
   };
 
   // VariableOccurrenceCount returns the number of occurrences of V in E.
@@ -6570,6 +6579,14 @@ namespace {
       addError(E, MEK_Call);
       FoundModifyingExpr = true;
 
+      return true;
+    }
+
+    // Do not traverse the children of a BoundsValueExpr. Any expressions
+    // that are wrapped in a BoundsValueExpr should not be considered
+    // modifying expressions. For example, BoundsValue(TempBinding(f()))
+    // should not be considered modifying.
+    bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
       return true;
     }
 
