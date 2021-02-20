@@ -69,19 +69,9 @@ PersistentSourceLoc PersistentSourceLoc::mkPSL(clang::SourceRange SR,
     std::string ToConv = Fn;
     std::string FeAbsS = "";
     if (Fe != nullptr)
-<<<<<<< HEAD
-      ToConv = Fe->getName();
-    getCanonicalFilePath(ToConv, FeAbsS);
-    Fn = sys::path::remove_leading_dotslash(FeAbsS);
-||||||| ad482c007426
-      ToConv = Fe->getName();
-    if (getAbsoluteFilePath(ToConv, FeAbsS))
-      Fn = sys::path::remove_leading_dotslash(FeAbsS);
-=======
       ToConv = std::string(Fe->getName());
-    if (getAbsoluteFilePath(ToConv, FeAbsS))
-      Fn = std::string(sys::path::remove_leading_dotslash(FeAbsS));
->>>>>>> a4d1ce7f08d86d868e676e6971d797456cc875eb
+    getCanonicalFilePath(ToConv, FeAbsS);
+    Fn = std::string(sys::path::remove_leading_dotslash(FeAbsS));
   }
   PersistentSourceLoc PSL(Fn, FESL.getExpansionLineNumber(),
                           FESL.getExpansionColumnNumber(), EndCol);

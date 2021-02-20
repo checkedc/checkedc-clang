@@ -268,7 +268,6 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
     BaseDir = ".";
   }
 
-<<<<<<< HEAD
   // Get the canonical path of the base directory.
   TmpPath = BaseDir;
   EC = tryGetCanonicalFilePath(BaseDir, TmpPath);
@@ -299,11 +298,6 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
       return;
     }
     OutputDir = TmpPath;
-||||||| ad482c007426
-    BaseDir = Cp.str();
-=======
-    BaseDir = std::string(Cp.str());
->>>>>>> a4d1ce7f08d86d868e676e6971d797456cc875eb
   }
 
   SourceFiles = SourceFileList;

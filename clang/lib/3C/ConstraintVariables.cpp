@@ -81,14 +81,8 @@ PointerVariableConstraint *
 PointerVariableConstraint::getNamedNonPtrPVConstraint(StringRef Name,
                                                       Constraints &CS) {
   CAtoms NewVA; // empty -- represents a base type
-<<<<<<< HEAD
-  return new PVConstraint(NewVA, "unsigned", Name, nullptr, false, "");
-||||||| ad482c007426
-  return new PVConstraint(NewVA, "unsigned", Name, nullptr, false, false, "");
-=======
   return new PVConstraint(NewVA, "unsigned", std::string(Name), nullptr, false,
-                          false, "");
->>>>>>> a4d1ce7f08d86d868e676e6971d797456cc875eb
+                          "");
 }
 
 PointerVariableConstraint::PointerVariableConstraint(
@@ -124,10 +118,9 @@ PointerVariableConstraint::PointerVariableConstraint(
 
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
                                                      ProgramInfo &I,
-<<<<<<< HEAD
-                                                     const ASTContext &C) :
-        PointerVariableConstraint(D->getType(), D, D->getName(),
-                                  I, C) { }
+                                                     const ASTContext &C)
+    : PointerVariableConstraint(D->getType(), D, std::string(D->getName()),
+                                I, C) {}
 
 
 // Simple recursive visitor for determining if a type contains a typedef
@@ -177,14 +170,6 @@ class TypedefLevelFinder : public RecursiveASTVisitor<TypedefLevelFinder> {
 
 };
 
-||||||| ad482c007426
-                                                     const ASTContext &C)
-    : PointerVariableConstraint(D->getType(), D, D->getName(), I, C) {}
-=======
-                                                     const ASTContext &C)
-    : PointerVariableConstraint(D->getType(), D, std::string(D->getName()),
-                                I, C) {}
->>>>>>> a4d1ce7f08d86d868e676e6971d797456cc875eb
 
 PointerVariableConstraint::PointerVariableConstraint(
     const QualType &QT, DeclaratorDecl *D, std::string N, ProgramInfo &I,
