@@ -20,19 +20,19 @@
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/CallGraph.h"
 #include "clang/Analysis/CodeInjector.h"
+#include "clang/Analysis/PathDiagnostic.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/CrossTU/CrossTranslationUnit.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Rewrite/Core/Rewriter.h"
 #include "clang/StaticAnalyzer/Checkers/LocalCheckers.h"
 #include "clang/StaticAnalyzer/Core/AnalyzerOptions.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporter.h"
-#include "clang/StaticAnalyzer/Core/BugReporter/PathDiagnostic.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathDiagnosticConsumers.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/AnalysisManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExprEngine.h"
-#include "clang/StaticAnalyzer/Frontend/CheckerRegistration.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/FileSystem.h"
@@ -61,93 +61,6 @@ STATISTIC(PercentReachableBlocks, "The % of reachable basic blocks.");
 STATISTIC(MaxCFGSize, "The maximum number of basic blocks in a function.");
 
 //===----------------------------------------------------------------------===//
-// Special PathDiagnosticConsumers.
-//===----------------------------------------------------------------------===//
-
-void ento::createPlistHTMLDiagnosticConsumer(AnalyzerOptions &AnalyzerOpts,
-                                             PathDiagnosticConsumers &C,
-                                             const std::string &prefix,
-                                             const Preprocessor &PP) {
-  createHTMLDiagnosticConsumer(AnalyzerOpts, C,
-                               llvm::sys::path::parent_path(prefix), PP);
-  createPlistMultiFileDiagnosticConsumer(AnalyzerOpts, C, prefix, PP);
-}
-
-void ento::createTextPathDiagnosticConsumer(AnalyzerOptions &AnalyzerOpts,
-                                            PathDiagnosticConsumers &C,
-                                            const std::string &Prefix,
-                                            const clang::Preprocessor &PP) {
-  llvm_unreachable("'text' consumer should be enabled on ClangDiags");
-}
-
-namespace {
-class ClangDiagPathDiagConsumer : public PathDiagnosticConsumer {
-  DiagnosticsEngine &Diag;
-  bool IncludePath, ShouldEmitAsError;
-
-public:
-  ClangDiagPathDiagConsumer(DiagnosticsEngine &Diag)
-      : Diag(Diag), IncludePath(false), ShouldEmitAsError(false) {}
-  ~ClangDiagPathDiagConsumer() override {}
-  StringRef getName() const override { return "ClangDiags"; }
-
-  bool supportsLogicalOpControlFlow() const override { return true; }
-  bool supportsCrossFileDiagnostics() const override { return true; }
-
-  PathGenerationScheme getGenerationScheme() const override {
-    return IncludePath ? Minimal : None;
-  }
-
-  void enablePaths() {
-    IncludePath = true;
-  }
-
-  void enableWerror() { ShouldEmitAsError = true; }
-
-  void FlushDiagnosticsImpl(std::vector<const PathDiagnostic *> &Diags,
-                            FilesMade *filesMade) override {
-    unsigned WarnID =
-        ShouldEmitAsError
-            ? Diag.getCustomDiagID(DiagnosticsEngine::Error, "%0")
-            : Diag.getCustomDiagID(DiagnosticsEngine::Warning, "%0");
-    unsigned NoteID = Diag.getCustomDiagID(DiagnosticsEngine::Note, "%0");
-
-    for (std::vector<const PathDiagnostic*>::iterator I = Diags.begin(),
-         E = Diags.end(); I != E; ++I) {
-      const PathDiagnostic *PD = *I;
-      SourceLocation WarnLoc = PD->getLocation().asLocation();
-      Diag.Report(WarnLoc, WarnID) << PD->getShortDescription()
-                                   << PD->path.back()->getRanges();
-
-      // First, add extra notes, even if paths should not be included.
-      for (const auto &Piece : PD->path) {
-        if (!isa<PathDiagnosticNotePiece>(Piece.get()))
-          continue;
-
-        SourceLocation NoteLoc = Piece->getLocation().asLocation();
-        Diag.Report(NoteLoc, NoteID) << Piece->getString()
-                                     << Piece->getRanges();
-      }
-
-      if (!IncludePath)
-        continue;
-
-      // Then, add the path notes if necessary.
-      PathPieces FlatPath = PD->path.flatten(/*ShouldFlattenMacros=*/true);
-      for (const auto &Piece : FlatPath) {
-        if (isa<PathDiagnosticNotePiece>(Piece.get()))
-          continue;
-
-        SourceLocation NoteLoc = Piece->getLocation().asLocation();
-        Diag.Report(NoteLoc, NoteID) << Piece->getString()
-                                     << Piece->getRanges();
-      }
-    }
-  }
-};
-} // end anonymous namespace
-
-//===----------------------------------------------------------------------===//
 // AnalysisConsumer declaration.
 //===----------------------------------------------------------------------===//
 
@@ -171,7 +84,7 @@ class AnalysisConsumer : public AnalysisASTConsumer,
 
 public:
   ASTContext *Ctx;
-  const Preprocessor &PP;
+  Preprocessor &PP;
   const std::string OutDir;
   AnalyzerOptionsRef Opts;
   ArrayRef<std::string> Plugins;
@@ -212,13 +125,13 @@ public:
         Plugins(plugins), Injector(injector), CTU(CI) {
     DigestAnalyzerOptions();
     if (Opts->PrintStats || Opts->ShouldSerializeStats) {
-      AnalyzerTimers = llvm::make_unique<llvm::TimerGroup>(
+      AnalyzerTimers = std::make_unique<llvm::TimerGroup>(
           "analyzer", "Analyzer timers");
-      SyntaxCheckTimer = llvm::make_unique<llvm::Timer>(
+      SyntaxCheckTimer = std::make_unique<llvm::Timer>(
           "syntaxchecks", "Syntax-based analysis time", *AnalyzerTimers);
-      ExprEngineTimer = llvm::make_unique<llvm::Timer>(
+      ExprEngineTimer = std::make_unique<llvm::Timer>(
           "exprengine", "Path exploration time", *AnalyzerTimers);
-      BugReporterTimer = llvm::make_unique<llvm::Timer>(
+      BugReporterTimer = std::make_unique<llvm::Timer>(
           "bugreporter", "Path-sensitive report post-processing time",
           *AnalyzerTimers);
       llvm::EnableStatistics(/* PrintOnExit= */ false);
@@ -232,28 +145,16 @@ public:
   }
 
   void DigestAnalyzerOptions() {
-    if (Opts->AnalysisDiagOpt != PD_NONE) {
-      // Create the PathDiagnosticConsumer.
-      ClangDiagPathDiagConsumer *clangDiags =
-          new ClangDiagPathDiagConsumer(PP.getDiagnostics());
-      PathConsumers.push_back(clangDiags);
-
-      if (Opts->AnalyzerWerror)
-        clangDiags->enableWerror();
-
-      if (Opts->AnalysisDiagOpt == PD_TEXT) {
-        clangDiags->enablePaths();
-
-      } else if (!OutDir.empty()) {
-        switch (Opts->AnalysisDiagOpt) {
-        default:
+    switch (Opts->AnalysisDiagOpt) {
+    case PD_NONE:
+      break;
 #define ANALYSIS_DIAGNOSTICS(NAME, CMDFLAG, DESC, CREATEFN)                    \
   case PD_##NAME:                                                              \
-    CREATEFN(*Opts.get(), PathConsumers, OutDir, PP);                       \
+    CREATEFN(*Opts.get(), PathConsumers, OutDir, PP, CTU);                     \
     break;
 #include "clang/StaticAnalyzer/Core/Analyses.def"
-        }
-      }
+    default:
+      llvm_unreachable("Unknown analyzer output type!");
     }
 
     // Create the analyzer component creators.
@@ -289,31 +190,30 @@ public:
       else if (Mode == AM_Path) {
         llvm::errs() << " (Path, ";
         switch (IMode) {
-          case ExprEngine::Inline_Minimal:
-            llvm::errs() << " Inline_Minimal";
-            break;
-          case ExprEngine::Inline_Regular:
-            llvm::errs() << " Inline_Regular";
-            break;
+        case ExprEngine::Inline_Minimal:
+          llvm::errs() << " Inline_Minimal";
+          break;
+        case ExprEngine::Inline_Regular:
+          llvm::errs() << " Inline_Regular";
+          break;
         }
         llvm::errs() << ")";
-      }
-      else
+      } else
         assert(Mode == (AM_Syntax | AM_Path) && "Unexpected mode!");
 
-      llvm::errs() << ": " << Loc.getFilename() << ' '
-                           << getFunctionName(D) << '\n';
+      llvm::errs() << ": " << Loc.getFilename() << ' ' << getFunctionName(D)
+                   << '\n';
     }
   }
 
   void Initialize(ASTContext &Context) override {
     Ctx = &Context;
-    checkerMgr = createCheckerManager(
-        *Ctx, *Opts, Plugins, CheckerRegistrationFns, PP.getDiagnostics());
+    checkerMgr = std::make_unique<CheckerManager>(*Ctx, *Opts, PP, Plugins,
+                                                  CheckerRegistrationFns);
 
-    Mgr = llvm::make_unique<AnalysisManager>(
-        *Ctx, PP.getDiagnostics(), PathConsumers, CreateStoreMgr,
-        CreateConstraintMgr, checkerMgr.get(), *Opts, Injector);
+    Mgr = std::make_unique<AnalysisManager>(*Ctx, PP, PathConsumers,
+                                            CreateStoreMgr, CreateConstraintMgr,
+                                            checkerMgr.get(), *Opts, Injector);
   }
 
   /// Store the top level decls in the set to be processed later on.
@@ -445,7 +345,7 @@ private:
 
   /// Print \p S to stderr if \c Opts->AnalyzerDisplayProgress is set.
   void reportAnalyzerProgress(StringRef S);
-};
+}; // namespace
 } // end anonymous namespace
 
 
@@ -478,6 +378,13 @@ static bool shouldSkipFunction(const Decl *D,
                                const SetOfConstDecls &VisitedAsTopLevel) {
   if (VisitedAsTopLevel.count(D))
     return true;
+
+  // Skip analysis of inheriting constructors as top-level functions. These
+  // constructors don't even have a body written down in the code, so even if
+  // we find a bug, we won't be able to display it.
+  if (const auto *CD = dyn_cast<CXXConstructorDecl>(D))
+    if (CD->isInheritingConstructor())
+      return true;
 
   // We want to re-analyse the functions as top level in the following cases:
   // - The 'init' methods should be reanalyzed because
@@ -609,6 +516,7 @@ void AnalysisConsumer::runAnalysisOnTranslationUnit(ASTContext &C) {
   // After all decls handled, run checkers on the entire TranslationUnit.
   checkerMgr->runCheckersOnEndOfTranslationUnit(TU, *Mgr, BR);
 
+  BR.FlushReports();
   RecVisitorBR = nullptr;
 }
 
@@ -626,7 +534,7 @@ void AnalysisConsumer::HandleTranslationUnit(ASTContext &C) {
 
   if (isBisonFile(C)) {
     reportAnalyzerProgress("Skipping bison-generated file\n");
-  } else if (Opts->DisableAllChecks) {
+  } else if (Opts->DisableAllCheckers) {
 
     // Don't analyze if the user explicitly asked for no checks to be performed
     // on this file.
@@ -697,13 +605,6 @@ std::string AnalysisConsumer::getFunctionName(const Decl *D) {
     } else if (const auto *OCD = dyn_cast<ObjCCategoryImplDecl>(DC)) {
       OS << OCD->getClassInterface()->getName() << '('
          << OCD->getName() << ')';
-    } else if (isa<ObjCProtocolDecl>(DC)) {
-      // We can extract the type of the class from the self pointer.
-      if (ImplicitParamDecl *SelfDecl = OMD->getSelfDecl()) {
-        QualType ClassTy =
-            cast<ObjCObjectPointerType>(SelfDecl->getType())->getPointeeType();
-        ClassTy.print(OS, PrintingPolicy(LangOptions()));
-      }
     }
     OS << ' ' << OMD->getSelector().getAsString() << ']';
 
@@ -766,6 +667,9 @@ void AnalysisConsumer::HandleCode(Decl *D, AnalysisMode Mode,
     if (SyntaxCheckTimer)
       SyntaxCheckTimer->stopTimer();
   }
+
+  BR.FlushReports();
+
   if ((Mode & AM_Path) && checkerMgr->hasPathSensitiveCheckers()) {
     RunPathSensitiveChecks(D, IMode, VisitedCallees);
     if (IMode != ExprEngine::Inline_Minimal)
@@ -826,7 +730,7 @@ ento::CreateAnalysisConsumer(CompilerInstance &CI) {
   AnalyzerOptionsRef analyzerOpts = CI.getAnalyzerOpts();
   bool hasModelPath = analyzerOpts->Config.count("model-path") > 0;
 
-  return llvm::make_unique<AnalysisConsumer>(
+  return std::make_unique<AnalysisConsumer>(
       CI, CI.getFrontendOpts().OutputFile, analyzerOpts,
       CI.getFrontendOpts().Plugins,
       hasModelPath ? new ModelInjector(CI) : nullptr);

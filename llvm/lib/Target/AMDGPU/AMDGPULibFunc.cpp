@@ -10,17 +10,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "AMDGPU.h"
 #include "AMDGPULibFunc.h"
-#include <llvm/ADT/SmallString.h>
-#include <llvm/ADT/SmallVector.h>
-#include <llvm/ADT/StringSwitch.h>
+#include "AMDGPU.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ValueSymbolTable.h"
-#include <llvm/Support/raw_ostream.h>
+#include "llvm/Support/raw_ostream.h"
 #include <string>
 
 using namespace llvm;
@@ -55,7 +56,7 @@ enum EManglingParam {
 };
 
 struct ManglingRule {
-   StringRef const Name;
+   const char *Name;
    unsigned char Lead[2];
    unsigned char Param[5];
 
@@ -69,7 +70,7 @@ struct ManglingRule {
 
 // Information about library functions with unmangled names.
 class UnmangledFuncInfo {
-  StringRef const Name;
+  const char *Name;
   unsigned NumArgs;
 
   // Table for all lib functions with unmangled names.
@@ -82,7 +83,7 @@ class UnmangledFuncInfo {
 
 public:
   using ID = AMDGPULibFunc::EFuncId;
-  UnmangledFuncInfo(StringRef _Name, unsigned _NumArgs)
+  constexpr UnmangledFuncInfo(const char *_Name, unsigned _NumArgs)
       : Name(_Name), NumArgs(_NumArgs) {}
   // Get index to Table by function name.
   static bool lookup(StringRef Name, ID &Id);
@@ -133,8 +134,8 @@ unsigned ManglingRule::getNumArgs() const {
 //    E_ANY - use prev lead type, E_CONSTPTR_ANY - make const pointer out of
 //    prev lead type, etc. see ParamIterator::getNextParam() for details.
 
-static const ManglingRule manglingRules[] = {
-{ StringRef(), {0}, {0} },
+static constexpr ManglingRule manglingRules[] = {
+{ "", {0}, {0} },
 { "abs"                             , {1},   {E_ANY}},
 { "abs_diff"                        , {1},   {E_ANY,E_COPY}},
 { "acos"                            , {1},   {E_ANY}},
@@ -479,8 +480,6 @@ static bool eatTerm(StringRef& mangledName, const char (&str)[N]) {
   return false;
 }
 
-static inline bool isDigit(char c) { return c >= '0' && c <= '9'; }
-
 static int eatNumber(StringRef& s) {
   size_t const savedSize = s.size();
   int n = 0;
@@ -605,7 +604,7 @@ bool ItaniumParamParser::parseItaniumParam(StringRef& param,
 
   // parse type
   char const TC = param.front();
-  if (::isDigit(TC)) {
+  if (isDigit(TC)) {
     res.ArgType = StringSwitch<AMDGPULibFunc::EType>
       (eatLengthPrefixedName(param))
       .Case("ocl_image1darray" , AMDGPULibFunc::IMG1DA)
@@ -682,9 +681,9 @@ bool AMDGPULibFunc::parse(StringRef FuncName, AMDGPULibFunc &F) {
   }
 
   if (eatTerm(FuncName, "_Z"))
-    F.Impl = make_unique<AMDGPUMangledLibFunc>();
+    F.Impl = std::make_unique<AMDGPUMangledLibFunc>();
   else
-    F.Impl = make_unique<AMDGPUUnmangledLibFunc>();
+    F.Impl = std::make_unique<AMDGPUUnmangledLibFunc>();
   if (F.Impl->parseFuncName(FuncName))
     return true;
 
@@ -863,7 +862,7 @@ std::string AMDGPUMangledLibFunc::mangleNameItanium() const {
   Param P;
   while ((P = I.getNextParam()).ArgType != 0)
     Mangler(S, P);
-  return S.str();
+  return std::string(S.str());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -903,7 +902,7 @@ static Type* getIntrinsicParamType(
     return nullptr;
   }
   if (P.VectorSize > 1)
-    T = VectorType::get(T, P.VectorSize);
+    T = FixedVectorType::get(T, P.VectorSize);
   if (P.PtrKind != AMDGPULibFunc::BYVALUE)
     T = useAddrSpace ? T->getPointerTo((P.PtrKind & AMDGPULibFunc::ADDR_SPACE)
                                        - 1)
@@ -936,7 +935,7 @@ std::string AMDGPUMangledLibFunc::getName() const {
   SmallString<128> Buf;
   raw_svector_ostream OS(Buf);
   writeName(OS);
-  return OS.str();
+  return std::string(OS.str());
 }
 
 Function *AMDGPULibFunc::getFunction(Module *M, const AMDGPULibFunc &fInfo) {

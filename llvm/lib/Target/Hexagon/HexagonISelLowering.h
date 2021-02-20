@@ -68,6 +68,8 @@ namespace HexagonISD {
       EH_RETURN,
       DCFETCH,
       READCYCLE,
+      PTRUE,
+      PFALSE,
       D2P,         // Convert 8-byte value to 8-bit predicate register. [*]
       P2D,         // Convert 8-bit predicate register to 8-byte value. [*]
       V2Q,         // Convert HVX vector to a vector predicate reg. [*]
@@ -127,13 +129,16 @@ namespace HexagonISD {
     bool isCheapToSpeculateCtlz() const override { return true; }
     bool isCtlzFast() const override { return true; }
 
+    bool hasBitTest(SDValue X, SDValue Y) const override;
+
     bool allowTruncateForTailCall(Type *Ty1, Type *Ty2) const override;
 
     /// Return true if an FMA operation is faster than a pair of mul and add
     /// instructions. fmuladd intrinsics will be expanded to FMAs when this
     /// method returns true (and FMAs are legal), otherwise fmuladd is
     /// expanded to mul + add.
-    bool isFMAFasterThanFMulAndFAdd(EVT) const override;
+    bool isFMAFasterThanFMulAndFAdd(const MachineFunction &,
+                                    EVT) const override;
 
     // Should we expand the build vector with shuffles?
     bool shouldExpandBuildVectorWithShuffles(EVT VT,
@@ -221,26 +226,29 @@ namespace HexagonISD {
                         const SmallVectorImpl<SDValue> &OutVals,
                         const SDLoc &dl, SelectionDAG &DAG) const override;
 
+    SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
+
     bool mayBeEmittedAsTailCall(const CallInst *CI) const override;
 
-    unsigned getRegisterByName(const char* RegName, EVT VT,
-                               SelectionDAG &DAG) const override;
+    Register getRegisterByName(const char* RegName, LLT VT,
+                               const MachineFunction &MF) const override;
 
     /// If a physical register, this returns the register that receives the
     /// exception address on entry to an EH pad.
-    unsigned
+    Register
     getExceptionPointerRegister(const Constant *PersonalityFn) const override {
       return Hexagon::R0;
     }
 
     /// If a physical register, this returns the register that receives the
     /// exception typeid on entry to a landing pad.
-    unsigned
+    Register
     getExceptionSelectorRegister(const Constant *PersonalityFn) const override {
       return Hexagon::R1;
     }
 
     SDValue LowerVASTART(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerVACOPY(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerConstantPool(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerJumpTable(SDValue Op, SelectionDAG &DAG) const;
 
@@ -294,12 +302,17 @@ namespace HexagonISD {
     /// the immediate into a register.
     bool isLegalICmpImmediate(int64_t Imm) const override;
 
-    EVT getOptimalMemOpType(uint64_t Size, unsigned DstAlign,
-        unsigned SrcAlign, bool IsMemset, bool ZeroMemset, bool MemcpyStrSrc,
-        const AttributeList &FuncAttributes) const override;
+    EVT getOptimalMemOpType(const MemOp &Op,
+                            const AttributeList &FuncAttributes) const override;
+
+    bool allowsMemoryAccess(LLVMContext &Context, const DataLayout &DL, EVT VT,
+                            unsigned AddrSpace, Align Alignment,
+                            MachineMemOperand::Flags Flags,
+                            bool *Fast) const override;
 
     bool allowsMisalignedMemoryAccesses(EVT VT, unsigned AddrSpace,
-        unsigned Align, MachineMemOperand::Flags Flags, bool *Fast) const override;
+        unsigned Alignment, MachineMemOperand::Flags Flags, bool *Fast)
+        const override;
 
     /// Returns relocation base for the given PIC jumptable.
     SDValue getPICJumpTableRelocBase(SDValue Table, SelectionDAG &DAG)
@@ -396,8 +409,15 @@ namespace HexagonISD {
     VectorPair opSplit(SDValue Vec, const SDLoc &dl, SelectionDAG &DAG) const;
     SDValue opCastElem(SDValue Vec, MVT ElemTy, SelectionDAG &DAG) const;
 
+    bool allowsHvxMemoryAccess(MVT VecTy, MachineMemOperand::Flags Flags,
+                               bool *Fast) const;
+    bool allowsHvxMisalignedMemoryAccesses(MVT VecTy,
+                                           MachineMemOperand::Flags Flags,
+                                           bool *Fast) const;
+
     bool isHvxSingleTy(MVT Ty) const;
     bool isHvxPairTy(MVT Ty) const;
+    bool isHvxBoolTy(MVT Ty) const;
     SDValue convertToByteIndex(SDValue ElemIdx, MVT ElemTy,
                                SelectionDAG &DAG) const;
     SDValue getIndexInWord32(SDValue Idx, MVT ElemTy, SelectionDAG &DAG) const;
@@ -429,6 +449,8 @@ namespace HexagonISD {
                                    const SDLoc &dl, SelectionDAG &DAG) const;
     SDValue extendHvxVectorPred(SDValue VecV, const SDLoc &dl, MVT ResTy,
                                 bool ZeroExt, SelectionDAG &DAG) const;
+    SDValue compressHvxPred(SDValue VecQ, const SDLoc &dl, MVT ResTy,
+                            SelectionDAG &DAG) const;
 
     SDValue LowerHvxBuildVector(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerHvxConcatVectors(SDValue Op, SelectionDAG &DAG) const;
@@ -436,7 +458,7 @@ namespace HexagonISD {
     SDValue LowerHvxInsertElement(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerHvxExtractSubvector(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerHvxInsertSubvector(SDValue Op, SelectionDAG &DAG) const;
-
+    SDValue LowerHvxBitcast(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerHvxAnyExt(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerHvxSignExt(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerHvxZeroExt(SDValue Op, SelectionDAG &DAG) const;
@@ -446,6 +468,9 @@ namespace HexagonISD {
     SDValue LowerHvxSetCC(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerHvxExtend(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerHvxShift(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerHvxIntrinsic(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerHvxStore(SDValue Op, SelectionDAG &DAG) const;
+    SDValue HvxVecPredBitcastComputation(SDValue Op, SelectionDAG &DAG) const;
 
     SDValue SplitHvxPairOp(SDValue Op, SelectionDAG &DAG) const;
     SDValue SplitHvxMemOp(SDValue Op, SelectionDAG &DAG) const;
@@ -455,7 +480,13 @@ namespace HexagonISD {
         const override;
 
     bool isHvxOperation(SDValue Op) const;
+    bool isHvxOperation(SDNode *N) const;
     SDValue LowerHvxOperation(SDValue Op, SelectionDAG &DAG) const;
+    void LowerHvxOperationWrapper(SDNode *N, SmallVectorImpl<SDValue> &Results,
+                                  SelectionDAG &DAG) const;
+    void ReplaceHvxNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
+                               SelectionDAG &DAG) const;
+    SDValue PerformHvxDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const;
   };
 
 } // end namespace llvm

@@ -23,10 +23,13 @@
 #include "InconsistentDeclarationParameterNameCheck.h"
 #include "IsolateDeclarationCheck.h"
 #include "MagicNumbersCheck.h"
+#include "MakeMemberFunctionConstCheck.h"
 #include "MisleadingIndentationCheck.h"
 #include "MisplacedArrayIndexCheck.h"
 #include "NamedParameterCheck.h"
 #include "NonConstParameterCheck.h"
+#include "QualifiedAutoCheck.h"
+#include "RedundantAccessSpecifiersCheck.h"
 #include "RedundantControlFlowCheck.h"
 #include "RedundantDeclarationCheck.h"
 #include "RedundantFunctionPtrDereferenceCheck.h"
@@ -42,6 +45,7 @@
 #include "StringCompareCheck.h"
 #include "UniqueptrDeleteReleaseCheck.h"
 #include "UppercaseLiteralSuffixCheck.h"
+#include "UseAnyOfAllOfCheck.h"
 
 namespace clang {
 namespace tidy {
@@ -78,10 +82,16 @@ public:
         "readability-isolate-declaration");
     CheckFactories.registerCheck<MagicNumbersCheck>(
         "readability-magic-numbers");
+    CheckFactories.registerCheck<MakeMemberFunctionConstCheck>(
+        "readability-make-member-function-const");
     CheckFactories.registerCheck<MisleadingIndentationCheck>(
         "readability-misleading-indentation");
     CheckFactories.registerCheck<MisplacedArrayIndexCheck>(
         "readability-misplaced-array-index");
+    CheckFactories.registerCheck<QualifiedAutoCheck>(
+        "readability-qualified-auto");
+    CheckFactories.registerCheck<RedundantAccessSpecifiersCheck>(
+        "readability-redundant-access-specifiers");
     CheckFactories.registerCheck<RedundantFunctionPtrDereferenceCheck>(
         "readability-redundant-function-ptr-dereference");
     CheckFactories.registerCheck<RedundantMemberInitCheck>(
@@ -116,6 +126,8 @@ public:
         "readability-uniqueptr-delete-release");
     CheckFactories.registerCheck<UppercaseLiteralSuffixCheck>(
         "readability-uppercase-literal-suffix");
+    CheckFactories.registerCheck<UseAnyOfAllOfCheck>(
+        "readability-use-anyofallof");
   }
 };
 

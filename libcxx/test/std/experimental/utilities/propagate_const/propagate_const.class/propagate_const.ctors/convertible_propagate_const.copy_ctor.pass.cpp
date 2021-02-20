@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11
+// UNSUPPORTED: c++03, c++11
 
 // <propagate_const>
 
@@ -22,7 +22,6 @@ using std::experimental::propagate_const;
 typedef propagate_const<X> PX;
 typedef propagate_const<CopyConstructibleFromX> PY;
 
-int main(int, char**) { static_assert(!std::is_constructible<PX, PY>::value, ""); 
+int main(int, char**) { static_assert(!std::is_constructible<PX, PY>::value, "");
   return 0;
 }
-

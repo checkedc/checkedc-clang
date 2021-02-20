@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, C++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 // type_traits
 
 // underlying_type
@@ -18,7 +18,7 @@
 
 enum E1 { E1Zero, E1One, E1Two = sizeof(std::underlying_type<E1>::type) }; // expected-error@type_traits:* {{cannot determine underlying type of incomplete enumeration type 'E1'}}
 
-//  None of these are incomplete. 
+//  None of these are incomplete.
 //  Scoped enums have an underlying type of 'int' unless otherwise specified
 //  Unscoped enums with a specified underlying type become complete as soon as that type is specified.
 // enum E2 : char            { E2Zero, E2One, E2Two = sizeof(std::underlying_type<E2>::type) };

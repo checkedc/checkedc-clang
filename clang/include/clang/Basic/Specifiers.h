@@ -32,7 +32,8 @@ namespace clang {
   enum ConstexprSpecKind {
     CSK_unspecified,
     CSK_constexpr,
-    CSK_consteval
+    CSK_consteval,
+    CSK_constinit
   };
 
   /// Specifies the width of a type, e.g., short, long, or long long.
@@ -66,10 +67,12 @@ namespace clang {
     TST_char32,       // C++11 char32_t
     TST_int,
     TST_int128,
+    TST_extint,       // Extended Int types.
     TST_half,         // OpenCL half, ARM NEON __fp16
     TST_Float16,      // C11 extension ISO/IEC TS 18661-3
     TST_Accum,        // ISO/IEC JTC1 SC22 WG14 N1169 Extension
     TST_Fract,
+    TST_BFloat16,
     TST_float,
     TST_double,
     TST_float128,
@@ -156,7 +159,10 @@ namespace clang {
     /// An Objective-C array/dictionary subscripting which reads an
     /// object or writes at the subscripted array/dictionary element via
     /// Objective-C method calls.
-    OK_ObjCSubscript
+    OK_ObjCSubscript,
+
+    /// A matrix component is a single element of a matrix.
+    OK_MatrixComponent
   };
 
   /// The reason why a DeclRefExpr does not constitute an odr-use.
@@ -357,7 +363,30 @@ namespace clang {
     SwiftContext
   };
 
+  /// Assigned inheritance model for a class in the MS C++ ABI. Must match order
+  /// of spellings in MSInheritanceAttr.
+  enum class MSInheritanceModel {
+    Single = 0,
+    Multiple = 1,
+    Virtual = 2,
+    Unspecified = 3,
+  };
+
   llvm::StringRef getParameterABISpelling(ParameterABI kind);
+
+  inline llvm::StringRef getAccessSpelling(AccessSpecifier AS) {
+    switch (AS) {
+    case AccessSpecifier::AS_public:
+      return "public";
+    case AccessSpecifier::AS_protected:
+      return "protected";
+    case AccessSpecifier::AS_private:
+      return "private";
+    case AccessSpecifier::AS_none:
+      return {};
+    }
+    llvm_unreachable("Unknown AccessSpecifier");
+  }
 
   /// Checked C - checked specifiers.  Used for function, structs,
   /// and checked compound scopes.

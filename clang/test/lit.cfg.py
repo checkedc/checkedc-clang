@@ -25,8 +25,8 @@ config.name = 'Clang'
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.c', '.cpp', '.cppm', '.m', '.mm', '.cu',
-                   '.ll', '.cl', '.s', '.S', '.modulemap', '.test', '.rs']
+config.suffixes = ['.c', '.cpp', '.i', '.cppm', '.m', '.mm', '.cu',
+                   '.ll', '.cl', '.s', '.S', '.modulemap', '.test', '.rs', '.ifs']
 
 # excludes: A list of directories to exclude from the testsuite. The 'Inputs'
 # subdirectories contain auxiliary inputs for various tests in their parent
@@ -46,6 +46,8 @@ llvm_config.use_clang()
 config.substitutions.append(
     ('%src_include_dir', config.clang_src_dir + '/include'))
 
+config.substitutions.append(
+    ('%target_triple', config.target_triple))
 
 # Propagate path to symbolizer for ASan/MSan.
 llvm_config.with_system_environment(
@@ -61,7 +63,7 @@ config.substitutions.append(('%PATH%', config.environment['PATH']))
 tool_dirs = [config.clang_tools_dir, config.llvm_tools_dir]
 
 tools = [
-    'c-index-test', 'clang-diff', 'clang-format', 'clang-tblgen', 'opt',
+    'c-index-test', 'clang-diff', 'clang-format', 'clang-tblgen', 'opt', 'llvm-ifs',
     ToolSubst('%clang_extdef_map', command=FindTool(
         'clang-extdef-mapping'), unresolved='ignore'),
 ]
@@ -77,6 +79,11 @@ if config.clang_staticanalyzer:
     if config.clang_staticanalyzer_z3 == '1':
         config.available_features.add('z3')
 
+    check_analyzer_fixit_path = os.path.join(
+        config.test_source_root, "Analysis", "check-analyzer-fixit.py")
+    config.substitutions.append(
+        ('%check_analyzer_fixit',
+         '"%s" %s' % (config.python_executable, check_analyzer_fixit_path)))
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)
 
@@ -164,6 +171,10 @@ if not re.match(r'^x86_64.*-(windows-msvc|windows-gnu)$', config.target_triple):
 if not re.match(r'.*-(cygwin)$', config.target_triple):
     config.available_features.add('clang-driver')
 
+# Tests that are specific to the Apple Silicon macOS.
+if re.match(r'^arm64(e)?-apple-(macos|darwin)', config.target_triple):
+    config.available_features.add('apple-silicon-mac')
+
 # [PR18856] Depends to remove opened file. On win32, a file could be removed
 # only if all handles were closed.
 if platform.system() not in ['Windows']:
@@ -180,7 +191,7 @@ def calculate_arch_features(arch_string):
 llvm_config.feature_config(
     [('--assertion-mode', {'ON': 'asserts'}),
      ('--cxxflags', {r'-D_GLIBCXX_DEBUG\b': 'libstdcxx-safe-mode'}),
-        ('--targets-built', calculate_arch_features)
+     ('--targets-built', calculate_arch_features),
      ])
 
 if lit.util.which('xmllint'):
@@ -188,6 +199,9 @@ if lit.util.which('xmllint'):
 
 if config.enable_backtrace:
     config.available_features.add('backtrace')
+
+if config.enable_threads:
+    config.available_features.add('thread_support')
 
 # Check if we should allow outputs to console.
 run_console_tests = int(lit_config.params.get('enable_console', '0'))
@@ -204,6 +218,10 @@ if os.path.exists('/etc/gentoo-release'):
 
 if config.enable_shared:
     config.available_features.add("enable_shared")
+
+# Add a vendor-specific feature.
+if config.clang_vendor_uti:
+    config.available_features.add('clang-vendor=' + config.clang_vendor_uti)
 
 # Substitutions for Seahorn verifier
 # some of the arguments clashed with buitin substitutions

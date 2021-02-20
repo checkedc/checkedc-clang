@@ -30,7 +30,10 @@ static const unsigned SPIRAddrSpaceMap[] = {
     4, // opencl_generic
     0, // cuda_device
     0, // cuda_constant
-    0  // cuda_shared
+    0, // cuda_shared
+    0, // ptr32_sptr
+    0, // ptr32_uptr
+    0  // ptr64
 };
 
 class LLVM_LIBRARY_VISIBILITY SPIRTargetInfo : public TargetInfo {
@@ -88,7 +91,7 @@ public:
                                                             : CCCR_Warning;
   }
 
-  CallingConv getDefaultCallingConv(CallingConvMethodType MT) const override {
+  CallingConv getDefaultCallingConv() const override {
     return CC_SpirFunction;
   }
 
@@ -97,6 +100,8 @@ public:
     // for SPIR since it is a generic target.
     getSupportedOpenCLOpts().supportAll();
   }
+
+  bool hasExtIntType() const override { return true; }
 };
 class LLVM_LIBRARY_VISIBILITY SPIR32TargetInfo : public SPIRTargetInfo {
 public:

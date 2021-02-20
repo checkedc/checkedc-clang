@@ -1,4 +1,4 @@
-//===-- RegisterContextDarwin_i386.cpp --------------------------*- C++ -*-===//
+//===-- RegisterContextDarwin_i386.cpp ------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,12 +18,6 @@
 #include <stddef.h>
 
 #include <memory>
-
-// Support building against older versions of LLVM, this macro was added
-// recently.
-#ifndef LLVM_EXTENSION
-#define LLVM_EXTENSION
-#endif
 
 #include "RegisterContextDarwin_i386.h"
 
@@ -496,11 +490,11 @@ int RegisterContextDarwin_i386::GetSetForNativeRegNum(int reg_num) {
 void RegisterContextDarwin_i386::LogGPR(Log *log, const char *title) {
   if (log) {
     if (title)
-      log->Printf("%s", title);
+      LLDB_LOGF(log, "%s", title);
     for (uint32_t i = 0; i < k_num_gpr_registers; i++) {
       uint32_t reg = gpr_eax + i;
-      log->Printf("%12s = 0x%8.8x", g_register_infos[reg].name,
-                  (&gpr.eax)[reg]);
+      LLDB_LOGF(log, "%12s = 0x%8.8x", g_register_infos[reg].name,
+                (&gpr.eax)[reg]);
     }
   }
 }

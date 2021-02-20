@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_AddressRange_h_
-#define liblldb_AddressRange_h_
+#ifndef LLDB_CORE_ADDRESSRANGE_H
+#define LLDB_CORE_ADDRESSRANGE_H
 
 #include "lldb/Core/Address.h"
 #include "lldb/lldb-forward.h"
@@ -123,7 +123,7 @@ public:
   /// Check if the resolved file address \a file_addr is contained within this
   /// object's file address range.
   ///
-  /// \param[in] so_addr
+  /// \param[in] file_addr
   ///     A section offset address object reference.
   ///
   /// \return
@@ -146,9 +146,6 @@ public:
 
   /// Check if the resolved load address \a load_addr is contained within this
   /// object's load address range.
-  ///
-  /// \param[in] so_addr
-  ///     A section offset address object reference.
   ///
   /// \return
   ///     Returns \b true if both \a this has a resolvable load
@@ -250,4 +247,4 @@ protected:
 
 } // namespace lldb_private
 
-#endif // liblldb_AddressRange_h_
+#endif // LLDB_CORE_ADDRESSRANGE_H

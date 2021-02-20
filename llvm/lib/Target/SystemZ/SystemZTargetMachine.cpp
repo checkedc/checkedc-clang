@@ -29,7 +29,7 @@
 
 using namespace llvm;
 
-extern "C" void LLVMInitializeSystemZTarget() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeSystemZTarget() {
   // Register the target.
   RegisterTargetMachine<SystemZTargetMachine> X(getTheSystemZTarget());
 }
@@ -40,8 +40,10 @@ static bool UsesVectorABI(StringRef CPU, StringRef FS) {
   // This is the case by default if CPU is z13 or later, and can be
   // overridden via "[+-]vector" feature string elements.
   bool VectorABI = true;
+  bool SoftFloat = false;
   if (CPU.empty() || CPU == "generic" ||
-      CPU == "z10" || CPU == "z196" || CPU == "zEC12")
+      CPU == "z10" || CPU == "z196" || CPU == "zEC12" ||
+      CPU == "arch8" || CPU == "arch9" || CPU == "arch10")
     VectorABI = false;
 
   SmallVector<StringRef, 3> Features;
@@ -51,9 +53,13 @@ static bool UsesVectorABI(StringRef CPU, StringRef FS) {
       VectorABI = true;
     if (Feature == "-vector")
       VectorABI = false;
+    if (Feature == "soft-float" || Feature == "+soft-float")
+      SoftFloat = true;
+    if (Feature == "-soft-float")
+      SoftFloat = false;
   }
 
-  return VectorABI;
+  return VectorABI && !SoftFloat;
 }
 
 static std::string computeDataLayout(const Triple &TT, StringRef CPU,
@@ -154,12 +160,45 @@ SystemZTargetMachine::SystemZTargetMachine(const Target &T, const Triple &TT,
           getEffectiveRelocModel(RM),
           getEffectiveSystemZCodeModel(CM, getEffectiveRelocModel(RM), JIT),
           OL),
-      TLOF(llvm::make_unique<TargetLoweringObjectFileELF>()),
-      Subtarget(TT, CPU, FS, *this) {
+      TLOF(std::make_unique<TargetLoweringObjectFileELF>()) {
   initAsmInfo();
 }
 
 SystemZTargetMachine::~SystemZTargetMachine() = default;
+
+const SystemZSubtarget *
+SystemZTargetMachine::getSubtargetImpl(const Function &F) const {
+  Attribute CPUAttr = F.getFnAttribute("target-cpu");
+  Attribute FSAttr = F.getFnAttribute("target-features");
+
+  std::string CPU = !CPUAttr.hasAttribute(Attribute::None)
+                        ? CPUAttr.getValueAsString().str()
+                        : TargetCPU;
+  std::string FS = !FSAttr.hasAttribute(Attribute::None)
+                       ? FSAttr.getValueAsString().str()
+                       : TargetFS;
+
+  // FIXME: This is related to the code below to reset the target options,
+  // we need to know whether or not the soft float flag is set on the
+  // function, so we can enable it as a subtarget feature.
+  bool softFloat =
+    F.hasFnAttribute("use-soft-float") &&
+    F.getFnAttribute("use-soft-float").getValueAsString() == "true";
+
+  if (softFloat)
+    FS += FS.empty() ? "+soft-float" : ",+soft-float";
+
+  auto &I = SubtargetMap[CPU + FS];
+  if (!I) {
+    // This needs to be done before we create a new subtarget since any
+    // creation will depend on the TM and the code generation flags on the
+    // function that reside in TargetOptions.
+    resetTargetOptions(F);
+    I = std::make_unique<SystemZSubtarget>(TargetTriple, CPU, FS, *this);
+  }
+
+  return I.get();
+}
 
 namespace {
 
@@ -176,14 +215,16 @@ public:
   ScheduleDAGInstrs *
   createPostMachineScheduler(MachineSchedContext *C) const override {
     return new ScheduleDAGMI(C,
-                             llvm::make_unique<SystemZPostRASchedStrategy>(C),
+                             std::make_unique<SystemZPostRASchedStrategy>(C),
                              /*RemoveKillFlags=*/true);
   }
 
   void addIRPasses() override;
   bool addInstSelector() override;
   bool addILPOpts() override;
+  void addPreRegAlloc() override;
   void addPostRewrite() override;
+  void addPostRegAlloc() override;
   void addPreSched2() override;
   void addPreEmitPass() override;
 };
@@ -213,18 +254,22 @@ bool SystemZPassConfig::addILPOpts() {
   return true;
 }
 
+void SystemZPassConfig::addPreRegAlloc() {
+  addPass(createSystemZCopyPhysRegsPass(getSystemZTargetMachine()));
+}
+
 void SystemZPassConfig::addPostRewrite() {
   addPass(createSystemZPostRewritePass(getSystemZTargetMachine()));
 }
 
-void SystemZPassConfig::addPreSched2() {
+void SystemZPassConfig::addPostRegAlloc() {
   // PostRewrite needs to be run at -O0 also (in which case addPostRewrite()
   // is not called).
   if (getOptLevel() == CodeGenOpt::None)
     addPass(createSystemZPostRewritePass(getSystemZTargetMachine()));
+}
 
-  addPass(createSystemZExpandPseudoPass(getSystemZTargetMachine()));
-
+void SystemZPassConfig::addPreSched2() {
   if (getOptLevel() != CodeGenOpt::None)
     addPass(&IfConverterID);
 }

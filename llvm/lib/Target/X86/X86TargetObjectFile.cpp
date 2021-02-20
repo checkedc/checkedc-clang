@@ -18,6 +18,7 @@
 #include "llvm/MC/MCSectionCOFF.h"
 #include "llvm/MC/MCSectionELF.h"
 #include "llvm/MC/MCValue.h"
+#include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
 using namespace dwarf;
@@ -47,8 +48,8 @@ MCSymbol *X86_64MachoTargetObjectFile::getCFIPersonalitySymbol(
 }
 
 const MCExpr *X86_64MachoTargetObjectFile::getIndirectSymViaGOTPCRel(
-    const MCSymbol *Sym, const MCValue &MV, int64_t Offset,
-    MachineModuleInfo *MMI, MCStreamer &Streamer) const {
+    const GlobalValue *GV, const MCSymbol *Sym, const MCValue &MV,
+    int64_t Offset, MachineModuleInfo *MMI, MCStreamer &Streamer) const {
   // On Darwin/X86-64, we need to use foo@GOTPCREL+4 to access the got entry
   // from a data section. In case there's an additional offset, then use
   // foo@GOTPCREL+4+<offset>.
@@ -62,31 +63,4 @@ const MCExpr *X86_64MachoTargetObjectFile::getIndirectSymViaGOTPCRel(
 const MCExpr *X86ELFTargetObjectFile::getDebugThreadLocalSymbol(
     const MCSymbol *Sym) const {
   return MCSymbolRefExpr::create(Sym, MCSymbolRefExpr::VK_DTPOFF, getContext());
-}
-
-void
-X86FreeBSDTargetObjectFile::Initialize(MCContext &Ctx,
-                                       const TargetMachine &TM) {
-  TargetLoweringObjectFileELF::Initialize(Ctx, TM);
-  InitializeELF(TM.Options.UseInitArray);
-}
-
-void
-X86FuchsiaTargetObjectFile::Initialize(MCContext &Ctx,
-                                       const TargetMachine &TM) {
-  TargetLoweringObjectFileELF::Initialize(Ctx, TM);
-  InitializeELF(TM.Options.UseInitArray);
-}
-
-void
-X86LinuxNaClTargetObjectFile::Initialize(MCContext &Ctx,
-                                         const TargetMachine &TM) {
-  TargetLoweringObjectFileELF::Initialize(Ctx, TM);
-  InitializeELF(TM.Options.UseInitArray);
-}
-
-void X86SolarisTargetObjectFile::Initialize(MCContext &Ctx,
-                                            const TargetMachine &TM) {
-  TargetLoweringObjectFileELF::Initialize(Ctx, TM);
-  InitializeELF(TM.Options.UseInitArray);
 }

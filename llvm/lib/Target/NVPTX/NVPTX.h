@@ -21,7 +21,6 @@ namespace llvm {
 class NVPTXTargetMachine;
 class FunctionPass;
 class MachineFunctionPass;
-class formatted_raw_ostream;
 
 namespace NVPTXCC {
 enum CondCodes {
@@ -44,7 +43,7 @@ MachineFunctionPass *createNVPTXPrologEpilogPass();
 MachineFunctionPass *createNVPTXReplaceImageHandlesPass();
 FunctionPass *createNVPTXImageOptimizerPass();
 FunctionPass *createNVPTXLowerArgsPass(const NVPTXTargetMachine *TM);
-BasicBlockPass *createNVPTXLowerAllocaPass();
+FunctionPass *createNVPTXLowerAllocaPass();
 MachineFunctionPass *createNVPTXPeephole();
 MachineFunctionPass *createNVPTXProxyRegErasurePass();
 

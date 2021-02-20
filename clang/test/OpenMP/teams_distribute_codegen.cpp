@@ -21,22 +21,19 @@
 int a[100];
 
 // CK1: define {{.*}}i32 @{{.+}}teams_argument_globali(
-int teams_argument_global(int n){
+int teams_argument_global(int n) {
   int te = n / 128;
   int th = 128;
   // discard n_addr
   // CK1: alloca i32,
   // CK1: [[TE:%.+]] = alloca i32,
   // CK1: [[TH:%.+]] = alloca i32,
-  // CK1: alloca i32,
-  // CK1: alloca i32,
-  // CK1: alloca i32,
   // CK1: [[TE_CAST:%.+]] = alloca i{{32|64}},
   // CK1: [[TH_CAST:%.+]] = alloca i{{32|64}},
-  // CK1: call void @__kmpc_push_target_tripcount(i64 -1, i64 %{{.+}})
   // CK1: [[TE_PAR:%.+]] = load{{.+}}, {{.+}} [[TE_CAST]],
   // CK1: [[TH_PAR:%.+]] = load{{.+}}, {{.+}} [[TH_CAST]],
 
+  // CK1: call void @__kmpc_push_target_tripcount(i64 -1, i64 %{{.+}})
   // CK1: call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 4, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i32 {{.+}}, i32 {{.+}})
 
   // CK1: call void @[[OFFL1:.+]](i{{32|64}} [[TE_PAR]], i{{32|64}} [[TH_PAR]],
@@ -68,7 +65,7 @@ int teams_argument_global(int n){
   // CK1-64: [[TH_VAL:%.+]] = load i32, i32* [[TH_CONV]],
   // CK1-32: [[TE_VAL:%.+]] = load i32, i32* [[TE_ADDR]],
   // CK1-32: [[TH_VAL:%.+]] = load i32, i32* [[TH_ADDR]],
-  // CK1: {{%.+}} = call i32 @__kmpc_push_num_teams({{.+}}, {{.+}}, i32 [[TE_VAL]], i32 [[TH_VAL]])
+  // CK1: call void @__kmpc_push_num_teams({{.+}}, {{.+}}, i32 [[TE_VAL]], i32 [[TH_VAL]])
   // CK1: call void {{.+}} @__kmpc_fork_teams({{.+}}, i32 2, {{.+}} @[[OUTL1:.+]] to {{.+}}, {{.+}}, {{.+}})
   // CK1: ret void
 
@@ -161,7 +158,7 @@ struct SS{
   // CK3: define {{.*}}i32 @{{.+}}foo{{.+}}(
   int foo(void) {
 
-  // CK3: call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 1, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* {{.+}}@{{[^,]+}}, i32 0, i32 0), i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i32 0, i32 0)
+  // CK3: call i32 @__tgt_target_teams(i64 -1, i8* @{{[^,]+}}, i32 2, i8** %{{[^,]+}}, i8** %{{[^,]+}}, i{{64|32}}* %{{.+}}, i64* {{.+}}@{{[^,]+}}, i32 0, i32 0), i32 0, i32 0)
   // CK3: call void @[[OFFL1:.+]]([[SSI]]* %{{.+}})
     #pragma omp target
     #pragma omp teams distribute
@@ -177,7 +174,7 @@ struct SS{
   // CK3: define internal void @[[OUTL1]]({{.+}})
   // CK3: call void @__kmpc_for_static_init_4(
   // CK3: call void @__kmpc_for_static_fini(
-  // CK3: ret void  
+  // CK3: ret void
 
     return a[0];
   }
@@ -264,7 +261,7 @@ int main (int argc, char **argv) {
 // CK4-64: [[TH_VAL:%.+]] = load i32, i32* [[TH_CONV]],
 // CK4-32: [[TE_VAL:%.+]] = load i32, i32* [[TE_ADDR]],
 // CK4-32: [[TH_VAL:%.+]] = load i32, i32* [[TH_ADDR]],
-// CK4: {{%.+}} = call i32 @__kmpc_push_num_teams({{.+}}, {{.+}}, i32 [[TE_VAL]], i32 [[TH_VAL]])
+// CK4: call void @__kmpc_push_num_teams({{.+}}, {{.+}}, i32 [[TE_VAL]], i32 [[TH_VAL]])
 // CK4: call void {{.+}} @__kmpc_fork_teams({{.+}}, i32 1, {{.+}} @[[OUTLT:.+]] to {{.+}}, {{.+}}, {{.+}})
 // CK4: ret void
 

@@ -98,10 +98,10 @@ public:
       : ES(ES),
         Resolver(createLegacyLookupResolver(
             ES,
-            [this](const std::string &Name) -> JITSymbol {
+            [this](StringRef Name) -> JITSymbol {
               if (auto Sym = IndirectStubsMgr->findStub(Name, false))
                 return Sym;
-              if (auto Sym = OptimizeLayer.findSymbol(Name, false))
+              if (auto Sym = OptimizeLayer.findSymbol(std::string(Name), false))
                 return Sym;
               else if (auto Err = Sym.takeError())
                 return std::move(Err);
@@ -224,7 +224,7 @@ private:
 
   std::unique_ptr<Module> optimizeModule(std::unique_ptr<Module> M) {
     // Create a function pass manager.
-    auto FPM = llvm::make_unique<legacy::FunctionPassManager>(M.get());
+    auto FPM = std::make_unique<legacy::FunctionPassManager>(M.get());
 
     // Add some optimizations.
     FPM->add(createInstructionCombiningPass());

@@ -6,11 +6,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===---------------------------------------------------------------------===//
-// UNSUPPORTED: c++98, c++03, c++11, c++14, c++17
+// UNSUPPORTED: c++03, c++11, c++14, c++17
 
 // <span>
 
-// constexpr span(pointer ptr, index_type count);
+// constexpr span(pointer ptr, size_type count);
 // Requires: [ptr, ptr + count) shall be a valid range.
 //  If extent is not equal to dynamic_extent, then count shall be equal to extent.
 //
@@ -26,6 +26,11 @@
 const          int  carr[] = {4,5,6};
       volatile int  varr[] = {7,8,9};
 const volatile int cvarr[] = {1,3,5};
+
+template<class T, size_t extent>
+std::span<T, extent> createImplicitSpan(T* ptr, size_t len) {
+    return {ptr, len}; // expected-error {{chosen constructor is explicit in copy-initialization}}
+}
 
 int main(int, char**)
 {
@@ -58,6 +63,11 @@ int main(int, char**)
     std::span<const          int,3> s5{cvarr, 3};   // expected-error {{no matching constructor for initialization of 'std::span<const int, 3>'}}
     std::span<      volatile int,3> s6{ carr, 3};   // expected-error {{no matching constructor for initialization of 'std::span<volatile int, 3>'}}
     std::span<      volatile int,3> s7{cvarr, 3};   // expected-error {{no matching constructor for initialization of 'std::span<volatile int, 3>'}}
+    }
+
+// explicit constructor necessary
+    {
+    createImplicitSpan<int, 1>(arr, 1);
     }
 
   return 0;

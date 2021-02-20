@@ -32,10 +32,10 @@
 ; CHECK:      DW_TAG_formal_parameter
 ; CHECK-NEXT:   DW_AT_const_value [DW_FORM_sdata] (1)
 ; CHECK-NEXT:   DW_AT_name {{.*}} "p")
-; CHECK: DW_AT_location [DW_FORM_sec_offset]   ([[A:0x[0-9a-z]*]]
-; CHECK: DW_AT_location [DW_FORM_sec_offset]   ([[E:0x[0-9a-z]*]]
-; CHECK: DW_AT_location [DW_FORM_sec_offset]   ([[B:0x[0-9a-z]*]]
-; CHECK: DW_AT_location [DW_FORM_sec_offset]   ([[D:0x[0-9a-z]*]]
+; CHECK: DW_AT_location [DW_FORM_sec_offset]   ([[A:0x[0-9a-z]*]]:
+; CHECK: DW_AT_location [DW_FORM_sec_offset]   ([[E:0x[0-9a-z]*]]:
+; CHECK: DW_AT_location [DW_FORM_sec_offset]   ([[B:0x[0-9a-z]*]]:
+; CHECK: DW_AT_location [DW_FORM_sec_offset]   ([[D:0x[0-9a-z]*]]:
 ; CHECK: DW_AT_ranges [DW_FORM_sec_offset]   (0x00000000
 ; CHECK-NOT: .debug_loc contents:
 ; CHECK-NOT: Beginning address offset
@@ -45,18 +45,22 @@
 ; if they've changed due to a bugfix, change in register allocation, etc.
 
 ; CHECK:      [[A]]:
-; CHECK-NEXT:   Addr idx 2 (w/ length 169): DW_OP_consts +0, DW_OP_stack_value
-; CHECK-NEXT:   Addr idx 3 (w/ length 15): DW_OP_reg0 RAX
-; CHECK-NEXT:   Addr idx 4 (w/ length 18): DW_OP_breg7 RSP-8
+; CHECK-NEXT:   DW_LLE_startx_length (0x00000002, 0x0000000f): DW_OP_consts +0, DW_OP_stack_value
+; CHECK-NEXT:   DW_LLE_startx_length (0x00000003, 0x0000000f): DW_OP_reg0 RAX
+; CHECK-NEXT:   DW_LLE_startx_length (0x00000004, 0x00000012): DW_OP_breg7 RSP-8
+; CHECK-NEXT:   DW_LLE_end_of_list   ()
 ; CHECK:      [[E]]:
-; CHECK-NEXT:   Addr idx 5 (w/ length 9): DW_OP_reg0 RAX
-; CHECK-NEXT:   Addr idx 6 (w/ length 98): DW_OP_breg7 RSP-44
+; CHECK-NEXT:   DW_LLE_startx_length (0x00000005, 0x00000009): DW_OP_reg0 RAX
+; CHECK-NEXT:   DW_LLE_startx_length (0x00000006, 0x00000062): DW_OP_breg7 RSP-44
+; CHECK-NEXT:   DW_LLE_end_of_list   ()
 ; CHECK:      [[B]]:
-; CHECK-NEXT:   Addr idx 7 (w/ length 15): DW_OP_reg0 RAX
-; CHECK-NEXT:   Addr idx 8 (w/ length 66): DW_OP_breg7 RSP-32
+; CHECK-NEXT:   DW_LLE_startx_length (0x00000007, 0x0000000f): DW_OP_reg0 RAX
+; CHECK-NEXT:   DW_LLE_startx_length (0x00000008, 0x00000042): DW_OP_breg7 RSP-32
+; CHECK-NEXT:   DW_LLE_end_of_list   ()
 ; CHECK:      [[D]]:
-; CHECK-NEXT:   Addr idx 9 (w/ length 15): DW_OP_reg0 RAX
-; CHECK-NEXT:   Addr idx 10 (w/ length 42): DW_OP_breg7 RSP-20
+; CHECK-NEXT:   DW_LLE_startx_length (0x00000009, 0x0000000f): DW_OP_reg0 RAX
+; CHECK-NEXT:   DW_LLE_startx_length (0x0000000a, 0x0000002a): DW_OP_breg7 RSP-20
+; CHECK-NEXT:   DW_LLE_end_of_list   ()
 
 ; Make sure we don't produce any relocations in any .dwo section (though in particular, debug_info.dwo)
 ; HDR-NOT: .rela.{{.*}}.dwo
@@ -77,7 +81,7 @@
 ; V5RNGLISTS-NOT:  DW_TAG
 ; V5RNGLISTS:      DW_AT_rnglists_base [DW_FORM_sec_offset]  (0x0000000c)
 ; V5RNGLISTS:      .debug_rnglists contents:
-; V5RNGLISTS-NEXT: 0x00000000: range list header: length = 0x00000019, version = 0x0005,
+; V5RNGLISTS-NEXT: 0x00000000: range list header: length = 0x00000019, format = DWARF32, version = 0x0005,
 ; V5RNGLISTS-SAME: addr_size = 0x08, seg_size = 0x00, offset_entry_count = 0x00000001
 ; V5RNGLISTS-NEXT: offsets: [
 ; V5RNGLISTS-NEXT: => 0x00000010
@@ -183,7 +187,7 @@ for.end18:                                        ; preds = %for.inc16
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1
 
-attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }
 
 !llvm.dbg.cu = !{!0}

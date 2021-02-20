@@ -151,6 +151,31 @@ TEST_F(CleanupTest, CtorInitializationSimpleRedundantComma) {
   EXPECT_EQ(Expected, cleanupAroundOffsets({15}, Code));
 }
 
+// regression test for bug 39310
+TEST_F(CleanupTest, CtorInitializationSimpleRedundantCommaInFunctionTryBlock) {
+  std::string Code = "class A {\nA() try : , {} };";
+  std::string Expected = "class A {\nA() try  {} };";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({21, 23}, Code));
+
+  Code = "class A {\nA() try : x(1), {} };";
+  Expected = "class A {\nA() try : x(1) {} };";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({27}, Code));
+
+  Code = "class A {\nA() try :,,,,{} };";
+  Expected = "class A {\nA() try {} };";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({19}, Code));
+
+  Code = "class A {\nA() try : x(1),,, {} };";
+  Expected = "class A {\nA() try : x(1) {} };";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({27}, Code));
+
+  // Do not remove every comma following a colon as it simply doesn't make
+  // sense in some situations.
+  Code = "try : , {}";
+  Expected = "try : , {}";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({8}, Code));
+}
+
 TEST_F(CleanupTest, CtorInitializationSimpleRedundantColon) {
   std::string Code = "class A {\nA() : =default; };";
   std::string Expected = "class A {\nA()  =default; };";
@@ -183,10 +208,15 @@ TEST_F(CleanupTest, TrailingCommaInParens) {
   std::string Code = "int main() { f(,1,,2,3,f(1,2,),4,,);}";
   std::string Expected = "int main() { f(1,2,3,f(1,2),4);}";
   EXPECT_EQ(Expected, cleanupAroundOffsets({15, 18, 29, 33}, Code));
+
+  // Lambda contents are also checked for trailing commas.
+  Code = "int main() { [](){f(,1,,2,3,f(1,2,),4,,);}();}";
+  Expected = "int main() { [](){f(1,2,3,f(1,2),4);}();}";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({20, 23, 34, 38}, Code));
 }
 
 TEST_F(CleanupTest, TrailingCommaInBraces) {
-  // Trainling comma is allowed in brace list.
+  // Trailing comma is allowed in brace list.
   // If there was trailing comma in the original code, then trailing comma is
   // preserved. In this example, element between the last two commas is deleted
   // causing the second-last comma to be redundant.
@@ -194,7 +224,7 @@ TEST_F(CleanupTest, TrailingCommaInBraces) {
   std::string Expected = "void f() { std::vector<int> v = {1,2,3,}; }";
   EXPECT_EQ(Expected, cleanupAroundOffsets({39}, Code));
 
-  // If there was no trailing comma in the original code, then trainling comma
+  // If there was no trailing comma in the original code, then trailing comma
   // introduced by replacements should be cleaned up. In this example, the
   // element after the last comma is deleted causing the last comma to be
   // redundant.
@@ -448,7 +478,6 @@ TEST_F(CleanUpReplacementsTest, NoNewLineAtTheEndOfCodeMultipleInsertions) {
                       createInsertion("#include <vector>")});
   EXPECT_EQ(Expected, apply(Code, Replaces));
 }
-
 
 TEST_F(CleanUpReplacementsTest, FormatCorrectLineWhenHeadersAreInserted) {
   std::string Code = "\n"

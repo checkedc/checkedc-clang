@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple x86_64-linux -Wno-string-plus-int -Wno-pointer-arith -Wno-zero-length-array -fsyntax-only -fcxx-exceptions -verify -std=c++11 -pedantic %s -Wno-comment -Wno-tautological-pointer-compare -Wno-bool-conversion
+// RUN: %clang_cc1 -triple x86_64-linux -Wno-string-plus-int -Wno-pointer-arith -Wno-zero-length-array -Wno-c99-designator -fsyntax-only -fcxx-exceptions -verify -std=c++11 -pedantic %s -Wno-comment -Wno-tautological-pointer-compare -Wno-bool-conversion
 
 namespace StaticAssertFoldTest {
 
@@ -283,10 +283,10 @@ static_assert(&x == &y, "false"); // expected-error {{false}}
 static_assert(&x != &y, "");
 constexpr bool g1 = &x == &y;
 constexpr bool g2 = &x != &y;
-constexpr bool g3 = &x <= &y; // expected-error {{must be initialized by a constant expression}}
-constexpr bool g4 = &x >= &y; // expected-error {{must be initialized by a constant expression}}
-constexpr bool g5 = &x < &y; // expected-error {{must be initialized by a constant expression}}
-constexpr bool g6 = &x > &y; // expected-error {{must be initialized by a constant expression}}
+constexpr bool g3 = &x <= &y; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool g4 = &x >= &y; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool g5 = &x < &y; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool g6 = &x > &y; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
 
 struct S { int x, y; } s;
 static_assert(&s.x == &s.y, "false"); // expected-error {{false}}
@@ -298,17 +298,17 @@ static_assert(&s.x > &s.y, "false"); // expected-error {{false}}
 
 static_assert(0 == &y, "false"); // expected-error {{false}}
 static_assert(0 != &y, "");
-constexpr bool n3 = (int*)0 <= &y; // expected-error {{must be initialized by a constant expression}}
-constexpr bool n4 = (int*)0 >= &y; // expected-error {{must be initialized by a constant expression}}
-constexpr bool n5 = (int*)0 < &y; // expected-error {{must be initialized by a constant expression}}
-constexpr bool n6 = (int*)0 > &y; // expected-error {{must be initialized by a constant expression}}
+constexpr bool n3 = (int*)0 <= &y; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool n4 = (int*)0 >= &y; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool n5 = (int*)0 < &y; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool n6 = (int*)0 > &y; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
 
 static_assert(&x == 0, "false"); // expected-error {{false}}
 static_assert(&x != 0, "");
-constexpr bool n9 = &x <= (int*)0; // expected-error {{must be initialized by a constant expression}}
-constexpr bool n10 = &x >= (int*)0; // expected-error {{must be initialized by a constant expression}}
-constexpr bool n11 = &x < (int*)0; // expected-error {{must be initialized by a constant expression}}
-constexpr bool n12 = &x > (int*)0; // expected-error {{must be initialized by a constant expression}}
+constexpr bool n9 = &x <= (int*)0; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool n10 = &x >= (int*)0; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool n11 = &x < (int*)0; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool n12 = &x > (int*)0; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
 
 static_assert(&x == &x, "");
 static_assert(&x != &x, "false"); // expected-error {{false}}
@@ -566,7 +566,7 @@ static_assert(fail(*(&(&(*(*&(&zs[2] - 1)[0] + 2 - 2))[2])[-1][2] - 2)) == 11, "
 expected-error {{static_assert expression is not an integral constant expression}} \
 expected-note {{in call to 'fail(zs[1][0][1][0])'}}
 
-constexpr int arr[40] = { 1, 2, 3, [8] = 4 }; // expected-warning {{C99 feature}}
+constexpr int arr[40] = { 1, 2, 3, [8] = 4 };
 constexpr int SumNonzero(const int *p) {
   return *p + (*p ? SumNonzero(p+1) : 0);
 }
@@ -600,12 +600,16 @@ namespace CopyCtor {
   constexpr B c = b;
   static_assert(c.arr[2] == 3, "");
   static_assert(c.arr[7] == 0, "");
+
+  // OK: the copy ctor for X doesn't read any members.
+  struct X { struct Y {} y; } x1;
+  constexpr X x2 = x1;
 }
 
 constexpr int selfref[2][2][2] = {
-  selfref[1][1][1] + 1, selfref[0][0][0] + 1,
-  selfref[1][0][1] + 1, selfref[0][1][0] + 1,
-  selfref[1][0][0] + 1, selfref[0][1][1] + 1 };
+  1, selfref[0][0][0] + 1,
+  1, selfref[0][1][0] + 1,
+  1, selfref[0][1][1] + 1 };
 static_assert(selfref[0][0][0] == 1, "");
 static_assert(selfref[0][0][1] == 2, "");
 static_assert(selfref[0][1][0] == 1, "");
@@ -614,6 +618,10 @@ static_assert(selfref[1][0][0] == 1, "");
 static_assert(selfref[1][0][1] == 3, "");
 static_assert(selfref[1][1][0] == 0, "");
 static_assert(selfref[1][1][1] == 0, "");
+
+constexpr int badselfref[2][2][2] = { // expected-error {{constant expression}}
+  badselfref[1][0][0] // expected-note {{outside its lifetime}}
+};
 
 struct TrivialDefCtor { int n; };
 typedef TrivialDefCtor TDCArray[2][2];
@@ -674,12 +682,12 @@ template<bool B, typename T> struct S : T {
   }
 };
 
-extern const int n;
+extern const int n; // expected-note {{declared here}}
 template<typename T> void f() {
   // This is ill-formed, because a hypothetical instantiation at the point of
   // template definition would be ill-formed due to a construct that does not
   // depend on a template parameter.
-  constexpr int k = n; // expected-error {{must be initialized by a constant expression}}
+  constexpr int k = n; // expected-error {{must be initialized by a constant expression}} expected-note {{initializer of 'n' is unknown}}
 }
 // It doesn't matter that the instantiation could later become valid:
 constexpr int n = 4;
@@ -870,8 +878,8 @@ static_assert((Derived*)(Base*)pb1 == (Derived*)pok2, "");
 constexpr Base *nullB = 42 - 6 * 7; // expected-error {{cannot initialize a variable of type 'Class::Base *const' with an rvalue of type 'int'}}
 constexpr Base *nullB1 = 0;
 static_assert((Bottom*)nullB == 0, "");
-static_assert((Derived*)nullB == 0, "");
-static_assert((void*)(Bottom*)nullB == (void*)(Derived*)nullB, "");
+static_assert((Derived*)nullB1 == 0, "");
+static_assert((void*)(Bottom*)nullB1 == (void*)(Derived*)nullB1, "");
 Base *nullB2 = '\0'; // expected-error {{cannot initialize a variable of type 'Class::Base *' with an rvalue of type 'char'}}
 Base *nullB3 = (0);
 Base *nullB4 = false; // expected-error {{cannot initialize a variable of type 'Class::Base *' with an rvalue of type 'bool'}}
@@ -979,7 +987,7 @@ union U {
   int b;
 };
 
-constexpr U u[4] = { { .a = 0 }, { .b = 1 }, { .a = 2 }, { .b = 3 } }; // expected-warning 4{{C99 feature}}
+constexpr U u[4] = { { .a = 0 }, { .b = 1 }, { .a = 2 }, { .b = 3 } };
 static_assert(u[0].a == 0, "");
 static_assert(u[0].b, ""); // expected-error {{constant expression}} expected-note {{read of member 'b' of union with active member 'a'}}
 static_assert(u[1].b == 1, "");
@@ -1108,6 +1116,11 @@ namespace MemberPointer {
   static_assert((int Derived::*)(int Mid<0>::*)&Mid<0>::n !=
                 (int Derived::*)(int Mid<1>::*)&Mid<1>::n, "");
   static_assert(&Mid<0>::n == (int Mid<0>::*)&Base::n, "");
+
+  constexpr int apply(const A &a, int (A::*f)() const) {
+    return (a.*f)();
+  }
+  static_assert(apply(A(2), &A::f) == 5, "");
 }
 
 namespace ArrayBaseDerived {
@@ -1245,7 +1258,7 @@ constexpr int m1b = const_cast<const int&>(n1); // expected-error {{constant exp
 constexpr int m2b = const_cast<const int&>(n2); // expected-error {{constant expression}} expected-note {{read of volatile object 'n2'}}
 
 struct T { int n; };
-const T t = { 42 };
+const T t = { 42 }; // expected-note {{declared here}}
 
 constexpr int f(volatile int &&r) {
   return r; // expected-note {{read of volatile-qualified type 'volatile int'}}
@@ -1272,28 +1285,26 @@ namespace ExternConstexpr {
   }
 
   extern const int q;
-  constexpr int g() { return q; }
-  constexpr int q = g();
-  static_assert(q == 0, "zero-initialization should precede static initialization");
+  constexpr int g() { return q; } // expected-note {{outside its lifetime}}
+  constexpr int q = g(); // expected-error {{constant expression}} expected-note {{in call}}
 
   extern int r; // expected-note {{here}}
   constexpr int h() { return r; } // expected-error {{never produces a constant}} expected-note {{read of non-const}}
 
   struct S { int n; };
   extern const S s;
-  constexpr int x() { return s.n; }
-  constexpr S s = {x()};
-  static_assert(s.n == 0, "zero-initialization should precede static initialization");
+  constexpr int x() { return s.n; } // expected-note {{outside its lifetime}}
+  constexpr S s = {x()}; // expected-error {{constant expression}} expected-note {{in call}}
 }
 
 namespace ComplexConstexpr {
-  constexpr _Complex float test1 = {};
-  constexpr _Complex float test2 = {1};
-  constexpr _Complex double test3 = {1,2};
-  constexpr _Complex int test4 = {4};
-  constexpr _Complex int test5 = 4;
-  constexpr _Complex int test6 = {5,6};
-  typedef _Complex float fcomplex;
+  constexpr _Complex float test1 = {}; // expected-warning {{'_Complex' is a C99 extension}}
+  constexpr _Complex float test2 = {1}; // expected-warning {{'_Complex' is a C99 extension}}
+  constexpr _Complex double test3 = {1,2}; // expected-warning {{'_Complex' is a C99 extension}}
+  constexpr _Complex int test4 = {4}; // expected-warning {{'_Complex' is a C99 extension}}
+  constexpr _Complex int test5 = 4; // expected-warning {{'_Complex' is a C99 extension}}
+  constexpr _Complex int test6 = {5,6}; // expected-warning {{'_Complex' is a C99 extension}}
+  typedef _Complex float fcomplex; // expected-warning {{'_Complex' is a C99 extension}}
   constexpr fcomplex test7 = fcomplex();
 
   constexpr const double &t2r = __real test3;
@@ -1307,10 +1318,10 @@ namespace ComplexConstexpr {
   static_assert(t2p[1] == 2.0, "");
   static_assert(t2p[2] == 0.0, ""); // expected-error {{constant expr}} expected-note {{one-past-the-end pointer}}
   static_assert(t2p[3] == 0.0, ""); // expected-error {{constant expr}} expected-note {{cannot refer to element 3 of array of 2 elements}}
-  constexpr _Complex float *p = 0;
+  constexpr _Complex float *p = 0; // expected-warning {{'_Complex' is a C99 extension}}
   constexpr float pr = __real *p; // expected-error {{constant expr}} expected-note {{cannot access real component of null}}
   constexpr float pi = __imag *p; // expected-error {{constant expr}} expected-note {{cannot access imaginary component of null}}
-  constexpr const _Complex double *q = &test3 + 1;
+  constexpr const _Complex double *q = &test3 + 1; // expected-warning {{'_Complex' is a C99 extension}}
   constexpr double qr = __real *q; // expected-error {{constant expr}} expected-note {{cannot access real component of pointer past the end}}
   constexpr double qi = __imag *q; // expected-error {{constant expr}} expected-note {{cannot access imaginary component of pointer past the end}}
 
@@ -1322,21 +1333,21 @@ namespace ComplexConstexpr {
 // _Atomic(T) is exactly like T for the purposes of constant expression
 // evaluation..
 namespace Atomic {
-  constexpr _Atomic int n = 3;
+  constexpr _Atomic int n = 3; // expected-warning {{'_Atomic' is a C11 extension}}
 
-  struct S { _Atomic(double) d; };
+  struct S { _Atomic(double) d; }; // expected-warning {{'_Atomic' is a C11 extension}}
   constexpr S s = { 0.5 };
   constexpr double d1 = s.d;
   constexpr double d2 = n;
-  constexpr _Atomic double d3 = n;
+  constexpr _Atomic double d3 = n; // expected-warning {{'_Atomic' is a C11 extension}}
 
-  constexpr _Atomic(int) n2 = d3;
+  constexpr _Atomic(int) n2 = d3; // expected-warning {{'_Atomic' is a C11 extension}}
   static_assert(d1 == 0.5, "");
   static_assert(d3 == 3.0, "");
 
   namespace PR16056 {
     struct TestVar {
-      _Atomic(int) value;
+      _Atomic(int) value; // expected-warning {{'_Atomic' is a C11 extension}}
       constexpr TestVar(int value) : value(value) {}
     };
     constexpr TestVar testVar{-1};
@@ -1345,11 +1356,11 @@ namespace Atomic {
 
   namespace PR32034 {
     struct A {};
-    struct B { _Atomic(A) a; };
+    struct B { _Atomic(A) a; }; // expected-warning {{'_Atomic' is a C11 extension}}
     constexpr int n = (B(), B(), 0);
 
     struct C { constexpr C() {} void *self = this; };
-    constexpr _Atomic(C) c = C();
+    constexpr _Atomic(C) c = C(); // expected-warning {{'_Atomic' is a C11 extension}}
   }
 }
 
@@ -1361,7 +1372,7 @@ namespace InstantiateCaseStmt {
 
 namespace ConvertedConstantExpr {
   extern int &m;
-  extern int &n;
+  extern int &n; // expected-note 2{{declared here}}
 
   constexpr int k = 4;
   int &m = const_cast<int&>(k);
@@ -1370,9 +1381,9 @@ namespace ConvertedConstantExpr {
   // useless note and instead just point to the non-constant subexpression.
   enum class E {
     em = m,
-    en = n, // expected-error {{not a constant expression}}
-    eo = (m +
-          n // expected-error {{not a constant expression}}
+    en = n, // expected-error {{not a constant expression}} expected-note {{initializer of 'n' is unknown}}
+    eo = (m + // expected-error {{not a constant expression}}
+          n // expected-note {{initializer of 'n' is unknown}}
           ),
     eq = reinterpret_cast<long>((int*)0) // expected-error {{not a constant expression}} expected-note {{reinterpret_cast}}
   };
@@ -1889,9 +1900,10 @@ namespace ConstexprConstructorRecovery {
       };
       constexpr X() noexcept {};
   protected:
-      E val{0}; // expected-error {{cannot initialize a member subobject of type 'ConstexprConstructorRecovery::X::E' with an rvalue of type 'int'}}
+      E val{0}; // expected-error {{cannot initialize a member subobject of type 'ConstexprConstructorRecovery::X::E' with an rvalue of type 'int'}} expected-note {{here}}
   };
-  constexpr X x{};
+  // FIXME: We should avoid issuing this follow-on diagnostic.
+  constexpr X x{}; // expected-error {{constant expression}} expected-note {{not initialized}}
 }
 
 namespace Lifetime {
@@ -1949,11 +1961,10 @@ namespace Lifetime {
 
   struct R { // expected-note {{field init}}
     struct Inner { constexpr int f() const { return 0; } };
-    int a = b.f(); // expected-warning {{uninitialized}} expected-note {{member call on object outside its lifetime}}
+    int a = b.f(); // expected-warning {{uninitialized}} expected-note 2{{member call on object outside its lifetime}}
     Inner b;
   };
-  // FIXME: This should be rejected under DR2026.
-  constexpr R r; // expected-note {{default constructor}}
+  constexpr R r; // expected-error {{constant expression}} expected-note {{in call}} expected-note {{implicit default constructor for 'Lifetime::R' first required here}}
   void rf() {
     constexpr R r; // expected-error {{constant expression}} expected-note {{in call}}
   }
@@ -2035,9 +2046,9 @@ namespace BadDefaultInit {
   // FIXME: The "constexpr constructor must initialize all members" diagnostic
   // here is bogus (we discard the k(k) initializer because the parameter 'k'
   // has been marked invalid).
-  struct B { // expected-note 2{{candidate}}
-    constexpr B( // expected-error {{must initialize all members}} expected-note {{candidate}}
-        int k = X<B().k>::n) : // expected-error {{no matching constructor}}
+  struct B {
+    constexpr B( // expected-warning {{initialize all members}}
+        int k = X<B().k>::n) : // expected-error {{default argument to function 'B' that is declared later}} expected-note {{here}}
       k(k) {}
     int k; // expected-note {{not initialized}}
   };
@@ -2290,4 +2301,43 @@ namespace PR41854 {
   int a;
   f &d = reinterpret_cast<f&>(a);
   unsigned b = d.c;
+}
+
+namespace array_size {
+  template<int N> struct array {
+    static constexpr int size() { return N; }
+  };
+  template<typename T> void f1(T t) {
+    constexpr int k = t.size();
+  }
+  template<typename T> void f2(const T &t) {
+    constexpr int k = t.size(); // expected-error {{constant}} expected-note {{function parameter 't' with unknown value cannot be used in a constant expression}}
+  }
+  template<typename T> void f3(const T &t) {
+    constexpr int k = T::size();
+  }
+  void g(array<3> a) {
+    f1(a);
+    f2(a); // expected-note {{instantiation of}}
+    f3(a);
+  }
+}
+
+namespace flexible_array {
+  struct A { int x; char arr[]; }; // expected-warning {{C99}} expected-note {{here}}
+  constexpr A a = {1};
+  static_assert(a.x == 1, "");
+  static_assert(&a.arr != nullptr, "");
+  static_assert(a.arr[0], ""); // expected-error {{constant expression}} expected-note {{array member without known bound}}
+  static_assert(a.arr[1], ""); // expected-error {{constant expression}} expected-note {{array member without known bound}}
+
+  constexpr A b[] = {{1}, {2}, {3}}; // expected-warning {{flexible array member}}
+  static_assert(b[0].x == 1, "");
+  static_assert(b[1].x == 2, "");
+  static_assert(b[2].x == 3, "");
+  static_assert(b[2].arr[0], ""); // expected-error {{constant expression}} expected-note {{array member without known bound}}
+
+  // If we ever start to accept this, we'll need to ensure we can
+  // constant-evaluate it properly.
+  constexpr A c = {1, 2, 3}; // expected-error {{initialization of flexible array member}}
 }

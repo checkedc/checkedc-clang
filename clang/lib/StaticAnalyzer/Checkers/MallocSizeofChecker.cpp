@@ -183,7 +183,7 @@ public:
       QualType CastedType = i->CastedExpr->getType();
       if (!CastedType->isPointerType())
         continue;
-      QualType PointeeType = CastedType->getAs<PointerType>()->getPointeeType();
+      QualType PointeeType = CastedType->getPointeeType();
       if (PointeeType->isVoidType())
         continue;
 
@@ -250,6 +250,6 @@ void ento::registerMallocSizeofChecker(CheckerManager &mgr) {
   mgr.registerChecker<MallocSizeofChecker>();
 }
 
-bool ento::shouldRegisterMallocSizeofChecker(const LangOptions &LO) {
+bool ento::shouldRegisterMallocSizeofChecker(const CheckerManager &mgr) {
   return true;
 }

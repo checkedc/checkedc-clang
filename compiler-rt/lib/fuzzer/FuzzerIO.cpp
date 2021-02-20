@@ -111,7 +111,7 @@ std::string DirPlusFile(const std::string &DirPath,
 
 void DupAndCloseStderr() {
   int OutputFd = DuplicateFile(2);
-  if (OutputFd > 0) {
+  if (OutputFd >= 0) {
     FILE *NewOutputFile = OpenFile(OutputFd, "w");
     if (NewOutputFile) {
       OutputFile = NewOutputFile;
@@ -151,9 +151,9 @@ void RmDirRecursive(const std::string &Dir) {
       [](const std::string &Path) { RemoveFile(Path); });
 }
 
-std::string TempPath(const char *Extension) {
-  return DirPlusFile(TmpDir(),
-                     "libFuzzerTemp." + std::to_string(GetPid()) + Extension);
+std::string TempPath(const char *Prefix, const char *Extension) {
+  return DirPlusFile(TmpDir(), std::string("libFuzzerTemp.") + Prefix +
+                                   std::to_string(GetPid()) + Extension);
 }
 
 }  // namespace fuzzer

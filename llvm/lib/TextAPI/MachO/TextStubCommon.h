@@ -14,14 +14,13 @@
 #define LLVM_TEXTAPI_TEXT_STUB_COMMON_H
 
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/TextAPI/MachO/Architecture.h"
 #include "llvm/TextAPI/MachO/ArchitectureSet.h"
 #include "llvm/TextAPI/MachO/InterfaceFile.h"
 #include "llvm/TextAPI/MachO/PackedVersion.h"
 
-using UUID = std::pair<llvm::MachO::Architecture, std::string>;
+using UUID = std::pair<llvm::MachO::Target, std::string>;
 
 LLVM_YAML_STRONG_TYPEDEF(llvm::StringRef, FlowStringRef)
 LLVM_YAML_STRONG_TYPEDEF(uint8_t, SwiftVersion)
@@ -41,9 +40,9 @@ template <> struct ScalarEnumerationTraits<MachO::ObjCConstraintType> {
   static void enumeration(IO &, MachO::ObjCConstraintType &);
 };
 
-template <> struct ScalarTraits<MachO::PlatformKind> {
-  static void output(const MachO::PlatformKind &, void *, raw_ostream &);
-  static StringRef input(StringRef, void *, MachO::PlatformKind &);
+template <> struct ScalarTraits<MachO::PlatformSet> {
+  static void output(const MachO::PlatformSet &, void *, raw_ostream &);
+  static StringRef input(StringRef, void *, MachO::PlatformSet &);
   static QuotingType mustQuote(StringRef);
 };
 

@@ -84,3 +84,104 @@ define i1 @test_negative_combined_sub_signed_overflow(i8 %x) {
   %z = icmp slt i8 %y, -1
   ret i1 %z
 }
+
+define i1 @test_sub_0_Y_eq_0(i8 %y) {
+; CHECK-LABEL: @test_sub_0_Y_eq_0(
+; CHECK-NEXT:    [[Z:%.*]] = icmp eq i8 [[Y:%.*]], 0
+; CHECK-NEXT:    ret i1 [[Z]]
+;
+  %s = sub i8 0, %y
+  %z = icmp eq i8 %s, 0
+  ret i1 %z
+}
+
+define i1 @test_sub_0_Y_ne_0(i8 %y) {
+; CHECK-LABEL: @test_sub_0_Y_ne_0(
+; CHECK-NEXT:    [[Z:%.*]] = icmp ne i8 [[Y:%.*]], 0
+; CHECK-NEXT:    ret i1 [[Z]]
+;
+  %s = sub i8 0, %y
+  %z = icmp ne i8 %s, 0
+  ret i1 %z
+}
+
+define i1 @test_sub_4_Y_ne_4(i8 %y) {
+; CHECK-LABEL: @test_sub_4_Y_ne_4(
+; CHECK-NEXT:    [[Z:%.*]] = icmp ne i8 [[Y:%.*]], 0
+; CHECK-NEXT:    ret i1 [[Z]]
+;
+  %s = sub i8 4, %y
+  %z = icmp ne i8 %s, 4
+  ret i1 %z
+}
+
+define i1 @test_sub_127_Y_eq_127(i8 %y) {
+; CHECK-LABEL: @test_sub_127_Y_eq_127(
+; CHECK-NEXT:    [[Z:%.*]] = icmp eq i8 [[Y:%.*]], 0
+; CHECK-NEXT:    ret i1 [[Z]]
+;
+  %s = sub i8 127, %y
+  %z = icmp eq i8 %s, 127
+  ret i1 %z
+}
+
+define i1 @test_sub_255_Y_eq_255(i8 %y) {
+; CHECK-LABEL: @test_sub_255_Y_eq_255(
+; CHECK-NEXT:    [[Z:%.*]] = icmp eq i8 [[Y:%.*]], 0
+; CHECK-NEXT:    ret i1 [[Z]]
+;
+  %s = sub i8 255, %y
+  %z = icmp eq i8 %s, 255
+  ret i1 %z
+}
+define <2 x i1> @test_sub_255_Y_eq_255_vec(<2 x i8> %y) {
+; CHECK-LABEL: @test_sub_255_Y_eq_255_vec(
+; CHECK-NEXT:    [[Z:%.*]] = icmp eq <2 x i8> [[Y:%.*]], zeroinitializer
+; CHECK-NEXT:    ret <2 x i1> [[Z]]
+;
+  %s = sub <2 x i8> <i8 255, i8 255>, %y
+  %z = icmp eq <2 x i8> %s, <i8 255, i8 255>
+  ret <2 x i1> %z
+}
+
+define <2 x i1> @icmp_eq_sub_undef(<2 x i32> %a) {
+; CHECK-LABEL: @icmp_eq_sub_undef(
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq <2 x i32> [[A:%.*]], <i32 5, i32 undef>
+; CHECK-NEXT:    ret <2 x i1> [[CMP]]
+;
+  %sub = sub <2 x i32> <i32 15, i32 undef>, %a
+  %cmp = icmp eq <2 x i32> %sub, <i32 10, i32 10>
+  ret <2 x i1> %cmp
+}
+
+define <2 x i1> @icmp_eq_sub_non_splat(<2 x i32> %a) {
+; CHECK-LABEL: @icmp_eq_sub_non_splat(
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq <2 x i32> [[A:%.*]], <i32 5, i32 6>
+; CHECK-NEXT:    ret <2 x i1> [[CMP]]
+;
+  %sub = sub <2 x i32> <i32 15, i32 16>, %a
+  %cmp = icmp eq <2 x i32> %sub, <i32 10, i32 10>
+  ret <2 x i1> %cmp
+}
+
+define <2 x i1> @icmp_eq_sub_undef2(<2 x i32> %a) {
+; CHECK-LABEL: @icmp_eq_sub_undef2(
+; CHECK-NEXT:    [[SUB:%.*]] = sub <2 x i32> <i32 15, i32 15>, [[A:%.*]]
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq <2 x i32> [[SUB]], <i32 10, i32 undef>
+; CHECK-NEXT:    ret <2 x i1> [[CMP]]
+;
+  %sub = sub <2 x i32> <i32 15, i32 15>, %a
+  %cmp = icmp eq <2 x i32> %sub, <i32 10, i32 undef>
+  ret <2 x i1> %cmp
+}
+
+define <2 x i1> @icmp_eq_sub_non_splat2(<2 x i32> %a) {
+; CHECK-LABEL: @icmp_eq_sub_non_splat2(
+; CHECK-NEXT:    [[SUB:%.*]] = sub <2 x i32> <i32 15, i32 15>, [[A:%.*]]
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq <2 x i32> [[SUB]], <i32 10, i32 11>
+; CHECK-NEXT:    ret <2 x i1> [[CMP]]
+;
+  %sub = sub <2 x i32> <i32 15, i32 15>, %a
+  %cmp = icmp eq <2 x i32> %sub, <i32 10, i32 11>
+  ret <2 x i1> %cmp
+}

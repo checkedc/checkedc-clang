@@ -106,7 +106,9 @@ newFrontendActionFactoryA(ProgramInfo &I, bool VerifyTheseDiagnostics = false) {
                                       bool VerifyTheseDiagnostics)
         : Info(I), VerifyTheseDiagnostics(VerifyTheseDiagnostics) {}
 
-    FrontendAction *create() override { return new T(Info); }
+    std::unique_ptr<FrontendAction> create() override { 
+      return std::unique_ptr<FrontendAction>(new T(Info));
+    }
 
     bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
                        FileManager *Files,
@@ -266,6 +268,7 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
     BaseDir = ".";
   }
 
+<<<<<<< HEAD
   // Get the canonical path of the base directory.
   TmpPath = BaseDir;
   EC = tryGetCanonicalFilePath(BaseDir, TmpPath);
@@ -296,6 +299,11 @@ _3CInterface::_3CInterface(const struct _3COptions &CCopt,
       return;
     }
     OutputDir = TmpPath;
+||||||| ad482c007426
+    BaseDir = Cp.str();
+=======
+    BaseDir = std::string(Cp.str());
+>>>>>>> a4d1ce7f08d86d868e676e6971d797456cc875eb
   }
 
   SourceFiles = SourceFileList;

@@ -71,12 +71,21 @@ public:
   /// Return true if this argument has the swifterror attribute.
   bool hasSwiftErrorAttr() const;
 
-  /// Return true if this argument has the byval attribute or inalloca
+  /// Return true if this argument has the byval, inalloca, or preallocated
   /// attribute. These attributes represent arguments being passed by value.
-  bool hasByValOrInAllocaAttr() const;
+  bool hasPassPointeeByValueAttr() const;
+
+  /// If this argument satisfies has hasPassPointeeByValueAttr, return the
+  /// in-memory ABI size copied to the stack for the call. Otherwise, return 0.
+  uint64_t getPassPointeeByValueCopySize(const DataLayout &DL) const;
 
   /// If this is a byval or inalloca argument, return its alignment.
+  /// FIXME: Remove this function once transition to Align is over.
+  /// Use getParamAlign() instead.
   unsigned getParamAlignment() const;
+
+  /// If this is a byval or inalloca argument, return its alignment.
+  MaybeAlign getParamAlign() const;
 
   /// If this is a byval argument, return its type.
   Type *getParamByValType() const;
@@ -104,6 +113,9 @@ public:
 
   /// Return true if this argument has the inalloca attribute.
   bool hasInAllocaAttr() const;
+
+  /// Return true if this argument has the preallocated attribute.
+  bool hasPreallocatedAttr() const;
 
   /// Return true if this argument has the zext attribute.
   bool hasZExtAttr() const;

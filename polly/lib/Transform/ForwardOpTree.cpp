@@ -28,6 +28,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
@@ -860,8 +861,10 @@ public:
       }
     }
 
-    if (Modified)
+    if (Modified) {
       ScopsModified++;
+      S->realignParams();
+    }
     return Modified;
   }
 
@@ -914,7 +917,7 @@ public:
 
     {
       IslMaxOperationsGuard MaxOpGuard(S.getIslCtx().get(), MaxOps, false);
-      Impl = llvm::make_unique<ForwardOpTreeImpl>(&S, &LI, MaxOpGuard);
+      Impl = std::make_unique<ForwardOpTreeImpl>(&S, &LI, MaxOpGuard);
 
       if (AnalyzeKnown) {
         LLVM_DEBUG(dbgs() << "Prepare forwarders...\n");

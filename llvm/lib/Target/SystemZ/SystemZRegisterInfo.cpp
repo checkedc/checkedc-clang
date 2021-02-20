@@ -41,7 +41,7 @@ static const TargetRegisterClass *getRC32(MachineOperand &MO,
     return &SystemZ::GRH32BitRegClass;
 
   if (VRM && VRM->hasPhys(MO.getReg())) {
-    unsigned PhysReg = VRM->getPhys(MO.getReg());
+    Register PhysReg = VRM->getPhys(MO.getReg());
     if (SystemZ::GR32BitRegClass.contains(PhysReg))
       return &SystemZ::GR32BitRegClass;
     assert (SystemZ::GRH32BitRegClass.contains(PhysReg) &&
@@ -73,13 +73,10 @@ static void addHints(ArrayRef<MCPhysReg> Order,
       Hints.push_back(Reg);
 }
 
-bool
-SystemZRegisterInfo::getRegAllocationHints(unsigned VirtReg,
-                                           ArrayRef<MCPhysReg> Order,
-                                           SmallVectorImpl<MCPhysReg> &Hints,
-                                           const MachineFunction &MF,
-                                           const VirtRegMap *VRM,
-                                           const LiveRegMatrix *Matrix) const {
+bool SystemZRegisterInfo::getRegAllocationHints(
+    Register VirtReg, ArrayRef<MCPhysReg> Order,
+    SmallVectorImpl<MCPhysReg> &Hints, const MachineFunction &MF,
+    const VirtRegMap *VRM, const LiveRegMatrix *Matrix) const {
   const MachineRegisterInfo *MRI = &MF.getRegInfo();
   const SystemZSubtarget &Subtarget = MF.getSubtarget<SystemZSubtarget>();
   const TargetRegisterInfo *TRI = Subtarget.getRegisterInfo();
@@ -87,12 +84,58 @@ SystemZRegisterInfo::getRegAllocationHints(unsigned VirtReg,
   bool BaseImplRetVal = TargetRegisterInfo::getRegAllocationHints(
       VirtReg, Order, Hints, MF, VRM, Matrix);
 
+  if (VRM != nullptr) {
+    // Add any two address hints after any copy hints.
+    SmallSet<unsigned, 4> TwoAddrHints;
+    for (auto &Use : MRI->reg_nodbg_instructions(VirtReg))
+      if (SystemZ::getTwoOperandOpcode(Use.getOpcode()) != -1) {
+        const MachineOperand *VRRegMO = nullptr;
+        const MachineOperand *OtherMO = nullptr;
+        const MachineOperand *CommuMO = nullptr;
+        if (VirtReg == Use.getOperand(0).getReg()) {
+          VRRegMO = &Use.getOperand(0);
+          OtherMO = &Use.getOperand(1);
+          if (Use.isCommutable())
+            CommuMO = &Use.getOperand(2);
+        } else if (VirtReg == Use.getOperand(1).getReg()) {
+          VRRegMO = &Use.getOperand(1);
+          OtherMO = &Use.getOperand(0);
+        } else if (VirtReg == Use.getOperand(2).getReg() &&
+                   Use.isCommutable()) {
+          VRRegMO = &Use.getOperand(2);
+          OtherMO = &Use.getOperand(0);
+        } else
+          continue;
+
+        auto tryAddHint = [&](const MachineOperand *MO) -> void {
+          Register Reg = MO->getReg();
+          Register PhysReg =
+            Register::isPhysicalRegister(Reg) ? Reg : VRM->getPhys(Reg);
+          if (PhysReg) {
+            if (MO->getSubReg())
+              PhysReg = getSubReg(PhysReg, MO->getSubReg());
+            if (VRRegMO->getSubReg())
+              PhysReg = getMatchingSuperReg(PhysReg, VRRegMO->getSubReg(),
+                                            MRI->getRegClass(VirtReg));
+            if (!MRI->isReserved(PhysReg) && !is_contained(Hints, PhysReg))
+              TwoAddrHints.insert(PhysReg);
+          }
+        };
+        tryAddHint(OtherMO);
+        if (CommuMO)
+          tryAddHint(CommuMO);
+      }
+    for (MCPhysReg OrderReg : Order)
+      if (TwoAddrHints.count(OrderReg))
+        Hints.push_back(OrderReg);
+  }
+
   if (MRI->getRegClass(VirtReg) == &SystemZ::GRX32BitRegClass) {
-    SmallVector<unsigned, 8> Worklist;
-    SmallSet<unsigned, 4> DoneRegs;
+    SmallVector<Register, 8> Worklist;
+    SmallSet<Register, 4> DoneRegs;
     Worklist.push_back(VirtReg);
     while (Worklist.size()) {
-      unsigned Reg = Worklist.pop_back_val();
+      Register Reg = Worklist.pop_back_val();
       if (!DoneRegs.insert(Reg).second)
         continue;
 
@@ -120,8 +163,8 @@ SystemZRegisterInfo::getRegAllocationHints(unsigned VirtReg,
           }
 
           // Add the other operand of the LOCRMux to the worklist.
-          unsigned OtherReg =
-            (TrueMO.getReg() == Reg ? FalseMO.getReg() : TrueMO.getReg());
+          Register OtherReg =
+              (TrueMO.getReg() == Reg ? FalseMO.getReg() : TrueMO.getReg());
           if (MRI->getRegClass(OtherReg) == &SystemZ::GRX32BitRegClass)
             Worklist.push_back(OtherReg);
         } // end LOCRMux
@@ -143,57 +186,14 @@ SystemZRegisterInfo::getRegAllocationHints(unsigned VirtReg,
     }
   }
 
-  if (VRM == nullptr)
-    return BaseImplRetVal;
-
-  // Add any two address hints after any copy hints.
-  SmallSet<unsigned, 4> TwoAddrHints;
-  for (auto &Use : MRI->reg_nodbg_instructions(VirtReg))
-    if (SystemZ::getTwoOperandOpcode(Use.getOpcode()) != -1) {
-      const MachineOperand *VRRegMO = nullptr;
-      const MachineOperand *OtherMO = nullptr;
-      const MachineOperand *CommuMO = nullptr;
-      if (VirtReg == Use.getOperand(0).getReg()) {
-        VRRegMO = &Use.getOperand(0);
-        OtherMO = &Use.getOperand(1);
-        if (Use.isCommutable())
-          CommuMO = &Use.getOperand(2);
-      } else if (VirtReg == Use.getOperand(1).getReg()) {
-        VRRegMO = &Use.getOperand(1);
-        OtherMO = &Use.getOperand(0);
-      } else if (VirtReg == Use.getOperand(2).getReg() && Use.isCommutable()) {
-        VRRegMO = &Use.getOperand(2);
-        OtherMO = &Use.getOperand(0);
-      } else
-        continue;
-
-      auto tryAddHint = [&](const MachineOperand *MO) -> void {
-        Register Reg = MO->getReg();
-        Register PhysReg = isPhysicalRegister(Reg) ? Reg : VRM->getPhys(Reg);
-        if (PhysReg) {
-          if (MO->getSubReg())
-            PhysReg = getSubReg(PhysReg, MO->getSubReg());
-          if (VRRegMO->getSubReg())
-            PhysReg = getMatchingSuperReg(PhysReg, VRRegMO->getSubReg(),
-                                          MRI->getRegClass(VirtReg));
-          if (!MRI->isReserved(PhysReg) && !is_contained(Hints, PhysReg))
-            TwoAddrHints.insert(PhysReg);
-        }
-      };
-      tryAddHint(OtherMO);
-      if (CommuMO)
-        tryAddHint(CommuMO);
-    }
-  for (MCPhysReg OrderReg : Order)
-    if (TwoAddrHints.count(OrderReg))
-      Hints.push_back(OrderReg);
-
   return BaseImplRetVal;
 }
 
 const MCPhysReg *
 SystemZRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   const SystemZSubtarget &Subtarget = MF->getSubtarget<SystemZSubtarget>();
+  if (MF->getFunction().getCallingConv() == CallingConv::GHC)
+    return CSR_SystemZ_NoRegs_SaveList;
   if (MF->getFunction().getCallingConv() == CallingConv::AnyReg)
     return Subtarget.hasVector()? CSR_SystemZ_AllRegs_Vector_SaveList
                                 : CSR_SystemZ_AllRegs_SaveList;
@@ -208,6 +208,8 @@ const uint32_t *
 SystemZRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
                                           CallingConv::ID CC) const {
   const SystemZSubtarget &Subtarget = MF.getSubtarget<SystemZSubtarget>();
+  if (CC == CallingConv::GHC)
+    return CSR_SystemZ_NoRegs_RegMask;
   if (CC == CallingConv::AnyReg)
     return Subtarget.hasVector()? CSR_SystemZ_AllRegs_Vector_RegMask
                                 : CSR_SystemZ_AllRegs_RegMask;
@@ -262,14 +264,14 @@ SystemZRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
 
   // Decompose the frame index into a base and offset.
   int FrameIndex = MI->getOperand(FIOperandNum).getIndex();
-  unsigned BasePtr;
+  Register BasePtr;
   int64_t Offset = (TFI->getFrameIndexReference(MF, FrameIndex, BasePtr) +
                     MI->getOperand(FIOperandNum + 1).getImm());
 
   // Special handling of dbg_value instructions.
   if (MI->isDebugValue()) {
     MI->getOperand(FIOperandNum).ChangeToRegister(BasePtr, /*isDef*/ false);
-    MI->getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
+    MI->getDebugOffset().ChangeToImmediate(Offset);
     return;
   }
 
@@ -297,8 +299,8 @@ SystemZRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
       assert(Mask && "One offset must be OK");
     } while (!OpcodeForOffset);
 
-    unsigned ScratchReg =
-      MF.getRegInfo().createVirtualRegister(&SystemZ::ADDR64BitRegClass);
+    Register ScratchReg =
+        MF.getRegInfo().createVirtualRegister(&SystemZ::ADDR64BitRegClass);
     int64_t HighOffset = OldOffset - Offset;
 
     if (MI->getDesc().TSFlags & SystemZII::HasIndex
@@ -351,8 +353,8 @@ bool SystemZRegisterInfo::shouldCoalesce(MachineInstr *MI,
   // regalloc may run out of registers.
 
   unsigned WideOpNo = (getRegSizeInBits(*SrcRC) == 128 ? 1 : 0);
-  unsigned GR128Reg = MI->getOperand(WideOpNo).getReg();
-  unsigned GRNarReg = MI->getOperand((WideOpNo == 1) ? 0 : 1).getReg();
+  Register GR128Reg = MI->getOperand(WideOpNo).getReg();
+  Register GRNarReg = MI->getOperand((WideOpNo == 1) ? 0 : 1).getReg();
   LiveInterval &IntGR128 = LIS.getInterval(GR128Reg);
   LiveInterval &IntGRNar = LIS.getInterval(GRNarReg);
 
@@ -385,7 +387,7 @@ bool SystemZRegisterInfo::shouldCoalesce(MachineInstr *MI,
   MEE++;
   for (; MII != MEE; ++MII) {
     for (const MachineOperand &MO : MII->operands())
-      if (MO.isReg() && isPhysicalRegister(MO.getReg())) {
+      if (MO.isReg() && Register::isPhysicalRegister(MO.getReg())) {
         for (MCSuperRegIterator SI(MO.getReg(), this, true/*IncludeSelf*/);
              SI.isValid(); ++SI)
           if (NewRC->contains(*SI)) {

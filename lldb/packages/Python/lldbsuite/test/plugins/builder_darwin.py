@@ -1,6 +1,4 @@
 
-from __future__ import print_function
-import os
 import lldbsuite.test.lldbtest as lldbtest
 
 from builder_base import *
@@ -18,7 +16,11 @@ def buildDsym(
                     ["MAKE_DSYM=YES",
                      getArchSpec(architecture),
                      getCCSpec(compiler),
-                     "all", getCmdLine(dictionary)])
+                     getDsymutilSpec(),
+                     getSDKRootSpec(),
+                     getModuleCacheSpec(),
+                     "all",
+                     getCmdLine(dictionary)])
 
     runBuildCommands(commands, sender=sender)
 

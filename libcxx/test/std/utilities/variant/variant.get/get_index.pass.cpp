@@ -7,9 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
-// XFAIL: dylib-has-no-bad_variant_access && !libcpp-no-exceptions
+// XFAIL: dylib-has-no-bad_variant_access && !no-exceptions
 
 // <variant>
 
@@ -28,7 +28,7 @@
 
 #include "test_macros.h"
 #include "test_workarounds.h"
-#include "variant_test_helpers.hpp"
+#include "variant_test_helpers.h"
 #include <cassert>
 #include <type_traits>
 #include <utility>

@@ -142,9 +142,9 @@ Expected<NativeObjectCache> lto::localCache(StringRef CacheDirectoryPath,
       }
 
       // This CacheStream will move the temporary file into the cache when done.
-      return llvm::make_unique<CacheStream>(
-          llvm::make_unique<raw_fd_ostream>(Temp->FD, /* ShouldClose */ false),
-          AddBuffer, std::move(*Temp), EntryPath.str(), Task);
+      return std::make_unique<CacheStream>(
+          std::make_unique<raw_fd_ostream>(Temp->FD, /* ShouldClose */ false),
+          AddBuffer, std::move(*Temp), std::string(EntryPath.str()), Task);
     };
   };
 }

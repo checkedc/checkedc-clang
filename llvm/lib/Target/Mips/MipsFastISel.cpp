@@ -420,7 +420,7 @@ unsigned MipsFastISel::materializeGV(const GlobalValue *GV, MVT VT) {
   if (IsThreadLocal)
     return 0;
   emitInst(Mips::LW, DestReg)
-      .addReg(MFI->getGlobalBaseReg())
+      .addReg(MFI->getGlobalBaseReg(*MF))
       .addGlobalAddress(GV, 0, MipsII::MO_GOT);
   if ((GV->hasInternalLinkage() ||
        (GV->hasLocalLinkage() && !isa<Function>(GV)))) {
@@ -437,7 +437,7 @@ unsigned MipsFastISel::materializeExternalCallSym(MCSymbol *Sym) {
   const TargetRegisterClass *RC = &Mips::GPR32RegClass;
   unsigned DestReg = createResultReg(RC);
   emitInst(Mips::LW, DestReg)
-      .addReg(MFI->getGlobalBaseReg())
+      .addReg(MFI->getGlobalBaseReg(*MF))
       .addSym(Sym, MipsII::MO_GOT);
   return DestReg;
 }
@@ -795,12 +795,11 @@ bool MipsFastISel::emitLoad(MVT VT, unsigned &ResultReg, Address &Addr,
   }
   if (Addr.isFIBase()) {
     unsigned FI = Addr.getFI();
-    unsigned Align = 4;
     int64_t Offset = Addr.getOffset();
     MachineFrameInfo &MFI = MF->getFrameInfo();
     MachineMemOperand *MMO = MF->getMachineMemOperand(
         MachinePointerInfo::getFixedStack(*MF, FI), MachineMemOperand::MOLoad,
-        MFI.getObjectSize(FI), Align);
+        MFI.getObjectSize(FI), Align(4));
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, TII.get(Opc), ResultReg)
         .addFrameIndex(FI)
         .addImm(Offset)
@@ -846,12 +845,11 @@ bool MipsFastISel::emitStore(MVT VT, unsigned SrcReg, Address &Addr,
   }
   if (Addr.isFIBase()) {
     unsigned FI = Addr.getFI();
-    unsigned Align = 4;
     int64_t Offset = Addr.getOffset();
     MachineFrameInfo &MFI = MF->getFrameInfo();
     MachineMemOperand *MMO = MF->getMachineMemOperand(
         MachinePointerInfo::getFixedStack(*MF, FI), MachineMemOperand::MOStore,
-        MFI.getObjectSize(FI), Align);
+        MFI.getObjectSize(FI), Align(4));
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, TII.get(Opc))
         .addReg(SrcReg)
         .addFrameIndex(FI)
@@ -1162,14 +1160,20 @@ bool MipsFastISel::processCallArgs(CallLoweringInfo &CLI,
       if (ArgVT == MVT::f32) {
         VA.convertToReg(Mips::F12);
       } else if (ArgVT == MVT::f64) {
-        VA.convertToReg(Mips::D6);
+        if (Subtarget->isFP64bit())
+          VA.convertToReg(Mips::D6_64);
+        else
+          VA.convertToReg(Mips::D6);
       }
     } else if (i == 1) {
       if ((firstMVT == MVT::f32) || (firstMVT == MVT::f64)) {
         if (ArgVT == MVT::f32) {
           VA.convertToReg(Mips::F14);
         } else if (ArgVT == MVT::f64) {
-          VA.convertToReg(Mips::D7);
+          if (Subtarget->isFP64bit())
+            VA.convertToReg(Mips::D7_64);
+          else
+            VA.convertToReg(Mips::D7);
         }
       }
     }
@@ -1257,7 +1261,7 @@ bool MipsFastISel::processCallArgs(CallLoweringInfo &CLI,
       Addr.setReg(Mips::SP);
       Addr.setOffset(VA.getLocMemOffset() + BEAlign);
 
-      unsigned Alignment = DL.getABITypeAlignment(ArgVal->getType());
+      Align Alignment = DL.getABITypeAlign(ArgVal->getType());
       MachineMemOperand *MMO = FuncInfo.MF->getMachineMemOperand(
           MachinePointerInfo::getStack(*FuncInfo.MF, Addr.getOffset()),
           MachineMemOperand::MOStore, ArgVT.getStoreSize(), Alignment);
@@ -1722,7 +1726,7 @@ bool MipsFastISel::selectRet(const Instruction *I) {
       return false;
 
     unsigned SrcReg = Reg + VA.getValNo();
-    unsigned DestReg = VA.getLocReg();
+    Register DestReg = VA.getLocReg();
     // Avoid a cross-class copy. This is very unlikely.
     if (!MRI.getRegClass(SrcReg)->contains(DestReg))
       return false;

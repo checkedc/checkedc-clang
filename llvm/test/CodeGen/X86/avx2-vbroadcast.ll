@@ -657,12 +657,12 @@ define <4 x float> @_e2(float* %ptr) nounwind uwtable readnone ssp {
 define <8 x i8> @_e4(i8* %ptr) nounwind uwtable readnone ssp {
 ; X32-LABEL: _e4:
 ; X32:       ## %bb.0:
-; X32-NEXT:    vmovaps {{.*#+}} xmm0 = [52,52,52,52,52,52,52,52]
+; X32-NEXT:    vmovaps {{.*#+}} xmm0 = <52,52,52,52,52,52,52,52,u,u,u,u,u,u,u,u>
 ; X32-NEXT:    retl
 ;
 ; X64-LABEL: _e4:
 ; X64:       ## %bb.0:
-; X64-NEXT:    vmovaps {{.*#+}} xmm0 = [52,52,52,52,52,52,52,52]
+; X64-NEXT:    vmovaps {{.*#+}} xmm0 = <52,52,52,52,52,52,52,52,u,u,u,u,u,u,u,u>
 ; X64-NEXT:    retq
   %vecinit0.i = insertelement <8 x i8> undef, i8       52, i32 0
   %vecinit1.i = insertelement <8 x i8> %vecinit0.i, i8 52, i32 1
@@ -1164,9 +1164,9 @@ define void @isel_crash_32b(i8* %cV_R.addr) {
 ; X64-NEXT:    vzeroupper
 ; X64-NEXT:    retq
 eintry:
-  %__a.addr.i = alloca <4 x i64>, align 16
-  %__b.addr.i = alloca <4 x i64>, align 16
-  %vCr = alloca <4 x i64>, align 16
+  %__a.addr.i = alloca <4 x i64>, align 32
+  %__b.addr.i = alloca <4 x i64>, align 32
+  %vCr = alloca <4 x i64>, align 32
   store <4 x i64> zeroinitializer, <4 x i64>* %vCr, align 16
   %tmp = load <4 x i64>, <4 x i64>* %vCr, align 16
   %tmp2 = load i8, i8* %cV_R.addr, align 4
@@ -1255,9 +1255,9 @@ define void @isel_crash_16w(i16* %cV_R.addr) {
 ; X64-NEXT:    vzeroupper
 ; X64-NEXT:    retq
 eintry:
-  %__a.addr.i = alloca <4 x i64>, align 16
-  %__b.addr.i = alloca <4 x i64>, align 16
-  %vCr = alloca <4 x i64>, align 16
+  %__a.addr.i = alloca <4 x i64>, align 32
+  %__b.addr.i = alloca <4 x i64>, align 32
+  %vCr = alloca <4 x i64>, align 32
   store <4 x i64> zeroinitializer, <4 x i64>* %vCr, align 16
   %tmp = load <4 x i64>, <4 x i64>* %vCr, align 16
   %tmp2 = load i16, i16* %cV_R.addr, align 4
@@ -1346,9 +1346,9 @@ define void @isel_crash_8d(i32* %cV_R.addr) {
 ; X64-NEXT:    vzeroupper
 ; X64-NEXT:    retq
 eintry:
-  %__a.addr.i = alloca <4 x i64>, align 16
-  %__b.addr.i = alloca <4 x i64>, align 16
-  %vCr = alloca <4 x i64>, align 16
+  %__a.addr.i = alloca <4 x i64>, align 32
+  %__b.addr.i = alloca <4 x i64>, align 32
+  %vCr = alloca <4 x i64>, align 32
   store <4 x i64> zeroinitializer, <4 x i64>* %vCr, align 16
   %tmp = load <4 x i64>, <4 x i64>* %vCr, align 16
   %tmp2 = load i32, i32* %cV_R.addr, align 4
@@ -1436,9 +1436,9 @@ define void @isel_crash_4q(i64* %cV_R.addr) {
 ; X64-NEXT:    vzeroupper
 ; X64-NEXT:    retq
 eintry:
-  %__a.addr.i = alloca <4 x i64>, align 16
-  %__b.addr.i = alloca <4 x i64>, align 16
-  %vCr = alloca <4 x i64>, align 16
+  %__a.addr.i = alloca <4 x i64>, align 32
+  %__b.addr.i = alloca <4 x i64>, align 32
+  %vCr = alloca <4 x i64>, align 32
   store <4 x i64> zeroinitializer, <4 x i64>* %vCr, align 16
   %tmp = load <4 x i64>, <4 x i64>* %vCr, align 16
   %tmp2 = load i64, i64* %cV_R.addr, align 4

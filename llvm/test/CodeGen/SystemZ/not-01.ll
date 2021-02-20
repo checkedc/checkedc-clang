@@ -1,6 +1,6 @@
-; Combined logical operations involving complement on arch13
+; Combined logical operations involving complement on z15
 ;
-; RUN: llc -mcpu=arch13 < %s -mtriple=s390x-linux-gnu | FileCheck %s
+; RUN: llc -mcpu=z15 < %s -mtriple=s390x-linux-gnu | FileCheck %s
 
 ; And-with-complement 32-bit.
 define i32 @f1(i32 %dummy, i32 %a, i32 %b) {
@@ -121,6 +121,32 @@ define i64 @f12(i64 %a) {
 ; CHECK: br %r14
   %neg = xor i64 %a, -1
   %ret = or i64 %neg, -256
+  ret i64 %ret
+}
+
+; NXOR 32-bit (alternate match).
+define i32 @f13(i32 %a) {
+; CHECK-LABEL: f13:
+; CHECK: lhi [[REG:%r[0-5]]], -256
+; CHECK: nxrk %r2, %r2, [[REG]]
+; CHECK: br %r14
+  ; Use an opaque const so the pattern doesn't get optimized away early.
+  %const = bitcast i32 -256 to i32
+  %neg = xor i32 %a, -1
+  %ret = xor i32 %neg, %const
+  ret i32 %ret
+}
+
+; NXOR 64-bit (alternate match).
+define i64 @f14(i64 %a) {
+; CHECK-LABEL: f14:
+; CHECK: lghi [[REG:%r[0-5]]], -256
+; CHECK: nxgrk %r2, %r2, [[REG]]
+; CHECK: br %r14
+  ; Use an opaque const so the pattern doesn't get optimized away early.
+  %const = bitcast i64 -256 to i64
+  %neg = xor i64 %a, -1
+  %ret = xor i64 %neg, %const
   ret i64 %ret
 }
 

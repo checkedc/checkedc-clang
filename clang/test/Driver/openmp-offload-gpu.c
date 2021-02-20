@@ -6,6 +6,7 @@
 // REQUIRES: x86-registered-target
 // REQUIRES: powerpc-registered-target
 // REQUIRES: nvptx-registered-target
+// REQUIRES: amdgpu-registered-target
 
 /// ###########################################################################
 
@@ -55,7 +56,7 @@
 // RUN:          -fopenmp-targets=nvptx64-nvidia-cuda %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-CUBIN-NVLINK %s
 
-// CHK-CUBIN-NVLINK: clang{{.*}}" "-o" "[[PTX:.*\.s]]"
+// CHK-CUBIN-NVLINK: clang{{.*}}" {{.*}}"-fopenmp-is-device" {{.*}}"-o" "[[PTX:.*\.s]]"
 // CHK-CUBIN-NVLINK-NEXT: ptxas{{.*}}" "--output-file" "[[CUBIN:.*\.cubin]]" {{.*}}"[[PTX]]"
 // CHK-CUBIN-NVLINK-NEXT: nvlink{{.*}}" {{.*}}"[[CUBIN]]"
 
@@ -240,7 +241,7 @@
 
 // HAS_DEBUG-NOT: warning: debug
 // HAS_DEBUG: "-triple" "nvptx64-nvidia-cuda"
-// HAS_DEBUG-SAME: "-debug-info-kind={{limited|line-tables-only}}"
+// HAS_DEBUG-SAME: "-debug-info-kind={{constructor|line-tables-only}}"
 // HAS_DEBUG-SAME: "-dwarf-version=2"
 // HAS_DEBUG-SAME: "-fopenmp-is-device"
 // HAS_DEBUG: ptxas
@@ -254,11 +255,19 @@
 // RUN:   | FileCheck -check-prefix=CUDA_MODE %s
 // RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda -Xopenmp-target -march=sm_60 %s -fno-openmp-cuda-mode -fopenmp-cuda-mode 2>&1 \
 // RUN:   | FileCheck -check-prefix=CUDA_MODE %s
-// CUDA_MODE: clang{{.*}}"-cc1"{{.*}}"-triple" "nvptx64-nvidia-cuda"
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target -march=gfx906 %s -fopenmp-cuda-mode 2>&1 \
+// RUN:   | FileCheck -check-prefix=CUDA_MODE %s
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target -march=gfx906 %s -fno-openmp-cuda-mode -fopenmp-cuda-mode 2>&1 \
+// RUN:   | FileCheck -check-prefix=CUDA_MODE %s
+// CUDA_MODE: clang{{.*}}"-cc1"{{.*}}"-triple" "{{nvptx64-nvidia-cuda|amdgcn-amd-amdhsa}}"
 // CUDA_MODE-SAME: "-fopenmp-cuda-mode"
 // RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda -Xopenmp-target -march=sm_60 %s -fno-openmp-cuda-mode 2>&1 \
 // RUN:   | FileCheck -check-prefix=NO_CUDA_MODE %s
 // RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda -Xopenmp-target -march=sm_60 %s -fopenmp-cuda-mode -fno-openmp-cuda-mode 2>&1 \
+// RUN:   | FileCheck -check-prefix=NO_CUDA_MODE %s
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target -march=gfx906 %s -fno-openmp-cuda-mode 2>&1 \
+// RUN:   | FileCheck -check-prefix=NO_CUDA_MODE %s
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target -march=gfx906 %s -fopenmp-cuda-mode -fno-openmp-cuda-mode 2>&1 \
 // RUN:   | FileCheck -check-prefix=NO_CUDA_MODE %s
 // NO_CUDA_MODE-NOT: "-{{fno-|f}}openmp-cuda-mode"
 
@@ -266,11 +275,19 @@
 // RUN:   | FileCheck -check-prefix=FULL_RUNTIME %s
 // RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda -Xopenmp-target -march=sm_60 %s -fno-openmp-cuda-force-full-runtime -fopenmp-cuda-force-full-runtime 2>&1 \
 // RUN:   | FileCheck -check-prefix=FULL_RUNTIME %s
-// FULL_RUNTIME: clang{{.*}}"-cc1"{{.*}}"-triple" "nvptx64-nvidia-cuda"
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target -march=gfx906 %s -fopenmp-cuda-force-full-runtime 2>&1 \
+// RUN:   | FileCheck -check-prefix=FULL_RUNTIME %s
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target -march=gfx906 %s -fno-openmp-cuda-force-full-runtime -fopenmp-cuda-force-full-runtime 2>&1 \
+// RUN:   | FileCheck -check-prefix=FULL_RUNTIME %s
+// FULL_RUNTIME: clang{{.*}}"-cc1"{{.*}}"-triple" "{{nvptx64-nvidia-cuda|amdgcn-amd-amdhsa}}"
 // FULL_RUNTIME-SAME: "-fopenmp-cuda-force-full-runtime"
 // RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda -Xopenmp-target -march=sm_60 %s -fno-openmp-cuda-force-full-runtime 2>&1 \
 // RUN:   | FileCheck -check-prefix=NO_FULL_RUNTIME %s
 // RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=nvptx64-nvidia-cuda -Xopenmp-target -march=sm_60 %s -fopenmp-cuda-force-full-runtime -fno-openmp-cuda-force-full-runtime 2>&1 \
+// RUN:   | FileCheck -check-prefix=NO_FULL_RUNTIME %s
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target -march=gfx906 %s -fno-openmp-cuda-force-full-runtime 2>&1 \
+// RUN:   | FileCheck -check-prefix=NO_FULL_RUNTIME %s
+// RUN:   %clang -### -no-canonical-prefixes -fopenmp=libomp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target -march=gfx906 %s -fopenmp-cuda-force-full-runtime -fno-openmp-cuda-force-full-runtime 2>&1 \
 // RUN:   | FileCheck -check-prefix=NO_FULL_RUNTIME %s
 // NO_FULL_RUNTIME-NOT: "-{{fno-|f}}openmp-cuda-force-full-runtime"
 

@@ -1,4 +1,4 @@
-//===-- UniqueDWARFASTType.cpp ----------------------------------*- C++ -*-===//
+//===-- UniqueDWARFASTType.cpp --------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -54,6 +54,8 @@ bool UniqueDWARFASTTypeList::Find(const DWARFDIE &die,
               case DW_TAG_compile_unit:
               case DW_TAG_partial_unit:
                 done = true;
+                break;
+              default:
                 break;
               }
             }

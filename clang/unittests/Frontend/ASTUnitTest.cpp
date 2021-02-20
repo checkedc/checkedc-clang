@@ -8,6 +8,7 @@
 
 #include <fstream>
 
+#include "clang/Basic/FileManager.h"
 #include "clang/Frontend/ASTUnit.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
@@ -34,7 +35,7 @@ protected:
   std::unique_ptr<ASTUnit> createASTUnit(bool isVolatile) {
     EXPECT_FALSE(llvm::sys::fs::createTemporaryFile("ast-unit", "cpp", FD,
                                                     InputFileName));
-    input_file = llvm::make_unique<ToolOutputFile>(InputFileName, FD);
+    input_file = std::make_unique<ToolOutputFile>(InputFileName, FD);
     input_file->os() << "";
 
     const char *Args[] = {"clang", "-xc++", InputFileName.c_str()};
@@ -87,7 +88,7 @@ TEST_F(ASTUnitTest, SaveLoadPreservesLangOptionsInPrintingPolicy) {
   EXPECT_TRUE(llvm::sys::fs::exists(ASTFileName));
 
   std::unique_ptr<ASTUnit> AU = ASTUnit::LoadFromASTFile(
-      ASTFileName.str(), PCHContainerOps->getRawReader(),
+      std::string(ASTFileName.str()), PCHContainerOps->getRawReader(),
       ASTUnit::LoadEverything, Diags, FileSystemOptions(),
       /*UseDebugInfo=*/false);
 

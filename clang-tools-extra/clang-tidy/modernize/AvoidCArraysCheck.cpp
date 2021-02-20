@@ -43,10 +43,6 @@ namespace tidy {
 namespace modernize {
 
 void AvoidCArraysCheck::registerMatchers(MatchFinder *Finder) {
-  // std::array<> is avaliable since C++11.
-  if (!getLangOpts().CPlusPlus11)
-    return;
-
   Finder->addMatcher(
       typeLoc(hasValidBeginLoc(), hasType(arrayType()),
               unless(anyOf(hasParent(parmVarDecl(isArgvOfMain())),

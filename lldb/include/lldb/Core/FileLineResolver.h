@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_FileLineResolver_h_
-#define liblldb_FileLineResolver_h_
+#ifndef LLDB_CORE_FILELINERESOLVER_H
+#define LLDB_CORE_FILELINERESOLVER_H
 
 #include "lldb/Core/SearchFilter.h"
 #include "lldb/Symbol/SymbolContext.h"
@@ -37,8 +37,8 @@ public:
   ~FileLineResolver() override;
 
   Searcher::CallbackReturn SearchCallback(SearchFilter &filter,
-                                          SymbolContext &context, Address *addr,
-                                          bool containing) override;
+                                          SymbolContext &context,
+                                          Address *addr) override;
 
   lldb::SearchDepth GetDepth() override;
 
@@ -58,9 +58,10 @@ protected:
                   // functions or not.
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(FileLineResolver);
+  FileLineResolver(const FileLineResolver &) = delete;
+  const FileLineResolver &operator=(const FileLineResolver &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_FileLineResolver_h_
+#endif // LLDB_CORE_FILELINERESOLVER_H

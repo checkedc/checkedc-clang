@@ -36,6 +36,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 using namespace llvm;
@@ -80,7 +81,7 @@ namespace {
   class UnreachableMachineBlockElim : public MachineFunctionPass {
     bool runOnMachineFunction(MachineFunction &F) override;
     void getAnalysisUsage(AnalysisUsage &AU) const override;
-    MachineModuleInfo *MMI;
+
   public:
     static char ID; // Pass identification, replacement for typeid
     UnreachableMachineBlockElim() : MachineFunctionPass(ID) {}
@@ -103,7 +104,6 @@ bool UnreachableMachineBlockElim::runOnMachineFunction(MachineFunction &F) {
   df_iterator_default_set<MachineBasicBlock*> Reachable;
   bool ModifiedPHI = false;
 
-  MMI = getAnalysisIfAvailable<MachineModuleInfo>();
   MachineDominatorTree *MDT = getAnalysisIfAvailable<MachineDominatorTree>();
   MachineLoopInfo *MLI = getAnalysisIfAvailable<MachineLoopInfo>();
 
@@ -146,8 +146,14 @@ bool UnreachableMachineBlockElim::runOnMachineFunction(MachineFunction &F) {
   }
 
   // Actually remove the blocks now.
-  for (unsigned i = 0, e = DeadBlocks.size(); i != e; ++i)
+  for (unsigned i = 0, e = DeadBlocks.size(); i != e; ++i) {
+    // Remove any call site information for calls in the block.
+    for (auto &I : DeadBlocks[i]->instrs())
+      if (I.shouldUpdateCallSiteInfo())
+        DeadBlocks[i]->getParent()->eraseCallSiteInfo(&I);
+
     DeadBlocks[i]->eraseFromParent();
+  }
 
   // Cleanup PHI nodes.
   for (MachineFunction::iterator I = F.begin(), E = F.end(); I != E; ++I) {
@@ -167,8 +173,8 @@ bool UnreachableMachineBlockElim::runOnMachineFunction(MachineFunction &F) {
       if (phi->getNumOperands() == 3) {
         const MachineOperand &Input = phi->getOperand(1);
         const MachineOperand &Output = phi->getOperand(0);
-        unsigned InputReg = Input.getReg();
-        unsigned OutputReg = Output.getReg();
+        Register InputReg = Input.getReg();
+        Register OutputReg = Output.getReg();
         assert(Output.getSubReg() == 0 && "Cannot have output subregister");
         ModifiedPHI = true;
 

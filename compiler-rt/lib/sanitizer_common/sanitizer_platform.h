@@ -132,6 +132,12 @@
 # define SANITIZER_X32 0
 #endif
 
+#if defined(__i386__) || defined(_M_IX86)
+# define SANITIZER_I386 1
+#else
+# define SANITIZER_I386 0
+#endif
+
 #if defined(__mips__)
 # define SANITIZER_MIPS 1
 # if defined(__mips64)
@@ -255,11 +261,11 @@
 #define SANITIZER_SIGN_EXTENDED_ADDRESSES 0
 #endif
 
-// The AArch64 linux port uses the canonical syscall set as mandated by
-// the upstream linux community for all new ports. Other ports may still
-// use legacy syscalls.
+// The AArch64 and RISC-V linux ports use the canonical syscall set as
+// mandated by the upstream linux community for all new ports. Other ports
+// may still use legacy syscalls.
 #ifndef SANITIZER_USES_CANONICAL_LINUX_SYSCALLS
-# if defined(__aarch64__) && SANITIZER_LINUX
+# if (defined(__aarch64__) || defined(__riscv)) && SANITIZER_LINUX
 # define SANITIZER_USES_CANONICAL_LINUX_SYSCALLS 1
 # else
 # define SANITIZER_USES_CANONICAL_LINUX_SYSCALLS 0

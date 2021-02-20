@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Options_h_
-#define liblldb_Options_h_
+#ifndef LLDB_INTERPRETER_OPTIONS_H
+#define LLDB_INTERPRETER_OPTIONS_H
 
 #include <set>
 #include <vector>
@@ -43,7 +43,7 @@ typedef std::vector<OptionArgElement> OptionElementVector;
 static inline bool isprint8(int ch) {
   if (ch & 0xffffff00u)
     return false;
-  return isprint(ch);
+  return llvm::isPrint(ch);
 }
 
 /// \class Options Options.h "lldb/Interpreter/Options.h"
@@ -163,7 +163,7 @@ public:
   /// Handles the generic bits of figuring out whether we are in an option,
   /// and if so completing it.
   ///
-  /// \param[in/out] request
+  /// \param[in,out] request
   ///    The completion request that we need to act upon.
   ///
   /// \param[in] interpreter
@@ -182,19 +182,12 @@ public:
   /// Handles the generic bits of figuring out whether we are in an option,
   /// and if so completing it.
   ///
-  /// \param[in/out] request
+  /// \param[in,out] request
   ///    The completion request that we need to act upon.
   ///
   /// \param[in] interpreter
   ///    The command interpreter doing the completion.
-  ///
-  /// FIXME: This is the wrong return value, since we also need to
-  /// make a distinction between total number of matches, and the window the
-  /// user wants returned.
-  ///
-  /// \return
-  ///     \btrue if we were in an option, \bfalse otherwise.
-  virtual bool
+  virtual void
   HandleOptionArgumentCompletion(lldb_private::CompletionRequest &request,
                                  OptionElementVector &opt_element_vector,
                                  int opt_element_index,
@@ -335,4 +328,4 @@ public:
 
 } // namespace lldb_private
 
-#endif // liblldb_Options_h_
+#endif // LLDB_INTERPRETER_OPTIONS_H

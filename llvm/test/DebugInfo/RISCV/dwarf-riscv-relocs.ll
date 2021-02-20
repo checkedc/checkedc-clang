@@ -1,24 +1,24 @@
 ; RUN: llc -filetype=obj -mtriple=riscv32 -mattr=+relax %s -o %t.o
 ; RUN: llvm-readobj -r %t.o | FileCheck -check-prefix=READOBJ-RELOCS %s
-; RUN: llvm-objdump --source %t.o | FileCheck -check-prefix=OBJDUMP-SOURCE %s
+; RUN: llvm-objdump --source %t.o | FileCheck --check-prefix=OBJDUMP-SOURCE %s
 ; RUN: llvm-dwarfdump --debug-info --debug-line %t.o | \
 ; RUN:     FileCheck -check-prefix=DWARF-DUMP %s
 
 ; Check that we actually have relocations, otherwise this is kind of pointless.
-; READOBJ-RELOCS:  Section (8) .rela.debug_info {
-; READOBJ-RELOCS-NEXT:    0x0 R_RISCV_ADD32 - 0x0
-; READOBJ-RELOCS-NEXT:    0x0 R_RISCV_SUB32 - 0x0
-; READOBJ-RELOCS:  Section (11) .rela.debug_addr {
-; READOBJ-RELOCS-NEXT:    0x0 R_RISCV_ADD32 - 0x0
-; READOBJ-RELOCS-NEXT:    0x0 R_RISCV_SUB32 - 0x0
-; READOBJ-RELOCS:  Section (17) .rela.debug_line {
-; READOBJ-RELOCS-NEXT:    0x0 R_RISCV_ADD32 - 0xFFFFFFFC
-; READOBJ-RELOCS-NEXT:    0x0 R_RISCV_SUB32 .Lline_table_start0 0x0
+; READOBJ-RELOCS:  Section ({{.*}}) .rela.debug_info {
+; READOBJ-RELOCS:    0x1B R_RISCV_ADD32 - 0x0
+; READOBJ-RELOCS-NEXT:    0x1B R_RISCV_SUB32 - 0x0
+; READOBJ-RELOCS:  Section ({{.*}}) .rela.debug_frame {
+; READOBJ-RELOCS:    0x20 R_RISCV_ADD32 - 0x0
+; READOBJ-RELOCS-NEXT:    0x20 R_RISCV_SUB32 - 0x0
+; READOBJ-RELOCS:  Section ({{.*}}) .rela.debug_line {
+; READOBJ-RELOCS:    0x5A R_RISCV_ADD16 - 0x0
+; READOBJ-RELOCS-NEXT:    0x5A R_RISCV_SUB16 - 0x0
 
 ; Check that we can print the source, even with relocations.
 ; OBJDUMP-SOURCE: Disassembly of section .text:
 ; OBJDUMP-SOURCE-EMPTY:
-; OBJDUMP-SOURCE-NEXT: 00000000 main:
+; OBJDUMP-SOURCE-NEXT: 00000000 <main>:
 ; OBJDUMP-SOURCE: ; {
 ; OBJDUMP-SOURCE: ; return 0;
 
@@ -37,6 +37,7 @@
 ; DWARF-DUMP-NEXT: debug_line[0x00000000]
 ; DWARF-DUMP-NEXT: Line table prologue:
 ; DWARF-DUMP-NEXT:     total_length: 0x0000005f
+; DWARF-DUMP-NEXT:           format: DWARF32
 ; DWARF-DUMP-NEXT:          version: 5
 ; DWARF-DUMP-NEXT:     address_size: 4
 ; DWARF-DUMP-NEXT:  seg_select_size: 0
@@ -85,7 +86,7 @@ entry:
   ret i32 0, !dbg !11
 }
 
-attributes #0 = { noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-features"="+relax" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-features"="+relax" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4, !5}

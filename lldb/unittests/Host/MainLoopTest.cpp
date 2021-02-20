@@ -1,4 +1,4 @@
-//===-- MainLoopTest.cpp ----------------------------------------*- C++ -*-===//
+//===-- MainLoopTest.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Host/MainLoop.h"
+#include "TestingSupport/SubsystemRAII.h"
 #include "lldb/Host/ConnectionFileDescriptor.h"
 #include "lldb/Host/PseudoTerminal.h"
 #include "lldb/Host/common/TCPSocket.h"
@@ -19,11 +20,7 @@ using namespace lldb_private;
 namespace {
 class MainLoopTest : public testing::Test {
 public:
-  static void SetUpTestCase() {
-    ASSERT_THAT_ERROR(Socket::Initialize(), llvm::Succeeded());
-  }
-
-  static void TearDownTestCase() { Socket::Terminate(); }
+  SubsystemRAII<Socket> subsystems;
 
   void SetUp() override {
     bool child_processes_inherit = false;
@@ -102,28 +99,24 @@ TEST_F(MainLoopTest, TerminatesImmediately) {
 }
 
 #ifdef LLVM_ON_UNIX
-// NetBSD currently does not report slave pty EOF via kevent
-// causing this test to hang forever.
-#ifndef __NetBSD__
 TEST_F(MainLoopTest, DetectsEOF) {
 
   PseudoTerminal term;
-  ASSERT_TRUE(term.OpenFirstAvailableMaster(O_RDWR, nullptr, 0));
-  ASSERT_TRUE(term.OpenSlave(O_RDWR | O_NOCTTY, nullptr, 0));
-  auto conn = llvm::make_unique<ConnectionFileDescriptor>(
-      term.ReleaseMasterFileDescriptor(), true);
+  ASSERT_TRUE(term.OpenFirstAvailablePrimary(O_RDWR, nullptr, 0));
+  ASSERT_TRUE(term.OpenSecondary(O_RDWR | O_NOCTTY, nullptr, 0));
+  auto conn = std::make_unique<ConnectionFileDescriptor>(
+      term.ReleasePrimaryFileDescriptor(), true);
 
   Status error;
   MainLoop loop;
   auto handle =
       loop.RegisterReadObject(conn->GetReadObject(), make_callback(), error);
   ASSERT_TRUE(error.Success());
-  term.CloseSlaveFileDescriptor();
+  term.CloseSecondaryFileDescriptor();
 
   ASSERT_TRUE(loop.Run().Success());
   ASSERT_EQ(1u, callback_count);
 }
-#endif
 
 TEST_F(MainLoopTest, Signal) {
   MainLoop loop;

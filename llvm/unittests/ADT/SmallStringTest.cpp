@@ -96,6 +96,20 @@ TEST_F(SmallStringTest, AppendSmallVector) {
   EXPECT_STREQ("abcabc", theString.c_str());
 }
 
+TEST_F(SmallStringTest, StringRefConversion) {
+  StringRef abc = "abc";
+  theString.assign(abc.begin(), abc.end());
+  StringRef theStringRef = theString;
+  EXPECT_EQ("abc", theStringRef);
+}
+
+TEST_F(SmallStringTest, StdStringConversion) {
+  StringRef abc = "abc";
+  theString.assign(abc.begin(), abc.end());
+  std::string theStdString = std::string(theString);
+  EXPECT_EQ("abc", theStdString);
+}
+
 TEST_F(SmallStringTest, Substr) {
   theString = "hello";
   EXPECT_EQ("lo", theString.substr(3));
@@ -169,7 +183,7 @@ TEST_F(SmallStringTest, Realloc) {
   EXPECT_EQ("abcdyyy", theString.slice(0, 7));
 }
 
-TEST(StringRefTest, Comparisons) {
+TEST_F(SmallStringTest, Comparisons) {
   EXPECT_EQ(-1, SmallString<10>("aab").compare("aad"));
   EXPECT_EQ( 0, SmallString<10>("aab").compare("aab"));
   EXPECT_EQ( 1, SmallString<10>("aab").compare("aaa"));
@@ -203,4 +217,12 @@ TEST(StringRefTest, Comparisons) {
   EXPECT_EQ( 1, SmallString<10>("V8_q0").compare_numeric("V1_q0"));
 }
 
+// Check gtest prints SmallString as a string instead of a container of chars.
+// The code is in utils/unittest/googletest/internal/custom/gtest-printers.h
+TEST_F(SmallStringTest, GTestPrinter) {
+  EXPECT_EQ(R"("foo")", ::testing::PrintToString(SmallString<1>("foo")));
+  const SmallVectorImpl<char> &ErasedSmallString = SmallString<1>("foo");
+  EXPECT_EQ(R"("foo")", ::testing::PrintToString(ErasedSmallString));
 }
+
+} // namespace

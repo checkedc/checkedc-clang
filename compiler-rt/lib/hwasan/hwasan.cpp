@@ -12,8 +12,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "hwasan.h"
+
 #include "hwasan_checks.h"
 #include "hwasan_dynamic_shadow.h"
+#include "hwasan_globals.h"
 #include "hwasan_poisoning.h"
 #include "hwasan_report.h"
 #include "hwasan_thread.h"
@@ -35,21 +37,6 @@
 using namespace __sanitizer;
 
 namespace __hwasan {
-
-void EnterSymbolizer() {
-  Thread *t = GetCurrentThread();
-  CHECK(t);
-  t->EnterSymbolizer();
-}
-void ExitSymbolizer() {
-  Thread *t = GetCurrentThread();
-  CHECK(t);
-  t->LeaveSymbolizer();
-}
-bool IsInSymbolizer() {
-  Thread *t = GetCurrentThread();
-  return t && t->InSymbolizer();
-}
 
 static Flags hwasan_flags;
 
@@ -193,9 +180,46 @@ void UpdateMemoryUsage() {
 void UpdateMemoryUsage() {}
 #endif
 
+} // namespace __hwasan
+
+using namespace __hwasan;
+
+void __sanitizer::BufferedStackTrace::UnwindImpl(
+    uptr pc, uptr bp, void *context, bool request_fast, u32 max_depth) {
+  Thread *t = GetCurrentThread();
+  if (!t) {
+    // The thread is still being created, or has already been destroyed.
+    size = 0;
+    return;
+  }
+  Unwind(max_depth, pc, bp, context, t->stack_top(), t->stack_bottom(),
+         request_fast);
+}
+
+static bool InitializeSingleGlobal(const hwasan_global &global) {
+  uptr full_granule_size = RoundDownTo(global.size(), 16);
+  TagMemoryAligned(global.addr(), full_granule_size, global.tag());
+  if (global.size() % 16)
+    TagMemoryAligned(global.addr() + full_granule_size, 16, global.size() % 16);
+  return false;
+}
+
+static void InitLoadedGlobals() {
+  dl_iterate_phdr(
+      [](dl_phdr_info *info, size_t /* size */, void * /* data */) -> int {
+        for (const hwasan_global &global : HwasanGlobalsFor(
+                 info->dlpi_addr, info->dlpi_phdr, info->dlpi_phnum))
+          InitializeSingleGlobal(global);
+        return 0;
+      },
+      nullptr);
+}
+
 // Prepare to run instrumented code on the main thread.
-void InitInstrumentation() {
+static void InitInstrumentation() {
   if (hwasan_instrumentation_inited) return;
+
+  InitPrctl();
 
   if (!InitShadow()) {
     Printf("FATAL: HWAddressSanitizer cannot mmap the shadow memory.\n");
@@ -209,31 +233,7 @@ void InitInstrumentation() {
   hwasan_instrumentation_inited = 1;
 }
 
-} // namespace __hwasan
-
-void __sanitizer::BufferedStackTrace::UnwindImpl(
-    uptr pc, uptr bp, void *context, bool request_fast, u32 max_depth) {
-  using namespace __hwasan;
-  Thread *t = GetCurrentThread();
-  if (!t) {
-    // the thread is still being created.
-    size = 0;
-    return;
-  }
-  if (!StackTrace::WillUseFastUnwind(request_fast)) {
-    // Block reports from our interceptors during _Unwind_Backtrace.
-    SymbolizerScope sym_scope;
-    return Unwind(max_depth, pc, bp, context, 0, 0, request_fast);
-  }
-  if (StackTrace::WillUseFastUnwind(request_fast))
-    Unwind(max_depth, pc, bp, nullptr, t->stack_top(), t->stack_bottom(), true);
-  else
-    Unwind(max_depth, pc, 0, context, 0, 0, false);
-}
-
 // Interface.
-
-using namespace __hwasan;
 
 uptr __hwasan_shadow_memory_dynamic_address;  // Global interface symbol.
 
@@ -244,6 +244,19 @@ void __hwasan_init_frames(uptr beg, uptr end) {}
 void __hwasan_init_static() {
   InitShadowGOT();
   InitInstrumentation();
+
+  // In the non-static code path we call dl_iterate_phdr here. But at this point
+  // libc might not have been initialized enough for dl_iterate_phdr to work.
+  // Fortunately, since this is a statically linked executable we can use the
+  // linker-defined symbol __ehdr_start to find the only relevant set of phdrs.
+  extern ElfW(Ehdr) __ehdr_start;
+  for (const hwasan_global &global : HwasanGlobalsFor(
+           /* base */ 0,
+           reinterpret_cast<const ElfW(Phdr) *>(
+               reinterpret_cast<const char *>(&__ehdr_start) +
+               __ehdr_start.e_phoff),
+           __ehdr_start.e_phnum))
+    InitializeSingleGlobal(global);
 }
 
 void __hwasan_init() {
@@ -267,6 +280,7 @@ void __hwasan_init() {
   DisableCoreDumperIfNecessary();
 
   InitInstrumentation();
+  InitLoadedGlobals();
 
   // Needs to be called here because flags()->random_tags might not have been
   // initialized when InitInstrumentation() was called.
@@ -281,8 +295,6 @@ void __hwasan_init() {
   InitializeInterceptors();
   InstallDeadlySignalHandlers(HwasanOnDeadlySignal);
   InstallAtExitHandler(); // Needs __cxa_atexit interceptor.
-
-  Symbolizer::GetOrInit()->AddHooks(EnterSymbolizer, ExitSymbolizer);
 
   InitializeCoverage(common_flags()->coverage, common_flags()->coverage_dir);
 
@@ -299,6 +311,19 @@ void __hwasan_init() {
 
   hwasan_init_is_running = 0;
   hwasan_inited = 1;
+}
+
+void __hwasan_library_loaded(ElfW(Addr) base, const ElfW(Phdr) * phdr,
+                             ElfW(Half) phnum) {
+  for (const hwasan_global &global : HwasanGlobalsFor(base, phdr, phnum))
+    InitializeSingleGlobal(global);
+}
+
+void __hwasan_library_unloaded(ElfW(Addr) base, const ElfW(Phdr) * phdr,
+                               ElfW(Half) phnum) {
+  for (; phnum != 0; ++phdr, --phnum)
+    if (phdr->p_type == PT_LOAD)
+      TagMemory(base + phdr->p_vaddr, phdr->p_memsz, 0);
 }
 
 void __hwasan_print_shadow(const void *p, uptr sz) {

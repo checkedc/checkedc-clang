@@ -14,6 +14,7 @@
 #include "llvm/CodeGen/BasicTTIImpl.h"
 #include "llvm/CodeGen/CostTable.h"
 #include "llvm/CodeGen/TargetLowering.h"
+#include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/Support/Debug.h"
 using namespace llvm;
 
@@ -111,9 +112,11 @@ bool NVPTXTTIImpl::isSourceOfDivergence(const Value *V) {
 }
 
 int NVPTXTTIImpl::getArithmeticInstrCost(
-    unsigned Opcode, Type *Ty, TTI::OperandValueKind Opd1Info,
+    unsigned Opcode, Type *Ty, TTI::TargetCostKind CostKind,
+    TTI::OperandValueKind Opd1Info,
     TTI::OperandValueKind Opd2Info, TTI::OperandValueProperties Opd1PropInfo,
-    TTI::OperandValueProperties Opd2PropInfo, ArrayRef<const Value *> Args) {
+    TTI::OperandValueProperties Opd2PropInfo, ArrayRef<const Value *> Args,
+    const Instruction *CxtI) {
   // Legalize the type.
   std::pair<int, MVT> LT = TLI->getTypeLegalizationCost(DL, Ty);
 
@@ -121,7 +124,8 @@ int NVPTXTTIImpl::getArithmeticInstrCost(
 
   switch (ISD) {
   default:
-    return BaseT::getArithmeticInstrCost(Opcode, Ty, Opd1Info, Opd2Info,
+    return BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Opd1Info,
+                                         Opd2Info,
                                          Opd1PropInfo, Opd2PropInfo);
   case ISD::ADD:
   case ISD::MUL:
@@ -134,7 +138,8 @@ int NVPTXTTIImpl::getArithmeticInstrCost(
     if (LT.second.SimpleTy == MVT::i64)
       return 2 * LT.first;
     // Delegate other cases to the basic TTI.
-    return BaseT::getArithmeticInstrCost(Opcode, Ty, Opd1Info, Opd2Info,
+    return BaseT::getArithmeticInstrCost(Opcode, Ty, CostKind, Opd1Info,
+                                         Opd2Info,
                                          Opd1PropInfo, Opd2PropInfo);
   }
 }
@@ -149,4 +154,9 @@ void NVPTXTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
   // beneficial.
   UP.Partial = UP.Runtime = true;
   UP.PartialThreshold = UP.Threshold / 4;
+}
+
+void NVPTXTTIImpl::getPeelingPreferences(Loop *L, ScalarEvolution &SE,
+                                         TTI::PeelingPreferences &PP) {
+  BaseT::getPeelingPreferences(L, SE, PP);
 }

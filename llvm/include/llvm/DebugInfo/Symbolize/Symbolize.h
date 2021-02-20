@@ -16,6 +16,7 @@
 #include "llvm/DebugInfo/Symbolize/SymbolizableModule.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Support/Error.h"
 #include <algorithm>
 #include <cstdint>
@@ -31,18 +32,23 @@ namespace symbolize {
 using namespace object;
 
 using FunctionNameKind = DILineInfoSpecifier::FunctionNameKind;
+using FileLineInfoKind = DILineInfoSpecifier::FileLineInfoKind;
 
 class LLVMSymbolizer {
 public:
   struct Options {
     FunctionNameKind PrintFunctions = FunctionNameKind::LinkageName;
+    FileLineInfoKind PathStyle = FileLineInfoKind::AbsoluteFilePath;
     bool UseSymbolTable = true;
     bool Demangle = true;
     bool RelativeAddresses = false;
+    bool UntagAddresses = false;
+    bool UseNativePDBReader = false;
     std::string DefaultArch;
     std::vector<std::string> DsymHints;
     std::string FallbackDebugPath;
     std::string DWPName;
+    std::vector<std::string> DebugFileDirectory;
   };
 
   LLVMSymbolizer() = default;
@@ -97,6 +103,9 @@ private:
   ObjectFile *lookUpDebuglinkObject(const std::string &Path,
                                     const ObjectFile *Obj,
                                     const std::string &ArchName);
+  ObjectFile *lookUpBuildIDObject(const std::string &Path,
+                                  const ELFObjectFileBase *Obj,
+                                  const std::string &ArchName);
 
   /// Returns pair of pointers to object and debug object.
   Expected<ObjectPair> getOrCreateObjectPair(const std::string &Path,
@@ -108,7 +117,8 @@ private:
   Expected<ObjectFile *> getOrCreateObject(const std::string &Path,
                                           const std::string &ArchName);
 
-  std::map<std::string, std::unique_ptr<SymbolizableModule>> Modules;
+  std::map<std::string, std::unique_ptr<SymbolizableModule>, std::less<>>
+      Modules;
 
   /// Contains cached results of getOrCreateObjectPair().
   std::map<std::pair<std::string, std::string>, ObjectPair>

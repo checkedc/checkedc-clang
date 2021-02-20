@@ -62,22 +62,34 @@ set(ENABLE_LIBOMPTARGET ON)
 # Currently libomptarget cannot be compiled on Windows or MacOS X.
 # Since the device plugins are only supported on Linux anyway,
 # there is no point in trying to compile libomptarget on other OSes.
-if (APPLE OR WIN32 OR NOT OPENMP_HAVE_STD_CPP11_FLAG)
+if (APPLE OR WIN32 OR NOT OPENMP_HAVE_STD_CPP14_FLAG)
   set(ENABLE_LIBOMPTARGET OFF)
 endif()
 
 option(OPENMP_ENABLE_LIBOMPTARGET "Enable building libomptarget for offloading."
        ${ENABLE_LIBOMPTARGET})
 if (OPENMP_ENABLE_LIBOMPTARGET)
-  # Check that the library can acutally be built.
+  # Check that the library can actually be built.
   if (APPLE OR WIN32)
     message(FATAL_ERROR "libomptarget cannot be built on Windows and MacOS X!")
-  elseif (NOT OPENMP_HAVE_STD_CPP11_FLAG)
-    message(FATAL_ERROR "Host compiler must support C++11 to build libomptarget!")
+  elseif (NOT OPENMP_HAVE_STD_CPP14_FLAG)
+    message(FATAL_ERROR "Host compiler must support C++14 to build libomptarget!")
   endif()
 
   add_subdirectory(libomptarget)
 endif()
 
-# Now that we have seen all testuites, create the check-openmp target.
+set(ENABLE_OMPT_TOOLS ON)
+# Currently tools are not tested well on Windows or MacOS X.
+if (APPLE OR WIN32)
+  set(ENABLE_OMPT_TOOLS OFF)
+endif()
+
+option(OPENMP_ENABLE_OMPT_TOOLS "Enable building ompt based tools for OpenMP."
+       ${ENABLE_OMPT_TOOLS})
+if (OPENMP_ENABLE_OMPT_TOOLS)
+  add_subdirectory(tools)
+endif()
+
+# Now that we have seen all testsuites, create the check-openmp target.
 construct_check_openmp_target()

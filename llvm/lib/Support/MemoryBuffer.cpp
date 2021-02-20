@@ -162,6 +162,20 @@ MemoryBuffer::getFileSlice(const Twine &FilePath, uint64_t MapSize,
 //===----------------------------------------------------------------------===//
 
 namespace {
+
+template <typename MB>
+constexpr sys::fs::mapped_file_region::mapmode Mapmode =
+    sys::fs::mapped_file_region::readonly;
+template <>
+constexpr sys::fs::mapped_file_region::mapmode Mapmode<MemoryBuffer> =
+    sys::fs::mapped_file_region::readonly;
+template <>
+constexpr sys::fs::mapped_file_region::mapmode Mapmode<WritableMemoryBuffer> =
+    sys::fs::mapped_file_region::priv;
+template <>
+constexpr sys::fs::mapped_file_region::mapmode
+    Mapmode<WriteThroughMemoryBuffer> = sys::fs::mapped_file_region::readwrite;
+
 /// Memory maps a file descriptor using sys::fs::mapped_file_region.
 ///
 /// This handles converting the offset into a legal offset on the platform.
@@ -184,7 +198,7 @@ class MemoryBufferMMapFile : public MB {
 public:
   MemoryBufferMMapFile(bool RequiresNullTerminator, sys::fs::file_t FD, uint64_t Len,
                        uint64_t Offset, std::error_code &EC)
-      : MFR(FD, MB::Mapmode, getLegalMapSize(Len, Offset),
+      : MFR(FD, Mapmode<MB>, getLegalMapSize(Len, Offset),
             getLegalMapOffset(Offset), EC) {
     if (!EC) {
       const char *Start = getStart(Len, Offset);
@@ -211,15 +225,17 @@ static ErrorOr<std::unique_ptr<WritableMemoryBuffer>>
 getMemoryBufferForStream(sys::fs::file_t FD, const Twine &BufferName) {
   const ssize_t ChunkSize = 4096*4;
   SmallString<ChunkSize> Buffer;
-  size_t ReadBytes;
   // Read into Buffer until we hit EOF.
-  do {
+  for (;;) {
     Buffer.reserve(Buffer.size() + ChunkSize);
-    if (auto EC = sys::fs::readNativeFile(
-            FD, makeMutableArrayRef(Buffer.end(), ChunkSize), &ReadBytes))
-      return EC;
-    Buffer.set_size(Buffer.size() + ReadBytes);
-  } while (ReadBytes != 0);
+    Expected<size_t> ReadBytes = sys::fs::readNativeFile(
+        FD, makeMutableArrayRef(Buffer.end(), ChunkSize));
+    if (!ReadBytes)
+      return errorToErrorCode(ReadBytes.takeError());
+    if (*ReadBytes == 0)
+      break;
+    Buffer.set_size(Buffer.size() + *ReadBytes);
+  }
 
   return getMemBufferCopyImpl(Buffer, BufferName);
 }
@@ -313,7 +329,7 @@ static bool shouldUseMmap(sys::fs::file_t FD,
   // mmap may leave the buffer without null terminator if the file size changed
   // by the time the last page is mapped in, so avoid it if the file size is
   // likely to change.
-  if (IsVolatile)
+  if (IsVolatile && RequiresNullTerminator)
     return false;
 
   // We don't use mmap for small files because this can severely fragment our
@@ -458,7 +474,20 @@ getOpenFileImpl(sys::fs::file_t FD, const Twine &Filename, uint64_t FileSize,
     return make_error_code(errc::not_enough_memory);
   }
 
-  sys::fs::readNativeFileSlice(FD, Buf->getBuffer(), Offset);
+  // Read until EOF, zero-initialize the rest.
+  MutableArrayRef<char> ToRead = Buf->getBuffer();
+  while (!ToRead.empty()) {
+    Expected<size_t> ReadBytes =
+        sys::fs::readNativeFileSlice(FD, ToRead, Offset);
+    if (!ReadBytes)
+      return errorToErrorCode(ReadBytes.takeError());
+    if (*ReadBytes == 0) {
+      std::memset(ToRead.data(), 0, ToRead.size());
+      break;
+    }
+    ToRead = ToRead.drop_front(*ReadBytes);
+    Offset += *ReadBytes;
+  }
 
   return std::move(Buf);
 }

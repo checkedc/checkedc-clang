@@ -47,6 +47,8 @@ enum tgt_map_type {
   OMP_TGT_MAPTYPE_LITERAL         = 0x100,
   // mapping is implicit
   OMP_TGT_MAPTYPE_IMPLICIT        = 0x200,
+  // copy data to device
+  OMP_TGT_MAPTYPE_CLOSE           = 0x400,
   // member of struct, member given by [16 MSBs] - 1
   OMP_TGT_MAPTYPE_MEMBER_OF       = 0xffff000000000000
 };
@@ -107,6 +109,15 @@ struct __tgt_target_table {
   __tgt_offload_entry *EntriesBegin; // Begin of the table with all the entries
   __tgt_offload_entry
       *EntriesEnd; // End of the table with all the entries (non inclusive)
+};
+
+/// This struct contains information exchanged between different asynchronous
+/// operations for device-dependent optimization and potential synchronization
+struct __tgt_async_info {
+  // A pointer to a queue-like structure where offloading operations are issued.
+  // We assume to use this structure to do synchronization. In CUDA backend, it
+  // is CUstream.
+  void *Queue = nullptr;
 };
 
 #ifdef __cplusplus

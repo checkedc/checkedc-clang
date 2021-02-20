@@ -78,7 +78,7 @@ public:
 /// object.
 class DIEAbbrev : public FoldingSetNode {
   /// Unique number for node.
-  unsigned Number;
+  unsigned Number = 0;
 
   /// Dwarf tag code.
   dwarf::Tag Tag;
@@ -190,7 +190,7 @@ public:
   uint64_t getValue() const { return Integer; }
   void setValue(uint64_t Val) { Integer = Val; }
 
-  void EmitValue(const AsmPrinter *Asm, dwarf::Form Form) const;
+  void emitValue(const AsmPrinter *Asm, dwarf::Form Form) const;
   unsigned SizeOf(const AsmPrinter *AP, dwarf::Form Form) const;
 
   void print(raw_ostream &O) const;
@@ -207,7 +207,7 @@ public:
   /// Get MCExpr.
   const MCExpr *getValue() const { return Expr; }
 
-  void EmitValue(const AsmPrinter *AP, dwarf::Form Form) const;
+  void emitValue(const AsmPrinter *AP, dwarf::Form Form) const;
   unsigned SizeOf(const AsmPrinter *AP, dwarf::Form Form) const;
 
   void print(raw_ostream &O) const;
@@ -224,7 +224,7 @@ public:
   /// Get MCSymbol.
   const MCSymbol *getValue() const { return Label; }
 
-  void EmitValue(const AsmPrinter *AP, dwarf::Form Form) const;
+  void emitValue(const AsmPrinter *AP, dwarf::Form Form) const;
   unsigned SizeOf(const AsmPrinter *AP, dwarf::Form Form) const;
 
   void print(raw_ostream &O) const;
@@ -242,7 +242,7 @@ public:
     : CU(TheCU), Index(Idx) {}
 
   /// EmitValue - Emit base type reference.
-  void EmitValue(const AsmPrinter *AP, dwarf::Form Form) const;
+  void emitValue(const AsmPrinter *AP, dwarf::Form Form) const;
   /// SizeOf - Determine size of the base type reference in bytes.
   unsigned SizeOf(const AsmPrinter *AP, dwarf::Form Form) const;
 
@@ -259,7 +259,7 @@ class DIEDelta {
 public:
   DIEDelta(const MCSymbol *Hi, const MCSymbol *Lo) : LabelHi(Hi), LabelLo(Lo) {}
 
-  void EmitValue(const AsmPrinter *AP, dwarf::Form Form) const;
+  void emitValue(const AsmPrinter *AP, dwarf::Form Form) const;
   unsigned SizeOf(const AsmPrinter *AP, dwarf::Form Form) const;
 
   void print(raw_ostream &O) const;
@@ -278,7 +278,7 @@ public:
   /// Grab the string out of the object.
   StringRef getString() const { return S.getString(); }
 
-  void EmitValue(const AsmPrinter *AP, dwarf::Form Form) const;
+  void emitValue(const AsmPrinter *AP, dwarf::Form Form) const;
   unsigned SizeOf(const AsmPrinter *AP, dwarf::Form Form) const;
 
   void print(raw_ostream &O) const;
@@ -300,7 +300,7 @@ public:
   /// Grab the string out of the object.
   StringRef getString() const { return S; }
 
-  void EmitValue(const AsmPrinter *AP, dwarf::Form Form) const;
+  void emitValue(const AsmPrinter *AP, dwarf::Form Form) const;
   unsigned SizeOf(const AsmPrinter *AP, dwarf::Form Form) const;
 
   void print(raw_ostream &O) const;
@@ -319,7 +319,7 @@ public:
 
   DIE &getEntry() const { return *Entry; }
 
-  void EmitValue(const AsmPrinter *AP, dwarf::Form Form) const;
+  void emitValue(const AsmPrinter *AP, dwarf::Form Form) const;
   unsigned SizeOf(const AsmPrinter *AP, dwarf::Form Form) const;
 
   void print(raw_ostream &O) const;
@@ -338,7 +338,7 @@ public:
   /// Grab the current index out.
   size_t getValue() const { return Index; }
 
-  void EmitValue(const AsmPrinter *AP, dwarf::Form Form) const;
+  void emitValue(const AsmPrinter *AP, dwarf::Form Form) const;
   unsigned SizeOf(const AsmPrinter *AP, dwarf::Form Form) const;
 
   void print(raw_ostream &O) const;
@@ -485,7 +485,7 @@ public:
 #include "llvm/CodeGen/DIEValue.def"
 
   /// Emit value via the Dwarf writer.
-  void EmitValue(const AsmPrinter *AP) const;
+  void emitValue(const AsmPrinter *AP) const;
 
   /// Return the size of a value in bytes.
   unsigned SizeOf(const AsmPrinter *AP) const;
@@ -548,6 +548,25 @@ public:
   }
   const T &front() const {
     return *static_cast<T *>(Last ? Last->Next.getPointer() : nullptr);
+  }
+
+  void takeNodes(IntrusiveBackList<T> &Other) {
+    if (Other.empty())
+      return;
+
+    T *FirstNode = static_cast<T *>(Other.Last->Next.getPointer());
+    T *IterNode = FirstNode;
+    do {
+      // Keep a pointer to the node and increment the iterator.
+      T *TmpNode = IterNode;
+      IterNode = static_cast<T *>(IterNode->Next.getPointer());
+
+      // Unlink the node and push it back to this list.
+      TmpNode->Next.setPointerAndInt(TmpNode, true);
+      push_back(*TmpNode);
+    } while (IterNode != FirstNode);
+
+    Other.Last = nullptr;
   }
 
   class const_iterator;
@@ -684,6 +703,10 @@ public:
                     dwarf::Form Form, T &&Value) {
     return addValue(Alloc, DIEValue(Attribute, Form, std::forward<T>(Value)));
   }
+
+  /// Take ownership of the nodes in \p Other, and append them to the back of
+  /// the list.
+  void takeValues(DIEValueList &Other) { List.takeNodes(Other.List); }
 
   value_range values() {
     return make_range(value_iterator(List.begin()), value_iterator(List.end()));
@@ -898,6 +921,9 @@ public:
   ///
   unsigned ComputeSize(const AsmPrinter *AP) const;
 
+  // TODO: move setSize() and Size to DIEValueList.
+  void setSize(unsigned size) { Size = size; }
+
   /// BestForm - Choose the best form for data.
   ///
   dwarf::Form BestForm(unsigned DwarfVersion) const {
@@ -913,7 +939,7 @@ public:
     return dwarf::DW_FORM_block;
   }
 
-  void EmitValue(const AsmPrinter *Asm, dwarf::Form Form) const;
+  void emitValue(const AsmPrinter *Asm, dwarf::Form Form) const;
   unsigned SizeOf(const AsmPrinter *AP, dwarf::Form Form) const;
 
   void print(raw_ostream &O) const;
@@ -932,6 +958,9 @@ public:
   ///
   unsigned ComputeSize(const AsmPrinter *AP) const;
 
+  // TODO: move setSize() and Size to DIEValueList.
+  void setSize(unsigned size) { Size = size; }
+
   /// BestForm - Choose the best form for data.
   ///
   dwarf::Form BestForm() const {
@@ -944,7 +973,7 @@ public:
     return dwarf::DW_FORM_block;
   }
 
-  void EmitValue(const AsmPrinter *Asm, dwarf::Form Form) const;
+  void emitValue(const AsmPrinter *Asm, dwarf::Form Form) const;
   unsigned SizeOf(const AsmPrinter *AP, dwarf::Form Form) const;
 
   void print(raw_ostream &O) const;

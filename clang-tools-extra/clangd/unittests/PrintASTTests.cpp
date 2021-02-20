@@ -15,7 +15,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest-param-test.h"
 #include "gtest/gtest.h"
-#include "gtest/internal/gtest-param-util-generated.h"
 
 namespace clang {
 namespace clangd {
@@ -82,7 +81,7 @@ INSTANTIATE_TEST_CASE_P(ASTUtilsTests, ASTUtils,
                                   template <template <class> class ...>
                                   class Aux {};
                                   template <> class ^Aux<Bar, Bar> {};
-                                  template <template <class> T>
+                                  template <template <class> class T>
                                   class ^Aux<T, T> {};)cpp",
                                 {"<Bar, Bar>", "<T, T>"}},
                             {
@@ -96,7 +95,16 @@ INSTANTIATE_TEST_CASE_P(ASTUtilsTests, ASTUtils,
                                   struct Bar { friend class Foo<int>; };
                                   template <> struct ^Foo<int> {};)cpp",
                                 {"<int>"}},
-                        })),);
+                            {
+                                R"cpp(
+                                  template<class T>
+                                  T S = T(10);
+                                  template <class T>
+                                  int ^S<T*> = 0;
+                                  template <>
+                                  int ^S<double> = 0;)cpp",
+                                {"<T *>", "<double>"}},
+                        })), );
 } // namespace
 } // namespace clangd
 } // namespace clang

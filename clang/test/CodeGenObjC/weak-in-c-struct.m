@@ -101,7 +101,7 @@ void test_copy_assignment_Weak(Weak *d, Weak *s) {
   *d = *s;
 }
 
-// ARM64: define internal void @__Block_byref_object_copy_(i8*, i8*)
+// ARM64: define internal void @__Block_byref_object_copy_(i8* %0, i8* %1)
 // ARM64: call void @__move_constructor_8_8_t0w4_w8(i8** %{{.*}}, i8** %{{.*}})
 
 // ARM64: define linkonce_odr hidden void @__move_constructor_8_8_t0w4_w8(i8** %[[DST:.*]], i8** %[[SRC:.*]])
@@ -179,7 +179,7 @@ void test_argument_Weak(Weak *a) {
   calleeWeak(*a);
 }
 
-// COMMON: define void @test_return_Weak(%[[STRUCT_WEAK]]* noalias sret %[[AGG_RESULT:.*]], %[[STRUCT_WEAK]]* %[[A:.*]])
+// COMMON: define void @test_return_Weak(%[[STRUCT_WEAK]]* noalias sret align {{.*}} %[[AGG_RESULT:.*]], %[[STRUCT_WEAK]]* %[[A:.*]])
 // COMMON: %[[A_ADDR:.*]] = alloca %[[STRUCT_WEAK]]*
 // COMMON: store %[[STRUCT_WEAK]]* %[[A]], %[[STRUCT_WEAK]]** %[[A_ADDR]]
 // COMMON: %[[V0:.*]] = load %[[STRUCT_WEAK]]*, %[[STRUCT_WEAK]]** %[[A_ADDR]]

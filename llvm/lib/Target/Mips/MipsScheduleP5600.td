@@ -18,8 +18,10 @@ def MipsP5600Model : SchedMachineModel {
   list<Predicate> UnsupportedFeatures = [HasMips3, HasMips32r6, HasMips64,
                                          HasMips64r2, HasMips64r5, HasMips64r6,
                                          IsGP64bit, IsPTR64bit,
-                                         InMicroMips, InMips16Mode, HasCnMips,
-                                         HasDSP, HasDSPR2, HasMT, HasCRC];
+                                         InMicroMips, InMips16Mode,
+                                         HasCnMips, HasCnMipsP,
+                                         HasDSP, HasDSPR2, HasMips3D, HasMT,
+                                         HasCRC];
 }
 
 let SchedModel = MipsP5600Model in {
@@ -456,7 +458,7 @@ def : InstRW<[P5600WriteFPUL], (instrs CVT_PS_S64, CVT_S_PL64, CVT_S_PU64)>;
 def : InstRW<[P5600WriteFPUL], (instregex "^C_[A-Z]+_(S|D32|D64)$")>;
 def : InstRW<[P5600WriteFPUL], (instregex "^FCMP_(S32|D32|D64)$")>;
 def : InstRW<[P5600WriteFPUL], (instregex "^PseudoCVT_(S|D32|D64)_(L|W)$")>;
-def : InstRW<[P5600WriteFPUL], (instrs PLL_PS64, PLU_PS64)>;
+def : InstRW<[P5600WriteFPUL], (instrs PLL_PS64, PLU_PS64, PUL_PS64, PUU_PS64)>;
 
 // div.[ds], div.ps
 def : InstRW<[P5600WriteFPUDivS], (instrs FDIV_S)>;
@@ -631,5 +633,6 @@ def : InstRW<[P5600WriteAtomic],
 def : InstRW<[P5600WriteAtomic],
     (instregex "^ATOMIC_CMP_SWAP_I(8|16|32|64)_POSTRA$")>;
 def : InstRW<[P5600WriteAtomic],
-    (instregex "^ATOMIC_LOAD_(ADD|SUB|AND|OR|XOR|NAND)_I(8|16|32|64)_POSTRA$")>;
+    (instregex "^ATOMIC_LOAD_(ADD|SUB|AND|OR|XOR|NAND|MIN|MAX|UMIN|UMAX)"
+               "_I(8|16|32|64)_POSTRA$")>;
 }

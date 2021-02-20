@@ -128,7 +128,7 @@
 	<tr><td><a href="https://wg21.link/P0003R5">P0003R5</a></td><td>LWG</td><td>Removing Deprecated Exception Specifications from C++17</td><td>Issaquah</td><td>Complete</td><td>5.0</td></tr>
 	<tr><td><a href="https://wg21.link/P0067R5">P0067R5</a></td><td>LWG</td><td>Elementary string conversions, revision 5</td><td>Issaquah</td><td><i>Partially done</i></td><td></td></tr>
 	<tr><td><a href="https://wg21.link/P0403R1">P0403R1</a></td><td>LWG</td><td>Literal suffixes for <tt>basic_string_view</tt></td><td>Issaquah</td><td>Complete</td><td>4.0</td></tr>
-	<tr><td><a href="https://wg21.link/P0414R2">P0414R2</a></td><td>LWG</td><td>Merging shared_ptr changes from Library Fundamentals to C++17</td><td>Issaquah</td><td></td><td></td></tr>
+	<tr><td><a href="https://wg21.link/P0414R2">P0414R2</a></td><td>LWG</td><td>Merging shared_ptr changes from Library Fundamentals to C++17</td><td>Issaquah</td><td>Complete</td><td>11.0</td></tr>
 	<tr><td><a href="https://wg21.link/P0418R2">P0418R2</a></td><td>LWG</td><td>Fail or succeed: there is no atomic lattice</td><td>Issaquah</td><td></td><td></td></tr>
 	<tr><td><a href="https://wg21.link/P0426R1">P0426R1</a></td><td>LWG</td><td>Constexpr for <tt>std::char_traits</tt></td><td>Issaquah</td><td>Complete</td><td>4.0</td></tr>
 	<tr><td><a href="https://wg21.link/P0435R1">P0435R1</a></td><td>LWG</td><td>Resolving LWG Issues re <tt>common_type</tt></td><td>Issaquah</td><td>Complete</td><td>4.0</td></tr>
@@ -299,7 +299,7 @@
 	<tr><td><a href="https://wg21.link/LWG2566">2566</a></td><td>Requirements on the first template parameter of container adaptors</td><td>Jacksonville</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2571">2571</a></td><td>&sect;[map.modifiers]/2 imposes nonsensical requirement on <tt>insert(InputIterator, InputIterator)</tt></td><td>Jacksonville</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2572">2572</a></td><td>The remarks for <tt>shared_ptr::operator*</tt> should apply to <i>cv</i>-qualified <tt>void</tt> as well</td><td>Jacksonville</td><td>Complete</td></tr>
-	<tr><td><a href="https://wg21.link/LWG2574">2574</a></td><td>[fund.ts.v2] <tt>std::experimental::function::operator=(F&amp;&amp;)</tt> should be constrained</td><td>Jacksonville</td><td></td></tr>
+	<tr><td><a href="https://wg21.link/LWG2574">2574</a></td><td>[fund.ts.v2] <tt>std::experimental::function::operator=(F&amp;&amp;)</tt> should be constrained</td><td>Jacksonville</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2575">2575</a></td><td>[fund.ts.v2] <tt>experimental::function::assign</tt> should be removed</td><td>Jacksonville</td><td></td></tr>
 	<tr><td><a href="https://wg21.link/LWG2576">2576</a></td><td><tt>istream_iterator</tt> and <tt>ostream_iterator</tt> should use <tt>std::addressof</tt></td><td>Jacksonville</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2577">2577</a></td><td><tt>{shared,unique}_lock</tt> should use <tt>std::addressof</tt></td><td>Jacksonville</td><td>Complete</td></tr>
@@ -308,7 +308,7 @@
 	<tr><td><a href="https://wg21.link/LWG2582">2582</a></td><td>&sect;[res.on.functions]/2's prohibition against incomplete types shouldn't apply to type traits</td><td>Jacksonville</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2583">2583</a></td><td>There is no way to supply an allocator for <tt>basic_string(str, pos)</tt></td><td>Jacksonville</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2585">2585</a></td><td><tt>forward_list::resize(size_type, const value_type&amp;)</tt> effects incorrect</td><td>Jacksonville</td><td>Complete</td></tr>
-	<tr><td><a href="https://wg21.link/LWG2586">2586</a></td><td>Wrong value category used in <tt>scoped_allocator_adaptor::construct()</tt></td><td>Jacksonville</td><td></td></tr>
+	<tr><td><a href="https://wg21.link/LWG2586">2586</a></td><td>Wrong value category used in <tt>scoped_allocator_adaptor::construct()</tt></td><td>Jacksonville</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2590">2590</a></td><td>Aggregate initialization for <tt>std::array</tt></td><td>Jacksonville</td><td>Complete</td></tr>
  	<tr><td></td><td></td><td></td><td></td></tr>
 	<tr><td><a href="https://wg21.link/LWG2181">2181</a></td><td>Exceptions from seed sequence operations</td><td>Oulu</td><td>Complete</td></tr>
@@ -372,7 +372,7 @@
 	<tr><td><a href="https://wg21.link/LWG2468">2468</a></td><td>Self-move-assignment of library types</td><td>Issaquah</td><td></td></tr>
 	<tr><td><a href="https://wg21.link/LWG2475">2475</a></td><td>Allow overwriting of std::basic_string terminator with charT() to allow cleaner interoperation with legacy APIs</td><td>Issaquah</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2503">2503</a></td><td>multiline option should be added to syntax_option_type</td><td>Issaquah</td><td></td></tr>
-	<tr><td><a href="https://wg21.link/LWG2510">2510</a></td><td>Tag types should not be DefaultConstructible</td><td>Issaquah</td><td></td></tr>
+	<tr><td><a href="https://wg21.link/LWG2510">2510</a></td><td>Tag types should not be DefaultConstructible</td><td>Issaquah</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2514">2514</a></td><td>Type traits must not be final</td><td>Issaquah</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2518">2518</a></td><td>[fund.ts.v2] Non-member swap for propagate_const should call member swap</td><td>Issaquah</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2519">2519</a></td><td>Iterator operator-= has gratuitous undefined behaviour</td><td>Issaquah</td><td>Complete</td></tr>
@@ -393,7 +393,7 @@
 	<tr><td><a href="https://wg21.link/LWG2570">2570</a></td><td>[fund.ts.v2] conjunction and disjunction requirements are too strict</td><td>Issaquah</td><td></td></tr>
 	<tr><td><a href="https://wg21.link/LWG2578">2578</a></td><td>Iterator requirements should reference iterator traits</td><td>Issaquah</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2584">2584</a></td><td><regex> ECMAScript IdentityEscape is ambiguous</td><td>Issaquah</td><td></td></tr>
-	<tr><td><a href="https://wg21.link/LWG2587">2587</a></td><td>"Convertible to bool" requirement in conjunction and disjunction</td><td>Issaquah</td><td></td></tr>
+	<tr><td><a href="https://wg21.link/LWG2587">2587</a></td><td>"Convertible to bool" requirement in conjunction and disjunction</td><td>Issaquah</td><td>Resolved by 2567</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2588">2588</a></td><td>[fund.ts.v2] "Convertible to bool" requirement in conjunction and disjunction</td><td>Issaquah</td><td></td></tr>
 	<tr><td><a href="https://wg21.link/LWG2589">2589</a></td><td>match_results can't satisfy the requirements of a container</td><td>Issaquah</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2591">2591</a></td><td>std::function's member template target() should not lead to undefined behaviour</td><td>Issaquah</td><td>Complete</td></tr>
@@ -415,7 +415,7 @@
 	<tr><td><a href="https://wg21.link/LWG2729">2729</a></td><td>Missing SFINAE on std::pair::operator=</td><td>Issaquah</td><td></td></tr>
 	<tr><td><a href="https://wg21.link/LWG2732">2732</a></td><td>Questionable specification of path::operator/= and path::append</td><td>Issaquah</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2733">2733</a></td><td>[fund.ts.v2] gcd / lcm and bool</td><td>Issaquah</td><td>Complete</td></tr>
-	<tr><td><a href="https://wg21.link/LWG2735">2735</a></td><td>std::abs(short), std::abs(signed char) and others should return int instead of double in order to be compatible with C++98 and C</td><td>Issaquah</td><td></td></tr>
+	<tr><td><a href="https://wg21.link/LWG2735">2735</a></td><td>std::abs(short), std::abs(signed char) and others should return int instead of double in order to be compatible with C++98 and C</td><td>Issaquah</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2736">2736</a></td><td>nullopt_t insufficiently constrained</td><td>Issaquah</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2738">2738</a></td><td>is_constructible with void types</td><td>Issaquah</td><td>Complete</td></tr>
 	<tr><td><a href="https://wg21.link/LWG2739">2739</a></td><td>Issue with time_point non-member subtraction with an unsigned duration</td><td>Issaquah</td><td>Complete</td></tr>

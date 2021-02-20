@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
 // path weakly_canonical(const path& p);
 // path weakly_canonical(const path& p, error_code& ec);
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <vector>
 #include <iostream>
@@ -21,11 +21,14 @@
 
 #include "test_macros.h"
 #include "test_iterators.h"
-#include "count_new.hpp"
-#include "filesystem_test_helper.hpp"
+#include "count_new.h"
+#include "filesystem_test_helper.h"
 
 
 int main(int, char**) {
+
+  static_test_env static_env;
+
   // clang-format off
   struct {
     std::string input;
@@ -40,20 +43,20 @@ int main(int, char**) {
       {"a/b", fs::current_path() / "a/b"},
       {"a", fs::current_path() / "a"},
       {"a/b/", fs::current_path() / "a/b/"},
-      {StaticEnv::File, StaticEnv::File},
-      {StaticEnv::Dir, StaticEnv::Dir},
-      {StaticEnv::SymlinkToDir, StaticEnv::Dir},
-      {StaticEnv::SymlinkToDir / "dir2/.", StaticEnv::Dir / "dir2"},
+      {static_env.File, static_env.File},
+      {static_env.Dir, static_env.Dir},
+      {static_env.SymlinkToDir, static_env.Dir},
+      {static_env.SymlinkToDir / "dir2/.", static_env.Dir / "dir2"},
       // FIXME? If the trailing separator occurs in a part of the path that exists,
-      // it is ommitted. Otherwise it is added to the end of the result.
-      {StaticEnv::SymlinkToDir / "dir2/./", StaticEnv::Dir / "dir2"},
-      {StaticEnv::SymlinkToDir / "dir2/DNE/./", StaticEnv::Dir / "dir2/DNE/"},
-      {StaticEnv::SymlinkToDir / "dir2", StaticEnv::Dir2},
-      {StaticEnv::SymlinkToDir / "dir2/../dir2/DNE/..", StaticEnv::Dir2 / ""},
-      {StaticEnv::SymlinkToDir / "dir2/dir3/../DNE/DNE2", StaticEnv::Dir2 / "DNE/DNE2"},
-      {StaticEnv::Dir / "../dir1", StaticEnv::Dir},
-      {StaticEnv::Dir / "./.", StaticEnv::Dir},
-      {StaticEnv::Dir / "DNE/../foo", StaticEnv::Dir / "foo"}
+      // it is omitted. Otherwise it is added to the end of the result.
+      {static_env.SymlinkToDir / "dir2/./", static_env.Dir / "dir2"},
+      {static_env.SymlinkToDir / "dir2/DNE/./", static_env.Dir / "dir2/DNE/"},
+      {static_env.SymlinkToDir / "dir2", static_env.Dir2},
+      {static_env.SymlinkToDir / "dir2/../dir2/DNE/..", static_env.Dir2 / ""},
+      {static_env.SymlinkToDir / "dir2/dir3/../DNE/DNE2", static_env.Dir2 / "DNE/DNE2"},
+      {static_env.Dir / "../dir1", static_env.Dir},
+      {static_env.Dir / "./.", static_env.Dir},
+      {static_env.Dir / "DNE/../foo", static_env.Dir / "foo"}
   };
   // clang-format on
   int ID = 0;

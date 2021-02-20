@@ -14,6 +14,7 @@
 #include "llvm/DebugInfo/CodeView/TypeVisitorCallbacks.h"
 #include "llvm/DebugInfo/PDB/Native/RawTypes.h"
 #include "llvm/Support/Allocator.h"
+#include "llvm/Support/BinaryByteStream.h"
 #include "llvm/Support/BinaryItemStream.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Testing/Support/Error.h"
@@ -88,7 +89,7 @@ public:
   RandomAccessVisitorTest() {}
 
   static void SetUpTestCase() {
-    GlobalState = llvm::make_unique<GlobalTestState>();
+    GlobalState = std::make_unique<GlobalTestState>();
 
     AppendingTypeTableBuilder Builder(GlobalState->Allocator);
 
@@ -120,7 +121,7 @@ public:
   static void TearDownTestCase() { GlobalState.reset(); }
 
   void SetUp() override {
-    TestState = llvm::make_unique<PerTestState>();
+    TestState = std::make_unique<PerTestState>();
   }
 
   void TearDown() override { TestState.reset(); }

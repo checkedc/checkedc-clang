@@ -77,11 +77,11 @@ void test1() {
 
   res_vf = vec_nabs(vf);
 // CHECK: [[VEC:%[0-9]+]] = call <4 x float> @llvm.fabs.v4f32(<4 x float> %{{[0-9]*}})
-// CHECK-NEXT: fsub <4 x float> <float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, [[VEC]]
+// CHECK-NEXT: fneg <4 x float> [[VEC]]
 
   res_vd = vec_nabs(vd);
 // CHECK: [[VECD:%[0-9]+]] = call <2 x double> @llvm.fabs.v2f64(<2 x double> %{{[0-9]*}})
-// CHECK: fsub <2 x double> <double -0.000000e+00, double -0.000000e+00>, [[VECD]]
+// CHECK: fneg <2 x double> [[VECD]]
 
   dummy();
 // CHECK: call void @dummy()
@@ -713,15 +713,15 @@ void test1() {
 
   /* vec_msub */
   res_vf = vec_msub(vf, vf, vf);
-// CHECK: fsub <4 x float> <float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, %{{[0-9]+}}
+// CHECK: fneg <4 x float> %{{[0-9]+}}
 // CHECK-NEXT: call <4 x float> @llvm.fma.v4f32(<4 x float> %{{[0-9]+}}, <4 x float> %{{[0-9]+}}, <4 x float>
-// CHECK-LE: fsub <4 x float> <float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, %{{[0-9]+}}
+// CHECK-LE: fneg <4 x float> %{{[0-9]+}}
 // CHECK-LE-NEXT: call <4 x float> @llvm.fma.v4f32(<4 x float> %{{[0-9]+}}, <4 x float> %{{[0-9]+}}, <4 x float>
 
   res_vd = vec_msub(vd, vd, vd);
-// CHECK: fsub <2 x double> <double -0.000000e+00, double -0.000000e+00>, %{{[0-9]+}}
+// CHECK: fneg <2 x double> %{{[0-9]+}}
 // CHECK-NEXT: call <2 x double> @llvm.fma.v2f64(<2 x double> %{{[0-9]+}}, <2 x double> %{{[0-9]+}}, <2 x double>
-// CHECK-LE: fsub <2 x double> <double -0.000000e+00, double -0.000000e+00>, %{{[0-9]+}}
+// CHECK-LE: fneg <2 x double> %{{[0-9]+}}
 // CHECK-LE-NEXT: call <2 x double> @llvm.fma.v2f64(<2 x double> %{{[0-9]+}}, <2 x double> %{{[0-9]+}}, <2 x double>
 
   res_vsll = vec_mul(vsll, vsll);
@@ -750,31 +750,31 @@ void test1() {
 
   res_vf = vec_nmadd(vf, vf, vf);
 // CHECK: [[FM:[0-9]+]] = call <4 x float> @llvm.fma.v4f32(<4 x float> %{{[0-9]+}}, <4 x float> %{{[0-9]+}}, <4 x float> %{{[0-9]+}})
-// CHECK-NEXT: fsub <4 x float> <float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, %[[FM]]
+// CHECK-NEXT: fneg <4 x float> %[[FM]]
 // CHECK-LE: [[FM:[0-9]+]] = call <4 x float> @llvm.fma.v4f32(<4 x float> %{{[0-9]+}}, <4 x float> %{{[0-9]+}}, <4 x float> %{{[0-9]+}})
-// CHECK-LE-NEXT: fsub <4 x float> <float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, %[[FM]]
+// CHECK-LE-NEXT: fneg <4 x float> %[[FM]]
 
   res_vd = vec_nmadd(vd, vd, vd);
 // CHECK: [[FM:[0-9]+]] = call <2 x double> @llvm.fma.v2f64(<2 x double> %{{[0-9]+}}, <2 x double> %{{[0-9]+}}, <2 x double> %{{[0-9]+}})
-// CHECK-NEXT: fsub <2 x double> <double -0.000000e+00, double -0.000000e+00>, %[[FM]]
+// CHECK-NEXT: fneg <2 x double> %[[FM]]
 // CHECK-LE: [[FM:[0-9]+]] = call <2 x double> @llvm.fma.v2f64(<2 x double> %{{[0-9]+}}, <2 x double> %{{[0-9]+}}, <2 x double> %{{[0-9]+}})
-// CHECK-LE-NEXT: fsub <2 x double> <double -0.000000e+00, double -0.000000e+00>, %[[FM]]
+// CHECK-LE-NEXT: fneg <2 x double> %[[FM]]
 
   res_vf = vec_nmsub(vf, vf, vf);
-// CHECK: fsub <4 x float> <float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, %{{[0-9]+}}
+// CHECK: fneg <4 x float> %{{[0-9]+}}
 // CHECK-NEXT: call <4 x float> @llvm.fma.v4f32(<4 x float> %{{[0-9]+}}, <4 x float> %{{[0-9]+}}, <4 x float>
-// CHECK: fsub <4 x float> <float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, %{{[0-9]+}}
-// CHECK-LE: fsub <4 x float> <float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, %{{[0-9]+}}
+// CHECK: fneg <4 x float> %{{[0-9]+}}
+// CHECK-LE: fneg <4 x float> %{{[0-9]+}}
 // CHECK-LE-NEXT: call <4 x float> @llvm.fma.v4f32(<4 x float> %{{[0-9]+}}, <4 x float> %{{[0-9]+}}, <4 x float>
-// CHECK-LE: fsub <4 x float> <float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, %{{[0-9]+}}
+// CHECK-LE: fneg <4 x float> %{{[0-9]+}}
 
   res_vd = vec_nmsub(vd, vd, vd);
-// CHECK: fsub <2 x double> <double -0.000000e+00, double -0.000000e+00>, %{{[0-9]+}}
+// CHECK: fneg <2 x double> %{{[0-9]+}}
 // CHECK-NEXT: [[FM:[0-9]+]] = call <2 x double> @llvm.fma.v2f64(<2 x double> %{{[0-9]+}}, <2 x double> %{{[0-9]+}}, <2 x double>
-// CHECK-NEXT: fsub <2 x double> <double -0.000000e+00, double -0.000000e+00>, %[[FM]]
-// CHECK-LE: fsub <2 x double> <double -0.000000e+00, double -0.000000e+00>, %{{[0-9]+}}
+// CHECK-NEXT: fneg <2 x double> %[[FM]]
+// CHECK-LE: fneg <2 x double> %{{[0-9]+}}
 // CHECK-LE-NEXT: [[FM:[0-9]+]] = call <2 x double> @llvm.fma.v2f64(<2 x double> %{{[0-9]+}}, <2 x double> %{{[0-9]+}}, <2 x double>
-// CHECK-LE-NEXT: fsub <2 x double> <double -0.000000e+00, double -0.000000e+00>, %[[FM]]
+// CHECK-LE-NEXT: fneg <2 x double> %[[FM]]
 
   /* vec_nor */
   res_vsll = vec_nor(vsll, vsll);
@@ -882,7 +882,7 @@ void test1() {
 // CHECK: call void @dummy()
 // CHECK-LE: call void @dummy()
 
-  res_vf = vec_sel(vd, vd, vbll);
+  res_vd = vec_sel(vd, vd, vbll);
 // CHECK: xor <2 x i64> %{{[0-9]+}}, <i64 -1, i64 -1>
 // CHECK: and <2 x i64> %{{[0-9]+}},
 // CHECK: and <2 x i64> %{{[0-9]+}}, %{{[0-9]+}}
@@ -1686,12 +1686,12 @@ vec_xst_be(vd, sll, ad);
 // CHECK-LE: call void @llvm.ppc.vsx.stxvd2x.be(<2 x double> %{{[0-9]+}}, i8* %{{[0-9]+}})
 
   res_vf = vec_neg(vf);
-// CHECK: fsub <4 x float> <float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, {{%[0-9]+}}
-// CHECK-LE: fsub <4 x float> <float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, {{%[0-9]+}}
+// CHECK: fneg <4 x float> {{%[0-9]+}}
+// CHECK-LE: fneg <4 x float> {{%[0-9]+}}
 
   res_vd = vec_neg(vd);
-// CHECK: fsub <2 x double> <double -0.000000e+00, double -0.000000e+00>, {{%[0-9]+}}
-// CHECK-LE: fsub <2 x double> <double -0.000000e+00, double -0.000000e+00>, {{%[0-9]+}}
+// CHECK: fneg <2 x double> {{%[0-9]+}}
+// CHECK-LE: fneg <2 x double> {{%[0-9]+}}
 
 res_vd = vec_xxpermdi(vd, vd, 0);
 // CHECK: shufflevector <2 x i64> %{{[0-9]+}}, <2 x i64> %{{[0-9]+}}, <2 x i32> <i32 0, i32 2>

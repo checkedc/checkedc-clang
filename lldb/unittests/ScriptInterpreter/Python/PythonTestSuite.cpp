@@ -1,4 +1,4 @@
-//===-- PythonTestSuite.cpp -------------------------------------*- C++ -*-===//
+//===-- PythonTestSuite.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,9 +8,10 @@
 
 #include "gtest/gtest.h"
 
+#include "Plugins/ScriptInterpreter/Python/lldb-python.h"
+
 #include "Plugins/ScriptInterpreter/Python/ScriptInterpreterPython.h"
 #include "Plugins/ScriptInterpreter/Python/ScriptInterpreterPythonImpl.h"
-#include "Plugins/ScriptInterpreter/Python/lldb-python.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
 
@@ -59,12 +60,30 @@ extern "C" void init_lldb(void) {}
 #define LLDBSwigPyInit init_lldb
 #endif
 
-extern "C" bool LLDBSwigPythonBreakpointCallbackFunction(
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wreturn-type-c-linkage"
+
+// Disable warning C4190: 'LLDBSwigPythonBreakpointCallbackFunction' has
+// C-linkage specified, but returns UDT 'llvm::Expected<bool>' which is
+// incompatible with C
+#if _MSC_VER
+#pragma warning (push)
+#pragma warning (disable : 4190)
+#endif
+
+extern "C" llvm::Expected<bool> LLDBSwigPythonBreakpointCallbackFunction(
     const char *python_function_name, const char *session_dictionary_name,
     const lldb::StackFrameSP &sb_frame,
-    const lldb::BreakpointLocationSP &sb_bp_loc) {
+    const lldb::BreakpointLocationSP &sb_bp_loc,
+    StructuredDataImpl *args_impl) {
   return false;
 }
+
+#if _MSC_VER
+#pragma warning (pop)
+#endif
+
+#pragma clang diagnostic pop
 
 extern "C" bool LLDBSwigPythonWatchpointCallbackFunction(
     const char *python_function_name, const char *session_dictionary_name,
@@ -95,6 +114,8 @@ LLDBSwigPythonCreateCommandObject(const char *python_class_name,
 
 extern "C" void *LLDBSwigPythonCreateScriptedThreadPlan(
     const char *python_class_name, const char *session_dictionary_name,
+    StructuredDataImpl *args_data,
+    std::string &error_string,
     const lldb::ThreadPlanSP &thread_plan_sp) {
   return nullptr;
 }

@@ -1,11 +1,12 @@
 # RUN: yaml2obj %s -o %t.o
-# RUN: llvm-readobj -a --elf-cg-profile --addrsig %t.o | FileCheck %s
+# RUN: llvm-readobj -a --cg-profile --addrsig %t.o | FileCheck %s
 
 # Test that multiple sections with the same type does not trigger an error.
 
 # CHECK: ElfHeader {
-# CHECK: SHT_GNU_verdef {
-# CHECK: SHT_GNU_verneed {
+# CHECK: VersionSymbols [
+# CHECK: VersionDefinitions [
+# CHECK: VersionRequirements [
 # CHECK: CGProfile [
 # CHECK: Addrsig [
 
@@ -23,10 +24,12 @@ Sections:
     EntSize:         24
   - Name:            .versym
     Type:            SHT_GNU_versym
-    Entries:         [ ]
+    Entries:         [ 0 ]
+    Link:            .dynsym
   - Name:            .versym2
     Type:            SHT_GNU_versym
-    Entries:         [ ]
+    Entries:         [ 0 ]
+    Link:            .dynsym
   - Name:            .verdef
     Type:            SHT_GNU_verdef
     Info:            0x0000000000000000
@@ -59,4 +62,5 @@ Sections:
     Content:         ''
 Symbols:         
   - Name:            f
+DynamicSymbols: []
 ...

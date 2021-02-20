@@ -1,4 +1,4 @@
-//===-- PdbUtil.cpp ---------------------------------------------*- C++ -*-===//
+//===-- PdbUtil.cpp -------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -641,14 +641,14 @@ VariableInfo lldb_private::npdb::GetVariableLocationInfo(
         llvm::StringRef program;
         if (GetFrameDataProgram(index, ranges, program)) {
           result.location =
-              MakeVFrameRelLocationExpression(program, loc.Offset, module);
+              MakeVFrameRelLocationExpression(program, loc.Hdr.Offset, module);
           result.ranges = std::move(ranges);
         } else {
           // invalid variable
         }
       } else {
         result.location =
-            MakeRegRelLocationExpression(base_reg, loc.Offset, module);
+            MakeRegRelLocationExpression(base_reg, loc.Hdr.Offset, module);
         result.ranges = std::move(ranges);
       }
     } else if (loc_specifier_cvs.kind() == S_DEFRANGE_REGISTER_REL) {

@@ -12,6 +12,13 @@
 ; RUN:       -pass-remarks-analysis=inline -pass-remarks-with-hotness -S 2>&1 | \
 ; RUN:       FileCheck -check-prefix=CHECK -check-prefix=HOTNESS %s
 
+; RUN: opt < %s -passes=inliner-wrapper -pass-remarks=inline -pass-remarks-missed=inline \
+; RUN:       -pass-remarks-analysis=inline -S 2>&1 | \
+; RUN:       FileCheck -check-prefix=CHECK -check-prefix=NO_HOTNESS %s
+; RUN: opt < %s -passes=inliner-wrapper -pass-remarks=inline -pass-remarks-missed=inline \
+; RUN:       -pass-remarks-analysis=inline -pass-remarks-with-hotness -S 2>&1 | \
+; RUN:       FileCheck -check-prefix=CHECK -check-prefix=HOTNESS %s
+
 ; HOTNESS: fox will not be inlined into bar because its definition is unavailable
 ; NO_HOTNESS-NOT: fox will not be inlined into bar because its definition is unavailable
 ; CHECK: foo inlined into bar with (cost=always): always inline attribute
@@ -67,9 +74,9 @@ entry:
   ret i32 %add
 }
 
-attributes #0 = { alwaysinline nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { noinline nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #2 = { nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { alwaysinline nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { noinline nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { nounwind uwtable "less-precise-fpmad"="false" "frame-pointer"="all" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.ident = !{!0}
 

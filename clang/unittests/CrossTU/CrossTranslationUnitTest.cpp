@@ -7,10 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/CrossTU/CrossTranslationUnit.h"
-#include "clang/Frontend/CompilerInstance.h"
 #include "clang/AST/ASTConsumer.h"
+#include "clang/AST/ParentMapContext.h"
+#include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Tooling/Tooling.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -28,15 +30,24 @@ public:
       : CTU(CI), Success(Success) {}
 
   void HandleTranslationUnit(ASTContext &Ctx) {
+    auto FindFInTU = [](const TranslationUnitDecl *TU) {
+      const FunctionDecl *FD = nullptr;
+      for (const Decl *D : TU->decls()) {
+        FD = dyn_cast<FunctionDecl>(D);
+        if (FD && FD->getName() == "f")
+          break;
+      }
+      return FD;
+    };
+
     const TranslationUnitDecl *TU = Ctx.getTranslationUnitDecl();
-    const FunctionDecl *FD = nullptr;
-    for (const Decl *D : TU->decls()) {
-      FD = dyn_cast<FunctionDecl>(D);
-      if (FD && FD->getName() == "f")
-        break;
-    }
+    const FunctionDecl *FD = FindFInTU(TU);
     assert(FD && FD->getName() == "f");
     bool OrigFDHasBody = FD->hasBody();
+
+    const DynTypedNodeList ParentsBeforeImport =
+        Ctx.getParentMapContext().getParents<Decl>(*FD);
+    ASSERT_FALSE(ParentsBeforeImport.empty());
 
     // Prepare the index file and the AST file.
     int ASTFD;
@@ -78,7 +89,48 @@ public:
     if (NewFDorError) {
       const FunctionDecl *NewFD = *NewFDorError;
       *Success = NewFD && NewFD->hasBody() && !OrigFDHasBody;
+
+      if (NewFD) {
+        // Check GetImportedFromSourceLocation.
+        llvm::Optional<std::pair<SourceLocation, ASTUnit *>> SLocResult =
+            CTU.getImportedFromSourceLocation(NewFD->getLocation());
+        EXPECT_TRUE(SLocResult);
+        if (SLocResult) {
+          SourceLocation OrigSLoc = (*SLocResult).first;
+          ASTUnit *OrigUnit = (*SLocResult).second;
+          // OrigUnit is created internally by CTU (is not the
+          // ASTWithDefinition).
+          TranslationUnitDecl *OrigTU =
+              OrigUnit->getASTContext().getTranslationUnitDecl();
+          const FunctionDecl *FDWithDefinition = FindFInTU(OrigTU);
+          EXPECT_TRUE(FDWithDefinition);
+          if (FDWithDefinition) {
+            EXPECT_EQ(FDWithDefinition->getName(), "f");
+            EXPECT_TRUE(FDWithDefinition->isThisDeclarationADefinition());
+            EXPECT_EQ(OrigSLoc, FDWithDefinition->getLocation());
+          }
+        }
+
+        // Check parent map.
+        const DynTypedNodeList ParentsAfterImport =
+            Ctx.getParentMapContext().getParents<Decl>(*FD);
+        const DynTypedNodeList ParentsOfImported =
+            Ctx.getParentMapContext().getParents<Decl>(*NewFD);
+        EXPECT_TRUE(
+            checkParentListsEq(ParentsBeforeImport, ParentsAfterImport));
+        EXPECT_FALSE(ParentsOfImported.empty());
+      }
     }
+  }
+
+  static bool checkParentListsEq(const DynTypedNodeList &L1,
+                                 const DynTypedNodeList &L2) {
+    if (L1.size() != L2.size())
+      return false;
+    for (unsigned int I = 0; I < L1.size(); ++I)
+      if (L1[I] != L2[I])
+        return false;
+    return true;
   }
 
 private:
@@ -95,7 +147,8 @@ protected:
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(clang::CompilerInstance &CI, StringRef) override {
     CI.getAnalyzerOpts()->CTUImportThreshold = OverrideLimit;
-    return llvm::make_unique<CTUASTConsumer>(CI, Success);
+    CI.getAnalyzerOpts()->CTUImportCppThreshold = OverrideLimit;
+    return std::make_unique<CTUASTConsumer>(CI, Success);
   }
 
 private:
@@ -107,15 +160,15 @@ private:
 
 TEST(CrossTranslationUnit, CanLoadFunctionDefinition) {
   bool Success = false;
-  EXPECT_TRUE(
-      tooling::runToolOnCode(new CTUAction(&Success, 1u), "int f(int);"));
+  EXPECT_TRUE(tooling::runToolOnCode(std::make_unique<CTUAction>(&Success, 1u),
+                                     "int f(int);"));
   EXPECT_TRUE(Success);
 }
 
 TEST(CrossTranslationUnit, RespectsLoadThreshold) {
   bool Success = false;
-  EXPECT_TRUE(
-      tooling::runToolOnCode(new CTUAction(&Success, 0u), "int f(int);"));
+  EXPECT_TRUE(tooling::runToolOnCode(std::make_unique<CTUAction>(&Success, 0u),
+                                     "int f(int);"));
   EXPECT_FALSE(Success);
 }
 
@@ -135,7 +188,7 @@ TEST(CrossTranslationUnit, IndexFormatCanBeParsed) {
   IndexFile.os().flush();
   EXPECT_TRUE(llvm::sys::fs::exists(IndexFileName));
   llvm::Expected<llvm::StringMap<std::string>> IndexOrErr =
-      parseCrossTUIndex(IndexFileName, "");
+      parseCrossTUIndex(IndexFileName);
   EXPECT_TRUE((bool)IndexOrErr);
   llvm::StringMap<std::string> ParsedIndex = IndexOrErr.get();
   for (const auto &E : Index) {
@@ -146,24 +199,98 @@ TEST(CrossTranslationUnit, IndexFormatCanBeParsed) {
     EXPECT_TRUE(Index.count(E.getKey()));
 }
 
-TEST(CrossTranslationUnit, CTUDirIsHandledCorrectly) {
-  llvm::StringMap<std::string> Index;
-  Index["a"] = "/b/c/d";
-  std::string IndexText = createCrossTUIndexString(Index);
+TEST(CrossTranslationUnit, EmptyInvocationListIsNotValid) {
+  auto Input = "";
 
-  int IndexFD;
-  llvm::SmallString<256> IndexFileName;
-  ASSERT_FALSE(llvm::sys::fs::createTemporaryFile("index", "txt", IndexFD,
-                                                  IndexFileName));
-  llvm::ToolOutputFile IndexFile(IndexFileName, IndexFD);
-  IndexFile.os() << IndexText;
-  IndexFile.os().flush();
-  EXPECT_TRUE(llvm::sys::fs::exists(IndexFileName));
-  llvm::Expected<llvm::StringMap<std::string>> IndexOrErr =
-      parseCrossTUIndex(IndexFileName, "/ctudir");
-  EXPECT_TRUE((bool)IndexOrErr);
-  llvm::StringMap<std::string> ParsedIndex = IndexOrErr.get();
-  EXPECT_EQ(ParsedIndex["a"], "/ctudir/b/c/d");
+  llvm::Expected<InvocationListTy> Result = parseInvocationList(Input);
+  EXPECT_FALSE(static_cast<bool>(Result));
+  bool IsWrongFromatError = false;
+  llvm::handleAllErrors(Result.takeError(), [&](IndexError &Err) {
+    IsWrongFromatError =
+        Err.getCode() == index_error_code::invocation_list_wrong_format;
+  });
+  EXPECT_TRUE(IsWrongFromatError);
+}
+
+TEST(CrossTranslationUnit, AmbiguousInvocationListIsDetected) {
+  // The same source file occurs twice (for two different architecture) in
+  // this test case. The disambiguation is the responsibility of the user.
+  auto Input = R"(
+  /tmp/main.cpp:
+    - clang++
+    - -c
+    - -m32
+    - -o
+    - main32.o
+    - /tmp/main.cpp
+  /tmp/main.cpp:
+    - clang++
+    - -c
+    - -m64
+    - -o
+    - main64.o
+    - /tmp/main.cpp
+  )";
+
+  llvm::Expected<InvocationListTy> Result = parseInvocationList(Input);
+  EXPECT_FALSE(static_cast<bool>(Result));
+  bool IsAmbiguousError = false;
+  llvm::handleAllErrors(Result.takeError(), [&](IndexError &Err) {
+    IsAmbiguousError =
+        Err.getCode() == index_error_code::invocation_list_ambiguous;
+  });
+  EXPECT_TRUE(IsAmbiguousError);
+}
+
+TEST(CrossTranslationUnit, SingleInvocationCanBeParsed) {
+  auto Input = R"(
+  /tmp/main.cpp:
+    - clang++
+    - /tmp/main.cpp
+  )";
+  llvm::Expected<InvocationListTy> Result = parseInvocationList(Input);
+  EXPECT_TRUE(static_cast<bool>(Result));
+
+  EXPECT_EQ(Result->size(), 1u);
+
+  auto It = Result->find("/tmp/main.cpp");
+  EXPECT_TRUE(It != Result->end());
+  EXPECT_EQ(It->getValue()[0], "clang++");
+  EXPECT_EQ(It->getValue()[1], "/tmp/main.cpp");
+}
+
+TEST(CrossTranslationUnit, MultipleInvocationsCanBeParsed) {
+  auto Input = R"(
+  /tmp/main.cpp:
+    - clang++
+    - /tmp/other.o
+    - /tmp/main.cpp
+  /tmp/other.cpp:
+    - g++
+    - -c
+    - -o
+    - /tmp/other.o
+    - /tmp/other.cpp
+  )";
+  llvm::Expected<InvocationListTy> Result = parseInvocationList(Input);
+  EXPECT_TRUE(static_cast<bool>(Result));
+
+  EXPECT_EQ(Result->size(), 2u);
+
+  auto It = Result->find("/tmp/main.cpp");
+  EXPECT_TRUE(It != Result->end());
+  EXPECT_EQ(It->getKey(), "/tmp/main.cpp");
+  EXPECT_EQ(It->getValue()[0], "clang++");
+  EXPECT_EQ(It->getValue()[1], "/tmp/other.o");
+  EXPECT_EQ(It->getValue()[2], "/tmp/main.cpp");
+
+  It = Result->find("/tmp/other.cpp");
+  EXPECT_TRUE(It != Result->end());
+  EXPECT_EQ(It->getValue()[0], "g++");
+  EXPECT_EQ(It->getValue()[1], "-c");
+  EXPECT_EQ(It->getValue()[2], "-o");
+  EXPECT_EQ(It->getValue()[3], "/tmp/other.o");
+  EXPECT_EQ(It->getValue()[4], "/tmp/other.cpp");
 }
 
 } // end namespace cross_tu

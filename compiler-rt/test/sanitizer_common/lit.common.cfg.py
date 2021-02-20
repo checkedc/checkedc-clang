@@ -35,6 +35,8 @@ if config.host_os == 'Darwin':
   # On Darwin, we default to `abort_on_error=1`, which would make tests run
   # much slower. Let's override this and run lit tests with 'abort_on_error=0'.
   default_tool_options += ['abort_on_error=0']
+  if config.tool_name == "tsan":
+    default_tool_options += ['ignore_interceptors_accesses=0']
 elif config.android:
   # The same as on Darwin, we default to "abort_on_error=1" which slows down
   # testing. Also, all existing tests are using "not" instead of "not --crash"
@@ -46,10 +48,10 @@ if default_tool_options_str:
   config.environment[tool_options] = default_tool_options_str
   default_tool_options_str += ':'
 
+extra_link_flags = []
+
 if config.host_os in ['Linux']:
-  extra_link_flags = ["-ldl"]
-else:
-  extra_link_flags = []
+  extra_link_flags += ["-ldl"]
 
 clang_cflags = config.debug_info_flags + tool_cflags + [config.target_cflags]
 clang_cflags += extra_link_flags
@@ -66,10 +68,13 @@ config.substitutions.append( ("%tool_options", tool_options) )
 config.substitutions.append( ('%env_tool_opts=',
                               'env ' + tool_options + '=' + default_tool_options_str))
 
-config.suffixes = ['.c', '.cc', '.cpp']
+config.suffixes = ['.c', '.cpp']
 
 if config.host_os not in ['Linux', 'Darwin', 'NetBSD', 'FreeBSD']:
   config.unsupported = True
 
 if not config.parallelism_group:
   config.parallelism_group = 'shadow-memory'
+
+if config.host_os == 'NetBSD':
+  config.substitutions.insert(0, ('%run', config.netbsd_noaslr_prefix))

@@ -14,8 +14,7 @@ namespace clang {
 namespace clangd {
 
 llvm::iterator_range<RelationSlab::iterator>
-RelationSlab::lookup(const SymbolID &Subject,
-                     index::SymbolRole Predicate) const {
+RelationSlab::lookup(const SymbolID &Subject, RelationKind Predicate) const {
   auto IterPair = std::equal_range(Relations.begin(), Relations.end(),
                                    Relation{Subject, Predicate, SymbolID{}},
                                    [](const Relation &A, const Relation &B) {
@@ -27,7 +26,7 @@ RelationSlab::lookup(const SymbolID &Subject,
 
 RelationSlab RelationSlab::Builder::build() && {
   // Sort in SPO order.
-  std::sort(Relations.begin(), Relations.end());
+  llvm::sort(Relations);
 
   // Remove duplicates.
   Relations.erase(std::unique(Relations.begin(), Relations.end()),

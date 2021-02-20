@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <bitset>
 
@@ -15,7 +15,7 @@
 
 #include <bitset>
 
-#include "poisoned_hash_helper.hpp"
+#include "poisoned_hash_helper.h"
 
 #include "test_macros.h"
 

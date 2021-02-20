@@ -1,4 +1,4 @@
-//===-- ThreadList.cpp ------------------------------------------*- C++ -*-===//
+//===-- ThreadList.cpp ----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -267,10 +267,11 @@ bool ThreadList::ShouldStop(Event *event_ptr) {
 
   if (log) {
     log->PutCString("");
-    log->Printf("ThreadList::%s: %" PRIu64 " threads, %" PRIu64
-                " unsuspended threads",
-                __FUNCTION__, (uint64_t)m_threads.size(),
-                (uint64_t)threads_copy.size());
+    LLDB_LOGF(log,
+              "ThreadList::%s: %" PRIu64 " threads, %" PRIu64
+              " unsuspended threads",
+              __FUNCTION__, (uint64_t)m_threads.size(),
+              (uint64_t)threads_copy.size());
   }
 
   bool did_anybody_stop_for_a_reason = false;
@@ -279,10 +280,9 @@ bool ThreadList::ShouldStop(Event *event_ptr) {
   // what.  Otherwise, presume we won't stop.
   bool should_stop = false;
   if (Process::ProcessEventData::GetInterruptedFromEvent(event_ptr)) {
-    if (log)
-      log->Printf(
-          "ThreadList::%s handling interrupt event, should stop set to true",
-          __FUNCTION__);
+    LLDB_LOGF(
+        log, "ThreadList::%s handling interrupt event, should stop set to true",
+        __FUNCTION__);
 
     should_stop = true;
   }
@@ -334,15 +334,14 @@ bool ThreadList::ShouldStop(Event *event_ptr) {
 
   if (!should_stop && !did_anybody_stop_for_a_reason) {
     should_stop = true;
-    if (log)
-      log->Printf("ThreadList::%s we stopped but no threads had a stop reason, "
-                  "overriding should_stop and stopping.",
-                  __FUNCTION__);
+    LLDB_LOGF(log,
+              "ThreadList::%s we stopped but no threads had a stop reason, "
+              "overriding should_stop and stopping.",
+              __FUNCTION__);
   }
 
-  if (log)
-    log->Printf("ThreadList::%s overall should_stop = %i", __FUNCTION__,
-                should_stop);
+  LLDB_LOGF(log, "ThreadList::%s overall should_stop = %i", __FUNCTION__,
+            should_stop);
 
   if (should_stop) {
     for (pos = threads_copy.begin(); pos != end; ++pos) {
@@ -363,9 +362,8 @@ Vote ThreadList::ShouldReportStop(Event *event_ptr) {
 
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
 
-  if (log)
-    log->Printf("ThreadList::%s %" PRIu64 " threads", __FUNCTION__,
-                (uint64_t)m_threads.size());
+  LLDB_LOGF(log, "ThreadList::%s %" PRIu64 " threads", __FUNCTION__,
+            (uint64_t)m_threads.size());
 
   // Run through the threads and ask whether we should report this event. For
   // stopping, a YES vote wins over everything.  A NO vote wins over NO
@@ -430,10 +428,10 @@ Vote ThreadList::ShouldReportRun(Event *event_ptr) {
           result = eVoteYes;
         break;
       case eVoteNo:
-        if (log)
-          log->Printf("ThreadList::ShouldReportRun() thread %d (0x%4.4" PRIx64
-                      ") says don't report.",
-                      (*pos)->GetIndexID(), (*pos)->GetID());
+        LLDB_LOGF(log,
+                  "ThreadList::ShouldReportRun() thread %d (0x%4.4" PRIx64
+                  ") says don't report.",
+                  (*pos)->GetIndexID(), (*pos)->GetID());
         result = eVoteNo;
         break;
       }
@@ -464,8 +462,9 @@ void ThreadList::RefreshStateAfterStop() {
 
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
   if (log && log->GetVerbose())
-    log->Printf("Turning off notification of new threads while single stepping "
-                "a thread.");
+    LLDB_LOGF(log,
+              "Turning off notification of new threads while single stepping "
+              "a thread.");
 
   collection::iterator pos, end = m_threads.end();
   for (pos = m_threads.begin(); pos != end; ++pos)
@@ -517,14 +516,14 @@ bool ThreadList::WillResume() {
   if (wants_solo_run) {
     Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
     if (log && log->GetVerbose())
-      log->Printf("Turning on notification of new threads while single "
-                  "stepping a thread.");
+      LLDB_LOGF(log, "Turning on notification of new threads while single "
+                     "stepping a thread.");
     m_process->StartNoticingNewThreads();
   } else {
     Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_STEP));
     if (log && log->GetVerbose())
-      log->Printf("Turning off notification of new threads while single "
-                  "stepping a thread.");
+      LLDB_LOGF(log, "Turning off notification of new threads while single "
+                     "stepping a thread.");
     m_process->StopNoticingNewThreads();
   }
 
@@ -716,6 +715,11 @@ void ThreadList::Update(ThreadList &rhs) {
     // to work around the issue
     collection::iterator rhs_pos, rhs_end = rhs.m_threads.end();
     for (rhs_pos = rhs.m_threads.begin(); rhs_pos != rhs_end; ++rhs_pos) {
+      // If this thread has already been destroyed, we don't need to look for
+      // it to destroy it again.
+      if (!(*rhs_pos)->IsValid())
+        continue;
+
       const lldb::tid_t tid = (*rhs_pos)->GetID();
       bool thread_is_alive = false;
       const uint32_t num_threads = m_threads.size();
@@ -727,8 +731,9 @@ void ThreadList::Update(ThreadList &rhs) {
           break;
         }
       }
-      if (!thread_is_alive)
+      if (!thread_is_alive) {
         (*rhs_pos)->DestroyThread();
+      }
     }
   }
 }

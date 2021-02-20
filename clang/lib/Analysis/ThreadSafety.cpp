@@ -882,7 +882,7 @@ public:
                     StringRef DiagKind) const override {
     FSet.removeLock(FactMan, Cp);
     if (!Cp.negative()) {
-      FSet.addLock(FactMan, llvm::make_unique<LockableFactEntry>(
+      FSet.addLock(FactMan, std::make_unique<LockableFactEntry>(
                                 !Cp, LK_Exclusive, UnlockLoc));
     }
   }
@@ -905,11 +905,7 @@ public:
   ScopedLockableFactEntry(const CapabilityExpr &CE, SourceLocation Loc)
       : FactEntry(CE, LK_Exclusive, Loc, false) {}
 
-  void addExclusiveLock(const CapabilityExpr &M) {
-    UnderlyingMutexes.emplace_back(M.sexpr(), UCK_Acquired);
-  }
-
-  void addSharedLock(const CapabilityExpr &M) {
+  void addLock(const CapabilityExpr &M) {
     UnderlyingMutexes.emplace_back(M.sexpr(), UCK_Acquired);
   }
 
@@ -987,7 +983,7 @@ private:
     } else {
       FSet.removeLock(FactMan, !Cp);
       FSet.addLock(FactMan,
-                   llvm::make_unique<LockableFactEntry>(Cp, kind, loc));
+                   std::make_unique<LockableFactEntry>(Cp, kind, loc));
     }
   }
 
@@ -996,10 +992,13 @@ private:
               StringRef DiagKind) const {
     if (FSet.findLock(FactMan, Cp)) {
       FSet.removeLock(FactMan, Cp);
-      FSet.addLock(FactMan, llvm::make_unique<LockableFactEntry>(
+      FSet.addLock(FactMan, std::make_unique<LockableFactEntry>(
                                 !Cp, LK_Exclusive, loc));
     } else if (Handler) {
-      Handler->handleUnmatchedUnlock(DiagKind, Cp.toString(), loc);
+      SourceLocation PrevLoc;
+      if (const FactEntry *Neg = FSet.findLock(FactMan, !Cp))
+        PrevLoc = Neg->loc();
+      Handler->handleUnmatchedUnlock(DiagKind, Cp.toString(), loc, PrevLoc);
     }
   }
 };
@@ -1249,8 +1248,7 @@ static StringRef ClassifyDiagnostic(const ValueDecl *VD) {
 }
 
 template <typename AttrTy>
-static typename std::enable_if<!has_arg_iterator_range<AttrTy>::value,
-                               StringRef>::type
+static std::enable_if_t<!has_arg_iterator_range<AttrTy>::value, StringRef>
 ClassifyDiagnostic(const AttrTy *A) {
   if (const ValueDecl *VD = getValueDecl(A->getArg()))
     return ClassifyDiagnostic(VD);
@@ -1258,8 +1256,7 @@ ClassifyDiagnostic(const AttrTy *A) {
 }
 
 template <typename AttrTy>
-static typename std::enable_if<has_arg_iterator_range<AttrTy>::value,
-                               StringRef>::type
+static std::enable_if_t<has_arg_iterator_range<AttrTy>::value, StringRef>
 ClassifyDiagnostic(const AttrTy *A) {
   for (const auto *Arg : A->args()) {
     if (const ValueDecl *VD = getValueDecl(Arg))
@@ -1328,7 +1325,10 @@ void ThreadSafetyAnalyzer::removeLock(FactSet &FSet, const CapabilityExpr &Cp,
 
   const FactEntry *LDat = FSet.findLock(FactMan, Cp);
   if (!LDat) {
-    Handler.handleUnmatchedUnlock(DiagKind, Cp.toString(), UnlockLoc);
+    SourceLocation PrevLoc;
+    if (const FactEntry *Neg = FSet.findLock(FactMan, !Cp))
+      PrevLoc = Neg->loc();
+    Handler.handleUnmatchedUnlock(DiagKind, Cp.toString(), UnlockLoc, PrevLoc);
     return;
   }
 
@@ -1551,11 +1551,11 @@ void ThreadSafetyAnalyzer::getEdgeLockset(FactSet& Result,
   // Add and remove locks.
   SourceLocation Loc = Exp->getExprLoc();
   for (const auto &ExclusiveLockToAdd : ExclusiveLocksToAdd)
-    addLock(Result, llvm::make_unique<LockableFactEntry>(ExclusiveLockToAdd,
+    addLock(Result, std::make_unique<LockableFactEntry>(ExclusiveLockToAdd,
                                                          LK_Exclusive, Loc),
             CapDiagKind);
   for (const auto &SharedLockToAdd : SharedLocksToAdd)
-    addLock(Result, llvm::make_unique<LockableFactEntry>(SharedLockToAdd,
+    addLock(Result, std::make_unique<LockableFactEntry>(SharedLockToAdd,
                                                          LK_Shared, Loc),
             CapDiagKind);
 }
@@ -1803,7 +1803,7 @@ void BuildLockset::handleCall(const Expr *Exp, const NamedDecl *D,
   SourceLocation Loc = Exp->getExprLoc();
   CapExprSet ExclusiveLocksToAdd, SharedLocksToAdd;
   CapExprSet ExclusiveLocksToRemove, SharedLocksToRemove, GenericLocksToRemove;
-  CapExprSet ScopedExclusiveReqs, ScopedSharedReqs;
+  CapExprSet ScopedReqsAndExcludes;
   StringRef CapDiagKind = "mutex";
 
   // Figure out if we're constructing an object of scoped lockable class
@@ -1840,7 +1840,7 @@ void BuildLockset::handleCall(const Expr *Exp, const NamedDecl *D,
         Analyzer->getMutexIDs(AssertLocks, A, Exp, D, VD);
         for (const auto &AssertLock : AssertLocks)
           Analyzer->addLock(FSet,
-                            llvm::make_unique<LockableFactEntry>(
+                            std::make_unique<LockableFactEntry>(
                                 AssertLock, LK_Exclusive, Loc, false, true),
                             ClassifyDiagnostic(A));
         break;
@@ -1852,7 +1852,7 @@ void BuildLockset::handleCall(const Expr *Exp, const NamedDecl *D,
         Analyzer->getMutexIDs(AssertLocks, A, Exp, D, VD);
         for (const auto &AssertLock : AssertLocks)
           Analyzer->addLock(FSet,
-                            llvm::make_unique<LockableFactEntry>(
+                            std::make_unique<LockableFactEntry>(
                                 AssertLock, LK_Shared, Loc, false, true),
                             ClassifyDiagnostic(A));
         break;
@@ -1864,7 +1864,7 @@ void BuildLockset::handleCall(const Expr *Exp, const NamedDecl *D,
         Analyzer->getMutexIDs(AssertLocks, A, Exp, D, VD);
         for (const auto &AssertLock : AssertLocks)
           Analyzer->addLock(FSet,
-                            llvm::make_unique<LockableFactEntry>(
+                            std::make_unique<LockableFactEntry>(
                                 AssertLock,
                                 A->isShared() ? LK_Shared : LK_Exclusive, Loc,
                                 false, true),
@@ -1894,19 +1894,20 @@ void BuildLockset::handleCall(const Expr *Exp, const NamedDecl *D,
                              POK_FunctionCall, ClassifyDiagnostic(A),
                              Exp->getExprLoc());
           // use for adopting a lock
-          if (isScopedVar) {
-            Analyzer->getMutexIDs(A->isShared() ? ScopedSharedReqs
-                                                : ScopedExclusiveReqs,
-                                  A, Exp, D, VD);
-          }
+          if (isScopedVar)
+            Analyzer->getMutexIDs(ScopedReqsAndExcludes, A, Exp, D, VD);
         }
         break;
       }
 
       case attr::LocksExcluded: {
         const auto *A = cast<LocksExcludedAttr>(At);
-        for (auto *Arg : A->args())
+        for (auto *Arg : A->args()) {
           warnIfMutexHeld(D, Exp, Arg, ClassifyDiagnostic(A));
+          // use for deferring a lock
+          if (isScopedVar)
+            Analyzer->getMutexIDs(ScopedReqsAndExcludes, A, Exp, D, VD);
+        }
         break;
       }
 
@@ -1928,11 +1929,11 @@ void BuildLockset::handleCall(const Expr *Exp, const NamedDecl *D,
 
   // Add locks.
   for (const auto &M : ExclusiveLocksToAdd)
-    Analyzer->addLock(FSet, llvm::make_unique<LockableFactEntry>(
+    Analyzer->addLock(FSet, std::make_unique<LockableFactEntry>(
                                 M, LK_Exclusive, Loc, isScopedVar),
                       CapDiagKind);
   for (const auto &M : SharedLocksToAdd)
-    Analyzer->addLock(FSet, llvm::make_unique<LockableFactEntry>(
+    Analyzer->addLock(FSet, std::make_unique<LockableFactEntry>(
                                 M, LK_Shared, Loc, isScopedVar),
                       CapDiagKind);
 
@@ -1944,15 +1945,13 @@ void BuildLockset::handleCall(const Expr *Exp, const NamedDecl *D,
     // FIXME: does this store a pointer to DRE?
     CapabilityExpr Scp = Analyzer->SxBuilder.translateAttrExpr(&DRE, nullptr);
 
-    auto ScopedEntry = llvm::make_unique<ScopedLockableFactEntry>(Scp, MLoc);
+    auto ScopedEntry = std::make_unique<ScopedLockableFactEntry>(Scp, MLoc);
     for (const auto &M : ExclusiveLocksToAdd)
-      ScopedEntry->addExclusiveLock(M);
-    for (const auto &M : ScopedExclusiveReqs)
-      ScopedEntry->addExclusiveLock(M);
+      ScopedEntry->addLock(M);
     for (const auto &M : SharedLocksToAdd)
-      ScopedEntry->addSharedLock(M);
-    for (const auto &M : ScopedSharedReqs)
-      ScopedEntry->addSharedLock(M);
+      ScopedEntry->addLock(M);
+    for (const auto &M : ScopedReqsAndExcludes)
+      ScopedEntry->addLock(M);
     for (const auto &M : ExclusiveLocksToRemove)
       ScopedEntry->addExclusiveUnlock(M);
     for (const auto &M : SharedLocksToRemove)
@@ -2141,9 +2140,14 @@ void BuildLockset::VisitDeclStmt(const DeclStmt *S) {
 
       // handle constructors that involve temporaries
       if (auto *EWC = dyn_cast<ExprWithCleanups>(E))
-        E = EWC->getSubExpr();
+        E = EWC->getSubExpr()->IgnoreParens();
+      if (auto *CE = dyn_cast<CastExpr>(E))
+        if (CE->getCastKind() == CK_NoOp ||
+            CE->getCastKind() == CK_ConstructorConversion ||
+            CE->getCastKind() == CK_UserDefinedConversion)
+          E = CE->getSubExpr()->IgnoreParens();
       if (auto *BTE = dyn_cast<CXXBindTemporaryExpr>(E))
-        E = BTE->getSubExpr();
+        E = BTE->getSubExpr()->IgnoreParens();
 
       if (const auto *CE = dyn_cast<CXXConstructExpr>(E)) {
         const auto *CtorD = dyn_cast_or_null<NamedDecl>(CE->getConstructor());
@@ -2349,12 +2353,12 @@ void ThreadSafetyAnalyzer::runAnalysis(AnalysisDeclContext &AC) {
 
     // FIXME -- Loc can be wrong here.
     for (const auto &Mu : ExclusiveLocksToAdd) {
-      auto Entry = llvm::make_unique<LockableFactEntry>(Mu, LK_Exclusive, Loc);
+      auto Entry = std::make_unique<LockableFactEntry>(Mu, LK_Exclusive, Loc);
       Entry->setDeclared(true);
       addLock(InitialLockset, std::move(Entry), CapDiagKind, true);
     }
     for (const auto &Mu : SharedLocksToAdd) {
-      auto Entry = llvm::make_unique<LockableFactEntry>(Mu, LK_Shared, Loc);
+      auto Entry = std::make_unique<LockableFactEntry>(Mu, LK_Shared, Loc);
       Entry->setDeclared(true);
       addLock(InitialLockset, std::move(Entry), CapDiagKind, true);
     }
@@ -2523,10 +2527,10 @@ void ThreadSafetyAnalyzer::runAnalysis(AnalysisDeclContext &AC) {
   // issue the appropriate warning.
   // FIXME: the location here is not quite right.
   for (const auto &Lock : ExclusiveLocksAcquired)
-    ExpectedExitSet.addLock(FactMan, llvm::make_unique<LockableFactEntry>(
+    ExpectedExitSet.addLock(FactMan, std::make_unique<LockableFactEntry>(
                                          Lock, LK_Exclusive, D->getLocation()));
   for (const auto &Lock : SharedLocksAcquired)
-    ExpectedExitSet.addLock(FactMan, llvm::make_unique<LockableFactEntry>(
+    ExpectedExitSet.addLock(FactMan, std::make_unique<LockableFactEntry>(
                                          Lock, LK_Shared, D->getLocation()));
   for (const auto &Lock : LocksReleased)
     ExpectedExitSet.removeLock(FactMan, Lock);

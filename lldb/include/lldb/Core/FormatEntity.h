@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_FormatEntity_h_
-#define liblldb_FormatEntity_h_
+#ifndef LLDB_CORE_FORMATENTITY_H
+#define LLDB_CORE_FORMATENTITY_H
 
 #include "lldb/Utility/CompletionRequest.h"
 #include "lldb/Utility/FileSpec.h"
@@ -61,6 +61,7 @@ public:
       ThreadName,
       ThreadQueue,
       ThreadStopReason,
+      ThreadStopReasonRaw,
       ThreadReturnValue,
       ThreadCompletedExpression,
       ScriptThread,
@@ -85,6 +86,7 @@ public:
       FunctionName,
       FunctionNameWithArgs,
       FunctionNameNoArgs,
+      FunctionMangledName,
       FunctionAddrOffset,
       FunctionAddrOffsetConcrete,
       FunctionLineOffset,
@@ -199,7 +201,7 @@ public:
                                     llvm::StringRef &variable_name,
                                     llvm::StringRef &variable_format);
 
-  static size_t AutoComplete(lldb_private::CompletionRequest &request);
+  static void AutoComplete(lldb_private::CompletionRequest &request);
 
   // Format the current elements into the stream \a s.
   //
@@ -217,4 +219,4 @@ protected:
 };
 } // namespace lldb_private
 
-#endif // liblldb_FormatEntity_h_
+#endif // LLDB_CORE_FORMATENTITY_H

@@ -51,7 +51,7 @@ public:
   bool PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNum,
                              const char *ExtraCode, raw_ostream &O) override;
 
-  void EmitInstruction(const MachineInstr *MI) override;
+  void emitInstruction(const MachineInstr *MI) override;
 
 private:
   const MCRegisterInfo &MRI;
@@ -97,7 +97,7 @@ bool AVRAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNum,
 
       assert(RegOp.isReg() && "Operand must be a register when you're"
                               "using 'A'..'Z' operand extracodes.");
-      unsigned Reg = RegOp.getReg();
+      Register Reg = RegOp.getReg();
 
       unsigned ByteNumber = ExtraCode[0] - 'A';
 
@@ -168,7 +168,7 @@ bool AVRAsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI,
   return false;
 }
 
-void AVRAsmPrinter::EmitInstruction(const MachineInstr *MI) {
+void AVRAsmPrinter::emitInstruction(const MachineInstr *MI) {
   AVRMCInstLower MCInstLowering(OutContext, *this);
 
   MCInst I;
@@ -178,7 +178,7 @@ void AVRAsmPrinter::EmitInstruction(const MachineInstr *MI) {
 
 } // end of namespace llvm
 
-extern "C" void LLVMInitializeAVRAsmPrinter() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAVRAsmPrinter() {
   llvm::RegisterAsmPrinter<llvm::AVRAsmPrinter> X(llvm::getTheAVRTarget());
 }
 

@@ -1,4 +1,4 @@
-//===-- PlatformLinux.cpp ---------------------------------------*- C++ -*-===//
+//===-- PlatformLinux.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,7 +10,7 @@
 #include "lldb/Host/Config.h"
 
 #include <stdio.h>
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
 #include <sys/utsname.h>
 #endif
 
@@ -33,6 +33,8 @@
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::platform_linux;
+
+LLDB_PLUGIN_DEFINE(PlatformLinux)
 
 static uint32_t g_initialize_count = 0;
 
@@ -199,7 +201,7 @@ bool PlatformLinux::GetSupportedArchitectureAtIndex(uint32_t idx,
 void PlatformLinux::GetStatus(Stream &strm) {
   Platform::GetStatus(strm);
 
-#ifndef LLDB_DISABLE_POSIX
+#if LLDB_ENABLE_POSIX
   // Display local kernel information only when we are running in host mode.
   // Otherwise, we would end up printing non-Linux information (when running on
   // Mac OS for example).
@@ -257,25 +259,6 @@ bool PlatformLinux::CanDebugProcess() {
   } else {
     // If we're connected, we can debug.
     return IsConnected();
-  }
-}
-
-std::vector<std::string>
-PlatformLinux::GetSystemIncludeDirectories(lldb::LanguageType lang) {
-  std::string sys_root = GetSDKRootDirectory().AsCString("");
-  switch (lang) {
-  case lldb::eLanguageTypeC:
-  case lldb::eLanguageTypeC89:
-  case lldb::eLanguageTypeC99:
-  case lldb::eLanguageTypeC11:
-  case lldb::eLanguageTypeC_plus_plus:
-  case lldb::eLanguageTypeC_plus_plus_03:
-  case lldb::eLanguageTypeC_plus_plus_11:
-  case lldb::eLanguageTypeC_plus_plus_14:
-  case lldb::eLanguageTypeObjC_plus_plus:
-    return {sys_root + "/usr/include/"};
-  default:
-    return {};
   }
 }
 
@@ -379,14 +362,14 @@ PlatformLinux::DebugProcess(ProcessLaunchInfo &launch_info, Debugger &debugger,
 
     // Hook up process PTY if we have one (which we should for local debugging
     // with llgs).
-    int pty_fd = launch_info.GetPTY().ReleaseMasterFileDescriptor();
+    int pty_fd = launch_info.GetPTY().ReleasePrimaryFileDescriptor();
     if (pty_fd != PseudoTerminal::invalid_fd) {
       process_sp->SetSTDIOFileDescriptor(pty_fd);
       LLDB_LOG(log, "hooked up STDIO pty to process");
     } else
       LLDB_LOG(log, "not using process STDIO pty");
   } else {
-    LLDB_LOG(log, "process launch failed: {0}", error);
+    LLDB_LOG(log, "{0}", error);
     // FIXME figure out appropriate cleanup here.  Do we delete the target? Do
     // we delete the process?  Does our caller do that?
   }
@@ -396,6 +379,8 @@ PlatformLinux::DebugProcess(ProcessLaunchInfo &launch_info, Debugger &debugger,
 
 void PlatformLinux::CalculateTrapHandlerSymbolNames() {
   m_trap_handlers.push_back(ConstString("_sigtramp"));
+  m_trap_handlers.push_back(ConstString("__kernel_rt_sigreturn"));
+  m_trap_handlers.push_back(ConstString("__restore_rt"));
 }
 
 MmapArgList PlatformLinux::GetMmapArgumentList(const ArchSpec &arch,

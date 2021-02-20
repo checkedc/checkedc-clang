@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// \brief This file provides the implementation for deduplicating, detecting
+/// This file provides the implementation for deduplicating, detecting
 /// conflicts in, and applying collections of Replacements.
 ///
 /// FIXME: Use Diagnostics for output instead of llvm::errs().
@@ -124,7 +124,7 @@ std::error_code collectReplacementsFromDirectory(
   return ErrorCode;
 }
 
-/// \brief Extract replacements from collected TranslationUnitReplacements and
+/// Extract replacements from collected TranslationUnitReplacements and
 /// TranslationUnitDiagnostics and group them per file. Identical replacements
 /// from diagnostics are deduplicated.
 ///
@@ -143,21 +143,29 @@ groupReplacements(const TUReplacements &TUs, const TUDiagnostics &TUDs,
   llvm::DenseMap<const FileEntry *, std::vector<tooling::Replacement>>
       GroupedReplacements;
 
-  // Deduplicate identical replacements in diagnostics.
+  // Deduplicate identical replacements in diagnostics unless they are from the
+  // same TU.
   // FIXME: Find an efficient way to deduplicate on diagnostics level.
-  llvm::DenseMap<const FileEntry *, std::set<tooling::Replacement>>
+  llvm::DenseMap<const FileEntry *,
+                 std::map<tooling::Replacement,
+                          const tooling::TranslationUnitDiagnostics *>>
       DiagReplacements;
 
-  auto AddToGroup = [&](const tooling::Replacement &R, bool FromDiag) {
+  auto AddToGroup = [&](const tooling::Replacement &R,
+                        const tooling::TranslationUnitDiagnostics *SourceTU) {
     // Use the file manager to deduplicate paths. FileEntries are
     // automatically canonicalized.
-    if (const FileEntry *Entry = SM.getFileManager().getFile(R.getFilePath())) {
-      if (FromDiag) {
-        auto &Replaces = DiagReplacements[Entry];
-        if (!Replaces.insert(R).second)
+    if (auto Entry = SM.getFileManager().getFile(R.getFilePath())) {
+      if (SourceTU) {
+        auto &Replaces = DiagReplacements[*Entry];
+        auto It = Replaces.find(R);
+        if (It == Replaces.end())
+          Replaces.emplace(R, SourceTU);
+        else if (It->second != SourceTU)
+          // This replacement is a duplicate of one suggested by another TU.
           return;
       }
-      GroupedReplacements[Entry].push_back(R);
+      GroupedReplacements[*Entry].push_back(R);
     } else if (Warned.insert(R.getFilePath()).second) {
       errs() << "Described file '" << R.getFilePath()
              << "' doesn't exist. Ignoring...\n";
@@ -166,14 +174,14 @@ groupReplacements(const TUReplacements &TUs, const TUDiagnostics &TUDs,
 
   for (const auto &TU : TUs)
     for (const tooling::Replacement &R : TU.Replacements)
-      AddToGroup(R, false);
+      AddToGroup(R, nullptr);
 
   for (const auto &TU : TUDs)
     for (const auto &D : TU.Diagnostics)
       if (const auto *ChoosenFix = tooling::selectFirstFix(D)) {
         for (const auto &Fix : *ChoosenFix)
           for (const tooling::Replacement &R : Fix.second)
-            AddToGroup(R, true);
+            AddToGroup(R, &TU);
       }
 
   // Sort replacements per file to keep consistent behavior when
@@ -207,7 +215,7 @@ bool mergeAndDeduplicate(const TUReplacements &TUs, const TUDiagnostics &TUDs,
         // FIXME: This will report conflicts by pair using a file+offset format
         // which is not so much human readable.
         // A first improvement could be to translate offset to line+col. For
-        // this and without loosing error message some modifications arround
+        // this and without loosing error message some modifications around
         // `tooling::ReplacementError` are need (access to
         // `getReplacementErrString`).
         // A better strategy could be to add a pretty printer methods for

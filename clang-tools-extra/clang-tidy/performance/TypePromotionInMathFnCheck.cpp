@@ -31,20 +31,19 @@ AST_MATCHER_P(Type, isBuiltinType, BuiltinType::Kind, Kind) {
 TypePromotionInMathFnCheck::TypePromotionInMathFnCheck(
     StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
-      IncludeStyle(utils::IncludeSorter::parseIncludeStyle(
-          Options.getLocalOrGlobal("IncludeStyle", "llvm"))) {}
+      IncludeStyle(Options.getLocalOrGlobal("IncludeStyle",
+                                            utils::IncludeSorter::IS_LLVM)) {}
 
 void TypePromotionInMathFnCheck::registerPPCallbacks(
     const SourceManager &SM, Preprocessor *PP, Preprocessor *ModuleExpanderPP) {
-  IncludeInserter = llvm::make_unique<utils::IncludeInserter>(SM, getLangOpts(),
+  IncludeInserter = std::make_unique<utils::IncludeInserter>(SM, getLangOpts(),
                                                               IncludeStyle);
   PP->addPPCallbacks(IncludeInserter->CreatePPCallbacks());
 }
 
 void TypePromotionInMathFnCheck::storeOptions(
     ClangTidyOptions::OptionMap &Opts) {
-  Options.store(Opts, "IncludeStyle",
-                utils::IncludeSorter::toString(IncludeStyle));
+  Options.store(Opts, "IncludeStyle", IncludeStyle);
 }
 
 void TypePromotionInMathFnCheck::registerMatchers(MatchFinder *Finder) {
@@ -192,10 +191,9 @@ void TypePromotionInMathFnCheck::check(const MatchFinder::MatchResult &Result) {
   // <math.h>, because the functions we're suggesting moving away from are all
   // declared in <math.h>.
   if (FnInCmath)
-    if (auto IncludeFixit = IncludeInserter->CreateIncludeInsertion(
-            Result.Context->getSourceManager().getFileID(Call->getBeginLoc()),
-            "cmath", /*IsAngled=*/true))
-      Diag << *IncludeFixit;
+    Diag << IncludeInserter->CreateIncludeInsertion(
+        Result.Context->getSourceManager().getFileID(Call->getBeginLoc()),
+        "cmath", /*IsAngled=*/true);
 }
 
 } // namespace performance

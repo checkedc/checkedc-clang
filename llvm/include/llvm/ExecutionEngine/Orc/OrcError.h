@@ -14,6 +14,8 @@
 #define LLVM_EXECUTIONENGINE_ORC_ORCERROR_H
 
 #include "llvm/Support/Error.h"
+#include "llvm/Support/raw_ostream.h"
+#include <string>
 #include <system_error>
 
 namespace llvm {
@@ -35,7 +37,9 @@ enum class OrcErrorCode : int {
   UnexpectedRPCCall,
   UnexpectedRPCResponse,
   UnknownErrorCodeFromRemote,
-  UnknownResourceHandle
+  UnknownResourceHandle,
+  MissingSymbolDefinitions,
+  UnexpectedSymbolDefinitions,
 };
 
 std::error_code orcError(OrcErrorCode ErrCode);

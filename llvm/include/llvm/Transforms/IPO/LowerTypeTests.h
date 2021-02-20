@@ -193,15 +193,20 @@ struct ByteArrayBuilder {
                 uint64_t &AllocByteOffset, uint8_t &AllocMask);
 };
 
+bool isJumpTableCanonical(Function *F);
+
 } // end namespace lowertypetests
 
 class LowerTypeTestsPass : public PassInfoMixin<LowerTypeTestsPass> {
 public:
   ModuleSummaryIndex *ExportSummary;
   const ModuleSummaryIndex *ImportSummary;
+  bool DropTypeTests;
   LowerTypeTestsPass(ModuleSummaryIndex *ExportSummary,
-                     const ModuleSummaryIndex *ImportSummary)
-      : ExportSummary(ExportSummary), ImportSummary(ImportSummary) {}
+                     const ModuleSummaryIndex *ImportSummary,
+                     bool DropTypeTests = false)
+      : ExportSummary(ExportSummary), ImportSummary(ImportSummary),
+        DropTypeTests(DropTypeTests) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

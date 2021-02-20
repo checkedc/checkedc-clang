@@ -51,7 +51,7 @@ config.substitutions.append(
         % (libdl_flag, config.compiler_rt_libdir, config.target_suffix)))
 
 # Default test suffixes.
-config.suffixes = ['.c', '.cc', '.cpp']
+config.suffixes = ['.c', '.cpp']
 
 if config.host_os not in ['FreeBSD', 'Linux', 'NetBSD', 'OpenBSD']:
   config.unsupported = True
@@ -61,3 +61,6 @@ elif '64' not in config.host_arch:
       config.unsupported = True
   else:
     config.unsupported = True
+
+if config.host_os == 'NetBSD':
+  config.substitutions.insert(0, ('%run', config.netbsd_nomprotect_prefix))

@@ -16,18 +16,21 @@ namespace tidy {
 namespace google {
 namespace runtime {
 
-/// \brief Checks the usage of non-constant references in function parameters.
+/// Checks the usage of non-constant references in function parameters.
 ///
 /// https://google.github.io/styleguide/cppguide.html#Reference_Arguments
 class NonConstReferences : public ClangTidyCheck {
 public:
   NonConstReferences(StringRef Name, ClangTidyContext *Context);
+  bool isLanguageVersionSupported(const LangOptions &LangOpts) const override {
+    return LangOpts.CPlusPlus;
+  }
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
   void storeOptions(ClangTidyOptions::OptionMap &Opts) override;
 
 private:
-  const std::vector<std::string> WhiteListTypes;
+  const std::vector<std::string> IncludedTypes;
 };
 
 } // namespace runtime

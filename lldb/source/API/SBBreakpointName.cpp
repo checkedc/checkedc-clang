@@ -1,4 +1,4 @@
-//===-- SBBreakpointName.cpp ----------------------------------------*- C++ -*-===//
+//===-- SBBreakpointName.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,11 +12,13 @@
 #include "lldb/API/SBError.h"
 #include "lldb/API/SBStream.h"
 #include "lldb/API/SBStringList.h"
+#include "lldb/API/SBStructuredData.h"
 #include "lldb/API/SBTarget.h"
 
 #include "lldb/Breakpoint/BreakpointName.h"
 #include "lldb/Breakpoint/StoppointCallbackContext.h"
 #include "lldb/Core/Debugger.h"
+#include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/ScriptInterpreter.h"
 #include "lldb/Target/Target.h"
@@ -113,7 +115,7 @@ SBBreakpointName::SBBreakpointName(SBTarget &sb_target, const char *name) {
   LLDB_RECORD_CONSTRUCTOR(SBBreakpointName, (lldb::SBTarget &, const char *),
                           sb_target, name);
 
-  m_impl_up.reset(new SBBreakpointNameImpl(sb_target, name));
+  m_impl_up = std::make_unique<SBBreakpointNameImpl>(sb_target, name);
   // Call FindBreakpointName here to make sure the name is valid, reset if not:
   BreakpointName *bp_name = GetBreakpointName();
   if (!bp_name)
@@ -131,7 +133,8 @@ SBBreakpointName::SBBreakpointName(SBBreakpoint &sb_bkpt, const char *name) {
   BreakpointSP bkpt_sp = sb_bkpt.GetSP();
   Target &target = bkpt_sp->GetTarget();
 
-  m_impl_up.reset(new SBBreakpointNameImpl(target.shared_from_this(), name));
+  m_impl_up =
+      std::make_unique<SBBreakpointNameImpl>(target.shared_from_this(), name);
 
   // Call FindBreakpointName here to make sure the name is valid, reset if not:
   BreakpointName *bp_name = GetBreakpointName();
@@ -152,8 +155,8 @@ SBBreakpointName::SBBreakpointName(const SBBreakpointName &rhs) {
   if (!rhs.m_impl_up)
     return;
   else
-    m_impl_up.reset(new SBBreakpointNameImpl(rhs.m_impl_up->GetTarget(),
-                                             rhs.m_impl_up->GetName()));
+    m_impl_up = std::make_unique<SBBreakpointNameImpl>(
+        rhs.m_impl_up->GetTarget(), rhs.m_impl_up->GetName());
 }
 
 SBBreakpointName::~SBBreakpointName() = default;
@@ -169,8 +172,8 @@ operator=(const SBBreakpointName &rhs) {
     return LLDB_RECORD_RESULT(*this);
   }
 
-  m_impl_up.reset(new SBBreakpointNameImpl(rhs.m_impl_up->GetTarget(),
-                                           rhs.m_impl_up->GetName()));
+  m_impl_up = std::make_unique<SBBreakpointNameImpl>(rhs.m_impl_up->GetTarget(),
+                                                     rhs.m_impl_up->GetName());
   return LLDB_RECORD_RESULT(*this);
 }
 
@@ -565,24 +568,41 @@ void SBBreakpointName::SetCallback(SBBreakpointHitCallback callback,
 }
 
 void SBBreakpointName::SetScriptCallbackFunction(
-    const char *callback_function_name) {
-  LLDB_RECORD_METHOD(void, SBBreakpointName, SetScriptCallbackFunction,
-                     (const char *), callback_function_name);
+  const char *callback_function_name) {
+LLDB_RECORD_METHOD(void, SBBreakpointName, SetScriptCallbackFunction,
+                   (const char *), callback_function_name);
+  SBStructuredData empty_args;
+  SetScriptCallbackFunction(callback_function_name, empty_args);
+}
 
+SBError SBBreakpointName::SetScriptCallbackFunction(
+    const char *callback_function_name, 
+    SBStructuredData &extra_args) {
+  LLDB_RECORD_METHOD(SBError, SBBreakpointName, SetScriptCallbackFunction,
+                     (const char *, SBStructuredData &), 
+                     callback_function_name, extra_args);
+  SBError sb_error;
   BreakpointName *bp_name = GetBreakpointName();
-  if (!bp_name)
-    return;
+  if (!bp_name) {
+    sb_error.SetErrorString("unrecognized breakpoint name");
+    return LLDB_RECORD_RESULT(sb_error);
+  }
 
   std::lock_guard<std::recursive_mutex> guard(
         m_impl_up->GetTarget()->GetAPIMutex());
 
   BreakpointOptions &bp_options = bp_name->GetOptions();
-  m_impl_up->GetTarget()
+  Status error;
+  error = m_impl_up->GetTarget()
       ->GetDebugger()
       .GetScriptInterpreter()
       ->SetBreakpointCommandCallbackFunction(&bp_options,
-                                             callback_function_name);
+                                             callback_function_name,
+                                             extra_args.m_impl_up
+                                                 ->GetObjectSP());
+  sb_error.SetError(error);
   UpdateName(*bp_name);
+  return LLDB_RECORD_RESULT(sb_error);
 }
 
 SBError
@@ -728,6 +748,8 @@ void RegisterMethods<SBBreakpointName>(Registry &R) {
                        (lldb::SBStream &));
   LLDB_REGISTER_METHOD(void, SBBreakpointName, SetScriptCallbackFunction,
                        (const char *));
+  LLDB_REGISTER_METHOD(SBError, SBBreakpointName, SetScriptCallbackFunction,
+                       (const char *, SBStructuredData &));
   LLDB_REGISTER_METHOD(lldb::SBError, SBBreakpointName, SetScriptCallbackBody,
                        (const char *));
   LLDB_REGISTER_METHOD_CONST(bool, SBBreakpointName, GetAllowList, ());

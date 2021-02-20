@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_OptionValueRegex_h_
-#define liblldb_OptionValueRegex_h_
+#ifndef LLDB_INTERPRETER_OPTIONVALUEREGEX_H
+#define LLDB_INTERPRETER_OPTIONVALUEREGEX_H
 
 #include "lldb/Interpreter/OptionValue.h"
 #include "lldb/Utility/RegularExpression.h"
@@ -17,7 +17,8 @@ namespace lldb_private {
 class OptionValueRegex : public OptionValue {
 public:
   OptionValueRegex(const char *value = nullptr)
-      : OptionValue(), m_regex(llvm::StringRef::withNullAsEmpty(value)) {}
+      : OptionValue(), m_regex(llvm::StringRef::withNullAsEmpty(value)),
+        m_default_regex_str(llvm::StringRef::withNullAsEmpty(value).str()) {}
 
   ~OptionValueRegex() override = default;
 
@@ -36,7 +37,7 @@ public:
                      VarSetOperationType = eVarSetOperationAssign) = delete;
 
   bool Clear() override {
-    m_regex.Clear();
+    m_regex = RegularExpression(m_default_regex_str);
     m_value_was_set = false;
     return true;
   }
@@ -50,17 +51,18 @@ public:
 
   void SetCurrentValue(const char *value) {
     if (value && value[0])
-      m_regex.Compile(llvm::StringRef(value));
+      m_regex = RegularExpression(llvm::StringRef(value));
     else
-      m_regex.Clear();
+      m_regex = RegularExpression();
   }
 
   bool IsValid() const { return m_regex.IsValid(); }
 
 protected:
   RegularExpression m_regex;
+  std::string m_default_regex_str;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_OptionValueRegex_h_
+#endif // LLDB_INTERPRETER_OPTIONVALUEREGEX_H

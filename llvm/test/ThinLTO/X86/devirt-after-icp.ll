@@ -46,6 +46,7 @@
 
 ; Legacy PM
 ; RUN: llvm-lto2 run %t.o -save-temps -pass-remarks=. \
+; RUN:   -whole-program-visibility \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t.o,_Z3bazP1A,px \
 ; RUN:   -r=%t.o,_ZN1A3fooEv, \
@@ -64,6 +65,7 @@
 
 ; New PM
 ; RUN: llvm-lto2 run %t.o -save-temps -use-new-pm -pass-remarks=. \
+; RUN:   -whole-program-visibility \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t.o,_Z3bazP1A,px \
 ; RUN:   -r=%t.o,_ZN1A3fooEv, \
@@ -85,7 +87,7 @@
 ; REMARK: single-impl: devirtualized a call to _ZN1B3barEv
 ; REMARK-NOT: single-impl: devirtualized a call to _ZN1B3fooEv
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-grtev4-linux-gnu"
 
 %class.A = type { i32 (...)** }

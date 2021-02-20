@@ -33,18 +33,6 @@
 
 namespace llvm {
 
-/// Create an analysis remark that explains why vectorization failed
-///
-/// \p PassName is the name of the pass (e.g. can be AlwaysPrint).  \p
-/// RemarkName is the identifier for the remark.  If \p I is passed it is an
-/// instruction that prevents vectorization.  Otherwise \p TheLoop is used for
-/// the location of the remark.  \return the remark object that can be
-/// streamed to.
-OptimizationRemarkAnalysis createLVMissedAnalysis(const char *PassName,
-                                                  StringRef RemarkName,
-                                                  Loop *TheLoop,
-                                                  Instruction *I = nullptr);
-
 /// Utility class for getting and setting loop vectorizer hints in the form
 /// of loop metadata.
 /// This class keeps a number of loop annotations locally (as member variables)
@@ -55,7 +43,8 @@ OptimizationRemarkAnalysis createLVMissedAnalysis(const char *PassName,
 /// for example 'force', means a decision has been made. So, we need to be
 /// careful NOT to add them if the user hasn't specifically asked so.
 class LoopVectorizeHints {
-  enum HintKind { HK_WIDTH, HK_UNROLL, HK_FORCE, HK_ISVECTORIZED };
+  enum HintKind { HK_WIDTH, HK_UNROLL, HK_FORCE, HK_ISVECTORIZED,
+                  HK_PREDICATE };
 
   /// Hint - associates name and validation with the hint value.
   struct Hint {
@@ -80,6 +69,9 @@ class LoopVectorizeHints {
 
   /// Already Vectorized
   Hint IsVectorized;
+
+  /// Vector Predicate
+  Hint Predicate;
 
   /// Return the loop metadata prefix.
   static StringRef Prefix() { return "llvm.loop."; }
@@ -109,6 +101,7 @@ public:
   unsigned getWidth() const { return Width.Value; }
   unsigned getInterleave() const { return Interleave.Value; }
   unsigned getIsVectorized() const { return IsVectorized.Value; }
+  unsigned getPredicate() const { return Predicate.Value; }
   enum ForceKind getForce() const {
     if ((ForceKind)Force.Value == FK_Undefined &&
         hasDisableAllTransformsHint(TheLoop))
@@ -205,7 +198,7 @@ class LoopVectorizationLegality {
 public:
   LoopVectorizationLegality(
       Loop *L, PredicatedScalarEvolution &PSE, DominatorTree *DT,
-      TargetTransformInfo *TTI, TargetLibraryInfo *TLI, AliasAnalysis *AA,
+      TargetTransformInfo *TTI, TargetLibraryInfo *TLI, AAResults *AA,
       Function *F, std::function<const LoopAccessInfo &(Loop &)> *GetLAA,
       LoopInfo *LI, OptimizationRemarkEmitter *ORE,
       LoopVectorizationRequirements *R, LoopVectorizeHints *H, DemandedBits *DB,
@@ -215,7 +208,7 @@ public:
 
   /// ReductionList contains the reduction descriptors for all
   /// of the reductions that were found in the loop.
-  using ReductionList = DenseMap<PHINode *, RecurrenceDescriptor>;
+  using ReductionList = MapVector<PHINode *, RecurrenceDescriptor>;
 
   /// InductionList saves induction variables and maps them to the
   /// induction descriptor.
@@ -235,20 +228,20 @@ public:
   bool canVectorize(bool UseVPlanNativePath);
 
   /// Return true if we can vectorize this loop while folding its tail by
-  /// masking.
-  bool canFoldTailByMasking();
+  /// masking, and mark all respective loads/stores for masking.
+  bool prepareToFoldTailByMasking();
 
   /// Returns the primary induction variable.
   PHINode *getPrimaryInduction() { return PrimaryInduction; }
 
   /// Returns the reduction variables found in the loop.
-  ReductionList *getReductionVars() { return &Reductions; }
+  ReductionList &getReductionVars() { return Reductions; }
 
   /// Returns the induction variables found in the loop.
-  InductionList *getInductionVars() { return &Inductions; }
+  InductionList &getInductionVars() { return Inductions; }
 
   /// Return the first-order recurrences found in the loop.
-  RecurrenceSet *getFirstOrderRecurrences() { return &FirstOrderRecurrences; }
+  RecurrenceSet &getFirstOrderRecurrences() { return FirstOrderRecurrences; }
 
   /// Return the set of instructions to sink to handle first-order recurrences.
   DenseMap<Instruction *, Instruction *> &getSinkAfter() { return SinkAfter; }
@@ -319,6 +312,12 @@ public:
   // Returns true if the NoNaN attribute is set on the function.
   bool hasFunNoNaNAttr() const { return HasFunNoNaNAttr; }
 
+  /// Returns all assume calls in predicated blocks. They need to be dropped
+  /// when flattening the CFG.
+  const SmallPtrSetImpl<Instruction *> &getConditionalAssumes() const {
+    return ConditionalAssumes;
+  }
+
 private:
   /// Return true if the pre-header, exiting and latch blocks of \p Lp and all
   /// its nested loops are considered legal for vectorization. These legal
@@ -362,9 +361,16 @@ private:
   bool canVectorizeOuterLoop();
 
   /// Return true if all of the instructions in the block can be speculatively
-  /// executed. \p SafePtrs is a list of addresses that are known to be legal
-  /// and we know that we can read from them without segfault.
-  bool blockCanBePredicated(BasicBlock *BB, SmallPtrSetImpl<Value *> &SafePtrs);
+  /// executed, and record the loads/stores that require masking. If's that
+  /// guard loads can be ignored under "assume safety" unless \p PreserveGuards
+  /// is true. This can happen when we introduces guards for which the original
+  /// "unguarded-loads are safe" assumption does not hold. For example, the
+  /// vectorizer's fold-tail transformation changes the loop to execute beyond
+  /// its original trip-count, under a proper guard, which should be preserved.
+  /// \p SafePtrs is a list of addresses that are known to be legal and we know
+  /// that we can read from them without segfault.
+  bool blockCanBePredicated(BasicBlock *BB, SmallPtrSetImpl<Value *> &SafePtrs,
+                            bool PreserveGuards = false);
 
   /// Updates the vectorization state by adding \p Phi to the inductions list.
   /// This can set \p Phi as the main induction of the loop if \p Phi is a
@@ -381,14 +387,6 @@ private:
     // masked access.
     return LAI ? &LAI->getSymbolicStrides() : nullptr;
   }
-
-  /// Reports a vectorization illegality: print \p DebugMsg for debugging
-  /// purposes along with the corresponding optimization remark \p RemarkName.
-  /// If \p I is passed it is an instruction that prevents vectorization.
-  /// Otherwise the loop is used for the location of the remark.
-  void reportVectorizationFailure(const StringRef DebugMsg,
-      const StringRef OREMsg, const StringRef ORETag,
-      Instruction *I = nullptr) const;
 
   /// The loop that we evaluate.
   Loop *TheLoop;
@@ -452,8 +450,8 @@ private:
   /// Holds the widest induction type encountered.
   Type *WidestIndTy = nullptr;
 
-  /// Allowed outside users. This holds the induction and reduction
-  /// vars which can be accessed from outside the loop.
+  /// Allowed outside users. This holds the variables that can be accessed from
+  /// outside the loop.
   SmallPtrSet<Value *, 4> AllowedExit;
 
   /// Can we assume the absence of NaNs.
@@ -476,6 +474,10 @@ private:
   /// While vectorizing these instructions we have to generate a
   /// call to the appropriate masked intrinsic
   SmallPtrSet<const Instruction *, 8> MaskedOp;
+
+  /// Assume instructions in predicated blocks must be dropped if the CFG gets
+  /// flattened.
+  SmallPtrSet<Instruction *, 8> ConditionalAssumes;
 };
 
 } // namespace llvm

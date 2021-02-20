@@ -7,9 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
-// XFAIL: dylib-has-no-bad_variant_access && !libcpp-no-exceptions
+// XFAIL: dylib-has-no-bad_variant_access && !no-exceptions
 
 // <variant>
 
@@ -23,8 +23,8 @@
 #include <type_traits>
 #include <variant>
 
-#include "archetypes.hpp"
-#include "test_convertible.hpp"
+#include "archetypes.h"
+#include "test_convertible.h"
 #include "test_macros.h"
 
 struct InitList {

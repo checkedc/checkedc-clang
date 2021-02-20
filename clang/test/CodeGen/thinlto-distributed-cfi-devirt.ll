@@ -8,6 +8,7 @@
 
 ; FIXME: Fix machine verifier issues and remove -verify-machineinstrs=0. PR39436.
 ; RUN: llvm-lto2 run -thinlto-distributed-indexes %t.o \
+; RUN:   -whole-program-visibility \
 ; RUN:   -verify-machineinstrs=0 \
 ; RUN:   -o %t2.index \
 ; RUN:   -r=%t.o,test,px \
@@ -47,7 +48,7 @@
 ; RUN:   -emit-obj -fthinlto-index=%t.o.thinlto.bc -O2 \
 ; RUN:   -o %t.native.o -x ir %t.o
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-grtev4-linux-gnu"
 
 %struct.A = type { i32 (...)** }
@@ -92,7 +93,7 @@ cont2:
   ; CHECK-IR: br i1 {{.*}}, label %trap
 
   ; We still have to call it as virtual.
-  ; CHECK-IR: %call3 = tail call i32 %8
+  ; CHECK-IR: %call3 = tail call i32 %7
   %call3 = tail call i32 %8(%struct.A* nonnull %obj, i32 %call)
   ret i32 %call3
 }

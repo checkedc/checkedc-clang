@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ObjectFileJIT_h_
-#define liblldb_ObjectFileJIT_h_
+#ifndef LLDB_SOURCE_PLUGINS_OBJECTFILE_JIT_OBJECTFILEJIT_H
+#define LLDB_SOURCE_PLUGINS_OBJECTFILE_JIT_OBJECTFILEJIT_H
 
 #include "lldb/Core/Address.h"
 #include "lldb/Symbol/ObjectFile.h"
@@ -45,6 +45,13 @@ public:
                                         lldb::offset_t file_offset,
                                         lldb::offset_t length,
                                         lldb_private::ModuleSpecList &specs);
+
+  // LLVM RTTI support
+  static char ID;
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || ObjectFile::isA(ClassID);
+  }
+  static bool classof(const ObjectFile *obj) { return obj->isA(&ID); }
 
   // Member Functions
   bool ParseHeader() override;
@@ -97,4 +104,4 @@ protected:
   lldb::ObjectFileJITDelegateWP m_delegate_wp;
 };
 
-#endif // liblldb_ObjectFileJIT_h_
+#endif // LLDB_SOURCE_PLUGINS_OBJECTFILE_JIT_OBJECTFILEJIT_H

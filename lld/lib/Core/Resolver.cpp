@@ -223,8 +223,8 @@ bool Resolver::resolveUndefines() {
     if (!file)
       return true;
     if (std::error_code ec = file->parse()) {
-      llvm::errs() << "Cannot open " + file->path()
-                   << ": " << ec.message() << "\n";
+      llvm::errs() << "Cannot open " + file->path() << ": " << ec.message()
+                   << "\n";
       return false;
     }
     DEBUG_WITH_TYPE("resolver",
@@ -298,7 +298,7 @@ void Resolver::updateReferences() {
   for (const OwningAtomPtr<Atom> &atom : _atoms) {
     if (const DefinedAtom *defAtom = dyn_cast<DefinedAtom>(atom.get())) {
       for (const Reference *ref : *defAtom) {
-        // A reference of type kindAssociate should't be updated.
+        // A reference of type kindAssociate shouldn't be updated.
         // Instead, an atom having such reference will be removed
         // if the target atom is coalesced away, so that they will
         // go away as a group.
@@ -424,9 +424,8 @@ bool Resolver::checkUndefines() {
     // Seems like this symbol is undefined. Warn that.
     foundUndefines = true;
     if (_ctx.printRemainingUndefines()) {
-      llvm::errs() << "Undefined symbol: " << undef->file().path()
-                   << ": " << _ctx.demangle(undef->name())
-                   << "\n";
+      llvm::errs() << "Undefined symbol: " << undef->file().path() << ": "
+                   << _ctx.demangle(undef->name()) << "\n";
     }
   }
   if (!foundUndefines)
@@ -436,7 +435,7 @@ bool Resolver::checkUndefines() {
   return true;
 }
 
-// remove from _atoms all coaleseced away atoms
+// Remove from _atoms all coalesced away atoms.
 void Resolver::removeCoalescedAwayAtoms() {
   DEBUG_WITH_TYPE("resolver",
                   llvm::dbgs() << "******** Removing coalesced away atoms:\n");

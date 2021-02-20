@@ -61,29 +61,39 @@ using __sanitizer::StackTrace;
 
 void AsanInitFromRtl();
 
-// asan_win.cc
+// asan_win.cpp
 void InitializePlatformExceptionHandlers();
 // Returns whether an address is a valid allocated system heap block.
 // 'addr' must point to the beginning of the block.
 bool IsSystemHeapAddress(uptr addr);
 
-// asan_rtl.cc
+// asan_rtl.cpp
 void PrintAddressSpaceLayout();
 void NORETURN ShowStatsAndAbort();
 
-// asan_shadow_setup.cc
+// asan_shadow_setup.cpp
 void InitializeShadowMemory();
 
-// asan_malloc_linux.cc / asan_malloc_mac.cc
+// asan_malloc_linux.cpp / asan_malloc_mac.cpp
 void ReplaceSystemMalloc();
 
-// asan_linux.cc / asan_mac.cc / asan_rtems.cc / asan_win.cc
+// asan_linux.cpp / asan_mac.cpp / asan_rtems.cpp / asan_win.cpp
 uptr FindDynamicShadowStart();
 void *AsanDoesNotSupportStaticLinkage();
 void AsanCheckDynamicRTPrereqs();
 void AsanCheckIncompatibleRT();
 
-// asan_thread.cc
+// Unpoisons platform-specific stacks.
+// Returns true if all stacks have been unpoisoned.
+bool PlatformUnpoisonStacks();
+
+// asan_rtl.cpp
+// Unpoison a region containing a stack.
+// Performs a sanity check and warns if the bounds don't look right.
+// The warning contains the type string to identify the stack type.
+void UnpoisonStack(uptr bottom, uptr top, const char *type);
+
+// asan_thread.cpp
 AsanThread *CreateMainThread();
 
 // Support function for __asan_(un)register_image_globals. Searches for the

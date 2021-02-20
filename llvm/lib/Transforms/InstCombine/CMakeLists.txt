@@ -2,7 +2,7 @@ set(LLVM_TARGET_DEFINITIONS InstCombineTables.td)
 tablegen(LLVM InstCombineTables.inc -gen-searchable-tables)
 add_public_tablegen_target(InstCombineTableGen)
 
-add_llvm_library(LLVMInstCombine
+add_llvm_component_library(LLVMInstCombine
   InstructionCombining.cpp
   InstCombineAddSub.cpp
   InstCombineAtomicRMW.cpp
@@ -12,6 +12,7 @@ add_llvm_library(LLVMInstCombine
   InstCombineCompares.cpp
   InstCombineLoadStoreAlloca.cpp
   InstCombineMulDivRem.cpp
+  InstCombineNegator.cpp
   InstCombinePHI.cpp
   InstCombineSelect.cpp
   InstCombineShifts.cpp

@@ -1,8 +1,9 @@
-// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=50 %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=50 %s -Wuninitialized
 
 typedef void **omp_allocator_handle_t;
+extern const omp_allocator_handle_t omp_null_allocator;
 extern const omp_allocator_handle_t omp_default_mem_alloc;
 extern const omp_allocator_handle_t omp_large_cap_mem_alloc;
 extern const omp_allocator_handle_t omp_const_mem_alloc;
@@ -55,7 +56,7 @@ public:
   S5(int v) : a(v) {}
   S5 &operator=(S5 &s) {
 #pragma omp target parallel for simd private(a) private(this->a) private(s.a) // expected-error {{expected variable name or data member of current class}}
-    for (int k = 0; k < s.a; ++k) // expected-warning {{Non-trivial type 'S5' is mapped, only trivial types are guaranteed to be mapped correctly}}
+    for (int k = 0; k < s.a; ++k) // expected-warning {{Type 'S5' is not trivially copyable and not guaranteed to be mapped correctly}}
       ++s.a;
     return *this;
   }
@@ -68,7 +69,7 @@ public:
 
   S6() : a(0) {}
   S6(T v) : a(v) {
-#pragma omp target parallel for simd allocate(omp_thread_mem_alloc: a) private(a) private(this->a) // expected-warning {{allocator with the 'thread' trait access has unspecified behavior on 'target parallel for simd' directive}}
+#pragma omp target parallel for simd allocate(omp_thread_mem_alloc: a) private(a) private(this->a) uses_allocators(omp_thread_mem_alloc) // expected-warning {{allocator with the 'thread' trait access has unspecified behavior on 'target parallel for simd' directive}}
     for (int k = 0; k < v; ++k)
       ++this->a;
   }
@@ -237,7 +238,7 @@ int main(int argc, char **argv) {
     m = k + 2;
 
   s6 = s6_0; // expected-note {{in instantiation of member function 'S6<float>::operator=' requested here}}
-  s7 = s7_0; // expected-note {{in instantiation of member function 'S7<S6<float> >::operator=' requested here}}
+  s7 = s7_0; // expected-note {{in instantiation of member function 'S7<S6<float>>::operator=' requested here}}
   return foomain(argc, argv); // expected-note {{in instantiation of function template specialization 'foomain<int, char>' requested here}}
 }
 

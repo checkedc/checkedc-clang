@@ -5,9 +5,6 @@
 // RUN: %exploded_graph_rewriter %t.dot | FileCheck %s
 // REQUIRES: asserts
 
-// FIXME: Substitution doesn't seem to work on Windows.
-// UNSUPPORTED: system-windows
-
 struct A {
   A() {}
 };
@@ -20,6 +17,6 @@ struct B {
 void test() {
   // CHECK: (construct into member variable)
   // CHECK-SAME: <td align="left">a</td>
-  // CHECK-SAME: <td align="left">&amp;b-&gt;a</td>
+  // CHECK-SAME: <td align="left">&amp;b.a</td>
   B b;
 }

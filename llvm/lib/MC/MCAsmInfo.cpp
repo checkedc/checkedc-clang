@@ -64,7 +64,7 @@ MCAsmInfo::MCAsmInfo() {
   // - Generic_GCC toolchains enable the integrated assembler on a per
   //   architecture basis.
   //   - The target subclasses for AArch64, ARM, and X86 handle these cases
-  UseIntegratedAssembler = false;
+  UseIntegratedAssembler = true;
   PreserveAsmComments = true;
 }
 
@@ -95,12 +95,12 @@ MCAsmInfo::getExprForFDESymbol(const MCSymbol *Sym,
   MCContext &Context = Streamer.getContext();
   const MCExpr *Res = MCSymbolRefExpr::create(Sym, Context);
   MCSymbol *PCSym = Context.createTempSymbol();
-  Streamer.EmitLabel(PCSym);
+  Streamer.emitLabel(PCSym);
   const MCExpr *PC = MCSymbolRefExpr::create(PCSym, Context);
   return MCBinaryExpr::createSub(Res, PC, Context);
 }
 
-static bool isAcceptableChar(char C) {
+bool MCAsmInfo::isAcceptableChar(char C) const {
   return (C >= 'a' && C <= 'z') || (C >= 'A' && C <= 'Z') ||
          (C >= '0' && C <= '9') || C == '_' || C == '$' || C == '.' || C == '@';
 }

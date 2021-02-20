@@ -12,11 +12,11 @@ int f(int i) {
 }
 
 // Test enums.
-enum B { x = 42,
-         l,
-         s };
+enum B { x2 = 42,
+         y2,
+         z2 };
 int enumCheck(void) {
-  return x;
+  return x2;
 }
 
 // Test reporting an error in macro definition
@@ -31,10 +31,12 @@ int g(struct S *ctx) {
 }
 
 // Test that asm import does not fail.
+// TODO: Support the GNU extension asm keyword as well.
+// Example using the GNU extension: asm("mov $42, %0" : "=r"(res));
 int inlineAsm() {
   int res;
-  asm("mov $42, %0"
-      : "=r"(res));
+  __asm__("mov $42, %0"
+          : "=r"(res));
   return res;
 }
 

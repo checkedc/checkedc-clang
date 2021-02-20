@@ -371,9 +371,9 @@ std::string MinimalSymbolDumper::typeOrIdIndex(codeview::TypeIndex TI,
   StringRef Name = Container.getTypeName(TI);
   if (Name.size() > 32) {
     Name = Name.take_front(32);
-    return formatv("{0} ({1}...)", TI, Name);
+    return std::string(formatv("{0} ({1}...)", TI, Name));
   } else
-    return formatv("{0} ({1})", TI, Name);
+    return std::string(formatv("{0} ({1})", TI, Name));
 }
 
 std::string MinimalSymbolDumper::idIndex(codeview::TypeIndex TI) const {
@@ -569,8 +569,9 @@ Error MinimalSymbolDumper::visitKnownRecord(
 Error MinimalSymbolDumper::visitKnownRecord(CVSymbol &CVR,
                                             DefRangeFramePointerRelSym &Def) {
   AutoIndent Indent(P, 7);
-  P.formatLine("offset = {0}, range = {1}", Def.Offset, formatRange(Def.Range));
-  P.formatLine("gaps = {2}", Def.Offset,
+  P.formatLine("offset = {0}, range = {1}", Def.Hdr.Offset,
+               formatRange(Def.Range));
+  P.formatLine("gaps = {2}", Def.Hdr.Offset,
                formatGaps(P.getIndentLevel() + 9, Def.Gaps));
   return Error::success();
 }

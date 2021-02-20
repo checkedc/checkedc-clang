@@ -175,7 +175,8 @@ OPTIONS
 
 .. option:: -opcode-index=<LLVM opcode index>
 
- Specify the opcode to measure, by index. See example 1 for details.
+ Specify the opcode to measure, by index. Specifying `-1` will result
+ in measuring every existing opcode. See example 1 for details.
  Either `opcode-index`, `opcode-name` or `snippets-file` must be set.
 
 .. option:: -opcode-name=<opcode name 1>,<opcode name 2>,...
@@ -184,10 +185,10 @@ OPTIONS
  a comma-separated list. See example 1 for details.
  Either `opcode-index`, `opcode-name` or `snippets-file` must be set.
 
- .. option:: -snippets-file=<filename>
+.. option:: -snippets-file=<filename>
 
-  Specify the custom code snippet to measure. See example 2 for details.
-  Either `opcode-index`, `opcode-name` or `snippets-file` must be set.
+ Specify the custom code snippet to measure. See example 2 for details.
+ Either `opcode-index`, `opcode-name` or `snippets-file` must be set.
 
 .. option:: -mode=[latency|uops|inverse_throughput|analysis]
 
@@ -195,10 +196,33 @@ OPTIONS
  to specify at least one of the `-analysis-clusters-output-file=` and
  `-analysis-inconsistencies-output-file=`.
 
-.. option:: -num-repetitions=<Number of repetition>
+.. option:: -repetition-mode=[duplicate|loop|min]
+
+ Specify the repetition mode. `duplicate` will create a large, straight line
+ basic block with `num-repetitions` copies of the snippet. `loop` will wrap
+ the snippet in a loop which will be run `num-repetitions` times. The `loop`
+ mode tends to better hide the effects of the CPU frontend on architectures
+ that cache decoded instructions, but consumes a register for counting
+ iterations. If performing an analysis over many opcodes, it may be best
+ to instead use the `min` mode, which will run each other mode, and produce
+ the minimal measured result.
+
+.. option:: -num-repetitions=<Number of repetitions>
 
  Specify the number of repetitions of the asm snippet.
  Higher values lead to more accurate measurements but lengthen the benchmark.
+
+.. option:: -max-configs-per-opcode=<value>
+
+ Specify the maximum configurations that can be generated for each opcode.
+ By default this is `1`, meaning that we assume that a single measurement is
+ enough to characterize an opcode. This might not be true of all instructions:
+ for example, the performance characteristics of the LEA instruction on X86
+ depends on the value of assigned registers and immediates. Setting a value of
+ `-max-configs-per-opcode` larger than `1` allows `llvm-exegesis` to explore
+ more configurations to discover if some register or immediate assignments
+ lead to different performance characteristics.
+
 
 .. option:: -benchmarks-file=</path/to/file>
 

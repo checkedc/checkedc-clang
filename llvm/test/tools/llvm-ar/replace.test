@@ -84,14 +84,23 @@
 # RUN: not llvm-ar r 2>&1 \
 # RUN:   | FileCheck %s --check-prefix=NO-ARCHIVE
 
-# NO-ARCHIVE: error: An archive name must be specified.
+# NO-ARCHIVE: error: an archive name must be specified
 
 ## Member does not exist:
 # RUN: llvm-ar rc %t/missing.a %t/1.o %t/2.o %t/3.o
 # RUN: not llvm-ar r %t/missing.a %t/missing.txt 2>&1 \
 # RUN:   | FileCheck %s --check-prefix=MISSING-FILE -DFILE=%t/missing.txt
 
-# MISSING-FILE: error: [[FILE]]: {{[Nn]}}o such file or directory.
+# MISSING-FILE: error: [[FILE]]: {{[Nn]}}o such file or directory
+
+## Create and Replace member of thin archive:
+# RUN: llvm-ar rcT %t/thin.a %t/1.o %t/2.o %t/3.o
+# RUN: yaml2obj %s -o %t/1.o --docnum=4
+# RUN: llvm-ar rT %t/thin.a %t/1.o
+# RUN: llvm-ar t %t/thin.a | FileCheck %s --check-prefix=SINGLE
+
+# RUN: llvm-nm --print-armap %t/thin.a \
+# RUN:   | FileCheck %s --check-prefix=SINGLE-SYM
 
 --- !ELF
 FileHeader:

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_BreakpointLocation_h_
-#define liblldb_BreakpointLocation_h_
+#ifndef LLDB_BREAKPOINT_BREAKPOINTLOCATION_H
+#define LLDB_BREAKPOINT_BREAKPOINTLOCATION_H
 
 #include <memory>
 #include <mutex>
@@ -67,7 +67,7 @@ public:
 
   // The next section deals with various breakpoint options.
 
-  /// If \a enable is \b true, enable the breakpoint, if \b false disable it.
+  /// If \a enabled is \b true, enable the breakpoint, if \b false disable it.
   void SetEnabled(bool enabled);
 
   /// Check the Enable/Disable state.
@@ -93,7 +93,7 @@ public:
 
   /// Set the breakpoint to ignore the next \a count breakpoint hits.
   ///
-  /// \param[in] count
+  /// \param[in] n
   ///    The number of breakpoint hits to ignore.
   void SetIgnoreCount(uint32_t n);
 
@@ -224,9 +224,6 @@ public:
   /// \param[in] context
   ///    Described the breakpoint event.
   ///
-  /// \param[in] bp_loc_id
-  ///    Which breakpoint location hit this breakpoint.
-  ///
   /// \return
   ///     \b true if the target should stop at this breakpoint and \b
   ///     false not.
@@ -348,9 +345,10 @@ private:
 
   void SendBreakpointLocationChangedEvent(lldb::BreakpointEventType eventKind);
 
-  DISALLOW_COPY_AND_ASSIGN(BreakpointLocation);
+  BreakpointLocation(const BreakpointLocation &) = delete;
+  const BreakpointLocation &operator=(const BreakpointLocation &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_BreakpointLocation_h_
+#endif // LLDB_BREAKPOINT_BREAKPOINTLOCATION_H

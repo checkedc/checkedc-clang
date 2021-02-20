@@ -26,7 +26,10 @@ namespace query {
 // is found before End, return StringRef().  Begin is adjusted to exclude the
 // lexed region.
 StringRef QueryParser::lexWord() {
-  Line = Line.ltrim();
+  Line = Line.drop_while([](char c) {
+    // Don't trim newlines.
+    return StringRef(" \t\v\f\r").contains(c);
+  });
 
   if (Line.empty())
     // Even though the Line is empty, it contains a pointer and
@@ -34,12 +37,12 @@ StringRef QueryParser::lexWord() {
     // code completion.
     return Line;
 
-  if (Line.front() == '#') {
-    Line = {};
-    return StringRef();
-  }
+  StringRef Word;
+  if (Line.front() == '#')
+    Word = Line.substr(0, 1);
+  else
+    Word = Line.take_until(isWhitespace);
 
-  StringRef Word = Line.take_until(isWhitespace);
   Line = Line.drop_front(Word.size());
   return Word;
 }
@@ -79,7 +82,8 @@ template <typename T> struct QueryParser::LexOrCompleteWord {
              CaseStr.substr(0, WordCompletionPos) ==
                  Word.substr(0, WordCompletionPos))
       P->Completions.push_back(LineEditor::Completion(
-          (CaseStr.substr(WordCompletionPos) + " ").str(), CaseStr));
+          (CaseStr.substr(WordCompletionPos) + " ").str(),
+          std::string(CaseStr)));
     return *this;
   }
 
@@ -124,10 +128,44 @@ template <typename QueryType> QueryRef QueryParser::parseSetOutputKind() {
   llvm_unreachable("Invalid output kind");
 }
 
+QueryRef QueryParser::parseSetTraversalKind(
+    ast_type_traits::TraversalKind QuerySession::*Var) {
+  StringRef ValStr;
+  unsigned Value =
+      LexOrCompleteWord<unsigned>(this, ValStr)
+          .Case("AsIs", ast_type_traits::TK_AsIs)
+          .Case("IgnoreImplicitCastsAndParentheses",
+                ast_type_traits::TK_IgnoreImplicitCastsAndParentheses)
+          .Case("IgnoreUnlessSpelledInSource",
+                ast_type_traits::TK_IgnoreUnlessSpelledInSource)
+          .Default(~0u);
+  if (Value == ~0u) {
+    return new InvalidQuery("expected traversal kind, got '" + ValStr + "'");
+  }
+  return new SetQuery<ast_type_traits::TraversalKind>(
+      Var, static_cast<ast_type_traits::TraversalKind>(Value));
+}
+
 QueryRef QueryParser::endQuery(QueryRef Q) {
-  const StringRef Extra = Line;
-  if (!lexWord().empty())
-    return new InvalidQuery("unexpected extra input: '" + Extra + "'");
+  StringRef Extra = Line;
+  StringRef ExtraTrimmed = Extra.drop_while(
+      [](char c) { return StringRef(" \t\v\f\r").contains(c); });
+
+  if ((!ExtraTrimmed.empty() && ExtraTrimmed[0] == '\n') ||
+      (ExtraTrimmed.size() >= 2 && ExtraTrimmed[0] == '\r' &&
+       ExtraTrimmed[1] == '\n'))
+    Q->RemainingContent = Extra;
+  else {
+    StringRef TrailingWord = lexWord();
+    if (!TrailingWord.empty() && TrailingWord.front() == '#') {
+      Line = Line.drop_until([](char c) { return c == '\n'; });
+      Line = Line.drop_while([](char c) { return c == '\n'; });
+      return endQuery(Q);
+    }
+    if (!TrailingWord.empty()) {
+      return new InvalidQuery("unexpected extra input: '" + Extra + "'");
+    }
+  }
   return Q;
 }
 
@@ -151,7 +189,8 @@ enum ParsedQueryVariable {
   PQV_Invalid,
   PQV_Output,
   PQV_BindRoot,
-  PQV_PrintMatcher
+  PQV_PrintMatcher,
+  PQV_Traversal
 };
 
 QueryRef makeInvalidQueryFromDiagnostics(const Diagnostics &Diag) {
@@ -193,7 +232,11 @@ QueryRef QueryParser::doParse() {
   switch (QKind) {
   case PQK_Comment:
   case PQK_NoOp:
-    return new NoOpQuery;
+    Line = Line.drop_until([](char c) { return c == '\n'; });
+    Line = Line.drop_while([](char c) { return c == '\n'; });
+    if (Line.empty())
+      return new NoOpQuery;
+    return doParse();
 
   case PQK_Help:
     return endQuery(new HelpQuery);
@@ -217,7 +260,9 @@ QueryRef QueryParser::doParse() {
       return makeInvalidQueryFromDiagnostics(Diag);
     }
 
-    return new LetQuery(Name, Value);
+    auto *Q = new LetQuery(Name, Value);
+    Q->RemainingContent = Line;
+    return Q;
   }
 
   case PQK_Match: {
@@ -225,13 +270,18 @@ QueryRef QueryParser::doParse() {
       return completeMatcherExpression();
 
     Diagnostics Diag;
-    auto MatcherSource = Line.trim();
+    auto MatcherSource = Line.ltrim();
+    auto OrigMatcherSource = MatcherSource;
     Optional<DynTypedMatcher> Matcher = Parser::parseMatcherExpression(
         MatcherSource, nullptr, &QS.NamedValues, &Diag);
     if (!Matcher) {
       return makeInvalidQueryFromDiagnostics(Diag);
     }
-    return new MatchQuery(MatcherSource, *Matcher);
+    auto ActualSource = OrigMatcherSource.slice(0, OrigMatcherSource.size() -
+                                                       MatcherSource.size());
+    auto *Q = new MatchQuery(ActualSource, *Matcher);
+    Q->RemainingContent = MatcherSource;
+    return Q;
   }
 
   case PQK_Set: {
@@ -241,6 +291,7 @@ QueryRef QueryParser::doParse() {
             .Case("output", PQV_Output)
             .Case("bind-root", PQV_BindRoot)
             .Case("print-matcher", PQV_PrintMatcher)
+            .Case("traversal", PQV_Traversal)
             .Default(PQV_Invalid);
     if (VarStr.empty())
       return new InvalidQuery("expected variable name");
@@ -257,6 +308,9 @@ QueryRef QueryParser::doParse() {
       break;
     case PQV_PrintMatcher:
       Q = parseSetBool(&QuerySession::PrintMatcher);
+      break;
+    case PQV_Traversal:
+      Q = parseSetTraversalKind(&QuerySession::TK);
       break;
     case PQV_Invalid:
       llvm_unreachable("Invalid query kind");

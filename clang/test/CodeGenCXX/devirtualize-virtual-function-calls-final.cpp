@@ -24,10 +24,23 @@ namespace Test2 {
   }
 }
 
-namespace Test3 {
+namespace Test2a {
   struct A {
+    virtual ~A() final {}
     virtual int f();
   };
+
+  // CHECK-LABEL: define i32 @_ZN6Test2a1fEPNS_1AE
+  int f(A *a) {
+    // CHECK: call i32 @_ZN6Test2a1A1fEv
+    return a->f();
+  }
+}
+
+
+namespace Test3 {
+  struct A {
+    virtual int f();  };
 
   struct B final : A { };
 
@@ -242,6 +255,49 @@ namespace Test10 {
   }
 }
 
+namespace TestVBase {
+  struct A { virtual void f(); };
+  struct B : virtual A {};
+  struct C : virtual A { void f() override; };
+
+  extern struct BC final : B, C {} &bc;
+  extern struct BCusingA final : B, C { using A::f; } &bc_using_a;
+  extern struct BCusingB final : B, C { using B::f; } &bc_using_b;
+  extern struct BCusingC final : B, C { using C::f; } &bc_using_c;
+
+  extern struct CB final : C, B {} &cb;
+  extern struct CBusingA final : C, B { using A::f; } &cb_using_a;
+  extern struct CBusingB final : C, B { using B::f; } &cb_using_b;
+  extern struct CBusingC final : C, B { using C::f; } &cb_using_c;
+
+  // CHECK-LABEL: @_ZN9TestVBase4testEv(
+  void test() {
+    // FIXME: The 'using A' case can be devirtualized to call A's virtual
+    // adjustment thunk for C::f.
+    // FIXME: The 'using B' case can be devirtualized, but requires us to emit
+    // a derived-to-base or base-to-derived conversion as part of
+    // devirtualization.
+
+    // CHECK: call void @_ZN9TestVBase1C1fEv(
+    bc.f();
+    // CHECK: call void %
+    bc_using_a.f();
+    // CHECK: call void %
+    bc_using_b.f();
+    // CHECK: call void @_ZN9TestVBase1C1fEv(
+    bc_using_c.f();
+
+    // CHECK: call void @_ZN9TestVBase1C1fEv(
+    cb.f();
+    // CHECK: call void %
+    cb_using_a.f();
+    // CHECK: call void %
+    cb_using_b.f();
+    // CHECK: call void @_ZN9TestVBase1C1fEv(
+    cb_using_c.f();
+  }
+}
+
 namespace Test11 {
   // Check that the definitions of Derived's operators are emitted.
 
@@ -249,11 +305,11 @@ namespace Test11 {
   // CHECK: call void @_ZN6Test111SIiE7DerivedclEv(
   // CHECK: call zeroext i1 @_ZN6Test111SIiE7DerivedeqERKNS_4BaseE(
   // CHECK: call zeroext i1 @_ZN6Test111SIiE7DerivedntEv(
-  // CHECK: call dereferenceable(4) %"class.Test11::Base"* @_ZN6Test111SIiE7DerivedixEi(
+  // CHECK: call nonnull align 4 dereferenceable(4) %"class.Test11::Base"* @_ZN6Test111SIiE7DerivedixEi(
   // CHECK: define linkonce_odr void @_ZN6Test111SIiE7DerivedclEv(
   // CHECK: define linkonce_odr zeroext i1 @_ZN6Test111SIiE7DerivedeqERKNS_4BaseE(
   // CHECK: define linkonce_odr zeroext i1 @_ZN6Test111SIiE7DerivedntEv(
-  // CHECK: define linkonce_odr dereferenceable(4) %"class.Test11::Base"* @_ZN6Test111SIiE7DerivedixEi(
+  // CHECK: define linkonce_odr nonnull align 4 dereferenceable(4) %"class.Test11::Base"* @_ZN6Test111SIiE7DerivedixEi(
   class Base {
   public:
     virtual void operator()() {}

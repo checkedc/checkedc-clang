@@ -211,6 +211,10 @@ void AMDGPUMCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) const {
     lowerOperand(MO, MCOp);
     OutMI.addOperand(MCOp);
   }
+
+  int FIIdx = AMDGPU::getNamedOperandIdx(MCOpcode, AMDGPU::OpName::fi);
+  if (FIIdx >= (int)OutMI.getNumOperands())
+    OutMI.addOperand(MCOperand::createImm(0));
 }
 
 bool AMDGPUAsmPrinter::lowerOperand(const MachineOperand &MO,
@@ -250,7 +254,7 @@ const MCExpr *AMDGPUAsmPrinter::lowerConstant(const Constant *CV) {
   return AsmPrinter::lowerConstant(CV);
 }
 
-void AMDGPUAsmPrinter::EmitInstruction(const MachineInstr *MI) {
+void AMDGPUAsmPrinter::emitInstruction(const MachineInstr *MI) {
   if (emitPseudoExpansionLowering(*OutStreamer, MI))
     return;
 
@@ -268,7 +272,7 @@ void AMDGPUAsmPrinter::EmitInstruction(const MachineInstr *MI) {
     const MachineBasicBlock *MBB = MI->getParent();
     MachineBasicBlock::const_instr_iterator I = ++MI->getIterator();
     while (I != MBB->instr_end() && I->isInsideBundle()) {
-      EmitInstruction(&*I);
+      emitInstruction(&*I);
       ++I;
     }
   } else {
@@ -340,7 +344,7 @@ void AMDGPUAsmPrinter::EmitInstruction(const MachineInstr *MI) {
 
       AMDGPUInstPrinter InstPrinter(*TM.getMCAsmInfo(), *STI.getInstrInfo(),
                                     *STI.getRegisterInfo());
-      InstPrinter.printInst(&TmpInst, DisasmStream, StringRef(), STI);
+      InstPrinter.printInst(&TmpInst, 0, StringRef(), STI, DisasmStream);
 
       // Disassemble instruction/operands to hex representation.
       SmallVector<MCFixup, 4> Fixups;
@@ -377,7 +381,7 @@ void R600MCInstLower::lower(const MachineInstr *MI, MCInst &OutMI) const {
   }
 }
 
-void R600AsmPrinter::EmitInstruction(const MachineInstr *MI) {
+void R600AsmPrinter::emitInstruction(const MachineInstr *MI) {
   const R600Subtarget &STI = MF->getSubtarget<R600Subtarget>();
   R600MCInstLower MCInstLowering(OutContext, STI, *this);
 
@@ -392,7 +396,7 @@ void R600AsmPrinter::EmitInstruction(const MachineInstr *MI) {
     const MachineBasicBlock *MBB = MI->getParent();
     MachineBasicBlock::const_instr_iterator I = ++MI->getIterator();
     while (I != MBB->instr_end() && I->isInsideBundle()) {
-      EmitInstruction(&*I);
+      emitInstruction(&*I);
       ++I;
     }
   } else {

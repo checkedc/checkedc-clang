@@ -71,7 +71,7 @@ TEST(JSONTest, CanonicalOutput) {
 }
 
 TEST(JSONTest, Escaping) {
-  std::string test = {
+  std::string Test = {
       0,                    // Strings may contain nulls.
       '\b',   '\f',         // Have mnemonics, but we escape numerically.
       '\r',   '\n',   '\t', // Escaped with mnemonics.
@@ -80,17 +80,17 @@ TEST(JSONTest, Escaping) {
       '\xce', '\x94',       // Non-ASCII UTF-8 is not escaped.
   };
 
-  std::string teststring = R"("\u0000\u0008\u000c\r\n\tS\"\\)"
+  std::string TestString = R"("\u0000\u0008\u000c\r\n\tS\"\\)"
                            "\x7f\xCE\x94\"";
 
-  EXPECT_EQ(teststring, s(test));
+  EXPECT_EQ(TestString, s(Test));
 
   EXPECT_EQ(R"({"object keys are\nescaped":true})",
             s(Object{{"object keys are\nescaped", true}}));
 }
 
 TEST(JSONTest, PrettyPrinting) {
-  const char str[] = R"({
+  const char Str[] = R"({
   "empty_array": [],
   "empty_object": {},
   "full_array": [
@@ -106,7 +106,7 @@ TEST(JSONTest, PrettyPrinting) {
   }
 })";
 
-  EXPECT_EQ(str, sp(Object{
+  EXPECT_EQ(Str, sp(Object{
                      {"empty_object", Object{}},
                      {"empty_array", {}},
                      {"full_array", {1, nullptr}},
@@ -118,6 +118,33 @@ TEST(JSONTest, PrettyPrinting) {
                            }}},
                       }},
                  }));
+}
+
+TEST(JSONTest, Array) {
+  Array A{1, 2};
+  A.emplace_back(3);
+  A.emplace(++A.begin(), 0);
+  A.push_back(4);
+  A.insert(++++A.begin(), 99);
+
+  EXPECT_EQ(A.size(), 6u);
+  EXPECT_EQ(R"([1,0,99,2,3,4])", s(std::move(A)));
+}
+
+TEST(JSONTest, Object) {
+  Object O{{"a", 1}, {"b", 2}, {"c", 3}};
+  EXPECT_TRUE(O.try_emplace("d", 4).second);
+  EXPECT_FALSE(O.try_emplace("a", 4).second);
+
+  auto D = O.find("d");
+  EXPECT_FALSE(D == O.end());
+  auto E = O.find("e");
+  EXPECT_TRUE(E == O.end());
+
+  O.erase("b");
+  O.erase(D);
+  EXPECT_EQ(O.size(), 2u);
+  EXPECT_EQ(R"({"a":1,"c":3})", s(std::move(O)));
 }
 
 TEST(JSONTest, Parse) {
@@ -169,7 +196,7 @@ TEST(JSONTest, ParseErrors) {
       FAIL() << "Parsed JSON >>> " << S << " <<< but wanted error: " << Msg;
     } else {
       handleAllErrors(E.takeError(), [S, Msg](const llvm::ErrorInfoBase &E) {
-        EXPECT_THAT(E.message(), testing::HasSubstr(Msg)) << S;
+        EXPECT_THAT(E.message(), testing::HasSubstr(std::string(Msg))) << S;
       });
     }
   };
@@ -297,6 +324,9 @@ TEST(JSONTest, Integers) {
           double{-0x4000000000000000},
       },
 
+      // PR46470,
+      // https://developercommunity.visualstudio.com/content/problem/1093399/incorrect-result-when-printing-6917529027641081856.html
+#if !defined(_MSC_VER) || _MSC_VER < 1926
       {
           "Dynamically exact integer. Stored as double, convertible.",
           double{0x6000000000000000},
@@ -304,6 +334,7 @@ TEST(JSONTest, Integers) {
           int64_t{0x6000000000000000},
           double{0x6000000000000000},
       },
+#endif
 
       {
           "Dynamically integer, >64 bits. Stored as double, not convertible.",

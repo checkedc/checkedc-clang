@@ -7,14 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 // type_traits
-// XFAIL: apple-clang-6.0
-//  The Apple-6 compiler gets is_constructible<void ()> wrong.
 
 // template <class T, class... Args>
 //   struct is_constructible;
 
-// MODULES_DEFINES: _LIBCPP_TESTING_FALLBACK_IS_CONSTRUCTIBLE
-#define _LIBCPP_TESTING_FALLBACK_IS_CONSTRUCTIBLE
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_TESTING_FALLBACK_IS_CONSTRUCTIBLE
+
 #include <type_traits>
 #include "test_macros.h"
 
@@ -244,13 +242,17 @@ int main(int, char**)
 
     test_is_constructible<const int&, ExplicitTo<int&>&>();
     test_is_constructible<const int&, ExplicitTo<int&>>();
-    test_is_constructible<int&, ExplicitTo<int&>>();
-    test_is_constructible<const int&, ExplicitTo<int&&>>();
+
 
     // Binding through reference-compatible type is required to perform
     // direct-initialization as described in [over.match.ref] p. 1 b. 1:
+    //
+    // But the rvalue to lvalue reference binding isn't allowed according to
+    // [over.match.ref] despite Clang accepting it.
     test_is_constructible<int&, ExplicitTo<int&>>();
+#ifndef TEST_COMPILER_GCC
     test_is_constructible<const int&, ExplicitTo<int&&>>();
+#endif
 
     static_assert(std::is_constructible<int&&, ExplicitTo<int&&>>::value, "");
 #ifdef __clang__

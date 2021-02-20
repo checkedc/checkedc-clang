@@ -1,9 +1,14 @@
-//RUN: %clang_cc1 %s -cl-std=c++ -pedantic -ast-dump -verify | FileCheck %s
+//RUN: %clang_cc1 %s -cl-std=clc++ -pedantic -ast-dump -verify | FileCheck %s
 
 //expected-no-diagnostics
 
 //CHECK: |-VarDecl {{.*}} foo 'const __global int'
 constexpr int foo = 0;
+
+//CHECK: |-VarDecl {{.*}} foo1 'T' cinit
+//CHECK: `-VarTemplateSpecializationDecl {{.*}} used foo1 '__global long':'__global long' cinit
+template <typename T>
+T foo1 = 0;
 
 class c {
 public:
@@ -31,7 +36,7 @@ struct c2 {
 template <class T>
 struct x1 {
 //CHECK: -CXXMethodDecl {{.*}} operator= 'x1<T> &(const x1<T> &){{( __attribute__.*)?}} __generic'
-//CHECK: -CXXMethodDecl {{.*}} operator= '__generic x1<int> &(const __generic x1<int> &){{( __attribute__.*)?}} __generic'
+//CHECK: -CXXMethodDecl {{.*}} operator= '__generic x1<int> &(const __generic x1<int> &__private){{( __attribute__.*)?}} __generic'
   x1<T>& operator=(const x1<T>& xx) {
     y = xx.y;
     return *this;
@@ -42,7 +47,7 @@ struct x1 {
 template <class T>
 struct x2 {
 //CHECK: -CXXMethodDecl {{.*}} foo 'void (x1<T> *){{( __attribute__.*)?}} __generic'
-//CHECK: -CXXMethodDecl {{.*}} foo 'void (__generic x1<int> *){{( __attribute__.*)?}} __generic'
+//CHECK: -CXXMethodDecl {{.*}} foo 'void (__generic x1<int> *__private){{( __attribute__.*)?}} __generic'
   void foo(x1<T>* xx) {
     m[0] = *xx;
   }
@@ -65,16 +70,52 @@ template <typename T>
 x3<T>::x3(const x3<T> &t) {}
 
 template <class T>
-T xxx(T *in) {
+T xxx(T *in1, T in2) {
   // This pointer can't be deduced to generic because addr space
   // will be taken from the template argument.
-  //CHECK: `-VarDecl {{.*}} i 'T *' cinit
-  T *i = in;
+  //CHECK: `-VarDecl {{.*}} 'T *' cinit
+  //CHECK: `-VarDecl {{.*}} i '__private int *__private' cinit
+  T *i = in1;
   T ii;
+  __private T *ptr = &ii;
+  ptr = &in2;
   return *i;
 }
 
 __kernel void test() {
   int foo[10];
-  xxx(&foo[0]);
+  xxx<__private int>(&foo[0], foo[0]);
+  // FIXME: Template param deduction fails here because
+  // temporaries are not in the __private address space.
+  // It is probably reasonable to put them in __private
+  // considering that stack and function params are
+  // implicitly in __private.
+  // However, if temporaries are left in default addr
+  // space we should at least pretty print the __private
+  // addr space. Otherwise diagnostic apprears to be
+  // confusing.
+  //xxx(&foo[0], foo[0]);
+}
+
+// Addr space for pointer/reference to an array
+//CHECK: FunctionDecl {{.*}} t1 'void (const float (__generic &__private)[2])'
+void t1(const float (&fYZ)[2]);
+//CHECK: FunctionDecl {{.*}} t2 'void (const float (__generic *__private)[2])'
+void t2(const float (*fYZ)[2]);
+//CHECK: FunctionDecl {{.*}} t3 'void (float (((__generic *__private)))[2])'
+void t3(float(((*fYZ)))[2]);
+//CHECK: FunctionDecl {{.*}} t4 'void (float (((__generic *__generic *__private)))[2])'
+void t4(float(((**fYZ)))[2]);
+//CHECK: FunctionDecl {{.*}} t5 'void (float (__generic *(__generic *__private))[2])'
+void t5(float (*(*fYZ))[2]);
+
+__kernel void k() {
+  __local float x[2];
+  float(*p)[2];
+  t1(x);
+  t2(&x);
+  t3(&x);
+  t4(&p);
+  t5(&p);
+  long f1 = foo1<long>;
 }

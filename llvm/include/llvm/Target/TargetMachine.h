@@ -25,7 +25,7 @@ namespace llvm {
 
 class Function;
 class GlobalValue;
-class MachineModuleInfo;
+class MachineModuleInfoWrapperPass;
 class Mangler;
 class MCAsmInfo;
 class MCContext;
@@ -237,10 +237,18 @@ public:
   void setSupportsDefaultOutlining(bool Enable) {
     Options.SupportsDefaultOutlining = Enable;
   }
+  void setSupportsDebugEntryValues(bool Enable) {
+    Options.SupportsDebugEntryValues = Enable;
+  }
 
   bool shouldPrintMachineCode() const { return Options.PrintMachineCode; }
 
   bool getUniqueSectionNames() const { return Options.UniqueSectionNames; }
+
+  /// Return true if unique basic block section names must be generated.
+  bool getUniqueBasicBlockSectionNames() const {
+    return Options.UniqueBasicBlockSectionNames;
+  }
 
   /// Return true if data objects should be emitted into their own section,
   /// corresponds to -fdata-sections.
@@ -252,6 +260,17 @@ public:
   /// corresponding to -ffunction-sections.
   bool getFunctionSections() const {
     return Options.FunctionSections;
+  }
+
+  /// If basic blocks should be emitted into their own section,
+  /// corresponding to -fbasic-block-sections.
+  llvm::BasicBlockSection getBBSectionsType() const {
+    return Options.BBSections;
+  }
+
+  /// Get the list of functions and basic block ids that need unique sections.
+  const MemoryBuffer *getBBSectionsFuncListBuf() const {
+    return Options.BBSectionsFuncListBuf.get();
   }
 
   /// Get a \c TargetIRAnalysis appropriate for the target.
@@ -271,25 +290,17 @@ public:
   /// PassManagerBuilder::addExtension.
   virtual void adjustPassManager(PassManagerBuilder &) {}
 
-  /// These enums are meant to be passed into addPassesToEmitFile to indicate
-  /// what type of file to emit, and returned by it to indicate what type of
-  /// file could actually be made.
-  enum CodeGenFileType {
-    CGFT_AssemblyFile,
-    CGFT_ObjectFile,
-    CGFT_Null         // Do not emit any output.
-  };
-
   /// Add passes to the specified pass manager to get the specified file
   /// emitted.  Typically this will involve several steps of code generation.
   /// This method should return true if emission of this file type is not
   /// supported, or false on success.
-  /// \p MMI is an optional parameter that, if set to non-nullptr,
+  /// \p MMIWP is an optional parameter that, if set to non-nullptr,
   /// will be used to set the MachineModuloInfo for this PM.
-  virtual bool addPassesToEmitFile(PassManagerBase &, raw_pwrite_stream &,
-                                   raw_pwrite_stream *, CodeGenFileType,
-                                   bool /*DisableVerify*/ = true,
-                                   MachineModuleInfo *MMI = nullptr) {
+  virtual bool
+  addPassesToEmitFile(PassManagerBase &, raw_pwrite_stream &,
+                      raw_pwrite_stream *, CodeGenFileType,
+                      bool /*DisableVerify*/ = true,
+                      MachineModuleInfoWrapperPass *MMIWP = nullptr) {
     return true;
   }
 
@@ -314,6 +325,10 @@ public:
   void getNameWithPrefix(SmallVectorImpl<char> &Name, const GlobalValue *GV,
                          Mangler &Mang, bool MayAlwaysUsePrivate = false) const;
   MCSymbol *getSymbol(const GlobalValue *GV) const;
+
+  /// The integer bit size to use for SjLj based exception handling.
+  static constexpr unsigned DefaultSjLjDataSize = 32;
+  virtual unsigned getSjLjDataSize() const { return DefaultSjLjDataSize; }
 };
 
 /// This class describes a target machine that is implemented with the LLVM
@@ -341,12 +356,13 @@ public:
 
   /// Add passes to the specified pass manager to get the specified file
   /// emitted.  Typically this will involve several steps of code generation.
-  /// \p MMI is an optional parameter that, if set to non-nullptr,
-  /// will be used to set the MachineModuloInfofor this PM.
-  bool addPassesToEmitFile(PassManagerBase &PM, raw_pwrite_stream &Out,
-                           raw_pwrite_stream *DwoOut, CodeGenFileType FileType,
-                           bool DisableVerify = true,
-                           MachineModuleInfo *MMI = nullptr) override;
+  /// \p MMIWP is an optional parameter that, if set to non-nullptr,
+  /// will be used to set the MachineModuloInfo for this PM.
+  bool
+  addPassesToEmitFile(PassManagerBase &PM, raw_pwrite_stream &Out,
+                      raw_pwrite_stream *DwoOut, CodeGenFileType FileType,
+                      bool DisableVerify = true,
+                      MachineModuleInfoWrapperPass *MMIWP = nullptr) override;
 
   /// Add passes to the specified pass manager to get machine code emitted with
   /// the MCJIT. This method returns true if machine code is not supported. It
@@ -365,14 +381,16 @@ public:
   /// Adds an AsmPrinter pass to the pipeline that prints assembly or
   /// machine code from the MI representation.
   bool addAsmPrinter(PassManagerBase &PM, raw_pwrite_stream &Out,
-                     raw_pwrite_stream *DwoOut, CodeGenFileType FileTYpe,
+                     raw_pwrite_stream *DwoOut, CodeGenFileType FileType,
                      MCContext &Context);
 
-  /// True if the target uses physical regs at Prolog/Epilog insertion
-  /// time. If true (most machines), all vregs must be allocated before
-  /// PEI. If false (virtual-register machines), then callee-save register
-  /// spilling and scavenging are not needed or used.
-  virtual bool usesPhysRegsForPEI() const { return true; }
+  /// True if the target uses physical regs (as nearly all targets do). False
+  /// for stack machines such as WebAssembly and other virtual-register
+  /// machines. If true, all vregs must be allocated before PEI. If false, then
+  /// callee-save register spilling and scavenging are not needed or used. If
+  /// false, implicitly defined registers will still be assumed to be physical
+  /// registers, except that variadic defs will be allocated vregs.
+  virtual bool usesPhysRegsForValues() const { return true; }
 
   /// True if the target wants to use interprocedural register allocation by
   /// default. The -enable-ipra flag can be used to override this.

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Frontend/CompilerInstance.h"
+#include "clang/Basic/FileManager.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "llvm/Support/FileSystem.h"
@@ -32,8 +33,8 @@ TEST(CompilerInstance, DefaultVFSOverlayFromInvocation) {
 
   // Mount the VFS file itself on the path 'virtual.file'. Makes this test
   // a bit shorter than creating a new dummy file just for this purpose.
-  const std::string CurrentPathStr = CurrentPath.str();
-  const std::string FileNameStr = FileName.str();
+  const std::string CurrentPathStr = std::string(CurrentPath.str());
+  const std::string FileNameStr = std::string(FileName.str());
   const char *VFSYaml = "{ 'version': 0, 'roots': [\n"
                         "  { 'name': '%s',\n"
                         "    'type': 'directory',\n"
@@ -81,7 +82,7 @@ TEST(CompilerInstance, AllowDiagnosticLogWithUnownedDiagnosticConsumer) {
   // Create the diagnostic engine with unowned consumer.
   std::string DiagnosticOutput;
   llvm::raw_string_ostream DiagnosticsOS(DiagnosticOutput);
-  auto DiagPrinter = llvm::make_unique<TextDiagnosticPrinter>(
+  auto DiagPrinter = std::make_unique<TextDiagnosticPrinter>(
       DiagnosticsOS, new DiagnosticOptions());
   CompilerInstance Instance;
   IntrusiveRefCntPtr<DiagnosticsEngine> Diags = Instance.createDiagnostics(

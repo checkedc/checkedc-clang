@@ -17,12 +17,12 @@
 
 # DISASM:       Disassembly of section .text:
 # DISASM-EMPTY:
-# DISASM:       entrypoint:
+# DISASM:       <entrypoint>:
 # DISASM-CHECK:   201000: 90 nop
 # DISASM-CHECK:   201001: cc int3
 # DISASM-CHECK:   201002: cc int3
 # DISASM-CHECK:   201003: cc int3
-# DISASM:       aaaaaaaaaaaaaaaa:
+# DISASM:       <aaaaaaaaaaaaaaaa>:
 # DISASM-CHECK:   201004: 90 nop
 # DISASM-CHECK:   201005: 90 nop
 
@@ -32,8 +32,8 @@
 # DWARF-NEXT:    0: Offset = 0x0, Length = 0x34
 # DWARF-NEXT:    1: Offset = 0x34, Length = 0x34
 # DWARF:       Address area offset = 0x38, has 2 entries:
-# DWARF-NEXT:    Low/High address = [0x201000, 0x201001) (Size: 0x1), CU id = 0
-# DWARF-NEXT:    Low/High address = [0x201004, 0x201006) (Size: 0x2), CU id = 1
+# DWARF-NEXT:    Low/High address = [0x201120, 0x201121) (Size: 0x1), CU id = 0
+# DWARF-NEXT:    Low/High address = [0x201124, 0x201126) (Size: 0x2), CU id = 1
 # DWARF:       Symbol table offset = 0x60, size = 1024, filled slots:
 # DWARF-NEXT:    512: Name offset = 0x1c, CU vector offset = 0x0
 # DWARF-NEXT:      String name: aaaaaaaaaaaaaaaa, CU vector index: 0
@@ -109,7 +109,7 @@ entrypoint:
 .byte 0
 
 .section .debug_gnu_pubnames,"",@progbits
-.long 0x18
+.long 0x1e
 .value 0x2
 .long 0
 .long 0x33

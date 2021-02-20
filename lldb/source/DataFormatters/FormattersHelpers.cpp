@@ -1,5 +1,4 @@
-//===-- FormattersHelpers.cpp -------------------------------------*- C++
-//-*-===//
+//===-- FormattersHelpers.cpp ---------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -29,10 +28,10 @@ void lldb_private::formatters::AddFormat(
 
   if (regex)
     category_sp->GetRegexTypeFormatsContainer()->Add(
-        RegularExpressionSP(new RegularExpression(type_name.GetStringRef())),
-        format_sp);
+        RegularExpression(type_name.GetStringRef()), format_sp);
   else
-    category_sp->GetTypeFormatsContainer()->Add(type_name, format_sp);
+    category_sp->GetTypeFormatsContainer()->Add(std::move(type_name),
+                                                format_sp);
 }
 
 void lldb_private::formatters::AddSummary(
@@ -40,10 +39,10 @@ void lldb_private::formatters::AddSummary(
     ConstString type_name, bool regex) {
   if (regex)
     category_sp->GetRegexTypeSummariesContainer()->Add(
-        RegularExpressionSP(new RegularExpression(type_name.GetStringRef())),
-        summary_sp);
+        RegularExpression(type_name.GetStringRef()), summary_sp);
   else
-    category_sp->GetTypeSummariesContainer()->Add(type_name, summary_sp);
+    category_sp->GetTypeSummariesContainer()->Add(std::move(type_name),
+                                                  summary_sp);
 }
 
 void lldb_private::formatters::AddStringSummary(
@@ -53,10 +52,10 @@ void lldb_private::formatters::AddStringSummary(
 
   if (regex)
     category_sp->GetRegexTypeSummariesContainer()->Add(
-        RegularExpressionSP(new RegularExpression(type_name.GetStringRef())),
-        summary_sp);
+        RegularExpression(type_name.GetStringRef()), summary_sp);
   else
-    category_sp->GetTypeSummariesContainer()->Add(type_name, summary_sp);
+    category_sp->GetTypeSummariesContainer()->Add(std::move(type_name),
+                                                  summary_sp);
 }
 
 void lldb_private::formatters::AddOneLineSummary(
@@ -67,10 +66,10 @@ void lldb_private::formatters::AddOneLineSummary(
 
   if (regex)
     category_sp->GetRegexTypeSummariesContainer()->Add(
-        RegularExpressionSP(new RegularExpression(type_name.GetStringRef())),
-        summary_sp);
+        RegularExpression(type_name.GetStringRef()), summary_sp);
   else
-    category_sp->GetTypeSummariesContainer()->Add(type_name, summary_sp);
+    category_sp->GetTypeSummariesContainer()->Add(std::move(type_name),
+                                                  summary_sp);
 }
 
 void lldb_private::formatters::AddCXXSummary(
@@ -81,10 +80,10 @@ void lldb_private::formatters::AddCXXSummary(
       new CXXFunctionSummaryFormat(flags, funct, description));
   if (regex)
     category_sp->GetRegexTypeSummariesContainer()->Add(
-        RegularExpressionSP(new RegularExpression(type_name.GetStringRef())),
-        summary_sp);
+        RegularExpression(type_name.GetStringRef()), summary_sp);
   else
-    category_sp->GetTypeSummariesContainer()->Add(type_name, summary_sp);
+    category_sp->GetTypeSummariesContainer()->Add(std::move(type_name),
+                                                  summary_sp);
 }
 
 void lldb_private::formatters::AddCXXSynthetic(
@@ -96,10 +95,10 @@ void lldb_private::formatters::AddCXXSynthetic(
       new CXXSyntheticChildren(flags, description, generator));
   if (regex)
     category_sp->GetRegexTypeSyntheticsContainer()->Add(
-        RegularExpressionSP(new RegularExpression(type_name.GetStringRef())),
-        synth_sp);
+        RegularExpression(type_name.GetStringRef()), synth_sp);
   else
-    category_sp->GetTypeSyntheticsContainer()->Add(type_name, synth_sp);
+    category_sp->GetTypeSyntheticsContainer()->Add(std::move(type_name),
+                                                   synth_sp);
 }
 
 void lldb_private::formatters::AddFilter(
@@ -111,10 +110,10 @@ void lldb_private::formatters::AddFilter(
     filter_sp->AddExpressionPath(child);
   if (regex)
     category_sp->GetRegexTypeFiltersContainer()->Add(
-        RegularExpressionSP(new RegularExpression(type_name.GetStringRef())),
-        filter_sp);
+        RegularExpression(type_name.GetStringRef()), filter_sp);
   else
-    category_sp->GetTypeFiltersContainer()->Add(type_name, filter_sp);
+    category_sp->GetTypeFiltersContainer()->Add(std::move(type_name),
+                                                filter_sp);
 }
 
 size_t lldb_private::formatters::ExtractIndexFromString(const char *item_name) {
@@ -142,4 +141,15 @@ lldb_private::formatters::GetArrayAddressOrPointerValue(ValueObject &valobj) {
     data_addr = valobj.GetAddressOf();
 
   return data_addr;
+}
+
+lldb::ValueObjectSP
+lldb_private::formatters::GetValueOfLibCXXCompressedPair(ValueObject &pair) {
+  ValueObjectSP value =
+      pair.GetChildMemberWithName(ConstString("__value_"), true);
+  if (!value) {
+    // pre-r300140 member name
+    value = pair.GetChildMemberWithName(ConstString("__first_"), true);
+  }
+  return value;
 }

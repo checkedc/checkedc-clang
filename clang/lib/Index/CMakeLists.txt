@@ -4,7 +4,6 @@ set(LLVM_LINK_COMPONENTS
   )
 
 add_clang_library(clangIndex
-  CodegenNameGenerator.cpp
   CommentToXML.cpp
   FileIndexRecord.cpp
   IndexBody.cpp
@@ -28,4 +27,7 @@ add_clang_library(clangIndex
   clangRewrite
   clangSerialization
   clangToolingCore
+
+  DEPENDS
+  omp_gen
   )

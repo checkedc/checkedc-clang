@@ -348,6 +348,8 @@ CCAssignFn *AArch64FastISel::CCAssignFnForCall(CallingConv::ID CC) const {
     return CC_AArch64_WebKit_JS;
   if (CC == CallingConv::GHC)
     return CC_AArch64_GHC;
+  if (CC == CallingConv::CFGuard_Check)
+    return CC_AArch64_Win64_CFGuard_Check;
   return Subtarget->isTargetDarwin() ? CC_AArch64_DarwinPCS : CC_AArch64_AAPCS;
 }
 
@@ -432,11 +434,9 @@ unsigned AArch64FastISel::materializeFP(const ConstantFP *CFP, MVT VT) {
 
   // Materialize via constant pool.  MachineConstantPool wants an explicit
   // alignment.
-  unsigned Align = DL.getPrefTypeAlignment(CFP->getType());
-  if (Align == 0)
-    Align = DL.getTypeAllocSize(CFP->getType());
+  Align Alignment = DL.getPrefTypeAlign(CFP->getType());
 
-  unsigned CPI = MCP.getConstantPoolIndex(cast<Constant>(CFP), Align);
+  unsigned CPI = MCP.getConstantPoolIndex(cast<Constant>(CFP), Alignment);
   unsigned ADRPReg = createResultReg(&AArch64::GPR64commonRegClass);
   BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, TII.get(AArch64::ADRP),
           ADRPReg).addConstantPoolIndex(CPI, 0, AArch64II::MO_PAGE);
@@ -459,7 +459,7 @@ unsigned AArch64FastISel::materializeGV(const GlobalValue *GV) {
   if (!Subtarget->useSmallAddressing() && !Subtarget->isTargetMachO())
     return 0;
 
-  unsigned char OpFlags = Subtarget->ClassifyGlobalReference(GV, TM);
+  unsigned OpFlags = Subtarget->ClassifyGlobalReference(GV, TM);
 
   EVT DestEVT = TLI.getValueType(DL, GV->getType(), true);
   if (!DestEVT.isSimple())
@@ -474,12 +474,32 @@ unsigned AArch64FastISel::materializeGV(const GlobalValue *GV) {
             ADRPReg)
         .addGlobalAddress(GV, 0, AArch64II::MO_PAGE | OpFlags);
 
-    ResultReg = createResultReg(&AArch64::GPR64RegClass);
-    BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, TII.get(AArch64::LDRXui),
+    unsigned LdrOpc;
+    if (Subtarget->isTargetILP32()) {
+      ResultReg = createResultReg(&AArch64::GPR32RegClass);
+      LdrOpc = AArch64::LDRWui;
+    } else {
+      ResultReg = createResultReg(&AArch64::GPR64RegClass);
+      LdrOpc = AArch64::LDRXui;
+    }
+    BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, TII.get(LdrOpc),
             ResultReg)
-        .addReg(ADRPReg)
-        .addGlobalAddress(GV, 0,
-                          AArch64II::MO_PAGEOFF | AArch64II::MO_NC | OpFlags);
+      .addReg(ADRPReg)
+      .addGlobalAddress(GV, 0, AArch64II::MO_GOT | AArch64II::MO_PAGEOFF |
+                        AArch64II::MO_NC | OpFlags);
+    if (!Subtarget->isTargetILP32())
+      return ResultReg;
+
+    // LDRWui produces a 32-bit register, but pointers in-register are 64-bits
+    // so we must extend the result on ILP32.
+    unsigned Result64 = createResultReg(&AArch64::GPR64RegClass);
+    BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
+            TII.get(TargetOpcode::SUBREG_TO_REG))
+        .addDef(Result64)
+        .addImm(0)
+        .addReg(ResultReg, RegState::Kill)
+        .addImm(AArch64::sub_32);
+    return Result64;
   } else {
     // ADRP + ADDX
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, TII.get(AArch64::ADRP),
@@ -504,6 +524,15 @@ unsigned AArch64FastISel::fastMaterializeConstant(const Constant *C) {
   if (!CEVT.isSimple())
     return 0;
   MVT VT = CEVT.getSimpleVT();
+  // arm64_32 has 32-bit pointers held in 64-bit registers. Because of that,
+  // 'null' pointers need to have a somewhat special treatment.
+  if (const auto *CPN = dyn_cast<ConstantPointerNull>(C)) {
+    (void)CPN;
+    assert(CPN->getType()->getPointerAddressSpace() == 0 &&
+           "Unexpected address space");
+    assert(VT == MVT::i64 && "Expected 64-bit pointers");
+    return materializeInt(ConstantInt::get(Type::getInt64Ty(*Context), 0), VT);
+  }
 
   if (const auto *CI = dyn_cast<ConstantInt>(C))
     return materializeInt(CI, VT);
@@ -946,6 +975,9 @@ bool AArch64FastISel::computeCallAddress(const Value *V, Address &Addr) {
 bool AArch64FastISel::isTypeLegal(Type *Ty, MVT &VT) {
   EVT evt = TLI.getValueType(DL, Ty, true);
 
+  if (Subtarget->isTargetILP32() && Ty->isPointerTy())
+    return false;
+
   // Only handle simple types.
   if (evt == MVT::Other || !evt.isSimple())
     return false;
@@ -988,6 +1020,9 @@ bool AArch64FastISel::isValueAvailable(const Value *V) const {
 }
 
 bool AArch64FastISel::simplifyAddress(Address &Addr, MVT VT) {
+  if (Subtarget->isTargetILP32())
+    return false;
+
   unsigned ScaleFactor = getImplicitScaleFactor(VT);
   if (!ScaleFactor)
     return false;
@@ -1093,7 +1128,7 @@ void AArch64FastISel::addLoadStoreOperands(Address &Addr,
     // and alignment should be based on the VT.
     MMO = FuncInfo.MF->getMachineMemOperand(
         MachinePointerInfo::getFixedStack(*FuncInfo.MF, FI, Offset), Flags,
-        MFI.getObjectSize(FI), MFI.getObjectAlignment(FI));
+        MFI.getObjectSize(FI), MFI.getObjectAlign(FI));
     // Now add the rest of the operands.
     MIB.addFrameIndex(FI).addImm(Offset);
   } else {
@@ -3100,7 +3135,7 @@ bool AArch64FastISel::processCallArgs(CallLoweringInfo &CLI,
       Addr.setReg(AArch64::SP);
       Addr.setOffset(VA.getLocMemOffset() + BEAlign);
 
-      unsigned Alignment = DL.getABITypeAlignment(ArgVal->getType());
+      Align Alignment = DL.getABITypeAlign(ArgVal->getType());
       MachineMemOperand *MMO = FuncInfo.MF->getMachineMemOperand(
           MachinePointerInfo::getStack(*FuncInfo.MF, Addr.getOffset()),
           MachineMemOperand::MOStore, ArgVT.getStoreSize(), Alignment);
@@ -3165,6 +3200,11 @@ bool AArch64FastISel::fastLowerCall(CallLoweringInfo &CLI) {
   if (IsTailCall)
     return false;
 
+  // FIXME: we could and should support this, but for now correctness at -O0 is
+  // more important.
+  if (Subtarget->isTargetILP32())
+    return false;
+
   CodeModel::Model CM = TM.getCodeModel();
   // Only support the small-addressing and large code models.
   if (CM != CodeModel::Large && !Subtarget->useSmallAddressing())
@@ -3211,6 +3251,13 @@ bool AArch64FastISel::fastLowerCall(CallLoweringInfo &CLI) {
   if (Callee && !computeCallAddress(Callee, Addr))
     return false;
 
+  // The weak function target may be zero; in that case we must use indirect
+  // addressing via a stub on windows as it may be out of range for a
+  // PC-relative jump.
+  if (Subtarget->isTargetWindows() && Addr.getGlobalValue() &&
+      Addr.getGlobalValue()->hasExternalWeakLinkage())
+    return false;
+
   // Handle the arguments now that we've gotten them.
   unsigned NumBytes;
   if (!processCallArgs(CLI, OutVTs, NumBytes))
@@ -3223,7 +3270,8 @@ bool AArch64FastISel::fastLowerCall(CallLoweringInfo &CLI) {
   // Issue the call.
   MachineInstrBuilder MIB;
   if (Subtarget->useSmallAddressing()) {
-    const MCInstrDesc &II = TII.get(Addr.getReg() ? AArch64::BLR : AArch64::BL);
+    const MCInstrDesc &II =
+        TII.get(Addr.getReg() ? getBLRCallOpcode(*MF) : (unsigned)AArch64::BL);
     MIB = BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, II);
     if (Symbol)
       MIB.addSym(Symbol, 0);
@@ -3256,7 +3304,7 @@ bool AArch64FastISel::fastLowerCall(CallLoweringInfo &CLI) {
     if (!CallReg)
       return false;
 
-    const MCInstrDesc &II = TII.get(AArch64::BLR);
+    const MCInstrDesc &II = TII.get(getBLRCallOpcode(*MF));
     CallReg = constrainOperandRegClass(II, CallReg, 0);
     MIB = BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc, II).addReg(CallReg);
   }
@@ -3434,8 +3482,8 @@ bool AArch64FastISel::fastLowerIntrinsicCall(const IntrinsicInst *II) {
     MFI.setFrameAddressIsTaken(true);
 
     const AArch64RegisterInfo *RegInfo = Subtarget->getRegisterInfo();
-    unsigned FramePtr = RegInfo->getFrameRegister(*(FuncInfo.MF));
-    unsigned SrcReg = MRI.createVirtualRegister(&AArch64::GPR64RegClass);
+    Register FramePtr = RegInfo->getFrameRegister(*(FuncInfo.MF));
+    Register SrcReg = MRI.createVirtualRegister(&AArch64::GPR64RegClass);
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
             TII.get(TargetOpcode::COPY), SrcReg).addReg(FramePtr);
     // Recursively load frame address
@@ -3842,7 +3890,7 @@ bool AArch64FastISel::selectRet(const Instruction *I) {
       return false;
 
     unsigned SrcReg = Reg + VA.getValNo();
-    unsigned DestReg = VA.getLocReg();
+    Register DestReg = VA.getLocReg();
     // Avoid a cross-class copy. This is very unlikely.
     if (!MRI.getRegClass(SrcReg)->contains(DestReg))
       return false;
@@ -3874,6 +3922,11 @@ bool AArch64FastISel::selectRet(const Instruction *I) {
       if (SrcReg == 0)
         return false;
     }
+
+    // "Callee" (i.e. value producer) zero extends pointers at function
+    // boundary.
+    if (Subtarget->isTargetILP32() && RV->getType()->isPointerTy())
+      SrcReg = emitAnd_ri(MVT::i64, SrcReg, false, 0xffffffff);
 
     // Make the copy.
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
@@ -3970,7 +4023,7 @@ unsigned AArch64FastISel::emiti1Ext(unsigned SrcReg, MVT DestVT, bool IsZExt) {
     if (DestVT == MVT::i64) {
       // We're ZExt i1 to i64.  The ANDWri Wd, Ws, #1 implicitly clears the
       // upper 32 bits.  Emit a SUBREG_TO_REG to extend from Wd to Xd.
-      unsigned Reg64 = MRI.createVirtualRegister(&AArch64::GPR64RegClass);
+      Register Reg64 = MRI.createVirtualRegister(&AArch64::GPR64RegClass);
       BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
               TII.get(AArch64::SUBREG_TO_REG), Reg64)
           .addImm(0)
@@ -4123,7 +4176,7 @@ unsigned AArch64FastISel::emitLSL_ri(MVT RetVT, MVT SrcVT, unsigned Op0,
   };
   unsigned Opc = OpcTable[IsZExt][Is64Bit];
   if (SrcVT.SimpleTy <= MVT::i32 && RetVT == MVT::i64) {
-    unsigned TmpReg = MRI.createVirtualRegister(RC);
+    Register TmpReg = MRI.createVirtualRegister(RC);
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
             TII.get(AArch64::SUBREG_TO_REG), TmpReg)
         .addImm(0)
@@ -4244,7 +4297,7 @@ unsigned AArch64FastISel::emitLSR_ri(MVT RetVT, MVT SrcVT, unsigned Op0,
   };
   unsigned Opc = OpcTable[IsZExt][Is64Bit];
   if (SrcVT.SimpleTy <= MVT::i32 && RetVT == MVT::i64) {
-    unsigned TmpReg = MRI.createVirtualRegister(RC);
+    Register TmpReg = MRI.createVirtualRegister(RC);
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
             TII.get(AArch64::SUBREG_TO_REG), TmpReg)
         .addImm(0)
@@ -4353,7 +4406,7 @@ unsigned AArch64FastISel::emitASR_ri(MVT RetVT, MVT SrcVT, unsigned Op0,
   };
   unsigned Opc = OpcTable[IsZExt][Is64Bit];
   if (SrcVT.SimpleTy <= MVT::i32 && RetVT == MVT::i64) {
-    unsigned TmpReg = MRI.createVirtualRegister(RC);
+    Register TmpReg = MRI.createVirtualRegister(RC);
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
             TII.get(AArch64::SUBREG_TO_REG), TmpReg)
         .addImm(0)
@@ -4412,7 +4465,7 @@ unsigned AArch64FastISel::emitIntExt(MVT SrcVT, unsigned SrcReg, MVT DestVT,
   if (DestVT == MVT::i8 || DestVT == MVT::i16)
     DestVT = MVT::i32;
   else if (DestVT == MVT::i64) {
-    unsigned Src64 = MRI.createVirtualRegister(&AArch64::GPR64RegClass);
+    Register Src64 = MRI.createVirtualRegister(&AArch64::GPR64RegClass);
     BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, DbgLoc,
             TII.get(AArch64::SUBREG_TO_REG), Src64)
         .addImm(0)
@@ -4495,7 +4548,7 @@ bool AArch64FastISel::optimizeIntExtLoad(const Instruction *I, MVT RetVT,
   const auto *LoadMI = MI;
   if (LoadMI->getOpcode() == TargetOpcode::COPY &&
       LoadMI->getOperand(1).getSubReg() == AArch64::sub_32) {
-    unsigned LoadReg = MI->getOperand(1).getReg();
+    Register LoadReg = MI->getOperand(1).getReg();
     LoadMI = MRI.getUniqueVRegDef(LoadReg);
     assert(LoadMI && "Expected valid instruction");
   }
@@ -4964,6 +5017,9 @@ std::pair<unsigned, bool> AArch64FastISel::getRegForGEPIndex(const Value *Idx) {
 /// simple cases. This is because the standard fastEmit functions don't cover
 /// MUL at all and ADD is lowered very inefficientily.
 bool AArch64FastISel::selectGetElementPtr(const Instruction *I) {
+  if (Subtarget->isTargetILP32())
+    return false;
+
   unsigned N = getRegForValue(I->getOperand(0));
   if (!N)
     return false;

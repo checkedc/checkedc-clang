@@ -16,6 +16,7 @@
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Basic/TargetBuiltins.h"
 #include "clang/Basic/TokenKinds.h"
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/FoldingSet.h"
@@ -31,6 +32,12 @@
 #include <string>
 
 using namespace clang;
+
+// A check to make sure the ObjCOrBuiltinID has sufficient room to store the
+// largest possible target/aux-target combination. If we exceed this, we likely
+// need to just change the ObjCOrBuiltinIDBits value in IdentifierTable.h.
+static_assert(2 * LargestBuiltinID < (2 << (ObjCOrBuiltinIDBits - 1)),
+              "Insufficient ObjCOrBuiltinID Bits");
 
 //===----------------------------------------------------------------------===//
 // IdentifierTable Implementation
@@ -97,10 +104,10 @@ namespace {
     KEYZVECTOR    = 0x40000,
     KEYCOROUTINES = 0x80000,
     KEYMODULES    = 0x100000,
-    KEYCXX2A      = 0x200000,
+    KEYCXX20      = 0x200000,
     KEYOPENCLCXX  = 0x400000,
     KEYMSCOMPAT   = 0x800000,
-    KEYALLCXX = KEYCXX | KEYCXX11 | KEYCXX2A,
+    KEYALLCXX = KEYCXX | KEYCXX11 | KEYCXX20,
     KEYCHECKEDC   = 0x1000000,
     KEYALL = (0xffffff & ~KEYNOMS18 &
               ~KEYNOOPENCL) // KEYNOMS18 and KEYNOOPENCL are used to exclude.
@@ -123,7 +130,7 @@ static KeywordStatus getKeywordStatus(const LangOptions &LangOpts,
   if (Flags == KEYALL) return KS_Enabled;
   if (LangOpts.CPlusPlus && (Flags & KEYCXX)) return KS_Enabled;
   if (LangOpts.CPlusPlus11 && (Flags & KEYCXX11)) return KS_Enabled;
-  if (LangOpts.CPlusPlus2a && (Flags & KEYCXX2A)) return KS_Enabled;
+  if (LangOpts.CPlusPlus20 && (Flags & KEYCXX20)) return KS_Enabled;
   if (LangOpts.C99 && (Flags & KEYC99)) return KS_Enabled;
   if (LangOpts.GNUKeywords && (Flags & KEYGNU)) return KS_Extension;
   if (LangOpts.MicrosoftExt && (Flags & KEYMS)) return KS_Extension;
@@ -143,11 +150,13 @@ static KeywordStatus getKeywordStatus(const LangOptions &LangOpts,
   // We treat bridge casts as objective-C keywords so we can warn on them
   // in non-arc mode.
   if (LangOpts.ObjC && (Flags & KEYOBJC)) return KS_Enabled;
-  if (LangOpts.ConceptsTS && (Flags & KEYCONCEPTS)) return KS_Enabled;
+  if (LangOpts.CPlusPlus20 && (Flags & KEYCONCEPTS)) return KS_Enabled;
   if (LangOpts.Coroutines && (Flags & KEYCOROUTINES)) return KS_Enabled;
   if (LangOpts.ModulesTS && (Flags & KEYMODULES)) return KS_Enabled;
   if (LangOpts.CheckedC && (Flags & KEYCHECKEDC)) return KS_Enabled;
   if (LangOpts.CPlusPlus && (Flags & KEYALLCXX)) return KS_Future;
+  if (LangOpts.CPlusPlus && !LangOpts.CPlusPlus20 && (Flags & CHAR8SUPPORT))
+    return KS_Future;
   return KS_Disabled;
 }
 
@@ -259,7 +268,7 @@ bool IdentifierInfo::isCPlusPlusKeyword(const LangOptions &LangOpts) const {
   LangOptions LangOptsNoCPP = LangOpts;
   LangOptsNoCPP.CPlusPlus = false;
   LangOptsNoCPP.CPlusPlus11 = false;
-  LangOptsNoCPP.CPlusPlus2a = false;
+  LangOptsNoCPP.CPlusPlus20 = false;
   return !isKeyword(LangOptsNoCPP);
 }
 
@@ -414,6 +423,21 @@ public:
 
 } // namespace clang.
 
+bool Selector::isKeywordSelector(ArrayRef<StringRef> Names) const {
+  assert(!Names.empty() && "must have >= 1 selector slots");
+  if (getNumArgs() != Names.size())
+    return false;
+  for (unsigned I = 0, E = Names.size(); I != E; ++I) {
+    if (getNameForSlot(I) != Names[I])
+      return false;
+  }
+  return true;
+}
+
+bool Selector::isUnarySelector(StringRef Name) const {
+  return isUnarySelector() && getNameForSlot(0) == Name;
+}
+
 unsigned Selector::getNumArgs() const {
   unsigned IIF = getIdentifierInfoFlag();
   if (IIF <= ZeroArg)
@@ -450,7 +474,7 @@ std::string MultiKeywordSelector::getName() const {
     OS << ':';
   }
 
-  return OS.str();
+  return std::string(OS.str());
 }
 
 std::string Selector::getAsString() const {
@@ -463,7 +487,7 @@ std::string Selector::getAsString() const {
     if (getNumArgs() == 0) {
       assert(II && "If the number of arguments is 0 then II is guaranteed to "
                    "not be null.");
-      return II->getName();
+      return std::string(II->getName());
     }
 
     if (!II)

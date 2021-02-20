@@ -9,6 +9,7 @@
 // Some of these are fairly clang-specific and hidden (e.g. textual AST dumps).
 // Others are more generally useful (class layout) and are exposed by default.
 //===----------------------------------------------------------------------===//
+#include "XRefs.h"
 #include "refactor/Tweak.h"
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Type.h"
@@ -41,7 +42,8 @@ public:
   }
   Expected<Effect> apply(const Selection &Inputs) override;
   std::string title() const override {
-    return llvm::formatv("Dump {0} AST", Node->getNodeKind().asStringRef());
+    return std::string(
+        llvm::formatv("Dump {0} AST", Node->getNodeKind().asStringRef()));
   }
   Intent intent() const override { return Info; }
   bool hidden() const override { return true; }
@@ -60,7 +62,7 @@ REGISTER_TWEAK(DumpAST)
 llvm::Expected<Tweak::Effect> DumpAST::apply(const Selection &Inputs) {
   std::string Str;
   llvm::raw_string_ostream OS(Str);
-  Node->dump(OS, Inputs.AST.getASTContext().getSourceManager());
+  Node->dump(OS, Inputs.AST->getASTContext());
   return Effect::showMessage(std::move(OS.str()));
 }
 
@@ -84,9 +86,7 @@ class ShowSelectionTree : public Tweak {
 public:
   const char *id() const override final;
 
-  bool prepare(const Selection &Inputs) override {
-    return Inputs.ASTSelection.root() != nullptr;
-  }
+  bool prepare(const Selection &Inputs) override { return true; }
   Expected<Effect> apply(const Selection &Inputs) override {
     return Effect::showMessage(llvm::to_string(Inputs.ASTSelection));
   }
@@ -95,6 +95,32 @@ public:
   bool hidden() const override { return true; }
 };
 REGISTER_TWEAK(ShowSelectionTree)
+
+/// Dumps the symbol under the cursor.
+/// Inputs:
+/// void foo();
+///      ^^^
+/// Message:
+///  foo -
+///  {"containerName":null,"id":"CA2EBE44A1D76D2A","name":"foo","usr":"c:@F@foo#"}
+class DumpSymbol : public Tweak {
+  const char *id() const override final;
+  bool prepare(const Selection &Inputs) override { return true; }
+  Expected<Effect> apply(const Selection &Inputs) override {
+    std::string Storage;
+    llvm::raw_string_ostream Out(Storage);
+
+    for (auto &Sym : getSymbolInfo(
+             *Inputs.AST, sourceLocToPosition(Inputs.AST->getSourceManager(),
+                                              Inputs.Cursor)))
+      Out << Sym;
+    return Effect::showMessage(Out.str());
+  }
+  std::string title() const override { return "Dump symbol under the cursor"; }
+  Intent intent() const override { return Info; }
+  bool hidden() const override { return true; }
+};
+REGISTER_TWEAK(DumpSymbol)
 
 /// Shows the layout of the RecordDecl under the cursor.
 /// Input:
@@ -119,15 +145,20 @@ public:
   Expected<Effect> apply(const Selection &Inputs) override {
     std::string Str;
     llvm::raw_string_ostream OS(Str);
-    Inputs.AST.getASTContext().DumpRecordLayout(Record, OS);
+    Inputs.AST->getASTContext().DumpRecordLayout(Record, OS);
     return Effect::showMessage(std::move(OS.str()));
   }
   std::string title() const override {
-    return llvm::formatv(
+    return std::string(llvm::formatv(
         "Show {0} layout",
-        TypeWithKeyword::getTagTypeKindName(Record->getTagKind()));
+        TypeWithKeyword::getTagTypeKindName(Record->getTagKind())));
   }
   Intent intent() const override { return Info; }
+  // FIXME: this is interesting to most users. However:
+  //  - triggering is too broad (e.g. triggers on comments within a class)
+  //  - showMessage has inconsistent UX (e.g. newlines are stripped in VSCode)
+  //  - the output itself is a bit hard to decipher.
+  bool hidden() const override { return true; }
 
 private:
   const RecordDecl *Record = nullptr;

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBBreakpoint_h_
-#define LLDB_SBBreakpoint_h_
+#ifndef LLDB_API_SBBREAKPOINT_H
+#define LLDB_API_SBBREAKPOINT_H
 
 #include "lldb/API/SBDefines.h"
 
@@ -94,6 +94,9 @@ public:
 
   void SetScriptCallbackFunction(const char *callback_function_name);
 
+  SBError SetScriptCallbackFunction(const char *callback_function_name,
+                                 SBStructuredData &extra_args);
+
   void SetCommandLineCommands(SBStringList &commands);
 
   bool GetCommandLineCommands(SBStringList &commands);
@@ -101,6 +104,8 @@ public:
   SBError SetScriptCallbackBody(const char *script_body_text);
 
   bool AddName(const char *new_name);
+
+  SBError AddNameWithErrorHandling(const char *new_name);
 
   void RemoveName(const char *name_to_remove);
 
@@ -178,4 +183,4 @@ private:
 
 } // namespace lldb
 
-#endif // LLDB_SBBreakpoint_h_
+#endif // LLDB_API_SBBREAKPOINT_H

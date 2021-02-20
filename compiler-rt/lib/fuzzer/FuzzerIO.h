@@ -42,7 +42,7 @@ std::string DirName(const std::string &FileName);
 // Returns path to a TmpDir.
 std::string TmpDir();
 
-std::string TempPath(const char *Extension);
+std::string TempPath(const char *Prefix, const char *Extension);
 
 bool IsInterestingCoverageFile(const std::string &FileName);
 
@@ -93,8 +93,6 @@ int DuplicateFile(int Fd);
 
 void RemoveFile(const std::string &Path);
 void RenameFile(const std::string &OldPath, const std::string &NewPath);
-
-void DiscardOutput(int Fd);
 
 intptr_t GetHandleFromFd(int fd);
 

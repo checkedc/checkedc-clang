@@ -41,11 +41,11 @@ public:
     MachineFunctionPass::getAnalysisUsage(AU);
   }
 
-  const X86Subtarget *STI;
-  const X86InstrInfo *TII;
-  const X86RegisterInfo *TRI;
-  const X86MachineFunctionInfo *X86FI;
-  const X86FrameLowering *X86FL;
+  const X86Subtarget *STI = nullptr;
+  const X86InstrInfo *TII = nullptr;
+  const X86RegisterInfo *TRI = nullptr;
+  const X86MachineFunctionInfo *X86FI = nullptr;
+  const X86FrameLowering *X86FL = nullptr;
 
   bool runOnMachineFunction(MachineFunction &Fn) override;
 
@@ -194,7 +194,8 @@ bool X86ExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
   case X86::TCRETURNmi64: {
     bool isMem = Opcode == X86::TCRETURNmi || Opcode == X86::TCRETURNmi64;
     MachineOperand &JumpTarget = MBBI->getOperand(0);
-    MachineOperand &StackAdjust = MBBI->getOperand(isMem ? 5 : 1);
+    MachineOperand &StackAdjust = MBBI->getOperand(isMem ? X86::AddrNumOperands
+                                                         : 1);
     assert(StackAdjust.isImm() && "Expecting immediate value.");
 
     // Adjust stack pointer.
@@ -259,7 +260,7 @@ bool X86ExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
                         ? X86::TAILJMPm
                         : (IsWin64 ? X86::TAILJMPm64_REX : X86::TAILJMPm64);
       MachineInstrBuilder MIB = BuildMI(MBB, MBBI, DL, TII->get(Op));
-      for (unsigned i = 0; i != 5; ++i)
+      for (unsigned i = 0; i != X86::AddrNumOperands; ++i)
         MIB.add(MBBI->getOperand(i));
     } else if (Opcode == X86::TCRETURNri64) {
       JumpTarget.setIsKill();
@@ -274,7 +275,10 @@ bool X86ExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
 
     MachineInstr &NewMI = *std::prev(MBBI);
     NewMI.copyImplicitOps(*MBBI->getParent()->getParent(), *MBBI);
-    MBB.getParent()->updateCallSiteInfo(&*MBBI, &NewMI);
+
+    // Update the call site info.
+    if (MBBI->isCandidateForCallSiteEntry())
+      MBB.getParent()->moveCallSiteInfo(&*MBBI, &NewMI);
 
     // Delete the pseudo instruction TCRETURN.
     MBB.erase(MBBI);
@@ -287,7 +291,7 @@ bool X86ExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
     assert(DestAddr.isReg() && "Offset should be in register!");
     const bool Uses64BitFramePtr =
         STI->isTarget64BitLP64() || STI->isTargetNaCl64();
-    unsigned StackPtr = TRI->getStackRegister();
+    Register StackPtr = TRI->getStackRegister();
     BuildMI(MBB, MBBI, DL,
             TII->get(Uses64BitFramePtr ? X86::MOV64rr : X86::MOV32rr), StackPtr)
         .addReg(DestAddr.getReg());
@@ -330,14 +334,6 @@ bool X86ExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
     MBB.erase(MBBI);
     return true;
   }
-  case X86::EH_RESTORE: {
-    // Restore ESP and EBP, and optionally ESI if required.
-    bool IsSEH = isAsynchronousEHPersonality(classifyEHPersonality(
-        MBB.getParent()->getFunction().getPersonalityFn()));
-    X86FL->restoreWin32EHStackPointers(MBB, MBBI, DL, /*RestoreSP=*/IsSEH);
-    MBBI->eraseFromParent();
-    return true;
-  }
   case X86::LCMPXCHG8B_SAVE_EBX:
   case X86::LCMPXCHG16B_SAVE_RBX: {
     // Perform the following transformation.
@@ -347,7 +343,7 @@ bool X86ExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
     // actualcmpxchg Addr
     // [E|R]BX = SaveRbx
     const MachineOperand &InArg = MBBI->getOperand(6);
-    unsigned SaveRbx = MBBI->getOperand(7).getReg();
+    Register SaveRbx = MBBI->getOperand(7).getReg();
 
     unsigned ActualInArg =
         Opcode == X86::LCMPXCHG8B_SAVE_EBX ? X86::EBX : X86::RBX;
@@ -368,6 +364,82 @@ bool X86ExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
 
     // Delete the pseudo.
     MBBI->eraseFromParent();
+    return true;
+  }
+  // Loading/storing mask pairs requires two kmov operations. The second one of
+  // these needs a 2 byte displacement relative to the specified address (with
+  // 32 bit spill size). The pairs of 1bit masks up to 16 bit masks all use the
+  // same spill size, they all are stored using MASKPAIR16STORE, loaded using
+  // MASKPAIR16LOAD.
+  //
+  // The displacement value might wrap around in theory, thus the asserts in
+  // both cases.
+  case X86::MASKPAIR16LOAD: {
+    int64_t Disp = MBBI->getOperand(1 + X86::AddrDisp).getImm();
+    assert(Disp >= 0 && Disp <= INT32_MAX - 2 && "Unexpected displacement");
+    Register Reg = MBBI->getOperand(0).getReg();
+    bool DstIsDead = MBBI->getOperand(0).isDead();
+    Register Reg0 = TRI->getSubReg(Reg, X86::sub_mask_0);
+    Register Reg1 = TRI->getSubReg(Reg, X86::sub_mask_1);
+
+    auto MIBLo = BuildMI(MBB, MBBI, DL, TII->get(X86::KMOVWkm))
+      .addReg(Reg0, RegState::Define | getDeadRegState(DstIsDead));
+    auto MIBHi = BuildMI(MBB, MBBI, DL, TII->get(X86::KMOVWkm))
+      .addReg(Reg1, RegState::Define | getDeadRegState(DstIsDead));
+
+    for (int i = 0; i < X86::AddrNumOperands; ++i) {
+      MIBLo.add(MBBI->getOperand(1 + i));
+      if (i == X86::AddrDisp)
+        MIBHi.addImm(Disp + 2);
+      else
+        MIBHi.add(MBBI->getOperand(1 + i));
+    }
+
+    // Split the memory operand, adjusting the offset and size for the halves.
+    MachineMemOperand *OldMMO = MBBI->memoperands().front();
+    MachineFunction *MF = MBB.getParent();
+    MachineMemOperand *MMOLo = MF->getMachineMemOperand(OldMMO, 0, 2);
+    MachineMemOperand *MMOHi = MF->getMachineMemOperand(OldMMO, 2, 2);
+
+    MIBLo.setMemRefs(MMOLo);
+    MIBHi.setMemRefs(MMOHi);
+
+    // Delete the pseudo.
+    MBB.erase(MBBI);
+    return true;
+  }
+  case X86::MASKPAIR16STORE: {
+    int64_t Disp = MBBI->getOperand(X86::AddrDisp).getImm();
+    assert(Disp >= 0 && Disp <= INT32_MAX - 2 && "Unexpected displacement");
+    Register Reg = MBBI->getOperand(X86::AddrNumOperands).getReg();
+    bool SrcIsKill = MBBI->getOperand(X86::AddrNumOperands).isKill();
+    Register Reg0 = TRI->getSubReg(Reg, X86::sub_mask_0);
+    Register Reg1 = TRI->getSubReg(Reg, X86::sub_mask_1);
+
+    auto MIBLo = BuildMI(MBB, MBBI, DL, TII->get(X86::KMOVWmk));
+    auto MIBHi = BuildMI(MBB, MBBI, DL, TII->get(X86::KMOVWmk));
+
+    for (int i = 0; i < X86::AddrNumOperands; ++i) {
+      MIBLo.add(MBBI->getOperand(i));
+      if (i == X86::AddrDisp)
+        MIBHi.addImm(Disp + 2);
+      else
+        MIBHi.add(MBBI->getOperand(i));
+    }
+    MIBLo.addReg(Reg0, getKillRegState(SrcIsKill));
+    MIBHi.addReg(Reg1, getKillRegState(SrcIsKill));
+
+    // Split the memory operand, adjusting the offset and size for the halves.
+    MachineMemOperand *OldMMO = MBBI->memoperands().front();
+    MachineFunction *MF = MBB.getParent();
+    MachineMemOperand *MMOLo = MF->getMachineMemOperand(OldMMO, 0, 2);
+    MachineMemOperand *MMOHi = MF->getMachineMemOperand(OldMMO, 2, 2);
+
+    MIBLo.setMemRefs(MMOLo);
+    MIBHi.setMemRefs(MMOHi);
+
+    // Delete the pseudo.
+    MBB.erase(MBBI);
     return true;
   }
   case TargetOpcode::ICALL_BRANCH_FUNNEL:

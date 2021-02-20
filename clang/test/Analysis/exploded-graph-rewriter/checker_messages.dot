@@ -1,8 +1,5 @@
 // RUN: %exploded_graph_rewriter %s | FileCheck %s
 
-// FIXME: Substitution doesn't seem to work on Windows.
-// UNSUPPORTED: system-windows
-
 // CHECK: <b>Checker State: </b>
 // CHECK-SAME: <td align="left"><i>alpha.core.FooChecker</i>:</td>
 // CHECK-SAME: <td align="left">Foo stuff:</td>
@@ -14,7 +11,14 @@ Node0x1 [shape=record,label=
       "has_report": false,
       "is_sink": false,
       "state_id": 2,
-      "program_points": [],
+      "program_points": [
+        {
+          "kind": "BlockEntrance", "block_id": 1,
+          "terminator": null, "term_kind": null,
+          "tag": null, "node_id": 1,
+          "has_report": 0, "is_sink": 0
+        }
+      ],
       "program_state": {
         "store": null,
         "constraints": null,

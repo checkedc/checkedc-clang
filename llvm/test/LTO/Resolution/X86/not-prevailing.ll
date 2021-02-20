@@ -4,11 +4,11 @@
 ; RUN:   -r %t2.o,bar,x -save-temps
 
 ; Check that 'foo' and 'bar' were not inlined.
-; CHECK:      zed:
+; CHECK:      <zed>:
 ; CHECK-NEXT:  {{.*}}  pushq   %rbx
-; CHECK-NEXT:  {{.*}}  callq   0 <zed+0x6>
+; CHECK-NEXT:  {{.*}}  callq   0x6 <zed+0x6>
 ; CHECK-NEXT:  {{.*}}  movl    %eax, %ebx
-; CHECK-NEXT:  {{.*}}  callq   0 <zed+0xd>
+; CHECK-NEXT:  {{.*}}  callq   0xd <zed+0xd>
 ; CHECK-NEXT:  {{.*}}  movl    %ebx, %eax
 ; CHECK-NEXT:  {{.*}}  popq    %rbx
 ; CHECK-NEXT:  {{.*}}  retq
@@ -21,7 +21,7 @@
 ; SYMBOLS: NOTYPE  GLOBAL DEFAULT  UND foo
 ; SYMBOLS: FUNC    GLOBAL DEFAULT    2 zed
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 $foo = comdat any

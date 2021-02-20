@@ -25,6 +25,9 @@ void ARMTargetInfo::setABIAAPCS() {
   IsAAPCS = true;
 
   DoubleAlign = LongLongAlign = LongDoubleAlign = SuitableAlign = 64;
+  BFloat16Width = BFloat16Align = 16;
+  BFloat16Format = &llvm::APFloat::BFloat();
+
   const llvm::Triple &T = getTriple();
 
   bool IsNetBSD = T.isOSNetBSD();
@@ -74,6 +77,8 @@ void ARMTargetInfo::setABIAPCS(bool IsAAPCS16) {
     DoubleAlign = LongLongAlign = LongDoubleAlign = SuitableAlign = 64;
   else
     DoubleAlign = LongLongAlign = LongDoubleAlign = SuitableAlign = 32;
+  BFloat16Width = BFloat16Align = 16;
+  BFloat16Format = &llvm::APFloat::BFloat();
 
   WCharType = SignedInt;
 
@@ -107,7 +112,7 @@ void ARMTargetInfo::setArchInfo() {
   StringRef ArchName = getTriple().getArchName();
 
   ArchISA = llvm::ARM::parseArchISA(ArchName);
-  CPU = llvm::ARM::getDefaultCPU(ArchName);
+  CPU = std::string(llvm::ARM::getDefaultCPU(ArchName));
   llvm::ARM::ArchKind AK = llvm::ARM::parseArch(ArchName);
   if (AK != llvm::ARM::ArchKind::INVALID)
     ArchKind = AK;
@@ -154,6 +159,8 @@ bool ARMTargetInfo::hasMVEFloat() const {
   return hasMVE() && (MVE & MVE_FP);
 }
 
+bool ARMTargetInfo::hasCDE() const { return getARMCDECoprocMask() != 0; }
+
 bool ARMTargetInfo::isThumb() const {
   return ArchISA == llvm::ARM::ISAKind::THUMB;
 }
@@ -199,6 +206,8 @@ StringRef ARMTargetInfo::getCPUAttr() const {
     return "8_4A";
   case llvm::ARM::ArchKind::ARMV8_5A:
     return "8_5A";
+  case llvm::ARM::ArchKind::ARMV8_6A:
+    return "8_6A";
   case llvm::ARM::ArchKind::ARMV8MBaseline:
     return "8M_BASE";
   case llvm::ARM::ArchKind::ARMV8MMainline:
@@ -309,8 +318,9 @@ ARMTargetInfo::ARMTargetInfo(const llvm::Triple &Triple,
   setAtomic();
 
   // Maximum alignment for ARM NEON data types should be 64-bits (AAPCS)
-  if (IsAAPCS && (Triple.getEnvironment() != llvm::Triple::Android))
-    MaxVectorAlign = 64;
+  // as well the default alignment
+  if (IsAAPCS && !Triple.isAndroid())
+    DefaultAlignForAttributeAligned = MaxVectorAlign = 64;
 
   // Do force alignment of members that follow zero length bitfields.  If
   // the alignment of the zero-length bitfield is greater than the member
@@ -321,7 +331,7 @@ ARMTargetInfo::ARMTargetInfo(const llvm::Triple &Triple,
   if (Triple.getOS() == llvm::Triple::Linux ||
       Triple.getOS() == llvm::Triple::UnknownOS)
     this->MCountName = Opts.EABIVersion == llvm::EABI::GNU
-                           ? "\01__gnu_mcount_nc"
+                           ? "llvm.arm.gnu.eabi.mcount"
                            : "\01mcount";
 
   SoftFloatABI = llvm::is_contained(Opts.FeaturesAsWritten, "+soft-float-abi");
@@ -371,7 +381,7 @@ bool ARMTargetInfo::initFeatureMap(
   llvm::ARM::getFPUFeatures(FPUKind, TargetFeatures);
 
   // get default Extension features
-  unsigned Extensions = llvm::ARM::getDefaultExtensions(CPU, Arch);
+  uint64_t Extensions = llvm::ARM::getDefaultExtensions(CPU, Arch);
   llvm::ARM::getExtensionFeatures(Extensions, TargetFeatures);
 
   for (auto Feature : TargetFeatures)
@@ -420,18 +430,20 @@ bool ARMTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
   // Note that SoftFloatABI is initialized in our constructor.
   HWDiv = 0;
   DotProd = 0;
+  HasMatMul = 0;
   HasFloat16 = true;
+  ARMCDECoprocMask = 0;
+  HasBFloat16 = false;
 
   // This does not diagnose illegal cases like having both
   // "+vfpv2" and "+vfpv3" or having "+neon" and "-fp64".
   for (const auto &Feature : Features) {
     if (Feature == "+soft-float") {
       SoftFloat = true;
-    } else if (Feature == "+vfp2sp" || Feature == "+vfp2d16sp" ||
-               Feature == "+vfp2" || Feature == "+vfp2d16") {
+    } else if (Feature == "+vfp2sp" || Feature == "+vfp2") {
       FPU |= VFP2FPU;
       HW_FP |= HW_FP_SP;
-      if (Feature == "+vfp2" || Feature == "+vfp2d16")
+      if (Feature == "+vfp2")
           HW_FP |= HW_FP_DP;
     } else if (Feature == "+vfp3sp" || Feature == "+vfp3d16sp" ||
                Feature == "+vfp3" || Feature == "+vfp3d16") {
@@ -480,14 +492,20 @@ bool ARMTargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
     } else if (Feature == "+dotprod") {
       DotProd = true;
     } else if (Feature == "+mve") {
-      DSP = 1;
       MVE |= MVE_INT;
     } else if (Feature == "+mve.fp") {
-      DSP = 1;
       HasLegalHalfType = true;
       FPU |= FPARMV8;
       MVE |= MVE_INT | MVE_FP;
       HW_FP |= HW_FP_SP | HW_FP_HP;
+    } else if (Feature == "+i8mm") {
+      HasMatMul = 1;
+    } else if (Feature.size() == strlen("+cdecp0") && Feature >= "+cdecp0" &&
+               Feature <= "+cdecp7") {
+      unsigned Coproc = Feature.back() - '0';
+      ARMCDECoprocMask |= (1U << Coproc);
+    } else if (Feature == "+bf16") {
+      HasBFloat16 = true;
     }
   }
 
@@ -537,6 +555,10 @@ bool ARMTargetInfo::hasFeature(StringRef Feature) const {
       .Default(false);
 }
 
+bool ARMTargetInfo::hasBFloat16Type() const {
+  return HasBFloat16 && !SoftFloat;
+}
+
 bool ARMTargetInfo::isValidCPUName(StringRef Name) const {
   return Name == "generic" ||
          llvm::ARM::parseCPUArch(Name) != llvm::ARM::ArchKind::INVALID;
@@ -578,6 +600,13 @@ void ARMTargetInfo::getTargetDefinesARMV82A(const LangOptions &Opts,
                                             MacroBuilder &Builder) const {
   // Also include the ARMv8.1-A defines
   getTargetDefinesARMV81A(Opts, Builder);
+}
+
+void ARMTargetInfo::getTargetDefinesARMV83A(const LangOptions &Opts,
+                                            MacroBuilder &Builder) const {
+  // Also include the ARMv8.2-A defines
+  Builder.defineMacro("__ARM_FEATURE_COMPLEX", "1");
+  getTargetDefinesARMV82A(Opts, Builder);
 }
 
 void ARMTargetInfo::getTargetDefines(const LangOptions &Opts,
@@ -753,6 +782,12 @@ void ARMTargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__ARM_FEATURE_MVE", hasMVEFloat() ? "3" : "1");
   }
 
+  if (hasCDE()) {
+    Builder.defineMacro("__ARM_FEATURE_CDE", "1");
+    Builder.defineMacro("__ARM_FEATURE_CDE_COPROC",
+                        "0x" + Twine::utohexstr(getARMCDECoprocMask()));
+  }
+
   Builder.defineMacro("__ARM_SIZEOF_WCHAR_T",
                       Twine(Opts.WCharSize ? Opts.WCharSize : 4));
 
@@ -800,6 +835,15 @@ void ARMTargetInfo::getTargetDefines(const LangOptions &Opts,
   if (DotProd)
     Builder.defineMacro("__ARM_FEATURE_DOTPROD", "1");
 
+  if (HasMatMul)
+    Builder.defineMacro("__ARM_FEATURE_MATMUL_INT8", "1");
+
+  if (HasBFloat16) {
+    Builder.defineMacro("__ARM_FEATURE_BF16", "1");
+    Builder.defineMacro("__ARM_FEATURE_BF16_VECTOR_ARITHMETIC", "1");
+    Builder.defineMacro("__ARM_BF16_FORMAT_ALTERNATIVE", "1");
+  }
+
   switch (ArchKind) {
   default:
     break;
@@ -808,6 +852,12 @@ void ARMTargetInfo::getTargetDefines(const LangOptions &Opts,
     break;
   case llvm::ARM::ArchKind::ARMV8_2A:
     getTargetDefinesARMV82A(Opts, Builder);
+    break;
+  case llvm::ARM::ArchKind::ARMV8_3A:
+  case llvm::ARM::ArchKind::ARMV8_4A:
+  case llvm::ARM::ArchKind::ARMV8_5A:
+  case llvm::ARM::ArchKind::ARMV8_6A:
+    getTargetDefinesARMV83A(Opts, Builder);
     break;
   }
 }
@@ -884,19 +934,102 @@ bool ARMTargetInfo::validateAsmConstraint(
   switch (*Name) {
   default:
     break;
-  case 'l': // r0-r7
-  case 'h': // r8-r15
-  case 't': // VFP Floating point register single precision
-  case 'w': // VFP Floating point register double precision
+  case 'l': // r0-r7 if thumb, r0-r15 if ARM
     Info.setAllowsRegister();
     return true;
-  case 'I':
-  case 'J':
-  case 'K':
-  case 'L':
-  case 'M':
-    // FIXME
+  case 'h': // r8-r15, thumb only
+    if (isThumb()) {
+      Info.setAllowsRegister();
+      return true;
+    }
+    break;
+  case 's': // An integer constant, but allowing only relocatable values.
     return true;
+  case 't': // s0-s31, d0-d31, or q0-q15
+  case 'w': // s0-s15, d0-d7, or q0-q3
+  case 'x': // s0-s31, d0-d15, or q0-q7
+    Info.setAllowsRegister();
+    return true;
+  case 'j': // An immediate integer between 0 and 65535 (valid for MOVW)
+    // only available in ARMv6T2 and above
+    if (CPUAttr.equals("6T2") || ArchVersion >= 7) {
+      Info.setRequiresImmediate(0, 65535);
+      return true;
+    }
+    break;
+  case 'I':
+    if (isThumb()) {
+      if (!supportsThumb2())
+        Info.setRequiresImmediate(0, 255);
+      else
+        // FIXME: should check if immediate value would be valid for a Thumb2
+        // data-processing instruction
+        Info.setRequiresImmediate();
+    } else
+      // FIXME: should check if immediate value would be valid for an ARM
+      // data-processing instruction
+      Info.setRequiresImmediate();
+    return true;
+  case 'J':
+    if (isThumb() && !supportsThumb2())
+      Info.setRequiresImmediate(-255, -1);
+    else
+      Info.setRequiresImmediate(-4095, 4095);
+    return true;
+  case 'K':
+    if (isThumb()) {
+      if (!supportsThumb2())
+        // FIXME: should check if immediate value can be obtained from shifting
+        // a value between 0 and 255 left by any amount
+        Info.setRequiresImmediate();
+      else
+        // FIXME: should check if immediate value would be valid for a Thumb2
+        // data-processing instruction when inverted
+        Info.setRequiresImmediate();
+    } else
+      // FIXME: should check if immediate value would be valid for an ARM
+      // data-processing instruction when inverted
+      Info.setRequiresImmediate();
+    return true;
+  case 'L':
+    if (isThumb()) {
+      if (!supportsThumb2())
+        Info.setRequiresImmediate(-7, 7);
+      else
+        // FIXME: should check if immediate value would be valid for a Thumb2
+        // data-processing instruction when negated
+        Info.setRequiresImmediate();
+    } else
+      // FIXME: should check if immediate value  would be valid for an ARM
+      // data-processing instruction when negated
+      Info.setRequiresImmediate();
+    return true;
+  case 'M':
+    if (isThumb() && !supportsThumb2())
+      // FIXME: should check if immediate value is a multiple of 4 between 0 and
+      // 1020
+      Info.setRequiresImmediate();
+    else
+      // FIXME: should check if immediate value is a power of two or a integer
+      // between 0 and 32
+      Info.setRequiresImmediate();
+    return true;
+  case 'N':
+    // Thumb1 only
+    if (isThumb() && !supportsThumb2()) {
+      Info.setRequiresImmediate(0, 31);
+      return true;
+    }
+    break;
+  case 'O':
+    // Thumb1 only
+    if (isThumb() && !supportsThumb2()) {
+      // FIXME: should check if immediate value is a multiple of 4 between -508
+      // and 508
+      Info.setRequiresImmediate();
+      return true;
+    }
+    break;
   case 'Q': // A memory address that is a single base register.
     Info.setAllowsMemory();
     return true;

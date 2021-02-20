@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_Rendezvous_H_
-#define liblldb_Rendezvous_H_
+#ifndef LLDB_SOURCE_PLUGINS_DYNAMICLOADER_POSIX_DYLD_DYLDRENDEZVOUS_H
+#define LLDB_SOURCE_PLUGINS_DYNAMICLOADER_POSIX_DYLD_DYLDRENDEZVOUS_H
 
 #include <list>
 #include <string>
@@ -222,16 +222,20 @@ protected:
 
   /// Updates the current set of SOEntries, the set of added entries, and the
   /// set of removed entries.
-  bool UpdateSOEntries(bool fromRemote = false);
+  bool UpdateSOEntries();
+
+  /// Same as UpdateSOEntries but it gets the list of loaded modules from the
+  /// remote debug server (faster when supported).
+  bool UpdateSOEntriesFromRemote();
 
   bool FillSOEntryFromModuleInfo(
       LoadedModuleInfoList::LoadedModuleInfo const &modInfo, SOEntry &entry);
 
-  bool SaveSOEntriesFromRemote(LoadedModuleInfoList &module_list);
+  bool SaveSOEntriesFromRemote(const LoadedModuleInfoList &module_list);
 
-  bool AddSOEntriesFromRemote(LoadedModuleInfoList &module_list);
+  bool AddSOEntriesFromRemote(const LoadedModuleInfoList &module_list);
 
-  bool RemoveSOEntriesFromRemote(LoadedModuleInfoList &module_list);
+  bool RemoveSOEntriesFromRemote(const LoadedModuleInfoList &module_list);
 
   bool AddSOEntries();
 
@@ -248,6 +252,17 @@ protected:
   enum PThreadField { eSize, eNElem, eOffset };
 
   bool FindMetadata(const char *name, PThreadField field, uint32_t &value);
+
+  enum RendezvousAction {
+    eNoAction,
+    eTakeSnapshot,
+    eAddModules,
+    eRemoveModules
+  };
+
+  /// Returns the current action to be taken given the current and previous
+  /// state
+  RendezvousAction GetAction() const;
 };
 
 #endif

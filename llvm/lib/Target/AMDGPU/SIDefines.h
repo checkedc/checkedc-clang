@@ -99,7 +99,10 @@ enum : uint64_t {
   FPAtomic = UINT64_C(1) << 53,
 
   // Is a MFMA instruction.
-  IsMAI = UINT64_C(1) << 54
+  IsMAI = UINT64_C(1) << 54,
+
+  // Is a DOT instruction.
+  IsDOT = UINT64_C(1) << 55
 };
 
 // v_cmp_class_* etc. use a 10-bit mask for what operation is checked.
@@ -330,7 +333,9 @@ enum Id { // HwRegCode, (6) [5:0]
   ID_FLAT_SCR_HI = 21,
   ID_XNACK_MASK = 22,
   ID_POPS_PACKER = 25,
-  ID_SYMBOLIC_LAST_ = 26,
+  ID_SHADER_CYCLES = 29,
+  ID_SYMBOLIC_FIRST_GFX1030_ = ID_SHADER_CYCLES,
+  ID_SYMBOLIC_LAST_ = 30,
   ID_SHIFT_ = 0,
   ID_WIDTH_ = 6,
   ID_MASK_ = (((1 << ID_WIDTH_) - 1) << ID_SHIFT_)
@@ -361,6 +366,28 @@ enum WidthMinusOne : unsigned { // WidthMinusOne, (5) [15:11]
 // Some values from WidthMinusOne mapped into Width domain.
 enum Width : unsigned {
   WIDTH_DEFAULT_ = WIDTH_M1_DEFAULT_ + 1,
+};
+
+enum ModeRegisterMasks : uint32_t {
+  FP_ROUND_MASK = 0xf << 0,  // Bits 0..3
+  FP_DENORM_MASK = 0xf << 4, // Bits 4..7
+  DX10_CLAMP_MASK = 1 << 8,
+  IEEE_MODE_MASK = 1 << 9,
+  LOD_CLAMP_MASK = 1 << 10,
+  DEBUG_MASK = 1 << 11,
+
+  // EXCP_EN fields.
+  EXCP_EN_INVALID_MASK = 1 << 12,
+  EXCP_EN_INPUT_DENORMAL_MASK = 1 << 13,
+  EXCP_EN_FLOAT_DIV0_MASK = 1 << 14,
+  EXCP_EN_OVERFLOW_MASK = 1 << 15,
+  EXCP_EN_UNDERFLOW_MASK = 1 << 16,
+  EXCP_EN_INEXACT_MASK = 1 << 17,
+  EXCP_EN_INT_DIV0_MASK = 1 << 18,
+
+  GPR_IDX_EN_MASK = 1 << 27,
+  VSKIP_MASK = 1 << 28,
+  CSP_MASK = 0x7u << 29 // Bits 29..31
 };
 
 } // namespace Hwreg
@@ -444,6 +471,7 @@ namespace DPP {
 
 enum DppCtrl : unsigned {
   QUAD_PERM_FIRST   = 0,
+  QUAD_PERM_ID      = 0xE4, // identity permutation
   QUAD_PERM_LAST    = 0xFF,
   DPP_UNUSED1       = 0x100,
   ROW_SHL0          = 0x100,

@@ -1,6 +1,5 @@
 ; RUN: llc -mcpu=pwr9 -mtriple=powerpc64le-unknown-unknown \
-; RUN:   -enable-ppc-quad-precision -ppc-vsr-nums-as-vr \
-; RUN:   -ppc-asm-full-reg-names < %s | FileCheck %s
+; RUN:   -ppc-vsr-nums-as-vr -ppc-asm-full-reg-names < %s | FileCheck %s
 
 define void @qpFmadd(fp128* nocapture readonly %a, fp128* nocapture %b,
                    fp128* nocapture readonly %c, fp128* nocapture %res) {
@@ -121,7 +120,7 @@ entry:
   %1 = load fp128, fp128* %b, align 16
   %2 = load fp128, fp128* %c, align 16
   %mul = fmul contract fp128 %1, %2
-  %sub = fsub contract fp128 %0, %mul
+  %sub = fsub contract nsz fp128 %0, %mul
   store fp128 %sub, fp128* %res, align 16
   ret void
 ; CHECK-LABEL: qpFmsub
@@ -129,7 +128,7 @@ entry:
 ; CHECK-DAG: lxv v[[REG3:[0-9]+]], 0(r3)
 ; CHECK-DAG: lxv v[[REG4:[0-9]+]], 0(r4)
 ; CHECK-DAG: lxv v[[REG5:[0-9]+]], 0(r5)
-; CHECK: xsnmsubqp v[[REG3]], v[[REG5]], v[[REG4]]
+; CHECK: xsnmsubqp v[[REG3]], v[[REG4]], v[[REG5]]
 ; CHECK-NEXT: stxv v[[REG3]], 0(r6)
 ; CHECK-NEXT: blr
 }

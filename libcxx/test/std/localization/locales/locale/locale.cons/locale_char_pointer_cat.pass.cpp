@@ -10,9 +10,6 @@
 // REQUIRES: locale.ru_RU.UTF-8
 // UNSUPPORTED: sanitizer-new-delete
 
-// XFAIL: availability=macosx10.8
-// XFAIL: availability=macosx10.7
-
 // <locale>
 
 // locale(const locale& other, const char* std_name, category);
@@ -21,7 +18,7 @@
 #include <new>
 #include <cassert>
 
-#include "count_new.hpp"
+#include "count_new.h"
 #include "test_macros.h"
 #include "platform_support.h" // locale name macros
 

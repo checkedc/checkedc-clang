@@ -17,6 +17,13 @@
 
 // Translated from Figure 3-40 of The PowerPC Compiler Writer's Guide
 
+#if defined(_MSC_VER) && !defined(__clang__)
+// MSVC throws a warning about mod 0 here, disable it for builds that
+// warn-as-error
+#pragma warning(push)
+#pragma warning(disable : 4724)
+#endif
+
 COMPILER_RT_ABI du_int __udivmoddi4(du_int a, du_int b, du_int *rem) {
   const unsigned n_uword_bits = sizeof(su_int) * CHAR_BIT;
   const unsigned n_udword_bits = sizeof(du_int) * CHAR_BIT;
@@ -80,7 +87,7 @@ COMPILER_RT_ABI du_int __udivmoddi4(du_int a, du_int b, du_int *rem) {
     // K K
     // ---
     // K 0
-    sr = __builtin_clz(d.s.high) - __builtin_clz(n.s.high);
+    sr = clzsi(d.s.high) - clzsi(n.s.high);
     // 0 <= sr <= n_uword_bits - 2 or sr large
     if (sr > n_uword_bits - 2) {
       if (rem)
@@ -113,7 +120,7 @@ COMPILER_RT_ABI du_int __udivmoddi4(du_int a, du_int b, du_int *rem) {
       // K X
       // ---
       // 0 K
-      sr = 1 + n_uword_bits + __builtin_clz(d.s.low) - __builtin_clz(n.s.high);
+      sr = 1 + n_uword_bits + clzsi(d.s.low) - clzsi(n.s.high);
       // 2 <= sr <= n_udword_bits - 1
       // q.all = n.all << (n_udword_bits - sr);
       // r.all = n.all >> sr;
@@ -138,7 +145,7 @@ COMPILER_RT_ABI du_int __udivmoddi4(du_int a, du_int b, du_int *rem) {
       // K X
       // ---
       // K K
-      sr = __builtin_clz(d.s.high) - __builtin_clz(n.s.high);
+      sr = clzsi(d.s.high) - clzsi(n.s.high);
       // 0 <= sr <= n_uword_bits - 1 or sr large
       if (sr > n_uword_bits - 1) {
         if (rem)
@@ -187,3 +194,7 @@ COMPILER_RT_ABI du_int __udivmoddi4(du_int a, du_int b, du_int *rem) {
     *rem = r.all;
   return q.all;
 }
+
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma warning(pop)
+#endif

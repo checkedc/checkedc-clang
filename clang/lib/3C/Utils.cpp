@@ -152,6 +152,7 @@ bool isNULLExpression(clang::Expr *E, ASTContext &C) {
          E->isNullPointerConstant(C, Expr::NPC_ValueDependentIsNotNull);
 }
 
+<<<<<<< HEAD
 std::error_code tryGetCanonicalFilePath(const std::string &FileName, std::string &AbsoluteFp) {
   SmallString<255> AbsPath;
   std::error_code EC;
@@ -188,6 +189,23 @@ bool filePathStartsWith(const std::string &Path, const std::string &Prefix) {
   }
   return Path.substr(0, PrefixWithTrailingSeparator.size()) ==
          PrefixWithTrailingSeparator;
+||||||| ad482c007426
+bool getAbsoluteFilePath(std::string FileName, std::string &AbsoluteFp) {
+  // Get absolute path of the provided file
+  // returns true if successful else false.
+  SmallString<255> AbsPath(FileName);
+  llvm::sys::fs::make_absolute(BaseDir, AbsPath);
+  AbsoluteFp = AbsPath.str();
+  return true;
+=======
+bool getAbsoluteFilePath(std::string FileName, std::string &AbsoluteFp) {
+  // Get absolute path of the provided file
+  // returns true if successful else false.
+  SmallString<255> AbsPath(FileName);
+  llvm::sys::fs::make_absolute(BaseDir, AbsPath);
+  AbsoluteFp = std::string(AbsPath.str());
+  return true;
+>>>>>>> a4d1ce7f08d86d868e676e6971d797456cc875eb
 }
 
 bool functionHasVarArgs(clang::FunctionDecl *FD) {

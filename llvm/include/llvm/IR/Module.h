@@ -46,6 +46,8 @@ class FunctionType;
 class GVMaterializer;
 class LLVMContext;
 class MemoryBuffer;
+class ModuleSummaryIndex;
+class Pass;
 class RandomNumberGenerator;
 template <class PtrType> class SmallPtrSetImpl;
 class StructType;
@@ -78,6 +80,8 @@ public:
   using NamedMDListType = ilist<NamedMDNode>;
   /// The type of the comdat "symbol" table.
   using ComdatSymTabType = StringMap<Comdat>;
+  /// The type for mapping names to named metadata.
+  using NamedMDSymTabType = StringMap<NamedMDNode *>;
 
   /// The Global Variable iterator.
   using global_iterator = GlobalListType::iterator;
@@ -153,6 +157,11 @@ public:
   /// converted result in MFB.
   static bool isValidModFlagBehavior(Metadata *MD, ModFlagBehavior &MFB);
 
+  /// Check if the given module flag metadata represents a valid module flag,
+  /// and store the flag behavior, the key string and the value metadata.
+  static bool isValidModuleFlag(const MDNode &ModFlag, ModFlagBehavior &MFB,
+                                MDString *&Key, Metadata *&Val);
+
   struct ModuleFlagEntry {
     ModFlagBehavior Behavior;
     MDString *Key;
@@ -174,7 +183,7 @@ private:
   IFuncListType IFuncList;        ///< The IFuncs in the module
   NamedMDListType NamedMDList;    ///< The named metadata in the module
   std::string GlobalScopeAsm;     ///< Inline Asm at global scope.
-  ValueSymbolTable *ValSymTab;    ///< Symbol table for values
+  std::unique_ptr<ValueSymbolTable> ValSymTab; ///< Symbol table for values
   ComdatSymTabType ComdatSymTab;  ///< Symbol table for COMDATs
   std::unique_ptr<MemoryBuffer>
   OwnedMemoryBuffer;              ///< Memory buffer directly owned by this
@@ -186,7 +195,7 @@ private:
                                   ///< recorded in bitcode.
   std::string TargetTriple;       ///< Platform target triple Module compiled on
                                   ///< Format: (arch)(sub)-(vendor)-(sys0-(abi)
-  void *NamedMDSymTab;            ///< NamedMDNode names.
+  NamedMDSymTabType NamedMDSymTab;  ///< NamedMDNode names.
   DataLayout DL;                  ///< DataLayout associated with the module
 
   friend class Constant;
@@ -256,7 +265,7 @@ public:
   /// when other randomness consuming passes are added or removed. In
   /// addition, the random stream will be reproducible across LLVM
   /// versions when the pass does not change.
-  std::unique_ptr<RandomNumberGenerator> createRNG(const Pass* P) const;
+  std::unique_ptr<RandomNumberGenerator> createRNG(const StringRef Name) const;
 
   /// Return true if size-info optimization remark is enabled, false
   /// otherwise.
@@ -270,22 +279,22 @@ public:
   /// @{
 
   /// Set the module identifier.
-  void setModuleIdentifier(StringRef ID) { ModuleID = ID; }
+  void setModuleIdentifier(StringRef ID) { ModuleID = std::string(ID); }
 
   /// Set the module's original source file name.
-  void setSourceFileName(StringRef Name) { SourceFileName = Name; }
+  void setSourceFileName(StringRef Name) { SourceFileName = std::string(Name); }
 
   /// Set the data layout
   void setDataLayout(StringRef Desc);
   void setDataLayout(const DataLayout &Other);
 
   /// Set the target triple.
-  void setTargetTriple(StringRef T) { TargetTriple = T; }
+  void setTargetTriple(StringRef T) { TargetTriple = std::string(T); }
 
   /// Set the module-scope inline assembly blocks.
   /// A trailing newline is added if the input doesn't have one.
   void setModuleInlineAsm(StringRef Asm) {
-    GlobalScopeAsm = Asm;
+    GlobalScopeAsm = std::string(Asm);
     if (!GlobalScopeAsm.empty() && GlobalScopeAsm.back() != '\n')
       GlobalScopeAsm += '\n';
   }
@@ -490,10 +499,12 @@ public:
   void addModuleFlag(ModFlagBehavior Behavior, StringRef Key, Constant *Val);
   void addModuleFlag(ModFlagBehavior Behavior, StringRef Key, uint32_t Val);
   void addModuleFlag(MDNode *Node);
+  /// Like addModuleFlag but replaces the old module flag if it already exists.
+  void setModuleFlag(ModFlagBehavior Behavior, StringRef Key, Metadata *Val);
 
-/// @}
-/// @name Materialization
-/// @{
+  /// @}
+  /// @name Materialization
+  /// @{
 
   /// Sets the GVMaterializer to GVM. This module must not yet have a
   /// Materializer. To reset the materializer for a module that already has one,
@@ -582,6 +593,7 @@ public:
   const_global_iterator global_begin() const { return GlobalList.begin(); }
   global_iterator       global_end  ()       { return GlobalList.end(); }
   const_global_iterator global_end  () const { return GlobalList.end(); }
+  size_t                global_size () const { return GlobalList.size(); }
   bool                  global_empty() const { return GlobalList.empty(); }
 
   iterator_range<global_iterator> globals() {
@@ -659,24 +671,8 @@ public:
       concat_iterator<const GlobalObject, const_iterator,
                       const_global_iterator>;
 
-  iterator_range<global_object_iterator> global_objects() {
-    return concat<GlobalObject>(functions(), globals());
-  }
-  iterator_range<const_global_object_iterator> global_objects() const {
-    return concat<const GlobalObject>(functions(), globals());
-  }
-
-  global_object_iterator global_object_begin() {
-    return global_objects().begin();
-  }
-  global_object_iterator global_object_end() { return global_objects().end(); }
-
-  const_global_object_iterator global_object_begin() const {
-    return global_objects().begin();
-  }
-  const_global_object_iterator global_object_end() const {
-    return global_objects().end();
-  }
+  iterator_range<global_object_iterator> global_objects();
+  iterator_range<const_global_object_iterator> global_objects() const;
 
   using global_value_iterator =
       concat_iterator<GlobalValue, iterator, global_iterator, alias_iterator,
@@ -685,23 +681,8 @@ public:
       concat_iterator<const GlobalValue, const_iterator, const_global_iterator,
                       const_alias_iterator, const_ifunc_iterator>;
 
-  iterator_range<global_value_iterator> global_values() {
-    return concat<GlobalValue>(functions(), globals(), aliases(), ifuncs());
-  }
-  iterator_range<const_global_value_iterator> global_values() const {
-    return concat<const GlobalValue>(functions(), globals(), aliases(),
-                                     ifuncs());
-  }
-
-  global_value_iterator global_value_begin() { return global_values().begin(); }
-  global_value_iterator global_value_end() { return global_values().end(); }
-
-  const_global_value_iterator global_value_begin() const {
-    return global_values().begin();
-  }
-  const_global_value_iterator global_value_end() const {
-    return global_values().end();
-  }
+  iterator_range<global_value_iterator> global_values();
+  iterator_range<const_global_value_iterator> global_values() const;
 
   /// @}
   /// @name Named Metadata Iteration
@@ -876,6 +857,13 @@ public:
   Metadata *getProfileSummary(bool IsCS);
   /// @}
 
+  /// Returns whether semantic interposition is to be respected.
+  bool getSemanticInterposition() const;
+  bool noSemanticInterposition() const;
+
+  /// Set whether semantic interposition is to be respected.
+  void setSemanticInterposition(bool);
+
   /// Returns true if PLT should be avoided for RTLib calls.
   bool getRtLibUseGOT() const;
 
@@ -896,6 +884,10 @@ public:
 
   /// Take ownership of the given memory buffer.
   void setOwnedMemoryBuffer(std::unique_ptr<MemoryBuffer> MB);
+
+  /// Set the partial sample profile ratio in the profile summary module flag,
+  /// if applicable.
+  void setPartialSampleProfileRatio(const ModuleSummaryIndex &Index);
 };
 
 /// Given "llvm.used" or "llvm.compiler.used" as a global name, collect

@@ -17,9 +17,11 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExternalASTSource.h"
+#include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeOrdering.h"
 #include "clang/Basic/CodeGenOptions.h"
+#include "clang/Basic/Module.h"
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
@@ -60,7 +62,7 @@ class CGDebugInfo {
   llvm::DIBuilder DBuilder;
   llvm::DICompileUnit *TheCU = nullptr;
   ModuleMap *ClangModuleMap = nullptr;
-  ExternalASTSource::ASTSourceDescriptor PCHDescriptor;
+  ASTSourceDescriptor PCHDescriptor;
   SourceLocation CurLoc;
   llvm::MDNode *CurInlinedAt = nullptr;
   llvm::DIType *VTablePtrType = nullptr;
@@ -83,11 +85,24 @@ class CGDebugInfo {
   /// Cache of previously constructed Types.
   llvm::DenseMap<const void *, llvm::TrackingMDRef> TypeCache;
 
-  llvm::SmallDenseMap<llvm::StringRef, llvm::StringRef> DebugPrefixMap;
+  std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>>
+      DebugPrefixMap;
 
   /// Cache that maps VLA types to size expressions for that type,
   /// represented by instantiated Metadata nodes.
   llvm::SmallDenseMap<QualType, llvm::Metadata *> SizeExprCache;
+
+  /// Callbacks to use when printing names and types.
+  class PrintingCallbacks final : public clang::PrintingCallbacks {
+    const CGDebugInfo &Self;
+
+  public:
+    PrintingCallbacks(const CGDebugInfo &Self) : Self(Self) {}
+    std::string remapPath(StringRef Path) const override {
+      return Self.remapDIPath(Path);
+    }
+  };
+  PrintingCallbacks PrintCB = {*this};
 
   struct ObjCInterfaceCacheEntry {
     const ObjCInterfaceType *Type;
@@ -102,7 +117,10 @@ class CGDebugInfo {
   llvm::SmallVector<ObjCInterfaceCacheEntry, 32> ObjCInterfaceCache;
 
   /// Cache of forward declarations for methods belonging to the interface.
-  llvm::DenseMap<const ObjCInterfaceDecl *, std::vector<llvm::DISubprogram *>>
+  /// The extra bit on the DISubprogram specifies whether a method is
+  /// "objc_direct".
+  llvm::DenseMap<const ObjCInterfaceDecl *,
+                 std::vector<llvm::PointerIntPair<llvm::DISubprogram *, 1>>>
       ObjCMethodCache;
 
   /// Cache of references to clang modules and precompiled headers.
@@ -134,10 +152,6 @@ class CGDebugInfo {
 
   llvm::DenseMap<const char *, llvm::TrackingMDRef> DIFileCache;
   llvm::DenseMap<const FunctionDecl *, llvm::TrackingMDRef> SPCache;
-  /// Cache function definitions relevant to use for parameters mutation
-  /// analysis.
-  llvm::DenseMap<const FunctionDecl *, llvm::TrackingMDRef> SPDefCache;
-  llvm::DenseMap<const ParmVarDecl *, llvm::TrackingMDRef> ParamCache;
   /// Cache declarations relevant to DW_TAG_imported_declarations (C++
   /// using declarations) that aren't covered by other more specific caches.
   llvm::DenseMap<const Decl *, llvm::TrackingMDRef> DeclCache;
@@ -153,6 +167,8 @@ class CGDebugInfo {
   /// ivars and property accessors.
   llvm::DIType *CreateType(const BuiltinType *Ty);
   llvm::DIType *CreateType(const ComplexType *Ty);
+  llvm::DIType *CreateType(const AutoType *Ty);
+  llvm::DIType *CreateType(const ExtIntType *Ty);
   llvm::DIType *CreateType(const TypeVariableType *Ty);
   llvm::DIType *CreateType(const ExistentialType *Ty);
   llvm::DIType *CreateQualifiedType(QualType Ty, llvm::DIFile *Fg);
@@ -178,6 +194,7 @@ class CGDebugInfo {
   llvm::DIType *CreateType(const ObjCTypeParamType *Ty, llvm::DIFile *Unit);
 
   llvm::DIType *CreateType(const VectorType *Ty, llvm::DIFile *F);
+  llvm::DIType *CreateType(const ConstantMatrixType *Ty, llvm::DIFile *F);
   llvm::DIType *CreateType(const ArrayType *Ty, llvm::DIFile *F);
   llvm::DIType *CreateType(const LValueReferenceType *Ty, llvm::DIFile *F);
   llvm::DIType *CreateType(const RValueReferenceType *Ty, llvm::DIFile *Unit);
@@ -204,10 +221,10 @@ class CGDebugInfo {
   /// not updated to include implicit \c this pointer. Use this routine
   /// to get a method type which includes \c this pointer.
   llvm::DISubroutineType *getOrCreateMethodType(const CXXMethodDecl *Method,
-                                                llvm::DIFile *F);
+                                                llvm::DIFile *F, bool decl);
   llvm::DISubroutineType *
   getOrCreateInstanceMethodType(QualType ThisPtr, const FunctionProtoType *Func,
-                                llvm::DIFile *Unit);
+                                llvm::DIFile *Unit, bool decl);
   llvm::DISubroutineType *
   getOrCreateFunctionType(const Decl *D, QualType FnType, llvm::DIFile *F);
   /// \return debug info descriptor for vtable.
@@ -368,9 +385,7 @@ public:
   /// When generating debug information for a clang module or
   /// precompiled header, this module map will be used to determine
   /// the module of origin of each Decl.
-  void setPCHDescriptor(ExternalASTSource::ASTSourceDescriptor PCH) {
-    PCHDescriptor = PCH;
-  }
+  void setPCHDescriptor(ASTSourceDescriptor PCH) { PCHDescriptor = PCH; }
   /// @}
 
   /// Update the current source location. If \arg loc is invalid it is
@@ -468,6 +483,9 @@ public:
   /// Emit a constant global variable's debug info.
   void EmitGlobalVariable(const ValueDecl *VD, const APValue &Init);
 
+  /// Emit information about an external variable.
+  void EmitExternalVariable(llvm::GlobalVariable *GV, const VarDecl *Decl);
+
   /// Emit C++ using directive.
   void EmitUsingDirective(const UsingDirectiveDecl &UD);
 
@@ -493,7 +511,7 @@ public:
   llvm::DIType *getOrCreateStandaloneType(QualType Ty, SourceLocation Loc);
 
   /// Add heapallocsite metadata for MSAllocator calls.
-  void addHeapAllocSiteMetadata(llvm::Instruction *CallSite, QualType Ty,
+  void addHeapAllocSiteMetadata(llvm::CallBase *CallSite, QualType AllocatedTy,
                                 SourceLocation Loc);
 
   void completeType(const EnumDecl *ED);
@@ -576,9 +594,8 @@ private:
 
   /// Get a reference to a clang module.  If \p CreateSkeletonCU is true,
   /// this also creates a split dwarf skeleton compile unit.
-  llvm::DIModule *
-  getOrCreateModuleRef(ExternalASTSource::ASTSourceDescriptor Mod,
-                       bool CreateSkeletonCU);
+  llvm::DIModule *getOrCreateModuleRef(ASTSourceDescriptor Mod,
+                                       bool CreateSkeletonCU);
 
   /// DebugTypeExtRefs: If \p D originated in a clang module, return it.
   llvm::DIModule *getParentModuleOrNull(const Decl *D);
@@ -602,6 +619,17 @@ private:
   /// \return debug info descriptor to describe method
   /// declaration for the given method definition.
   llvm::DISubprogram *getFunctionDeclaration(const Decl *D);
+
+  /// \return          debug info descriptor to the describe method declaration
+  ///                  for the given method definition.
+  /// \param FnType    For Objective-C methods, their type.
+  /// \param LineNo    The declaration's line number.
+  /// \param Flags     The DIFlags for the method declaration.
+  /// \param SPFlags   The subprogram-spcific flags for the method declaration.
+  llvm::DISubprogram *
+  getObjCMethodDeclaration(const Decl *D, llvm::DISubroutineType *FnType,
+                           unsigned LineNo, llvm::DINode::DIFlags Flags,
+                           llvm::DISubprogram::DISPFlags SPFlags);
 
   /// \return debug info descriptor to describe in-class static data
   /// member declaration for the given out-of-class definition.  If D
@@ -727,6 +755,7 @@ public:
   ApplyDebugLocation(ApplyDebugLocation &&Other) : CGF(Other.CGF) {
     Other.CGF = nullptr;
   }
+  ApplyDebugLocation &operator=(ApplyDebugLocation &&) = default;
 
   ~ApplyDebugLocation();
 

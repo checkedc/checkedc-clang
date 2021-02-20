@@ -268,13 +268,16 @@ namespace tuple_tests {
   // Don't get caught by surprise when X<...> doesn't even exist in the
   // selected specialization!
   namespace libcxx_2 {
-    template<class ...T> struct tuple { // expected-note {{candidate}}
+    template<class ...T> struct tuple {
       template<class ...Args> struct X { static const bool value = false; };
+      // Substitution into X<U...>::value succeeds but produces the
+      // value-dependent expression
+      //   tuple<T...>::X<>::value
+      // FIXME: Is that the right behavior?
       template<class ...U, bool Y = X<U...>::value> tuple(U &&...u);
-      // expected-note@-1 {{substitution failure [with T = <>, U = <int, int, int>]: cannot reference member of primary template because deduced class template specialization 'tuple<>' is an explicit specialization}}
     };
     template <> class tuple<> {};
-    tuple a = {1, 2, 3}; // expected-error {{no viable constructor or deduction guide}}
+    tuple a = {1, 2, 3}; // expected-error {{excess elements in struct initializer}}
   }
 
   namespace libcxx_3 {
@@ -502,6 +505,21 @@ template <class H, class P> struct umm;
 
 umm m(1);
 
+}
+
+namespace PR45124 {
+  class a { int d; };
+  class b : a {};
+
+  struct x { ~x(); };
+  template<typename> class y { y(x = x()); };
+  template<typename z> y(z)->y<z>;
+
+  // Not a constant initializer, but trivial default initialization. We won't
+  // detect this as trivial default initialization if synthesizing the implicit
+  // deduction guide 'template<typename T> y(x = x()) -> Y<T>;' leaves behind a
+  // pending cleanup.
+  __thread b g;
 }
 
 #else

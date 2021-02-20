@@ -3,7 +3,7 @@
 # RUN: llvm-mc %s -triple=riscv32 \
 # RUN:     | FileCheck -check-prefixes=CHECK-EXPAND,CHECK-ALIAS %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 < %s \
-# RUN:     | llvm-objdump -riscv-no-aliases -d -r - \
+# RUN:     | llvm-objdump -M no-aliases -d -r - \
 # RUN:     | FileCheck -check-prefixes=CHECK-OBJ-NOALIAS,CHECK-EXPAND,CHECK-INST %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 < %s \
 # RUN:     | llvm-objdump -d -r - \
@@ -14,6 +14,8 @@
 # CHECK-ALIAS....Match the alias (tests instr. to alias mapping)
 # CHECK-EXPAND...Match canonical instr. unconditionally (tests alias expansion)
 
+# Needed for testing valid %pcrel_lo expressions
+.Lpcrel_hi0: auipc a0, %pcrel_hi(foo)
 
 # CHECK-INST: addi a0, zero, 0
 # CHECK-ALIAS: mv a0, zero
@@ -71,16 +73,13 @@ li x12, 0xFFFFFFFF
 
 # CHECK-EXPAND: addi a0, zero, 1110
 li a0, %lo(0x123456)
-# CHECK-OBJ-NOALIAS: addi a0, zero, 0
-# CHECK-OBJ: R_RISCV_PCREL_LO12
-li a0, %pcrel_lo(0x123456)
 
 # CHECK-OBJ-NOALIAS: addi a0, zero, 0
 # CHECK-OBJ: R_RISCV_LO12
 li a0, %lo(foo)
 # CHECK-OBJ-NOALIAS: addi a0, zero, 0
 # CHECK-OBJ: R_RISCV_PCREL_LO12
-li a0, %pcrel_lo(foo)
+li a0, %pcrel_lo(.Lpcrel_hi0)
 
 .equ CONST, 0x123456
 # CHECK-EXPAND: lui a0, 291

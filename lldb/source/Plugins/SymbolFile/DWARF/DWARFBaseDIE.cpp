@@ -1,4 +1,4 @@
-//===-- DWARFBaseDIE.cpp ---------------------------------------*- C++ -*-===//
+//===-- DWARFBaseDIE.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,6 +14,7 @@
 
 #include "lldb/Core/Module.h"
 #include "lldb/Symbol/ObjectFile.h"
+#include "lldb/Utility/Log.h"
 
 using namespace lldb_private;
 
@@ -29,7 +30,7 @@ dw_tag_t DWARFBaseDIE::Tag() const {
   if (m_die)
     return m_die->Tag();
   else
-    return 0;
+    return llvm::dwarf::DW_TAG_null;
 }
 
 const char *DWARFBaseDIE::GetTagAsCString() const {
@@ -73,13 +74,6 @@ const char *DWARFBaseDIE::GetName() const {
     return nullptr;
 }
 
-lldb::LanguageType DWARFBaseDIE::GetLanguage() const {
-  if (IsValid())
-    return m_cu->GetLanguageType();
-  else
-    return lldb::eLanguageTypeUnknown;
-}
-
 lldb::ModuleSP DWARFBaseDIE::GetModule() const {
   SymbolFileDWARF *dwarf = GetDWARF();
   if (dwarf)
@@ -102,21 +96,6 @@ SymbolFileDWARF *DWARFBaseDIE::GetDWARF() const {
     return nullptr;
 }
 
-lldb_private::TypeSystem *DWARFBaseDIE::GetTypeSystem() const {
-  if (m_cu)
-    return m_cu->GetTypeSystem();
-  else
-    return nullptr;
-}
-
-DWARFASTParser *DWARFBaseDIE::GetDWARFParser() const {
-  lldb_private::TypeSystem *type_system = GetTypeSystem();
-  if (type_system)
-    return type_system->GetDWARFParser();
-  else
-    return nullptr;
-}
-
 bool DWARFBaseDIE::HasChildren() const {
   return m_die && m_die->HasChildren();
 }
@@ -126,11 +105,10 @@ bool DWARFBaseDIE::Supports_DW_AT_APPLE_objc_complete_type() const {
 }
 
 size_t DWARFBaseDIE::GetAttributes(DWARFAttributes &attributes,
-                               uint32_t depth) const {
+                                   Recurse recurse) const {
   if (IsValid())
-    return m_die->GetAttributes(m_cu, attributes, depth);
-  if (depth == 0)
-    attributes.Clear();
+    return m_die->GetAttributes(m_cu, attributes, recurse);
+  attributes.Clear();
   return 0;
 }
 

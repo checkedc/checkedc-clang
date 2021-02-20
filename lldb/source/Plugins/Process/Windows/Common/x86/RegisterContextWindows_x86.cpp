@@ -1,10 +1,12 @@
-//===-- RegisterContextWindows_x86.cpp --------------------------*- C++ -*-===//
+//===-- RegisterContextWindows_x86.cpp ------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+#if defined(__i386__) || defined(_M_IX86)
 
 #include "lldb/Host/windows/HostThreadWindows.h"
 #include "lldb/Host/windows/windows.h"
@@ -265,9 +267,7 @@ bool RegisterContextWindows_x86::WriteRegister(const RegisterInfo *reg_info,
   }
 
   // Physically update the registers in the target process.
-  TargetThreadWindows &wthread = static_cast<TargetThreadWindows &>(m_thread);
-  return ::SetThreadContext(
-      wthread.GetHostThread().GetNativeThread().GetSystemHandle(), &m_context);
+  return ApplyAllRegisterValues();
 }
 
 bool RegisterContextWindows_x86::ReadRegisterHelper(
@@ -282,3 +282,5 @@ bool RegisterContextWindows_x86::ReadRegisterHelper(
   reg_value.SetUInt32(value);
   return true;
 }
+
+#endif // defined(__i386__) || defined(_M_IX86)

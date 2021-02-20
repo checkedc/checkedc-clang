@@ -2,6 +2,11 @@
 # Check that it converts to .o without errors, but don't check any output:
 # RUN: llvm-mc -triple=wasm32-unknown-unknown -filetype=obj -mattr=+atomics,+unimplemented-simd128,+nontrapping-fptoint,+exception-handling -o %t.o < %s
 
+
+empty_func:
+    .functype empty_func () -> ()
+    end_function
+
 test0:
     # Test all types:
     .functype   test0 (i32, i64) -> (i32)
@@ -32,9 +37,9 @@ test0:
     loop        i32      # label1:
     call        something1
     i64.const   1234
-    i32.call    something2
+    call        something2
     i32.const   0
-    call_indirect 0
+    call_indirect (i32, f64) -> ()
     i32.const   1
     i32.add
     local.tee   0
@@ -50,6 +55,12 @@ test0:
     block       i64
     block       f32
     block       f64
+    block       () -> (i32, i32)
+    i32.const   1
+    i32.const   2
+    end_block
+    drop
+    drop
     br_table {0, 1, 2}   # 2 entries, default
     end_block            # first entry jumps here.
     i32.const   1
@@ -111,6 +122,9 @@ test0:
     .globaltype __stack_pointer, i32
 
 # CHECK:           .text
+# CHECK-LABEL: empty_func:
+# CHECK-NEXT:      .functype	empty_func () -> ()
+# CHECK-NEXT:      end_function
 # CHECK-LABEL: test0:
 # CHECK-NEXT:      .functype   test0 (i32, i64) -> (i32)
 # CHECK-NEXT:      .eventtype  __cpp_exception i32
@@ -136,9 +150,9 @@ test0:
 # CHECK-NEXT:      loop        i32     # label1:
 # CHECK-NEXT:      call        something1
 # CHECK-NEXT:      i64.const   1234
-# CHECK-NEXT:      i32.call    something2
+# CHECK-NEXT:      call        something2
 # CHECK-NEXT:      i32.const   0
-# CHECK-NEXT:      call_indirect 0
+# CHECK-NEXT:      call_indirect (i32, f64) -> ()
 # CHECK-NEXT:      i32.const   1
 # CHECK-NEXT:      i32.add
 # CHECK-NEXT:      local.tee   0
@@ -154,6 +168,12 @@ test0:
 # CHECK-NEXT:      block       i64
 # CHECK-NEXT:      block       f32
 # CHECK-NEXT:      block       f64
+# CHECK-NEXT:      block       () -> (i32, i32)
+# CHECK-NEXT:      i32.const   1
+# CHECK-NEXT:      i32.const   2
+# CHECK-NEXT:      end_block
+# CHECK-NEXT:      drop
+# CHECK-NEXT:      drop
 # CHECK-NEXT:      br_table {0, 1, 2}  # 1: down to label4
 # CHECK-NEXT:                          # 2: down to label3
 # CHECK-NEXT:      end_block           # label5:

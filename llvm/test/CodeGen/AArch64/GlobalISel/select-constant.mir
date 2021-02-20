@@ -8,11 +8,15 @@
   define i16 @const_s16() { ret i16 42 }
   define i32 @const_s32() { ret i32 42 }
   define i64 @const_s64() { ret i64 1234567890123 }
+  define i8* @const_p0_0() { ret i8* null }
 
   define i32 @fconst_s32() { ret i32 42 }
   define i64 @fconst_s64() { ret i64 1234567890123 }
   define float @fconst_s32_0() { ret float 0.0 }
   define double @fconst_s64_0() { ret double 0.0 }
+
+  define void @optnone_i64() optnone noinline { ret void }
+  define void @opt_i64() { ret void }
 ...
 
 ---
@@ -78,6 +82,19 @@ body:             |
 ...
 
 ---
+name:            const_p0_0
+legalized:       true
+regBankSelected: true
+body:             |
+  bb.0:
+    ; CHECK-LABEL: name: const_p0_0
+    ; CHECK: [[COPY:%[0-9]+]]:gpr64 = COPY $xzr
+    ; CHECK: $x0 = COPY [[COPY]]
+    %0:gpr(p0) = G_CONSTANT i64 0
+    $x0 = COPY %0
+...
+
+---
 name:            fconst_s32
 legalized:       true
 regBankSelected: true
@@ -139,4 +156,33 @@ body:             |
     ; CHECK: $x0 = COPY [[FMOVD0_]]
     %0(s64) = G_FCONSTANT double 0.0
     $x0 = COPY %0(s64)
+...
+---
+name:            optnone_i64
+legalized:       true
+regBankSelected: true
+body: |
+  bb.0:
+    ; CHECK-LABEL: name: optnone_i64
+    ; CHECK: [[MOVi64imm:%[0-9]+]]:gpr64 = MOVi64imm 42
+    ; CHECK: $x0 = COPY [[MOVi64imm]]
+    ; CHECK: RET_ReallyLR implicit $x0
+    %0:gpr(s64) = G_CONSTANT i64 42
+    $x0 = COPY %0(s64)
+    RET_ReallyLR implicit $x0
+...
+---
+name:            opt_i64
+legalized:       true
+regBankSelected: true
+body: |
+  bb.0:
+    ; CHECK-LABEL: name: opt_i64
+    ; CHECK: [[MOVi32imm:%[0-9]+]]:gpr32 = MOVi32imm 42
+    ; CHECK: [[SUBREG_TO_REG:%[0-9]+]]:gpr64all = SUBREG_TO_REG 0, [[MOVi32imm]], %subreg.sub_32
+    ; CHECK: $x0 = COPY [[SUBREG_TO_REG]]
+    ; CHECK: RET_ReallyLR implicit $x0
+    %0:gpr(s64) = G_CONSTANT i64 42
+    $x0 = COPY %0(s64)
+    RET_ReallyLR implicit $x0
 ...

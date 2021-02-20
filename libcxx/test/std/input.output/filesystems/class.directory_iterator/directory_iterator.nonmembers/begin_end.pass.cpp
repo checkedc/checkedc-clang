@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <filesystem>
 
@@ -15,14 +15,14 @@
 // directory_iterator begin(directory_iterator iter) noexcept;
 // directory_iterator end(directory_iterator iter) noexcept;
 
-#include "filesystem_include.hpp"
+#include "filesystem_include.h"
 #include <type_traits>
 #include <set>
 #include <cassert>
 
 #include "test_macros.h"
-#include "rapid-cxx-test.hpp"
-#include "filesystem_test_helper.hpp"
+#include "rapid-cxx-test.h"
+#include "filesystem_test_helper.h"
 #include <iostream>
 
 using namespace fs;
@@ -42,9 +42,10 @@ TEST_CASE(test_function_signatures)
 
 TEST_CASE(test_ranged_for_loop)
 {
-    const path testDir = StaticEnv::Dir;
-    std::set<path> dir_contents(std::begin(StaticEnv::DirIterationList),
-                                      std::end(  StaticEnv::DirIterationList));
+    static_test_env static_env;
+    const path testDir = static_env.Dir;
+    std::set<path> dir_contents(static_env.DirIterationList.begin(),
+                                static_env.DirIterationList.end());
 
     std::error_code ec;
     directory_iterator it(testDir, ec);

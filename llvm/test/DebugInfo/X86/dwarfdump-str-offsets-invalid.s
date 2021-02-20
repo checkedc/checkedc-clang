@@ -1,5 +1,5 @@
 # RUN: llvm-mc -triple x86_64-unknown-linux %s -filetype=obj -o %t.o
-# RUN: llvm-dwarfdump -v %t.o 2>&1 | FileCheck %s
+# RUN: not llvm-dwarfdump -v %t.o 2>&1 | FileCheck %s
 #
 # Test object to verify that llvm-dwarfdump handles an invalid string offsets
 # table.
@@ -144,11 +144,11 @@ CU9_end:
 .str_off_end:
 
 
-# CHECK: error: invalid contribution to string offsets table in section .debug_str_offsets[.dwo]: insufficient space for 32 bit header prefix
-# CHECK: error: invalid contribution to string offsets table in section .debug_str_offsets[.dwo]: insufficient space for 64 bit header prefix
-# CHECK: error: invalid contribution to string offsets table in section .debug_str_offsets[.dwo]: invalid length
-# CHECK: error: invalid contribution to string offsets table in section .debug_str_offsets[.dwo]: length exceeds section size
-# CHECK: error: invalid contribution to string offsets table in section .debug_str_offsets[.dwo]: 32 bit contribution referenced from a 64 bit unit
-# CHECK: error: invalid contribution to string offsets table in section .debug_str_offsets[.dwo]: section offset exceeds section size
-# CHECK: error: invalid contribution to string offsets table in section .debug_str_offsets[.dwo]: section offset exceeds section size
+# CHECK: error: invalid reference to or invalid content in .debug_str_offsets[.dwo]: insufficient space for 32 bit header prefix
+# CHECK: error: invalid reference to or invalid content in .debug_str_offsets[.dwo]: insufficient space for 64 bit header prefix
+# CHECK: error: invalid reference to or invalid content in .debug_str_offsets[.dwo]: invalid length
+# CHECK: error: invalid reference to or invalid content in .debug_str_offsets[.dwo]: length exceeds section size
+# CHECK: error: invalid reference to or invalid content in .debug_str_offsets[.dwo]: 32 bit contribution referenced from a 64 bit unit
+# CHECK: error: invalid reference to or invalid content in .debug_str_offsets[.dwo]: section offset exceeds section size
+# CHECK: error: invalid reference to or invalid content in .debug_str_offsets[.dwo]: section offset exceeds section size
 # CHECK: error: overlapping contributions to string offsets table in section .debug_str_offsets.

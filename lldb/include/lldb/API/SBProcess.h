@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBProcess_h_
-#define LLDB_SBProcess_h_
+#ifndef LLDB_API_SBPROCESS_H
+#define LLDB_API_SBPROCESS_H
 
 #include "lldb/API/SBDefines.h"
 #include "lldb/API/SBError.h"
@@ -66,6 +66,10 @@ public:
   size_t GetAsyncProfileData(char *dst, size_t dst_len) const;
 
   void ReportEventState(const lldb::SBEvent &event, FILE *out) const;
+
+  void ReportEventState(const lldb::SBEvent &event, SBFile file) const;
+
+  void ReportEventState(const lldb::SBEvent &event, FileSP file) const;
 
   void AppendEventStateReport(const lldb::SBEvent &event,
                               lldb::SBCommandReturnObject &result);
@@ -217,6 +221,8 @@ public:
   static const char *GetBroadcasterClass();
 
   bool GetDescription(lldb::SBStream &description);
+
+  SBStructuredData GetExtendedCrashInformation();
 
   /// Start Tracing with the given SBTraceOptions.
   ///
@@ -412,4 +418,4 @@ protected:
 
 } // namespace lldb
 
-#endif // LLDB_SBProcess_h_
+#endif // LLDB_API_SBPROCESS_H

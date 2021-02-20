@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef lldb_GDBRemoteRegisterContext_h_
-#define lldb_GDBRemoteRegisterContext_h_
+#ifndef LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTEREGISTERCONTEXT_H
+#define LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTEREGISTERCONTEXT_H
 
 #include <vector>
 
@@ -41,7 +41,7 @@ class GDBRemoteRegisterContext : public RegisterContext {
 public:
   GDBRemoteRegisterContext(ThreadGDBRemote &thread, uint32_t concrete_frame_idx,
                            GDBRemoteDynamicRegisterInfo &reg_info,
-                           bool read_all_at_once);
+                           bool read_all_at_once, bool write_all_at_once);
 
   ~GDBRemoteRegisterContext() override;
 
@@ -88,9 +88,7 @@ protected:
   void SetAllRegisterValid(bool b);
 
   bool GetRegisterIsValid(uint32_t reg) const {
-#if defined(LLDB_CONFIGURATION_DEBUG)
     assert(reg < m_reg_valid.size());
-#endif
     if (reg < m_reg_valid.size())
       return m_reg_valid[reg];
     return false;
@@ -103,9 +101,7 @@ protected:
   }
 
   void SetRegisterIsValid(uint32_t reg, bool valid) {
-#if defined(LLDB_CONFIGURATION_DEBUG)
     assert(reg < m_reg_valid.size());
-#endif
     if (reg < m_reg_valid.size())
       m_reg_valid[reg] = valid;
   }
@@ -114,6 +110,7 @@ protected:
   std::vector<bool> m_reg_valid;
   DataExtractor m_reg_data;
   bool m_read_all_at_once;
+  bool m_write_all_at_once;
 
 private:
   // Helper function for ReadRegisterBytes().
@@ -123,10 +120,12 @@ private:
   bool SetPrimordialRegister(const RegisterInfo *reg_info,
                              GDBRemoteCommunicationClient &gdb_comm);
 
-  DISALLOW_COPY_AND_ASSIGN(GDBRemoteRegisterContext);
+  GDBRemoteRegisterContext(const GDBRemoteRegisterContext &) = delete;
+  const GDBRemoteRegisterContext &
+  operator=(const GDBRemoteRegisterContext &) = delete;
 };
 
 } // namespace process_gdb_remote
 } // namespace lldb_private
 
-#endif // lldb_GDBRemoteRegisterContext_h_
+#endif // LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_GDBREMOTEREGISTERCONTEXT_H

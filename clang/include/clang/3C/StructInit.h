@@ -21,7 +21,7 @@
 #include "clang/3C/StructInit.h"
 #include "clang/3C/Utils.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Tooling/Refactoring/SourceCode.h"
+#include "clang/Tooling/Transformer/SourceCode.h"
 #include "llvm/Support/raw_ostream.h"
 #include <sstream>
 

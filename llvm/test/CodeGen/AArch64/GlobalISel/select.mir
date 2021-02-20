@@ -10,8 +10,6 @@
     ret void
   }
 
-  define i8* @gep(i8* %in) { ret i8* undef }
-
   define i8* @ptr_mask(i8* %in) { ret i8* undef }
 
   @var_local = global i8 0
@@ -51,26 +49,6 @@ body:             |
 ...
 
 ---
-# CHECK-LABEL: name: gep
-name:            gep
-legalized:       true
-regBankSelected: true
-registers:
-  - { id: 0, class: gpr }
-  - { id: 1, class: gpr }
-  - { id: 2, class: gpr }
-
-# CHECK:  body:
-# CHECK: %1:gpr64 = MOVi64imm 42
-# CHECK: %2:gpr64 = ADDXrr %0, %1
-body:             |
-  bb.0:
-      liveins: $x0
-    %0(p0) = COPY $x0
-    %1(s64) = G_CONSTANT i64 42
-    %2(p0) = G_GEP %0, %1(s64)
-    $x0 = COPY %2(p0)
-...
 
 ---
 # CHECK-LABEL: name: ptr_mask
@@ -79,12 +57,13 @@ legalized:       true
 regBankSelected: true
 
 # CHECK:  body:
-# CHECK: %1:gpr64sp = ANDXri %0, 8060
+# CHECK: %2:gpr64sp = ANDXri %0, 8060
 body:             |
   bb.0:
       liveins: $x0
     %0:gpr(p0) = COPY $x0
-    %1:gpr(p0) = G_PTR_MASK %0, 3
+    %const:gpr(s64) = G_CONSTANT i64 -8
+    %1:gpr(p0) = G_PTRMASK %0, %const
     $x0 = COPY %1(p0)
 ...
 
@@ -153,13 +132,13 @@ registers:
   - { id: 11, class: gpr }
 
 # CHECK:  body:
-# CHECK:    $wzr = SUBSWrr %0, %0, implicit-def $nzcv
+# CHECK:    SUBSWrr %0, %0, implicit-def $nzcv
 # CHECK:    %1:gpr32 = CSINCWr $wzr, $wzr, 1, implicit $nzcv
 
-# CHECK:    $xzr = SUBSXrr %2, %2, implicit-def $nzcv
+# CHECK:    SUBSXrr %2, %2, implicit-def $nzcv
 # CHECK:    %3:gpr32 = CSINCWr $wzr, $wzr, 3, implicit $nzcv
 
-# CHECK:    $xzr = SUBSXrr %4, %4, implicit-def $nzcv
+# CHECK:    SUBSXrr %4, %4, implicit-def $nzcv
 # CHECK:    %5:gpr32 = CSINCWr $wzr, $wzr, 0, implicit $nzcv
 
 body:             |

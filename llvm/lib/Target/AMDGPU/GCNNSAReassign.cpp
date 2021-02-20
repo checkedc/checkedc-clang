@@ -23,6 +23,7 @@
 #include "llvm/CodeGen/LiveRegMatrix.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/VirtRegMap.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/MathExtras.h"
 #include <algorithm>
 
@@ -173,11 +174,11 @@ GCNNSAReassign::CheckNSA(const MachineInstr &MI, bool Fast) const {
   bool NSA = false;
   for (unsigned I = 0; I < Info->VAddrDwords; ++I) {
     const MachineOperand &Op = MI.getOperand(VAddr0Idx + I);
-    unsigned Reg = Op.getReg();
-    if (TargetRegisterInfo::isPhysicalRegister(Reg) || !VRM->isAssignedReg(Reg))
+    Register Reg = Op.getReg();
+    if (Register::isPhysicalRegister(Reg) || !VRM->isAssignedReg(Reg))
       return NSA_Status::FIXED;
 
-    unsigned PhysReg = VRM->getPhys(Reg);
+    Register PhysReg = VRM->getPhys(Reg);
 
     if (!Fast) {
       if (!PhysReg)
@@ -276,7 +277,7 @@ bool GCNNSAReassign::runOnMachineFunction(MachineFunction &MF) {
     SlotIndex MinInd, MaxInd;
     for (unsigned I = 0; I < Info->VAddrDwords; ++I) {
       const MachineOperand &Op = MI->getOperand(VAddr0Idx + I);
-      unsigned Reg = Op.getReg();
+      Register Reg = Op.getReg();
       LiveInterval *LI = &LIS->getInterval(Reg);
       if (llvm::find(Intervals, LI) != Intervals.end()) {
         // Same register used, unable to make sequential
@@ -285,8 +286,15 @@ bool GCNNSAReassign::runOnMachineFunction(MachineFunction &MF) {
       }
       Intervals.push_back(LI);
       OrigRegs.push_back(VRM->getPhys(Reg));
-      MinInd = I ? std::min(MinInd, LI->beginIndex()) : LI->beginIndex();
-      MaxInd = I ? std::max(MaxInd, LI->endIndex()) : LI->endIndex();
+      if (LI->empty()) {
+        // The address input is undef, so it doesn't contribute to the relevant
+        // range. Seed a reasonable index range if required.
+        if (I == 0)
+          MinInd = MaxInd = LIS->getInstructionIndex(*MI);
+        continue;
+      }
+      MinInd = I != 0 ? std::min(MinInd, LI->beginIndex()) : LI->beginIndex();
+      MaxInd = I != 0 ? std::max(MaxInd, LI->endIndex()) : LI->endIndex();
     }
 
     if (Intervals.empty())

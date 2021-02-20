@@ -74,7 +74,7 @@ struct compare<wrapper<T>>
 struct test_one_policy
 {
 
-#if _PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN ||                                                            \
+#if _PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN ||                                                             \
     _PSTL_ICC_16_VC14_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN // dummy specializations to skip testing in case of broken configuration
     template <typename Iterator, typename Size>
     void
@@ -162,11 +162,14 @@ test()
     }
 }
 
-int32_t
+int
 main()
 {
     test<int32_t>();
     test<wrapper<float64_t>>();
+    test<MemoryChecker>();
+    EXPECT_FALSE(MemoryChecker::alive_objects() < 0, "wrong effect from rotate: number of ctors calls < num of dtors calls");
+    EXPECT_FALSE(MemoryChecker::alive_objects() > 0, "wrong effect from rotate: number of ctors calls > num of dtors calls");
 
     std::cout << done() << std::endl;
     return 0;

@@ -15,7 +15,7 @@
 ; COMBINED-NEXT:    color = lightgrey;
 ; COMBINED-NEXT:    label =
 ; COMBINED-NEXT:    node [style=filled,fillcolor=lightblue];
-; COMBINED-NEXT:    M0_[[MAIN:[0-9]+]] [shape="record",label="main|extern (inst: 2, ffl: 00000)}"]; // function
+; COMBINED-NEXT:    M0_[[MAIN:[0-9]+]] [shape="record",label="main|extern (inst: 2, ffl: 000000)}"]; // function
 ; COMBINED-NEXT:    // Edges:
 ; COMBINED-NEXT:  }
 ; COMBINED-NEXT:  // Module:
@@ -31,7 +31,7 @@
 ; COMBINED-NEXT:  M0_[[MAIN]] -> M1_[[A]] [style=dashed,color=violetred]; // writeOnly-ref
 ; COMBINED-NEXT: }
 
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 @A = external local_unnamed_addr global i32, align 4

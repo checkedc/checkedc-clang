@@ -1,4 +1,4 @@
-//===-- HistoryUnwind.cpp ---------------------------------------*- C++ -*-===//
+//===-- HistoryUnwind.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -23,8 +23,10 @@ using namespace lldb_private;
 
 // Constructor
 
-HistoryUnwind::HistoryUnwind(Thread &thread, std::vector<lldb::addr_t> pcs)
-    : Unwind(thread), m_pcs(pcs) {}
+HistoryUnwind::HistoryUnwind(Thread &thread, std::vector<lldb::addr_t> pcs,
+                             bool pcs_are_call_addresses)
+    : Unwind(thread), m_pcs(pcs),
+      m_pcs_are_call_addresses(pcs_are_call_addresses) {}
 
 // Destructor
 
@@ -51,13 +53,18 @@ HistoryUnwind::DoCreateRegisterContextForFrame(StackFrame *frame) {
 }
 
 bool HistoryUnwind::DoGetFrameInfoAtIndex(uint32_t frame_idx, lldb::addr_t &cfa,
-                                          lldb::addr_t &pc) {
+                                          lldb::addr_t &pc,
+                                          bool &behaves_like_zeroth_frame) {
   // FIXME do not throw away the lock after we acquire it..
   std::unique_lock<std::recursive_mutex> guard(m_unwind_mutex);
   guard.unlock();
   if (frame_idx < m_pcs.size()) {
     cfa = frame_idx;
     pc = m_pcs[frame_idx];
+    if (m_pcs_are_call_addresses)
+      behaves_like_zeroth_frame = true;
+    else
+      behaves_like_zeroth_frame = (frame_idx == 0);
     return true;
   }
   return false;

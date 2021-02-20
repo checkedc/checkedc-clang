@@ -13,6 +13,7 @@
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/TargetParser.h"
+#include "llvm/Support/Host.h"
 
 using namespace clang::driver;
 using namespace clang::driver::tools;
@@ -56,18 +57,19 @@ void arm::getARMArchCPUFromArgs(const ArgList &Args, llvm::StringRef &Arch,
 static void getARMHWDivFeatures(const Driver &D, const Arg *A,
                                 const ArgList &Args, StringRef HWDiv,
                                 std::vector<StringRef> &Features) {
-  unsigned HWDivID = llvm::ARM::parseHWDiv(HWDiv);
+  uint64_t HWDivID = llvm::ARM::parseHWDiv(HWDiv);
   if (!llvm::ARM::getHWDivFeatures(HWDivID, Features))
     D.Diag(clang::diag::err_drv_clang_unsupported) << A->getAsString(Args);
 }
 
 // Handle -mfpu=.
-static void getARMFPUFeatures(const Driver &D, const Arg *A,
-                              const ArgList &Args, StringRef FPU,
-                              std::vector<StringRef> &Features) {
+static unsigned getARMFPUFeatures(const Driver &D, const Arg *A,
+                                  const ArgList &Args, StringRef FPU,
+                                  std::vector<StringRef> &Features) {
   unsigned FPUID = llvm::ARM::parseFPU(FPU);
   if (!llvm::ARM::getFPUFeatures(FPUID, Features))
     D.Diag(clang::diag::err_drv_clang_unsupported) << A->getAsString(Args);
+  return FPUID;
 }
 
 // Decode ARM features from string like +[no]featureA+[no]featureB+...
@@ -89,7 +91,7 @@ static void DecodeARMFeaturesFromCPU(const Driver &D, StringRef CPU,
   CPU = CPU.split("+").first;
   if (CPU != "generic") {
     llvm::ARM::ArchKind ArchKind = llvm::ARM::parseCPUArch(CPU);
-    unsigned Extension = llvm::ARM::getDefaultExtensions(CPU, ArchKind);
+    uint64_t Extension = llvm::ARM::getDefaultExtensions(CPU, ArchKind);
     llvm::ARM::getExtensionFeatures(Extension, Features);
   }
 }
@@ -135,9 +137,8 @@ bool arm::useAAPCSForMachO(const llvm::Triple &T) {
 }
 
 // Select mode for reading thread pointer (-mtp=soft/cp15).
-arm::ReadTPMode arm::getReadTPMode(const ToolChain &TC, const ArgList &Args) {
+arm::ReadTPMode arm::getReadTPMode(const Driver &D, const ArgList &Args) {
   if (Arg *A = Args.getLastArg(options::OPT_mtp_mode_EQ)) {
-    const Driver &D = TC.getDriver();
     arm::ReadTPMode ThreadPointer =
         llvm::StringSwitch<arm::ReadTPMode>(A->getValue())
             .Case("cp15", ReadTPMode::Cp15)
@@ -154,11 +155,14 @@ arm::ReadTPMode arm::getReadTPMode(const ToolChain &TC, const ArgList &Args) {
   return ReadTPMode::Soft;
 }
 
+arm::FloatABI arm::getARMFloatABI(const ToolChain &TC, const ArgList &Args) {
+  return arm::getARMFloatABI(TC.getDriver(), TC.getEffectiveTriple(), Args);
+}
+
 // Select the float ABI as determined by -msoft-float, -mhard-float, and
 // -mfloat-abi=.
-arm::FloatABI arm::getARMFloatABI(const ToolChain &TC, const ArgList &Args) {
-  const Driver &D = TC.getDriver();
-  const llvm::Triple &Triple = TC.getEffectiveTriple();
+arm::FloatABI arm::getARMFloatABI(const Driver &D, const llvm::Triple &Triple,
+                                  const ArgList &Args) {
   auto SubArch = getARMSubArchVersionNumber(Triple);
   arm::FloatABI ABI = FloatABI::Invalid;
   if (Arg *A =
@@ -274,18 +278,20 @@ arm::FloatABI arm::getARMFloatABI(const ToolChain &TC, const ArgList &Args) {
   return ABI;
 }
 
-void arm::getARMTargetFeatures(const ToolChain &TC,
-                               const llvm::Triple &Triple,
-                               const ArgList &Args,
-                               ArgStringList &CmdArgs,
-                               std::vector<StringRef> &Features,
-                               bool ForAS) {
-  const Driver &D = TC.getDriver();
+static bool hasIntegerMVE(const std::vector<StringRef> &F) {
+  auto MVE = llvm::find(llvm::reverse(F), "+mve");
+  auto NoMVE = llvm::find(llvm::reverse(F), "-mve");
+  return MVE != F.rend() &&
+         (NoMVE == F.rend() || std::distance(MVE, NoMVE) > 0);
+}
 
+void arm::getARMTargetFeatures(const Driver &D, const llvm::Triple &Triple,
+                               const ArgList &Args, ArgStringList &CmdArgs,
+                               std::vector<StringRef> &Features, bool ForAS) {
   bool KernelOrKext =
       Args.hasArg(options::OPT_mkernel, options::OPT_fapple_kext);
-  arm::FloatABI ABI = arm::getARMFloatABI(TC, Args);
-  arm::ReadTPMode ThreadPointer = arm::getReadTPMode(TC, Args);
+  arm::FloatABI ABI = arm::getARMFloatABI(D, Triple, Args);
+  arm::ReadTPMode ThreadPointer = arm::getReadTPMode(D, Args);
   const Arg *WaCPU = nullptr, *WaFPU = nullptr;
   const Arg *WaHDiv = nullptr, *WaArch = nullptr;
 
@@ -387,18 +393,20 @@ void arm::getARMTargetFeatures(const ToolChain &TC,
     checkARMCPUName(D, CPUArg, Args, CPUName, ArchName,
                     ExtensionFeatures, Triple);
   // Honor -mfpu=. ClangAs gives preference to -Wa,-mfpu=.
+  unsigned FPUID = llvm::ARM::FK_INVALID;
   const Arg *FPUArg = Args.getLastArg(options::OPT_mfpu_EQ);
   if (WaFPU) {
     if (FPUArg)
       D.Diag(clang::diag::warn_drv_unused_argument)
           << FPUArg->getAsString(Args);
-    getARMFPUFeatures(D, WaFPU, Args, StringRef(WaFPU->getValue()).substr(6),
-                      Features);
+    (void)getARMFPUFeatures(D, WaFPU, Args, StringRef(WaFPU->getValue()).substr(6),
+                            Features);
   } else if (FPUArg) {
-    getARMFPUFeatures(D, FPUArg, Args, FPUArg->getValue(), Features);
+    FPUID = getARMFPUFeatures(D, FPUArg, Args, FPUArg->getValue(), Features);
   } else if (Triple.isAndroid() && getARMSubArchVersionNumber(Triple) >= 7) {
     const char *AndroidFPU = "neon";
-    if (!llvm::ARM::getFPUFeatures(llvm::ARM::parseFPU(AndroidFPU), Features))
+    FPUID = llvm::ARM::parseFPU(AndroidFPU);
+    if (!llvm::ARM::getFPUFeatures(FPUID, Features))
       D.Diag(clang::diag::err_drv_clang_unsupported)
           << std::string("-mfpu=") + AndroidFPU;
   }
@@ -453,20 +461,16 @@ fp16_fml_fallthrough:
   if (ABI == arm::FloatABI::Soft) {
     llvm::ARM::getFPUFeatures(llvm::ARM::FK_NONE, Features);
 
-    // Disable all features relating to hardware FP.
-    // FIXME: Disabling fpregs should be enough all by itself, since all
-    //        the other FP features are dependent on it. However
-    //        there is currently no easy way to test this in clang, so for
-    //        now just be explicit and disable all known dependent features
-    //        as well.
-    for (std::string Feature : {
-            "vfp2", "vfp2sp", "vfp2d16", "vfp2d16sp",
-            "vfp3", "vfp3sp", "vfp3d16", "vfp3d16sp",
-            "vfp4", "vfp4sp", "vfp4d16", "vfp4d16sp",
-            "fp-armv8", "fp-armv8sp", "fp-armv8d16", "fp-armv8d16sp",
-            "fullfp16", "neon", "crypto", "dotprod", "fp16fml",
-            "fp64", "d32", "fpregs"})
-      Features.push_back(Args.MakeArgString("-" + Feature));
+    // Disable all features relating to hardware FP, not already disabled by the
+    // above call.
+    Features.insert(Features.end(),
+                    {"-dotprod", "-fp16fml", "-mve", "-mve.fp", "-fpregs"});
+  } else if (FPUID == llvm::ARM::FK_NONE) {
+    // -mfpu=none is *very* similar to -mfloat-abi=soft, only that it should not
+    // disable MVE-I.
+    Features.insert(Features.end(), {"-dotprod", "-fp16fml", "-mve.fp"});
+    if (!hasIntegerMVE(Features))
+      Features.emplace_back("-fpregs");
   }
 
   // En/disable crc code generation.
@@ -477,23 +481,35 @@ fp16_fml_fallthrough:
       Features.push_back("-crc");
   }
 
-  // For Arch >= ARMv8.0:  crypto = sha2 + aes
+  // For Arch >= ARMv8.0 && A profile:  crypto = sha2 + aes
   // FIXME: this needs reimplementation after the TargetParser rewrite
-  if (ArchName.find_lower("armv8a") != StringRef::npos ||
-      ArchName.find_lower("armv8.1a") != StringRef::npos ||
-      ArchName.find_lower("armv8.2a") != StringRef::npos ||
-      ArchName.find_lower("armv8.3a") != StringRef::npos ||
-      ArchName.find_lower("armv8.4a") != StringRef::npos) {
-    if (ArchName.find_lower("+crypto") != StringRef::npos) {
-      if (ArchName.find_lower("+nosha2") == StringRef::npos)
-        Features.push_back("+sha2");
-      if (ArchName.find_lower("+noaes") == StringRef::npos)
-        Features.push_back("+aes");
-    } else if (ArchName.find_lower("-crypto") != StringRef::npos) {
-      if (ArchName.find_lower("+sha2") == StringRef::npos)
-        Features.push_back("-sha2");
-      if (ArchName.find_lower("+aes") == StringRef::npos)
-        Features.push_back("-aes");
+  auto CryptoIt = llvm::find_if(llvm::reverse(Features), [](const StringRef F) {
+    return F.contains("crypto");
+  });
+  if (CryptoIt != Features.rend()) {
+    if (CryptoIt->take_front() == "+") {
+      StringRef ArchSuffix = arm::getLLVMArchSuffixForARM(
+          arm::getARMTargetCPU(CPUName, ArchName, Triple), ArchName, Triple);
+      if (llvm::ARM::parseArchVersion(ArchSuffix) >= 8 &&
+          llvm::ARM::parseArchProfile(ArchSuffix) ==
+              llvm::ARM::ProfileKind::A) {
+        if (ArchName.find_lower("+nosha2") == StringRef::npos &&
+            CPUName.find_lower("+nosha2") == StringRef::npos)
+          Features.push_back("+sha2");
+        if (ArchName.find_lower("+noaes") == StringRef::npos &&
+            CPUName.find_lower("+noaes") == StringRef::npos)
+          Features.push_back("+aes");
+      } else {
+        D.Diag(clang::diag::warn_target_unsupported_extension)
+            << "crypto"
+            << llvm::ARM::getArchName(llvm::ARM::parseArch(ArchSuffix));
+        // With -fno-integrated-as -mfpu=crypto-neon-fp-armv8 some assemblers such as the GNU assembler
+        // will permit the use of crypto instructions as the fpu will override the architecture.
+        // We keep the crypto feature in this case to preserve compatibility.
+        // In all other cases we remove the crypto feature.
+        if (!Args.hasArg(options::OPT_fno_integrated_as))
+          Features.push_back("-crypto");
+      }
     }
   }
 
@@ -595,14 +611,14 @@ fp16_fml_fallthrough:
 const std::string arm::getARMArch(StringRef Arch, const llvm::Triple &Triple) {
   std::string MArch;
   if (!Arch.empty())
-    MArch = Arch;
+    MArch = std::string(Arch);
   else
-    MArch = Triple.getArchName();
+    MArch = std::string(Triple.getArchName());
   MArch = StringRef(MArch).split("+").first.lower();
 
   // Handle -march=native.
   if (MArch == "native") {
-    std::string CPU = llvm::sys::getHostCPUName();
+    std::string CPU = std::string(llvm::sys::getHostCPUName());
     if (CPU != "generic") {
       // Translate the native cpu into the architecture suffix for that CPU.
       StringRef Suffix = arm::getLLVMArchSuffixForARM(CPU, MArch, Triple);
@@ -640,12 +656,12 @@ std::string arm::getARMTargetCPU(StringRef CPU, StringRef Arch,
     std::string MCPU = StringRef(CPU).split("+").first.lower();
     // Handle -mcpu=native.
     if (MCPU == "native")
-      return llvm::sys::getHostCPUName();
+      return std::string(llvm::sys::getHostCPUName());
     else
       return MCPU;
   }
 
-  return getARMCPUForMArch(Arch, Triple);
+  return std::string(getARMCPUForMArch(Arch, Triple));
 }
 
 /// getLLVMArchSuffixForARM - Get the LLVM ArchKind value to use for a
@@ -655,7 +671,7 @@ std::string arm::getARMTargetCPU(StringRef CPU, StringRef Arch,
 llvm::ARM::ArchKind arm::getLLVMArchKindForARM(StringRef CPU, StringRef Arch,
                                                const llvm::Triple &Triple) {
   llvm::ARM::ArchKind ArchKind;
-  if (CPU == "generic") {
+  if (CPU == "generic" || CPU.empty()) {
     std::string ARMArch = tools::arm::getARMArch(Arch, Triple);
     ArchKind = llvm::ARM::parseArch(ARMArch);
     if (ArchKind == llvm::ARM::ArchKind::INVALID)

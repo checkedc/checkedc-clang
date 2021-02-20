@@ -12,6 +12,7 @@
 #include <windows.h>
 #include "WindowsMMap.h"
 #else
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -39,8 +40,25 @@ COMPILER_RT_WEAK unsigned lprofDirMode = 0755;
 COMPILER_RT_VISIBILITY
 void __llvm_profile_recursive_mkdir(char *path) {
   int i;
+  int start = 1;
 
-  for (i = 1; path[i] != '\0'; ++i) {
+#if defined(__ANDROID__) && defined(__ANDROID_API__) &&                        \
+    defined(__ANDROID_API_FUTURE__) &&                                         \
+    __ANDROID_API__ == __ANDROID_API_FUTURE__
+  // Avoid spammy selinux denial messages in Android by not attempting to
+  // create directories in GCOV_PREFIX.  These denials occur when creating (or
+  // even attempting to stat()) top-level directories like "/data".
+  //
+  // Do so by ignoring ${GCOV_PREFIX} when invoking mkdir().
+  const char *gcov_prefix = getenv("GCOV_PREFIX");
+  if (gcov_prefix != NULL) {
+    const int gcov_prefix_len = strlen(gcov_prefix);
+    if (strncmp(path, gcov_prefix, gcov_prefix_len) == 0)
+      start = gcov_prefix_len;
+  }
+#endif
+
+  for (i = start; path[i] != '\0'; ++i) {
     char save = path[i];
     if (!IS_DIR_SEPARATOR(path[i]))
       continue;
@@ -189,8 +207,9 @@ COMPILER_RT_VISIBILITY FILE *lprofOpenFileEx(const char *ProfileName) {
   f = fdopen(fd, "r+b");
 #elif defined(_WIN32)
   // FIXME: Use the wide variants to handle Unicode filenames.
-  HANDLE h = CreateFileA(ProfileName, GENERIC_READ | GENERIC_WRITE, 0, 0,
-                         OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+  HANDLE h = CreateFileA(ProfileName, GENERIC_READ | GENERIC_WRITE,
+                         FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_ALWAYS,
+                         FILE_ATTRIBUTE_NORMAL, 0);
   if (h == INVALID_HANDLE_VALUE)
     return NULL;
 
@@ -199,6 +218,10 @@ COMPILER_RT_VISIBILITY FILE *lprofOpenFileEx(const char *ProfileName) {
     CloseHandle(h);
     return NULL;
   }
+
+  if (lprofLockFd(fd) != 0)
+    PROF_WARN("Data may be corrupted during profile merging : %s\n",
+              "Fail to obtain file lock due to system limit.");
 
   f = _fdopen(fd, "r+b");
   if (f == 0) {

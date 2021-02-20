@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/CachePruning.h"
-
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
@@ -45,7 +45,7 @@ struct FileInfo {
 /// interval option.
 static void writeTimestampFile(StringRef TimestampFile) {
   std::error_code EC;
-  raw_fd_ostream Out(TimestampFile.str(), EC, sys::fs::F_None);
+  raw_fd_ostream Out(TimestampFile.str(), EC, sys::fs::OF_None);
 }
 
 static Expected<std::chrono::seconds> parseDuration(StringRef Duration) {

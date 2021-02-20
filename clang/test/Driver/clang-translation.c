@@ -3,8 +3,7 @@
 // I386: "-S"
 // I386: "-disable-free"
 // I386: "-mrelocation-model" "static"
-// I386: "-mdisable-fp-elim"
-// I386: "-masm-verbose"
+// I386: "-mframe-pointer=all"
 // I386: "-munwind-tables"
 // I386: "-Os"
 // I386: "-fvisibility"
@@ -275,6 +274,18 @@
 // PPC64NS: clang
 // PPC64NS: "-cc1"
 // PPC64NS: "-target-cpu" "ppc64"
+
+// RUN: %clang -target powerpc-fsl-linux -### -S %s \
+// RUN: -mcpu=e500 2>&1 | FileCheck -check-prefix=PPCE500 %s
+// PPCE500: clang
+// PPCE500: "-cc1"
+// PPCE500: "-target-cpu" "e500"
+
+// RUN: %clang -target powerpc-fsl-linux -### -S %s \
+// RUN: -mcpu=8548 2>&1 | FileCheck -check-prefix=PPC8548 %s
+// PPC8548: clang
+// PPC8548: "-cc1"
+// PPC8548: "-target-cpu" "e500"
 
 // RUN: %clang -target powerpc-fsl-linux -### -S %s \
 // RUN: -mcpu=e500mc 2>&1 | FileCheck -check-prefix=PPCE500MC %s

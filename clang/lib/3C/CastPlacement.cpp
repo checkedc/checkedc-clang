@@ -13,7 +13,7 @@
 #include "clang/3C/3CGlobalOptions.h"
 #include "clang/3C/ConstraintResolver.h"
 #include "clang/3C/Utils.h"
-#include <clang/Tooling/Refactoring/SourceCode.h>
+#include <clang/Tooling/Transformer/SourceCode.h>
 
 using namespace clang;
 
@@ -202,10 +202,18 @@ void CastPlacementVisitor::surroundByCast(ConstraintVariable *Dst,
       auto CRA = CharSourceRange::getTokenRange(E->getSourceRange());
       auto NewCRA = clang::Lexer::makeFileCharRange(
           CRA, Context->getSourceManager(), Context->getLangOpts());
+<<<<<<< HEAD
       std::string SrcText = clang::tooling::getText(CRA, *Context);
       // This doesn't always work either. We can't rewrite if the cast needs to
       // be placed fully inside a macro rather than around a macro or on an
       // argument to the macro.
+||||||| ad482c007426
+      std::string SrcText = clang::tooling::getText(CRA, *Context);
+      // Only insert if there is anything to write.
+=======
+      std::string SrcText(clang::tooling::getText(CRA, *Context));
+      // Only insert if there is anything to write.
+>>>>>>> a4d1ce7f08d86d868e676e6971d797456cc875eb
       if (!SrcText.empty())
         Writer.ReplaceText(NewCRA, CastStrs.first + SrcText + CastStrs.second);
     }

@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <cstdlib>
 
-#include "FuzzedDataProvider.h"
+#include <fuzzer/FuzzedDataProvider.h>
 
 // The test is intentionally extensive, as behavior of |FuzzedDataProvider| must
 // not be broken, given than many fuzz targets depend on it. Changing the
@@ -190,14 +190,26 @@ TEST(FuzzedDataProvider, ConsumeRandomLengthString) {
                 "\x1D\xBD\x4E\x17\x04\x1E\xBA\x26\xAC\x1F\xE3\x37\x1C\x15\x43"
                 "\x60\x41\x2A\x7C\xCA\x70\xCE\xAB\x20\x24\xF8\xD9\x1F\x14\x7C"),
             DataProv.ConsumeRandomLengthString(31337));
-  EXPECT_EQ(std::string(Data + 141, Data + 141 + 5),
+  size_t Offset = 141;
+  EXPECT_EQ(std::string(Data + Offset, Data + Offset + 5),
             DataProv.ConsumeRandomLengthString(5));
-  EXPECT_EQ(std::string(Data + 141 + 5, Data + 141 + 5 + 2),
+  Offset += 5;
+  EXPECT_EQ(std::string(Data + Offset, Data + Offset + 2),
             DataProv.ConsumeRandomLengthString(2));
+  Offset += 2;
+
+  // Call the overloaded method without arguments (uses max length available).
+  EXPECT_EQ(std::string(Data + Offset, Data + Offset + 664),
+            DataProv.ConsumeRandomLengthString());
+  Offset += 664 + 2; // +2 because of '\' character followed by any other byte.
+
+  EXPECT_EQ(std::string(Data + Offset, Data + Offset + 92),
+            DataProv.ConsumeRandomLengthString());
+  Offset += 92 + 2;
 
   // Exhaust the buffer.
   auto String = DataProv.ConsumeBytesAsString(31337);
-  EXPECT_EQ(size_t(876), String.length());
+  EXPECT_EQ(size_t(116), String.length());
   EXPECT_EQ(std::string(), DataProv.ConsumeRandomLengthString(1));
 }
 
@@ -346,6 +358,76 @@ TEST(FuzzedDataProvider, remaining_bytes) {
   EXPECT_EQ(std::vector<uint8_t>(Data + 8, Data + sizeof(Data) - 1),
             DataProv.ConsumeRemainingBytes<uint8_t>());
   EXPECT_EQ(size_t(0), DataProv.remaining_bytes());
+}
+
+TEST(FuzzedDataProvider, ConsumeProbability) {
+  FuzzedDataProvider DataProv(Data, sizeof(Data));
+  ASSERT_FLOAT_EQ(float(0.28969181), DataProv.ConsumeProbability<float>());
+  ASSERT_DOUBLE_EQ(double(0.086814121166605432),
+                   DataProv.ConsumeProbability<double>());
+  ASSERT_FLOAT_EQ(float(0.30104411), DataProv.ConsumeProbability<float>());
+  ASSERT_DOUBLE_EQ(double(0.96218831486039413),
+                   DataProv.ConsumeProbability<double>());
+  ASSERT_FLOAT_EQ(float(0.67005056), DataProv.ConsumeProbability<float>());
+  ASSERT_DOUBLE_EQ(double(0.69210584173832279),
+                   DataProv.ConsumeProbability<double>());
+
+  // Exhaust the buffer.
+  EXPECT_EQ(std::vector<uint8_t>(Data, Data + sizeof(Data) - 36),
+            DataProv.ConsumeRemainingBytes<uint8_t>());
+  ASSERT_FLOAT_EQ(float(0.0), DataProv.ConsumeProbability<float>());
+}
+
+TEST(FuzzedDataProvider, ConsumeFloatingPoint) {
+  FuzzedDataProvider DataProv(Data, sizeof(Data));
+  ASSERT_FLOAT_EQ(float(-2.8546307e+38),
+                  DataProv.ConsumeFloatingPoint<float>());
+  ASSERT_DOUBLE_EQ(double(8.0940194040236032e+307),
+                   DataProv.ConsumeFloatingPoint<double>());
+  ASSERT_FLOAT_EQ(float(271.49084),
+                  DataProv.ConsumeFloatingPointInRange<float>(123.0, 777.0));
+  ASSERT_DOUBLE_EQ(double(30.859126145478349),
+                   DataProv.ConsumeFloatingPointInRange<double>(13.37, 31.337));
+  ASSERT_FLOAT_EQ(
+      float(-903.47729),
+      DataProv.ConsumeFloatingPointInRange<float>(-999.9999, -777.77));
+  ASSERT_DOUBLE_EQ(
+      double(24.561393182922771),
+      DataProv.ConsumeFloatingPointInRange<double>(-13.37, 31.337));
+  ASSERT_FLOAT_EQ(float(1.0),
+                  DataProv.ConsumeFloatingPointInRange<float>(1.0, 1.0));
+  ASSERT_DOUBLE_EQ(double(-1.0),
+                   DataProv.ConsumeFloatingPointInRange<double>(-1.0, -1.0));
+
+  // Exhaust the buffer.
+  EXPECT_EQ((std::vector<uint8_t>(Data, Data + sizeof(Data) - 50)).size(),
+            DataProv.ConsumeRemainingBytes<uint8_t>().size());
+  ASSERT_FLOAT_EQ(float(0.0), DataProv.ConsumeProbability<float>());
+  ASSERT_NEAR(std::numeric_limits<double>::lowest(),
+              DataProv.ConsumeFloatingPoint<double>(), 1e-10);
+  ASSERT_FLOAT_EQ(float(123.0),
+                  DataProv.ConsumeFloatingPointInRange<float>(123.0, 777.0));
+  ASSERT_DOUBLE_EQ(double(-13.37), DataProv.ConsumeFloatingPointInRange<double>(
+                                       -13.37, 31.337));
+}
+
+TEST(FuzzedDataProvider, ConsumeData) {
+  FuzzedDataProvider DataProv(Data, sizeof(Data));
+  uint8_t Buffer[10] = {};
+  EXPECT_EQ(sizeof(Buffer), DataProv.ConsumeData(Buffer, sizeof(Buffer)));
+  std::vector<uint8_t> Expected(Data, Data + sizeof(Buffer));
+  EXPECT_EQ(Expected, std::vector<uint8_t>(Buffer, Buffer + sizeof(Buffer)));
+
+  EXPECT_EQ(size_t(2), DataProv.ConsumeData(Buffer, 2));
+  Expected[0] = Data[sizeof(Buffer)];
+  Expected[1] = Data[sizeof(Buffer) + 1];
+  EXPECT_EQ(Expected, std::vector<uint8_t>(Buffer, Buffer + sizeof(Buffer)));
+
+  // Exhaust the buffer.
+  EXPECT_EQ(std::vector<uint8_t>(Data + 12, Data + sizeof(Data)),
+            DataProv.ConsumeRemainingBytes<uint8_t>());
+  EXPECT_EQ(size_t(0), DataProv.ConsumeData(Buffer, sizeof(Buffer)));
+  EXPECT_EQ(Expected, std::vector<uint8_t>(Buffer, Buffer + sizeof(Buffer)));
 }
 
 int main(int argc, char **argv) {

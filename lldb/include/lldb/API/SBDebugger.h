@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLDB_SBDebugger_h_
-#define LLDB_SBDebugger_h_
+#ifndef LLDB_API_SBDEBUGGER_H
+#define LLDB_API_SBDEBUGGER_H
 
 #include <stdio.h>
 
@@ -88,6 +88,24 @@ public:
 
   FILE *GetErrorFileHandle();
 
+  SBError SetInputFile(SBFile file);
+
+  SBError SetOutputFile(SBFile file);
+
+  SBError SetErrorFile(SBFile file);
+
+  SBError SetInputFile(FileSP file);
+
+  SBError SetOutputFile(FileSP file);
+
+  SBError SetErrorFile(FileSP file);
+
+  SBFile GetInputFile();
+
+  SBFile GetOutputFile();
+
+  SBFile GetErrorFile();
+
   void SaveInputTerminalState();
 
   void RestoreInputTerminalState();
@@ -99,7 +117,14 @@ public:
   lldb::SBListener GetListener();
 
   void HandleProcessEvent(const lldb::SBProcess &process,
-                          const lldb::SBEvent &event, FILE *out, FILE *err);
+                          const lldb::SBEvent &event, FILE *out,
+                          FILE *err); // DEPRECATED
+
+  void HandleProcessEvent(const lldb::SBProcess &process,
+                          const lldb::SBEvent &event, SBFile out, SBFile err);
+
+  void HandleProcessEvent(const lldb::SBProcess &process,
+                          const lldb::SBEvent &event, FileSP out, FileSP err);
 
   lldb::SBTarget CreateTarget(const char *filename, const char *target_triple,
                               const char *platform_name,
@@ -173,6 +198,10 @@ public:
   bool SetUseColor(bool use_color);
 
   bool GetUseColor() const;
+
+  bool SetUseSourceCache(bool use_source_cache);
+
+  bool GetUseSourceCache() const;
 
   static bool GetDefaultArchitecture(char *arch_name, size_t arch_name_len);
 
@@ -261,12 +290,49 @@ public:
 
   SBTypeSynthetic GetSyntheticForType(SBTypeNameSpecifier);
 
+  /// Run the command interpreter.
+  ///
+  /// \param[in] auto_handle_events
+  ///     If true, automatically handle resulting events. This takes precedence
+  ///     and overrides the corresponding option in
+  ///     SBCommandInterpreterRunOptions.
+  ///
+  /// \param[in] spawn_thread
+  ///     If true, start a new thread for IO handling. This takes precedence
+  ///     and overrides the corresponding option in
+  ///     SBCommandInterpreterRunOptions.
   void RunCommandInterpreter(bool auto_handle_events, bool spawn_thread);
 
+  /// Run the command interpreter.
+  ///
+  /// \param[in] auto_handle_events
+  ///     If true, automatically handle resulting events. This takes precedence
+  ///     and overrides the corresponding option in
+  ///     SBCommandInterpreterRunOptions.
+  ///
+  /// \param[in] spawn_thread
+  ///     If true, start a new thread for IO handling. This takes precedence
+  ///     and overrides the corresponding option in
+  ///     SBCommandInterpreterRunOptions.
+  ///
+  /// \param[in] options
+  ///     Parameter collection of type SBCommandInterpreterRunOptions.
+  ///
+  /// \param[out] num_errors
+  ///     The number of errors.
+  ///
+  /// \param[out] quit_requested
+  ///     Whether a quit was requested.
+  ///
+  /// \param[out] stopped_for_crash
+  ///     Whether the interpreter stopped for a crash.
   void RunCommandInterpreter(bool auto_handle_events, bool spawn_thread,
                              SBCommandInterpreterRunOptions &options,
                              int &num_errors, bool &quit_requested,
                              bool &stopped_for_crash);
+
+  SBCommandInterpreterRunResult
+  RunCommandInterpreter(const SBCommandInterpreterRunOptions &options);
 
   SBError RunREPL(lldb::LanguageType language, const char *repl_options);
 
@@ -294,4 +360,4 @@ private:
 
 } // namespace lldb
 
-#endif // LLDB_SBDebugger_h_
+#endif // LLDB_API_SBDEBUGGER_H

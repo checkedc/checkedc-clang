@@ -238,10 +238,11 @@ static MCRegisterInfo *createAArch64MCRegisterInfo(const Triple &Triple) {
 }
 
 static MCAsmInfo *createAArch64MCAsmInfo(const MCRegisterInfo &MRI,
-                                         const Triple &TheTriple) {
+                                         const Triple &TheTriple,
+                                         const MCTargetOptions &Options) {
   MCAsmInfo *MAI;
   if (TheTriple.isOSBinFormatMachO())
-    MAI = new AArch64MCAsmInfoDarwin();
+    MAI = new AArch64MCAsmInfoDarwin(TheTriple.getArch() == Triple::aarch64_32);
   else if (TheTriple.isWindowsMSVCEnvironment())
     MAI = new AArch64MCAsmInfoMicrosoftCOFF();
   else if (TheTriple.isOSBinFormatCOFF())
@@ -253,7 +254,7 @@ static MCAsmInfo *createAArch64MCAsmInfo(const MCRegisterInfo &MRI,
 
   // Initial state of the frame pointer is SP.
   unsigned Reg = MRI.getDwarfRegNum(AArch64::SP, true);
-  MCCFIInstruction Inst = MCCFIInstruction::createDefCfa(nullptr, Reg, 0);
+  MCCFIInstruction Inst = MCCFIInstruction::cfiDefCfa(nullptr, Reg, 0);
   MAI->addInitialFrameState(Inst);
 
   return MAI;
@@ -365,7 +366,7 @@ static MCInstrAnalysis *createAArch64InstrAnalysis(const MCInstrInfo *Info) {
 }
 
 // Force static initialization.
-extern "C" void LLVMInitializeAArch64TargetMC() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAArch64TargetMC() {
   for (Target *T : {&getTheAArch64leTarget(), &getTheAArch64beTarget(),
                     &getTheAArch64_32Target(), &getTheARM64Target(),
                     &getTheARM64_32Target()}) {

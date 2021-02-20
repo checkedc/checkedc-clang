@@ -14,6 +14,7 @@
 #include "lldb/lldb-types.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/YAMLTraits.h"
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,7 +35,11 @@ public:
   struct ArgEntry {
   private:
     friend class Args;
+    friend struct llvm::yaml::MappingTraits<Args>;
+    friend struct llvm::yaml::MappingTraits<Args::ArgEntry>;
+
     std::unique_ptr<char[]> ptr;
+    char quote;
 
     char *data() { return ptr.get(); }
 
@@ -42,12 +47,12 @@ public:
     ArgEntry() = default;
     ArgEntry(llvm::StringRef str, char quote);
 
-    llvm::StringRef ref;
-    char quote;
+    llvm::StringRef ref() const { return c_str(); }
     const char *c_str() const { return ptr.get(); }
 
     /// Returns true if this argument was quoted in any way.
     bool IsQuoted() const { return quote != '\0'; }
+    char GetQuoteChar() const { return quote; }
   };
 
   /// Construct with an option command string.
@@ -121,7 +126,6 @@ public:
   const char *GetArgumentAtIndex(size_t idx) const;
 
   llvm::ArrayRef<ArgEntry> entries() const { return m_entries; }
-  char GetArgumentQuoteCharAtIndex(size_t idx) const;
 
   using const_iterator = std::vector<ArgEntry>::const_iterator;
 
@@ -168,8 +172,8 @@ public:
 
   /// Appends a new argument to the end of the list argument list.
   ///
-  /// \param[in] arg_cstr
-  ///     The new argument as a NULL terminated C string.
+  /// \param[in] arg_str
+  ///     The new argument.
   ///
   /// \param[in] quote_char
   ///     If the argument was originally quoted, put in the quote char here.
@@ -179,30 +183,27 @@ public:
 
   void AppendArguments(const char **argv);
 
-  /// Insert the argument value at index \a idx to \a arg_cstr.
+  /// Insert the argument value at index \a idx to \a arg_str.
   ///
   /// \param[in] idx
   ///     The index of where to insert the argument.
   ///
-  /// \param[in] arg_cstr
-  ///     The new argument as a NULL terminated C string.
+  /// \param[in] arg_str
+  ///     The new argument.
   ///
   /// \param[in] quote_char
   ///     If the argument was originally quoted, put in the quote char here.
-  ///
-  /// \return
-  ///     The NULL terminated C string of the copy of \a arg_cstr.
   void InsertArgumentAtIndex(size_t idx, llvm::StringRef arg_str,
                              char quote_char = '\0');
 
-  /// Replaces the argument value at index \a idx to \a arg_cstr if \a idx is
+  /// Replaces the argument value at index \a idx to \a arg_str if \a idx is
   /// a valid argument index.
   ///
   /// \param[in] idx
   ///     The index of the argument that will have its value replaced.
   ///
-  /// \param[in] arg_cstr
-  ///     The new argument as a NULL terminated C string.
+  /// \param[in] arg_str
+  ///     The new argument.
   ///
   /// \param[in] quote_char
   ///     If the argument was originally quoted, put in the quote char here.
@@ -238,12 +239,12 @@ public:
   /// \see Args::GetArgumentAtIndex (size_t) const
   void Shift();
 
-  /// Inserts a class owned copy of \a arg_cstr at the beginning of the
+  /// Inserts a class owned copy of \a arg_str at the beginning of the
   /// argument vector.
   ///
-  /// A copy \a arg_cstr will be made.
+  /// A copy \a arg_str will be made.
   ///
-  /// \param[in] arg_cstr
+  /// \param[in] arg_str
   ///     The argument to push on the front of the argument stack.
   ///
   /// \param[in] quote_char
@@ -254,39 +255,6 @@ public:
   //
   // For re-setting or blanking out the list of arguments.
   void Clear();
-
-  static const char *StripSpaces(std::string &s, bool leading = true,
-                                 bool trailing = true,
-                                 bool return_null_if_empty = true);
-
-  static bool UInt64ValueIsValidForByteSize(uint64_t uval64,
-                                            size_t total_byte_size) {
-    if (total_byte_size > 8)
-      return false;
-
-    if (total_byte_size == 8)
-      return true;
-
-    const uint64_t max = (static_cast<uint64_t>(1)
-                          << static_cast<uint64_t>(total_byte_size * 8)) -
-                         1;
-    return uval64 <= max;
-  }
-
-  static bool SInt64ValueIsValidForByteSize(int64_t sval64,
-                                            size_t total_byte_size) {
-    if (total_byte_size > 8)
-      return false;
-
-    if (total_byte_size == 8)
-      return true;
-
-    const int64_t max = (static_cast<int64_t>(1)
-                         << static_cast<uint64_t>(total_byte_size * 8 - 1)) -
-                        1;
-    const int64_t min = ~(max);
-    return min <= sval64 && sval64 <= max;
-  }
 
   static lldb::Encoding
   StringToEncoding(llvm::StringRef s,
@@ -319,6 +287,8 @@ public:
                                                char quote_char);
 
 private:
+  friend struct llvm::yaml::MappingTraits<Args>;
+
   std::vector<ArgEntry> m_entries;
   std::vector<char *> m_argv;
 };
@@ -408,5 +378,29 @@ private:
 };
 
 } // namespace lldb_private
+
+namespace llvm {
+namespace yaml {
+template <> struct MappingTraits<lldb_private::Args::ArgEntry> {
+  class NormalizedArgEntry {
+  public:
+    NormalizedArgEntry(IO &) {}
+    NormalizedArgEntry(IO &, lldb_private::Args::ArgEntry &entry)
+        : value(entry.ref()), quote(entry.quote) {}
+    lldb_private::Args::ArgEntry denormalize(IO &) {
+      return lldb_private::Args::ArgEntry(value, quote);
+    }
+    StringRef value;
+    uint8_t quote;
+  };
+  static void mapping(IO &io, lldb_private::Args::ArgEntry &v);
+};
+template <> struct MappingTraits<lldb_private::Args> {
+  static void mapping(IO &io, lldb_private::Args &v);
+};
+} // namespace yaml
+} // namespace llvm
+
+LLVM_YAML_IS_SEQUENCE_VECTOR(lldb_private::Args::ArgEntry)
 
 #endif // LLDB_UTILITY_ARGS_H

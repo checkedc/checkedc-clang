@@ -28,6 +28,10 @@ target triple = "x86_64-unknown-linux-gnu"
 ; during LTO.
 ; CHECK: @llvm.compiler.used {{.*}} @__asan_global_global {{.*}} section "llvm.metadata"
 
+; Check that start and stop symbols will be accessed as dso_local.
+; CHECK: @__start_asan_globals = external hidden global i64
+; CHECK: @__stop_asan_globals = external hidden global i64
+
 ; Check that location descriptors and global names were passed into __asan_register_globals:
 ; CHECK: call void @__asan_register_elf_globals(i64 ptrtoint (i64* @___asan_globals_registered to i64), i64 ptrtoint (i64* @__start_asan_globals to i64), i64 ptrtoint (i64* @__stop_asan_globals to i64))
 
@@ -55,7 +59,7 @@ entry:
 }
 
 attributes #0 = { nounwind sanitize_address }
-attributes #1 = { nounwind sanitize_address "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { nounwind sanitize_address "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.asan.globals = !{!0, !1, !2, !3, !4}
 !llvm.ident = !{!5}

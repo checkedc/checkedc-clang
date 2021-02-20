@@ -181,6 +181,20 @@ const MappingDesc kMemoryLayout[] = {
 #define MEM_TO_SHADOW(mem) (LINEARIZE_MEM((mem)) + 0x080000000000ULL)
 #define SHADOW_TO_ORIGIN(shadow) (((uptr)(shadow)) + 0x140000000000ULL)
 
+#elif SANITIZER_LINUX && SANITIZER_S390_64
+const MappingDesc kMemoryLayout[] = {
+    {0x000000000000ULL, 0x040000000000ULL, MappingDesc::APP, "low memory"},
+    {0x040000000000ULL, 0x080000000000ULL, MappingDesc::INVALID, "invalid"},
+    {0x080000000000ULL, 0x180000000000ULL, MappingDesc::SHADOW, "shadow"},
+    {0x180000000000ULL, 0x1C0000000000ULL, MappingDesc::INVALID, "invalid"},
+    {0x1C0000000000ULL, 0x2C0000000000ULL, MappingDesc::ORIGIN, "origin"},
+    {0x2C0000000000ULL, 0x440000000000ULL, MappingDesc::INVALID, "invalid"},
+    {0x440000000000ULL, 0x500000000000ULL, MappingDesc::APP, "high memory"}};
+
+#define MEM_TO_SHADOW(mem) \
+  ((((uptr)(mem)) & ~0xC00000000000ULL) + 0x080000000000ULL)
+#define SHADOW_TO_ORIGIN(shadow) (((uptr)(shadow)) + 0x140000000000ULL)
+
 #elif SANITIZER_FREEBSD && SANITIZER_WORDSIZE == 64
 
 // Low memory: main binary, MAP_32BIT mappings and modules
@@ -267,7 +281,7 @@ inline bool addr_is_type(uptr addr, MappingDesc::Type mapping_type) {
 #define MEM_IS_SHADOW(mem) addr_is_type((uptr)(mem), MappingDesc::SHADOW)
 #define MEM_IS_ORIGIN(mem) addr_is_type((uptr)(mem), MappingDesc::ORIGIN)
 
-// These constants must be kept in sync with the ones in MemorySanitizer.cc.
+// These constants must be kept in sync with the ones in MemorySanitizer.cpp.
 const int kMsanParamTlsSize = 800;
 const int kMsanRetvalTlsSize = 800;
 
@@ -346,10 +360,11 @@ const int STACK_TRACE_TAG_POISON = StackTrace::TAG_CUSTOM + 1;
 #define GET_STORE_STACK_TRACE \
   GET_STORE_STACK_TRACE_PC_BP(StackTrace::GetCurrentPc(), GET_CURRENT_FRAME())
 
-#define GET_FATAL_STACK_TRACE_PC_BP(pc, bp)              \
-  BufferedStackTrace stack;                              \
-  if (msan_inited)                                       \
-    stack.Unwind(pc, bp, nullptr, common_flags()->fast_unwind_on_fatal)
+#define GET_FATAL_STACK_TRACE_PC_BP(pc, bp)                              \
+  BufferedStackTrace stack;                                              \
+  if (msan_inited) {                                                     \
+    stack.Unwind(pc, bp, nullptr, common_flags()->fast_unwind_on_fatal); \
+  }
 
 #define GET_FATAL_STACK_TRACE_HERE \
   GET_FATAL_STACK_TRACE_PC_BP(StackTrace::GetCurrentPc(), GET_CURRENT_FRAME())

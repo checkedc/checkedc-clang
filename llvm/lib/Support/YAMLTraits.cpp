@@ -40,7 +40,7 @@ IO::IO(void *Context) : Ctxt(Context) {}
 
 IO::~IO() = default;
 
-void *IO::getContext() {
+void *IO::getContext() const {
   return Ctxt;
 }
 
@@ -79,7 +79,7 @@ void Input::ScalarHNode::anchor() {}
 void Input::MapHNode::anchor() {}
 void Input::SequenceHNode::anchor() {}
 
-bool Input::outputting() {
+bool Input::outputting() const {
   return false;
 }
 
@@ -87,7 +87,6 @@ bool Input::setCurrentDocument() {
   if (DocIterator != Strm->end()) {
     Node *N = DocIterator->getRoot();
     if (!N) {
-      assert(Strm->failed() && "Root is NULL iff parsing failed");
       EC = make_error_code(errc::invalid_argument);
       return false;
     }
@@ -167,6 +166,8 @@ bool Input::preflightKey(const char *Key, bool Required, bool, bool &UseDefault,
   if (!MN) {
     if (Required || !isa<EmptyHNode>(CurrentNode))
       setError(CurrentNode, "not a mapping");
+    else
+      UseDefault = true;
     return false;
   }
   MN->ValidKeys.push_back(Key);
@@ -377,12 +378,12 @@ std::unique_ptr<Input::HNode> Input::createHNodes(Node *N) {
       // Copy string to permanent storage
       KeyStr = StringStorage.str().copy(StringAllocator);
     }
-    return llvm::make_unique<ScalarHNode>(N, KeyStr);
+    return std::make_unique<ScalarHNode>(N, KeyStr);
   } else if (BlockScalarNode *BSN = dyn_cast<BlockScalarNode>(N)) {
     StringRef ValueCopy = BSN->getValue().copy(StringAllocator);
-    return llvm::make_unique<ScalarHNode>(N, ValueCopy);
+    return std::make_unique<ScalarHNode>(N, ValueCopy);
   } else if (SequenceNode *SQ = dyn_cast<SequenceNode>(N)) {
-    auto SQHNode = llvm::make_unique<SequenceHNode>(N);
+    auto SQHNode = std::make_unique<SequenceHNode>(N);
     for (Node &SN : *SQ) {
       auto Entry = createHNodes(&SN);
       if (EC)
@@ -391,10 +392,10 @@ std::unique_ptr<Input::HNode> Input::createHNodes(Node *N) {
     }
     return std::move(SQHNode);
   } else if (MappingNode *Map = dyn_cast<MappingNode>(N)) {
-    auto mapHNode = llvm::make_unique<MapHNode>(N);
+    auto mapHNode = std::make_unique<MapHNode>(N);
     for (KeyValueNode &KVN : *Map) {
       Node *KeyNode = KVN.getKey();
-      ScalarNode *Key = dyn_cast<ScalarNode>(KeyNode);
+      ScalarNode *Key = dyn_cast_or_null<ScalarNode>(KeyNode);
       Node *Value = KVN.getValue();
       if (!Key || !Value) {
         if (!Key)
@@ -416,7 +417,7 @@ std::unique_ptr<Input::HNode> Input::createHNodes(Node *N) {
     }
     return std::move(mapHNode);
   } else if (isa<NullNode>(N)) {
-    return llvm::make_unique<EmptyHNode>(N);
+    return std::make_unique<EmptyHNode>(N);
   } else {
     setError(N, "unknown node kind");
     return nullptr;
@@ -440,7 +441,7 @@ Output::Output(raw_ostream &yout, void *context, int WrapColumn)
 
 Output::~Output() = default;
 
-bool Output::outputting() {
+bool Output::outputting() const {
   return true;
 }
 
@@ -739,7 +740,7 @@ bool Output::canElideEmptySequence() {
   // the whole key/value can be not written.  But, that produces wrong yaml
   // if the key/value is the only thing in the map and the map is used in
   // a sequence.  This detects if the this sequence is the first key/value
-  // in map that itself is embedded in a sequnce.
+  // in map that itself is embedded in a sequence.
   if (StateStack.size() < 2)
     return true;
   if (StateStack.back() != inMapFirstKey)
@@ -877,12 +878,12 @@ StringRef ScalarTraits<StringRef>::input(StringRef Scalar, void *,
 }
 
 void ScalarTraits<std::string>::output(const std::string &Val, void *,
-                                     raw_ostream &Out) {
+                                       raw_ostream &Out) {
   Out << Val;
 }
 
 StringRef ScalarTraits<std::string>::input(StringRef Scalar, void *,
-                                         std::string &Val) {
+                                           std::string &Val) {
   Val = Scalar.str();
   return StringRef();
 }

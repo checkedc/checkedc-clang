@@ -16,11 +16,9 @@
 #ifndef LLVM_LIB_TARGET_X86_X86TARGETTRANSFORMINFO_H
 #define LLVM_LIB_TARGET_X86_X86TARGETTRANSFORMINFO_H
 
-#include "X86.h"
 #include "X86TargetMachine.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/BasicTTIImpl.h"
-#include "llvm/CodeGen/TargetLowering.h"
 
 namespace llvm {
 
@@ -51,7 +49,6 @@ class X86TTIImpl : public BasicTTIImplBase<X86TTIImpl> {
       X86::FeatureFastBEXTR,
       X86::FeatureFastHorizontalOps,
       X86::FeatureFastLZCNT,
-      X86::FeatureFastPartialYMMorZMMWrite,
       X86::FeatureFastScalarFSQRT,
       X86::FeatureFastSHLDRotate,
       X86::FeatureFastScalarShiftMasks,
@@ -77,20 +74,21 @@ class X86TTIImpl : public BasicTTIImplBase<X86TTIImpl> {
       X86::FeatureSlowSHLD,
       X86::FeatureSlowTwoMemOps,
       X86::FeatureSlowUAMem16,
+      X86::FeaturePreferMaskRegisters,
+      X86::FeatureInsertVZEROUPPER,
+      X86::FeatureUseGLMDivSqrtCosts,
 
       // Perf-tuning flags.
       X86::FeatureHasFastGather,
       X86::FeatureSlowUAMem32,
 
       // Based on whether user set the -mprefer-vector-width command line.
+      X86::FeaturePrefer128Bit,
       X86::FeaturePrefer256Bit,
 
       // CPU name enums. These just follow CPU string.
       X86::ProcIntelAtom,
-      X86::ProcIntelGLM,
-      X86::ProcIntelGLP,
       X86::ProcIntelSLM,
-      X86::ProcIntelTRM,
   };
 
 public:
@@ -107,89 +105,104 @@ public:
   /// \name Cache TTI Implementation
   /// @{
   llvm::Optional<unsigned> getCacheSize(
-    TargetTransformInfo::CacheLevel Level) const;
+    TargetTransformInfo::CacheLevel Level) const override;
   llvm::Optional<unsigned> getCacheAssociativity(
-    TargetTransformInfo::CacheLevel Level) const;
+    TargetTransformInfo::CacheLevel Level) const override;
   /// @}
 
   /// \name Vector TTI Implementations
   /// @{
 
-  unsigned getNumberOfRegisters(bool Vector);
+  unsigned getNumberOfRegisters(unsigned ClassID) const;
   unsigned getRegisterBitWidth(bool Vector) const;
   unsigned getLoadStoreVecRegBitWidth(unsigned AS) const;
   unsigned getMaxInterleaveFactor(unsigned VF);
   int getArithmeticInstrCost(
       unsigned Opcode, Type *Ty,
+      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput,
       TTI::OperandValueKind Opd1Info = TTI::OK_AnyValue,
       TTI::OperandValueKind Opd2Info = TTI::OK_AnyValue,
       TTI::OperandValueProperties Opd1PropInfo = TTI::OP_None,
       TTI::OperandValueProperties Opd2PropInfo = TTI::OP_None,
-      ArrayRef<const Value *> Args = ArrayRef<const Value *>());
-  int getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index, Type *SubTp);
+      ArrayRef<const Value *> Args = ArrayRef<const Value *>(),
+      const Instruction *CxtI = nullptr);
+  int getShuffleCost(TTI::ShuffleKind Kind, VectorType *Tp, int Index,
+                     VectorType *SubTp);
   int getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
+                       TTI::TargetCostKind CostKind,
                        const Instruction *I = nullptr);
   int getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
+                         TTI::TargetCostKind CostKind,
                          const Instruction *I = nullptr);
   int getVectorInstrCost(unsigned Opcode, Type *Val, unsigned Index);
-  int getMemoryOpCost(unsigned Opcode, Type *Src, unsigned Alignment,
-                      unsigned AddressSpace, const Instruction *I = nullptr);
-  int getMaskedMemoryOpCost(unsigned Opcode, Type *Src, unsigned Alignment,
-                            unsigned AddressSpace);
-  int getGatherScatterOpCost(unsigned Opcode, Type *DataTy, Value *Ptr,
-                             bool VariableMask, unsigned Alignment);
+  unsigned getScalarizationOverhead(VectorType *Ty, const APInt &DemandedElts,
+                                    bool Insert, bool Extract);
+  int getMemoryOpCost(unsigned Opcode, Type *Src, MaybeAlign Alignment,
+                      unsigned AddressSpace,
+                      TTI::TargetCostKind CostKind,
+                      const Instruction *I = nullptr);
+  int getMaskedMemoryOpCost(
+      unsigned Opcode, Type *Src, Align Alignment, unsigned AddressSpace,
+      TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency);
+  int getGatherScatterOpCost(unsigned Opcode, Type *DataTy, const Value *Ptr,
+                             bool VariableMask, Align Alignment,
+                             TTI::TargetCostKind CostKind,
+                             const Instruction *I);
   int getAddressComputationCost(Type *PtrTy, ScalarEvolution *SE,
                                 const SCEV *Ptr);
 
   unsigned getAtomicMemIntrinsicMaxElementSize() const;
 
-  int getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy,
-                            ArrayRef<Type *> Tys, FastMathFlags FMF,
-                            unsigned ScalarizationCostPassed = UINT_MAX);
-  int getIntrinsicInstrCost(Intrinsic::ID IID, Type *RetTy,
-                            ArrayRef<Value *> Args, FastMathFlags FMF,
-                            unsigned VF = 1);
+  int getTypeBasedIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
+                                     TTI::TargetCostKind CostKind);
+  int getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
+                            TTI::TargetCostKind CostKind);
 
-  int getArithmeticReductionCost(unsigned Opcode, Type *Ty,
-                                 bool IsPairwiseForm);
+  int getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
+                                 bool IsPairwiseForm,
+                                 TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency);
 
-  int getMinMaxReductionCost(Type *Ty, Type *CondTy, bool IsPairwiseForm,
-                             bool IsUnsigned);
+  int getMinMaxCost(Type *Ty, Type *CondTy, bool IsUnsigned);
 
-  int getInterleavedMemoryOpCost(unsigned Opcode, Type *VecTy,
-                                 unsigned Factor, ArrayRef<unsigned> Indices,
-                                 unsigned Alignment, unsigned AddressSpace,
-                                 bool UseMaskForCond = false,
-                                 bool UseMaskForGaps = false);
-  int getInterleavedMemoryOpCostAVX512(unsigned Opcode, Type *VecTy,
-                                 unsigned Factor, ArrayRef<unsigned> Indices,
-                                 unsigned Alignment, unsigned AddressSpace,
-                                 bool UseMaskForCond = false,
-                                 bool UseMaskForGaps = false);
-  int getInterleavedMemoryOpCostAVX2(unsigned Opcode, Type *VecTy,
-                                 unsigned Factor, ArrayRef<unsigned> Indices,
-                                 unsigned Alignment, unsigned AddressSpace,
-                                 bool UseMaskForCond = false,
-                                 bool UseMaskForGaps = false);
+  int getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
+                             bool IsPairwiseForm, bool IsUnsigned,
+                             TTI::TargetCostKind CostKind);
+
+  int getInterleavedMemoryOpCost(
+      unsigned Opcode, Type *VecTy, unsigned Factor, ArrayRef<unsigned> Indices,
+      Align Alignment, unsigned AddressSpace,
+      TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency,
+      bool UseMaskForCond = false, bool UseMaskForGaps = false);
+  int getInterleavedMemoryOpCostAVX512(
+      unsigned Opcode, FixedVectorType *VecTy, unsigned Factor,
+      ArrayRef<unsigned> Indices, Align Alignment, unsigned AddressSpace,
+      TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency,
+      bool UseMaskForCond = false, bool UseMaskForGaps = false);
+  int getInterleavedMemoryOpCostAVX2(
+      unsigned Opcode, FixedVectorType *VecTy, unsigned Factor,
+      ArrayRef<unsigned> Indices, Align Alignment, unsigned AddressSpace,
+      TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency,
+      bool UseMaskForCond = false, bool UseMaskForGaps = false);
 
   int getIntImmCost(int64_t);
 
-  int getIntImmCost(const APInt &Imm, Type *Ty);
+  int getIntImmCost(const APInt &Imm, Type *Ty, TTI::TargetCostKind CostKind);
 
-  unsigned getUserCost(const User *U, ArrayRef<const Value *> Operands);
+  unsigned getCFInstrCost(unsigned Opcode, TTI::TargetCostKind CostKind);
 
-  int getIntImmCost(unsigned Opcode, unsigned Idx, const APInt &Imm, Type *Ty);
-  int getIntImmCost(Intrinsic::ID IID, unsigned Idx, const APInt &Imm,
-                    Type *Ty);
+  int getIntImmCostInst(unsigned Opcode, unsigned Idx, const APInt &Imm, Type *Ty,
+                        TTI::TargetCostKind CostKind);
+  int getIntImmCostIntrin(Intrinsic::ID IID, unsigned Idx, const APInt &Imm,
+                          Type *Ty, TTI::TargetCostKind CostKind);
   bool isLSRCostLess(TargetTransformInfo::LSRCost &C1,
                      TargetTransformInfo::LSRCost &C2);
   bool canMacroFuseCmp();
-  bool isLegalMaskedLoad(Type *DataType);
-  bool isLegalMaskedStore(Type *DataType);
-  bool isLegalNTLoad(Type *DataType, unsigned Alignment);
-  bool isLegalNTStore(Type *DataType, unsigned Alignment);
-  bool isLegalMaskedGather(Type *DataType);
-  bool isLegalMaskedScatter(Type *DataType);
+  bool isLegalMaskedLoad(Type *DataType, Align Alignment);
+  bool isLegalMaskedStore(Type *DataType, Align Alignment);
+  bool isLegalNTLoad(Type *DataType, Align Alignment);
+  bool isLegalNTStore(Type *DataType, Align Alignment);
+  bool isLegalMaskedGather(Type *DataType, Align Alignment);
+  bool isLegalMaskedScatter(Type *DataType, Align Alignment);
   bool isLegalMaskedExpandLoad(Type *DataType);
   bool isLegalMaskedCompressStore(Type *DataType);
   bool hasDivRemOp(Type *DataType, bool IsSigned);
@@ -202,11 +215,20 @@ public:
   TTI::MemCmpExpansionOptions enableMemCmpExpansion(bool OptSize,
                                                     bool IsZeroCmp) const;
   bool enableInterleavedAccessVectorization();
+
+  /// Allow vectorizers to form reduction intrinsics in IR. The IR is expanded
+  /// into shuffles and vector math/logic by the backend
+  /// (see TTI::shouldExpandReduction)
+  bool useReductionIntrinsic(unsigned Opcode, Type *Ty,
+                             TTI::ReductionFlags Flags) const {
+    return true;
+  }
+
 private:
   int getGSScalarCost(unsigned Opcode, Type *DataTy, bool VariableMask,
-                      unsigned Alignment, unsigned AddressSpace);
-  int getGSVectorCost(unsigned Opcode, Type *DataTy, Value *Ptr,
-                      unsigned Alignment, unsigned AddressSpace);
+                      Align Alignment, unsigned AddressSpace);
+  int getGSVectorCost(unsigned Opcode, Type *DataTy, const Value *Ptr,
+                      Align Alignment, unsigned AddressSpace);
 
   /// @}
 };

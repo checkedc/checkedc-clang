@@ -36,9 +36,12 @@
 #define EXTENSION(Name, Predicate)
 #endif
 
+FEATURE(speculative_load_hardening, LangOpts.SpeculativeLoadHardening)
 FEATURE(address_sanitizer,
         LangOpts.Sanitize.hasOneOf(SanitizerKind::Address |
                                    SanitizerKind::KernelAddress))
+FEATURE(leak_sanitizer,
+        LangOpts.Sanitize.has(SanitizerKind::Leak))
 FEATURE(hwaddress_sanitizer,
         LangOpts.Sanitize.hasOneOf(SanitizerKind::HWAddress |
                                    SanitizerKind::KernelHWAddress))
@@ -187,7 +190,7 @@ FEATURE(cxx_variable_templates, LangOpts.CPlusPlus14)
 // FEATURE(raw_invocation_type, LangOpts.CPlusPlus)
 // Type traits
 // N.B. Additional type traits should not be added to the following list.
-// Instead, they should be detected by has_extension.
+// Instead, they should be detected by has_builtin.
 FEATURE(has_nothrow_assign, LangOpts.CPlusPlus)
 FEATURE(has_nothrow_copy, LangOpts.CPlusPlus)
 FEATURE(has_nothrow_constructor, LangOpts.CPlusPlus)
@@ -250,6 +253,8 @@ EXTENSION(overloadable_unmarked, true)
 EXTENSION(pragma_clang_attribute_namespaces, true)
 EXTENSION(pragma_clang_attribute_external_declaration, true)
 EXTENSION(gnu_asm, LangOpts.GNUAsm)
+EXTENSION(gnu_asm_goto_with_outputs, LangOpts.GNUAsm)
+EXTENSION(matrix_types, LangOpts.MatrixTypes)
 
 #undef EXTENSION
 #undef FEATURE

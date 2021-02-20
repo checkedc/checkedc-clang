@@ -15,9 +15,7 @@
 #include "kmp_itt.h"
 #include "kmp_os.h"
 #include "kmp_stats.h"
-#if OMPT_SUPPORT
 #include "ompt-specific.h"
-#endif
 
 #if KMP_MIC
 #include <immintrin.h>
@@ -128,8 +126,11 @@ static bool __kmp_linear_barrier_gather_template(
                   gtid, team->t.t_id, tid, __kmp_gtid_from_tid(i, team),
                   team->t.t_id, i));
         ANNOTATE_REDUCE_AFTER(reduce);
+        OMPT_REDUCTION_DECL(this_thr, gtid);
+        OMPT_REDUCTION_BEGIN;
         (*reduce)(this_thr->th.th_local.reduce_data,
                   other_threads[i]->th.th_local.reduce_data);
+        OMPT_REDUCTION_END;
         ANNOTATE_REDUCE_BEFORE(reduce);
         ANNOTATE_REDUCE_BEFORE(&team->t.t_bar);
       }
@@ -355,8 +356,11 @@ __kmp_tree_barrier_gather(enum barrier_type bt, kmp_info_t *this_thr, int gtid,
                   gtid, team->t.t_id, tid, __kmp_gtid_from_tid(child_tid, team),
                   team->t.t_id, child_tid));
         ANNOTATE_REDUCE_AFTER(reduce);
+        OMPT_REDUCTION_DECL(this_thr, gtid);
+        OMPT_REDUCTION_BEGIN;
         (*reduce)(this_thr->th.th_local.reduce_data,
                   child_thr->th.th_local.reduce_data);
+        OMPT_REDUCTION_END;
         ANNOTATE_REDUCE_BEFORE(reduce);
         ANNOTATE_REDUCE_BEFORE(&team->t.t_bar);
       }
@@ -545,6 +549,7 @@ __kmp_hyper_barrier_gather(enum barrier_type bt, kmp_info_t *this_thr, int gtid,
     if (((tid >> level) & (branch_factor - 1)) != 0) {
       kmp_int32 parent_tid = tid & ~((1 << (level + branch_bits)) - 1);
 
+      KMP_MB(); // Synchronize parent and child threads.
       KA_TRACE(20,
                ("__kmp_hyper_barrier_gather: T#%d(%d:%d) releasing T#%d(%d:%d) "
                 "arrived(%p): %llu => %llu\n",
@@ -586,6 +591,7 @@ __kmp_hyper_barrier_gather(enum barrier_type bt, kmp_info_t *this_thr, int gtid,
       kmp_flag_64 c_flag(&child_bar->b_arrived, new_state);
       c_flag.wait(this_thr, FALSE USE_ITT_BUILD_ARG(itt_sync_obj));
       ANNOTATE_BARRIER_END(child_thr);
+      KMP_MB(); // Synchronize parent and child threads.
 #if USE_ITT_BUILD && USE_ITT_NOTIFY
       // Barrier imbalance - write min of the thread time and a child time to
       // the thread.
@@ -600,8 +606,11 @@ __kmp_hyper_barrier_gather(enum barrier_type bt, kmp_info_t *this_thr, int gtid,
                   gtid, team->t.t_id, tid, __kmp_gtid_from_tid(child_tid, team),
                   team->t.t_id, child_tid));
         ANNOTATE_REDUCE_AFTER(reduce);
+        OMPT_REDUCTION_DECL(this_thr, gtid);
+        OMPT_REDUCTION_BEGIN;
         (*reduce)(this_thr->th.th_local.reduce_data,
                   child_thr->th.th_local.reduce_data);
+        OMPT_REDUCTION_END;
         ANNOTATE_REDUCE_BEFORE(reduce);
         ANNOTATE_REDUCE_BEFORE(&team->t.t_bar);
       }
@@ -912,6 +921,8 @@ static void __kmp_hierarchical_barrier_gather(
         flag.wait(this_thr, FALSE USE_ITT_BUILD_ARG(itt_sync_obj));
         if (reduce) {
           ANNOTATE_REDUCE_AFTER(reduce);
+          OMPT_REDUCTION_DECL(this_thr, gtid);
+          OMPT_REDUCTION_BEGIN;
           for (child_tid = tid + 1; child_tid <= tid + thr_bar->leaf_kids;
                ++child_tid) {
             KA_TRACE(100, ("__kmp_hierarchical_barrier_gather: T#%d(%d:%d) += "
@@ -923,6 +934,7 @@ static void __kmp_hierarchical_barrier_gather(
             (*reduce)(this_thr->th.th_local.reduce_data,
                       other_threads[child_tid]->th.th_local.reduce_data);
           }
+          OMPT_REDUCTION_END;
           ANNOTATE_REDUCE_BEFORE(reduce);
           ANNOTATE_REDUCE_BEFORE(&team->t.t_bar);
         }

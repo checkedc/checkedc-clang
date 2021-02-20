@@ -1,6 +1,25 @@
-; RUN: opt -mtriple=thumbv8.1m.main-arm-none-eabi -hardware-loops -disable-arm-loloops=false %s -S -o - | FileCheck %s
-; RUN: llc -mtriple=thumbv8.1m.main-arm-none-eabi -disable-arm-loloops=false %s -o - | FileCheck %s --check-prefix=CHECK-LLC
-; RUN: opt -mtriple=thumbv8.1m.main -loop-unroll -unroll-remainder=false -S < %s | llc -mtriple=thumbv8.1m.main -disable-arm-loloops=false | FileCheck %s --check-prefix=CHECK-UNROLL
+; RUN: opt -mtriple=thumbv8.1m.main-none-none-eabi -hardware-loops %s -S -o - | \
+; RUN:     FileCheck %s
+; RUN: llc -mtriple=thumbv8.1m.main-none-none-eabi %s -o - | \
+; RUN:     FileCheck %s --check-prefix=CHECK-LLC
+; RUN: opt -mtriple=thumbv8.1m.main -loop-unroll -unroll-remainder=false -S < %s | \
+; RUN:     llc -mtriple=thumbv8.1m.main | FileCheck %s --check-prefix=CHECK-UNROLL
+; RUN: opt -mtriple=thumbv8.1m.main-none-none-eabi -hardware-loops \
+; RUN:     -pass-remarks-analysis=hardware-loops  %s -S -o - 2>&1 | \
+; RUN:     FileCheck %s --check-prefix=CHECK-REMARKS
+
+
+; CHECK-REMARKS: remark: <unknown>:0:0: hardware-loop not created: it's not profitable to create a hardware-loop
+; CHECK-REMARKS: remark: <unknown>:0:0: hardware-loop not created: nested hardware-loops not supported
+; CHECK-REMARKS: remark: <unknown>:0:0: hardware-loop not created: it's not profitable to create a hardware-loop
+; CHECK-REMARKS: remark: <unknown>:0:0: hardware-loop not created: it's not profitable to create a hardware-loop
+; CHECK-REMARKS: remark: <unknown>:0:0: hardware-loop not created: it's not profitable to create a hardware-loop
+; CHECK-REMARKS: remark: <unknown>:0:0: hardware-loop not created: it's not profitable to create a hardware-loop
+; CHECK-REMARKS: remark: <unknown>:0:0: hardware-loop not created: loop is not a candidate
+; CHECK-REMARKS: remark: <unknown>:0:0: hardware-loop not created: nested hardware-loops not supported
+; CHECK-REMARKS: remark: <unknown>:0:0: hardware-loop not created: it's not profitable to create a hardware-loop
+; CHECK-REMARKS: remark: <unknown>:0:0: hardware-loop not created: it's not profitable to create a hardware-loop
+
 
 ; CHECK-LABEL: early_exit
 ; CHECK-NOT: llvm.set.loop.iterations
@@ -39,7 +58,7 @@ do.end:
 ; CHECK: br label %while.body3.us
 
 ; CHECK: [[REM:%[^ ]+]] = phi i32 [ %N, %while.cond1.preheader.us ], [ [[LOOP_DEC:%[^ ]+]], %while.body3.us ]
-; CHECK: [[LOOP_DEC]] = call i32 @llvm.loop.decrement.reg.i32.i32.i32(i32 [[REM]], i32 1)
+; CHECK: [[LOOP_DEC]] = call i32 @llvm.loop.decrement.reg.i32(i32 [[REM]], i32 1)
 ; CHECK: [[CMP:%[^ ]+]] = icmp ne i32 [[LOOP_DEC]], 0
 ; CHECK: br i1 [[CMP]], label %while.body3.us, label %while.cond1.while.end_crit_edge.us
 
@@ -86,7 +105,7 @@ while.end7:
 ; CHECK-LABEL: pre_existing
 ; CHECK: llvm.set.loop.iterations
 ; CHECK-NOT: llvm.set.loop.iterations
-; CHECK: call i32 @llvm.loop.decrement.reg.i32.i32.i32(i32 %0, i32 1)
+; CHECK: call i32 @llvm.loop.decrement.reg.i32(i32 %0, i32 1)
 ; CHECK-NOT: call i32 @llvm.loop.decrement.reg
 define i32 @pre_existing(i32 %n, i32* nocapture %p, i32* nocapture readonly %q) {
 entry:
@@ -101,7 +120,7 @@ while.body:                                       ; preds = %while.body, %entry
   %1 = load i32, i32* %q.addr.05, align 4
   %incdec.ptr1 = getelementptr inbounds i32, i32* %p.addr.04, i32 1
   store i32 %1, i32* %p.addr.04, align 4
-  %2 = call i32 @llvm.loop.decrement.reg.i32.i32.i32(i32 %0, i32 1)
+  %2 = call i32 @llvm.loop.decrement.reg.i32(i32 %0, i32 1)
   %3 = icmp ne i32 %2, 0
   br i1 %3, label %while.body, label %while.end
 
@@ -112,7 +131,7 @@ while.end:                                        ; preds = %while.body
 ; CHECK-LABEL: pre_existing_test_set
 ; CHECK: call i1 @llvm.test.set.loop.iterations
 ; CHECK-NOT: llvm.set{{.*}}.loop.iterations
-; CHECK: call i32 @llvm.loop.decrement.reg.i32.i32.i32(i32 %0, i32 1)
+; CHECK: call i32 @llvm.loop.decrement.reg.i32(i32 %0, i32 1)
 ; CHECK-NOT: call i32 @llvm.loop.decrement.reg
 define i32 @pre_existing_test_set(i32 %n, i32* nocapture %p, i32* nocapture readonly %q) {
 entry:
@@ -130,7 +149,7 @@ while.body:                                       ; preds = %while.body, %entry
   %1 = load i32, i32* %q.addr.05, align 4
   %incdec.ptr1 = getelementptr inbounds i32, i32* %p.addr.04, i32 1
   store i32 %1, i32* %p.addr.04, align 4
-  %2 = call i32 @llvm.loop.decrement.reg.i32.i32.i32(i32 %0, i32 1)
+  %2 = call i32 @llvm.loop.decrement.reg.i32(i32 %0, i32 1)
   %3 = icmp ne i32 %2, 0
   br i1 %3, label %while.body, label %while.end
 
@@ -142,7 +161,7 @@ while.end:                                        ; preds = %while.body
 ; CHECK-NOT: llvm.set.loop.iterations
 ; CHECK: while.cond1.preheader.us:
 ; CHECK: call void @llvm.set.loop.iterations.i32(i32 %N)
-; CHECK: call i32 @llvm.loop.decrement.reg.i32.i32.i32(i32 %0, i32 1)
+; CHECK: call i32 @llvm.loop.decrement.reg.i32(i32 %0, i32 1)
 ; CHECK: br i1
 ; CHECK-NOT: call i32 @llvm.loop.decrement
 define void @pre_existing_inner(i32* nocapture %A, i32 %N) {
@@ -163,7 +182,7 @@ while.body3.us:
   %arrayidx.us = getelementptr inbounds i32, i32* %A, i32 %add.us
   store i32 %add.us, i32* %arrayidx.us, align 4
   %inc.us = add nuw i32 %j.019.us, 1
-  %1 = call i32 @llvm.loop.decrement.reg.i32.i32.i32(i32 %0, i32 1)
+  %1 = call i32 @llvm.loop.decrement.reg.i32(i32 %0, i32 1)
   %2 = icmp ne i32 %1, 0
   br i1 %2, label %while.body3.us, label %while.cond1.while.end_crit_edge.us
 
@@ -259,7 +278,7 @@ exit:
 ; CHECK:   br label %for.body
 ; CHECK: for.body:
 ; CHECK: for.inc:
-; CHECK:   [[LOOP_DEC:%[^ ]+]] = call i32 @llvm.loop.decrement.reg.i32.i32.i32
+; CHECK:   [[LOOP_DEC:%[^ ]+]] = call i32 @llvm.loop.decrement.reg.i32(
 ; CHECK:   [[CMP:%[^ ]+]] = icmp ne i32 [[LOOP_DEC]], 0
 ; CHECK:   br i1 [[CMP]], label %for.body, label %for.cond.cleanup
 define i32 @search(i8* nocapture readonly %c, i32 %N) {
@@ -304,7 +323,7 @@ for.inc:                                          ; preds = %sw.bb, %sw.bb1, %fo
 
 ; CHECK-LABEL: unroll_inc_int
 ; CHECK: call void @llvm.set.loop.iterations.i32(i32 %N)
-; CHECK: call i32 @llvm.loop.decrement.reg.i32.i32.i32(
+; CHECK: call i32 @llvm.loop.decrement.reg.i32(
 
 ; TODO: We should be able to support the unrolled loop body.
 ; CHECK-UNROLL-LABEL: unroll_inc_int
@@ -342,7 +361,7 @@ for.body:
 
 ; CHECK-LABEL: unroll_inc_unsigned
 ; CHECK: call i1 @llvm.test.set.loop.iterations.i32(i32 %N)
-; CHECK: call i32 @llvm.loop.decrement.reg.i32.i32.i32(
+; CHECK: call i32 @llvm.loop.decrement.reg.i32(
 
 ; CHECK-LLC-LABEL: unroll_inc_unsigned:
 ; CHECK-LLC: wls lr, r3, [[EXIT:.LBB[0-9_]+]]
@@ -386,7 +405,7 @@ for.body:
 
 ; CHECK-LABEL: unroll_dec_int
 ; CHECK: call void @llvm.set.loop.iterations.i32(i32 %N)
-; CHECK: call i32 @llvm.loop.decrement.reg.i32.i32.i32(
+; CHECK: call i32 @llvm.loop.decrement.reg.i32(
 
 ; TODO: An unnecessary register is being held to hold COUNT, lr should just
 ; be used instead.
@@ -430,5 +449,5 @@ for.body:
 
 declare void @llvm.set.loop.iterations.i32(i32) #0
 declare i1 @llvm.test.set.loop.iterations.i32(i32) #0
-declare i32 @llvm.loop.decrement.reg.i32.i32.i32(i32, i32) #0
+declare i32 @llvm.loop.decrement.reg.i32(i32, i32) #0
 

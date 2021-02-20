@@ -1,5 +1,6 @@
 add_custom_target(LLDBUnitTests)
 set_target_properties(LLDBUnitTests PROPERTIES FOLDER "lldb tests")
+add_dependencies(lldb-test-deps LLDBUnitTests)
 
 include_directories(${LLDB_SOURCE_ROOT})
 include_directories(${LLDB_PROJECT_ROOT}/unittests)
@@ -32,6 +33,10 @@ function(add_lldb_unittest test_name)
     "LINK_LIBS;LINK_COMPONENTS"
     ${ARGN})
 
+  if (NOT ${test_name} MATCHES "Tests$")
+    message(FATAL_ERROR "Unit test name must end with 'Tests' for lit to find it.")
+  endif()
+
   list(APPEND LLVM_LINK_COMPONENTS ${ARG_LINK_COMPONENTS})
 
   add_unittest(LLDBUnitTests
@@ -58,13 +63,19 @@ function(add_unittest_inputs test_name inputs)
 endfunction()
 
 add_subdirectory(TestingSupport)
+if (NOT CMAKE_SYSTEM_NAME MATCHES "Windows")
+  # FIXME: APITests.exe is not a valid googletest binary.
+  add_subdirectory(API)
+endif()
 add_subdirectory(Breakpoint)
 add_subdirectory(Core)
+add_subdirectory(DataFormatter)
 add_subdirectory(Disassembler)
 add_subdirectory(Editline)
 add_subdirectory(Expression)
 add_subdirectory(Host)
 add_subdirectory(Interpreter)
+add_subdirectory(Instruction)
 add_subdirectory(Language)
 add_subdirectory(ObjectFile)
 add_subdirectory(Platform)
@@ -77,7 +88,8 @@ add_subdirectory(Target)
 add_subdirectory(tools)
 add_subdirectory(UnwindAssembly)
 add_subdirectory(Utility)
+add_subdirectory(Thread)
 
-if(LLDB_CAN_USE_DEBUGSERVER AND NOT SKIP_TEST_DEBUGSERVER)
+if(LLDB_CAN_USE_DEBUGSERVER AND LLDB_TOOL_DEBUGSERVER_BUILD AND NOT LLDB_USE_SYSTEM_DEBUGSERVER)
   add_subdirectory(debugserver)
 endif()

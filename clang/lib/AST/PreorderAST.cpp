@@ -112,11 +112,12 @@ void PreorderAST::Create(Expr *E, OperatorNode *Parent) {
     // expressions do not overflow.
     if (BO->getOpcode() == BO_Sub &&
         RHS->isIntegerConstantExpr(Ctx)) {
-      Expr *UOMinusRHS = new (Ctx) UnaryOperator(RHS, UO_Minus, RHS->getType(),
-                                             RHS->getValueKind(),
-                                             RHS->getObjectKind(),
-                                             SourceLocation(),
-                                             /*CanOverflow*/ true);
+      Expr *UOMinusRHS =
+        UnaryOperator::Create(Ctx, RHS, UO_Minus, RHS->getType(),
+                              RHS->getValueKind(), RHS->getObjectKind(),
+                              SourceLocation(), /*CanOverflow*/ true,
+                              FPOptionsOverride());
+
       SmallVector<PartialDiagnosticAt, 8> Diag;
       UOMinusRHS->EvaluateKnownConstIntCheckOverflow(Ctx, &Diag);
 
@@ -479,7 +480,7 @@ void PreorderAST::PrettyPrint(Node *N) {
       PrettyPrint(Child);
   }
   else if (const auto *L = dyn_cast_or_null<LeafExprNode>(N))
-    L->E->dump(OS);
+    L->E->dump(OS, Ctx);
 }
 
 void PreorderAST::Cleanup(Node *N) {

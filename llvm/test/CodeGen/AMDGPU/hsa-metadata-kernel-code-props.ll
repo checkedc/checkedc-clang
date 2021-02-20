@@ -18,7 +18,7 @@
 ; CHECK:     WavefrontSize:           64
 ; CHECK:     NumSGPRs:                8
 ; CHECK:     NumVGPRs:                6
-; CHECK:     MaxFlatWorkGroupSize:    256
+; CHECK:     MaxFlatWorkGroupSize:    1024
 define amdgpu_kernel void @test(
     half addrspace(1)* %r,
     half addrspace(1)* %a,
@@ -31,12 +31,35 @@ entry:
   ret void
 }
 
+; CHECK-LABEL: - Name:       test_max_flat_workgroup_size
+; CHECK:   SymbolName: 'test_max_flat_workgroup_size@kd'
+; CHECK:   CodeProps:
+; CHECK:     KernargSegmentSize:      24
+; CHECK:     GroupSegmentFixedSize:   0
+; CHECK:     PrivateSegmentFixedSize: 0
+; CHECK:     KernargSegmentAlign:     8
+; CHECK:     WavefrontSize:           64
+; CHECK:     NumSGPRs:                8
+; CHECK:     NumVGPRs:                6
+; CHECK:     MaxFlatWorkGroupSize:    256
+define amdgpu_kernel void @test_max_flat_workgroup_size(
+    half addrspace(1)* %r,
+    half addrspace(1)* %a,
+    half addrspace(1)* %b) #2 {
+entry:
+  %a.val = load half, half addrspace(1)* %a
+  %b.val = load half, half addrspace(1)* %b
+  %r.val = fadd half %a.val, %b.val
+  store half %r.val, half addrspace(1)* %r
+  ret void
+}
+
 ; CHECK-LABEL: - Name:       num_spilled_sgprs
 ; CHECK:   SymbolName: 'num_spilled_sgprs@kd'
 ; CHECK:   CodeProps:
-; GFX700:     NumSpilledSGPRs: 40
-; GFX803:     NumSpilledSGPRs: 24
-; GFX900:     NumSpilledSGPRs: 24
+; GFX700:     NumSpilledSGPRs: 38
+; GFX803:     NumSpilledSGPRs: 22
+; GFX900:     NumSpilledSGPRs: 22
 define amdgpu_kernel void @num_spilled_sgprs(
     i32 addrspace(1)* %out0, i32 addrspace(1)* %out1, [8 x i32],
     i32 addrspace(1)* %out2, i32 addrspace(1)* %out3, [8 x i32],
@@ -144,3 +167,4 @@ define amdgpu_kernel void @num_spilled_vgprs() #1 {
 
 attributes #0 = { "amdgpu-num-sgpr"="14" }
 attributes #1 = { "amdgpu-num-vgpr"="20" }
+attributes #2 = { "amdgpu-flat-work-group-size"="1,256" }

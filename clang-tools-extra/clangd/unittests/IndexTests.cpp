@@ -83,20 +83,15 @@ TEST(RelationSlab, Lookup) {
   SymbolID D{"D"};
 
   RelationSlab::Builder Builder;
-  Builder.insert(Relation{A, index::SymbolRole::RelationBaseOf, B});
-  Builder.insert(Relation{A, index::SymbolRole::RelationBaseOf, C});
-  Builder.insert(Relation{B, index::SymbolRole::RelationBaseOf, D});
-  Builder.insert(Relation{C, index::SymbolRole::RelationBaseOf, D});
-  Builder.insert(Relation{B, index::SymbolRole::RelationChildOf, A});
-  Builder.insert(Relation{C, index::SymbolRole::RelationChildOf, A});
-  Builder.insert(Relation{D, index::SymbolRole::RelationChildOf, B});
-  Builder.insert(Relation{D, index::SymbolRole::RelationChildOf, C});
+  Builder.insert(Relation{A, RelationKind::BaseOf, B});
+  Builder.insert(Relation{A, RelationKind::BaseOf, C});
+  Builder.insert(Relation{B, RelationKind::BaseOf, D});
+  Builder.insert(Relation{C, RelationKind::BaseOf, D});
 
   RelationSlab Slab = std::move(Builder).build();
-  EXPECT_THAT(
-      Slab.lookup(A, index::SymbolRole::RelationBaseOf),
-      UnorderedElementsAre(Relation{A, index::SymbolRole::RelationBaseOf, B},
-                           Relation{A, index::SymbolRole::RelationBaseOf, C}));
+  EXPECT_THAT(Slab.lookup(A, RelationKind::BaseOf),
+              UnorderedElementsAre(Relation{A, RelationKind::BaseOf, B},
+                                   Relation{A, RelationKind::BaseOf, C}));
 }
 
 TEST(RelationSlab, Duplicates) {
@@ -105,25 +100,24 @@ TEST(RelationSlab, Duplicates) {
   SymbolID C{"C"};
 
   RelationSlab::Builder Builder;
-  Builder.insert(Relation{A, index::SymbolRole::RelationBaseOf, B});
-  Builder.insert(Relation{A, index::SymbolRole::RelationBaseOf, C});
-  Builder.insert(Relation{A, index::SymbolRole::RelationBaseOf, B});
+  Builder.insert(Relation{A, RelationKind::BaseOf, B});
+  Builder.insert(Relation{A, RelationKind::BaseOf, C});
+  Builder.insert(Relation{A, RelationKind::BaseOf, B});
 
   RelationSlab Slab = std::move(Builder).build();
-  EXPECT_THAT(Slab, UnorderedElementsAre(
-                        Relation{A, index::SymbolRole::RelationBaseOf, B},
-                        Relation{A, index::SymbolRole::RelationBaseOf, C}));
+  EXPECT_THAT(Slab, UnorderedElementsAre(Relation{A, RelationKind::BaseOf, B},
+                                         Relation{A, RelationKind::BaseOf, C}));
 }
 
 TEST(SwapIndexTest, OldIndexRecycled) {
   auto Token = std::make_shared<int>();
   std::weak_ptr<int> WeakToken = Token;
 
-  SwapIndex S(llvm::make_unique<MemIndex>(SymbolSlab(), RefSlab(),
+  SwapIndex S(std::make_unique<MemIndex>(SymbolSlab(), RefSlab(),
                                           RelationSlab(), std::move(Token),
                                           /*BackingDataSize=*/0));
   EXPECT_FALSE(WeakToken.expired());      // Current MemIndex keeps it alive.
-  S.reset(llvm::make_unique<MemIndex>()); // Now the MemIndex is destroyed.
+  S.reset(std::make_unique<MemIndex>()); // Now the MemIndex is destroyed.
   EXPECT_TRUE(WeakToken.expired());       // So the token is too.
 }
 
@@ -370,7 +364,7 @@ TEST(MergeIndexTest, Refs) {
   Annotations Test1Code(R"(class $Foo[[Foo]];)");
   TestTU Test;
   Test.HeaderCode = HeaderCode;
-  Test.Code = Test1Code.code();
+  Test.Code = std::string(Test1Code.code());
   Test.Filename = "test.cc";
   auto AST = Test.build();
   Dyn.updateMain(Test.Filename, AST);
@@ -387,7 +381,7 @@ TEST(MergeIndexTest, Refs) {
   Annotations Test2Code(R"(class $Foo[[Foo]] {};)");
   TestTU Test2;
   Test2.HeaderCode = HeaderCode;
-  Test2.Code = Test2Code.code();
+  Test2.Code = std::string(Test2Code.code());
   Test2.Filename = "test2.cc";
   StaticAST = Test2.build();
   StaticIndex.updateMain(Test2.Filename, StaticAST);
@@ -395,7 +389,8 @@ TEST(MergeIndexTest, Refs) {
   RefsRequest Request;
   Request.IDs = {Foo.ID};
   RefSlab::Builder Results;
-  Merge.refs(Request, [&](const Ref &O) { Results.insert(Foo.ID, O); });
+  EXPECT_FALSE(
+      Merge.refs(Request, [&](const Ref &O) { Results.insert(Foo.ID, O); }));
   EXPECT_THAT(
       std::move(Results).build(),
       ElementsAre(Pair(
@@ -406,11 +401,29 @@ TEST(MergeIndexTest, Refs) {
 
   Request.Limit = 1;
   RefSlab::Builder Results2;
-  Merge.refs(Request, [&](const Ref &O) { Results2.insert(Foo.ID, O); });
+  EXPECT_TRUE(
+      Merge.refs(Request, [&](const Ref &O) { Results2.insert(Foo.ID, O); }));
   EXPECT_THAT(std::move(Results2).build(),
               ElementsAre(Pair(
                   _, ElementsAre(AnyOf(FileURI("unittest:///test.cc"),
                                        FileURI("unittest:///test2.cc"))))));
+}
+
+TEST(MergeIndexTest, NonDocumentation) {
+  using index::SymbolKind;
+  Symbol L, R;
+  L.ID = R.ID = SymbolID("x");
+  L.Definition.FileURI = "file:/x.h";
+  R.Documentation = "Forward declarations because x.h is too big to include";
+  for (auto ClassLikeKind :
+       {SymbolKind::Class, SymbolKind::Struct, SymbolKind::Union}) {
+    L.SymInfo.Kind = ClassLikeKind;
+    EXPECT_EQ(mergeSymbol(L, R).Documentation, "");
+  }
+
+  L.SymInfo.Kind = SymbolKind::Function;
+  R.Documentation = "Documentation from non-class symbols should be included";
+  EXPECT_EQ(mergeSymbol(L, R).Documentation, R.Documentation);
 }
 
 MATCHER_P2(IncludeHeaderWithRef, IncludeHeader, References, "") {

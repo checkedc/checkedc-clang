@@ -29,7 +29,6 @@ int main()
 {
   int i;
   int block = 1;
-  int tid;
   int throttling = strcmp(getenv("KMP_ENABLE_TASK_THROTTLING"), "1") == 0;
   int enqueued = 0;
   int failed = -1;
@@ -41,16 +40,21 @@ int main()
       enqueued++;
       #pragma omp task
       {
+        int tid;
         tid = omp_get_thread_num();
         if (tid == 0) {
           // As soon as the master thread starts executing task we should unlock
           // all tasks, and detect the test failure if it has not been done yet.
           if (failed < 0)
             failed = throttling ? enqueued == NUM_TASKS : enqueued < NUM_TASKS;
+#pragma omp atomic write
           block = 0;
         }
-        while (block)
-          ;
+        int wait = 0;
+        do {
+#pragma omp atomic read
+          wait = block;
+        } while (wait);
       }
     }
     block = 0;

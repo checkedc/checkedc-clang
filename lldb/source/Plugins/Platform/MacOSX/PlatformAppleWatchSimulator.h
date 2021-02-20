@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_PlatformAppleWatchSimulator_h_
-#define liblldb_PlatformAppleWatchSimulator_h_
+#ifndef LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_PLATFORMAPPLEWATCHSIMULATOR_H
+#define LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_PLATFORMAPPLEWATCHSIMULATOR_H
 
-#include "PlatformDarwin.h"
+#include "PlatformAppleSimulator.h"
 
-class PlatformAppleWatchSimulator : public PlatformDarwin {
+class PlatformAppleWatchSimulator : public PlatformAppleSimulator {
 public:
   // Class Functions
   static lldb::PlatformSP CreateInstance(bool force,
@@ -69,7 +69,7 @@ public:
   AddClangModuleCompilationOptions(lldb_private::Target *target,
                                    std::vector<std::string> &options) override {
     return PlatformDarwin::AddClangModuleCompilationOptionsForSDKType(
-        target, options, PlatformDarwin::SDKType::iPhoneSimulator);
+        target, options, lldb_private::XcodeSDK::Type::iPhoneSimulator);
   }
 
 protected:
@@ -77,10 +77,12 @@ protected:
   std::string m_sdk_directory;
   std::string m_build_update;
 
-  const char *GetSDKDirectoryAsCString();
+  llvm::StringRef GetSDKDirectoryAsCString();
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(PlatformAppleWatchSimulator);
+  PlatformAppleWatchSimulator(const PlatformAppleWatchSimulator &) = delete;
+  const PlatformAppleWatchSimulator &
+  operator=(const PlatformAppleWatchSimulator &) = delete;
 };
 
-#endif // liblldb_PlatformAppleWatchSimulator_h_
+#endif // LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_PLATFORMAPPLEWATCHSIMULATOR_H

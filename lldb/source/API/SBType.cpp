@@ -1,4 +1,4 @@
-//===-- SBType.cpp ----------------------------------------------*- C++ -*-===//
+//===-- SBType.cpp --------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -89,7 +89,7 @@ SBType &SBType::operator=(const SBType &rhs) {
   return LLDB_RECORD_RESULT(*this);
 }
 
-SBType::~SBType() {}
+SBType::~SBType() = default;
 
 TypeImpl &SBType::ref() {
   if (m_opaque_sp.get() == nullptr)
@@ -212,8 +212,10 @@ SBType SBType::GetArrayElementType() {
 
   if (!IsValid())
     return LLDB_RECORD_RESULT(SBType());
-  return LLDB_RECORD_RESULT(SBType(TypeImplSP(
-      new TypeImpl(m_opaque_sp->GetCompilerType(true).GetArrayElementType()))));
+  CompilerType canonical_type =
+      m_opaque_sp->GetCompilerType(true).GetCanonicalType();
+  return LLDB_RECORD_RESULT(
+      SBType(TypeImplSP(new TypeImpl(canonical_type.GetArrayElementType()))));
 }
 
 SBType SBType::GetArrayType(uint64_t size) {
@@ -587,7 +589,7 @@ SBTypeList &SBTypeList::operator=(const SBTypeList &rhs) {
                      SBTypeList, operator=,(const lldb::SBTypeList &), rhs);
 
   if (this != &rhs) {
-    m_opaque_up.reset(new TypeListImpl());
+    m_opaque_up = std::make_unique<TypeListImpl>();
     for (uint32_t i = 0, rhs_size = const_cast<SBTypeList &>(rhs).GetSize();
          i < rhs_size; i++)
       Append(const_cast<SBTypeList &>(rhs).GetTypeAtIndex(i));
@@ -617,20 +619,20 @@ uint32_t SBTypeList::GetSize() {
   return m_opaque_up->GetSize();
 }
 
-SBTypeList::~SBTypeList() {}
+SBTypeList::~SBTypeList() = default;
 
 SBTypeMember::SBTypeMember() : m_opaque_up() {
   LLDB_RECORD_CONSTRUCTOR_NO_ARGS(SBTypeMember);
 }
 
-SBTypeMember::~SBTypeMember() {}
+SBTypeMember::~SBTypeMember() = default;
 
 SBTypeMember::SBTypeMember(const SBTypeMember &rhs) : m_opaque_up() {
   LLDB_RECORD_CONSTRUCTOR(SBTypeMember, (const lldb::SBTypeMember &), rhs);
 
   if (this != &rhs) {
     if (rhs.IsValid())
-      m_opaque_up.reset(new TypeMemberImpl(rhs.ref()));
+      m_opaque_up = std::make_unique<TypeMemberImpl>(rhs.ref());
   }
 }
 
@@ -640,7 +642,7 @@ lldb::SBTypeMember &SBTypeMember::operator=(const lldb::SBTypeMember &rhs) {
 
   if (this != &rhs) {
     if (rhs.IsValid())
-      m_opaque_up.reset(new TypeMemberImpl(rhs.ref()));
+      m_opaque_up = std::make_unique<TypeMemberImpl>(rhs.ref());
   }
   return LLDB_RECORD_RESULT(*this);
 }
@@ -744,7 +746,7 @@ void SBTypeMember::reset(TypeMemberImpl *type_member_impl) {
 
 TypeMemberImpl &SBTypeMember::ref() {
   if (m_opaque_up == nullptr)
-    m_opaque_up.reset(new TypeMemberImpl());
+    m_opaque_up = std::make_unique<TypeMemberImpl>();
   return *m_opaque_up;
 }
 
@@ -754,7 +756,7 @@ SBTypeMemberFunction::SBTypeMemberFunction() : m_opaque_sp() {
   LLDB_RECORD_CONSTRUCTOR_NO_ARGS(SBTypeMemberFunction);
 }
 
-SBTypeMemberFunction::~SBTypeMemberFunction() {}
+SBTypeMemberFunction::~SBTypeMemberFunction() = default;
 
 SBTypeMemberFunction::SBTypeMemberFunction(const SBTypeMemberFunction &rhs)
     : m_opaque_sp(rhs.m_opaque_sp) {
@@ -799,8 +801,8 @@ const char *SBTypeMemberFunction::GetDemangledName() {
   if (m_opaque_sp) {
     ConstString mangled_str = m_opaque_sp->GetMangledName();
     if (mangled_str) {
-      Mangled mangled(mangled_str, true);
-      return mangled.GetDemangledName(mangled.GuessLanguage()).GetCString();
+      Mangled mangled(mangled_str);
+      return mangled.GetDemangledName().GetCString();
     }
   }
   return nullptr;

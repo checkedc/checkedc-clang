@@ -17,11 +17,11 @@ namespace clang {
 namespace tidy {
 namespace utils {
 
-/// \brief canonicalize a path by removing ./ and ../ components.
+/// canonicalize a path by removing ./ and ../ components.
 static std::string cleanPath(StringRef Path) {
   SmallString<256> Result = Path;
   llvm::sys::path::remove_dots(Result, true);
-  return Result.str();
+  return std::string(Result.str());
 }
 
 namespace {
@@ -159,7 +159,7 @@ public:
            (EndIfStr != "/* " + HeaderGuard.str() + " */");
   }
 
-  /// \brief Look for header guards that don't match the preferred style. Emit
+  /// Look for header guards that don't match the preferred style. Emit
   /// fix-its and return the suggested header guard (or the original if no
   /// change was made.
   std::string checkHeaderGuardDefinition(SourceLocation Ifndef,
@@ -186,10 +186,10 @@ public:
           CPPVar));
       return CPPVar;
     }
-    return CurHeaderGuard;
+    return std::string(CurHeaderGuard);
   }
 
-  /// \brief Checks the comment after the #endif of a header guard and fixes it
+  /// Checks the comment after the #endif of a header guard and fixes it
   /// if it doesn't match \c HeaderGuard.
   void checkEndifComment(StringRef FileName, SourceLocation EndIf,
                          StringRef HeaderGuard,
@@ -203,7 +203,7 @@ public:
     }
   }
 
-  /// \brief Looks for files that were visited but didn't have a header guard.
+  /// Looks for files that were visited but didn't have a header guard.
   /// Emits a warning with fixits suggesting adding one.
   void checkGuardlessHeaders() {
     // Look for header files that didn't have a header guard. Emit a warning and
@@ -266,26 +266,29 @@ private:
 };
 } // namespace
 
+void HeaderGuardCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "HeaderFileExtensions", RawStringHeaderFileExtensions);
+}
+
 void HeaderGuardCheck::registerPPCallbacks(const SourceManager &SM,
                                            Preprocessor *PP,
                                            Preprocessor *ModuleExpanderPP) {
-  PP->addPPCallbacks(llvm::make_unique<HeaderGuardPPCallbacks>(PP, this));
+  PP->addPPCallbacks(std::make_unique<HeaderGuardPPCallbacks>(PP, this));
 }
 
 bool HeaderGuardCheck::shouldSuggestEndifComment(StringRef FileName) {
-  return utils::isHeaderFileExtension(FileName, HeaderFileExtensions);
+  return utils::isFileExtension(FileName, HeaderFileExtensions);
 }
 
 bool HeaderGuardCheck::shouldFixHeaderGuard(StringRef FileName) { return true; }
 
 bool HeaderGuardCheck::shouldSuggestToAddHeaderGuard(StringRef FileName) {
-  return utils::isHeaderFileExtension(FileName, HeaderFileExtensions);
+  return utils::isFileExtension(FileName, HeaderFileExtensions);
 }
 
 std::string HeaderGuardCheck::formatEndIf(StringRef HeaderGuard) {
   return "endif // " + HeaderGuard.str();
 }
-
 } // namespace utils
 } // namespace tidy
 } // namespace clang

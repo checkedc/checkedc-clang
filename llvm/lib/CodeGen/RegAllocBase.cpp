@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "RegAllocBase.h"
-#include "Spiller.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/LiveInterval.h"
@@ -21,6 +20,7 @@
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/Spiller.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/VirtRegMap.h"
 #include "llvm/Pass.h"
@@ -73,7 +73,7 @@ void RegAllocBase::seedLiveRegs() {
   NamedRegionTimer T("seed", "Seed Live Regs", TimerGroupName,
                      TimerGroupDescription, TimePassesIsEnabled);
   for (unsigned i = 0, e = MRI->getNumVirtRegs(); i != e; ++i) {
-    unsigned Reg = TargetRegisterInfo::index2VirtReg(i);
+    unsigned Reg = Register::index2VirtReg(i);
     if (MRI->reg_nodbg_empty(Reg))
       continue;
     enqueue(&LIS->getInterval(Reg));
@@ -107,7 +107,7 @@ void RegAllocBase::allocatePhysRegs() {
                       << TRI->getRegClassName(MRI->getRegClass(VirtReg->reg))
                       << ':' << *VirtReg << " w=" << VirtReg->weight << '\n');
 
-    using VirtRegVec = SmallVector<unsigned, 4>;
+    using VirtRegVec = SmallVector<Register, 4>;
 
     VirtRegVec SplitVRegs;
     unsigned AvailablePhysReg = selectOrSplit(*VirtReg, SplitVRegs);
@@ -154,7 +154,7 @@ void RegAllocBase::allocatePhysRegs() {
         continue;
       }
       LLVM_DEBUG(dbgs() << "queuing new interval: " << *SplitVirtReg << "\n");
-      assert(TargetRegisterInfo::isVirtualRegister(SplitVirtReg->reg) &&
+      assert(Register::isVirtualRegister(SplitVirtReg->reg) &&
              "expect split value in virtual register");
       enqueue(SplitVirtReg);
       ++NumNewQueued;

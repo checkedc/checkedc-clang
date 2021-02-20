@@ -1,4 +1,4 @@
-//===-- SingleStepCheck.cpp ----------------------------------- -*- C++ -*-===//
+//===-- SingleStepCheck.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -172,7 +172,7 @@ std::unique_ptr<SingleStepWorkaround> SingleStepWorkaround::Get(::pid_t tid) {
   }
 
   LLDB_LOG(log, "workaround for thread {0} prepared", tid);
-  return llvm::make_unique<SingleStepWorkaround>(tid, original_set);
+  return std::make_unique<SingleStepWorkaround>(tid, original_set);
 }
 
 SingleStepWorkaround::~SingleStepWorkaround() {

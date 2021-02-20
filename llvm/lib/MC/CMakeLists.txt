@@ -1,4 +1,4 @@
-add_llvm_library(LLVMMC
+add_llvm_component_library(LLVMMC
   ConstantPools.cpp
   ELFObjectWriter.cpp
   MCAsmBackend.cpp
@@ -12,7 +12,6 @@ add_llvm_library(LLVMMC
   MCAsmStreamer.cpp
   MCAssembler.cpp
   MCCodeEmitter.cpp
-  MCCodePadder.cpp
   MCCodeView.cpp
   MCContext.cpp
   MCDwarf.cpp
@@ -24,6 +23,7 @@ add_llvm_library(LLVMMC
   MCInstPrinter.cpp
   MCInstrAnalysis.cpp
   MCInstrDesc.cpp
+  MCInstrInfo.cpp
   MCLabel.cpp
   MCLinkerOptimizationHint.cpp
   MCMachOStreamer.cpp
@@ -44,7 +44,9 @@ add_llvm_library(LLVMMC
   MCSubtargetInfo.cpp
   MCSymbol.cpp
   MCSymbolELF.cpp
+  MCSymbolXCOFF.cpp
   MCTargetOptions.cpp
+  MCTargetOptionsCommandFlags.cpp
   MCValue.cpp
   MCWasmObjectTargetWriter.cpp
   MCWasmStreamer.cpp

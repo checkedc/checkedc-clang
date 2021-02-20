@@ -81,7 +81,14 @@ PointerVariableConstraint *
 PointerVariableConstraint::getNamedNonPtrPVConstraint(StringRef Name,
                                                       Constraints &CS) {
   CAtoms NewVA; // empty -- represents a base type
+<<<<<<< HEAD
   return new PVConstraint(NewVA, "unsigned", Name, nullptr, false, "");
+||||||| ad482c007426
+  return new PVConstraint(NewVA, "unsigned", Name, nullptr, false, false, "");
+=======
+  return new PVConstraint(NewVA, "unsigned", std::string(Name), nullptr, false,
+                          false, "");
+>>>>>>> a4d1ce7f08d86d868e676e6971d797456cc875eb
 }
 
 PointerVariableConstraint::PointerVariableConstraint(
@@ -117,6 +124,7 @@ PointerVariableConstraint::PointerVariableConstraint(
 
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
                                                      ProgramInfo &I,
+<<<<<<< HEAD
                                                      const ASTContext &C) :
         PointerVariableConstraint(D->getType(), D, D->getName(),
                                   I, C) { }
@@ -169,6 +177,14 @@ class TypedefLevelFinder : public RecursiveASTVisitor<TypedefLevelFinder> {
 
 };
 
+||||||| ad482c007426
+                                                     const ASTContext &C)
+    : PointerVariableConstraint(D->getType(), D, D->getName(), I, C) {}
+=======
+                                                     const ASTContext &C)
+    : PointerVariableConstraint(D->getType(), D, std::string(D->getName()),
+                                I, C) {}
+>>>>>>> a4d1ce7f08d86d868e676e6971d797456cc875eb
 
 PointerVariableConstraint::PointerVariableConstraint(
     const QualType &QT, DeclaratorDecl *D, std::string N, ProgramInfo &I,
@@ -893,7 +909,8 @@ FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
                                                        const ASTContext &C)
     : FunctionVariableConstraint(
           D->getType().getTypePtr(), D,
-          (D->getDeclName().isIdentifier() ? D->getName() : ""), I, C) {}
+          (D->getDeclName().isIdentifier() ? std::string(D->getName()) : ""),
+          I, C) {}
 
 FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
                                                        DeclaratorDecl *D,
@@ -968,7 +985,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
         ParmVarDecl *PVD = FD->getParamDecl(J);
         if (PVD) {
           ParmVD = PVD;
-          PName = PVD->getName();
+          PName = std::string(PVD->getName());
         }
       }
       auto ParamVar = FVComponentVariable(QT, ParmVD, PName, I, Ctx, &N,

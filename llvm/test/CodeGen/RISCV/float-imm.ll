@@ -15,32 +15,28 @@ define float @float_imm() nounwind {
 ; RV64IF-LABEL: float_imm:
 ; RV64IF:       # %bb.0:
 ; RV64IF-NEXT:    lui a0, %hi(.LCPI0_0)
-; RV64IF-NEXT:    addi a0, a0, %lo(.LCPI0_0)
-; RV64IF-NEXT:    flw ft0, 0(a0)
+; RV64IF-NEXT:    flw ft0, %lo(.LCPI0_0)(a0)
 ; RV64IF-NEXT:    fmv.x.w a0, ft0
 ; RV64IF-NEXT:    ret
   ret float 3.14159274101257324218750
 }
 
 define float @float_imm_op(float %a) nounwind {
-; TODO: addi should be folded in to the flw
 ; RV32IF-LABEL: float_imm_op:
 ; RV32IF:       # %bb.0:
-; RV32IF-NEXT:    fmv.w.x ft0, a0
-; RV32IF-NEXT:    lui a0, %hi(.LCPI1_0)
-; RV32IF-NEXT:    addi a0, a0, %lo(.LCPI1_0)
-; RV32IF-NEXT:    flw ft1, 0(a0)
-; RV32IF-NEXT:    fadd.s ft0, ft0, ft1
+; RV32IF-NEXT:    lui a1, %hi(.LCPI1_0)
+; RV32IF-NEXT:    flw ft0, %lo(.LCPI1_0)(a1)
+; RV32IF-NEXT:    fmv.w.x ft1, a0
+; RV32IF-NEXT:    fadd.s ft0, ft1, ft0
 ; RV32IF-NEXT:    fmv.x.w a0, ft0
 ; RV32IF-NEXT:    ret
 ;
 ; RV64IF-LABEL: float_imm_op:
 ; RV64IF:       # %bb.0:
-; RV64IF-NEXT:    fmv.w.x ft0, a0
-; RV64IF-NEXT:    lui a0, %hi(.LCPI1_0)
-; RV64IF-NEXT:    addi a0, a0, %lo(.LCPI1_0)
-; RV64IF-NEXT:    flw ft1, 0(a0)
-; RV64IF-NEXT:    fadd.s ft0, ft0, ft1
+; RV64IF-NEXT:    lui a1, %hi(.LCPI1_0)
+; RV64IF-NEXT:    flw ft0, %lo(.LCPI1_0)(a1)
+; RV64IF-NEXT:    fmv.w.x ft1, a0
+; RV64IF-NEXT:    fadd.s ft0, ft1, ft0
 ; RV64IF-NEXT:    fmv.x.w a0, ft0
 ; RV64IF-NEXT:    ret
   %1 = fadd float %a, 1.0

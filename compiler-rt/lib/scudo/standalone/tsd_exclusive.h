@@ -11,8 +11,6 @@
 
 #include "tsd.h"
 
-#include <pthread.h>
-
 namespace scudo {
 
 enum class ThreadState : u8 {
@@ -27,9 +25,7 @@ template <class Allocator> struct TSDRegistryExT {
   void initLinkerInitialized(Allocator *Instance) {
     Instance->initLinkerInitialized();
     CHECK_EQ(pthread_key_create(&PThreadKey, teardownThread<Allocator>), 0);
-    FallbackTSD = reinterpret_cast<TSD<Allocator> *>(
-        map(nullptr, sizeof(TSD<Allocator>), "scudo:tsd"));
-    FallbackTSD->initLinkerInitialized(Instance);
+    FallbackTSD.initLinkerInitialized(Instance);
     Initialized = true;
   }
   void init(Allocator *Instance) {
@@ -37,9 +33,7 @@ template <class Allocator> struct TSDRegistryExT {
     initLinkerInitialized(Instance);
   }
 
-  void unmapTestOnly() {
-    unmap(reinterpret_cast<void *>(FallbackTSD), sizeof(TSD<Allocator>));
-  }
+  void unmapTestOnly() {}
 
   ALWAYS_INLINE void initThreadMaybe(Allocator *Instance, bool MinimalInit) {
     if (LIKELY(State != ThreadState::NotInitialized))
@@ -48,20 +42,34 @@ template <class Allocator> struct TSDRegistryExT {
   }
 
   ALWAYS_INLINE TSD<Allocator> *getTSDAndLock(bool *UnlockRequired) {
-    if (LIKELY(State == ThreadState::Initialized)) {
+    if (LIKELY(State == ThreadState::Initialized &&
+               !atomic_load(&Disabled, memory_order_acquire))) {
       *UnlockRequired = false;
       return &ThreadTSD;
     }
-    DCHECK(FallbackTSD);
-    FallbackTSD->lock();
+    FallbackTSD.lock();
     *UnlockRequired = true;
-    return FallbackTSD;
+    return &FallbackTSD;
+  }
+
+  // To disable the exclusive TSD registry, we effectively lock the fallback TSD
+  // and force all threads to attempt to use it instead of their local one.
+  void disable() {
+    Mutex.lock();
+    FallbackTSD.lock();
+    atomic_store(&Disabled, 1U, memory_order_release);
+  }
+
+  void enable() {
+    atomic_store(&Disabled, 0U, memory_order_release);
+    FallbackTSD.unlock();
+    Mutex.unlock();
   }
 
 private:
   void initOnceMaybe(Allocator *Instance) {
     ScopedLock L(Mutex);
-    if (Initialized)
+    if (LIKELY(Initialized))
       return;
     initLinkerInitialized(Instance); // Sets Initialized.
   }
@@ -71,17 +79,19 @@ private:
   // used instead.
   NOINLINE void initThread(Allocator *Instance, bool MinimalInit) {
     initOnceMaybe(Instance);
-    if (MinimalInit)
+    if (UNLIKELY(MinimalInit))
       return;
     CHECK_EQ(
         pthread_setspecific(PThreadKey, reinterpret_cast<void *>(Instance)), 0);
     ThreadTSD.initLinkerInitialized(Instance);
     State = ThreadState::Initialized;
+    Instance->callPostInitCallback();
   }
 
   pthread_key_t PThreadKey;
   bool Initialized;
-  TSD<Allocator> *FallbackTSD;
+  atomic_u8 Disabled;
+  TSD<Allocator> FallbackTSD;
   HybridMutex Mutex;
   static THREADLOCAL ThreadState State;
   static THREADLOCAL TSD<Allocator> ThreadTSD;

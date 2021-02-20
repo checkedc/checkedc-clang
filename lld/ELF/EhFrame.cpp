@@ -29,7 +29,6 @@ using namespace llvm;
 using namespace llvm::ELF;
 using namespace llvm::dwarf;
 using namespace llvm::object;
-
 using namespace lld;
 using namespace lld::elf;
 

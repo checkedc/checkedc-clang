@@ -21,7 +21,7 @@ using namespace TestUtils;
 
 struct run_unique
 {
-#if _PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN ||                                                            \
+#if _PSTL_ICC_17_VC141_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN ||                                                             \
     _PSTL_ICC_16_VC14_TEST_SIMD_LAMBDA_DEBUG_32_BROKEN //dummy specialization by policy type, in case of broken configuration
     template <typename ForwardIt, typename Generator>
     void
@@ -136,7 +136,7 @@ struct test_non_const
     }
 };
 
-int32_t
+int
 main()
 {
 #if !_PSTL_ICC_16_17_18_TEST_UNIQUE_MASK_RELEASE_BROKEN
@@ -152,6 +152,12 @@ main()
 
     test_algo_basic_single<int32_t>(run_for_rnd_fw<test_non_const<int32_t>>());
 
+    test<MemoryChecker>(
+        [](std::size_t idx){ return MemoryChecker{std::int32_t(idx / 3)}; },
+        [](const MemoryChecker& val1, const MemoryChecker& val2){ return val1.value() == val2.value(); });
+    EXPECT_FALSE(MemoryChecker::alive_objects() < 0, "wrong effect from unique: number of ctors calls < num of dtors calls");
+    EXPECT_FALSE(MemoryChecker::alive_objects() > 0, "wrong effect from unique: number of ctors calls > num of dtors calls");
+    
     std::cout << done() << std::endl;
     return 0;
 }

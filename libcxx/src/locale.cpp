@@ -39,7 +39,7 @@
 #include "__undef_macros"
 
 // On Linux, wint_t and wchar_t have different signed-ness, and this causes
-// lots of noise in the build log, but no bugs that I know of. 
+// lots of noise in the build log, but no bugs that I know of.
 #if defined(__clang__)
 #pragma clang diagnostic ignored "-Wsign-conversion"
 #endif
@@ -536,7 +536,7 @@ locale::operator=(const locale& other)  _NOEXCEPT
 
 locale::locale(const char* name)
     : __locale_(name ? new __imp(name)
-                     : (__throw_runtime_error("locale constructed with null"), (__imp*)0))
+                     : (__throw_runtime_error("locale constructed with null"), nullptr))
 {
     __locale_->__add_shared();
 }
@@ -549,7 +549,7 @@ locale::locale(const string& name)
 
 locale::locale(const locale& other, const char* name, category c)
     : __locale_(name ? new __imp(*other.__locale_, name, c)
-                     : (__throw_runtime_error("locale constructed with null"), (__imp*)0))
+                     : (__throw_runtime_error("locale constructed with null"), nullptr))
 {
     __locale_->__add_shared();
 }
@@ -770,7 +770,7 @@ const ctype_base::mask ctype_base::xdigit;
 const ctype_base::mask ctype_base::blank;
 const ctype_base::mask ctype_base::alnum;
 const ctype_base::mask ctype_base::graph;
-    
+
 locale::id ctype<wchar_t>::id;
 
 ctype<wchar_t>::~ctype()

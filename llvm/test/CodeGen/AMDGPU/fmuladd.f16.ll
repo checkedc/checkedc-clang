@@ -1,13 +1,13 @@
-; RUN: llc -march=amdgcn -mcpu=fiji -mattr=-fp64-fp16-denormals -fp-contract=on -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-STRICT,VI-FLUSH,VI %s
-; RUN: llc -march=amdgcn -mcpu=fiji -mattr=-fp64-fp16-denormals -fp-contract=fast -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-CONTRACT,VI-FLUSH,VI %s
+; RUN: llc -march=amdgcn -mcpu=fiji -denormal-fp-math=preserve-sign -denormal-fp-math-f32=ieee -fp-contract=on -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-STRICT,VI-FLUSH,VI %s
+; RUN: llc -march=amdgcn -mcpu=fiji -denormal-fp-math=preserve-sign -denormal-fp-math-f32=ieee -fp-contract=fast -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-CONTRACT,VI-FLUSH,VI %s
 
-; RUN: llc -march=amdgcn -mcpu=fiji -mattr=+fp64-fp16-denormals -fp-contract=on -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-STRICT,GCN-DENORM,GCN-DENORM-STRICT,VI-DENORM-STRICT,VI-DENORM,VI %s
-; RUN: llc -march=amdgcn -mcpu=fiji -mattr=+fp64-fp16-denormals -fp-contract=fast -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-CONTRACT,GCN-DENORM,GCN-DENORM-CONTRACT,VI-DENORM-CONTRACT,VI-DENORM,VI %s
+; RUN: llc -march=amdgcn -mcpu=fiji -denormal-fp-math=ieee -denormal-fp-math-f32=ieee -fp-contract=on -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-STRICT,GCN-DENORM,GCN-DENORM-STRICT,VI-DENORM-STRICT,VI-DENORM,VI %s
+; RUN: llc -march=amdgcn -mcpu=fiji -denormal-fp-math=ieee -denormal-fp-math-f32=ieee -fp-contract=fast -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-CONTRACT,GCN-DENORM,GCN-DENORM-CONTRACT,VI-DENORM-CONTRACT,VI-DENORM,VI %s
 
-; RUN: llc -march=amdgcn -mcpu=gfx1010 -mattr=-fp64-fp16-denormals -fp-contract=on -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-STRICT,GFX10-FLUSH,GFX10 %s
-; RUN: llc -march=amdgcn -mcpu=gfx1010 -mattr=-fp64-fp16-denormals -fp-contract=fast -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-CONTRACT,GFX10-FLUSH,GFX10 %s
-; RUN: llc -march=amdgcn -mcpu=gfx1010 -mattr=+fp64-fp16-denormals -fp-contract=on -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-STRICT,GCN-DENORM,GCN-DENORM-STRICT,GFX10-DENORM-STRICT,GFX10-DENORM,GFX10 %s
-; RUN: llc -march=amdgcn -mcpu=gfx1010 -mattr=+fp64-fp16-denormals -fp-contract=fast -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-CONTRACT,GCN-DENORM,GCN-DENORM-CONTRACT,GFX10-DENORM-CONTRACT,GFX10-DENORM,GFX10 %s
+; RUN: llc -march=amdgcn -mcpu=gfx1010 -denormal-fp-math=preserve-sign -denormal-fp-math-f32=ieee -fp-contract=on -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-STRICT,GFX10-FLUSH,GFX10 %s
+; RUN: llc -march=amdgcn -mcpu=gfx1010 -denormal-fp-math=preserve-sign -denormal-fp-math-f32=ieee -fp-contract=fast -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-CONTRACT,GFX10-FLUSH,GFX10 %s
+; RUN: llc -march=amdgcn -mcpu=gfx1010 -denormal-fp-math=ieee -denormal-fp-math-f32=ieee -fp-contract=on -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-STRICT,GCN-DENORM,GCN-DENORM-STRICT,GFX10-DENORM-STRICT,GFX10-DENORM,GFX10 %s
+; RUN: llc -march=amdgcn -mcpu=gfx1010 -denormal-fp-math=ieee -denormal-fp-math-f32=ieee -fp-contract=fast -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GCN-CONTRACT,GCN-DENORM,GCN-DENORM-CONTRACT,GFX10-DENORM-CONTRACT,GFX10-DENORM,GFX10 %s
 
 declare i32 @llvm.amdgcn.workitem.id.x() #1
 declare half @llvm.fmuladd.f16(half, half, half) #1
@@ -331,7 +331,8 @@ define amdgpu_kernel void @mad_sub_f16(half addrspace(1)* noalias nocapture %out
 ; GFX10-FLUSH: v_mul_f16_e32 [[TMP:v[0-9]+]], [[REGA]], [[REGB]]
 ; GFX10-FLUSH: v_sub_f16_e32 [[RESULT:v[0-9]+]], [[REGC]], [[TMP]]
 ; GFX10-FLUSH:  global_store_short v{{\[[0-9]+:[0-9]+\]}}, [[RESULT]]
-; GFX10-DENORM: global_store_short v{{\[[0-9]+:[0-9]+\]}}, [[REGC]]
+; GFX10-DENORM-STRICT: global_store_short v{{\[[0-9]+:[0-9]+\]}}, [[RESULT]]
+; GFX10-DENORM-CONTRACT: global_store_short v{{\[[0-9]+:[0-9]+\]}}, [[REGC]]
 define amdgpu_kernel void @mad_sub_inv_f16(half addrspace(1)* noalias nocapture %out, half addrspace(1)* noalias nocapture readonly %ptr) #1 {
   %tid = tail call i32 @llvm.amdgcn.workitem.id.x() #0
   %tid.ext = sext i32 %tid to i64
@@ -439,7 +440,8 @@ define amdgpu_kernel void @mad_sub_fabs_inv_f16(half addrspace(1)* noalias nocap
 ; GFX10-FLUSH: v_mul_f16_e32 [[TMP:v[0-9]+]], [[REGA]], [[REGB]]
 ; GFX10-FLUSH: v_add_f16_e32 [[RESULT:v[0-9]+]], [[REGC]], [[TMP]]
 ; GFX10-FLUSH:  global_store_short v{{\[[0-9]+:[0-9]+\]}}, [[RESULT]]
-; GFX10-DENORM: global_store_short v{{\[[0-9]+:[0-9]+\]}}, [[REGC]]
+; GFX10-DENORM-STRICT: global_store_short v{{\[[0-9]+:[0-9]+\]}}, [[RESULT]]
+; GFX10-DENORM-CONTRACT: global_store_short v{{\[[0-9]+:[0-9]+\]}}, [[REGC]]
 define amdgpu_kernel void @neg_neg_mad_f16(half addrspace(1)* noalias nocapture %out, half addrspace(1)* noalias nocapture readonly %ptr) #1 {
   %tid = tail call i32 @llvm.amdgcn.workitem.id.x() #0
   %tid.ext = sext i32 %tid to i64

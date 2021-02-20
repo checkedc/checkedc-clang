@@ -33,11 +33,13 @@ template <class ELFT> LLDDwarfObj<ELFT>::LLDDwarfObj(ObjFile<ELFT> *obj) {
     if (LLDDWARFSection *m =
             StringSwitch<LLDDWARFSection *>(sec->name)
                 .Case(".debug_addr", &addrSection)
-                .Case(".debug_gnu_pubnames", &gnuPubNamesSection)
-                .Case(".debug_gnu_pubtypes", &gnuPubTypesSection)
+                .Case(".debug_gnu_pubnames", &gnuPubnamesSection)
+                .Case(".debug_gnu_pubtypes", &gnuPubtypesSection)
                 .Case(".debug_info", &infoSection)
-                .Case(".debug_ranges", &rangeSection)
-                .Case(".debug_rnglists", &rngListsSection)
+                .Case(".debug_loclists", &loclistsSection)
+                .Case(".debug_ranges", &rangesSection)
+                .Case(".debug_rnglists", &rnglistsSection)
+                .Case(".debug_str_offsets", &strOffsetsSection)
                 .Case(".debug_line", &lineSection)
                 .Default(nullptr)) {
       m->Data = toStringRef(sec->data());
@@ -50,7 +52,7 @@ template <class ELFT> LLDDwarfObj<ELFT>::LLDDwarfObj(ObjFile<ELFT> *obj) {
     else if (sec->name == ".debug_str")
       strSection = toStringRef(sec->data());
     else if (sec->name == ".debug_line_str")
-      lineStringSection = toStringRef(sec->data());
+      lineStrSection = toStringRef(sec->data());
   }
 }
 
@@ -98,14 +100,8 @@ LLDDwarfObj<ELFT>::findAux(const InputSectionBase &sec, uint64_t pos,
   // its zero value will terminate the decoding of .debug_ranges prematurely.
   Symbol &s = file->getRelocTargetSym(rel);
   uint64_t val = 0;
-  if (auto *dr = dyn_cast<Defined>(&s)) {
+  if (auto *dr = dyn_cast<Defined>(&s))
     val = dr->value;
-
-    // FIXME: We should be consistent about always adding the file
-    // offset or not.
-    if (dr->section->flags & ELF::SHF_ALLOC)
-      val += cast<InputSection>(dr->section)->getOffsetInFile();
-  }
 
   DataRefImpl d;
   d.p = getAddend<ELFT>(rel);

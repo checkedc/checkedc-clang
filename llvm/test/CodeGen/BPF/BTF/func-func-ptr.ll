@@ -39,7 +39,7 @@ entry:
 ; CHECK-NEXT:        .long   5
 ; CHECK-NEXT:        .long   1
 ; CHECK-NEXT:        .long   8                       # BTF_KIND_FUNC(id = 3)
-; CHECK-NEXT:        .long   201326592               # 0xc000000
+; CHECK-NEXT:        .long   201326593               # 0xc000001
 ; CHECK-NEXT:        .long   2
 ; CHECK-NEXT:        .long   0                       # BTF_KIND_PTR(id = 4)
 ; CHECK-NEXT:        .long   33554432                # 0x2000000
@@ -74,13 +74,11 @@ entry:
 ; CHECK-NEXT:        .short  60319                   # 0xeb9f
 ; CHECK-NEXT:        .byte   1
 ; CHECK-NEXT:        .byte   0
-; CHECK-NEXT:        .long   40
+; CHECK-NEXT:        .long   32
 ; CHECK-NEXT:        .long   0
 ; CHECK-NEXT:        .long   20
 ; CHECK-NEXT:        .long   20
 ; CHECK-NEXT:        .long   28
-; CHECK-NEXT:        .long   48
-; CHECK-NEXT:        .long   0
 ; CHECK-NEXT:        .long   48
 ; CHECK-NEXT:        .long   0
 ; CHECK-NEXT:        .long   8                       # FuncInfo
@@ -99,7 +97,7 @@ entry:
 ; Function Attrs: nounwind readnone speculatable
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1
 
-attributes #0 = { nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #0 = { nounwind readnone "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "frame-pointer"="all" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone speculatable }
 
 !llvm.dbg.cu = !{!2}

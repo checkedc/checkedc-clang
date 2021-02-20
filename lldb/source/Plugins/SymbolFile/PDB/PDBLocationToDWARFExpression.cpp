@@ -1,4 +1,4 @@
-//===-- PDBLocationToDWARFExpression.cpp ------------------------*- C++ -*-===//
+//===-- PDBLocationToDWARFExpression.cpp ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -174,7 +174,7 @@ DWARFExpression ConvertPDBLocationToDWARFExpression(
   DataBufferSP buffer =
       std::make_shared<DataBufferHeap>(stream.GetData(), stream.GetSize());
   DataExtractor extractor(buffer, byte_order, address_size, byte_size);
-  DWARFExpression result(module, extractor, nullptr, 0, buffer->GetByteSize());
+  DWARFExpression result(module, extractor, nullptr);
   result.SetRegisterKind(register_kind);
 
   return result;

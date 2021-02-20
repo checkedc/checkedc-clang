@@ -16,14 +16,21 @@ multiclass B<string name, string help_on, string help_off> {
   def _no : F<name#":no">, HelpText<help_off>;
 }
 
+// Same as B<> above, but without help texts, for private undocumented
+// options.
+multiclass B_priv<string name> {
+  def "" : F<name>;
+  def _no : F<name#":no">;
+}
+
 def align   : P<"align", "Section alignment">;
 def aligncomm : P<"aligncomm", "Set common symbol alignment">;
 def alternatename : P<"alternatename", "Define weak alias">;
 def base    : P<"base", "Base address of the program">;
 def color_diagnostics: Flag<["--"], "color-diagnostics">,
-  HelpText<"Use colors in diagnostics">;
+    HelpText<"Use colors in diagnostics">;
 def color_diagnostics_eq: Joined<["--"], "color-diagnostics=">,
-  HelpText<"Use colors in diagnostics; one of 'always', 'never', 'auto'">;
+    HelpText<"Use colors in diagnostics; one of 'always', 'never', 'auto'">;
 def defaultlib : P<"defaultlib", "Add the library to the list of input files">;
 def delayload : P<"delayload", "Delay loaded DLL name">;
 def entry   : P<"entry", "Name of entry point symbol">;
@@ -34,7 +41,8 @@ def export  : P<"export", "Export a function">;
 def failifmismatch : P<"failifmismatch", "">;
 def filealign : P<"filealign", "Section alignment in the output file">;
 def functionpadmin : F<"functionpadmin">;
-def functionpadmin_opt : P<"functionpadmin", "Prepares an image for hotpatching">;
+def functionpadmin_opt : P<"functionpadmin",
+    "Prepares an image for hotpatching">;
 def guard   : P<"guard", "Control flow guard">;
 def heap    : P<"heap", "Size of the heap">;
 def ignore : P<"ignore", "Specify warning codes to ignore">;
@@ -42,9 +50,14 @@ def implib  : P<"implib", "Import library name">;
 def lib : F<"lib">,
     HelpText<"Act like lib.exe; must be first argument if present">;
 def libpath : P<"libpath", "Additional library search path">;
-def linkrepro : P<"linkrepro", "Dump linker invocation and input files for debugging">;
-def lldltocache : P<"lldltocache", "Path to ThinLTO cached object file directory">;
-def lldltocachepolicy : P<"lldltocachepolicy", "Pruning policy for the ThinLTO cache">;
+def linkrepro : P<"linkrepro",
+    "Dump linker invocation and input files for debugging">;
+def lldignoreenv : F<"lldignoreenv">,
+    HelpText<"Ignore environment variables like %LIB%">;
+def lldltocache : P<"lldltocache",
+    "Path to ThinLTO cached object file directory">;
+def lldltocachepolicy : P<"lldltocachepolicy",
+    "Pruning policy for the ThinLTO cache">;
 def lldsavetemps : F<"lldsavetemps">,
     HelpText<"Save temporary files instead of deleting them">;
 def machine : P<"machine", "Specify target platform">;
@@ -56,16 +69,21 @@ def order   : P<"order", "Put functions in order">;
 def out     : P<"out", "Path to file to write output">;
 def natvis : P<"natvis", "Path to natvis file to embed in the PDB">;
 def no_color_diagnostics: F<"no-color-diagnostics">,
-  HelpText<"Do not use colors in diagnostics">;
+    HelpText<"Do not use colors in diagnostics">;
 def pdb : P<"pdb", "PDB file path">;
+def pdbstripped : P<"pdbstripped", "Stripped PDB file path">;
 def pdbaltpath : P<"pdbaltpath", "PDB file path to embed in the image">;
+def pdbstream : Joined<["/", "-", "/?", "-?"], "pdbstream:">,
+    MetaVarName<"<name>=<file>">,
+    HelpText<"Embed the contents of <file> in the PDB as named stream <name>">;
 def section : P<"section", "Specify section attributes">;
 def stack   : P<"stack", "Size of the stack">;
 def stub    : P<"stub", "Specify DOS stub file">;
 def subsystem : P<"subsystem", "Specify subsystem">;
 def timestamp : P<"timestamp", "Specify the PE header timestamp">;
 def version : P<"version", "Specify a version number in the PE header">;
-def wholearchive_file : P<"wholearchive", "Include all object files from this archive">;
+def wholearchive_file : P<"wholearchive",
+    "Include all object files from this library">;
 
 def disallowlib : Joined<["/", "-", "/?", "-?"], "disallowlib:">,
     Alias<nodefaultlib>;
@@ -97,7 +115,13 @@ def debug : F<"debug">, HelpText<"Embed a symbol table in the image">;
 def debug_opt : P<"debug", "Embed a symbol table in the image with option">;
 def debugtype : P<"debugtype", "Debug Info Options">;
 def dll : F<"dll">, HelpText<"Create a DLL">;
-def driver : P<"driver", "Generate a Windows NT Kernel Mode Driver">;
+def driver : F<"driver">, HelpText<"Generate a Windows NT Kernel Mode Driver">;
+def driver_wdm : F<"driver:wdm">,
+    HelpText<"Set IMAGE_FILE_UP_SYSTEM_ONLY bit in PE header">;
+def driver_uponly : F<"driver:uponly">,
+    HelpText<"Set IMAGE_DLL_CHARACTERISTICS_WDM_DRIVER bit in PE header">;
+def driver_wdm_uponly : F<"driver:wdm,uponly">;
+def driver_uponly_wdm : F<"driver:uponly,wdm">;
 def nodefaultlib_all : F<"nodefaultlib">,
     HelpText<"Remove all default libraries">;
 def noentry : F<"noentry">,
@@ -105,6 +129,8 @@ def noentry : F<"noentry">,
 def profile : F<"profile">;
 def repro : F<"Brepro">,
     HelpText<"Use a hash of the executable as the PE header timestamp">;
+def reproduce : P<"reproduce",
+    "Dump linker invocation and input files for debugging">;
 def swaprun : P<"swaprun",
   "Comma-separated list of 'cd' or 'net'">;
 def swaprun_cd : F<"swaprun:cd">, Alias<swaprun>, AliasArgs<["cd"]>,
@@ -112,10 +138,11 @@ def swaprun_cd : F<"swaprun:cd">, Alias<swaprun>, AliasArgs<["cd"]>,
 def swaprun_net : F<"swaprun:net">, Alias<swaprun>, AliasArgs<["net"]>,
   HelpText<"Make loader run output binary from swap instead of from network">;
 def verbose : F<"verbose">;
-def wholearchive_flag : F<"wholearchive">;
+def wholearchive_flag : F<"wholearchive">,
+    HelpText<"Include all object files from all libraries">;
 
 def force : F<"force">,
-    HelpText<"Allow undefined and multiply defined symbols when creating executables">;
+    HelpText<"Allow undefined and multiply defined symbols">;
 def force_unresolved : F<"force:unresolved">,
     HelpText<"Allow undefined symbols when creating executables">;
 def force_multiple : F<"force:multiple">,
@@ -131,6 +158,8 @@ defm allowisolation : B<"allowisolation", "Enable DLL isolation (default)",
 defm appcontainer : B<"appcontainer",
                       "Image can only be run in an app container",
                       "Image can run outside an app container (default)">;
+defm cetcompat : B<"cetcompat", "Mark executable image as compatible with Control-flow Enforcement Technology (CET) Shadow Stack",
+                   "Don't mark executable image as compatible with Control-flow Enforcement Technology (CET) Shadow Stack (default)">;
 defm dynamicbase : B<"dynamicbase", "Enable ASLR (default unless /fixed)",
                      "Disable ASLR (default when /fixed)">;
 defm fixed : B<"fixed", "Disable base relocations",
@@ -162,6 +191,10 @@ def help : F<"help">;
 def help_q : Flag<["/??", "-??", "/?", "-?"], "">, Alias<help>;
 
 // LLD extensions
+defm auto_import : B_priv<"auto-import">;
+defm runtime_pseudo_reloc : B_priv<"runtime-pseudo-reloc">;
+def end_lib : F<"end-lib">,
+  HelpText<"Ends group of objects treated as if they were in a library">;
 def exclude_all_symbols : F<"exclude-all-symbols">;
 def export_all_symbols : F<"export-all-symbols">;
 defm demangle : B<"demangle",
@@ -173,9 +206,11 @@ def kill_at : F<"kill-at">;
 def lldmingw : F<"lldmingw">;
 def output_def : Joined<["/", "-", "/?", "-?"], "output-def:">;
 def pdb_source_path : P<"pdbsourcepath",
-                        "Base path used to make relative source file path absolute in PDB">;
+    "Base path used to make relative source file path absolute in PDB">;
 def rsp_quoting : Joined<["--"], "rsp-quoting=">,
   HelpText<"Quoting style for response files, 'windows' (default) or 'posix'">;
+def start_lib : F<"start-lib">,
+  HelpText<"Starts group of objects treated as if they were in a library">;
 def thinlto_emit_imports_files :
     F<"thinlto-emit-imports-files">,
     HelpText<"Emit .imports files with -thinlto-index-only">;
@@ -191,15 +226,20 @@ def thinlto_object_suffix_replace : P<
 def thinlto_prefix_replace: P<
     "thinlto-prefix-replace",
     "'old;new' replace old prefix with new prefix in ThinLTO outputs">;
+def lto_obj_path : P<
+    "lto-obj-path",
+    "output native object for merged LTO unit to this path">;
 def dash_dash_version : Flag<["--"], "version">,
   HelpText<"Print version information">;
-defm threads: B<"threads",
-    "Run the linker multi-threaded (default)",
-    "Do not run the linker multi-threaded">;
+def threads
+    : P<"threads", "Number of threads. '1' disables multi-threading. By "
+                   "default all available hardware threads are used">;
 
 // Flags for debugging
 def lldmap : F<"lldmap">;
 def lldmap_file : Joined<["/", "-", "/?", "-?"], "lldmap:">;
+def map : F<"map">;
+def map_file : Joined<["/", "-", "/?", "-?"], "map:">;
 def show_timing : F<"time">;
 def summary : F<"summary">;
 

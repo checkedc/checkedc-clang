@@ -36,18 +36,17 @@ void X86IntelInstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
   OS << getRegisterName(RegNo);
 }
 
-void X86IntelInstPrinter::printInst(const MCInst *MI, raw_ostream &OS,
-                                    StringRef Annot,
-                                    const MCSubtargetInfo &STI) {
+void X86IntelInstPrinter::printInst(const MCInst *MI, uint64_t Address,
+                                    StringRef Annot, const MCSubtargetInfo &STI,
+                                    raw_ostream &OS) {
   printInstFlags(MI, OS);
 
   // In 16-bit mode, print data16 as data32.
   if (MI->getOpcode() == X86::DATA16_PREFIX &&
       STI.getFeatureBits()[X86::Mode16Bit]) {
     OS << "\tdata32";
-  } else if (!printAliasInstr(MI, OS) &&
-             !printVecCompareInstr(MI, OS))
-    printInstruction(MI, OS);
+  } else if (!printAliasInstr(MI, Address, OS) && !printVecCompareInstr(MI, OS))
+    printInstruction(MI, Address, OS);
 
   // Next always print the annotation.
   printAnnotation(OS, Annot);

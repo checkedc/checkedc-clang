@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_PlatformRemoteDarwinDevice_h_
-#define liblldb_PlatformRemoteDarwinDevice_h_
+#ifndef LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_PLATFORMREMOTEDARWINDEVICE_H
+#define LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_PLATFORMREMOTEDARWINDEVICE_H
 
 #include <string>
 
@@ -45,7 +45,7 @@ public:
   AddClangModuleCompilationOptions(lldb_private::Target *target,
                                    std::vector<std::string> &options) override {
     return PlatformDarwin::AddClangModuleCompilationOptionsForSDKType(
-        target, options, PlatformDarwin::SDKType::iPhoneOS);
+        target, options, lldb_private::XcodeSDK::Type::iPhoneOS);
   }
 
 protected:
@@ -103,7 +103,9 @@ protected:
   virtual std::string GetPlatformName () = 0;
 
 private:
-  DISALLOW_COPY_AND_ASSIGN(PlatformRemoteDarwinDevice);
+  PlatformRemoteDarwinDevice(const PlatformRemoteDarwinDevice &) = delete;
+  const PlatformRemoteDarwinDevice &
+  operator=(const PlatformRemoteDarwinDevice &) = delete;
 };
 
-#endif // liblldb_PlatformRemoteDarwinDevice_h_
+#endif // LLDB_SOURCE_PLUGINS_PLATFORM_MACOSX_PLATFORMREMOTEDARWINDEVICE_H

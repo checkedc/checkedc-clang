@@ -13,7 +13,7 @@
 //
 // On Windows, ICF is enabled by default.
 //
-// See ELF/ICF.cpp for the details about the algortihm.
+// See ELF/ICF.cpp for the details about the algorithm.
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,7 +21,6 @@
 #include "Chunks.h"
 #include "Symbols.h"
 #include "lld/Common/ErrorHandler.h"
-#include "lld/Common/Threads.h"
 #include "lld/Common/Timer.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/Support/Debug.h"
@@ -77,7 +76,7 @@ private:
 // section is insignificant to the user program and the behaviour matches that
 // of the Visual C++ linker.
 bool ICF::isEligible(SectionChunk *c) {
-  // Non-comdat chunks, dead chunks, and writable chunks are not elegible.
+  // Non-comdat chunks, dead chunks, and writable chunks are not eligible.
   bool writable = c->getOutputCharacteristics() & llvm::COFF::IMAGE_SCN_MEM_WRITE;
   if (!c->isCOMDAT() || !c->live || writable)
     return false;
@@ -127,15 +126,19 @@ void ICF::segregate(size_t begin, size_t end, bool constant) {
 
 // Returns true if two sections' associative children are equal.
 bool ICF::assocEquals(const SectionChunk *a, const SectionChunk *b) {
-  auto childClasses = [&](const SectionChunk *sc) {
-    std::vector<uint32_t> classes;
-    for (const SectionChunk &c : sc->children())
-      if (!c.getSectionName().startswith(".debug") &&
-          c.getSectionName() != ".gfids$y" && c.getSectionName() != ".gljmp$y")
-        classes.push_back(c.eqClass[cnt % 2]);
-    return classes;
+  // Ignore associated metadata sections that don't participate in ICF, such as
+  // debug info and CFGuard metadata.
+  auto considerForICF = [](const SectionChunk &assoc) {
+    StringRef Name = assoc.getSectionName();
+    return !(Name.startswith(".debug") || Name == ".gfids$y" ||
+             Name == ".gljmp$y");
   };
-  return childClasses(a) == childClasses(b);
+  auto ra = make_filter_range(a->children(), considerForICF);
+  auto rb = make_filter_range(b->children(), considerForICF);
+  return std::equal(ra.begin(), ra.end(), rb.begin(), rb.end(),
+                    [&](const SectionChunk &ia, const SectionChunk &ib) {
+                      return ia.eqClass[cnt % 2] == ib.eqClass[cnt % 2];
+                    });
 }
 
 // Compare "non-moving" part of two sections, namely everything
@@ -274,7 +277,7 @@ void ICF::run(ArrayRef<Chunk *> vec) {
       for (Symbol *b : sc->symbols())
         if (auto *sym = dyn_cast_or_null<DefinedRegular>(b))
           hash += sym->getChunk()->eqClass[cnt % 2];
-      // Set MSB to 1 to avoid collisions with non-hash classs.
+      // Set MSB to 1 to avoid collisions with non-hash classes.
       sc->eqClass[(cnt + 1) % 2] = hash | (1U << 31);
     });
   }
@@ -297,7 +300,7 @@ void ICF::run(ArrayRef<Chunk *> vec) {
 
   log("ICF needed " + Twine(cnt) + " iterations");
 
-  // Merge sections in the same classs.
+  // Merge sections in the same classes.
   forEachClass([&](size_t begin, size_t end) {
     if (end - begin == 1)
       return;

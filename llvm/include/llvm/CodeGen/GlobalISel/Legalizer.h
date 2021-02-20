@@ -26,13 +26,18 @@
 namespace llvm {
 
 class MachineRegisterInfo;
+class LostDebugLocObserver;
 
 class Legalizer : public MachineFunctionPass {
 public:
   static char ID;
 
-private:
+  struct MFResult {
+    bool Changed;
+    const MachineInstr *FailedOn;
+  };
 
+private:
   /// Initialize the field members using \p MF.
   void init(MachineFunction &MF);
 
@@ -55,14 +60,20 @@ public:
   }
 
   MachineFunctionProperties getClearedProperties() const override {
-    return MachineFunctionProperties()
-      .set(MachineFunctionProperties::Property::NoPHIs);
+    return MachineFunctionProperties().set(
+        MachineFunctionProperties::Property::NoPHIs);
   }
 
   bool combineExtracts(MachineInstr &MI, MachineRegisterInfo &MRI,
                        const TargetInstrInfo &TII);
 
   bool runOnMachineFunction(MachineFunction &MF) override;
+
+  static MFResult
+  legalizeMachineFunction(MachineFunction &MF, const LegalizerInfo &LI,
+                          ArrayRef<GISelChangeObserver *> AuxObservers,
+                          LostDebugLocObserver &LocObserver,
+                          MachineIRBuilder &MIRBuilder);
 };
 } // End namespace llvm.
 

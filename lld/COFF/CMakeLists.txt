@@ -14,6 +14,7 @@ add_lld_library(lldCOFF
   DriverUtils.cpp
   ICF.cpp
   InputFiles.cpp
+  LLDMapFile.cpp
   LTO.cpp
   MapFile.cpp
   MarkLive.cpp
@@ -28,13 +29,16 @@ add_lld_library(lldCOFF
   BinaryFormat
   Core
   DebugInfoCodeView
+  DebugInfoDWARF
   DebugInfoMSF
   DebugInfoPDB
+  Demangle
   LibDriver
   LTO
   MC
   Object
   Option
+  Passes
   Support
   WindowsManifest
 

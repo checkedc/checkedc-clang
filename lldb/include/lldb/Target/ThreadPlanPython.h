@@ -7,10 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef liblldb_ThreadPlan_Python_h_
-#define liblldb_ThreadPlan_Python_h_
+#ifndef LLDB_TARGET_THREADPLANPYTHON_H
+#define LLDB_TARGET_THREADPLANPYTHON_H
 
 #include <string>
+
+#include "lldb/lldb-forward.h"
 
 #include "lldb/Target/Process.h"
 #include "lldb/Target/StopInfo.h"
@@ -29,7 +31,8 @@ namespace lldb_private {
 
 class ThreadPlanPython : public ThreadPlan {
 public:
-  ThreadPlanPython(Thread &thread, const char *class_name);
+  ThreadPlanPython(Thread &thread, const char *class_name, 
+                   StructuredDataImpl *args_data);
   ~ThreadPlanPython() override;
 
   void GetDescription(Stream *s, lldb::DescriptionLevel level) override;
@@ -52,15 +55,23 @@ protected:
   bool DoPlanExplainsStop(Event *event_ptr) override;
 
   lldb::StateType GetPlanRunState() override;
+  
+  ScriptInterpreter *GetScriptInterpreter();
 
 private:
   std::string m_class_name;
+  StructuredDataImpl *m_args_data; // We own this, but the implementation
+                                   // has to manage the UP (since that is
+                                   // how it gets stored in the
+                                   // SBStructuredData).
+  std::string m_error_str;
   StructuredData::ObjectSP m_implementation_sp;
   bool m_did_push;
 
-  DISALLOW_COPY_AND_ASSIGN(ThreadPlanPython);
+  ThreadPlanPython(const ThreadPlanPython &) = delete;
+  const ThreadPlanPython &operator=(const ThreadPlanPython &) = delete;
 };
 
 } // namespace lldb_private
 
-#endif // liblldb_ThreadPlan_Python_h_
+#endif // LLDB_TARGET_THREADPLANPYTHON_H

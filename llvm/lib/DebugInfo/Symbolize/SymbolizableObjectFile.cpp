@@ -35,31 +35,27 @@ using namespace llvm;
 using namespace object;
 using namespace symbolize;
 
-static DILineInfoSpecifier
-getDILineInfoSpecifier(FunctionNameKind FNKind) {
-  return DILineInfoSpecifier(
-      DILineInfoSpecifier::FileLineInfoKind::AbsoluteFilePath, FNKind);
-}
-
-ErrorOr<std::unique_ptr<SymbolizableObjectFile>>
+Expected<std::unique_ptr<SymbolizableObjectFile>>
 SymbolizableObjectFile::create(const object::ObjectFile *Obj,
-                               std::unique_ptr<DIContext> DICtx) {
+                               std::unique_ptr<DIContext> DICtx,
+                               bool UntagAddresses) {
   assert(DICtx);
   std::unique_ptr<SymbolizableObjectFile> res(
-      new SymbolizableObjectFile(Obj, std::move(DICtx)));
+      new SymbolizableObjectFile(Obj, std::move(DICtx), UntagAddresses));
   std::unique_ptr<DataExtractor> OpdExtractor;
   uint64_t OpdAddress = 0;
   // Find the .opd (function descriptor) section if any, for big-endian
   // PowerPC64 ELF.
   if (Obj->getArch() == Triple::ppc64) {
     for (section_iterator Section : Obj->sections()) {
-      StringRef Name;
-      if (auto EC = Section->getName(Name))
-        return EC;
-      if (Name == ".opd") {
+      Expected<StringRef> NameOrErr = Section->getName();
+      if (!NameOrErr)
+        return NameOrErr.takeError();
+
+      if (*NameOrErr == ".opd") {
         Expected<StringRef> E = Section->getContents();
         if (!E)
-          return errorToErrorCode(E.takeError());
+          return E.takeError();
         OpdExtractor.reset(new DataExtractor(*E, Obj->isLittleEndian(),
                                              Obj->getBytesInAddress()));
         OpdAddress = Section->getAddress();
@@ -70,14 +66,16 @@ SymbolizableObjectFile::create(const object::ObjectFile *Obj,
   std::vector<std::pair<SymbolRef, uint64_t>> Symbols =
       computeSymbolSizes(*Obj);
   for (auto &P : Symbols)
-    res->addSymbol(P.first, P.second, OpdExtractor.get(), OpdAddress);
+    if (Error E =
+            res->addSymbol(P.first, P.second, OpdExtractor.get(), OpdAddress))
+      return std::move(E);
 
   // If this is a COFF object and we didn't find any symbols, try the export
   // table.
   if (Symbols.empty()) {
     if (auto *CoffObj = dyn_cast<COFFObjectFile>(Obj))
-      if (auto EC = res->addCoffExportSymbols(CoffObj))
-        return EC;
+      if (Error E = res->addCoffExportSymbols(CoffObj))
+        return std::move(E);
   }
 
   std::vector<std::pair<SymbolDesc, StringRef>> &Fs = res->Functions,
@@ -103,8 +101,10 @@ SymbolizableObjectFile::create(const object::ObjectFile *Obj,
 }
 
 SymbolizableObjectFile::SymbolizableObjectFile(const ObjectFile *Obj,
-                                               std::unique_ptr<DIContext> DICtx)
-    : Module(Obj), DebugInfoContext(std::move(DICtx)) {}
+                                               std::unique_ptr<DIContext> DICtx,
+                                               bool UntagAddresses)
+    : Module(Obj), DebugInfoContext(std::move(DICtx)),
+      UntagAddresses(UntagAddresses) {}
 
 namespace {
 
@@ -119,7 +119,7 @@ struct OffsetNamePair {
 
 } // end anonymous namespace
 
-std::error_code SymbolizableObjectFile::addCoffExportSymbols(
+Error SymbolizableObjectFile::addCoffExportSymbols(
     const COFFObjectFile *CoffObj) {
   // Get all export names and offsets.
   std::vector<OffsetNamePair> ExportSyms;
@@ -133,7 +133,7 @@ std::error_code SymbolizableObjectFile::addCoffExportSymbols(
     ExportSyms.push_back(OffsetNamePair{Offset, Name});
   }
   if (ExportSyms.empty())
-    return std::error_code();
+    return Error::success();
 
   // Sort by ascending offset.
   array_pod_sort(ExportSyms.begin(), ExportSyms.end());
@@ -150,28 +150,34 @@ std::error_code SymbolizableObjectFile::addCoffExportSymbols(
     SymbolDesc SD = {SymbolStart, SymbolSize};
     Functions.emplace_back(SD, Export.Name);
   }
-  return std::error_code();
+  return Error::success();
 }
 
-std::error_code SymbolizableObjectFile::addSymbol(const SymbolRef &Symbol,
-                                                  uint64_t SymbolSize,
-                                                  DataExtractor *OpdExtractor,
-                                                  uint64_t OpdAddress) {
+Error SymbolizableObjectFile::addSymbol(const SymbolRef &Symbol,
+                                        uint64_t SymbolSize,
+                                        DataExtractor *OpdExtractor,
+                                        uint64_t OpdAddress) {
   // Avoid adding symbols from an unknown/undefined section.
   const ObjectFile *Obj = Symbol.getObject();
   Expected<section_iterator> Sec = Symbol.getSection();
   if (!Sec || (Obj && Obj->section_end() == *Sec))
-    return std::error_code();
+    return Error::success();
   Expected<SymbolRef::Type> SymbolTypeOrErr = Symbol.getType();
   if (!SymbolTypeOrErr)
-    return errorToErrorCode(SymbolTypeOrErr.takeError());
+    return SymbolTypeOrErr.takeError();
   SymbolRef::Type SymbolType = *SymbolTypeOrErr;
   if (SymbolType != SymbolRef::ST_Function && SymbolType != SymbolRef::ST_Data)
-    return std::error_code();
+    return Error::success();
   Expected<uint64_t> SymbolAddressOrErr = Symbol.getAddress();
   if (!SymbolAddressOrErr)
-    return errorToErrorCode(SymbolAddressOrErr.takeError());
+    return SymbolAddressOrErr.takeError();
   uint64_t SymbolAddress = *SymbolAddressOrErr;
+  if (UntagAddresses) {
+    // For kernel addresses, bits 56-63 need to be set, so we sign extend bit 55
+    // into bits 56-63 instead of masking them out.
+    SymbolAddress &= (1ull << 56) - 1;
+    SymbolAddress = (int64_t(SymbolAddress) << 8) >> 8;
+  }
   if (OpdExtractor) {
     // For big-endian PowerPC64 ELF, symbols in the .opd section refer to
     // function descriptors. The first word of the descriptor is a pointer to
@@ -179,14 +185,12 @@ std::error_code SymbolizableObjectFile::addSymbol(const SymbolRef &Symbol,
     // For the purposes of symbolization, pretend the symbol's address is that
     // of the function's code, not the descriptor.
     uint64_t OpdOffset = SymbolAddress - OpdAddress;
-    uint32_t OpdOffset32 = OpdOffset;
-    if (OpdOffset == OpdOffset32 &&
-        OpdExtractor->isValidOffsetForAddress(OpdOffset32))
-      SymbolAddress = OpdExtractor->getAddress(&OpdOffset32);
+    if (OpdExtractor->isValidOffsetForAddress(OpdOffset))
+      SymbolAddress = OpdExtractor->getAddress(&OpdOffset);
   }
   Expected<StringRef> SymbolNameOrErr = Symbol.getName();
   if (!SymbolNameOrErr)
-    return errorToErrorCode(SymbolNameOrErr.takeError());
+    return SymbolNameOrErr.takeError();
   StringRef SymbolName = *SymbolNameOrErr;
   // Mach-O symbol table names have leading underscore, skip it.
   if (Module->isMachO() && !SymbolName.empty() && SymbolName[0] == '_')
@@ -196,7 +200,7 @@ std::error_code SymbolizableObjectFile::addSymbol(const SymbolRef &Symbol,
   auto &M = SymbolType == SymbolRef::ST_Function ? Functions : Objects;
   SymbolDesc SD = { SymbolAddress, SymbolSize };
   M.emplace_back(SD, SymbolName);
-  return std::error_code();
+  return Error::success();
 }
 
 // Return true if this is a 32-bit x86 PE COFF module.
@@ -243,16 +247,16 @@ bool SymbolizableObjectFile::shouldOverrideWithSymbolTable(
 
 DILineInfo
 SymbolizableObjectFile::symbolizeCode(object::SectionedAddress ModuleOffset,
-                                      FunctionNameKind FNKind,
+                                      DILineInfoSpecifier LineInfoSpecifier,
                                       bool UseSymbolTable) const {
   if (ModuleOffset.SectionIndex == object::SectionedAddress::UndefSection)
     ModuleOffset.SectionIndex =
         getModuleSectionIndexForAddress(ModuleOffset.Address);
-  DILineInfo LineInfo = DebugInfoContext->getLineInfoForAddress(
-      ModuleOffset, getDILineInfoSpecifier(FNKind));
+  DILineInfo LineInfo =
+      DebugInfoContext->getLineInfoForAddress(ModuleOffset, LineInfoSpecifier);
 
   // Override function name from symbol table if necessary.
-  if (shouldOverrideWithSymbolTable(FNKind, UseSymbolTable)) {
+  if (shouldOverrideWithSymbolTable(LineInfoSpecifier.FNKind, UseSymbolTable)) {
     std::string FunctionName;
     uint64_t Start, Size;
     if (getNameFromSymbolTable(SymbolRef::ST_Function, ModuleOffset.Address,
@@ -264,20 +268,20 @@ SymbolizableObjectFile::symbolizeCode(object::SectionedAddress ModuleOffset,
 }
 
 DIInliningInfo SymbolizableObjectFile::symbolizeInlinedCode(
-    object::SectionedAddress ModuleOffset, FunctionNameKind FNKind,
-    bool UseSymbolTable) const {
+    object::SectionedAddress ModuleOffset,
+    DILineInfoSpecifier LineInfoSpecifier, bool UseSymbolTable) const {
   if (ModuleOffset.SectionIndex == object::SectionedAddress::UndefSection)
     ModuleOffset.SectionIndex =
         getModuleSectionIndexForAddress(ModuleOffset.Address);
   DIInliningInfo InlinedContext = DebugInfoContext->getInliningInfoForAddress(
-      ModuleOffset, getDILineInfoSpecifier(FNKind));
+      ModuleOffset, LineInfoSpecifier);
 
   // Make sure there is at least one frame in context.
   if (InlinedContext.getNumberOfFrames() == 0)
     InlinedContext.addFrame(DILineInfo());
 
   // Override the function name in lower frame with name from symbol table.
-  if (shouldOverrideWithSymbolTable(FNKind, UseSymbolTable)) {
+  if (shouldOverrideWithSymbolTable(LineInfoSpecifier.FNKind, UseSymbolTable)) {
     std::string FunctionName;
     uint64_t Start, Size;
     if (getNameFromSymbolTable(SymbolRef::ST_Function, ModuleOffset.Address,

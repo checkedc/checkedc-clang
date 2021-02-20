@@ -38,7 +38,6 @@
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/Analysis/ScalarEvolutionExpander.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -49,6 +48,7 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
@@ -57,6 +57,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/LoopVersioning.h"
+#include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
 #include "llvm/Transforms/Utils/SizeOpts.h"
 #include <algorithm>
 #include <cassert>
@@ -376,7 +377,7 @@ public:
 
   /// Determine the pointer alias checks to prove that there are no
   /// intervening stores.
-  SmallVector<RuntimePointerChecking::PointerCheck, 4> collectMemchecks(
+  SmallVector<RuntimePointerCheck, 4> collectMemchecks(
       const SmallVectorImpl<StoreToLoadForwardingCandidate> &Candidates) {
 
     SmallPtrSet<Value *, 4> PtrsWrittenOnFwdingPath =
@@ -390,10 +391,10 @@ public:
                    std::mem_fn(&StoreToLoadForwardingCandidate::getLoadPtr));
 
     const auto &AllChecks = LAI.getRuntimePointerChecking()->getChecks();
-    SmallVector<RuntimePointerChecking::PointerCheck, 4> Checks;
+    SmallVector<RuntimePointerCheck, 4> Checks;
 
     copy_if(AllChecks, std::back_inserter(Checks),
-            [&](const RuntimePointerChecking::PointerCheck &Check) {
+            [&](const RuntimePointerCheck &Check) {
               for (auto PtrIdx1 : Check.first->Members)
                 for (auto PtrIdx2 : Check.second->Members)
                   if (needsChecking(PtrIdx1, PtrIdx2, PtrsWrittenOnFwdingPath,
@@ -431,11 +432,12 @@ public:
     Value *Ptr = Cand.Load->getPointerOperand();
     auto *PtrSCEV = cast<SCEVAddRecExpr>(PSE.getSCEV(Ptr));
     auto *PH = L->getLoopPreheader();
+    assert(PH && "Preheader should exist!");
     Value *InitialPtr = SEE.expandCodeFor(PtrSCEV->getStart(), Ptr->getType(),
                                           PH->getTerminator());
     Value *Initial = new LoadInst(
         Cand.Load->getType(), InitialPtr, "load_initial",
-        /* isVolatile */ false, Cand.Load->getAlignment(), PH->getTerminator());
+        /* isVolatile */ false, Cand.Load->getAlign(), PH->getTerminator());
 
     PHINode *PHI = PHINode::Create(Initial->getType(), 2, "store_forwarded",
                                    &L->getHeader()->front());
@@ -487,7 +489,7 @@ public:
     // Filter the candidates further.
     SmallVector<StoreToLoadForwardingCandidate, 4> Candidates;
     unsigned NumForwarding = 0;
-    for (const StoreToLoadForwardingCandidate Cand : StoreToLoadDependences) {
+    for (const StoreToLoadForwardingCandidate &Cand : StoreToLoadDependences) {
       LLVM_DEBUG(dbgs() << "Candidate " << Cand);
 
       // Make sure that the stored values is available everywhere in the loop in
@@ -518,8 +520,7 @@ public:
 
     // Check intervening may-alias stores.  These need runtime checks for alias
     // disambiguation.
-    SmallVector<RuntimePointerChecking::PointerCheck, 4> Checks =
-        collectMemchecks(Candidates);
+    SmallVector<RuntimePointerCheck, 4> Checks = collectMemchecks(Candidates);
 
     // Too many checks are likely to outweigh the benefits of forwarding.
     if (Checks.size() > Candidates.size() * CheckPerElim) {
@@ -533,6 +534,11 @@ public:
       return false;
     }
 
+    if (!L->isLoopSimplifyForm()) {
+      LLVM_DEBUG(dbgs() << "Loop is not is loop-simplify form");
+      return false;
+    }
+
     if (!Checks.empty() || !LAI.getPSE().getUnionPredicate().isAlwaysTrue()) {
       if (LAI.hasConvergentOp()) {
         LLVM_DEBUG(dbgs() << "Versioning is needed but not allowed with "
@@ -543,16 +549,12 @@ public:
       auto *HeaderBB = L->getHeader();
       auto *F = HeaderBB->getParent();
       bool OptForSize = F->hasOptSize() ||
-                        llvm::shouldOptimizeForSize(HeaderBB, PSI, BFI);
+                        llvm::shouldOptimizeForSize(HeaderBB, PSI, BFI,
+                                                    PGSOQueryType::IRPass);
       if (OptForSize) {
         LLVM_DEBUG(
             dbgs() << "Versioning is needed but not allowed when optimizing "
                       "for size.\n");
-        return false;
-      }
-
-      if (!L->isLoopSimplifyForm()) {
-        LLVM_DEBUG(dbgs() << "Loop is not is loop-simplify form");
         return false;
       }
 
@@ -694,8 +696,8 @@ PreservedAnalyses LoopLoadEliminationPass::run(Function &F,
   auto &TLI = AM.getResult<TargetLibraryAnalysis>(F);
   auto &AA = AM.getResult<AAManager>(F);
   auto &AC = AM.getResult<AssumptionAnalysis>(F);
-  auto &MAM = AM.getResult<ModuleAnalysisManagerFunctionProxy>(F).getManager();
-  auto *PSI = MAM.getCachedResult<ProfileSummaryAnalysis>(*F.getParent());
+  auto &MAMProxy = AM.getResult<ModuleAnalysisManagerFunctionProxy>(F);
+  auto *PSI = MAMProxy.getCachedResult<ProfileSummaryAnalysis>(*F.getParent());
   auto *BFI = (PSI && PSI->hasProfileSummary()) ?
       &AM.getResult<BlockFrequencyAnalysis>(F) : nullptr;
   MemorySSA *MSSA = EnableMSSALoopDependency

@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 #include <cassert>
 #include <tuple>
-#include "support/timer.hpp"
+#include "support/timer.h"
 
 template <std::size_t Indx, std::size_t Depth>
 struct C

@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// UNSUPPORTED: c++98, c++03, c++11, c++14
+// UNSUPPORTED: c++03, c++11, c++14
 
-// XFAIL: dylib-has-no-bad_optional_access && !libcpp-no-exceptions
+// XFAIL: dylib-has-no-bad_optional_access && !no-exceptions
 
 // <optional>
 
@@ -20,8 +20,8 @@
 #include <cassert>
 
 #include "test_macros.h"
-#include "archetypes.hpp"
-#include "test_convertible.hpp"
+#include "archetypes.h"
+#include "test_convertible.h"
 
 
 using std::optional;

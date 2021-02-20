@@ -216,8 +216,10 @@ defm : X86WriteResUnsupported<WriteFStoreY>;
 def  : WriteRes<WriteFStoreNT,      [AtomPort0]>;
 def  : WriteRes<WriteFStoreNTX,     [AtomPort0]>;
 defm : X86WriteResUnsupported<WriteFStoreNTY>;
-defm : X86WriteResUnsupported<WriteFMaskedStore>;
-defm : X86WriteResUnsupported<WriteFMaskedStoreY>;
+defm : X86WriteResUnsupported<WriteFMaskedStore32>;
+defm : X86WriteResUnsupported<WriteFMaskedStore32Y>;
+defm : X86WriteResUnsupported<WriteFMaskedStore64>;
+defm : X86WriteResUnsupported<WriteFMaskedStore64Y>;
 
 def  : WriteRes<WriteFMove,         [AtomPort01]>;
 def  : WriteRes<WriteFMoveX,        [AtomPort01]>;
@@ -242,6 +244,7 @@ defm : AtomWriteResPair<WriteFCmp64X,       [AtomPort01], [AtomPort01],  6,  7, 
 defm : X86WriteResPairUnsupported<WriteFCmp64Y>;
 defm : X86WriteResPairUnsupported<WriteFCmp64Z>;
 defm : AtomWriteResPair<WriteFCom,           [AtomPort0],  [AtomPort0],  5,  5,  [5],  [5]>;
+defm : AtomWriteResPair<WriteFComX,          [AtomPort0],  [AtomPort0],  5,  5,  [5],  [5]>;
 defm : AtomWriteResPair<WriteFMul,           [AtomPort0],  [AtomPort0],  4,  4,  [4],  [4]>;
 defm : AtomWriteResPair<WriteFMulX,          [AtomPort0],  [AtomPort0],  5,  5,  [5],  [5]>;
 defm : X86WriteResPairUnsupported<WriteFMulY>;
@@ -366,8 +369,10 @@ def  : WriteRes<WriteVecStoreX,       [AtomPort0]>;
 defm : X86WriteResUnsupported<WriteVecStoreY>;
 def  : WriteRes<WriteVecStoreNT,      [AtomPort0]>;
 defm : X86WriteResUnsupported<WriteVecStoreNTY>;
-def  : WriteRes<WriteVecMaskedStore,  [AtomPort0]>;
-defm : X86WriteResUnsupported<WriteVecMaskedStoreY>;
+defm : X86WriteResUnsupported<WriteVecMaskedStore32>;
+defm : X86WriteResUnsupported<WriteVecMaskedStore64>;
+defm : X86WriteResUnsupported<WriteVecMaskedStore32Y>;
+defm : X86WriteResUnsupported<WriteVecMaskedStore64Y>;
 
 def  : WriteRes<WriteVecMove,          [AtomPort0]>;
 def  : WriteRes<WriteVecMoveX,        [AtomPort01]>;
@@ -886,8 +891,7 @@ def AtomWrite01_174 : SchedWriteRes<[AtomPort01]> {
   let Latency = 174;
   let ResourceCycles = [174];
 }
-def : InstRW<[AtomWrite01_174], (instrs FSINCOS)>;
-def : InstRW<[AtomWrite01_174], (instregex "(COS|SIN)_F")>;
+def : InstRW<[AtomWrite01_174], (instrs FSINCOS, FSIN, FCOS)>;
 
 def AtomWrite01_183 : SchedWriteRes<[AtomPort01]> {
   let Latency = 183;

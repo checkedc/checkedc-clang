@@ -28,20 +28,8 @@ bool TargetOptions::DisableFramePointerElim(const MachineFunction &MF) const {
 
   const Function &F = MF.getFunction();
 
-  // TODO: Remove support for old `fp elim` function attributes after fully
-  //       migrate to use "frame-pointer"
-  if (!F.hasFnAttribute("frame-pointer")) {
-    // Check to see if we should eliminate all frame pointers.
-    if (F.getFnAttribute("no-frame-pointer-elim").getValueAsString() == "true")
-      return true;
-
-    // Check to see if we should eliminate non-leaf frame pointers.
-    if (F.hasFnAttribute("no-frame-pointer-elim-non-leaf"))
-      return MF.getFrameInfo().hasCalls();
-
+  if (!F.hasFnAttribute("frame-pointer"))
     return false;
-  }
-
   StringRef FP = F.getFnAttribute("frame-pointer").getValueAsString();
   if (FP == "all")
     return true;
@@ -56,4 +44,10 @@ bool TargetOptions::DisableFramePointerElim(const MachineFunction &MF) const {
 /// that the rounding mode of the FPU can change from its default.
 bool TargetOptions::HonorSignDependentRoundingFPMath() const {
   return !UnsafeFPMath && HonorSignDependentRoundingFPMathOption;
+}
+
+/// NOTE: There are targets that still do not support the debug entry values
+/// production.
+bool TargetOptions::ShouldEmitDebugEntryValues() const {
+  return SupportsDebugEntryValues || EnableDebugEntryValues;
 }

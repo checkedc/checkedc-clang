@@ -1,4 +1,4 @@
-//===-- Breakpoint.cpp ------------------------------------------*- C++ -*-===//
+//===-- Breakpoint.cpp ----------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -55,20 +55,28 @@ Breakpoint::Breakpoint(Target &target, SearchFilterSP &filter_sp,
   m_being_created = false;
 }
 
-Breakpoint::Breakpoint(Target &new_target, Breakpoint &source_bp)
+Breakpoint::Breakpoint(Target &new_target, const Breakpoint &source_bp)
     : m_being_created(true), m_hardware(source_bp.m_hardware),
       m_target(new_target), m_name_list(source_bp.m_name_list),
       m_options_up(new BreakpointOptions(*source_bp.m_options_up)),
       m_locations(*this),
       m_resolve_indirect_symbols(source_bp.m_resolve_indirect_symbols),
-      m_hit_count(0) {
-  // Now go through and copy the filter & resolver:
-  m_resolver_sp = source_bp.m_resolver_sp->CopyForBreakpoint(*this);
-  m_filter_sp = source_bp.m_filter_sp->CopyForBreakpoint(*this);
-}
+      m_hit_count(0) {}
 
 // Destructor
 Breakpoint::~Breakpoint() = default;
+
+BreakpointSP Breakpoint::CopyFromBreakpoint(TargetSP new_target,
+    const Breakpoint& bp_to_copy_from) {
+  if (!new_target)
+    return BreakpointSP();
+
+  BreakpointSP bp(new Breakpoint(*new_target, bp_to_copy_from));
+  // Now go through and copy the filter & resolver:
+  bp->m_resolver_sp = bp_to_copy_from.m_resolver_sp->CopyForBreakpoint(bp);
+  bp->m_filter_sp = bp_to_copy_from.m_filter_sp->CreateCopy(new_target);
+  return bp;
+}
 
 // Serialization
 StructuredData::ObjectSP Breakpoint::SerializeToStructuredData() {
@@ -120,8 +128,10 @@ StructuredData::ObjectSP Breakpoint::SerializeToStructuredData() {
 }
 
 lldb::BreakpointSP Breakpoint::CreateFromStructuredData(
-    Target &target, StructuredData::ObjectSP &object_data, Status &error) {
+    TargetSP target_sp, StructuredData::ObjectSP &object_data, Status &error) {
   BreakpointSP result_sp;
+  if (!target_sp)
+    return result_sp;
 
   StructuredData::Dictionary *breakpoint_dict = object_data->GetAsDictionary();
 
@@ -155,11 +165,11 @@ lldb::BreakpointSP Breakpoint::CreateFromStructuredData(
       SearchFilter::GetSerializationKey(), filter_dict);
   SearchFilterSP filter_sp;
   if (!success)
-    filter_sp = std::make_shared<SearchFilterForUnconstrainedSearches>(
-        target.shared_from_this());
+    filter_sp =
+        std::make_shared<SearchFilterForUnconstrainedSearches>(target_sp);
   else {
-    filter_sp = SearchFilter::CreateFromStructuredData(target, *filter_dict,
-                                                       create_error);
+    filter_sp = SearchFilter::CreateFromStructuredData(target_sp, *filter_dict,
+        create_error);
     if (create_error.Fail()) {
       error.SetErrorStringWithFormat(
           "Error creating breakpoint filter from data: %s.",
@@ -170,6 +180,7 @@ lldb::BreakpointSP Breakpoint::CreateFromStructuredData(
 
   std::unique_ptr<BreakpointOptions> options_up;
   StructuredData::Dictionary *options_dict;
+  Target& target = *target_sp;
   success = breakpoint_dict->GetValueForKeyAsDictionary(
       BreakpointOptions::GetSerializationKey(), options_dict);
   if (success) {
@@ -187,8 +198,8 @@ lldb::BreakpointSP Breakpoint::CreateFromStructuredData(
   success = breakpoint_dict->GetValueForKeyAsBoolean(
       Breakpoint::GetKey(OptionNames::Hardware), hardware);
 
-  result_sp =
-      target.CreateBreakpoint(filter_sp, resolver_sp, false, hardware, true);
+  result_sp = target.CreateBreakpoint(filter_sp, resolver_sp, false,
+                                      hardware, true);
 
   if (result_sp && options_up) {
     result_sp->m_options_up = std::move(options_up);
@@ -496,10 +507,10 @@ void Breakpoint::ClearAllBreakpointSites() {
 void Breakpoint::ModulesChanged(ModuleList &module_list, bool load,
                                 bool delete_locations) {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_BREAKPOINTS));
-  if (log)
-    log->Printf("Breakpoint::ModulesChanged: num_modules: %zu load: %i "
-                "delete_locations: %i\n",
-                module_list.GetSize(), load, delete_locations);
+  LLDB_LOGF(log,
+            "Breakpoint::ModulesChanged: num_modules: %zu load: %i "
+            "delete_locations: %i\n",
+            module_list.GetSize(), load, delete_locations);
 
   std::lock_guard<std::recursive_mutex> guard(module_list.GetMutex());
   if (load) {
@@ -550,10 +561,10 @@ void Breakpoint::ModulesChanged(ModuleList &module_list, bool load,
             seen = true;
 
           if (!break_loc_sp->ResolveBreakpointSite()) {
-            if (log)
-              log->Printf("Warning: could not set breakpoint site for "
-                          "breakpoint location %d of breakpoint %d.\n",
-                          break_loc_sp->GetID(), GetID());
+            LLDB_LOGF(log,
+                      "Warning: could not set breakpoint site for "
+                      "breakpoint location %d of breakpoint %d.\n",
+                      break_loc_sp->GetID(), GetID());
           }
         }
       }
@@ -638,7 +649,8 @@ static bool SymbolContextsMightBeEquivalent(SymbolContext &old_sc,
   } else {
     // Otherwise we will compare by name...
     if (old_sc.comp_unit && new_sc.comp_unit) {
-      if (FileSpec::Equal(*old_sc.comp_unit, *new_sc.comp_unit, true)) {
+      if (old_sc.comp_unit->GetPrimaryFile() ==
+          new_sc.comp_unit->GetPrimaryFile()) {
         // Now check the functions:
         if (old_sc.function && new_sc.function &&
             (old_sc.function->GetName() == new_sc.function->GetName())) {
@@ -659,9 +671,8 @@ static bool SymbolContextsMightBeEquivalent(SymbolContext &old_sc,
 void Breakpoint::ModuleReplaced(ModuleSP old_module_sp,
                                 ModuleSP new_module_sp) {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_BREAKPOINTS));
-  if (log)
-    log->Printf("Breakpoint::ModulesReplaced for %s\n",
-                old_module_sp->GetSpecificationDescription().c_str());
+  LLDB_LOGF(log, "Breakpoint::ModulesReplaced for %s\n",
+            old_module_sp->GetSpecificationDescription().c_str());
   // First find all the locations that are in the old module
 
   BreakpointLocationCollection old_break_locs;

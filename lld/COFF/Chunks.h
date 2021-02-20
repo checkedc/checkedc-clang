@@ -268,12 +268,9 @@ public:
   public:
     AssociatedIterator() = default;
     AssociatedIterator(SectionChunk *head) : cur(head) {}
-    AssociatedIterator &operator=(const AssociatedIterator &r) {
-      cur = r.cur;
-      return *this;
-    }
     bool operator==(const AssociatedIterator &r) const { return cur == r.cur; }
-    const SectionChunk &operator*() const { return *cur; }
+    // FIXME: Wrong const-ness, but it makes filter ranges work.
+    SectionChunk &operator*() const { return *cur; }
     SectionChunk &operator*() { return *cur; }
     AssociatedIterator &operator++() {
       cur = cur->assocChildren;
@@ -490,7 +487,9 @@ public:
 
 class ImportThunkChunkARM : public ImportThunkChunk {
 public:
-  explicit ImportThunkChunkARM(Defined *s) : ImportThunkChunk(s) {}
+  explicit ImportThunkChunkARM(Defined *s) : ImportThunkChunk(s) {
+    setAlignment(2);
+  }
   size_t getSize() const override { return sizeof(importThunkARM); }
   void getBaserels(std::vector<Baserel> *res) override;
   void writeTo(uint8_t *buf) const override;
@@ -498,14 +497,16 @@ public:
 
 class ImportThunkChunkARM64 : public ImportThunkChunk {
 public:
-  explicit ImportThunkChunkARM64(Defined *s) : ImportThunkChunk(s) {}
+  explicit ImportThunkChunkARM64(Defined *s) : ImportThunkChunk(s) {
+    setAlignment(4);
+  }
   size_t getSize() const override { return sizeof(importThunkARM64); }
   void writeTo(uint8_t *buf) const override;
 };
 
 class RangeExtensionThunkARM : public NonSectionChunk {
 public:
-  explicit RangeExtensionThunkARM(Defined *t) : target(t) {}
+  explicit RangeExtensionThunkARM(Defined *t) : target(t) { setAlignment(2); }
   size_t getSize() const override;
   void writeTo(uint8_t *buf) const override;
 
@@ -514,7 +515,7 @@ public:
 
 class RangeExtensionThunkARM64 : public NonSectionChunk {
 public:
-  explicit RangeExtensionThunkARM64(Defined *t) : target(t) {}
+  explicit RangeExtensionThunkARM64(Defined *t) : target(t) { setAlignment(4); }
   size_t getSize() const override;
   void writeTo(uint8_t *buf) const override;
 

@@ -15,7 +15,7 @@
 #include "clang/3C/CheckedRegions.h"
 #include "clang/3C/DeclRewriter.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Tooling/Refactoring/SourceCode.h"
+#include "clang/Tooling/Transformer/SourceCode.h"
 
 using namespace llvm;
 using namespace clang;
@@ -215,6 +215,7 @@ static void emit(Rewriter &R, ASTContext &C) {
         NFile = Stem + "." + OutputPostfix + Ext;
         if (!DirName.empty())
           NFile = DirName + sys::path::get_separator().str() + NFile;
+<<<<<<< HEAD
       } else {
         assert(!OutputDir.empty());
         // If this does not hold when OutputDir is set, it should have been a
@@ -235,6 +236,47 @@ static void emit(Rewriter &R, ASTContext &C) {
           auto DiagBuilder = DE.Report(SM.translateFileLineCol(FE, 1, 1), ID);
           DiagBuilder.AddString(NFile);
           continue;
+||||||| ad482c007426
+
+        // Write this file if it was specified as a file on the command line.
+        std::string FeAbsS = "";
+        if (getAbsoluteFilePath(FE->getName(), FeAbsS))
+          FeAbsS = sys::path::remove_leading_dotslash(FeAbsS);
+
+        if (canWrite(FeAbsS)) {
+          std::error_code EC;
+          raw_fd_ostream Out(NFile, EC, sys::fs::F_None);
+
+          if (!EC) {
+            if (Verbose)
+              outs() << "writing out " << NFile << "\n";
+            Buffer->second.write(Out);
+          } else
+            errs() << "could not open file " << NFile << "\n";
+          // This is awkward. What to do? Since we're iterating, we could have
+          // created other files successfully. Do we go back and erase them? Is
+          // that surprising? For now, let's just keep going.
+=======
+
+        // Write this file if it was specified as a file on the command line.
+        std::string FeAbsS = "";
+        if (getAbsoluteFilePath(std::string(FE->getName()), FeAbsS))
+          FeAbsS = std::string(sys::path::remove_leading_dotslash(FeAbsS));
+
+        if (canWrite(FeAbsS)) {
+          std::error_code EC;
+          raw_fd_ostream Out(NFile, EC, sys::fs::F_None);
+
+          if (!EC) {
+            if (Verbose)
+              outs() << "writing out " << NFile << "\n";
+            Buffer->second.write(Out);
+          } else
+            errs() << "could not open file " << NFile << "\n";
+          // This is awkward. What to do? Since we're iterating, we could have
+          // created other files successfully. Do we go back and erase them? Is
+          // that surprising? For now, let's just keep going.
+>>>>>>> a4d1ce7f08d86d868e676e6971d797456cc875eb
         }
       }
 
@@ -456,10 +498,11 @@ void RewriteConsumer::emitRootCauseDiagnostics(ASTContext &Context) {
         EmittedDiagnostics.find(PSL) == EmittedDiagnostics.end()) {
       // Convert the file/line/column triple into a clang::SourceLocation that
       // can be used with the DiagnosticsEngine.
-      const auto *File = SM.getFileManager().getFile(PSL.getFileName());
-      if (File != nullptr) {
+      llvm::ErrorOr<const clang::FileEntry *> File =
+          SM.getFileManager().getFile(PSL.getFileName());
+      if (!File.getError()) {
         SourceLocation SL =
-            SM.translateFileLineCol(File, PSL.getLineNo(), PSL.getColSNo());
+            SM.translateFileLineCol(*File, PSL.getLineNo(), PSL.getColSNo());
         // Limit emitted root causes to those that effect more than one pointer
         // or are in the main file of the TU. Alternatively, don't filter causes
         // if -warn-all-root-cause is passed.

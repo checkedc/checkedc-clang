@@ -18,9 +18,10 @@
 #define LLVM_TRANSFORMS_UTILS_UNIFYFUNCTIONEXITNODES_H
 
 #include "llvm/Pass.h"
-#include "llvm/PassRegistry.h"
 
 namespace llvm {
+
+class BasicBlock;
 
 struct UnifyFunctionExitNodes : public FunctionPass {
   BasicBlock *ReturnBlock = nullptr;
@@ -29,9 +30,7 @@ struct UnifyFunctionExitNodes : public FunctionPass {
 
 public:
   static char ID; // Pass identification, replacement for typeid
-  UnifyFunctionExitNodes() : FunctionPass(ID) {
-    initializeUnifyFunctionExitNodesPass(*PassRegistry::getPassRegistry());
-  }
+  UnifyFunctionExitNodes();
 
   // We can preserve non-critical-edgeness when we unify function exit nodes
   void getAnalysisUsage(AnalysisUsage &AU) const override;

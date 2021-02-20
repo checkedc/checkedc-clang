@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++98, c++03
+// UNSUPPORTED: c++03
 
 // <experimental/memory_resource>
 
@@ -16,7 +16,7 @@
 #include <type_traits>
 #include <cassert>
 
-#include "count_new.hpp"
+#include "count_new.h"
 
 #include "test_macros.h"
 

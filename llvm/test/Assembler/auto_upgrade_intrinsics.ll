@@ -98,7 +98,7 @@ declare void @llvm.masked.scatter.v2f64(<2 x double> %val, <2 x double*> %ptrs, 
 define void @tests.masked.scatter(<2 x double*> %ptr, <2 x i1> %mask, <2 x double> %val)  {
 ; CHECK-LABEL: @tests.masked.scatter(
 ; CHECK: @llvm.masked.scatter.v2f64.v2p0f64
-  call void @llvm.masked.scatter.v2f64(<2 x double> %val, <2 x double*> %ptr, i32 3, <2 x i1> %mask)
+  call void @llvm.masked.scatter.v2f64(<2 x double> %val, <2 x double*> %ptr, i32 1, <2 x i1> %mask)
   ret void
 }
 
@@ -140,6 +140,21 @@ define void @tests.lifetime.start.end() {
   ret void
 }
 
+declare void @llvm.prefetch(i8*, i32, i32, i32)
+define void @test.prefetch(i8* %ptr) {
+; CHECK-LABEL: @test.prefetch(
+; CHECK: @llvm.prefetch.p0i8(i8* %ptr, i32 0, i32 3, i32 2)
+  call void @llvm.prefetch(i8* %ptr, i32 0, i32 3, i32 2)
+  ret void
+}
+
+declare void @llvm.prefetch.p0i8(i8*, i32, i32, i32)
+define void @test.prefetch.2(i8* %ptr) {
+; CHECK-LABEL: @test.prefetch.2(
+; CHECK: @llvm.prefetch.p0i8(i8* %ptr, i32 0, i32 3, i32 2)
+  call void @llvm.prefetch(i8* %ptr, i32 0, i32 3, i32 2)
+  ret void
+}
 
 ; This is part of @test.objectsize(), since llvm.objectsize declaration gets
 ; emitted at the end.

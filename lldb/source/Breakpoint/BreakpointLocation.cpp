@@ -1,4 +1,4 @@
-//===-- BreakpointLocation.cpp ----------------------------------*- C++ -*-===//
+//===-- BreakpointLocation.cpp --------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -257,9 +257,8 @@ bool BreakpointLocation::ConditionSaysStop(ExecutionContext &exe_ctx,
         condition_text, llvm::StringRef(), language, Expression::eResultTypeAny,
         EvaluateExpressionOptions(), nullptr, error));
     if (error.Fail()) {
-      if (log)
-        log->Printf("Error getting condition expression: %s.",
-                    error.AsCString());
+      LLDB_LOGF(log, "Error getting condition expression: %s.",
+                error.AsCString());
       m_user_expression_sp.reset();
       return true;
     }
@@ -312,8 +311,8 @@ bool BreakpointLocation::ConditionSaysStop(ExecutionContext &exe_ctx,
       ret = result_value_sp->IsLogicalTrue(error);
       if (log) {
         if (error.Success()) {
-          log->Printf("Condition successfully evaluated, result is %s.\n",
-                      ret ? "true" : "false");
+          LLDB_LOGF(log, "Condition successfully evaluated, result is %s.\n",
+                    ret ? "true" : "false");
         } else {
           error.SetErrorString(
               "Failed to get an integer result from the expression");
@@ -370,7 +369,7 @@ BreakpointOptions *BreakpointLocation::GetLocationOptions() {
   // potentially expensive and we don't want to do that for the simple case
   // where someone is just disabling the location.
   if (m_options_up == nullptr)
-    m_options_up.reset(new BreakpointOptions(false));
+    m_options_up = std::make_unique<BreakpointOptions>(false);
 
   return m_options_up.get();
 }
@@ -408,8 +407,8 @@ bool BreakpointLocation::ShouldStop(StoppointCallbackContext *context) {
   if (log) {
     StreamString s;
     GetDescription(&s, lldb::eDescriptionLevelVerbose);
-    log->Printf("Hit breakpoint location: %s, %s.\n", s.GetData(),
-                should_stop ? "stopping" : "continuing");
+    LLDB_LOGF(log, "Hit breakpoint location: %s, %s.\n", s.GetData(),
+              should_stop ? "stopping" : "continuing");
   }
 
   return should_stop;
@@ -520,13 +519,13 @@ void BreakpointLocation::GetDescription(Stream *s,
       if (sc.module_sp) {
         s->EOL();
         s->Indent("module = ");
-        sc.module_sp->GetFileSpec().Dump(s);
+        sc.module_sp->GetFileSpec().Dump(s->AsRawOstream());
       }
 
       if (sc.comp_unit != nullptr) {
         s->EOL();
         s->Indent("compile unit = ");
-        static_cast<FileSpec *>(sc.comp_unit)->GetFilename().Dump(s);
+        sc.comp_unit->GetPrimaryFile().GetFilename().Dump(s);
 
         if (sc.function != nullptr) {
           s->EOL();
@@ -598,7 +597,8 @@ void BreakpointLocation::GetDescription(Stream *s,
     s->EOL();
     s->Indent();
     s->Printf("resolved = %s\n", IsResolved() ? "true" : "false");
-
+    s->Indent();
+    s->Printf("hardware = %s\n", IsHardware() ? "true" : "false");
     s->Indent();
     s->Printf("hit count = %-4u\n", GetHitCount());
 
@@ -609,8 +609,8 @@ void BreakpointLocation::GetDescription(Stream *s,
     }
     s->IndentLess();
   } else if (level != eDescriptionLevelInitial) {
-    s->Printf(", %sresolved, hit count = %u ", (IsResolved() ? "" : "un"),
-              GetHitCount());
+    s->Printf(", %sresolved, %shit count = %u ", (IsResolved() ? "" : "un"),
+              (IsHardware() ? "hardware, " : ""), GetHitCount());
     if (m_options_up) {
       m_options_up->GetDescription(s, level);
     }

@@ -27,7 +27,7 @@ static cl::
 opt<bool> DisableMIPeephole("disable-bpf-peephole", cl::Hidden,
                             cl::desc("Disable machine peepholes for BPF"));
 
-extern "C" void LLVMInitializeBPFTarget() {
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeBPFTarget() {
   // Register the target.
   RegisterTargetMachine<BPFTargetMachine> X(getTheBPFleTarget());
   RegisterTargetMachine<BPFTargetMachine> Y(getTheBPFbeTarget());
@@ -35,15 +35,17 @@ extern "C" void LLVMInitializeBPFTarget() {
 
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializeBPFAbstractMemberAccessPass(PR);
+  initializeBPFPreserveDITypePass(PR);
   initializeBPFMIPeepholePass(PR);
+  initializeBPFMIPeepholeTruncElimPass(PR);
 }
 
 // DataLayout: little or big endian
 static std::string computeDataLayout(const Triple &TT) {
   if (TT.getArch() == Triple::bpfeb)
-    return "E-m:e-p:64:64-i64:64-n32:64-S128";
+    return "E-m:e-p:64:64-i64:64-i128:128-n32:64-S128";
   else
-    return "e-m:e-p:64:64-i64:64-n32:64-S128";
+    return "e-m:e-p:64:64-i64:64-i128:128-n32:64-S128";
 }
 
 static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
@@ -61,8 +63,8 @@ BPFTargetMachine::BPFTargetMachine(const Target &T, const Triple &TT,
     : LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, FS, Options,
                         getEffectiveRelocModel(RM),
                         getEffectiveCodeModel(CM, CodeModel::Small), OL),
-      TLOF(make_unique<TargetLoweringObjectFileELF>()),
-      Subtarget(TT, CPU, FS, *this) {
+      TLOF(std::make_unique<TargetLoweringObjectFileELF>()),
+      Subtarget(TT, std::string(CPU), std::string(FS), *this) {
   initAsmInfo();
 
   BPFMCAsmInfo *MAI =
@@ -94,7 +96,8 @@ TargetPassConfig *BPFTargetMachine::createPassConfig(PassManagerBase &PM) {
 
 void BPFPassConfig::addIRPasses() {
 
-  addPass(createBPFAbstractMemberAccess());
+  addPass(createBPFAbstractMemberAccess(&getBPFTargetMachine()));
+  addPass(createBPFPreserveDIType());
 
   TargetPassConfig::addIRPasses();
 }
@@ -115,15 +118,16 @@ void BPFPassConfig::addMachineSSAOptimization() {
   TargetPassConfig::addMachineSSAOptimization();
 
   const BPFSubtarget *Subtarget = getBPFTargetMachine().getSubtargetImpl();
-  if (Subtarget->getHasAlu32() && !DisableMIPeephole)
-    addPass(createBPFMIPeepholePass());
+  if (!DisableMIPeephole) {
+    if (Subtarget->getHasAlu32())
+      addPass(createBPFMIPeepholePass());
+    addPass(createBPFMIPeepholeTruncElimPass());
+  }
 }
 
 void BPFPassConfig::addPreEmitPass() {
-  const BPFSubtarget *Subtarget = getBPFTargetMachine().getSubtargetImpl();
-
   addPass(createBPFMIPreEmitCheckingPass());
   if (getOptLevel() != CodeGenOpt::None)
-    if (Subtarget->getHasAlu32() && !DisableMIPeephole)
+    if (!DisableMIPeephole)
       addPass(createBPFMIPreEmitPeepholePass());
 }
