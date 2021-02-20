@@ -117,19 +117,17 @@ void f1(struct S1 *s) {
 }
 
 void f2(struct S1 a3) {
-  //int l = a3->len2;
   struct S1 a4 = {};
   array_ptr<int> p : count(5) = 0;
-  //array_ptr<int> p : count(l) = local_arr1;
   a3 = a4;
 }
 
 void f3(struct S1 a3) {
-  //int l = a3->len2;
   struct S1 a4 = {};
   array_ptr<int> p : count(5) = 0;
-  a3.p = p; // expected-error {{it is not possible to prove that the inferred bounds of a3.p imply the declared bounds of a3.p after assignment}} \
-            // expected-note {{the declared upper bounds use the variable 'a3' and there is no relational information involving 'a3' and any of the expressions used by the inferred upper bounds}} \
+
+  // We current do not detect free variables for member accesses.
+  a3.p = p; // expected-warning {{cannot prove declared bounds for a3.p are valid after assignment}} \
             // expected-note {{(expanded) declared bounds are 'bounds(a3.p, a3.p + a3.len2)'}} \
             // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 5)'}}
 }
@@ -175,3 +173,17 @@ void g(void) {
                                               // expected-note {{inferred bounds are}}
 }
 
+void f_itype(int *p : itype(ptr<int>));
+void f_arrayptr(array_ptr<int> p : count(2));
+
+void h(void) {
+  int *p = 0;
+  f_itype(_Assume_bounds_cast<ptr<int>>(p)); // expected-warning {{cannot prove argument meets declared bounds for 1st parameter}} \
+                                             // expected-note {{(expanded) expected argument bounds are 'bounds((_Array_ptr<int>)_Assume_bounds_cast<_Ptr<int>>p(count(1)), (_Array_ptr<int>)_Assume_bounds_cast<_Ptr<int>>p(count(1)) + 1)'}} \
+                                             // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<int>)value of p, (_Array_ptr<int>)value of p + 1)'}}
+
+  array_ptr<int> a : count(2) = 0;
+  f_arrayptr(_Assume_bounds_cast<array_ptr<int>>(a, count(2))); // expected-warning {{cannot prove argument meets declared bounds for 1st parameter}} \
+                                                                // expected-note {{(expanded) expected argument bounds are 'bounds(_Assume_bounds_cast<_Array_ptr<int>>a(count(2)), _Assume_bounds_cast<_Array_ptr<int>>a(count(2)) + 2)'}} \
+                                                                // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<int>)value of a, (_Array_ptr<int>)value of a + 2)'}}
+}

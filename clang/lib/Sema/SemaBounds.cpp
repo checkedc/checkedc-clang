@@ -553,6 +553,15 @@ namespace {
           ++Count;
         return true;
       }
+
+      // Do not traverse the child of a BoundsValueExpr.
+      // If a BoundsValueExpr uses the variable V, this should not count
+      // toward the total occurrence count of V in the expression.
+      // For example, for the expression BoundsValue(TempBinding(v)) + v, the
+      // total occurrence count of the variable v should be 1, not 2.
+      bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
+        return true;
+      }
   };
 
   // VariableOccurrenceCount returns the number of occurrences of V in E.
@@ -1457,9 +1466,12 @@ namespace {
                                FreeVariablePosition Pos2,
                                EquivExprSets *EquivExprs,
                                FreeVariableListTy &FreeVars) {
-        // If E1 or E2 accesses memory via pointer, we skip because we cannot
+        // If E1 or E2 accesses memory via a pointer, we skip because we cannot
         // determine aliases for two indirect accesses soundly yet.
-        if (ReadsMemoryViaPointer(E1) || ReadsMemoryViaPointer(E2))
+        // We also skip checking free variables if E1 or E2 is or contains a
+        // non-arrow member expression, since the compiler currently does
+        // not track equality information for member expressions.
+        if (ReadsMemoryViaPointer(E1, true) || ReadsMemoryViaPointer(E2, true))
           return false;
 
         bool HasFreeVariables = false;
@@ -5606,12 +5618,12 @@ namespace {
           // e1.f reads memory via a pointer if and only if e1 reads
           // memory via a pointer.
           else
-            return ReadsMemoryViaPointer(ME->getBase());
+            return ReadsMemoryViaPointer(ME->getBase(), IncludeAllMemberExprs);
         }
         default: {
           for (auto I = E->child_begin(); I != E->child_end(); ++I) {
             if (Expr *SubExpr = dyn_cast<Expr>(*I)) {
-              if (ReadsMemoryViaPointer(SubExpr))
+              if (ReadsMemoryViaPointer(SubExpr, IncludeAllMemberExprs))
                 return true;
             }
           }
@@ -6581,6 +6593,14 @@ namespace {
       addError(E, MEK_Call);
       FoundModifyingExpr = true;
 
+      return true;
+    }
+
+    // Do not traverse the children of a BoundsValueExpr. Any expressions
+    // that are wrapped in a BoundsValueExpr should not be considered
+    // modifying expressions. For example, BoundsValue(TempBinding(f()))
+    // should not be considered modifying.
+    bool TraverseBoundsValueExpr(BoundsValueExpr *E) {
       return true;
     }
 
