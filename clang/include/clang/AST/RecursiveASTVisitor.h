@@ -2617,7 +2617,6 @@ DEF_TRAVERSE_STMT(NullaryBoundsExpr, {})
 DEF_TRAVERSE_STMT(RangeBoundsExpr, {})
 DEF_TRAVERSE_STMT(InteropTypeExpr, {})
 DEF_TRAVERSE_STMT(PositionalParameterExpr, {})
-DEF_TRAVERSE_STMT(BoundsValueExpr, {})
 DEF_TRAVERSE_STMT(CHKCBindTemporaryExpr, {})
 DEF_TRAVERSE_STMT(PackExpr, {})
 
@@ -2673,6 +2672,11 @@ DEF_TRAVERSE_STMT(AsTypeExpr, {})
 // CheckedC Bounds Casting
 DEF_TRAVERSE_STMT(BoundsCastExpr, {
   TRY_TO(TraverseTypeLoc(S->getTypeInfoAsWritten()->getTypeLoc()));
+})
+
+// CheckedC Bounds Value Expressions
+DEF_TRAVERSE_STMT(BoundsValueExpr, {
+  TRY_TO(TraverseStmt(S->getTemporaryBinding()));
 })
 
 
