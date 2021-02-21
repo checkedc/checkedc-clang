@@ -44,23 +44,6 @@
 namespace clang {
 namespace clangd {
 
-// FIXME: find a better name.
-class DiagnosticsConsumer {
-public:
-  virtual ~DiagnosticsConsumer() = default;
-
-  /// Called by ClangdServer when \p Diagnostics for \p File are ready.
-  virtual void onDiagnosticsReady(PathRef File,
-                                  std::vector<Diag> Diagnostics) = 0;
-  /// Called whenever the file status is updated.
-  virtual void onFileUpdated(PathRef File, const TUStatus &Status){};
-
-  /// Called by ClangdServer when some \p Highlightings for \p File are ready.
-  virtual void
-  onHighlightingsReady(PathRef File,
-                       std::vector<HighlightingToken> Highlightings) {}
-};
-
 #ifdef INTERACTIVE3C
 // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
 // NOLINTNEXTLINE(readability-identifier-naming)
@@ -212,13 +195,11 @@ public:
   /// those arguments for subsequent reparses. However, ClangdServer will check
   /// if compilation arguments changed on calls to forceReparse().
   ClangdServer(const GlobalCompilationDatabase &CDB, const ThreadsafeFS &TFS,
-#ifdef INTERACTIVE3C
                const Options &Opts,
+#ifdef INTERACTIVE3C
                // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
                // NOLINTNEXTLINE(readability-identifier-naming)
                _3CInterface &_3CInterface,
-#else
-               const Options &Opts,
 #endif
                Callbacks *Callbacks = nullptr);
 
@@ -406,15 +387,13 @@ private:
   Context createProcessingContext(PathRef) const;
   config::Provider *ConfigProvider = nullptr;
 
-  const ThreadsafeFS &TFS;
-
 #ifdef INTERACTIVE3C
   void report3CDiagsForAllFiles(ConstraintsInfo &CcInfo,
                                 _3CLSPCallBack *ConvCB);
   void clear3CDiagsForAllFiles(ConstraintsInfo &CcInfo, _3CLSPCallBack *ConvCB);
 #endif
 
-  const FileSystemProvider &FSProvider;
+  const ThreadsafeFS &TFS;
 
   Path ResourceDir;
   // The index used to look up symbols. This could be:

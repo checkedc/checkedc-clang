@@ -857,12 +857,14 @@ struct CodeActionParams {
 };
 bool fromJSON(const llvm::json::Value &, CodeActionParams &);
 
+#ifdef INTERACTIVE3C
 struct CodeLensParams {
   /// The document in which the command was invoked.
   TextDocumentIdentifier textDocument;
 };
 
 bool fromJSON(const llvm::json::Value &, CodeLensParams &);
+#endif
 
 struct WorkspaceEdit {
   /// Holds changes to existing resources.

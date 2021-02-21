@@ -451,6 +451,7 @@ opt<bool> EnableConfig{
         "Configuration is documented at https://clangd.llvm.org/config.html"),
     init(true),
 };
+
 #ifdef INTERACTIVE3C
 // See clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
 // NOLINTNEXTLINE(readability-identifier-naming)
@@ -619,6 +620,17 @@ int main(int argc, char *argv[]) {
   llvm::cl::SetVersionPrinter([](llvm::raw_ostream &OS) {
     OS << clang::getClangToolFullVersion("clangd") << "\n";
   });
+  const char *FlagsEnvVar = "CLANGD_FLAGS";
+  const char *Overview =
+      R"(clangd is a language server that provides IDE-like features to editors.
+
+It should be used via an editor plugin rather than invoked directly. For more information, see:
+	https://clangd.llvm.org/
+	https://microsoft.github.io/language-server-protocol/
+
+clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment variable.
+)";
+
 #ifdef INTERACTIVE3C
   tooling::CommonOptionsParser OptionsParser(argc, (const char **)(argv),
                                              _3CCategory);
@@ -667,16 +679,6 @@ int main(int argc, char *argv[]) {
   // NOLINTNEXTLINE(readability-identifier-naming)
   _3CInterface &_3CInterface = *_3CInterfacePtr;
 #else
-  const char *FlagsEnvVar = "CLANGD_FLAGS";
-  const char *Overview =
-      R"(clangd is a language server that provides IDE-like features to editors.
-
-It should be used via an editor plugin rather than invoked directly. For more information, see:
-	https://clangd.llvm.org/
-	https://microsoft.github.io/language-server-protocol/
-
-clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment variable.
-)";
   llvm::cl::HideUnrelatedOptions(ClangdCategories);
   llvm::cl::ParseCommandLineOptions(argc, argv, Overview,
                                     /*Errs=*/nullptr, FlagsEnvVar);
@@ -973,12 +975,11 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   ClangdLSPServer LSPServer(
       *TransportLayer, TFS, CCOpts, RenameOpts, CompileCommandsDirPath,
       /*UseDirBasedCDB=*/CompileArgsFrom == FilesystemCompileArgs,
+      OffsetEncodingFromFlag, Opts
 #ifdef INTERACTIVE3C
-      // Pass the _3CInterface object.
-      OffsetEncodingFromFlag, Opts, _3CInterface);
-#else
-      OffsetEncodingFromFlag, Opts);
+      , _3CInterface
 #endif
+      );
   llvm::set_thread_name("clangd.main");
   int ExitCode = LSPServer.run()
                      ? 0

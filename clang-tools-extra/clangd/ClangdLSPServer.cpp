@@ -529,10 +529,9 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
                                  *NegotiatedOffsetEncoding);
     Server.emplace(*CDB, TFS, ClangdServerOpts,
 #ifdef INTERACTIVE3C
-                   ClangdServerOpts, The3CInterface);
-#else
-                   static_cast<ClangdServer::Callbacks *>(this));
+                   The3CInterface,
 #endif
+                   static_cast<ClangdServer::Callbacks *>(this));
   }
   applyConfiguration(Params.initializationOptions.ConfigSettings);
 
@@ -559,24 +558,6 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
   if (Params.capabilities.WorkDoneProgress)
     BackgroundIndexProgressState = BackgroundIndexProgress::Empty;
   BackgroundIndexSkipCreate = Params.capabilities.ImplicitProgressCreation;
-
-  // Per LSP, renameProvider can be either boolean or RenameOptions.
-  // RenameOptions will be specified if the client states it supports prepare.
-  llvm::json::Value RenameProvider =
-      llvm::json::Object{{"prepareProvider", true}};
-  if (!Params.capabilities.RenamePrepareSupport) // Only boolean allowed per LSP
-    RenameProvider = true;
-
-  // Per LSP, codeActionProvide can be either boolean or CodeActionOptions.
-  // CodeActionOptions is only valid if the client supports action literal
-  // via textDocument.codeAction.codeActionLiteralSupport.
-  llvm::json::Value CodeActionProvider = true;
-  if (Params.capabilities.CodeActionStructure)
-    CodeActionProvider = llvm::json::Object{
-        {"codeActionKinds",
-         {CodeAction::QUICKFIX_KIND, CodeAction::REFACTOR_KIND,
-          CodeAction::INFO_KIND}}};
-
 #ifdef INTERACTIVE3C
   // initialize our constraint building system.
   log("Interactive 3C mode.\n");
@@ -595,6 +576,24 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
              }},
         }}}};
 #else
+
+  // Per LSP, renameProvider can be either boolean or RenameOptions.
+  // RenameOptions will be specified if the client states it supports prepare.
+  llvm::json::Value RenameProvider =
+      llvm::json::Object{{"prepareProvider", true}};
+  if (!Params.capabilities.RenamePrepareSupport) // Only boolean allowed per LSP
+    RenameProvider = true;
+
+  // Per LSP, codeActionProvide can be either boolean or CodeActionOptions.
+  // CodeActionOptions is only valid if the client supports action literal
+  // via textDocument.codeAction.codeActionLiteralSupport.
+  llvm::json::Value CodeActionProvider = true;
+  if (Params.capabilities.CodeActionStructure)
+    CodeActionProvider = llvm::json::Object{
+        {"codeActionKinds",
+         {CodeAction::QUICKFIX_KIND, CodeAction::REFACTOR_KIND,
+          CodeAction::INFO_KIND}}};
+
   llvm::json::Object Result{
       {{"serverInfo",
         llvm::json::Object{{"name", "clangd"},
@@ -662,9 +661,9 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
         ->insert(
             {"semanticHighlighting",
              llvm::json::Object{{"scopes", buildHighlightScopeLookupTable()}}});
-#endif
   if (ClangdServerOpts.FoldingRanges)
     Result.getObject("capabilities")->insert({"foldingRangeProvider", true});
+#endif
   Reply(std::move(Result));
 }
 
@@ -709,6 +708,7 @@ void ClangdLSPServer::onDocumentDidOpen(
   auto Version = DraftMgr.addDraft(File, Params.textDocument.version, Contents);
   Server->addDocument(File, Contents, encodeVersion(Version),
                       WantDiagnostics::Yes);
+#endif
 }
 
 void ClangdLSPServer::onDocumentDidChange(
@@ -734,6 +734,7 @@ void ClangdLSPServer::onDocumentDidChange(
 
   Server->addDocument(File, Draft->Contents, encodeVersion(Draft->Version),
                       WantDiags, Params.forceRebuild);
+#endif
 }
 
 void ClangdLSPServer::onDocumentDidSave(
@@ -774,6 +775,7 @@ void ClangdLSPServer::send3CMessage(std::string MsgStr) {
                                });
 }
 #endif
+
 void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
                                 Callback<llvm::json::Value> Reply) {
 #ifdef INTERACTIVE3C
@@ -950,6 +952,7 @@ void ClangdLSPServer::onDocumentDidClose(
   PublishDiagnosticsParams Notification;
   Notification.uri = URIForFile::canonicalize(File, /*TUPath=*/File);
   publishDiagnostics(Notification);
+#endif
 }
 
 void ClangdLSPServer::onDocumentOnTypeFormatting(
@@ -1085,7 +1088,6 @@ void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
   }
   Reply(llvm::json::Array(Commands));
 #else
-
   URIForFile File = Params.textDocument.uri;
   auto Code = DraftMgr.getDraft(File.file());
   if (!Code)
@@ -1124,6 +1126,7 @@ void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
       };
 
   Server->enumerateTweaks(File.file(), Params.range, std::move(ConsumeActions));
+#endif
 }
 
 void ClangdLSPServer::onCompletion(const CompletionParams &Params,
@@ -1196,6 +1199,7 @@ void ClangdLSPServer::onCodeLensResolve(const CodeLens &Params,
   Reply(clang::clangd::toJSON(CcBeaconResolve));
 }
 #endif
+
 // Go to definition has a toggle function: if def and decl are distinct, then
 // the first press gives you the def, the second gives you the matching def.
 // getToggle() returns the counterpart location that under the cursor.
@@ -1476,22 +1480,22 @@ ClangdLSPServer::ClangdLSPServer(
     const clangd::RenameOptions &RenameOpts,
     llvm::Optional<Path> CompileCommandsDir, bool UseDirBasedCDB,
     llvm::Optional<OffsetEncoding> ForcedOffsetEncoding,
+    const ClangdServer::Options &Opts
 #ifdef INTERACTIVE3C
-    const ClangdServer::Options &Opts, _3CInterface &Cinter)
-#else
-    const ClangdServer::Options &Opts)
+    , _3CInterface &Cinter
 #endif
+    )
     : BackgroundContext(Context::current().clone()), Transp(Transp),
       MsgHandler(new MessageHandler(*this)), TFS(TFS), CCOpts(CCOpts),
       RenameOpts(RenameOpts), SupportedSymbolKinds(defaultSymbolKinds()),
       SupportedCompletionItemKinds(defaultCompletionItemKinds()),
       UseDirBasedCDB(UseDirBasedCDB),
       CompileCommandsDir(std::move(CompileCommandsDir)), ClangdServerOpts(Opts),
+      NegotiatedOffsetEncoding(ForcedOffsetEncoding)
 #ifdef INTERACTIVE3C
-      NegotiatedOffsetEncoding(ForcedOffsetEncoding), The3CInterface(Cinter) {
-#else
-      NegotiatedOffsetEncoding(ForcedOffsetEncoding) {
+      , The3CInterface(Cinter)
 #endif
+  {
   // clang-format off
 #ifdef INTERACTIVE3C
   // We only support these methods in Interactive 3C mode.
@@ -1628,42 +1632,30 @@ void ClangdLSPServer::onDiagnosticsReady(PathRef File, llvm::StringRef Version,
   PublishDiagnosticsParams Notification;
   Notification.version = decodeVersion(Version);
   Notification.uri = URIForFile::canonicalize(File, /*TUPath=*/File);
-
-#ifdef INTERACTIVE3C
-  auto URI = URIForFile::canonicalize(File, /*TUPath=*/File);
-  std::vector<Diagnostic> LSPDiagnostics;
-
-  for (auto &Diag : Diagnostics) {
-    toLSPDiags(Diag, URI, DiagOpts,
-               [&](clangd::Diagnostic Diag, llvm::ArrayRef<Fix> Fixes) {
-                 LSPDiagnostics.push_back(std::move(Diag));
-               });
-  }
-
-  publishDiagnostics(URI, std::move(LSPDiagnostics));
-
-#else
-  auto URI = URIForFile::canonicalize(File, /*TUPath=*/File);
-  std::vector<Diagnostic> LSPDiagnostics;
+#ifndef INTERACTIVE3C
   DiagnosticToReplacementMap LocalFixIts; // Temporary storage
+#endif
   for (auto &Diag : Diagnostics) {
     toLSPDiags(Diag, Notification.uri, DiagOpts,
                [&](clangd::Diagnostic Diag, llvm::ArrayRef<Fix> Fixes) {
+#ifndef INTERACTIVE3C
                  auto &FixItsForDiagnostic = LocalFixIts[Diag];
                  llvm::copy(Fixes, std::back_inserter(FixItsForDiagnostic));
+#endif
                  Notification.diagnostics.push_back(std::move(Diag));
                });
   }
 
+#ifndef INTERACTIVE3C
   // Cache FixIts
   {
     std::lock_guard<std::mutex> Lock(FixItsMutex);
     FixItsMap[File] = LocalFixIts;
   }
+#endif
 
   // Send a notification to the LSP client.
   publishDiagnostics(Notification);
-#endif
 }
 
 void ClangdLSPServer::onBackgroundIndexProgress(

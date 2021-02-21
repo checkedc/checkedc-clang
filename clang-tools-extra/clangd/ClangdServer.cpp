@@ -136,14 +136,12 @@ ClangdServer::Options::operator TUScheduler::Options() const {
 }
 
 ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
-                           const ThreadsafeFS &TFS,
+                           const ThreadsafeFS &TFS, const Options &Opts,
 #ifdef INTERACTIVE3C
                            // See
                            // clang/docs/checkedc/3C/clang-tidy.md#_3c-name-prefix
                            // NOLINTNEXTLINE(readability-identifier-naming)
-                           const Options &Opts, _3CInterface &_3CInterface,
-#else
-                           const Options &Opts,
+                           _3CInterface &_3CInterface,
 #endif
                            Callbacks *Callbacks)
     : ConfigProvider(Opts.ConfigProvider), TFS(TFS),
@@ -170,11 +168,11 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
             return O;
           }(),
           std::make_unique<UpdateIndexCallbacks>(
-              DynamicIdx.get(), Callbacks, Opts.TheiaSemanticHighlighting),
+              DynamicIdx.get(), Callbacks, Opts.TheiaSemanticHighlighting))
 #ifdef INTERACTIVE3C
-          _3CInter(_3CInterface)
+      , _3CInter(_3CInterface)
 #endif
-              ) {
+  {
   // Adds an index to the stack, at higher priority than existing indexes.
   auto AddIndex = [&](SymbolIndex *Idx) {
     if (this->Index != nullptr) {
@@ -310,8 +308,8 @@ void ClangdServer::_3CCloseDocument(std::string FileName) {
   };
   WorkScheduler.run("3C: Writing back file.", Task);
 }
-
 #endif
+
 void ClangdServer::removeDocument(PathRef File) { WorkScheduler.remove(File); }
 
 void ClangdServer::codeComplete(PathRef File, Position Pos,
