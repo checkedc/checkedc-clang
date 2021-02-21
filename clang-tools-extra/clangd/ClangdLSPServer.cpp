@@ -763,7 +763,10 @@ void ClangdLSPServer::_3CResultsReady(std::string FileName, bool ClearDiags) {
                          AllDiags[FileName].end());
     }
   }
-  this->onDiagnosticsReady(FileName, Diagnostics);
+  // NOTE: As of Clang 11, setting the Version to "" should maintain the same
+  // behavior the code had in Clang 9. But clangd3c might work better if we set
+  // it to the correct value.
+  this->onDiagnosticsReady(FileName, "", Diagnostics);
 }
 
 void ClangdLSPServer::send3CMessage(std::string MsgStr) {

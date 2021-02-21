@@ -264,7 +264,7 @@ void ClangdServer::_3CCollectAndBuildInitialConstraints(
     ConvCB->send3CMessage("3C: Finished updating problems.");
     log("3C: Updated the diag information.\n");
   };
-  WorkScheduler.run("3C: Running Initial Constraints", Task);
+  WorkScheduler.run("3C: Running Initial Constraints", "", Task);
 }
 
 void ClangdServer::execute3CCommand(ExecuteCommandParams Params,
@@ -292,7 +292,7 @@ void ClangdServer::execute3CCommand(ExecuteCommandParams Params,
       ConvCB->send3CMessage("3C contraint key already removed.");
     }
   };
-  WorkScheduler.run("Applying on demand ptr modifications", Task);
+  WorkScheduler.run("Applying on demand ptr modifications", "", Task);
 }
 
 void ClangdServer::_3CCloseDocument(std::string FileName) {
@@ -306,7 +306,7 @@ void ClangdServer::_3CCloseDocument(std::string FileName) {
           FileName);
     }
   };
-  WorkScheduler.run("3C: Writing back file.", Task);
+  WorkScheduler.run("3C: Writing back file.", "", Task);
 }
 #endif
 

@@ -874,7 +874,7 @@ void LengthVarInference::VisitArraySubscriptExpr(ArraySubscriptExpr *ASE) {
     }
   } else {
     llvm::dbgs() << "Array dereference";
-    ASE->dump(llvm::dbgs());
+    ASE->dump(llvm::dbgs(), *C);
     llvm::dbgs() << " does not belong to any basic block.\n";
   }
 }

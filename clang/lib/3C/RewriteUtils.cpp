@@ -164,7 +164,7 @@ static void emit(Rewriter &R, ASTContext &C) {
 
       // Check whether we are allowed to write this file.
       std::string FeAbsS = "";
-      getCanonicalFilePath(FE->getName(), FeAbsS);
+      getCanonicalFilePath(std::string(FE->getName()), FeAbsS);
       if (!canWrite(FeAbsS)) {
         DiagnosticsEngine &DE = C.getDiagnostics();
         unsigned ID = DE.getCustomDiagID(
@@ -225,7 +225,7 @@ static void emit(Rewriter &R, ASTContext &C) {
         // nor OutputDir has a trailing separator.
         SmallString<255> Tmp(FeAbsS);
         llvm::sys::path::replace_path_prefix(Tmp, BaseDir, OutputDir);
-        NFile = Tmp.str();
+        NFile = std::string(Tmp.str());
         EC = llvm::sys::fs::create_directories(sys::path::parent_path(NFile));
         if (EC) {
           DiagnosticsEngine &DE = C.getDiagnostics();
